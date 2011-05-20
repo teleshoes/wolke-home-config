@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $cmd = 'rc --print-playing-format';
+
+sub rboxGet(@);
+sub twoTextRows($$);
+sub shorten($$);
+
+sub main(){
+  my %tags = rboxGet('tt', 'ta', 'td', 'te');
+
+  my $top;
+  my $bot;
+  if(defined $tags{'notplaying'}){
+    $top = ' Rhythmbox';
+    $bot = 'Not Playing';
+  }elsif(defined $tags{'notrunning'}){
+    $top = ' Rythmbox';
+    $bot = 'Not Running';
+  }else{
+    my $elapsed = $tags{'te'};
+    my $duration = $tags{'td'};
+    my $artist = $tags{'ta'};
+    my $title = $tags{'tt'};
+    if($elapsed eq 'Unknown' and $duration =~ /^(\d+):(\d+)$/){
+      $elapsed = (0 x length $1) . ':' . (0 x length $2);
+    }
+    if($artist eq 'Not playing' and $title eq 'Not playing'){
+      $artist = ' Rhythmbox';
+    }
+    $top = $elapsed . '-' . shorten $artist, 30;
+    $bot = $duration . '-' . shorten $title, 30;
+  }
+
+  print twoTextRows $top, $bot;
+}
+
+
+
+sub raise($){
+  my $text = shift;
+  return "^p(;-8)$text^p(;8)";
+}
+sub lower($){
+  my $text = shift;
+  return "^p(;3)$text^p(;-3)";
+}
+
+#from rhytmbox-client man pages:
+#%at    album title
+#%aa    album artist
+#%aA    album artist (lowercase)
+#%as    album artist sortname
+#%aS    album artist sortname (lowercase)
+#%ay    album year
+#%ag    album genre
+#%aG    album genre (lowercase)
+#%an    album disc number
+#%aN    album disc number, zero padded
+#%st    stream title
+#%tn    track number (i.e 8)
+#%tN    track number, zero padded (i.e 08)
+#%tt    track title
+#%ta    track artist
+#%tA    track artist (lowercase)
+#%ts    track artist sortname
+#%tS    track artist sortname (lowercase)
+#%td    track duration
+#%te    track elapsed time
+sub rboxGet(@){
+  my $str = '';
+  for my $tag(@_){
+    $str .= "@@@###$tag=%$tag###@@@";
+  }
+  my %tags;
+  my $out = `$cmd '$str'`;
+  chomp $out;
+  if($out eq 'Not playing'){
+    $tags{'notplaying'} = 1;
+  }
+  if($out eq ''){
+    $tags{'notrunning'} = 1;
+  }
+  for my $tag(@_){
+    if($out =~ s/@@@###$tag=(.*?)###@@@//){
+      $tags{$tag} = $1;
+    }else{
+      $tags{$tag} = '';
+    }
+  }
+  return %tags;
+}
+
+
+#replaces the middle of long strings with '...'
+sub shorten($$){
+  my $str = shift;
+  my $len = shift;
+  my $sep = '...';
+  my $strLen = length $str;
+  if($strLen > $len){
+    my $sepLen = length $sep;
+    my $preSplit = ($len/2) - ($sepLen/2);
+    my $postSplit = $strLen - ($len - $preSplit - $sepLen);
+    return
+      (substr $str, 0, $preSplit) .
+      $sep .
+      (substr $str, $postSplit, $strLen-$postSplit+1);
+  }else{
+    return $str;
+  }
+}
+
+sub twoTextRows($$){
+  my $top = shift;
+  my $bot = shift;
+
+  $top =~ s/\^/^^/g;
+  $bot =~ s/\^/^^/g;
+
+  my $fst;
+  my $snd;
+  if(length $top > length $bot){
+    $fst = lower($bot);
+    $snd = raise($top);
+  }else{
+    $fst = raise($top);
+    $snd = lower($bot);
+  }
+
+  return ''
+   . ' '
+   . '^ib(1)'
+   . '^p(_LOCK_X)'
+   . $fst
+   . '^p(_UNLOCK_X)'
+   . $snd
+   . '^ib(0)'
+   . ' '
+   ;
+}
+
+main;
+

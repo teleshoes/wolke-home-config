@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $server = shift;
+my $display = shift;
+my $timeout = shift;
+my $loop = shift;
+
+my $arg = shift;
+$arg = '' if not defined $arg;
+
+sub isUp($$){
+  my $url = shift;
+  my $timeout = shift;
+  system "ping $url -c 1 -w $timeout > /dev/null";
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub printStatus($$$){
+  my $server = shift;
+  my $timeout = shift;
+  my $prefix = shift;
+
+  my $msg = '';
+  my $status = isUp($server, $timeout);
+  $msg .= $status ?
+    "^fg(purple)${prefix}0^fg()" :
+    "^fg(red)${prefix}X^fg()";
+  print "$msg\n";
+  return $status;
+}
+
+if($loop eq '-loop'){
+  my $count = 0;
+  #initial 1s to get something there
+  my $time = 1;
+  my $prefix = '';
+  while(1){
+    if($count%2 != 0){
+      $prefix = "/$display";
+    }else{
+      $prefix = "|$display";
+    }
+    
+    if(printStatus($server, $time, $prefix)){
+      sleep 3; #if ping went through, wait longer
+    }else{
+      sleep 1;
+    }
+    $time = $timeout;
+    $count++;
+  }
+}elsif($loop eq '-noloop'){
+  exit printStatus($server, $timeout, $display);
+}else{
+  die "Usage: $0 server display timeout [-loop|-noloop]";
+}
+

@@ -1,0 +1,109 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+use IO::Handle;
+
+sub getIO($);
+
+my $DIR = "\$HOME/.dzen2/printers";
+
+#usually you want the total run time including processing be < 1s
+my $DELAY_MS = 400;
+my @printerCommands = (
+  [LOOP => "$DIR/monitor-ping www.google.com g 5 -loop"],
+  [once => "$DIR/openvpn"],
+  [LOOP => "$DIR/monitor-ping source.escribe.com e 5 -loop"],
+  [once => "/usr/lib/tpbattstat-applet/tpbattstat.py --dzen"],
+  [once => "$DIR/commandclick firefox"],
+  [once => "$DIR/rbox"],
+  [once => "$DIR/tbunreadcounts"],
+  [once => "$DIR/clock"],
+);
+my @previousOutputs = map {'---'} @printerCommands;
+
+sub getCommandOutput($$){
+  my $command = shift;
+  my $previousOutput = shift;
+  my $out = `$command`;
+  $out =~ s/\n*//g;
+  if(not $out){
+    return $previousOutput;
+  }
+  return $out;
+}
+sub getIOHandleOutput($$){
+  my $io = shift;
+  my $previousOutput = shift;
+  my @lines = $io->getlines();
+  if(not @lines){
+    return $previousOutput;
+  }
+  my $out = $lines[-1];
+  chomp $out;
+  return $out;
+}
+sub getOutput($){
+  my $output = '';
+  my $printers = shift;
+  for(my $i=0; $i<@{$printers}; $i++){
+    my $printer = $$printers[$i];
+    my $out;
+    my $start = time;
+    if($$printer[0] eq 'command'){
+      $out = getCommandOutput $$printer[1], $previousOutputs[$i];
+    }elsif($$printer[0] eq 'iohandle'){
+      $out = getIOHandleOutput $$printer[1], $previousOutputs[$i];
+    }
+    my $end = time;
+    printf "Command#%d took %.6fs (%s)\n", $i, ($end - $start), $$printer[1];
+    $previousOutputs[$i] = $out;
+    $output .= $out;
+  }
+  return $output;
+}
+
+sub main(){
+  open DZEN, "| dzen2 @ARGV";
+
+  my @printers;
+  for my $cmdArr(@printerCommands){
+    my $schedule = $$cmdArr[0];
+    my $cmd = $$cmdArr[1];
+    if(lc $schedule eq 'loop'){
+      push @printers, ['iohandle', getUnblockedIO($cmd)];
+    }elsif(lc $schedule eq 'once'){
+      push @printers, ['command', $cmd];
+    }
+  }
+  for my $p(@printers){
+    print $$p[0] . " => " . $$p[1] . "\n";
+  }
+
+  while(1){
+    my $start = time;
+    print "\n\n\nStarting a round\n";
+    print DZEN getOutput(\@printers);
+    print DZEN "\n";
+    my $end = time;
+    printf "Round took %.6fs", ($end - $start);
+    sleep $DELAY_MS / 1000;
+  }
+}
+
+#for some incomprehensible reason,
+#if i dont keep a reference around to the file descriptor,
+#its closed as soon as the scope ends
+my @fileHandleReferences;
+sub getUnblockedIO($){
+  my $cmd = shift;
+  my $io = IO::Handle->new();
+  my $fh = undef;
+  open $fh, "$cmd |";
+  $io->fdopen($fh, 'r');
+  $io->blocking(0);
+  push @fileHandleReferences, $fh;
+  return $io;
+}
+
+main;

@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $EXEC = 'thunderbird-bin';
+
+sub addClickAction($$$){
+  my $button = shift;
+  my $cmd = shift;
+  my $markup = shift;
+  return "^ca($button, $cmd)$markup^ca()";
+}
+
+my %ACCOUNTS = (
+  'Gmail' => 'G',
+  'LilleGroup' => 'L',
+  'AOL - LiberiFataliVIII' => 'A');
+
+my $tb = `pidof $EXEC`;
+my $isRunning = $tb =~ /^[0-9]+\n?$/;
+
+sub col($$$){
+  my $txt = shift;
+  my $fg = shift;
+  my $bg = shift;
+  return "^fg($fg)^bg($bg)$txt^fg()^bg()";
+}
+
+my $OUT = '';
+
+if(not $isRunning){
+  $OUT .= col 'x', 'red', '';
+}
+
+my $dir = '~/.thunderbird/*.default';
+my @accounts = `cat $dir/unread-counts 2>/dev/null`;
+my $used = 0;
+if(@accounts > 0){
+  for my $acc(@accounts){
+    if($acc =~ /^([0-9]+):(.*)\n?$/){
+      my $count = $1;
+      my $name = $2;
+      my $display = $ACCOUNTS{$name};
+      if($count > 0 && defined $display){
+        $OUT .= ' ' if $used > 0;
+        $OUT .= col "$count$display", 'green', 'black';
+        $used++;
+      }
+    }
+  }
+}else{
+  $OUT = col 'err', 'red', 'black';
+}
+
+if($used == 0){
+  my $msg;
+  if($isRunning){
+    $msg = ' 0';
+  }else{
+    $msg = '0';
+  }
+  $OUT .= col $msg, 'white', 'black';
+}
+print addClickAction(1, 'thunderbird', $OUT);
