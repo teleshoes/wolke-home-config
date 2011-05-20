@@ -1,0 +1,144 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $station1 = 'Copiague';
+my $station2 = 'Penn_Station';
+
+my @times;
+open FH, '/home/wolke/bin/lirrsched_times' or die 'Could not open times file';
+while(<FH>){
+  /^[0-9]{2}:[0-9]{2}$/ or die "Invalid line in times file: $_";
+  push @times, $_;
+}
+close FH;
+
+my @stationNames;
+my %stationNameToID;
+my %stationIDToName;
+open FH, '/home/wolke/bin/lirrsched_stations' or die 'Could not open stations file';
+while(<FH>){
+  /^([a-zA-Z_]+)#([0-9]+)$/ or die "Invalid line in stations file: $_";
+  push @stationNames, $1;
+  $stationNameToID{$1} = $2;
+  $stationIDToName{$2} = $1;
+}
+close FH;
+
+
+my $s1 = $stationNameToID{$station1};
+my $s2 = $stationNameToID{$station2};
+
+
+my $knotesBase = '/home/wolke/.kde/share/apps/knotes';
+my $departUID = 'LIRR_DEPART';
+my $arriveUID = 'LIRR_ARRIVE';
+
+my $icsFile = "$knotesBase/notes.ics";
+
+sub createDefaultUID($){
+  my $uid = shift;
+  my $fname = "$knotesBase/notes/$uid";
+  if(not -e $fname){
+    `echo "[General]\\nversion=3.9\\n\\n[WindowDisplay]\\ndesktop=1\\nposition=0,25" > $fname`;
+  }
+}
+
+#Takes a filename and returns the content as a large string
+sub slurp($){
+	my $infile = shift;
+	local($/, *INFH);
+	open INFH, $infile or
+		die "Error opening $infile for reading\n";
+	my $content = <INFH>;
+	close INFH;
+	return $content;
+}
+
+sub writeFile($$){
+  my $fname = shift;
+  my $content = shift;
+  open OUTFH,  "> $fname" or die "trying to open $fname for writing";
+  print OUTFH $content;
+}
+
+sub replaceNote($$$){
+  my $uid = shift;
+  my $summary = shift;
+  my $desc = shift;
+  
+  $summary =~ s/\n/\\n/gs;
+  $summary =~ s/,/\\,/gs;
+  $desc =~ s/\n/\\n/gs;
+  $desc =~ s/,/\\,/gs;
+
+  #$desc =~ s/[^\n\r]{50}/$&\n /g;
+
+  my $ics = slurp $icsFile;
+  $ics =~ s/\r\n|[\r\n]/\n/g;
+  my $journal;
+  if($ics =~ s/
+    BEGIN:VJOURNAL\n
+    .*?
+    UID:$uid\n
+    .*?
+    END:VJOURNAL\n
+    //sx
+  ){
+    $journal = $&;
+    if($journal !~
+       s/SUMMARY: [^\n]*\n   (\ [^\n]*\n)*
+        /SUMMARY:$summary\n/sx){
+      $journal =~ s/END:VJOURNAL/SUMMARY:$summary\n$&/;
+    }
+    if($journal !~
+       s/DESCRIPTION: [^\n]*\n   (\ [^\n]*\n)*
+        /DESCRIPTION:$desc\n/sx){
+      $journal =~ s/END:VJOURNAL/DESCRIPTION:$desc\n$&/;
+    }
+  }else{
+    $journal = "BEGIN:VJOURNAL\nUID:$uid\nDESCRIPTION:$desc\nSUMMARY:$summary\nEND:VJOURNAL";
+  }
+
+  $ics =~ s/END:VCALENDAR/$journal\n$&/;
+
+  system 'pkill knotes';
+  `rm $icsFile*`;
+  writeFile $icsFile, $ics;
+  my $pid = fork;
+  if($pid){
+    return;
+  }elsif(not defined $pid){
+    die 'Could not fork';
+  }else{
+    exec 'knotes';
+  }
+}
+
+createDefaultUID $departUID;
+createDefaultUID $arriveUID;
+
+while(1){
+  my $now = `lirrsched_now`;
+  my $content;
+  my $args;
+
+  $args = "$s1 $s2 $now";
+  $content = `lirrsched_cache FETCH $args`;
+  if($? ne 0){
+    $content = `lirrsched_cache READ $args`;
+  }
+  replaceNote $departUID, $args, $content;
+  
+
+  $args = "$s2 $s1 $now";
+  $content = `lirrsched_cache FETCH $args`;
+  if($? ne 0){
+    $content = `lirrsched_cache READ $args`;
+  }
+  replaceNote $arriveUID, $args, $content;
+  
+  
+  sleep 20;
+}
+

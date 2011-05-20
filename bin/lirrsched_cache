@@ -1,0 +1,111 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Date::Calc qw(
+  Day_of_Week
+  Day_of_Week_to_Text
+  Today_and_Now
+  Time_to_Date
+);
+
+if(
+  $#ARGV != 5
+  or $ARGV[0] !~ /^FETCH$|^READ$/
+  or $ARGV[1] !~ /^[0-9]+$/
+  or $ARGV[2] !~ /^[0-9]+$/
+  or $ARGV[3] !~ /^[0-9]{2}\/[0-9]{2}\/[0-9]{4}$/
+  or $ARGV[4] !~ /^[0-9]{2}:[0-9]{2}$/
+  or $ARGV[5] !~ /^AM$|^PM$/
+){
+  die "Usage: $0 FETCH|READ from_station_id to_station_id MM/DD/YYYY HH:MM AM|PM\n"
+}
+
+my $op = shift;
+
+my $from = shift;
+my $to = shift;
+my $date = shift;
+my $time = shift;
+my $ampm = shift;
+
+
+sub day_of_week($){
+  my $date = shift;
+  if($date !~ /^ ([0-9]{2}) \/ ([0-9]{2}) \/ ([0-9]{4}) $/x){
+    die "Malformed date: $date\n";
+  }
+  
+  return Day_of_Week_to_Text Day_of_Week($3,$1,$2);
+}
+
+my $dow = day_of_week $date;
+
+my $cache_dir = '/home/wolke/.lirrcache';
+
+my $dir = "$cache_dir/$from-$to/$dow";
+
+
+
+my $prefix = "$time\_$ampm\_";
+$prefix =~ s/:/_/g;
+
+my $suffix = ".html";
+
+my $existing_fname;
+
+my @fnames = split /[ \n\t]/, `cd $dir; ls $prefix*$suffix 2>/dev/null`;
+if(@fnames == 1){
+  $existing_fname = $fnames[0];
+}elsif(@fnames != 0){
+  die "Multiple cache files found.\n";
+}
+
+my $new_fname = $prefix . $date . $suffix;
+$new_fname =~ s/\//-/g;
+
+my $html;
+
+my $fname;
+if($op eq 'FETCH'){
+  $html = `lirrsched_fetch $from $to $date $time $ampm` or die;
+
+  system "mkdir -p $dir";
+
+  if(defined $existing_fname and length $existing_fname > 0){
+    `rm $dir/$existing_fname`;
+  }
+
+  open FH, "> $dir/$new_fname" or die "Error opening $dir/$new_fname for writing: $!";
+  print FH $html;
+  close FH;
+
+  my ($y,$m,$d, $h,$min,$s) = Today_and_Now;
+  my $timestamp = "$m-$d-$y";
+  
+  print "$from-$to, $dow $time $ampm\n(trains displayed are for $date, last fetched right now, i.e. $timestamp)\n";
+
+  $fname = $new_fname;
+}elsif($op eq 'READ'){
+  if(
+     (not defined $existing_fname)
+     or (length $existing_fname == 0)
+     or (not -e "$dir/$existing_fname")
+     or ($existing_fname !~ /^$prefix(.*)$suffix$/)
+  ){
+    die "No cache found for this route on ${dow}s at $time.\n";
+  }
+
+  my $actual_date = $1;
+  $actual_date =~ s/-/\//g;
+
+  my $file_timestamp = `stat -c '%Y' $dir/$existing_fname`;
+  my ($y,$m,$d, $h,$min,$s) = Time_to_Date $file_timestamp;
+  my $timestamp = "$m-$d-$y";
+
+  print "$from-$to, $dow\n(trains displayed are for $actual_date, last fetched on $timestamp)\n";
+
+  $fname = $existing_fname;
+}
+
+exec "cat $dir/$fname | lirrsched_display";
+

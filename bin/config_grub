@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+#if not root, re-run as root
+if(`id -un` !~ /^root\n?$/){
+  my $args = join @ARGV, ' ';
+  exec "sudo $0 @ARGV";
+}
+
+my $file = '/etc/default/grub';
+
+my $hiddenTimeout = "GRUB_HIDDEN_TIMEOUT=3\n";
+my $quietTimeout = "GRUB_HIDDEN_TIMEOUT_QUIET=false\n";
+
+open IN, "< $file" or die "Could not open $file for reading: $!";
+my @lines = <IN>;
+close IN;
+
+my $new = '';
+for(my $i=0; $i<@lines; $i++){
+  my $line = $lines[$i];
+  if($line =~ /^GRUB_HIDDEN_TIMEOUT_QUIET=/){
+    $new .= $quietTimeout;
+  }elsif($line =~ /^GRUB_HIDDEN_TIMEOUT=/){
+    $new .= $hiddenTimeout;
+  }else{
+    $new .= $line;
+  }
+}
+
+open OUT, "> $file" or die "Could not open $file for writing: $!";
+print OUT $new;
+close OUT;
+

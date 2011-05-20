@@ -1,0 +1,127 @@
+#! /usr/bin/perl
+use strict;
+use warnings;
+use POSIX 'setsid';
+
+print "1: START SSL openVPN\n";
+print "2: PROD TUNNEL ON\n";
+print "3: PROD TUNNEL OFF\n";
+print "4: STOP SSL openVPN\n";
+print "5: openvpn status & route -n & ifconfig\n";
+print "------------\n";
+print "Q: DNS Google Public DNS\n";
+print "W: DNS LilleGroup\n";
+print "R: cat resolv.conf\n";
+print "T: Sleep for one second\n";
+print "A: Alarm\n";
+print "S: ping www.google.com\n";
+print "D: ping dev.escribe.com\n";
+print "G: ping google ONCE\n";
+print "Y: ping www.yahoo.com\n";
+print "P: pidgin\n";
+print "O: thunderbird\n";
+
+print "Z: 41WD SSLVPN OFF, SSLVPN ON, GooglePubDNS, PING DEV\n";
+print "X: 4QY SSLVPN OFF, GooglePubDNS, PING YAHOO\n";
+
+my $arg = shift;
+
+my $entry;
+if(not defined $arg){
+  $entry = <STDIN>;
+  chomp $entry;
+}else{
+  $entry = $arg;
+}
+$entry = uc $entry;
+
+if($entry eq 'Z'){
+  $entry = '41QD';
+}
+if($entry eq 'X'){
+  $entry = '4QY';
+}
+
+for(my $i=0; $i<length $entry; $i++){
+  my $choice = substr $entry, $i, 1;
+
+  my $cmd;
+  my $winTitle;
+  if($choice eq '1'){
+    $cmd = 'sudo /home/wolke/bin/sslvpn on';
+    $winTitle = 'SSL openVPN ON';
+  }elsif($choice eq '2'){
+    $cmd = '/home/wolke/bin/prodtunnel on garuda 1521';
+    $winTitle = 'PROD Tunnel ON garuda';
+  }elsif($choice eq '3'){
+    $cmd = '/home/wolke/bin/prodtunnel off';
+    $winTitle = 'PROD Tunnel OFF';
+  }elsif($choice eq '4'){
+    $cmd = 'sudo /home/wolke/bin/sslvpn off';
+    $winTitle = 'SSL openVPN OFF';
+  }elsif($choice eq '5'){
+    $cmd = 'cat ~/openvpn/status;echo;route -n;echo;ifconfig';
+    $winTitle = 'Network Status';
+  }elsif($choice eq 'Q'){
+    $cmd = 'sudo /home/wolke/bin/resolvchooser google';
+    $winTitle = 'resolv.conf Chooser - Google Pub DNS';
+  }elsif($choice eq 'W'){
+    $cmd = 'sudo /home/wolke/bin/resolvchooser lille';
+    $winTitle = 'resolv.conf Chooser - LilleGroup';
+  }elsif($choice eq 'R'){
+    $cmd = 'cat /etc/resolv.conf';
+    $winTitle = 'resolv.conf';
+  }elsif($choice eq 'T'){
+    $cmd = 'sleep 1';
+    $winTitle = 'SLEEPING...';
+  }elsif($choice eq 'A'){
+    $cmd = '/home/wolke/bin/alarm &';
+    $winTitle = 'alarming!';
+  }elsif($choice eq 'S'){
+    $cmd = 'ping www.google.com';
+    $winTitle = 'PINGING GOOGLE';
+  }elsif($choice eq 'D'){
+    $cmd = 'ping dev.escribe.com';
+    $winTitle = 'PINGING DEV';
+  }elsif($choice eq 'G'){
+    $cmd = 'ping -A -c 1 www.google.com';
+    $winTitle = 'Quick ping google';
+  }elsif($choice eq 'H'){
+    $cmd = 'ping -A -c 1 www.google.com; ping -A -c 1 server2.escribeonline.com';
+    $winTitle = 'Quick ping google&server2';
+  }elsif($choice eq 'Y'){
+    $cmd = 'ping www.yahoo.com';
+    $winTitle = 'PINGING YAHOO';
+  }elsif($choice eq 'P'){
+    $cmd = 'pidgin &';
+    $winTitle = 'Launch pidgin';
+  }elsif($choice eq 'O'){
+    $cmd = 'thunderbird &';
+    $winTitle = 'Launch thunderbird';
+  }else{
+    die "Invalid selection: $choice\n";
+  }
+  
+  print "\n";
+  
+  print "\033]0;$winTitle\007";
+  
+  my $pid = fork;
+  if($pid){
+    my $return = <STDIN>;
+    exit 0;
+  }
+  elsif($pid == 0){
+    setsid or die "Can't start a new session";
+    print "$cmd\n";
+    system $cmd;
+  }
+  else{
+    die "fork failed\n";
+  }
+}
+
+print "\033]0;DONE\007";
+
+print "DONE";
+

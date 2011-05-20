@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+system "apt-get install tp-smapi-source";
+system "module-assistant prepare tp-smapi";
+system "module-assistant auto-install tp-smapi";
+system "modprobe tp-smapi";
+
+open FH, '< /etc/modules';
+my @lines = <FH>;
+my @newlines;
+for my $line(@lines){
+  push @newlines, $line if $line !~ /^(tp-smapi|hdaps)\n?$/;
+}
+push @newlines, "tp-smapi\n";
+push @newlines, "hdaps\n";
+close FH;
+
+open FH, '> /etc/modules';
+print FH @newlines;
+close FH;
+
+system "chmod o+w /etc/modules";
+system
+  "echo 'KERNEL==\"event[0-9]*\", " .
+  "ATTRS{phys}==\"hdaps/input1\"," .
+  "ATTRS{modalias}==\"input:b0019v1014p5054e4801-*\",".
+  "SYMLINK+=\"input/hdaps/accelerometer-event\"'".
+  " | sudo tee /etc/udev/rules.d/51-hdaps.rules";
+system "update-initramfs -u";
+
+system
+  "echo 'options thinkpad_ec force_io=1' > " .
+  "/etc/modprobe.d/tp_smapi.conf";
+system "modprobe -a tp_smapi hdaps";
+

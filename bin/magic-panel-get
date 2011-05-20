@@ -1,0 +1,563 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $gconftool = 'gconftool-2';
+my $aspectRatio = 16/10;
+my $locale = 'enUS';
+
+sub main(){
+  my $config = '';
+  for my $panelID(getIDList('toplevel_id_list')){
+    my $panel = "\n\n" . getPanel($panelID);
+    print $panel;
+    $config .= $panel;
+  }
+
+  my $dir = `echo -n ~/.gnome-panel`;
+  mkdir $dir;
+  my $file = "$dir/config.pl";
+  print "\n\n\nSaving to config file $file\n";
+  if(-e $file){
+    my $time = time;
+    my $filebak = "${file}_bak_$time";
+    print "Backing up existing $file to $filebak\n";
+    system "mv $file $filebak";
+  }
+  open FH, "> $file" or die "could not open $file";
+  print FH "#!/usr/bin/perl\n" .
+    "# returns an array of panels- eval in a Safe\n" .
+    "my \@panels;\n" .
+    "my \$panelProps;\n" .
+    "my \$panelItems;\n" .
+    "my \$size;\n" .
+    "\n";
+  print FH $config;
+  print FH "\n\n\@panels;\n";
+  close FH;
+
+  print "Done\n";
+}
+
+my %ignoreDefaults = (
+  '/schemas/apps/cpufreq-applet/prefs/cpu' => 1,
+  '/schemas/apps/multiload/prefs/view_cpuload' => 1,
+);
+sub getQuiet($){
+  my $key = shift;
+  my $val = `$gconftool --get $key 2>/dev/null`;
+  chomp $val;
+  return $val;
+}
+sub get($){
+  my $key = shift;
+  my $val = `$gconftool --get $key`;
+  chomp $val;
+  return $val;
+}
+sub getBool($){
+  return lc(get $_[0]) eq 'true';
+}
+sub getSchemaName($){
+  my $key = shift;
+  my $schemaName = `$gconftool --get-schema-name $key`;
+  chomp $schemaName;
+  return $schemaName;
+}
+sub getType($){
+  my $key = shift;
+  my $type = `$gconftool --get-type $key`;
+  chomp $type;
+  return $type;
+}
+sub getAll($){
+  my $key = shift;
+  my @all = `$gconftool --all-entries $key`;
+  return @all;
+}
+sub dirExists($){
+  my $dir = shift;
+  system $gconftool, '--dir-exists', $dir;
+  return 0==$?;
+}
+sub getDefaultValue($){
+  my $schema = shift;
+  my @lines = split "\n", get $schema;
+  my $defaultValue;
+  for my $line(@lines){
+    if($line =~ /^Default Value: (.*)/){
+      return $1;
+    }
+  }
+  return undef;
+}
+
+
+
+sub getAllPrefs($){
+  my $prefsDir = shift;
+  my %keys;
+  for my $line(getAll "$prefsDir"){
+    if($line =~ /^ ([a-zA-Z0-9-_]+) = (.*)/){
+      $keys{$1} = $2;
+    }
+  }
+  return %keys;
+}
+sub getNonDefaultPrefs($$){
+  my $prefsDir = shift;
+  my $schemaDir = shift;
+  my %keys = getAllPrefs($prefsDir);
+  for my $key(keys %keys){
+    if(defined $ignoreDefaults{"$schemaDir/$key"}){
+      next;
+    }
+    my $defValue = getDefaultValue "$schemaDir/$key";
+    if(defined $defValue){
+      my $val = $keys{$key};
+      if($val eq $defValue){
+        delete $keys{$key};
+      }
+    }
+  }
+  return %keys;
+}
+
+sub wrapStringValues($\%){
+  my $prefsDir = shift;
+  my %prefs = %{shift()};
+  for my $key(keys %prefs){
+    my $val = $prefs{$key};
+    if($val eq '(no value set)'){
+      $val = '';
+    }else{
+      my $type = getType "$prefsDir/$key";
+      if(lc $type eq 'string'){
+        $val = "\"$val\"";
+      }
+    }
+    $prefs{$key} = $val;
+  }
+  return %prefs;
+}
+
+sub getIDList($){
+  my $list = shift;
+  my $key = "/apps/panel/general/$list";
+  my $val = get $key;
+  $val =~ s/^\[(.*)\]$/$1/;
+  return split ',', $val;
+}
+
+sub getPrefsSchemaName($){
+  my $prefsDir = shift;
+  for my $pref(getAll "$prefsDir"){
+    if($pref =~ /^ ([a-zA-Z0-9-_]+) = (.*)/){
+      my $schemaName = getSchemaName "$prefsDir/$1";
+      if($schemaName =~ m@^/schemas/apps/([^/]+)/prefs/@){
+        return $1;
+      }
+    }
+  }
+  return '';
+}
+sub getAppletConfig($){
+  my $appletID = shift;
+  my $appletDir = "/apps/panel/applets/$appletID";
+  if(not dirExists $appletDir){
+    die "gconf dir $appletDir does not exist\n";
+  }
+  my $bonoboID = get "$appletDir/bonobo_iid";
+  if($bonoboID !~ /OAFIID:(.*)/){
+    die "failed to handle applet: $appletID";
+  }
+  $bonoboID = $1;
+
+  my $prefsDir = "$appletDir/prefs";
+  if(dirExists($prefsDir)){
+    my $schemaName = getPrefsSchemaName($prefsDir);
+    my $schemaDir = "/schemas/apps/$schemaName/prefs";
+    my %prefs;
+    if(dirExists($schemaDir)){
+      %prefs = getNonDefaultPrefs($prefsDir, $schemaDir);
+    }else{
+      %prefs = getAllPrefs($prefsDir);
+    }
+    %prefs = wrapStringValues($prefsDir, %prefs);
+    return [$bonoboID, $schemaName, \%prefs];
+  }else{
+    return [$bonoboID];
+  }
+}
+sub parseLauncherDesktop($){
+  my $desktop = shift;
+  my $resolved = $desktop;
+  if(not -e $resolved){
+    $resolved = `echo -n ~/.gnome2/panel2.d/default/launchers/$desktop`;
+    if(not -e $resolved){
+      $resolved = "/usr/share/applications/$desktop";
+      if(not -e $resolved){
+        die "could not find desktop file for launcher: $desktop\n";
+      }
+    }
+  }
+  open FH, "< $resolved" or die "could not open desktop file: $resolved";
+  my @lines = <FH>;
+  close FH;
+  my $name = '';
+  my $localName = '';
+  my $cmd = '';
+  my $icon = '';
+  my $localIcon = '';
+  my $term = '';
+  for my $line(@lines){
+    if($line =~ /^Name=(.*)/){
+      $name = $1;
+    }elsif($line =~ /^Name\[$locale\]=(.*)/){
+      $localName = $1;
+    }elsif($line =~ /^Exec=(.*)/){
+      $cmd = $1;
+    }elsif($line =~ /^Icon=(.*)/){
+      $icon = $1;
+    }elsif($line =~ /^Icon\[$locale\]=(.*)/){
+      $localIcon = $1;
+    }elsif($line =~ /^Terminal=(.*)/){
+      $term = $1;
+    }
+  }
+  $name = $localName if length $localName > 0;
+  $icon = $localIcon if length $localIcon > 0;
+  $term = lc $term;
+  if($term eq 'true'){
+    return ($name, $cmd, $icon, $term);
+  }else{
+    return ($name, $cmd, $icon);
+  }
+}
+sub getPanelItemPos($$){
+  my $panelID = shift;
+  my $type = shift;
+  my %left;
+  my %right;
+  my $list = $type eq 'applets' ? 'applet_id_list' : 'object_id_list';
+  for my $itemID(getIDList($list)){
+    my $dir = "/apps/panel/$type/$itemID";
+    my $panel = get "$dir/toplevel_id";
+    if($panel eq $panelID){
+      my $pos = get "$dir/position";
+      my $right = get "$dir/panel_right_stick";
+      if(lc $right eq 'true'){
+        $right{$itemID} = $pos;
+      }else{
+        $left{$itemID} = $pos;
+      }
+    }
+  }
+  return (\%left, \%right);
+}
+
+sub getMultiLoadMonitorCount($){
+  my $appletID = shift;
+  my $prefsDir = "/apps/panel/applets/$appletID/prefs";
+  my $monitors = 0;
+  $monitors++ if getBool "$prefsDir/view_cpuload";
+  $monitors++ if getBool "$prefsDir/view_diskload";
+  $monitors++ if getBool "$prefsDir/view_loadavg";
+  $monitors++ if getBool "$prefsDir/view_memload";
+  $monitors++ if getBool "$prefsDir/view_netload";
+  $monitors++ if getBool "$prefsDir/view_swapload";
+  return $monitors; 
+}
+
+sub guessItemSize($$$){
+  my $panelSize = shift;
+  my $itemID = shift;
+  my $type = shift;
+  my $bonoboIID = '';
+  if($type eq 'applets'){
+    $bonoboIID = get "/apps/panel/applets/$itemID/bonobo_iid";
+    if($bonoboIID =~ /^OAFIID:(.*)$/){
+      $bonoboIID = $1;
+    }
+  }
+
+  if(
+    $bonoboIID eq 'GNOME_WorkspaceSwitcherApplet' or
+    $bonoboIID eq 'GNOME_WindowListApplet'){
+    return 0;
+  }elsif($bonoboIID eq 'GNOME_MultiLoadApplet'){
+    my $monSize = get "/apps/panel/applets/$itemID/prefs/size";
+    my $monitors = getMultiLoadMonitorCount $itemID;
+    return $monitors*($monSize+2)+2;
+  }elsif($bonoboIID eq 'GNOME_CPUFreqApplet'){
+    #doesnt scale with the panel
+    my $mode = get "/apps/panel/applets/$itemID/prefs/show_mode";
+    if($mode == 0){
+      return 24;
+    }else{
+      return 86;
+    }
+  }
+  return $panelSize;
+}
+
+sub getSortedSizes($\%\%$){
+  my $panelID = shift;
+  my %allPos = %{shift()};
+  my %appletPos = %{shift()};
+  my $panelSize = shift;
+  
+  my $prevKey;
+  my $pos;
+  my @items;
+  my @sortedKeys = sort {$allPos{$a} <=> $allPos{$b}} keys %allPos;
+  for(my $i=0; $i<@sortedKeys; $i++){
+    my $key = $sortedKeys[$i];
+    my $size;
+    if($i == $#sortedKeys){
+      my $type = defined $appletPos{$key} ? 'applets' : 'objects';
+      $size = guessItemSize($panelSize, $key, $type);
+    }else{
+      my $pos = $allPos{$key};
+      my $nextKey = $sortedKeys[$i+1];
+      my $nextPos = $allPos{$nextKey};
+      $size = $nextPos - $pos;
+    }
+    $allPos{$key} = $size;
+  }
+
+  my @sortedItems;
+  for my $key(@sortedKeys){
+    my @pair = ($key, $allPos{$key});
+    push @sortedItems, \@pair;
+  }
+  return @sortedItems;
+}
+
+sub expressSize($$$;$){
+  my $itemSize = shift;
+  my $size = shift;
+  my $sizeType = shift;
+  my $appletID = shift;
+  $appletID = '' if not defined $appletID;
+
+  if($itemSize <= 0){
+    return $itemSize;
+  }
+
+  if($size > 180){
+    $size = 180;
+  }
+  if($sizeType eq 'GNOME_WorkspaceSwitcherApplet'){
+    my $ws = int($aspectRatio*($size-24)) + 35;
+    return int($itemSize / $ws) . "*$ws+" . ($itemSize % $ws);
+  }elsif($sizeType eq 'GNOME_MultiLoadApplet'){
+    my $monSize = get "/apps/panel/applets/$appletID/prefs/size";
+    my $monitors = getMultiLoadMonitorCount $appletID;
+    my $expected = $monitors*($monSize+2);
+    my $diff = $itemSize - $expected;
+    if($diff < 0){
+      $diff *= -1;
+    }
+    if($diff < $monSize){
+      my $format = "$monitors*($monSize+2)";
+      if($diff > 0){
+        $format .= "+$diff";
+      }
+      return $format;
+    }else{
+      return $itemSize;
+    }
+  }elsif(
+    $sizeType eq 'launcher-object' or
+    $sizeType eq 'action-applet' or
+    $sizeType eq 'menu-object' or
+    $sizeType eq 'GNOME_NotificationAreaApplet' or
+    $sizeType eq 'GNOME_ShowDesktopApplet'){
+    if($itemSize >= $size){
+      my $div = int($itemSize / $size);
+      my $format;
+      if($div > 1){
+        $format .= "$div*";
+      }
+      $format .= '$size';
+      my $mod = ($itemSize % $size);
+      if($mod > 0){
+        $format .= "+$mod";
+      }
+      return $format;
+    }else{
+      return $itemSize;
+    }
+  }
+  return $itemSize;
+}
+sub formatObject($$$){
+  my $objectID = shift;
+  my $size = shift;
+  my $panelSize = shift;
+  my $dir = "/apps/panel/objects/$objectID";
+  my $type = get "$dir/object_type";
+  $size = expressSize $size, $panelSize, $type;
+  if($type eq 'menu-object'){
+    my $loc = '';
+    my $icon = '';
+    if(lc get "$dir/use_menu_path" eq 'true'){
+      $loc = get "$dir/menu_path";
+    }
+    if(lc get "$dir/use_custom_icon" eq 'true'){
+      $icon = get "$dir/custom_icon";
+    }
+    if(length $loc > 0 or length $icon > 0){
+      $loc = ", '$loc'";
+    }
+    if(length $icon > 0){
+      $icon = ", '$icon'";
+    }
+    return "  ['menu-button', $size$loc$icon],\n";
+  }elsif($type eq 'menu-bar'){
+    return "  ['menu-bar', $size],\n";
+  }elsif($type eq 'drawer-object'){
+    die "fuck, i dont support drawers. whats wrong with you?\n";
+  }elsif($type eq 'launcher-object'){
+    my $desktop = get "$dir/launcher_location";
+    my @desktopInfo = parseLauncherDesktop $desktop;
+    my $item = '';
+    my $curLine = "  ['launcher', $size";
+    for my $info(@desktopInfo){
+      $curLine .= ', ';
+      $info = "'$info'";
+      if(length($curLine) + length($info) > 78){
+        $item .= "$curLine\n    ";
+        $curLine = '';
+      }
+      $curLine .= $info;
+    }
+    $item .= "$curLine],\n";
+    return $item;
+  }elsif($type eq 'bonobo-applet'){
+    die "internal error; applet is in object-id-list\n";
+  }elsif($type eq 'action-applet'){
+    my $action = get "$dir/action_type";
+    return "  ['action', $size, '$action'],\n";
+  }elsif($type eq 'separator'){
+    return "  ['separator', $size],\n";
+  }
+}
+sub formatApplet($$$){
+  my $appletID = shift;
+  my $size = shift;
+  my $panelSize = shift;
+
+  my @config = @{getAppletConfig $appletID};
+  $size = expressSize $size, $panelSize, $config[0], $appletID;
+  my $format = "  ['applet', $size, '" . $config[0] . "'";
+  if(@config == 3){
+    my $prefsDir = $config[1];
+    my %prefs = %{$config[2]};
+    $format .= ", '$prefsDir'";
+    if(keys %prefs > 0){
+      my $maxlen = 0;
+      my $quoted = 0;
+      for my $key(keys %prefs){
+        $maxlen = length $key if length $key > $maxlen;
+        $quoted = 1 if $key =~ /[^a-zA-Z0-9_]/;
+      }
+      $format .= ', {';
+      for my $key(keys %prefs){
+        my $val = $prefs{$key};
+        $key = "'$key'" if $quoted;
+        $key .= ' 'x($maxlen - length $key);
+        $format .= "\n    $key => '$val',";
+      }
+      $format .= "\n  }";
+    }
+  }
+  $format .= "],\n";
+}
+sub getPanel($){
+  my $panelInfo = '';
+
+  my $panelID = shift;
+  my %props = getNonDefaultPrefs "/apps/panel/toplevels/$panelID",
+    "/schemas/apps/panel/toplevels";
+  my %bgProps = getNonDefaultPrefs "/apps/panel/toplevels/$panelID/background",
+    "/schemas/apps/panel/toplevels/background";
+  for my $key(keys %bgProps){
+    $props{"background/$key"} = $bgProps{$key};
+  }
+
+  if(getQuiet "/apps/panel/toplevels/$panelID/background/image" eq ''){
+    delete $props{'background/stretch'};
+  }
+  if(getQuiet "/apps/panel/toplevels/$panelID/expand" eq 'true'){
+    delete $props{'x'};
+    delete $props{'y'};
+    delete $props{'x_right'};
+    delete $props{'y_bottom'};
+    delete $props{'x_centered'};
+    delete $props{'y_centered'};
+  }
+  $panelInfo .= "\$panelProps = {\n";
+  %props = wrapStringValues("/apps/panel/toplevels/$panelID", %props);
+  for my $key(keys %props){
+    $panelInfo .= "  $key => '" . $props{$key} . "',\n";
+  }
+  $panelInfo .= "};\n";
+  my $panelSize = get "/apps/panel/toplevels/$panelID/size";
+  $panelInfo .= "\$size = $panelSize;\n";
+
+  $panelInfo .= "\$panelItems = [\n";
+
+  my ($appletLeft, $appletRight) = getPanelItemPos $panelID, 'applets';
+  my ($objectLeft, $objectRight) = getPanelItemPos $panelID, 'objects';
+  my $left = {%$appletLeft, %$objectLeft};
+  my $right = {%$appletRight, %$objectRight};
+
+  my @leftItems = getSortedSizes $panelID, %$left,
+    %$appletLeft, $panelSize;
+  my @rightItems = getSortedSizes $panelID, %$right,
+    %$appletRight, $panelSize;
+  if(@leftItems > 0){
+    my $firstItem = $leftItems[0]->[0];
+    my $firstPos = $$left{$firstItem};
+    if($firstPos > 0){
+      $panelInfo .= "  'SPACER_$firstPos',\n";
+    }
+  }
+  for my $pair(@leftItems){
+    my $id = $$pair[0];
+    my $size = $$pair[1];
+    if(defined $$appletLeft{$id}){
+      $panelInfo .= formatApplet($id, $size, $panelSize);
+    }else{
+      $panelInfo .= formatObject($id, $size, $panelSize);
+    }
+  }
+  if(@rightItems > 0){
+    $panelInfo .= "\n  'SPLIT',\n\n";
+
+    my $firstItem = $rightItems[0]->[0];
+    my $firstPos = $$right{$firstItem};
+    if($firstPos > 0){
+      $panelInfo .= "  'SPACER_$firstPos',\n";
+    }  
+  }
+  for my $pair(@rightItems){
+    my $id = $$pair[0];
+    my $size = $$pair[1];
+    if(defined $$appletRight{$id}){
+      $panelInfo .= formatApplet($id, $size, $panelSize);
+    }else{
+      $panelInfo .= formatObject($id, $size, $panelSize);
+    }
+  }
+
+  $panelInfo .= "];\n";
+  $panelInfo .=
+    "push \@panels, {props=>\$panelProps, items=>\$panelItems};\n";
+
+  return $panelInfo;
+}
+
+&main;

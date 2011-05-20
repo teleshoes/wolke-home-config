@@ -1,0 +1,142 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use List::Util 'shuffle';
+
+#bgTool - a wrapper around gconftool
+#for manipulating the list of images for the compiz wallpaper plugin
+#
+#author- elliot wolk
+# no rights reserved - you are free to modify and distribute willy-nilly
+#
+
+my $attribute = '/apps/compiz/plugins/wallpaper/screen0/options/bg_image';
+my $typeArgs = '--type list --list-type string';
+
+my $usage = "Usage:
+$0 get
+$0 set [--shuffle] IMG1_ABS_PATH IMG2_ABS_PATH ...
+$0 insert IMAGE_ABSOLUTE_PATH [1..n]
+$0 swap [1..n] [1..n]
+$0 remove [1..n]
+$0 setDir [--shuffle] DIR_CONTAINING_IMAGES
+$0 shuffle
+
+e.g.
+$0 shuffle
+  randomly arranges the images
+  that are already on the workspaces
+$0 insert /tmp/fsm.jpg 1
+  workspace #1 to be noodly, moving
+  the image that was there to workspace
+  #2, and the one on #2 to #3, etc.
+$0 replace /tmp/fsm.jpg 2
+  sets your desktop background for
+  workspace #1 to be noodly, discarding
+  the previous image
+$0 swap 2 3
+  swaps the images on workspace #2 and #3
+$0 setDir --shuffle /tmp
+  replaces your existing images on all
+  workspaces with the image files in /tmp,
+  arranged randomly.
+";
+
+
+if(@ARGV == 0){
+  die $usage;
+}
+
+my $cmd = shift;
+
+my $arg = '';
+if(@ARGV > 0){
+  if($ARGV[0] =~ /^\-\-/){
+    $arg = shift;
+  }
+}
+
+if($arg ne '' and $arg ne '--shuffle'){
+  die $usage;
+}
+
+if(lc $cmd eq 'get'){
+  die $usage if @ARGV != 0;
+
+  my $val = `gconftool-2 --get $attribute`;
+  $val =~ s/^\[(.*)\]$/$1/;
+  my @bgs = split ',', $val;
+
+  $, = "\n";
+  print @bgs;
+}elsif(lc $cmd eq 'set'){
+  my @bgs = @ARGV;
+  @bgs = shuffle @bgs if $arg eq '--shuffle';
+  my $val = '[' . join(',', @bgs) . ']';
+  exec "gconftool-2 --set $attribute $typeArgs '$val'";
+}elsif(lc $cmd eq 'insert'){
+  die $usage if @ARGV != 2;
+
+  my $img = shift;
+  my $index = shift;
+  if($index !~ /^[0-9]+$/ or $index == 0){
+    die $usage;
+  }
+  $index--;
+  my @bgs = split "\n", `$0 get`;
+  if($index > @bgs){
+    die "Referenced index is out of bounds.";
+  }
+  splice @bgs, $index, 0, $img;
+  exec "$0 set @bgs";
+}elsif(lc $cmd eq 'remove'){
+  die $usage if @ARGV != 1;
+
+  my $index = shift;
+  if($index !~ /^[0-9]+$/ or $index == 0){
+    die $usage;
+  }
+  $index--;
+  my @bgs = split "\n", `$0 get`;
+  if($index >= @bgs){
+    die "Referenced index is out of bounds.";
+  }
+  $bgs[$index] = '';
+  exec "$0 set @bgs";
+}elsif(lc $cmd eq 'swap'){
+  die $usage if @ARGV != 2;
+
+  my $index1 = shift;
+  if($index1 !~ /^[0-9]+$/ or $index1 == 0){
+    die $usage;
+  }
+  $index1--;
+  
+  my $index2 = shift;
+  if($index2 !~ /^[0-9]+$/ or $index2 == 0){
+    die $usage;
+  }
+  $index2--;
+
+  my @bgs = split "\n", `$0 get`;
+  if($index1 >= @bgs or $index2 >= @bgs){
+    die "Referenced index is out of bounds.";
+  }
+  my $tmp = $bgs[$index1];
+  $bgs[$index1] = $bgs[$index2];
+  $bgs[$index2] = $tmp;
+  exec "$0 set @bgs";
+}elsif(lc $cmd eq 'setdir'){
+  die $usage if @ARGV != 1;
+
+  my $dir = shift;
+  exec "ls -d1 $dir/* | xargs $0 set $arg";
+}elsif(lc $cmd eq 'shuffle'){
+  die $usage if @ARGV != 0;
+
+  exec "$0 get | xargs $0 set --shuffle";
+}else{
+  die $usage;
+}
+

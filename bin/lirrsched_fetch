@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $from = shift;
+my $to = shift;
+my $date = shift;
+my $time = shift;
+my $ampm = shift;
+
+my $urlIndex = 'http://lirr42.mta.info/sfweb/faces/index.jspx';
+my $urlDepart = 'http://lirr42.mta.info/sfweb/faces/departSchedules.jspx';
+
+#my $header = "-H 'Host:lirr42.mta.info' " .
+#             "-H 'User-Agent:Mozilla/5.0 (X11; U; Linux x86_64; en-US; rv:1.9.1.2) Gecko/20090803 Ubuntu/9.04 (jaunty) Shiretoko/3.5.2' " . 
+#             "-H 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' " .
+#             "-H 'Accept-Language:en-us,en;q=0.5' " .
+#             "-H 'Accept-Encoding:gzip,deflate' " .
+#             "-H 'Accept-Charset:ISO-8859-1,utf-8;q=0.7,*;q=0.7' " .
+#             "-H 'Keep-Alive:300' " .
+#             "-H 'Connection:keep-alive' " .
+#             "-H 'Referer:http://lirr42.mta.info/sfweb/faces/index.jspx'";
+
+my $form = "-F 'FromStation=$from' " .
+           "-F 'ToStation=$to' " .
+           "-F 'oracle.adf.faces.FORM=index' " .
+           "-F 'oracle.adf.faces.STATE_TOKEN=_a_' " .
+           "-F 'requestAMPM=$ampm' " .
+           "-F 'requestDate=$date' " .
+           "-F 'requestTime=$time' " .
+           "-F 'sortBy=1' " .
+           "-F 'source=GetSchedule'";
+
+#Data post {and cookie fetch}
+my $out = `curl --cookie-jar '-' $form $urlIndex 2>/dev/null` or die "Curl cookie fetch failed $!";
+$out =~ /# Netscape HTTP Cookie File.*JSESSIONID\t([^\n]+)\n/s or die "Cookie not fetched properly";
+my $jsessionID = $1;
+my $cookie = "JSESSIONID=$jsessionID; oracle.uix=0^^GMT-4:00";
+#Schedule get
+my $html = `curl --get --cookie '$cookie' $urlDepart 2>/dev/null` or die "Curl failed: $!";
+
+if($html !~ /Departing Schedule/ or $html =~ /no routes available/i){
+  die "Invalid schedule html returned";
+}
+
+print $html;
+

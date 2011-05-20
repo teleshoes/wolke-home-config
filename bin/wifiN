@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $configFile = '/etc/modprobe.d/intel-5300-iwlagn-disable11n.conf';
+
+my $arg = shift;
+$arg = '' if not defined $arg;
+
+if($arg ne 'toggle' and $arg ne 'on' and $arg ne 'off'){
+  die "Usage: $0 [on|off|toggle]\n";
+}
+
+my $wasOn;
+open FH, "< $configFile";
+my @lines = <FH>;
+close FH;
+open FH, "> $configFile";
+for my $line(@lines){
+  if($line =~ /^(#?)(options iwlagn 11n_disable=1)\n?$/){
+    if($1 eq '#'){
+      $wasOn = 1;
+    }else{
+      $wasOn = 0;
+    }
+    my $comment;
+    if($arg eq 'toggle'){
+      $comment = $wasOn ? '' : '#';
+    }elsif($arg eq 'on'){
+      $comment = '#';
+    }else{
+      $comment = '';
+    }
+    $line = "$comment$2\n";
+  }
+  print FH $line;
+}
+close FH;
+
+system 'modprobe', '-r', 'iwlagn';
+system 'modprobe', '-a', 'iwlagn';
+
+system 'lshw -C network | grep 802.11[abgn]* -o';

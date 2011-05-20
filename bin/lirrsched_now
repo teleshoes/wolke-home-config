@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Date::Calc qw(
+  Today
+  Today_and_Now
+  Add_Delta_Days
+  Date_to_Time
+  Time_to_Date
+);
+
+my @times;
+open FH, '/home/wolke/bin/lirrsched_times' or die 'Could not open times file';
+while(<FH>){
+  /^[0-9]{2}:[0-9]{2}$/ or die "Invalid line in times file: $_";
+  push @times, $_;
+}
+close FH;
+
+my @today = Today;
+my @yday = Add_Delta_Days(@today, -1);
+my @tmrw = Add_Delta_Days(@today, 1);
+
+my @dts;
+for my $time(@times){
+  $time =~ /([0-9]{2}):([0-9]{2})/;
+  my $hr = $1;
+  my $min = $2;
+  my $sec = 0;
+  for my $ampm(('AM','PM')){
+    if($ampm eq 'AM'){
+        $hr = 0 if $hr == 12;
+    }else{
+        $hr += 12;
+        $hr = 12 if $hr == 24;
+    }
+    push @dts, Date_to_Time($yday[0], $yday[1], $yday[2], $hr, $min, $sec);
+    push @dts, Date_to_Time($today[0], $today[1], $today[2], $hr, $min, $sec);
+    push @dts, Date_to_Time($tmrw[0], $tmrw[1], $tmrw[2], $hr, $min, $sec);
+  }
+}
+
+my $now = Date_to_Time Today_and_Now;
+
+my $best;
+my $diff;
+
+for my $dt(@dts){
+  my $d = $now - $dt;
+  if($d < 0){
+    $d = 0 - $d;
+  }
+  if(not defined $diff or $d < $diff){
+    $best = $dt;
+    $diff = $d;
+  }
+}
+
+my ($year,$month,$day, $hour,$min,$sec) = Time_to_Date $best;
+
+my $ampm;
+if($hour < 12){
+  $ampm = 'AM';
+  $hour = 12 if $hour == 0;
+}else{
+  $ampm = 'PM';
+  $hour -= 12;
+  $hour = 12 if $hour == 0;
+}
+
+$month = "0$month" if $month < 10;
+$day = "0$day" if $day < 10;
+$hour = "0$hour" if $hour < 10;
+$min = "0$min" if $min < 10;
+
+print "$month/$day/$year $hour:$min $ampm";
+

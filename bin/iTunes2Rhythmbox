@@ -1,0 +1,102 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use URI::file;
+
+if($#ARGV != 2){
+  die "Usage: $0 iTunes_XML_FILE SRC_PATH DEST_PATH
+  e.g.: $0 ~/iTunes\\ Music\\ Library.xml C:/Documents\\ And\\ Settings/Music/User/iTunes/iTunes\\ Music /home/user/Music";
+}
+
+my $xmlFile = shift;
+
+my $srcPath = shift;
+my $targetPath = shift;
+my $src = URI->new($srcPath, "file");
+my $target = URI->new($targetPath, "file");
+
+sub slurp($){
+  my $infile = shift;
+  local($/, *INFH);
+  open INFH, '<', $infile or
+    die "Error opening $infile for reading\n";
+  my $content = <INFH>;
+  close INFH;
+  return $content;
+}
+
+my $orig = slurp $xmlFile;
+my $xml = $orig;
+
+$xml =~ s/
+\s* <key>([0-9]+)<\/key> \s*
+  <dict>
+    (:?\s*<key>.*?)*?  \s*
+    <key>Location<\/key><string>([^\n]*?)<\/string>
+    (:?\s*<key>[^\n]*\n)*  \s*
+    <\/dict>
+/$1=$3\n/gsxi;
+
+$xml =~ s/^.*?<dict>//s;
+$xml =~ s/^.*?<dict>//s;
+$xml =~ s/\s*<\/dict>.*$//s;
+
+
+my %library;
+
+for my $line(split "\n", $xml){
+  $line =~ /^([0-9]+)=(.*)$/;
+  my $trackID = $1;
+  my $loc = $2;
+  if($loc =~ /^file:\/\/localhost\/$src/){
+    $loc =~ s/file:\/\/localhost\/$src/file:\/\/$target/;
+    $library{$trackID}=$loc;
+  }
+}
+
+
+my $pl_xml = $orig;
+$pl_xml =~ s/^.*<Key>Playlists<\/Key>//sxi;
+
+my @playlists;
+while($pl_xml =~ /
+  <dict> \s*
+    <key>Name<\/key><string>.*?<\/string> \s*
+    (?:\s*<key>.*?)*? \s*
+    <array> \s*
+      (?:<dict> \s*
+           <key>Track\ ID<\/key><integer>[0-9]+<\/integer> \s*
+         <\/dict> \s*)*
+    <\/array>/gxs
+){
+  push @playlists, $&;
+}
+
+open FH, "> playlists_from_iTunes.xml";
+print FH "<?xml version=\"1.0\"?>\n";
+print FH "<rhythmdb-playlists>\n";
+
+for my $pl(@playlists){
+  $pl =~ /<key>Name<\/key><string>(.*?)<\/string>/;
+  my $name = $1;
+  $name =~ s/"/\\"/g;
+  
+  my @tracks;
+  while($pl =~ /
+    <key>Track\ ID<\/key><integer>([0-9]+)<\/integer>/gsxi
+  ){
+    push @tracks, $1;
+  }
+  
+  print FH "  <playlist name=\"$name\" type=\"static\">\n";
+  for my $t(@tracks){
+    if(defined $library{$t}){
+      my $loc = $library{$t};
+      print FH "    <location>$loc</location>\n";
+    }
+  }
+  print FH "  </playlist>\n";
+}
+print FH "</rhythmdb-playlists>\n";
+close FH;
+

@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long;
+
+my $DIR = '/home/wolke/Desktop/Euler';
+
+chdir $DIR;
+
+my $num = shift;
+
+my $force;
+my $threads;
+my $quiet;
+GetOptions('force', \$force,
+           'quiet', \$quiet,
+           'threads=s{1}', \$threads);
+
+sub compile($$$$){
+  my $num = shift;
+  my $force = shift;
+  my $quiet = shift;
+  my $threads = shift;
+
+  if(defined $force){
+    system "rm -f $DIR/problem$num";
+    system "rm -f $DIR/problem$num.o";
+    system "rm -f $DIR/problem$num.hi";
+  }
+
+  my $compile;
+  if(defined $threads){
+    $compile = "ghc --make -threaded $DIR/problem$num.hs -O";
+  }else{
+    $compile = "ghc --make $DIR/problem$num.hs -O";
+  }
+
+  if(defined $quiet){
+    system "$compile -v0";
+  }else{
+    system "$compile";
+  }
+
+  return $?;
+}
+
+sub run($$$){
+  my $num = shift;
+  my $quiet = shift;
+  my $threads = shift;
+  
+  if(not defined $quiet){
+    print "Started running at " . localtime() . "\n";
+  }
+
+  my $exec;
+  if(defined $threads){
+    $exec = "$DIR/problem$num +RTS -N$threads -RTS";
+  }else{
+    $exec = "$DIR/problem$num";
+  }  
+
+  if(defined $quiet){
+    my $start = time;
+    
+    my $out = `$exec`;
+    chomp $out;
+    $out =~ s/(?<=[^\\])\\n/\n/g;
+    
+    my $end = time;
+    my $time = $end-$start;
+  
+    if($time < 10){
+      $time = "00$time";
+    }elsif($time <100){
+      $time = "0$time";
+    }
+
+    print "p$num|$time|$out|\n";
+  }else{
+    my $out = `time $exec`;
+    $out =~ s/(?<=[^\\])\\n/\n/g;
+    print $out;
+  }
+}
+
+
+if(not defined $num or $num !~ /^(all|[0-9]+)$/){
+  die 'Expects a problem number or "all"';
+}
+
+my @problemNumbers;
+if($num eq 'all'){
+  my @problems = split /\n/, `ls -1 $DIR/problem*.hs`;
+
+  my $max = 0;
+  foreach my $prob(@problems){
+    $prob =~ /([0-9]+)/;
+    if($1 > $max){
+      $max = $1;
+    }
+  }
+
+  @problemNumbers = (1 .. $max);
+}else{
+  @problemNumbers = ($num);
+}
+
+for my $num(@problemNumbers){
+  if($num < 10){
+    $num = "00$num";
+  }elsif($num <100){
+    $num = "0$num";
+  }
+  
+  my $res = compile $num, $force, $quiet, $threads;
+  if($res != 0){
+    print "Compiled failed with code: $res\n";
+  }else{
+    run $num, $quiet, $threads;
+  }
+}
+
+

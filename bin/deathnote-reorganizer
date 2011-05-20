@@ -1,0 +1,91 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub files($){
+  my $loc = shift;
+  return sort split "\n", `find "$loc" -maxdepth 1 -mindepth 1 -type f`;
+}
+sub dirs($){
+  my $loc = shift;
+  return sort split "\n", `find "$loc" -maxdepth 1 -mindepth 1 -type d`;
+}
+
+my $dir = `echo -n ~/Desktop/Literature\ Books\ Manga/death\ note\ manga`;
+my $bookmarkFile = `echo -n ~/.deathnote-bookmark`;
+my $bookmark;
+if(-e $bookmarkFile){
+  $bookmark = `cat $bookmarkFile`;
+  chomp $bookmark;
+}
+
+chdir $dir;
+my @files;
+for my $vol(dirs '.'){
+  if($vol =~ /Volume([0-9]+)$/){
+    my $volNum = $1;
+    for my $chapter(dirs $vol){
+      if($chapter =~ /([0-9]+)$/){
+        my $chapNum = $1;
+        my @fux = dirs $chapter;
+        for my $fuck(@fux){
+          if($fuck ne $chapter){
+            print "!!!!!$chapter != $fuck\n";
+          }
+        }
+        for my $file(files $chapter){
+          if($file =~ /\.(png|jpg|gif|jpeg)$/i){
+            my $base = $file;
+            $base =~ s/^.*\///;
+            system "cp \"$file\" \"$dir/All/$volNum-$chapNum-$base\"\n";
+          }else{
+            print "Non image file found and ignored: $file\n";
+          }
+        }
+      }
+    }
+  }
+}
+
+my @pastFiles;
+my @futureFiles;
+my $found=0;
+for my $f(@files){
+  if($found or not defined $bookmark){
+    push @futureFiles, "\"$f\"";
+  }else{
+    push @pastFiles, "\"$f\"";
+    if($bookmark =~ /$f/){
+      $found = 1;
+    }
+  }
+}
+
+my $args = join ' ', @futureFiles;
+#@pastFiles = reverse @pastFiles;
+#$args .= ' ';
+#$args .= join ' ', @pastFiles;
+
+system "eog -s $args";
+##its ok to sort by this, even though its not a number
+##the larger asciibetically, the later in time
+#sub sortableAccessTime($){
+#  my $loc = shift;
+#  my $out = `ls -dul "$loc" --time-style=full-iso`;
+#  $out =~ /^.......... [0-9]+ [0-9a-z_]+ [0-9a-z_]+ [0-9]+ (.*) $loc/;
+#  return $1;
+#}
+#
+#
+#my $biggestTime;
+#my $biggestFile;
+#for my $file(@files){
+#  my $time = sortableAccessTime $file;
+#  print "$file $time\n";
+#  if(not defined $biggestTime or $time gt $biggestTime){
+#    $biggestFile = $file;
+#  }
+#}
+#
+#print $biggestFile;
+

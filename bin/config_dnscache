@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+system "sudo apt-get install dnsmasq";
+
+#if not root, re-run as root
+if(`id -un` !~ /^root\n?$/){
+  my $args = join @ARGV, ' ';
+  exec "sudo $0 @ARGV";
+}
+
+my $file = '/etc/dnsmasq.conf';
+
+my $listenAdd = "listen-address=127.0.0.1\n";
+
+open IN, "< $file" or die "Could not open $file for reading: $!";
+my @lines = <IN>;
+close IN;
+
+my $new = '';
+for(my $i=0; $i<@lines; $i++){
+  my $line = $lines[$i];
+  if($line =~ /^\#?listen-address=/){
+    $new .= $listenAdd;
+  }else{
+    $new .= $line;
+  }
+}
+
+open OUT, "> $file" or die "Could not open $file for writing: $!";
+print OUT $new;
+close OUT;
+
+system "sudo /etc/init.d/dnsmasq restart";
+

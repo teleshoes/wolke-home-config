@@ -1,0 +1,78 @@
+#! /bin/bash runghc
+{-# LANGUAGE ScopedTypeVariables #-}
+import Control.Monad
+import Data.Char
+import Data.List 
+import System.Environment
+import System.Process
+import Text.Regex.PCRE ((=~))
+
+main =  liftM2 (,) screen direction 
+    >>= uncurry rotateDisplay 
+    >>= forM_ ["TrackPoint", "TouchPad"] . fixPointer
+
+-- Helpers
+type Rx a = (a, a, a, [a])
+match p q = let (_,_,_,[r]) :: Rx String = q =~ p in r
+matchNth p n = match p . (!! n) . iterate skip
+  where skip q = let (_,_,r,_) :: Rx String = q =~ p in r
+run p as = readProcess p as ""
+
+--Args
+processArg z f = getArgs >>= return . go
+  where
+    go [] = z
+    go (a:as) = f a ?? go as
+
+screen = processArg 0 $ \a -> all isDigit a ? read a
+
+data Direction = Deasil | Widdershins deriving (Eq)
+direction = processArg Deasil $ \a -> let eq = (map toLower a ==)
+    in  eq "deisil"           ? Deasil
+    ?|? eq "widdershins"      ? Widdershins
+    ?|? eq "clockwise"        ? Deasil
+    ?|? eq "anticlockwise"    ? Widdershins
+    ?|? eq "counterclockwise" ? Widdershins
+
+-- Display
+rotateDisplay n d = do
+    di <- run "xrandr" ["--query", "--verbose"]
+    let rot = head . tail . dropWhile (/= curr n di) 
+            . concat . repeat . applyDir d $ rots 
+    run "xrandr" ["--output", disp n di, "--rotate", rot]
+    return rot
+
+rots = ["normal", "right", "inverted", "left"]
+applyDir = (?? reverse) . (? id) . (== Deasil)
+curr = matchNth $ "(" ++ intercalate "|" rots ++ ") \\("
+disp = matchNth "(\\w+) connected"
+
+-- Pointer
+fixPointer rot name = do
+    dn <- idn name `fmap` run "xinput" ["--list"]
+    pi <- run "xinput" ["--list-props", dn]
+    run "xinput" ["--set-prop", dn, idn "Inversion" pi, invX rot, invY rot]
+    run "xinput" ["--set-prop", dn, idn "Swap"      pi, swap rot]
+
+idn s = match $ s ++ "\\s+\\D+(\\d+)"
+rotToBitWith f = show . f . (?? 0) . (`elemIndex` rots)
+invX = rotToBitWith $ (`div` 2)
+invY = rotToBitWith $ signum . (`mod` 3)
+swap = rotToBitWith $ (`mod` 2)
+
+-- Mike's Question Marks
+infixr 2 ?
+(?) :: Bool -> a -> Maybe a
+False ? _ = Nothing
+True  ? v = Just v
+
+infixr 1 ?|?
+(?|?) :: Maybe a -> Maybe a -> Maybe a
+Nothing ?|? m = m
+Just v  ?|? _ = Just v
+
+infixl 0 ??
+(??) :: Maybe a -> a -> a
+Nothing ?? d = d
+Just v  ?? _ = v 
+

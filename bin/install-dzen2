@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+chdir "/tmp";
+system "sudo apt-get install libxinerama-dev libxpm-dev";
+system "svn checkout http://dzen.googlecode.com/svn/trunk/ dzen";
+chdir "dzen";
+
+open FH, '< config.mk';
+my @lines = <FH>;
+close FH;
+
+for(my $i=0; $i<@lines; $i++){
+  my $line = $lines[$i];
+  if($line =~ /^#+ Option (\d+): /){
+    my $opt = $1;
+    my $libs = $lines[$i+1];
+    my $cflags = $lines[$i+2];
+    if($opt == 4){
+      print "using: $line";
+      $libs =~ s/^#+//;
+      $cflags =~ s/^#+//;
+    }else{
+      print "NOT using: $line";
+      $libs =~ s/^#*/#/;
+      $cflags =~ s/^#*/#/;
+    }
+    $lines[$i+1] = $libs;
+    $lines[$i+2] = $cflags;
+  }
+}
+
+open FH, '> config.mk';
+print FH @lines;
+close FH;
+
+make
+sudo make install
+system "rm -rf /tmp/dzen";
+

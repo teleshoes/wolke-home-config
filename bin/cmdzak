@@ -1,0 +1,67 @@
+#! /usr/bin/perl
+use strict;
+use warnings;
+use POSIX 'setsid';
+
+my $msg = 'Heres what i can do:
+S: ping www.google.com
+D: ping server2.escribeonline.com
+Q: quit
+what?:';
+
+
+sub key(){
+  my $BSD = -f '/vmunix';
+  if ($BSD) {
+    system "stty cbreak /dev/tty 2>&1";
+  }else {
+    system "stty", '-icanon', 'eol', "\001";
+  }
+  my $key = getc(STDIN);
+  if ($BSD) {
+    system "stty -cbreak /dev/tty 2>&1";
+  }
+  else {
+    system "stty", 'icanon';
+    system "stty", 'eol', '^@'; # ascii null
+  }
+  return $key;
+}
+
+print $msg;
+
+my ($pid, $cmd, $winTitle);
+
+while(1){
+  my $choice = uc key; #blocks
+
+  if(defined $pid){
+    system "kill $pid";
+  }
+
+  print "\n";
+  if($choice eq 'Q' or $choice eq "\n"){
+    exit 0;
+  }elsif($choice eq 'S'){
+    $cmd = 'ping www.google.com';
+    $winTitle = 'PINGING GOOGLE';
+  }elsif($choice eq 'D'){
+    $cmd = 'ping server2.escribeonline.com';
+    $winTitle = 'PINGING SERVER2';
+  }else{
+    $cmd = "echo Invalid command: $choice";
+    $winTitle = "Error"
+  }
+
+  print "\033]0;$winTitle\007";
+
+  $pid = fork;
+
+  if($pid == 0){
+    setsid or die "Can't start a new session";
+    print "$cmd\n";
+    exec $cmd;
+  }
+}
+
+

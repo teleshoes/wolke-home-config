@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+#Takes a filename and returns the content as a large string
+sub slurp($){
+    my $infile = shift;
+    local($/, *INFH);
+    open INFH, $infile or die "Error opening $infile for reading\n";
+    my $content = <INFH>;
+    close INFH;
+    return $content;
+}
+
+my $type;
+my $file;
+if($#ARGV < 0){
+  $type = 'multi';
+  $file = `lastjoblog`;
+}elsif($#ARGV == 0){
+  $type = 'multi';
+  $file = shift;
+}elsif($#ARGV == 1){
+  $type = shift;
+  $file = shift;
+}else{
+  die "Usage: countjobs [multi|all|empty|nonempty|failures] logfile\n";
+}
+
+
+my $re;
+if($type eq 'empty'){
+  $re = qr/([^0-9]0) encs published/;
+}elsif($type eq 'nonempty'){
+  $re = qr/([1-9][0-9]*) encs published/;
+}elsif($type eq 'all'){
+  $re = qr/([0-9]*) encs published \| /;
+}elsif($type eq 'failures'){
+  $re = qr/[fF][aA][iI][lL]/;
+}elsif($type eq 'multi'){
+  system "$0 all $file";
+  system "$0 empty $file";
+  system "$0 nonempty $file";
+  system "$0 failures $file";
+  exit;
+}else{
+  die "Usage: countjobs [all|empty|nonempty|failures] logfile\n";
+}
+
+
+my $notes=0;
+my $count=0;
+my $log = slurp $file;
+while($log =~ /$re/g){
+  $count++;
+  if($type ne 'failures'){
+    $notes += $1;
+  }
+}
+
+if($type ne 'failures'){
+#  $count /= 3;
+#  $notes /= 3;
+  print "$count $type successful jobs with $notes notes\n";
+}else{
+  print "$count 'fail's\n";
+}
+

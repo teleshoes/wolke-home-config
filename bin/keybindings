@@ -1,0 +1,90 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $gconftool = 'gconftool';
+my $gconfKeyBase = '/desktop/gnome/keybindings';
+
+
+my $Caps_Lock = 'XF86Finance';
+my $ThinkVantage = 'XF86Launch1';
+
+sub C($){ "<Control>" . shift; }
+sub A($){ "<Alt>" . shift; }
+sub Sh($){ "<Shift>" . shift; }
+sub Su($){ "<Mod4>" . shift; }
+
+my $HBIN = '/home/wolke/bin';
+my @KEYBINDINGS = (
+#  $ThinkVantage      => 'gnome-terminal --working-directory ~/',
+#  A $ThinkVantage    => 'gnome-terminal -x sudo /home/wolke/bin/cmdselect',
+#  C $ThinkVantage    => 'gnome-terminal -x python',
+#  A 'Menu'           => "$HBIN/nautilusDesktop toggle",
+#  C 'Menu'           => "$HBIN/touchClick toggle",
+#  C A 'space'        => 'gnome-system-monitor',
+#  C Sh $ThinkVantage => "$HBIN/capsCureToggle",
+#  Su 'space'         => "$HBIN/rc --play-pause",
+#  C A 'z'            => "$HBIN/rc --previous",
+#  C A 'x'            => "$HBIN/rc --next",
+#  C A 'XF86Back'     => "$HBIN/rotate counterclockwise",
+#  C A 'XF86Forward'  => "$HBIN/rotate clockwise",
+);
+
+
+sub main(){
+  deleteAll();
+  for(my $i=0; $i<@KEYBINDINGS; $i+=2){
+    my $id = int($i/2);
+    my $binding = $KEYBINDINGS[$i];
+    my $action = $KEYBINDINGS[$i+1];
+    addKeybinding($id, "'$binding' -> '$action'", $action, $binding);
+  }
+}
+
+
+sub deleteRec($){
+  my $key = shift;
+  system $gconftool, '--recursive-unset', $key;
+}
+sub lsGconf($){
+  my $keydir = shift;
+  my @children;
+  my @lines = `$gconftool '--recursive-list' $keydir`;
+  for my $line(@lines){
+    if($line =~ /^ $keydir\/([^\/]*):/){
+      push @children, $1;
+    }
+  }
+  return @children;
+}
+sub set($$$){
+  my $type = shift;
+  my $key = shift;
+  my $value = shift;
+  system $gconftool, '--type', $type, '--set', $key, $value;
+}
+
+sub addKeybinding($$$){
+  my $id = shift;
+  my $name = shift;
+  my $action = shift;
+  my $binding = shift;
+
+  my $keydir = "custom_$id" . "_$binding";
+  $keydir =~ s/>/_/g;
+  $keydir =~ s/[^a-zA-Z0-9_]*//g;
+  my $key = "$gconfKeyBase/$keydir";
+  set 'string', "$key/name", $name;
+  set 'string', "$key/action", $action;
+  set 'string', "$key/binding", $binding;
+}
+sub deleteAll(){
+  my @keys = lsGconf "$gconfKeyBase";
+  for my $key(@keys){
+    if($key =~ /^custom_\d+_/){
+      deleteRec "$gconfKeyBase/$key";
+    }
+  }
+}
+
+main;

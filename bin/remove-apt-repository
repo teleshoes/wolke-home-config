@@ -1,0 +1,132 @@
+#! /bin/bash 
+
+# Shell program to remove ppa launchpad repository added with add-apt-repository ufficial script#
+# sudo add-apt-repository ppa:<repository_name>                                                 #
+# sudo add-apt-repository ppa:<repository_name>/<subdirectory>                                  #
+# ———————————————–——–——–—————————————————–——–——–—————————————————–—————————————————–————————————#
+# Copyright (c) 2009 Ingalex project <http://www.sourceslist.eu>                                #
+# This script is licensed under GNU GPL version 3.0 or above                                    #
+#                                                                                               #  
+# Redistribution and use in source and binary forms, with or without                            #
+# modification, are permitted provided that the following conditions                            #
+# are met:                                                                                      #
+# 1. Redistributions of source code must retain the above copyright                             #
+#    notice, this list of conditions and the following disclaimer.				#
+# 2. Redistributions in binary form must reproduce the above copyright				#
+#    notice, this list of conditions and the following disclaimer in the			#
+#    documentation and/or other materials provided with the distribution.			#
+#												#
+# THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND				#
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE				#
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE			#
+# ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE				#
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL			#
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS			#
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)				#
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT			#
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY			#
+# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF			#
+# SUCH DAMAGE.											#
+# ———————————————————————————————————————–——–——–—————————————————–—————————————————–————————————#
+# This script is part of Ingalex shell script collection                                        #
+# Visit http://www.sourceslist.eu for more information.                                         #
+# ———————————————————————————————————————–——–——–—————————————————–—————————————————–————————————#
+# Syntax: sudo remove-apt-repository <repository_name>                                          #
+#         sudo remove-apt-repository <repository_name>/<subdirectory>                           #
+# ———————————————————————————————————————–——–——–—————————————————–—————————————————–————————————#
+
+## functions defining
+
+remove_repo () {
+echo -ne 'Please Wait                            (0%)\r'
+    sleep 1
+    echo -ne 'Please Wait #####                     (33%)\r'
+    aptitude update > /dev/null
+    echo -ne 'Please Wait #############             (66%)\r'
+    s1="$(echo $1 | sed "s:\/:\-:")-$(lsb_release -c | awk '{print $2}').list"
+    s2="$(echo $1 | sed "s:\/:\-:")-ppa-$(lsb_release -c | awk '{print $2}').list"
+    r1="ppa.launchpad.net_$(echo $1 | sed "s:\/:\_:")_ubuntu_dists_$(lsb_release -c | awk '{print $2}')_Release"
+    r2="ppa.launchpad.net_$(echo $1 | sed "s:\/:\_:")_ppa_ubuntu_dists_$(lsb_release -c | awk '{print $2}')_Release"
+    cd /etc/apt/sources.list.d/
+    if [ -f "$s1" ] ; then
+	keyid="$(gpg --verify --no-permission-warning /var/lib/apt/lists/$r1.gpg /var/lib/apt/lists/$r1 2>&1 1>/dev/null | head -n 1 | awk '{print $15}' )"
+        rm -rf /etc/apt/sources.list.d/$s1 && apt-key del $keyid > /dev/null && echo -ne 'Compleated  #######################   (100%)\r' && echo -e '\E[32;40mppa launchpad repository successfully removed:' $1 && tput sgr0
+    elif [ -f "$s2" ] ; then
+	keyid="$(gpg --verify --no-permission-warning /var/lib/apt/lists/$r2.gpg /var/lib/apt/lists/$r2 2>&1 1>/dev/null | head -n 1 | awk '{print $15}')"
+	rm -rf /etc/apt/sources.list.d/$s2 && apt-key del $keyid > /dev/null && echo -ne 'Completed  #######################   (100%)\r' && echo -e '\E[32;40mppa launchpad repository successfully removed:' $1 && tput sgr0
+    else
+	echo -ne 'Completed  #######################   (100%)\r'
+	echo -e '\E[31;40munsuccessful removing - ppa launchpad repository not present or wrong syntax' && tput sgr0
+    fi
+}
+
+help_option() {
+    echo "                                   "
+    echo "Usage: add-apt-repository [options]"
+    echo "                                   "
+    echo "Syntax:                            "
+    echo "sudo remove-apt-repository <repository_name>"
+    echo "sudo remove-apt-repository <repository_name>/<subdirectory>"
+    echo "                                   "
+    echo "Options:                           "
+    echo "-h, --help  show this help message and exit"
+}
+
+
+list_option() {
+      cd /etc/apt/sources.list.d/
+      sources=$(dir *.list)
+      if [ "$sources" = ""  ]; then
+      echo "No repository PPA Launchpad installed"
+      else
+      echo
+      echo -e '\E[33;40mPPA Launchpad repositories added to your list of software sources:' && tput sgr0
+      echo
+      for mysources in $sources
+      do
+      if [ -f "$mysources" ]
+      then
+      repo=$(sed 's:deb\ http\:\/\/ppa.launchpad.net/:'':g' $mysources | sed 's:\/ubuntu\ karmic\ main:'':g'| sed 's:\/ppa:'':g')
+#       repot=${mysources%%-karmic.list}
+#       repo=${repot%%-ppa} 2>&1 1>/dev/null
+      echo $repo
+      fi
+      echo
+      done
+      fi
+}
+
+## script
+
+
+WHOAMI=$(/usr/bin/whoami)  
+
+if [ "$WHOAMI" != "root" ] ; then
+   /bin/echo   
+   /bin/echo -e 'ERROR: you have to execute this command with root privileges: put "sudo" before this command!'
+   /bin/echo   
+   exit 1
+else
+
+      if [ "$1" = "--help" -o "$1" = "-h" ]; then
+      help_option
+      elif [ "$1" = "--list" -o "$1" = "-l" ]; then
+      list_option
+      else
+	    controll=$(grep -e http://ppa.launchpad.net /etc/apt/sources.list)
+	    if [ "$controll" != ""  ]; then 
+	    echo ""
+	    echo "Pay attention! You have some repository PPA Launchpad in your /etc/apt/sources.list but with this command you can remove only PPA Launchpad present in /etc/apt/sources.list.d/"
+	    echo "Do you wish to continue? [Y/N]"
+	    read answer
+		if [ "$answer" = "Si" -o "$answer" = "S" -o "$answer" = "Y" -o "$answer" = "Yes" ]; then 
+		remove_repo "$1"
+		else 
+		exit
+		fi
+	    else
+	    remove_repo "$1"
+	    fi
+      fi
+fi
+exit 0
