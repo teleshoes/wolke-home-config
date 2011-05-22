@@ -2,39 +2,123 @@
 use strict;
 use warnings;
 
-my $height = shift;
 my $width = shift;
+my $height = shift;
 my @colors = @ARGV;
 
-sub drawCol($){
-  my @percentages = @{shift()};
+#draw a series of rectangles, one above the other.
+#all the rectanges together represent contiguous slices of time,
+#  wherein nothing changed.
+#each rectangle represents a percentage of something from the slice of time
+#  e.g. memory used in kb / total mem in kb
+sub drawScanSet($$){
+  my @pxs = @{shift()};
+  my $colWidth = shift;
   my $prevPx = 0;
   my $col='';
-  for(my $i=@percentages-1; $i>=0; $i--){
-    my $per = $percentages[$i];
-    chomp $per;
+  for(my $i=@pxs-1; $i>=0; $i--){
+    my $px = $pxs[$i];
     my $color = $colors[$i];
-    my $px = int(($height-1)*($per/100.0));
     if($px > 0){
-      $col .= "^fg($color)^p(;$prevPx)^ro(1x$px)^fg()^p(-1;-$prevPx)";
+      $col .=
+        "^fg($color)" . 
+        "^p(;$prevPx)" .
+        "^r(${colWidth}x$px)" .
+        "^fg()" .
+        "^p(-$colWidth;-$prevPx)";
     }
     $prevPx += $px;
   }
-  $col .= "^p(1)";
+  $col .= "^p($colWidth)";
+}
+
+sub same($$){
+  my @arr1 = @{shift()};
+  my @arr2 = @{shift()};
+  if(@arr1 != @arr2){
+    return 0;
+  }
+  for(my $i=0; $i<@arr1; $i++){
+    return 0 if $arr1[$i] ne $arr2[$i];
+  }
+  return 1;
+}
+
+#changes the percentages into pixels
+#finds contiguous time slices wherein nothing changed
+#draws all the time slices
+sub drawAllScans($){
+  my @scans = @{shift()};
+  my @scansPxs;
+  
+  #convert the percentages into pixels
+  for my $scan(@scans){
+    my @scanPercentages = @{$scan};
+    my $total=0;
+    my @pxs;
+    for my $per(@scanPercentages){
+      if($per > 0){
+        my $px = int(($height-2) * ($per/100.0));
+        $px = 1 if $px == 0;
+        $total += $px;
+        push @pxs, $px;
+      }else{
+        push @pxs, 0;
+      }
+    }
+
+    while(@pxs > 0 && $total > $height-2){
+      for(my $i=@pxs-1; $i>=0; $i--){
+        if($pxs[$i] > 0){
+          $pxs[$i]--;
+          $total--;
+          last;
+        }
+      }
+    }
+    while(@pxs > 0 && $total < $height-2){
+      for(my $i=0; $i<@pxs; $i++){
+        if($pxs[$i] < $height-2){
+          $pxs[$i]++;
+          $total++;
+          last;
+        }
+      }
+    }
+
+    push @scansPxs, \@pxs;
+  }
+
+  my $out = '';
+
+  my @prevPxs;
+  my $scanSetSize = 0;
+  for my $scanPxs(@scansPxs){
+    my @pxs = @{$scanPxs};
+    if($scanSetSize > 0 and not same \@pxs, \@prevPxs){
+      $out .= drawScanSet \@prevPxs, $scanSetSize;
+      $scanSetSize = 0;
+    }
+    @prevPxs = @pxs;
+    $scanSetSize++;
+  }
+  if($scanSetSize > 0){
+    $out .= drawScanSet \@prevPxs, $scanSetSize;
+  }
+
+  return $out;
 }
 
 local $| = 1;
-my @cols = map [], @{[1..$width]};
+my @scans = map [], @{[1..$width]};
 while(my $line = <STDIN>){
   chomp($line);
-  shift @cols;
-  my @colPercentages = split / /, $line;
-  push @cols, \@colPercentages;
+  shift @scans;
+  my @scan = split / /, $line;
+  push @scans, \@scan;
 
   my $out = "^p(;-3)^ib(1)";
-  for my $col(@cols){
-    $out .= drawCol $col;
-  }
+  $out .= drawAllScans(\@scans);
   $out .= "^ib(0)^p(;3)";
   print "$out\n";
 }
