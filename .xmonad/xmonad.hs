@@ -28,7 +28,7 @@ import System.Exit
 
 --position of dzen bar by xinerama screen {addtl screen default is (0,0)}
 pos = [] ++ repeat (0,0)
-xtraPos = [] ++ repeat (500,0)
+xtraPos = [] ++ repeat (650,0)
 --extras on dzen bar by xinerama screen {addtl screen default is False}
 height = 24
 
