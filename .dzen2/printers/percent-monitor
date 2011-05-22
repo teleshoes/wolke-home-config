@@ -1,0 +1,40 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $height = shift;
+my $width = shift;
+my @colors = @ARGV;
+
+sub drawCol($){
+  my @percentages = @{shift()};
+  my $prevPx = 0;
+  my $col='';
+  for(my $i=@percentages-1; $i>=0; $i--){
+    my $per = $percentages[$i];
+    chomp $per;
+    my $color = $colors[$i];
+    my $px = int(($height-2)*($per/100.0));
+    if($px > 0){
+      $col .= "^fg($color)^p(;$prevPx)^ro(1x$px)^fg()^p(-1;-$prevPx)";
+    }
+    $prevPx += $px;
+  }
+  $col .= "^p(1)";
+}
+
+local $| = 1;
+my @cols = map [], @{[1..$width]};
+while(my $line = <STDIN>){
+  chomp($line);
+  shift @cols;
+  my @colPercentages = split / /, $line;
+  push @cols, \@colPercentages;
+
+  my $out = "^p(;-3)^ib(1)";
+  for my $col(@cols){
+    $out .= drawCol $col;
+  }
+  $out .= "^ib(0)^p(;3)";
+  print "$out\n";
+}
