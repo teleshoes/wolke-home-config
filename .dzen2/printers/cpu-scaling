@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub twoTextRows($$);
+
+my $cpu = shift;
+$cpu = '' if not defined $cpu;
+my $delay = shift;
+if($cpu !~ /^\d+$/){
+  die "Usage: $0 cpu_index delay\n";
+}
+my $freq = "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_cur_freq";
+my $gov = "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor";
+
+local $| = 1;
+while(1){
+  my $currentGov = `cat $gov`;
+  chomp $currentGov;
+  $currentGov = substr $currentGov, 0, 4;
+
+  my $currentFreq = `cat $freq`;
+  chomp $currentFreq;
+  $currentFreq = sprintf "%.2f", $currentFreq / 1000.0 / 1000.0;
+
+  print twoTextRows "$currentFreq", $currentGov or die "broken pipe";
+  print "\n" or die "broken pipe";
+
+  sleep $delay;
+}
+
+
+
+sub raise($){
+  my $text = shift;
+  return "^p(;-8)$text^p(;8)";
+}
+sub lower($){
+  my $text = shift;
+  return "^p(;3)$text^p(;-3)";
+}
+
+sub addClickAction($$$){
+  my $button = shift;
+  my $cmd = shift;
+  my $markup = shift;
+  return "^ca($button, $cmd)$markup^ca()";
+}
+
+sub twoTextRows($$){
+  my $top = shift;
+  my $bot = shift;
+
+  my $fst;
+  my $snd;
+  if(length $top > length $bot){
+    $fst = lower($bot);
+    $snd = raise($top);
+  }else{
+    $fst = raise($top);
+    $snd = lower($bot);
+  }
+
+  return ''
+   . '^ib(1)'
+   . '^p(_LOCK_X)'
+   . $fst
+   . '^p(_UNLOCK_X)'
+   . $snd
+   . '^ib(0)'
+   ;
+}
