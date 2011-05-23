@@ -142,7 +142,8 @@ if [ "$REPLY" == "y" ]; then
     nautilus-gksu hwinfo chromium-browser wine1.2 \
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
-    libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do
+    libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
+    librsvg2-bin
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
