@@ -129,6 +129,7 @@ dzenBar cmd align x y screen = spawnPipe $ cmd ++ flags
 
 windowRules = composeAll
     [ className =? "Gnome-panel"    --> doIgnore
+    , className =? "Rhythmbox"      --> doF (Stk.shift "9")
     , className =? "Do"             --> doIgnore
     ]
 
