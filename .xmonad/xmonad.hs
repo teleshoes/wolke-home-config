@@ -159,7 +159,7 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = fromList $
   --layout
   , ((modm, xK_b     ), sendMessage ToggleStruts)
   , ((modm, xK_t     ), withFocused $ windows . Stk.sink) --tile window
-  , ((modm, xK_f     ), withFocused $ windows . (flip Stk.float midRect))
+  , ((modm, xK_u     ), withFocused $ windows . (flip Stk.float midRect))
   , ((modm, xK_a     ), sendMessage $ JumpToLayout "left")
   , ((modm, xK_s     ), sendMessage $ JumpToLayout "top")
   , ((modm, xK_d     ), sendMessage $ JumpToLayout "full")
