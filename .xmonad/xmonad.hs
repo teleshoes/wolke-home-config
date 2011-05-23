@@ -129,9 +129,8 @@ dzenBar cmd align x y screen = spawnPipe $ cmd ++ flags
 
 windowRules = composeAll
     [ className =? "Gnome-panel"    --> doIgnore
-    , className =? "Do"             --> doFloat
-    , resource  =? "desktop_window" --> doIgnore
-    , resource  =? "kdesktop"       --> doIgnore ]
+    , className =? "Do"             --> doIgnore
+    ]
 
 midRect = Stk.RationalRect (1/4) (1/4) (1/2) (1/2)
 
@@ -157,7 +156,7 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((shmd, xK_Tab   ), windows Stk.focusUp)
 
   --layout
-  , ((modm, xK_b     ), sendMessage ToggleStruts)
+  , ((modm, xK_f     ), sendMessage ToggleStruts)
   , ((modm, xK_t     ), withFocused $ windows . Stk.sink) --tile window
   , ((modm, xK_u     ), withFocused $ windows . (flip Stk.float midRect))
   , ((modm, xK_a     ), sendMessage $ JumpToLayout "left")
@@ -170,7 +169,7 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_comma ), sendMessage (IncMasterN 1))
   , ((modm, xK_period), sendMessage (IncMasterN (-1)))
 
-  , ((modm, xK_g     ), withFocused toggleBorder)
+  , ((modm, xK_b     ), withFocused toggleBorder)
 
   , ((modm, xK_v     ), windows copyToAll) -- Copy focused win to all workspaces
   , ((shmd, xK_v     ), killAllOtherCopies) -- @@ Delete copies of focused win
