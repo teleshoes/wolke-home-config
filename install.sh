@@ -143,7 +143,7 @@ if [ "$REPLY" == "y" ]; then
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
-    librsvg2-bin
+    librsvg2-bin fbreader
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
@@ -154,6 +154,13 @@ if [ "$REPLY" == "y" ]; then
   cabal install xmonad-contrib
   /home/wolke/bin/install-dzen
   sudo apt-get install xdotool
+
+  #move the %-named files in .xmonad to its place
+  for file in `ls $HOME/.xmonad/%*`; do
+    loc=`echo $file | sed 's/[^%]*%/%/' | sed 's/%/\//g'`
+    echo copying $file to $loc
+    sudo cp $file $loc
+  done
 fi;
 
 echo; echo;
