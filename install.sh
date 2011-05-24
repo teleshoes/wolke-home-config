@@ -151,8 +151,8 @@ fi
 echo; echo;
 read -p "install xmonad? (y/N)"
 if [ "$REPLY" == "y" ]; then
+  sudo apt-get install xmonad dzen2
   cabal install xmonad-contrib
-  /home/wolke/bin/install-dzen
   sudo apt-get install xdotool
 
   #move the %-named files in .xmonad to its place
