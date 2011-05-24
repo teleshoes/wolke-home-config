@@ -69,6 +69,15 @@ main = do
       map (\bar -> myDzenPP {ppOutput = hPutStrLn bar}) bars
   }
 
+windowRules = composeAll
+    [ className =? "Gnome-panel"    --> doIgnore
+    , className =? "Rhythmbox"      --> doF (Stk.shift "9")
+    , className =? "Thunderbird"    --> doF (Stk.view "8")
+    , className =? "Thunderbird"    --> doF (Stk.shift "8")
+    , className =? "Do"             --> doIgnore
+    ]
+
+
 myDzenPP = dzenPP
   { ppCurrent  = \x -> "^bg(#cccccc)^fg(black) " ++ x ++ " " ++ "^r(16)" ++
                  (box "red" 37 height 3) ++ blkspc
@@ -126,12 +135,6 @@ dzenBar cmd align x y screen = spawnPipe $ cmd ++ flags
           ++ " -h " ++ show height
           ++ " -ta " ++  align
 
-
-windowRules = composeAll
-    [ className =? "Gnome-panel"    --> doIgnore
-    , className =? "Rhythmbox"      --> doF (Stk.shift "9")
-    , className =? "Do"             --> doIgnore
-    ]
 
 midRect = Stk.RationalRect (1/4) (1/4) (1/2) (1/2)
 
