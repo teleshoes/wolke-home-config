@@ -151,13 +151,15 @@ fi
 echo; echo;
 read -p "install xmonad? (y/N)"
 if [ "$REPLY" == "y" ]; then
-  sudo apt-get install xmonad dzen2 libghc6-xmonad-contrib-dev
+  sudo apt-get install xmonad libghc6-xmonad-contrib-dev
   /usr/bin/cabal update
   /usr/bin/cabal install cabal-install
   cabal install X11 --reinstall
   sudo apt-get remove ibghc6-utf8-string-dev
   cabal install utf8-string --reinstall
   cabal install xmonad-contrib
+
+  $HOME/bin/install-dzen2
 
   #move the %-named files in .xmonad to its place
   for file in `ls $HOME/.xmonad/%*`; do
