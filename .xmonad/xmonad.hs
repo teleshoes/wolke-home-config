@@ -71,6 +71,7 @@ main = do
 
 windowRules = composeAll
     [ className =? "Gnome-panel"    --> doIgnore
+    , className =? "Eclipse"        --> doF (Stk.shift "A")
     , className =? "Rhythmbox"      --> doF (Stk.shift "9")
     , className =? "Thunderbird"    --> doF (Stk.view "8")
     , className =? "Thunderbird"    --> doF (Stk.shift "8")
