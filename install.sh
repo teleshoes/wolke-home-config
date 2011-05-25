@@ -143,7 +143,7 @@ if [ "$REPLY" == "y" ]; then
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
-    librsvg2-bin fbreader
+    librsvg2-bin fbreader xdotool
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
@@ -151,9 +151,13 @@ fi
 echo; echo;
 read -p "install xmonad? (y/N)"
 if [ "$REPLY" == "y" ]; then
-  sudo apt-get install xmonad dzen2
+  sudo apt-get install xmonad dzen2 libghc6-xmonad-contrib-dev
+  /usr/bin/cabal update
+  /usr/bin/cabal install cabal-install
+  cabal install X11 --reinstall
+  sudo apt-get remove ibghc6-utf8-string-dev
+  cabal install utf8-string --reinstall
   cabal install xmonad-contrib
-  sudo apt-get install xdotool
 
   #move the %-named files in .xmonad to its place
   for file in `ls $HOME/.xmonad/%*`; do
