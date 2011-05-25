@@ -12,19 +12,28 @@ my $DIR = "\$HOME/.dzen2/printers";
 my $DELAY_MS = 850;
 my $spacer = [once => "echo -n ' ^p(;-4)^fg(black)^r(1x24)^fg()^p(;4) '"];
 my $smallSpace = [once => "echo -n '^p(2)'"];
+
+my $cpuCount = `cat /proc/cpuinfo | grep processor | wc -l`;
+my @cpuScaling;
+for(my $i=0; $i<$cpuCount; $i++){
+  push @cpuScaling, [LOOP => "$DIR/cpu-scaling $i 1"];
+  if($i < $cpuCount - 1){
+    push @cpuScaling, $smallSpace;
+  }
+}
+
+
 my @printerCommands = (
   $spacer,
   [once => "$DIR/rbox"],
   $spacer,
   [once => "$DIR/tbunreadcounts"],
   $spacer,
-  [LOOP => "$DIR/cpu-monitor"],
+  [LOOP => "$DIR/cpu-monitor 1.5"],
   $smallSpace,
-  [LOOP => "$DIR/mem-monitor"],
+  [LOOP => "$DIR/mem-monitor 1.5"],
   $spacer,
-  [LOOP => "$DIR/cpu-scaling 0 1"],
-  $smallSpace,
-  [LOOP => "$DIR/cpu-scaling 1 1"],
+  @cpuScaling,
   $spacer,
   [once => "$DIR/mic"],
   [once => "$DIR/commandclick firefox"],
@@ -33,7 +42,7 @@ my @printerCommands = (
   [once => "$DIR/openvpn"],
   [LOOP => "$DIR/monitor-ping source.escribe.com e 5 -loop"],
   $spacer,
-  [LOOP => "/usr/lib/tpbattstat-applet/tpbattstat.py --dzen"],
+  [LOOP => "/usr/lib/tpbattstat-applet/tpbattstat.py --dzen 2500"],
   $spacer,
   [once => "$DIR/clock"],
 );
