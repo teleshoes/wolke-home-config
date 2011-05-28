@@ -30,7 +30,8 @@ import System.Exit
 pos = [] ++ repeat (0,0)
 xtraPos = [] ++ repeat (650,0)
 --extras on dzen bar by xinerama screen {addtl screen default is False}
-height = 24
+height = 36
+dzenFont = "Inconsolata-14"
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 
@@ -81,7 +82,7 @@ windowRules = composeAll
 
 myDzenPP = dzenPP
   { ppCurrent  = \x -> "^bg(#cccccc)^fg(black) " ++ x ++ " " ++ "^r(16)" ++
-                 (box "red" 37 height 3) ++ blkspc
+                 (box "red" 43 height 3) ++ blkspc
   , ppVisible  = emptyWs "#999999"
   , ppHidden = \x -> emptyWs "#cccccc" x
   , ppHiddenNoWindows =
@@ -134,6 +135,7 @@ dzenBar cmd align x y screen = spawnPipe $ cmd ++ flags
           ++ " -x " ++ show x
           ++ " -y " ++ show y
           ++ " -h " ++ show height
+          ++ " -fn " ++ dzenFont
           ++ " -ta " ++  align
 
 
