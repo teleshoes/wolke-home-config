@@ -154,8 +154,9 @@ if [ "$REPLY" == "y" ]; then
   sudo apt-get install xmonad libghc6-xmonad-contrib-dev
   /usr/bin/cabal update
   /usr/bin/cabal install cabal-install
+  cabal install xmonad
   cabal install X11 --reinstall
-  sudo apt-get remove ibghc6-utf8-string-dev
+  sudo apt-get remove ibghc6-utf8-string-dev libghc6-xmonad-contrib-dev
   cabal install utf8-string --reinstall
   cabal install xmonad-contrib
 
