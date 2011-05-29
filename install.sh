@@ -123,6 +123,12 @@ if [ "$REPLY" == "y" ]; then
   echo and this: sudo apt-get update
   echo and this: sudo apt-get install tor tor-geoipd
 
+  echo
+  echo Add the below for Mesa, OpenGL, xorg drivers nouveau/ati/intel
+  read -p ": add bleeding edge open source gfx drivers ppa (y/N)?"
+  if [ "$REPLY" == "y" ]; then
+  #mesa bleeding edge
+  sudo add-apt-repository ppa:oibaf/graphics-drivers
 fi
 
 echo; echo;
