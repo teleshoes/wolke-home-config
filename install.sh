@@ -143,7 +143,7 @@ if [ "$REPLY" == "y" ]; then
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
-    librsvg2-bin fbreader xdotool
+    librsvg2-bin fbreader xdotool powertop
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
@@ -296,6 +296,19 @@ echo remove indicator-me, indicator-session, and indicator-messages
 read -p "remove everything in indicator-applet except volume (y/N)?"
 if [ "$REPLY" == "y" ]; then
   sudo apt-get remove indicator-messages indicator-me indicator-session
+fi
+
+
+echo; echo;
+read -p "install silkscreen font (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  SS_DIR=/usr/share/fonts/truetype/ttf-silkscreen
+  sudo mkdir -p $SS_DIR
+  cd $SS_DIR
+  sudo wget http://www.kottke.org/plus/type/silkscreen/download/silkscreen.zip
+  sudo unzip silkscreen.zip
+  sudo rm silkscreen.zip
+  sudo fc-cache -fv
 fi
 
 
