@@ -4,13 +4,24 @@ use warnings;
 use Time::HiRes qw(sleep time);
 use IO::Handle;
 
+my $height = 24;
+for(my $i=0; $i<@ARGV; $i++){
+  if($ARGV[$i] eq '-h'){
+    $i++;
+    if($i<@ARGV and $ARGV[$i] =~ /^\d+$/){
+      $height = $ARGV[$i];
+      last;
+    }
+  }
+}
+
 sub getIO($);
 
 my $DIR = "\$HOME/.dzen2/printers";
 
 #usually you want the total run time including processing be < 1s
 my $DELAY_MS = 850;
-my $spacer = [once => "echo -n ' ^p(;-4)^fg(black)^r(1x24)^fg()^p(;4) '"];
+my $spacer = [once => "echo -n ' ^p(;-8)^fg(black)^r(3x$height)^fg()^p(;8) '"];
 my $smallSpace = [once => "echo -n '^p(2)'"];
 
 my $cpuCount = `cat /proc/cpuinfo | grep processor | wc -l`;
@@ -29,9 +40,9 @@ my @printerCommands = (
   $spacer,
   [once => "$DIR/tbunreadcounts"],
   $spacer,
-  [LOOP => "$DIR/cpu-monitor 1.5"],
+  [LOOP => "$DIR/cpu-monitor 1.5 $height"],
   $smallSpace,
-  [LOOP => "$DIR/mem-monitor 1.5"],
+  [LOOP => "$DIR/mem-monitor 1.5 $height"],
   $spacer,
   @cpuScaling,
   $spacer,
@@ -45,8 +56,38 @@ my @printerCommands = (
   [LOOP => "/usr/lib/tpbattstat-applet/tpbattstat.py --dzen 2500"],
   $spacer,
   [once => "$DIR/clock"],
+  $smallSpace,
 );
 my @previousOutputs = map {'---'} @printerCommands;
+
+sub main(){
+  open DZEN, "| dzen2 @ARGV";
+
+  my @printers;
+  for my $cmdArr(@printerCommands){
+    my $schedule = $$cmdArr[0];
+    my $cmd = $$cmdArr[1];
+    if(lc $schedule eq 'loop'){
+      push @printers, ['iohandle', getUnblockedIO($cmd)];
+    }elsif(lc $schedule eq 'once'){
+      push @printers, ['command', $cmd];
+    }
+  }
+  for my $p(@printers){
+    print $$p[0] . " => " . $$p[1] . "\n";
+  }
+
+  while(1){
+    my $start = time;
+    print "\n\n\nStarting a round\n";
+    print DZEN getOutput(\@printers);
+    print DZEN "\n";
+    my $end = time;
+    printf "Round took %.6fs", ($end - $start);
+    sleep $DELAY_MS / 1000;
+  }
+}
+
 
 sub getCommandOutput($$){
   my $command = shift;
@@ -87,34 +128,6 @@ sub getOutput($){
     $output .= $out;
   }
   return $output;
-}
-
-sub main(){
-  open DZEN, "| dzen2 @ARGV";
-
-  my @printers;
-  for my $cmdArr(@printerCommands){
-    my $schedule = $$cmdArr[0];
-    my $cmd = $$cmdArr[1];
-    if(lc $schedule eq 'loop'){
-      push @printers, ['iohandle', getUnblockedIO($cmd)];
-    }elsif(lc $schedule eq 'once'){
-      push @printers, ['command', $cmd];
-    }
-  }
-  for my $p(@printers){
-    print $$p[0] . " => " . $$p[1] . "\n";
-  }
-
-  while(1){
-    my $start = time;
-    print "\n\n\nStarting a round\n";
-    print DZEN getOutput(\@printers);
-    print DZEN "\n";
-    my $end = time;
-    printf "Round took %.6fs", ($end - $start);
-    sleep $DELAY_MS / 1000;
-  }
 }
 
 #for some incomprehensible reason,
