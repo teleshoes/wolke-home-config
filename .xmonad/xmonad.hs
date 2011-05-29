@@ -188,21 +188,17 @@ myKeys conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt , xK_F2    ), spawn "gnome-do")
 
   , ((none, xf86think), spawn "gnome-terminal")
+  , ((none, xK_F12   ), spawn "gnome-terminal")
   , ((alt,  xf86think), spawnTerm "$HOME/bin/cmdselect")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
-  , ((supr, xK_F1    ), spawn "sudo $HOME/bin/cpu_governor 0 ondemand")
-  , ((supr, xK_F2    ), spawn "sudo $HOME/bin/cpu_governor 0 conservative")
-  , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu_governor 0 powersave")
-  , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu_governor 0 performance")
-
-  , ((supr, xK_F5    ), spawn "sudo $HOME/bin/cpu_governor 1 ondemand")
-  , ((supr, xK_F6    ), spawn "sudo $HOME/bin/cpu_governor 1 conservative")
-  , ((supr, xK_F7    ), spawn "sudo $HOME/bin/cpu_governor 1 powersave")
-  , ((supr, xK_F8    ), spawn "sudo $HOME/bin/cpu_governor 1 performance")
+  , ((supr, xK_F1    ), spawn "sudo $HOME/bin/cpu_governor all ondemand")
+  , ((supr, xK_F2    ), spawn "sudo $HOME/bin/cpu_governor all conservative")
+  , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu_governor all powersave")
+  , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu_governor all performance")
 
   , ((alct, xK_space ), spawn "gnome-system-monitor")
 
