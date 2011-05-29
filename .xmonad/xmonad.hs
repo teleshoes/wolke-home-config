@@ -6,6 +6,7 @@ import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.UrgencyHook
 import XMonad.Actions.NoBorders (toggleBorder)
+import XMonad.Layout.NoBorders (smartBorders, noBorders)
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 import XMonad.Actions.DeManage (demanage)
 import XMonad.Util.Font (encodeOutput)
@@ -58,10 +59,10 @@ main = do
     keys               = myKeys,
     mouseBindings      = myMouseBindings,
   
-    layoutHook         =
-      (named "left" $ avoidStruts $          Tall 1 (3/100) (55/100)) |||
-      (named "top"  $ avoidStruts $ Mirror $ Tall 1 (3/100) (55/100)) |||
-      (named "full" $ avoidStruts $          Full),
+    layoutHook         = 
+      (smartBorders $ named "left" $ avoidStruts $          Tall 1 (3/100) (55/100)) |||
+      (smartBorders $ named "top"  $ avoidStruts $ Mirror $ Tall 1 (3/100) (55/100)) |||
+      (noBorders $ named "full" $ avoidStruts $          Full),
     manageHook         = windowRules,
     handleEventHook    = mempty,
     startupHook        = return (),
@@ -70,13 +71,16 @@ main = do
       map (\bar -> myDzenPP {ppOutput = hPutStrLn bar}) bars
   }
 
+doView workspace = doF (Stk.view workspace)
+doShiftView workspace = doShift workspace <+> doView workspace
+
 windowRules = composeAll
     [ className =? "Gnome-panel"    --> doIgnore
-    , className =? "Eclipse"        --> doF (Stk.shift "A")
-    , className =? "Rhythmbox"      --> doF (Stk.shift "9")
-    , className =? "Thunderbird"    --> doF (Stk.view "8")
-    , className =? "Thunderbird"    --> doF (Stk.shift "8")
+    , className =? "Eclipse"        --> doShift "A"
+    , className =? "Rhythmbox"      --> doShift "9"
     , className =? "Do"             --> doIgnore
+    , className =? "Thunderbird"    --> doShiftView "8"
+    , className =? "MPlayer"        --> doShiftView "7"
     ]
 
 
@@ -313,5 +317,4 @@ focusedWindow = maybe Nothing (return . Stk.focus) . Stk.stack . Stk.workspace
 
 sepBy :: String -> [String] -> String
 sepBy sep = intercalate sep . filter (not . null)
-
 
