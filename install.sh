@@ -125,10 +125,15 @@ if [ "$REPLY" == "y" ]; then
 
   echo
   echo Add the below for Mesa, OpenGL, xorg drivers nouveau/ati/intel
-  read -p ": add bleeding edge open source gfx drivers ppa (y/N)?"
+  read -p "add bleeding edge open source gfx drivers ppa (y/N)?"
   if [ "$REPLY" == "y" ]; then
   #mesa bleeding edge
   sudo add-apt-repository ppa:oibaf/graphics-drivers
+
+  read -p "ADD KERNEL PPA (y/N)?"
+  if [ "$REPLY" == "y" ]; then
+  #kernel bleeding edge
+  sudo add-apt-repository ppa:kernel-ppa/ppa
 fi
 
 echo; echo;
