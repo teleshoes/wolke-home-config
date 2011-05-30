@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $DIR = `echo -n \$HOME/Desktop/Software/compat-wireless`;
+my $URL = 'http://wireless.kernel.org/download/compat-wireless-2.6';
+
+my $date = shift;
+$date = '' if not defined $date;
+if($date eq 'yday'){
+  my $y = `date +%Y`;
+  chomp $y;
+  my $m = `date +%m`;
+  chomp $m;
+  my $d = `date +%d`;
+  chomp $d;
+  $d--;
+
+  $date = "$y-$m-$d";
+  print "Interpreting 'yday' as: $date\n";
+}elsif($date !~ /\d\d\d\d-\d\d-\d\d/){
+  die "Usage: $0 YYYY-MM-DD\n" .
+      "       OR\n" .
+      "       $0 yday\n";
+}
+
+my $build = "compat-wireless-$date";
+
+print "\n\n\ndownloading and expanding the tarball...\n\n\n";
+
+system "mkdir -p $DIR";
+chdir $DIR;
+
+system "wget $URL/$build.tar.bz2";
+system "tar -xf $build.tar.bz2";
+chdir $build;
+
+print "\n\n\nbuilding...\n\n\n";
+
+system "make";
+
+
+print "\n\n\ninstalling...\n\n\n";
+
+system "sudo make install";
+
+print "\n\n\nunloading wireless drivers...\n\n\n";
+
+system "sudo make unload";
+
+print "\n\n\nguessing wildly that you want to modprobe iwlagn...\n\n\n";
+system "sudo modprobe iwlagn";
+
