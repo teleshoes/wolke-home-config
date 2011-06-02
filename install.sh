@@ -117,23 +117,29 @@ if [ "$REPLY" == "y" ]; then
   #thunderbird stable
   sudo add-apt-repository ppa:mozillateam/thunderbird-stable
 
-  echo add this: deb http://deb.torproject.org/torproject.org lucid main
-  echo do this: gpg --keyserver keys.gnupg.net --recv 886DDD89
-  echo and this: gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
-  echo and this: sudo apt-get update
-  echo and this: sudo apt-get install tor tor-geoipd
-
-  echo
   echo Add the below for Mesa, OpenGL, xorg drivers nouveau/ati/intel
   read -p "add bleeding edge open source gfx drivers ppa (y/N)?"
   if [ "$REPLY" == "y" ]; then
-  #mesa bleeding edge
-  sudo add-apt-repository ppa:oibaf/graphics-drivers
+    #mesa bleeding edge
+    sudo add-apt-repository ppa:oibaf/graphics-drivers
+  fi
 
   read -p "ADD KERNEL PPA (y/N)?"
   if [ "$REPLY" == "y" ]; then
-  #kernel bleeding edge
-  sudo add-apt-repository ppa:kernel-ppa/ppa
+    #kernel bleeding edge
+    sudo add-apt-repository ppa:kernel-ppa/ppa
+  fi
+fi
+
+echo; echo;
+read -p "sync /var/cache/apt with ~/apt-cache (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  A="/var/cache/apt"
+  B="$HOME/apt-cache"
+  sudo rsync -av $A/ $B
+  sudo rsync -av $B/ $A
+  sudo chown -R $USER.$USER $B
+  sudo chown -R root.root $A
 fi
 
 echo; echo;
@@ -160,16 +166,17 @@ if [ "$REPLY" == "y" ]; then
 fi
 
 echo; echo;
-read -p "install xmonad? (y/N)"
+read -p "Install i7z? (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  echo Installing libncurses5-dev and latest i7z from svn
+  install-i7z
+fi
+
+
+echo; echo;
+read -p "install xmonad and dzen2? (y/N)"
 if [ "$REPLY" == "y" ]; then
   sudo apt-get install xmonad libghc6-xmonad-contrib-dev
-  /usr/bin/cabal update
-  /usr/bin/cabal install cabal-install
-  cabal install xmonad
-  cabal install X11 --reinstall
-  sudo apt-get remove ibghc6-utf8-string-dev libghc6-xmonad-contrib-dev
-  cabal install utf8-string --reinstall
-  cabal install xmonad-contrib
 
   $HOME/bin/install-dzen2
 
@@ -204,7 +211,6 @@ if [ "$REPLY" == "y" ]; then
   sudo /usr/share/doc/libdvdread4/install-css.sh
 fi
 
-
 echo; echo;
 read -p "Upgrade packages? (y/N)?"
 if [ "$REPLY" == "y" ]; then
@@ -218,6 +224,7 @@ read -p "Upgrade packages with aptitude {includes new installs and heldback} (y/
 if [ "$REPLY" == "y" ]; then
   sudo aptitude upgrade
 fi
+
 
 
 echo; echo;
