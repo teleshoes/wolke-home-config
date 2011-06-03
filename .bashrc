@@ -85,6 +85,7 @@ fi
 #alias ll='ls -l'
 #alias la='ls -A'
 alias :q='exit'
+alias suod='sudo'
 alias exot='exit'
 alias exut='exit'
 alias l='ls -al --color=auto'
