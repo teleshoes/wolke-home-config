@@ -14,12 +14,16 @@ for(my $i=0; $i<@ARGV; $i++){
     }
   }
 }
-
+for(my $i=0; $i<@ARGV; $i++){
+  if($ARGV[$i] eq '-x'){
+    $ARGV[$i] = '';
+    $ARGV[$i+1] = '';
+  }
+}
 sub getIO($);
 
 my $DIR = "\$HOME/.dzen2/printers";
 
-my $INTERVAL_MS = 950;
 my $spacer = [once => "echo -n ' ^p(;-8)^fg(black)^r(3x$height)^fg()^p(;8) '"];
 my $smallSpace = [once => "echo -n '^p(2)'"];
 
@@ -39,10 +43,6 @@ my @printerCommands = (
   $spacer,
   [once => "$DIR/tbunreadcounts"],
   $spacer,
-  [LOOP => "$DIR/cpu-monitor 1.0 $height"],
-  $smallSpace,
-  [LOOP => "$DIR/mem-monitor 1.0 $height"],
-  $spacer,
   @cpuScaling,
   $spacer,
   [once => "$DIR/mic"],
@@ -57,13 +57,47 @@ my @printerCommands = (
   [once => "$DIR/clock"],
   $smallSpace,
 );
-my @previousOutputs = map {'---'} @printerCommands;
+
+my @monitorCommands = (
+  $spacer,
+  [LOOP => "$DIR/cpu-monitor 1.5 $height"],
+  $smallSpace,
+  [LOOP => "$DIR/mem-monitor 1.5 $height"],
+);
+sub loop($$$$);
 
 sub main(){
-  open DZEN, "| dzen2 @ARGV";
+  my $monitorWidth = 18+($height+3)*2;
+  if(fork()){
+    loop 850, $monitorWidth, 350, \@monitorCommands;
+  }else{
+    loop 850+$monitorWidth, 0, 950, \@printerCommands;
+  }
+}
 
+sub loop($$$$){
+  my $x = shift;
+  if($x == 0){
+    $x = '';
+  }else{
+    $x = "-x $x";
+  }
+  my $w = shift;
+  if($w == 0){
+    $w = '';
+  }else{
+    $w = "-w $w";
+  }
+
+  my $interval_millis = shift;
+
+  my @cmds = @{shift()};
+  
+  open DZEN, "| dzen2 $w $x @ARGV";
+
+  my @previousOutputs = map {'---'} @printerCommands;
   my @printers;
-  for my $cmdArr(@printerCommands){
+  for my $cmdArr(@cmds){
     my $schedule = $$cmdArr[0];
     my $cmd = $$cmdArr[1];
     if(lc $schedule eq 'loop'){
@@ -79,11 +113,11 @@ sub main(){
   while(1){
     my $start = time;
     print "\n\n\nStarting a round\n";
-    print DZEN getOutput(\@printers);
+    print DZEN getOutput(\@printers, \@previousOutputs);
     print DZEN "\n";
     my $end = time;
     my $elapsed = $end - $start;
-    my $toSleep = ($INTERVAL_MS / 1000.0) - $elapsed;
+    my $toSleep = ($interval_millis / 1000.0) - $elapsed;
     printf "Round took %.6fs, sleeping for %.6fs\n", $elapsed, $toSleep;
     if($toSleep > 0){
       sleep $toSleep;
@@ -113,21 +147,22 @@ sub getIOHandleOutput($$){
   chomp $out;
   return $out;
 }
-sub getOutput($){
+sub getOutput($$){
   my $output = '';
   my $printers = shift;
+  my $previousOutputs = shift;
   for(my $i=0; $i<@{$printers}; $i++){
     my $printer = $$printers[$i];
     my $out;
     my $start = time;
     if($$printer[0] eq 'command'){
-      $out = getCommandOutput $$printer[1], $previousOutputs[$i];
+      $out = getCommandOutput $$printer[1], $$previousOutputs[$i];
     }elsif($$printer[0] eq 'iohandle'){
-      $out = getIOHandleOutput $$printer[1], $previousOutputs[$i];
+      $out = getIOHandleOutput $$printer[1], $$previousOutputs[$i];
     }
     my $end = time;
     printf "Command#%d took %.6fs (%s)\n", $i, ($end - $start), $$printer[1];
-    $previousOutputs[$i] = $out;
+    $$previousOutputs[$i] = $out;
     $output .= $out;
   }
   return $output;
