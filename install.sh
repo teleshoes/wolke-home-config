@@ -591,6 +591,15 @@ fi
 
 
 echo; echo;
+echo really dangerous: dont say yes, do it yourself
+echo add the following line to /etc/sudoers:
+echo wolke   ALL = NOPASSWD: /usr/bin/i7z
+read -p "overwrite /etc/sudoers, despite your better judgment (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo sh -c "chmod +w /etc/sudoers && echo \"wolke\tALL=(ALL) NOPASSWD: /usr/sbin/i7z\" >> /etc/sudoers && chmod -w /etc/sudoers"
+fi
+
+echo; echo;
 read -p "fix 32-bit flash {export GDK_NATIVE_WINDOWS} (y/N)?"
 if [ "$REPLY" == "y" ]; then
   sudo ~/bin/config_flash
