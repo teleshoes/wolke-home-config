@@ -24,8 +24,8 @@ pos = [] ++ repeat (0,0)
 height = 36
 font = "Inconsolata-14"
 
-dzenExec = "sleep 1; dzen2"
-dzenExtrasExec = "sleep 2; $HOME/.dzen2/launchers/main"
+dzenExec = "sleep 2; dzen2"
+dzenExtrasExec = "sleep 1; $HOME/.dzen2/launchers/main"
 
 myDzenPP workspaceNames = dzenPP
   { ppCurrent  = \x -> "^bg(#cccccc)^fg(black) " ++ x ++ " " ++ "^r(16)" ++
@@ -72,8 +72,9 @@ myDzenPP workspaceNames = dzenPP
                                    ++ "^ib(1)"
                                    ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
                                    ++ "^ib(0)"
+
 dzenFlags = ""
-  ++ " -e " ++ "'onstart=raise'"
+  ++ " -e " ++ "'onstart=lower'"
   ++ " -fg " ++ "'#a8a3f7'"
   ++ " -bg " ++ "'#3f3c6d'"
   ++ " -h " ++ show height
