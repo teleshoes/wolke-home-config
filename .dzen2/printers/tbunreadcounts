@@ -2,63 +2,101 @@
 use strict;
 use warnings;
 
-my $EXEC = 'thunderbird-bin';
+my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
 
-sub addClickAction($$$){
-  my $button = shift;
-  my $cmd = shift;
-  my $markup = shift;
-  return "^ca($button, $cmd)$markup^ca()";
-}
+my $profileDir = '~/.thunderbird/*.default';
+my $processName = 'thunderbird-bin';
+my $clickCmd = 'thunderbird';
 
 my %ACCOUNTS = (
   'Gmail' => 'G',
   'LilleGroup' => 'L',
   'AOL - LiberiFataliVIII' => 'A');
 
-my $tb = `pidof $EXEC`;
-my $isRunning = $tb =~ /^[0-9]+\n?$/;
+sub isThunderbirdRunning();
+sub green($);
+sub red($);
+sub getCounts();
+sub pad2($);
 
-sub col($$$){
-  my $txt = shift;
-  my $fg = shift;
-  my $bg = shift;
-  return "^fg($fg)^bg($bg)$txt^fg()^bg()";
+sub main(){
+  my $markup = '';
+
+  if(isThunderbirdRunning()){
+    $markup .= green ' ';
+  }else{
+    $markup .= red 'x';
+  }
+
+  my %counts = getCounts();
+  my $len;
+  my $max = 0;
+  my $total = 0;
+  for my $count(values %counts){
+    $len++;
+    $max = $count if $count > $max;
+    $total += $count;
+  }
+
+  my $top;
+  my $bot;
+  if($max > 99 or ($len > 2 && $total > 99)){
+    $top = '99+';
+    $bot = 'all';
+  }elsif($len == 0){
+    $top = '   ';
+    $bot = '   ';
+  }elsif($len == 1){
+    my ($name1) = keys %counts;
+    $top = (pad2 $counts{$name1}) . $name1;
+    $bot = '   ';
+  }elsif($len == 2){
+    my ($name1, $name2) = sort keys %counts;
+    $top = (pad2 $counts{$name1}) . $name1;
+    $bot = (pad2 $counts{$name2}) . $name2;
+  }else{
+    $top = green ' ' . pad2 $total;
+    $bot = 'all';
+  }
+
+  my $rows = `$PRINTERS/two-text-rows '$top' '$bot'`;
+  chomp $rows;
+  $markup .= green $rows;
+
+  $markup = "^bg(black)$markup^bg()";
+  system "$PRINTERS/click-action", $clickCmd, $markup;
 }
 
-my $OUT = '';
-
-if(not $isRunning){
-  $OUT .= col 'x', 'red', '';
+sub green($){
+  return "^fg(green)" . $_[0] . "^fg()";
+}
+sub red($){
+  return "^fg(red)" . $_[0] . "^fg()";
 }
 
-my $dir = '~/.thunderbird/*.default';
-my @accounts = `cat $dir/unread-counts 2>/dev/null`;
-my $used = 0;
-if(@accounts > 0){
+sub isThunderbirdRunning(){
+  my $tb = `pidof $processName`;
+  return $tb =~ /^[0-9]+\n?$/;
+}
+
+sub getCounts(){
+  my @accounts = `cat $profileDir/unread-counts 2>/dev/null`;
+  my %counts;
   for my $acc(@accounts){
     if($acc =~ /^([0-9]+):(.*)\n?$/){
       my $count = $1;
       my $name = $2;
       my $display = $ACCOUNTS{$name};
       if($count > 0 && defined $display){
-        $OUT .= ' ' if $used > 0;
-        $OUT .= col "$count$display", 'green', 'black';
-        $used++;
+        $counts{$display} = $count;
       }
     }
   }
-}else{
-  $OUT = col 'err', 'red', 'black';
+  return %counts;
 }
 
-if($used == 0){
-  my $msg;
-  if($isRunning){
-    $msg = ' 0';
-  }else{
-    $msg = '0';
-  }
-  $OUT .= col $msg, 'white', 'black';
+sub pad2($){
+  return ' ' x (2 - (length $_[0])) . $_[0];
 }
-print addClickAction(1, 'thunderbird', $OUT);
+
+main;
