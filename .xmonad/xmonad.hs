@@ -41,7 +41,7 @@ main = do
                          , className =? "Rhythmbox"      --> doShift "9"
                          , className =? "Do"             --> doIgnore
                          , className =? "Thunderbird"    --> doShiftView "8"
-                         , className =? "MPlayer"        --> doShiftView "7"
+                         , className =? "MPlayer"        --> doShift "7"
                          ],
 
     logHook            = myDzenLogHook workspaceNames hookedDzens
