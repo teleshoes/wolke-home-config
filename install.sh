@@ -172,6 +172,11 @@ if [ "$REPLY" == "y" ]; then
   install-i7z
 fi
 
+echo; echo;
+read -p "Install pidgin pipe-notification plugin? (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  install-pidgin-pipe-notification
+fi
 
 echo; echo;
 read -p "install xmonad and dzen2? (y/N)"
