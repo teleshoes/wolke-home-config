@@ -38,6 +38,7 @@ main = do
     manageHook         = composeAll
                          [ className =? "Gnome-panel"    --> doIgnore
                          , className =? "Eclipse"        --> doShift "A"
+                         , className =? "Pidgin"         --> doShift "B"
                          , className =? "Rhythmbox"      --> doShift "9"
                          , className =? "Do"             --> doIgnore
                          , className =? "Thunderbird"    --> doShiftView "8"
