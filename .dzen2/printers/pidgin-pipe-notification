@@ -3,7 +3,58 @@ use strict;
 use warnings;
 
 my $PIPEFILE = `echo -n \$HOME/.purple/plugins/pipe`;
+my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
+my $HBIN = `echo -n \$HOME/bin`;
 
-my $status = `cat $PIPEFILE`;
-chomp $status;
-print "$status\n";
+my $height = shift;
+$height = 24 if not defined $height;
+my $IMGDIR = `echo -n \$HOME/.dzen2/icons/${height}x${height}/pidgin`;
+
+sub img($);
+
+
+my $runningLeftClickAction = "xdotool key --clearmodifiers alt+2";
+my $notRunningLeftClickAction = "pidgin";
+my $leftClickAction =
+  "pidof pidgin; " .
+  "if [ \$? == 0 ]; " .
+  "then $runningLeftClickAction; " .
+  "else $notRunningLeftClickAction; " .
+  "fi";
+
+my $rightClickAction = "killall pidgin";
+
+my %statusMap = (
+  'off'            => img 'not-running.xpm',
+  'new message'    => img 'pidgin-tray-pending.xpm',
+
+  'available'      => img 'pidgin-tray-available.xpm',
+  'away'           => img 'pidgin-tray-away.xpm',
+  'do not disturb' => img 'pidgin-tray-busy.xpm',
+  'invisible'      => img 'pidgin-tray-invisible.xpm',
+  'offline'        => img 'pidgin-tray-offline.xpm',
+);
+
+
+sub main(){
+  my $status = lc `cat $PIPEFILE`;
+  chomp $status;
+  if(defined $statusMap{$status}){
+    $status = $statusMap{$status};
+  }
+  my $out = $status;
+  
+  $out = `$PRINTERS/click-action 1 '$leftClickAction' '$out'`;
+  chomp $out;
+  $out = `$PRINTERS/click-action 3 '$rightClickAction' '$out'`;
+  chomp $out;
+
+  print "$out\n";
+}
+
+sub img($){
+  my $img = shift;
+  return `$PRINTERS/wrap-image '$IMGDIR/$img'`;
+}
+
+main;
