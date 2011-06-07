@@ -77,9 +77,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alct, xK_space ), spawn "gnome-system-monitor")
 
   , ((supr, xK_space ), spawn "$HOME/bin/rc-start --play-pause")
-  , ((supr, xK_space ), spawn "$HOME/bin/rc-start --play-pause")
   , ((supr, xK_z     ), spawn "$HOME/bin/rc --previous")
   , ((supr, xK_x     ), spawn "$HOME/bin/rc --next")
+  , ((sush, xK_z     ), spawn "$HOME/bin/rc --seek -10")
+  , ((sush, xK_x     ), spawn "$HOME/bin/rc --seek 10")
 
   , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
@@ -110,6 +111,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     supr = mod4Mask
     shft = shiftMask
     shmd = modm .|. shft
+    sush = supr .|. shft
     alct = alt .|. ctrl
     none = 0
     xf86think = xF86XK_Launch1
