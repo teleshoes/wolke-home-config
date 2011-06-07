@@ -10,7 +10,16 @@ import XMonad.Layout.NoBorders (smartBorders)
 
 import qualified XMonad.StackSet as Stk
 
+import Data.Monoid
+import Graphics.X11.Xlib
+import Graphics.X11.Xlib.Extras
+
+myHandleEventHook _ = return (All True)
+myHandleEventHook _ = return (All True)
+
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
+
+closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
 
 main = do
   dzenKill <- spawn "killall dzen2"
@@ -45,6 +54,7 @@ main = do
                          , className =? "MPlayer"        --> doShift "7"
                          ],
 
+    handleEventHook    = myHandleEventHook,
     logHook            = myDzenLogHook workspaceNames hookedDzens
   }
 

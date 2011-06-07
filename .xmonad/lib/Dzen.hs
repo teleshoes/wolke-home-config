@@ -40,7 +40,7 @@ myDzenPP workspaceNames = dzenPP
       "G" -> emptyWs "#cccccc" x
       _   -> ""
     )
-  , ppUrgent   = dzenColor "red" "yellow" . dzenStrip
+  , ppUrgent   = \x -> emptyWs "red" x
   , ppWsSep    = ""
   , ppSep      = ""
   , ppLayout   = dzenColor "black" "yellow" .
