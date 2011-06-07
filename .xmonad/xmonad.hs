@@ -46,12 +46,12 @@ main = do
 
     manageHook         = composeAll
                          [ className =? "Gnome-panel"    --> doIgnore
+                         , className =? "Do"             --> doIgnore
                          , className =? "Eclipse"        --> doShift "A"
                          , className =? "Pidgin"         --> doShift "B"
-                         , className =? "Rhythmbox"      --> doShift "9"
-                         , className =? "Do"             --> doIgnore
-                         , className =? "Thunderbird"    --> doShiftView "8"
                          , className =? "MPlayer"        --> doShift "7"
+                         , className =? "Thunderbird"    --> doShiftView "8"
+                         , className =? "Rhythmbox"      --> doShift "9"
                          , title     =? "xmonad-hidden"  --> doHide
                          ],
 
