@@ -160,7 +160,7 @@ if [ "$REPLY" == "y" ]; then
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
-    librsvg2-bin fbreader xdotool powertop
+    librsvg2-bin fbreader xdotool powertop kernel-package
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
