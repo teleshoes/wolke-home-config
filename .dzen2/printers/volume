@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $HBIN = `echo -n \$HOME/bin`;
+
+my $height = shift;
+
+my $vol = `$HBIN/pulse-volume`;
+chomp $vol;
+if($vol !~ /^\d+$/){
+  print "pulse volume read error\n";
+  die "pulse volume read error\n";
+}
+
+my $mute = `$HBIN/pulse-mute sink`;
+chomp $mute;
+if($mute !~ /^sink is( not)? muted$/){
+  print "pulse mute read error\n";
+  die "pulse mute read error\n";
+}
+my $isMute = not defined $1;
+
+my $color;
+if($isMute){
+  $color = "red";
+}else{
+  $color = "green";
+}
+
+my $volHeight = int($height * ($vol / 100.0));
+my $bgHeight = $height - $volHeight;
+
+my $bg = "^fg(black)^r(5x$height)^fg()";
+my $fg = "^fg($color)^r(3x$volHeight)^fg()";
+
+my $out = '';
+$out .= "^p(;-8)";
+$out .= $bg;
+$out .= "^ib(1)^p(-3;$bgHeight)";
+$out .= $fg;
+$out .= "^ib(0)^p(3;-$bgHeight)";
+$out .= "^p(;8)";
+
+print "$out\n";
+
