@@ -52,12 +52,14 @@ main = do
                          , className =? "Do"             --> doIgnore
                          , className =? "Thunderbird"    --> doShiftView "8"
                          , className =? "MPlayer"        --> doShift "7"
+                         , title     =? "xmonad-hidden"  --> doHide
                          ],
 
     handleEventHook    = myHandleEventHook,
     logHook            = myDzenLogHook workspaceNames hookedDzens
   }
 
-doView workspace = doF (Stk.view workspace)
+doHide = ask >>= doF . Stk.delete
+doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
 
