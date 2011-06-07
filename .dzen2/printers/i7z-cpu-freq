@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
+
+my $DIR = "/var/tmp";
+my $LOG = "cpu_freq_log.txt";
+
+system "killall i7z";
+chdir $DIR;
+system "i7z -w l > /dev/null &";
+
+
+sub getFreqDisplay($){
+  my @freqs = @{shift()};
+  my $out = '';
+  my $sep = '^p(4)';
+  for(my $i=0; $i<@freqs; $i++){
+    if($i == $#freqs){
+      if($i != 0){
+        $out .= $sep;
+      }
+      $out .= $freqs[$i];
+    }else{
+      if($i != 0){
+        $out .= $sep;
+      }
+      my $top = $freqs[$i];
+      my $bot = $freqs[$i+1];
+      my $rows = `$PRINTERS/two-text-rows $top $bot`;
+      chomp $rows;
+      $out .= $rows;
+      $i++;
+    }
+  }
+  return $out;
+}
+while(1){
+  sleep 1;
+  my @freqs;
+  for my $line(`cat $DIR/$LOG`){
+    chomp $line;
+    if($line =~ /^\d+\.\d+$/){
+      $line /= 100;
+      $line = int($line);
+      $line = "0$line" if $line < 10;
+    }else{
+      $line = '00';
+    }
+    push @freqs, $line;
+  }
+  print getFreqDisplay(\@freqs) . "\n";
+}
