@@ -22,6 +22,9 @@ workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
 
 main = do
+  clean <- spawn $ "cd $HOME/.xmonad; " ++
+                   "find -regex '.*\\.\\(hi\\|o\\)' " ++
+                   "-execdir rm {} \\;"
   dzenKill <- spawn "killall dzen2"
   hookedDzens <- spawnHookedDzens
   unhookedDzens <- spawnUnhookedDzens
