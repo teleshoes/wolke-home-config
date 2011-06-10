@@ -3,8 +3,26 @@ use strict;
 use warnings;
 
 system "apt-get install tp-smapi-source";
+
+system
+  "echo 'options thinkpad_ec force_io=1' > " .
+  "/etc/modprobe.d/tp_smapi.conf";
+system "modprobe -a tp_smapi hdaps";
+
+my $w520_patch = '
+462a463
+> 		TP_DMI_MATCH("LENOVO", "ThinkPad"),
+';
+
+open FH, "> /tmp/tp_smapi-w520.patch";
+print FH $w520_patch;
+close FH;
+
+system "patch /usr/src/tp-smapi-0.40/thinkpad_ec.c /tmp/tp_smapi-w520.patch";
+
+
 system "module-assistant prepare tp-smapi";
-system "module-assistant auto-install tp-smapi";
+system "module-assistant auto-install tp-smapi -f";
 system "modprobe tp-smapi";
 
 open FH, '< /etc/modules';
@@ -30,26 +48,3 @@ system
   " | sudo tee /etc/udev/rules.d/51-hdaps.rules";
 system "update-initramfs -u";
 
-system
-  "echo 'options thinkpad_ec force_io=1' > " .
-  "/etc/modprobe.d/tp_smapi.conf";
-system "modprobe -a tp_smapi hdaps";
-
-my $w520_patch = '
---- thinkpad_ec.c	2011-06-02 15:54:21.972196339 -0400
-+++ thinkpad_ec.c.patched	2011-06-02 15:55:55.282196374 -0400
-@@ -460,6 +460,12 @@
- 		TP_DMI_MATCH("IBM", "ThinkPad A30"),
- 		TP_DMI_MATCH("IBM", "ThinkPad T23"),
- 		TP_DMI_MATCH("IBM", "ThinkPad X24"),
-+		TP_DMI_MATCH("LENOVO", "ThinkPad"),
- 		{ .ident = NULL }
- 	};
- 	return dmi_find_substring(DMI_DEV_TYPE_OEM_STRING,
-';
-
-open FH, "> /tmp/tp_smapi-w520.patch";
-print FH $w520_patch;
-close FH;
-
-system "patch /usr/src/tp-smapi-0.40/thinkpad_ec.c /tmp/tp_smapi-w520.patch";
