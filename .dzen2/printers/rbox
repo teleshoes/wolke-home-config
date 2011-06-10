@@ -5,13 +5,25 @@ use warnings;
 my $LAUNCHERS = `echo -n \$HOME/.dzen2/launchers`;
 my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
 
-my $clickCmd = 'xdotool key --clearmodifiers alt+9; rhythmbox &';
+my $leftClickCmd = 'xdotool key --clearmodifiers alt+9; rhythmbox &';
+my $rightClickCmd = 'killall rhythmbox';
 
 my $cmd = 'rc --print-playing-format';
 
 sub rboxGet(@);
 sub twoTextRows($$);
 sub adjustLen($$);
+
+sub printer(@){
+  my @args = @_;
+  for my $arg(@args){
+    $arg =~ s/\'/'\\''/g;
+    $arg = "'$arg'";
+  }
+  my $out = `$PRINTERS/@args`;
+  chomp $out;
+  return $out;
+}
 
 sub main(){
   my %tags = rboxGet('tt', 'ta', 'td', 'te');
@@ -22,7 +34,7 @@ sub main(){
     $top = ' Rhythmbox';
     $bot = 'Not Playing';
   }elsif(defined $tags{'notrunning'}){
-    $top = ' Rythmbox';
+    $top = ' Rhythmbox';
     $bot = 'Not Running';
   }else{
     my $elapsed = $tags{'te'};
@@ -43,10 +55,10 @@ sub main(){
   $bot = adjustLen $bot, 35;
   $top =~ s/\^/^^/g;
   $bot =~ s/\^/^^/g;
-  $top =~ s/'/'\\''/g;
-  $bot =~ s/'/'\\''/g;
-  my $markup = `$PRINTERS/two-text-rows '$top' '$bot'`;
-  system "$PRINTERS/click-action", $clickCmd, $markup;
+  my $markup = printer 'two-text-rows', $top, $bot;
+  $markup = printer 'click-action', 1, $leftClickCmd, $markup;
+  $markup = printer 'click-action', 3, $rightClickCmd, $markup;
+  print "$markup\n";
 }
 
 
