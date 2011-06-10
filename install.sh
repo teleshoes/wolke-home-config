@@ -416,6 +416,12 @@ if [ "$REPLY" == "y" ]; then
 fi
 
 echo; echo;
+read -p "Add perl-5.10 symlink for escribe (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo ln -s perl /usr/bin/perl-5.10
+fi
+
+echo; echo;
 read -p "Install haskell modules (y/N)?"
 if [ "$REPLY" == "y" ]; then
   cabal update
