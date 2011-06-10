@@ -16,20 +16,31 @@ sub drawScanSet($$){
   my $colWidth = shift;
   my $prevPx = 0;
   my $col='';
+  my $last;
+  my @indexes;
   for(my $i=@pxs-1; $i>=0; $i--){
+    if($pxs[$i] > 0){
+      push @indexes, $i;
+      $last = $i;
+    }
+  }
+
+  if(@indexes == 0){
+    $col = "^p($colWidth)";
+  }
+  for my $i(@indexes){
     my $px = $pxs[$i];
     my $color = $colors[$i];
-    if($px > 0){
-      $col .=
-        "^fg($color)" . 
-        "^p(;$prevPx)" .
-        "^r(${colWidth}x$px)" .
-        "^fg()" .
-        "^p(-$colWidth;-$prevPx)";
+    $col .=
+      "^fg($color)" . 
+      "^pa(;$prevPx)" .
+      "^r(${colWidth}x$px)";
+    if($i != $last){
+      $col .= "^p(-$colWidth)";
     }
     $prevPx += $px;
   }
-  $col .= "^p($colWidth)";
+  return $col;
 }
 
 sub same($$){
@@ -117,14 +128,10 @@ while(my $line = <STDIN>){
   my @scan = split / /, $line;
   push @scans, \@scan;
 
-  my $yShift;
-  if($height == 36){
-    $yShift = 7;
-  }else{
-    $yShift = int($height / 8);
-  }
-  my $out = "^p(;-$yShift)^ib(1)";
+  my $out = "^ib(1)";
   $out .= drawAllScans(\@scans);
-  $out .= "^ib(0)^p(;$yShift)";
+  $out .= "^ib(0)";
+  $out .= "^fg()";
+  $out .= "^pa()";
   print "$out\n";
 }
