@@ -62,7 +62,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt , xK_F2    ), spawn "gnome-do")
 
   , ((none, xf86think), spawn "gnome-terminal")
-  , ((none, xK_F12   ), spawn "gnome-terminal")
   , ((alt,  xf86think), spawnTerm "$HOME/bin/cmdselect")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
