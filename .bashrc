@@ -92,6 +92,16 @@ alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='echo -ne "\033]0;MPLAYER\007"; mplayer'
+git() {
+  CMD=$1
+  shift
+  if [ $CMD == "co" ]; then
+    CMD="clone"
+  elif [ $CMD == "ci" ]; then
+    CMD="commit"
+  fi
+  command git $CMD "$@"
+}
 
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
