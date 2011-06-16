@@ -17,9 +17,9 @@ export LD_LIBRARY_PATH=/usr/lib/jni
 export LIBXCB_ALLOW_SLOPPY_LOCK=1
 export AWT_TOOLKIT=MToolkit
 
-export PATH=$PATH:/home/wolke/bin
 export JAVA_HOME=/usr/lib/jvm/java-6-sun
-export PATH=$PATH:$JAVA_HOME/bin
+
+export PATH=$HOME/.cabal/bin:$HOME/bin:$JAVA_HOME/bin:$PATH
 
 # don't put duplicate lines in the history. See bash(1) for more options
 export HISTCONTROL=ignoredups
