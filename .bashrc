@@ -19,12 +19,22 @@ export AWT_TOOLKIT=MToolkit
 
 export JAVA_HOME=/usr/lib/jvm/java-6-sun
 
-export PATH=$HOME/.cabal/bin:$HOME/bin:$JAVA_HOME/bin:$PATH
+prependPath() {
+  case $PATH in
+    $@:* | *:$@ | *:$@:* ) ;;
+    *) export PATH=$@:$PATH
+  esac
+}
+prependPath $HOME/bin
+prependPath $HOME/.cabal/bin
+prependPath $JAVA_HOME/bin
 
 # don't put duplicate lines in the history. See bash(1) for more options
 export HISTCONTROL=ignoredups
 # ... and ignore same sucessive entries.
 export HISTCONTROL=ignoreboth
+
+setxkbmap -option terminate:ctrl_alt_bksp
 
 # check the window size after each command and, if necessary,
 # update the values of LINES and COLUMNS.
