@@ -64,7 +64,9 @@ myDzenPP workspaceNames = dzenPP
      ++ "^bg()^fg()"
    emptyWs bg wsName = ""
      ++ wsMarkup bg wsName
+     ++ "^fg(" ++ bg ++ ")"
      ++ clickRect width height (clickCmd wsName)
+     ++ "^fg()"
    blkspc = ""
      ++ "^fg(black)"
      ++ "^r(" ++ show space ++ "x" ++ show height ++ ")"
