@@ -154,9 +154,8 @@ if [ "$REPLY" == "y" ]; then
   sudo apt-get install -y vim-gnome
   sudo apt-get install -y openvpn
   sudo apt-get install -y ssh curl gparted pidgin thunderbird \
-    compiz-fusion-plugins-extra compizconfig-settings-manager \
     ghc cabal-install ant subversion alltray xmacro mplayer vlc python-pygame \
-    nautilus-gksu hwinfo chromium-browser wine1.2 \
+    nautilus-gksu hwinfo chromium-browser wine1.2 htop \
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
@@ -170,6 +169,15 @@ read -p "Install i7z? (y/N)?"
 if [ "$REPLY" == "y" ]; then
   echo Installing libncurses5-dev and latest i7z from svn
   install-i7z
+fi
+
+echo; echo;
+read -p "Install mike's runghc? (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  git clone git://github.com/bacchanalia/runghc.git /tmp/runghc
+  cd /tmp/runghc
+  cabal install
+  rm -rf /tmp/runghc
 fi
 
 echo; echo;
@@ -252,6 +260,11 @@ if [ "$REPLY" == "y" ]; then
   killall gnome-panel
 fi;
 
+echo; echo;
+read -p "Remove compiz and unity (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo apt-get remove compiz-core compiz unity
+fi;
 
 echo; echo;
 read -p "replace compiz wallpaper plugin with a patched one that works (y/N)?"
