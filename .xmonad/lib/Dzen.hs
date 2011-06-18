@@ -21,57 +21,78 @@ spawnHookedDzens = do
 
 --position of dzen bar by xinerama screen {addtl screen default is (0,0)}
 pos = [] ++ repeat (0,0)
+width = 36
 height = 36
+space = 4
 font = "Inconsolata-14"
+
+alwaysShown = ["A", "B", "D", "G"]
 
 dzenExec = "sleep 2; dzen2"
 dzenExtrasExec = "sleep 1; $HOME/.dzen2/launchers/main"
 
 myDzenPP workspaceNames = dzenPP
-  { ppCurrent  = \x -> "^bg(#cccccc)^fg(black) " ++ x ++ " " ++ "^r(16)" ++
-                 (box "red" 43 height 3) ++ blkspc
-  , ppVisible  = emptyWs "#999999"
-  , ppHidden = \x -> emptyWs "#cccccc" x
-  , ppHiddenNoWindows =
-    (\x -> case x of
-      "A" -> emptyWs "#cccccc" x
-      "B" -> emptyWs "#cccccc" x
-      "D" -> emptyWs "#cccccc" x
-      "G" -> emptyWs "#cccccc" x
-      _   -> ""
-    )
-  , ppUrgent   = \x -> emptyWs "red" x
-  , ppWsSep    = ""
-  , ppSep      = ""
-  , ppLayout   = dzenColor "black" "yellow" .
-    (\ x -> case x of
-      "left" -> "[]="
-      "top"  -> "TTT"
-      "full" -> "[ ]"
-      _      -> x
-    )
-  , ppTitle    = ("^bg(#316c80) " ++) . dzenEscape . shorten 30
+  { ppCurrent         = current
+  , ppVisible         = emptyWs "#999999"
+  , ppHidden          = hidden
+  , ppHiddenNoWindows = empty
+  , ppUrgent          = \x -> emptyWs "red" x
+  , ppWsSep           = blkspc
+  , ppSep             = blkspc
+  , ppLayout          = dzenColor "black" "yellow" .
+                        (\ x -> case x of
+                         "left" -> "[]="
+                         "top"  -> "TTT"
+                         "full" -> "[ ]"
+                         _      -> x
+                        )
+  , ppTitle           = ("^bg(#316c80) " ++) . dzenEscape . shorten 30
   }
   where
-   emptyWs bg wsName = clickSwitch wsName
-     (dzenColor "black" bg $ pad wsName ++ "^r(16)") ++ blkspc
-   blkspc = "^bg(black) ^bg()"
+   current wsName = ""
+     ++ wsMarkup "#cccccc" wsName
+     ++ box "red" width height 3
+   hidden wsName  = emptyWs "#cccccc" wsName
+   empty wsName   = if elem wsName alwaysShown then hidden wsName else ""
+
+   wsMarkup bg wsName = col "black" bg $ ""
+     ++ " " ++ wsName ++ "  "  --approximates 36px....
+   
+   col fg bg markup = ""
+     ++ "^fg(" ++ fg ++ ")" ++ "^bg(" ++ bg ++ ")"
+     ++ markup
+     ++ "^bg()^fg()"
+   emptyWs bg wsName = ""
+     ++ wsMarkup bg wsName
+     ++ clickRect width height (clickCmd wsName)
+   blkspc = ""
+     ++ "^fg(black)"
+     ++ "^r(" ++ show space ++ "x" ++ show height ++ ")"
+     ++ "^fg()"
+   clickRect w h cmd = ""
+     ++ "^p(-" ++ show width ++ ")"
+     ++ "^fn(monospace-100)"
+     ++ "^ca(1," ++ cmd ++ ")"
+       ++ "^ib(1)"
+       ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
+       ++ "^ib(0)"
+     ++ "^ca()"
+     ++ "^fn()"
+   clickCmd wsName = "xdotool key alt+" ++ (show $ wsKey wsName)
+   wsKey wsName = 1 + (wsIndex wsName workspaceNames)
    wsIndex wsName (ws:wss) | ws == wsName = 0
                            | otherwise    = 1 + wsIndex wsName wss
-   clickSwitch wsName dzenMarkup = 
-     "^ca(1,xdotool key alt+" ++
-       (show $ 1+wsIndex wsName workspaceNames) ++ ")" ++
-       dzenMarkup ++
-     "^ca()"
-   box color w h px = go w w h px
-     where go x w h px | px > 1  = go x w h 1
-                                   ++ go (w-1) (w-2) (h-2) (px-1)
-                                   ++ "^p(1)"
-                       | px == 1 = "^p(-" ++ show x ++ ")"
-                                   ++ "^fg(" ++ color ++ ")"
-                                   ++ "^ib(1)"
-                                   ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
-                                   ++ "^ib(0)"
+   box color w h px = ""
+     ++ "^ib(1)^fg(" ++ color ++ ")"
+     ++ (boxh w w h px)
+     ++ "^fg()^ib(0)"
+     where boxh x w h px | px > 1  = ""
+                          ++ boxh x w h 1
+                          ++ boxh (w-1) (w-2) (h-2) (px-1)
+                          ++ "^p(1)"
+                       | px == 1 = ""
+                          ++ "^p(-" ++ show x ++ ")"
+                          ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
 
 dzenFlags = ""
   ++ " -e " ++ "'onstart=lower'"
@@ -82,12 +103,12 @@ dzenFlags = ""
 
 dzenBarXmonad x y screen = spawnPipe $ dzenExec ++ dzenFlags ++ posFlags
  where posFlags = ""
-          ++ " -xs " ++ show screen
-          ++ " -x " ++ show x
-          ++ " -y " ++ show y
-          ++ " -ta " ++  "l"
+         ++ " -xs " ++ show screen
+         ++ " -x " ++ show x
+         ++ " -y " ++ show y
+         ++ " -ta " ++  "l"
 
 dzenBarExtras screen = spawnPipe $ dzenExtrasExec ++ dzenFlags ++ posFlags
  where posFlags = ""
-          ++ " -xs " ++ show screen
+         ++ " -xs " ++ show screen
 
