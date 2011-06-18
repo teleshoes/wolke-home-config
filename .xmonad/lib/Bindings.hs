@@ -74,7 +74,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu_governor all powersave")
   , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu_governor all performance")
 
-  , ((alct, xK_space ), spawn "gnome-system-monitor")
+  , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
   , ((supr, xK_space ), spawn "$HOME/bin/rc-start --play-pause")
   , ((supr, xK_z     ), spawn "$HOME/bin/rc --previous")
@@ -87,6 +87,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((alct, xK_f     ), spawn "firefox")
   , ((alct, xK_e     ), spawn "$HOME/bin/eclipse")
+  , ((alct, xK_s     ), spawn "$HOME/bin/squirrel")
   ]
 
   ++
