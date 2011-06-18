@@ -12,17 +12,17 @@ for my $dir(`find /sys/devices/system/cpu -regex '/sys/devices/system/cpu/cpu[0-
   my $currentGov = `cat $gov`;
   chomp $currentGov;
   if(defined $curGov and $curGov ne $currentGov){
-    $curGov = '??';
+    $curGov = '?';
     last;
   }
   $curGov = $currentGov;
 }
 
 if(not defined $curGov or length $curGov < 2){
-  $curGov = '??';
+  $curGov = '?';
 }
 
-if($curGov ne '??'){
+if($curGov ne '?'){
   my $home = `echo -n \$HOME`;
   open FH, "< $home/.cpu_governor";
   my $lastGov = <FH>;
@@ -31,12 +31,33 @@ if($curGov ne '??'){
 
   if($curGov ne $lastGov){
     system "sudo \$HOME/bin/cpu_governor all $curGov";
-    $curGov = '!!';
+    $curGov = '!';
   }
 
 }
 
-my $top = substr $curGov, 0, 1;
-my $bot = substr $curGov, 1, 1;
-print "^p(2)";
-system "$PRINTERS/two-text-rows $top $bot 36";
+my %bgs = qw(
+  powersave    red
+  performance  green
+  ondemand     blue
+  other        white
+);
+
+my $fg = 'black';
+my $bg = $bgs{$curGov};
+$bg = $bgs{other} if not defined $bg;
+
+my $width = 2;
+
+while(length $curGov < $width*2){
+  if($curGov = ''){
+    $curGov = '#' x $width*2;
+  }
+  $curGov = "$curGov$curGov";
+}
+
+my $top = substr $curGov, 0, $width;
+my $bot = substr $curGov, $width, $width;
+my $msg = `$PRINTERS/two-text-rows $top $bot 36`;
+chomp $msg;
+print "^bg($bg)^fg($fg)$msg^fg()^bg()";
