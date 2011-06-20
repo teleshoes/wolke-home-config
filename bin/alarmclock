@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $alarmFile = `echo \$HOME/.alarm`;
+
+my @daysOfTheWeek = qw(su mo tu we th fr sa);
+my $dayPattern = join '|', @daysOfTheWeek;
+my $dayRe = qr/$dayPattern/;
+
+sub getRepeatDays($){
+  my $alarm = shift;
+  if($alarm =~ /^\@\s/){
+    return [];
+  }elsif($alarm =~ /^[^@]/){
+    return undef;
+  }elsif($alarm =~ /^\@($dayRe)-($dayRe)\s/){
+    my $startIndex;
+    my $endIndex;
+    for(my $i=0; $i<@daysOfTheWeek; $i++){
+      $startIndex = $i if $daysOfTheWeek[$i] eq $1;
+      $endIndex = $i if $daysOfTheWeek[$i] eq $2;
+    }
+    my @dotw = (@daysOfTheWeek, @daysOfTheWeek);
+    $endIndex += 7 if $endIndex < $startIndex;
+    my @days = @dotw[$startIndex..$endIndex];
+    return \@days;
+  }elsif($alarm =~ /^\@($dayRe(?:,$dayRe)*)\s/){
+    my @days = split /,/, $1;
+    return \@days;
+  }else{
+    die "Improperly formatted repeat-days-of-the-week: $alarm\n";
+  }
+}
+
+sub getRelativeTimeSeconds($){
+  my $time = shift;
+  if($time =~ /^\d+$/){
+    $time .= 'm';
+  }
+
+  if($time =~ /^ (?:(\d+)h)?  (?:(\d+)m)?  (?:(\d+)s)? $/x){
+    my $s = 0;
+    $s += $1 * 60 * 60 if defined $1;
+    $s += $2 * 60 if defined $2;
+    $s += $3 if defined $3;
+    return $s;
+  }else{
+    return undef;
+  }
+}
+
+my $changed = 0;
+my @alarms = `cat $alarmFile`;
+for my $alarm(@alarms){
+  if($alarm =~ /^#/ or $alarm =~ /^\s*$/){
+    next;
+  }
+
+  my $repeat = getRepeatDays($alarm);
+  $alarm =~ /^ (?:\@\S)? \s* (\S*) \s* (.*) $/x;
+  my $time = $1;
+  my $cmd = $2;
+  my $relTimeSeconds = getRelativeTimeSeconds($time);
+  if(defined $relTimeSeconds and $relTimeSeconds > 60*60*24){
+    die "relative times should be < 24 hours, since they are time-only\n";
+  }
+  if(not defined $repeat and defined $relTimeSeconds){
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime time;
+    $sec += $relTimeSeconds % 60;
+    $min += int($relTimeSeconds/60 % 60);
+    $hour += int($relTimeSeconds / 60 / 60);
+    $hour = $hour % 24;
+    $changed = 1;
+    $time = "$hour:$min:$sec";
+    $alarm = "$time $cmd\n";
+  }
+}
+
+if($changed){
+  open FH, "> $alarmFile"
+    or die "Could not record relative=>absolute time change: $!";
+  print FH @alarms;
+  close FH;
+}
