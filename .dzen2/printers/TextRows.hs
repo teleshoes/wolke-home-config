@@ -27,5 +27,5 @@ textRowsMarkup shorter longer = ""
   ++ "^p(_UNLOCK_X)"
   ++ longer
   ++ "^ib(0)"
-  ++ "^pa()\n"
+  ++ "^pa()"
 
