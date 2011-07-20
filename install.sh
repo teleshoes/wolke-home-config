@@ -218,6 +218,10 @@ if [ "$REPLY" == "y" ]; then
   sudo apt-get update
 
   echo
+  echo installing ubuntu-restricted-extras
+  sudo apt-get install ubuntu-restricted-extras
+  
+  echo
   echo installing skype
   sudo apt-get install skype
 
@@ -430,7 +434,7 @@ fi
 echo; echo;
 echo Install some perl modules:
 echo Date::Calc   Net::Twitter   File::Slurp   B::Bytecode   XML::LibXSLT
-echo Term::Size::Perl
+echo Term::Size::Perl Date::Manip
 read -p "install the above perl modules(more prompts for each)? (y/N)?"
 if [ "$REPLY" == "y" ]; then
   echo we need libssl-dev to install the perl packages below
@@ -464,6 +468,7 @@ if [ "$REPLY" == "y" ]; then
     sudo perl -MCPAN -e upgrade
   fi
 
+  sudo cpan Date::Manip
   sudo cpan Date::Calc
   sudo cpan File::Slurp
   sudo cpan Term::Size::Perl
