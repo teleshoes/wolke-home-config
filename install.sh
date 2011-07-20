@@ -62,6 +62,14 @@ echo Disabling forced compiz plugins
 mkdir -p ~/.config/compiz
 echo "COMPIZ_PLUGINS=\"\"" > ~/.config/compiz/compiz-manager
 
+LINE="tmpfs /tmp tmpfs defaults,noatime,nodev,nosuid,mode=1777 0 0"
+echo; echo;
+echo $LINE
+read -p "Add the above line to /etc/fstab for /tmp ram disk (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  echo $LINE | sudo tee -a /etc/fstab
+fi
+
 
 echo; echo;
 echo "e.g.: wolke-t400, wolke-t60, wolke-blue, wolke-n900, wolk-desktop"
@@ -159,7 +167,7 @@ if [ "$REPLY" == "y" ]; then
     xsel flac libsvn-java xtightvncviewer x11vnc gvfs-bin git \
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
-    librsvg2-bin fbreader xdotool powertop kernel-package
+    librsvg2-bin fbreader xdotool powertop kernel-package openjdk-6-source
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
@@ -207,17 +215,8 @@ if [ "$REPLY" == "y" ]; then
   sudo apt-get update
 
   echo
-  echo Installing non-free software packages...
-  sudo apt-get install ubuntu-restricted-extras \
-    sun-java6-jdk sun-java6-source sun-java6-plugin
-
-  echo
   echo installing skype
   sudo apt-get install skype
-
-  echo
-  echo maybe installing ia32 packages for 64-bit linux
-  sudo apt-get install ia32-sun-java6-bin
 
   echo
   echo Installing non-free encrypted dvd reader
@@ -355,7 +354,7 @@ if [ "$REPLY" == "y" ]; then
   ARG="export LIBOVERLAY_SCROLLBAR=0"
   sudo bash -c "echo $ARG > $FILE"
 
-  sudo apt-get remove overlay-scrollbar
+  sudo apt-get remove .*overlay-scrollbar.*
 fi
 
 echo; echo;
@@ -364,22 +363,6 @@ if [ "$REPLY" == "y" ]; then
   magic-panel-set
 fi
 
-
-echo; echo;
-echo remove gcj and openjdk java packages, since they aint pleasant
-echo you might have these: ant-gcj ant-optional-gcj gcj-4.4-base gcj-4.4-jre-lib libgcj-bc libgcj-common libgcj10 default-jre-headless icedtea-6-jre-cacao openjdk-6-jre-headless openjdk-6-jre-lib
-read -p "find out which you actually have and then maybe remove (y/N)?"
-if [ "$REPLY" == "y" ]; then
-  echo "finding out which you have (wont remove them until you say so)"
-  echo you definitely have these:
-  sudo apt-get remove -sqq '.*gcj.*|openjdk.*' 2> /dev/null
-  echo
-
-  read -p "remove the packages found above? (y/N)?"
-  if [ "$REPLY" == "y" ]; then
-    sudo apt-get remove '.*gcj.*|openjdk.*'
-  fi
-fi
 
 echo; echo;
 read -p "autoremove? (y/N)?"
