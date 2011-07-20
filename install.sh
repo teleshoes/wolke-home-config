@@ -85,13 +85,16 @@ fi
 echo; echo;
 read -p "Configure keyboard (y/N)?"
 if [ "$REPLY" == "y" ]; then
-  read -p "Make CapsLock additional Escape key (y/N)?"
+  TAB=`echo -en "\t"`
+  KBD_OPTIONS="[terminate${TAB}terminate:ctrl_alt_bksp,caps${TAB}caps:escape]"
+  echo keyboard options: "$KBD_OPTIONS"
+  echo "note: caps:escape makes CapsLock additional Escape key"
+  echo "      terminate:ctrl_alt_bksp makes Ctrl+Alt+Backspace kill xsession"
+  read -p "Add the above keyboard options (y/N)?"
   if [ "$REPLY" == "y" ]; then
-    setxkbmap -option caps:escape
-  fi
-  read -p "Ctrl+Alt+Backspace to kill xsession (y/N)?"
-  if [ "$REPLY" == "y" ]; then
-    setxkbmap -option terminate:ctrl_alt_bksp
+    gconftool --set \
+      /desktop/gnome/peripherals/keyboard/kbd/options \
+      --type list --list-type string "$KBD_OPTIONS"
   fi
   echo; echo;
   read -p "Run keybindings (y/N)?"
@@ -486,9 +489,9 @@ fi
 
 echo; echo;
 echo Desktop background for nautilus
-read -p "set desktop bg = gasho? (y/N)?"
+read -p "set desktop bg = venus? (y/N)?"
 if [ "$REPLY" == "y" ]; then
-  gconftool-2 --type string --set /desktop/gnome/background/picture_filename "/home/wolke/Desktop/Backgrounds/gasho.png"
+  gconftool-2 --type string --set /desktop/gnome/background/picture_filename "/home/wolke/Desktop/Backgrounds/venere.pnm"
 fi
 
 
