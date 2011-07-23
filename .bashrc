@@ -17,8 +17,6 @@ export LD_LIBRARY_PATH=/usr/lib/jni
 export LIBXCB_ALLOW_SLOPPY_LOCK=1
 export AWT_TOOLKIT=MToolkit
 
-export JAVA_HOME=/usr/lib/jvm/java-6-sun
-
 prependPath() {
   case $PATH in
     $@:* | *:$@ | *:$@:* ) ;;
