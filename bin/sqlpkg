@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $wsdir = `echo -n \$HOME/workspace/eScribePortal`;
+my $pdir = "src-sql/code/packages";
+
+my $search = shift;
+my $arg = shift;
+$arg = '-e' if not defined $arg;
+
+my @args = qw(-c -e -l);
+if(not defined $search or not $arg ~~ @args or @ARGV != 0){
+  die ''
+    . "Usage: $0 <search string> [" . (join '|', @args) . "] \n"
+    . " -c  compile all packages found\n"
+    . " -e  edit all packages found\n"
+    . " -l  list all packages found\n"
+    ;
+}
+
+chdir $wsdir;
+
+#try gvim, then revert to editor
+my $editor = "gvim";
+system "which $editor";
+if($? != 0){
+  $editor = 'editor';
+}
+
+my @pkgs = `find $pdir/* -iname '*$search*'`;
+for my $pkg(@pkgs){
+  chomp $pkg;
+  if($arg eq '-e'){
+    system "$editor $pkg";
+  }elsif($arg eq '-c'){
+    system "./compile-sql.sh $pkg";
+  }elsif($arg eq '-l'){
+    print "$wsdir/$pkg\n";
+  }
+}
