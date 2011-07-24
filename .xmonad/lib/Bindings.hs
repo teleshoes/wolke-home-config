@@ -65,6 +65,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt,  xf86think), spawnTerm "$HOME/bin/cmdselect")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
+  , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")
   , ((alt,  volDown  ), spawn "$HOME/bin/pulse-lower-volume")
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
