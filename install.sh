@@ -171,9 +171,16 @@ if [ "$REPLY" == "y" ]; then
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
     librsvg2-bin fbreader xdotool powertop kernel-package openjdk-6-source \
-    gnome-color-chooser
+    gnome-color-chooser unclutter
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
+fi
+
+echo; echo;
+read -p "Auto-hide mouse pointer (also makes it show up in xmonad)? (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  echo installing unclutter
+  sudo apt-get install unclutter
 fi
 
 echo; echo;
