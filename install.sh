@@ -143,6 +143,26 @@ if [ "$REPLY" == "y" ]; then
 fi
 
 echo; echo;
+file=/usr/lib/pm-utils/power.d/journal-commit
+journal_ac=`cat $file | grep JOURNAL_COMMIT_TIME_AC | grep -o "[0-9]\+"`
+journal_bat=`cat $file | grep JOURNAL_COMMIT_TIME_BAT | grep -o "[0-9]\+"`
+echo Journal Commit change on power state change
+echo "  "time in seconds between journal commits on all ext3/4 partitions
+echo "  "0 through 5 mean every 5 seconds, low performance, highest safety
+echo "  "higher numbers mean higher performance, lower safety
+echo if enabled, changes to ${journal_ac}s on AC and ${journal_bat}s on bat
+echo -n "changing on power state change is currently "
+[ -x $file ] && echo ENABLED || echo DISABLED
+echo non-defaults currently mounted:
+echo "  "default mount option is 0s, which is the same as 5s
+mount | grep ext.*commit=[1-9] | sed "s/^/  /"
+echo
+read -p "disable changing the journal commit on power state change (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo chmod -x $file
+fi
+
+echo; echo;
 read -p "sync /var/cache/apt with ~/apt-cache (y/N)?"
 if [ "$REPLY" == "y" ]; then
   A="/var/cache/apt"
