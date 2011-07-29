@@ -52,8 +52,10 @@ myDzenPP workspaceNames = dzenPP
    current wsName = ""
      ++ wsMarkup "#cccccc" wsName
      ++ box "red" width height 3
-   hidden wsName  = emptyWs "#cccccc" wsName
+     ++ img wsName
+   hidden wsName  = emptyWs "#cccccc" wsName ++ (img wsName)
    empty wsName   = if elem wsName alwaysShown then hidden wsName else ""
+   img wsName = "^i(/home/wolke/.xmonad/workspace-images/" ++ wsName ++ ".xbm)"
 
    wsMarkup bg wsName = col "black" bg $ ""
      ++ " " ++ wsName ++ "  "  --approximates 36px....

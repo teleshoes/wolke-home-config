@@ -11,10 +11,10 @@ import qualified XMonad.StackSet as Stk
 
 import Data.Function (on)
 import Data.Maybe (isJust, catMaybes)
-import Data.List (sortBy, intercalate)
-
+import Data.List (sortBy, intercalate, isInfixOf)
+import XMonad.Util.Run (spawnPipe)
 import Control.Monad (zipWithM_)
-
+import System.IO (hGetLine)
 
 dzenXineramaLogHook pps = do
  screens <- (sortBy (compare `on` Stk.screen) . Stk.screens)
@@ -35,14 +35,22 @@ dynamicLogStringScreen screen pp = do
   -- layout description
   let ld = description . Stk.layout . Stk.workspace $ screen
 
-  -- workspace list
-  let ws = pprWindowSetScreen screen sortF urgents pp winset
-
   -- window title
   wt <- maybe (return "") (fmap show . getName) $ focusedWindow screen
 
+  --translates the window title to an image and writes to file
+  spawnypipepipe <- spawn $
+                      "$HOME/bin/workspace-image" ++
+                      " '" ++ (Stk.tag . Stk.workspace $ screen) ++ "'" ++
+                      " '" ++ wt ++ "'"
+  
+  -- workspace list
+  let ws = pprWindowSetScreen screen sortF urgents pp winset
+
+
   -- run extra loggers, ignoring any that generate errors.
   extras <- mapM (`catchX` return Nothing) $ ppExtras pp
+
 
   return $ encodeOutput . sepBy (ppSep pp) . ppOrder pp $
              [ ws
@@ -54,7 +62,7 @@ dynamicLogStringScreen screen pp = do
 pprWindowSetScreen screen sortF urgents pp s =
   sepBy (ppWsSep pp) . map fmt . sortF $ Stk.workspaces s
     where this = Stk.tag . Stk.workspace $ screen
-          visibles = map (Stk.tag . Stk.workspace) 
+          visibles = map (Stk.tag . Stk.workspace)
                          (Stk.current s : Stk.visible s)
 
           fmt w = printer pp (Stk.tag w)
