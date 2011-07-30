@@ -21,7 +21,7 @@ spawnHookedDzens = do
 
 --position of dzen bar by xinerama screen {addtl screen default is (0,0)}
 pos = [] ++ repeat (0,0)
-width = 36
+width = 36 * 2
 height = 36
 space = 4
 font = "Inconsolata-14"
@@ -52,13 +52,12 @@ myDzenPP workspaceNames = dzenPP
    current wsName = ""
      ++ wsMarkup "#cccccc" wsName
      ++ box "red" width height 3
-     ++ img wsName
-   hidden wsName  = emptyWs "#cccccc" wsName ++ (img wsName)
+   hidden wsName  = emptyWs "#cccccc" wsName
    empty wsName   = if elem wsName alwaysShown then hidden wsName else ""
    img wsName = "^i(/home/wolke/.xmonad/workspace-images/" ++ wsName ++ ".xbm)"
 
    wsMarkup bg wsName = col "black" bg $ ""
-     ++ " " ++ wsName ++ "  "  --approximates 36px....
+     ++ " " ++ wsName ++ "  " ++ (img wsName)  --approximately 72px....
    
    col fg bg markup = ""
      ++ "^fg(" ++ fg ++ ")" ++ "^bg(" ++ bg ++ ")"
