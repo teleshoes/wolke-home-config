@@ -7,6 +7,7 @@ import XMonad.Layout.LayoutCombinators ( (|||) )
 import XMonad.Hooks.ManageDocks (avoidStruts)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
+import XMonad.Util.Run (safeSpawn)
 
 import qualified XMonad.StackSet as Stk
 
@@ -22,12 +23,17 @@ workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
 
 main = do
-  clean <- spawn $ "cd $HOME/.xmonad; " ++
+  --clean workspace-images
+  _ <- safeSpawn "workspace-image" ("init":workspaceNames)
+  --clean
+  _ <- spawn $ "cd $HOME/.xmonad; " ++
                    "find -regex '.*\\.\\(hi\\|o\\)' " ++
                    "-execdir rm {} \\;"
-  dzenKill <- spawn "killall dzen2"
+  --kill running dzens
+  _ <- spawn "killall dzen2"
+  --start the unhooked dzens
+  _ <- spawnUnhookedDzens
   hookedDzens <- spawnHookedDzens
-  unhookedDzens <- spawnUnhookedDzens
   
   xmonad $ defaultConfig {
     focusFollowsMouse  = False,
