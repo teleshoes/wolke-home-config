@@ -2,25 +2,65 @@
 use strict;
 use warnings;
 
-my $dir = `echo -n \$HOME/.xmonad/workspace-images`;
-my $ws = shift;
-my $wt = shift;
+my $ext = '.xbm';
+my $srcDir = `echo -n \$HOME/.dzen2/icons/workspace-images`;
+my $destDir = `echo -n \$HOME/.xmonad/workspace-images`;
 
-my $target = "$dir/$ws.xbm";
-
-my $img;
-if($wt =~ /firefox/i){
-  $img = "\$HOME/.dzen2/icons/36x36/firefox.xbm";
-}elsif($wt =~ /vim/i){
-  $img = "\$HOME/.dzen2/icons/36x36/vim.xbm";
-}elsif($wt =~ /terminal/i){
-  $img = "\$HOME/.dzen2/icons/36x36/terminal.xbm";
-}elsif($wt =~ /pidgin/i){
-  $img = "\$HOME/.dzen2/icons/36x36/pidgin/pidgin-tray-available.xbm";
-}elsif($wt eq ''){
-  $img = "\$HOME/.dzen2/icons/36x36/none.xbm";
-}else{
-  $img = "\$HOME/.dzen2/icons/36x36/questionmark.xbm";
+if($ARGV[0] eq 'init'){
+  system "rm $destDir/*.log";
+  system "rm $destDir/*$ext";
+  shift;
+  for my $wsId(@ARGV){
+    system "cp", "$srcDir/blank$ext", "$destDir/$wsId$ext";
+  }
+  exit 0;
 }
 
-system "cp $img $target";
+my $workspaceId = shift;
+my $wmClass = shift;
+my $wmName = shift;
+
+
+my $targetImg = "$destDir/$workspaceId$ext";
+my $targetLog = "$destDir/$workspaceId.log";
+
+my @names;
+for my $file(`ls -1 $srcDir`){
+  chomp $file;
+  if($file =~ /^(.*)$ext$/){
+    push @names, $1;
+  }
+}
+
+#class first, then name
+
+my $targetName;
+if($wmClass eq '' and $wmName eq ''){
+  $targetName = 'blank';
+}elsif(lc $wmClass eq 'gnome-terminal' and $wmName =~ / - VIM$/i){
+  $targetName = 'vim';
+}else{
+  for my $name(@names){
+    if($wmClass =~ /$name/i){
+      $targetName = $name;
+      last;
+    }
+  }
+  if(not defined $targetName){ 
+    for my $name(@names){
+      if($wmName =~ /$name/i){
+        $targetName = $name;
+        last;
+      }
+    }
+  }
+}
+
+$targetName = 'unknown' if not defined $targetName;
+
+open FH, ">> $targetLog";
+print FH time . "%%%$wmClass%%%$wmName%%%$targetName\n";
+close FH;
+
+system "cp", "$srcDir/$targetName$ext", "$targetImg";
+
