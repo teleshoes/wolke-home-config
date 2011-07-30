@@ -10,11 +10,16 @@ import XMonad.Util.NamedWindows (getName)
 import qualified XMonad.StackSet as Stk
 
 import Data.Function (on)
-import Data.Maybe (isJust, catMaybes)
-import Data.List (sortBy, intercalate, isInfixOf)
-import XMonad.Util.Run (spawnPipe)
+import Data.Maybe (isJust, catMaybes, fromMaybe, listToMaybe)
+import Data.List (sortBy, intercalate)
+import XMonad.Util.Run (safeSpawn)
 import Control.Monad (zipWithM_)
 import System.IO (hGetLine)
+
+import Control.Applicative ( (<$>) )
+
+import Prelude hiding ( catch )
+import Control.Exception.Extensible ( bracket, catch, SomeException(..) )
 
 dzenXineramaLogHook pps = do
  screens <- (sortBy (compare `on` Stk.screen) . Stk.screens)
@@ -35,27 +40,27 @@ dynamicLogStringScreen screen pp = do
   -- layout description
   let ld = description . Stk.layout . Stk.workspace $ screen
 
-  -- window title
-  wt <- maybe (return "") (fmap show . getName) $ focusedWindow screen
-
-  --translates the window title to an image and writes to file
-  spawnypipepipe <- spawn $
-                      "$HOME/bin/workspace-image" ++
-                      " '" ++ (Stk.tag . Stk.workspace $ screen) ++ "'" ++
-                      " '" ++ wt ++ "'"
-  
+  let curWin = focusedWindow screen
+  -- workspaceId
+  let workspaceId = Stk.tag . Stk.workspace $ screen
   -- workspace list
-  let ws = pprWindowSetScreen screen sortF urgents pp winset
+  let workspaceList = pprWindowSetScreen screen sortF urgents pp winset
 
+  -- window class
+  windowClass <- getCurWinProp windowClass curWin
+  -- window title
+  windowName <- getCurWinProp windowName curWin
 
   -- run extra loggers, ignoring any that generate errors.
   extras <- mapM (`catchX` return Nothing) $ ppExtras pp
 
+  --translates the window title to an image and writes to file
+  _ <- safeSpawn "workspace-image" [workspaceId, windowClass, windowName]
 
   return $ encodeOutput . sepBy (ppSep pp) . ppOrder pp $
-             [ ws
+             [ workspaceList
              , ppLayout pp ld
-             , ppTitle pp wt
+             , ppTitle pp windowName
              ]
              ++ catMaybes extras
 
@@ -74,8 +79,21 @@ pprWindowSetScreen screen sortF urgents pp s =
                             | isJust (Stk.stack w) = ppHidden
                             | otherwise = ppHiddenNoWindows
 
+getCurWinProp xProp curWin = maybe (return "") (getProp xProp) curWin
+
 focusedWindow = maybe Nothing (return . Stk.focus) . Stk.stack . Stk.workspace
 
 sepBy :: String -> [String] -> String
 sepBy sep = intercalate sep . filter (not . null)
+
+
+windowName = wM_NAME
+windowClass = wM_CLASS
+
+getProp :: Atom -> Window -> X String
+getProp wProp w = withDisplay $ \d -> do
+    let getIt = bracket getProp (xFree . tp_value) (copy)
+        getProp = getTextProperty d w wProp
+        copy prop = fromMaybe "" . listToMaybe <$> wcTextPropertyToTextList d prop
+    io $ getIt `catch` \(SomeException _) ->  (resName) `fmap` getClassHint d w
 
