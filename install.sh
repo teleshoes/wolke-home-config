@@ -191,7 +191,7 @@ if [ "$REPLY" == "y" ]; then
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
     librsvg2-bin fbreader xdotool powertop kernel-package openjdk-6-source \
-    gnome-color-chooser unclutter
+    gnome-color-chooser unclutter lltag meld python-mutagen
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
@@ -462,7 +462,7 @@ fi
 echo; echo;
 echo Install some perl modules:
 echo Date::Calc   Net::Twitter   File::Slurp   B::Bytecode   XML::LibXSLT
-echo Term::Size::Perl Date::Manip
+echo Term::Size::Perl Date::Manip   Lingua::JA::Romanize::Japanese
 read -p "install the above perl modules(more prompts for each)? (y/N)?"
 if [ "$REPLY" == "y" ]; then
   echo we need libssl-dev to install the perl packages below
@@ -500,6 +500,7 @@ if [ "$REPLY" == "y" ]; then
   sudo cpan Date::Calc
   sudo cpan File::Slurp
   sudo cpan Term::Size::Perl
+  sudo cpan Lingua::JA::Romanize::Japanese
 
   echo
   read -p "cpan -f -i Net::Twitter? (y/N)"
