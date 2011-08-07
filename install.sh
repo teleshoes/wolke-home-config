@@ -191,7 +191,7 @@ if [ "$REPLY" == "y" ]; then
     gnome-common ttf-inconsolata gimp ffmpeg wmctrl xsane php5 \
     libxslt1-dev libgdbm-dev rhythmbox link-monitor-applet gnome-do \
     librsvg2-bin fbreader xdotool powertop kernel-package openjdk-6-source \
-    gnome-color-chooser unclutter lltag meld python-mutagen
+    gnome-color-chooser unclutter lltag meld python-mutagen libaudio-wma-perl
   sudo apt-get install -y alarm-clock-applet
   sudo apt-get install -y aptitude
 fi
