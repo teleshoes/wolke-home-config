@@ -78,11 +78,11 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
-  , ((supr, xK_space ), spawn "$HOME/bin/rc-start --play-pause")
-  , ((supr, xK_z     ), spawn "$HOME/bin/rc --previous")
-  , ((supr, xK_x     ), spawn "$HOME/bin/rc --next")
-  , ((sush, xK_z     ), spawn "$HOME/bin/rc --seek -10")
-  , ((sush, xK_x     ), spawn "$HOME/bin/rc --seek 10")
+  , ((supr, xK_space ), spawn "$HOME/bin/qcmd pause")
+  , ((supr, xK_z     ), spawn "$HOME/bin/qcmd prev")
+  , ((supr, xK_x     ), spawn "$HOME/bin/qcmd next")
+  , ((sush, xK_z     ), spawn "$HOME/bin/qcmd seek -10")
+  , ((sush, xK_x     ), spawn "$HOME/bin/qcmd seek 10")
 
   , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
