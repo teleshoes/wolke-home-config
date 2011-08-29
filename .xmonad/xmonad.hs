@@ -62,6 +62,7 @@ main = do
                          , className =? "Thunderbird"    --> doShiftView "8"
                          , className =? "Rhythmbox"      --> doShift "9"
                          , title     =? "xmonad-hidden"  --> doHide
+                         , title     =? "QMPLAYER"       --> doShift "9"
                          ],
 
     handleEventHook    = myHandleEventHook,
