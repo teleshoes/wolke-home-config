@@ -1,0 +1,132 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $QDB = `echo -n \$HOME/.qdb`;
+my $QCUR = `echo -n \$HOME/.qcur`;
+my $QMPLAYER_PID = '/tmp/qmplayer_pid';
+
+my $LAUNCHERS = `echo -n \$HOME/.dzen2/launchers`;
+my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
+
+my $leftClickCmd = 'qcmd pause';
+my $middleClickCmd = 'qcmd reset';
+my $rightClickCmd = 'qcmd stop';
+
+sub twoTextRows($$);
+sub adjustLen($$);
+
+sub printer(@){
+  my @args = @_;
+  for my $arg(@args){
+    $arg =~ s/\'/'\\''/g;
+    $arg = "'$arg'";
+  }
+  my $out = `$PRINTERS/@args`;
+  chomp $out;
+  return $out;
+}
+
+sub wrapTokens(@){
+  my @tokens;
+  for my $token(@_){
+    my $t = $token;
+    $t =~ s/'/'\\''/g;
+    push @tokens, "'$t'";
+  }
+  return @tokens;
+}
+sub shellQuiet(@){
+  my $cmd = join ' ', wrapTokens(@_);
+  return `$cmd 2>/dev/null`;
+}
+
+sub hms($){
+  my $sex = shift;
+  my $h = int($sex / (60*60));
+  my $m = int($sex / (60));
+  my $s = int($sex % (60));
+  return ($h, $m, $s);
+}
+sub parseTime($$){
+  my $pos = shift;
+  my $len = shift;
+  my ($pH, $pM, $pS) = hms $pos;
+  my ($lH, $lM, $lS) = hms $len;
+  my ($newPos, $newLen) = ('', '');
+  if($pH > 0 or $lH > 0){
+    my $hlen = length $pH;
+    $hlen = length $lH if length $lH > $hlen;
+    $newPos .= '0' x ($hlen - length $pH) . $pH . ':';
+    $newLen .= '0' x ($hlen - length $lH) . $lH . ':';
+  }
+  $newPos .= '0' x (2 - length $pM) . $pM . ':';
+  $newLen .= '0' x (2 - length $lM) . $lM . ':';
+
+  $newPos .= '0' x (2 - length $pS) . $pS;
+  $newLen .= '0' x (2 - length $lS) . $lS;
+
+  return ($newPos, $newLen);
+}
+sub main(){
+  system "kill -0 `cat $QMPLAYER_PID`";
+  my ($top, $bot);
+  if($? != 0){
+    $top = ' QMPLAYER';
+    $bot = 'Not Running';
+  }elsif(-e $QCUR and `cat $QCUR` =~ /^([0-9\-\.]+) ([0-9\-\.]+) (.*)/){
+    my $pos = $1;
+    my $length = $2;
+    ($pos, $length) = parseTime $pos, $length;
+    my $path = $3;
+
+    my @lines = shellQuiet 'qdb', $QDB, '-i', $path;
+
+    my $artist = $lines[0];
+    my $title = $lines[1];
+    for my $line(@lines){
+      if($line =~ /^artist(?:_guess)?=(.*)/){
+        $artist = $1 if ($1 ne '');
+      }elsif($line =~ /^title(?:_guess)?=(.*)/){
+        $title = $1 if ($1 ne '');
+      }
+    }
+    
+    $top = "$pos-$artist";
+    $bot = "$length-$title";
+  }
+
+
+  $top = adjustLen $top, 35;
+  $bot = adjustLen $bot, 35;
+  $top =~ s/\^/^^/g;
+  $bot =~ s/\^/^^/g;
+  my $markup = printer 'two-text-rows', $top, $bot, 36;
+  $markup = printer 'click-action', 1, $leftClickCmd, $markup;
+  $markup = printer 'click-action', 2, $middleClickCmd, $markup;
+  $markup = printer 'click-action', 3, $rightClickCmd, $markup;
+  print "$markup\n";
+}
+
+#replaces the middle of long strings with '...'
+sub adjustLen($$){
+  my $str = shift;
+  my $len = shift;
+  my $sep = '...';
+  my $strLen = length $str;
+  if($strLen > $len){
+    my $sepLen = length $sep;
+    my $preSplit = ($len/2) - ($sepLen/2);
+    my $postSplit = $strLen - ($len - $preSplit - $sepLen);
+    $str = 
+      (substr $str, 0, $preSplit) .
+      $sep .
+      (substr $str, $postSplit, $strLen-$postSplit+1);
+    $strLen = length $str;
+  }
+  $str .= ' ' x ($len - $strLen);
+  return $str;
+}
+
+main;
+
