@@ -83,6 +83,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_x     ), spawn "$HOME/bin/qcmd next")
   , ((sush, xK_z     ), spawn "$HOME/bin/qcmd seek -10")
   , ((sush, xK_x     ), spawn "$HOME/bin/qcmd seek 10")
+  , ((supr, xK_r     ), spawn "$HOME/bin/qcmd reset")
 
   , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
