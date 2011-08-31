@@ -69,18 +69,15 @@ sub parseTime($$){
   return ($newPos, $newLen);
 }
 sub main(){
-  system "kill -0 `cat $QMPLAYER_PID`";
   my ($top, $bot);
-  if($? != 0){
-    $top = ' QMPLAYER';
-    $bot = 'Not Running';
-  }elsif(-e $QCUR and `cat $QCUR` =~ /^([0-9\-\.]+) ([0-9\-\.]+) (.*)/){
+  my $cur = -e $QCUR ? `cat $QCUR` : '';
+  if($cur =~ /^([0-9\-\.]+) ([0-9\-\.]+) (.*)/){
     my $pos = $1;
     my $length = $2;
     ($pos, $length) = parseTime $pos, $length;
     my $path = $3;
 
-    my @lines = shellQuiet 'qdb', $QDB, '-i', $path;
+    my @lines = split /\n/, $cur;
 
     my $artist = $lines[0];
     my $title = $lines[1];
@@ -96,6 +93,11 @@ sub main(){
     $bot = "$length-$title";
   }
 
+  system "kill -0 `cat $QMPLAYER_PID`";
+  if($? != 0){
+    $top = "x$top";
+    $bot = "x$bot";
+  }
 
   $top = adjustLen $top, 35;
   $bot = adjustLen $bot, 35;
