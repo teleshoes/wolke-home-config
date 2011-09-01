@@ -62,12 +62,21 @@ echo Disabling forced compiz plugins
 mkdir -p ~/.config/compiz
 echo "COMPIZ_PLUGINS=\"\"" > ~/.config/compiz/compiz-manager
 
-LINE="tmpfs /tmp tmpfs defaults,noatime,nodev,nosuid,mode=1777 0 0"
+STUFF_LINE="UUID=8b8581ac-a137-4c51-9854-77e72f1f04de /media/stuff ext4 defaults 0 2"
 echo; echo;
-echo $LINE
+echo $STUFF_LINE
+read -p "Add the above line to /etc/fstab for secondary hard disk (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  echo $STUFF_LINE | sudo tee -a /etc/fstab
+fi
+
+
+TMPFS_LINE="tmpfs /tmp tmpfs defaults,noatime,nodev,nosuid,mode=1777 0 0"
+echo; echo;
+echo $TMPFS_LINE
 read -p "Add the above line to /etc/fstab for /tmp ram disk (y/N)?"
 if [ "$REPLY" == "y" ]; then
-  echo $LINE | sudo tee -a /etc/fstab
+  echo $TMPFS_LINE | sudo tee -a /etc/fstab
 fi
 
 
