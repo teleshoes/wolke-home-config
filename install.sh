@@ -549,12 +549,6 @@ echo; echo;
 read -p "set desktop custom folder icons and remove places in ~/? (y/N)"
 if [ "$REPLY" == "y" ]; then
   rmdir ~/Music ~/Documents ~/Downloads ~/Pictures ~/Templates ~/Videos
-
-  mkdir ~/Desktop/Music ~/Desktop/Videos ~/Desktop/Pictures
-  mkdir ~/Desktop/Documents ~/Desktop/Literature\ Books\ Manga
-  mkdir ~/Desktop/Torrents ~/Desktop/Downloads
-  mkdir ~/Desktop/Games ~/Desktop/Science ~/Desktop/Porn
-  mkdir ~/Desktop/ISO\ Images ~/Desktop/Final\ Fantasy ~/Desktop/Euler
   set-desktop-folder-icons
 fi
 
