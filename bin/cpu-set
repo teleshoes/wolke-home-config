@@ -1,0 +1,112 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getArgs();
+sub getAllCpus();
+sub getSharedGovernors();
+
+my $govFile = `echo -n \$HOME/.cpu_governor`;
+
+my $BASEDIR='/sys/devices/system/cpu';
+
+sub main(){
+  my ($cpu, $dev, $val, $gov) = getArgs();
+
+  my @cpus;
+  if($cpu =~ /all/){
+    @cpus = getAllCpus();
+  }else{
+    @cpus = ($cpu);
+  }
+
+  for my $cpu(@cpus){
+    my $f = "$BASEDIR/cpu$cpu/$dev";
+    $f = "$BASEDIR/cpu$cpu/cpufreq/$dev" if not -e $f;
+    open FH, "> $f" or die "Could not open $f for writing\n$!\n";
+    print FH "$val\n";
+    close FH;
+  }
+  if($gov){
+    open FH, "> $govFile" or die "Could not open $govFile for writing\n$!\n";
+    print FH "$gov\n";
+    close FH;
+  }
+}
+
+sub getArgs(){
+  my ($cpu, $dev, $val, $gov);
+  if(@ARGV == 1){
+    my %govs = map {$_ => 1} getSharedGovernors();
+    if(defined $govs{$ARGV[0]}){
+      $cpu = 'all';
+      $dev = 'cpufreq/scaling_governor';
+      $val = shift @ARGV;
+      $gov = $val;
+    }
+  }else{
+    $cpu = lc shift @ARGV;
+    $dev = shift @ARGV || '';
+    $val = shift @ARGV || '';
+    $gov = undef;
+  }
+
+  if($cpu !~ /^(\d+|all)$/ or !$dev or !$val or @ARGV>0){
+    my $govs = join ', ', getSharedGovernors();
+    die ''
+      . "Usage:\n"
+      . "  $0 <governor>\n"
+      . "     sets the scaling governor for all cpus, and updates $govFile\n"
+      . "     available governors: ($govs)\n"
+      . "  $0 <cpu> <device> <value>\n"
+      . "     <cpu> an integer or 'all' {means all cpus like $BASEDIR/cpu#}\n"
+      . "     <device> the location of the device to write relative to\n"
+      . "       $BASEDIR/cpu#/\n"
+      . "       or if above not present\n"
+      . "       $BASEDIR/cpu#/cpufreq\n"
+      . "\n"
+      . "e.g.: $0 3 scaling_max_freq 800000\n"
+      . "      is the same as:\n"
+      . "      if [ -e $BASEDIR/cpu3/scaling_max_freq ]; then\n"
+      . "        echo 800000 > $BASEDIR/cpu3/scaling_max_freq\n"
+      . "      else\n"
+      . "        echo 800000 > $BASEDIR/cpu3/cpufreq/scaling_max_freq\n"
+      . "      fi\n"
+      ;
+  }
+  return ($cpu, $dev, $val, $gov);
+}
+
+sub getAllCpus(){
+  my @cpus;
+  for my $cpudir(`ls $BASEDIR`){
+    if($cpudir =~ /^cpu(\d+)$/){
+      push @cpus, $1;
+    }
+  }
+  return @cpus;
+}
+
+sub getSharedGovernors(){
+  my @govs;
+  my $first = 1;
+  for my $cpu(getAllCpus){
+    my $avail = `cat $BASEDIR/cpu$cpu/cpufreq/scaling_available_governors`;
+    my @available = split /\s+/, $avail;
+    if($first){
+      @govs = @available;
+    }else{
+      my %availHash = map {$_ => 1} @available;
+      my @newGovs;
+      for my $a(@govs){
+        if(defined $availHash{$a}){
+          push @newGovs, $a;
+        }
+      }
+      @govs = @newGovs;
+    }
+  }
+  return @govs;
+}
+
+main();

@@ -71,10 +71,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
-  , ((supr, xK_F1    ), spawn "sudo $HOME/bin/cpu_governor all ondemand")
-  , ((supr, xK_F2    ), spawn "sudo $HOME/bin/cpu_governor all conservative")
-  , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu_governor all powersave")
-  , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu_governor all performance")
+  , ((supr, xK_F1    ), spawn "sudo $HOME/bin/cpu-set ondemand")
+  , ((supr, xK_F2    ), spawn "sudo $HOME/bin/cpu-set conservative")
+  , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu-set powersave")
+  , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu-set performance")
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
