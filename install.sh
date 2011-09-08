@@ -62,7 +62,7 @@ echo Disabling forced compiz plugins
 mkdir -p ~/.config/compiz
 echo "COMPIZ_PLUGINS=\"\"" > ~/.config/compiz/compiz-manager
 
-STUFF_LINE="UUID=8b8581ac-a137-4c51-9854-77e72f1f04de /media/stuff ext4 defaults 0 2"
+STUFF_LINE="UUID=97a5f9ed-6519-48c6-a12c-32e6d7864baf /media/stuff ext4 defaults 0 2"
 echo; echo;
 echo $STUFF_LINE
 read -p "Add the above line to /etc/fstab for secondary hard disk (y/N)?"
