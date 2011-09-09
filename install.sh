@@ -339,6 +339,13 @@ if [ "$REPLY" == "y" ]; then
   fi
 fi
 
+echo; echo;
+read -p "Copy soundfonts and install piano {VMPK} and fluidsynth (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo ~/bin/copySoundFonts
+  sudo apt-get install fluidsynth vmpk
+fi;
+
 
 echo; echo;
 bt_disable_cmd="echo disable > /proc/acpi/ibm/bluetooth"
