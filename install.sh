@@ -548,7 +548,7 @@ echo; echo;
 echo Desktop background for nautilus
 read -p "set desktop bg = venus? (y/N)?"
 if [ "$REPLY" == "y" ]; then
-  gconftool-2 --type string --set /desktop/gnome/background/picture_filename "/home/wolke/Desktop/Backgrounds/venere.pnm"
+  gconftool-2 --type string --set /desktop/gnome/background/picture_filename "/home/wolke/Desktop/Backgrounds/venere.jpg"
 fi
 
 
