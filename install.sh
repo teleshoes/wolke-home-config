@@ -311,9 +311,9 @@ if [ "$REPLY" == "y" ]; then
 fi;
 
 echo; echo;
-read -p "Remove compiz and unity (y/N)?"
+read -p "Remove compiz.* and unity.* (y/N)?"
 if [ "$REPLY" == "y" ]; then
-  sudo apt-get remove compiz-core compiz unity
+  sudo apt-get remove compiz.* unity.*
 fi;
 
 echo; echo;
