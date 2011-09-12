@@ -178,6 +178,27 @@ if [ "$REPLY" == "y" ]; then
 fi
 
 echo; echo;
+read -p "setup custom bash completion hacks (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  SUDOLIKE="_root_command fakeroot gksu gksudo kdesudo suod sudp"
+  BC=/etc/bash_completion
+  PAT="complete -F.*really sudo"
+  CUR=`cat $BC | grep 'complete -F.*really sudo'`
+  DESIRED="complete -F $SUDOLIKE really sudo"
+  BC_TMP=/tmp/bash_completion_`date +%s`
+  echo change list of sudo-like commands from:
+  echo "  $CUR"
+  echo to
+  echo "  $DESIRED"
+  read -p "(y/N)?"
+  if [ "$REPLY" == "y" ]; then
+    cat $BC | sed "s/$PAT/$DESIRED/" > $BC_TMP
+    cat $BC_TMP | sudo tee $BC
+    rm $BC_TMP
+  fi
+fi
+
+echo; echo;
 read -p "sync /var/cache/apt with ~/apt-cache (y/N)?"
 if [ "$REPLY" == "y" ]; then
   A="/var/cache/apt"
