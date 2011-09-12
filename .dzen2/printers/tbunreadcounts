@@ -3,10 +3,23 @@ use strict;
 use warnings;
 
 my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
+sub printer(@){
+  my @args = @_;
+  for my $arg(@args){
+    $arg =~ s/\'/'\\''/g;
+    $arg = "'$arg'";
+  }
+  my $out = `$PRINTERS/@args`;
+  chomp $out;
+  return $out;
+}
+
 
 my $profileDir = '~/.thunderbird/*.default';
 my $processName = 'thunderbird-bin';
-my $clickCmd = 'thunderbird';
+my $lClickCmd = 'thunderbird';
+my $mClickCmd = '';
+my $rClickCmd = 'killall thunderbird thunderbird-bin';
 
 my %ACCOUNTS = (
   'Gmail' => 'G',
@@ -14,18 +27,19 @@ my %ACCOUNTS = (
   'AOL - LiberiFataliVIII' => 'A');
 
 sub isThunderbirdRunning();
+sub background($);
 sub green($);
 sub red($);
 sub getCounts();
 sub pad2($);
 
 sub main(){
-  my $markup = '';
+  my $runningSymbol = '';
 
   if(isThunderbirdRunning()){
-    $markup .= green ' ';
+    $runningSymbol .= green ' ';
   }else{
-    $markup .= red 'x';
+    $runningSymbol .= red 'x';
   }
 
   my %counts = getCounts();
@@ -59,19 +73,24 @@ sub main(){
     $bot = 'all';
   }
 
-  my $rows = `$PRINTERS/two-text-rows '$top' '$bot' 36`;
-  chomp $rows;
-  $markup .= green $rows;
-
-  $markup = "^bg(black)$markup^bg()";
-  system "$PRINTERS/click-action", $clickCmd, $markup;
+  my $markup = printer 'two-text-rows', $top, $bot, 36;
+  $markup = printer 'click-action', 1, $lClickCmd, $markup if $lClickCmd;
+  $markup = printer 'click-action', 2, $mClickCmd, $markup if $mClickCmd;
+  $markup = printer 'click-action', 3, $rClickCmd, $markup if $rClickCmd;
+  $markup = green $markup;
+  $markup = $runningSymbol . $markup;
+  $markup = background $markup;
+  print "$markup\n";
 }
 
+sub background($){
+  return "^bg(black)$_[0]^bg()";
+}
 sub green($){
-  return "^fg(green)" . $_[0] . "^fg()";
+  return "^fg(green)$_[0]^fg()";
 }
 sub red($){
-  return "^fg(red)" . $_[0] . "^fg()";
+  return "^fg(red)$_[0]^fg()";
 }
 
 sub isThunderbirdRunning(){
