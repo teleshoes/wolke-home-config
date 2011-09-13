@@ -670,7 +670,14 @@ if [ "$REPLY" == "y" ]; then
   sudo sh -c "chmod +w /etc/sudoers && echo \"wolke\tALL=(ALL) NOPASSWD: /home/wolke/bin/resolvchooser\" >> /etc/sudoers && chmod -w /etc/sudoers"
 fi
 
-
+echo; echo;
+echo really dangerous: dont say yes, do it yourself
+echo add the following line to /etc/sudoers:
+echo wolke   ALL = NOPASSWD: /home/wolke/bin/n900
+read -p "overwrite /etc/sudoers, despite your better judgment (y/N)?"
+if [ "$REPLY" == "y" ]; then
+  sudo sh -c "chmod +w /etc/sudoers && echo \"wolke\tALL=(ALL) NOPASSWD: /home/wolke/bin/n900\" >> /etc/sudoers && chmod -w /etc/sudoers"
+fi
 
 echo; echo;
 echo really dangerous: dont say yes, do it yourself
