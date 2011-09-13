@@ -1,19 +1,44 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Term::ReadKey;
 
 my @utils = (
 #TOP
-'header' => "top left:",
+'header' => "",
   'xx' => 'q' => 'quit',
+'header' => "",
   'xx' => 'w' => 'license',
+'header' => "",
   'xx' => 'e' => 'execute_all_in_order',
-'header' => "top middle",
-'header' => "top right:",
 #BOTTOM
-'header' => "bottom left:",
-'header' => "bottom middle:",
-'header' => "bottom right:",
+'header' => "Installs:",
+  '12' => '1' => 'add_ppas',
+  '13' => '2' => 'sync_apt_cache',
+  '14' => '3' => 'install_free_packages',
+  '15' => '4' => 'install_evil_packages',
+  '16' => '5' => 'remove_bad_packages',
+  '17' => '6' => 'upgrade',
+  '18' => '7' => 'piano',
+  '19' => '8' => 'haskell_modules',
+  '20' => '9' => 'perl_modules',
+
+'header' => "System settings and hardware:",
+  '05' => 'a' => 'host_name',
+  '06' => 's' => 'setup_partitions',
+  '07' => 'd' => 'ext_journal_commit',
+  '08' => 'g' => 'bash_completion',
+  '09' => 'h' => 'escribe',
+  '10' => 'j' => 'disable_bluetooth',
+  '11' => 'f' => 'sudoers_hacks',
+  '21' => 'b' => 'grub_config',
+
+'header' => "User settings:",
+  '01' => 'z' => 'wolke_home_config',
+  '02' => 'x' => 'configure_keyboard',
+  '03' => 'v' => 'gconf_settings',
+  '04' => 'n' => 'desktop_config',
+  'xx' => 'c' => 'fix_compiz',
 );
 
 my $DIR = `echo -n \$HOME/utils`;
@@ -151,22 +176,10 @@ sub parse_utils(){
   }
 }
 
-#Gets a single key
 sub key(){
-  my $BSD = -f '/vmunix';
-  if ($BSD) {
-    system "stty cbreak /dev/tty 2>&1";
-  }else {
-    system "stty", '-icanon', 'eol', "\001";
-  }
-  my $key = getc(STDIN);
-  if ($BSD) {
-    system "stty -cbreak /dev/tty 2>&1";
-  }
-  else {
-    system "stty", 'icanon';
-    system "stty", 'eol', '^@'; # ascii null
-  }
+  ReadMode 3;
+  my $key = ReadKey 0;
+  ReadMode 0;
   return $key;
 }
 
@@ -174,8 +187,7 @@ sub ui_cmd_prompt(){
   print_utils_ui();
   
   print "Press a key (dont worry, we'll double-check again after): ";
-  my $key = lc key();
-  handleCmd $key;
+  handleCmd key();
 }
 
 sub handleCmd($){
@@ -209,22 +221,9 @@ sub ask($){
   }
 }
 
-sub is_term_size_installed(){
-  eval "use Term::Size::Perl";
-  if($@){
-    return 0;
-  }else{
-    return 1;
-  }
-}
-
 sub get_term_width(){
-  eval "use Term::Size::Perl; \$_ = Term::Size::Perl::chars";
-  if($@ or $_ !~ /^\d+$/){
-    return 80;
-  }else{
-    return $_;
-  }
+  my ($width) = Term::ReadKey::GetTerminalSize;
+  return $width;
 }
 
 sub print_section($$$$\@\@\@){
@@ -236,36 +235,39 @@ sub print_section($$$$\@\@\@){
   my @middle = @{shift()};
   my @right = @{shift()};
 
+  my $len;
   my $max_left_len = length $left_header;
+  my $max_middle_len = length $middle_header;
+  my $max_right_len = length $right_header;
   for my $arr(@left){
     my ($index, $key, $sub) = @{$arr};
     my $len = 3+length $sub;
     $max_left_len = $len if $len > $max_left_len;
   }
-  my $max_middle_len = length $middle_header;
   for my $arr(@middle){
     my ($index, $key, $sub) = @{$arr};
     my $len = 3+length $sub;
     $max_middle_len = $len if $len > $max_middle_len;
   }
-  my $max_right_len = length $right_header;
   for my $arr(@right){
     my ($index, $key, $sub) = @{$arr};
     my $len = 3+length $sub;
     $max_right_len = $len if $len > $max_right_len;
   }
 
-  $left_header .= ' 'x(1+$max_left_len-length $left_header);
-  $middle_header .= ' 'x(1+$max_middle_len-length $middle_header);
-  $right_header .= ' 'x(1+$max_right_len-length $right_header);
 
-  my $len = length "|$left_header|$middle_header|$right_header|";
-  $len = $term_width - $len;
-  $left_header .= ' ' x($len/3) . ($len%3>0?' ':'');
-  $middle_header .= ' ' x($len/3);
-  $right_header .= ' ' x($len/3) . ($len%3==2?' ':'');
+  if($left_header or $middle_header or $right_header){
+    $left_header .= ' 'x(1+$max_left_len-length $left_header);
+    $middle_header .= ' 'x(1+$max_middle_len-length $middle_header);
+    $right_header .= ' 'x(1+$max_right_len-length $right_header);
 
-  print "|$left_header|$middle_header|$right_header|\n";
+    $len = $term_width - length "|$left_header|$middle_header|$right_header|";
+    $left_header .= ' ' x($len/3) . ($len%3>0?' ':'');
+    $middle_header .= ' ' x($len/3);
+    $right_header .= ' ' x($len/3) . ($len%3==2?' ':'');
+
+    print "|$left_header|$middle_header|$right_header|\n";
+  }
 
   my $max_size = 0;
   $max_size = @left if @left > $max_size;
@@ -332,10 +334,6 @@ sub print_utils_ui(){
     $headers[3], $headers[4], $headers[5],
     @{$sections[3]}, @{$sections[4]}, @{$sections[5]});
   print '-'x$term_width . "\n";
-
-  if(!is_term_size_installed){
-    print "run 'cpan Term::Size::Perl' for terminal resize support\n";
-  }
 }
 
 
