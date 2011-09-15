@@ -1,12 +1,57 @@
-#!/bin/bash
-echo; echo;
-echo 'change /etc/default/grub ->'
-echo ' GRUB_HIDDEN_TIMEOUT=3'
-echo ' GRUB_HIDDEN_TIMEOUT_QUIET=false'
-echo and then run 'update-grub'
-read -p "Modify grub (y/N)?"
-if [ "$REPLY" == "y" ]; then
-  sudo ~/bin/config_grub
-  sudo update-grub
-fi
+#!/usr/bin/perl
+use strict;
+use warnings;
 
+my $file = '/etc/default/grub';
+my %configs = (
+ GRUB_TIMEOUT => 3,
+ GRUB_HIDDEN_TIMEOUT => undef,
+ GRUB_HIDDEN_TIMEOUT_QUIET => undef,
+);
+
+print "change $file ->\n";
+for my $key(sort keys %configs){
+  if(defined $configs{$key}){
+    print " $key => $configs{$key}\n";
+  }else{
+    print " comment out: $key\n";
+  }
+}
+print "(y/N)?";
+my $reply = <STDIN>;
+if(lc $reply ne "y\n"){
+  print "skipped\n";
+  exit 0;
+}
+
+
+open IN, "< $file" or die "Could not open $file for reading: $!";
+my @lines = <IN>;
+close IN;
+
+for my $line(@lines){
+  for my $configKey(keys %configs){
+    if($line =~ /^$configKey\s*=/){
+      if(not defined $configs{$configKey}){
+        $line = "#$line";
+        delete $configs{$configKey};
+      }else{
+        $line = "$configKey=$configs{$configKey}\n";
+        delete $configs{$configKey};
+      }
+    }
+  }
+}
+
+for my $configKey(keys %configs){
+  if(defined $configs{$configKey}){
+    push @lines, "$configKey=$configs{$configKey}\n";
+  }
+}
+
+
+open OUT, "| sudo tee $file";
+print OUT @lines;
+close OUT;
+
+system "sudo update-grub";
