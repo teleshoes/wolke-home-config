@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $hostname = 'eDGe-4e6796b5a6.home';
+
+my $SSID_IPS = {
+  flipsafad => '192.168.11.52',
+};
+
+sub getSSID(){
+  my $nm = `nm-tool 2>/dev/null`;
+  if($nm =~ /
+      \s* Device: \s* wlan[0-9]* (.*) \n
+      (?:.*\n)*?
+      \s* State: \s* (.*) \n
+      /xi
+  ){
+    if($2 eq 'connected'){
+      my $ssid = $1;
+      $ssid =~ /
+        ^\s*
+        \[  (?:auto)? \s* ([^\]]*)  \]
+        \s* -* $/xi;
+      $ssid = lc $1;
+      return $ssid;
+    }
+  }else{
+    return '';
+  }
+}
+
+my $ssid = getSSID;
+my $dest = $$SSID_IPS{$ssid};
+$dest = $hostname if not defined $dest;
+if(@ARGV >= 1 and ($ARGV[0] eq '-s' or $ARGV[0] eq '--ssh')){
+  shift;
+  exec "ssh root\@$dest @ARGV";
+}
+if(@ARGV >= 1 and ($ARGV[0] eq '-u' or $ARGV[0] eq '--usb')){
+  shift;
+  my $adb = "\$HOME/Desktop/edge/android-sdk-linux_x86/platform-tools/adb";
+  exec "$adb shell @ARGV";
+}
+print $dest;
