@@ -16,35 +16,53 @@ set tabstop=4
 set softtabstop=4
 set shiftwidth=4
 
-map  <F2> i
-imap <F2> <Esc>
-
+"""Quit"""
 map  <C-X><C-C> :q!<CR>
 imap <C-X><C-C> <Esc>:q!<CR>
 
 map  <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
+""""""
 
-map  <F3>      :w<CR>
-imap <F3> <Esc>:w<CR>li
-
+"""delete/paste"""
 imap <C-D> <Esc>ddli
 imap <C-P> <Esc>pli
+""""""
 
-map  <C-U> u
+"""Undo"""
+map  <C-U>      u
+imap <C-U> <Esc>uli
 
-vmap r "_dP
+map  <C-R>      <C-R>
+imap <C-R> <Esc><C-R>li
+""""""
 
+
+
+"""Write"""
+map  <F3>      :w<CR>
+imap <F3> <Esc>:w<CR>li
+""""""
+
+"""RUN"""
 map  <F5>      :w<CR>:RUN<CR>
 imap <F5> <Esc>:w<CR>:RUN<CR>li
 
 map  <F6>      :w<CR>:RUN<Space>
 imap <F6> <Esc>:w<CR>:RUN<Space>li
+""""""
 
-map  <F8>      "+y
-imap <F8> <ESC>"+yi
-vmap <F8>      "+y
+"""Clipboard"""
+map  <F7>      "+y
+imap <F7> <ESC>"+yi
+vmap <F7>      "+y
 
+map  <F8>      "+p
+imap <F8> <ESC>"+pi
+vmap <F8>      "+p
+""""""
+
+"""Register l"""
 map  <F9>      "ly
 imap <F9> <ESC>"lyi
 vmap <F9>      "ly
@@ -52,7 +70,9 @@ vmap <F9>      "ly
 map  <F10>      "lp
 imap <F10> <ESC>"lpi
 vmap <F10>      "lp
+""""""
 
+"""Register r"""
 map  <F11>      "ry
 imap <F11> <ESC>"ryi
 vmap <F11>      "ry
@@ -60,6 +80,8 @@ vmap <F11>      "ry
 map  <F12>      "rp
 imap <F12> <ESC>"rpi
 vmap <F12>      "rp
+""""""
+
 
 command -nargs=* RUN call RUN(<f-args>)
 function RUN(...)
