@@ -101,6 +101,8 @@ alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='echo -ne "\033]0;MPLAYER\007"; mplayer'
+
+alias migl=miglatest
 git() {
   CMD=$1
   shift
