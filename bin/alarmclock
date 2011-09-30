@@ -2,7 +2,13 @@
 use strict;
 use warnings;
 
-my $alarmFile = `echo \$HOME/.alarm`;
+my $dir = `echo -n \$HOME/.alarms`;
+if(not -d $dir){
+  die "$dir is not a directory\n";
+}
+chdir $dir;
+my @alarmFiles = `ls $dir`;
+
 
 my @daysOfTheWeek = qw(su mo tu we th fr sa);
 my $dayPattern = join '|', @daysOfTheWeek;
@@ -33,6 +39,10 @@ sub getRepeatDays($){
   }
 }
 
+sub twodigit($){
+  return $_[0] < 10 ? "0$_[0]" : $_[0];
+}
+
 sub getRelativeTimeSeconds($){
   my $time = shift;
   if($time =~ /^\d+$/){
@@ -50,9 +60,10 @@ sub getRelativeTimeSeconds($){
   }
 }
 
-my $changed = 0;
-my @alarms = `cat $alarmFile`;
-for my $alarm(@alarms){
+for my $alarmFile(@alarmFiles){
+  chomp $alarmFile;
+  my $alarm = `cat $alarmFile`;
+  chomp $alarm;
   if($alarm =~ /^#/ or $alarm =~ /^\s*$/){
     next;
   }
@@ -66,20 +77,43 @@ for my $alarm(@alarms){
     die "relative times should be < 24 hours, since they are time-only\n";
   }
   if(not defined $repeat and defined $relTimeSeconds){
-    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime time;
-    $sec += $relTimeSeconds % 60;
-    $min += int($relTimeSeconds/60 % 60);
-    $hour += int($relTimeSeconds / 60 / 60);
-    $hour = $hour % 24;
-    $changed = 1;
+    my $sex = time() + $relTimeSeconds;
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($sex);
+    $sec = twodigit $sec;
+    $min = twodigit $min;
+    $hour = twodigit $hour;
     $time = "$hour:$min:$sec";
-    $alarm = "$time $cmd\n";
+
+    $alarm = "$time $cmd";
+    if(open FH, "> $alarmFile"){
+      print FH "$alarm\n";
+      close FH;
+    }else{
+      print STDERR "Could not write abs time to $alarmFile: $!\n";
+      $time = '';
+    }
+  }
+
+  $time =~ s/am$//i;
+  if($time =~ /(\d+)(.*)pm$/i){
+    my $h = 12 + $1;
+    $time = "$h$2";
+  }
+
+  $time = "$time:00" if $time =~ /^\d+$/;
+  $time = "$time:00" if $time =~ /^\d+:\d+$/;
+
+  if($time =~ /(\d+):(\d+):(\d+)/){
+    my ($h, $m, $s) = ($1, $2, $3);
+    if($h>=24 or $m>=60 or $s>=60){
+      print STDERR "$time is malformed\n";
+      print "$alarmFile ERROR!\n";
+      next;
+    }else{
+      print "$alarmFile $time\n";
+    }
+  }else{
+    print "$alarmFile ERROR!\n"; 
   }
 }
 
-if($changed){
-  open FH, "> $alarmFile"
-    or die "Could not record relative=>absolute time change: $!";
-  print FH @alarms;
-  close FH;
-}
