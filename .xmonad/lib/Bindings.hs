@@ -65,9 +65,12 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt,  xf86think), spawnTerm "$HOME/bin/cmdselect")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
+  , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
+
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")
   , ((alt,  volDown  ), spawn "$HOME/bin/pulse-lower-volume")
+
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
@@ -125,6 +128,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     volUp = xF86XK_AudioRaiseVolume
     volDown = xF86XK_AudioLowerVolume
     xf86think = xF86XK_Launch1
+    xf86mic = xF86XK_Launch2
     xf86back = xF86XK_Back
     xf86fwd = xF86XK_Forward
     hbin = "$HOME/bin/"
