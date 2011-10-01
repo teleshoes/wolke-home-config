@@ -1,0 +1,30 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $name = shift;
+$name = '' if not defined $name;
+$name =~ s/^tpacpi:://;
+my $dev = "/sys/devices/platform/thinkpad_acpi/leds/tpacpi::$name/brightness";
+
+my $brightness = shift;
+$brightness = 'toggle' if not defined $brightness;
+
+if(not -e $dev){
+  die "No led device found at $dev\n";
+}
+
+my $cur = `cat $dev`;
+chomp $cur;
+
+$brightness = 1 if lc $brightness eq 'on';
+$brightness = 0 if lc $brightness eq 'off';
+$brightness = 1-$cur if lc $brightness eq 'toggle';
+
+if($brightness !~ /^\d+$/){
+  die "Usage: $0 <led> [<on|off|toggle> | brightness]\n";
+}
+
+system "echo $brightness > $dev";
+print "LED $name $cur => " . `cat $dev`;
+
