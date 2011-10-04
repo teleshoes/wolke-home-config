@@ -34,7 +34,7 @@ parseAndFormat now tz fcrondynOut = rows now tz okJobs
         okJobs = map head $ filter ((==1).length) jobs
 
 rows now tz (one:two:[]) = textRows
-                             (pad (fmt one) 10 )
+                             (pad (fmt one) 10)
                              (pad (fmt two) 10)
                              36
   where fmt job = (relTime (jobTime tz job) now) ++ "|" ++ (jCmd job)
@@ -52,7 +52,7 @@ cmdSub cmd = if isMatch then (head match !! 1) else cmd
         regex = "#([a-zA-Z_0-9]+)"
 
 
-pad x 0 = x
+pad x i | length x >= i = x
 pad x i = pad x (i-1) ++ " "
 
 jobCmd  (whole:id:user:mon:day:year:h:m:s:cmd:[]) = cmd
