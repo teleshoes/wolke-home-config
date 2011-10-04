@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $repo = 'git://git.tuxfamily.org/gitroot/fcron/fcron.git';
+my $commit = 'ef556d7cdee95373fc036850a99b1ffe7bf7f08d';
+
+my %patches;
+
+my $fcron_pam;
+my $fcrontab_pam;
+
+sub pam($$){
+  my $file = shift;
+  $file = "/etc/pam.d/$file";
+  my $content = shift;
+  open FH, "| sudo tee $file" or (print STDERR "Couldnt write $file");
+  print FH $content;
+  close FH;
+}
+
+sub main(){
+  system "sudo apt-get build-dep fcron";
+  
+  #install it to get dependencies that arent installed by build-dep
+  system "sudo apt-get install fcron";
+  system "sudo apt-get remove --purge fcron anacron";
+
+  system "sudo rm -rf /tmp/fcron";
+  chdir '/tmp';
+  system "git clone $repo";
+  chdir '/tmp/fcron';
+  system "git checkout $commit";
+
+  for my $file(`ls`){
+    chomp $file;
+    if(defined $patches{$file}){
+      my $pFile = "/tmp/$file.patch";
+      open FH, "> $pFile";
+      print FH $patches{$file};
+      close FH;
+      system "patch $file $pFile";
+    }
+  }
+
+  system "autoconf";
+  system "./configure";
+  system "sudo make install";
+  pam 'fcron', $fcron_pam;
+  pam 'fcrontab', $fcrontab_pam;
+
+  system "sudo fcron";
+  system "fcronreset";
+}
+
+$fcron_pam =
+'#
+# The PAM configuration file for fcron daemon
+#
+
+# Warning: fcron has no way to prompt user for a password, so don\'t!
+auth       required   pam_env.so
+auth       required   pam_permit.so
+
+@include common-account
+
+@include common-session
+# Sets up user limits, please define limits for cron tasks
+# through /etc/security/limits.conf
+session    required   pam_limits.so
+#
+#session   required   pam_permit.so
+';
+
+$fcrontab_pam =
+'#
+# The PAM configuration file for fcrontab
+#
+
+# WARNING : you cannot use every modules here, as some
+#           (such as pam_unix_acct.so) require the program to be run
+#           by root or suid root, and fcrontab is *not* suid root.
+
+# By default we do not ask user for a password
+# (but fcrontab can do it, if you configure it to do so)
+auth		sufficient	pam_permit.so
+@include common-auth
+
+# pam_unix.so seems to get very cross if you use it to do account
+# management but didn\'t use it for auth.  Can\'t people write PAM
+# modules right, for once?
+#@include common-account
+account		required	pam_permit.so
+#account	required	pam_time.so
+
+@include common-session
+#session	required	pam_permit.so
+';
+
+%patches = (
+  'subs.c' =>
+'72c72
+<         die_e("could not change euid to %d", euid);
+---
+>         error_e("could not change euid to %d", euid);
+85c85
+<         die_e("could not change egid to %d", egid);
+---
+>         error_e("could not change egid to %d", egid);
+',
+  
+  'fcrontab.c' =>
+'184c184
+<         die_e("could not change euid to %d", fcrontab_uid);
+---
+>         error_e("could not change euid to %d", fcrontab_uid);
+186c186
+<         die_e("could not change egid to %d", fcrontab_gid);
+---
+>         error_e("could not change egid to %d", fcrontab_gid);
+',
+
+  'socket.c' => '388c388
+<     char field_schedule[] = " SCHEDULE        ";
+---
+>     char field_schedule[] = " SCHEDULE           ";
+458c458
+< 	    len += snprintf(buf+len, sizeof(buf)-len, " %02d/%02d/%d %02d:%02d %s",
+---
+> 	    len += snprintf(buf+len, sizeof(buf)-len, " %02d/%02d/%d %02d:%02d:%02d %s",
+460c460
+< 			    ftime->tm_hour, ftime->tm_min,
+---
+> 			    ftime->tm_hour, ftime->tm_min, ftime->tm_sec,
+468c468
+< 	len += snprintf(buf+len, sizeof(buf)-len, " %02d/%02d/%d %02d:%02d",
+---
+> 	len += snprintf(buf+len, sizeof(buf)-len, " %02d/%02d/%d %02d:%02d:%02d",
+470c470
+< 			ftime->tm_hour, ftime->tm_min );
+---
+> 			ftime->tm_hour, ftime->tm_min, ftime->tm_sec );
+',
+);
+
+&main;
