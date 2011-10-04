@@ -8,7 +8,7 @@ if(not -d $dir){
 }
 chdir $dir;
 my @alarmFiles = `ls $dir`;
-
+chomp $_ for @alarmFiles;
 
 my @daysOfTheWeek = qw(su mo tu we th fr sa);
 my $dayPattern = join '|', @daysOfTheWeek;
@@ -60,39 +60,27 @@ sub getRelativeTimeSeconds($){
   }
 }
 
-for my $alarmFile(@alarmFiles){
-  chomp $alarmFile;
-  my $alarm = `cat $alarmFile`;
-  chomp $alarm;
-  if($alarm =~ /^#/ or $alarm =~ /^\s*$/){
-    next;
-  }
-
-  my $repeat = getRepeatDays($alarm);
-  $alarm =~ /^ (?:\@\S)? \s* (\S*) \s* (.*) $/x;
-  my $time = $1;
-  my $cmd = $2;
+sub normalizeTime($){
+  my $time = shift;
   my $relTimeSeconds = getRelativeTimeSeconds($time);
   if(defined $relTimeSeconds and $relTimeSeconds > 60*60*24){
     die "relative times should be < 24 hours, since they are time-only\n";
   }
-  if(not defined $repeat and defined $relTimeSeconds){
+  if(defined $relTimeSeconds){
     my $sex = time() + $relTimeSeconds;
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($sex);
     $sec = twodigit $sec;
     $min = twodigit $min;
     $hour = twodigit $hour;
-    $time = "$hour:$min:$sec";
 
-    $alarm = "$time $cmd";
-    if(open FH, "> $alarmFile"){
-      print FH "$alarm\n";
-      close FH;
-    }else{
-      print STDERR "Could not write abs time to $alarmFile: $!\n";
-      $time = '';
-    }
+    $time = "$hour:$min:$sec";
   }
+  return $time;
+}
+
+sub schedule($$){
+  my $time = shift;
+  my $repeat = shift;
 
   $time =~ s/am$//i;
   if($time =~ /(\d+)(.*)pm$/i){
@@ -106,14 +94,35 @@ for my $alarmFile(@alarmFiles){
   if($time =~ /(\d+):(\d+):(\d+)/){
     my ($h, $m, $s) = ($1, $2, $3);
     if($h>=24 or $m>=60 or $s>=60){
-      print STDERR "$time is malformed\n";
-      print "$alarmFile ERROR!\n";
-      next;
-    }else{
-      print "$alarmFile $time\n";
+      print STDERR "time '$time' is malformed\n";
+      return undef;
     }
   }else{
-    print "$alarmFile ERROR!\n"; 
+    print STDERR "time '$time' is malformed\n";
+    return undef;
   }
+
+  return time();
+}
+
+for my $alarmFile(@alarmFiles){
+  my $content = `cat $alarmFile`;
+  my @lines = split /\n/, $content;
+  my ($alarm, $sched) = (@lines, undef);
+
+  my $repeat = getRepeatDays($alarm);
+  $alarm =~ /^ (?:\@\S)? \s* (\S*) \s* (.*) $/x;
+  my $time = defined $1 ? $1 : '';
+  my $cmd = defined $2 ? $2 : '';
+
+  $time = normalizeTime $time;
+  $sched = schedule $time, $repeat if not defined $sched;
+
+  print "
+    cmd => '$cmd'
+    time => '$time'
+    sched => '$sched'
+    repeat => '$repeat'
+    alarm => '$alarm'\n";
 }
 
