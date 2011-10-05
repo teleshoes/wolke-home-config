@@ -74,13 +74,11 @@ myDzenPP workspaceNames = dzenPP
      ++ "^fg()"
    clickRect w h cmd = ""
      ++ "^p(-" ++ show width ++ ")"
-     ++ "^fn(monospace-100)"
      ++ "^ca(1," ++ cmd ++ ")"
        ++ "^ib(1)"
        ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
        ++ "^ib(0)"
      ++ "^ca()"
-     ++ "^fn()"
    clickCmd wsName = "xdotool key alt+" ++ (show $ wsKey wsName)
    wsKey wsName = 1 + (wsIndex wsName workspaceNames)
    wsIndex wsName (ws:wss) | ws == wsName = 0
