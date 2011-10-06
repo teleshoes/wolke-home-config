@@ -46,7 +46,10 @@ myDzenPP workspaceNames = dzenPP
                          "full" -> "[ ]"
                          _      -> x
                         )
-  , ppTitle           = (++ "^ca()") . ("^ca(1,/home/wolke/bin/kb)^bg(#316c80) " ++) . dzenEscape . shorten 30
+  , ppTitle           = clickWrap 1 "$HOME/bin/kb" .
+                        ("^bg(#316c80) " ++) .
+                        dzenEscape .
+                        shorten 30
   }
   where
    current wsName = ""
@@ -72,13 +75,16 @@ myDzenPP workspaceNames = dzenPP
      ++ "^fg(black)"
      ++ "^r(" ++ show space ++ "x" ++ show height ++ ")"
      ++ "^fg()"
+   clickWrap btn cmd markup = ""
+     ++ "^ca(" ++ (show btn) ++ "," ++ cmd ++ ")"
+       ++ markup
+     ++ "^ca()"
    clickRect w h cmd = ""
      ++ "^p(-" ++ show width ++ ")"
-     ++ "^ca(1," ++ cmd ++ ")"
+     ++ (clickWrap 1 cmd $ ""
        ++ "^ib(1)"
        ++ "^ro(" ++ show w ++ "x" ++ show h ++ ")"
-       ++ "^ib(0)"
-     ++ "^ca()"
+       ++ "^ib(0)")
    clickCmd wsName = "xdotool key alt+" ++ (show $ wsKey wsName)
    wsKey wsName = 1 + (wsIndex wsName workspaceNames)
    wsIndex wsName (ws:wss) | ws == wsName = 0
