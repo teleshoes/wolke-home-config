@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $file = `echo -n \$HOME/.xmonad/lib/Bindings.hs`;
+my @lines = `cat $file`;
+
+sub parse($$$);
+#print @lines;
+my @bindings;
+for my $line(@lines){
+  if($line =~ m/ \s*  [[,]  \s* 
+                 \( 
+                   \( \s* ([a-z]+) \s* , \s* ([a-zA-Z0-9_]+) \s* \) \s* ,
+                   (.*?)
+                 \) \s* \n
+               /sx){
+    my ($mod, $key, $cmd) = ($1, $2, $3);
+    $cmd =~ s/^\s*|\s*$//g;
+    $cmd =~ s/^(sendMessage |setLayout |windows |windows |withFocused |screenWorkspace )(\s*\$\s*)?/xx: /;
+    $cmd =~ s/^(spawn|spawnTerm) //;
+    $cmd =~ s/^"|"$//g;
+    $cmd =~ s/^sudo //;
+    $cmd =~ s/^\$HOME\/bin\///;
+
+    push @bindings, [$mod, $key, $cmd];
+  }
+}
+@bindings = sort {$$a[2] cmp $$b[2]} @bindings;
+my @out;
+for my $b(@bindings){
+  my ($mod, $key, $cmd) = @$b;
+  if($key =~ /^button\d/){
+    next;
+  }
+  my @mods;
+  push @mods, 'alt' if $mod =~ /modm|alt|alct|shmd/;
+  push @mods, 'control' if $mod =~ /ctrl|alct/;
+  push @mods, 'super' if $mod =~ /supr|sush/;
+  push @mods, 'shift' if $mod =~ /shmd|sush/;
+
+  $key =~ s/^xK_//;
+  $mod = '' if $mod eq 'none';
+  $mod .= ' ' x (4 - length $mod);
+  $mod .= ' + ' if $mod ne '';
+  $key .= ' ' x (9 - length $key);
+  push @out, "$mod$key => $cmd\n";
+}
+
+#print @out;
+
+my @cols;
+my $col = [];
+for (my $i=0; $i<@out; $i++){
+  push @$col, $out[$i];
+  if(($i > 0 and $i % 20 == 0) or $i == $#out){
+    push @cols, $col;
+    $col = [];
+  }
+}
+
+my @maxCols;
+for my $col(@cols){
+  my $max=0;
+  for my $i(@$col){
+    chomp $i;
+    $max = length $i if length $i > $max;
+  }
+  push @maxCols, $max;
+}
+
+my $dzenOut = " \n";
+for(my $i=0; $i<20; $i++){
+  for(my $c=0; $c<@cols; $c++){
+    my $max = $maxCols[$c];
+    my $kb = ${$cols[$c]}[$i];
+    $kb .= ' ' x ($max - length $kb);
+    $dzenOut .= "$kb | ";
+  }
+  $dzenOut .= "\n";
+}
+
+open DZEN, "| dzen2 -fn Inconsolata-14 -x 0 -y 0 -p -expand left -l 20 -e 'onstart=uncollapse;button1=exit;button2=exit;button3=exit'";
+print DZEN $dzenOut;
+close DZEN;
