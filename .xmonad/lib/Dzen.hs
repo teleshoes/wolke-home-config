@@ -46,7 +46,7 @@ myDzenPP workspaceNames = dzenPP
                          "full" -> "[ ]"
                          _      -> x
                         )
-  , ppTitle           = ("^bg(#316c80) " ++) . dzenEscape . shorten 30
+  , ppTitle           = (++ "^ca()") . ("^ca(1,/home/wolke/bin/kb)^bg(#316c80) " ++) . dzenEscape . shorten 30
   }
   where
    current wsName = ""
