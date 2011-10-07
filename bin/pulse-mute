@@ -3,11 +3,14 @@ use strict;
 use warnings;
 
 my $micLedExec = `echo -n \$HOME/bin/led mute_mic`;
+my $muteLedStatus = 'on';
+my $unmuteLedStatus = 'off';
+
 my $pacmd = "pacmd";
 
 my $usage = "Usage:
-  $0 speaker|sink|microphone|source
-  $0 speaker|sink|microphone|source [mute|unmute|toggle]
+  $0 speaker|spkr|sink|microphone|mic|source
+  $0 speaker|spkr|sink|microphone|mic|source [mute|unmute|toggle]
 
   Either speaker/sink or microphone/source must be specified.
   Prints the current mute status of speaker(sink) or microphone(source).
@@ -36,9 +39,9 @@ sub getMuteStatuses($){
 
 my $device = shift;
 $device = '' if not defined $device;
-if($device eq 'speaker' or $device eq 'sink'){
+if($device =~ /^(speaker|spkr|sink)$/){
   $device = 'sink';
-}elsif($device eq 'microphone' or $device eq 'source'){
+}elsif($device =~ /^(microphone|mic|source)$/){
   $device = 'source';
 }else{
   die $usage;
@@ -77,9 +80,9 @@ if($command eq 'mute'){
   for my $index(keys %muteStatuses){
     `$pacmd set-$device-mute $index 0`;
   }
-  system "sudo $micLedExec off" if $device eq 'source';
+  system "sudo $micLedExec $unmuteLedStatus" if $device eq 'source';
 }elsif($command eq ''){
-  my $led = $isMuted ? 'on' : 'off';
+  my $led = $isMuted ? $muteLedStatus : $unmuteLedStatus;
   system "sudo $micLedExec $led" if $device eq 'source';
 }else{
   die $usage;
