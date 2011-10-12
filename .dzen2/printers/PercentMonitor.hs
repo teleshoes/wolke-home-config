@@ -18,6 +18,7 @@ main = do
       loop ((i+1) `mod` w) samples
   loop 0 $ replicate w []
 
+
 i = read :: String -> Int
 f = read :: String -> Float
 
@@ -36,14 +37,37 @@ getPercents count line | ok = map f $ pers
   where pers = words line
         ok = all isFloat pers && length pers == count
 
+{-
+main = do
+  hSetBuffering stdout LineBuffering
+  (w,h,colors) <- parseArgs <$> getArgs
+  let loop i = do
+      sample <- reverse . getPercents (length colors) <$> getLine
+      putStr $ drawOnlyOne i w h (reverse colors) sample
+      putStr "\n"
+      loop ((i+1) `mod` w)
+  loop 0
+
+drawOnlyOne :: Int -> Int -> Int -> [String] -> [Float] -> String
+drawOnlyOne offset width height colors sample = "^ib(1)" ++ markup
+  where px = pixels (height-2) sample
+        markup = "^p(" ++ (show offset) ++ ")" ++
+                 (drawRectStack 1 px colors) ++
+                 "^p(" ++ (show (width-offset-1)) ++ ")"
+-}
+
 formatSamples :: Int -> Int -> [String] -> [[Float]] -> String
 formatSamples width height colors samples = "^ib(1)" ++ markup ++ "^ib(0)^fg()^pa()"
   where px = map (pixels (height-2)) samples
-        markup = concatMap (\(px,w) -> drawRectStack w px colors) rectStacks
+        markup = concatMap (\(px,w) -> drawRectStack height w px colors) rectStacks
         rectStacks = map (\x->(head x, length x)) $ group px
 
-drawRectStack width [] _ = "^p(" ++ (show width) ++ ")"
-drawRectStack width heights colors = concat $ addResets $ map (rect width) hcos
+drawRectStack h width [] (c:_) = ""
+  ++ "^fg(" ++ c ++ ")"
+  ++ "^pa(;0)"
+  ++ "^r(" ++ (show width) ++ "x" ++ (show h) ++ ")"
+  ++ "^pa()"
+drawRectStack h width heights colors = concat $ addResets $ map (rect width) hcos
   where hcos = filter ((>0).first) $ zip3 heights colors (offsets heights)
         offsets heights = scanl (+) 0 heights
         addResets = intersperse ("^p(-" ++ (show width) ++ ")")
