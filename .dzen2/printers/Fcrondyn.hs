@@ -1,5 +1,3 @@
-import Prelude hiding ( catch )
-import Control.Exception
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (fromMaybe)
