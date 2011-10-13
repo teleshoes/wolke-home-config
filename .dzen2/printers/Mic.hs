@@ -20,7 +20,7 @@ formatCircle home isM = clickAction "1" clickCmd markup
         d = height `div` 6
         shift = height `div` 2 - d `div` 2
         color m = "^fg(" ++ fg ++ ")" ++ m ++ "^fg()"
-        fg = if isM then "red" else "green"
+        fg = if isM then "black" else "red"
 
 isMuted mic | mic == "source is muted" = True
             | mic == "source is not muted" = False
