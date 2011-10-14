@@ -1,95 +1,127 @@
 #!/usr/bin/runghc
-import Data.List (intercalate, group, intersperse)
+import Data.List (intercalate, group, intersperse, zip4)
 import Data.Maybe (fromMaybe, listToMaybe, isJust)
 import Data.Char
 import Control.Monad
 import Control.Applicative((<$>))
 import Control.Exception
 import System.Environment.UTF8 (getArgs)
-import System.IO (hSetBuffering, stdout, BufferMode(LineBuffering))
+import System.IO (hSetBuffering, hGetLine, hPutStrLn, stdin, stdout, BufferMode(LineBuffering))
+
+type Pix = Int
+type Per = Float
+type HeightPer = Per
+type Height = Pix
+type Width = Pix
+type RelSample = [Per]
+type AbsSample = [Height]
+type Color = String
+
+data SampleBlock = SampleBlock
+    { sbWidth     :: Width
+    , sbHeight    :: Height
+    , sbColors    :: [Color]
+    , sbAbsSample :: AbsSample
+    }
+packSampleBlock (h,w,c,p) = SampleBlock h w c p
+
+data Rect = Rect
+    { rWidth  :: Width
+    , rHeight :: Height
+    , rOffset :: Int
+    , rColor  :: Color
+    }
+packRect (w,h,o,c) = Rect w h o c
+packRects ws hs os cs = map packRect $ zip4 ws hs os cs
 
 main = do
-  hSetBuffering stdout LineBuffering
   (w,h,colors) <- parseArgs <$> getArgs
-  let loop i (_:oldSamples) = do
-      samples <- ((oldSamples ++) . return) . reverse . getPercents (length colors) <$> getLine
-      putStr $ formatSamples w h (reverse colors) samples
-      putStr "\n"
-      loop ((i+1) `mod` w) samples
-  loop 0 $ replicate w []
+  thing w h colors stdin stdout
+
+thing w h colors reader writer = do
+  hSetBuffering writer LineBuffering
+  let height = h-2
+  let expectedLen = length colors
+  let getRelSample = lineToRelSample expectedLen <$> hGetLine reader
+
+  let loop (_:oldRelSamples) = do
+      relSamples <- (oldRelSamples ++) . return <$> getRelSample
+      hPutStrLn writer $ monitorMarkup w height colors relSamples
+      loop relSamples
+  loop (replicate w [])
 
 
-i = read :: String -> Int
-f = read :: String -> Float
-
-
-isInt   = maybe False id . fmap (null . snd) . listToMaybe .
-          (reads :: ReadS Int)
-isFloat = maybe False id . fmap (null . snd) . listToMaybe .
-          (reads :: ReadS Float)
-
-
-parseArgs (w:h:c1:c2:cs) | isInt w && isInt h = (i w, i h, c1:c2:cs)
+parseArgs :: [String] -> (Width, Height, [Color])
+parseArgs (w:h:c1:c2:cs) | isPix w && isPix h =
+          (toPix w, toPix h, reverse (c1:c2:cs))
 parseArgs _ = error "Usage: width height color1 color2 [color3 color4 ...]\n"
 
-getPercents count line | ok = map f $ pers
-                       | otherwise = error ("Could not parse % line: " ++ line)
-  where pers = words line
-        ok = all isFloat pers && length pers == count
 
-{-
-main = do
-  hSetBuffering stdout LineBuffering
-  (w,h,colors) <- parseArgs <$> getArgs
-  let loop i = do
-      sample <- reverse . getPercents (length colors) <$> getLine
-      putStr $ drawOnlyOne i w h (reverse colors) sample
-      putStr "\n"
-      loop ((i+1) `mod` w)
-  loop 0
+toPix = read :: String -> Pix
+toPer = read :: String -> Per
 
-drawOnlyOne :: Int -> Int -> Int -> [String] -> [Float] -> String
-drawOnlyOne offset width height colors sample = "^ib(1)" ++ markup
-  where px = pixels (height-2) sample
-        markup = "^p(" ++ (show offset) ++ ")" ++
-                 (drawRectStack 1 px colors) ++
-                 "^p(" ++ (show (width-offset-1)) ++ ")"
--}
+isPix = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Pix)
+isPer = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Per)
 
-formatSamples :: Int -> Int -> [String] -> [[Float]] -> String
-formatSamples width height colors samples = "^ib(1)" ++ markup ++ "^ib(0)^fg()^pa()"
-  where px = map (pixels (height-2)) samples
-        markup = concatMap (\(px,w) -> drawRectStack height w px colors) rectStacks
-        rectStacks = map (\x->(head x, length x)) $ group px
 
-drawRectStack h width [] (c:_) = ""
-  ++ "^fg(" ++ c ++ ")"
-  ++ "^pa(;0)"
-  ++ "^r(" ++ (show width) ++ "x" ++ (show h) ++ ")"
-  ++ "^pa()"
-drawRectStack h width heights colors = concat $ addResets $ map (rect width) hcos
-  where hcos = filter ((>0).first) $ zip3 heights colors (offsets heights)
-        offsets heights = scanl (+) 0 heights
-        addResets = intersperse ("^p(-" ++ (show width) ++ ")")
-        first (x,_,_) = x
+lineToRelSample :: Int -> String -> RelSample
+lineToRelSample expectedLen line | ok = reverse $ map read pers
+                                 | otherwise = error errorMsg
+  where ok = all isPer pers && length pers == expectedLen
+        pers = words line
+        errorMsg = "Could not parse % line: " ++ line
 
-rect width (height,color,offset) = ""
-  ++ "^fg(" ++ color ++ ")"
-  ++ "^pa(;" ++ (show offset) ++ ")"
-  ++ "^r(" ++ (show width) ++ "x" ++ (show height) ++ ")"
 
-pixels :: Int -> [Float] -> [Int]
-pixels totalHeight [] = []
-pixels totalHeight samplePers = ensureHeight totalHeight $ map px samplePers
-  where px 0.0 = 0
-        px per = if hpx per == 0 then 1 else hpx per
-        hpx per = floor $ (fromIntegral totalHeight) * (per/100.0)
-        ensureHeight :: Int -> [Int] -> [Int]
-        ensureHeight h px | sum px > h = ensureHeight h (decFirst h px)
-                          | sum px < h = ensureHeight h (incLast h px)
-                          | otherwise = px
-        applyToFirstThat f b = (\(xs,(y:ys)) -> xs++(f y):ys) . break b
+
+monitorMarkup :: Width -> Height -> [Color] -> [RelSample] -> String
+monitorMarkup width height colors relSamples = (ib markup) ++ "^fg()"
+  where markup = concatMap drawSampleBlock getSampleBlocks
+        getAbsSamples = map (relToAbsSample height) relSamples
+        getSampleBlocks = map sB $ group getAbsSamples
+        sB :: [AbsSample] -> SampleBlock
+        sB sPs = packSampleBlock (length sPs, height, colors, head sPs)
+        ib m = "^ib(1)" ++ m ++ "^ib(0)"
+
+drawSampleBlock :: SampleBlock -> String
+drawSampleBlock sb | isEmptySB sb = drawRect $ emptySampleBlockRect sb
+                   | otherwise = sbMarkup
+  where sbMarkup = concat $ intersperse reset $ map drawRect rects
+        rects = filter ((>0).rHeight) $ sampleBlockToRects sb
+        reset = "^p(-" ++ (show $ sbWidth sb) ++ ")"
+
+sampleBlockToRects :: SampleBlock -> [Rect]
+sampleBlockToRects sb = packRects widths absSample offsets colors
+  where widths = repeat $ sbWidth sb
+        absSample = sbAbsSample sb
+        offsets = scanl (+) 0 (sbAbsSample sb)
+        colors = sbColors sb
+
+isEmptySB :: SampleBlock -> Bool
+isEmptySB sb = null (sbAbsSample sb)
+emptySampleBlockRect :: SampleBlock -> Rect
+emptySampleBlockRect sb = Rect (sbWidth sb) (sbHeight sb) 0 (head $ sbColors sb)
+
+drawRect :: Rect -> String
+drawRect r = ""
+     ++ "^fg(" ++ rColor r ++ ")"
+     ++ "^pa(;" ++ (show $ rOffset r) ++ ")"
+     ++ "^r(" ++ (show $ rWidth r) ++ "x" ++ (show $ rHeight r) ++ ")"
+
+
+relToAbsSample :: Height -> RelSample -> AbsSample
+relToAbsSample h [] = []
+relToAbsSample h relSample = ensureHeight h $ map (absPix h) relSample
+
+absPix :: Height -> HeightPer -> Height
+absPix totalHeight per = round $ (fromIntegral totalHeight) * (per/100.0)
+
+ensureHeight :: Height -> AbsSample -> AbsSample
+ensureHeight h px | sum px > h = ensureHeight h (decFirst h px)
+                  | sum px < h = ensureHeight h (incFirst h px)
+                  | otherwise = px
+  where
         decFirst h = applyToFirstThat (+(0-1)) (>0)
         incFirst h = applyToFirstThat (+(0+1)) (<h)
-        incLast h = reverse . (incFirst h) . reverse
 
+applyToFirstThat :: (a -> a) -> (a -> Bool) -> [a] -> [a]
+applyToFirstThat f on = (\(xs,(y:ys)) -> xs++(f y):ys) . break on
