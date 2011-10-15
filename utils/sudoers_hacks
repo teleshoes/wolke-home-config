@@ -2,31 +2,67 @@
 use strict;
 use warnings;
 
-my @noPasswords = qw(
-  /usr/sbin/i7z
-  /home/wolke/.dzen2/printers/i7z-cpu-freq
-  /usr/local/sbin/fcron
-  /usr/local/bin/fcrondyn
-  /usr/local/bin/fcrontab
-  /home/wolke/bin/led
-  /home/wolke/bin/cpu-set
-  /home/wolke/bin/sslvpn
-  /home/wolke/bin/resolvchooser
-  /home/wolke/bin/n900
-);
+my $user = `echo -n \$USER`;
 
-for my $np(@noPasswords){
-  my $line = "wolke\tALL=(ALL) NOPASSWD: $np";
-  print "\n\nreally dangerous: dont say yes, do it yourself\n";
-  print "the following line to /etc/sudoers:\n$line\n";
-
-  print "overwrite /etc/sudoers, despite your better judgment? (y/N) ";
-  if(lc <STDIN> eq "y\n"){
-    system "sudo sh -c \"" .
-      "chmod +w /etc/sudoers && " .
-      "echo \\\"$line\\\" >> /etc/sudoers && " .
-      "chmod -w /etc/sudoers" .
-       "\"";
-  }
+sub npLine($){
+  return "$user\tALL=(ALL) NOPASSWD: $_[0]\n";
 }
 
+my @sudoersExecs = qw(
+);
+my %sudoersd = (
+  "bad-$user" => [qw(
+    /home/wolke/.dzen2/printers/i7z-cpu-freq
+    /home/wolke/bin/led
+    /home/wolke/bin/cpu-set
+    /home/wolke/bin/sslvpn
+    /home/wolke/bin/resolvchooser
+    /home/wolke/bin/n900
+  )],
+  "ok-$user" => [qw(
+    /sbin/ifconfig
+    /sbin/iwconfig
+    /sbin/iwlist
+    /sbin/wpa/supplicant
+    /usr/sbin/i7z
+    /usr/local/sbin/fcron
+    /usr/local/bin/fcrondyn
+    /usr/local/bin/fcrontab
+  )],
+);
+
+
+
+system "sudo cp /etc/sudoers.d/README /tmp/sudoersd_readme";
+system "sudo rm /etc/sudoers.d/*";
+system "sudo mv /tmp/sudoersd_readme /etc/sudoers.d/README";
+
+for my $file(keys %sudoersd){
+  my $execs = $sudoersd{$file};
+  $file = "/etc/sudoers.d/$file";
+  my $out = join '', map {npLine $_} @$execs;
+  open FH, "| sudo tee $file";
+  print FH $out;
+  close FH;
+}
+system "sudo chmod 0440 /etc/sudoers.d/*";
+
+my %currentSudoersLines = map {$_ => 1} `sudo cat /etc/sudoers`;
+for my $exec(@sudoersExecs){
+  my $npLine = npLine $exec;
+  my %currentSudoersLines = map {$_ => 1} `sudo cat /etc/sudoers`;
+  if(not defined $currentSudoersLines{$npLine}){
+    print "\n\nreally dangerous: dont say yes, do it yourself\n";
+    print "the following line to /etc/sudoers:\n";
+    print $npLine;
+
+    print "overwrite /etc/sudoers, despite your better judgment? (y/N) ";
+    if(lc <STDIN> eq "y\n"){
+      system "sudo sh -c \"" .
+        "chmod +w /etc/sudoers && " .
+        "echo -n \\\"$npLine\\\" >> /etc/sudoers && " .
+        "chmod -w /etc/sudoers" .
+         "\"";
+    }
+  }
+}
