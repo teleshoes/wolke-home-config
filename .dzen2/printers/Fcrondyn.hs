@@ -8,7 +8,6 @@ import TextRows(textRows)
 import ClickAction (clickAction)
 
 import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
-import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Time
 import Locale
 
