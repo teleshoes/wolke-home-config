@@ -21,7 +21,7 @@ my @utils = (
   '19' => '6' => 'fcron',
   '20' => '7' => 'upgrade',
   '21' => '8' => 'piano',
-  '22' => '9' => 'haskell_modules',
+  '22' => '9' => 'install_haskell',
   '23' => '0' => 'perl_modules',
 
 'header' => "System settings and hardware:",
