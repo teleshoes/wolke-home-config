@@ -15,8 +15,6 @@ set smarttab
 set tabstop=4
 set softtabstop=4
 set shiftwidth=4
-"""require 5 lines above and below when searching"""
-set scrolloff=5
 
 """Quit"""
 map  <C-X><C-C> :q!<CR>
