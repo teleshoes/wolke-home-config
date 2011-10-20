@@ -16,6 +16,15 @@ set tabstop=4
 set softtabstop=4
 set shiftwidth=4
 
+"""keep cursor vertically centered while searching"""
+nnoremap n nzz
+nnoremap N Nzz
+nnoremap * *zz
+nnoremap # #zz
+nnoremap g* g*zz
+nnoremap g# g#zz
+
+
 """Quit"""
 map  <C-X><C-C> :q!<CR>
 imap <C-X><C-C> <Esc>:q!<CR>
