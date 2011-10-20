@@ -1,6 +1,8 @@
 import System.IO
-import System.Process(runCommand, readProcessWithExitCode)
+import System.Process(runCommand, system, readProcessWithExitCode)
+import System.Exit(ExitCode(ExitFailure))
 import Data.Maybe (fromMaybe)
+import Control.Monad (void)
 
 import Text.Regex.PCRE
 
@@ -15,7 +17,10 @@ import Locale
 main = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
-  _ <- runCommand "sudo fcron"
+  running <- system "pidof fcron > /dev/null"
+  _ <- case running of
+         ExitFailure _ -> void $ runCommand "sudo fcron"
+         otherwise -> return ()
   (_, fcrondynOut, _) <- fcrondynExec
   putStr $ clickAction "1" cmd $ parseAndFormat now tz fcrondynOut
 
