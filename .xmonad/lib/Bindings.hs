@@ -62,7 +62,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt , xK_F2    ), spawn "gnome-do")
 
   , ((none, xf86think), spawn "gnome-terminal")
-  , ((alt,  xf86think), spawnTerm "$HOME/bin/cmdselect")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
   , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
@@ -74,14 +73,14 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
-  , ((supr, xK_F1    ), spawn "sudo $HOME/bin/cpu-set ondemand")
-  , ((supr, xK_F2    ), spawn "sudo $HOME/bin/cpu-set conservative")
-  , ((supr, xK_F3    ), spawn "sudo $HOME/bin/cpu-set powersave")
-  , ((supr, xK_F4    ), spawn "sudo $HOME/bin/cpu-set performance")
+  , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand")
+  , ((supr, xK_F2    ), spawn "sudo cpu-set conservative")
+  , ((supr, xK_F3    ), spawn "sudo cpu-set powersave")
+  , ((supr, xK_F4    ), spawn "sudo cpu-set performance")
 
-  , ((supr, xK_1     ), spawn "sudo $HOME/bin/n900 -t on")
-  , ((supr, xK_2     ), spawn "sudo $HOME/bin/n900 -t off")
-  , ((supr, xK_3     ), spawn "sudo $HOME/bin/n900 -t toggle")
+  , ((supr, xK_1     ), spawn "sudo n900 -t on")
+  , ((supr, xK_2     ), spawn "sudo n900 -t off")
+  , ((supr, xK_3     ), spawn "sudo n900 -t toggle")
   , ((supr, xK_d     ), spawn "wconnect DA5ID s:WISDOMS_LOGOS")
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
