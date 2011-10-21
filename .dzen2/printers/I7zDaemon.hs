@@ -6,7 +6,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Maybe (listToMaybe)
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, when)
+import Control.Monad (forever, when, void)
 
 
 basedir = "/tmp/i7z"
@@ -41,15 +41,13 @@ parsePidFile (Just out) = pid
         onlyLine = if length outLines == 1 then head outLines else ""
         pid = if isInt onlyLine then toInt onlyLine else -1
 
-void :: IO a -> IO ()
-void = (>> return ())
-
 main = do
   pid <- getProcessID
   
   pidfileOut <- maybeReadFile pidfile
   let oldpid = parsePidFile pidfileOut
   when (oldpid > 0) $ void (putStrLn $ basedir ++ "/" ++ show oldpid)
+  when (oldpid > 0) $ void (killByCwd $ basedir ++ "/" ++ show oldpid)
 
   let dir = basedir ++ "/" ++ show pid
   system $ mkdirExec dir
