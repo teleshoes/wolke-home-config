@@ -1,6 +1,9 @@
 #!/bin/bash
 dir=/lib/modules/`uname -r`/kernel/drivers/platform/x86/
 mod=thinkpad_acpi.ko
+
+patch led.patch thinkpad_acpi.c
+
 make
 if [ -e thinkpad_acpi.ko ]; then
   echo coping $mod to $dir, backing up orig as $mod.orig

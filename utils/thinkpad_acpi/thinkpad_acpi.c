@@ -169,7 +169,6 @@ enum tpacpi_hkey_event_t {
 	TP_HKEY_EV_VOL_UP		= 0x1015, /* Volume up or unmute */
 	TP_HKEY_EV_VOL_DOWN		= 0x1016, /* Volume down or unmute */
 	TP_HKEY_EV_VOL_MUTE		= 0x1017, /* Mixer output mute */
-	TP_HKEY_EV_VOL_MUTE_MIC		= 0x101b, /* Microphone mute */
 
 	/* Reasons for waking up from S3/S4 */
 	TP_HKEY_EV_WKUP_S3_UNDOCK	= 0x2304, /* undock requested, S3 */
@@ -5059,10 +5058,8 @@ static const char * const tpacpi_led_names[TPACPI_LED_NUMLEDS] = {
 	"tpacpi::unknown_led2",
 	"tpacpi::unknown_led3",
 	"tpacpi::thinkvantage",
-	NULL,
-	"tpacpi::mute_mic",
 };
-#define TPACPI_SAFE_LEDS	0xFFFFU
+#define TPACPI_SAFE_LEDS	0x1081U
 
 static inline bool tpacpi_is_led_restricted(const unsigned int led)
 {
@@ -5277,9 +5274,6 @@ static const struct tpacpi_quirk led_useful_qtable[] __initconst = {
 	TPACPI_Q_IBM('7', '7', 0x1f97), /* Z60* (1) */
 	TPACPI_Q_IBM('7', 'F', 0x1f97), /* Z61* (1) */
 	TPACPI_Q_IBM('7', 'B', 0x1fb7), /* X60 (1) */
-	
-	TPACPI_Q_LNV('6', 'U', 0x4087), /* T410s */
-	TPACPI_Q_LNV('8', 'B', 0xffff), /* W520 */
 
 	/* (1) - may have excess leds enabled on MSB */
 
