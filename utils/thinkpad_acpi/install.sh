@@ -5,6 +5,9 @@ mod=thinkpad_acpi.ko
 patch thinkpad_acpi.c led.patch
 
 make
+
+patch -R thinkpad_acpi.c led.patch
+
 if [ -e thinkpad_acpi.ko ]; then
   echo coping $mod to $dir, backing up orig as $mod.orig
   sudo mv $dir/$mod $dir/$mod.orig
