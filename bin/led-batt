@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my $pidfile = "/tmp/led-batt-pid";
+system "kill -9 `cat $pidfile`";
+system "echo $$ > $pidfile";
+
+my $usage = "Usage: $0 CMD CMD CMD ....
+        Valid CMDs are:
+   G  -  turn ON green led
+   g  -  turn OFF green led
+   O  -  turn ON orange led
+   o  -  turn OFF orange led
+   #  -  pause for '#' seconds {e.g. 0.1, 1.5, 30, 60.0}
+   #:FILE -  pause for '# times the first line in FILE' seconds
+";
+
+die $usage if @ARGV == 0;
+
+for my $arg(@ARGV){
+  if($arg !~ /^ o | O | g | G | \d+ (\.\d+)? (:.*)? $/x){
+    die $usage;
+  }
+}
+
+while(1){
+  for my $arg(@ARGV){
+    system "led green:batt 1" if $arg eq 'G';
+    system "led green:batt 0" if $arg eq 'g';
+    system "led orange:batt 1" if $arg eq 'O';
+    system "led orange:batt 0" if $arg eq 'o';
+    if($arg =~ /^(\d+(?:\.\d+)?)(:.*)?$/){
+      my $s = $1;
+      my $f = $2;
+      if(defined $f and $f =~ s/^://){
+        if(open FH, "< $f"){
+          my $line = <FH>;
+          close FH;
+          $s *= $line if defined $line;
+        }else{
+           print STDERR "Could not open file: $f\n";
+        }
+      }
+      print "Sleeping for $s seconds\n";
+      sleep $s;
+    }
+  }
+}
