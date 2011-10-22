@@ -2,7 +2,7 @@
 dir=/lib/modules/`uname -r`/kernel/drivers/platform/x86/
 mod=thinkpad_acpi.ko
 
-patch led.patch thinkpad_acpi.c
+patch thinkpad_acpi.c led.patch
 
 make
 if [ -e thinkpad_acpi.ko ]; then
