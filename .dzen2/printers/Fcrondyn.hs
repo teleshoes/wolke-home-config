@@ -58,11 +58,12 @@ jobTime tz (whole:id:user:mon:day:year:h:m:s:cmd:[]) = t
   where t = utcTime tz h m s mon day year
 
 showDHMS ("0","00","00","00") = "now"
-showDHMS ("0","00","00",s) = s++"s"
-showDHMS ("0","00",m,s) = m++"m" ++ s++"s"
-showDHMS ("0",h,m,s) = h++"h" ++ m++"m" ++ s++"s"
+showDHMS ("0","00","00",s) = (unzero s)++"s"
+showDHMS ("0","00",m,s) = (unzero m)++"m" ++ s++"s"
+showDHMS ("0",h,m,s) = (unzero h)++"h" ++ m++"m" ++ s++"s"
 showDHMS (d,h,m,s) = d++"d" ++ h++"h" ++ m++"m" ++ s++"s"
-
+unzero ('0':ds) = ds
+unzero ds = ds
 
 relTime t1 t2 = padl 11 $ showDHMS (show d,sh h,sh m,sh s)
   where sex = round $ diffUTCTime t1 t2
