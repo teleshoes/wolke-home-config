@@ -18,7 +18,7 @@ raise height m = posAbsY (topPx height) m
 lower height m = posAbsY (botPx height) m
 
 textRows top bot height = trm (raise height top) (lower height bot)
-  where trm = if estimateLength top > estimateLength bot
+  where trm = if estimateLength top < estimateLength bot
               then textRowsMarkup
               else flip textRowsMarkup
 
