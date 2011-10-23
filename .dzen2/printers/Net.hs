@@ -17,8 +17,8 @@ main = do
   let rate = getMatch s "Bit Rate=(\\d+) Mb/s"
   let q = quality qTop qBot
   let f = frequency freq
-  let top = (padtrim 4 rate) ++ "|" ++ (frequency freq) ++ "|" ++ (quality qTop qBot)
-  let bot = (padtrim 14 ssid)
+  let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
+  let bot = (padtrim 9 ssid)
   putStrLn $ textRows top bot height
 
 i = read :: String -> Integer
