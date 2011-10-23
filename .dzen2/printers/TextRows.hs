@@ -1,5 +1,5 @@
 #!/usr/bin/runghc
-module TextRows(textRows) where
+module TextRows(textRows, main) where
 import System.Environment.UTF8 (getArgs)
 import StripMarkup (estimateLength)
 

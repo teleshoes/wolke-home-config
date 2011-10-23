@@ -1,4 +1,4 @@
-module ClickableImage (clickableImage) where
+module ClickableImage (clickableImage, main) where
 import System.Environment.UTF8 (getArgs)
 import System.Process(readProcess)
 import ClickAction (clickAction)
