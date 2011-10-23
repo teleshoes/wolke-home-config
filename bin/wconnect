@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+my $wpaConf = '/tmp/wpa_supplicant.conf';
+
 my $ssid = shift;
 my $key = shift;
 my $dev = `wlan`;
@@ -14,9 +16,21 @@ sub systemp(@){
 
 my $lcssid = lc $ssid;
 
+my $psk = $key;
+$psk =~ s/^s://;
+my $conf = "network={
+       ssid=\"$ssid\"
+       psk=\"$psk\"
+}\n";
+open FH, "> $wpaConf";
+print FH $conf;
+close FH;
+
+
+systemp "sudo wdisconnect";
 systemp "sudo ifconfig $dev up";
-systemp "sudo iwconfig $dev essid $ssid key $key";
-systemp "sudo wpa_supplicant -Dwext -i$dev -c\$HOME/wifi/$lcssid.conf &";
+systemp "sudo iwconfig $dev essid $ssid";# key $key";
+systemp "sudo wpa_supplicant -Dwext -i$dev -c$wpaConf &";
 sleep 1;
 systemp "sudo resolvchooser google";
 systemp "sudo dhclient -d $dev &";
