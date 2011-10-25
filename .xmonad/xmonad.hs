@@ -16,7 +16,6 @@ import Graphics.X11.Xlib
 import Graphics.X11.Xlib.Extras
 
 myHandleEventHook _ = return (All True)
-myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 
