@@ -9,7 +9,7 @@ fi
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
-export HISTSIZE=30000
+export HISTSIZE=1000000
 
 # jni binding for JavaHL subversion client {svn connector for eclipse}
 export LD_LIBRARY_PATH=/usr/lib/jni
