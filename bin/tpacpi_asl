@@ -1,6 +1,132 @@
 #!/usr/bin/perl
+#Copyright 2011 Elliot Wolk
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
+
+sub peakShiftState($$);
+sub inhibitCharge($$$);
+sub startChargeThreshold($$);
+sub stopChargeThreshold($$);
+sub forceDischarge($$$);
+
+sub bits($);
+sub revpadzero($$);
+
+sub main(@){
+  my $cmd = shift() || '';
+  my $bits;
+  my $method;
+  if($cmd eq 'peakShiftState' and @_ == 2){
+    my $inhibit = shift;
+    my $min = shift;
+    $bits = peakShiftState bits $inhibit, bits $min;
+    $method = 'PSSS';
+  }elsif($cmd eq 'inhibitCharge' and (@_ == 2 or @_ == 3)){
+    my $bat = shift;
+    my $inhibit = shift;
+    my $min = shift() || 0;
+    $bits = inhibitCharge bits $bat, bits $inhibit, bits $min;
+    $method = 'BICS';
+  }elsif($cmd eq 'startChargeThreshold' and @_ == 2){
+    my $bat = shift;
+    my $percent = shift;
+    $bits = startChargeThreshold bits $bat, bits $percent;
+    $method = 'BCCS';
+  }elsif($cmd eq 'stopChargeThreshold' and @_ == 2){
+    my $bat = shift;
+    my $percent = shift;
+    $bits = stopChargeThreshold bits $bat, bits $percent;
+    $method = 'BCSS';
+  }elsif($cmd eq 'forceDischarge' and (@_ == 2 or @_ == 3)){
+    my $bat = shift;
+    my $discharge = shift;
+    my $acBreak = shift() || 0;
+    $bits = forceDischarge bits $bat, bits $discharge, bits $acBreak;
+    $method = 'BDSS';
+  }else{
+    die "Usage: $0
+      peakShiftState <inhibit> <min>
+      inhibitCharge <bat> <inhibit> [<min>]
+      startChargeThreshold <bat> <percent>
+      stopChargeThreshold <bat> <percent>
+      forceDischarge <bat> <discharge> [<acbreak>]
+        min: 1-1440 minutes, or 0 for never, or 65535 for forever
+        bat: 1 for main, 2 for secondary, 0 for either
+        inhibit: 1 for inhibit, 0 for dont inhibit
+        percent: 0 for default, 1-99 for percentage
+        discharge: 1 for force discharge, 0 for stop discharge
+        acbreak: 1 for break by AC detaching, 0 for do not
+        [] means optional, defaults to 0
+      \n";
+  }
+  my $hex = `digs $bits`;
+  system "tpacpi-batt $method 0x$hex";
+}
+
+
+sub peakShiftState($$){
+  my ($inhibit, $min) = @_;
+  return reverse ''
+    . revpadzero( 1, $inhibit)
+    . revpadzero( 3, 0)
+    . revpadzero( 4, 0)
+    . revpadzero(16, $min)
+    . revpadzero( 8, 0)
+  ;
+}
+
+sub inhibitCharge($$$){
+  my ($bat, $inhibit, $min) = @_;
+  return reverse ''
+    . revpadzero( 1, $inhibit)
+    . revpadzero( 3, 0)
+    . revpadzero( 2, $bat)
+    . revpadzero( 2, 0)
+    . revpadzero(16, $min)
+    . revpadzero( 8, 0)
+  ;
+}
+
+sub startChargeThreshold($$){
+  my ($bat, $percent) = @_;
+  return reverse ''
+    . revpadzero( 8, $percent)
+    . revpadzero( 2, $bat)
+    . revpadzero(22, 0)
+  ;
+}
+
+sub stopChargeThreshold($$){
+  my ($bat, $percent) = @_;
+  return reverse ''
+    . revpadzero( 8, $percent)
+    . revpadzero( 2, $bat)
+    . revpadzero(22, 0)
+  ;
+}
+
+sub forceDischarge($$$){
+  my ($bat, $discharge, $acBreak) = @_;
+  return reverse ''
+    . revpadzero( 1, $discharge)
+    . revpadzero( 1, $acBreak)
+    . revpadzero( 6, 0)
+    . revpadzero( 2, $bat)
+    . revpadzero(22, 0)
+  ;
+}
 
 sub bits($){
   my $dec = shift;
@@ -10,131 +136,8 @@ sub bits($){
   return $bits;
 }
 
-sub peakShiftState($$){
-  my $inhibit = shift;
-  my $min = shift;
-
-  return reverse ''
-    . bitrange( 0,  0, $inhibit)
-    . bitrange( 3,  1, 0)
-    . bitrange( 7,  4, 0)
-    . bitrange(23,  8, $min)
-    . bitrange(31, 24, 0)
-  ;
+sub revpadzero($$){
+  return reverse ('0' x ($_[0] - length $_[1]) . $_[1]);
 }
 
-sub inhibitCharge($$$){
-  my $bat = shift;
-  my $inhibit = shift;
-  my $min = shift;
-
-  return reverse ''
-    . bitrange( 0,  0, $inhibit)
-    . bitrange( 3,  1, 0)
-    . bitrange( 5,  4, $bat)
-    . bitrange( 7,  6, 0)
-    . bitrange(23,  8, $min)
-    . bitrange(31, 24, 0)
-  ;
-}
-
-sub startChargeThreshold($$){
-  my $bat = shift;
-  my $percent = shift;
-
-  return reverse ''
-    . bitrange( 7,  0, $percent)
-    . bitrange( 9,  8, $bat)
-    . bitrange(31, 10, 0)
-  ;
-}
-
-sub stopChargeThreshold($$){
-  my $bat = shift;
-  my $percent = shift;
-
-  return reverse ''
-    . bitrange( 7,  0, $percent)
-    . bitrange( 9,  8, $bat)
-    . bitrange(31, 10, 0)
-  ;
-}
-
-sub forceDischarge($$$){
-  my $bat = shift;
-  my $discharge = shift;
-  my $acBreak = shift;
-
-  return reverse ''
-    . bitrange( 0,  0, $discharge)
-    . bitrange( 1,  1, $acBreak)
-    . bitrange( 7,  2, 0)
-    . bitrange( 9,  8, $bat)
-    . bitrange(31, 10, 0)
-  ;
-}
-
-
-sub padzero($$){
-  return '0' x ($_[0] - length $_[1]) . $_[1];
-}
-
-sub bitrange($$$){
-  my $end = shift;
-  my $start = shift;
-  my $val = shift;
-  my $len = $end - $start + 1;
-  return reverse padzero $len, $val;
-}
-
-
-my $cmd = shift() || '';
-my $bits;
-my $method;
-if($cmd eq 'peakShiftState' and @ARGV == 2){
-  my $inhibit = shift;
-  my $min = shift;
-  $bits = peakShiftState bits $inhibit, bits $min;
-  $method = 'PSSS';
-}elsif($cmd eq 'inhibitCharge' and (@ARGV == 2 or @ARGV == 3)){
-  my $bat = shift;
-  my $inhibit = shift;
-  my $min = shift() || 0;
-  $bits = inhibitCharge bits $bat, bits $inhibit, bits $min;
-  $method = 'BICS';
-}elsif($cmd eq 'startChargeThreshold' and @ARGV == 2){
-  my $bat = shift;
-  my $percent = shift;
-  $bits = startChargeThreshold bits $bat, bits $percent;
-  $method = 'BCCS';
-}elsif($cmd eq 'stopChargeThreshold' and @ARGV == 2){
-  my $bat = shift;
-  my $percent = shift;
-  $bits = stopChargeThreshold bits $bat, bits $percent;
-  $method = 'BCSS';
-}elsif($cmd eq 'forceDischarge' and (@ARGV == 2 or @ARGV == 3)){
-  my $bat = shift;
-  my $discharge = shift;
-  my $acBreak = shift() || 0;
-  $bits = forceDischarge bits $bat, bits $discharge, bits $acBreak;
-  $method = 'BDSS';
-}else{
-  die "Usage: $0
-    peakShiftState <inhibit> <min>
-    inhibitCharge <bat> <inhibit> [<min>]
-    startChargeThreshold <bat> <percent>
-    stopChargeThreshold <bat> <percent>
-    forceDischarge <bat> <discharge> [<acbreak>]
-      min: 1-1440 minutes, or 0 for never, or 65535 for forever
-      bat: 1 for main, 2 for secondary, 0 for either
-      inhibit: 1 for inhibit, 0 for dont inhibit
-      percent: 0 for default, 1-99 for percentage
-      discharge: 1 for force discharge, 0 for stop discharge
-      acbreak: 1 for break by AC detaching, 0 for do not break by AC detaching
-      [] means optional, defaults to 0
-  ";
-}
-
-my $hex = `digs $bits`;
-system "tpacpi-batt $method 0x$hex";
-
+&main(@ARGV);
