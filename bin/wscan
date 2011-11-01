@@ -2,7 +2,15 @@
 use strict;
 use warnings;
 
-my $lastScanFile = `echo -n \$HOME/wifi/lastscan`;
+my $wifiConf = "$ENV{HOME}/wifi.conf";
+my @networks;
+if(-e $wifiConf){
+  use Safe;
+  my $unsafeCode = `cat $wifiConf`;
+  @networks = new Safe() -> reval($unsafeCode);
+}
+
+my $lastScanFile = "/tmp/wscan-last";
 
 my $dev = `wlan`;
 chomp $dev;
@@ -10,9 +18,13 @@ chomp $dev;
 my $iwlist;
 if(@ARGV == 0){
   $iwlist = `sudo iwlist $dev scan`;
+  if($? != 0){
+    exit 1;
+  }
   if($iwlist =~ s/^$dev\s*Scan completed :\n//){
     open FH, "> $lastScanFile";
     print FH $iwlist;
+    close FH;
   }
 }elsif(@ARGV == 1 and $ARGV[0] eq '-l'){
   $iwlist = `cat $lastScanFile`;
@@ -48,7 +60,20 @@ sub trimPad($$){
   return $s . ' 'x($l - length $s);
 }
 
+
+
 for my $cell(map {parseCell $_} @cells){
-  print trimPad($$cell[0], 20) . " | " . $$cell[1] . " | " . $$cell[2] . "\n";
+  my $foundStr = '';
+  for my $network(@networks){
+    my $essid = $$network[0];
+    if($$cell[0] eq $essid){
+      $foundStr = "[$$network[3]]";
+      last;
+    }
+  }
+  print trimPad($$cell[0], 20) . " | " .
+        trimPad($$cell[1], 7) . " | " .
+        trimPad($$cell[2], 4) . " | " .
+        trimPad($foundStr, 5) . "\n";
 }
 
