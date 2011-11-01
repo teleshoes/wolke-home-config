@@ -1,13 +1,21 @@
 module Net(main) where
 import System.Process(readProcess)
+import System.Environment (getEnv)
+import Control.Applicative ((<$>))
 import Data.Maybe (fromMaybe, listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
-import Control.Applicative ((<$>))
+import ClickAction (clickAction)
 
 height = 36
 
+cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
+  where wscanCmd = home ++ "/.dzen2/printers/wscan"
+        popupCmd = home ++ "/.dzen2/launchers/popup"
+        dzenArgs = " 500 24 -fn inconsolata-14 "
+
 main = do
+  home <- getEnv "HOME"
   wlan <- chomp <$> readProcess "wlan" [] ""
   s <- readProcess "iwconfig" [wlan] ""
   let ssid = getMatch s "ESSID:\"(.*)\""
@@ -19,7 +27,7 @@ main = do
   let f = frequency freq
   let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
   let bot = (padtrim 9 ssid)
-  putStrLn $ textRows top bot height
+  putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
 
 i = read :: String -> Integer
 d = read :: String -> Double
