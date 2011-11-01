@@ -22,6 +22,7 @@ workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
 
 main = do
+  safeSpawn "xsetroot" ["-cursor_name", "left_ptr"]
   --clean workspace-images
   _ <- safeSpawn "workspace-image" ("init":workspaceNames)
   --clean
