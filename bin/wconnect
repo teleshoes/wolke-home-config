@@ -3,34 +3,95 @@ use strict;
 use warnings;
 
 my $wpaConf = '/tmp/wpa_supplicant.conf';
+my $wifiConf = "$ENV{HOME}/wifi.conf";
 
-my $ssid = shift;
-my $key = shift;
 my $dev = `wlan`;
 chomp $dev;
+
+my ($list, $ssid, $encMode, $key);
+if(@ARGV == 1 and $ARGV[0] eq '--list'){
+  $list = 1;
+}else{
+  $list = 0;
+  $ssid = shift;
+  $encMode = shift;
+  $key = shift;
+}
+
+my @networks;
+if(-e $wifiConf){
+  use Safe;
+  my $unsafeCode = `cat $wifiConf`;
+  @networks = new Safe() -> reval($unsafeCode);
+}
+
+if($list){
+  for my $net(@networks){
+    print "$$net[0]\n";
+  }
+  exit 0;
+}
+
+if(defined $ssid and (not defined $encMode or not defined $key)){
+  for my $network(@networks){
+    if($ssid eq $$network[0]){
+      $encMode = $$network[1];
+      $key = $$network[2];
+      last;
+    }
+  }
+}
+if(defined $ssid and (not defined $encMode or not defined $key)){
+  for my $network(@networks){
+    if(lc $ssid eq lc $$network[0]){
+      $ssid = $$network[0];
+      print "Changed SSID case to: $ssid\n";
+      $encMode = $$network[1];
+      $key = $$network[2];
+      last;
+    }
+  }
+}
+
+if(not defined $encMode or not defined $key){
+  $encMode = 'NONE';
+  $key = '';
+}
+
+if(not defined $ssid or $encMode !~ /^(WPA|WPA2|WEP|NONE)$/){
+  die "Usage:
+    $0 <SSID> [WPA|WPA2|WEP|NONE] [key]
+    $0 --list
+  ";
+}
+
 
 sub systemp(@){
   print join(' ', @_) . "\n";
   system @_;
 }
 
-my $lcssid = lc $ssid;
-
-my $psk = $key;
-$psk =~ s/^s://;
-my $conf = "network={
-       ssid=\"$ssid\"
-       psk=\"$psk\"
-}\n";
-open FH, "> $wpaConf";
-print FH $conf;
-close FH;
-
 
 systemp "sudo wdisconnect";
-systemp "sudo ifconfig $dev up";
-systemp "sudo iwconfig $dev essid $ssid";# key $key";
-systemp "sudo wpa_supplicant -Dwext -i$dev -c$wpaConf &";
-sleep 1;
+
+if($encMode eq 'WPA' or $encMode eq 'WPA2'){
+  my $conf = "network={
+       ssid=\"$ssid\"
+       psk=\"$key\"
+  }\n";
+  open FH, "> $wpaConf";
+  print FH $conf;
+  close FH;
+  systemp "sudo ifconfig $dev up";
+  systemp "sudo wpa_supplicant -Dwext -i$dev -c$wpaConf &";
+  sleep 1;
+}elsif($encMode eq 'WEP'){
+  systemp "sudo ifconfig $dev up";
+  systemp "sudo iwconfig $dev essid $ssid key $key channel auto";
+}elsif($encMode eq 'NONE'){
+  systemp "sudo ifconfig $dev up";
+  systemp "sudo iwconfig $dev essid $ssid channel auto";
+}
+
 systemp "sudo resolvchooser google";
 systemp "sudo dhclient -d $dev &";
