@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-sub getArgs();
+sub getArgs(@);
 sub getAllCpus();
 sub getSharedGovernors();
 
@@ -12,8 +12,8 @@ $govFile = $1 if $govFile =~ /^([a-zA-Z0-9_.\/]+)$/;
 
 my $BASEDIR='/sys/devices/system/cpu';
 
-sub main(){
-  my ($cpu, $dev, $val, $gov) = getArgs();
+sub main(@){
+  my ($cpu, $dev, $val, $gov) = getArgs @_;
 
   my @cpus;
   if($cpu =~ /all/){
@@ -36,24 +36,24 @@ sub main(){
   }
 }
 
-sub getArgs(){
+sub getArgs(@){
   my ($cpu, $dev, $val, $gov);
-  if(@ARGV == 1){
+  if(@_ == 1){
     my %govs = map {$_ => 1} getSharedGovernors();
-    if(defined $govs{$ARGV[0]}){
+    if(defined $govs{$_[0]}){
       $cpu = 'all';
       $dev = 'cpufreq/scaling_governor';
-      $val = shift @ARGV;
+      $val = shift @_;
       $gov = $val;
     }
   }else{
-    $cpu = lc shift @ARGV;
-    $dev = shift @ARGV || '';
-    $val = shift @ARGV || '';
+    $cpu = lc shift @_;
+    $dev = shift @_ || '';
+    $val = shift @_ || '';
     $gov = undef;
   }
 
-  if($cpu !~ /^(\d+|all)$/ or !$dev or !$val or @ARGV>0){
+  if($cpu !~ /^(\d+|all)$/ or !$dev or !$val or @_>0){
     my $govs = join ', ', getSharedGovernors();
     die ''
       . "Usage:\n"
@@ -111,4 +111,4 @@ sub getSharedGovernors(){
   return @govs;
 }
 
-main();
+&main(@ARGV);
