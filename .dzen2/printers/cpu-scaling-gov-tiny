@@ -32,7 +32,8 @@ if($curGov ne '?'){
   if($lastGov ne 'powersave'
       and $lastGov ne 'performance'
       and $lastGov ne 'ondemand'
-      and $lastGov ne 'conservative'){
+      and $lastGov ne 'conservative'
+      and $lastGov ne 'userspace'){
     system "sudo cpu-set $curGov";
     $curGov = '!';
   }elsif($curGov ne $lastGov){
@@ -46,6 +47,7 @@ my %bgs = qw(
   powersave    red
   performance  green
   ondemand     blue
+  userspace    purple
   other        white
 );
 
@@ -64,6 +66,21 @@ while(length $curGov < $width*2){
 
 my $top = substr $curGov, 0, $width;
 my $bot = substr $curGov, $width, $width;
+if($curGov eq 'userspace'){
+  my $setspeed = `cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed`;
+  chomp $setspeed;
+  if($setspeed =~ /^\d+$/){
+    #if setspeed is precise down to 10MHz, it means turboboost so show 4 digs
+    if(int($setspeed / 10000) * 10000 != $setspeed){
+      $top = substr $setspeed, 0, $width;
+      $bot = substr $setspeed, $width, $width;
+    }else{
+      $setspeed /= 1000;
+      $setspeed = '0' x ($width*2 - length $setspeed) . $setspeed;
+      $bot = substr $setspeed, 0, $width;
+    }
+  }
+}
 my $msg = `$PRINTERS/two-text-rows $top $bot 36`;
 chomp $msg;
 print "^bg($bg)^fg($fg)$msg^fg()^bg()";
