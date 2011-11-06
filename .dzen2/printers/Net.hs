@@ -1,13 +1,14 @@
 module Net(main) where
 import System.Process(readProcess, system)
+import System.Posix.Process (forkProcess)
+import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
-import Data.Maybe (fromMaybe, listToMaybe)
+import Control.Monad (void)
+import Data.Maybe (listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
 import ClickAction (clickAction)
-import Control.Monad (void)
-
 height = 36
 
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
@@ -32,11 +33,12 @@ none = do
   wauto <- readProcess "wauto" ["--get"] ""
   if wauto == "auto\n" then void runAuto else putStr ""
   let top = "no wabs"
-  let bot = "wauto"
+  let bot = wauto
   putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
 
-runAuto = do
-  system "wauto --connect > /dev/null 2>/dev/null"
+runAuto = forkProcess $ do
+  mapM_ closeFd [stdInput, stdOutput, stdError]
+  void $ system "wauto --connect"
 
 ppp = do
   home <- getEnv "HOME"
