@@ -1,11 +1,12 @@
 module Net(main) where
-import System.Process(readProcess)
+import System.Process(readProcess, system)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
 import Data.Maybe (fromMaybe, listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
 import ClickAction (clickAction)
+import Control.Monad (void)
 
 height = 36
 
@@ -15,8 +16,35 @@ cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
 main = do
+  wstatus <- readProcess "wstatus" [] ""
+  case wstatus of
+    "wlan\n"  -> wifi
+    "ppp\n"   -> ppp
+    "none\n"  -> none
+    otherwise -> unknown
+
+unknown = do
   home <- getEnv "HOME"
-  wlan <- chomp <$> readProcess "wlan" [] ""
+  putStrLn $ clickAction "1" (cmd home) "???"
+
+none = do
+  home <- getEnv "HOME"
+  wauto <- readProcess "wauto" ["--get"] ""
+  if wauto == "auto\n" then void runAuto else putStr ""
+  let top = "no wabs"
+  let bot = "wauto"
+  putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
+
+runAuto = do
+  system "wauto --connect > /dev/null 2>/dev/null"
+
+ppp = do
+  home <- getEnv "HOME"
+  putStrLn $ clickAction "1" (cmd home) "pewpewpew"
+
+wifi = do
+  home <- getEnv "HOME"
+  wlan <- chomp <$> readProcess "ifdev" ["wlan"] ""
   s <- readProcess "iwconfig" [wlan] ""
   let ssid = getMatch s "ESSID:\"(.*)\""
   let freq = getMatch s "Frequency:(\\d+(\\.\\d+)?) GHz"
