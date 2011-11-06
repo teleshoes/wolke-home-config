@@ -78,10 +78,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_F3    ), spawn "sudo cpu-set powersave")
   , ((supr, xK_F4    ), spawn "sudo cpu-set performance")
 
-  , ((supr, xK_1     ), spawn "sudo n900 -t on")
-  , ((supr, xK_2     ), spawn "sudo n900 -t off")
-  , ((supr, xK_3     ), spawn "sudo n900 -t toggle")
-  , ((supr, xK_d     ), spawn "wconnect DA5ID")
+  , ((supr, xK_1     ), spawn "sudo wauto -r; sudo wauto -c")
+  , ((supr, xK_2     ), spawn "sudo wauto -s")
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
