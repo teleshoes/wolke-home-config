@@ -79,7 +79,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_F4    ), spawn "sudo cpu-set performance")
 
   , ((supr, xK_1     ), spawn "sudo wauto -r; sudo wauto -c")
-  , ((supr, xK_2     ), spawn "sudo wauto -s")
+  , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo n900-tether off")
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
