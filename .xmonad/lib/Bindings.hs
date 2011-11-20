@@ -61,6 +61,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_p     ), spawn "gnome-do")
   , ((alt , xK_F2    ), spawn "gnome-do")
 
+  , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
+
   , ((none, xf86think), spawn "gnome-terminal")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
@@ -80,6 +82,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((supr, xK_1     ), spawn "sudo wauto -r; sudo wauto -c")
   , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo n900-tether off")
+  , ((supr, xK_3     ), spawn "sudo n900-tether on")
 
   , ((alct, xK_space ), spawn "gnome-terminal -x htop")
 
