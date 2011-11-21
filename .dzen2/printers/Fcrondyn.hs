@@ -1,7 +1,7 @@
 import System.IO
 import System.Process(runCommand, system, readProcessWithExitCode)
 import System.Exit(ExitCode(ExitFailure))
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust, isJust)
 import Control.Monad (void)
 
 import Text.Regex.PCRE
@@ -31,22 +31,28 @@ cmd = ""
       ++ "vim $HOME/.fcrontab; fcronreset; echo OK; read STDIN"
       ++ "\""
 
-parseAndFormat now tz fcrondynOut = rows now tz okJobs
+parseAndFormat now tz fcrondynOut = rows now tz (namedJobs okJobs)
   where jobs = map jobGroups $ lines fcrondynOut
         okJobs = map head $ filter ((==1).length) jobs
+
+namedJobs [] = []
+namedJobs (j:js) | isJust mName = (j, fromJust mName):(namedJobs js)
+                 | otherwise = namedJobs js
+  where mName = maybeJobName j
+
 
 rows now tz jobs
   | length jobs == 0 = padr 13 "No jobs"
   | length jobs == 1 = fmt $ jobs !! 0
   | length jobs >= 2 = textRows (fmt $ jobs !! 0) (fmt $ jobs !! 1) 36
-  where fmt job = (relTime (jobTime tz job) now) ++ "|" ++ (jCmd job)
+  where fmt (j,name) = (relTime (jobTime tz j) now) ++ "|" ++ name
 
-jCmd job = cmdSub $ jobCmd job
+maybeJobName job = cmdSub $ jobCmd job
 
-cmdSub cmd = if isMatch then (head match !! 1) else cmd
+cmdSub cmd = if isMatch then Just (head match !! 1) else Nothing
   where match = cmd =~ regex :: [[String]]
         isMatch = length match == 1
-        regex = "#([a-zA-Z_0-9]+)"
+        regex = "#([a-zA-Z0-9]{2})$"
 
 padl i s | length s >= i = s
 padl i s = padl i (' ':s)
