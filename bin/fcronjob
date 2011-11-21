@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $file = "$ENV{HOME}/.fcrontab";
+
+my $name = shift() || '';
+my $state = shift() || '';
+
+if(@ARGV != 0 or $name !~ /[0-9a-z]{2}/i or $state !~ /^(on|off|toggle)$/i){
+  die "Usage: $0 <jobname> <on|off|toggle>
+    jobname is two alphanumeric characters\n";
+}
+
+open FH, "< $file" or die "Could not read $file\n";
+my @lines = <FH>;
+close FH;
+
+my $modified = 0;
+for my $line(@lines){
+  if($line =~ /^(#?)([^ #].*)#([0-9a-z]{2})\s*$/i){
+    my $comment = $1;
+    my $cmd = $2;
+    my $jobName = $3;
+    if($jobName eq $name){
+      my $newComment;
+      if($state eq 'on'){
+        $newComment = '';
+      }elsif($state eq 'off'){
+        $newComment = '#';
+      }elsif($state eq 'toggle'){
+        $newComment = $comment eq '#' ? '' : '#';
+      }
+      my $newLine = "$newComment$cmd#$name\n";
+      print "OLD: $line";
+      print "NEW: $newLine";
+      $line = $newLine;
+      $modified = 1;
+      last;
+    }
+  }
+}
+
+if($modified){
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH @lines;
+  close FH;
+  system "fcronreset";
+  exit 0;
+}else{
+  print STDERR "Job $name not found\n";
+  exit 1;
+}
