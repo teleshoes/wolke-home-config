@@ -1,62 +1,69 @@
-import System.Process (system)
+import System.Process (system, readProcessWithExitCode)
+import System.IO (stdin, stdout, stderr)
+import System.Exit(ExitCode(ExitSuccess))
+import System.Posix (sleep)
 import System.Posix.Process (getProcessID, forkProcess, executeFile)
 import System.Unix.Process (killByCwd)
 import System.Directory (setCurrentDirectory)
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (forever, when, void)
-
+import GHC.IO.Handle (hClose)
 
 basedir = "/tmp/i7z"
-pidfile = basedir ++ "/pid"
-logFile subdir = subdir ++ "/cpufreq.txt"
+logFileName = "cpu_freq_log.txt"
 
 i7zCmdArr dir =
-  [ "gnome-terminal"
-  , "--working-directory", dir
-  , "--title", "xmonad-hidden"
-  , "-e", "sudo i7z -w l > /dev/null"
+  [ "sh"
+  , "-c"
+  , "cd " ++ dir ++ "; sudo i7z -w l > /dev/null"
   ]
-mkdirExec dir = "mkdir -p " ++ dir ++ " > /dev/null"
 
-forkExec (cmd:args) = forkProcess $ executeFile cmd True args Nothing
+mkdirExec dir = "mkdir -p " ++ dir ++ " >/dev/null 2>/dev/null"
 
-toInt = read :: String -> Int
-isInt = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Int)
+forkExec (cmd:args) = forkProcess $ do
+  hClose stdin
+  hClose stdout
+  hClose stderr
+  readProcessWithExitCode cmd args ""
+--  executeFile cmd True args Nothing
 
-sys = (>> return ()) . system
+toDouble = read :: String -> Double
+isDouble = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Double)
 
-maybeWriteFile :: FilePath -> String -> IO ()
-maybeWriteFile f s = catch (writeFile f s) (\_ -> return ())
-
-maybeReadFile :: FilePath -> IO (Maybe String)
-maybeReadFile f = catch (Just <$> readFile f) (\_ -> return Nothing)
-
-parsePidFile :: Maybe String -> Int
-parsePidFile Nothing = -1
-parsePidFile (Just out) = pid
-  where outLines = filter (not.null) $ lines $ out
-        onlyLine = if length outLines == 1 then head outLines else ""
-        pid = if isInt onlyLine then toInt onlyLine else -1
+maybeCatFile :: FilePath -> IO (Maybe String)
+maybeCatFile f = do
+  (exit, out, err) <- readProcessWithExitCode "cat" [f] ""
+  return $ if exit == ExitSuccess then Just out else Nothing
 
 main = do
   pid <- getProcessID
-  
-  pidfileOut <- maybeReadFile pidfile
-  let oldpid = parsePidFile pidfileOut
-  when (oldpid > 0) $ void (putStrLn $ basedir ++ "/" ++ show oldpid)
-  when (oldpid > 0) $ void (killByCwd $ basedir ++ "/" ++ show oldpid)
-
   let dir = basedir ++ "/" ++ show pid
+  let log = dir ++ "/" ++ logFileName
+
   system $ mkdirExec dir
-  
-  maybeWriteFile pidfile $ show pid
-  
-  i7zPid <- forkExec $ i7zCmdArr dir
-  print pid
+  forkExec $ i7zCmdArr dir
+
+  untilReady log
+
+  system $ "stty sane"
+
+  forever $ do
+    system "sleep 1"
+    freqs <- maybeParseFreqs <$> maybeCatFile log
+    if null freqs then putStrLn "blargh" else putStrLn $ show freqs
 
 
---  forever $ putStrLn $ i7zExec
+untilReady log = do
+  sleep 1
+  putStrLn "waiting"
+  mFreqs <- maybeParseFreqs <$> maybeCatFile log
+  if null mFreqs then untilReady log else return ()
 
+maybeParseFreqs Nothing = []
+maybeParseFreqs (Just out) = if not ok then [] else map show freqs
+  where lns = lines out
+        ok = all isDouble lns
+        freqs = filter (<100000) $ map (round.toDouble) lns
