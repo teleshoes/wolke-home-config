@@ -61,6 +61,9 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_p     ), spawn "gnome-do")
   , ((alt , xK_F2    ), spawn "gnome-do")
 
+  , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
+  , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
+
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
   , ((none, xf86think), spawn "gnome-terminal")
