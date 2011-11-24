@@ -1,6 +1,7 @@
 module Net(main) where
 import System.Process(readProcess, system)
 import System.Posix.Process (forkProcess)
+import System.Posix (sleep)
 import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
@@ -16,13 +17,25 @@ cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
         popupCmd = home ++ "/.dzen2/launchers/popup"
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
-main = do
+data WStatus = Wlan | PPP | None | Unknown deriving(Eq)
+
+readWStatus :: IO WStatus
+readWStatus = do 
   wstatus <- readProcess "wstatus" [] ""
   case wstatus of
-    "wlan\n"  -> wifi
-    "ppp\n"   -> ppp
-    "none\n"  -> none
-    otherwise -> unknown
+    "wlan\n"  -> return Wlan
+    "ppp\n"   -> return PPP
+    "none\n"  -> return None
+    otherwise -> return Unknown
+
+
+main = do
+  wstatus <- readWStatus
+  case wstatus of
+    Wlan    -> wifi
+    PPP     -> ppp
+    None    -> none
+    Unknown -> unknown
 
 unknown = do
   home <- getEnv "HOME"
@@ -31,14 +44,23 @@ unknown = do
 none = do
   home <- getEnv "HOME"
   wauto <- readProcess "wauto" ["--get"] ""
-  if wauto == "auto\n" then void runAuto else putStr ""
+  checkNone 4
+  if wauto == "auto\n" then runAuto else putStr ""
   let top = "no wabs"
   let bot = wauto
   putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
 
-runAuto = forkProcess $ do
-  mapM_ closeFd [stdInput, stdOutput, stdError]
-  void $ system "wauto --connect"
+checkNone 0 = return True
+checkNone c = do
+  sleep 1
+  wstatus <- readWStatus
+  if wstatus == None then checkNone (c-1) else return False
+
+runAuto = void $ forkProcess $ do
+  check <- checkNone 3
+  if not check then return () else do
+    mapM_ closeFd [stdInput, stdOutput, stdError]
+    void $ system "wauto --connect"
 
 ppp = do
   home <- getEnv "HOME"
