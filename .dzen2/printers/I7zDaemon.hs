@@ -3,23 +3,37 @@ import Control.Monad (forever)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Maybe (listToMaybe, fromMaybe)
-import System.IO (hGetLine, hClose, stdin, stdout, stderr)
+import System.IO (hPutStr, hGetLine, hClose, Handle, stdin, stdout, stderr, hFlush)
 import System.Process (runInteractiveProcess)
+import System.Posix (sleep)
+import System.Posix.IO (createPipe, fdToHandle)
 import System.Posix.Process (forkProcess, executeFile, getProcessID)
 import Text.Regex.PCRE ((=~))
 
 main = do
+  freqH <- getFreqsHandle
+  forever $ do
+    line <- hGetLine freqH
+    putStrLn $ line
+
+getFreqsHandle = do
   pid <- getProcessID
   let logfile = "/tmp/i7z_" ++ show pid ++ ".log"
 
   forkExec $ i7zCmdArr logfile
   logFH <- tailFile logfile
 
-  forever $ do
+  (readFd, writeFd) <- createPipe
+  readH <- fdToHandle readFd
+  writeH <- fdToHandle writeFd
+
+  forkProcess $ forever $ do
     line <- hGetLine logFH
     let freqs = parseI7zLog line
-    putStr $ formatFreqs freqs
+    hPutStr writeH $ formatFreqs freqs
+    hFlush writeH
 
+  return readH
 
 sh cmd = ["sh", "-c", intercalate " " cmd]
 
@@ -55,3 +69,4 @@ toDouble = read :: String -> Double
 --"bignumber Mhz Mhz ... " -> [Mhz]
 parseI7zLog :: String -> [Integer]
 parseI7zLog line = filter (<10^9) $ map (round.toDouble) $ numbers line
+
