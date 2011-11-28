@@ -1,11 +1,10 @@
-module I7zDaemon (main) where
+module CpuFreqsI7z (main, getFreqsHandle) where
 import Control.Monad (forever)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Maybe (listToMaybe, fromMaybe)
 import System.IO (hPutStr, hGetLine, hClose, Handle, stdin, stdout, stderr, hFlush)
-import System.Process (runInteractiveProcess)
-import System.Posix (sleep)
+import System.Process (system, runInteractiveProcess)
 import System.Posix.IO (createPipe, fdToHandle)
 import System.Posix.Process (forkProcess, executeFile, getProcessID)
 import Text.Regex.PCRE ((=~))
@@ -17,6 +16,7 @@ main = do
     putStrLn $ line
 
 getFreqsHandle = do
+  system "sudo i7z-kill"
   pid <- getProcessID
   let logfile = "/tmp/i7z_" ++ show pid ++ ".log"
 
