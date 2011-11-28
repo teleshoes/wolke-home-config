@@ -10,6 +10,7 @@ import Data.Maybe (listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
 import ClickAction (clickAction)
+
 height = 36
 
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
