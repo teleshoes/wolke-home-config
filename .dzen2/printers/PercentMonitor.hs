@@ -36,9 +36,9 @@ packRects ws hs os cs = map packRect $ zip4 ws hs os cs
 
 main = do
   (w,h,colors) <- parseArgs <$> getArgs
-  thing w h colors stdin stdout
+  drawMonitor w h colors stdin stdout
 
-thing w h colors reader writer = do
+drawMonitor w h colors reader writer = do
   hSetBuffering writer LineBuffering
   let height = h-2
   let expectedLen = length colors
