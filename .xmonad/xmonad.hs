@@ -4,6 +4,7 @@ import Dzen
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||) )
 
+import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.ManageDocks (avoidStruts)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
@@ -14,12 +15,15 @@ import qualified XMonad.StackSet as Stk
 import Data.Monoid
 import Graphics.X11.Xlib
 import Graphics.X11.Xlib.Extras
+import DBus.Client.Simple
+import System.Taffybar.XMonadLog (dbusLog)
 
 myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 
 closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
+
 
 main = do
   safeSpawn "xsetroot" ["-cursor_name", "left_ptr"]
@@ -34,6 +38,8 @@ main = do
   --start the unhooked dzens
   _ <- spawnUnhookedDzens
   hookedDzens <- spawnHookedDzens
+
+  dbusClient <- connectSession
   
   xmonad $ defaultConfig {
     focusFollowsMouse  = False,
@@ -66,7 +72,8 @@ main = do
                          ],
 
     handleEventHook    = myHandleEventHook,
-    logHook            = myDzenLogHook workspaceNames hookedDzens
+    logHook            = do myDzenLogHook workspaceNames hookedDzens
+                            dbusLog dbusClient defaultPP
   }
 
 doHide = ask >>= doF . Stk.delete
