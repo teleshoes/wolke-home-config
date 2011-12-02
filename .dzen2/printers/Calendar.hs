@@ -1,15 +1,22 @@
 import System.Process(readProcess)
 import Data.List (intercalate, stripPrefix)
 import Data.Maybe (fromMaybe)
+import Control.Applicative ((<$>))
 
 main = do
-  y <- readProcess "date" ["+%Y"] ""
-  m <- readProcess "date" ["+%m"] ""
-  d <- readProcess "date" ["+%d"] ""
-  prev <- cal $ relMonth (i y, i m) (0-1)
-  this <- cal $ relMonth (i y, i m) (0+0)
-  next <- cal $ relMonth (i y, i m) (0+1)
-  putStr $ formatTall [prev, (styleDate (chomp d) this), next]
+  y <- i <$> readProcess "date" ["+%Y"] ""
+  m <- i <$> readProcess "date" ["+%m"] ""
+  d <- i <$> readProcess "date" ["+%d"] ""
+  cals <- getCals y m d [-1, 0, 1, 2, 3, 4]
+  putStr $ formatTall $ cals
+
+getCals :: Integer -> Integer -> Integer -> [Integer] -> IO [String]
+getCals y m d (n:ns) = do
+  c <- cal $ relMonth (y,m) n
+  cs <- getCals y m d ns
+  return ((if n == 0 then styleDate (show d) c else c):cs)
+getCals _ _ _ [] = return []
+
 
 i = read :: String -> Integer
 
@@ -31,6 +38,7 @@ prevMonth (y,m) | m == 1    = (y-1, 12)
 nextMonth (y,m) | m == 12   = (y+1,  1)
                 | otherwise = (y,  m+1)
 
+cal :: (Integer, Integer) -> IO String
 cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
 
 
