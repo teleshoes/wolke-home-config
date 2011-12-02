@@ -4,23 +4,23 @@ import Data.Maybe (fromMaybe)
 import Control.Applicative ((<$>))
 
 main = do
-  y <- i <$> readProcess "date" ["+%Y"] ""
-  m <- i <$> readProcess "date" ["+%m"] ""
-  d <- i <$> readProcess "date" ["+%d"] ""
+  y <- dateIntField "Y" 
+  m <- dateIntField "m" 
+  d <- dateIntField "d" 
   cals <- getCals y m d [-1, 0, 1, 2, 3, 4]
   putStr $ formatTall $ cals
 
-getCals :: Integer -> Integer -> Integer -> [Integer] -> IO [String]
+dateIntField f = (read :: String -> Int) <$> readProcess "date" ["+%" ++ f] ""
+
+cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
+
 getCals y m d (n:ns) = do
   c <- cal $ relMonth (y,m) n
   cs <- getCals y m d ns
-  return ((if n == 0 then styleDate (show d) c else c):cs)
+  return ((if n == 0 then styleThisMonth d c else c):cs)
 getCals _ _ _ [] = return []
 
-
-i = read :: String -> Integer
-
-chomp s = reverse $ fromMaybe (reverse s) $ stripPrefix "\n" $ reverse s
+styleThisMonth d c = "^bg(blue)" ++ styleDate (show d) c ++ "^bg()"
 
 formatTall xs = concat xs
 formatWide xs = collate (map lines xs) "\n"
@@ -37,10 +37,6 @@ prevMonth (y,m) | m == 1    = (y-1, 12)
                 | otherwise = (y,  m-1)
 nextMonth (y,m) | m == 12   = (y+1,  1)
                 | otherwise = (y,  m+1)
-
-cal :: (Integer, Integer) -> IO String
-cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
-
 
 styleDate date cal = unlines (map rep $ lines cal)
   where rep = replaceDate (date) (wrapStyle (spacePrepend 2 date) ++ " ")
