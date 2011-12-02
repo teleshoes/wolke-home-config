@@ -26,9 +26,9 @@ collate xs sep = heads ++ sep ++ collate tails sep
 relMonth (y,m) n | n == 0 = (y,m)
                  | n > 0 = relMonth (nextMonth (y,m)) (n-1)
                  | n < 0 = relMonth (prevMonth (y,m)) (n+1)
-prevMonth (y,m) | m == 0    = (y-1, 12)
+prevMonth (y,m) | m == 1    = (y-1, 12)
                 | otherwise = (y,  m-1)
-nextMonth (y,m) | m == 12   = (y+1,  0)
+nextMonth (y,m) | m == 12   = (y+1,  1)
                 | otherwise = (y,  m+1)
 
 cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
