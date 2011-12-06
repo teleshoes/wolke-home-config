@@ -92,6 +92,7 @@ fi
 # some more ls aliases
 #alias ll='ls -l'
 #alias la='ls -A'
+alias suspend='sudo pm-suspend'
 alias cx='chmod +x'
 alias :q='exit'
 alias suod='sudo'
