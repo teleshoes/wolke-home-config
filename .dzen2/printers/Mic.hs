@@ -1,3 +1,4 @@
+module Mic(main) where
 import System.Environment (getEnv)
 import System.Process(readProcess)
 import CommandClick (imgDir)

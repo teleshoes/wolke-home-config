@@ -1,3 +1,4 @@
+module Calendar(main) where
 import System.Process(readProcess)
 import Data.List (intercalate, stripPrefix)
 import Data.Maybe (fromMaybe)
