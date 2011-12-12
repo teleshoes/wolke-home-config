@@ -1,3 +1,4 @@
+"""filetype plugin indent on
 set ic
 set history=9000
 set nocompatible
