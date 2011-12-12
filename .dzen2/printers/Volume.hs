@@ -12,8 +12,8 @@ main = do
   vol <- fmap i $ readProcess (home ++ "/bin/pulse-volume") [] ""
   mute <- fmap isMuted $ readProcess (home ++ "/bin/pulse-mute") ["sink"] ""
 
-  let bgWidth = 20
-  let fgWidth = 5
+  let bgWidth = 5
+  let fgWidth = 3
 
   let heights = height : (map (roundPercent height) $ pers $ vol)
   let widths = bgWidth : repeat fgWidth
