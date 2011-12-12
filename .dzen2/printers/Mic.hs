@@ -6,6 +6,7 @@ import ClickAction (clickAction)
 import ClickableImage (clickableImage)
 
 height = 36
+diameter = height `div` 4
 
 main = do
  home <- getEnv "HOME"
@@ -18,7 +19,7 @@ formatImg home isM = clickableImage [clickCmd] $ imgDir home ++ img
 
 formatCircle home isM = clickAction "1" clickCmd markup
   where markup = color $ "^p(;" ++ (show shift) ++ ")^c(" ++ (show d) ++ ")"
-        d = height `div` 6
+        d = diameter
         shift = height `div` 2 - d `div` 2
         color m = "^fg(" ++ fg ++ ")" ++ m ++ "^fg()"
         fg = if isM then "black" else "red"
