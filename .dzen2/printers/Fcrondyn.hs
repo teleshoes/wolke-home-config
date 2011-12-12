@@ -1,3 +1,4 @@
+module Fcrondyn(main) where
 import System.IO
 import System.Process(runCommand, system, readProcessWithExitCode)
 import System.Exit(ExitCode(ExitFailure))

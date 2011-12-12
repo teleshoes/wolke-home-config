@@ -1,4 +1,4 @@
-module CommandClick (commandClick, imgDir) where
+module CommandClick (main, commandClick, imgDir) where
 import System.Environment.UTF8 (getArgs)
 import System.Environment (getEnv)
 import ShiftUp (shiftUp)

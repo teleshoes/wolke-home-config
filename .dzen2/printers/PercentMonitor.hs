@@ -1,4 +1,4 @@
-#!/usr/bin/runghc
+module PercentMonitor(main) where
 import Data.List (intercalate, group, intersperse, zip4)
 import Data.Maybe (fromMaybe, listToMaybe, isJust)
 import Data.Char

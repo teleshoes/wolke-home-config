@@ -1,3 +1,4 @@
+module Clock(main) where
 import System.Environment (getEnv)
 import System.Process(readProcess)
 import ClickAction (clickAction)

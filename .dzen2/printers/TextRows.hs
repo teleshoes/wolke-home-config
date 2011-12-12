@@ -1,4 +1,3 @@
-#!/usr/bin/runghc
 module TextRows(textRows, main) where
 import System.Environment.UTF8 (getArgs)
 import StripMarkup (estimateLength)
