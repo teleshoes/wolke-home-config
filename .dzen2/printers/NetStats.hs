@@ -33,7 +33,7 @@ data NetStats = NetStats { bytes :: Integer
                          } deriving Show
 
 netdev :: [String] -> NetDev
-netdev (interface:stats) = packDev interface $ splitAt 8 (map i stats)
+netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
   where
     packDev interface (rxStats,txStats) =
       NetDev interface (packStats rxStats) (packStats txStats)
@@ -101,8 +101,6 @@ parseProcNetDev proc = map netdev okGroups
     groups = map (\line -> getMatches line re) $ lines proc
     okGroups = filter ((==17).length) groups
     re = "([a-z0-9]+):" ++ (concat $ replicate 16 "\\s*(\\d+)")
-
-i = read :: String -> Integer
 
 getMatches a re = concatMap tail groups
   where groups = a =~ re :: [[String]]
