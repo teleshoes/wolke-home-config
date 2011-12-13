@@ -59,7 +59,7 @@ showBytes bytes = fgColor (chooseColor colorBrackets) (unit (bytes/1024) units)
     units = ["K", "M", "G", "T", "P", "E", "Z", "Y"]
     colorBrackets = zip
                     (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
-                    ["black", "white", "blue", "purple", "red", "green", "yellow"]
+                    ["black", "gray", "blue", "purple", "green", "white", "red"]
     chooseColor ((b, c):bs) | bytes > b && length bs > 0 = chooseColor bs
                             | otherwise = c
 
@@ -67,12 +67,13 @@ fgColor c m = "^fg(" ++ c ++ ")" ++ m ++ "^fg()"
 
 format scanInitial scanFinal = textRows dn up height
   where
-    dn = showBytes $ fromIntegral rxBytes / elapsedSex
-    up = showBytes $ fromIntegral txBytes / elapsedSex
-    rxBytes = (\f -> f scanFinal - f scanInitial) (totalStat receive bytes)
-    txBytes = (\f -> f scanFinal - f scanInitial) (totalStat transmit bytes)
+    dn = showBytes $ if elapsedSex == 0 then 0 else rxBytes / elapsedSex
+    up = showBytes $ if elapsedSex == 0 then 0 else txBytes / elapsedSex
+    rxBytes = fromIntegral $ statDiff receive bytes scanFinal scanInitial
+    txBytes = fromIntegral $ statDiff transmit bytes scanFinal scanInitial
     elapsedSex = fromIntegral (scanTime scanFinal - scanTime scanInitial) / 10^9
 
+statDiff rxTx stat f i = (totalStat rxTx stat f) - (totalStat rxTx stat i)
 totalStat rxTx stat scan = sum $ map (stat.rxTx) $ devs scan
 
 updateScans :: [NetScan] -> IO (NetScan, NetScan, [NetScan])
