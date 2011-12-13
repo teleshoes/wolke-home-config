@@ -51,17 +51,17 @@ scanLoop scans = do
   threadDelay 1000000
   scanLoop updatedScans
 
-showBytes bytes = fgColor (chooseColor colorBrackets) (unit (bytes/1024) units)
+showBytes bytes = fgColor (chooseColor byteColors) (unit (bytes/1024) units)
   where
     unit :: Double -> [String] -> String
     unit x (u:us) | x >= 1000 && length us > 0 = unit (x/1024) us
                   | otherwise = printf "%6.1f" x ++ u
     units = ["K", "M", "G", "T", "P", "E", "Z", "Y"]
-    colorBrackets = zip
-                    (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
-                    ["black", "gray", "blue", "purple", "green", "white", "red"]
-    chooseColor ((b, c):bs) | bytes > b && length bs > 0 = chooseColor bs
-                            | otherwise = c
+    byteColors = zip
+                   (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
+                   ["black", "gray", "blue", "purple", "green", "white", "red"]
+    chooseColor ((b, c):bcs) | bytes > b && length bcs > 0 = chooseColor bcs
+                             | otherwise = c
 
 fgColor c m = "^fg(" ++ c ++ ")" ++ m ++ "^fg()"
 
