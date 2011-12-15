@@ -5,7 +5,6 @@ import XMonad.Layout.LayoutCombinators
 import XMonad.Hooks.ManageDocks
 import XMonad.Actions.NoBorders (toggleBorder)
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
-import XMonad.Actions.DeManage (demanage)
 
 import qualified XMonad.StackSet as Stk
 
@@ -54,7 +53,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((modm, xK_v     ), windows copyToAll) -- Copy focused win to all workspaces
   , ((shmd, xK_v     ), killAllOtherCopies) -- @@ Delete copies of focused win
-  , ((modm, xK_c     ), withFocused demanage)
 
   --shortcuts
   , ((none, xK_Print ), spawn "gnome-screenshot")
