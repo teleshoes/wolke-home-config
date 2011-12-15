@@ -64,6 +64,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
   , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
 
+  , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --a la laptop lid closed
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
   , ((none, xf86think), spawn "gnome-terminal")
