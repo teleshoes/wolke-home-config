@@ -12,7 +12,7 @@ main = do
  bot <- readProcess "date" ["+%H:%M:%S"] ""
  putStr $ clickAction "1" (cmd home) (textRows top bot height)
 
-cmd home = calExec ++ " | " ++ popupExec ++ " 240 48 -fn inconsolata-14"
+cmd home = calExec ++ " | " ++ popupExec ++ " 1800 48 -fn inconsolata-14"
   where calExec = home ++ "/.dzen2/printers/calendar"
         popupExec = home ++ "/.dzen2/launchers/popup"
 

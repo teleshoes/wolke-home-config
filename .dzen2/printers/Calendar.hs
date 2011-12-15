@@ -1,20 +1,23 @@
 module Calendar(main) where
 import System.Process(readProcess)
 import Data.List (intercalate, stripPrefix)
+import Data.List.Split (splitEvery)
 import Data.Maybe (fromMaybe)
 import Control.Applicative ((<$>))
+import Columns (columns, buckets)
 
 main = do
   y <- dateIntField "Y" 
   m <- dateIntField "m" 
   d <- dateIntField "d" 
-  cals <- getCals y m d [-1, 0, 1, 2, 3, 4]
-  putStr $ formatTall $ cals
+  cals <- getCals y m d [-23..24]
+  putStr $ formatColumns cals 6
 
 dateIntField f = (read :: String -> Int) <$> readProcess "date" ["+%" ++ f] ""
 
 cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
 
+getCals :: Integral a => a -> a -> a -> [a] -> IO [String]
 getCals y m d (n:ns) = do
   c <- cal $ relMonth (y,m) n
   cs <- getCals y m d ns
@@ -25,6 +28,9 @@ styleThisMonth d c | length lns == 0 = c
                    | otherwise = unlines $ (highlight $ head lns):tail lns
   where lns = lines $ styleDate (show d) c
         highlight ln = "^bg(blue)" ++ ln ++ "^bg()"
+
+formatColumns cals height = columns cols "|  "
+  where cols = map (lines.concat) (splitEvery height cals)
 
 formatTall xs = concat xs
 formatWide xs = collate (map lines xs) "\n"
