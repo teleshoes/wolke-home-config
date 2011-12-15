@@ -21,7 +21,10 @@ getCals y m d (n:ns) = do
   return ((if n == 0 then styleThisMonth d c else c):cs)
 getCals _ _ _ [] = return []
 
-styleThisMonth d c = "^bg(blue)" ++ styleDate (show d) c ++ "^bg()"
+styleThisMonth d c | length lns == 0 = c
+                   | otherwise = unlines $ (highlight $ head lns):tail lns
+  where lns = lines $ styleDate (show d) c
+        highlight ln = "^bg(blue)" ++ ln ++ "^bg()"
 
 formatTall xs = concat xs
 formatWide xs = collate (map lines xs) "\n"
