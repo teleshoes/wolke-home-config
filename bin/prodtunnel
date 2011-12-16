@@ -1,26 +1,31 @@
-#!/bin/bash
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-USAGE="Usage [on escribe_server port] | [off]"
-if [ $1 = on ]; then
-  if [ $# != 3 ]; then
-    echo $USAGE
-    exit 1
-  fi
+my $user = 'ewolk';
+my $controlFile = '/tmp/prodtunnelssh.ctl';
+my $port = 1521;
+my @okServers = qw(garuda datadict);
+my %okServerHash = map {$_ => 1} @okServers;
+my $arg = lc(shift() || '');
 
-  if [ -e /tmp/prodtunnelssh.ctl ]; then
-    echo Control file already exists, run $0 off
-  else
-    ssh -M -S /tmp/prodtunnelssh.ctl -f ewolk@$2.escribe.com -L $3:$2.escribe.com:$3 -N
-  fi
-elif [ $1 = off ]; then
-  if [ $# != 1 ]; then
-    echo $USAGE
-    exit 1
-  fi
-  
-  ssh -S /tmp/prodtunnelssh.ctl -O exit localhost
-else
-  echo $USAGE
-  exit 1
-fi
-
+if(defined $okServerHash{$arg}){
+  die "Control file already exists, run $0 off" if -e $controlFile;
+  my @cmd = (
+    'ssh',
+    '-M',
+    '-S', $controlFile,
+    '-f',
+    "$user\@$arg.escribe.com",
+    '-L', "$port:$arg.escribe.com:$port",
+    "-N",
+  );
+  print join(' ', @cmd) . "\n";
+  system @cmd;
+}elsif($arg eq 'off'){
+  my @cmd = ('ssh', '-S', $controlFile, '-O', 'exit', 'localhost');
+  print join(' ', @cmd) . "\n";
+  system @cmd;
+}else{
+  die "Usage: $0 [" . join("|", @okServers) . "|off]\n";
+}
