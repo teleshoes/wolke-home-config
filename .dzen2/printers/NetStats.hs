@@ -13,6 +13,8 @@ import System.IO (hFlush, stdout)
 
 height = 36
 
+ignoredInterfacesRegex = "(lo|tun\\d+)"
+
 procFile = "/proc/net/dev"
 
 data NetScan = NetScan { scanTime :: Int64, devs :: [NetDev] } deriving Show
@@ -95,12 +97,15 @@ netScan = do
   time <- nanoTime
   return $ NetScan time $ parseProcNetDev proc
 
+isIgnored NetDev{interface=iface} = isMatch iface ignoredInterfacesRegex
+
 parseProcNetDev :: String -> [NetDev]
-parseProcNetDev proc = map netdev okGroups
+parseProcNetDev proc = filter (not.isIgnored) $ map netdev okGroups
   where
     groups = map (\line -> getMatches line re) $ lines proc
     okGroups = filter ((==17).length) groups
     re = "([a-z0-9]+):" ++ (concat $ replicate 16 "\\s*(\\d+)")
 
+isMatch a re = a =~ re :: Bool
 getMatches a re = concatMap tail groups
   where groups = a =~ re :: [[String]]
