@@ -59,6 +59,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_p     ), spawn "gnome-do")
   , ((alt , xK_F2    ), spawn "gnome-do")
 
+  , ((supr, xK_p     ), spawn "$HOME/bin/scrot-bag") -- datestamped, numbered screenshot
   , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
   , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
 
