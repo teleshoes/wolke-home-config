@@ -55,11 +55,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((shmd, xK_v     ), killAllOtherCopies) -- @@ Delete copies of focused win
 
   --shortcuts
-  , ((none, xK_Print ), spawn "gnome-screenshot")
+  , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
   , ((modm, xK_p     ), spawn "gnome-do")
   , ((alt , xK_F2    ), spawn "gnome-do")
 
-  , ((supr, xK_p     ), spawn "$HOME/bin/scrot-bag") -- datestamped, numbered screenshot
   , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
   , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
 
