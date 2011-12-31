@@ -12,6 +12,7 @@ import XMonad.Util.Run (safeSpawn)
 
 import qualified XMonad.StackSet as Stk
 
+import Control.Concurrent (threadDelay)
 import Data.Monoid
 import Graphics.X11.Xlib
 import Graphics.X11.Xlib.Extras
@@ -69,12 +70,24 @@ main = do
                          , className =? "Rhythmbox"      --> doShift "9"
                          , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "KLOMP"          --> doShift "9"
+                         , title     =? "Close Firefox"  --> restartFF
                          ],
 
     handleEventHook    = myHandleEventHook,
     logHook            = do myDzenLogHook workspaceNames hookedDzens
                             dbusLog dbusClient defaultPP
   }
+
+restartFF = do 
+  w <- ask
+  let delay = 1
+  liftX $ do
+    killWindow w
+    io . threadDelay $ delay*10^6
+    spawn $ "notify-send 'restarting firefox in " ++ show delay ++ "s'"
+    spawn "firefox"
+    refresh
+  doF id
 
 doHide = ask >>= doF . Stk.delete
 doView workspace = doF $ Stk.view workspace
