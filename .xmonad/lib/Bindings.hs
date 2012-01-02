@@ -1,8 +1,8 @@
 module Bindings(myKeyBindings, myMouseBindings) where
 
 import XMonad
-import XMonad.Layout.LayoutCombinators 
-import XMonad.Hooks.ManageDocks
+import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
+import XMonad.Hooks.ManageDocks (ToggleStruts(..))
 import XMonad.Actions.NoBorders (toggleBorder)
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 
