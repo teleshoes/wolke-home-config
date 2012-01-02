@@ -2,10 +2,10 @@ import Bindings
 import Dzen
 
 import XMonad hiding ( (|||) )
-import XMonad.Layout.LayoutCombinators ( (|||) )
+import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
 import XMonad.Hooks.DynamicLog
-import XMonad.Hooks.ManageDocks (avoidStruts)
+import XMonad.Hooks.ManageDocks (avoidStruts, ToggleStruts(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
@@ -71,6 +71,7 @@ main = do
                          , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "KLOMP"          --> doShift "9"
                          , title     =? "Close Firefox"  --> restartFF
+                         , className =? "<unknown>"      --> doFull -- flash
                          ],
 
     handleEventHook    = myHandleEventHook,
@@ -92,4 +93,7 @@ restartFF = do
 doHide = ask >>= doF . Stk.delete
 doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
-
+doFull = do
+  liftX $ sendMessage ToggleStruts
+  (liftX . sendMessage . JumpToLayout) "full"
+  doF id
