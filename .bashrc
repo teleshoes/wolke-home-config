@@ -92,7 +92,6 @@ fi
 # some more ls aliases
 #alias ll='ls -l'
 #alias la='ls -A'
-alias gitl='git log --graph --oneline'
 alias suspend='sudo pm-suspend'
 alias cx='chmod +x'
 alias :q='exit'
