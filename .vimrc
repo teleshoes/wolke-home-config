@@ -6,6 +6,7 @@ set nowrap
 syntax on
 
 set number
+set t_Co=256
 hi Normal guifg=green guibg=black
 hi LineNr ctermfg=blue ctermbg=darkgray guifg=blue guibg=darkgray
 
