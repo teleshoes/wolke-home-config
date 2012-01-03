@@ -17,6 +17,12 @@ export LD_LIBRARY_PATH=/usr/lib/jni
 export LIBXCB_ALLOW_SLOPPY_LOCK=1
 export AWT_TOOLKIT=MToolkit
 
+case "$TERM" in
+    rxvt-256color)
+        TERM=rxvt-unicode
+        ;;
+esac
+
 prependPath() {
   case $PATH in
     $@:* | *:$@ | *:$@:* ) ;;
