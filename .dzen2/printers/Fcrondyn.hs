@@ -28,7 +28,7 @@ main = do
 fcrondynExec = readProcessWithExitCode "sudo" ["fcrondyn", "-x", "ls"] ""
 
 cmd = ""
-      ++ "gnome-terminal -x sh -c \""
+      ++ "term -e sh -c \""
       ++ "vim $HOME/.fcrontab; fcronreset; echo OK; read STDIN"
       ++ "\""
 
