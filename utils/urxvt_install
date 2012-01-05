@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $configFile = "$ENV{HOME}/.Xdefaults";
+my $perlDir = '/usr/lib/urxvt/perl';
+my $utilPerlDir = 'urxvt/perl';
+
+my %config = (
+  "foreground"       => "green",
+  "background"       => "black",
+  "transparent"      => "true",
+  "shading"          => "20",
+  "font"             => "xft:Inconsolata:pixelsize=16",
+
+  "scrollBar_right"  => "true",
+  
+  "perl-ext-common"  => "clipboard",
+  "keysym.F7"        => "perl:clipboard:copy",
+  "keysym.F8"        => "perl:clipboard:paste",
+);
+
+my $urxvtConf = join '', map {"URxvt.$_: $config{$_}\n"} sort keys %config;
+$urxvtConf .= "# section gets overwritten by $0\n";
+$urxvtConf = "###URXVT_START###\n$urxvtConf###URXVT_END###\n";
+print $urxvtConf;
+
+system "touch $configFile";
+my $conf = `cat $configFile`;
+$conf =~ s/###URXVT_START###\n.*###URXVT_END###\n//si;
+$conf .= $urxvtConf;
+open FH, "> $configFile" or die "Couldnt open $configFile for writing\n";
+print FH $conf;
+close FH;
+
+
+for my $file(`ls $utilPerlDir`){
+  chomp $file;
+  my $cmd = "sudo cp $utilPerlDir/$file $perlDir";
+  print "$cmd\n";
+  system $cmd;
+}
+
+my $cmd = "sudo cp urxvt/term /usr/bin";
+print "$cmd\n";
+system $cmd;
