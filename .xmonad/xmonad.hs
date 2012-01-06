@@ -16,8 +16,6 @@ import Control.Concurrent (threadDelay)
 import Data.Monoid
 import Graphics.X11.Xlib
 import Graphics.X11.Xlib.Extras
-import DBus.Client.Simple
-import System.Taffybar.XMonadLog (dbusLog)
 
 myHandleEventHook _ = return (All True)
 
@@ -25,9 +23,7 @@ workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 
 closeRboxWin = "xdotool search --class Rhythmbox key --window %@ ctrl+w"
 
-
 main = do
-  safeSpawn "xsetroot" ["-cursor_name", "left_ptr"]
   --clean workspace-images
   _ <- safeSpawn "workspace-image" ("init":workspaceNames)
   --clean
@@ -40,8 +36,6 @@ main = do
   _ <- spawnUnhookedDzens
   hookedDzens <- spawnHookedDzens
 
-  dbusClient <- connectSession
-  
   xmonad $ defaultConfig {
     focusFollowsMouse  = False,
     modMask            = mod1Mask,
@@ -61,9 +55,7 @@ main = do
                          ,
 
     manageHook         = composeAll
-                         [ className =? "Gnome-panel"    --> doIgnore
-                         , className =? "Do"             --> doIgnore
-                         , className =? "Eclipse"        --> doShift "A"
+                         [ className =? "Eclipse"        --> doShift "A"
                          , className =? "Pidgin"         --> doShift "B"
                          , className =? "MPlayer"        --> doShift "7"
                          , className =? "Thunderbird"    --> doShift "8"
@@ -75,8 +67,7 @@ main = do
                          ],
 
     handleEventHook    = myHandleEventHook,
-    logHook            = do myDzenLogHook workspaceNames hookedDzens
-                            dbusLog dbusClient defaultPP
+    logHook            = myDzenLogHook workspaceNames hookedDzens
   }
 
 restartFF = do 
