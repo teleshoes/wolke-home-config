@@ -2,29 +2,33 @@
 use strict;
 use warnings;
 
-my $attribute = '/desktop/gnome/peripherals/touchpad/tap_to_click';
-my $onVal = 'true';
-my $offVal = 'false';
-my $type = 'boolean';
+my $dev = "SynPS/2 Synaptics TouchPad";
+my $prop = "Synaptics Tap Time";
 
-my $arg = lc shift;
-
-my $val;
-if($arg eq 'on'){
-  $val = $onVal;
-}elsif($arg eq 'off'){
-  $val = $offVal;
-}elsif($arg eq 'toggle'){
-  my $curVal = `gconftool-2 --get $attribute`;
-  chomp $curVal;
-  if($curVal eq $offVal){
-    $val = $onVal;
+sub readTapToClick(){
+  my $line = `xinput list-props '$dev' | grep '$prop'`;
+  if($line =~ /:\s*(\d+)/){
+    return $1 > 0 ? 'on' : 'off';
   }else{
-    $val = $offVal;
+    return 'error';
   }
-}else{
-  die "Usage: $0 on|off|toggle\n";
+}
+sub writeTapToClick($){
+  my $val = $_[0] eq 'on' ? 50 : 0;
+  system "xinput set-prop '$dev' '$prop' $val";
 }
 
-print `gconftool-2 --set $attribute --type $type "$val"`;
+my $arg = lc (shift() || '');
+
+if($arg eq ''){
+  print readTapToClick() . "\n";
+}elsif($arg eq 'on'){
+  writeTapToClick 'on';
+}elsif($arg eq 'off'){
+  writeTapToClick 'off';
+}elsif($arg eq 'toggle'){
+  writeTapToClick(readTapToClick eq 'on' ? 'off' : 'on');
+}else{
+  die "Usage: $0   or   $0 [on|off|toggle]\n";
+}
 
