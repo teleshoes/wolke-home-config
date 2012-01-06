@@ -55,9 +55,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((shmd, xK_v     ), killAllOtherCopies) -- @@ Delete copies of focused win
 
   --shortcuts
+  , ((none, xf86think), spawn "urxvt")
+  , ((ctrl, xf86think), spawnTerm "ghci")
+
   , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
-  , ((modm, xK_p     ), spawn "gnome-do")
-  , ((alt , xK_F2    ), spawn "gnome-do")
 
   , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
   , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
@@ -65,13 +66,12 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --a la laptop lid closed
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
-  , ((none, xf86think), spawn "gnome-terminal")
-  , ((ctrl, xf86think), spawnTerm "ghci")
-
   , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
 
+  , ((none, volUp    ), spawn "$HOME/bin/pulse-raise-volume -n")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")
+  , ((none, volDown  ), spawn "$HOME/bin/pulse-lower-volume")
   , ((alt,  volDown  ), spawn "$HOME/bin/pulse-lower-volume")
 
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
@@ -86,7 +86,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo n900-tether off")
   , ((supr, xK_3     ), spawn "sudo n900-tether on")
 
-  , ((alct, xK_space ), spawn "gnome-terminal -x htop")
+  , ((alct, xK_space ), spawn "term -e htop")
 
   , ((supr, xK_space ), spawn "$HOME/bin/klomp-cmd pause")
   , ((supr, xK_z     ), spawn "$HOME/bin/klomp-cmd prev")
@@ -135,7 +135,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     xf86back = xF86XK_Back
     xf86fwd = xF86XK_Forward
     hbin = "$HOME/bin/"
-    spawnTerm cmd = spawn $ "gnome-terminal -x " ++ cmd
+    spawnTerm cmd = spawn $ "term -e " ++ cmd
  
 myMouseBindings (XConfig {XMonad.modMask = modm}) = fromList $
   -- mod-button1, Set the window to floating mode and move by dragging
