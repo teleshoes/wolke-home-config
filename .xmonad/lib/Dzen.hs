@@ -4,6 +4,7 @@ import DzenXinerama
 import XMonad.Layout.IndependentScreens (countScreens)
 import XMonad.Hooks.DynamicLog
 import XMonad.Util.Run
+import IO (Handle())
 
 
 myDzenLogHook workspaceNames dzens = dzenXineramaLogHook $
@@ -11,12 +12,12 @@ myDzenLogHook workspaceNames dzens = dzenXineramaLogHook $
 
 spawnUnhookedDzens = do 
   nScreens <- countScreens
-  mapM (\n -> dzenBarExtras n) [1..nScreens]
+  mapM (\n -> dzenBarExtras n) [1..nScreens] :: IO [Handle]
 
 spawnHookedDzens = do
   nScreens <- countScreens
   mapM (\((x, y), n) -> dzenBarXmonad x y n) $
-     zip pos [1..nScreens]
+     zip pos [1..nScreens] :: IO [Handle]
 
 
 --position of dzen bar by xinerama screen {addtl screen default is (0,0)}
