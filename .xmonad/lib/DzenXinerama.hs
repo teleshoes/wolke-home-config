@@ -4,7 +4,7 @@ module DzenXinerama (dzenXineramaLogHook) where
 import XMonad
 import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.UrgencyHook (readUrgents)
-import XMonad.Util.Font (encodeOutput)
+import Codec.Binary.UTF8.String (encodeString)
 import XMonad.Util.NamedWindows (getName)
 
 import qualified XMonad.StackSet as Stk
@@ -57,7 +57,7 @@ dynamicLogStringScreen screen pp = do
   --translates the window title to an image and writes to file
   _ <- safeSpawn "workspace-image" [workspaceId, windowClass, windowName]
 
-  return $ encodeOutput . sepBy (ppSep pp) . ppOrder pp $
+  return $ encodeString . sepBy (ppSep pp) . ppOrder pp $
              [ workspaceList
              , ppLayout pp ld
              , ppTitle pp windowName
