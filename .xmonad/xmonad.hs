@@ -9,7 +9,7 @@ import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
-import XMonad.Util.Types (Direction2D(U,L,D,R))
+import XMonad.Util.Types (Direction2D(U,D,L,R))
 
 import qualified XMonad.StackSet as Stk
 
@@ -80,10 +80,13 @@ restartFF = do
     refresh
   doF id
 
+addStruts = SetStruts [U,D,L,R] []
+removeStruts = SetStruts [] [U,D,L,R]
+
 doHide = ask >>= doF . Stk.delete
 doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
 doFull = do
-  liftX $ sendMessage $ SetStruts [] [U,L,D,R]
+  liftX $ sendMessage $ removeStruts
   (liftX . sendMessage . JumpToLayout) "full"
   doF id
