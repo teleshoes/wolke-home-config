@@ -5,10 +5,11 @@ import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
 import XMonad.Hooks.DynamicLog
-import XMonad.Hooks.ManageDocks (avoidStruts, ToggleStruts(..))
+import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
+import XMonad.Util.Types (Direction2D(U,L,D,R))
 
 import qualified XMonad.StackSet as Stk
 
@@ -85,6 +86,6 @@ doHide = ask >>= doF . Stk.delete
 doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
 doFull = do
-  liftX $ sendMessage ToggleStruts
+  liftX $ sendMessage $ SetStruts [] [U,L,D,R]
   (liftX . sendMessage . JumpToLayout) "full"
   doF id
