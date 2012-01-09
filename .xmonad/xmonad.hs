@@ -55,9 +55,8 @@ main = do
                          , className =? "Pidgin"         --> doShift "B"
                          , className =? "MPlayer"        --> doShift "7"
                          , className =? "Thunderbird"    --> doShift "8"
-                         , className =? "Rhythmbox"      --> doShift "9"
-                         , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "KLOMP"          --> doShift "9"
+                         , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "Close Firefox"  --> restartFF
                          , title     =? "npviewer.bin"   --> doFull -- flash
                          ],
