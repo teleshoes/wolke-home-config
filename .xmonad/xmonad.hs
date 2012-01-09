@@ -15,6 +15,10 @@ import qualified XMonad.StackSet as Stk
 import Control.Concurrent (threadDelay)
 import Data.Monoid (All(All))
 
+import DBus.Client.Simple
+import XMonad.Hooks.DynamicLog (defaultPP)
+import System.Taffybar.XMonadLog (dbusLog)
+
 myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
@@ -31,6 +35,8 @@ main = do
   spawnUnhookedDzens
 
   hookedDzens <- spawnHookedDzens
+  
+  dbusClient <- connectSession
 
   xmonad $ defaultConfig {
     focusFollowsMouse  = False,
@@ -61,7 +67,8 @@ main = do
                          ],
 
     handleEventHook    = myHandleEventHook,
-    logHook            = myDzenLogHook workspaceNames hookedDzens
+    logHook            = do myDzenLogHook workspaceNames hookedDzens
+                            dbusLog dbusClient defaultPP
   }
 
 restartFF = do 
