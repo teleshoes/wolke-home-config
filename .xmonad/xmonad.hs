@@ -64,7 +64,7 @@ main = do
                          , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "KLOMP"          --> doShift "9"
                          , title     =? "Close Firefox"  --> restartFF
-                         , className =? "<unknown>"      --> doFull -- flash
+                         , title     =? "npviewer.bin"   --> doFull -- flash
                          ],
 
     handleEventHook    = myHandleEventHook,
