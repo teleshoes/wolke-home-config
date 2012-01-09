@@ -56,7 +56,6 @@ main = do
                          , className =? "MPlayer"        --> doShift "7"
                          , className =? "Thunderbird"    --> doShift "8"
                          , title     =? "KLOMP"          --> doShift "9"
-                         , title     =? "xmonad-hidden"  --> doHide
                          , title     =? "Close Firefox"  --> restartFF
                          , title     =? "npviewer.bin"   --> doFull -- flash
                          ],
@@ -79,7 +78,6 @@ restartFF = do
 addStruts = SetStruts [U,D,L,R] []
 removeStruts = SetStruts [] [U,D,L,R]
 
-doHide = ask >>= doF . Stk.delete
 doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
 doFull = do
