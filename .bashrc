@@ -38,6 +38,7 @@ CMD1='echo -ne "\033]0;$WINDOW_TITLE\007"'
 CMD2='echo -ne "\033]0;Terminal: ${PWD/$HOME/~}\007"'
 PROMPT_COMMAND="if [ -n \"\$WINDOW_TITLE\" ]; then $CMD1; else $CMD2; fi"
 
+alias shtdwn='sudo shutdown 0'
 alias suspend='sudo pm-suspend'
 alias cx='chmod +x'
 alias :q='exit'
