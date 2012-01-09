@@ -4,7 +4,6 @@ import Dzen (spawnHookedDzens, spawnUnhookedDzens, myDzenLogHook)
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
-import XMonad.Hooks.DynamicLog
 import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
@@ -14,9 +13,7 @@ import XMonad.Util.Types (Direction2D(U,D,L,R))
 import qualified XMonad.StackSet as Stk
 
 import Control.Concurrent (threadDelay)
-import Data.Monoid
-import Graphics.X11.Xlib
-import Graphics.X11.Xlib.Extras
+import Data.Monoid (All(All))
 
 myHandleEventHook _ = return (All True)
 
