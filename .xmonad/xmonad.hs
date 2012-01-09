@@ -1,5 +1,5 @@
-import Bindings
-import Dzen
+import Bindings (myKeyBindings, myMouseBindings)
+import Dzen (spawnHookedDzens, spawnUnhookedDzens, myDzenLogHook)
 
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
@@ -23,16 +23,16 @@ myHandleEventHook _ = return (All True)
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 
 main = do
+  --remove intermediate haskell compilation files
+  spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
+
   --clean workspace-images
-  _ <- safeSpawn "workspace-image" ("init":workspaceNames)
-  --clean
-  _ <- spawn $ "cd $HOME/.xmonad; " ++
-                   "find -regex '.*\\.\\(hi\\|o\\)' " ++
-                   "-execdir rm {} \\;"
-  --kill running dzens
-  _ <- spawn "killall dzen2"
-  --start the unhooked dzens
-  _ <- spawnUnhookedDzens
+  safeSpawn "workspace-image" ("init":workspaceNames)
+
+  spawn "killall dzen2"
+
+  spawnUnhookedDzens
+
   hookedDzens <- spawnHookedDzens
 
   xmonad $ defaultConfig {
