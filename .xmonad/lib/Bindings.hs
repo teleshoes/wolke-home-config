@@ -67,6 +67,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
   , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
+  , ((none, xf86mute ), spawn "$HOME/bin/pulse-mute speaker toggle")
 
   , ((none, volUp    ), spawn "$HOME/bin/pulse-raise-volume -n")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
@@ -132,6 +133,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     volDown = xF86XK_AudioLowerVolume
     xf86think = xF86XK_Launch1
     xf86mic = xF86XK_Launch2
+    xf86mute = xF86XK_AudioMute
     xf86back = xF86XK_Back
     xf86fwd = xF86XK_Forward
     hbin = "$HOME/bin/"
