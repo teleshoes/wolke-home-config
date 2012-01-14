@@ -24,19 +24,25 @@ prependPath $HOME/.cabal/bin
 if [ "$DISPLAY" == "" ]; then
   #host abbrevs
   case `hostname -s` in
-    "wolke-w520"   ) h='@w520' ;;
-    "wolk-desktop" ) h='@desk' ;;
-    "wolke-n900"   ) h='@n900' ;;
-    *              ) h='@\h' ;;
+    "wolke-w520"              ) h='@w520' ;;
+    "wolk-desktop"            ) h='@desk' ;;
+    "wolke-n900"              ) h='@n900' ;;
+    "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
+    *                         ) h='@\h' ;;
   esac
 else
   #if display is set, you probably know where you are
   h=""
 fi
+if [ "$USER" == "BenjaminAguayza" ]; then
+  u=ben
+else
+  u="\u"
+fi
 c1='\[\033[01;32m\]'
 c2='\[\033[01;34m\]'
 cEnd='\[\033[00m\]'
-PS1="$c1\u$h$cEnd:$c2\w$cEnd\$ "
+PS1="$c1$u$h$cEnd:$c2\w$cEnd\$ "
 
 
 #window title => $WINDOW_TITLE or "Terminal: pwd"
