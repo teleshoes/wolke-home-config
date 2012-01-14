@@ -21,12 +21,18 @@ prependPath $HOME/bin
 prependPath $HOME/.cabal/bin
 
 #command prompt
-case `hostname -s` in
-  "wolke-w520"   ) h='' ;;
-  "wolk-desktop" ) h='@desktop' ;;
-  *              ) h='@\h' ;;
-esac
-
+if [ "$DISPLAY" == "" ]; then
+  #host abbrevs
+  case `hostname -s` in
+    "wolke-w520"   ) h='@w520' ;;
+    "wolk-desktop" ) h='@desk' ;;
+    "wolke-n900"   ) h='@n900' ;;
+    *              ) h='@\h' ;;
+  esac
+else
+  #if display is set, you probably know where you are
+  h=""
+fi
 c1='\[\033[01;32m\]'
 c2='\[\033[01;34m\]'
 cEnd='\[\033[00m\]'
