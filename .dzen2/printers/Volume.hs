@@ -3,8 +3,6 @@ import System.Environment (getEnv)
 import System.Process(readProcess)
 import PercentBar (percentBar)
 
-height = 36
-
 mutedColors = ["yellow", "red", "pink"] ++ repeat "orange"
 unmutedColors = ["black", "green", "blue"] ++ repeat "orange"
 
