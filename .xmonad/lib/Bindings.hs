@@ -69,6 +69,9 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
   , ((none, xf86mute ), spawn "$HOME/bin/pulse-mute speaker toggle")
 
+  , ((ctrl, xK_Home  ), spawn "$HOME/bin/brightness up")
+  , ((ctrl, xK_End   ), spawn "$HOME/bin/brightness down")
+  
   , ((none, volUp    ), spawn "$HOME/bin/pulse-raise-volume -n")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")

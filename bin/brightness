@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my @brackets = (0, 34, 67, 100);
+
+my $usage = "Usage:\n"
+  . "  $0            prints brightness\n"
+  . "  $0 [up|down]  jump between: @brackets\n"
+  . "  $0 percent    set brightness to percent\n"
+  . "\n"
+  . "xbacklight wrapper\n"
+  . "\n"
+  . "note: when brightness percentage is not an integer,\n"
+  . "  xbacklight -set `xbacklight -get`\n"
+  . "lowers the brightness one notch\n"
+  . "\n"
+  . "all brightnesses returned by this are rounded up:\n"
+  . "  $0 `$0`\n"
+  . "should NOT change the brightness\n"
+  ;
+
+sub ceil($){
+  chomp $_[0];
+  my $i = int($_[0]);
+  my $d = $_[0] - $i;
+  return $i + ($d > 0 ? 1 : 0);
+}
+
+sub getBrightness(){
+  return ceil `xbacklight -get`;
+}
+sub setBrightness($){
+  my $target = ceil $_[0];
+  print getBrightness() . " => $target\n";
+  system "xbacklight -time 0 -set $target";
+}
+
+my $arg = shift;
+die $usage if @ARGV != 0;
+if(not defined $arg){
+  print getBrightness() . "\n";
+}elsif($arg =~ /^(up|down)$/){
+  my $b = getBrightness;
+  @brackets = reverse @brackets if $arg eq 'down';
+  for my $bracket(@brackets){
+    if(($arg eq 'up' and $bracket > $b) or ($arg eq 'down' and $bracket < $b)){
+      setBrightness $bracket;
+      last;
+    }
+  }
+}elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
+  setBrightness $arg;
+}else{
+  die $usage;
+}
+
+
