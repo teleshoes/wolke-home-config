@@ -1,11 +1,12 @@
 module Net(main) where
+import System.IO (stdout, hFlush)
 import System.Process(readProcess, system)
 import System.Posix.Process (forkProcess)
 import System.Posix (sleep)
 import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
-import Control.Monad (void)
+import Control.Monad (void, forever)
 import Data.Maybe (listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
@@ -30,13 +31,14 @@ readWStatus = do
     otherwise -> return Unknown
 
 
-main = do
+main = forever $ do
   wstatus <- readWStatus
   case wstatus of
     Wlan    -> wifi
     PPP     -> ppp
     None    -> none
     Unknown -> unknown
+  hFlush stdout
 
 unknown = do
   home <- getEnv "HOME"
@@ -48,7 +50,7 @@ none = do
   checkNone 4
   if wauto == "auto\n" then runAuto else putStr ""
   let top = "no wabs"
-  let bot = wauto
+  let bot = chomp wauto
   putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
 
 checkNone 0 = return True
