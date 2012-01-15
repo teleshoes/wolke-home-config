@@ -51,8 +51,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((modm, xK_b     ), withFocused toggleBorder)
 
-  , ((modm, xK_v     ), windows copyToAll) -- Copy focused win to all workspaces
-  , ((shmd, xK_v     ), killAllOtherCopies) -- @@ Delete copies of focused win
+  , ((modm, xK_v     ), windows copyToAll) -- Put on all workspaces
+  , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
 
   --shortcuts
   , ((none, xf86think), spawn "urxvt")
@@ -63,7 +63,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
   , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
 
-  , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --a la laptop lid closed
+  , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --monitor off
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
   , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
@@ -136,7 +136,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     xf86mute = xF86XK_AudioMute
     xf86back = xF86XK_Back
     xf86fwd = xF86XK_Forward
-    hbin = "$HOME/bin/"
     spawnTerm cmd = spawn $ "term -e " ++ cmd
  
 myMouseBindings (XConfig {XMonad.modMask = modm}) = fromList $
