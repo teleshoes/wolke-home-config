@@ -2,12 +2,15 @@
 use strict;
 use warnings;
 
+my $lastFile = "$ENV{HOME}/.brightness";
+
 my @brackets = (0, 34, 67, 100);
 
 my $usage = "Usage:\n"
   . "  $0            prints brightness\n"
   . "  $0 [up|down]  jump between: @brackets\n"
-  . "  $0 percent    set brightness to percent\n"
+  . "  $0 percent    set brightness to percent, record in $lastFile\n"
+  . "  $0 last       set brightness to value read from $lastFile\n"
   . "\n"
   . "xbacklight wrapper\n"
   . "\n"
@@ -33,6 +36,7 @@ sub getBrightness(){
 sub setBrightness($){
   my $target = ceil $_[0];
   print getBrightness() . " => $target\n";
+  system "echo $target > $lastFile";
   system "xbacklight -time 0 -set $target";
 }
 
@@ -48,6 +52,10 @@ if(not defined $arg){
       setBrightness $bracket;
       last;
     }
+  }
+}elsif($arg =~ /^(last)$/){
+  if(-e $lastFile){
+    setBrightness `cat $lastFile`;
   }
 }elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
   setBrightness $arg;
