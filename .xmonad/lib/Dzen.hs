@@ -6,6 +6,8 @@ import XMonad.Hooks.DynamicLog
 import XMonad.Util.Run
 import IO (Handle())
 
+fgColor = "#a8a3f7"
+bgColor = "#3f3c6d"
 
 myDzenLogHook workspaceNames dzens = dzenXineramaLogHook $
       map (\dzen -> (myDzenPP workspaceNames) {ppOutput = hPutStrLn dzen}) dzens
@@ -57,7 +59,9 @@ myDzenPP workspaceNames = dzenPP
      ++ wsMarkup "#cccccc" wsName
      ++ box "red" width height 3
    hidden wsName  = emptyWs "#cccccc" wsName
-   empty wsName   = if elem wsName alwaysShown then hidden wsName else ""
+   empty wsName   = if elem wsName alwaysShown
+                    then emptyWs bgColor wsName
+                    else ""
    img wsName = "^i(/home/wolke/.xmonad/workspace-images/" ++ wsName ++ ".xbm)"
 
    wsMarkup bg wsName = col "black" bg $ ""
@@ -106,8 +110,8 @@ myDzenPP workspaceNames = dzenPP
 
 dzenFlags = ""
   ++ " -e " ++ "'onstart=lower'"
-  ++ " -fg " ++ "'#a8a3f7'"
-  ++ " -bg " ++ "'#3f3c6d'"
+  ++ " -fg " ++ "'" ++ fgColor ++ "'"
+  ++ " -bg " ++ "'" ++ bgColor ++ "'"
   ++ " -h " ++ show height
   ++ " -fn " ++ font
 
