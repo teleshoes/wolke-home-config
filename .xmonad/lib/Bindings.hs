@@ -73,10 +73,11 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((ctrl, xK_Home  ), spawn "$HOME/bin/brightness up")
   , ((ctrl, xK_End   ), spawn "$HOME/bin/brightness down")
-  
   , ((none, brightUp ), spawn "rm $HOME/.brightness")  --remove autoreset file
   , ((none, brightDn ), spawn "rm $HOME/.brightness")  --remove autoreset file
   
+  , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
+
   , ((none, volUp    ), spawn "$HOME/bin/pulse-raise-volume -n")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")
@@ -137,6 +138,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     sush = supr .|. shft
     alct = alt .|. ctrl
     none = 0
+    pgUp = xK_Prior
+    pgDn = xK_Next
     brightUp = xF86XK_MonBrightnessUp
     brightDn = xF86XK_MonBrightnessDown
     volUp = xF86XK_AudioRaiseVolume
