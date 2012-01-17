@@ -1,27 +1,32 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Term::ReadKey;
 
-print "Ensure wolke-home-config git repo, and make symlinks into ~? (y/N) ";
-if(lc <STDIN> eq "y\n"){
-  my $home = `echo -n \$HOME`;
-  my $dir = "$home/wolke-home-config";
+my $repo = 'git@github.com:teleshoes/wolke-home-config.git';
+my %config = (
+  'core.repositoryformatversion', '0',
+  'core.filemode', 'true',
+  'core.bare', 'false',
+  'core.logallrefupdates', 'true',
+  'remote.origin.url', 'git@github.com:teleshoes/wolke-home-config.git',
+  'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*',
+  'branch.master.remote', 'origin',
+  'branch.master.merge', 'refs/heads/master',
+);
 
-  chdir $dir;
-  my @symlinks = `ls -A -1`;
-  my %includes = (
-    ".git" => 0,
-  );
 
-  if(not -d $dir){
-    system "git clone git\@github.com:teleshoes/wolke-home-config.git $dir";
-  }
+if(not -e "$ENV{HOME}/.git"){
+  chdir '/tmp';
 
-  for my $sym(@symlinks){
-    chomp $sym;
-    if(not defined $includes{$sym} or $includes{$sym}){
-      system 'ln', '-s', "$dir/$sym", "$home";
-    }
+  system "git clone $repo homeconfig";
+  chdir "homeconfig";
+  system "git pull origin master";
+  system "mv .git $ENV{HOME}/";
+
+  for my $key(sort keys %config){
+    my $val = $config{$key};
+    system "git", "config",
+      "--file", "$ENV{HOME}/.git/config",
+      $key, $val;
   }
 }
