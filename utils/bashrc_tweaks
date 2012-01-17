@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $sudoHintToRemove =
+'# sudo hint
+if [ ! -e "$HOME/.sudo_as_admin_successful" ] && [ ! -e "$HOME/.hushlogin" ] ; then
+    case " $(groups) " in *\ admin\ *)
+    if [ -x /usr/bin/sudo ]; then
+	cat <<-EOF
+	To run a command as administrator (user "root"), use "sudo <command>".
+	See "man sudo_root" for details.
+	
+	EOF
+    fi
+    esac
+fi
+';
+
+#Replace a string without using RegExp.
+sub str_replace {
+  my $replace_this = shift;
+  my $with_this  = shift; 
+  my $string   = shift;
+  
+  my $length = length($string);
+  my $target = length($replace_this);
+  
+  for(my $i=0; $i<$length - $target + 1; $i++) {
+    if(substr($string,$i,$target) eq $replace_this) {
+      $string = substr($string,0,$i) . $with_this . substr($string,$i+$target);
+      return $string; #Comment this if you what a global replace
+    }
+  }
+  return $string;
+}
+
+my $bashrc = '/etc/bash.bashrc';
+if(-e $bashrc){
+  my $content = `cat $bashrc`;
+  $content = str_replace $sudoHintToRemove, '', $content;
+  open FH, "| sudo tee $bashrc" or die "Could not write to $bashrc\n";
+  print FH $content;
+  close FH;
+}
