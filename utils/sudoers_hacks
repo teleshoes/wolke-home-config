@@ -2,13 +2,28 @@
 use strict;
 use warnings;
 
-my $user = `echo -n \$USER`;
-
-sub npLine($){
-  return "$user\tALL=(ALL) NOPASSWD: $_[0]\n";
+if(`whoami` ne "root\n"){
+  exec "sudo $0 @ARGV";
 }
 
-my @sudoersExecs = qw(
+my $user = $ENV{SUDO_USER};
+if(not defined $user){
+  $user = $ENV{USER};
+}
+
+print "for admin_group_rename:\n";
+my $cmd = "groupmod -n admin_group admin";
+print "$cmd\n";
+system $cmd;
+
+
+
+my %sudoersdFiles = (
+  admin_group_rename => ''
+    . "#hack to rename admin => admin_group\n"
+    . "#stops ~/.sudo_as_admin_successful file being created\n"
+    . "%admin_group ALL=(ALL) ALL\n"
+    ,
 );
 
 my @addtlCustomExecNames = qw(n900 led);
@@ -17,8 +32,8 @@ my @customExecNames = split /\n/, `ls -1 \$HOME/utils/sudoers`;
 @customExecNames = (@customExecNames, @addtlCustomExecNames);
 my @customExecPaths = map {"/usr/local/sbin/$_"} @customExecNames;
 
-system "sudo cp -ar \$HOME/utils/sudoers/* /usr/local/sbin";
-system "sudo chown root.root /usr/local/sbin/*";
+system "cp -ar \$HOME/utils/sudoers/* /usr/local/sbin";
+system "chown root.root /usr/local/sbin/*";
 
 my %sudoersd = (
   "$user-custom" => \@customExecPaths,
@@ -50,40 +65,34 @@ my %sudoersd = (
   )],
 );
 
+system "cp /etc/sudoers.d/README /tmp/sudoersd_readme";
+system "rm /etc/sudoers.d/*";
+system "mv /tmp/sudoersd_readme /etc/sudoers.d/README";
 
+sub writeSudoersdFile($$){
+  my $baseFileName = shift;
+  my $content = shift;
+  my $file = "/etc/sudoers.d/$baseFileName";
 
-system "sudo cp /etc/sudoers.d/README /tmp/sudoersd_readme";
-system "sudo rm /etc/sudoers.d/*";
-system "sudo mv /tmp/sudoersd_readme /etc/sudoers.d/README";
-
-for my $file(keys %sudoersd){
-  my $execs = $sudoersd{$file};
-  $file = "/etc/sudoers.d/$file";
-  my $out = join '', map {npLine $_} @$execs;
-  print "Writing file $file:\n";
-  system "sudo sh -c 'touch $file; chmod 0440 $file'";
+  print "\n\nWriting file $file:\n";
+  print "-----\n";
   open FH, "| sudo tee $file";
-  print FH $out;
+  print FH $content;
   close FH;
+  system "chmod 0440 $file";
+  print "-----\n";
 }
-system "sudo chmod 0440 /etc/sudoers.d/*";
 
-my %currentSudoersLines = map {$_ => 1} `sudo cat /etc/sudoers`;
-for my $exec(@sudoersExecs){
-  my $npLine = npLine $exec;
-  my %currentSudoersLines = map {$_ => 1} `sudo cat /etc/sudoers`;
-  if(not defined $currentSudoersLines{$npLine}){
-    print "\n\nreally dangerous: dont say yes, do it yourself\n";
-    print "the following line to /etc/sudoers:\n";
-    print $npLine;
-
-    print "overwrite /etc/sudoers, despite your better judgment? (y/N) ";
-    if(lc <STDIN> eq "y\n"){
-      system "sudo sh -c \"" .
-        "chmod +w /etc/sudoers && " .
-        "echo -n \\\"$npLine\\\" >> /etc/sudoers && " .
-        "chmod -w /etc/sudoers" .
-         "\"";
-    }
-  }
+sub npLine($){
+  return "$user\tALL=(ALL) NOPASSWD: $_[0]\n";
 }
+for my $baseFileName(keys %sudoersd){
+  my $execs = $sudoersd{$baseFileName};
+  my $out = join '', map {npLine $_} @$execs;
+  writeSudoersdFile($baseFileName, $out);
+}
+
+for my $baseFileName(keys %sudoersdFiles){
+  writeSudoersdFile $baseFileName, $sudoersdFiles{$baseFileName};
+}
+
