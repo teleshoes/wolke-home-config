@@ -33,10 +33,11 @@ sub ceil($){
 sub getBrightness(){
   return ceil `xbacklight -get`;
 }
-sub setBrightness($){
+sub setBrightness($$){
   my $target = ceil $_[0];
+  my $softUpdate = $_[1];
+  system "echo $target > $lastFile" if not $softUpdate;
   print getBrightness() . " => $target\n";
-  system "echo $target > $lastFile";
   system "xbacklight -time 0 -set $target";
 }
 
@@ -49,16 +50,20 @@ if(not defined $arg){
   @brackets = reverse @brackets if $arg eq 'down';
   for my $bracket(@brackets){
     if(($arg eq 'up' and $bracket > $b) or ($arg eq 'down' and $bracket < $b)){
-      setBrightness $bracket;
+      setBrightness $bracket, 0;
       last;
     }
   }
 }elsif($arg =~ /^(last)$/){
   if(-e $lastFile){
-    setBrightness `cat $lastFile`;
+    my $brightness = `cat $lastFile`;
+    chomp $brightness;
+    if($brightness =~ /^\d+$/){
+      setBrightness $brightness, 1;
+    }
   }
 }elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
-  setBrightness $arg;
+  setBrightness $arg, 0;
 }else{
   die $usage;
 }
