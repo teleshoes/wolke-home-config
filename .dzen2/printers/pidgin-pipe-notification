@@ -25,7 +25,7 @@ my $leftCmd =
 my $middleCmd = "killall pidgin; pidgin";
 my $rightCmd = "killall pidgin";
 
-my %statusMap = (
+my %imgMarkupPerStatus = (
   'off'            => img 'not-running.xpm',
   'new message'    => img 'pidgin-tray-pending.xpm',
 
@@ -35,22 +35,24 @@ my %statusMap = (
   'invisible'      => img 'pidgin-tray-invisible.xpm',
   'offline'        => img 'pidgin-tray-offline.xpm',
 );
+my $defaultImgMarkup = img 'pidgin-tray-xa.xpm';
 
 
 sub main(){
-  my $status = lc `cat $PIPEFILE`;
+  my $status = `cat $PIPEFILE`;
   chomp $status;
-  if(defined $statusMap{$status}){
-    $status = $statusMap{$status};
-  }
-
+  $status = lc $status;
   if($status ne 'off'){
     system "pidof pidgin > /dev/null";
     if($? != 0){
-      $status = $statusMap{'off'};
+      $status = 'off';
     }
   }
-  system "$PRINTERS/clickable-image", $leftCmd, $middleCmd, $rightCmd, $status;
+
+  my $imgMarkup = $imgMarkupPerStatus{$status};
+  $imgMarkup = $defaultImgMarkup if not defined $imgMarkup;
+
+  system "$PRINTERS/clickable-image", $leftCmd, $middleCmd, $rightCmd, $imgMarkup;
 }
 
 sub img($){
