@@ -30,7 +30,7 @@ main = do
   --clean workspace-images
   safeSpawn "workspace-image" ("init":workspaceNames)
 
-  spawn "killall dzen2"
+  spawn "killall dzen2 2>/dev/null"
 
   spawnUnhookedDzens
 
