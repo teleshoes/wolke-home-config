@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $confFile = '/etc/lxdm/lxdm.conf';
+
+my %conf = (
+  "base.autologin" => "$ENV{USER}",
+  "base.session" => "/usr/bin/startlxde",
+  "base.greeter" => "/usr/lib/lxdm/lxdm-greeter-gtk",
+  "display.theme" => "Lubuntu",
+  "display.gtk_theme" => "Clearlooks",
+  "display.bg" => "$ENV{HOME}/Desktop/Backgrounds/secret_of_kells.jpg",
+  "display.bottom_pane" => "1",
+  "display.lang" => "1",
+  "display.keyboard" => "1",
+);
+
+my $confOutput = '';
+my %sectionMap = map {$_ => 1} map {/^([a-zA-Z0-9]+)\./; $1} (keys %conf);
+my @sections = sort keys %sectionMap;
+
+for my $section(@sections){
+  $confOutput .= "[$section]\n";
+  my @keys = sort grep {/^$section\./} keys %conf;
+  for my $key(@keys){
+    my $value = $conf{$key};
+    $key =~ s/^$section\.//;
+    $confOutput .= "$key=$value\n";
+  }
+  $confOutput .= "\n";
+}
+
+open FH, "| sudo tee $confFile";
+print FH $confOutput;
+close FH;
