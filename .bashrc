@@ -11,6 +11,14 @@ shopt -s checkwinsize # update LINES and COLUMNS based on window size
 #rxvt-unicode and rxvt-256color => rxvt {for legacy}
 case "$TERM" in rxvt*) TERM=rxvt ;; esac
 
+#use prompt_cmd to set the window title => $WINDOW_TITLE or "Terminal: pwd"
+#only for rxvt* terms
+if [ "$TERM" == "rxvt" ]; then
+  p1='echo -ne "\033]0;$WINDOW_TITLE\007"'
+  p2='echo -ne "\033]0;Terminal: ${PWD/$HOME/~}\007"'
+  PROMPT_COMMAND='if [ "$WINDOW_TITLE" ]; then '$p1'; else '$p2'; fi'
+fi
+
 prependPath() {
   case $PATH in
     $@:* | *:$@ | *:$@:* ) ;;
@@ -44,11 +52,6 @@ c2='\[\033[01;34m\]'
 cEnd='\[\033[00m\]'
 PS1="$c1$u$h$cEnd:$c2\w$cEnd\$ "
 
-
-#window title => $WINDOW_TITLE or "Terminal: pwd"
-CMD1='echo -ne "\033]0;$WINDOW_TITLE\007"'
-CMD2='echo -ne "\033]0;Terminal: ${PWD/$HOME/~}\007"'
-PROMPT_COMMAND="if [ -n \"\$WINDOW_TITLE\" ]; then $CMD1; else $CMD2; fi"
 
 alias shut='sudo poweroff'
 alias shutdown='poweroff'
