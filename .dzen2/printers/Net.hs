@@ -6,6 +6,7 @@ import System.Posix (sleep)
 import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
+import Control.Concurrent (threadDelay)
 import Control.Monad (void, forever)
 import Data.Maybe (listToMaybe)
 import Text.Regex.PCRE
@@ -39,6 +40,7 @@ main = forever $ do
     None    -> none
     Unknown -> unknown
   hFlush stdout
+  threadDelay $ 1 * 10^6
 
 unknown = do
   home <- getEnv "HOME"
