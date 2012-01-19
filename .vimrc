@@ -9,7 +9,7 @@ set number
 
 if &term =~ '.*rxvt.*'
   set t_Co=256
-  hi Normal ctermfg=green ctermbg=black
+  hi Normal ctermfg=green ctermbg=none
   hi LineNr ctermfg=blue ctermbg=darkgray
 else
   hi Normal ctermfg=green ctermbg=black
