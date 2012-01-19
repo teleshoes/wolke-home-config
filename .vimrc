@@ -6,13 +6,23 @@ set nowrap
 syntax on
 
 set number
-set t_Co=256
-hi Normal guifg=green guibg=black
-hi LineNr ctermfg=blue ctermbg=darkgray guifg=blue guibg=darkgray
+
+if &term =~ '.*rxvt.*'
+  set t_Co=256
+  hi Normal ctermfg=green ctermbg=black
+  hi LineNr ctermfg=blue ctermbg=darkgray
+else
+  hi Normal ctermfg=green ctermbg=black
+  hi LineNr ctermbg=blue ctermfg=white
+endif
 
 if has('gui_running')
+  set t_Co=256
   set guifont=Inconsolata\ Medium\ 13
+  hi Normal guifg=green guibg=black
+  hi LineNr guifg=blue guibg=darkgray
 endif
+
 
 set hlsearch
 set expandtab
