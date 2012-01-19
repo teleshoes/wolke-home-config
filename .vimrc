@@ -10,6 +10,10 @@ set t_Co=256
 hi Normal guifg=green guibg=black
 hi LineNr ctermfg=blue ctermbg=darkgray guifg=blue guibg=darkgray
 
+if has('gui_running')
+  set guifont=Inconsolata\ Medium\ 13
+endif
+
 set hlsearch
 set expandtab
 set autoindent
