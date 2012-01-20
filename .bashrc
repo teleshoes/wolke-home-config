@@ -27,6 +27,12 @@ prependPath() {
 }
 prependPath $HOME/bin
 prependPath $HOME/.cabal/bin
+meego_gnu=/opt/gnu-utils
+if [ -d $meego_gnu ]; then
+  prependPath $meego_gnu/bin
+  prependPath $meego_gnu/usr/bin
+  prependPath $meego_gnu/usr/sbin
+fi
 
 #command prompt
 if [ "$DISPLAY" == "" ]; then
@@ -34,6 +40,7 @@ if [ "$DISPLAY" == "" ]; then
   case `hostname -s` in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
+    "wolke-n9"                ) h='@n9' ;;
     "wolke-n900"              ) h='@n900' ;;
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
     *                         ) h='@\h' ;;
