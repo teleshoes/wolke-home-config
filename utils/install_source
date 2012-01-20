@@ -1,0 +1,115 @@
+#!/bin/bash
+
+echo; echo;
+read -p "install devmon? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  sudo apt-get install udisks zenity
+  dest=/usr/local/sbin
+  cd /tmp
+  f=devmon-1.0.5.sh.txt
+  wget "http://ignorantguru.users.sourceforge.net/downloads/$f"
+  mv $f devmon
+  sudo install devmon $dest
+  rm devmon
+fi
+
+echo; echo;
+read -p "install configurable notify-osd and remove notification-daemon? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  echo "config file is ~/.notify-osd"
+  echo add options there, e.g.: "bubble-close-on-click = 1"
+
+  sudo apt-get remove notification-daemon
+  sudo add-apt-repository ppa:leolik/leolik
+  sudo apt-get update
+  sudo apt-get install notify-osd
+fi
+
+echo; echo;
+read -p "install lightspark from sources? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  sudo apt-get build-dep lightspark
+  sudo apt-get install libavformat-dev
+  sudo rm -rf /tmp/lightspark
+  git clone git://github.com/lightspark/lightspark.git /tmp/lightspark
+  cd /tmp/lightspark
+  mkdir build
+  cd build
+  cmake -DCMAKE_BUILD_TYPE=Release -DCOMPILE_PLUGIN=1 -DCMAKE_INSTALL_PREFIX=/usr ..
+  make
+  sudo make install
+fi
+
+
+echo; echo;
+read -p "Install i7z? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  echo Installing libncurses5-dev and latest i7z from svn
+  install-i7z
+fi
+
+echo; echo;
+read -p "Install pidgin pipe-notification plugin? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  install-pidgin-pipe-notification
+fi
+
+echo; echo;
+read -p "install silkscreen font? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  SS_DIR=/usr/share/fonts/truetype/ttf-silkscreen
+  sudo mkdir -p $SS_DIR
+  cd $SS_DIR
+  sudo wget http://www.kottke.org/plus/type/silkscreen/download/silkscreen.zip
+  sudo unzip silkscreen.zip
+  sudo rm silkscreen.zip
+  sudo fc-cache -fv
+fi
+
+echo; echo;
+read -p "patch thinkpad_acpi for better LED support? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  cd ~/utils/thinkpad_acpi
+  ./install.sh
+fi
+
+
+echo; echo;
+read -p "install tp-smapi {thinkpad battery module}? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  sudo apt-get install -y tp-smapi-dkms
+  sudo ~/bin/tp-smapi-install
+
+  echo; echo;
+  read -p "install tpbattstat-applet? (y/N)"
+  if [ "$REPLY" == "y" ]; then
+    ~/bin/build-tpbattstat-applet
+  fi
+fi
+
+echo; echo;
+read -p "setup my tp-smapi gconfs? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  dir="/apps/tpbattstat_applet/prefs"
+  gconftool-2 --set $dir/discharge_strategy --type String "system"
+  gconftool-2 --set $dir/charge_strategy --type String "system"
+  #flash orange/both/green for low/med/high
+  gconftool-2 --set $dir/led_patterns_charging --type list --list-type string "[g:o:1:O:1,g:o:1:G:O:1,o:g:1:G:1]"
+  #flash orange quickly at <10%, otherwise solid o/b/g for l/m/h
+  gconftool-2 --set $dir/led_patterns_discharging --type list --list-type string "[g:O:.1:o:.1,g:O:1000,g:O:1000,G:O:1000,G:O:1000,G:O:1000,o:G:1000,o:G:1000,o:G:1000,o:G:1000]"
+  #flash green slowly
+  gconftool-2 --set $dir/led_patterns_idle --type list --list-type string "[o:g:3:G:3]"
+fi
+
+
+echo; echo;
+read -p "Build cvoicecontrol at ~/apps/cvoicecontrol-0.9alpha/? (y/N)"
+if [ "$REPLY" == "y" ]; then
+  cd ~/apps/cvoicecontrol-0.9alpha/
+  configure
+  make
+  sudo make install
+  cd
+fi
+
+
