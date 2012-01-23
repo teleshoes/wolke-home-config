@@ -29,6 +29,10 @@ prependPath $HOME/bin
 prependPath $HOME/.cabal/bin
 meego_gnu=/opt/gnu-utils
 if [ -d $meego_gnu ]; then
+  prependPath /usr/local/bin
+  prependPath /usr/local/sbin
+  prependPath /sbin
+  prependPath /usr/sbin
   prependPath $meego_gnu/bin
   prependPath $meego_gnu/usr/bin
   prependPath $meego_gnu/usr/sbin
