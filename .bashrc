@@ -58,10 +58,13 @@ if [ "$USER" == "BenjaminAguayza" ]; then
 else
   u="\u"
 fi
+colon=":"
 c1='\[\033[01;32m\]'
 c2='\[\033[01;34m\]'
 cEnd='\[\033[00m\]'
-PS1="$c1$u$h$cEnd:$c2\w$cEnd\$ "
+#if you have 'PS1={stuff}' then a literal colon character
+#the n9 fucks with that line on reboot
+PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
 
 alias shut='sudo poweroff'
