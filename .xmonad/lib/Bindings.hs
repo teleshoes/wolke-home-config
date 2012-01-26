@@ -56,6 +56,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_v     ), windows copyToAll) -- Put on all workspaces
   , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
 
+  , ((alt , xK_F12   ), spawn "$HOME/bin/n9 -s lock")
   --shortcuts
   , ((none, xf86think), spawn "urxvt")
   , ((ctrl, xf86think), spawnTerm "ghci")
