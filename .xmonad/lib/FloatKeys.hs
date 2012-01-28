@@ -2,6 +2,8 @@
 -- |
 -- Module       : XMonad.Actions.FloatKeys
 -- Copyright    : (c) Karsten Schoelzel <kuser@gmx.de>
+--    changes Copyright 2012 Elliot Wolk
+--      ignores size hints on resizing
 -- License      : BSD
 --
 -- Maintainer   : Karsten Schoelzel <kuser@gmx.de>
@@ -11,7 +13,15 @@
 -- Move and resize floating windows.
 -----------------------------------------------------------------------------
 
-module XMonad.Actions.FloatKeys (
+----------------------------------------
+---CHANGES
+---Change Copyright 2012 Elliot Wolk
+---License: BSD
+---REMOVED:
+--module Xmonad.Actions.FloatKeys (
+---ADDED:
+module FloatKeys (
+----------------------------------------
                 -- * Usage
                 -- $usage
                 keysMoveWindow,
@@ -113,12 +123,25 @@ keysMoveResize :: (SizeHints -> P -> D -> a -> b -> (P,D)) -> a -> b -> Window -
 keysMoveResize f move resize w = whenX (isClient w) $ withDisplay $ \d -> do
     io $ raiseWindow d w
     wa <- io $ getWindowAttributes d w
-    sh <- io $ getWMNormalHints d w
+    ----------------------------------------------
+    ---Change Copyright 2012 Elliot Wolk
+    ---License: BSD
+    ---REMOVED:
+    --sh <- io $ getWMNormalHints d w
+    ---ADDED:
+    let sh = SizeHints
+             { sh_min_size = Nothing
+             , sh_max_size = Nothing
+             , sh_resize_inc = Nothing
+             , sh_aspect = Nothing
+             , sh_base_size = Nothing
+             , sh_win_gravity = Nothing
+             }
+    ----------------------------------------------
     let wa_dim = (fromIntegral $ wa_width wa, fromIntegral $ wa_height wa)
         wa_pos = (fromIntegral $ wa_x wa, fromIntegral $ wa_y wa)
         (wn_pos, wn_dim) = f sh wa_pos wa_dim move resize
     io $ resizeWindow d w `uncurry` wn_dim
     io $ moveWindow d w `uncurry` wn_pos
     float w
-
 
