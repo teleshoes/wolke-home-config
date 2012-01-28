@@ -5,6 +5,7 @@ import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.Hooks.ManageDocks (ToggleStruts(..))
 import XMonad.Actions.NoBorders (toggleBorder)
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
+--import XMonad.Actions.FloatKeys
 
 import qualified XMonad.StackSet as Stk
 
@@ -37,6 +38,12 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_Tab   ), windows Stk.focusDown)
   , ((shmd, xK_Tab   ), windows Stk.focusUp)
 
+--  , ((modm, xK_d     ), withFocused (keysResizeWindow (-10,-10) (1,1)))
+--  , ((modm, xK_s     ), withFocused (keysResizeWindow (10,10) (1,1)))
+--  , ((shmd, xK_d     ), withFocused (keysAbsResizeWindow (-10,-10) (1024,752)))
+--  , ((shmd, xK_s     ), withFocused (keysAbsResizeWindow (10,10) (1024,752)))
+--  , ((modm, xK_a     ), withFocused (keysMoveWindowTo (512,384) (1/2,1/2)))
+
   --layout
   , ((modm, xK_f     ), sendMessage ToggleStruts)
   , ((modm, xK_t     ), withFocused $ windows . Stk.sink) --tile window
@@ -56,7 +63,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_v     ), windows copyToAll) -- Put on all workspaces
   , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
 
-  , ((alt , xK_F12   ), spawn "$HOME/bin/n9 -s lock")
+  , ((ctrl, xK_F12   ), spawn "$HOME/bin/n9 -s lock")
+  , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
+  , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
+
   --shortcuts
   , ((none, xf86think), spawn "urxvt")
   , ((ctrl, xf86think), spawnTerm "ghci")
