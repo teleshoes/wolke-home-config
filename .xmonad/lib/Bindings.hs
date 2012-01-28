@@ -39,6 +39,11 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_Tab   ), windows Stk.focusDown)
   , ((shmd, xK_Tab   ), windows Stk.focusUp)
 
+  --move/resize floating windows
+  , ((ctrl, xK_Up    ), withFocused (keysMoveWindow (0,-20)))
+  , ((ctrl, xK_Down  ), withFocused (keysMoveWindow (0,20)))
+  , ((ctrl, xK_Left  ), withFocused (keysMoveWindow (-20,0)))
+  , ((ctrl, xK_Right ), withFocused (keysMoveWindow (20,0)))
   , ((alct, xK_Up    ), withFocused (keysResizeWindow (0,-20) (0,0)))
   , ((alct, xK_Down  ), withFocused (keysResizeWindow (0,20) (0,0)))
   , ((alct, xK_Left  ), withFocused (keysResizeWindow (-20,0) (0,0)))
