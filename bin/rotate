@@ -1,78 +1,131 @@
-#! /bin/bash runghc
-{-# LANGUAGE ScopedTypeVariables #-}
+#! /usr/bin/runghc
+import Prelude hiding (Right, Left)
 import Control.Monad
+import Control.Applicative
 import Data.Char
-import Data.List 
+import Data.List
+import Data.Maybe
 import System.Environment
 import System.Process
 import Text.Regex.PCRE ((=~))
 
-main =  liftM2 (,) screen direction 
-    >>= uncurry rotateDisplay 
-    >>= forM_ ["TrackPoint", "TouchPad"] . fixPointer
+-- * Types and Helpers
+data Direction = Deasil | Widdershins deriving (Eq, Read, Show)
 
--- Helpers
-type Rx a = (a, a, a, [a])
-match p q = let (_,_,_,[r]) :: Rx String = q =~ p in r
-matchNth p n = match p . (!! n) . iterate skip
-  where skip q = let (_,_,r,_) :: Rx String = q =~ p in r
-run p as = readProcess p as ""
+data Rotation = Normal | Right | Inverted | Left
+    deriving (Eq, Bounded, Enum, Read, Show)
 
---Args
-processArg z f = getArgs >>= return . go
-  where
-    go [] = z
-    go (a:as) = f a ?? go as
+rotations :: [Rotation]
+rotations = [minBound .. maxBound]
 
-screen = processArg 0 $ \a -> all isDigit a ? read a
+readLC :: (Read a) => String -> a
+readLC (c:cs) = read $ toUpper c : map toLower cs
 
-data Direction = Deasil | Widdershins deriving (Eq)
-direction = processArg Deasil $ \a -> let eq = (map toLower a ==)
-    in  eq "deisil"           ? Deasil
-    ?|? eq "widdershins"      ? Widdershins
-    ?|? eq "clockwise"        ? Deasil
-    ?|? eq "anticlockwise"    ? Widdershins
-    ?|? eq "counterclockwise" ? Widdershins
+showLC :: (Show a) => a -> String
+showLC = map toLower . show
 
--- Display
-rotateDisplay n d = do
-    di <- run "xrandr" ["--query", "--verbose"]
-    let rot = head . tail . dropWhile (/= curr n di) 
-            . concat . repeat . applyDir d $ rots 
-    run "xrandr" ["--output", disp n di, "--rotate", rot]
+type DisplayNumber = Int
+type DisplayName = String
+type PointerNumber = String
+type PointerName = String
+
+newtype DisplayInfo = DI {diString :: String}
+newtype PointerInfo = PI {piString :: String}
+
+-- * Rotations
+rotateAll :: DisplayNumber -> [PointerName] -> Direction -> IO ()
+rotateAll dn ptrs dir = rotateDisplay dn dir >>= forM_ ptrs . flip rotatePointer
+
+run :: String -> [String] -> IO String
+run proc args = readProcess proc args ""
+
+rotateDisplay :: DisplayNumber -> Direction -> IO Rotation
+rotateDisplay dn dir = do
+    di <- displayInfo
+    let rot = nextRotation dn dir di
+    let disp = displayName dn di
+    run "xrandr" ["--output", disp, "--rotate", showLC rot]
     return rot
 
-rots = ["normal", "right", "inverted", "left"]
-applyDir = (?? reverse) . (? id) . (== Deasil)
-curr = matchNth $ "(" ++ intercalate "|" rots ++ ") \\("
-disp = matchNth "(\\w+) connected"
+rotatePointer :: PointerName -> Rotation -> IO ()
+rotatePointer ptr rot = do
+    pn <- idNo ptr <$> pointerInfo
+    propNo <- flip idNo <$> pointerPropInfo pn
+    let rotate args = run "xinput" (["--set-prop", pn] ++ args) >> return ()
+    rotate [propNo "Swap" , swapBit rot]
+    rotate [propNo "Inversion", invXBit rot, invYBit rot]
 
--- Pointer
-fixPointer rot name = do
-    dn <- idn name `fmap` run "xinput" ["--list"]
-    pi <- run "xinput" ["--list-props", dn]
-    run "xinput" ["--set-prop", dn, idn "Inversion" pi, invX rot, invY rot]
-    run "xinput" ["--set-prop", dn, idn "Swap"      pi, swap rot]
+displayInfo :: IO DisplayInfo
+displayInfo = DI <$> run "xrandr" ["--query", "--verbose"]
 
-idn s = match $ s ++ "\\s+\\D+(\\d+)"
-rotToBitWith f = show . f . (?? 0) . (`elemIndex` rots)
-invX = rotToBitWith $ (`div` 2)
-invY = rotToBitWith $ signum . (`mod` 3)
-swap = rotToBitWith $ (`mod` 2)
+pointerInfo :: IO PointerInfo
+pointerInfo = PI <$> run "xinput" ["--list"]
 
--- Mike's Question Marks
-infixr 2 ?
-(?) :: Bool -> a -> Maybe a
-False ? _ = Nothing
-True  ? v = Just v
+pointerPropInfo :: PointerNumber -> IO PointerInfo
+pointerPropInfo pn = PI <$> run "xinput" ["--list-props", pn]
 
-infixr 1 ?|?
-(?|?) :: Maybe a -> Maybe a -> Maybe a
-Nothing ?|? m = m
-Just v  ?|? _ = Just v
+-- * Regex Functions
+fullMatch :: String -> String -> (String, String, String, [String])
+fullMatch = flip (=~)
 
-infixl 0 ??
-(??) :: Maybe a -> a -> a
-Nothing ?? d = d
-Just v  ?? _ = v 
+match :: String -> String -> String
+match pat = (\(_,_,_,[r]) -> r) . fullMatch pat
 
+skip :: String -> String -> String
+skip pat = (\(_,_,r,_) -> r) . fullMatch pat
+
+matchNth :: String -> Int -> String -> String
+matchNth pat n = match pat . (!! n) . iterate (skip pat)
+
+-- * Rotate Display Functions
+nextRotation :: DisplayNumber -> Direction -> DisplayInfo -> Rotation
+nextRotation dn dir di = (!! 1) . dropWhile (/= current) $ rots
+  where
+    rots = cycle . (if dir == Deasil then id else reverse) $ rotations
+    current = readLC . matchNth rotrx dn . diString $ di
+    rotrx = "(" ++ (intercalate "|" . map showLC $ rotations) ++ ")" ++ " \\("
+
+displayName :: DisplayNumber -> DisplayInfo -> DisplayName
+displayName dn = matchNth "(\\w+) connected" dn . diString
+
+-- * Rotate Pointer Functions
+idNo :: String -> PointerInfo -> String
+idNo name = match (name ++ "\\s+\\D+(\\d+)") . piString
+
+rotationBit :: (Int -> Int) -> Rotation -> String
+rotationBit f = showLC . f . fromJust . (`elemIndex` rotations)
+invXBit = rotationBit (`div` 2)
+invYBit = rotationBit (signum . (`mod` 3))
+swapBit = rotationBit (`mod` 2)
+
+-- * Main and Args
+main :: IO ()
+main = join $ rotateAll <$> displayArg <*> pointerArgs <*> directionArg
+
+findArgs :: (String -> Bool) -> ([String] -> b) -> b -> IO b
+findArgs p f z = return . trans . filter p =<< getArgs
+  where trans xs = case xs of {[] -> z ; _ -> f xs}
+
+displayArg :: IO DisplayNumber
+displayArg = findArgs isNat (read . head) 0
+
+directionArg :: IO Direction
+directionArg = findArgs isDeasil (const Deasil . head) Widdershins
+
+pointerArgs :: IO [PointerName]
+pointerArgs = findArgs (not . otherArg) id ["TrackPoint", "TouchPad"]
+  where otherArg a = or . map ($ a) $ [isNat, isDeasil, isWiddershins]
+
+isNat :: String -> Bool
+isNat = all isDigit
+
+isDeasil :: String -> Bool
+isDeasil = (`elem` deasil) . map toLower
+  where deasil = [ "deasil", "right", "starboard", "clockwise", "cockwise"]
+
+isWiddershins :: String -> Bool
+isWiddershins = (`elem` widdershins) . map toLower
+  where
+    widdershins = [ "widdershins", "left", "port"] ++ anti ++ counter
+    anti = ["anticlockwise", "anticockwise"]
+    counter = ["counterclockwise", "countercockwise"]
