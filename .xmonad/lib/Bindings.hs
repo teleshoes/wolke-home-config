@@ -71,6 +71,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctrl, xK_F12   ), spawn "$HOME/bin/n9 -s lock")
   , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
+  , ((ctrl, xK_F9    ), spawn "termcmd n9 -s")
 
   --shortcuts
   , ((none, xf86think), spawn "urxvt")
