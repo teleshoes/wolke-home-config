@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $unitBytes = 2**20;
+my $unitFormat = "%5.3fMiB";
+
+my @dirs = @ARGV;
+die "Usage: $0 dir dir ...\n" if @dirs == 0;
+
+sub du($;$){
+  my $dir = shift;
+  my $args = shift() || '';
+  $dir =~ s/'/'\\''/g;
+  my $cmd = "du -bs $args '$dir'";
+  my $size = `$cmd`;
+  if($size !~ /^(\d+)/){
+    die "Error processing $cmd\n";
+  }else{
+    return $1/$unitBytes;
+  }
+}
+
+sub fmt($){
+  return sprintf $unitFormat, $_[0];
+}
+
+for my $dir(@dirs){
+  print "$dir: ";
+  my $size = du $dir;
+  if(-e "flacmirrors/$dir"){
+    my $nonFlacSize = du $dir, '--exclude=\*.flac';
+    my $flacMirrorSize = du "flacmirrors/$dir";
+    my $flacSize = $size - $nonFlacSize;
+    my $guess = $nonFlacSize + $flacMirrorSize;
+    print ''
+     . fmt($guess) . "  "
+     . " tot: " . fmt($size)
+     . " nonflac: " . fmt($nonFlacSize)
+     . " flac: " . fmt($flacSize)
+     . " fm: " . fmt($flacMirrorSize)
+     . "\n"
+     ;
+  }else{
+    print fmt($size) . "\n";
+  }
+}
+
