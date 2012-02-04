@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $tty = '7';
+my $profileFile = "$ENV{HOME}/.profile";
+my $upstartFile = "/etc/init/tty$tty-auto.conf";
+
+my $user = $ENV{SUDO_USER};
+if(not defined $user){
+  $user = $ENV{USER};
+}
+
+sub run(@);
+sub setupRungetty();
+sub setupProfile();
+
+sub main(@){
+  die "Usage: $0\n" if @ARGV > 0;
+
+  run "sudo apt-get install upstart rungetty";
+  setupRungetty();
+  setupProfile();
+  run "sudo apt-get remove lxdm gdm kdm";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub setupRungetty(){
+  my $upstart = ''
+    . "# tty$tty-auto\n"
+    . "# autologin user\n"
+    . "#\n"
+    . "\n"
+    . "start on runlevel [23]\n"
+    . "stop on runlevel [!23]\n"
+    . "\n"
+    . "respawn\n"
+    . "exec /sbin/rungetty tty$tty --autologin $user\n"
+    . "\n"
+    ;
+  
+  run "sudo rm /etc/init/tty*-auto.conf";
+
+  print "----- Writing to $upstartFile ------\n";
+  open FH, "| sudo tee $upstartFile" or die "Couldnt write to $upstartFile\n";
+  print FH $upstart;
+  close FH;
+  print "-----\n";
+}
+
+sub setupProfile(){
+  my $autoLoginSection = ''
+    . "##AUTOLOGIN START##\n"
+    . "if [ -z \"\$DISPLAY\" ] && [ \$(tty) == /dev/tty$tty ]; then\n"
+    . "  exec startx\n"
+    . "fi\n"
+    . "##AUTOLOGIN END##\n"
+    ;
+  
+  my $profile = `cat $profileFile`;
+  $profile =~ s/##AUTOLOGIN START##.*##AUTOLOGIN END##\n?//s;
+  $profile .= $autoLoginSection;
+
+  print "Replacing autologin section in $profileFile with:\n";
+  print "-----\n$autoLoginSection-----\n";
+
+  open FH, "> $profileFile";
+  print FH $profile;
+  close FH;
+}
+
+&main(@ARGV);
