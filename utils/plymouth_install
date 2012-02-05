@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = '/lib/plymouth/themes';
+my $initramfsFunctions = '/usr/share/initramfs-tools/scripts/functions';
+
+my $theme = 'kells';
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub main(@){
+  die "Usage: $0\n" if @_ > 0;
+  for my $theme(`ls plymouth/`){
+    chomp $theme;
+    run "sudo rm -rf $dir/$theme/";
+    run "sudo cp -ar plymouth/$theme $dir";
+  }
+  run "sudo rm $dir/default.plymouth";
+  run "sudo ln -s $theme/$theme.plymouth $dir/default.plymouth";
+  addLogging();
+}
+
+sub addLogging(){
+  my $logFunction = ''
+    . "_log_msg()\n"
+    . "{\n"
+    . "\t####PLYMOUTH START#####\n"
+    . "\tif [ -x /bin/plymouth ]; then\n"
+    . "\t\t/bin/plymouth update --status=\"\$\@\"\n"
+    . "\tfi\n"
+    . "\t####PLYMOUTH END#####\n"
+    . "\tif [ \"\$quiet\" = \"y\" ]; then return; fi\n"
+    . "\tprintf \"\$\@\"\n"
+    . "}\n"
+    ;
+
+  my $f = `cat $initramfsFunctions`;
+  $f =~ s/_log_msg\(\)\s*{[^}]*}/$logFunction/s;
+
+  print "replacing _log_msg() in $initramfsFunctions\n";
+  open FH, "| sudo tee $initramfsFunctions > /dev/null"
+    or die "Couldnt write to $initramfsFunctions\n";
+  print FH $f;
+  close FH;
+}
+
+&main(@ARGV);
