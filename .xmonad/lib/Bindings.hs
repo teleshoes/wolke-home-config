@@ -85,8 +85,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --monitor off
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
-  , ((none, xf86mic  ), spawn "$HOME/bin/pulse-mute microphone toggle")
-  , ((none, xf86mute ), spawn "$HOME/bin/pulse-mute speaker toggle")
+  , ((none, xf86mic  ), spawn "$HOME/bin/pulse-vol microphone toggle")
+  , ((none, xf86mute ), spawn "$HOME/bin/pulse-vol speaker toggle")
 
   , ((ctrl, xK_Home  ), spawn "$HOME/bin/brightness up")
   , ((ctrl, xK_End   ), spawn "$HOME/bin/brightness down")
@@ -95,11 +95,11 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   
   , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
 
-  , ((none, volUp    ), spawn "$HOME/bin/pulse-raise-volume -n")
-  , ((alct, volUp    ), spawn "$HOME/bin/pulse-raise-volume -f")
-  , ((alt,  volUp    ), spawn "$HOME/bin/pulse-raise-volume")
-  , ((none, volDown  ), spawn "$HOME/bin/pulse-lower-volume")
-  , ((alt,  volDown  ), spawn "$HOME/bin/pulse-lower-volume")
+  , ((none, volUp    ), spawn "$HOME/bin/pulse-vol +6 100")
+  , ((alt,  volUp    ), spawn "$HOME/bin/pulse-vol +6 150")
+  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
+  , ((none, volDown  ), spawn "$HOME/bin/pulse-vol -6")
+  , ((alt,  volDown  ), spawn "$HOME/bin/pulse-vol -6 150")
 
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")

@@ -1,0 +1,172 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $pacmd = "pacmd";
+my $baseVol = 65537; #100%
+my $sinkSyns = "speaker|spkr|sink";
+my $sourceSyns = "microphone|mic|source";
+
+my $muteSinkCmd = '';
+my $unmuteSinkCmd = '';
+my $muteSourceCmd = 'led mute_mic off';
+my $unmuteSourceCmd = 'led mute_mic on';
+
+my $name = `basename $0`;
+chomp $name;
+my $usage = "Usage:
+  $name [DEVTYPE]
+    prints the volume and mute status
+  $name [DEVTYPE] get-volume
+    prints the volume
+  $name [DEVTYPE] get-mute
+    prints the mute status 'muted', 'unmuted', or 'unknown'
+  $name [DEVTYPE] VOLUME-ABS
+    sets the absolute volume
+  $name [DEVTYPE] VOLUME-REL [MAX]
+    increase or decreases the volume
+  $name [DEVTYPE] MUTE-STATUS
+    mutes or unmutes
+    also runs the following commands when:
+    mute sinks    : '$muteSinkCmd'
+    unmute sinks  : '$unmuteSinkCmd'
+    mute sources  : '$muteSourceCmd'
+    unmute sources: '$unmuteSourceCmd'
+  
+  DEVTYPE: [$sinkSyns] or [$sourceSyns]
+    synonym for either 'sink' or 'source'. default is 'sink'
+
+  VOLUME-ABS: [INT]
+    integer percentage of $baseVol {rounded down}
+    use caution when setting above 100
+
+  VOLUME-REL: [+INT|-INT]
+    plus or minus integer percentage of $baseVol {rounded down}
+    '+6', '-6', etc
+    changes all sinks or sources to the same value, using their average
+
+  MAX: [INT]
+    integer percentage of $baseVol {rounded down}
+    caps relative volume changes {plus or minus}
+    if the resultant volume after the relative change is higher than max,
+    max is set instead.
+    100 is the default; above this usually means amplifying the signal
+    note that sometimes the max level without amp is much lower
+    {i.e. the default can blow your speakers if they suck}
+
+  MUTE-STATUS:  [mute|unmute|toggle]
+    [un]mutes all sinks or all sources
+    'mute' mutes all, 'unmute' unmutes all
+    if all are muted, 'toggle' unmutes all, otherwise 'toggle' mutes all
+
+  e.g.:
+    $0 100
+    $0 -6
+    $0 sink +6 150
+    $0 sink unmute
+    $0 source mute
+";
+
+sub setVolPercent($$$);
+sub getAverageVolPercent($);
+sub getMuteStatus($);
+
+sub main(@){
+  my $dev = shift if @_ > 0 and $_[0] =~ /^($sinkSyns|$sourceSyns)$/;
+  $dev = 'sink' if not defined $dev;
+  $dev = 'sink' if $dev =~ /^($sinkSyns)$/;
+  $dev = 'source' if $dev =~ /^($sourceSyns)$/;
+  
+  my ($absVol, $relVol, $maxVol, $muteStatus);
+  if(@_ > 0 and $_[0] =~ /^(\d+)$/){
+    $absVol = shift;
+  }elsif(@_ > 0 and $_[0] =~ /^(\+|-)?(\d+)$/){
+    $relVol = shift;
+    $maxVol = shift if @_ > 0 and $_[0] =~ /^\d+$/;
+    $maxVol = 100 if not defined $maxVol;
+  }elsif(@_ > 0 and $_[0] =~ /^(mute|unmute|toggle)$/){
+    $muteStatus = shift;
+  }
+  die $usage if @_ > 0;
+
+  my $pacmdList = `$pacmd list-${dev}s`;
+  my @indices = ($pacmdList =~ /^  [ *] index: (\d+)$/gsm);
+  
+  if(defined $absVol){
+    setVolPercent $dev, $_, $absVol foreach @indices;
+  }elsif(defined $relVol){
+    my $vol = getAverageVolPercent $pacmdList;
+    print "$vol\n";
+    $relVol =~ /(\+|-)(\d+)/;
+    $vol += $2 if $1 eq '+';
+    $vol -= $2 if $1 eq '-';
+    print "$vol\n";
+    $vol = $maxVol if $vol > $maxVol;
+    print "$vol\n";
+    setVolPercent $dev, $_, $vol foreach @indices;
+  }elsif(defined $muteStatus){
+    my $muteVal;
+    if($muteStatus eq 'mute'){
+      $muteVal = 1;
+    }elsif($muteStatus eq 'unmute'){
+      $muteVal = 0;
+    }elsif($muteStatus eq 'toggle'){
+      $muteVal = getMuteStatus($pacmdList) eq 'muted' ? '0' : '1';
+    }
+    setMuteStatus($dev, $_, $muteVal) foreach @indices;
+    system $muteSinkCmd if $muteVal eq 1 and $dev eq 'sink';
+    system $unmuteSinkCmd if $muteVal eq 0 and $dev eq 'sink';
+    system $muteSourceCmd if $muteVal eq 1 and $dev eq 'source';
+    system $unmuteSourceCmd if $muteVal eq 0 and $dev eq 'source';
+  }else{
+    print getAverageVolPercent($pacmdList);
+    print " (" . getMuteStatus($pacmdList) . ")";
+    print "\n";
+  }
+
+}
+
+sub setMuteStatus($$){
+  my ($dev, $index, $muteVal) = @_;
+  system $pacmd, "set-$dev-mute", $index, $muteVal;
+}
+
+#percent of hard-coded base vol, not device base vol
+sub setVolPercent($$$){
+  my ($dev, $index, $value) = @_;
+  system $pacmd, "set-$dev-volume", $index, int($value/100.0*$baseVol);
+}
+
+#percent of hard-coded base vol, not device base vol
+sub getAverageVolPercent($){
+  my $pacmdList = shift;
+  my $count = 0;
+  my $total = 0;
+  for my $line(split /\n/, $pacmdList){
+    if($line =~ /^\tvolume: \d+:\s+(\d+)%/){
+      $count++;
+      $total += $1;
+    }
+  }
+  die "Could not parse volume\n" if $count == 0;
+  return $total/$count;
+}
+
+sub getMuteStatus($){
+  my $pacmdList = shift;
+  my $anyMuted = 0;
+  my $anyUnmuted = 0;
+  for my $line(split /\n/, $pacmdList){
+    $anyMuted = 1 if $line =~ /^\tmuted: yes/;
+    $anyUnmuted = 1 if $line =~ /^\tmuted: no/;
+  }
+  if($anyMuted and not $anyUnmuted){
+    return 'muted';
+  }elsif(not $anyMuted and $anyUnmuted){
+    return 'unmuted';
+  }else{
+    return 'unknown';
+  }
+}
+
+&main(@ARGV);
