@@ -33,6 +33,7 @@ if [ -d $meego_gnu ]; then
   prependPath /usr/local/sbin
   prependPath /sbin
   prependPath /usr/sbin
+  prependPath /usr/libexec/git-core
   prependPath $meego_gnu/bin
   prependPath $meego_gnu/usr/bin
   prependPath $meego_gnu/usr/sbin
@@ -88,7 +89,7 @@ alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
 alias migl='miglatest'
 
 ##AUTOLOGIN START##
-if [ -z "$DISPLAY" ] && [ $(tty) == /dev/tty7 ]; then
+if [ -z "$DISPLAY" ] && [ "$tty" == "/dev/tty7" ]; then
   exec startx
 fi
 ##AUTOLOGIN END##
