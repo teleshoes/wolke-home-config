@@ -96,10 +96,11 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
 
   , ((none, volUp    ), spawn "$HOME/bin/pulse-vol +6 100")
+  , ((none, volDown  ), spawn "$HOME/bin/pulse-vol -6 100")
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-vol +6 150")
-  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
-  , ((none, volDown  ), spawn "$HOME/bin/pulse-vol -6")
   , ((alt,  volDown  ), spawn "$HOME/bin/pulse-vol -6 150")
+  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
+  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol -6 300")
 
   , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
