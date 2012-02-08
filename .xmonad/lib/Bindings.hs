@@ -102,7 +102,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol -6 300")
 
-  , ((alt , xK_Menu  ), spawn "$HOME/bin/nautilusDesktop toggle")
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
   , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand")
