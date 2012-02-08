@@ -9,6 +9,7 @@ import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
+import System.Environment.UTF8 (getEnv)
 
 import qualified XMonad.StackSet as Stk
 
@@ -37,6 +38,7 @@ main = do
   hookedDzens <- spawnHookedDzens
   
   dbusClient <- connectSession
+  home <- getEnv "HOME"
 
   xmonad $ defaultConfig {
     focusFollowsMouse  = False,
@@ -67,7 +69,7 @@ main = do
                          ],
 
     handleEventHook    = myHandleEventHook,
-    logHook            = do myDzenLogHook workspaceNames hookedDzens
+    logHook            = do myDzenLogHook home workspaceNames hookedDzens
                             dbusLog dbusClient defaultPP
   }
 

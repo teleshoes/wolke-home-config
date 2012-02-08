@@ -9,8 +9,8 @@ import IO (Handle())
 fgColor = "#a8a3f7"
 bgColor = "#3f3c6d"
 
-myDzenLogHook workspaceNames dzens = dzenXineramaLogHook $
-      map (\dzen -> (myDzenPP workspaceNames) {ppOutput = hPutStrLn dzen}) dzens
+myDzenLogHook home workspaceNames dzens = dzenXineramaLogHook $
+      map (\dzen -> (myDzenPP home workspaceNames) {ppOutput = hPutStrLn dzen}) dzens
 
 spawnUnhookedDzens = do 
   nScreens <- countScreens
@@ -34,7 +34,7 @@ alwaysShown = ["A", "B", "D", "G"]
 dzenExec = "sleep 2; dzen2"
 dzenExtrasExec = "sleep 1; $HOME/.dzen2/launchers/main"
 
-myDzenPP workspaceNames = dzenPP
+myDzenPP home workspaceNames = dzenPP
   { ppCurrent         = current
   , ppVisible         = emptyWs "#999999"
   , ppHidden          = hidden
@@ -62,7 +62,7 @@ myDzenPP workspaceNames = dzenPP
    empty wsName   = if elem wsName alwaysShown
                     then emptyWs bgColor wsName
                     else ""
-   img wsName = "^i(/home/wolke/.xmonad/workspace-images/" ++ wsName ++ ".xbm)"
+   img wsName = "^i(" ++ home ++ "/.xmonad/workspace-images/" ++ wsName ++ ".xbm)"
 
    wsMarkup bg wsName = col "black" bg $ ""
      ++ " " ++ wsName ++ (img wsName)  --approximately 72px....
