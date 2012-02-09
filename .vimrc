@@ -23,6 +23,8 @@ if has('gui_running')
   hi LineNr guifg=blue guibg=darkgray
 endif
 
+set mouse=a
+
 set hlsearch
 set expandtab
 set autoindent
