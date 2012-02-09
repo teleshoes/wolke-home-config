@@ -74,7 +74,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctrl, xK_F9    ), spawn "termcmd n9 -s")
 
   --shortcuts
-  , ((none, xf86think), spawn "urxvt")
+  , ((none, xf86think), spawn "term")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
   , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
