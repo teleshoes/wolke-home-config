@@ -23,7 +23,6 @@ if has('gui_running')
   hi LineNr guifg=blue guibg=darkgray
 endif
 
-
 set hlsearch
 set expandtab
 set autoindent
@@ -39,7 +38,6 @@ nnoremap * *zz
 nnoremap # #zz
 nnoremap g* g*zz
 nnoremap g# g#zz
-
 
 """Quit"""
 nmap <C-X><C-C> :q!<CR>
@@ -62,7 +60,10 @@ nmap <C-R>      <C-R>
 imap <C-R> <Esc><C-R>li
 """"""
 
-
+"""word wrap"""
+map <C-w><C-w> :s/\v(.{80}[^ ]*)/\1\r/g<CR>
+map <C-w><C-h> :s/\v(.{80}[^ ]*)/\1\r--/g<CR>
+""""""
 
 """Write"""
 nmap <F3>      :w<CR>
