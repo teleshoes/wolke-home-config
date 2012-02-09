@@ -39,6 +39,10 @@ nnoremap # #zz
 nnoremap g* g*zz
 nnoremap g# g#zz
 
+"""command repeat"""
+nmap , @:
+""""""
+
 """Quit"""
 nmap <C-X><C-C> :q!<CR>
 imap <C-X><C-C> <Esc>:q!<CR>
