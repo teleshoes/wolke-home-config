@@ -17,13 +17,6 @@ else
   hi LineNr ctermbg=blue ctermfg=white
 endif
 
-if has('gui_running')
-  set t_Co=256
-  set guifont=Inconsolata\ Medium\ 13
-  hi Normal guifg=green guibg=black
-  hi LineNr guifg=blue guibg=darkgray
-endif
-
 set mouse=a
 
 set hlsearch
