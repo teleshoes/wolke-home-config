@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $btAcpiDev = '/proc/acpi/ibm/bluetooth';
+my $btHciDev = 'hci0';
+
+if(`whoami` ne "root\n"){
+  print "sudo make me a sandwich\n";
+  exec "sudo", $0, @ARGV;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+run "echo enabled > $btAcpiDev";
+print "\n\n";
+
+my $btAddr = "\n";
+while ($btAddr !~ /^([0-9a-f]{2}.?){6}$/i){
+  print "push the bluetooth button or whatever\n";
+  print "{wait until scan is done}\n";
+  run "hcitool scan";
+  print "paste the bt addr, or push enter to rerun scan\n";
+  print "mac: ";
+  $btAddr = <STDIN>;
+  print "\n\n";
+}
+
+my @segs = $btAddr =~ /([a-z0-9]{2})/gi;
+$btAddr = join ':', @segs;
+
+print "Pairing, you prolly wanna enter 0000 for PINs\n";
+print "After you enter a PIN, you may need to\n";
+print "type it on the bt device and press enter or whatever\n";
+run "bluez-simple-agent $btHciDev $btAddr";
+
+print "trusting device so this shit will be auto, maybe\n";
+run "bluez-test-device trusted $btAddr yes";
+
+print "connecting, maybe\n";
+run "bluez-test-input connect $btAddr";
