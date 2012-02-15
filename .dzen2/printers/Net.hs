@@ -2,12 +2,12 @@ module Net(main) where
 import System.IO (stdout, hFlush)
 import System.Process(readProcess, system)
 import System.Posix.Process (forkProcess)
-import System.Posix (sleep)
 import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
 import System.Environment (getEnv)
 import Control.Applicative ((<$>))
 import Control.Concurrent (threadDelay)
 import Control.Monad (void, forever)
+import Control.Monad.Loops (anyM)
 import Data.Maybe (listToMaybe)
 import Text.Regex.PCRE
 import TextRows (textRows)
@@ -40,7 +40,7 @@ main = forever $ do
     None    -> none
     Unknown -> unknown
   hFlush stdout
-  threadDelay $ 1 * 10^6
+  threadDelay $ 1*10^6
 
 unknown = do
   home <- getEnv "HOME"
@@ -48,24 +48,13 @@ unknown = do
 
 none = do
   home <- getEnv "HOME"
-  wauto <- readProcess "wauto" ["--get"] ""
-  checkNone 4
-  if wauto == "auto\n" then runAuto else putStr ""
   let top = "no wabs"
-  let bot = chomp wauto
+  let bot = ""
   putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
+  void $ checkPerSecUntil 3 $ fmap (/= None) readWStatus
 
-checkNone 0 = return True
-checkNone c = do
-  sleep 1
-  wstatus <- readWStatus
-  if wstatus == None then checkNone (c-1) else return False
-
-runAuto = void $ forkProcess $ do
-  check <- checkNone 3
-  if not check then return () else do
-    mapM_ closeFd [stdInput, stdOutput, stdError]
-    void $ system "wauto --connect"
+checkPerSecUntil :: Int -> IO Bool -> IO Bool
+checkPerSecUntil n f = anyM ((threadDelay (1*10^6) >>) . const f) [1..n]
 
 ppp = do
   home <- getEnv "HOME"
