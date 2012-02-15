@@ -51,10 +51,6 @@ none = do
   let top = "no wabs"
   let bot = ""
   putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
-  void $ checkPerSecUntil 3 $ fmap (/= None) readWStatus
-
-checkPerSecUntil :: Int -> IO Bool -> IO Bool
-checkPerSecUntil n f = anyM ((threadDelay (1*10^6) >>) . const f) [1..n]
 
 ppp = do
   home <- getEnv "HOME"
