@@ -70,6 +70,7 @@ PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 alias gvim='termcmd vim'
 alias cx='chmod +x'
 alias :q='exit'
+alias shutdown='poweroff'
 alias suod='sudo'
 alias sudp='sudo'
 alias wconnect='sudo wconnect'
