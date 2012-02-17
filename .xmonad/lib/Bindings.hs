@@ -20,7 +20,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   [ ((modm, xK_q     ), spawn "xmonad --restart") 
   , ((shmd, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
 
-  , ((modm, xK_F2    ), spawn "synapse") --quicker than nohup-ing
   , ((none, power    ), spawn "$HOME/bin/off")
 
   --focused window
