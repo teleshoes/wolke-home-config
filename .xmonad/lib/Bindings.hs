@@ -21,6 +21,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((shmd, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
 
   , ((modm, xK_F2    ), spawn "synapse") --quicker than nohup-ing
+  , ((none, power    ), spawn "$HOME/bin/off")
 
   --focused window
   , ((shmd, xK_c     ), kill)
@@ -161,6 +162,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     brightUp = xF86XK_MonBrightnessUp
     brightDn = xF86XK_MonBrightnessDown
     volUp = xF86XK_AudioRaiseVolume
+    power = xF86XK_PowerOff
     volDown = xF86XK_AudioLowerVolume
     xf86think = xF86XK_Launch1
     xf86mic = xF86XK_Launch2
