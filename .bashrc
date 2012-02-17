@@ -68,12 +68,6 @@ cEnd='\[\033[00m\]'
 PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
 alias gvim='termcmd vim'
-alias shut='sudo poweroff'
-alias shutdown='poweroff'
-alias susp='sudo pm-suspend'
-alias suspend='pm-suspend'
-alias rest='sudo reboot'
-alias restart='reboot'
 alias cx='chmod +x'
 alias :q='exit'
 alias suod='sudo'
