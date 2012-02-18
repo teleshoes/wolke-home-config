@@ -87,8 +87,6 @@ quality _ _ = "???%"
 pad len s | length s < len = pad len (' ':s)
 pad _ s = s
 
---my $mbps = $1 if $iwconfig =~ /Bit Rate=(\d+) Mb\/s/;
-
 getMatch s p = listToMaybe $ concat $ map tail groupSets
   where groupSets = s =~ p :: [[String]]
 
