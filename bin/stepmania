@@ -1,0 +1,94 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $prefsIni = "$ENV{HOME}/.stepmania-5.0/Save/Preferences.ini";
+my $keymapsIni = "$ENV{HOME}/.stepmania-5.0/Save/Keymaps.ini";
+
+my $prefs = {
+  Options => {
+    AutoMapOnJoyChange       => 0,
+    OnlyDedicatedMenuButtons => 1,
+    DisplayWidth             => 1920,
+    DisplayHeight            => 1080,
+    Windowed                 => 1,
+    Center1Player            => 1,
+    EventMode                => 1,
+    BGBrightness             => '0.600000',
+  },
+};
+
+my $keymaps = {
+  dance => {
+    '1_Up'        => 'Joy1_B13:Key_home',
+    '1_Down'      => 'Joy1_B15:Key_end',
+    '1_Left'      => 'Joy1_B16:Key_delete',
+    '1_Right'     => 'Joy1_B14:Key_pgdn',
+    '1_MenuUp'    => 'Joy1_B1:Key_up',
+    '1_MenuDown'  => 'Joy1_B4:Key_down',
+    '1_MenuLeft'  => 'Joy1_B3:Key_left',
+    '1_MenuRight' => 'Joy1_B2:Key_right',
+    '1_Start'     => 'Joy1_B10:Key_enter',
+    '1_Back'      => 'Joy1_B9:Key_escape',
+  }
+};
+
+sub readConf($){
+  my $s = shift();
+  my $conf = {};
+  my $confSection;
+  for my $line(split /[\n\r]+/, $s){
+    if($line =~ /^\[(.*)\]$/){
+      $confSection = {};
+      ${$conf}{$1} = $confSection;
+    }elsif($line =~ /^(.*)=(.*)$/){
+      $$confSection{$1} = $2;
+    }
+  }
+  return $conf;
+}
+
+sub writeConf($){
+  my %conf = %{shift()};
+  my $s = '';
+  for my $section(sort keys %conf){
+    $s .= "[$section]\n";
+    my $sectionConf = $conf{$section};
+    for my $key(sort keys %$sectionConf){
+      $s .= "$key=${$sectionConf}{$key}\n";
+    }
+    $s .= "\n";
+  }
+  return $s;
+}
+
+sub modifyConf($$){
+  my %orig = %{shift()};
+  my %changes = %{shift()};
+  for my $section(keys %changes){
+    if(not defined $orig{$section}){
+      $orig{$section} = $changes{$section};
+    }else{
+      my $origSectionConf = $orig{$section};
+      my $changesSectionConf = $changes{$section};
+      for my $key(keys %$changesSectionConf){
+        ${$origSectionConf}{$key} = ${$changesSectionConf}{$key};
+      }
+    }
+  }
+  return \%orig;
+}
+
+sub replaceConf($$){
+  my $file = shift;
+  my $changes = shift;
+  my $conf = readConf `cat $file`;
+  my $content = writeConf(modifyConf($conf, $changes));
+  open FH, "> $file" or die "Couldnt open $file for writing.\n";
+  print FH $content;
+  close FH;
+}
+
+replaceConf $prefsIni, $prefs;
+replaceConf $keymapsIni, $keymaps;
+system "$ENV{HOME}/Desktop/Games/stepmania/StepMania-5.0/stepmania";
