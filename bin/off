@@ -3,29 +3,69 @@ import gtk
 import sys
 import os
 
-class ActionButton(gtk.Button):
-  def __init__(self, text, cmd=None, action=None):
-    gtk.Button.__init__(self, text)
+def getActions():
+  return filter(None, [ None
+    , Action("Shutdown",  "s",  "gksudo poweroff"    , sys.exit, True)
+    , Action("Reboot",    "r",  "gksudo reboot"      , sys.exit, True)
+    , Action("Sleep",     "l",  "gksudo pm-suspend"  , sys.exit, True)
+    , Action("Hibernate", "h",  "gksudo pm-hibernate", sys.exit, True)
+    , Action("Cancel",    None, None                 , sys.exit, True)
+    , Action("Gui",       "g",  None                 , showGui,  False)
+  ])
+
+def showGui():
+  ActionGui(filter((lambda a: a.gui), getActions())).mainWindow()
+
+def usage():
+  u = "Usage: " + sys.argv[0] + " ARG"
+  for a in filter(lambda a: a.key, getActions()):
+    u += "\n  " + a.key + " => " + a.name
+  return u
+
+def main(args):
+  if len(args) == 2:
+    for a in filter(lambda a: a.key, getActions()):
+      if args[1].lower() == a.key.lower():
+        a.run()
+        sys.exit(0)
+  print >> sys.stderr, usage()
+  sys.exit(1)
+
+
+class Action():
+  def __init__(self, name, key=None, cmd=None, fun=None, gui=True):
+    self.name = name
+    self.key = key
     self.cmd = cmd
-    self.action = action
-    self.connect("clicked", self.click)
-  def click(self, widget):
+    self.fun = fun
+    self.gui = gui
+    self.labelText = name
+    if self.key != None:
+      self.labelText += " (" + self.key + ")"
+  def run(self):
     if self.cmd != None:
-      print self.cmd
+      print "command: " + self.cmd
       os.system(self.cmd)
-    if self.action != None:
-      print str(self.action)
-      self.action()
+    if self.fun != None:
+      print "function: " + self.fun.__name__
+      self.fun()
+
+class ActionButton(gtk.Button):
+  def __init__(self, action):
+    gtk.Button.__init__(self, action.labelText)
+    self.connect("clicked", lambda widget: action.run())
     
-class Gui():
-  def __init__(self):
+class ActionGui():
+  def __init__(self, actions):
+    self.actions = actions
     self.box = gtk.VBox()
-    self.box.add(gtk.Label("escape cancels, up/down/enter to select"))
-    self.box.add(ActionButton("Shutdown",  "gksudo poweroff"    , sys.exit))
-    self.box.add(ActionButton("Reboot",    "gksudo reboot"      , sys.exit))
-    self.box.add(ActionButton("Sleep",     "gksudo pm-suspend"  , sys.exit))
-    self.box.add(ActionButton("Hibernate", "gksudo pm-hibernate", sys.exit))
-    self.box.add(ActionButton("Cancel",    None                 , sys.exit))
+    self.box.add(gtk.Label(""
+      + "escape cancels\n"
+      + "up/down/enter to select\n"
+      + "or press shortcut key"
+    ))
+    for a in self.actions:
+      self.box.add(ActionButton(a))
   def mainWindow(self):
     window = gtk.Window()
     window.set_default_size(300, 500)
@@ -42,9 +82,12 @@ class Gui():
   def keyPress(self, widget, event):
     if event.keyval == gtk.keysyms.Escape:
       sys.exit()
+    for a in filter(lambda a: a.key, self.actions):
+      if a.key.lower() == chr(event.keyval).lower():
+        a.run()
   def getGtkWidget(self):
     return self.box
 
 if __name__ == "__main__":
-  Gui().mainWindow()
+  main(sys.argv)
 
