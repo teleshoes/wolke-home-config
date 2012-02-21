@@ -18,8 +18,21 @@ def showGui():
 
 def usage():
   u = "Usage: " + sys.argv[0] + " ARG"
+  maxActLen, maxKeyLen, maxCmdLen, maxFunLen = [0,0,0,0]
   for a in filter(lambda a: a.key, getActions()):
-    u += "\n  " + a.key + " => " + a.name
+    (act, key, cmd, fun) = a.getFormattedAtts()
+    maxActLen = len(act) > maxActLen and len(act) or maxActLen
+    maxKeyLen = len(key) > maxKeyLen and len(key) or maxKeyLen
+    maxCmdLen = len(cmd) > maxCmdLen and len(cmd) or maxCmdLen
+    maxFunLen = len(fun) > maxFunLen and len(fun) or maxFunLen
+  for a in filter(lambda a: a.key, getActions()):
+    (act, key, cmd, fun) = a.getFormattedAtts()
+    u += (""
+      + "\n  " + key.ljust(maxKeyLen)
+      + " => " + act.ljust(maxActLen)
+      + "    " + cmd.ljust(maxCmdLen)
+      + "    " + fun.ljust(maxFunLen)
+    )
   return u
 
 def main(args):
@@ -42,12 +55,18 @@ class Action():
     self.labelText = name
     if self.key != None:
       self.labelText += " (" + self.key + ")"
+  def getFormattedAtts(self):
+    return [ self.name and self.name or ""
+           , self.key and self.key or ""
+           , self.cmd and "'" + self.cmd + "'" or ""
+           , self.fun and self.fun.__name__ + "()" or ""
+           ]
   def run(self):
     if self.cmd != None:
-      print "command: " + self.cmd
+      print self.cmd
       os.system(self.cmd)
     if self.fun != None:
-      print "function: " + self.fun.__name__
+      print self.fun.__name__ + "()"
       self.fun()
 
 class ActionButton(gtk.Button):
