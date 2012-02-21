@@ -81,6 +81,8 @@ alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
+
+alias genservices='~/workspace/escribe/tools/genservices'
 alias migl='miglatest'
 
 ##AUTOLOGIN START##
