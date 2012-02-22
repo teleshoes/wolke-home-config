@@ -20,8 +20,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   [ ((modm, xK_q     ), spawn "xmonad --restart") 
   , ((shmd, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
 
-  , ((none, power    ), spawn "$HOME/bin/off")
-  , ((modm, xK_Escape), spawn "$HOME/bin/off")
+  , ((none, power    ), spawn "$HOME/bin/off g")
+  , ((modm, xK_Escape), spawn "$HOME/bin/off g")
 
   --focused window
   , ((shmd, xK_c     ), kill)
