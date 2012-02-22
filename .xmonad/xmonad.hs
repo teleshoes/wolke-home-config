@@ -60,6 +60,7 @@ main = do
                          , className =? "Pidgin"           --> doShift "B"
                          , className =? "MPlayer"          --> doShift "7"
                          , className =? "Thunderbird"      --> doShift "8"
+                         , title     =? "Off"              --> doFloat
                          , title     =? "KLOMP"            --> doShift "9"
                          , title     =? "Close Firefox"    --> restartFF
                          , title     =? "npviewer.bin"     --> doFull -- flash
