@@ -56,13 +56,14 @@ main = do
                          ,
 
     manageHook         = composeAll
-                         [ className =? "Eclipse"        --> doShift "A"
-                         , className =? "Pidgin"         --> doShift "B"
-                         , className =? "MPlayer"        --> doShift "7"
-                         , className =? "Thunderbird"    --> doShift "8"
-                         , title     =? "KLOMP"          --> doShift "9"
-                         , title     =? "Close Firefox"  --> restartFF
-                         , title     =? "npviewer.bin"   --> doFull -- flash
+                         [ className =? "Eclipse"          --> doShift "A"
+                         , className =? "Pidgin"           --> doShift "B"
+                         , className =? "MPlayer"          --> doShift "7"
+                         , className =? "Thunderbird"      --> doShift "8"
+                         , title     =? "KLOMP"            --> doShift "9"
+                         , title     =? "Close Firefox"    --> restartFF
+                         , title     =? "npviewer.bin"     --> doFull -- flash
+                         , title     =? "plugin-container" --> doFull -- flash
                          ],
 
     handleEventHook    = myHandleEventHook,
