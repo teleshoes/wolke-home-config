@@ -102,7 +102,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt,  volUp    ), spawn "$HOME/bin/pulse-vol +6 150")
   , ((alt,  volDown  ), spawn "$HOME/bin/pulse-vol -6 150")
   , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
-  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol -6 300")
+  , ((alct, volDown  ), spawn "$HOME/bin/pulse-vol -6 300")
 
   , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
 
