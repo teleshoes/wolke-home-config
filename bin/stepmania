@@ -25,21 +25,27 @@ my $prefs = {
   },
 };
 
-my $keymaps = {
-  dance => {
-    '1_Up'        => 'Joy1_B13:Key_home',
-    '1_Down'      => 'Joy1_B15:Key_end',
-    '1_Left'      => 'Joy1_B16:Key_delete',
-    '1_Right'     => 'Joy1_B14:Key_pgdn',
-    '1_MenuUp'    => 'Joy1_B1:Key_up',
-    '1_MenuDown'  => 'Joy1_B4:Key_down',
-    '1_MenuLeft'  => 'Joy1_B3:Key_left',
-    '1_MenuRight' => 'Joy1_B2:Key_right',
-    '1_Start'     => 'Joy1_B10:Key_enter',
-    '1_Back'      => 'Joy1_B9:Key_escape',
-  }
+my $joy1Name = 'energy';
+my $joy2Name = 'redoctane';
+my $kb1Name = 'kb1';
+my $kb2Name = 'kb2';
+
+my $keygrid = {
+  NAMES     => ['energy', 'redoctane', 'kb1',    'kb2'],
+  Up        => [1,        13,          'home',   'w'], 
+  Down      => [2,        15,          'end',    's'],
+  Left      => [3,        16,          'delete', 'a'],
+  Right     => [4,        14,          'pgdn',   'd'],
+  MenuUp    => [5,        1,           'up',     't'],
+  MenuDown  => [6,        4,           'down',   'g'],
+  MenuLeft  => [7,        3,           'left',   'f'],
+  MenuRight => [8,        2,           'right',  'h'],
+  Back      => [9,        9,           'escape', 'x'],
+  Start     => [10,       10,          'enter',  'z'],
 };
 
+
+sub generateKeymap($$$$$);
 sub readConf($);
 sub writeConf($);
 sub modifyConf($$);
@@ -48,8 +54,46 @@ sub replaceConf($$);
 sub main(@){
   system "mkdir", "-p", "$prefsDir";
   replaceConf $prefsIni, $prefs;
-  replaceConf $keymapsIni, $keymaps;
+  replaceConf $keymapsIni, generateKeymap(
+    $keygrid, $joy1Name, $joy2Name, $kb1Name, $kb2Name);
   system "$smExecDir/stepmania";
+}
+
+sub generateKeymap($$$$$){
+  my ($keyGrid, $joy1Name, $joy2Name, $kb1Name, $kb2Name) = @_;
+  my %namedKeymaps;
+
+  my %buttons = map{$_ => 1} keys %$keygrid;
+  delete $buttons{NAMES};
+
+  my @orderedNames = @{$$keygrid{NAMES}};
+  for(my $i=0; $i<@orderedNames; $i++){
+    my $name = $orderedNames[$i];
+    $namedKeymaps{$name} = {};
+    for my $btn(keys %buttons){
+      ${$namedKeymaps{$name}}{$btn} = ${$$keygrid{$btn}}[$i];
+    }
+  }
+  
+  my %keymap;
+  for my $player((1, 2)){
+    my $joyName = $player == 1 ? $joy1Name : $joy2Name;
+    my $kbName = $player == 1 ? $kb1Name : $kb2Name;
+    if(defined $joyName or defined $kbName){
+      my $joyMap = $namedKeymaps{$joyName};
+      my $kbMap = $namedKeymaps{$kbName};
+      for my $btn(keys %buttons){
+        my $joyBtn = $$joyMap{$btn};
+        my $kbBtn = $$kbMap{$btn};
+        my $val;
+        $val .= "Joy${player}_B$joyBtn" if defined $joyBtn;
+        $val .= ":" if defined $joyBtn and $kbBtn;
+        $val .= "Key_$kbBtn" if defined $kbBtn;
+        $keymap{"${player}_$btn"} = $val;
+      }
+    }
+  }
+  return {'dance' => \%keymap};
 }
 
 sub readConf($){
