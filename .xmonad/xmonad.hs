@@ -63,6 +63,7 @@ main = do
                          , title     =? "Off"              --> doFloat
                          , title     =? "KLOMP"            --> doShift "9"
                          , title     =? "Close Firefox"    --> restartFF
+                         , title     =? "StepMania"        --> doFull
                          , title     =? "npviewer.bin"     --> doFull -- flash
                          , title     =? "plugin-container" --> doFull -- flash
                          ],
