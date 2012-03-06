@@ -2,20 +2,11 @@
 use strict;
 use warnings;
 
+my $speedMods = "0.5x,1x,1.5x,2x,2.5x,3x,C300";
 my $defaultScreen = 'ScreenSelectMusic';
-my $usage = "Usage: $0 [OPTS]\n"
-  . "  --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}\n"
-  . "  -i               synonynm for --screen=ScreenTestInput\n"
-;
-
-my $smExecDir = "$ENV{HOME}/Desktop/Games/stepmania/StepMania-5.0";
-my $prefsDir = "$ENV{HOME}/.stepmania-5.0/Save";
-
-my $prefsIni = "$prefsDir/Preferences.ini";
-my $keymapsIni = "$prefsDir/Keymaps.ini";
 
 my $prefs = {
- Options => {
+ 'Options' => {
     AutoMapOnJoyChange       => 0,
     OnlyDedicatedMenuButtons => 1,
     Center1Player            => 1,
@@ -28,6 +19,10 @@ my $prefs = {
     DisplayAspectRatio       => 1.777778,
     LastSeenVideoDriver      => 'OpenGL',
     VideoRenderers           => 'opengl',
+  },
+  'Game-dance' => {
+    #Announcer                => 'MAX2',
+    Announcer                => '',
   },
 };
 
@@ -54,6 +49,21 @@ my $keygrid = {
 };
 
 
+my $usage = "Usage: $0 [OPTS]\n"
+  . "  --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}\n"
+  . "  -i               synonynm for --screen=ScreenTestInput\n"
+;
+
+my $smExecDir = "$ENV{HOME}/Desktop/Games/stepmania/StepMania-5.0";
+my $prefsDir = "$ENV{HOME}/.stepmania-5.0/Save";
+my $machineProfDir = "$prefsDir/MachineProfile";
+
+my $prefsIni = "$prefsDir/Preferences.ini";
+my $keymapsIni = "$prefsDir/Keymaps.ini";
+my $speedModsFile = "$machineProfDir/SpeedMods.txt";
+
+
+sub setMachineSpeedMods($);
 sub generateKeymap($$$$$);
 sub readConf($);
 sub writeConf($);
@@ -74,7 +84,17 @@ sub main(@){
   replaceConf $prefsIni, $prefs;
   replaceConf $keymapsIni, generateKeymap(
     $keygrid, $joy1Name, $joy2Name, $kb1Name, $kb2Name);
+  setMachineSpeedMods($speedMods);
   system "$smExecDir/stepmania";
+}
+
+sub setMachineSpeedMods($){
+  my $speedModsLine = shift;
+  system "mkdir", "-p", $machineProfDir;
+  open FH, "> $speedModsFile"
+    or die "Couldn't write speed mods to $speedModsFile\n";
+  print FH "$speedModsLine\n";
+  close FH;
 }
 
 sub generateKeymap($$$$$){
