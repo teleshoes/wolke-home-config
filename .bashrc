@@ -83,7 +83,7 @@ alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
 
 alias genservices='~/workspace/escribe/tools/genservices'
-alias migl='miglatest'
+alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
 
 ##AUTOLOGIN START##
 if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty7" ]; then
