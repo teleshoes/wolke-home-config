@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+my $soundFont = "$ENV{HOME}/Desktop/Music/soundfonts/PC51d.sf2";
+
 use Time::HiRes qw(sleep);
 
 system "killall -9 fluidsynth vmpk";
@@ -13,8 +15,6 @@ if(`dpkg -s vmpk | grep Status` ne "Status: install ok installed\n"){
   system "sudo", "apt-get", "install", "vmpk";
 }
 
-my $sf="$ENV{HOME}/Desktop/Music/soundfonts/PC51d.sf2";
-my $outputOpts = "-a pulseaudio -z 2048 -c2";
 
 my $config = `echo -n \$HOME/` .
   '.config/vmpk.sourceforge.net/Virtual MIDI Piano Keyboard.conf';
@@ -27,6 +27,16 @@ if(not -e $config){
 my $seqId = 'vmpk';
 my $outport = "FLUID Synth ($seqId):0";
 
+my @fluidSynthArgs = (
+  "-s", "-i",
+  "$soundFont",
+  "-o", "midi.alsa_seq.id='$seqId'",
+  "-a", "pulseaudio",
+  "-z", "2048",
+  "-c2",
+);
+
+
 open FH, "< $config";
 my @lines = <FH>;
 close FH;
@@ -35,12 +45,10 @@ for my $line(@lines){
     last;
   }
 }
-
 open FH, "> $config";
 print FH @lines;
 close FH;
 
-
-system "fluidsynth -s -i $sf -o midi.alsa_seq.id='$seqId' $outputOpts &";
+system "fluidsynth @fluidSynthArgs &";
 system "sleep 0.3";
 system "vmpk &";
