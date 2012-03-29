@@ -86,7 +86,9 @@ alias genservices='~/workspace/escribe/tools/genservices'
 alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
 
 ##AUTOLOGIN START##
-if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty7" ]; then
-  exec startx
+if [ -z "$DISPLAY" ]; then
+  if [ "$tty" == "/dev/tty7" ]; then
+    exec startx
+  fi
 fi
 ##AUTOLOGIN END##
