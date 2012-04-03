@@ -73,6 +73,13 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
   , ((ctrl, xK_F9    ), spawn "termcmd n9 -s")
+  , ((ctsu, xK_space ), spawn "n9 -s udo klomp-cmd pause")
+  , ((ctsu, xK_z     ), spawn "n9 -s udo klomp-cmd prev")
+  , ((ctsu, xK_x     ), spawn "n9 -s udo klomp-cmd next")
+  , ((chsu, xK_z     ), spawn "n9 -s udo klomp-cmd seek -10")
+  , ((chsu, xK_x     ), spawn "n9 -s udo klomp-cmd seek 10")
+  , ((ctsu, xK_r     ), spawn "n9 -s udo klomp-cmd reset")
+
 
   --shortcuts
   , ((none, xf86think), spawn "term")
@@ -156,6 +163,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     shmd = modm .|. shft
     sush = supr .|. shft
     alct = alt .|. ctrl
+    ctsu = ctrl .|. supr
+    chsu = shft .|. ctrl .|. supr
     none = 0
     pgUp = xK_Prior
     pgDn = xK_Next
