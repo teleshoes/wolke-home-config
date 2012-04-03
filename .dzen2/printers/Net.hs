@@ -20,25 +20,27 @@ cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
         popupCmd = home ++ "/.dzen2/launchers/popup"
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
-data WStatus = Wlan | PPP | None | Unknown deriving(Eq)
+data WStatus = Wlan | PPP | Tethering | None | Unknown deriving(Eq)
 
 readWStatus :: IO WStatus
 readWStatus = do 
   wstatus <- readProcess "wstatus" [] ""
   case wstatus of
-    "wlan\n"  -> return Wlan
-    "ppp\n"   -> return PPP
-    "none\n"  -> return None
-    otherwise -> return Unknown
+    "wlan\n"       -> return Wlan
+    "ppp\n"        -> return PPP
+    "tethering\n"  -> return Tethering
+    "none\n"       -> return None
+    otherwise      -> return Unknown
 
 
 main = forever $ do
   wstatus <- readWStatus
   case wstatus of
-    Wlan    -> wifi
-    PPP     -> printNet "pewpewpew"
-    None    -> printNet "no wabs"
-    Unknown -> printNet "???"
+    Wlan      -> wifi
+    PPP       -> printNet "pewpewpew"
+    Tethering -> printNet "tethering"
+    None      -> printNet "no wabs"
+    Unknown   -> printNet "???"
   hFlush stdout
   threadDelay $ 1*10^6
 
