@@ -36,28 +36,17 @@ main = forever $ do
   wstatus <- readWStatus
   case wstatus of
     Wlan    -> wifi
-    PPP     -> ppp
-    None    -> none
-    Unknown -> unknown
+    PPP     -> printNet "pewpewpew"
+    None    -> printNet "no wabs"
+    Unknown -> printNet "???"
   hFlush stdout
   threadDelay $ 1*10^6
 
-unknown = do
+printNet text = do
   home <- getEnv "HOME"
-  putStrLn $ clickAction "1" (cmd home) "???"
-
-none = do
-  home <- getEnv "HOME"
-  let top = "no wabs"
-  let bot = ""
-  putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
-
-ppp = do
-  home <- getEnv "HOME"
-  putStrLn $ clickAction "1" (cmd home) "pewpewpew"
+  putStrLn $ clickAction "1" (cmd home) text
 
 wifi = do
-  home <- getEnv "HOME"
   wlan <- chomp <$> readProcess "ifdev" ["wlan"] ""
   s <- readProcess "iwconfig" [wlan] ""
   let ssid = getMatch s "ESSID:\"(.*)\""
@@ -69,7 +58,7 @@ wifi = do
   let f = frequency freq
   let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
   let bot = (padtrim 9 ssid)
-  putStrLn $ clickAction "1" (cmd home) (textRows top bot height)
+  printNet $ textRows top bot height
 
 i = read :: String -> Integer
 d = read :: String -> Double
