@@ -20,13 +20,14 @@ cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
         popupCmd = home ++ "/.dzen2/launchers/popup"
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
-data WStatus = Wlan | PPP | Tethering | None | Unknown deriving(Eq)
+data WStatus = Wlan | Wired | PPP | Tethering | None | Unknown deriving(Eq)
 
 readWStatus :: IO WStatus
 readWStatus = do 
   wstatus <- readProcess "wstatus" [] ""
   case wstatus of
     "wlan\n"       -> return Wlan
+    "eth\n"        -> return Wired
     "ppp\n"        -> return PPP
     "tethering\n"  -> return Tethering
     "none\n"       -> return None
@@ -37,6 +38,7 @@ main = forever $ do
   wstatus <- readWStatus
   case wstatus of
     Wlan      -> printNet =<< wifi
+    Wired     -> printNet "wired"
     PPP       -> printNet "pewpewpew"
     Tethering -> printNet "tethering"
     None      -> printNet "no wabs"
