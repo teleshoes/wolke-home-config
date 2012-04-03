@@ -36,7 +36,7 @@ readWStatus = do
 main = forever $ do
   wstatus <- readWStatus
   case wstatus of
-    Wlan      -> wifi
+    Wlan      -> printNet =<< wifi
     PPP       -> printNet "pewpewpew"
     Tethering -> printNet "tethering"
     None      -> printNet "no wabs"
@@ -60,7 +60,7 @@ wifi = do
   let f = frequency freq
   let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
   let bot = (padtrim 9 ssid)
-  printNet $ textRows top bot height
+  return $ textRows top bot height
 
 i = read :: String -> Integer
 d = read :: String -> Double
