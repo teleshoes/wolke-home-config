@@ -70,6 +70,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
 
   , ((ctrl, xK_F12   ), spawn "$HOME/bin/n9 -s lock")
+  , ((ctsh, xK_F12   ), spawn "$HOME/bin/n9 -s screenStayOn toggle")
   , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
   , ((ctrl, xK_F9    ), spawn "termcmd n9 -s")
@@ -164,6 +165,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     shmd = modm .|. shft
     sush = supr .|. shft
     alct = alt .|. ctrl
+    ctsh = ctrl .|. shft
     ctsu = ctrl .|. supr
     chsu = shft .|. ctrl .|. supr
     none = 0
