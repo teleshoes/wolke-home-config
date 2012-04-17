@@ -2,41 +2,83 @@
 use strict;
 use warnings;
 
+my $usage = "
+  $0               - fetch the latest simfiles, print new ones
+  $0 print         - print all known simfiles, newest first
+  $0 <simfileid>   - wget the main simfile file
+";
+
 my $zeniusFile = "$ENV{HOME}/.zenius";
 
 sub fetchNewSimfiles();
+sub printKnownSimfiles();
+sub fetchSimfile($);
 sub getKnownSimfiles();
 sub getLatestUserSimfilesPage();
 sub parseSimfilesPage($);
 sub getAbsoluteDate($);
+sub entryEpoch($);
 sub entryToString($);
+sub entryFromString($);
 
 sub main(@){
-  fetchNewSimfiles;
+  my $arg = shift;
+  if(not defined $arg){
+    fetchNewSimfiles;
+  }elsif($arg eq 'print'){
+    printKnownSimfiles;
+  }elsif($arg =~ /^\d+$/){
+    fetchSimfile $arg;
+  }else{
+    die $usage;
+  }
 }
 
 sub fetchNewSimfiles(){
   my $html = getLatestUserSimfilesPage;
   my @entries = parseSimfilesPage $html;
-  my %knownSimfiles = getKnownSimfiles;
+  my %knownIds = map{${$_}[0] => 1} getKnownSimfiles;
   foreach my $entry(@entries){
     my $id = ${$entry}[0];
-    if(not defined $knownSimfiles{$id}){
-      my $str = entrytoString $entry;
+    if(not defined $knownIds{$id}){
+      my $str = entryToString $entry;
       system "echo \"$str\" >> $zeniusFile";
       print "$str\n";
     }
   }
 }
 
+sub printKnownSimfiles(){
+  my @knownSimfiles = getKnownSimfiles;
+  my %simfileEpochs = map {${$_}[0] => entryEpoch $_} @knownSimfiles;
+  @knownSimfiles = sort {
+    $simfileEpochs{${$a}[0]} cmp $simfileEpochs{${$b}[0]}
+  } @knownSimfiles;
+  for my $entry(@knownSimfiles){
+    print entryToString($entry) . "\n";
+  }
+}
+
+sub fetchSimfile($){
+  my $id = shift;
+  my $url = ''
+   . "http://zenius-i-vanisher.com/v5.2/download.php?"
+   . "type=ddrsimfile&simfileid=$id";
+  print "$url\n";
+  system "wget", "--content-disposition", $url;
+}
+
 sub getKnownSimfiles(){
-  my %knownSimfiles;
+  my @entries;
   foreach my $line(`cat $zeniusFile 2>/dev/null`){
-    if($line =~ /^(\d+) \| (.*)\n$/){
-      $knownSimfiles{$1} = $2;
+    my $entry = entryFromString $line;
+    if(defined $entry){
+      push @entries, $entry;
+    }else{
+      print STDERR "Malformed entry: $entry\n";
     }
   }
-  return %knownSimfiles;
+  return @entries;
 }
 
 sub getLatestUserSimfilesPage(){
@@ -65,6 +107,9 @@ sub parseSimfilesPage($){
     /gsxi){
       push @entries, [$1, $2, $4, $5];
   }
+  for my $entry(@entries){
+    ${$entry}[3] = getAbsoluteDate ${$entry}[3];
+  }
   return @entries;
 }
 
@@ -86,10 +131,25 @@ sub getAbsoluteDate($){
   return $date;
 }
 
+sub entryEpoch($){
+  my $date = ${shift()}[3];
+  my $epoch = `date -d "$date" +\%s`;
+  chomp $epoch;
+  return $epoch;
+}
+
 sub entryToString($){
-  my ($id, $name, $category, $relDate) = @{shift()};
-  my $date = getAbsoluteDate $relDate;
+  my ($id, $name, $category, $date) = @{shift()};
   return "$id | $name | $category | $date";
+}
+
+sub entryFromString($){
+  my $str = shift;
+  if($str =~ /^(\d+) \| (.*?) \| (.*?) \| (.*?)\n?$/){
+    return [$1, $2, $3, $4];
+  }else{
+    return undef;
+  }
 }
 
 &main(@ARGV);
