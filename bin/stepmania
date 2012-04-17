@@ -60,14 +60,11 @@ my %jsIds = (
 
 sub getJoysticks();
 sub setMachineSpeedMods($);
-sub generateKeymap($$$$$);
+sub generateKeymap($$$$$$$);
 sub readConf($);
 sub writeConf($);
 sub modifyConf($$);
 sub replaceConf($$);
-
-my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks;
-my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
 
 my $usage = "Usage:\n"
   . "$0 -w               set Windowed to 1, overriding config\n"
@@ -98,10 +95,13 @@ sub main(@){
   }else{
     die $usage;
   }
+  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks;
+  my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
+
   system "mkdir", "-p", "$prefsDir";
   replaceConf $prefsIni, $prefs;
   replaceConf $keymapsIni, generateKeymap(
-    $keygrid, $joy1Name, $joy2Name, $kb1Name, $kb2Name);
+    $keygrid, $joy1Name, $joy1Num, $joy2Name, $joy2Num, $kb1Name, $kb2Name);
   replaceConf $themeMetricsIni, {
     'Common' => {'DefaultModifiers' => $defaultModifiers}};
   setMachineSpeedMods $speedMods;
@@ -157,8 +157,11 @@ sub setMachineSpeedMods($){
   close FH;
 }
 
-sub generateKeymap($$$$$){
-  my ($keyGrid, $joy1Name, $joy2Name, $kb1Name, $kb2Name) = @_;
+sub generateKeymap($$$$$$$){
+  my ($keyGrid,
+    $joy1Name, $joy1Num,
+    $joy2Name, $joy2Num,
+    $kb1Name, $kb2Name) = @_;
   my %namedKeymaps;
 
   my %buttons = map{$_ => 1} keys %$keygrid;
