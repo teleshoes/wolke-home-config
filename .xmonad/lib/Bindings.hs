@@ -138,7 +138,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((alct, xK_f     ), spawn "firefox")
   , ((alct, xK_e     ), spawn "$HOME/bin/eclipse")
-  , ((alct, xK_s     ), spawn "$HOME/bin/stepmania")
+  , ((alct, xK_s     ), spawn "$HOME/bin/stepmania -w")
   ]
 
   ++
