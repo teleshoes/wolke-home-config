@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my $usage = "
+my $usage = "Usage:
   $0               - fetch the latest simfiles, print new ones
   $0 print         - print all known simfiles, newest first
   $0 <simfileid>   - wget the main simfile file
