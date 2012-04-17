@@ -34,13 +34,10 @@ my $prefs = {
   },
 };
 
-my $joy1Id = 3;
-my $joy2Id = 1;
-
-my $joy1Name = 'energy';
-my $joy2Name = 'redoctane';
-my $kb1Name = 'kb1';
-my $kb2Name = 'kb2';
+my @joys = (
+  'energy',
+  'redoctane',
+);
 
 my $keygrid = {
   NAMES     => ['energy', 'redoctane', 'kb1',    'kb2'],
@@ -56,6 +53,21 @@ my $keygrid = {
   Start     => [10,       10,          'enter',  'z'],
 };
 
+my %jsIds = (
+  energy => 'usb-ff53_USB_Gamepad-joystick',
+  redoctane => 'usb-0b43_0003-joystick',
+);
+
+sub getJoysticks();
+sub setMachineSpeedMods($);
+sub generateKeymap($$$$$);
+sub readConf($);
+sub writeConf($);
+sub modifyConf($$);
+sub replaceConf($$);
+
+my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks;
+my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
 
 my $usage = "Usage: $0 [OPTS]\n"
   . "  --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}\n"
@@ -72,13 +84,6 @@ my $keymapsIni = "$prefsDir/Keymaps.ini";
 my $themeMetricsIni = "$themesDir/$theme/metrics.ini";
 my $speedModsFile = "$machineProfDir/SpeedMods.txt";
 
-
-sub setMachineSpeedMods($);
-sub generateKeymap($$$$$);
-sub readConf($);
-sub writeConf($);
-sub modifyConf($$);
-sub replaceConf($$);
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /--screen=(.*)/){
@@ -98,6 +103,46 @@ sub main(@){
     'Common' => {'DefaultModifiers' => $defaultModifiers}};
   setMachineSpeedMods $speedMods;
   system "$smExecDir/stepmania";
+}
+
+sub getJoysticks(){
+  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
+  for my $name(@joys){
+    my $id = $jsIds{$name};
+    die "Unkown joystick name: $name\n" if not defined $id;
+    my $devPathById = "/dev/input/by-id/$id";
+    if(-e $devPathById){
+      my $devPath = `readlink $devPathById`;
+      chomp $devPath;
+      if($devPath =~ /js(\d+)$/){
+        my $num = $1 + 1;
+        if(not defined $joy1Num){
+          ($joy1Name, $joy1Num) = ($name, $num);
+        }elsif(not defined $joy2Num){
+          ($joy2Name, $joy2Num) = ($name, $num);
+        }
+      }else{
+        print STDERR "expected device named /dev/js##, got: $devPath\n";
+      }
+    }else{
+      print STDERR "pad $name unplugged\n";
+    }
+  }
+  ##### HACK FOR EMS PS2 ADAPTER #####
+  if($joy1Name eq 'redoctane' and $joy1Num > 1 and $joy2Num != ($joy1Num-1)){
+    my $newNum = $joy1Num-1;
+    print STDERR "HACK FOR EMS PS2 ADAPTER: redoctane $joy1Num => $newNum\n";
+    $joy1Num = $newNum;
+  }elsif($joy2Name eq 'redoctane' and $joy2Num > 1 and $joy1Num != ($joy2Num-1)){
+    my $newNum = $joy2Num-1;
+    print STDERR "HACK FOR EMS PS2 ADAPTER: redoctane $joy2Num => $newNum\n";
+    $joy2Num = $newNum;
+  }
+  ####################################
+
+  print "1: $joy1Name => $joy1Num\n";
+  print "2: $joy2Name => $joy2Num\n";
+  return ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
 }
 
 sub setMachineSpeedMods($){
@@ -136,8 +181,8 @@ sub generateKeymap($$$$$){
         my $joyBtn = $$joyMap{$btn};
         my $kbBtn = $$kbMap{$btn};
         my $val;
-        my $joyId = $player == 1 ? $joy1Id : $joy2Id;
-        $val .= "Joy${joyId}_B$joyBtn" if defined $joyBtn;
+        my $joyNum = $player == 1 ? $joy1Num : $joy2Num;
+        $val .= "Joy${joyNum}_B$joyBtn" if defined $joyBtn;
         $val .= ":" if defined $joyBtn and $kbBtn;
         $val .= "Key_$kbBtn" if defined $kbBtn;
         $keymap{"${player}_$btn"} = $val;
