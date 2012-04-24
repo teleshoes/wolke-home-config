@@ -4,50 +4,80 @@ use warnings;
 
 my $file = "$ENV{HOME}/.fcrontab";
 
-my $name = shift() || '';
-my $state = shift() || '';
+my $usage = "Usage:
+  $0 JOBNAME [on|off|toggle]  - comment or uncomment JOBNAME line
+     JOBNAME is exactly two alphanumeric characters
+     HH:MM is hours 00-23 and minutes 00-59
+";
 
-if(@ARGV != 0 or $name !~ /[0-9a-z]{2}/i or $state !~ /^(on|off|toggle)$/i){
-  die "Usage: $0 <jobname> <on|off|toggle>
-    jobname is two alphanumeric characters\n";
+sub setJobState($$);
+sub readFcronLines();
+sub writeFcronLines($);
+sub modifyLine($$);
+
+sub main(@){
+  if(@_ == 0){
+    listNamedJobs;
+    exit 0;
+  }
+  my $jobName = shift() || '';
+  my $arg = shift() || '';
+
+  die $usage if @_ > 0;
+  die $usage if $jobName !~ /^[0-9A-Za-z]{2}$/;
+  die $usage if $arg !~ /^(on|off|toggle)$/;
+
+  if($arg =~ /^(on|off|toggle)$/){
+    setJobState $jobName, $arg;
+  }
 }
 
-open FH, "< $file" or die "Could not read $file\n";
-my @lines = <FH>;
-close FH;
+sub setJobState($$){
+  my $jobName = shift;
+  my $state = shift;
 
-my $modified = 0;
-for my $line(@lines){
-  if($line =~ /^(#?)([^ #].*)#([0-9a-z]{2})\s*$/i){
-    my $comment = $1;
-    my $cmd = $2;
-    my $jobName = $3;
-    if($jobName eq $name){
-      my $newComment;
-      if($state eq 'on'){
-        $newComment = '';
-      }elsif($state eq 'off'){
-        $newComment = '#';
-      }elsif($state eq 'toggle'){
-        $newComment = $comment eq '#' ? '' : '#';
-      }
-      my $newLine = "$newComment$cmd#$name\n";
-      print "OLD: $line";
-      print "NEW: $newLine";
-      $line = $newLine;
+  my $modified = 0;
+  my @lines = readFcronLines();
+  for my $line(@lines){
+    if($line =~ /^\s*(?!##).*#$jobName\s*$/){
+      $line = modifyLine $line, $state;
       $modified = 1;
       last;
     }
   }
+  if($modified){
+    writeFcronLines(\@lines);
+    system "fcronreset";
+  }else{
+    die "Job $jobName not found\n";
+  }
 }
 
-if($modified){
+sub readFcronLines(){
+  open FH, "< $file" or die "Could not read $file\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+
+sub writeFcronLines($){
+  my @lines = @{shift()};
   open FH, "> $file" or die "Could not write $file\n";
   print FH @lines;
   close FH;
-  system "fcronreset";
-  exit 0;
-}else{
-  print STDERR "Job $name not found\n";
-  exit 1;
 }
+
+sub modifyLine($$){
+  my $line = shift;
+  my $state = shift;
+  
+  print "OLD: $line";
+  my $commented = ($line =~ s/^\s*#([^#])/$1/);
+  if($state eq 'on' or ($state eq 'toggle' and not $commented)){
+    $line = "#$line";
+  }
+  print "NEW: $line";
+  return $line;
+}
+
+&main(@ARGV);
