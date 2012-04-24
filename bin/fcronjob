@@ -8,10 +8,12 @@ my $usage = "Usage:
   $0                          - list all named jobs
   $0 JOBNAME [on|off|toggle]  - comment or uncomment JOBNAME line
   $0 JOBNAME [del]            - remove JOBNAME line
+  $0 JOBNAME HH:MM            - add a new alarm-once job, for HH:MM
      JOBNAME is exactly two alphanumeric characters
      HH:MM is hours 00-23 and minutes 00-59
 ";
 
+sub appendAlarmOnce($$$);
 sub listNamedJobs();
 sub setJobState($$);
 sub readFcronLines();
@@ -33,6 +35,19 @@ sub main(@){
   if($arg =~ /^(on|off|toggle|del)$/){
     setJobState $jobName, $arg;
   }
+  if($arg =~ /^(\d\d):(\d\d)$/){
+    appendAlarmOnce $jobName, $1, $2;
+  }
+}
+
+sub appendAlarmOnce($$$){
+  my ($jobName, $hour, $min) = @_;
+  my $cmd = "su $ENV{USER} -lc 'alarm-once $jobName' #$jobName";
+  my $line = "$min $hour * * * $cmd\n";
+  print "appending $line";
+  my @lines = (readFcronLines(), $line);
+  writeFcronLines \@lines;
+  system "fcronreset";
 }
 
 sub setJobState($$){
