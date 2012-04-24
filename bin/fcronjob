@@ -5,11 +5,13 @@ use warnings;
 my $file = "$ENV{HOME}/.fcrontab";
 
 my $usage = "Usage:
+  $0                          - list all named jobs
   $0 JOBNAME [on|off|toggle]  - comment or uncomment JOBNAME line
      JOBNAME is exactly two alphanumeric characters
      HH:MM is hours 00-23 and minutes 00-59
 ";
 
+sub listNamedJobs();
 sub setJobState($$);
 sub readFcronLines();
 sub writeFcronLines($);
@@ -51,6 +53,22 @@ sub setJobState($$){
   }else{
     die "Job $jobName not found\n";
   }
+}
+
+sub listNamedJobs(){
+  my(@active, @inactive);
+  for my $line(readFcronLines){
+    if($line =~ /^\s*(?!##).*#([0-9A-Za-z]{2})$/){
+      my $name = $1;
+      if($line =~ /^\s*#[^#]/){
+        push @inactive, "$name => $line";
+      }else{
+        push @active, "$name => $line";
+      }
+    }
+  }
+  print @active;
+  print "\ninactive:\n  " . join "  ", @inactive;
 }
 
 sub readFcronLines(){
