@@ -1,16 +1,21 @@
-#!/bin/bash
-SUDOLIKE="_root_command fakeroot gksu gksudo kdesudo suod sudp"
-BC=/etc/bash_completion
-PAT="complete -F.*really sudo"
-CUR=`cat $BC | grep 'complete -F.*really sudo'`
-DESIRED="complete -F $SUDOLIKE really sudo"
-BC_TMP=/tmp/bash_completion_`date +%s`
-echo changing list of sudo-like commands from:
-echo "  $CUR"
-echo to
-echo "  $DESIRED"
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-cat $BC | sed "s/$PAT/$DESIRED/" > $BC_TMP
-cat $BC_TMP | sudo tee $BC
-rm $BC_TMP
+if(`whoami` ne "root\n"){
+  print "rerunning as root\n";
+  exec "sudo", $0, @ARGV;
+}
 
+my $dir = '/etc/bash_completion.d';
+
+my $files = {
+  'sudo-aliases' => "complete -F _root_command suod sudp\n",
+};
+
+for my $file(keys %$files){
+  my $content = $$files{$file};
+  open FH, "> $dir/$file" or die "Couldnt open file $dir/$file\n";
+  print FH $content;
+  close FH;
+}
