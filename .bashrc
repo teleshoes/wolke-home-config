@@ -82,6 +82,8 @@ alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
+function spawn { $@ & disown ; }
+function spawnex { $@ & disown && exit 0 ; }
 
 alias genservices='~/workspace/escribe/tools/genservices'
 alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
