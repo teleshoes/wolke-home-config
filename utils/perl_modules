@@ -1,59 +1,81 @@
-#!/bin/bash
-echo; echo;
-echo Install some perl modules:
-echo Date::Calc   File::Slurp   B::Bytecode   XML::LibXSLT
-echo Term::ReadKey   Term::Size::Perl   Date::Manip
-echo Lingua::JA::Romanize::Japanese
-read -p "install the above perl modules(more prompts for each)? (y/N)?"
-if [ "$REPLY" == "y" ]; then
-  echo we need libssl-dev to install the perl packages below
-  sudo apt-get install libssl-dev
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-  PERL_MM_USE_DEFAULT=1
+my %repoModules = (
+  'Date::Calc'       => 'libdate-calc-perl',
+  'File::Slurp'      => 'libfile-slurp-perl',
+  'XML::LibXSLT'     => 'libxml-libxslt-perl',
+  'Term::ReadKey'    => 'libterm-readkey-perl',
+  'Term::Size::Perl' => 'libterm-size-perl',
+  'Date::Manip'      => 'libdate-manip-perl',
+  'Test::Reporter'   => 'libtest-reporter-perl',
+);
 
-  echo upgrading CPAN module
-  sudo cpan CPAN
+my @cpanModules = qw(
+  B::ByteCode
+  Lingua::JA::Romanize::Japanese
+);
 
-  echo setting up Config.pm to make install faster and more autonomous
-  CPAN=/etc/perl/CPAN/Config.pm
-  if [ -e $CPAN ]; then
-    #install prerequisites without prompting
-    sudo /home/wolke/bin/cpan-oconf $CPAN prerequisites_policy follow
-    #limit build cache to 1000mb
-    sudo /home/wolke/bin/cpan-oconf $CPAN build_cache 1000
-    #reuse the build_dir in later sessions (successful makes not repeated)
-    sudo /home/wolke/bin/cpan-oconf $CPAN build_dir_reuse yes
-    #if a module wants to temp install a lib, permanently install it
-    sudo /home/wolke/bin/cpan-oconf $CPAN build_requires_install_policy yes
-    #submit test reports if possible
-    sudo /home/wolke/bin/cpan-oconf $CPAN test_report yes
-    #if theres a record of a successful test for this machine, skip test
-    sudo /home/wolke/bin/cpan-oconf $CPAN trust_test_report_history yes
-  fi
+my %oconf = (
+  prerequisites_policy => 'follow',       #always install prereqs
+  build_cache => '1000',                  #limit build cache to 1000mb
+  build_dir_reuse => 'yes',               #successful makes not repeated
+  build_requires_install_policy => 'yes', #permanently install 'temp' libs
+  test_report => 'yes',                   #submit test reports if possible
+  trust_test_report_history => 'yes',     #skip tests reported for this machine
+);
 
-  read -p "install Test::Reporter and upgrade all modules in cpan? (y/N)"
-  if [ "$REPLY" == "y" ]; then
-    sudo cpan Test::Reporter
-    sudo perl -MCPAN -e upgrade
-  fi
+sub oconfSet($$$);
 
-  sudo cpan Term::ReadKey
-  sudo cpan Date::Manip
-  sudo cpan Date::Calc
-  sudo cpan File::Slurp
-  sudo cpan Term::Size::Perl
-  sudo cpan Lingua::JA::Romanize::Japanese
+sub main(@){
+  for my $mod(keys %repoModules){
+    print "installing $mod from repo\n";
+    system "sudo", "apt-get", "install", $repoModules{$mod};
+  }
 
-  echo
-  read -p "cpan -f -i B::Bytecode? (y/N)"
-  if [ "$REPLY" == "y" ]; then
-    sudo cpan -f -i B::Bytecode
-  fi
+  print "\n\n";
 
-  echo
-  read -p "install XML::LibXSLT? (y/N)"
-  if [ "$REPLY" == "y" ]; then
-    sudo cpan XML::LibXSLT
-  fi
-fi
+  my $cpanConfig = '/etc/perl/CPAN/Config.pm';
+  if(-e $cpanConfig){
+    for my $key(%oconf){
+      oconfSet($cpanConfig, $key, $oconf{$key});
+    }
+  }
+  system "PERL_MM_USE_DEFAULT=1 sudo cpan CPAN";
+  system "PERL_MM_USE_DEFAULT=1 sudo perl -MCPAN -e upgrade";
+  for my $mod(@cpanModules){
+    print "installing $mod from cpan\n";
+    system "PERL_MM_USE_DEFAULT=1 sudo cpan $mod";
+  }
+}
 
+sub oconfSet($$$){
+  my $file = shift;
+  my $config = shift;
+  my $value = shift;
+
+  open FH, "< $file" or die "could not read $file\n";
+  my @lines = <FH>;
+  close FH;
+
+  $value =~ s/\[/\\[/;
+  $value =~ s/\]/\\]/;
+  $value = "q[$value]";
+
+  for my $line(@lines){
+    if($line =~ / ( \s* '$config' \s* => \s* )  (.*)  ( , \s* ) $/x){
+      print "old: $line";
+      $line = "$1$value$3";
+      print "new: $line";
+      print "\n";
+      last;
+    }
+  }
+
+  open FH, "> $file" or die "could not write $file\n";
+  print FH @lines;
+  close FH;
+}
+
+&main(@ARGV);
