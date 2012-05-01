@@ -66,6 +66,7 @@ main = do
                          , title     =? "StepMania"        --> doFull
                          , title     =? "npviewer.bin"     --> doFull -- flash
                          , title     =? "plugin-container" --> doFull -- flash
+                         , title     =? "xfce4-notifyd"    --> doIgnore
                          ],
 
     handleEventHook    = myHandleEventHook,
@@ -78,7 +79,8 @@ restartFF = do
   liftX $ do
     killWindow w
     io . threadDelay $ delay*10^6
-    spawn $ "notify-send 'restarting firefox in " ++ show delay ++ "s'"
+    let msg = "'restarting firefox in " ++ show delay ++ "s'"
+    spawn $ "notify-send -t 3000 " ++ msg
     spawn "firefox"
     refresh
   doF id
