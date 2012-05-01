@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $btDev = '/proc/acpi/ibm/bluetooth';
+
+my $usage = "Usage:\n"
+ . "$0                  prints bluetooth status\n"
+ . "$0 get              prints bluetooth status\n"
+ . "$0 [on|off|toggle]  sets bluetooth status\n"
+;
+
+sub get();
+sub set($);
+
+sub main(@){
+  my $status = `cat $btDev`;
+  my $arg = shift;
+  $arg = 'get' if not defined $arg;
+  die $usage if @_ > 0 or $arg !~ /^(get|on|off|toggle)$/;
+
+  print get() ? "on\n" : "off\n" if $arg eq 'get';
+  set(1) if $arg eq 'on';
+  set(0) if $arg eq 'off';
+  set(not get()) if $arg eq 'toggle';
+}
+
+sub get(){
+  my $status = `cat $btDev`;
+  if($status =~ /enabled/){
+    return 1;
+  }elsif($status =~ /disabled/){
+    return 0;
+  }else{
+    die "Unknown bluetooth status: $status\n";
+  }
+}
+
+sub set($){
+  my $status = shift;
+  my $cmd = $status ? 'enable' : 'disable';
+  system "echo $cmd > $btDev";
+}
+
+&main(@ARGV);
