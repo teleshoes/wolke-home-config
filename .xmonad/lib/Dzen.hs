@@ -4,7 +4,7 @@ import DzenXinerama
 import XMonad.Layout.IndependentScreens (countScreens)
 import XMonad.Hooks.DynamicLog
 import XMonad.Util.Run
-import IO (Handle())
+import System.IO (Handle())
 
 fgColor = "#a8a3f7"
 bgColor = "#3f3c6d"
