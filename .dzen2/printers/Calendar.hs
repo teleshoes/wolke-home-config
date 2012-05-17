@@ -17,7 +17,7 @@ dateIntField f = (read :: String -> Int) <$> readProcess "date" ["+%" ++ f] ""
 
 cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
 
-getCals :: Integral a => a -> a -> a -> [a] -> IO [String]
+getCals :: Int -> Int -> Int -> [Int] -> IO [String]
 getCals y m d (n:ns) = do
   c <- cal $ relMonth (y,m) n
   cs <- getCals y m d ns
