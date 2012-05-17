@@ -1,27 +1,24 @@
 module Fcrondyn(main) where
 import System.IO
-import System.Process(runCommand, system, readProcessWithExitCode)
-import System.Exit(ExitCode(ExitFailure))
+import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (fromMaybe, fromJust, isJust)
 import Control.Monad (void)
 
 import Text.Regex.PCRE
 
+import Utils(isRunning)
 import TextRows(textRows)
 import ClickAction (clickAction)
 
 import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
-import Locale
 
 
 main = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
-  running <- system "pidof fcron > /dev/null"
-  _ <- case running of
-         ExitFailure _ -> void $ runCommand "sudo fcron"
-         otherwise -> return ()
+  running <- isRunning "fcron"
+  if not running then void $ runCommand "sudo fcron" else return ()
   (_, fcrondynOut, _) <- fcrondynExec
   putStr $ clickAction "1" cmd $ parseAndFormat now tz fcrondynOut
 
