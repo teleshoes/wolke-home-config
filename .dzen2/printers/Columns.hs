@@ -1,5 +1,5 @@
 module Columns(main, columns, buckets) where
-import System (getArgs)
+import System.Environment (getArgs)
 import System.IO (hIsTerminalDevice, hIsOpen, hGetContents, stdin)
 import Data.List (intercalate, intersperse, transpose)
 import Data.List.Split (splitEvery, splitPlaces)
