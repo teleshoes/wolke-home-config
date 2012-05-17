@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub ranHex($);
+sub getEkigaNetAccount($$$);
+
+my $accounts = join ",", (
+  getEkigaNetAccount('elliot.wolk@ekiga.net', 'elliot.wolk', 'forty242'),
+);
+
+my $gconfDir = '/apps/ekiga';
+my %gconf = (
+  'protocols/accounts_list' => "[$accounts]",
+  'protocols/sip/listen_port' => "4250",
+  'protocols/h323/listen_port' => "4251",
+  'protocols/ports/tcp-port-range' => "4230-4239",
+  'protocols/ports/udp-port-range' => "4240-4249",
+  'general/nat/enable_stun' => "true",
+  'general/nat/stun_server' => "stun.counterpath.com",
+);
+
+sub getEkigaNetAccount($$$){
+  my ($accountName, $un, $pw) = @_;
+  return join "|", (
+    "1",
+    "1",
+              # 04de0ca9- ae9e-     e111-     84a7-a088b440551c
+    join("-", (ranHex 8, ranHex 4, ranHex 4, ranHex 12)),
+    $accountName,
+    "SIP",
+    "ekiga.net",
+    "ekiga.net",
+    $un,
+    $un,
+    $pw,
+    "3600"
+  );
+}
+
+sub ranHex($){
+  my $len = shift;
+  my $s = '';
+  my @hex = qw(0 1 2 3 4 5 6 7 8 9 a b c d e f);
+  for(my $i=0; $i<$len; $i++){
+    $s .= $hex[int(rand()*16)];
+  }
+  return $s;
+}
+
+sub main(@){
+  die "Usage: $0\n" if @_ > 0;
+  system "killall -9 ekiga";
+  for my $key(keys %gconf){
+    my $val = $gconf{$key};
+    my $type = 'string';
+    $type = 'int' if $val =~ /^\d+$/;
+    $type = 'list' if $val =~ /^\[.*\]$/;
+    $type = 'bool' if $val =~ /^(true|false)$/i;
+    my @cmd = ("gconftool", "-s", "-t", $type);
+    if($type eq 'list'){
+      my $listType = 'string';
+      $listType = 'int' if $val =~ /^\[(\s*\d+\s*,\s*)*\d+\]$/;
+      @cmd = (@cmd, "--list-type", $listType);
+    }
+    @cmd = (@cmd, "$gconfDir/$key", $val);
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+&main(@ARGV);
