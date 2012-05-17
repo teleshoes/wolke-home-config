@@ -16,7 +16,7 @@ import ClickAction (clickAction)
 height = 36
 
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
-  where wscanCmd = home ++ "/.dzen2/printers/wscan"
+  where wscanCmd = home ++ "/.dzen2/printers/ghcprinter WScan"
         popupCmd = home ++ "/.dzen2/launchers/popup"
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
