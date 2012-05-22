@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 song             print length in seconds
+  $0 song song ..     print length in seconds and filename, one per line
+  $0 -t song song ..  print total length in seconds of all inputs
+";
+
+sub main(@){
+  die $usage if @_ == 0;
+  my $isTotal = 0;
+  if($_[0] eq '-t'){
+    $isTotal = 1;
+    shift;
+  }
+
+  my $isSingle = @_ == 1;
+
+  my $total = 0;
+  for my $song(@_){
+    my $msg = '';
+    my $shellSong = $song;
+    $shellSong =~ s/'/'\\''/g;
+    $shellSong = "'$shellSong'";
+    system "stat $shellSong 1>/dev/null 2>/dev/null";
+    die "Could not stat file $song\n" if $? != 0;
+    my $info = `midentify $shellSong 2>/dev/null`;
+    if($info =~ /^ID_LENGTH=(\d+(?:\.\d+)?)$/m){
+      $total += $1;
+      $msg .= $1;
+    }else{
+      die "Unknown length for input: $song\n";
+    }
+    if(not $isTotal){
+      $msg .= " $song" if not $isSingle;
+      $msg .= "\n";
+    }
+    print $msg if not $isTotal;
+  }
+  if($isTotal){
+    print sprintf "%.2f", $total;
+    print "\n";
+  }
+}
+
+&main(@ARGV);
