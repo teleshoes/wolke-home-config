@@ -1,0 +1,30 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 [ext ext ..] [find args] [find paths...] [find exprs]
+  takes alphanumeric strings as the first args, followed by normal find args
+    and prepends a complex find expression of the disjunction of -iname *.EXT
+    e.g.: (-iname *.EXT -or -iname *.EXT)
+";
+
+my (@exts, @paths, @exprs);
+push @exts, shift while @ARGV > 0 and $ARGV[0] =~ /^[a-zA-Z0-9]+$/;
+push @paths, shift while @ARGV > 0 and $ARGV[0] !~ /^-/;
+push @exprs, shift while @ARGV > 0;
+
+my @extExprs;
+for(my $i=0; $i<@exts; $i++){
+  my $ext = $exts[$i];
+  push @extExprs, "(" if $i == 0;
+  push @extExprs, "-iname";
+  push @extExprs, "*.$ext";
+  push @extExprs, "-or" if $i != $#exts;
+  push @extExprs, ")" if $i == $#exts;
+}
+
+@exprs = (@extExprs, @exprs);
+
+my @cmd = ('find', @paths, @exprs);
+system @cmd;
