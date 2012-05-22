@@ -3,41 +3,66 @@ use strict;
 use warnings;
 
 my $usage = "Usage:
-  $0 song             print length in seconds
-  $0 song song ..     print length in seconds and filename, one per line
-  $0 -t song song ..  print total length in seconds of all inputs
+  $0 [-a] song             print length in seconds
+  $0 [-a] song song ..     print length in seconds and filename, one per line
+  $0 [-a] -t song song ..  print sum of length in seconds of all inputs
+    -a  =>  use avconv instead of midentify
 ";
+
+sub getLen($$){
+  my ($song, $useAvconv) = @_;
+
+  my $shellSong = $song;
+  $shellSong =~ s/'/'\\''/g;
+  $shellSong = "'$shellSong'";
+  system "stat $shellSong 1>/dev/null 2>/dev/null";
+  die "Could not stat file $song\n" if $? != 0;
+
+  my $len;
+  if($useAvconv){
+    my $avconfInfo = `avconv -i $shellSong 2>&1`;
+    if($avconfInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
+      $len = $3 + ($2*60) + ($1*60*60);
+    }
+  }else{
+    my $mplayerInfo = `midentify $shellSong 2>/dev/null`;
+    if($mplayerInfo =~ /^ID_LENGTH=(\d+(?:\.\d+)?)$/m){
+      $len = $1;
+    }
+  }
+
+  if(defined $len){
+    return $len;
+  }else{
+    die "Unknown length for input: $song\n";
+  }
+}
+
 
 sub main(@){
   die $usage if @_ == 0;
-  my $isTotal = 0;
+  (my $isTotal = 0, my $useAvconv = 0, my $isSingle = 0);
+  die $usage if $_[0] eq '-h' or $_[0] eq '--help';
+
+  if($_[0] eq '-a'){
+    $useAvconv = 1;
+    shift;
+  }
   if($_[0] eq '-t'){
     $isTotal = 1;
     shift;
   }
-
-  my $isSingle = @_ == 1;
+  $isSingle = @_ == 1;
 
   my $total = 0;
   for my $song(@_){
-    my $msg = '';
-    my $shellSong = $song;
-    $shellSong =~ s/'/'\\''/g;
-    $shellSong = "'$shellSong'";
-    system "stat $shellSong 1>/dev/null 2>/dev/null";
-    die "Could not stat file $song\n" if $? != 0;
-    my $info = `midentify $shellSong 2>/dev/null`;
-    if($info =~ /^ID_LENGTH=(\d+(?:\.\d+)?)$/m){
-      $total += $1;
-      $msg .= $1;
-    }else{
-      die "Unknown length for input: $song\n";
-    }
+    my $len = getLen $song, $useAvconv;
+    $total += $len;
     if(not $isTotal){
-      $msg .= " $song" if not $isSingle;
-      $msg .= "\n";
+      print $len;
+      print " $song" if not $isSingle;
+      print "\n";
     }
-    print $msg if not $isTotal;
   }
   if($isTotal){
     print sprintf "%.2f", $total;
