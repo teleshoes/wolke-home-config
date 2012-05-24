@@ -42,17 +42,17 @@ myDzenPP home workspaceNames = dzenPP
   , ppUrgent          = \x -> emptyWs "red" x
   , ppWsSep           = blkspc
   , ppSep             = blkspc
-  , ppLayout          = dzenColor "black" "yellow" .
-                        (\ x -> case x of
-                         "left" -> "[]="
-                         "top"  -> "TTT"
-                         "full" -> "[ ]"
-                         _      -> x
-                        )
   , ppTitle           = clickWrap 1 "$HOME/bin/kb" .
                         ("^bg(#316c80) " ++) .
                         dzenEscape .
                         shorten 30
+  , ppLayout          =
+     \x -> let (ptrn, fg, bg) = case x of
+                                  "left" -> ("[]=", fgColor, bgColor)
+                                  "top"  -> ("TTT", "blue", "red")
+                                  "full" -> ("[ ]", "blue", "red")
+                                  _      -> ("???", "blue", "red")
+           in dzenColor fg bg ptrn
   }
   where
    current wsName = ""
