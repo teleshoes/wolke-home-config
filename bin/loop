@@ -1,29 +1,47 @@
 #!/usr/bin/perl
+use strict;
+use warnings;
 
-my $usage = "usage: $0 [-d] [optional-sleep-delay] command\n";
-if(@ARGV == 0){
-  die $usage;
+my $usage = "Usage:
+  $0 -h|--help
+     print this usage
+  $0 [-d] [delay] command [args]
+     run command until non-zero status is returned
+       if no args are present, command is shell interpolated
+       e.g.:
+         $0 echo hello world
+           like: while [ 1 ]; do echo hello world; sleep1; done
+         $0 ls *
+           like: x=*; while [ 1 ]; do ls \$x; sleep 1; done
+         $0 'ls *'
+           like: while [ 1 ]; do ls *; sleep 1; done
+     'delay' is how long to sleep between commands
+        defaults to 1, <= 0 means run without sleeping
+     '-d' means to run 'date' before each invokation
+";
+
+sub runOrDie(@){
+  system @_;
+  exit $? if $? != 0;
 }
-my $date = 0;
-if($ARGV[0] eq '-d'){
-  shift;
-  $date = 1;
-}
-my $sleepDelay = -1;
-if($ARGV[0] =~ /^-?\d+(\.\d+)?$/){
-  $sleepDelay = shift;
-  if($sleepDelay <= 0){
-    die "sleep delay must be a positive real number {not 0}\n";
+
+sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+
+  die $usage if @_ == 0;
+  my $printDate = 0;
+  $printDate = shift if $_[0] =~ /^-d$/;
+ 
+  die $usage if @_ == 0;
+  my $delay = 1;
+  $delay = shift if $_[0] =~ /^\d+(?:\.\d+)?$/;
+
+  die $usage if @_ == 0;
+  while(1){
+    runOrDie "date" if $printDate;
+    runOrDie @_;
+    runOrDie "sleep", $delay if $delay >= 0;
   }
 }
-if(@ARGV == 0){
-  die $usage;
-}
-my $cmd = join ' ', @ARGV;
-if($date > 0){
-  $cmd = "date; $cmd";
-}
-if($sleepDelay > 0){
-  $cmd = "$cmd; sleep $sleepDelay";
-}
-exec "while [ 1 ]; do $cmd; done";
+
+&main(@ARGV);
