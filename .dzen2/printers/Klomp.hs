@@ -58,8 +58,8 @@ infoMatch s = if isMatch then (posSex, lenSex, path) else (0, 0, "")
   where regex = "(\\d+(?:\\.\\d+)?) (\\d+(?:\\.\\d+)?) (.*)"
         match = s =~ regex :: [[String]]
         isMatch = length match == 1
-        posSex = floor $ toFloat $ head match !! 1
-        lenSex = floor $ toFloat $ head match !! 2
+        posSex = round $ toFloat $ head match !! 1
+        lenSex = round $ toFloat $ head match !! 2
         path = head match !! 3
 
 attMatch :: String -> Maybe (String, String)
