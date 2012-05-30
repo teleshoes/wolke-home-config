@@ -7,6 +7,8 @@ my $initramfsFunctions = '/usr/share/initramfs-tools/scripts/functions';
 
 my $theme = 'kells';
 
+sub initramfsLogging();
+
 sub run(@){
   print "@_\n";
   system @_;
@@ -16,15 +18,29 @@ sub main(@){
   die "Usage: $0\n" if @_ > 0;
   for my $theme(`ls plymouth/`){
     chomp $theme;
-    run "sudo rm -rf $dir/$theme/";
-    run "sudo cp -ar plymouth/$theme $dir";
+    run "sudo", "rm", "-rf", "$dir/$theme/";
+    run "sudo", "cp", "-ar", "plymouth/$theme", $dir;
   }
-  run "sudo rm $dir/default.plymouth";
-  run "sudo ln -s $theme/$theme.plymouth $dir/default.plymouth";
-  addLogging();
+  run "sudo", "rm", "$dir/default.plymouth";
+  run "sudo", "ln", "-s", "$theme/$theme.plymouth", "$dir/default.plymouth";
+  initramfsLogging();
 }
 
-sub addLogging(){
+sub diff($$){
+  my ($old, $new) = ('/tmp/old', '/tmp/new');
+  open FH, "> /tmp/old";
+  print FH $_[0];
+  close FH;
+  open FH, "> /tmp/new";
+  print FH $_[1];
+  close FH;
+  print "---diff---\n";
+  system "diff $old $new";
+  print "----------\n\n";
+  system "rm $old $new";
+}
+
+sub initramfsLogging(){
   my $logFunction = ''
     . "_log_msg()\n"
     . "{\n"
@@ -36,12 +52,16 @@ sub addLogging(){
     . "\tif [ \"\$quiet\" = \"y\" ]; then return; fi\n"
     . "\tprintf \"\$\@\"\n"
     . "}\n"
+    . "\n"
     ;
 
   my $f = `cat $initramfsFunctions`;
-  $f =~ s/_log_msg\(\)\s*{[^}]*}/$logFunction/s;
+  my $oldF = $f;
+  $f =~ s/_log_msg\(\)\s*{[^}]*}\n*/$logFunction/s;
+  
+  print "\n\nreplacing _log_msg() in $initramfsFunctions\n";
+  diff $oldF, $f;
 
-  print "replacing _log_msg() in $initramfsFunctions\n";
   open FH, "| sudo tee $initramfsFunctions > /dev/null"
     or die "Couldnt write to $initramfsFunctions\n";
   print FH $f;
