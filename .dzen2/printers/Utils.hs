@@ -1,4 +1,9 @@
-module Utils(height, fg, bg, posAbs, posAbsX, posAbsY, isRunning) where
+module Utils(
+  height,
+  fg, bg,
+  shiftUp, posAbs, posAbsX, posAbsY,
+  isRunning
+) where
 import System.Process(runCommand, system)
 import System.Exit(ExitCode(ExitFailure))
 
@@ -11,6 +16,8 @@ fg color markup = "^fg(" ++ color ++ ")" ++ markup ++ "^fg()"
 
 bg :: String -> String -> String
 bg color markup = "^bg(" ++ color ++ ")" ++ markup ++ "^bg()"
+
+shiftUp = posAbsY 0
 
 posAbs x y m = "^pa(" ++ show x ++ ";" ++ show y ++ ")" ++ m
 posAbsX x m = "^pa(" ++ show x ++ ")" ++ m

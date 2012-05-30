@@ -2,7 +2,7 @@ module ClickableImage (main, clickableImage) where
 import System.Environment.UTF8 (getArgs)
 import System.Process(readProcess)
 import ClickAction (clickAction)
-import ShiftUp (shiftUp)
+import Utils (shiftUp)
 
 main = do
  args <- getArgs

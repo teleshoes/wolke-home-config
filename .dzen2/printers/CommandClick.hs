@@ -1,7 +1,7 @@
 module CommandClick (main, commandClick, imgDir) where
 import System.Environment.UTF8 (getArgs)
 import System.Environment (getEnv)
-import ShiftUp (shiftUp)
+import Utils (shiftUp)
 import TextRows (textRows)
 import ClickableImage (clickableImage)
 
