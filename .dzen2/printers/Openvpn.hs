@@ -1,23 +1,13 @@
-#!/usr/bin/perl
-use strict;
-use warnings;
+module Openvpn(main) where
+import Utils (isRunning, fg)
+import TextRows (textRows)
+import ClickAction (clickAction)
 
-my $LAUNCHERS = "\$HOME/.dzen2/launchers";
-my $PRINTERS = "\$HOME/.dzen2/printers";
+height = 36
+clickCmd = "sudo sslvpn toggle"
 
-my $clickCmd = "sudo sslvpn toggle";
-
-my $color;
-my $onoff;
-if(`pidof openvpn`){
-  $color = "green";
-  $onoff = "yes";
-}else{
-  $color = "red";
-  $onoff = "off";
-}
-
-my $markup = `$PRINTERS/ghcprinter TextRows "vpn" "$onoff" 36`;
-chomp $markup;
-$markup = "^fg($color)$markup^fg()";
-system "$PRINTERS/ghcprinter ClickAction \"$clickCmd\" \"$markup\"";
+main = do
+  vpnOn <- isRunning "openvpn"
+  let text = if vpnOn then "yes" else "off"
+  let color = if vpnOn then "green" else "red"
+  putStrLn $ clickAction "1" clickCmd $ fg color $ textRows "vpn" text height
