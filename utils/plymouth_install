@@ -5,8 +5,10 @@ use warnings;
 my $dir = '/lib/plymouth/themes';
 my $initramfsFunctions = '/usr/share/initramfs-tools/scripts/functions';
 
-my $theme = 'kells';
+my $curTheme = 'kells';
 
+sub drawImageText($$$);
+sub diff($$);
 sub initramfsLogging();
 
 sub run(@){
@@ -16,14 +18,37 @@ sub run(@){
 
 sub main(@){
   die "Usage: $0\n" if @_ > 0;
-  for my $theme(`ls plymouth/`){
+
+  die "No image text\n" if not -e "plymouth/image-text";
+  my $text = `cat plymouth/image-text`;
+  chomp $text;
+  print "Image text: $text\n";
+
+  for my $theme(`cd plymouth; ls -dA *`){
     chomp $theme;
+    next if not -d "plymouth/$theme";
+    my $baseImage = "plymouth/$theme/${theme}_base.png";
+    my $textImage = "plymouth/$theme/${theme}.png";
+    drawImageText $text, $baseImage, $textImage;
     run "sudo", "rm", "-rf", "$dir/$theme/";
     run "sudo", "cp", "-ar", "plymouth/$theme", $dir;
+    run "rm", $textImage;
   }
+
   run "sudo", "rm", "$dir/default.plymouth";
-  run "sudo", "ln", "-s", "$theme/$theme.plymouth", "$dir/default.plymouth";
+  run "sudo", "ln", "-s",
+    "$curTheme/$curTheme.plymouth", "$dir/default.plymouth";
   initramfsLogging();
+}
+
+sub drawImageText($$$){
+  my ($text, $src, $dest) = @_;
+  die "No base image $src\n" if not -e $src;
+  run "convert",
+    "-pointsize", "60",
+    "-fill", "black",
+    "-draw", "text 1450,60 '$text'",
+    $src, $dest;
 }
 
 sub diff($$){
