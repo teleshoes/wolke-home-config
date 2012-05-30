@@ -8,7 +8,7 @@ import Data.Map (fromList, Map, lookup)
 import System.Environment (getEnv)
 import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, fromMaybe)
-import Text.Regex.PCRE
+import Text.Regex.PCRE ((=~))
 
 height = 36
 
