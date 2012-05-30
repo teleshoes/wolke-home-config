@@ -1,6 +1,8 @@
-module Utils(fg, bg, isRunning) where
+module Utils(height, fg, bg, isRunning) where
 import System.Process(runCommand, system)
 import System.Exit(ExitCode(ExitFailure))
+
+height = 36
 
 fg :: String -> String -> String
 fg color markup = "^fg(" ++ color ++ ")" ++ markup ++ "^fg()"

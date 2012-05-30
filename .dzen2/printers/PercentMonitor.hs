@@ -38,15 +38,15 @@ main = do
   (w,h,colors) <- parseArgs <$> getArgs
   drawMonitor w h colors stdin stdout
 
-drawMonitor w h colors reader writer = do
+drawMonitor w height colors reader writer = do
   hSetBuffering writer LineBuffering
-  let height = h-2
+  let h = height-2
   let expectedLen = length colors
   let getRelSample = lineToRelSample expectedLen <$> hGetLine reader
 
   let loop (_:oldRelSamples) = do
       relSamples <- (oldRelSamples ++) . return <$> getRelSample
-      hPutStrLn writer $ monitorMarkup w height colors relSamples
+      hPutStrLn writer $ monitorMarkup w h colors relSamples
       loop relSamples
   loop (replicate w [])
 
@@ -74,12 +74,12 @@ lineToRelSample expectedLen line | ok = reverse $ map read pers
 
 
 monitorMarkup :: Width -> Height -> [Color] -> [RelSample] -> String
-monitorMarkup width height colors relSamples = (ib markup) ++ "^fg()"
+monitorMarkup w h colors relSamples = (ib markup) ++ "^fg()"
   where markup = concatMap drawSampleBlock getSampleBlocks
-        getAbsSamples = map (relToAbsSample height) relSamples
+        getAbsSamples = map (relToAbsSample h) relSamples
         getSampleBlocks = map sB $ group getAbsSamples
         sB :: [AbsSample] -> SampleBlock
-        sB sPs = packSampleBlock (length sPs, height, colors, head sPs)
+        sB sPs = packSampleBlock (length sPs, h, colors, head sPs)
         ib m = "^ib(1)" ++ m ++ "^ib(0)"
 
 drawSampleBlock :: SampleBlock -> String

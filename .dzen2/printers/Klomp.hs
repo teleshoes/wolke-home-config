@@ -10,8 +10,6 @@ import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, fromMaybe)
 import Text.Regex.PCRE ((=~))
 
-height = 36
-
 rowLength = 34
 gapOffset = 3
 
@@ -44,7 +42,7 @@ main = do
 
   putStr
     $ clickActionSet btn1Cmd btn2Cmd btn3Cmd
-    $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot) height
+    $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
 
 toFloat = read :: String -> Float
 

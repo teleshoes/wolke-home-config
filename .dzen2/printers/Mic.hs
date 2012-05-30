@@ -5,8 +5,8 @@ import ClickAction (clickAction)
 import ClickableImage (clickableImage)
 
 import Volume (isMuted)
+import Utils (height)
 
-height = 36
 diameter = height `div` 4
 
 main = do

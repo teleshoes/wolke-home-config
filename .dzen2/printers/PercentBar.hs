@@ -1,14 +1,13 @@
 module PercentBar (percentBar) where
 import System.Environment (getEnv)
 import System.Process(readProcess)
-
-height = 36
+import Utils (height)
 
 percentBar :: Int -> [String] -> Int -> Int -> String
 percentBar percent colors bgWidth fgWidth = markup
-  where heights = height : (map (roundPercent height) $ pers percent)
+  where hs = height : (map (roundPercent height) $ pers percent)
         widths = bgWidth : repeat fgWidth
-        markup = dzenRects height (max bgWidth fgWidth) heights widths colors
+        markup = dzenRects height (max bgWidth fgWidth) hs widths colors
 
 roundPercent max = round . (/100) . (* (fromInteger max)) . fromIntegral
 

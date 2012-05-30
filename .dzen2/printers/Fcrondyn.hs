@@ -42,7 +42,7 @@ namedJobs (j:js) | isJust mName = (j, fromJust mName):(namedJobs js)
 rows now tz jobs
   | length jobs == 0 = padr 13 "No jobs"
   | length jobs == 1 = fmt $ jobs !! 0
-  | length jobs >= 2 = textRows (fmt $ jobs !! 0) (fmt $ jobs !! 1) 36
+  | length jobs >= 2 = textRows (fmt $ jobs !! 0) (fmt $ jobs !! 1)
   where fmt (j,name) = (relTime (jobTime tz j) now) ++ "|" ++ name
 
 maybeJobName job = cmdSub $ jobCmd job

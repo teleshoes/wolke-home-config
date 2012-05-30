@@ -11,8 +11,6 @@ import Text.Printf (printf)
 import TextRows (textRows)
 import System.IO (hFlush, stdout)
 
-height = 36
-
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
 procFile = "/proc/net/dev"
@@ -67,7 +65,7 @@ showBytes bytes = fgColor (chooseColor byteColors) (unit (bytes/1024) units)
 
 fgColor c m = "^fg(" ++ c ++ ")" ++ m ++ "^fg()"
 
-format scanInitial scanFinal = textRows dn up height
+format scanInitial scanFinal = textRows dn up
   where
     dn = showBytes $ if elapsedSex == 0 then 0 else rxBytes / elapsedSex
     up = showBytes $ if elapsedSex == 0 then 0 else txBytes / elapsedSex

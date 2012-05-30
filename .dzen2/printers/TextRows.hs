@@ -1,22 +1,18 @@
 module TextRows(textRows, main) where
 import System.Environment.UTF8 (getArgs)
 import StripMarkup (estimateLength)
+import Utils (height)
+
+topPx = 0 - (height `div` 12)
+botPx = topPx + (height `div` 2)
 
 main = do
  args <- getArgs
- putStr $ textRows (args !! 0) (args !! 1) (read (args !! 2) :: Int)
-
-offset height = 0 - (height `div` 12)
-
-topPx height = offset height
-botPx height = offset height + (height `div` 2)
+ putStr $ textRows (args !! 0) (args !! 1)
 
 posAbsY y m = "^pa(;" ++ (show y) ++ ")" ++ m
 
-raise height m = posAbsY (topPx height) m
-lower height m = posAbsY (botPx height) m
-
-textRows top bot height = trm (raise height top) (lower height bot)
+textRows top bot = trm (posAbsY topPx top) (posAbsY botPx bot)
   where trm = if estimateLength top < estimateLength bot
               then textRowsMarkup
               else flip textRowsMarkup
