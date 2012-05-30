@@ -1,154 +1,92 @@
-#!/usr/bin/perl
-use strict;
-use warnings;
+module Klomp(main) where
+import Utils (isRunning)
+import ClickAction (clickActionSet)
+import TextRows (textRows)
 
-my $totalLen = 34;
-my $sepOffset = 3;
+import Prelude hiding(lookup)
+import Data.Map (fromList, Map, lookup)
+import System.Environment (getEnv)
+import System.Directory (doesFileExist)
+import Data.Maybe (catMaybes, fromMaybe)
+import Text.Regex.PCRE
 
-my $KLOMPCUR = "$ENV{HOME}/.klompcur";
-my $KLOMPLAYER_PID = '/tmp/klomplayer_pid';
+height = 36
 
-my $klompCmdExec = 'klomp-cmd';
-my $klompTermExec = 'klomp-term';
+rowLength = 34
+gapOffset = 3
 
+btn1Cmd = "xdotool key --clearmodifiers alt+9; klomp-term"
+btn2Cmd = "klomp-cmd reset"
+btn3Cmd = "klomp-cmd stop"
 
-my $LAUNCHERS = `echo -n \$HOME/.dzen2/launchers`;
-my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
+strLookup :: Ord a => a -> Map a String -> String
+strLookup k m = fromMaybe "" $ lookup k m
 
-my $leftClickCmd = "xdotool key --clearmodifiers alt+9; " .
-                   "$klompTermExec; ";
-my $middleClickCmd = "$klompCmdExec reset";
-my $rightClickCmd = "$klompCmdExec stop";
+main = do
+  home <- getEnv "HOME"
+  let curFile = home ++ "/" ++ ".klompcur"
+  curExists <- doesFileExist curFile
+  cur <- if curExists then readFile curFile else return ""
+  running <- isRunning "klomplayer"
 
-sub twoTextRows($$);
-sub adjustLen($$$);
+  let ((posSex, lenSex, path), atts) = parseCur cur
+  let [pos,len] = formatTimes [posSex, lenSex]
 
-sub ghcprinter(@){
-  my @args = @_;
-  for my $arg(@args){
-    $arg =~ s/\'/'\\''/g;
-    $arg = "'$arg'";
-  }
-  my $out = `$PRINTERS/ghcprinter @args`;
-  chomp $out;
-  return $out;
-}
+  let prefix = if running then "" else "x" 
+  let (top, bot) = if curExists then
+                      ( pos ++ "-" ++ strLookup "artist" atts
+                      , len ++ "-" ++ strLookup "title" atts
+                      )
+                   else
+                      ( "              KLOMP      "
+                      , "          no current song"
+                      )
 
-sub wrapTokens(@){
-  my @tokens;
-  for my $token(@_){
-    my $t = $token;
-    $t =~ s/'/'\\''/g;
-    push @tokens, "'$t'";
-  }
-  return @tokens;
-}
-sub shellQuiet(@){
-  my $cmd = join ' ', wrapTokens(@_);
-  return `$cmd 2>/dev/null`;
-}
+  putStr
+    $ clickActionSet btn1Cmd btn2Cmd btn3Cmd
+    $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot) height
 
-sub hms($){
-  my $sex = shift;
-  my $h = int($sex / (60*60));
-  my $m = int(($sex % (60*60))  / (60));
-  my $s = int($sex % (60));
-  return ($h, $m, $s);
-}
-sub parseTime($$){
-  my $pos = shift;
-  my $len = shift;
-  my ($pH, $pM, $pS) = hms $pos;
-  my ($lH, $lM, $lS) = hms $len;
-  my ($newPos, $newLen) = ('', '');
-  if($pH > 0 or $lH > 0){
-    my $hlen = length $pH;
-    $hlen = length $lH if length $lH > $hlen;
-    $newPos .= '0' x ($hlen - length $pH) . $pH . ':';
-    $newLen .= '0' x ($hlen - length $lH) . $lH . ':';
-  }
-  $newPos .= '0' x (2 - length $pM) . $pM . ':';
-  $newLen .= '0' x (2 - length $lM) . $lM . ':';
+toFloat = read :: String -> Float
 
-  $newPos .= '0' x (2 - length $pS) . $pS;
-  $newLen .= '0' x (2 - length $lS) . $lS;
+parseCur :: String -> ((Integer, Integer, String), Map String String)
+parseCur cur = (infoMatch info, fromList $ catMaybes $ map attMatch atts)
+  where lns = lines cur
+        (info:atts) = if length lns > 0 then lns else [""]
 
-  return ($newPos, $newLen);
-}
-sub main(){
-  my ($top, $bot);
-  my $cur = -e $KLOMPCUR ? `cat $KLOMPCUR` : '';
-  if($cur =~ /^([0-9\-\.]+) ([0-9\-\.]+) (.*)/){
-    my $pos = $1;
-    my $length = $2;
-    ($pos, $length) = parseTime $pos, $length;
-    my $path = $3;
+infoMatch :: String -> (Integer, Integer, String)
+infoMatch s = if isMatch then (posSex, lenSex, path) else (0, 0, "")
+  where regex = "(\\d+(?:\\.\\d+)?) (\\d+(?:\\.\\d+)?) (.*)"
+        match = s =~ regex :: [[String]]
+        isMatch = length match == 1
+        posSex = floor $ toFloat $ head match !! 1
+        lenSex = floor $ toFloat $ head match !! 2
+        path = head match !! 3
 
-    my @lines = split /\n/, $cur;
+attMatch :: String -> Maybe (String, String)
+attMatch s = if isMatch then Just (key, val) else Nothing
+  where regex = "([a-z_A-Z]+)=(.*)"
+        match = s =~ regex :: [[String]]
+        isMatch = length match == 1
+        key = head match !! 1
+        val = head match !! 2
 
-    my $artist = $lines[0];
-    my $title = $lines[1];
-    for my $line(@lines){
-      if($line =~ /^artist(?:_guess)?=(.*)/){
-        $artist = $1 if ($1 ne '');
-      }elsif($line =~ /^title(?:_guess)?=(.*)/){
-        $title = $1 if ($1 ne '');
-      }
-    }
-    
-    $top = "$pos-$artist";
-    $bot = "$length-$title";
+formatTimes ts = map fmt ts 
+  where maxH = (maximum ts) `div` (60^2)
+        maxHLen = length $ show $ maxH
+        fmt t = (if maxH > 0 then h t ++ ":" else "") ++ m t ++ ":" ++ s t
+        h t = padL '0' maxHLen $ show $ t `div` 60^2
+        m t = padL '0' 2 $ show $ (t `mod` 60^2) `div` 60
+        s t = padL '0' 2 $ show $ t `mod` 60
 
-  }else{
-    $top = "              KLOMP";
-    $bot = "          no current song";
-  }
+adjustLen s = padR ' ' rowLength $ sTrim
+  where strLen = length s
+        sTrim = if strLen > rowLength then beforeGap ++ sep ++ afterGap else s
+        sep = "..."
+        sepLen = length sep
+        gapStart = (rowLength `div` 2) - (sepLen `div` 2) + gapOffset
+        gapLength = strLen - rowLength + sepLen
+        beforeGap = take (gapStart-1) s
+        afterGap = drop (gapStart - 1 + gapLength) s
 
-  my $running = 0;
-
-  if(-e $KLOMPLAYER_PID){
-    system "kill -0 `cat $KLOMPLAYER_PID`";
-    if($? == 0){
-      $running = 1;
-    }
-  }
-
-  if(not $running){
-    $top =~ s/^ ?/x/;
-    $bot =~ s/^ ?/x/;
-  }
-
-  $top = adjustLen $top, $totalLen, $sepOffset;
-  $bot = adjustLen $bot, $totalLen, $sepOffset;
-  $top =~ s/\^/^^/g;
-  $bot =~ s/\^/^^/g;
-  my $markup = ghcprinter 'TextRows', $top, $bot, 36;
-  $markup = ghcprinter 'ClickAction', 1, $leftClickCmd, $markup;
-  $markup = ghcprinter 'ClickAction', 2, $middleClickCmd, $markup;
-  $markup = ghcprinter 'ClickAction', 3, $rightClickCmd, $markup;
-  print "$markup\n";
-}
-
-#replaces the middle of long strings with '...'
-sub adjustLen($$$){
-  my $str = shift;
-  my $len = shift;
-  my $offset = shift;
-  my $sep = '...';
-  my $strLen = length $str;
-  if($strLen > $len){
-    my $sepLen = length $sep;
-    my $preSplit = ($len/2+$offset) - ($sepLen/2);
-    my $postSplit = $strLen - ($len - $preSplit - $sepLen);
-    $str = 
-      (substr $str, 0, $preSplit) .
-      $sep .
-      (substr $str, $postSplit, $strLen-$postSplit+1);
-    $strLen = length $str;
-  }
-  $str .= ' ' x ($len - $strLen);
-  return $str;
-}
-
-main;
-
+padR x len xs = xs ++ replicate (len - length xs) x
+padL x len xs = replicate (len - length xs) x ++ xs
