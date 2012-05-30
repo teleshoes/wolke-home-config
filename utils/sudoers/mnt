@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub isUsb($);
+sub getUsbPartitions();
+
+my $usage = "Usage:
+  $0 -g         - print all labels for usb drives
+
+  $0            - mount all usb partitions at /media/LABEL or /media/UUID
+  $0 -u         - unmount all usb paritions at /media/LABEL or /media/UUID
+
+  $0 LABEL      - mount LABEL at /media/LABEL
+  $0 -u LABEL   - unmount /media/LABEL  
+";
+
+sub main(@){
+  my $arg = shift;
+  if($arg eq '-g'){
+    foreach(getUsbPartitions()){
+      my %p = %{$_};
+      print "$p{label}\n";
+    }
+  }
+}
+
+sub isUsb($){
+  my $dev = shift;
+  my $out = `udevadm info --query=all -n $dev | grep ID_USB_DRIVER`;
+  if($out =~ "E: ID_USB_DRIVER=usb-storage"){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub getUsbPartitions(){
+  my @partitions;
+  for my $line(`blkid`){
+    my %p;
+    $p{dev} = $1 if $line =~ /^(.*):/;
+    $p{label} = $1 if $line =~ /LABEL="([^"]+)"/;
+    $p{uuid} = $1 if $line =~ /UUID="([^"]+)"/;
+    $p{type} = $1 if $line =~ /TYPE="([^"]+)"/;
+
+    if(isUsb $p{dev}){
+      push @partitions, \%p;
+    }
+  }
+  return @partitions;
+}
+
+&main(@ARGV);
