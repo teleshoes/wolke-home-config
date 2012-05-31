@@ -1,70 +1,37 @@
 module Calendar(main) where
 import System.Process(readProcess)
-import Data.List (intercalate, stripPrefix)
-import Data.List.Split (splitEvery)
-import Data.Maybe (fromMaybe)
-import Control.Applicative ((<$>))
-import Columns (columns, buckets)
+import Data.List (intercalate, intersperse, transpose)
+import Data.List.Split (splitEvery, splitOn)
+import Utils (fg, bg, padL, padR, estimateLength)
 
 main = do
-  y <- dateIntField "Y" 
-  m <- dateIntField "m" 
-  d <- dateIntField "d" 
-  cals <- getCals y m d [-23..24]
+  [y,m,d] <- sequence $ map runDate ["Y", "m", "d"]
+  cals <- sequence $ map (getCal (y,m,d)) [-23..24]
   putStr $ formatColumns cals 6
 
-dateIntField f = (read :: String -> Int) <$> readProcess "date" ["+%" ++ f] ""
+runCal (y,m) = readProcess "cal" ["-h", show m, show y] "" :: IO String
+runDate f = fmap read $ readProcess "date" ["+%" ++ f] "" :: IO Int
 
-cal (y,m) = readProcess "cal" ["-h", show m, show y] ""
+replaceAll old new list = intercalate new $ splitOn old list
 
-getCals :: Int -> Int -> Int -> [Int] -> IO [String]
-getCals y m d (n:ns) = do
-  c <- cal $ relMonth (y,m) n
-  cs <- getCals y m d ns
-  return ((if n == 0 then styleThisMonth d c else c):cs)
-getCals _ _ _ [] = return []
+getCal (y,m,d) monthOffset = fmap style $ runCal $ relMonth monthOffset (y,m)
+  where style = if monthOffset == 0 then styleThisMonth d else id
 
-styleThisMonth d c | length lns == 0 = c
-                   | otherwise = unlines $ (highlight $ head lns):tail lns
-  where lns = lines $ styleDate (show d) c
-        highlight ln = "^bg(blue)" ++ ln ++ "^bg()"
+relMonth :: Int -> (Int, Int) -> (Int, Int)
+relMonth n = (!! (abs n)) . iterate (if n >= 0 then nextMonth else prevMonth)
+  where prevMonth (y,m) = if m == 1 then (y-1, 12) else (y, m-1)
+        nextMonth (y,m) = if m == 12 then (y+1, 1) else (y, m+1)
+
+styleThisMonth d c = unlines $ (bg "blue" header):(map styleDate dateLines)
+  where (header:dateLines) = lines c
+        styleDate = replaceAll dateSq (bg "white" $ fg "black" dateSq)
+        dateSq = padL ' ' 2 $ show d
 
 formatColumns cals height = columns cols "|  "
   where cols = map (lines.concat) (splitEvery height cals)
 
-formatTall xs = concat xs
-formatWide xs = collate (map lines xs) "\n"
-collate [] _ = []
-collate xs sep = heads ++ sep ++ collate tails sep
-  where fxs = filter (/= []) xs
-        heads = concatMap head fxs
-        tails = map tail fxs
-
-relMonth (y,m) n | n == 0 = (y,m)
-                 | n > 0 = relMonth (nextMonth (y,m)) (n-1)
-                 | n < 0 = relMonth (prevMonth (y,m)) (n+1)
-prevMonth (y,m) | m == 1    = (y-1, 12)
-                | otherwise = (y,  m-1)
-nextMonth (y,m) | m == 12   = (y+1,  1)
-                | otherwise = (y,  m+1)
-
-styleDate date cal = unlines (map rep $ lines cal)
-  where rep = replaceDate (date) (wrapStyle (spacePrepend 2 date) ++ " ")
-
-spacePrepend width s | length s >= width = s
-                     | otherwise = spacePrepend width (' ':s)
-
-replaceDate d sD (x:y:' ':xs)   | (x:y:"") == d = sD ++ replaceDate d sD xs
-replaceDate d sD (x:y:[])       | (x:y:"") == d = sD
-replaceDate d sD (' ':y:' ':xs) | (y:"") == d = sD ++ replaceDate d sD xs
-replaceDate d sD (' ':y:[])     | (y:"") == d = sD
-replaceDate d sD (x:y:z:xs) = x:y:z:(replaceDate d sD xs)
-replaceDate _ _ xs = xs
-
-wrapStyle d = ""
-  ++ "^bg(grey70)"
-  ++ "^fg(#111111)"
-  ++ d
-  ++ "^fg()"
-  ++ "^bg()"
-
+columns :: [[String]] -> String -> String
+columns cols sep = intercalate "\n" $ map concat $ map (intersperse sep) rows
+  where rows = transpose paddedCols
+        paddedCols = zipWith (\len col -> map (padR ' ' len) col) maxLens cols
+        maxLens = map (maximum . (map estimateLength)) cols
