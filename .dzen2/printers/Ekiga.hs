@@ -1,12 +1,8 @@
 module Ekiga(main) where
 import Utils(isRunning)
-import ClickAction(clickAction)
+import ClickAction(clickActions)
 
 main = do
   running <- isRunning "ekiga"
-  
-  putStr $
-    clickAction "1" "ekiga" $
-    clickAction "3" "killall ekiga" $
-    if running then "e" else "-"
-
+  let text = if running then "e" else "-"
+  putStr $ clickActions ["ekiga", "", "killall ekiga"] text
