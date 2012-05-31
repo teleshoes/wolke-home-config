@@ -2,6 +2,7 @@ module Utils(
   height,
   fg, bg,
   shiftUp, posAbs, posAbsX, posAbsY,
+  padL, padR,
   estimateLength,
   isRunning
 ) where
@@ -26,14 +27,17 @@ posAbsY y m = "^pa(;" ++ show y ++ ")" ++ m
 
 -- Parsing
 
-estimateLength = length . chompAll . strip
+padL x len xs = replicate (len - length xs) x ++ xs
+padR x len xs = xs ++ replicate (len - length xs) x
+
+estimateLength = length . chompAll . stripDzenMarkup
 
 chompAll = reverse . dropWhile (== '\n') . reverse
 
-strip ('^':'^':s) = '^' : strip s
-strip ('^':s) = strip $ dropWhile (/= ')') s
-strip (c:s) = c : strip s
-strip [] = []
+stripDzenMarkup ('^':'^':s) = '^' : stripDzenMarkup s
+stripDzenMarkup ('^':s) = stripDzenMarkup $ drop 1 $ dropWhile (/= ')') s
+stripDzenMarkup (c:s) = c : stripDzenMarkup s
+stripDzenMarkup [] = []
 
 -- IO
 isRunning :: String -> IO Bool
