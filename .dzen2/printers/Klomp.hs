@@ -1,6 +1,6 @@
 module Klomp(main) where
 import Utils (padL, padR, isRunning)
-import ClickAction (clickActionSet)
+import ClickAction (clickActions)
 import TextRows (textRows)
 
 import Prelude hiding(lookup)
@@ -13,9 +13,10 @@ import Text.Regex.PCRE ((=~))
 rowLength = 34
 gapOffset = 3
 
-btn1Cmd = "xdotool key --clearmodifiers alt+9; klomp-term"
-btn2Cmd = "klomp-cmd reset"
-btn3Cmd = "klomp-cmd stop"
+clickCommands = [ "xdotool key --clearmodifiers alt+9; klomp-term"
+                , "klomp-cmd reset"
+                , "klomp-cmd stop"
+                ]
 
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
@@ -41,7 +42,7 @@ main = do
                       )
 
   putStr
-    $ clickActionSet btn1Cmd btn2Cmd btn3Cmd
+    $ clickActions clickCommands
     $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
 
 toFloat = read :: String -> Float

@@ -1,4 +1,4 @@
-module ClickAction (main, clickAction, clickActionSet) where
+module ClickAction (main, clickAction, clickActions) where
 import System.Environment.UTF8 (getArgs)
 
 main = do
@@ -7,17 +7,13 @@ main = do
                       2 -> "1":args
                       3 -> args
                       _ -> error "Usage: <optional button> command markup"
-  putStr $ clickAction btn cmd mrk
+  putStr $ clickAction (read btn :: Int) cmd mrk
+
+clickActions cmds m = foldr ($) m (zipWith clickAction [1..] cmds)
 
 clickAction btn cmd markup = ""
   ++ "^pa(;0)"
-  ++ "^ca(" ++ btn ++ ", " ++ cmd ++ ")"
+  ++ "^ca(" ++ show btn ++ ", " ++ cmd ++ ")"
   ++ markup
   ++ "^ca()"
   ++ "^pa()"
-
-clickActionSet btn1Cmd btn2Cmd btn3Cmd markup = id
-  $ clickAction "1" btn1Cmd
-  $ clickAction "2" btn2Cmd
-  $ clickAction "3" btn3Cmd
-  markup
