@@ -2,7 +2,6 @@ module Mic(main) where
 import System.Environment (getEnv)
 import System.Process(readProcess)
 import ClickAction (clickAction)
-import ClickableImage (clickableImage)
 
 import Volume (isMuted)
 import Utils (height, fg, circle, posY)
@@ -14,7 +13,7 @@ main = do
  putStr $ formatCircle muted
 
 formatCircle isM = clickAction 1 clickCmd markup
-  where markup = fg color $ posY shift $ circle diameter
+  where markup = fg color $ posY shift ++ circle diameter
         shift = 3 * diameter `div` 2
         color = if isM then "black" else "red"
 
