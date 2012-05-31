@@ -1,35 +1,19 @@
 module PercentBar (percentBar) where
 import System.Environment (getEnv)
 import System.Process(readProcess)
-import Utils (height)
+import Utils (height, fg, rect, pos, posY, ignoreBG)
+import Control.Arrow (first, second)
 
-percentBar :: Int -> [String] -> Int -> Int -> String
-percentBar percent colors bgWidth fgWidth = markup
-  where hs = height : (map (roundPercent height) $ pers percent)
-        widths = bgWidth : repeat fgWidth
-        markup = dzenRects height (max bgWidth fgWidth) hs widths colors
+percentBar percent colors width = pos width (-8) ++ ignoreBG rects ++ posY 8
+  where hs = heights percent
+        ws = iterate ((max 1) . (`divr` 5) . (*3)) width
+        rects = concatMap drawRect $ zip3 hs ws (cycle colors)
 
-roundPercent max = round . (/100) . (* (fromInteger max)) . fromIntegral
+divr x y = round $ (fromIntegral x) / (fromIntegral y)
 
-pers p = replicate (p `div` 100) 100 ++ [p `mod` 100]
+drawRect (h,w,c) = pos (-w) startH ++ fg c (rect w h) ++ posY (-startH)
+  where startH = height - (fromIntegral h)
 
-dzenRects maxH maxW hs ws cs =
-  ""
-  ++ "^p(" ++ show maxW ++ ";-8)"
-  ++ "^ib(1)"
-  ++ rects maxH hs ws cs
-  ++ "^ib(0)"
-  ++ "^p(;8)"
-
-rects maxH (h:hs) (w:ws) (c:cs) = dzenRect maxH h w c ++ rects maxH hs ws cs
-rects maxH _ _ _ = ""
-
-dzenRect maxH h w c =
-  ""
-  ++ "^p(-" ++ show w ++ ";" ++ show startH ++ ")"
-  ++ "^fg(" ++ c ++ ")"
-  ++ "^r(" ++ show w ++ "x" ++ show h ++ ")"
-  ++ "^fg()"
-  ++ "^p(;-" ++ show startH ++ ")"
-  where startH = maxH - h
+heights p = replicate fullBars height ++ [(height * partialBar) `divr` 100]
+  where (fullBars,partialBar) = second fromIntegral $ first (+1) $ p`divMod`100
 

@@ -9,7 +9,7 @@ main = do
   system "$HOME/bin/brightness last > /dev/null"
   brightness <- fmap (round.d) $ readProcess "xbacklight" ["-get"] ""
   let colors = ["black", "darkgray"] ++ repeat "orange"
-  putStr $ percentBar brightness colors 5 3
+  putStr $ percentBar brightness colors 5
 
 d = read :: String -> Double
 

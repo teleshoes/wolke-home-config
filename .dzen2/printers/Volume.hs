@@ -13,7 +13,7 @@ main = do
   vol <- getVol "speaker"
   mute <- isMuted "speaker"
   let colors = if mute then mutedColors else unmutedColors
-  putStr $ percentBar vol colors 5 3
+  putStr $ percentBar vol colors 5
 
 getVol :: String -> IO Int
 getVol = fmap fst . getStatus
