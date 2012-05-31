@@ -46,7 +46,7 @@ main = forever $ do
 
 printNet text = do
   home <- getEnv "HOME"
-  putStrLn $ clickAction "1" (cmd home) text
+  putStrLn $ clickAction 1 (cmd home) text
 
 wifi = do
   wlan <- chomp <$> readProcess "ifdev" ["wlan"] ""

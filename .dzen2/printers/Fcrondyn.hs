@@ -20,7 +20,7 @@ main = do
   running <- isRunning "fcron"
   if not running then void $ runCommand "sudo fcron" else return ()
   (_, fcrondynOut, _) <- fcrondynExec
-  putStr $ clickAction "1" cmd $ parseAndFormat now tz fcrondynOut
+  putStr $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
 
 fcrondynExec = readProcessWithExitCode "sudo" ["fcrondyn", "-x", "ls"] ""
 
