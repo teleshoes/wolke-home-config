@@ -12,7 +12,7 @@ main = do
 clickActions cmds m = foldr ($) m (zipWith clickAction [1..] cmds)
 
 clickAction :: Int -> String -> String -> String
-clickAction btn cmd markup = ""
+clickAction btn cmd markup = if null cmd then markup else ""
   ++ "^pa(;0)"
   ++ "^ca(" ++ show btn ++ ", " ++ cmd ++ ")"
   ++ markup
