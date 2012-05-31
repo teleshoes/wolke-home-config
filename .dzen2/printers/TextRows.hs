@@ -10,17 +10,16 @@ main = do
  args <- getArgs
  putStr $ textRows (args !! 0) (args !! 1)
 
-textRows top bot = trm (posAbsY topPx top) (posAbsY botPx bot)
-  where trm = if estimateLength top < estimateLength bot
-              then textRowsMarkup
-              else flip textRowsMarkup
+textRows topText botText = overlapMarkup shorter longer
+  where (top, bot) = (posAbsY topPx topText, posAbsY botPx botText)
+        (topLen, botLen) = (estimateLength top, estimateLength bot)
+        (shorter, longer) = if topLen < botLen then (top, bot) else (bot, top)
 
-textRowsMarkup shorter longer = ""
+overlapMarkup bg fg = ""
   ++ "^p(_LOCK_X)"
-  ++ shorter
+  ++ bg
   ++ "^ib(1)"
   ++ "^p(_UNLOCK_X)"
-  ++ longer
+  ++ fg
   ++ "^ib(0)"
   ++ "^pa()"
-
