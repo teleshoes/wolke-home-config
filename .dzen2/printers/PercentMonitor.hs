@@ -7,6 +7,8 @@ import Control.Applicative((<$>))
 import Control.Exception
 import System.Environment.UTF8 (getArgs)
 import System.IO (hSetBuffering, hGetLine, hPutStrLn, stdin, stdout, BufferMode(LineBuffering))
+import Utils (fg, rect, posX, posAbsY, ignoreBG)
+
 
 type Pix = Int
 type Per = Float
@@ -50,7 +52,6 @@ drawMonitor w height colors reader writer = do
       loop relSamples
   loop (replicate w [])
 
-
 parseArgs :: [String] -> (Width, Height, [Color])
 parseArgs (w:h:c1:c2:cs) | isPix w && isPix h =
           (toPix w, toPix h, reverse (c1:c2:cs))
@@ -63,7 +64,6 @@ toPer = read :: String -> Per
 isPix = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Pix)
 isPer = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Per)
 
-
 lineToRelSample :: Int -> String -> RelSample
 lineToRelSample expectedLen line | ok = reverse $ map read pers
                                  | otherwise = error errorMsg
@@ -71,23 +71,20 @@ lineToRelSample expectedLen line | ok = reverse $ map read pers
         pers = words line
         errorMsg = "Could not parse % line: " ++ line
 
-
-
 monitorMarkup :: Width -> Height -> [Color] -> [RelSample] -> String
-monitorMarkup w h colors relSamples = (ib markup) ++ "^fg()"
+monitorMarkup w h colors relSamples = ignoreBG markup
   where markup = concatMap drawSampleBlock getSampleBlocks
         getAbsSamples = map (relToAbsSample h) relSamples
         getSampleBlocks = map sB $ group getAbsSamples
         sB :: [AbsSample] -> SampleBlock
         sB sPs = packSampleBlock (length sPs, h, colors, head sPs)
-        ib m = "^ib(1)" ++ m ++ "^ib(0)"
 
 drawSampleBlock :: SampleBlock -> String
 drawSampleBlock sb | isEmptySB sb = drawRect $ emptySampleBlockRect sb
                    | otherwise = sbMarkup
   where sbMarkup = concat $ intersperse reset $ map drawRect rects
         rects = filter ((>0).rHeight) $ sampleBlockToRects sb
-        reset = "^p(-" ++ (show $ sbWidth sb) ++ ")"
+        reset = posX (-sbWidth sb)
 
 sampleBlockToRects :: SampleBlock -> [Rect]
 sampleBlockToRects sb = packRects widths absSample offsets colors
@@ -102,11 +99,7 @@ emptySampleBlockRect :: SampleBlock -> Rect
 emptySampleBlockRect sb = Rect (sbWidth sb) (sbHeight sb) 0 (head $ sbColors sb)
 
 drawRect :: Rect -> String
-drawRect r = ""
-     ++ "^fg(" ++ rColor r ++ ")"
-     ++ "^pa(;" ++ (show $ rOffset r) ++ ")"
-     ++ "^r(" ++ (show $ rWidth r) ++ "x" ++ (show $ rHeight r) ++ ")"
-
+drawRect r = fg (rColor r) $ posAbsY (rOffset r) ++ rect (rWidth r) (rHeight r)
 
 relToAbsSample :: Height -> RelSample -> AbsSample
 relToAbsSample h [] = []
