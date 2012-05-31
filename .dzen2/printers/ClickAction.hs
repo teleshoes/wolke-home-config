@@ -1,5 +1,6 @@
 module ClickAction (main, clickAction, clickActions) where
 import System.Environment.UTF8 (getArgs)
+import Utils (shiftUp, shiftMiddle)
 
 main = do
   args <- getArgs
@@ -13,8 +14,8 @@ clickActions cmds m = foldr ($) m (zipWith clickAction [1..] cmds)
 
 clickAction :: Int -> String -> String -> String
 clickAction btn cmd markup = if null cmd then markup else ""
-  ++ "^pa(;0)"
+  ++ shiftUp
   ++ "^ca(" ++ show btn ++ ", " ++ cmd ++ ")"
   ++ markup
   ++ "^ca()"
-  ++ "^pa()"
+  ++ shiftMiddle

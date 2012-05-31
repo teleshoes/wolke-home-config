@@ -2,6 +2,7 @@ module Utils(
   height,
   fg, bg,
   img, circle, rect,
+  clickArea,
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftUp, shiftMiddle,
   ignoreBG,
