@@ -2,6 +2,7 @@ module Utils(
   height,
   fg, bg,
   img, circle, rect,
+  title, clearSlave,
   clickArea,
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftUp, shiftMiddle,
@@ -23,6 +24,9 @@ bg color m = "^bg(" ++ color ++ ")" ++ m ++ "^bg()"
 img imgPath = "^i(" ++ imgPath ++ ")"
 circle d = "^c(" ++ show d ++ ")"
 rect x y = "^r(" ++ show x ++ "x" ++ show y ++ ")"
+
+title m = "^tw()" ++ m ++ "\n"
+clearSlave = "^cs()" ++ "\n"
 
 clickArea btn cmd m = "^ca(" ++ show btn ++ ", " ++ cmd ++ ")" ++ m ++ "^ca()"
 
