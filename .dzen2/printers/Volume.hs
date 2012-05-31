@@ -4,8 +4,9 @@ import System.Process(readProcess)
 import PercentBar (percentBar)
 import Text.Regex.PCRE ((=~))
 
-mutedColors = ["yellow", "red", "pink"] ++ repeat "orange"
-unmutedColors = ["black", "green", "blue"] ++ repeat "orange"
+mutedColors = ["yellow", "red"] ++ otherColors
+unmutedColors = ["black", "green"] ++ otherColors
+otherColors = "blue":(repeat "orange")
 
 main = do
   home <- getEnv "HOME"
