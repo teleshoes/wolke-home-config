@@ -11,6 +11,7 @@ main = do
 
 clickActions cmds m = foldr ($) m (zipWith clickAction [1..] cmds)
 
+clickAction :: Int -> String -> String -> String
 clickAction btn cmd markup = ""
   ++ "^pa(;0)"
   ++ "^ca(" ++ show btn ++ ", " ++ cmd ++ ")"
