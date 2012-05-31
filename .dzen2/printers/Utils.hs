@@ -1,6 +1,8 @@
 module Utils(
   height,
   fg, bg,
+  circle,
+  pos, posX, posY,
   shiftUp, posAbs, posAbsX, posAbsY,
   padL, padR,
   estimateLength,
@@ -13,14 +15,16 @@ import System.Exit(ExitCode(ExitFailure))
 height = 36
 
 -- PRINTERS
-fg :: String -> String -> String
 fg color markup = "^fg(" ++ color ++ ")" ++ markup ++ "^fg()"
-
-bg :: String -> String -> String
 bg color markup = "^bg(" ++ color ++ ")" ++ markup ++ "^bg()"
 
-shiftUp = posAbsY 0
+circle d = "^c(" ++ show d ++ ")"
 
+pos x y m = "^p(" ++ show x ++ ";" ++ show y ++ ")" ++ m
+posX x m = "^p(" ++ show x ++ ")" ++ m
+posY y m = "^p(;" ++ show y ++ ")" ++ m
+
+shiftUp = posAbsY 0
 posAbs x y m = "^pa(" ++ show x ++ ";" ++ show y ++ ")" ++ m
 posAbsX x m = "^pa(" ++ show x ++ ")" ++ m
 posAbsY y m = "^pa(;" ++ show y ++ ")" ++ m
