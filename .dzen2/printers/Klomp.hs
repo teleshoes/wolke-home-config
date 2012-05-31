@@ -1,5 +1,5 @@
 module Klomp(main) where
-import Utils (isRunning)
+import Utils (padL, padR, isRunning)
 import ClickAction (clickActionSet)
 import TextRows (textRows)
 
@@ -86,5 +86,3 @@ adjustLen s = padR ' ' rowLength $ sTrim
         beforeGap = take (gapStart-1) s
         afterGap = drop (gapStart - 1 + gapLength) s
 
-padR x len xs = xs ++ replicate (len - length xs) x
-padL x len xs = replicate (len - length xs) x ++ xs
