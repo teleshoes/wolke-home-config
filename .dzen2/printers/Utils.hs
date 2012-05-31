@@ -2,6 +2,7 @@ module Utils(
   height,
   fg, bg,
   shiftUp, posAbs, posAbsX, posAbsY,
+  estimateLength,
   isRunning
 ) where
 import System.Process(runCommand, system)
@@ -23,6 +24,17 @@ posAbs x y m = "^pa(" ++ show x ++ ";" ++ show y ++ ")" ++ m
 posAbsX x m = "^pa(" ++ show x ++ ")" ++ m
 posAbsY y m = "^pa(;" ++ show y ++ ")" ++ m
 
+-- Parsing
+
+estimateLength = length . chompAll . strip
+
+chompAll = reverse . dropWhile (== '\n') . reverse
+
+strip ('^':'^':s) = '^' : strip s
+strip ('^':s) = strip $ dropWhile (/= ')') s
+strip (c:s) = c : strip s
+strip [] = []
+
 -- IO
 isRunning :: String -> IO Bool
 isRunning p = do
@@ -30,3 +42,4 @@ isRunning p = do
   return $ case running of
     ExitFailure _ -> False
     otherwise -> True
+

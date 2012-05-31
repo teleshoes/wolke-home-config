@@ -3,7 +3,7 @@ import System.Environment (getArgs)
 import System.IO (hIsTerminalDevice, hIsOpen, hGetContents, stdin)
 import Data.List (intercalate, intersperse, transpose)
 import Data.List.Split (splitEvery, splitPlaces)
-import StripMarkup (estimateLength)
+import Utils (estimateLength)
 
 main = do
   ensureNotTerminal

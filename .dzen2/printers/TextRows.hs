@@ -1,7 +1,6 @@
 module TextRows(textRows, main) where
 import System.Environment.UTF8 (getArgs)
-import StripMarkup (estimateLength)
-import Utils (height, posAbsY)
+import Utils (height, posAbsY, estimateLength)
 
 topPx = 0 - (height `div` 12)
 botPx = topPx + (height `div` 2)
