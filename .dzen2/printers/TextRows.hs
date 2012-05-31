@@ -13,7 +13,7 @@ main = do
 textRows topText botText = overlapMarkup shorter longer
   where (top, bot) = (posAbsY topPx topText, posAbsY botPx botText)
         (topLen, botLen) = (estimateLength top, estimateLength bot)
-        (shorter, longer) = if topLen < botLen then (top, bot) else (bot, top)
+        (shorter, longer) = if topLen <= botLen then (top, bot) else (bot, top)
 
 overlapMarkup bg fg = ""
   ++ "^p(_LOCK_X)"
