@@ -10,6 +10,7 @@ import Control.Monad (void, forever)
 import Control.Monad.Loops (whileM, iterateUntil)
 import System.Posix (sleep)
 import Text.Regex.PCRE
+import Utils (fg, title, clearSlave)
 
 success = (==) ExitSuccess
 
@@ -17,7 +18,7 @@ main = do
   putStrLn $ "Wifi Scan"
   putStrLn $ "<last scan below, fetching new now>"
   old <- readProcess "wscan" ["-l"] ""
-  putStrLn $ formatWscan old
+  putStrLn $ formatWScan old
   forever scan
 
 scan = iterateUntil success $ do
@@ -26,9 +27,7 @@ scan = iterateUntil success $ do
   if success exitCode
   then do
     date <- readProcess "date" [] ""
-    putStrLn $ "^cs()"
-    putStrLn $ date
-    putStrLn $ formatWscan out
+    putStrLn $ clearSlave ++ date ++ formatWScan out
   else (do
     putStrLn $ "err: " ++ errorMsg err
     void $ sleep 1)
@@ -36,19 +35,9 @@ scan = iterateUntil success $ do
 
 trimR = reverse . (dropWhile isSpace) . reverse
 
-formatWscan s = "^tw()" ++ title ++ "\n" ++ s
+formatWScan s = title t ++ s
   where savedSSIDs = map trimR $ catMaybes $ map maybeSavedSSID $ lines s
-        title = "Wifi Scan: ( " ++ concatMap clickableSSID savedSSIDs ++ " )"
-
-clickableSSID ssid = ""
-  ++ " "
-  ++ "^ca(1," ++ cmd ++ ")"
-    ++ "^fg(green)"
-    ++ ssid
-    ++ "^fg()"
-  ++ "^ca()"
-  ++ " "
-  where cmd = "sudo wconnect '" ++ ssid ++ "'"
+        t = "Wifi Scan: ( " ++ intercalate " " savedSSIDs ++ " )"
 
 maybeSavedSSID line = if saved then Just (matches !! 0) else Nothing
   where matches = getMatches line "(.{20}) \\| (.{4}) \\| (.{4}) \\| (.{5})"
