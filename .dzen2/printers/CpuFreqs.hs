@@ -6,6 +6,7 @@ import Data.List (intercalate)
 import Control.Applicative ((<$>))
 import System.IO (hGetLine, hFlush, stdout, Handle)
 import Text.Regex.PCRE ((=~))
+import Utils (posX)
 
 main = do
   freqH <- getFreqsHandle
@@ -19,7 +20,7 @@ cpuFreqLoop freqH lengths = do
   hFlush stdout
   cpuFreqLoop freqH newLengths
 
-formatFreqs freqs maxLen = intercalate "^p(4)" $ formatCols formattedFreqs
+formatFreqs freqs maxLen = intercalate (posX 4) $ formatCols formattedFreqs
   where formattedFreqs = take maxLen $ (map showFreq freqs) ++ (repeat "??")
         len = maxLen + (maxLen `mod` 2)
 
