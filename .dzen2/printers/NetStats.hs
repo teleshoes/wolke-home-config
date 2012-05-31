@@ -10,6 +10,7 @@ import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 import TextRows (textRows)
 import System.IO (hFlush, stdout)
+import Utils (fg)
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
@@ -51,7 +52,7 @@ scanLoop scans = do
   threadDelay 1000000
   scanLoop updatedScans
 
-showBytes bytes = fgColor (chooseColor byteColors) (unit (bytes/1024) units)
+showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) units)
   where
     unit :: Double -> [String] -> String
     unit x (u:us) | x >= 1000 && length us > 0 = unit (x/1024) us
@@ -62,8 +63,6 @@ showBytes bytes = fgColor (chooseColor byteColors) (unit (bytes/1024) units)
                    ["black", "gray", "blue", "purple", "green", "white", "red"]
     chooseColor ((b, c):bcs) | bytes > b && length bcs > 0 = chooseColor bcs
                              | otherwise = c
-
-fgColor c m = "^fg(" ++ c ++ ")" ++ m ++ "^fg()"
 
 format scanInitial scanFinal = textRows dn up
   where
