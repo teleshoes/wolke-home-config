@@ -17,8 +17,8 @@ textRows topText botText = overlapMarkup shorter longer
 overlapMarkup bg fg = ""
   ++ "^p(_LOCK_X)"
   ++ bg
-  ++ "^ib(1)"
   ++ "^p(_UNLOCK_X)"
+  ++ "^ib(1)"
   ++ fg
   ++ "^ib(0)"
   ++ "^pa()"
