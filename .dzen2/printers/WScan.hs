@@ -10,7 +10,6 @@ import Control.Monad (void, forever)
 import Control.Monad.Loops (whileM, iterateUntil)
 import System.Posix (sleep)
 import Text.Regex.PCRE
-import ClickAction (clickAction)
 
 success = (==) ExitSuccess
 
