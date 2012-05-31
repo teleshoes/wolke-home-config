@@ -17,12 +17,14 @@ import System.Exit(ExitCode(ExitFailure))
 height = 36
 
 -- PRINTERS
-fg color markup = "^fg(" ++ color ++ ")" ++ markup ++ "^fg()"
-bg color markup = "^bg(" ++ color ++ ")" ++ markup ++ "^bg()"
+fg color m = "^fg(" ++ color ++ ")" ++ m ++ "^fg()"
+bg color m = "^bg(" ++ color ++ ")" ++ m ++ "^bg()"
 
 img imgPath = "^i(" ++ imgPath ++ ")"
 circle d = "^c(" ++ show d ++ ")"
 rect x y = "^r(" ++ show x ++ "x" ++ show y ++ ")"
+
+clickArea btn cmd m = "^ca(" ++ show btn ++ ", " ++ cmd ++ ")" ++ m ++ "^ca()"
 
 pos x y = "^p(" ++ show x ++ ";" ++ show y ++ ")"
 posX x = "^p(" ++ show x ++ ")"
