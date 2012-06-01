@@ -6,7 +6,7 @@ import Control.Monad (void)
 
 import Text.Regex.PCRE
 
-import Utils(isRunning)
+import Utils(isRunning, padR)
 import TextRows(textRows)
 import ClickAction (clickAction)
 
@@ -38,12 +38,11 @@ namedJobs (j:js) | isJust mName = (j, fromJust mName):(namedJobs js)
                  | otherwise = namedJobs js
   where mName = maybeJobName j
 
-
-rows now tz jobs
-  | length jobs == 0 = padr 13 "No jobs"
-  | length jobs == 1 = fmt $ jobs !! 0
-  | length jobs >= 2 = textRows (fmt $ jobs !! 0) (fmt $ jobs !! 1)
-  where fmt (j,name) = (relTime (jobTime tz j) now) ++ "|" ++ name
+rows now tz jobs = textRows (padR ' ' 14 top) (padR ' ' 14 bot)
+  where fmt (j,name) = (time j) ++ "|" ++ name
+        time j = padR ' ' 11 $ relTime (jobTime tz j) now
+        top = if length jobs > 0 then fmt $ jobs !! 0 else "No jobs"
+        bot = if length jobs > 1 then fmt $ jobs !! 1 else ""
 
 maybeJobName job = cmdSub $ jobCmd job
 
@@ -51,11 +50,6 @@ cmdSub cmd = if isMatch then Just (head match !! 1) else Nothing
   where match = cmd =~ regex :: [[String]]
         isMatch = length match == 1
         regex = "#([a-zA-Z0-9]{2})$"
-
-padl i s | length s >= i = s
-padl i s = padl i (' ':s)
-padr i s | length s >= i = s
-padr i s = padr i (s++" ")
 
 jobCmd  (whole:id:user:mon:day:year:h:m:s:cmd:[]) = cmd
 jobTime tz (whole:id:user:mon:day:year:h:m:s:cmd:[]) = t
@@ -69,7 +63,7 @@ showDHMS (d,h,m,s) = d++"d" ++ h++"h" ++ m++"m" ++ s++"s"
 unzero ('0':ds) = ds
 unzero ds = ds
 
-relTime t1 t2 = padl 11 $ showDHMS (show d,sh h,sh m,sh s)
+relTime t1 t2 = showDHMS (show d,sh h,sh m,sh s)
   where sex = round $ diffUTCTime t1 t2
         s = sex `mod` 60
         m = sex `div` 60 `mod` 60
