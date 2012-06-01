@@ -5,7 +5,7 @@ module Utils(
   title, clearSlave,
   clickArea,
   pos, posX, posY, lockX,
-  posAbs, posAbsX, posAbsY, shiftUp, shiftMiddle,
+  posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
   padL, padR,
   chompAll, estimateLength,
@@ -39,8 +39,9 @@ lockX m = "^p(_LOCK_X)" ++ m ++ "^p(_UNLOCK_X)"
 posAbs x y = "^pa(" ++ show x ++ ";" ++ show y ++ ")"
 posAbsX x = "^pa(" ++ show x ++ ")"
 posAbsY y = "^pa(;" ++ show y ++ ")"
-shiftUp = posAbsY 0
-shiftMiddle = "^pa()"
+shiftTop = posAbsY 0
+shiftMid = "^pa()"
+shiftBot = posAbsY $ height `div` 2
 
 ignoreBG m = "^ib(1)" ++ m ++ "^ib(0)"
 

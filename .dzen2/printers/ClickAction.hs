@@ -1,6 +1,6 @@
 module ClickAction (main, clickAction, clickActions) where
 import System.Environment.UTF8 (getArgs)
-import Utils (clickArea, shiftUp, shiftMiddle)
+import Utils (clickArea, shiftTop, shiftMid)
 
 main = do
   args <- getArgs
@@ -10,7 +10,7 @@ main = do
                       _ -> error "Usage: <optional button> command markup"
   putStr $ clickAction (read btn :: Int) cmd mrk
 
-clickActions cmds m = shiftUp ++ markup ++ shiftMiddle
+clickActions cmds m = shiftTop ++ markup ++ shiftMid
   where markup = foldr ($) m (zipWith clickArea [1..] cmds)
 
-clickAction btn cmd m = shiftUp ++ clickArea btn cmd m ++ shiftMiddle
+clickAction btn cmd m = shiftTop ++ clickArea btn cmd m ++ shiftMid
