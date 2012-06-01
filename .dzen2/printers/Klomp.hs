@@ -12,6 +12,7 @@ import Text.Regex.PCRE ((=~))
 
 rowLength = 34
 gapOffset = 3
+sep = "…"
 
 clickCommands = [ "xdotool key --clearmodifiers alt+9; klomp-term"
                 , "klomp-cmd reset"
@@ -80,7 +81,6 @@ formatTimes ts = map fmt ts
 adjustLen s = padR ' ' rowLength $ sTrim
   where strLen = length s
         sTrim = if strLen > rowLength then beforeGap ++ sep ++ afterGap else s
-        sep = "…"
         sepLen = length sep
         gapStart = (rowLength `div` 2) - (sepLen `div` 2) + gapOffset
         gapLength = strLen - rowLength + sepLen
