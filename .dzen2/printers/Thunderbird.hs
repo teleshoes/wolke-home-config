@@ -1,7 +1,7 @@
 module Thunderbird(main) where
 import Utils (
-  fg, bg,
-  shiftMid,
+  fg, bg, img,
+  posX, shiftTop, shiftBot,
   chompAll, padL, isRunning)
 import TextRows (textRows)
 import ClickAction (clickActions)
@@ -46,15 +46,17 @@ main = do
   let ucFile = profileDir ++ "/unread-counts"
 
   tbRunning <- isRunning "thunderbird-bin"
-  let runningMarkup = if tbRunning then " " else fg "red" "x"
+  let runningMarkup = if tbRunning then "  " else fg "red" " X"
 
   unreadCountsExists <- doesFileExist ucFile
   unreadCounts <- if unreadCountsExists then readFile ucFile else return ""
   let unreadMarkup = formatUnreadCounts $ parseUnreadCounts unreadCounts
 
+  let icon = posX (-imgSize) ++ shiftTop ++ img imgPath
+
   putStrLn $
     clickActions clickCommands $
-    bg "black" $ shiftMid ++ runningMarkup ++ fg "green" unreadMarkup
+    bg "black" $ shiftBot ++ runningMarkup ++ icon ++ fg "green" unreadMarkup
 
 parseUnreadCounts :: String -> [(String, Integer)]
 parseUnreadCounts uc = catMaybes $ map ucMatch $ lines uc
