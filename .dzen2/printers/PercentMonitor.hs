@@ -3,12 +3,10 @@ import Data.List (intercalate, group, intersperse, zip4)
 import Data.Maybe (fromMaybe, listToMaybe, isJust)
 import Data.Char
 import Control.Monad
-import Control.Applicative((<$>))
 import Control.Exception
 import System.Environment.UTF8 (getArgs)
 import System.IO (hSetBuffering, hGetLine, hPutStrLn, stdin, stdout, BufferMode(LineBuffering))
-import Utils (fg, rect, posX, posAbsY, ignoreBG)
-
+import Utils (height, fg, rect, posX, posAbsY, ignoreBG)
 
 type Pix = Int
 type Per = Float
@@ -37,25 +35,25 @@ packRect (w,h,o,c) = Rect w h o c
 packRects ws hs os cs = map packRect $ zip4 ws hs os cs
 
 main = do
-  (w,h,colors) <- parseArgs <$> getArgs
-  drawMonitor w h colors stdin stdout
+  colors <- fmap parseArgs getArgs
+  let width = height
+  drawMonitor (fromIntegral width) (fromIntegral height) colors stdin stdout
 
 drawMonitor w height colors reader writer = do
   hSetBuffering writer LineBuffering
   let h = height-2
   let expectedLen = length colors
-  let getRelSample = lineToRelSample expectedLen <$> hGetLine reader
+  let getRelSample = fmap (lineToRelSample expectedLen) (hGetLine reader)
 
   let loop (_:oldRelSamples) = do
-      relSamples <- (oldRelSamples ++) . return <$> getRelSample
+      relSamples <- fmap ((oldRelSamples ++) . return) getRelSample
       hPutStrLn writer $ monitorMarkup w h colors relSamples
       loop relSamples
   loop (replicate w [])
 
-parseArgs :: [String] -> (Width, Height, [Color])
-parseArgs (w:h:c1:c2:cs) | isPix w && isPix h =
-          (toPix w, toPix h, reverse (c1:c2:cs))
-parseArgs _ = error "Usage: width height color1 color2 [color3 color4 ...]\n"
+parseArgs :: [String] -> [Color]
+parseArgs (c1:c2:cs) = reverse $ c1:c2:cs
+parseArgs _ = error "Usage: color1 color2 [color3 color4 ...]\n"
 
 
 toPix = read :: String -> Pix
