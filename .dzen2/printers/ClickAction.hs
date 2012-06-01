@@ -10,8 +10,7 @@ main = do
                       _ -> error "Usage: <optional button> command markup"
   putStr $ clickAction (read btn :: Int) cmd mrk
 
-clickActions cmds m = foldr ($) m (zipWith clickAction [1..] cmds)
+clickActions cmds m = shiftUp ++ markup ++ shiftMiddle
+  where markup = foldr ($) m (zipWith clickArea [1..] cmds)
 
-clickAction :: Int -> String -> String -> String
-clickAction btn cmd markup = if null cmd then markup else
-  shiftUp ++ clickArea btn cmd markup ++ shiftMiddle
+clickAction btn cmd m = shiftUp ++ clickArea btn cmd m ++ shiftMiddle

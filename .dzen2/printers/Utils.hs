@@ -8,7 +8,7 @@ module Utils(
   posAbs, posAbsX, posAbsY, shiftUp, shiftMiddle,
   ignoreBG,
   padL, padR,
-  estimateLength,
+  chompAll, estimateLength,
   isRunning
 ) where
 import System.Process(runCommand, system)
@@ -28,6 +28,7 @@ rect x y = "^r(" ++ show x ++ "x" ++ show y ++ ")"
 title m = "^tw()" ++ m ++ "\n"
 clearSlave = "^cs()" ++ "\n"
 
+clickArea _ "" m = m
 clickArea btn cmd m = "^ca(" ++ show btn ++ ", " ++ cmd ++ ")" ++ m ++ "^ca()"
 
 pos x y = "^p(" ++ show x ++ ";" ++ show y ++ ")"
