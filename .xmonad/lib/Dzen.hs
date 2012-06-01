@@ -45,7 +45,7 @@ myDzenPP home workspaceNames = dzenPP
   , ppTitle           = clickWrap 1 "$HOME/bin/kb" .
                         ("^bg(#316c80) " ++) .
                         dzenEscape .
-                        shorten 30
+                        shorten 60
   , ppLayout          =
      \x -> let (ptrn, fg, bg) = case x of
                                   "left" -> ("[]=", fgColor, bgColor)
