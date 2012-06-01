@@ -1,63 +1,43 @@
-#!/usr/bin/perl
-use strict;
-use warnings;
+module PidginPipe(main) where
+import System.Environment (getEnv)
+import System.Directory (doesFileExist)
+import Data.Char (toLower)
+import ClickableImage (clickableImage)
+import Utils (height, chompAll, isRunning)
 
-my $PIPEFILE = `echo -n \$HOME/.purple/plugins/pipe`;
-my $PRINTERS = `echo -n \$HOME/.dzen2/printers`;
-my $HBIN = `echo -n \$HOME/bin`;
+clickCommands = [ ""
+                  ++ "pidof pidgin; "
+                  ++ "if [ $? == 0 ]; then "
+                    ++ "xdotool key --clearmodifiers alt+2; "
+                  ++ "else "
+                    ++ "pidgin; "
+                  ++ "fi"
+                , "killall pidgin; pidgin"
+                , "killall pidgin"
+                ]
 
-my $height = shift;
-$height = 24 if not defined $height;
-my $IMGDIR = `echo -n \$HOME/.dzen2/icons/${height}x${height}/pidgin`;
+main = do
+  home <- getEnv "HOME"
+  let iconSubdir = show height ++ "x" ++ show height
+  let dir = home ++ "/.dzen2/icons/" ++ iconSubdir ++ "/pidgin"
+  let pipeFile = home ++ "/.purple/plugins/pipe"
 
-sub img($);
+  pipeExists <- doesFileExist pipeFile
+  pipe <- if pipeExists then readFile pipeFile else return "off"
+  let status = map toLower $ chompAll pipe
 
+  pidginRunning <- if status == "off" then return False else isRunning "pidgin"
 
-my $runningLeftCmd = "xdotool key --clearmodifiers alt+2";
-my $notRunningLeftCmd = "pidgin";
-my $leftCmd =
-  "pidof pidgin; " .
-  "if [ \$? == 0 ]; " .
-  "then $runningLeftCmd; " .
-  "else $notRunningLeftCmd; " .
-  "fi";
+  let img = if pidginRunning then imgName status else imgName "off"
+  putStrLn $ clickableImage clickCommands (dir ++ "/" ++ img ++ ".xpm")
 
-my $middleCmd = "killall pidgin; pidgin";
-my $rightCmd = "killall pidgin";
+imgName status = case status of
+  "off"            -> "not-running"
+  "new message"    -> "pidgin-tray-pending"
+  "available"      -> "pidgin-tray-available"
+  "away"           -> "pidgin-tray-away"
+  "do not disturb" -> "pidgin-tray-busy"
+  "invisible"      -> "pidgin-tray-invisible"
+  "offline"        -> "pidgin-tray-offline"
+  _                -> "pidgin-tray-xa"
 
-my %imgMarkupPerStatus = (
-  'off'            => img 'not-running.xpm',
-  'new message'    => img 'pidgin-tray-pending.xpm',
-
-  'available'      => img 'pidgin-tray-available.xpm',
-  'away'           => img 'pidgin-tray-away.xpm',
-  'do not disturb' => img 'pidgin-tray-busy.xpm',
-  'invisible'      => img 'pidgin-tray-invisible.xpm',
-  'offline'        => img 'pidgin-tray-offline.xpm',
-);
-my $defaultImgMarkup = img 'pidgin-tray-xa.xpm';
-
-
-sub main(){
-  my $status = `cat $PIPEFILE`;
-  chomp $status;
-  $status = lc $status;
-  if($status ne 'off'){
-    system "pidof pidgin > /dev/null";
-    if($? != 0){
-      $status = 'off';
-    }
-  }
-
-  my $imgMarkup = $imgMarkupPerStatus{$status};
-  $imgMarkup = $defaultImgMarkup if not defined $imgMarkup;
-
-  system "$PRINTERS/ghcprinter", "ClickableImage", $leftCmd, $middleCmd, $rightCmd, $imgMarkup;
-}
-
-sub img($){
-  my $img = shift;
-  return "$IMGDIR/$img";
-}
-
-main;
