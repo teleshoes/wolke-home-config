@@ -8,11 +8,12 @@ module Utils(
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
   readInt, padL, padR, chompAll, estimateLength,
-  isRunning, chompFile, readProc, procSuccess
+  lineBuffering, isRunning, chompFile, readProc, procSuccess
 ) where
 import System.Process (readProcessWithExitCode, system)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
+import System.IO (BufferMode(LineBuffering), stdout, hSetBuffering)
 
 -- CONSTANTS
 height = 36
@@ -64,6 +65,8 @@ stripDzenMarkup (c:s) = c : stripDzenMarkup s
 stripDzenMarkup [] = []
 
 -- IO
+lineBuffering = hSetBuffering stdout LineBuffering
+
 isRunning :: String -> IO Bool
 isRunning p = do
   running <- system $ "pgrep " ++ p ++ " > /dev/null 2>/dev/null"
