@@ -7,12 +7,12 @@ module Utils(
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
-  padL, padR,
-  chompAll, estimateLength,
-  isRunning
+  readInt, padL, padR, chompAll, estimateLength,
+  isRunning, chompFile, readProc
 ) where
-import System.Process(runCommand, system)
+import System.Process (readProcessWithExitCode, system)
 import System.Exit(ExitCode(ExitFailure))
+import System.Directory (doesFileExist)
 
 -- CONSTANTS
 height = 36
@@ -46,13 +46,17 @@ shiftBot = posAbsY $ height `div` 2
 ignoreBG m = "^ib(1)" ++ m ++ "^ib(0)"
 
 -- Parsing
+readInt :: String -> Maybe Integer
+readInt s = case reads s of
+              ((x,_):_) -> Just x
+              _ -> Nothing
 
 padL x len xs = replicate (len - length xs) x ++ xs
 padR x len xs = xs ++ replicate (len - length xs) x
 
-estimateLength = length . chompAll . stripDzenMarkup
-
 chompAll = reverse . dropWhile (== '\n') . reverse
+
+estimateLength = length . chompAll . stripDzenMarkup
 
 stripDzenMarkup ('^':'^':s) = '^' : stripDzenMarkup s
 stripDzenMarkup ('^':s) = stripDzenMarkup $ drop 1 $ dropWhile (/= ')') s
@@ -67,3 +71,9 @@ isRunning p = do
     ExitFailure _ -> False
     otherwise -> True
 
+chompFile file = do
+  curExists <- doesFileExist file
+  if curExists then fmap chompAll $ readFile file else return ""
+
+readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
+  where snd3 (_,x,_) = x
