@@ -5,7 +5,10 @@ import Data.Char
 import Control.Monad
 import Control.Exception
 import System.Environment.UTF8 (getArgs)
-import System.IO (hSetBuffering, hGetLine, hPutStrLn, stdin, stdout, BufferMode(LineBuffering))
+import System.IO (
+  hSetBuffering, hGetLine, hPutStrLn,
+  stdin, stdout,
+  BufferMode(LineBuffering))
 import Utils (height, fg, rect, posX, posAbsY, ignoreBG)
 
 type Pix = Int
