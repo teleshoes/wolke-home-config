@@ -8,10 +8,10 @@ module Utils(
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
   readInt, padL, padR, chompAll, estimateLength,
-  isRunning, chompFile, readProc
+  isRunning, chompFile, readProc, procSuccess
 ) where
 import System.Process (readProcessWithExitCode, system)
-import System.Exit(ExitCode(ExitFailure))
+import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 
 -- CONSTANTS
@@ -77,3 +77,7 @@ chompFile file = do
 
 readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
   where snd3 (_,x,_) = x
+
+procSuccess (cmd:args) = do
+  (exitCode,_,_) <- readProcessWithExitCode cmd args ""
+  return $ exitCode == ExitSuccess
