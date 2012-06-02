@@ -1,63 +1,26 @@
-#!/usr/bin/perl
-use strict;
-use warnings;
+module PingMonitor (main) where
+import Utils (fg, procSuccess)
+import System.Environment (getEnv)
+import System.Process(readProcess, system)
+import System.Exit (ExitCode (ExitSuccess))
+import PercentBar (percentBar)
+import Control.Concurrent (threadDelay)
+import System.Environment.UTF8 (getArgs)
+import System.IO (stdout, hFlush)
 
-my $server = shift;
-my $display = shift;
-my $timeout = shift;
-my $loop = shift;
+isUp url timeout = procSuccess ["ping", url, "-c", "1", "-w", timeout]
 
-my $arg = shift;
-$arg = '' if not defined $arg;
+main = do
+  (url, display, timeout) <- fmap parseArgs getArgs
+  pingMonitorLoop url display timeout True
 
-sub isUp($$){
-  my $url = shift;
-  my $timeout = shift;
-  system "ping $url -c 1 -w $timeout > /dev/null 2> /dev/null";
-  if($? == 0){
-    return 1;
-  }else{
-    return 0;
-  }
-}
+pingMonitorLoop url display timeout toggle = do
+  up <- isUp url timeout
+  let msg = (if toggle then "/" else "|") ++ display
+  putStrLn $ fg (if up then "purple" else "red") msg
+  hFlush stdout
+  threadDelay $ (if up then 3 else 1) * 10^6
+  pingMonitorLoop url display timeout (not toggle)
 
-sub printStatus($$$){
-  my $server = shift;
-  my $timeout = shift;
-  my $prefix = shift;
-
-  my $msg = '';
-  my $status = isUp($server, $timeout);
-  $msg .= $status ?
-    "^fg(purple)${prefix}^fg()" :
-    "^fg(red)${prefix}^fg()";
-  print "$msg\n";
-  return $status;
-}
-
-if($loop eq '-loop'){
-  my $count = 0;
-  #initial 1s to get something there
-  my $time = 1;
-  my $prefix = '';
-  while(1){
-    if($count%2 != 0){
-      $prefix = "/$display";
-    }else{
-      $prefix = "|$display";
-    }
-    
-    if(printStatus($server, $time, $prefix)){
-      sleep 3; #if ping went through, wait longer
-    }else{
-      sleep 1;
-    }
-    $time = $timeout;
-    $count++;
-  }
-}elsif($loop eq '-noloop'){
-  exit printStatus($server, $timeout, $display);
-}else{
-  die "Usage: $0 server display timeout [-loop|-noloop]";
-}
-
+parseArgs (url:display:timeout:[]) = (url,display,timeout)
+parseArgs _ = error "Usage: url display timeout"
