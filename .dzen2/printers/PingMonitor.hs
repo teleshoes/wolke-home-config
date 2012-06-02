@@ -4,19 +4,20 @@ import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
 import System.Environment.UTF8 (getArgs)
 
-isUp url timeout = procSuccess ["ping", url, "-c", "1", "-w", timeout]
+ping url timeout = procSuccess ["ping", url, "-c", "1", "-w", timeout]
 
 main = do
   lineBuffering
   (url, display, timeout) <- fmap parseArgs getArgs
-  pingMonitorLoop url display timeout True
-
-pingMonitorLoop url display timeout toggle = do
-  up <- isUp url timeout
-  let msg = (if toggle then "/" else "|") ++ display
-  putStrLn $ fg (if up then "purple" else "red") msg
-  threadDelay $ (if up then 3 else 1) * 10^6
-  pingMonitorLoop url display timeout (not toggle)
+  putStrLn $ "?" ++ display
+  pingMonitorLoop url display timeout ["/", "|"]
 
 parseArgs (url:display:timeout:[]) = (url,display,timeout)
 parseArgs _ = error "Usage: url display timeout"
+
+pingMonitorLoop u d t = mapM (pingMonitor u d t) . cycle
+
+pingMonitor url display timeout prefix = do
+  isUp <- ping url timeout
+  putStrLn $ fg (if isUp then "purple" else "red") (prefix ++ display)
+  threadDelay $ (if isUp then 3 else 1) * 10^6
