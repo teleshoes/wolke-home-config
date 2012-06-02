@@ -15,7 +15,7 @@ main = do
 parseArgs (url:display:timeout:[]) = (url,display,timeout)
 parseArgs _ = error "Usage: url display timeout"
 
-pingMonitorLoop u d t = mapM (pingMonitor u d t) . cycle
+pingMonitorLoop u d t = mapM_ (pingMonitor u d t) . cycle
 
 pingMonitor url display timeout prefix = do
   isUp <- ping url timeout
