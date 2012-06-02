@@ -6,7 +6,7 @@ import Control.Monad (void)
 
 import Text.Regex.PCRE
 
-import Utils(isRunning, padR)
+import Utils(isRunning, padR, readProc)
 import TextRows(textRows)
 import ClickAction (clickAction)
 
@@ -19,10 +19,8 @@ main = do
   tz <- getCurrentTimeZone
   running <- isRunning "fcron"
   if not running then void $ runCommand "sudo fcron" else return ()
-  (_, fcrondynOut, _) <- fcrondynExec
+  fcrondynOut <- readProc ["sudo", "fcrondyn", "-x", "ls"]
   putStr $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
-
-fcrondynExec = readProcessWithExitCode "sudo" ["fcrondyn", "-x", "ls"] ""
 
 cmd = ""
       ++ "term -e sh -c \""
