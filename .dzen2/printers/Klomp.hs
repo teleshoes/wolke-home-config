@@ -1,12 +1,11 @@
 module Klomp(main) where
-import Utils (padL, padR, isRunning)
+import Utils (padL, padR, isRunning, chompFile)
 import ClickAction (clickActions)
 import TextRows (textRows)
 
 import Prelude hiding(lookup)
 import Data.Map (fromList, Map, lookup)
 import System.Environment (getEnv)
-import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, fromMaybe)
 import Text.Regex.PCRE ((=~))
 
@@ -25,15 +24,14 @@ strLookup k m = fromMaybe "" $ lookup k m
 main = do
   home <- getEnv "HOME"
   let curFile = home ++ "/" ++ ".klompcur"
-  curExists <- doesFileExist curFile
-  cur <- if curExists then readFile curFile else return ""
+  cur <- chompFile curFile
   running <- isRunning "klomplayer"
 
   let ((posSex, lenSex, path), atts) = parseCur cur
   let [pos,len] = formatTimes [posSex, lenSex]
 
   let prefix = if running then "" else "x" 
-  let (top, bot) = if curExists then
+  let (top, bot) = if length cur > 0 then
                       ( pos ++ "-" ++ strLookup "artist" atts
                       , len ++ "-" ++ strLookup "title" atts
                       )

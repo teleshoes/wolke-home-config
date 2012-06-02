@@ -10,7 +10,7 @@ import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 import TextRows (textRows)
 import System.IO (hFlush, stdout)
-import Utils (fg)
+import Utils (fg, chompFile)
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
@@ -90,7 +90,7 @@ filterScans nanoTime secondsAgo scans = filter ok scans
 
 netScan :: IO (NetScan)
 netScan = do
-  proc <- readFile procFile
+  proc <- chompFile procFile
   time <- nanoTime
   return $ NetScan time $ parseProcNetDev proc
 

@@ -2,7 +2,7 @@ module Thunderbird(main) where
 import Utils (
   fg, bg, img,
   posX, shiftTop, shiftBot,
-  chompAll, padL, isRunning)
+  chompAll, padL, isRunning, readProc, chompFile)
 import TextRows (textRows)
 import ClickAction (clickActions)
 
@@ -10,8 +10,6 @@ import qualified Data.Map as M (fromList, lookup, member)
 
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
-import System.Directory (doesFileExist)
-import System.Process (readProcessWithExitCode)
 import Text.Regex.PCRE ((=~))
 
 clickCommands = [ ""
@@ -30,26 +28,20 @@ accounts = M.fromList [ ("Gmail", "G")
                       , ("AOL - LiberiFataliVIII", "A")
                       ]
 
-getProfileDir = do
-  home <- getEnv "HOME"
-  let cmd = ["find", home ++ "/.thunderbird/", "-iname", "*.default"]
-  (_, out, _) <- readProcessWithExitCode (head cmd) (tail cmd) ""
-  return out
-
 main = do
   home <- getEnv "HOME"
   let imgSize = 16
   let imgSubDir = show imgSize ++ "x" ++ show imgSize
   let imgPath = home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/thunderbird.xpm"
 
-  profileDir <- fmap chompAll getProfileDir
+  let cmd = ["find", home ++ "/.thunderbird/", "-iname", "*.default"]
+  profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
   tbRunning <- isRunning "thunderbird-bin"
   let runningMarkup = if tbRunning then "  " else fg "red" " X"
 
-  unreadCountsExists <- doesFileExist ucFile
-  unreadCounts <- if unreadCountsExists then readFile ucFile else return ""
+  unreadCounts <- chompFile ucFile
   let unreadMarkup = formatUnreadCounts $ parseUnreadCounts unreadCounts
 
   let icon = posX (-imgSize) ++ shiftTop ++ img imgPath

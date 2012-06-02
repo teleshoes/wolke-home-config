@@ -1,9 +1,8 @@
 module PidginPipe(main) where
 import System.Environment (getEnv)
-import System.Directory (doesFileExist)
 import Data.Char (toLower)
 import ClickableImage (clickableImage)
-import Utils (height, chompAll, isRunning)
+import Utils (height, chompAll, isRunning, chompFile)
 
 clickCommands = [ ""
                   ++ "pidof pidgin; "
@@ -22,9 +21,8 @@ main = do
   let dir = home ++ "/.dzen2/icons/" ++ iconSubdir ++ "/pidgin"
   let pipeFile = home ++ "/.purple/plugins/pipe"
 
-  pipeExists <- doesFileExist pipeFile
-  pipe <- if pipeExists then readFile pipeFile else return "off"
-  let status = map toLower $ chompAll pipe
+  pipe <- chompFile pipeFile
+  let status = if null pipe then "off" else map toLower pipe
 
   pidginRunning <- if status == "off" then return False else isRunning "pidgin"
 

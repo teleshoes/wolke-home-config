@@ -7,6 +7,7 @@ import System.Process (system)
 import System.Posix.IO (createPipe, fdToHandle)
 import System.Posix.Process (forkProcess)
 import Text.Regex.PCRE ((=~))
+import Utils (chompFile)
 
 main = do
   freqH <- getFreqsHandle
@@ -22,7 +23,7 @@ getFreqsHandle = do
   writeH <- fdToHandle writeFd
 
   forkProcess $ forever $ do
-    cpuinfo <- readFile "/proc/cpuinfo"
+    cpuinfo <- chompFile "/proc/cpuinfo"
     let cpus = removeHTDupes $ getCpus cpuinfo
     let freqs = map snd cpus
     hPutStr writeH $ formatFreqs freqs
