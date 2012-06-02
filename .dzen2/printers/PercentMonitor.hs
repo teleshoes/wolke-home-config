@@ -1,4 +1,4 @@
-module PercentMonitor(main) where
+module PercentMonitor(percentMonitor) where
 import Data.List (intercalate, group, intersperse, zip4)
 import Data.Maybe (fromMaybe, listToMaybe, isJust)
 import Data.Char
@@ -10,6 +10,7 @@ import System.IO (
   stdin, stdout,
   BufferMode(LineBuffering))
 import Utils (height, fg, rect, posX, posAbsY, ignoreBG)
+import Control.Concurrent (readChan, writeChan)
 
 type Pix = Int
 type Per = Float
@@ -37,20 +38,14 @@ data Rect = Rect
 packRect (w,h,o,c) = Rect w h o c
 packRects ws hs os cs = map packRect $ zip4 ws hs os cs
 
-main = do
-  colors <- fmap parseArgs getArgs
-  let width = height
-  drawMonitor (fromIntegral width) (fromIntegral height) colors stdin stdout
-
-drawMonitor w height colors reader writer = do
-  hSetBuffering writer LineBuffering
+percentMonitor w height colors inChan outChan = do
   let h = height-2
   let expectedLen = length colors
-  let getRelSample = fmap (lineToRelSample expectedLen) (hGetLine reader)
+  let getRelSample = fmap (lineToRelSample expectedLen) (readChan inChan)
 
   let loop (_:oldRelSamples) = do
       relSamples <- fmap ((oldRelSamples ++) . return) getRelSample
-      hPutStrLn writer $ monitorMarkup w h colors relSamples
+      writeChan outChan $ monitorMarkup w h colors relSamples
       loop relSamples
   loop (replicate w [])
 
