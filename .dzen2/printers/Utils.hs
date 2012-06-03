@@ -8,12 +8,15 @@ module Utils(
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
   readInt, padL, padR, chompAll, estimateLength,
-  lineBuffering, isRunning, chompFile, readProc, procSuccess
+  lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess
 ) where
-import System.Process (readProcessWithExitCode, system)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
-import System.IO (BufferMode(LineBuffering), stdout, hSetBuffering)
+import System.IO (
+  BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents)
+import System.Process (
+  StdStream(CreatePipe), std_out, createProcess, shell,
+  readProcessWithExitCode, system)
 
 -- CONSTANTS
 height = 36
@@ -77,6 +80,11 @@ isRunning p = do
 chompFile file = do
   curExists <- doesFileExist file
   if curExists then fmap chompAll $ readFile file else return ""
+
+systemReadLines :: String -> IO [String]
+systemReadLines cmd = fmap lines $ sys >>= \(_,Just h,_,_) -> lineBufContent h
+  where sys = createProcess (shell cmd) {std_out = CreatePipe}
+        lineBufContent h = hSetBuffering h LineBuffering >> hGetContents h
 
 readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
   where snd3 (_,x,_) = x
