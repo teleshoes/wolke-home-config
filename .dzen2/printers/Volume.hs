@@ -1,8 +1,9 @@
 module Volume (main, getVol, isMuted) where
+import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
 import System.Process(readProcess)
 import PercentBar (percentBar)
-import Text.Regex.PCRE ((=~))
+import Utils (regexGroups, readProc)
 
 mutedColors = ["yellow", "red"] ++ otherColors
 unmutedColors = ["black", "green"] ++ otherColors
@@ -23,10 +24,9 @@ isMuted = fmap snd . getStatus
 
 getStatus :: String -> IO (Int, Bool)
 getStatus dev = do
-  status <- readProcess "pulse-vol" [dev] ""
-  let parsed = status =~ "(\\d+) \\((muted|unmuted|unknown)\\)" :: [[String]]
-  let vol = parsed !! 0 !! 1
-  let mute = parsed !! 0 !! 2
+  status <- readProc ["pulse-vol", dev]
+  let groups = regexGroups "(\\d+) \\((muted|unmuted|unknown)\\)" status
+  let [vol, mute] = fromMaybe ["0", "unknown"] groups
   return (read vol, mute == "muted")
 
 
