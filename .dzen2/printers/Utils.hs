@@ -103,5 +103,13 @@ procSuccess (cmd:args) = do
   (exitCode,_,_) <- readProcessWithExitCode cmd args ""
   return $ exitCode == ExitSuccess
 
+delayedChanReader :: IO a -> Float -> IO (Chan a)
+delayedChanReader getChanItem delay = do
+  chan <- newChan
+  forkIO $ forever $ do
+    getChanItem >>= writeChan chan
+    threadDelay $ round (delay * 10^6)
+  return chan
+
 listToChan :: [a] -> IO (Chan a)
 listToChan xs = newChan >>= (\c -> forkIO (writeList2Chan c xs) >> return c)
