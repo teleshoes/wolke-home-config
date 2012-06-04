@@ -1,10 +1,8 @@
 module Fcrondyn(main) where
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
-import Data.Maybe (fromMaybe, fromJust, isJust)
+import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
 import Control.Monad (void)
-
-import Text.Regex.PCRE
 
 import Utils(isRunning, padR, readProc)
 import TextRows(textRows)
@@ -12,6 +10,7 @@ import ClickAction (clickAction)
 
 import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
+import Utils (regexGroups, regexFirstGroup)
 
 
 main = do
@@ -28,8 +27,14 @@ cmd = ""
       ++ "\""
 
 parseAndFormat now tz fcrondynOut = rows now tz (namedJobs okJobs)
-  where jobs = map jobGroups $ lines fcrondynOut
-        okJobs = map head $ filter ((==1).length) jobs
+  where okJobs = catMaybes $ map (regexGroups regex) $ lines fcrondynOut
+        regex = ""
+                ++ "(\\d+)\\s*"
+                ++ "(\\w+)\\s*"
+                ++ "(\\d+)/(\\d+)/(\\d+)\\s*"
+                ++ "(\\d+):(\\d+):(\\d+)\\s*"
+                ++ "(.*)"
+
 
 namedJobs [] = []
 namedJobs (j:js) | isJust mName = (j, fromJust mName):(namedJobs js)
@@ -42,15 +47,10 @@ rows now tz jobs = textRows (padR ' ' 14 top) (padR ' ' 14 bot)
         top = if length jobs > 0 then fmt $ jobs !! 0 else "No jobs"
         bot = if length jobs > 1 then fmt $ jobs !! 1 else ""
 
-maybeJobName job = cmdSub $ jobCmd job
+maybeJobName job = regexFirstGroup "#([a-zA-Z0-9]{2})$" $ jobCmd job
 
-cmdSub cmd = if isMatch then Just (head match !! 1) else Nothing
-  where match = cmd =~ regex :: [[String]]
-        isMatch = length match == 1
-        regex = "#([a-zA-Z0-9]{2})$"
-
-jobCmd  (whole:id:user:mon:day:year:h:m:s:cmd:[]) = cmd
-jobTime tz (whole:id:user:mon:day:year:h:m:s:cmd:[]) = t
+jobCmd  (id:user:mon:day:year:h:m:s:cmd:[]) = cmd
+jobTime tz (id:user:mon:day:year:h:m:s:cmd:[]) = t
   where t = utcTime tz h m s mon day year
 
 showDHMS ("0","00","00","00") = "now"
@@ -77,14 +77,6 @@ utcTime tz h m s mon day year = localTimeToUTC tz $ LocalTime jDay tod
 f = realToFrac . read
 i = read :: String -> Integer
 int = read :: String -> Int
-
-jobGroups line = line =~ regex :: [[String]]
-  where regex = ""
-                ++ "(\\d+)\\s*"
-                ++ "(\\w+)\\s*"
-                ++ "(\\d+)/(\\d+)/(\\d+)\\s*"
-                ++ "(\\d+):(\\d+):(\\d+)\\s*"
-                ++ "(.*)"
 
 hdr = "ID    USER   SCHEDULE         CMD"
 
