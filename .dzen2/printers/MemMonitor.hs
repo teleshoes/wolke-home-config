@@ -8,7 +8,7 @@ import Utils (height, lineBuffering, readProc, regexGroups)
 import PercentMonitor (percentMonitor)
 import System.IO (Handle, hPutStrLn, stdout)
 
-colors = reverse ["#00b25b", "00e575", "#00fe81", "#a9f4c4", "#000000"]
+colors = ["#00b25b", "00e575", "#00fe81", "#a9f4c4", "#000000"]
 
 main = do
   lineBuffering

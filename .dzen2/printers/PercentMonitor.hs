@@ -7,10 +7,11 @@ import Control.Concurrent (Chan, readChan, writeChan)
 percentMonitor :: Int -> Int -> [String] -> Chan [Float] -> IO ()
 percentMonitor width height colors perChan = do
   let (w, h) = (width, height-2)
+  let cs = reverse colors
   let loop prevSamples = do
-      sample <- readChan perChan
+      sample <- fmap reverse $ readChan perChan
       let samples = (drop 1 prevSamples) ++ [sample]
-      putStrLn $ monitorMarkup w h colors samples
+      putStrLn $ monitorMarkup w h cs samples
       loop samples
   loop $ replicate w []
 
