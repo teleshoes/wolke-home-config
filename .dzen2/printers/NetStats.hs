@@ -1,16 +1,13 @@
 module NetStats(main) where
-import System.CPUTime (getCPUTime)
-import Text.Regex.PCRE ((=~))
-import Control.Monad (forever)
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 import Control.Concurrent (threadDelay)
+import Data.Maybe (catMaybes)
 import Data.Int (Int64)
 import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 import TextRows (textRows)
-import System.IO (hFlush, stdout)
-import Utils (fg, chompFile)
+import Utils (fg, chompFile, regexMatch, regexGroups, lineBuffering)
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
@@ -43,13 +40,12 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
 
 nanoTime = timeSpecToInt64 `fmap` (getClockTime monotonicClock)
 
-main = scanLoop []
+main = lineBuffering >> scanLoop []
 
 scanLoop scans = do
   (oldest, newest, updatedScans) <- updateScans scans
   putStrLn $ format oldest newest
-  hFlush stdout
-  threadDelay 1000000
+  threadDelay $ 1*10^6
   scanLoop updatedScans
 
 showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) units)
@@ -94,15 +90,9 @@ netScan = do
   time <- nanoTime
   return $ NetScan time $ parseProcNetDev proc
 
-isIgnored NetDev{interface=iface} = isMatch iface ignoredInterfacesRegex
+isIgnored NetDev{interface=iface} = regexMatch ignoredInterfacesRegex iface
 
 parseProcNetDev :: String -> [NetDev]
-parseProcNetDev proc = filter (not.isIgnored) $ map netdev okGroups
-  where
-    groups = map (\line -> getMatches line re) $ lines proc
-    okGroups = filter ((==17).length) groups
-    re = "([a-z0-9]+):" ++ (concat $ replicate 16 "\\s*(\\d+)")
-
-isMatch a re = a =~ re :: Bool
-getMatches a re = concatMap tail groups
-  where groups = a =~ re :: [[String]]
+parseProcNetDev proc = filter (not.isIgnored) $ map netdev groups
+  where groups = catMaybes $ map (regexGroups re) $ lines proc
+        re = "([a-z0-9]+):" ++ (concat $ replicate 16 "\\s*(\\d+)")
