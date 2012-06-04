@@ -1,12 +1,7 @@
 module CpuMonitor(main) where
-import Control.Monad (forever)
-import Control.Concurrent (
-  Chan, forkIO, writeList2Chan, readChan, writeChan, newChan, threadDelay)
 import Data.List (intercalate)
-import Text.Regex.PCRE ((=~))
-import Utils (height, regexGroups, lineBuffering, systemReadLines)
+import Utils (height, regexGroups, lineBuffering, systemReadLines, listToChan)
 import PercentMonitor (percentMonitor)
-import System.IO (hPutStrLn, stdout)
 
 colors = ["#0072b2", "#0091e5", "#00a2fe", "#002f3d", "#000000"]
 
@@ -16,9 +11,6 @@ main = do
   topLines <- systemReadLines $ topCpuCmd 1
   perChan <- listToChan $ map topToPercents topLines
   percentMonitor w h colors perChan
-
-listToChan :: [a] -> IO (Chan a)
-listToChan xs = newChan >>= (\c -> forkIO (writeList2Chan c xs) >> return c)
 
 topCpuCmd d = "top -b -p 1 -d " ++ show d ++ " | grep --line-buffered ^Cpu"
 
