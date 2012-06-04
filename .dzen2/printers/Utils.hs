@@ -102,3 +102,6 @@ readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
 procSuccess (cmd:args) = do
   (exitCode,_,_) <- readProcessWithExitCode cmd args ""
   return $ exitCode == ExitSuccess
+
+listToChan :: [a] -> IO (Chan a)
+listToChan xs = newChan >>= (\c -> forkIO (writeList2Chan c xs) >> return c)
