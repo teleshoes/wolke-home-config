@@ -7,7 +7,7 @@ module Utils(
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
-  regexGroups, readInt, padL, padR, chompAll, estimateLength,
+  regexMatch, regexGroups, readInt, padL, padR, chompAll, estimateLength,
   lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess
 ) where
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
@@ -52,6 +52,8 @@ shiftBot = posAbsY $ height `div` 2
 ignoreBG m = "^ib(1)" ++ m ++ "^ib(0)"
 
 -- Parsing
+regexMatch :: String -> String -> Bool
+regexMatch = flip (=~)
 regexGroups :: String -> String -> Maybe [String]
 regexGroups re str = fmap (drop 1) $ listToMaybe $ str =~ re
 
