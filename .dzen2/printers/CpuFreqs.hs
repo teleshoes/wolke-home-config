@@ -1,24 +1,22 @@
 module CpuFreqs (main) where
-import CpuFreqsI7z (getFreqsHandle)
---import CpuFreqsProc (getFreqsHandle)
+import CpuFreqsI7z (getFreqsChanI7z)
+import CpuFreqsProc (getFreqsChanProc)
 import TextRows(textRows)
+import Control.Concurrent (Chan, readChan)
 import Data.List (intercalate)
-import Control.Applicative ((<$>))
-import System.IO (hGetLine, hFlush, stdout, Handle)
-import Text.Regex.PCRE ((=~))
-import Utils (posX)
+import Utils (posX, lineBuffering)
 
 main = do
-  freqH <- getFreqsHandle
-  cpuFreqLoop freqH []
+  lineBuffering
+  freqsChan <- getFreqsChanI7z
+  cpuFreqLoop freqsChan []
 
-cpuFreqLoop :: Handle -> [Int] -> IO ()
-cpuFreqLoop freqH lengths = do
-  freqs <- ints <$> hGetLine freqH
+cpuFreqLoop :: Chan [Int] -> [Int] -> IO ()
+cpuFreqLoop freqsChan lengths = do
+  freqs <- readChan freqsChan
   let newLengths = take 10 $ (length freqs):lengths
   putStrLn $ formatFreqs freqs (maximum newLengths)
-  hFlush stdout
-  cpuFreqLoop freqH newLengths
+  cpuFreqLoop freqsChan newLengths
 
 formatFreqs freqs maxLen = intercalate (posX 4) $ formatCols formattedFreqs
   where formattedFreqs = take maxLen $ (map showFreq freqs) ++ (repeat "??")
@@ -29,7 +27,3 @@ formatCols (f1:fs) = f1 : formatCols fs
 formatCols _ = []
 
 showFreq mhz = (if mhz < 1000 then "0" else "") ++ (show $ mhz `div` 100)
-
-toInt = read :: String -> Integer
-ints s = map toInt $ concat $ map tail (s =~ "(\\d+)" :: [[String]])
-

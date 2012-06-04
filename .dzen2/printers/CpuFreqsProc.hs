@@ -1,45 +1,22 @@
-module CpuFreqsProc (main, getFreqsHandle) where
-import Control.Monad (forever)
-import Data.List (intercalate, nubBy)
+module CpuFreqsProc (getFreqsChanProc) where
+import Control.Concurrent (Chan)
+import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
-import System.IO (hPutStr, hGetLine, hFlush)
 import System.Process (system)
-import System.Posix.IO (createPipe, fdToHandle)
-import System.Posix.Process (forkProcess)
 import Text.Regex.PCRE ((=~))
-import Utils (chompFile)
+import Utils (chompFile, delayedChanReader)
 
-main = do
-  freqH <- getFreqsHandle
-  forever $ do
-    line <- hGetLine freqH
-    putStrLn $ line
-
-p x = do {putStrLn "----\n----"; putStrLn x; return ()}
-
-getFreqsHandle = do
-  (readFd, writeFd) <- createPipe
-  readH <- fdToHandle readFd
-  writeH <- fdToHandle writeFd
-
-  forkProcess $ forever $ do
-    cpuinfo <- chompFile "/proc/cpuinfo"
-    let cpus = removeHTDupes $ getCpus cpuinfo
-    let freqs = map snd cpus
-    hPutStr writeH $ formatFreqs freqs
-    hFlush writeH
-    system "sleep 1"
-
-  return readH
-
-formatFreqs fs = (intercalate " " (map show fs)) ++ "\n"
+getFreqsChanProc :: IO (Chan [Int])
+getFreqsChanProc = delayedChanReader (fmap parseCpuInfo readCpuInfo) 1
+  where readCpuInfo = chompFile "/proc/cpuinfo"
+        parseCpuInfo = map snd . removeHTDupes . getCpus
 
 toDouble = read :: String -> Double
 
-getCpus :: String -> [(String, Integer)]
+getCpus :: String -> [(String, Int)]
 getCpus cpuinfo = map (\x -> (getCoreId x, getFreq x)) $ splitCpus cpuinfo
 
-removeHTDupes :: [(String,Integer)] -> [(String,Integer)]
+removeHTDupes :: [(String,Int)] -> [(String,Int)]
 removeHTDupes = nubBy (\(id1,_) (id2,_) -> id1 == id2)
 
 splitCpus cpuinfo = filter (/="") $ map unlines $ split (lines cpuinfo) [[]]
