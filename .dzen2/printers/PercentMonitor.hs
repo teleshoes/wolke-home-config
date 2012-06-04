@@ -1,16 +1,18 @@
 module PercentMonitor(percentMonitor) where
-import Data.List (intercalate, group, intersperse, zip4)
-import Data.Maybe (fromMaybe, listToMaybe, isJust)
-import Data.Char
-import Control.Monad
-import Control.Exception
-import System.Environment.UTF8 (getArgs)
-import System.IO (
-  hSetBuffering, hGetLine, hPutStrLn,
-  stdin, stdout,
-  BufferMode(LineBuffering))
+import Data.List (group, intersperse, zip4)
+import Data.Maybe (listToMaybe)
 import Utils (height, fg, rect, posX, posAbsY, ignoreBG)
-import Control.Concurrent (readChan, writeChan)
+import Control.Concurrent (Chan, readChan, writeChan)
+
+percentMonitor :: Int -> Int -> [String] -> Chan [Float] -> IO ()
+percentMonitor width height colors perChan = do
+  let (w, h) = (width, height-2)
+  let loop prevSamples = do
+      sample <- readChan perChan
+      let samples = (drop 1 prevSamples) ++ [sample]
+      putStrLn $ monitorMarkup w h colors samples
+      loop samples
+  loop $ replicate w []
 
 type Pix = Int
 type Per = Float
@@ -37,35 +39,6 @@ data Rect = Rect
     }
 packRect (w,h,o,c) = Rect w h o c
 packRects ws hs os cs = map packRect $ zip4 ws hs os cs
-
-percentMonitor w height colors inChan outChan = do
-  let h = height-2
-  let expectedLen = length colors
-  let getRelSample = fmap (lineToRelSample expectedLen) (readChan inChan)
-
-  let loop (_:oldRelSamples) = do
-      relSamples <- fmap ((oldRelSamples ++) . return) getRelSample
-      writeChan outChan $ monitorMarkup w h colors relSamples
-      loop relSamples
-  loop (replicate w [])
-
-parseArgs :: [String] -> [Color]
-parseArgs (c1:c2:cs) = reverse $ c1:c2:cs
-parseArgs _ = error "Usage: color1 color2 [color3 color4 ...]\n"
-
-
-toPix = read :: String -> Pix
-toPer = read :: String -> Per
-
-isPix = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Pix)
-isPer = maybe False id . fmap (null . snd) . listToMaybe . (reads :: ReadS Per)
-
-lineToRelSample :: Int -> String -> RelSample
-lineToRelSample expectedLen line | ok = reverse $ map read pers
-                                 | otherwise = error errorMsg
-  where ok = all isPer pers && length pers == expectedLen
-        pers = words line
-        errorMsg = "Could not parse % line: " ++ line
 
 monitorMarkup :: Width -> Height -> [Color] -> [RelSample] -> String
 monitorMarkup w h colors relSamples = ignoreBG markup

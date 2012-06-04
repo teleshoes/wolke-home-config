@@ -1,49 +1,37 @@
 module MemMonitor(main) where
 import Control.Monad (forever)
-import Control.Concurrent (forkIO, readChan, writeChan, newChan, threadDelay)
+import Control.Concurrent (Chan, forkIO, readChan, writeChan, newChan, threadDelay)
 import Data.List (intercalate)
+import Data.Maybe (isJust, fromMaybe, listToMaybe)
 import Text.Regex.PCRE ((=~))
-import Utils (height, lineBuffering, readProc)
+import Utils (height, lineBuffering, readProc, regexGroups)
 import PercentMonitor (percentMonitor)
-import System.IO (hPutStrLn, stdout)
+import System.IO (Handle, hPutStrLn, stdout)
 
 colors = reverse ["#00b25b", "00e575", "#00fe81", "#a9f4c4", "#000000"]
 
 main = do
   lineBuffering
   let (w, h) = (fromIntegral height, fromIntegral height)
-  reader <- delayedChanReader perIo 1
-  writer <- printChan stdout
-  percentMonitor w h colors reader writer
+  perChan <- delayedChanReader (fmap freeToPercents $ readProc ["free"]) 1
+  percentMonitor w h colors perChan
 
-perIo = fmap (formatMemPercent . memPercent . freeMatch) $ readProc ["free"]
-
-printChan outH = do
+delayedChanReader :: IO a -> Float -> IO (Chan a)
+delayedChanReader ioA delay = do
   chan <- newChan
   forkIO $ forever $ do
-    line <- readChan chan
-    hPutStrLn outH line
+    a <- ioA
+    writeChan chan a
+    threadDelay $ round (delay * 10^6)
   return chan
 
-delayedChanReader getLine delay = do
-  chan <- newChan
-  forkIO $ forever $ do
-    line <- getLine
-    writeChan chan line
-    threadDelay $ delay * 10^6
-  return chan
-
-formatMemPercent = (intercalate " ")  . (map show)
-
-memPercent (Just mem) = map per [usedReal, shared, buffers, cached, free]
-  where per x = 100.0 * fromIntegral x / fromIntegral total
-        (total, used, free, shared, buffers, cached) = mem
-        usedReal = used - shared - buffers - cached
-memPercent Nothing = take 5 $ 100.0:repeat 0
-
-freeMatch :: String -> Maybe (Int, Int, Int, Int, Int, Int)
-freeMatch s = if isMatch then Just (i1, i2, i3, i4, i5, i6) else Nothing
+freeToPercents :: String -> [Float]
+freeToPercents line = maybe (take 5 $ 100.0:repeat 0) parseFree groups
   where regex = "^Mem:" ++ (concat $ replicate 6 "\\s*(\\d+)") ++ "$"
-        match = s =~ regex :: [[String]]
-        isMatch = length match == 1
-        [i1,i2,i3,i4,i5,i6] = map read $ drop 1 $ head match
+        groups = fmap (map read) $ regexGroups regex line
+
+parseFree [total, used, free, shared, buffers, cached] = pers
+  where percent n = 100.0 * fromIntegral n / fromIntegral total
+        pers = map percent [usedReal, shared, buffers, cached, free]
+        usedReal = used - shared - buffers - cached
+
