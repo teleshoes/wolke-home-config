@@ -7,13 +7,14 @@ module Utils(
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
-  regexMatch, regexGroups, readInt, padL, padR, chompAll, estimateLength,
+  regexMatch, regexGroups, regexFirstGroup,
+  readInt, padL, padR, chompAll, estimateLength,
   lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess
 ) where
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import System.IO (
   BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents)
 import System.Process (
@@ -56,6 +57,8 @@ regexMatch :: String -> String -> Bool
 regexMatch = flip (=~)
 regexGroups :: String -> String -> Maybe [String]
 regexGroups re str = fmap (drop 1) $ listToMaybe $ str =~ re
+regexFirstGroup :: String -> String -> Maybe String
+regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
