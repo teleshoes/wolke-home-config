@@ -9,8 +9,13 @@ module Utils(
   ignoreBG,
   regexMatch, regexGroups, regexFirstGroup,
   readInt, padL, padR, chompAll, estimateLength,
-  lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess
+  lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess,
+  delayedChanReader, listToChan
 ) where
+import Control.Concurrent (
+  forkIO, threadDelay,
+  Chan, writeChan, writeList2Chan, newChan)
+import Control.Monad (forever)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
