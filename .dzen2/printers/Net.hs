@@ -1,17 +1,12 @@
 module Net(main) where
-import System.IO (stdout, hFlush)
-import System.Process(readProcess, system)
-import System.Posix.Process (forkProcess)
-import System.Posix.IO (stdInput, stdOutput, stdError, closeFd)
+import System.Process(readProcess)
 import System.Environment (getEnv)
-import Control.Applicative ((<$>))
 import Control.Concurrent (threadDelay)
-import Control.Monad (void, forever)
-import Control.Monad.Loops (anyM)
+import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
-import Text.Regex.PCRE
 import TextRows (textRows)
 import ClickAction (clickAction)
+import Utils (padL, chompAll, regexFirstGroup, lineBuffering)
 
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
   where wscanCmd = home ++ "/.dzen2/printers/ghcprinter WScan"
@@ -32,30 +27,29 @@ readWStatus = do
     otherwise      -> return Unknown
 
 
-main = forever $ do
-  wstatus <- readWStatus
-  case wstatus of
-    Wlan      -> printNet =<< wifi
-    Wired     -> printNet "wired"
-    PPP       -> printNet "pewpewpew"
-    Tethering -> printNet "tethering"
-    None      -> printNet "no wabs"
-    Unknown   -> printNet "???"
-  hFlush stdout
-  threadDelay $ 1*10^6
-
-printNet text = do
+main = do
+  lineBuffering
   home <- getEnv "HOME"
-  putStrLn $ clickAction 1 (cmd home) text
+  forever $ do
+    wstatus <- readWStatus
+    text <- case wstatus of
+      Wlan      -> wifi
+      Wired     -> return "wired"
+      PPP       -> return "pewpewpew"
+      Tethering -> return "tethering"
+      None      -> return "no wabs"
+      Unknown   -> return "???"
+    putStrLn $ clickAction 1 (cmd home) text
+    threadDelay $ 1*10^6
 
 wifi = do
-  wlan <- chomp <$> readProcess "ifdev" ["wlan"] ""
+  wlan <- fmap chompAll $ readProcess "ifdev" ["wlan"] ""
   s <- readProcess "iwconfig" [wlan] ""
-  let ssid = getMatch s "ESSID:\"(.*)\""
-  let freq = getMatch s "Frequency:(\\d+(\\.\\d+)?) GHz"
-  let qTop = getMatch s "Link Quality=(\\d+)/\\d+"
-  let qBot = getMatch s "Link Quality=\\d+/(\\d+)"
-  let rate = getMatch s "Bit Rate=(\\d+) Mb/s"
+  let ssid = regexFirstGroup "ESSID:\"(.*)\"" s
+  let freq = regexFirstGroup "Frequency:(\\d+(\\.\\d+)?) GHz" s
+  let qTop = regexFirstGroup "Link Quality=(\\d+)/\\d+" s
+  let qBot = regexFirstGroup "Link Quality=\\d+/(\\d+)" s
+  let rate = regexFirstGroup "Bit Rate=(\\d+) Mb/s" s
   let q = quality qTop qBot
   let f = frequency freq
   let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
@@ -65,22 +59,12 @@ wifi = do
 i = read :: String -> Integer
 d = read :: String -> Double
 
-padtrim len (Just s) = pad len $ take len $ s
+padtrim len (Just s) = padL ' ' len $ take len $ s
 padtrim len Nothing = take len $ repeat '?'
 
 frequency (Just f) = show $ round $ (1000.0 * (d f))
 frequency Nothing = "????"
 
-quality (Just top) (Just bot) = pad 4 (per ++ "%")
+quality (Just top) (Just bot) = padL ' ' 4 (per ++ "%")
   where per = show $ 100 * (i top) `div` (i bot)
 quality _ _ = "???%"
-
-pad len s | length s < len = pad len (' ':s)
-pad _ s = s
-
-getMatch s p = listToMaybe $ concat $ map tail groupSets
-  where groupSets = s =~ p :: [[String]]
-
-chomp "" = ""
-chomp s | last s == '\n' = reverse $ tail $ reverse s
-chomp s | otherwise = s
