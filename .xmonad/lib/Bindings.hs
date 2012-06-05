@@ -84,6 +84,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   --shortcuts
   , ((none, xf86think), spawn "term")
+  , ((alt,  xK_F2    ), spawn "term")
   , ((alt,  xf86think), spawn "$HOME/bin/LaunchTerm.hs")
   , ((ctrl, xf86think), spawnTerm "ghci")
 
