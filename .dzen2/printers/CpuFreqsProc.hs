@@ -4,10 +4,10 @@ import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Process (system)
 import Text.Regex.PCRE ((=~))
-import Utils (chompFile, delayedChanReader)
+import Utils (chompFile, actToChanDelay)
 
 getFreqsChanProc :: IO (Chan [Int])
-getFreqsChanProc = delayedChanReader (fmap parseCpuInfo readCpuInfo) 1
+getFreqsChanProc = actToChanDelay (10^6) (fmap parseCpuInfo readCpuInfo)
   where readCpuInfo = chompFile "/proc/cpuinfo"
         parseCpuInfo = map snd . removeHTDupes . getCpus
 

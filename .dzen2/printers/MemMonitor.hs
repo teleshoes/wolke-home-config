@@ -1,5 +1,5 @@
 module MemMonitor(main) where
-import Utils (height, lineBuffering, readProc, regexGroups, delayedChanReader)
+import Utils (height, lineBuffering, readProc, regexGroups, actToChanDelay)
 import PercentMonitor (percentMonitor)
 
 colors = ["#00b25b", "00e575", "#00fe81", "#a9f4c4", "#000000"]
@@ -7,7 +7,7 @@ colors = ["#00b25b", "00e575", "#00fe81", "#a9f4c4", "#000000"]
 main = do
   lineBuffering
   let (w, h) = (fromIntegral height, fromIntegral height)
-  perChan <- delayedChanReader (fmap freeToPercents $ readProc ["free"]) 1
+  perChan <- actToChanDelay (10^6) (fmap freeToPercents $ readProc ["free"])
   percentMonitor w h colors perChan
 
 freeToPercents :: String -> [Float]

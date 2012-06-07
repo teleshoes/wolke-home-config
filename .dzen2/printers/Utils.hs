@@ -11,7 +11,7 @@ module Utils(
   readInt, padL, padR, chompAll, estimateLength,
   nanoTime, lineBuffering, isRunning, chompFile,
   systemReadLines, readProc, procSuccess,
-  delayedChanReader, listToChan
+  actToChanDelay, listToChan
 ) where
 import Control.Concurrent (
   forkIO, threadDelay,
@@ -113,14 +113,15 @@ procSuccess (cmd:args) = do
   (exitCode,_,_) <- readProcessWithExitCode cmd args ""
   return $ exitCode == ExitSuccess
 
-delayedChanReader :: IO a -> Float -> IO (Chan a)
-delayedChanReader act delayS = do
+actToChanDelay :: Int -> IO a -> IO (Chan a)
+actToChanDelay delayMicro act = do
   chan <- newChan
   forkIO $ forever $ do
     start <- nanoTime
     act >>= writeChan chan
     end <- nanoTime
-    threadDelay $ round(delayS*10^6) - (end - start)`div`10^3
+    let elapsedMicro = (fromIntegral $ end - start) `div` 10^3
+    threadDelay $ delayMicro - elapsedMicro
   return chan
 
 listToChan :: [a] -> IO (Chan a)
