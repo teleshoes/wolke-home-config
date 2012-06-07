@@ -120,7 +120,7 @@ delayedChanReader act delayS = do
     start <- nanoTime
     act >>= writeChan chan
     end <- nanoTime
-    threadDelay $ round(delayS*10^6 - fromIntegral (end - start)/10^6)
+    threadDelay $ round(delayS*10^6) - (end - start)`div`10^3
   return chan
 
 listToChan :: [a] -> IO (Chan a)
