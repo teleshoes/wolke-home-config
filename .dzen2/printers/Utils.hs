@@ -9,7 +9,8 @@ module Utils(
   ignoreBG,
   regexMatch, regexGroups, regexFirstGroup,
   readInt, padL, padR, chompAll, estimateLength,
-  lineBuffering, isRunning, chompFile, systemReadLines, readProc, procSuccess,
+  nanoTime, lineBuffering, isRunning, chompFile,
+  systemReadLines, readProc, procSuccess,
   delayedChanReader, listToChan
 ) where
 import Control.Concurrent (
@@ -25,6 +26,7 @@ import System.IO (
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, shell,
   readProcessWithExitCode, system)
+import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 
 -- CONSTANTS
 height = 36
@@ -83,6 +85,9 @@ stripDzenMarkup (c:s) = c : stripDzenMarkup s
 stripDzenMarkup [] = []
 
 -- IO
+nanoTime :: IO Integer
+nanoTime = fmap (fromIntegral . timeSpecToInt64) $ getClockTime monotonicClock
+
 lineBuffering = hSetBuffering stdout LineBuffering
 
 isRunning :: String -> IO Bool

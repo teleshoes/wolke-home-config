@@ -1,19 +1,17 @@
 module NetStats(main) where
-import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 import Control.Concurrent (threadDelay)
 import Data.Maybe (catMaybes)
-import Data.Int (Int64)
 import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 import TextRows (textRows)
-import Utils (fg, chompFile, regexMatch, regexGroups, lineBuffering)
+import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups, lineBuffering)
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
 procFile = "/proc/net/dev"
 
-data NetScan = NetScan { scanTime :: Int64, devs :: [NetDev] } deriving Show
+data NetScan = NetScan { scanTime :: Integer, devs :: [NetDev] } deriving Show
 
 data NetDev = NetDev { interface :: String
                      , receive :: NetStats
@@ -37,8 +35,6 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
       NetDev interface (packStats rxStats) (packStats txStats)
     packStats [bytes,packets,errs,drop,fifo,frame,compressed,multicast] =
       NetStats bytes packets errs drop fifo frame compressed multicast
-
-nanoTime = timeSpecToInt64 `fmap` (getClockTime monotonicClock)
 
 main = lineBuffering >> scanLoop []
 
