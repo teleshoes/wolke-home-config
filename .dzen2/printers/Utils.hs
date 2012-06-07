@@ -114,11 +114,13 @@ procSuccess (cmd:args) = do
   return $ exitCode == ExitSuccess
 
 delayedChanReader :: IO a -> Float -> IO (Chan a)
-delayedChanReader getChanItem delay = do
+delayedChanReader act delayS = do
   chan <- newChan
   forkIO $ forever $ do
-    getChanItem >>= writeChan chan
-    threadDelay $ round (delay * 10^6)
+    start <- nanoTime
+    act >>= writeChan chan
+    end <- nanoTime
+    threadDelay $ round(delayS*10^6 - fromIntegral (end - start)/10^6)
   return chan
 
 listToChan :: [a] -> IO (Chan a)
