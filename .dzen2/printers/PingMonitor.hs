@@ -19,6 +19,6 @@ pingMonitorLoop u d t = mapM_ (pingMonitor u d t) . cycle
 
 pingMonitor url display timeout prefix = do
   isUp <- ping url timeout
-  let (color, wait) = if isUp then ("purple", 3) else ("red", 1)
+  let (color, wait) = if isUp then ("yellow", 3) else ("red", 1)
   putStrLn $ fg color (prefix ++ display)
   threadDelay $ wait * 10^6
