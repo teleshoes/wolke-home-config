@@ -138,6 +138,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
 
   , ((alct, xK_f     ), spawn "firefox")
+  , ((alct, xK_t     ), spawn "transmission-gtk")
   , ((alct, xK_e     ), spawn "$HOME/bin/eclipse")
   , ((alct, xK_s     ), spawn "$HOME/bin/stepmania -w")
   ]
