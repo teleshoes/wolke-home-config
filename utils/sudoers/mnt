@@ -19,7 +19,8 @@ my $usage = "Usage:
   $0 -m       mount all usb partitions at /media/NAME
   $0 -u       unmount all usb paritions at /media/NAME
 
-  $0 -g       print all NAMEs for usb partitions
+  $0 -g       for all usb partitions, print 'NAME size {mounted} dev'
+  $0 -n       for all usb partitions, print NAMEs
   
   $0 -l       loop every 1s, mounting all usb partitions at /media/NAME
   
@@ -35,11 +36,12 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  my $cmd = shift;
+  my $cmd = shift() || "-m";
+  die $usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
   my $name = shift;
-  $cmd = "-m" if not defined $cmd;
-  die $usage if not defined $cmd or $cmd !~ /^(-m|-u|-g|-l)$/;
   die $usage if defined $name and $cmd !~ /^(-m|-u)$/;
+
+  die $usage if @_ > 0;
 
   my @usbParts = grep {isUsb $_} blkid();
   my $selectedPart;
@@ -72,11 +74,15 @@ sub main(@){
   }elsif($cmd eq '-g'){
     foreach(@usbParts){
       my %p = %{$_};
-      print "$p{name}";
-      if(isMounted($p{dev})){
-        print " {mounted}";
-      }
-      print "\n";
+      my $name = "$p{name}";
+      my $size = " $p{sizeGiB}GiB" if defined $p{sizeGiB};
+      my $mounted = isMounted($p{dev}) ? ' mounted' : ' unmounted';
+      my $dev = " $p{dev}";
+      print "$name$size$mounted$dev\n";
+    }
+  }elsif($cmd eq '-n'){
+    foreach(@usbParts){
+      print "${$_}{name}\n";
     }
   }elsif($cmd eq '-l'){
     while(1){
