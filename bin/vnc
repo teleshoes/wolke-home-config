@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+my $sshControlFile = '/tmp/vncSSH.ctl';
 my $port = '5900';
 
 my @server = (
@@ -17,19 +18,32 @@ my @client = (
 );
 my @sshBind = (
   "ssh", "-f",
+    "-S", $sshControlFile,
     "-L", "$port:localhost:$port",
+);
+my @sshExit = (
+  "ssh",
+    "-S", $sshControlFile,
+    "-O", "exit",
+    "localhost",
 );
 
 sub main(@){
-  my $host = shift();
-  die "Usage: $0 host" if not defined $host;
+  my $arg = shift();
+  die "Usage: $0 host   or  $0 off\n" if not defined $arg or @_ > 0;
+  if($arg eq 'off'){
+    exec @sshExit;
+  }else{
+    system @sshExit;
+    my $host = $arg;
 
-  system @sshBind, $host, "@server";
-  exit $? if $? != 0;
+    system @sshBind, $host, "@server";
+    exit $? if $? != 0;
 
-  sleep 5;
+    sleep 5;
 
-  system @client;
+    system @client;
+  }
 }
 
 &main(@ARGV);
