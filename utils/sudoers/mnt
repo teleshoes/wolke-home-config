@@ -2,40 +2,143 @@
 use strict;
 use warnings;
 
+my $mountDir = '/media';
+
+sub mount($);
+sub unmount($);
+sub blkid();
+sub udevadm($);
+sub getName($);
 sub isUsb($);
-sub getUsbPartitions();
+sub run(@);
+sub runFail(@);
+sub runFailEcho(@);
 
 my $usage = "Usage:
-  $0 -g         - print all labels for usb drives
+  $0          mount all usb partitions at /media/NAME
+  $0 -m       mount all usb partitions at /media/NAME
+  $0 -u       unmount all usb paritions at /media/NAME
 
-  $0            - mount all usb partitions at /media/LABEL or /media/UUID
-  $0 -u         - unmount all usb paritions at /media/LABEL or /media/UUID
-
-  $0 LABEL      - mount LABEL at /media/LABEL
-  $0 -u LABEL   - unmount /media/LABEL  
+  $0 -g       print all NAMEs for usb partitions
+  
+  $0 -l       loop every 1s, mounting all usb partitions at /media/NAME
+  
+  $0 -m NAME  mount NAME at /media/NAME
+  $0 -u NAME  unmount /media/NAME
+  
+  NAME is either
+    1) the partition label if blkid finds one
+    2) <devname>  or  <devname>_<size>GiB
+       if the device is /dev/<devname> and <devname> is alphanumeric
+       <size> is the size in GiB, truncated to tenths, if udev reports it
+    3) uuid otherwise
 ";
 
 sub main(@){
-  my $arg = shift;
-  if($arg eq '-g'){
-    foreach(getUsbPartitions()){
+  my $cmd = shift;
+  my $name = shift;
+  $cmd = "-m" if not defined $cmd;
+  die $usage if not defined $cmd or $cmd !~ /^(-m|-u|-g|-l)$/;
+  die $usage if defined $name and $cmd !~ /^(-m|-u)$/;
+
+  my @usbParts = grep {isUsb $_} blkid();
+  my $selectedPart;
+  if(defined $name){
+    foreach(@usbParts){
+      if(${$_}{name} eq $name){
+        $selectedPart = $_;
+        last;
+      }
+    }
+    die "Unknown NAME $name; try '$0 -g'\n" if not defined $selectedPart;
+  }
+
+  if($cmd eq '-m'){
+    if(defined $selectedPart){
+      die "already mounted\n" if isMounted(${$selectedPart}{dev});
+      mount $selectedPart;
+    }else{
+      my @unmounted = grep {!isMounted(${$_}{dev})} @usbParts;
+      mount $_ foreach @unmounted;
+    }
+  }elsif($cmd eq '-u'){
+    if(defined $selectedPart){
+      die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
+      unmount $selectedPart;
+    }else{
+      my @mounted = grep {isMounted(${$_}{dev})} @usbParts;
+      unmount $_ foreach @mounted;
+    }
+  }elsif($cmd eq '-g'){
+    foreach(@usbParts){
       my %p = %{$_};
-      print "$p{label}\n";
+      print "$p{name}";
+      if(isMounted($p{dev})){
+        print " {mounted}";
+      }
+      print "\n";
+    }
+  }elsif($cmd eq '-l'){
+    while(1){
+      system $0, "-m";
+      sleep 1;
     }
   }
 }
 
-sub isUsb($){
+sub isMounted($){
   my $dev = shift;
-  my $out = `udevadm info --query=all -n $dev | grep ID_USB_DRIVER`;
-  if($out =~ "E: ID_USB_DRIVER=usb-storage"){
+  my $mountOut = `mount`;
+  if($mountOut =~ /^$dev on /m){
     return 1;
   }else{
     return 0;
   }
 }
 
-sub getUsbPartitions(){
+sub isMountedOn($$){
+  my ($dev, $mountPoint) = @_;
+  my $mountOut = `mount`;
+  if($mountOut =~ /^$dev on $mountPoint /m){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub mount($){
+  my %p = %{shift()};
+  my $mountPoint = "$mountDir/$p{name}";
+  die "$p{dev} already mounted\n" if isMountedOn $p{dev}, $mountPoint;
+  
+  run "rmdir $mountPoint 2>/dev/null";
+  if(-e $mountPoint){
+    die "$mountPoint exists and is not removable with rmdir";
+  }
+  runFail "mkdir", $mountPoint;
+  
+  runFailEcho "mount", "-t", $p{type}, $p{dev}, $mountPoint;
+  if(isMountedOn $p{dev}, $mountPoint){
+    print "  OK\n";
+  }else{
+    die "$p{dev} not mounted on $mountPoint, according to mtab";
+  }
+}
+
+sub unmount($){
+  my %p = %{shift()};
+  my $mountPoint = "$mountDir/$p{name}";
+  die "$p{dev} not mounted\n" if !isMountedOn $p{dev}, $mountPoint;
+  runFailEcho "umount", $mountPoint;
+  runFail "rmdir", $mountPoint;
+  if(not -e $mountPoint){
+    print "  OK\n";
+  }else{
+    die "$mountPoint still exists";
+  }
+}
+
+sub blkid(){
   my @partitions;
   for my $line(`blkid`){
     my %p;
@@ -44,11 +147,72 @@ sub getUsbPartitions(){
     $p{uuid} = $1 if $line =~ /UUID="([^"]+)"/;
     $p{type} = $1 if $line =~ /TYPE="([^"]+)"/;
 
-    if(isUsb $p{dev}){
-      push @partitions, \%p;
+    $p{udev} = udevadm $p{dev};
+
+    my $size = $p{udev}{UDISKS_PARTITION_SIZE};
+    if(defined $size and $size =~ /^\d+$/){
+      $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
     }
+    
+    $p{name} = getName \%p;
+     
+    push @partitions, \%p;
   }
   return @partitions;
+}
+
+sub udevadm($){
+  my $dev = shift;
+  my %udev;
+  for my $line(`udevadm info --query=property --name=$dev`){
+    if($line =~ /^([a-z0-9_\-]+)=(.*)$/i){
+      $udev{$1} = $2;
+    }
+  }
+  return \%udev;
+}
+
+sub getName($){
+  my %p = %{shift()};
+
+  if(defined $p{label} and length $p{label} > 0){
+    return $p{label};
+  }
+
+  my $dev = $p{dev};
+  $dev = '' if not defined $dev;
+  if($dev =~ /^\/dev\/([a-z0-9]+)$/i){
+    my $devName = $1;
+    if(defined $p{sizeGiB}){
+      return "${devName}_$p{sizeGiB}GiB";
+    }else{
+      return $devName;
+    }
+  }
+
+  return $p{uuid};
+}
+
+sub isUsb($){
+  my %p = %{shift()};
+  my $idPath = ${$p{udev}}{ID_PATH};
+  if(defined $idPath and $idPath =~ /-usb-/){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub run(@){
+  system @_;
+}
+sub runFail(@){
+  run @_;
+  die "Command failed: @_\n" if $? != 0;
+}
+sub runFailEcho(@){
+  print "@_\n";
+  runFail @_;
 }
 
 &main(@ARGV);
