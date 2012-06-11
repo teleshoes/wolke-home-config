@@ -15,17 +15,18 @@ sub runFail(@);
 sub runFailEcho(@);
 
 my $usage = "Usage:
-  $0          mount all usb partitions at /media/NAME
-  $0 -m       mount all usb partitions at /media/NAME
-  $0 -u       unmount all usb paritions at /media/NAME
+  $0             mount all usb partitions at /media/NAME
+  $0 -m          mount all usb partitions at /media/NAME
+  $0 -u          unmount all usb paritions at /media/NAME
 
-  $0 -g       for all usb partitions, print 'NAME size {mounted} dev'
-  $0 -n       for all usb partitions, print NAMEs
+  $0 -g          for all usb partitions, print 'NAME size {mounted} dev'
+  $0 -n          for all usb partitions, print NAMEs
   
-  $0 -l       loop every 1s, mounting all usb partitions at /media/NAME
+  $0 -l          loop every 1s, mounting all usb partitions at /media/NAME
+  $0 -l [NAMEs]  loop every 1s, mounting the indicated NAMEs
   
-  $0 -m NAME  mount NAME at /media/NAME
-  $0 -u NAME  unmount /media/NAME
+  $0 -m NAME     mount NAME at /media/NAME
+  $0 -u NAME     unmount /media/NAME
   
   NAME is either
     1) the partition label if blkid finds one
@@ -38,10 +39,9 @@ my $usage = "Usage:
 sub main(@){
   my $cmd = shift() || "-m";
   die $usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
-  my $name = shift;
-  die $usage if defined $name and $cmd !~ /^(-m|-u)$/;
+  my $name = shift if $cmd =~ /^(-m|-u)$/;
 
-  die $usage if @_ > 0;
+  die $usage if @_ > 0 and $cmd ne '-l';
 
   my @usbParts = grep {isUsb $_} blkid();
   my $selectedPart;
@@ -85,10 +85,28 @@ sub main(@){
       print "${$_}{name}\n";
     }
   }elsif($cmd eq '-l'){
-    while(1){
-      print "$0 -m\n";
-      system $0, "-m";
-      sleep 1;
+    if(@_ > 0){
+      my %waitingMap = map {$_ => 1} @_;
+      while(keys %waitingMap > 0){
+        my @waiting = keys %waitingMap;
+        print "waiting for @waiting\n";
+        my @names = `$0 -n`;
+        foreach my $name(@names){
+          chomp $name;
+          delete $waitingMap{$name};
+        }
+        sleep 1 if keys %waitingMap > 0;
+      }
+      for my $name(@_){
+        print "$name ";
+        system $0, "-m", $name;
+      }
+    }else{
+      while(1){
+        print "$0 -m\n";
+        system $0, "-m";
+        sleep 1;
+      }
     }
   }
 }
