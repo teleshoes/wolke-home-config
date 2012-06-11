@@ -1,1 +1,1 @@
-.xsessionrc
+.xinitrc
