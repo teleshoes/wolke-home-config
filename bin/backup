@@ -2,20 +2,56 @@
 use strict;
 use warnings;
 
-my $test = '/media/BACKUP_HOME';
-while(not -e $test){
-  print "$test does not exist, sleep and try again..\n";
-  sleep 1;
+if(`whoami` ne "root\n"){
+  print STDERR "rerunning as root...\n";
+  exec "sudo", "$0", @ARGV;
 }
-system "backupHome";
-system "backupStuff";
-my $cmd = "sudo umount /media/BACKUP_*";
-print "Press enter to run, or ctrl+c to quit:\n$cmd\n";
-<STDIN>;
-system "$cmd";
 
-if(-e $test){
-  print "WHOA, $test still exists\n";
-}else{
-  print "$test doesnt exist, so youre probably cool on removing the hd\n";
+my $mountDir = '/media';
+sub backup($$$);
+
+sub main(@){
+  my $arg = shift() || 'both';
+  my $validArgs = "home|stuff|both";
+  if($arg !~ /^($validArgs)$/){
+    die "Usage: $0 [$validArgs]   {default is 'both'}\n";
+  }
+
+  if($arg =~ /^(home|both)$/){
+    backup("BACKUP_HOME", "/home/", [
+      '.gvfs',
+      '.xmonad/workspace-images/*.log',
+      '.xmonad/workspace-images/*.xbm',
+      '.xmonad/workspace-images/*.xpm',
+      ]);
+  }
+
+  if($arg =~ /^(stuff|both)$/){
+    backup("BACKUP_STUFF", "/media/stuff/", [
+      ]);
+  }
 }
+
+sub backup($$$){
+  my ($mntName, $srcDir, $excludeArr) = @_;
+  die "dir not found: $srcDir\n" if not -d $srcDir;
+  
+  system "mnt", "-l", $mntName;
+  my $mountPoint = "$mountDir/$mntName";
+  if(system("mountpoint $mountPoint") != 0){
+    die "$mountPoint is not a mount point\n";
+  }
+
+  my @excludes = map {"--exclude=$_"} @$excludeArr;
+
+  my @cmd = ("rsync", "-avP", "--del", @excludes, $srcDir, $mountPoint);
+  print "@cmd\n";
+  sleep 1;
+  system @cmd;
+  die "rsync failed, exiting\n" if $? != 0;
+  sleep 1;
+
+  system "mnt", "-u", $mntName;
+}
+
+&main(@ARGV);
