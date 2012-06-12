@@ -9,7 +9,7 @@ sub unmount($);
 sub blkid();
 sub udevadm($);
 sub getName($);
-sub isUsb($);
+sub isExternal($);
 sub run(@);
 sub runFail(@);
 sub runFailEcho(@);
@@ -43,7 +43,7 @@ sub main(@){
 
   die $usage if @_ > 0;
 
-  my @usbParts = grep {isUsb $_} blkid();
+  my @usbParts = grep {isExternal $_} blkid();
   my $selectedPart;
   if(defined $name and $cmd =~ /^(-m|-u)$/){
     foreach(@usbParts){
@@ -211,10 +211,16 @@ sub getName($){
   return $p{uuid};
 }
 
-sub isUsb($){
-  my %p = %{shift()};
-  my $idPath = ${$p{udev}}{ID_PATH};
+sub isExternal($){
+  my %udev = %{${shift()}{udev}};
+  my $idPath = $udev{ID_PATH};
+  my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
+  my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   if(defined $idPath and $idPath =~ /-usb-/){
+    #usb
+    return 1;
+  }elsif($flashSD or $mediaFlashSD){
+    #card
     return 1;
   }else{
     return 0;
