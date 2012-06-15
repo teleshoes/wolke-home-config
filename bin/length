@@ -3,10 +3,11 @@ use strict;
 use warnings;
 
 my $usage = "Usage:
-  $0 [-a] song             print length in seconds
-  $0 [-a] song song ..     print length in seconds and filename, one per line
-  $0 [-a] -t song song ..  print sum of length in seconds of all inputs
+  $0 [-m] [-a] song             print length in seconds
+  $0 [-m] [-a] song song ..     print length and filename, one per line
+  $0 [-m] [-a] -t song song ..  print sum of length in seconds of all inputs
     -a  =>  use avconv instead of midentify
+    -m  =>  print values in h:mm:ss or m:ss instead of s.ss
 ";
 
 sub getLen($$){
@@ -38,12 +39,34 @@ sub getLen($$){
   }
 }
 
+sub formatLen($$){
+  my ($hms, $len) = @_;
+  if($hms){
+    my $h = int($len / (60*60));
+    my $m = int($len % (60*60) / (60));
+    my $s = int($len % (60));
+    $s = "0$s" if $s < 10;
+    if($h == 0){
+      return "$m:$s";
+    }else{
+      $m = "0$m" if $m < 10;
+      return "$h:$m:$s";
+    }
+  }else{
+    return sprintf "%.2f", $len;
+  }
+}
+
 
 sub main(@){
   die $usage if @_ == 0;
-  (my $isTotal = 0, my $useAvconv = 0, my $isSingle = 0);
+  (my $isTotal = 0, my $useAvconv = 0, my $isSingle = 0, my $hms = 0);
   die $usage if $_[0] eq '-h' or $_[0] eq '--help';
 
+  if($_[0] eq '-m'){
+    $hms = 1;
+    shift;
+  }
   if($_[0] eq '-a'){
     $useAvconv = 1;
     shift;
@@ -59,13 +82,13 @@ sub main(@){
     my $len = getLen $song, $useAvconv;
     $total += $len;
     if(not $isTotal){
-      print $len;
+      print formatLen($hms, $len);
       print " $song" if not $isSingle;
       print "\n";
     }
   }
   if($isTotal){
-    print sprintf "%.2f", $total;
+    print formatLen($hms, $total);
     print "\n";
   }
 }
