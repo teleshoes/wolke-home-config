@@ -25,6 +25,7 @@ clickCommands = [ ""
 accounts = M.fromList [ ("Gmail", "G")
                       , ("LilleGroup", "L")
                       , ("AOL - LiberiFataliVIII", "A")
+                      , ("teleshoes", "T")
                       ]
 
 main = do
