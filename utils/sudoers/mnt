@@ -8,6 +8,7 @@ sub mount($);
 sub unmount($);
 sub blkid();
 sub udevadm($);
+sub partedSize($);
 sub getName($);
 sub isExternal($);
 sub run(@);
@@ -168,10 +169,12 @@ sub blkid(){
     $p{udev} = udevadm $p{dev};
 
     my $size = $p{udev}{UDISKS_PARTITION_SIZE};
+    $size = partedSize $p{dev} if not defined $size;
+
     if(defined $size and $size =~ /^\d+$/){
       $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
     }
-    
+
     $p{name} = getName \%p;
      
     push @partitions, \%p;
@@ -188,6 +191,26 @@ sub udevadm($){
     }
   }
   return \%udev;
+}
+
+sub partedSize($){
+  my $dev = shift;
+  my $partedOut = `parted -m $dev unit B print`;
+  if($partedOut =~ /^
+    BYT
+    ;\n
+      ([^:]*) :           #dev
+      ([^:]*) :           #size
+      ([^:]*) :           #connection type, e.g.: scsi
+      ([^:]*) : ([^:]*) : #logical & physical sector size
+      ([^:]*) :           #partition table type
+      ([^:]*)             #model name
+    ;\n/xs){
+    my $size = $2;
+    if($size =~ /^(\d+)B$/){
+      return $1;
+    }
+  }
 }
 
 sub getName($){
