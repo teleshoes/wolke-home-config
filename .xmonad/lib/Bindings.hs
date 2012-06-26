@@ -90,8 +90,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
 
-  , ((supr, xK_c     ), spawn "$HOME/bin/fcronjob co toggle")
-  , ((supr, xK_t     ), spawn "$HOME/bin/fcronjob te toggle")
+  , ((supr, xK_c     ), spawn "fcronjob co toggle")
+  , ((supr, xK_t     ), spawn "fcronjob te toggle")
 
   , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --monitor off
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
