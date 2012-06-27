@@ -109,6 +109,8 @@ vmap <F12>      "rp
 """:Wcq msg => save, git ci FILENAME -m msg, quit
 command -nargs=1 Wc  call Wc(<f-args>, "noquit")
 command -nargs=1 Wcq call Wc(<f-args>, "quit")
+cabbrev wc  <c-r>=(getcmdtype()==':' && getcmdpos()==1 ? 'Wc'  : 'wc' )<CR>
+cabbrev wcq <c-r>=(getcmdtype()==':' && getcmdpos()==1 ? 'Wcq' : 'wcq')<CR>
 function Wc(msg, maybeQuit)
     w
     let msg = "'" . substitute(a:msg, "'", "'\\\\''", "g") . "'"
