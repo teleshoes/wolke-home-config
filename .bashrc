@@ -47,6 +47,7 @@ if [ "$DISPLAY" == "" ]; then
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n9"                ) h='@n9' ;;
     "wolke-n900"              ) h='@n900' ;;
+    "raspberrypi"             ) h='@raspi' ;;
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
     *                         ) h='@\h' ;;
   esac
