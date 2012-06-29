@@ -5,76 +5,78 @@ use warnings;
 sub assertIp($);
 sub assertMac($);
 sub parseConfig($);
-sub getDefaultUser();
-sub getHosts();
-sub setHosts($);
-sub usb();
-sub guessIps();
-sub wifi();
-
-if(@ARGV == 0){
-  die "NO CONFIG FILE PASSED IN\n";
-}
-my $file = shift;
-my %config = %{parseConfig `cat $file`};
-
-die "hostname not defined in conf\n" if not defined $config{hostname};
-my $hostname = $config{hostname};
-my $hostsMarker = "ipmagic:$hostname";
+sub hostsMarker($);
+sub getHosts($);
+sub setHosts($$);
+sub usb($);
+sub guessIps($);
+sub wifi($);
 
 my $usage = "Usage:
-    $0
-      establish hosts file, up devices, and print hostname
-    $0 -vnc [ARGS]
-      calls the vnc cmd, with args
+    $0 CONF_FILE [-u USER]
+      setup hosts file, init usb devices, and print hostname
+    $0 CONF_FILE [-u USER] -vnc [ARGS]
+      setup hosts file, init usb devices, and call vncCmd
       e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
-    $0 -s CMD ARG ARG..
-      setup and then ssh with command and args
-    $0 -b SHELLCMD
-      setup and then invoke single cmd string in bash\n";
+    $0 CONF_FILE [-u USER] -s [CMD ARG ARG..]
+      setup hosts file, init usb devices, and ssh to host
+    $0 CONF_FILE [-u USER] -b BASHCMD
+      setup hosts file, init usb devices, and ssh with bash -c SHELLCMD
+    USER is the user that will be used in -s, -b, and -vnc\n";
 
 sub main(@){
+  my $confFile = shift;
+  die $usage if not defined $confFile or not -e $confFile;
+  my %config = %{parseConfig $confFile};
+  die "hostname not defined in conf\n" if not defined $config{hostname};
+  my $hostname = $config{hostname};
+
+  my $sshUser;
+  if(@_ > 1 and $_[0] eq '-u'){
+    shift;
+    $sshUser = shift;
+  }elsif(defined $config{defaultUser}){
+    $sshUser = $config{defaultUser};
+  }else{
+    $sshUser = 'root';
+  }
+
   my $vncCmd;
   my $isSsh = 0;
   my @sshCmd;
-  my $sshUser;
   if(@_ > 0 and $_[0] eq '-vnc'){
     shift;
-    $vncCmd = defined $config{vncCommand} ? $config{vncCommand} : 'vnc';
+    if(defined $config{vncCommand}){
+      $vncCmd = $config{vncCommand};
+    }else{
+      $vncCmd = "vnc $sshUser\@$hostname";
+    }
     if(@_ > 0){
       $vncCmd .= " @_";
     }elsif(defined $config{vncDefaultArgs}){
       $vncCmd .= " $config{vncDefaultArgs}";
     }
-  }elsif(@_ > 0 and $_[0] =~ /^(-s|-b)$/){
+  }elsif(@_ > 0 and $_[0] eq '-s'){
+    shift;
     $isSsh = 1;
-
-    my $arg = shift;
-    if(@_ > 1 and $_[0] eq '-u'){
-      shift;
-      $sshUser = shift;
-    }else{
-      $sshUser = getDefaultUser();
-    }
-    if($arg eq '-s'){
-      @sshCmd = @_;
-    }elsif($arg eq '-b'){
-      die "-b argument needs single shell argument\n" if @_ > 1;
-      my $c = shift;
-      $c =~ s/'/'\\''/g;
-      @sshCmd = ("bash -c '$c'");
-    }
+    @sshCmd = @_;
+  }elsif(@_ > 0 and $_[0] eq '-b'){
+    shift;
+    $isSsh = 1;
+    die "-b argument needs single shell argument\n" if @_ > 1;
+    my $c = shift;
+    $c =~ s/'/'\\''/g;
+    @sshCmd = ("bash -c '$c'");
   }elsif(@_ > 0){
     die $usage;
   }
 
   my $ok;
-  $ok = usb if not $ok;
-  $ok = wifi if not $ok;
-  $ok = guessIps if not $ok;
+  $ok = usb \%config if not $ok;
+  $ok = wifi \%config if not $ok;
+  $ok = guessIps \%config if not $ok;
   die "Could not get an ip\n" if not $ok;
 
-  my $user = $config{defaultUser};
   if(defined $vncCmd){
     exec $vncCmd;
   }elsif($isSsh){
@@ -100,13 +102,16 @@ sub assertMac($){
 }
 
 sub parseConfig($){
+  my $file = shift;
+  open FH, "< $file" or die "Couldnt open conf $file\n";
+  my @lines = <FH>;
+  close FH;
+
   my %config;
   my @macs;
   my @ipGuesses;
   my %ssidIps;
-  my %scriptNameToUser;
 
-  my @lines = split /\n/, shift();
   for my $line(@lines){
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
@@ -125,12 +130,6 @@ sub parseConfig($){
       }
       my ($ssid, $ip) = ($1, $2);
       $ssidIps{$ssid} = $ip;
-    }elsif($key eq 'scriptNameToUser'){
-      if($val !~ /^\s*([^:]+?)\s*:\s*([^:]+?)\s*/){
-        die "Malformed scriptname-user pair: $val\n";
-      }
-      my ($scriptName, $user) = ($1, $2);
-      $scriptNameToUser{$scriptName} = $user;
     }elsif($key =~ /^(usbLocalIp|usbRemoteIp)$/){
       die "Duplicate conf entry $key\n" if defined $config{$key};
       assertIp $val;
@@ -145,24 +144,19 @@ sub parseConfig($){
   $config{macs} = \@macs;
   $config{ipGuesses} = \@ipGuesses;
   $config{ssidIps} = \%ssidIps;
-  $config{scriptNameToUser} = \%scriptNameToUser;
   return \%config;
 }
 
-sub getDefaultUser(){
-  my $defaultUser = $config{defaultUser};
-  if(defined $config{scriptNameToUser}){
-    my %scriptNameToUser = %{$config{scriptNameToUser}};
-    my $scriptName = $0;
-    $scriptName = $1 if $scriptName =~ /([^\/]*)$/;
-    if(defined $scriptNameToUser{$scriptName}){
-      $defaultUser = $scriptNameToUser{$scriptName};
-    }
-  }
-  return $defaultUser;
+sub hostsMarker($){
+  my %config = %{shift()};
+  my $hostname = $config{hostname};
+  return "ipmagic:$hostname";
 }
 
-sub getHosts(){
+sub getHosts($){
+  my %config = %{shift()};
+  my $hostsMarker = hostsMarker \%config;
+  my $hostname = $config{hostname};
   for my $line(`cat /etc/hosts`){
     if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
       return $1;
@@ -171,11 +165,14 @@ sub getHosts(){
   return undef;
 }
 
-sub setHosts($){
+sub setHosts($$){
+  my %config = %{shift()};
+  my $hostsMarker = hostsMarker \%config;
+  my $hostname = $config{hostname};
   my $ip = shift;
-  my $old = getHosts();
+  my $old = getHosts \%config;
   if(not defined $ip){
-    if(defined getHosts()){
+    if(defined $old){
       print STDERR "removing $hostname line from /etc/hosts\n";
     }else{
       return;
@@ -203,7 +200,8 @@ sub setHosts($){
   close FH;
 }
 
-sub usb(){
+sub usb($){
+  my %config = %{shift()};
   if(not defined $config{usbLocalIp} or not defined $config{usbRemoteIp}){
     return 0;
   }
@@ -224,15 +222,17 @@ sub usb(){
           . " > /dev/null"
           ;
       }
-      setHosts $remoteIp;
+      setHosts \%config, $remoteIp;
       return 1;
     }
   }
   return 0;
 }
 
-sub guessIps(){
-  setHosts undef;
+sub guessIps($){
+  my %config = %{shift()};
+  my $hostname = $config{hostname};
+  setHosts \%config, undef;
   if(defined $config{guessIps}){
     my @ips = @{$config{guessIps}};
     system 'ensure-host', $hostname, @ips;
@@ -245,7 +245,8 @@ sub guessIps(){
   return 0;
 }
 
-sub wifi(){
+sub wifi($){
+  my %config = %{shift()};
   my %ssidIps;
   if(defined $config{ssidIps}){
     %ssidIps = %{$config{ssidIps}};
@@ -254,7 +255,7 @@ sub wifi(){
   my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
   my $ip = defined $ssid ? $ssidIps{$ssid} : undef;
   if(defined $ip){
-    setHosts $ip;
+    setHosts \%config, $ip;
     return 1;
   }
   return 0;
