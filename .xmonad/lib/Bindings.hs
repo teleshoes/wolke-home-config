@@ -73,7 +73,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctsh, xK_F12   ), spawn "$HOME/bin/n9 -s screenStayOnDaemon")
   , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
-  , ((ctrl, xK_F9    ), spawn "termcmd n9 -s")
+  , ((ctrl, xK_F9    ), spawn "$HOME/bin/pi -vnc")
   , ((ctsu, xK_space ), spawn "n9 -s udo klomp-cmd pause")
   , ((ctsu, xK_z     ), spawn "n9 -s udo klomp-cmd prev")
   , ((ctsu, xK_x     ), spawn "n9 -s udo klomp-cmd next")
