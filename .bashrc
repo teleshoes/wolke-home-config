@@ -68,24 +68,25 @@ cEnd='\[\033[00m\]'
 #the n9 fucks with that line on reboot
 PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
+for cmd in wconnect tether resolv mnt
+do alias $cmd="sudo $cmd"; done
+
+for sudoTypo in suod sudp
+do alias $sudoTypo='sudo'; done
+
+for exitTypo in exot exut
+do alias $exitTypo='exit'; done
+
 alias gvim='termcmd vim'
 alias cx='chmod +x'
 alias :q='exit'
 alias shutdown='poweroff'
-alias suod='sudo'
-alias sudp='sudo'
-alias wconnect='sudo wconnect'
-alias tether='sudo tether'
-alias resolv='sudo resolv'
-alias mnt='sudo mnt'
-alias exot='exit'
-alias exut='exit'
 alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
-function spawn { $@ & disown ; }
-function spawnex { $@ & disown && exit 0 ; }
+function spawn       { $@ & disown ; }
+function spawnex     { $@ & disown && exit 0 ; }
 function spawnexsudo { gksudo $@ & disown && exit 0 ; }
 
 alias genservices='~/workspace/escribe/tools/genservices'
