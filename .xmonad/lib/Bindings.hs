@@ -79,6 +79,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctsu, xK_x     ), spawn "n9 -s udo klomp-cmd next")
   , ((chsu, xK_z     ), spawn "n9 -s udo klomp-cmd seek -10")
   , ((chsu, xK_x     ), spawn "n9 -s udo klomp-cmd seek 10")
+  , ((chsu, xK_a     ), spawn "n9 -s udo klomp-cmd seek -60")
+  , ((chsu, xK_s     ), spawn "n9 -s udo klomp-cmd seek 60")
   , ((ctsu, xK_r     ), spawn "n9 -s udo klomp-cmd reset")
 
 
