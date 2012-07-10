@@ -134,6 +134,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_x     ), spawn "klomp-cmd next")
   , ((sush, xK_z     ), spawn "klomp-cmd seek -10")
   , ((sush, xK_x     ), spawn "klomp-cmd seek 10")
+  , ((sush, xK_a     ), spawn "klomp-cmd seek -60")
+  , ((sush, xK_s     ), spawn "klomp-cmd seek 60")
   , ((supr, xK_r     ), spawn "klomp-cmd reset")
 
   , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
