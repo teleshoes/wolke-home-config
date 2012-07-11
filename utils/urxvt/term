@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 my $titleArgs = "-t|--title|-T|-title";
+my $cwdArgs = "--working-directory|-cd";
 
 my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
@@ -14,10 +15,13 @@ my $usage = "Usage:
   If SHELLCMD has a space in it, its executed in bash.
   e.g.:
     $0 \"echo 'bananas; apples; oranges'; sleep 2\"
+    $0 --title 'log search' --working-directory / find -iname '*.log'
 
   OPTS
     $titleArgs TITLE
       sets the window title on terminals that support it
+    $cwdArgs PATH
+      sets the current working directory on terminals that support it
 ";
 
 sub wrapToken($){
@@ -29,15 +33,18 @@ sub wrapToken($){
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $title = '';
+  my $cwd = '';
   while(1){
     if(@_ > 1 and $_[0] =~ /^($titleArgs)$/){
       shift;
       $title = "-title " . wrapToken(shift());
+    }elsif(@_ > 1 and $_[0] =~ /^($cwdArgs)$/){
+      shift;
+      $cwd = "-cd " . wrapToken(shift());
     }else{
       last;
     }
   }
-
   my @cmd = @_;
   @cmd = map {wrapToken $_} @cmd;
   
@@ -47,7 +54,7 @@ sub main(@){
     @cmd = ("-e", @cmd);
   }
 
-  exec "bash", "-c", "urxvt $title @cmd & disown";
+  exec "bash", "-c", "urxvt $title $cwd @cmd & disown";
 }
 
 &main(@ARGV);
