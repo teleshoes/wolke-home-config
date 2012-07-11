@@ -83,6 +83,7 @@ alias l='ls -al --color=auto'
 alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
+alias perms='stat -c %a'
 function spawn       { $@ & disown ; }
 function spawnex     { $@ & disown && exit 0 ; }
 function spawnexsudo { gksudo $@ & disown && exit 0 ; }
