@@ -22,7 +22,7 @@ main = do
   putStr $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
 
 cmd = ""
-      ++ "term -e sh -c \""
+      ++ "term \""
       ++ "vim $HOME/.fcrontab; fcronreset; echo OK; read STDIN"
       ++ "\""
 
