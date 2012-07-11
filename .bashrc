@@ -55,11 +55,9 @@ else
   #if display is set, you probably know where you are
   h=""
 fi
-if [ "$USER" == "BenjaminAguayza" ]; then
-  u=ben
-else
-  u="\u"
-fi
+
+u="\u"
+if [ "$USER" == "BenjaminAguayza" ]; then u=ben; fi
 colon=":"
 c1='\[\033[01;32m\]'
 c2='\[\033[01;34m\]'
