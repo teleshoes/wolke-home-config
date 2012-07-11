@@ -2,28 +2,44 @@
 use strict;
 use warnings;
 
-my $usage = "
+my $titleArgs = "-t|--title|-T|-title";
+
+my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
+  $0 [OPTS] SHELLCMD
+  $0 -h|--help
   
   Provids a consistent cli to several terminal emulators.
   Spawns the terminal and disowns it {this is bash-specific}
+  If SHELLCMD has a space in it, its executed in bash.
+  e.g.:
+    $0 \"echo 'bananas; apples; oranges'; sleep 2\"
 
   OPTS
-    -t|--title|-T|-title TITLE   sets the title on terminals that support it
+    $titleArgs TITLE
+      sets the window title on terminals that support it
 ";
 
+sub wrapToken($){
+  my $s = shift;
+  $s =~ s/'/'\\''/g;
+  return "'$s'";
+}
+
 sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $title = '';
-  if(@_ > 1 and $_[0] =~ /^(-title|-T|--title|-t)$/){
-    shift;
-    my $t = shift;
-    $t =~ s/'/'\\''/g;
-    $title = "-title '$t'";
+  while(1){
+    if(@_ > 1 and $_[0] =~ /^($titleArgs)$/){
+      shift;
+      $title = "-title " . wrapToken(shift());
+    }else{
+      last;
+    }
   }
 
   my @cmd = @_;
-  s/'/'\\''/g foreach @cmd;
-  $_ = "'$_'" foreach @cmd;
+  @cmd = map {wrapToken $_} @cmd;
   
   if(@cmd == 1 and $cmd[0] =~ / /){
     @cmd = ("-e", "bash", "-c", @cmd);
