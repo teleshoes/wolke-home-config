@@ -88,7 +88,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((none, xf86think), spawn "term")
   , ((alt,  xK_F2    ), spawn "term")
   , ((alt,  xf86think), spawn "runghc $HOME/bin/LaunchTerm.hs")
-  , ((ctrl, xf86think), spawnTerm "ghci")
+  , ((ctrl, xf86think), spawn "term ghci")
 
   , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
 
@@ -142,6 +142,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
 
   , ((alct, xK_f     ), spawn "firefox")
+  , ((alct, xK_c     ), spawn "chromium-browser")
   , ((alct, xK_t     ), spawn "transmission-gtk")
   , ((alct, xK_e     ), spawn "$HOME/bin/eclipse")
   , ((alct, xK_s     ), spawn "$HOME/bin/stepmania -w")
@@ -187,7 +188,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     xf86mute = xF86XK_AudioMute
     xf86back = xF86XK_Back
     xf86fwd = xF86XK_Forward
-    spawnTerm cmd = spawn $ "term -e " ++ cmd
  
 myMouseBindings (XConfig {XMonad.modMask = modm}) = fromList $
   -- mod-button1, Set the window to floating mode and move by dragging
