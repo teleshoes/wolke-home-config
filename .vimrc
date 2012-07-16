@@ -1,4 +1,5 @@
 """filetype plugin indent on
+set backspace=2
 set uc=0 """no swapfile
 set ic
 set history=9000
