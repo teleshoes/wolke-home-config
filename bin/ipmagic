@@ -110,6 +110,7 @@ sub parseConfig($){
   my %config;
   my @macs;
   my @ipGuesses;
+  my %macIps;
   my %ssidIps;
 
   for my $line(@lines){
@@ -128,6 +129,13 @@ sub parseConfig($){
     }elsif($key eq 'ipGuess'){
       assertIp $val;
       push @ipGuesses, $val;
+    }elsif($key eq 'macIp'){
+      if(not defined $valLeft or not defined $valRight){
+        die "Malformed mac ip conf: $val\n";
+      }
+      assertMac($valLeft);
+      assertIp($valRight);
+      $macIps{lc $valLeft} = lc $valRight;
     }elsif($key eq 'ssidIp'){
       if(not defined $valLeft or not defined $valRight){
         die "Malformed ssid ip conf: $val\n";
@@ -147,6 +155,7 @@ sub parseConfig($){
   }
   $config{macs} = \@macs;
   $config{ipGuesses} = \@ipGuesses;
+  $config{macIps} = \%macIps;
   $config{ssidIps} = \%ssidIps;
   return \%config;
 }
@@ -251,12 +260,15 @@ sub guessIps($){
 
 sub wifi($){
   my %config = %{shift()};
+  my %macIps = %{$config{macIps}} if defined $config{macIps};
   my %ssidIps = %{$config{ssidIps}} if defined $config{ssidIps};
 
   my $iwconfig = `iwconfig 2>/dev/null`;
+  my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
   my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
  
   my $ip;
+  $ip = $macIps{$mac} if defined $mac and not defined $ip;
   $ip = $ssidIps{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
     setHosts \%config, $ip;
