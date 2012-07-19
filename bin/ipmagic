@@ -117,6 +117,10 @@ sub parseConfig($){
     next if $line =~ /^\s*$/;
     die "Malformed conf: $line\n" if $line !~ /^\s*([a-z]+)\s*=\s*(.+?)\s*$/i;
     my ($key, $val) = ($1, $2);
+    my ($valLeft, $valRight);
+    if($val =~ /^ \s* (\S* | "[^"]*" ) \s* :: \s* (\S* | "[^"]*") \s*$/x){
+      ($valLeft, $valRight) = ($1, $2);
+    }
 
     if($key eq 'mac'){
       assertMac $val;
@@ -124,12 +128,12 @@ sub parseConfig($){
     }elsif($key eq 'ipGuess'){
       assertIp $val;
       push @ipGuesses, $val;
-    }elsif($key eq 'ssid'){
-      if($val !~ /^(.+?)\s*:\s*(\d+\.\d+\.\d+\.\d+)/){
+    }elsif($key eq 'ssidIp'){
+      if(not defined $valLeft or not defined $valRight){
         die "Malformed ssid ip conf: $val\n";
       }
-      my ($ssid, $ip) = ($1, $2);
-      $ssidIps{$ssid} = $ip;
+      assertIp($valRight);
+      $ssidIps{lc $valLeft} = lc $valRight;
     }elsif($key =~ /^(usbLocalIp|usbRemoteIp)$/){
       die "Duplicate conf entry $key\n" if defined $config{$key};
       assertIp $val;
@@ -247,13 +251,13 @@ sub guessIps($){
 
 sub wifi($){
   my %config = %{shift()};
-  my %ssidIps;
-  if(defined $config{ssidIps}){
-    %ssidIps = %{$config{ssidIps}};
-  }
+  my %ssidIps = %{$config{ssidIps}} if defined $config{ssidIps};
+
   my $iwconfig = `iwconfig 2>/dev/null`;
   my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
-  my $ip = defined $ssid ? $ssidIps{$ssid} : undef;
+ 
+  my $ip;
+  $ip = $ssidIps{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
     setHosts \%config, $ip;
     return 1;
