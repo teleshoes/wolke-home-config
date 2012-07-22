@@ -80,6 +80,7 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
+alias killjobs='kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo'
 alias gvim='termcmd vim'
 alias cx='chmod +x'
 alias :q='exit'
