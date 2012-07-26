@@ -12,14 +12,14 @@ import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
 
 clickCommands = [ ""
-                  ++ "pidof thunderbird-bin; "
+                  ++ "pidof thunderbird; "
                   ++ "if [ $? == 0 ]; then "
                     ++ "xdotool key --clearmodifiers alt+8; "
                   ++ "else "
                     ++ "thunderbird; "
                   ++ "fi"
                 , "thunderbird --compose"
-                , "killall thunderbird-bin"
+                , "killall thunderbird"
                 ]
 
 accounts = M.fromList [ ("Gmail", "G")
