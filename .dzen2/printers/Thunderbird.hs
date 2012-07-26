@@ -38,7 +38,7 @@ main = do
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
-  tbRunning <- isRunning "thunderbird-bin"
+  tbRunning <- isRunning "thunderbird"
   let runningMarkup = if tbRunning then "  " else fg "red" " X"
 
   unreadCounts <- chompFile ucFile
