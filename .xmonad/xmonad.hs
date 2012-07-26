@@ -58,7 +58,6 @@ main = do
     manageHook         = composeAll
                          [ className =? "Eclipse"          --> doShift "A"
                          , className =? "Pidgin"           --> doShift "B"
-                         , className =? "MPlayer"          --> doShift "7"
                          , className =? "Thunderbird"      --> doShift "8"
                          , title     =? "Off"              --> doFloat
                          , title     =? "KLOMP"            --> doShift "9"
