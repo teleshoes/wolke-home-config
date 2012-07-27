@@ -5,6 +5,12 @@ use warnings;
 my $kernel = `uname -r`;
 chomp $kernel;
 
+my $kernelMajorMinor = $1 if $kernel =~ /^(\d+\.\d+)/;
+my $srcDir = $kernelMajorMinor < 3.3 ? '3.2' : '3.3';
+print "installing version in $srcDir/\n";
+chdir "$srcDir";
+$ENV{PWD} = "$ENV{PWD}/$srcDir";
+
 my $dir = "/lib/modules/$kernel/kernel/drivers/platform/x86/";
 my $mod = "thinkpad_acpi.ko";
 
