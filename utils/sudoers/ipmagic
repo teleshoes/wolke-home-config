@@ -8,6 +8,7 @@ sub parseConfig($);
 sub hostsMarker($);
 sub getHosts($);
 sub setHosts($$$);
+sub sudoSetHosts($$$);
 sub maybeUpdateHosts($$);
 sub usb($);
 sub guessIps($);
@@ -192,9 +193,7 @@ sub getHosts($){
 }
 
 sub setHosts($$$){
-  my $hostname = shift;
-  my $hostsMarker = shift;
-  my $ip = shift;
+  my ($hostname, $hostsMarker, $ip) = @_;
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
     if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
@@ -204,10 +203,14 @@ sub setHosts($$$){
   if(defined $ip and $ip =~ /^\d+\.\d+\.\d+\.\d+$/){
     push @lines, "$ip\t$hostname#$hostsMarker\n";
   }
-  open FH, "| sudo tee /etc/hosts > /dev/null"
-    or die "Couldnt open /etc/hosts for writing\n";
+
+  open FH, "> /etc/hosts" or die "Couldnt open /etc/hosts for writing\n";
   print FH @lines;
   close FH;
+}
+sub sudoSetHosts($$$){
+  my ($hostname, $hostsMarker, $ip) = @_;
+  system "sudo", $0, "--set-hosts", $hostname, $hostsMarker, $ip;
 }
 
 sub maybeUpdateHosts($$){
@@ -230,7 +233,7 @@ sub maybeUpdateHosts($$){
     }
   }
 
-  setHosts $hostname, $hostsMarker, $ip;
+  sudoSetHosts $hostname, $hostsMarker, $ip;
 }
 
 sub usb($){
