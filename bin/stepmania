@@ -61,7 +61,7 @@ my %jsIds = (
   redoctane => 'usb-0b43_0003-joystick',
 );
 
-sub getJoysticks();
+sub getJoysticks($$);
 sub setMachineSpeedMods($);
 sub generateKeymap($$$$$$$);
 sub readConf($);
@@ -75,6 +75,8 @@ my $usage = "Usage:\n"
   . "$0 [OPTS]"
   . "  Launch stepmania after setting up preferences\n"
   . "OPTS:\n"
+  . " --js1=#           override internal p1 stepmania joystick index\n"
+  . " --js2=#           override internal p2 stepmania joystick index\n"
   . " -w               set Windowed to 1, overriding config\n"
   . " -f               set Windowed to 0, overriding config\n"
   . " --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}\n"
@@ -94,9 +96,15 @@ my $speedModsFile = "$machineProfDir/SpeedMods.txt";
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+
+  my ($jsp1, $jsp2);
   $$prefs{Options}{TestInitialScreen} = $defaultScreen;
   for(my $i=0; $i<@_; $i++){
-    if($_[$i] eq '-w'){
+    if($_[$i] =~ /--js1=(\d+)/){
+      $jsp1 = $1;
+    }elsif($_[$i] =~ /--js2=(\d+)/){
+      $jsp2 = $1;
+    }elsif($_[$i] eq '-w'){
       $$prefs{Options}{Windowed} = 1;
     }elsif($_[$i] eq '-f'){
       $$prefs{Options}{Windowed} = 0;
@@ -108,7 +116,7 @@ sub main(@){
       die $usage;
     }
   }
-  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks;
+  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks $jsp1, $jsp2;
   my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
 
   system "mkdir", "-p", "$prefsDir";
@@ -121,7 +129,8 @@ sub main(@){
   system "$smExecDir/stepmania";
 }
 
-sub getJoysticks(){
+sub getJoysticks($$){
+  my ($jsp1, $jsp2) = @_;
   my ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
   for my $name(@joys){
     my $id = $jsIds{$name};
@@ -162,6 +171,14 @@ sub getJoysticks(){
   }
   ####################################
 
+  if(defined $joy1Num and defined $jsp1 and $joy1Num ne $jsp1){
+    print " {P1 override: $joy1Num => $jsp1}\n";
+    $joy1Num = $jsp1;
+  }
+  if(defined $joy2Num and defined $jsp2 and $joy2Num ne $jsp2){
+    print " {P2 override: $joy2Num => $jsp2}\n";
+    $joy2Num = $jsp2;
+  }
   if(defined $joy1Name){
     print "Player 1 Joystick: $joy1Name => $joy1Num\n";
   }
