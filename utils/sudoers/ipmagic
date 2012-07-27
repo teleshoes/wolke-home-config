@@ -10,6 +10,8 @@ sub getHosts($);
 sub setHosts($$$);
 sub sudoSetHosts($$$);
 sub maybeUpdateHosts($$);
+sub ifup($$);
+sub sudoIfup($$);
 sub usb($);
 sub guessIps($);
 sub wifi($);
@@ -28,11 +30,16 @@ my $usage = "Usage:
       print the hostname and exit, doing nothing else
     $0 --set-hosts HOSTNAME MARKER IP
       simply update the hosts file line
+    $0 --ifup DEV IP
+      ifup the DEV with the IP
     USER is the user that will be used in -s, -b, and -vnc\n";
 
 sub main(@){
   if(@_ == 4 and $_[0] eq '--set-hosts'){
     setHosts $_[1], $_[2], $_[3];
+    exit 0;
+  }elsif(@_ == 3 and $_[0] eq '--ifup'){
+    ifup $_[1], $_[2];
     exit 0;
   }
   my $confFile = shift;
@@ -236,6 +243,18 @@ sub maybeUpdateHosts($$){
   sudoSetHosts $hostname, $hostsMarker, $ip;
 }
 
+sub ifup($$){
+  my ($dev, $ip) = @_;
+  system "ifconfig"
+    . " $dev $ip netmask 255.255.255.0 up"
+    . " > /dev/null"
+    ;
+}
+sub sudoIfup($$){
+  my ($dev, $ip) = @_;
+  system "sudo", $0, "--ifup", $dev, $ip;
+}
+
 sub usb($){
   my %config = %{shift()};
   if(not defined $config{usbLocalIp} or not defined $config{usbRemoteIp}){
@@ -253,10 +272,7 @@ sub usb($){
       $ifconfig = `ifconfig $dev`;
       if($ifconfig !~ /inet addr:$localIp/){
         print STDERR "USB DEVICE UP\n";
-        system "sudo ifconfig"
-          . " $dev $localIp netmask 255.255.255.0 up"
-          . " > /dev/null"
-          ;
+        sudoIfup $dev, $localIp;
       }
       maybeUpdateHosts \%config, $remoteIp;
       return 1;
