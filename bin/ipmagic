@@ -7,7 +7,8 @@ sub assertMac($);
 sub parseConfig($);
 sub hostsMarker($);
 sub getHosts($);
-sub setHosts($$);
+sub setHosts($$$);
+sub maybeUpdateHosts($$);
 sub usb($);
 sub guessIps($);
 sub wifi($);
@@ -184,7 +185,26 @@ sub getHosts($){
   return undef;
 }
 
-sub setHosts($$){
+sub setHosts($$$){
+  my $hostname = shift;
+  my $hostsMarker = shift;
+  my $ip = shift;
+  my @lines = `cat /etc/hosts`;
+  for my $line(@lines){
+    if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
+      $line = '';
+    }
+  }
+  if(defined $ip and $ip =~ /^\d+\.\d+\.\d+\.\d+$/){
+    push @lines, "$ip\t$hostname#$hostsMarker\n";
+  }
+  open FH, "| sudo tee /etc/hosts > /dev/null"
+    or die "Couldnt open /etc/hosts for writing\n";
+  print FH @lines;
+  close FH;
+}
+
+sub maybeUpdateHosts($$){
   my %config = %{shift()};
   my $hostsMarker = hostsMarker \%config;
   my $hostname = $config{hostname};
@@ -204,19 +224,7 @@ sub setHosts($$){
     }
   }
 
-  my @lines = `cat /etc/hosts`;
-  for my $line(@lines){
-    if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
-      $line = '';
-    }
-  }
-  if(defined $ip and $ip =~ /^\d+\.\d+\.\d+\.\d+$/){
-    push @lines, "$ip\t$hostname#$hostsMarker\n";
-  }
-  open FH, "| sudo tee /etc/hosts > /dev/null"
-    or die "Couldnt open /etc/hosts for writing\n";
-  print FH @lines;
-  close FH;
+  setHosts $hostname, $hostsMarker, $ip;
 }
 
 sub usb($){
@@ -241,7 +249,7 @@ sub usb($){
           . " > /dev/null"
           ;
       }
-      setHosts \%config, $remoteIp;
+      maybeUpdateHosts \%config, $remoteIp;
       return 1;
     }
   }
@@ -251,7 +259,7 @@ sub usb($){
 sub guessIps($){
   my %config = %{shift()};
   my $hostname = $config{hostname};
-  setHosts \%config, undef;
+  maybeUpdateHosts \%config, undef;
   if(defined $config{guessIps}){
     my @ips = @{$config{guessIps}};
     system 'ensure-host', $hostname, @ips;
@@ -277,7 +285,7 @@ sub wifi($){
   $ip = $macIps{$mac} if defined $mac and not defined $ip;
   $ip = $ssidIps{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
-    setHosts \%config, $ip;
+    maybeUpdateHosts \%config, $ip;
     return 1;
   }
   return 0;
