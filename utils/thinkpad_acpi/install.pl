@@ -1,24 +1,29 @@
-#!/bin/bash
-dir=/lib/modules/`uname -r`/kernel/drivers/platform/x86/
-mod=thinkpad_acpi.ko
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-patch thinkpad_acpi.c led.patch
+my $kernel = `uname -r`;
+chomp $kernel;
 
-make
+my $dir = "/lib/modules/$kernel/kernel/drivers/platform/x86/";
+my $mod = "thinkpad_acpi.ko";
 
-patch -R thinkpad_acpi.c led.patch
+system "patch thinkpad_acpi.c led.patch";
+system "make";
+system "patch -R thinkpad_acpi.c led.patch";
 
-if [ -e thinkpad_acpi.ko ]; then
-  echo; echo; echo success!
-  bak="$mod.orig.`date +%s`"
-  echo copying $mod to $dir
-  echo backup in $bak
-  sudo mv $dir/$mod $dir/$bak
-  sudo cp $mod $dir
-  echo modprobe -r thinkpad_acpi, then modprobe thinkpad_acpi
-  sudo modprobe -r thinkpad_acpi
-  sudo modprobe thinkpad_acpi
-fi
-echo
-echo Cleaning..
-make clean
+if(-e $mod){
+  print "\n\nsuccess!\n";
+  my $now = `date +%s`;
+  chomp $now;
+  my $bak = "$mod.orig.$now";
+  print "copying $mod to $dir\nbackup in $bak\n";
+  system "sudo mv $dir/$mod $dir/$bak";
+  system "sudo cp $mod $dir";
+  print "remove and add module thinkpad_acpi\n";
+  system "sudo modprobe -r thinkpad_acpi";
+  system "sudo modprobe thinkpad_acpi";
+}
+
+print "Cleaning..\n";
+system "make clean";
