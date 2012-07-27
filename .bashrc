@@ -90,6 +90,7 @@ alias ll='ls -al --color=auto'
 alias ld='ls -dal --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
 alias perms='stat -c %a'
+alias glxgears='vblank_mode=0 glxgears'
 function spawn       { $@ & disown ; }
 function spawnex     { $@ & disown && exit 0 ; }
 function spawnexsudo { gksudo $@ & disown && exit 0 ; }
