@@ -8,6 +8,8 @@ import TextRows (textRows)
 import ClickAction (clickAction)
 import Utils (padL, chompAll, regexFirstGroup, lineBuffering)
 
+width = 9
+
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
   where wscanCmd = home ++ "/.dzen2/printers/ghcprinter WScan"
         popupCmd = home ++ "/.dzen2/launchers/popup"
@@ -52,8 +54,8 @@ wifi = do
   let rate = regexFirstGroup "Bit Rate=(\\d+) Mb/s" s
   let q = quality qTop qBot
   let f = frequency freq
-  let top = (padtrim 3 rate ++ "m") ++ "|" ++ (quality qTop qBot)
-  let bot = (padtrim 9 ssid)
+  let top = (padtrim (width-6) rate ++ "m") ++ "|" ++ (quality qTop qBot)
+  let bot = (padtrim width ssid)
   return $ textRows top bot
 
 i = read :: String -> Integer
