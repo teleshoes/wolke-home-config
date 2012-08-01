@@ -36,13 +36,15 @@ main = do
     wstatus <- readWStatus
     text <- case wstatus of
       Wlan      -> wifi
-      Wired     -> return "wired"
-      PPP       -> return "pewpewpew"
-      Tethering -> return "tethering"
-      None      -> return "no wabs"
-      Unknown   -> return "???"
+      Wired     -> message "wired"
+      PPP       -> message "pewpewpew"
+      Tethering -> message "tethering"
+      None      -> message "no wabs"
+      Unknown   -> message "???"
     putStrLn $ clickAction 1 (cmd home) text
     threadDelay $ 1*10^6
+
+message s = return $ padtrim width $ Just s
 
 wifi = do
   wlan <- fmap chompAll $ readProcess "ifdev" ["wlan"] ""
