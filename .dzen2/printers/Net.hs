@@ -8,7 +8,7 @@ import TextRows (textRows)
 import ClickAction (clickAction)
 import Utils (padL, chompAll, regexFirstGroup, lineBuffering)
 
-width = 9
+width = 10
 
 cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
   where wscanCmd = home ++ "/.dzen2/printers/ghcprinter WScan"
