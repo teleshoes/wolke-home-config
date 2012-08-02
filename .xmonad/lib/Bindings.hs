@@ -69,11 +69,20 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((modm, xK_v     ), windows copyToAll) -- Put on all workspaces
   , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
 
+  --shortcuts
+  , ((none, xf86think), spawn "term")
+  , ((alt,  xK_F2    ), spawn "term")
+  , ((alt,  xf86think), spawn "runghc $HOME/bin/LaunchTerm.hs")
+  , ((ctrl, xf86think), spawn "term ghci")
+
+  , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
+
+  , ((ctrl, xK_F9    ), spawn "$HOME/bin/pi -vnc")
+
   , ((ctrl, xK_F12   ), spawn "$HOME/bin/n9 -s lock")
   , ((ctsh, xK_F12   ), spawn "$HOME/bin/n9 -s screenStayOnDaemon")
   , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
-  , ((ctrl, xK_F9    ), spawn "$HOME/bin/pi -vnc")
   , ((ctsu, xK_space ), spawn "n9 -s udo klomp-cmd pause")
   , ((ctsu, xK_z     ), spawn "n9 -s udo klomp-cmd prev")
   , ((ctsu, xK_x     ), spawn "n9 -s udo klomp-cmd next")
@@ -83,14 +92,14 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((chsu, xK_s     ), spawn "n9 -s udo klomp-cmd seek 60")
   , ((ctsu, xK_r     ), spawn "n9 -s udo klomp-cmd reset")
 
-
-  --shortcuts
-  , ((none, xf86think), spawn "term")
-  , ((alt,  xK_F2    ), spawn "term")
-  , ((alt,  xf86think), spawn "runghc $HOME/bin/LaunchTerm.hs")
-  , ((ctrl, xf86think), spawn "term ghci")
-
-  , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
+  , ((supr, xK_space ), spawn "klomp-cmd pause")
+  , ((supr, xK_z     ), spawn "klomp-cmd prev")
+  , ((supr, xK_x     ), spawn "klomp-cmd next")
+  , ((sush, xK_z     ), spawn "klomp-cmd seek -10")
+  , ((sush, xK_x     ), spawn "klomp-cmd seek 10")
+  , ((sush, xK_a     ), spawn "klomp-cmd seek -60")
+  , ((sush, xK_s     ), spawn "klomp-cmd seek 60")
+  , ((supr, xK_r     ), spawn "klomp-cmd reset")
 
   , ((supr, xK_c     ), spawn "fcronjob co toggle")
   , ((supr, xK_t     ), spawn "fcronjob te toggle")
@@ -128,15 +137,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_4     ), spawn "sudo wired on")
 
   , ((alct, xK_space ), spawn "term -e htop")
-
-  , ((supr, xK_space ), spawn "klomp-cmd pause")
-  , ((supr, xK_z     ), spawn "klomp-cmd prev")
-  , ((supr, xK_x     ), spawn "klomp-cmd next")
-  , ((sush, xK_z     ), spawn "klomp-cmd seek -10")
-  , ((sush, xK_x     ), spawn "klomp-cmd seek 10")
-  , ((sush, xK_a     ), spawn "klomp-cmd seek -60")
-  , ((sush, xK_s     ), spawn "klomp-cmd seek 60")
-  , ((supr, xK_r     ), spawn "klomp-cmd reset")
 
   , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
   , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
