@@ -112,8 +112,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((ctrl, xK_Home  ), spawn "brightness up")
   , ((ctrl, xK_End   ), spawn "brightness down")
-  , ((none, brightUp ), spawn "rm $HOME/.brightness")  --remove autoreset file
-  , ((none, brightDn ), spawn "rm $HOME/.brightness")  --remove autoreset file
+  , ((none, brightUp ), spawn "brightness system")  --let system change it
+  , ((none, brightDn ), spawn "brightness system")  --let system change it
   
   , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
 
