@@ -136,7 +136,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_3     ), spawn "sudo tether on")
   , ((supr, xK_4     ), spawn "sudo wired on")
 
-  , ((alct, xK_space ), spawn "term -e htop")
+  , ((alct, xK_space ), spawn "term htop")
 
   , ((alct, xf86back ), spawn "rotate counterclockwise")
   , ((alct, xf86fwd  ), spawn "rotate clockwise")
