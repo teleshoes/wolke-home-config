@@ -68,6 +68,11 @@ imap <F3> <Esc>:w<CR>li
 vmap <F3> :w<Del><CR>lv
 """"""
 
+"""git"""
+nmap <F4>      :Exec git gui &<CR>
+imap <F4> <Esc>:Exec git gui &<CR>
+""""""
+
 """RUN"""
 nmap <F5>      :w<CR>:RUN<CR>
 imap <F5> <Esc>:w<CR>:RUN<CR>li
