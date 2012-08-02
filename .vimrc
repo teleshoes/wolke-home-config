@@ -106,6 +106,12 @@ imap <F12> <ESC>"rpi
 vmap <F12>      "rp
 """"""
 
+""":Exec cmd arg arg ..
+" run external commands quietly
+command -nargs=1 Exec
+\ execute 'silent ! ' . <q-args>
+\ | execute 'redraw! '
+
 """:Wc  msg => save, git ci FILENAME -m msg
 """:Wcq msg => save, git ci FILENAME -m msg, quit
 command -nargs=1 Wc  call Wc(<f-args>, "noquit")
