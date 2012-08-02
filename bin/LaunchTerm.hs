@@ -1,4 +1,4 @@
-#!/usr/bin/runghc
+#!/home/wolke/.cabal/bin/runghc
 import Prelude hiding (mapM)
 import Control.Applicative (pure, (<$>))
 import Control.Exception (bracket)
