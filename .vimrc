@@ -69,8 +69,8 @@ vmap <F3> :w<Del><CR>lv
 """"""
 
 """git"""
-nmap <F4>      :Exec git gui &<CR>
-imap <F4> <Esc>:Exec git gui &<CR>
+nmap <F4>      :Exec cd %:p:h; git gui &<CR>
+imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
 """"""
 
 """RUN"""
