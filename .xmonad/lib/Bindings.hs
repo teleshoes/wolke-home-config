@@ -80,7 +80,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((ctrl, xK_F9    ), spawn "pi -vnc")
 
   , ((ctrl, xK_F12   ), spawn "n9 -s lock")
-  , ((ctsh, xK_F12   ), spawn "n9 -s screenStayOnDaemon")
+  , ((ctsh, xK_F12   ), spawn "n9 -s dontgosleep")
   , ((ctrl, xK_F11   ), spawn "n9 -vnc")
   , ((ctrl, xK_F10   ), spawn "n9 -vnc -rotate 0")
   , ((ctsu, xK_space ), spawn "n9u -b klomp-cmd pause")
