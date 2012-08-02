@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@){
+  print " @_\n";
+  system @_;
+}
+
+sub state(){
+  my $bat0 = `cat /proc/acpi/battery/BAT0/state`;
+  my $state = $1 if $bat0 =~ /charging state:\s*(.*)/;
+  return $state;
+}
+
+my $state = state();
+print "bat0 is $state\n";
+my ($old, $new);
+if($state eq 'charging'){
+  ($old, $new) = (1, 2);
+}else{
+  ($old, $new) = (2, 1);
+}
+
+run "sudo build-acpi-call";
+run "sudo /usr/lib/tpbattstat-applet/tpacpi-bat inhibitCharge 0 1";
+run "sudo /usr/lib/tpbattstat-applet/tpacpi-bat inhibitCharge 0 0";
+run "sudo /usr/lib/tpbattstat-applet/tpacpi-bat inhibitCharge $old 1";
+run "sudo /usr/lib/tpbattstat-applet/tpacpi-bat inhibitCharge $new 0";
+
+sleep 1;
+$state = state();
+print "bat0 is $state\n";
