@@ -20,8 +20,8 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   [ ((modm, xK_q     ), spawn "xmonad --restart") 
   , ((shmd, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
 
-  , ((none, power    ), spawn "$HOME/bin/off g")
-  , ((modm, xK_Escape), spawn "$HOME/bin/off g")
+  , ((none, power    ), spawn "off g")
+  , ((modm, xK_Escape), spawn "off g")
 
   --focused window
   , ((shmd, xK_c     ), kill)
@@ -75,14 +75,14 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alt,  xf86think), spawn "runghc $HOME/bin/LaunchTerm.hs")
   , ((ctrl, xf86think), spawn "term ghci")
 
-  , ((none, xK_Print ), spawn "$HOME/bin/scrot-bag")
+  , ((none, xK_Print ), spawn "scrot-bag")
 
-  , ((ctrl, xK_F9    ), spawn "$HOME/bin/pi -vnc")
+  , ((ctrl, xK_F9    ), spawn "pi -vnc")
 
-  , ((ctrl, xK_F12   ), spawn "$HOME/bin/n9 -s lock")
-  , ((ctsh, xK_F12   ), spawn "$HOME/bin/n9 -s screenStayOnDaemon")
-  , ((ctrl, xK_F11   ), spawn "$HOME/bin/n9 -vnc")
-  , ((ctrl, xK_F10   ), spawn "$HOME/bin/n9 -vnc -rotate 0")
+  , ((ctrl, xK_F12   ), spawn "n9 -s lock")
+  , ((ctsh, xK_F12   ), spawn "n9 -s screenStayOnDaemon")
+  , ((ctrl, xK_F11   ), spawn "n9 -vnc")
+  , ((ctrl, xK_F10   ), spawn "n9 -vnc -rotate 0")
   , ((ctsu, xK_space ), spawn "n9u -b klomp-cmd pause")
   , ((ctsu, xK_z     ), spawn "n9u -b klomp-cmd prev")
   , ((ctsu, xK_x     ), spawn "n9u -b klomp-cmd next")
@@ -104,27 +104,27 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_c     ), spawn "fcronjob co toggle")
   , ((supr, xK_t     ), spawn "fcronjob te toggle")
 
-  , ((supr, xK_s     ), spawn "sleep 1; $HOME/bin/screenOff") --monitor off
+  , ((supr, xK_s     ), spawn "sleep 1; screenOff") --monitor off
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
-  , ((none, xf86mic  ), spawn "$HOME/bin/pulse-vol microphone toggle")
-  , ((none, xf86mute ), spawn "$HOME/bin/pulse-vol speaker toggle")
+  , ((none, xf86mic  ), spawn "pulse-vol microphone toggle")
+  , ((none, xf86mute ), spawn "pulse-vol speaker toggle")
 
-  , ((ctrl, xK_Home  ), spawn "$HOME/bin/brightness up")
-  , ((ctrl, xK_End   ), spawn "$HOME/bin/brightness down")
+  , ((ctrl, xK_Home  ), spawn "brightness up")
+  , ((ctrl, xK_End   ), spawn "brightness down")
   , ((none, brightUp ), spawn "rm $HOME/.brightness")  --remove autoreset file
   , ((none, brightDn ), spawn "rm $HOME/.brightness")  --remove autoreset file
   
   , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
 
-  , ((none, volUp    ), spawn "$HOME/bin/pulse-vol +6 100")
-  , ((none, volDown  ), spawn "$HOME/bin/pulse-vol -6 100")
-  , ((alt,  volUp    ), spawn "$HOME/bin/pulse-vol +6 150")
-  , ((alt,  volDown  ), spawn "$HOME/bin/pulse-vol -6 150")
-  , ((alct, volUp    ), spawn "$HOME/bin/pulse-vol +6 300")
-  , ((alct, volDown  ), spawn "$HOME/bin/pulse-vol -6 300")
+  , ((none, volUp    ), spawn "pulse-vol +6 100")
+  , ((none, volDown  ), spawn "pulse-vol -6 100")
+  , ((alt,  volUp    ), spawn "pulse-vol +6 150")
+  , ((alt,  volDown  ), spawn "pulse-vol -6 150")
+  , ((alct, volUp    ), spawn "pulse-vol +6 300")
+  , ((alct, volDown  ), spawn "pulse-vol -6 300")
 
-  , ((ctrl, xK_Menu  ), spawn "$HOME/bin/touchClick toggle")
+  , ((ctrl, xK_Menu  ), spawn "touchClick toggle")
 
   , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand")
   , ((supr, xK_F2    ), spawn "sudo cpu-set conservative")
@@ -138,14 +138,14 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((alct, xK_space ), spawn "term -e htop")
 
-  , ((alct, xf86back ), spawn "$HOME/bin/rotate counterclockwise")
-  , ((alct, xf86fwd  ), spawn "$HOME/bin/rotate clockwise")
+  , ((alct, xf86back ), spawn "rotate counterclockwise")
+  , ((alct, xf86fwd  ), spawn "rotate clockwise")
 
   , ((alct, xK_f     ), spawn "firefox")
   , ((alct, xK_c     ), spawn "chromium-browser")
   , ((alct, xK_t     ), spawn "transmission-gtk")
-  , ((alct, xK_e     ), spawn "$HOME/bin/eclipse")
-  , ((alct, xK_s     ), spawn "$HOME/bin/stepmania -w")
+  , ((alct, xK_e     ), spawn "eclipse")
+  , ((alct, xK_s     ), spawn "stepmania -w")
   ]
 
   ++
