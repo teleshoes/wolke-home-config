@@ -90,7 +90,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((chsu, xK_x     ), spawn "n9u -b klomp-cmd seek 10")
   , ((chsu, xK_a     ), spawn "n9u -b klomp-cmd seek -60")
   , ((chsu, xK_s     ), spawn "n9u -b klomp-cmd seek 60")
-  , ((ctsu, xK_r     ), spawn "n9u -b klomp-cmd reset")
 
   , ((supr, xK_space ), spawn "klomp-cmd pause")
   , ((supr, xK_z     ), spawn "klomp-cmd prev")
@@ -99,7 +98,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((sush, xK_x     ), spawn "klomp-cmd seek 10")
   , ((sush, xK_a     ), spawn "klomp-cmd seek -60")
   , ((sush, xK_s     ), spawn "klomp-cmd seek 60")
-  , ((supr, xK_r     ), spawn "klomp-cmd reset")
 
   , ((supr, xK_c     ), spawn "fcronjob co toggle")
   , ((supr, xK_t     ), spawn "fcronjob te toggle")
