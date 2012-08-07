@@ -117,6 +117,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   
   , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
 
+  , ((supr, volUp    ), spawn "speaker toggle; klomp-cmd restart")
   , ((none, volUp    ), spawn "pulse-vol +6 100")
   , ((none, volDown  ), spawn "pulse-vol -6 100")
   , ((alt,  volUp    ), spawn "pulse-vol +6 150")
