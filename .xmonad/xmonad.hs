@@ -77,10 +77,10 @@ main = do
 restartFF = do 
   w <- ask
   let delay = 1
+  let msg = "'restarting firefox in " ++ show delay ++ "s'"
   liftX $ do
     killWindow w
     io . threadDelay $ delay*10^6
-    let msg = "'restarting firefox in " ++ show delay ++ "s'"
     spawn $ "notify-send -t 3000 " ++ msg
     spawn "firefox"
     refresh
