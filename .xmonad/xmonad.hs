@@ -80,8 +80,8 @@ restartFF = do
   let msg = "'restarting firefox in " ++ show delay ++ "s'"
   liftX $ do
     killWindow w
-    io . threadDelay $ delay*10^6
     spawn $ "notify-send -t 3000 " ++ msg
+    io . threadDelay $ delay*10^6
     spawn "firefox"
     refresh
   doF id
