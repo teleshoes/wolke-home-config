@@ -3,16 +3,10 @@ use strict;
 use warnings;
 
 my $file = "$ENV{HOME}/.fcrontab";
+my $defJob = 'XX';
 
-my $usage = "Usage:
-  $0                          - list all named jobs
-  $0 JOBNAME [on|off|toggle]  - comment or uncomment JOBNAME line
-  $0 JOBNAME [del]            - remove JOBNAME line
-  $0 JOBNAME HH:MM            - add a new alarm-once job, for HH:MM
-     JOBNAME is exactly two alphanumeric characters
-     HH:MM is hours 00-23 and minutes 00-59
-";
-
+sub getAlarmOnceJobLine($$$);
+sub getAlarmOnceCmd($);
 sub appendAlarmOnce($$$);
 sub listNamedJobs();
 sub setJobState($$);
@@ -20,13 +14,34 @@ sub readFcronLines();
 sub writeFcronLines($);
 sub modifyLine($$);
 
+my $exampleAlarmOnceJob = getAlarmOnceJobLine $defJob, 10, 0;
+chomp $exampleAlarmOnceJob;
+
+my $usage = "Usage:
+  $0                           - list all named jobs
+  $0 JOBNAME                   - toggle commenting/uncommenting JOBNAME
+  $0 JOBNAME on|off|toggle|del - uncomment, comment, toggle, or remove JOBNAME
+  $0 [JOBNAME] HH:MM           - add a new job {JOBNAME defaults to '$defJob'}
+             e.g.: '$0 10:00' => '$exampleAlarmOnceJob'
+     JOBNAME is exactly two alphanumeric characters
+     HH:MM is hours 00-23 and minutes 00-59
+     job changes are taken into account immediately and fcron is reset
+";
+
 sub main(@){
   if(@_ == 0){
     listNamedJobs;
     exit 0;
   }
-  my $jobName = shift() || '';
-  my $arg = shift() || '';
+  my $jobName;
+  if(@_ == 1 and $_[0] =~ /^(\d\d):(\d\d)$/){
+    $jobName = $defJob;
+  }else{
+    $jobName = shift;
+  }
+
+  my $arg = shift;
+  $arg = 'toggle' if not defined $arg;
 
   die $usage if @_ > 0;
   die $usage if $jobName !~ /^[0-9A-Za-z]{2}$/;
@@ -40,10 +55,14 @@ sub main(@){
   }
 }
 
+sub getAlarmOnceJobLine($$$){
+  my ($jobName, $hour, $min) = @_;
+  my $cmd = "su $ENV{USER} -lc 'alarm-once $jobName'";
+  return "$min $hour * * * $cmd #$jobName\n";
+}
 sub appendAlarmOnce($$$){
   my ($jobName, $hour, $min) = @_;
-  my $cmd = "su $ENV{USER} -lc 'alarm-once $jobName' #$jobName";
-  my $line = "$min $hour * * * $cmd\n";
+  my $line = getAlarmOnceJobLine $jobName, $hour, $min;
   print "appending:\n$line";
   my @lines = (readFcronLines(), $line);
   writeFcronLines \@lines;
