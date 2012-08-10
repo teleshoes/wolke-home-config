@@ -4,10 +4,15 @@ use warnings;
 
 my $alarm = '/usr/share/alarm';
 
-my $usage = "Usage:
-  $0    runs mplayer $alarm
-";
+my $pulseUser = `ps --no-heading -o user -C pulseaudio`;
+chomp $pulseUser;
 
-die $usage if @ARGV > 0;
+my $currentUser = `whoami`;
+chomp $currentUser;
 
-system "DISPLAY=:0 term mplayer '$alarm'";
+if($currentUser eq $pulseUser){
+  system "term", "mplayer", $alarm;
+}elsif($currentUser eq 'root'){
+  print "rerunning as pulse user $pulseUser\n";
+  system "su", $pulseUser, "-c", "$0 @ARGV";
+}
