@@ -21,15 +21,21 @@ sub pam($$){
   close FH;
 }
 
-sub main(){
+sub run(@){
+  print "@_\n";
+  system @_;
+}
 
-  system "sudo apt-get install"
-    . " adduser debconf dpkg exim4 libc6"
-    . " libpam-runtime libpam0g libselinux1"
-    ;
+sub main(){
+  run "sudo", "apt-get", "install", qw(
+    adduser debconf dpkg exim4 libc6
+    libpam-runtime libpam0g libselinux1
+    autoconf
+  );
+  run "sudo", "apt-get", "remove", "--purge", "anacron";
   
-  system "sudo apt-get install autoconf";
-  system "sudo apt-get remove --purge anacron";
+  print "\n\n\n\n\n\n";
+
   my $installDir = "/tmp/fcron";
   if(-e $installDir){
     chdir $installDir;
@@ -49,6 +55,7 @@ sub main(){
     }
   }
 
+  print "\n\n\n\n\n\n";
 
   for my $file(`ls`){
     chomp $file;
@@ -57,21 +64,26 @@ sub main(){
       open FH, "> $pFile";
       print FH $patches{$file};
       close FH;
-      system "patch $file $pFile";
+      run "patch", "--forward", $file, $pFile;
     }
   }
 
-  system "autoconf";
-  system "./configure";
-  system "sudo make install";
+  print "\n\n\n\n\n\n";
+
+  run "autoconf";
+  run "./configure";
+  run "sudo", "make", "install";
   pam 'fcron', $fcron_pam;
   pam 'fcrontab', $fcrontab_pam;
 
-  system "sudo fcron";
-  system "fcronreset";
+  print "\n\n\n\n\n\n";
+
   run "sudo", "rm", $tab;
   run "sudo", "ln", "-s", $sourceTab, $tab;
 
+  run "sudo", "fcron";
+  run "fcronreset 2>/dev/null";
+  print "done\n";
 }
 
 $fcron_pam =
