@@ -5,24 +5,23 @@ use warnings;
 my $tab = "/etc/fcrontab";
 my $defJob = 'XX';
 
-sub getAlarmOnceJobLine($$$);
-sub getAlarmOnceCmd($);
-sub appendAlarmOnce($$$);
+sub getDefaultJobLine($$$);
+sub appendDefaultJob($$$);
 sub listNamedJobs();
 sub setJobState($$$);
 sub readFcronLines();
 sub writeFcronLines($);
 sub modifyLine($$);
 
-my $exampleAlarmOnceJob = getAlarmOnceJobLine $defJob, 10, 0;
-chomp $exampleAlarmOnceJob;
+my $exampleDefaultJob = getDefaultJobLine $defJob, 10, 0;
+chomp $exampleDefaultJob;
 
 my $usage = "Usage:
   $0                           - list all named jobs
   $0 JOBNAME                   - toggle commenting/uncommenting JOBNAME
   $0 JOBNAME on|off|toggle|del - uncomment, comment, toggle, or remove JOBNAME
   $0 [JOBNAME] HH:MM           - add a new job {JOBNAME defaults to '$defJob'}
-             e.g.: '$0 10:00' => '$exampleAlarmOnceJob'
+             e.g.: '$0 10:00' => '$exampleDefaultJob'
      JOBNAME is exactly two alphanumeric characters
      HH:MM is hours 00-23 and minutes 00-59
      job changes are taken into account immediately and fcron is reset
@@ -52,18 +51,18 @@ sub main(@){
   }
   if($arg =~ /^(\d\d):(\d\d)$/){
     setJobState $jobName, "del", 1;
-    appendAlarmOnce $jobName, $1, $2;
+    appendDefaultJob $jobName, $1, $2;
   }
 }
 
-sub getAlarmOnceJobLine($$$){
+sub getDefaultJobLine($$$){
   my ($jobName, $hour, $min) = @_;
   my $cmd = "alarm-once $jobName";
   return "$min $hour * * * $cmd #$jobName\n";
 }
-sub appendAlarmOnce($$$){
+sub appendDefaultJob($$$){
   my ($jobName, $hour, $min) = @_;
-  my $line = getAlarmOnceJobLine $jobName, $hour, $min;
+  my $line = getDefaultJobLine $jobName, $hour, $min;
   print "appending:\n$line";
   my @lines = (readFcronLines(), $line);
   writeFcronLines \@lines;
@@ -109,7 +108,7 @@ sub listNamedJobs(){
 }
 
 sub readFcronLines(){
-  open FH, "< $file" or die "Could not read $file\n";
+  open FH, "< $tab" or die "Could not read $tab\n";
   my @lines = <FH>;
   close FH;
   return @lines;
@@ -117,7 +116,7 @@ sub readFcronLines(){
 
 sub writeFcronLines($){
   my @lines = @{shift()};
-  open FH, "> $file" or die "Could not write $file\n";
+  open FH, "> $tab" or die "Could not write $tab\n";
   print FH @lines;
   close FH;
 }
