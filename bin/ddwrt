@@ -4,6 +4,8 @@ use warnings;
 
 my $file = "$ENV{HOME}/.ddwrt";
 my $macRe = ("[a-fA-F0-9]{2}:" x 5) . "[a-fA-F0-9]{2}";
+my $baseFile = "/tmp/ddwrt";
+
 my $usage = "Usage:
   $0 -h|--help
     Print this message
@@ -11,6 +13,10 @@ my $usage = "Usage:
     Print restore bootstrap instructions
   $0 restore
     ssh in and setup nvram
+    prints nvram info to:
+      ${baseFile}_old_TIME
+      ${baseFile}_new_TIME
+      ${baseFile}_change_TIME.sh
 ";
 
 sub ddwrtRestore($);
@@ -54,17 +60,27 @@ sub ddwrtRestore($){
   my $c = shift;
   my $ip = $$c{config}{router_ip};
 
-  my $orig = `ssh root\@$ip nvram show`;
-  open FH, "> orig";
-  print FH $orig;
+  my @cmds = map {"nvram set '$_'"} getNvram($c);
+
+  my $now = time;
+  my $oldF = "${baseFile}_old_${now}";
+  my $newF = "${baseFile}_new_${now}";
+  my $changesF = "${baseFile}_changes_${now}.sh";
+
+  open FH, "> $changesF";
+  print FH join("\n", @cmds);
+  close FH;
+  system "scp", $changesF, "root\@$ip:$changesF";
+
+  my $old = `ssh root\@$ip nvram show`;
+  open FH, "> $oldF";
+  print FH $old;
   close FH;
 
-  for my $entry(getNvram($c)){
-    system "ssh root\@$ip nvram set '$entry'";
-  }
+  system "ssh", "root\@$ip", "sh $changesF";
 
   my $new = `ssh root\@$ip nvram show`;
-  open FH, "> new";
+  open FH, "> $newF";
   print FH $new;
   close FH;
 }
