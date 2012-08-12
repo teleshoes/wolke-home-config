@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 min max new-min
+    renumber files in the current dir
+";
+
+sub main(@){
+  die $usage if @_ != 3
+    or $_[0] !~ /^\d+$/
+    or $_[1] !~ /^\d+$/
+    or $_[2] !~ /^\d+$/
+    ;
+  my $min = shift;
+  my $max = shift;
+  my $newMin = shift;
+
+  my @files = `ls`;
+  my $i = $newMin;
+  my @renames;
+  for my $file(sort @files){
+    chomp $file;
+    if($file =~ /^\s*(\d+)/){
+      my $num = $1;
+      if($num >= $min and $num <= $max){
+        my $new = $file;
+        $new =~ s/$num/$i/;
+        $i++;
+        push @renames, [$file, $new];
+      }
+    }
+  }
+  my $maxWidth = 0;
+  for my $r(@renames){
+    $maxWidth = length($$r[0]) if length($$r[0]) > $maxWidth;
+  }
+  for my $r(@renames){
+    print $$r[0] . (' ' x ($maxWidth-length($$r[0])+1)) . "=> $$r[1]\n";
+  }
+  print "ok? [y/N]\n";
+  if(<STDIN> eq "y\n"){
+    for my $r(@renames){
+      my @cmd = ("mv", "--no-clobber", $$r[0], $$r[1]);
+      print "@cmd\n";
+      system @cmd;
+    }
+  }
+}
+&main(@ARGV);
