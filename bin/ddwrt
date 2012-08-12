@@ -4,6 +4,14 @@ use warnings;
 
 my $file = "$ENV{HOME}/.ddwrt";
 my $macRe = ("[a-fA-F0-9]{2}:" x 5) . "[a-fA-F0-9]{2}";
+my $usage = "Usage:
+  $0 -h|--help
+    Print this message
+  $0 [get]
+    Print restore bootstrap instructions
+  $0 restore
+    ssh in and setup nvram
+";
 
 sub ddwrtRestore($);
 sub getStarted($);
@@ -26,12 +34,20 @@ sub assertPresent($$;$){
 }
 
 sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+  my $arg = shift;
+  $arg = 'get' if not defined $arg;
+  die $usage if @_ != 0 or $arg !~ /^(get|restore)$/;
   my $c = parse $file;
   assertPresent $c, 'config';
   assertPresent $c, 'config', 'ip_prefix';
   assertPresent $c, 'config', 'router_ip';
   assertPresent $c, 'clients';
-  ddwrtRestore $c;
+  if($arg eq 'get'){
+    print getStarted $c;
+  }elsif($arg eq 'restore'){
+    ddwrtRestore $c;
+  }
 }
 
 sub ddwrtRestore($){
