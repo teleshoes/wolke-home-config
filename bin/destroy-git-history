@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $pattern = shift;
+die "Usage: $0 pattern\n" if @ARGV > 0 or not defined $pattern;
+
+my $scriptFile = "/tmp/a.pl";
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+my $scriptContent = '
+use strict;
+use warnings;
+print "\n" if @ARGV > 0;
+for my $file(@ARGV){
+  chomp $file;
+  print "  nuking ";
+  system "du", "-hs", $file;
+  my $md5sum = `md5sum "$file"`;
+  open FH, "> $file" or die "Couldnt open $file\n";
+  print FH "###REMOVED###\n$md5sum\n";
+  close FH;
+}
+';
+
+open FH, "> $scriptFile" or die "Couldnt write $scriptFile\n";
+print FH $scriptContent;
+close FH;
+
+run "du", "-hs", ".git";
+run "rm", "-rf", ".git-rewrite";
+run "git", "filter-branch", "--tree-filter",
+  "git ls-files -z \"$pattern\" | xargs -0 perl $scriptFile",
+  "--", "--all"
+;
+run "rm", "-rf", ".git/refs/original";
+run "git", "reflog", "expire", "--expire=now", "--all";
+run "git", "gc", "--prune";
+run "du", "-hs", ".git";
