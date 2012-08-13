@@ -11,15 +11,19 @@ import qualified Data.Map as M (fromList, lookup, member)
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
 
+exec = "thunderbird"
+process = exec
+dir = "." ++ exec
+
 clickCommands = [ ""
-                  ++ "pidof thunderbird; "
+                  ++ "pidof " ++ process ++ "; "
                   ++ "if [ $? == 0 ]; then "
                     ++ "xdotool key --clearmodifiers alt+8; "
                   ++ "else "
-                    ++ "thunderbird; "
+                    ++ exec ++ "; "
                   ++ "fi"
-                , "thunderbird --compose"
-                , "killall thunderbird"
+                , exec ++ " --compose"
+                , "killall " ++ process
                 ]
 
 accounts = M.fromList [ ("Gmail", "G")
@@ -34,11 +38,11 @@ main = do
   let imgSubDir = show imgSize ++ "x" ++ show imgSize
   let imgPath = home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/thunderbird.xpm"
 
-  let cmd = ["find", home ++ "/.thunderbird/", "-iname", "*.default"]
+  let cmd = ["find", home ++ "." ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
-  tbRunning <- isRunning "thunderbird"
+  tbRunning <- isRunning process
   let runningMarkup = if tbRunning then "  " else fg "red" " X"
 
   unreadCounts <- chompFile ucFile
