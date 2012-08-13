@@ -21,6 +21,9 @@ import XMonad.Hooks.DynamicLog (defaultPP)
 myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
+firefoxExec = "iceweasel"
+firefoxProcess = firefoxExec ++ "-bin"
+firefoxClose = "Close Iceweasel"
 
 main = do
   --remove intermediate haskell compilation files
@@ -63,7 +66,7 @@ main = do
                          , title     =? "KLOMP"            --> doShift "9"
                          , title     =? "Transmission"     --> doShift "9"
                          , title     =? "Torrent Options"  --> doShiftView "9"
-                         , title     =? "Close Firefox"    --> restartFF
+                         , title     =? firefoxClose       --> restartFF
                          , title     =? "StepMania"        --> doFull
                          , title     =? "npviewer.bin"     --> doFull -- flash
                          , title     =? "plugin-container" --> doFull -- flash
@@ -77,13 +80,13 @@ main = do
 restartFF = do 
   w <- ask
   let delay = 1
-  let msg = "'restarting firefox in " ++ show delay ++ "s'"
+  let msg = "'restarting " ++ firefoxExec ++ " in " ++ show delay ++ "s'"
   liftX $ do
-    spawn "killall -9 firefox"
+    spawn $ "killall -9 " ++ firefoxProcess
     killWindow w
     spawn $ "notify-send -t 3000 " ++ msg
     io . threadDelay $ delay*10^6
-    spawn "firefox"
+    spawn firefoxExec
     refresh
   doF id
 
