@@ -13,6 +13,9 @@ xinput set-prop "$tpDev" "Synaptics Tap Time" 0
 xinput set-prop "$tpDev" "Synaptics Two-Finger Scrolling" 0 0
 xinput set-prop "$tpDev" "Synaptics Move Speed" 1 1.75 0.035842 40
 xinput set-prop "$tpDev" "Synaptics Edge Scrolling" 0 0 0
+xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation" 8 1
+xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Button" 8 2
+xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Timeout" 8 200
 
 xset s off
 xset s noblank
