@@ -4,7 +4,6 @@ use warnings;
 
 my $tty = '6';
 my $profileFile = "$ENV{HOME}/.profile";
-my $upstartFile = "/etc/init/tty$tty-auto.conf";
 
 my $user = $ENV{SUDO_USER};
 if(not defined $user){
@@ -12,14 +11,13 @@ if(not defined $user){
 }
 
 sub run(@);
-sub setupRungetty();
+sub setupInit();
 sub setupProfile();
 
 sub main(@){
   die "Usage: $0\n" if @_ > 0;
 
-  run "sudo apt-get install upstart rungetty";
-  setupRungetty();
+  setupInit();
   setupProfile();
   my @displayManagers = qw(lxdm gdm kdm lightdm);
   for my $displayManager(@displayManagers){
@@ -32,27 +30,38 @@ sub run(@){
   system @_;
 }
 
-sub setupRungetty(){
-  my $upstart = ''
-    . "# tty$tty-auto\n"
-    . "# autologin user\n"
-    . "#\n"
-    . "\n"
-    . "start on runlevel [23]\n"
-    . "stop on runlevel [!23]\n"
-    . "\n"
-    . "respawn\n"
-    . "exec /sbin/rungetty tty$tty --autologin $user\n"
-    . "\n"
-    ;
-  
-  run "sudo rm /etc/init/tty*-auto.conf";
+sub setupInit(){
+  my $initLine = ''
+    . "$tty:2345:respawn:"
+    . "/bin/login -f $user tty$tty"
+    . " </dev/tty$tty"
+    . " >/dev/tty$tty"
+    . " 2>&1"
+    . "\n";
 
-  print "----- Writing to $upstartFile ------\n";
-  open FH, "| sudo tee $upstartFile" or die "Couldnt write to $upstartFile\n";
-  print FH $upstart;
+  my @lines = `cat /etc/inittab`;
+  my $found = 0;
+  for my $line(@lines){
+    $line = '' if $line =~ /^#$initLine/;
+    next if $line =~ /^\s*#/;
+    if(not $found and $line =~ /tty$tty/){
+      if($line eq $initLine){
+        print "init tab line unchanged\n";
+      }else{
+        print "$line=>\n$initLine";
+        $line = "#$line$initLine";
+      }
+      $found = 1;
+    }
+  }
+  if(not $found){
+    print "appending $initLine";
+    push @lines, $initLine;
+  }
+  my $tab = "/etc/inittab";
+  open FH, "| sudo tee $tab >/dev/null" or die "Couldnt write to $tab\n";
+  print FH @lines;
   close FH;
-  print "-----\n";
 }
 
 sub setupProfile(){
