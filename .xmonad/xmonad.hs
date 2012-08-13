@@ -22,7 +22,7 @@ myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
 firefoxExec = "iceweasel"
-firefoxProcess = firefoxExec ++ "-bin"
+firefoxProcess = "firefox-bin"
 firefoxClose = "Close Iceweasel"
 
 main = do
