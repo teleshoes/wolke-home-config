@@ -22,11 +22,8 @@ xset s noblank
 xset dpms 0 0 0
 
 pulseaudio --start &
-
 sudo wconnect `wguessid` &
 sudo hdmi-sound-card-remove &
 sudo bluetooth off &
-
-
 
 exec xmonad
