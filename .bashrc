@@ -28,11 +28,11 @@ prependPath() {
 prependPath $HOME/bin
 prependPath $HOME/.cabal/bin
 prependPath /sbin
+prependPath /usr/sbin
+prependPath /usr/local/bin
+prependPath /usr/local/sbin
 meego_gnu=/opt/gnu-utils
 if [ -d $meego_gnu ]; then
-  prependPath /usr/local/bin
-  prependPath /usr/local/sbin
-  prependPath /usr/sbin
   prependPath /usr/libexec/git-core
   prependPath $meego_gnu/bin
   prependPath $meego_gnu/usr/bin
