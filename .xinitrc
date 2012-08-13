@@ -21,7 +21,7 @@ xset s off
 xset s noblank
 xset dpms 0 0 0
 
-pulseaudio --start
+pulseaudio --start &
 
 sudo wconnect `wguessid` &
 
