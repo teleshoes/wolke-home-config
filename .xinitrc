@@ -24,10 +24,10 @@ xset dpms 0 0 0
 pulseaudio --start &
 
 sudo wconnect `wguessid` &
+sudo hdmi-sound-card-remove &
+sudo bluetooth off &
 
-sudo hdmi-sound-card-remove
 
-sudo bluetooth off
 
 exec \
   dbus-launch --exit-with-session \
