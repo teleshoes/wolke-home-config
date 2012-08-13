@@ -100,7 +100,7 @@ alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
 
 ##AUTOLOGIN START##
 if [ -z "$DISPLAY" ]; then
-  if [ "$(tty)" == "/dev/tty7" ]; then
+  if [ "$(tty)" == "/dev/tty6" ]; then
     exec startx
   fi
 fi
