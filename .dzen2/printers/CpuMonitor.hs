@@ -12,13 +12,14 @@ main = do
   perChan <- listToChan $ map topToPercents topLines
   percentMonitor w h colors perChan
 
-topCpuCmd d = "top -b -p 1 -d " ++ show d ++ " | grep --line-buffered ^Cpu"
+topCpuCmd d = "top -b -p 1 -d " ++ show d ++
+              " | grep --line-buffered 'Cpu(s)'"
 
 topToPercents :: String -> [Float]
 topToPercents line = maybe (take 5 $ 100.0:repeat 0) parseTop groups
-  where regex = "^Cpu\\(s\\):" ++ cpuTsRe ++ "$"
+  where regex = cpuTsRe
         cpuTs = ["us", "sy", "ni", "id", "wa", "hi", "si", "st"]
-        cpuTsRe = intercalate "," $ map ("\\s*(\\d+\\.\\d+)%" ++) cpuTs
+        cpuTsRe = intercalate "," $ map ("\\s*(\\d+\\.\\d+)\\s*%?" ++) cpuTs
         groups = fmap (map read) $ regexGroups regex line
 
 parseTop [us, sy, ni, id, wa, hi, si, st] = [us, sy, ni, wa, idle]
