@@ -29,7 +29,4 @@ sudo bluetooth off &
 
 
 
-exec \
-  dbus-launch --exit-with-session \
-  ck-launch-session \
-  xmonad
+exec xmonad
