@@ -11,8 +11,8 @@ import qualified Data.Map as M (fromList, lookup, member)
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
 
-exec = "thunderbird"
-process = exec
+exec = "icedove"
+process = exec ++ "-bin"
 dir = "." ++ exec
 
 clickCommands = [ ""
