@@ -1,6 +1,6 @@
 Esetroot $HOME/Desktop/Backgrounds/venere-cropped.jpg
 xsetroot -cursor_name left_ptr
-xrdb $HOME/.Xresources
+for x in .xresources-*; do xrdb -merge "$x"; done
 
 setxkbmap -option terminate:ctrl_alt_bksp
 setxkbmap -option caps:escape
