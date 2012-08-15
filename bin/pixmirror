@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+#Copyright 2011 by Elliot Wolk
+#This is free software, released under the GPLv3
+use strict;
+use warnings;
+
+my @exts = qw(jpg JPG jpeg JPEG png PNG);
+
+my $target = 800;
+
+my $convertExec = 'convert';
+my $identifyExec = 'identify';
+
+sub shellQuiet(@);
+sub convert($$$);
+
+my $srcDir = shift;
+my $destDir = shift;
+
+die "Usage: $0 src dest" if not defined $srcDir or not defined $destDir;
+die "src '$srcDir' is not a directory" if !-d $srcDir;
+die "dest '$destDir' is not a directory" if !-d $destDir;
+
+system "which $convertExec > /dev/null";
+die "Could not exec $convertExec\n" if $? != 0;
+system "which $identifyExec > /dev/null";
+die "Could not exec $identifyExec\n" if $? != 0;
+
+my @findArgs = join " -or ", map {"-iname '*.$_'"} @exts;
+
+my @srcImgs = `cd $srcDir; find @findArgs`;
+@srcImgs = sort @srcImgs;
+
+my %srcInfos;
+for my $img(@srcImgs){
+  chomp $img;
+
+  my $stat = shellQuiet 'stat', '--format', '%s:%Y', "$srcDir/$img";
+  if($? == 0 and $stat =~ /(\d+):(\d+)/){
+    my ($filesize, $modified) = ($1, $2);
+    $srcInfos{$img} = "$filesize|$modified\n";
+  }else{
+    die "file not found: $srcDir/$img\n";
+  }
+}
+
+my @destImgs = `cd $destDir; find @findArgs`;
+@destImgs = sort @destImgs;
+
+my %okImgs;
+for my $img(@destImgs){
+  chomp $img;
+
+  my $info = shellQuiet 'cat', "$destDir/$img.info";
+  my $srcInfo = $srcInfos{$img};
+  if(not defined $srcInfo or $info ne $srcInfo){
+    print "removing $destDir/$img and $destDir/$img.info\n";
+    system "rm", "$destDir/$img";
+    system "rm", "$destDir/$img.info";
+  }else{
+    $okImgs{$img} = 1;
+  }
+}
+
+my $srcImgCount = @srcImgs;
+print "Converting $srcImgCount images\n";
+
+my $len = length @srcImgs;
+my $i=0;
+my $skippedCount = 0;
+for my $img(@srcImgs){
+  my $dirName = shellQuiet 'dirname', $img;
+  chomp $dirName;
+
+  if(defined $okImgs{$img}){
+    $skippedCount++;
+  }else{
+    convert $img, $srcDir, $destDir;
+  }
+}
+
+print "  skipped $skippedCount images\n" if $skippedCount > 0;
+
+system "find $destDir -depth -type d -empty -execdir rmdir {} \\;";
+mkdir $destDir;
+
+sub wrapTokens(@){
+  my @tokens;
+  for my $token(@_){
+    my $t = $token;
+    $t =~ s/'/'\\''/g;
+    push @tokens, "'$t'";
+  }
+  return @tokens;
+}
+sub shellQuiet(@){
+  my $cmd = join ' ', wrapTokens(@_);
+  return `$cmd 2>/dev/null`;
+}
+sub shell(@){
+  my $cmd = join ' ', wrapTokens(@_);
+  return `$cmd`;
+}
+
+sub getPix($){
+  my $file = shift;
+  $file =~ s/'/'\\''/g;
+  my $info = `identify '$file'`;
+  if($info =~ /(\d+)x(\d+)/){
+    return ($1, $2);
+  }else{
+    die "Could not find HxW using imagemagick for $file\n";
+  }
+}
+
+sub convert($$$){
+  my $img = shift;
+  my $srcDir = shift;
+  my $destDir = shift;
+
+  my $parent = "$destDir/$img";
+  $parent =~ s/\/[^\/]*$/\//;
+  system "mkdir", "-p", $parent;
+
+  my ($x, $y) = getPix "$srcDir/$img";
+  my $ratio;
+  if($x > $y){
+    $ratio = $target / $x;
+  }else{
+    $ratio = $target / $y;
+  }
+  my $percent = sprintf '%.5f', $ratio*100;
+
+  system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
+  die "failure: $img\n" if $? != 0;
+
+  open INFO, "> $destDir/$img.info";
+  print INFO $srcInfos{$img};
+  close INFO;
+  print " finished $destDir/$img\n";
+}
