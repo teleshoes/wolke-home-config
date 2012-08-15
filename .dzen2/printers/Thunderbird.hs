@@ -38,7 +38,7 @@ main = do
   let imgSubDir = show imgSize ++ "x" ++ show imgSize
   let imgPath = home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/thunderbird.xpm"
 
-  let cmd = ["find", home ++ "." ++ dir ++ "/", "-iname", "*.default"]
+  let cmd = ["find", home ++ "/" ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
