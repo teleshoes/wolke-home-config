@@ -21,6 +21,8 @@ xset s off
 xset s noblank
 xset dpms 0 0 0
 
+xset -b #no bell
+
 pulseaudio --start &
 sudo wconnect `wguessid` &
 sudo hdmi-sound-card-remove &
