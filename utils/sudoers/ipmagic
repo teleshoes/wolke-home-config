@@ -313,21 +313,29 @@ sub wifi($){
   if(not defined $config{macIpMap} and not defined $config{ssidIpMap}){
     return undef;
   }
+
   my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
   my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
 
   my $iwconfig = `iwconfig 2>/dev/null`;
-  my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
-  my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
+  my $mac = lc ($iwconfig =~ /Access Point: ([a-z0-9:]+)/i ? $1 : '<none>');
+  my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
   print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $VERBOSE;
 
-  my $ip;
-  $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
-  $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
-  if(defined $ip){
-    print "  success!\n" if $VERBOSE;
-    return $ip;
+  my $macIp;
+  for my $macConfig(keys %macIpMap){
+    $macIp = $macIpMap{$macConfig} if lc $macConfig eq lc $mac;
   }
+  my $ssidIp = $ssidIpMap{$ssid};
+
+  if(defined $macIp){
+    print "  success!\n" if $VERBOSE;
+    return $macIp;
+  }elsif(defined $ssidIp){
+    print "  success!\n" if $VERBOSE;
+    return $ssidIp;
+  }
+
   return undef;
 }
 
