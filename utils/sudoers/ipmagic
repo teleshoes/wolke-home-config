@@ -14,20 +14,23 @@ sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
 sub usb($);
+sub twip($);
 sub guess($);
 sub wifi($);
 
+my $VERBOSE = 0;
+
 my $usage = "Usage:
-    $0 CONF_FILE [-u USER]
+    $0 CONF_FILE [-v|--verbose] [-u USER]
       setup hosts file, init usb devices, and print hostname
-    $0 CONF_FILE [-u USER] -vnc [ARGS]
+    $0 CONF_FILE [-v|--verbose] [-u USER] -vnc [ARGS]
       setup hosts file, init usb devices, and call vncCmd
       e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
-    $0 CONF_FILE [-u USER] -s [CMD ARG ARG..]
+    $0 CONF_FILE [-v|--verbose] [-u USER] -s [CMD ARG ARG..]
       setup hosts file, init usb devices, and ssh to host
-    $0 CONF_FILE [-u USER] -b BASHCMD
+    $0 CONF_FILE [-v|--verbose] [-u USER] -b BASHCMD
       setup hosts file, init usb devices, and ssh with bash -c SHELLCMD
-    $0 CONF_FILE --host
+    $0 CONF_FILE [-v|--verbose] --host
       print the hostname and exit, doing nothing else
     $0 --set-hosts HOSTNAME MARKER IP
       simply update the hosts file line
@@ -45,6 +48,9 @@ sub main(@){
   }
   my $confFile = shift;
   die $usage if not defined $confFile or not -e $confFile;
+
+  $VERBOSE = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
+
   my %config = %{parseConfig $confFile};
   die "hostname not defined in conf\n" if not defined $config{hostname};
   my $hostname = $config{hostname};
@@ -96,6 +102,7 @@ sub main(@){
   ($ip, $mode) = (usb(\%config), 'usb') if not defined $ip;
   ($ip, $mode) = (wifi(\%config), 'wifi') if not defined $ip;
   ($ip, $mode) = (guess(\%config), 'guess') if not defined $ip;
+  ($ip, $mode) = (twip(\%config), 'twip') if not defined $ip;
   $mode = undef if not defined $ip;
 
   if(not defined $ip and not quickPingable $hostname){
@@ -107,6 +114,10 @@ sub main(@){
   if($isVnc){
     exec $vncCmd;
   }elsif($isSsh){
+    if($mode eq 'twip' and defined $config{twipPort}){
+      my $port = $config{twipPort};
+      @sshCmd = ("-p", $port, @sshCmd);
+    }
     my @cmd = ("ssh", "$sshUser\@$hostname", @sshCmd);
     exec @cmd;
   }else{
@@ -138,7 +149,7 @@ sub parseConfig($){
   my %mapKeys = map {$_ => 1} qw(macIp ssidIp);
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
-    hostname vncCommand vncDefaultArgs defaultUser
+    hostname twipPort vncCommand vncDefaultArgs defaultUser
     usbLocalIp usbRemoteIp
   );
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
@@ -286,6 +297,21 @@ sub usb($){
         sudoIfup $dev, $localIp;
       }
       return $remoteIp;
+    }
+  }
+  return undef;
+}
+
+sub twip($){
+  my %config = %{shift()};
+  if(defined $config{twipPort}){
+    print "Trying twip\n" if $VERBOSE;
+    my $ip = `twipc --fetch`;
+    chomp $ip;
+    print "  got $ip\n";
+    if($ip =~ /^\d+ \. \d+ \. \d+ \. \d+$/x){
+      print "  success!\n" if $VERBOSE;
+      return $ip;
     }
   }
   return undef;
