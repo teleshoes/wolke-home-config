@@ -14,9 +14,9 @@ sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
 sub usb($);
+sub wifi($);
 sub twip($);
 sub guess($);
-sub wifi($);
 
 my $VERBOSE = 0;
 
@@ -308,6 +308,29 @@ sub usb($){
   return undef;
 }
 
+sub wifi($){
+  my %config = %{shift()};
+  if(not defined $config{macIpMap} and not defined $config{ssidIpMap}){
+    return undef;
+  }
+  my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
+  my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
+
+  my $iwconfig = `iwconfig 2>/dev/null`;
+  my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
+  my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
+  print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $VERBOSE;
+
+  my $ip;
+  $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
+  $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
+  if(defined $ip){
+    print "  success!\n" if $VERBOSE;
+    return $ip;
+  }
+  return undef;
+}
+
 sub twip($){
   my %config = %{shift()};
   if(defined $config{twipPort}){
@@ -335,29 +358,6 @@ sub guess($){
         return $ip;
       }
     }
-  }
-  return undef;
-}
-
-sub wifi($){
-  my %config = %{shift()};
-  if(not defined $config{macIpMap} and not defined $config{ssidIpMap}){
-    return undef;
-  }
-  my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
-  my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
-
-  my $iwconfig = `iwconfig 2>/dev/null`;
-  my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
-  my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
-  print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $VERBOSE;
- 
-  my $ip;
-  $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
-  $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
-  if(defined $ip){
-    print "  success!\n" if $VERBOSE;
-    return $ip;
   }
   return undef;
 }
