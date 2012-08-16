@@ -10,10 +10,11 @@ sub getHosts($);
 sub setHosts($$$);
 sub sudoSetHosts($$$);
 sub maybeUpdateHosts($$);
+sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
 sub usb($);
-sub guessIps($);
+sub guess($);
 sub wifi($);
 
 my $usage = "Usage:
@@ -62,11 +63,12 @@ sub main(@){
     $sshUser = 'root';
   }
 
+
+  my ($isVnc, $isSsh) = (0, 0);
   my $vncCmd;
-  my $isSsh = 0;
   my @sshCmd;
   if(@_ > 0 and $_[0] eq '-vnc'){
-    shift;
+    $isVnc = shift;
     if(defined $config{vncCommand}){
       $vncCmd = $config{vncCommand};
     }else{
@@ -78,12 +80,10 @@ sub main(@){
       $vncCmd .= " $config{vncDefaultArgs}";
     }
   }elsif(@_ > 0 and $_[0] eq '-s'){
-    shift;
-    $isSsh = 1;
+    $isSsh = shift;
     @sshCmd = @_;
   }elsif(@_ > 0 and $_[0] eq '-b'){
-    shift;
-    $isSsh = 1;
+    $isSsh = shift;
     die "-b missing command\n" if @_ == 0;
     my $c = "@_";
     $c =~ s/'/'\\''/g;
@@ -92,16 +92,23 @@ sub main(@){
     die $usage;
   }
 
-  my $ok;
-  $ok = usb \%config if not $ok;
-  $ok = wifi \%config if not $ok;
-  $ok = guessIps \%config if not $ok;
-  die "Could not get an ip\n" if not $ok;
+  my ($ip, $mode);
+  ($ip, $mode) = (usb(\%config), 'usb') if not defined $ip;
+  ($ip, $mode) = (wifi(\%config), 'wifi') if not defined $ip;
+  ($ip, $mode) = (guess(\%config), 'guess') if not defined $ip;
+  $mode = undef if not defined $ip;
 
-  if(defined $vncCmd){
+  if(not defined $ip and not quickPingable $hostname){
+    die "No ip found, and could not ping $hostname\n";
+  }else{
+    maybeUpdateHosts \%config, $ip;
+  }
+
+  if($isVnc){
     exec $vncCmd;
   }elsif($isSsh){
-    exec "ssh", "$sshUser\@$hostname", @sshCmd;
+    my @cmd = ("ssh", "$sshUser\@$hostname", @sshCmd);
+    exec @cmd;
   }else{
     print "$hostname\n";
   }
@@ -221,9 +228,9 @@ sub sudoSetHosts($$$){
 
 sub maybeUpdateHosts($$){
   my %config = %{shift()};
+  my $ip = shift;
   my $hostsMarker = hostsMarker \%config;
   my $hostname = $config{hostname};
-  my $ip = shift;
   my $old = getHosts \%config;
   if(not defined $ip){
     if(defined $old){
@@ -242,6 +249,11 @@ sub maybeUpdateHosts($$){
   sudoSetHosts $hostname, $hostsMarker, $ip;
 }
 
+sub quickPingable($){
+  system "ping $_[0] -c 1 -w 1 >/dev/null 2>/dev/null";
+  return $? == 0;
+}
+
 sub ifup($$){
   my ($dev, $ip) = @_;
   system "ifconfig"
@@ -257,7 +269,7 @@ sub sudoIfup($$){
 sub usb($){
   my %config = %{shift()};
   if(not defined $config{usbLocalIp} or not defined $config{usbRemoteIp}){
-    return 0;
+    return undef;
   }
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
@@ -273,31 +285,30 @@ sub usb($){
         print STDERR "USB DEVICE UP\n";
         sudoIfup $dev, $localIp;
       }
-      maybeUpdateHosts \%config, $remoteIp;
-      return 1;
+      return $remoteIp;
     }
   }
-  return 0;
+  return undef;
 }
 
-sub guessIps($){
+sub guess($){
   my %config = %{shift()};
   my $hostname = $config{hostname};
-  maybeUpdateHosts \%config, undef;
   if(defined $config{ipGuessList}){
-    my @ips = @{$config{ipGuessList}};
-    system 'ensure-host', $hostname, @ips;
-    if($? == 0){
-      return 1;
-    }else{
-      print STDERR "Error ensuring host: $!\n";
+    for my $ip(@{$config{ipGuessList}}){
+      if(quickPingable $ip){
+        return $ip;
+      }
     }
   }
-  return 0;
+  return undef;
 }
 
 sub wifi($){
   my %config = %{shift()};
+  if(not defined $config{macIpMap} and not defined $config{ssidIpMap}){
+    return undef;
+  }
   my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
   my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
 
@@ -309,10 +320,9 @@ sub wifi($){
   $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
   $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
-    maybeUpdateHosts \%config, $ip;
-    return 1;
+    return $ip;
   }
-  return 0;
+  return undef;
 }
 
 &main(@ARGV);
