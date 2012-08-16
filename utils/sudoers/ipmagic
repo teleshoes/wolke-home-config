@@ -112,13 +112,16 @@ sub main(@){
   }
 
   if($isVnc){
+    print "$vncCmd\n" if $VERBOSE;
     exec $vncCmd;
   }elsif($isSsh){
     if($mode eq 'twip' and defined $config{twipPort}){
       my $port = $config{twipPort};
+      print "sshing on port $port\n" if $VERBOSE;
       @sshCmd = ("-p", $port, @sshCmd);
     }
     my @cmd = ("ssh", "$sshUser\@$hostname", @sshCmd);
+    print "@cmd\n" if $VERBOSE;
     exec @cmd;
   }else{
     print "$hostname\n";
@@ -282,6 +285,7 @@ sub usb($){
   if(not defined $config{usbLocalIp} or not defined $config{usbRemoteIp}){
     return undef;
   }
+  print "Trying usb\n" if $VERBOSE;
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
 
@@ -291,11 +295,13 @@ sub usb($){
     #if($ifconfig =~ /^([a-z0-9_]+).*$mac\s*$/mi){
     if($ifconfig =~ /^(usb\d+)/mi){ #assume any usb, because mac keeps changing
       my $dev = $1;
+      print "USB network device $dev found, assuming this is it\n" if $VERBOSE;
       $ifconfig = `ifconfig $dev`;
       if($ifconfig !~ /inet addr:$localIp/){
         print STDERR "USB DEVICE UP\n";
         sudoIfup $dev, $localIp;
       }
+      print "  success!\n" if $VERBOSE;
       return $remoteIp;
     }
   }
@@ -321,8 +327,11 @@ sub guess($){
   my %config = %{shift()};
   my $hostname = $config{hostname};
   if(defined $config{ipGuessList}){
+    print "Trying guesses\n" if $VERBOSE;
     for my $ip(@{$config{ipGuessList}}){
+      print "  guess $ip\n" if $VERBOSE;
       if(quickPingable $ip){
+        print "  success!\n" if $VERBOSE;
         return $ip;
       }
     }
@@ -341,11 +350,13 @@ sub wifi($){
   my $iwconfig = `iwconfig 2>/dev/null`;
   my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
   my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
+  print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $VERBOSE;
  
   my $ip;
   $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
   $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
+    print "  success!\n" if $VERBOSE;
     return $ip;
   }
   return undef;
