@@ -128,56 +128,55 @@ sub parseConfig($){
   my @lines = <FH>;
   close FH;
 
-  my %config;
-  my @macs;
-  my @ipGuesses;
-  my %macIps;
-  my %ssidIps;
+  my %mapKeys = map {$_ => 1} qw(macIp ssidIp);
+  my %listKeys = map {$_ => 1} qw(mac ipGuess);
+  my %singleKeys = map {$_ => 1} qw(
+    hostname vncCommand vncDefaultArgs defaultUser
+    usbLocalIp usbRemoteIp
+  );
+  my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
+  my %assertMac = map {$_ => 1} qw(mac);
+  my %assertIpLeft = map {$_ => 1} qw();
+  my %assertMacLeft = map {$_ => 1} qw(macIp);
+  my %assertIpRight = map {$_ => 1} qw(macIp ssidIp);
+  my %assertMacRight = map {$_ => 1} qw();
 
+  my %config;
   for my $line(@lines){
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
     die "Malformed conf: $line\n" if $line !~ /^\s*([a-z]+)\s*=\s*(.+?)\s*$/i;
     my ($key, $val) = ($1, $2);
-    my ($valLeft, $valRight);
-    if($val =~ /^ \s* (\S* | "[^"]*" ) \s* :: \s* (\S* | "[^"]*") \s*$/x){
-      ($valLeft, $valRight) = ($1, $2);
-    }
 
-    if($key eq 'mac'){
-      assertMac $val;
-      push @macs, $val;
-    }elsif($key eq 'ipGuess'){
-      assertIp $val;
-      push @ipGuesses, $val;
-    }elsif($key eq 'macIp'){
-      if(not defined $valLeft or not defined $valRight){
-        die "Malformed mac ip conf: $val\n";
+    if(defined $mapKeys{$key}){
+      if($val !~ /^ \s* (\S* | "[^"]*" ) \s* :: \s* (\S* | "[^"]*") \s*$/x){
+        die "Malformed map conf entry $key = $val\n";
       }
-      assertMac($valLeft);
-      assertIp($valRight);
-      $macIps{lc $valLeft} = lc $valRight;
-    }elsif($key eq 'ssidIp'){
-      if(not defined $valLeft or not defined $valRight){
-        die "Malformed ssid ip conf: $val\n";
-      }
-      assertIp($valRight);
-      $ssidIps{lc $valLeft} = lc $valRight;
-    }elsif($key =~ /^(usbLocalIp|usbRemoteIp)$/){
-      die "Duplicate conf entry $key\n" if defined $config{$key};
-      assertIp $val;
-      $config{$key} = $val;
-    }elsif($key =~ /^(hostname|vncCommand|vncDefaultArgs|defaultUser)$/){
-      die "Duplicate conf entry $key\n" if defined $config{$key};
+      my ($valLeft, $valRight) = ($1, $2);
+      assertIp $valLeft if defined $assertIpLeft{$key};
+      assertMac $valLeft if defined $assertMacLeft{$key};
+      assertIp $valRight if defined $assertIpRight{$key};
+      assertMac $valRight if defined $assertMacRight{$key};
+
+      $key .= "Map";
+      $config{$key} = {} if not defined $config{$key};
+      ${$config{$key}}{$valLeft} = $valRight;
+    }elsif(defined $listKeys{$key}){
+      assertIp $val if defined $assertIp{$key};
+      assertMac $val if defined $assertMac{$key};
+      $key .= "List";
+      $config{$key} = [] if not defined $config{$key};
+      push @{$config{$key}}, $val;
+    }elsif(defined $singleKeys{$key}){
+      assertIp $val if defined $assertIp{$key};
+      assertMac $val if defined $assertMac{$key};
+      die "Duplicate single conf entry $key\n" if defined $config{$key};
       $config{$key} = $val;
     }else{
       die "Unknown conf entry: $key\n";
     }
   }
-  $config{macs} = \@macs;
-  $config{ipGuesses} = \@ipGuesses;
-  $config{macIps} = \%macIps;
-  $config{ssidIps} = \%ssidIps;
+
   return \%config;
 }
 
@@ -264,7 +263,7 @@ sub usb($){
   my $remoteIp = $config{usbRemoteIp};
 
   my $ifconfig = `ifconfig -a`;
-  my @macs = @{$config{macs}};
+  my @macs = @{$config{macList}};
   foreach my $mac(@macs){
     #if($ifconfig =~ /^([a-z0-9_]+).*$mac\s*$/mi){
     if($ifconfig =~ /^(usb\d+)/mi){ #assume any usb, because mac keeps changing
@@ -285,8 +284,8 @@ sub guessIps($){
   my %config = %{shift()};
   my $hostname = $config{hostname};
   maybeUpdateHosts \%config, undef;
-  if(defined $config{ipGuesses}){
-    my @ips = @{$config{ipGuesses}};
+  if(defined $config{ipGuessList}){
+    my @ips = @{$config{ipGuessList}};
     system 'ensure-host', $hostname, @ips;
     if($? == 0){
       return 1;
@@ -299,16 +298,16 @@ sub guessIps($){
 
 sub wifi($){
   my %config = %{shift()};
-  my %macIps = %{$config{macIps}} if defined $config{macIps};
-  my %ssidIps = %{$config{ssidIps}} if defined $config{ssidIps};
+  my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
+  my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
 
   my $iwconfig = `iwconfig 2>/dev/null`;
   my $mac = lc $1 if $iwconfig =~ /Access Point: ([a-z0-9:]+)/i;
   my $ssid = lc $1 if $iwconfig =~ /ESSID:"(.*)"/;
  
   my $ip;
-  $ip = $macIps{$mac} if defined $mac and not defined $ip;
-  $ip = $ssidIps{$ssid} if defined $ssid and not defined $ip;
+  $ip = $macIpMap{$mac} if defined $mac and not defined $ip;
+  $ip = $ssidIpMap{$ssid} if defined $ssid and not defined $ip;
   if(defined $ip){
     maybeUpdateHosts \%config, $ip;
     return 1;
