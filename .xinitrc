@@ -25,7 +25,6 @@ xset -b #no bell
 
 pulseaudio --start &
 sudo wconnect `wguessid` &
-sudo hdmi-sound-card-remove &
 sudo bluetooth off &
 
 exec xmonad
