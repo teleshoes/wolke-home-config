@@ -1,4 +1,4 @@
-module CpuScalingGov(main) where
+module CpuScaling(main) where
 import Utils (fg, bg, padL, readInt, collectInts, chompFile, runProc, readProc)
 import TextRows (textRows)
 
