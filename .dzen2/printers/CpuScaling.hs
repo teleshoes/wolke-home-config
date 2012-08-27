@@ -14,6 +14,15 @@ width = 2
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
+main = do
+  gov <- getCpuField "governor"
+  minKHz <- getCpuFieldInt "min_freq"
+  maxKHz <- getCpuFieldInt "max_freq"
+  avail <- sort <$> getCpuFieldInts "available_frequencies"
+  cur <- parseTmpFile avail <$> chompFile tmpFile
+  (okGov, okMinKHz, okMaxKHz) <- check gov minKHz maxKHz avail cur
+  putStrLn $ formatScaling okGov okMinKHz okMaxKHz avail
+
 allSame [] = False
 allSame [_] = True
 allSame (x:y:xs) = x == y && allSame (y:xs)
@@ -44,6 +53,7 @@ check gov minKHz maxKHz avail (curGov, curMin, curMax, curFreq) = do
   check (okGov == curGov) "mismatched governor!"
   check (okMin == curMin) "mismatched min freq!"
   check (okMax == curMax) "mismatched max freq!"
+  return (okGov, okMin, okMax)
   where check cond str = if cond
                          then return ()
                          else rerun $ "Rerunning: " ++ str
@@ -64,16 +74,6 @@ parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
         defaultTmp = ["ondemand", show $ head avail, show $ last avail, ""]
         parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
         toInt = fromMaybe 0 . readInt
-
-main = do
-  gov <- getCpuField "governor"
-  minKHz <- getCpuFieldInt "min_freq"
-  maxKHz <- getCpuFieldInt "max_freq"
-  avail <- sort <$> getCpuFieldInts "available_frequencies"
-  cur <- parseTmpFile avail <$> chompFile tmpFile
-  check gov minKHz maxKHz avail cur
-  putStrLn $ formatScaling (fm "" gov) (fm 0 minKHz) (fm 0 maxKHz) avail
-  where fm = fromMaybe
 
 formatScaling gov minKHz maxKHz avail = col $ textRows (pad top) (pad bot)
   where col = color minKHz maxKHz avail
