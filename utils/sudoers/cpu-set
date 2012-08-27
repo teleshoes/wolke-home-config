@@ -8,6 +8,7 @@ sub getSharedGovernors(@);
 sub getSharedFreqs(@);
 sub usage();
 
+my $tmpFile = "/tmp/cpu-scaling";
 my $BASEDIR='/sys/devices/system/cpu';
 
 sub writeDev($$$){
@@ -17,6 +18,22 @@ sub writeDev($$$){
   $f = "$base/cpufreq/$dev" if not -e $f;
   open FH, "> $f" or die "Could not open $f for writing\n$!\n";
   print FH "$val\n";
+  close FH;
+}
+
+sub writeTmpFile($$$$){
+  my ($gov, $min, $max, $freq) = @_;
+  $gov = '' if not defined $gov;
+  $min = '' if not defined $min;
+  $max = '' if not defined $max;
+  $freq = '' if not defined $freq;
+  my $out = '';
+  $out .= "governor=$gov\n";
+  $out .= "min=$min\n";
+  $out .= "max=$max\n";
+  $out .= "freq=$freq\n";
+  open FH, "> $tmpFile" or die "Couldnt open $tmpFile for writing\n";
+  print FH $out;
   close FH;
 }
 
@@ -33,6 +50,7 @@ sub main(@){
       writeDev $base, 'cpufreq/scaling_max_freq', $max if defined $max;
       writeDev $base, 'cpufreq/scaling_setspeed', $freq if defined $freq;
     }
+    writeTmpFile $gov, $min, $max, $freq;
   }
 }
 
