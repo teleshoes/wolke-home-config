@@ -127,10 +127,10 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   , ((ctrl, xK_Menu  ), spawn "touchClick toggle")
 
-  , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand")
-  , ((supr, xK_F2    ), spawn "sudo cpu-set conservative")
-  , ((supr, xK_F3    ), spawn "sudo cpu-set powersave")
-  , ((supr, xK_F4    ), spawn "sudo cpu-set performance")
+  , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand 800 2201")
+  , ((supr, xK_F2    ), spawn "sudo cpu-set ondemand 800 1400")
+  , ((supr, xK_F3    ), spawn "sudo cpu-set ondemand 800 800")
+  , ((supr, xK_F4    ), spawn "sudo cpu-set ondemand 2201 2201")
 
   , ((supr, xK_1     ), spawn "sudo wauto")
   , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo tether off; sudo wired off")
