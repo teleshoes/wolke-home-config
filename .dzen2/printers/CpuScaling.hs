@@ -1,5 +1,5 @@
 module CpuScaling(main) where
-import Utils (fg, bg, padL, readInt, collectInts, chompFile, runProc, readProc)
+import Utils (fg, bg, padL, readInt, collectInts, chompFile, readProc)
 import TextRows (textRows)
 
 import Control.Monad (void)
