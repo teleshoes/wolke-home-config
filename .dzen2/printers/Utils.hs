@@ -7,8 +7,8 @@ module Utils(
   pos, posX, posY, lockX,
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
-  regexMatch, regexGroups, regexFirstGroup,
-  readInt, padL, padR, chompAll, estimateLength,
+  regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
+  readInt, collectInts, padL, padR, chompAll, estimateLength,
   nanoTime, lineBuffering, isRunning, chompFile,
   systemReadLines, readProc, procSuccess,
   actToChanDelay, listToChan
@@ -16,11 +16,11 @@ module Utils(
 import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
-import Control.Monad (forever)
+import Control.Monad (forever, void)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import System.IO (
   BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents)
 import System.Process (
@@ -66,11 +66,16 @@ regexGroups :: String -> String -> Maybe [String]
 regexGroups re str = fmap (drop 1) $ listToMaybe $ str =~ re
 regexFirstGroup :: String -> String -> Maybe String
 regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
+regexAllMatches :: String -> String -> [String]
+regexAllMatches re str = concatMap (take 1) $ str =~ re
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
               ((x,_):_) -> Just x
               _ -> Nothing
+
+collectInts :: String -> [Integer]
+collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
 
 padL x len xs = replicate (len - length xs) x ++ xs
 padR x len xs = xs ++ replicate (len - length xs) x
