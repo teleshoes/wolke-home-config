@@ -1,5 +1,6 @@
 module CpuScaling(main) where
-import Utils (fg, bg, padL, readInt, collectInts, chompFile, readProc)
+import Utils (fg, bg, padL, regexGroups,
+              readInt, collectInts, chompFile, readProc)
 import TextRows (textRows)
 
 import Control.Monad (void)
@@ -10,38 +11,67 @@ import Data.Maybe (fromMaybe, isJust, listToMaybe)
 
 width = 2
 
-tmpFile = "/tmp/cpufreq"
+tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
 allSame [] = False
 allSame [_] = True
 allSame (x:y:xs) = x == y && allSame (y:xs)
 
-getCpuField f = do
-  let regex = cpuDir ++ "/cpu[0-9]+/cpufreq/scaling_" ++ f
-  devices <- fmap lines $ readProc ["find", cpuDir, "-regex", regex]
+getDevices :: String -> IO [String]
+getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
+  where regex = cpuDir ++ "/cpu[0-9]+/cpufreq/scaling_" ++ field
+
+getCpuField field = do
+  devices <- getDevices field
   vals <- mapM chompFile devices
   return $ if allSame vals then listToMaybe vals else Nothing
 
 getCpuFieldInt f = readInt <$> fromMaybe "" <$> getCpuField f
 getCpuFieldInts f = collectInts <$> fromMaybe "" <$> getCpuField f
 
+setCpuField field val = do
+  devices <- getDevices field
+  mapM (writeFile val) devices
+
 readTmp = collectInts <$> chompFile tmpFile
 
-die s = do print s; error s
-maybeDie s x = if not $ isJust x then die s else return $ fromMaybe (error s) x
-check gov minKHz maxKHz avail = do
-  maybeDie "No governor!" gov
-  maybeDie "No min freq!" minKHz
-  maybeDie "No max freq!" maxKHz
-  if null avail then die "No available frequences!" else return ()
+check gov minKHz maxKHz avail (curGov, curMin, curMax, curFreq) = do
+  okGov <- checkMaybe gov "no governor!"
+  okMin <- checkMaybe minKHz "no min freq!"
+  okMax <- checkMaybe maxKHz "no max freq!"
+  check (not $ null avail) "no available frequencies!"
+  check (okGov == curGov) "mismatched governor!"
+  check (okMin == curMin) "mismatched min freq!"
+  check (okMax == curMax) "mismatched max freq!"
+  where check cond str = if cond
+                         then return ()
+                         else rerun $ "Rerunning: " ++ str
+        checkMaybe x str = do check (isJust x) str
+                              return $ fromMaybe (error str) x
+        rerun s = do
+          print s
+          readProc ["sudo", "cpu-set", curGov, show curMin, show curMax]
+          error s
+
+parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
+  where re = ""
+             ++ "governor=(.*)\\n?"
+             ++ "min=(\\d*)\\n?"
+             ++ "max=(\\d*)\\n?"
+             ++ "freq=(\\d*)\\n?"
+        grps = regexGroups re s
+        defaultTmp = ["ondemand", show $ head avail, show $ last avail, ""]
+        parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
+        toInt = fromMaybe 0 . readInt
 
 main = do
   gov <- getCpuField "governor"
   minKHz <- getCpuFieldInt "min_freq"
   maxKHz <- getCpuFieldInt "max_freq"
   avail <- sort <$> getCpuFieldInts "available_frequencies"
-  check gov minKHz maxKHz avail
+  cur <- parseTmpFile avail <$> chompFile tmpFile
+  check gov minKHz maxKHz avail cur
   putStrLn $ formatScaling (fm "" gov) (fm 0 minKHz) (fm 0 maxKHz) avail
   where fm = fromMaybe
 
