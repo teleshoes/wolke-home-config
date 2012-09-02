@@ -6,6 +6,7 @@ import System.Process (system, readProcess)
 import System.Posix.Process (getProcessID)
 import Text.Regex.PCRE ((=~))
 import Utils (systemReadLines, readProc, listToChan)
+import System.Directory (setCurrentDirectory)
 
 getFreqsChanI7z :: IO (Chan [Int])
 getFreqsChanI7z = do
@@ -22,6 +23,7 @@ i7zCmdArr log = ["sudo", "i7z", "--nogui", "-w", "a", "--logfile", log]
 execAndThenDie cmdArr = do
   parentThreadId <- myThreadId
   forkIO $ do
+    setCurrentDirectory "/tmp"
     void $ readProc cmdArr
     killThread parentThreadId
 
