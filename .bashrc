@@ -71,7 +71,7 @@ cEnd='\[\033[00m\]'
 #the n9 fucks with that line on reboot
 PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
-for cmd in wconnect tether resolv mnt
+for cmd in wconnect tether resolv mnt optimus
 do alias $cmd="sudo $cmd"; done
 
 for sudoTypo in suod sudp
