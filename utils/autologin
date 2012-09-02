@@ -15,6 +15,7 @@ if($user eq "root" or length $user == 0){
 }
 
 sub run(@);
+sub replaceLine($$$);
 sub setupInit();
 sub setupProfile();
 
@@ -34,38 +35,44 @@ sub run(@){
   system @_;
 }
 
-sub setupInit(){
-  my $initLine = ''
-    . "$tty:2345:respawn:"
-    . "/bin/login -f $user tty$tty"
-    . " </dev/tty$tty"
-    . " >/dev/tty$tty"
-    . " 2>&1"
-    . "\n";
+sub replaceLine($$$){
+  my ($file, $destLine, $matchWord) = @_;
+  my @lines = `cat $file`;
 
-  my @lines = `cat /etc/inittab`;
   my $found = 0;
   for my $line(@lines){
-    $line = '' if $line =~ /^#$initLine/;
+    $line = '' if $line =~ /^#$destLine/;
     next if $line =~ /^\s*#/;
-    if(not $found and $line =~ /tty$tty/){
-      if($line eq $initLine){
-        print "init tab line unchanged\n";
-      }else{
-        print "$line=>\n$initLine";
-        $line = "#$line$initLine";
-      }
+    if(not $found and $line =~ /\Q$matchWord\E/){
       $found = 1;
+      if($line eq $destLine){
+        print "$file unchanged\n";
+      }else{
+        print "$file:\n  $line=>\n  $destLine";
+        $line = "#$line" . $destLine;
+      }
     }
   }
   if(not $found){
-    print "appending $initLine";
-    push @lines, $initLine;
+    print "appending $destLine";
+    push @lines, $destLine;
   }
-  my $tab = "/etc/inittab";
-  open FH, "| sudo tee $tab >/dev/null" or die "Couldnt write to $tab\n";
+  open FH, "| sudo tee $file >/dev/null" or die "Couldnt write to $file\n";
   print FH @lines;
   close FH;
+}
+
+sub setupInit(){
+  my $cmd = "/bin/login -f $user tty$tty </dev/tty$tty >/dev/tty$tty 2>&1";
+
+  my $tab = "/etc/inittab";
+  if(-e $tab){
+    my $destLine = "$tty:2345:respawn:$cmd\n";
+    my $matchWord = "tty$tty";
+    replaceLine $tab, $destLine, $matchWord;
+  }else{
+    print "!!!!!ERROR: $tab doesnt exist\n";
+  }
 }
 
 sub setupProfile(){
