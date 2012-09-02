@@ -21,9 +21,9 @@ import XMonad.Hooks.DynamicLog (defaultPP)
 myHandleEventHook _ = return (All True)
 
 workspaceNames = ["A", "B", "D", "G", "5", "6", "7", "8", "9"]
-firefoxExec = "iceweasel"
-firefoxProcess = "firefox-bin"
-firefoxClose = "Close Iceweasel"
+firefoxExec = "firefox"
+firefoxProcess = "firefox"
+firefoxClose = "Close Firefox"
 
 main = do
   --remove intermediate haskell compilation files
@@ -61,7 +61,7 @@ main = do
     manageHook         = composeAll
                          [ className =? "Eclipse"          --> doShift "A"
                          , className =? "Pidgin"           --> doShift "B"
-                         , className =? "Icedove"          --> doShift "8"
+                         , className =? "Thunderbird"      --> doShift "8"
                          , title     =? "Off"              --> doFloat
                          , title     =? "KLOMP"            --> doShift "9"
                          , title     =? "Transmission"     --> doShift "9"
