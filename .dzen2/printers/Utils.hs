@@ -8,7 +8,7 @@ module Utils(
   posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
   ignoreBG,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
-  readInt, collectInts, padL, padR, chompAll, estimateLength,
+  readInt, readDouble, collectInts, padL, padR, chompAll, estimateLength,
   nanoTime, lineBuffering, isRunning, chompFile,
   systemReadLines, readProc, procSuccess,
   actToChanDelay, listToChan
@@ -71,6 +71,11 @@ regexAllMatches re str = concatMap (take 1) $ str =~ re
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
+              ((x,_):_) -> Just x
+              _ -> Nothing
+
+readDouble :: String -> Maybe Double
+readDouble s = case reads s of
               ((x,_):_) -> Just x
               _ -> Nothing
 
