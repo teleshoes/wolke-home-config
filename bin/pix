@@ -2,35 +2,12 @@
 use strict;
 use warnings;
 
-sub bugHack($);
-
 for my $file(@ARGV){
-  $file =~ s/'/'\\''/g;
-  my $info = `identify '$file'`;
-  $info =~ s/^\Q$file\E//;
-  if($info eq '' and $file =~ /%/){
-    $info = bugHack $file;
-  }
-  if($info =~ / (\d+x\d+)/){
+  $file =~ s/"/\\"/g;
+  my $info = `identify -verbose "$file"`;
+  if($info =~ /^\s*Geometry: (\d+x\d+)/m){
     print "$1\n";
   }else{
     print STDERR "Could not find HxW using imagemagick for $file\n";
   }
-}
-
-sub bugHack($){
-  my $file = shift;
-  print STDERR "  Ran into an imagemagick filename bug involving % signs\n";
-  print STDERR "  $file\n";
-  my $now = `date +%s`;
-  chomp $now;
-  my $tmpFile = "/tmp/pix-tmp-$now";
-  if($file =~ /\.([a-zA-Z0-9_]+)$/){
-    $tmpFile .= ".$1";
-  }
-  system "cp '$file' $tmpFile";
-  my $info = `identify $tmpFile`;
-  $info =~ s/^\Q$tmpFile\E//;
-  system "rm $tmpFile";
-  return $info;
 }
