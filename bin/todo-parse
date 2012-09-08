@@ -12,6 +12,8 @@ my $usage = "Usage:
     -r       print resolved todos only
     -a       print all todos, unresolved first {default}
     --qtodo  print all todos as xml for qtodo
+
+  $0 --add TODO [TODO TODO]   Add todos not in git history to $file
 ";
 
 my %resColor = (
@@ -37,9 +39,16 @@ sub dateFmt($);
 sub col($$);
 
 sub main(@){
+  my @todosToAdd = @_;
+  my $fmtArg = '-a';
+  if(@_ > 1 and $_[0] eq '--add'){
+    shift;
+    @todosToAdd = @_;
+  }else{
     my $args = join "|", qw(-u -r -a --qtodo);
     die "Usage: $0 [$args]\n" if @_ > 1 or (@_ == 1 and $_[0] !~ /^$args$/);
     $fmtArg = shift;
+  }
 
   my (%addTodos, %resolveTodos);
 
@@ -60,6 +69,27 @@ sub main(@){
     die "todo never added: $todo\n" if not defined $addTodos{$todo};
   }
 
+  my @todoPrefixLines;
+  for my $todo(@todosToAdd){
+    $todo = lc $todo;
+    $todo =~ s/^\s*//;
+    $todo =~ s/\s*$//;
+    if(not defined $addTodos{$todo}){
+      print STDERR "appending todo: '$todo'\n";
+      push @todoPrefixLines, "-$todo\n";
+      $addTodos{$todo} = [time(), undef];
+    }
+  }
+  if(@todoPrefixLines > 0){
+    open FH, "< $file" or die "Couldnt read $file\n";
+    my @lines = <FH>;
+    close FH;
+    @lines = (@todoPrefixLines, @lines);
+    open FH, "> $file" or die "Couldnt read $file\n";
+    print FH @lines;
+    close FH;
+  }
+
   my @todos = sort {
     ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
   } keys %addTodos;
@@ -74,7 +104,6 @@ sub main(@){
     my $resTodo = $resolveTodos{$todo};
     my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
     my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
-    
 
     if($fmtArg =~ /qtodo/){
       $qtodoId++;
