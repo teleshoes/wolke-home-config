@@ -5,15 +5,20 @@ use Term::ANSIColor;
 
 my $file = "$ENV{HOME}/TODO";
 
+my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo);
 my $usage = "Usage:
-  $0 [-u|-r|-a|--qtodo]
+  $0 [$okFmtArgs]
     Parse ${file}'s git history to print todos
+
+  $0 --add TODO [TODO ..]
+    Add todos not in git history to $file
+
+    FORMAT:
+    -q       dont print todos
     -u       print unresolved, outstanding todos only
     -r       print resolved todos only
     -a       print all todos, unresolved first {default}
     --qtodo  print all todos as xml for qtodo
-
-  $0 --add TODO [TODO TODO]   Add todos not in git history to $file
 ";
 
 my %resColor = (
@@ -39,15 +44,17 @@ sub dateFmt($);
 sub col($$);
 
 sub main(@){
-  my @todosToAdd = @_;
+  chdir $ENV{HOME};
+  my @todosToAdd;
   my $fmtArg = '-a';
-  if(@_ > 1 and $_[0] eq '--add'){
+  if($_[0] eq '--add'){
     shift;
+    die $usage if @_ == 0;
     @todosToAdd = @_;
-  }else{
-    my $args = join "|", qw(-u -r -a --qtodo);
-    die "Usage: $0 [$args]\n" if @_ > 1 or (@_ == 1 and $_[0] !~ /^$args$/);
+  }elsif(@_ > 0 and $_[0] =~ /^($okFmtArgs)$/){
     $fmtArg = shift;
+  }elsif(@_ > 0){
+    die $usage;
   }
 
   my (%addTodos, %resolveTodos);
@@ -69,25 +76,28 @@ sub main(@){
     die "todo never added: $todo\n" if not defined $addTodos{$todo};
   }
 
-  my @todoPrefixLines;
-  for my $todo(@todosToAdd){
-    $todo = lc $todo;
-    $todo =~ s/^\s*//;
-    $todo =~ s/\s*$//;
-    if(not defined $addTodos{$todo}){
-      print STDERR "appending todo: '$todo'\n";
-      push @todoPrefixLines, "-$todo\n";
-      $addTodos{$todo} = [time(), undef];
+  if(@todosToAdd > 0){
+    my @todoPrefixLines;
+    for my $todo(@todosToAdd){
+      $todo = lc $todo;
+      $todo =~ s/^\s*//;
+      $todo =~ s/\s*$//;
+      if(not defined $addTodos{$todo}){
+        print STDERR "appending todo: '$todo'\n";
+        push @todoPrefixLines, "-$todo\n";
+        $addTodos{$todo} = [time(), undef];
+      }
     }
-  }
-  if(@todoPrefixLines > 0){
-    open FH, "< $file" or die "Couldnt read $file\n";
-    my @lines = <FH>;
-    close FH;
-    @lines = (@todoPrefixLines, @lines);
-    open FH, "> $file" or die "Couldnt read $file\n";
-    print FH @lines;
-    close FH;
+    if(@todoPrefixLines > 0){
+      open FH, "< $file" or die "Couldnt read $file\n";
+      my @lines = <FH>;
+      close FH;
+      @lines = (@todoPrefixLines, @lines);
+      open FH, "> $file" or die "Couldnt read $file\n";
+      print FH @lines;
+      close FH;
+    }
+    return 0;
   }
 
   my @todos = sort {
