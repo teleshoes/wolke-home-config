@@ -13,6 +13,7 @@ my $usage = "Usage:
 ";
 
 
+sub getTodos($$$$$);
 sub todoFmt($$$$);
 sub dateFmt($);
 sub col($$);
@@ -27,24 +28,7 @@ sub main(@){
 
   for my $entry(`git log --format=format:"%H:::%at:::%s" $file`){
     if($entry =~ /^([a-f0-9]+):::(\d+):::(.*)$/){
-      my ($v, $t, $s) = ($1, $2, $3);
-      my $diff = `git diff-tree --cc $v`;
-      my $resolution = $s =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
-      if($diff =~ s/^
-        (.*\n){3,5}
-        ---.*\n
-        \+\+\+.*\n
-        @@.*@@\n//x){
-        for my $line(split /\n/, $diff){
-          if($line =~ /^\+-?(.*)$/){
-            die "TODO ADDED TWICE: $line\n" if defined $addTodos{$1};
-            $addTodos{$1} = [$t, undef];
-          }elsif($line =~ /^--?(.*)$/){
-            die "TODO RESOLVED TWICE: $line\n" if defined $resolveTodos{$1};
-            $resolveTodos{$1} = [$t, $resolution];
-          }
-        }
-      }
+      getTodos $1, $2, $3, \%addTodos, \%resolveTodos;
     }else{
       die "malformed git log line: $entry";
     }
@@ -78,6 +62,30 @@ sub main(@){
   print @unresolved if $arg =~ /-a|-u/;
   print "\n\n\n" if $arg =~ /-a/;
   print @resolved if $arg =~ /-a|-r/;
+}
+
+sub getTodos($$$$$){
+  my ($v, $t, $s, $addTodos, $resolveTodos) = @_;
+  my $diff = `git diff-tree --cc $v`;
+  my $resolution = $s =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
+
+  if($diff =~ s/^
+    (.*\n){3,5}
+    ---.*\n
+    \+\+\+.*\n
+    @@.*@@\n//x){
+    for my $line(split /\n/, $diff){
+      if($line =~ /^\+-?(.*)$/){
+        die "TODO ADDED TWICE: $line\n" if defined $$addTodos{$1};
+        $$addTodos{$1} = [$t, undef];
+      }elsif($line =~ /^--?(.*)$/){
+        die "TODO RESOLVED TWICE: $line\n" if defined $$resolveTodos{$1};
+        $$resolveTodos{$1} = [$t, $resolution];
+      }
+    }
+  }else{
+    die "malformed diff for commit $v\n";
+  }
 }
 
 sub todoFmt($$$$){
