@@ -6,23 +6,40 @@ use Term::ANSIColor;
 my $file = "$ENV{HOME}/TODO";
 
 my $usage = "Usage:
-  $0 [-u|-r|-a]  Parse ${file}'s git history to print todos
-    -u   print unresolved, outstanding todos only
-    -r   print resolved todos only
-    -a   print all todos, unresolved first {default}
+  $0 [-u|-r|-a|--qtodo]
+    Parse ${file}'s git history to print todos
+    -u       print unresolved, outstanding todos only
+    -r       print resolved todos only
+    -a       print all todos, unresolved first {default}
+    --qtodo  print all todos as xml for qtodo
 ";
 
+my %resColor = (
+  FIXED => 'white bold',
+  NONE => 'red bold',
+  DISCARDED => 'blue bold',
+);
+my %resQtodoColor = (
+  FIXED => 'green',
+  NONE => 'red',
+  DISCARDED => 'yellow',
+);
+my %resSym = (
+  FIXED => 'x',
+  NONE => ' ',
+  DISCARDED => '~',
+);
 
 sub getTodos($$$$$);
 sub todoFmt($$$$);
+sub qtodoFmt($$$$$);
 sub dateFmt($);
 sub col($$);
 
 sub main(@){
-  my $args = join "|", qw(-u -r -a);
-  die "Usage: $0 [$args]\n" if @_ > 1 or (@_ == 1 and $_[0] !~ /^$args$/);
-  my $arg = shift;
-  $arg = '-a' if not defined $arg;
+    my $args = join "|", qw(-u -r -a --qtodo);
+    die "Usage: $0 [$args]\n" if @_ > 1 or (@_ == 1 and $_[0] !~ /^$args$/);
+    $fmtArg = shift;
 
   my (%addTodos, %resolveTodos);
 
@@ -47,8 +64,10 @@ sub main(@){
     ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
   } keys %addTodos;
 
-  my @unresolved;
-  my @resolved;
+  my $qtodoId = 0;
+  my (@unresolvedQtodos, @resolvedQtodos);
+
+  my (@unresolved, @resolved);
 
   for my $todo(@todos){
     my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
@@ -56,17 +75,37 @@ sub main(@){
     my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
     my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
     
-    my $line = todoFmt $todo, $resolution, $dateAdded, $dateResolved;
-    if(defined $resTodo){
-      push @resolved, $line;
+
+    if($fmtArg =~ /qtodo/){
+      $qtodoId++;
+      my $qtodo = qtodoFmt(
+        $todo, $resolution, $dateAdded, $dateResolved, $qtodoId);
+      if(defined $resTodo){
+        push @resolvedQtodos, $qtodo;
+      }else{
+        push @unresolvedQtodos, $qtodo;
+      }
     }else{
-      push @unresolved, $line;
+      my $line = todoFmt $todo, $resolution, $dateAdded, $dateResolved;
+      if(defined $resTodo){
+        push @resolved, $line;
+      }else{
+        push @unresolved, $line;
+      }
     }
   }
 
-  print @unresolved if $arg =~ /-a|-u/;
-  print "\n\n\n" if $arg =~ /-a/;
-  print @resolved if $arg =~ /-a|-r/;
+  if($fmtArg =~ /qtodo/){
+    print ''
+      . "<?xml version='1.0' encoding='UTF-8'?>\n"
+      . "<root max_id=\"$qtodoId\">\n"
+      . join('', (@unresolvedQtodos, @resolvedQtodos))
+      . "</root>\n"
+  }else{
+    print @unresolved if $fmtArg =~ /-a|-u/;
+    print "\n\n\n" if $fmtArg =~ /-a/;
+    print @resolved if $fmtArg =~ /-a|-r/;
+  }
 }
 
 sub getTodos($$$$$){
@@ -81,10 +120,12 @@ sub getTodos($$$$$){
     for my $line(split /\n/, $diff){
       if($line =~ /^\+-?(.*)$/){
         die "TODO ADDED TWICE: $line\n" if defined $$addTodos{$1};
-        $$addTodos{$1} = [$date, undef];
+        my $todo = lc $1;
+        $$addTodos{$todo} = [$date, undef];
       }elsif($line =~ /^--?(.*)$/){
         die "TODO RESOLVED TWICE: $line\n" if defined $$resolveTodos{$1};
-        $$resolveTodos{$1} = [$date, $resolution];
+        my $todo = lc $1;
+        $$resolveTodos{$todo} = [$date, $resolution];
       }
     }
   }else{
@@ -95,24 +136,35 @@ sub getTodos($$$$$){
 sub todoFmt($$$$){
   my ($todo, $resolution, $dateAdded, $dateResolved) = @_;
 
-  my %resColor = (
-    FIXED => 'white bold',
-    NONE => 'red bold',
-    DISCARDED => 'blue bold',
-  );
-
-  my %resFmt = (
-    FIXED => 'x',
-    NONE => ' ',
-    DISCARDED => '~',
-  );
+  my $sym = $resSym{$resolution};
+  my $color = $resColor{$resolution};
 
   my $resDate = defined $dateResolved ? " $dateResolved" : '';
   return ''
-    . "[$resFmt{$resolution}]"
+    . "[$sym]"
     . " $dateAdded"
-    . col($resColor{$resolution}, " $todo")
+    . col($color, " $todo")
     . (defined $dateResolved ? " {$dateResolved}" : '')
+    . "\n"
+    ;
+}
+
+sub qtodoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $id) = @_;
+
+  $todo =~ s/&/\&amp;/g;
+  $todo =~ s/</\&lt;/g;
+  $todo = lc $todo;
+  my $color = $resQtodoColor{$resolution};
+
+  return ''
+    . "  <to-do"
+    . ($resolution eq 'NONE' ? '' : " done=\"true\"")
+    . " id=\"$id\""
+    . " color=\"$color\""
+    . ">"
+    . $todo
+    . "</to-do>"
     . "\n"
     ;
 }
