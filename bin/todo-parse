@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $file = "$ENV{HOME}/TODO";
+
+sub todoFmt($$$$);
+sub dateFmt($);
+
+sub main(@){
+
+  my (%addTodos, %resolveTodos);
+
+  for my $entry(`git log --format=format:"%H:::%at:::%s" $file`){
+    if($entry =~ /^([a-f0-9]+):::(\d+):::(.*)$/){
+      my ($v, $t, $s) = ($1, $2, $3);
+      my $diff = `git diff-tree --cc $v`;
+      my $resolution = $s =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
+      if($diff =~ s/^
+        (.*\n){3,5}
+        ---.*\n
+        \+\+\+.*\n
+        @@.*@@\n//x){
+        for my $line(split /\n/, $diff){
+          if($line =~ /^\+-?(.*)$/){
+            die "TODO ADDED TWICE: $line\n" if defined $addTodos{$1};
+            $addTodos{$1} = [$t, undef];
+          }elsif($line =~ /^--?(.*)$/){
+            die "TODO RESOLVED TWICE: $line\n" if defined $resolveTodos{$1};
+            $resolveTodos{$1} = [$t, $resolution];
+          }
+        }
+      }
+    }else{
+      die "malformed git log line: $entry";
+    }
+  }
+
+  for my $todo(keys %resolveTodos){
+    die "todo never added: $todo\n" if not defined $addTodos{$todo};
+  }
+
+  my @todos = sort {
+    ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
+  } keys %addTodos;
+
+  my @unresolved;
+  my @resolved;
+
+  for my $todo(@todos){
+    my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
+    my $resTodo = $resolveTodos{$todo};
+    my $resolution = defined $resTodo ? $$resTodo[1] : undef;
+    my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
+    
+    my $line = todoFmt $todo, $resolution, $dateAdded, $dateResolved;
+    if(defined $resolution){
+      push @resolved, $line;
+    }else{
+      push @unresolved, $line;
+    }
+  }
+
+  print @unresolved;
+  print "\n\n\n";
+  print @resolved;
+}
+
+sub todoFmt($$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved) = @_;
+
+  my %resFmt = (
+    FIXED => 'x',
+    NONE => ' ',
+  );
+  $resolution = 'NONE' if not defined $resolution;
+  my $res = $resFmt{$resolution};
+  $res = '~' if not defined $res;
+
+  my $resDate = defined $dateResolved ? " $dateResolved" : '';
+  return ''
+    . "[$res]"
+    . " $todo"
+    . (defined $dateResolved ? " $dateResolved" : '')
+    . " {$dateAdded}\n"
+    ;
+}
+
+sub dateFmt($){
+  my $d = `date -d \@$_[0]`;
+  chomp $d;
+  return $d;
+}
+
+&main(@ARGV);
