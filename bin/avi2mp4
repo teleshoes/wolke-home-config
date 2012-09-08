@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $quality = 20; # 0..53   0 is best and huge, 20 is very good and smallish
+
+my $avconvExec = 'avconv';
+my @video = ("-vcodec", "libx264", "-crf", $quality);
+my @audio = qw(-acodec aac -strict experimental);
+my @deps = qw( libavcodec-extra-53  ffmpeg ); #libav
+
+sub main(@){
+  die "Usage: $0 FILE [FILE FILE ..]" if @_ == 0 or $_[0] =~ /^(-h|--help)$/;
+
+  for my $dep(@deps){
+    if(`dpkg -s $dep` !~ /Status: install ok installed/){
+      print "$dep is not installed, installing\n";
+      system "apt-get", "install", $dep;
+    }
+  }
+
+  for my $file(@_){
+    my @cmd = ($avconvExec, "-i", $file, @video, @audio, "$file.mp4");
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+&main(@ARGV);
