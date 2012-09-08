@@ -1,13 +1,27 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Term::ANSIColor;
 
 my $file = "$ENV{HOME}/TODO";
 
+my $usage = "Usage:
+  $0 [-u|-r|-a]  Parse ${file}'s git history to print todos
+    -u   print unresolved, outstanding todos only
+    -r   print resolved todos only
+    -a   print all todos, unresolved first {default}
+";
+
+
 sub todoFmt($$$$);
 sub dateFmt($);
+sub col($$);
 
 sub main(@){
+  my $args = join "|", qw(-u -r -a);
+  die "Usage: $0 [$args]\n" if @_ > 1 or (@_ == 1 and $_[0] !~ /^$args$/);
+  my $arg = shift;
+  $arg = '-a' if not defined $arg;
 
   my (%addTodos, %resolveTodos);
 
@@ -50,46 +64,54 @@ sub main(@){
   for my $todo(@todos){
     my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
     my $resTodo = $resolveTodos{$todo};
-    my $resolution = defined $resTodo ? $$resTodo[1] : undef;
+    my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
     my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
     
     my $line = todoFmt $todo, $resolution, $dateAdded, $dateResolved;
-    if(defined $resolution){
+    if(defined $resTodo){
       push @resolved, $line;
     }else{
       push @unresolved, $line;
     }
   }
 
-  print @unresolved;
-  print "\n\n\n";
-  print @resolved;
+  print @unresolved if $arg =~ /-a|-u/;
+  print "\n\n\n" if $arg =~ /-a/;
+  print @resolved if $arg =~ /-a|-r/;
 }
 
 sub todoFmt($$$$){
   my ($todo, $resolution, $dateAdded, $dateResolved) = @_;
 
+  my %resColor = (
+    FIXED => 'blue bold',
+    NONE => 'red bold',
+    DISCARDED => 'white bold',
+  );
+
   my %resFmt = (
     FIXED => 'x',
     NONE => ' ',
+    DISCARDED => '~',
   );
-  $resolution = 'NONE' if not defined $resolution;
-  my $res = $resFmt{$resolution};
-  $res = '~' if not defined $res;
 
   my $resDate = defined $dateResolved ? " $dateResolved" : '';
   return ''
-    . "[$res]"
-    . " $todo"
+    . "[$resFmt{$resolution}]"
+    . col($resColor{$resolution}, " $todo")
     . (defined $dateResolved ? " $dateResolved" : '')
     . " {$dateAdded}\n"
     ;
 }
 
 sub dateFmt($){
-  my $d = `date -d \@$_[0]`;
+  my $d = `date -d \@$_[0] +'%Y-%m-%d %H:%M'`;
   chomp $d;
   return $d;
+}
+
+sub col($$){
+  return color($_[0]) . $_[1] . color('reset');
 }
 
 &main(@ARGV);
