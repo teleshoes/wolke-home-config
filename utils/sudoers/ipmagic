@@ -29,7 +29,8 @@ my $usage = "Usage:
     $0 CONF_FILE [-v|--verbose] [-u USER] -s [CMD ARG ARG..]
       setup hosts file, init usb devices, and ssh to host
     $0 CONF_FILE [-v|--verbose] [-u USER] -b BASHCMD
-      setup hosts file, init usb devices, and ssh with bash -c SHELLCMD
+      setup hosts file, init usb devices, and ssh with bash -c BASHCMD
+      if CONF_FILE has preBashCommand, cmd is bash -c \"PREBASHCMD; BASHCMD\"
     $0 CONF_FILE [-v|--verbose] --host
       print the hostname and exit, doing nothing else
     $0 --set-hosts HOSTNAME MARKER IP
@@ -93,7 +94,14 @@ sub main(@){
     die "-b missing command\n" if @_ == 0;
     my $c = "@_";
     $c =~ s/'/'\\''/g;
-    @sshCmd = ("bash -c '$c'");
+    my $preBashCmd = $config{preBashCommand};
+    if(defined $preBashCmd){
+      $preBashCmd =~ s/'/'\\''/g;
+      $c = "'$preBashCmd; $c'"
+    }else{
+      $c = "'$c'";
+    }
+    @sshCmd = ("bash -c $c");
   }elsif(@_ > 0){
     die $usage;
   }
@@ -153,7 +161,7 @@ sub parseConfig($){
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
     hostname twipPort vncCommand vncDefaultArgs defaultUser
-    usbLocalIp usbRemoteIp
+    usbLocalIp usbRemoteIp preBashCommand
   );
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
   my %assertMac = map {$_ => 1} qw(mac);
