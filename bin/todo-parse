@@ -37,8 +37,11 @@ my %resSym = (
   DISCARDED => '~',
 );
 
+sub getPrefix($$);
+sub getSeparator($);
+sub getSuffix($);
 sub getTodos($$$$$);
-sub todoFmt($$$$);
+sub todoFmt($$$$$);
 sub qtodoFmt($$$$$);
 sub dateFmt($);
 sub col($$);
@@ -103,9 +106,7 @@ sub main(@){
     ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
   } keys %addTodos;
 
-  my $qtodoId = 0;
-  my (@unresolvedQtodos, @resolvedQtodos);
-
+  my $count = 0;
   my (@unresolved, @resolved);
 
   for my $todo(@todos){
@@ -114,35 +115,55 @@ sub main(@){
     my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
     my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
 
-    if($fmtArg =~ /qtodo/){
-      $qtodoId++;
-      my $qtodo = qtodoFmt(
-        $todo, $resolution, $dateAdded, $dateResolved, $qtodoId);
-      if(defined $resTodo){
-        push @resolvedQtodos, $qtodo;
-      }else{
-        push @unresolvedQtodos, $qtodo;
-      }
+    $count++;
+    my $fmtSub;
+    if($fmtArg eq '--qtodo'){
+      $fmtSub = \&qtodoFmt;
     }else{
-      my $line = todoFmt $todo, $resolution, $dateAdded, $dateResolved;
-      if(defined $resTodo){
-        push @resolved, $line;
-      }else{
-        push @unresolved, $line;
-      }
+      $fmtSub = \&todoFmt;
+    }
+
+    my $todoStr = &$fmtSub(
+      $todo, $resolution, $dateAdded, $dateResolved, $count);
+    if(defined $resTodo){
+      push @resolved, $todoStr;
+    }else{
+      push @unresolved, $todoStr;
     }
   }
 
+  print getPrefix($fmtArg, $count);
+  print @unresolved unless $fmtArg =~ /^(-q|-r)$/;
+  print getSeparator($fmtArg) unless $fmtArg =~ /^(-q|-r|-u)$/;
+  print @resolved unless $fmtArg =~ /^(-q|-u)$/;
+  print getSuffix($fmtArg);
+}
+
+sub getPrefix($$){
+  my ($fmtArg, $count) = @_;
   if($fmtArg =~ /qtodo/){
-    print ''
+    return ""
       . "<?xml version='1.0' encoding='UTF-8'?>\n"
-      . "<root max_id=\"$qtodoId\">\n"
-      . join('', (@unresolvedQtodos, @resolvedQtodos))
-      . "</root>\n"
+      . "<root max_id=\"$count\">\n"
+      ;
   }else{
-    print @unresolved if $fmtArg =~ /-a|-u/;
-    print "\n\n\n" if $fmtArg =~ /-a/;
-    print @resolved if $fmtArg =~ /-a|-r/;
+    return "";
+  }
+}
+sub getSeparator($){
+  my $fmtArg = shift;
+  if($fmtArg =~ /qtodo/){
+    return "";
+  }else{
+    return "\n\n\n";
+  }
+}
+sub getSuffix($){
+  my $fmtArg = shift;
+  if($fmtArg =~ /qtodo/){
+    return "</root>\n"
+  }else{
+    return "";
   }
 }
 
@@ -171,8 +192,8 @@ sub getTodos($$$$$){
   }
 }
 
-sub todoFmt($$$$){
-  my ($todo, $resolution, $dateAdded, $dateResolved) = @_;
+sub todoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
 
   my $sym = $resSym{$resolution};
   my $color = $resColor{$resolution};
@@ -187,7 +208,7 @@ sub todoFmt($$$$){
 }
 
 sub qtodoFmt($$$$$){
-  my ($todo, $resolution, $dateAdded, $dateResolved, $id) = @_;
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
 
   $todo =~ s/&/\&amp;/g;
   $todo =~ s/</\&lt;/g;
@@ -197,7 +218,7 @@ sub qtodoFmt($$$$$){
   return ''
     . "  <to-do"
     . ($resolution eq 'NONE' ? '' : " done=\"true\"")
-    . " id=\"$id\""
+    . " id=\"$num\""
     . " color=\"$color\""
     . ">"
     . $todo
