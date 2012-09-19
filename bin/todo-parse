@@ -5,7 +5,7 @@ use Term::ANSIColor;
 
 my $file = "$ENV{HOME}/TODO";
 
-my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo);
+my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html);
 my $usage = "Usage:
   $0 [$okFmtArgs]
     Parse ${file}'s git history to print todos
@@ -19,6 +19,7 @@ my $usage = "Usage:
     -r       print resolved todos only
     -a       print all todos, unresolved first {default}
     --qtodo  print all todos as xml for qtodo
+    --html   print all todos as html
 ";
 
 my %resColor = (
@@ -30,6 +31,11 @@ my %resQtodoColor = (
   FIXED => 'green',
   NONE => 'red',
   DISCARDED => 'yellow',
+);
+my %resHTMLStyle = (
+  FIXED => 'color:black; font-weight:bold',
+  NONE => 'color:red; font-weight:bold',
+  DISCARDED => 'color:blue; font-weight:bold',
 );
 my %resSym = (
   FIXED => 'x',
@@ -119,6 +125,8 @@ sub main(@){
     my $fmtSub;
     if($fmtArg eq '--qtodo'){
       $fmtSub = \&qtodoFmt;
+    }elsif($fmtArg eq '--html'){
+      $fmtSub = \&htmlTodoFmt;
     }else{
       $fmtSub = \&todoFmt;
     }
@@ -146,6 +154,8 @@ sub getPrefix($$){
       . "<?xml version='1.0' encoding='UTF-8'?>\n"
       . "<root max_id=\"$count\">\n"
       ;
+  }elsif($fmtArg =~ /html/){
+    return "<html>\n<body style=\"font-family: monospace\">\n<table>\n";
   }else{
     return "";
   }
@@ -154,6 +164,8 @@ sub getSeparator($){
   my $fmtArg = shift;
   if($fmtArg =~ /qtodo/){
     return "";
+  }elsif($fmtArg =~ /html/){
+    return "</table>\n<table>\n";
   }else{
     return "\n\n\n";
   }
@@ -162,6 +174,8 @@ sub getSuffix($){
   my $fmtArg = shift;
   if($fmtArg =~ /qtodo/){
     return "</root>\n"
+  }elsif($fmtArg =~ /html/){
+    return "</table>\n</body>\n<html>\n";
   }else{
     return "";
   }
@@ -224,6 +238,24 @@ sub qtodoFmt($$$$$){
     . $todo
     . "</to-do>"
     . "\n"
+    ;
+}
+
+sub htmlTodoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+  my $sym = $resSym{$resolution};
+
+  $todo =~ s/&/\&amp;/g;
+  $todo =~ s/</\&lt;/g;
+  $todo = lc $todo;
+  my $style = $resHTMLStyle{$resolution};
+
+  return ''
+    . "  <tr>\n"
+    . "    <td>[$sym]</td>\n"
+    . "    <td>$dateAdded</td>\n"
+    . "    <td style=\"$style\">$todo</td>\n"
+    . "  </tr>\n"
     ;
 }
 
