@@ -16,7 +16,7 @@ cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
         dzenArgs = " 500 24 -fn inconsolata-14 "
 
 data WStatus = Wlan | Wired | PPP |
-               Wconnect | Wauto | Tethering
+               Wconnect | Wauto | Tethering |
                None | Unknown deriving(Eq)
 
 readWStatus :: IO WStatus
