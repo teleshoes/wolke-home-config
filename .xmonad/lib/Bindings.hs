@@ -153,6 +153,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((alct, xK_t     ), spawn "transmission-gtk")
   , ((alct, xK_e     ), spawn "eclipse")
   , ((alct, xK_s     ), spawn "stepmania -w")
+  , ((alct, xK_i     ), spawn "stepmania -i")
   ]
 
   ++
