@@ -67,6 +67,7 @@ main = do
                          , title     =? "Transmission"     --> doShift "9"
                          , title     =? "Torrent Options"  --> doShiftView "9"
                          , title     =? firefoxClose       --> restartFF
+                         , title     =? "qtbigtext.py"     --> doFull
                          , title     =? "StepMania"        --> doFull
                          , title     =? "npviewer.bin"     --> doFull -- flash
                          , title     =? "plugin-container" --> doFull -- flash
