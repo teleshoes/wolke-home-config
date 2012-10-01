@@ -59,7 +59,7 @@ main = do
                          ,
 
     manageHook         = composeAll
-                         [ className =? "Eclipse"          --> doShift "A"
+                         [ className =? "Eclipse"          --> doShift "A" <+> doUnfloat
                          , className =? "Pidgin"           --> doShift "B"
                          , className =? "Thunderbird"      --> doShift "8"
                          , title     =? "Off"              --> doFloat
@@ -96,6 +96,7 @@ removeStruts = SetStruts [] [U,D,L,R]
 
 doView workspace = doF $ Stk.view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
+doUnfloat = ask >>= doF . Stk.sink
 doFull = do
   liftX $ sendMessage $ removeStruts
   (liftX . sendMessage . JumpToLayout) "full"
