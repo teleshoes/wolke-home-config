@@ -59,7 +59,8 @@ main = do
                          ,
 
     manageHook         = composeAll
-                         [ className =? "Eclipse"          --> doShift "A" <+> doUnfloat
+                         [ title     =? "Find/Replace "    --> doFloat
+                         , className =? "Eclipse"          --> doShift "A" <+> doUnfloat
                          , className =? "Pidgin"           --> doShift "B"
                          , className =? "Thunderbird"      --> doShift "8"
                          , title     =? "Off"              --> doFloat
