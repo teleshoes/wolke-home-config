@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = "/etc/X11";
+my $prefix = "xorg.conf";
+my $dest = "$dir/$prefix";
+
+sub checkPresent();
+sub setConfName($);
+sub getAvailNames();
+
+my @okConfNames = getAvailNames();
+
+my $usage = "Usage:
+  $0 -h|help
+    print this message
+  $0 xorg-conf-name
+    overwrite $dest
+    back it up if it is not the same as one of the available ones
+
+  available xorg-conf-names:
+    @okConfNames
+";
+
+sub main(@){
+  if(`whoami` ne "root\n"){
+    print "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+
+  die $usage if @_ != 1 or $_[0] =~ /^(-h|--help)$/;
+
+  setConfName($_[0]);
+}
+
+sub checkPresent(){
+  my $destSum = `md5sum $dest | cut -c-32`;
+  chomp $destSum;
+  my @sums = split /\n/, `md5sum $dir/$prefix.* | cut -c-32`;
+  my %okSums = map {$_ => 1} @sums;
+  return defined $okSums{$destSum};
+}
+
+sub setConfName($){
+  my $name = shift;
+  my $conf = "$dir/$prefix.$name";
+  if(not -f $conf){
+    die "Could not find $conf\n\n$usage";
+  }
+  if(not checkPresent()){
+    my $bak = "$dest.bak_" . time();
+    print "backing up $dest to: $bak\n";
+    system "mv", $dest, $bak;
+  }
+  print "copying $conf to $dest\n";
+  system "cp", $conf, $dest;
+}
+
+sub getAvailNames(){
+  my @ok = split /\n/, `ls $dir/$prefix.*`;
+  s/^$dir\/$prefix.// for @ok;
+  return @ok;
+}
+
+&main(@ARGV);
