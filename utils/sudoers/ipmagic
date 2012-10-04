@@ -56,6 +56,8 @@ my $usage = "Usage:
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
         -u|--user USER      ssh user
+        -m|--method METHOD  method of obtaining ip
+                            one of [$methods]
 ";
 
 sub main(@){
@@ -97,6 +99,8 @@ sub main(@){
       $opts{verbose} = 1;
     }elsif(@_ > 0 and $arg =~ /^(-u|--user)$/){
       $opts{user} = shift;
+    }elsif(@_ > 0 and $arg =~ /^(-m|--method)$/){
+      $opts{method} = shift;
     }else{
       die $usage;
     }
@@ -105,6 +109,7 @@ sub main(@){
   $opts{verbose} = 0 if not defined $opts{verbose};
   $opts{user} = $config{defaultUser} if not defined $opts{user};
   $opts{user} = 'root' if not defined $opts{user};
+  $opts{method} = 'any' if not defined $opts{method};
 
 
   my ($isVnc, $isSsh) = (0, 0);
@@ -143,19 +148,19 @@ sub main(@){
   }
 
   my ($ip, $method);
-  if(not defined $ip){
+  if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
     ($ip, $method) = (readTmpFile($confFile), 'tmp');
   }
-  if(not defined $ip){
+  if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
     ($ip, $method) = (usb(\%config, \%opts), 'usb');
   }
-  if(not defined $ip){
+  if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
     ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
   }
-  if(not defined $ip){
+  if(not defined $ip and $opts{method} =~ /^(any|twip)$/){
     ($ip, $method) = (twip(\%config, \%opts), 'twip');
   }
-  if(not defined $ip/){
+  if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
     ($ip, $method) = (guess(\%config, \%opts), 'guess');
   }
   $method = undef if not defined $ip;
