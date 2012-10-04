@@ -185,6 +185,8 @@ sub getTodos($$$$$){
   my ($diff, $date, $summary, $addTodos, $resolveTodos) = @_;
   my $resolution = $summary =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
 
+  my %adds;
+  my %resolves;
   if($diff =~ s/^
     (.*\n){2,5}
     ---.*\n
@@ -192,17 +194,31 @@ sub getTodos($$$$$){
     @@.*@@\n//x){
     for my $line(split /\n/, $diff){
       if($line =~ /^\+-?(.*)$/){
-        die "TODO ADDED TWICE: $line\n" if defined $$addTodos{$1};
-        my $todo = lc $1;
-        $$addTodos{$todo} = [$date, undef];
+        $adds{lc $1} = 1;
       }elsif($line =~ /^--?(.*)$/){
-        die "TODO RESOLVED TWICE: $line\n" if defined $$resolveTodos{$1};
-        my $todo = lc $1;
-        $$resolveTodos{$todo} = [$date, $resolution];
+        $resolves{lc $1} = 1;
       }
     }
   }else{
     die "malformed diff:\n$diff\n";
+  }
+
+  for my $todo(keys %adds){
+    if(defined $resolves{$todo}){
+      #todo rearranged
+      delete $adds{$todo};
+      delete $resolves{$todo};
+    }
+  }
+
+  for my $todo(keys %adds){
+    die "TODO ADDED TWICE: $todo\n" if defined $$addTodos{$1};
+    $$addTodos{$todo} = [$date, undef];
+  }
+
+  for my $todo(keys %resolves){
+    die "TODO RESOLVED TWICE: $todo\n" if defined $$resolveTodos{$1};
+    $$resolveTodos{$todo} = [$date, $resolution];
   }
 }
 
