@@ -5,7 +5,7 @@ use Term::ANSIColor;
 
 my $file = "$ENV{HOME}/TODO";
 
-my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html);
+my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html --ff);
 my $usage = "Usage:
   $0 [$okFmtArgs]
     Parse ${file}'s git history to print todos
@@ -20,6 +20,7 @@ my $usage = "Usage:
     -a       print all todos, unresolved first {default}
     --qtodo  print all todos as xml for qtodo
     --html   print all todos as html
+    --ff     write all todos as html to a tmp file and open it with firefox
 ";
 
 my %resColor = (
@@ -125,7 +126,7 @@ sub main(@){
     my $fmtSub;
     if($fmtArg eq '--qtodo'){
       $fmtSub = \&qtodoFmt;
-    }elsif($fmtArg eq '--html'){
+    }elsif($fmtArg =~ /^(--html|--ff)/){
       $fmtSub = \&htmlTodoFmt;
     }else{
       $fmtSub = \&todoFmt;
@@ -140,11 +141,22 @@ sub main(@){
     }
   }
 
-  print getPrefix($fmtArg, $count);
-  print @unresolved unless $fmtArg =~ /^(-q|-r)$/;
-  print getSeparator($fmtArg) unless $fmtArg =~ /^(-q|-r|-u)$/;
-  print @resolved unless $fmtArg =~ /^(-q|-u)$/;
-  print getSuffix($fmtArg);
+  my $msg = '';
+  $msg .= getPrefix($fmtArg, $count);
+  $msg .= "@unresolved" unless $fmtArg =~ /^(-q|-r)$/;
+  $msg .= getSeparator($fmtArg) unless $fmtArg =~ /^(-q|-r|-u)$/;
+  $msg .= "@resolved" unless $fmtArg =~ /^(-q|-u)$/;
+  $msg .= getSuffix($fmtArg);
+
+  if($fmtArg =~ /^(--ff)$/){
+    my $tmpFile = "/tmp/parse-todo-" . time() . ".html";
+    open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
+    print FH $msg;
+    close FH;
+    system "firefox", $tmpFile;
+  }else{
+    print $msg;
+  }
 }
 
 sub getPrefix($$){
@@ -154,7 +166,7 @@ sub getPrefix($$){
       . "<?xml version='1.0' encoding='UTF-8'?>\n"
       . "<root max_id=\"$count\">\n"
       ;
-  }elsif($fmtArg =~ /html/){
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
     return "<html>\n<body style=\"font-family: monospace\">\n<table>\n";
   }else{
     return "";
@@ -164,7 +176,7 @@ sub getSeparator($){
   my $fmtArg = shift;
   if($fmtArg =~ /qtodo/){
     return "";
-  }elsif($fmtArg =~ /html/){
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
     return "</table>\n<table>\n";
   }else{
     return "\n\n\n";
@@ -174,7 +186,7 @@ sub getSuffix($){
   my $fmtArg = shift;
   if($fmtArg =~ /qtodo/){
     return "</root>\n"
-  }elsif($fmtArg =~ /html/){
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
     return "</table>\n</body>\n<html>\n";
   }else{
     return "";
