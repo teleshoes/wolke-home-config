@@ -71,6 +71,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
 
   --shortcuts
   , ((none, xf86think), spawn "term")
+  , ((none, reload   ), spawn "term")
   , ((alt,  xK_F2    ), spawn "term")
   , ((alt,  xf86think), spawn "LaunchTerm.hs")
   , ((ctrl, xf86think), spawn "term ghci")
@@ -191,6 +192,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     volUp = xF86XK_AudioRaiseVolume
     power = xF86XK_PowerOff
     volDown = xF86XK_AudioLowerVolume
+    reload = xF86XK_Reload
     xf86think = xF86XK_Launch1
     xf86mic = xF86XK_Launch2
     xf86mute = xF86XK_AudioMute
