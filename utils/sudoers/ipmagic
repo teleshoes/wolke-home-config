@@ -17,75 +17,94 @@ sub writeTmpFile($$);
 sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
-sub usb($);
-sub wifi($);
-sub twip($);
-sub guess($);
+sub usb($$);
+sub wifi($$);
+sub twip($$);
+sub guess($$);
 
-my $VERBOSE = 0;
+my $methods = join "|", qw(any tmp usb wifi twip guess);
 
 my $usage = "Usage:
-    $0 CONF_FILE [-v|--verbose] [-u USER]
-      setup hosts file, init usb devices, and print hostname
-    $0 CONF_FILE [-v|--verbose] [-u USER] -vnc [ARGS]
-      setup hosts file, init usb devices, and call vncCmd
-      e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
-    $0 CONF_FILE [-v|--verbose] [-u USER] -s [CMD ARG ARG..]
-      setup hosts file, init usb devices, and ssh to host
-    $0 CONF_FILE [-v|--verbose] [-u USER] -b BASHCMD
-      setup hosts file, init usb devices, and ssh with bash -c BASHCMD
-      if CONF_FILE has preBashCommand, cmd is bash -c \"PREBASHCMD; BASHCMD\"
-    $0 CONF_FILE [-v|--verbose] --host
+    $0 -h|--help
+      print this usage
+    $0 --set-hosts HOSTNAME MARKER IP
+      update the hosts file line and exit
+    $0 --ifup DEV IP
+      ifup the DEV with the IP
+
+    $0 CONF_FILE --host
       print the hostname and exit, doing nothing else
-    $0 CONF_FILE [-v|--verbose] -t|--tmp [IP]
+
+    $0 CONF_FILE -t|--tmp [IP]
       write IP to a tmp file, or if IP is not given, remove tmp file.
       the tmp file is read first while setting up the hosts file,
         and overrides all other methods of finding an ip
       tmp file is: /tmp/ipmagicCONF.tmp
         where CONF is the absolute path to CONF_FILE with /s replaced with _s
         e.g.: /tmp/ipmagic_home_user_raspberrypi.conf.tmp
-    $0 --set-hosts HOSTNAME MARKER IP
-      simply update the hosts file line
-    $0 --ifup DEV IP
-      ifup the DEV with the IP
-    USER is the user that will be used in -s, -b, and -vnc\n";
+
+    $0 CONF_FILE [OPTS] [ACTION]
+      setup hosts file, init devices, and optionally perform an action
+      ACTIONS:
+        -s [CMD ARG ARG..]  ssh to host
+        -b  BASHCMD         ssh with bash -c BASHCMD
+                            if CONF_FILE has preBashCommand,
+                            cmd is bash -c \"PREBASHCMD; BASHCMD\"
+        -vnc [VNC_ARGS]     call vncCmd
+                            e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
+
+      OPTS:
+        -v|--verbose        print every little thing that springs to our mouths
+        -u|--user USER      ssh user
+";
 
 sub main(@){
-  if(@_ == 4 and $_[0] eq '--set-hosts'){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 4 and $_[0] =~ /^(--set-hosts)$/){
     setHosts $_[1], $_[2], $_[3];
     exit 0;
-  }elsif(@_ == 3 and $_[0] eq '--ifup'){
+  }elsif(@_ == 3 and $_[0] =~ /^(--ifup)$/){
     ifup $_[1], $_[2];
     exit 0;
   }
+
+
   my $confFile = shift;
+  die $usage if not defined $confFile;
   $confFile = absolutePath $confFile;
-  die $usage if not defined $confFile or not -e $confFile;
-
-  $VERBOSE = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
-
+  die "Could not read $confFile {$0 -h for usage}\n" if not -f $confFile;
   my %config = %{parseConfig $confFile};
+
   die "hostname not defined in conf\n" if not defined $config{hostname};
-  my $hostname = $config{hostname};
+
+
   if(@_ == 1 and $_[0] eq '--host'){
-    print "$hostname\n";
+    print "$config{hostname}\n";
     exit 0;
-  }
-  if((@_ == 1 or @_ == 2) and $_[0] =~ /^(-t|--tmp)$/){
+  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(-t|--tmp)$/){
     my $ip = $_[1] if @_ == 2;
     writeTmpFile $confFile, $ip;
     exit 0;
   }
 
-  my $sshUser;
-  if(@_ > 1 and $_[0] eq '-u'){
-    shift;
-    $sshUser = shift;
-  }elsif(defined $config{defaultUser}){
-    $sshUser = $config{defaultUser};
-  }else{
-    $sshUser = 'root';
+
+  my %opts;
+  while(@_ > 0 and $_[0] =~ /^-v|--verbose|-u|--user|-m|--method$/){
+    my $arg = shift;
+    if($arg =~ /^(-v|--verbose)$/){
+      $opts{verbose} = 1;
+    }elsif(@_ > 0 and $arg =~ /^(-u|--user)$/){
+      $opts{user} = shift;
+    }else{
+      die $usage;
+    }
   }
+
+  $opts{verbose} = 0 if not defined $opts{verbose};
+  $opts{user} = $config{defaultUser} if not defined $opts{user};
+  $opts{user} = 'root' if not defined $opts{user};
 
 
   my ($isVnc, $isSsh) = (0, 0);
@@ -96,7 +115,7 @@ sub main(@){
     if(defined $config{vncCommand}){
       $vncCmd = $config{vncCommand};
     }else{
-      $vncCmd = "vnc $sshUser\@$hostname";
+      $vncCmd = "vnc $opts{user}\@$config{hostname}";
     }
     if(@_ > 0){
       $vncCmd .= " @_";
@@ -124,33 +143,43 @@ sub main(@){
   }
 
   my ($ip, $method);
-  ($ip, $method) = (readTmpFile($confFile), 'tmp') if not defined $ip;
-  ($ip, $method) = (usb(\%config), 'usb') if not defined $ip;
-  ($ip, $method) = (wifi(\%config), 'wifi') if not defined $ip;
-  ($ip, $method) = (twip(\%config), 'twip') if not defined $ip;
-  ($ip, $method) = (guess(\%config), 'guess') if not defined $ip;
+  if(not defined $ip){
+    ($ip, $method) = (readTmpFile($confFile), 'tmp');
+  }
+  if(not defined $ip){
+    ($ip, $method) = (usb(\%config, \%opts), 'usb');
+  }
+  if(not defined $ip){
+    ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
+  }
+  if(not defined $ip){
+    ($ip, $method) = (twip(\%config, \%opts), 'twip');
+  }
+  if(not defined $ip/){
+    ($ip, $method) = (guess(\%config, \%opts), 'guess');
+  }
   $method = undef if not defined $ip;
 
-  if(not defined $ip and not quickPingable $hostname){
-    die "No ip found, and could not ping $hostname\n";
+  if(not defined $ip and not quickPingable $config{hostname}){
+    die "No ip found, and could not ping $config{hostname}\n";
   }else{
     maybeUpdateHosts \%config, $ip;
   }
 
   if($isVnc){
-    print "$vncCmd\n" if $VERBOSE;
+    print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
   }elsif($isSsh){
     if($method eq 'twip' and defined $config{twipPort}){
       my $port = $config{twipPort};
-      print "sshing on port $port\n" if $VERBOSE;
+      print "sshing on port $port\n" if $opts{verbose};
       @sshCmd = ("-p", $port, @sshCmd);
     }
-    my @cmd = ("ssh", "$sshUser\@$hostname", @sshCmd);
-    print "@cmd\n" if $VERBOSE;
+    my @cmd = ("ssh", "$opts{user}\@$config{hostname}", @sshCmd);
+    print "@cmd\n" if $opts{verbose};
     exec @cmd;
   }else{
-    print "$hostname\n";
+    print "$config{hostname}\n";
   }
 }
 
@@ -350,12 +379,13 @@ sub sudoIfup($$){
   system "sudo", $0, "--ifup", $dev, $ip;
 }
 
-sub usb($){
+sub usb($$){
   my %config = %{shift()};
+  my %opts = %{shift()};
   if(not defined $config{usbLocalIp} or not defined $config{usbRemoteIp}){
     return undef;
   }
-  print "Trying usb\n" if $VERBOSE;
+  print "Trying usb\n" if $opts{verbose};
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
 
@@ -365,21 +395,22 @@ sub usb($){
     #if($ifconfig =~ /^([a-z0-9_]+).*$mac\s*$/mi){
     if($ifconfig =~ /^(usb\d+)/mi){ #assume any usb, because mac keeps changing
       my $dev = $1;
-      print "USB network device $dev found, assuming this is it\n" if $VERBOSE;
+      print "USB network device $dev found, assuming this is it\n" if $opts{verbose};
       $ifconfig = `ifconfig $dev`;
       if($ifconfig !~ /inet addr:$localIp/){
         print STDERR "USB DEVICE UP\n";
         sudoIfup $dev, $localIp;
       }
-      print "  success!\n" if $VERBOSE;
+      print "  success!\n" if $opts{verbose};
       return $remoteIp;
     }
   }
   return undef;
 }
 
-sub wifi($){
+sub wifi($$){
   my %config = %{shift()};
+  my %opts = %{shift()};
   if(not defined $config{macIpMap} and not defined $config{ssidIpMap}){
     return undef;
   }
@@ -390,7 +421,7 @@ sub wifi($){
   my $iwconfig = `iwconfig 2>/dev/null`;
   my $mac = lc ($iwconfig =~ /Access Point: ([a-z0-9:]+)/i ? $1 : '<none>');
   my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
-  print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $VERBOSE;
+  print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $opts{verbose};
 
   my $macIp;
   for my $macConfig(keys %macIpMap){
@@ -399,42 +430,44 @@ sub wifi($){
   my $ssidIp = $ssidIpMap{$ssid};
 
   if(defined $macIp){
-    print "  chose IP $macIp by mac\n" if $VERBOSE;
-    print "  success!\n" if $VERBOSE;
+    print "  chose IP $macIp by mac\n" if $opts{verbose};
+    print "  success!\n" if $opts{verbose};
     return $macIp;
   }elsif(defined $ssidIp){
-    print "  chose IP $ssidIp by ssid\n" if $VERBOSE;
-    print "  success!\n" if $VERBOSE;
+    print "  chose IP $ssidIp by ssid\n" if $opts{verbose};
+    print "  success!\n" if $opts{verbose};
     return $ssidIp;
   }
 
   return undef;
 }
 
-sub twip($){
+sub twip($$){
   my %config = %{shift()};
+  my %opts = %{shift()};
   if(defined $config{twipPort}){
-    print "Trying twip\n" if $VERBOSE;
+    print "Trying twip\n" if $opts{verbose};
     my $ip = `twipc --fetch`;
     chomp $ip;
     print "  got $ip\n";
     if($ip =~ /^\d+ \. \d+ \. \d+ \. \d+$/x){
-      print "  success!\n" if $VERBOSE;
+      print "  success!\n" if $opts{verbose};
       return $ip;
     }
   }
   return undef;
 }
 
-sub guess($){
+sub guess($$){
   my %config = %{shift()};
+  my %opts = %{shift()};
   my $hostname = $config{hostname};
   if(defined $config{ipGuessList}){
-    print "Trying guesses\n" if $VERBOSE;
+    print "Trying guesses\n" if $opts{verbose};
     for my $ip(@{$config{ipGuessList}}){
-      print "  guess $ip\n" if $VERBOSE;
+      print "  guess $ip\n" if $opts{verbose};
       if(quickPingable $ip){
-        print "  success!\n" if $VERBOSE;
+        print "  success!\n" if $opts{verbose};
         return $ip;
       }
     }
