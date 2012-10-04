@@ -109,14 +109,15 @@ sub main(@){
     return 0;
   }
 
-  my @todos = sort {
-    ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
-  } keys %addTodos;
 
   my $count = 0;
-  my (@unresolved, @resolved);
 
-  for my $todo(@todos){
+  my @todos;
+
+  my @todoSort = sort {
+    ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
+  } keys %addTodos;
+  for my $todo(@todoSort){
     my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
     my $resTodo = $resolveTodos{$todo};
     my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
@@ -124,7 +125,7 @@ sub main(@){
 
     $count++;
     my $fmtSub;
-    if($fmtArg eq '--qtodo'){
+    if($fmtArg =~ /^(qtodo)$/){
       $fmtSub = \&qtodoFmt;
     }elsif($fmtArg =~ /^(--html|--ff)/){
       $fmtSub = \&htmlTodoFmt;
@@ -134,12 +135,22 @@ sub main(@){
 
     my $todoStr = &$fmtSub(
       $todo, $resolution, $dateAdded, $dateResolved, $count);
-    if(defined $resTodo){
-      push @resolved, $todoStr;
-    }else{
-      push @unresolved, $todoStr;
-    }
+    push @todos, [$todoStr, $resolution, $dateAdded, $dateResolved];
   }
+
+  @todos = sort {
+    my ($aFmt, $aRes, $aDateAdded, $aDateResolved) = @$a;
+    my ($bFmt, $bRes, $bDateAdded, $bDateResolved) = @$b;
+    my %resSort = (NONE => 0, FIXED => 1, DISCARDED => 2);
+    $aDateResolved = '' if not defined $aDateResolved;
+    $bDateResolved = '' if not defined $bDateResolved;
+    return 0
+      || $bDateAdded cmp $aDateAdded
+  } @todos;
+
+  my @unresolved = map {$$_[0]} grep {"NONE" eq $$_[1]} @todos;
+  my @resolved = map {$$_[0]} grep {"NONE" ne $$_[1]} @todos;
+
 
   my $msg = '';
   $msg .= getPrefix($fmtArg, $count);
