@@ -112,7 +112,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_t     ), spawn "fcronjob te toggle")
 
   , ((supr, xK_s     ), spawn "sleep 1; screenOff") --monitor off
-  , ((shmd, xK_s     ), spawn "sleep 1; screenOff") --monitor off
   , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
 
   , ((none, xf86mic  ), spawn "pulse-vol microphone toggle")
@@ -139,10 +138,6 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
   , ((supr, xK_F2    ), spawn "sudo cpu-set ondemand 800 1400")
   , ((supr, xK_F3    ), spawn "sudo cpu-set ondemand 800 800")
   , ((supr, xK_F4    ), spawn "sudo cpu-set ondemand 2201 2201")
-  , ((shmd, xK_F1    ), spawn "sudo cpu-set ondemand 800 2201")
-  , ((shmd, xK_F2    ), spawn "sudo cpu-set ondemand 800 1400")
-  , ((shmd, xK_F3    ), spawn "sudo cpu-set ondemand 800 800")
-  , ((shmd, xK_F4    ), spawn "sudo cpu-set ondemand 2201 2201")
 
   , ((supr, xK_1     ), spawn "sudo wauto")
   , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo tether off; sudo wired off")
