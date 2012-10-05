@@ -183,7 +183,7 @@ myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
     alct = alt .|. ctrl
     ctsh = ctrl .|. shft
     ctsu = ctrl .|. supr
-    chsu = shft .|. ctrl .|. supr
+    chsu = ctrl .|. shft .|. supr
     none = 0
     pgUp = xK_Prior
     pgDn = xK_Next
