@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub readToggle();
+sub writeToggle($);
+sub screen($);
+
+my $lastStatusFile = "/tmp/screen-status";
+
+my $usage = "Usage: $0 [on|off|toggle] {default is toggle}\n";
+
+sub main(@){
+  my $arg = lc shift() if @_ > 0;
+  $arg = 'toggle' if not defined $arg;
+  die $usage if @ARGV > 0 or $arg !~ /^(on|off|toggle)$/;
+
+  $arg = readToggle() eq 'on' ? 'off' : 'on' if $arg eq 'toggle';
+  writeToggle $arg;
+
+  screen $arg;
+}
+
+sub readToggle(){
+  if(-f $lastStatusFile){
+    my $lastStatus = `cat $lastStatusFile`;
+    chomp $lastStatus;
+    if($lastStatus =~ /^(on|off)$/){
+      return $lastStatus;
+    }
+  }
+  return "on";
+}
+
+sub writeToggle($){
+  system "echo $_[0] > $lastStatusFile";
+}
+
+sub screen($){
+  system "sudo", "vbetool", "dpms", $_[0];
+  system "xset", "s", "off";
+  system "xset", "s", "noblank";
+  system "xset", "dpms", 0, 0, 0;
+}
+
+&main(@ARGV);
