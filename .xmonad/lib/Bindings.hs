@@ -1,214 +1,215 @@
-module Bindings(myKeyBindings, myMouseBindings) where
-
-import XMonad
-import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
-import XMonad.Hooks.ManageDocks (ToggleStruts(..))
-import XMonad.Actions.NoBorders (toggleBorder)
-import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
-import FloatKeys
-
-import qualified XMonad.StackSet as Stk
-
+module Bindings where
 import Graphics.X11.ExtraTypes.XF86
+import XMonad
+import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
+import XMonad.Actions.FloatKeys (keysMoveWindow, keysResizeWindow)
+import XMonad.Actions.NoBorders (toggleBorder)
+import XMonad.Actions.SinkAll
+import XMonad.Hooks.ManageDocks (ToggleStruts(..))
+import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
+import XMonad.StackSet hiding (focus, workspaces, filter)
+import qualified XMonad.StackSet as SS
 
-import Data.Map (fromList)
+import Control.Arrow
+import Control.Applicative
+import qualified Data.Foldable as F
+import Data.Function
+import Data.Map ((!))
+import qualified Data.Map as M
+import Data.Maybe
 
-midRect = Stk.RationalRect (1/4) (1/4) (1/2) (1/2)
+import Bindings.Keys
+import Bindings.Writer
 
---http://xmonad.org/xmonad-docs/X11/src/Graphics-X11-Types.html
-myKeyBindings conf@(XConfig {XMonad.modMask = modm}) = fromList $
-  [ ((modm, xK_q     ), spawn "xmonad --restart") 
-  , ((shmd, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
+workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
+testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
+                          , workspaces = workspaceNames }
 
-  , ((none, power    ), spawn "off g")
-  , ((modm, xK_Escape), spawn "off g")
+myMouseBindings = M.fromList . bwBindList . mouseBinds
+myKeyBindings   = M.fromList . bwBindList . keyBinds
 
-  --focused window
-  , ((shmd, xK_c     ), kill)
-  , ((alt , xK_F4    ), kill)
-  , ((modm, xK_n     ), refresh)
+infixr 0 #!, ##, #^, #>
+a #! b = a # (spawn b :: X ())
+a ## b = a # windows b
+a #^ b = a # withFocused b
+a #> b = a # sendMessage b
 
-  --move focused window, keep focus on it
-  , ((shmd, xK_Return), windows Stk.swapMaster)
-  , ((shmd, xK_j     ), windows Stk.swapDown)
-  , ((shmd, xK_k     ), windows Stk.swapUp)
-
-  --cycle focused window
-  , ((modm, xK_m     ), windows Stk.focusMaster)
-  , ((modm, xK_j     ), windows Stk.focusDown)
-  , ((modm, xK_k     ), windows Stk.focusUp)
-  , ((modm, xK_Tab   ), windows Stk.focusDown)
-  , ((shmd, xK_Tab   ), windows Stk.focusUp)
-
-  --move/resize floating windows
-  , ((ctrl, xK_Up    ), withFocused (keysMoveWindow (0,-20)))
-  , ((ctrl, xK_Down  ), withFocused (keysMoveWindow (0,20)))
-  , ((ctrl, xK_Left  ), withFocused (keysMoveWindow (-20,0)))
-  , ((ctrl, xK_Right ), withFocused (keysMoveWindow (20,0)))
-  , ((alct, xK_Up    ), withFocused (keysResizeWindow (0,-20) (0,0)))
-  , ((alct, xK_Down  ), withFocused (keysResizeWindow (0,20) (0,0)))
-  , ((alct, xK_Left  ), withFocused (keysResizeWindow (-20,0) (0,0)))
-  , ((alct, xK_Right ), withFocused (keysResizeWindow (20,0) (0,0)))
-
-  --layout
-  , ((modm, xK_f     ), sendMessage ToggleStruts)
-  , ((modm, xK_t     ), withFocused $ windows . Stk.sink) --tile window
-  , ((modm, xK_u     ), withFocused $ windows . (flip Stk.float midRect))
-  , ((modm, xK_a     ), sendMessage $ JumpToLayout "left")
-  , ((modm, xK_s     ), sendMessage $ JumpToLayout "top")
-  , ((modm, xK_d     ), sendMessage $ JumpToLayout "full")
-  , ((modm, xK_space ), sendMessage NextLayout)
-  , ((shmd, xK_space ), setLayout $ XMonad.layoutHook conf)
-  , ((modm, xK_h     ), sendMessage Shrink)
-  , ((modm, xK_l     ), sendMessage Expand)
-  , ((modm, xK_comma ), sendMessage (IncMasterN 1))
-  , ((modm, xK_period), sendMessage (IncMasterN (-1)))
-
-  , ((modm, xK_b     ), withFocused toggleBorder)
-
-  , ((modm, xK_v     ), windows copyToAll) -- Put on all workspaces
-  , ((shmd, xK_v     ), killAllOtherCopies) -- Remove from other workspaces
-
-  --shortcuts
-  , ((none, xf86think), spawn "term")
-  , ((none, reload   ), spawn "term")
-  , ((alt,  xK_F2    ), spawn "term")
-  , ((alt,  xf86think), spawn "LaunchTerm.hs")
-  , ((ctrl, xf86think), spawn "term ghci")
-
-  , ((none, xK_Print ), spawn "scrot-bag")
-
-  , ((ctrl, xK_F9    ), spawn "pi -vnc")
-
-  , ((ctrl, xK_F12   ), spawn "n9 -s lock")
-  , ((ctsh, xK_F12   ), spawn "n9 -s dontgosleep")
-  , ((ctrl, xK_F11   ), spawn "n9 -vnc")
-  , ((ctrl, xK_F10   ), spawn "n9 -vnc -rotate 0")
-  , ((ctsu, xK_space ), spawn "n9u -b klomp-cmd pause")
-  , ((ctsu, xK_z     ), spawn "n9u -b klomp-cmd prev")
-  , ((ctsu, xK_x     ), spawn "n9u -b klomp-cmd next")
-  , ((ctsu, xK_b     ), spawn "n9u -b klomp-cmd playlist books")
-  , ((ctsu, xK_5     ), spawn "n9u -b klomp-cmd volume 10 1")
-  , ((ctsu, xK_6     ), spawn "n9u -b klomp-cmd volume 25 1")
-  , ((ctsu, xK_7     ), spawn "n9u -b klomp-cmd volume 75 1")
-  , ((ctsu, xK_8     ), spawn "n9u -b klomp-cmd volume 100 1")
-  , ((ctsu, xK_9     ), spawn "n9u -b klomp-cmd volume -1 0")
-  , ((ctsu, xK_0     ), spawn "n9u -b klomp-cmd volume +1 0")
-  , ((chsu, xK_z     ), spawn "n9u -b klomp-cmd seek -10")
-  , ((chsu, xK_x     ), spawn "n9u -b klomp-cmd seek 10")
-  , ((chsu, xK_a     ), spawn "n9u -b klomp-cmd seek -60")
-  , ((chsu, xK_s     ), spawn "n9u -b klomp-cmd seek 60")
-
-  , ((supr, xK_space ), spawn "klomp-cmd pause")
-  , ((supr, xK_z     ), spawn "klomp-cmd prev")
-  , ((supr, xK_x     ), spawn "klomp-cmd next")
-  , ((supr, xK_b     ), spawn "klomp-cmd playlist books")
-  , ((sush, xK_z     ), spawn "klomp-cmd seek -10")
-  , ((sush, xK_x     ), spawn "klomp-cmd seek 10")
-  , ((sush, xK_a     ), spawn "klomp-cmd seek -60")
-  , ((sush, xK_s     ), spawn "klomp-cmd seek 60")
-
-  , ((supr, xK_c     ), spawn "fcronjob co toggle")
-  , ((supr, xK_t     ), spawn "fcronjob te toggle")
-
-  , ((supr, xK_s     ), spawn "sleep 1; screenOff") --monitor off
-  , ((supr, xK_n     ), spawn "xcalib -i -a") --invert colors
-
-  , ((none, xf86mic  ), spawn "pulse-vol microphone toggle")
-  , ((none, xf86mute ), spawn "pulse-vol speaker toggle")
-
-  , ((ctrl, xK_Home  ), spawn "brightness up")
-  , ((ctrl, xK_End   ), spawn "brightness down")
-  , ((none, brightUp ), spawn "brightness system")  --let system change it
-  , ((none, brightDn ), spawn "brightness system")  --let system change it
-  
-  , ((ctrl, pgUp     ), spawn "led thinklight") --a synonym for Fn+PgUp
-
-  , ((supr, volUp    ), spawn "speaker toggle; klomp-cmd restart")
-  , ((none, volUp    ), spawn "pulse-vol +6 100")
-  , ((none, volDown  ), spawn "pulse-vol -6 100")
-  , ((alt,  volUp    ), spawn "pulse-vol +6 150")
-  , ((alt,  volDown  ), spawn "pulse-vol -6 150")
-  , ((alct, volUp    ), spawn "pulse-vol +6 300")
-  , ((alct, volDown  ), spawn "pulse-vol -6 300")
-
-  , ((ctrl, xK_Menu  ), spawn "touchClick toggle")
-
-  , ((supr, xK_F1    ), spawn "sudo cpu-set ondemand 800 2201")
-  , ((supr, xK_F2    ), spawn "sudo cpu-set ondemand 800 1400")
-  , ((supr, xK_F3    ), spawn "sudo cpu-set ondemand 800 800")
-  , ((supr, xK_F4    ), spawn "sudo cpu-set ondemand 2201 2201")
-
-  , ((supr, xK_1     ), spawn "sudo wauto")
-  , ((supr, xK_2     ), spawn "sudo wconnect -d; sudo tether off; sudo wired off")
-  , ((supr, xK_3     ), spawn "sudo tether on")
-  , ((supr, xK_4     ), spawn "sudo wired on")
-
-  , ((alct, xK_space ), spawn "term htop")
-
-  , ((alct, xf86back ), spawn "rotate counterclockwise")
-  , ((alct, xf86fwd  ), spawn "rotate clockwise")
-
-  , ((alct, xK_f     ), spawn "firefox")
-  , ((alct, xK_c     ), spawn "chromium-browser")
-  , ((alct, xK_t     ), spawn "transmission-gtk")
-  , ((alct, xK_e     ), spawn "eclipse")
-  , ((alct, xK_s     ), spawn "stepmania -w")
-  , ((alct, xK_i     ), spawn "stepmania -i")
-  ]
-
-  ++
-  -- mod-[1..9], Switch to workspace N
-  [((modm, key), windows $ Stk.greedyView wkspc)
-      | (key, wkspc) <- zip [xK_1 .. xK_9] (XMonad.workspaces conf)]
-  ++
-  -- mod-shift-[1..9], Move client to workspace N
-  [((shmd, key), windows $ Stk.shift wkspc)
-      | (key, wkspc) <- zip [xK_1 .. xK_9] (XMonad.workspaces conf)]
-  ++
-  -- mod-{w,e,r}, Switch to physical/Xinerama screens 1, 2, or 3
-  [((modm, key), screenWorkspace sc >>= flip whenJust (windows . Stk.view))
-      | (key, sc) <- zip [xK_w, xK_e, xK_r] [0..]]
-  ++
-  -- mod-shift-{w,e,r}, Move client to screen 1, 2, or 3
-  [((shmd, key), screenWorkspace sc >>= flip whenJust (windows . Stk.shift))
-      | (key, sc) <- zip [xK_w, xK_e, xK_r] [0..]]
+mouseBinds conf = "Mouse Bindings" @@ do
+    "Move Window"   @@ mW button1 # select >=> mouseMoveWindow
+    "Raise Window"  @@ mW button2 # void . select
+    "Resize Window" @@ mW button3 # select >=> mouseResizeWindow
   where
-    alt = mod1Mask
-    ctrl = controlMask
-    supr = mod4Mask
-    shft = shiftMask
-    shmd = modm .|. shft
-    sush = supr .|. shft
-    alct = alt .|. ctrl
-    ctsh = ctrl .|. shft
-    ctsu = ctrl .|. supr
-    chsu = ctrl .|. shft .|. supr
-    none = 0
-    pgUp = xK_Prior
-    pgDn = xK_Next
-    brightUp = xF86XK_MonBrightnessUp
-    brightDn = xF86XK_MonBrightnessDown
-    volUp = xF86XK_AudioRaiseVolume
-    power = xF86XK_PowerOff
-    volDown = xF86XK_AudioLowerVolume
-    reload = xF86XK_Reload
-    xf86think = xF86XK_Launch1
-    xf86mic = xF86XK_Launch2
-    xf86mute = xF86XK_AudioMute
-    xf86back = xF86XK_Back
-    xf86fwd = xF86XK_Forward
- 
-myMouseBindings (XConfig {XMonad.modMask = modm}) = fromList $
-  -- mod-button1, Set the window to floating mode and move by dragging
-  [ ((modm, button1), (\w -> focus w >> mouseMoveWindow w
-                                     >> windows Stk.shiftMaster))
- 
-  -- mod-button2, Raise the window to the top of the stack
-  , ((modm, button2), (\w -> focus w >> windows Stk.shiftMaster))
- 
-  -- mod-button3, Set the window to floating mode and resize by dragging
-  , ((modm, button3), (\w -> focus w >> mouseResizeWindow w
-                                     >> windows Stk.shiftMaster))
-  ]
+    select w = focus w >> windows shiftMaster >> return w
 
+keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
+    [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
+
+xmoKeys conf = "XMonad" @@ do
+    "Restart"   @@ mA   xK_q   #! "xmonad --restart"
+    "Recompile" @@ mAS  xK_q   #! "xmonad --recompile; xmonad --restart"
+
+
+shortcuts conf = "Shortcuts" @@ do
+    "off"               @@ [m_ xK_Power, mA xK_Esc] #! "off g"
+    "term"              @@ m_    xK_Think#! "term"
+    "term"              @@ m_    xK_Rfrsh#! "term"
+    "term"              @@ mA    xK_F2   #! "term"
+    "launch-term"       @@ mA    xK_Think#! "LaunchTerm.hs"
+    "ghci"              @@ mC    xK_Think#! "term ghci"
+    "screenshot"        @@ m_    xK_Print#! "scrot-bag"
+    "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
+    "Screen On/Off"     @@ mW    xK_s    #! "screenpwr"
+    "thinklight"        @@ mC    xK_PgUp #! "led thinklight"
+    "touchclick toggle" @@ mC    xK_Menu #! "touchClick toggle"
+    "htop"              @@ mCA   (xK ' ')#! "term htop"
+
+    "Network"       @@ do
+        "wauto"         @@ mW    xK_1    #! "sudo wauto"
+        "off"           @@ mW    xK_2    #! "sudo wconnect -d; " ++
+                                            "sudo tether off; " ++
+                                            "sudo wired off"
+        "tether"        @@ mW    xK_3    #! "sudo tether on"
+        "wired"         @@ mW    xK_4    #! "sudo wired on"
+
+    "Brightness"    @@ do
+        "Up"            @@ mC    xK_Home #! "brightness up"
+        "Down"          @@ mC    xK_End  #! "brightness down"
+        "{system up}"   @@ m_    xK_BriUp#! "brightness system"
+        "{system down}" @@ m_    xK_BriDn#! "brightness system"
+
+    "Sound"         @@ do
+        let [up,down] = map (++ ",100/150/300") ["+","-"]
+        up          @@  do m_    xK_VolUp#! "pulse-vol +6 100"
+                           mA    xK_VolUp#! "pulse-vol +6 150"
+                           mC    xK_VolUp#! "pulse-vol +6 300"
+        down        @@  do m_    xK_VolDn#! "pulse-vol -6 100"
+                           mA    xK_VolDn#! "pulse-vol -6 150"
+                           mC    xK_VolDn#! "pulse-vol -6 300"
+        "Mute Sound"    @@ m_    xK_Mute #! "pulse-vol speaker toggle"
+        "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
+        "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
+
+    "CPU"           @@ do
+        "normal"        @@ mW    xK_F1   #! "sudo cpu-set ondemand 800 2201"
+        "medium"        @@ mW    xK_F2   #! "sudo cpu-set ondemand 800 1400"
+        "slow"          @@ mW    xK_F3   #! "sudo cpu-set ondemand 800 800"
+        "fast"          @@ mW    xK_F4   #! "sudo cpu-set ondemand 2201 2201"
+
+    "alarms"        @@ do
+        "coffee!"       @@ mW    xK_c    #! "fcronjob co toggle"
+        "tea!"          @@ mW    xK_t    #! "fcronjob te toggle"
+
+    "Rotate Deasil/Widdershins" @@ do
+                           mCA   xK_Fwd  #! "rotate deasil"
+                           mCA   xK_Back #! "rotate widdershins"
+
+    "Applications"  @@ do
+        "Firefox"       @@ mCA   xK_f    #! "firefox"
+        "Chrome"        @@ mCA   xK_c    #! "chromium-browser --incognito"
+        "Pidgin"        @@ mCA   xK_p    #! "pidgin"
+        "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
+        "Eclipse"       @@ mCA   xK_e    #! "eclipse"
+        "stepmania"     @@ mCA   xK_s    #! "stepmania -w"
+        "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
+
+    "raspi"         @@ do
+        "vnc"           @@ mC    xK_F9   #! "pi -vnc"
+
+    "N9"            @@ do
+        "lock"          @@ mC    xK_F12  #! "n9 -s lock"
+        "dontgosleep"   @@ mCS   xK_F12  #! "n9 -s dontgosleep"
+        "vnc portrait"  @@ mC    xK_F11  #! "n9 -vnc"
+        "vnc landscape" @@ mC    xK_F10  #! "n9 -vnc -rotate 0"
+
+    "Klomp"         @@ do
+        "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
+        "prev"        @@ mW    xK_z    #! "klomp-cmd prev"
+        "next"        @@ mW    xK_x    #! "klomp-cmd next"
+        "books pl"    @@ mW    xK_b    #! "klomp-cmd playlist books"
+        "seek -10"    @@ mWS   xK_z    #! "klomp-cmd seek -10"
+        "seek 10"     @@ mWS   xK_x    #! "klomp-cmd seek 10"
+        "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
+        "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
+
+    "Klomp N9"      @@ do
+        "pause"       @@ mCW   (xK ' ')#! "n9u -b klomp-cmd pause"
+        "prev"        @@ mCW   xK_z    #! "n9u -b klomp-cmd prev"
+        "next"        @@ mCW   xK_x    #! "n9u -b klomp-cmd next"
+        "books pl"    @@ mCW   xK_b    #! "n9u -b klomp-cmd playlist books"
+        "seek -10"    @@ mCWS  xK_z    #! "n9u -b klomp-cmd seek -10"
+        "seek 10"     @@ mCWS  xK_x    #! "n9u -b klomp-cmd seek 10"
+        "seek -60"    @@ mCWS  xK_a    #! "n9u -b klomp-cmd seek -60"
+        "seek 60"     @@ mCWS  xK_s    #! "n9u -b klomp-cmd seek 60"
+        "vol 10"      @@ mCW   xK_5    #! "n9u -b klomp-cmd volume 10 1"
+        "vol 25"      @@ mCW   xK_6    #! "n9u -b klomp-cmd volume 25 1"
+        "vol 75"      @@ mCW   xK_7    #! "n9u -b klomp-cmd volume 75 1"
+        "vol 100"     @@ mCW   xK_8    #! "n9u -b klomp-cmd volume 100 1"
+        "vol -"       @@ mCW   xK_9    #! "n9u -b klomp-cmd volume -1 0"
+        "vol +"       @@ mCW   xK_0    #! "n9u -b klomp-cmd volume +1 0"
+
+
+windowKeys conf = "Windows" @@ do
+    "Current"       @@ do
+        "Kill"          @@ [mA xK_F4, mAS xK_c]     # kill
+        "Toggle Border" @@ mAS   xK_b    #^ toggleBorder
+    "Swap" @@ do
+        "To Master"     @@ mA    (xK ' ')## swapMaster
+        "Down/Up"   @@  do mAS   xK_j    ## swapDown
+                           mAS   xK_k    ## swapUp
+    "Move Focus"    @@ do
+        "To Master"     @@ mAS   (xK ' ')## focusMaster
+        "Down/Up"   @@  do mA    xK_j    ## focusDown
+                           mA    xK_k    ## focusUp
+        "Down/Up"   @@  do mA    xK_Tab  ## focusDown
+                           mAS   xK_Tab  ## focusUp
+    "Sink/Pop Out"  @@  do mA    xK_t    #^ windows . sink
+                           mA    xK_u    #^ windows . popout
+    "Attach/Detach" @@  do mAW   xK_Enter#  killAllOtherCopies
+                           mAWS  xK_Enter## copyToAll
+    "Move Floating"     @@ frobWin mC    keysMoveWindow
+    "Resize Floating"   @@ frobWin mCA   $ flip keysResizeWindow (0,0)
+  where
+    popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
+    mag = 20
+    frobWin m f = mapM_ (\(k,v) -> m k #^ f v) $ zip arrKeys vs
+      where vs = [(-mag, 0), (0, -mag), (mag, 0), (0, mag)]
+
+layoutKeys conf = "Layout" @@ do
+    "Restore Default"   @@ mAS  (xK ' ') #  do sinkAll
+                                               setLayout $ layoutHook conf
+    "Toggle Struts"     @@ mA    xK_f    #> ToggleStruts
+    "Left"              @@ mA    xK_a    #> JumpToLayout "left"
+    "Top"               @@ mA    xK_s    #> JumpToLayout "top"
+    "Full"              @@ mA    xK_d    #> JumpToLayout "full"
+    "Shrink/Expand" @@  do mA    xK_h    #> Shrink
+                           mA    xK_l    #> Expand
+    "+/- Master"    @@  do mA    (xK ',')#> IncMasterN 1
+                           mA    (xK '.')#> IncMasterN (-1)
+
+workspaceKeys conf = "Workspaces" @@ do
+    "Go to"         @@ do
+        "<N>"           @@[mA    n       ## greedyView w | (n, w) <- nws]
+    "Shift Window"  @@ do
+        "<N>"           @@[mAS   n       ## shift w | (n, w) <- nws]
+    "Follow Window" @@ do
+        "<N>"           @@[mCAS  n       ## follow w   | (n, w) <- nws]
+  where
+    wss = workspaces conf
+    nws = zip [xK_1 .. xK_9] wss
+    follow w = greedyView w . shift w
+
+($?) = flip . F.foldr
+onWS ws f ss = greedyView (currentTag ss) . f . greedyView ws $ ss
+
+swapWS_W ws ss = onWS ws shiftLast . pushWin . pullWin $ ss
+  where
+    pushWin = shiftWin ws $? peek ss
+    pullWin = shiftWin cw $? (listToMaybe . index . greedyView ws) ss
+    cw = currentTag ss
+
+swapWS_D ws = rev . swapWS_W ws . rev
+  where rev = onWS ws . modify' $ \(Stack f ls rs) -> Stack f rs ls
+
+shiftLast = modify' $ \s -> case s of
+    Stack f ls []     -> Stack f ls []
+    Stack f ls (r:rs) -> Stack r ls (rs ++ [f])
