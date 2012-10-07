@@ -156,11 +156,12 @@ windowKeys conf = "Windows" @@ do
         "Kill"          @@ [mA xK_F4, mAS xK_c]     # kill
         "Toggle Border" @@ mAS   xK_b    #^ toggleBorder
     "Swap" @@ do
-        "To Master"     @@ mA    (xK ' ')## swapMaster
+        "To Master"     @@ mAS   xK_Enter## swapMaster
         "Down/Up"   @@  do mAS   xK_j    ## swapDown
                            mAS   xK_k    ## swapUp
-    "Move Focus"    @@ do
-        "To Master"     @@ mAS   (xK ' ')## focusMaster
+        "To Master"     @@ mA    (xK ' ')## swapMaster
+    "Move Focus"    @@  do
+        "To Master"     @@ mA    xK_Enter## focusMaster
         "Down/Up"   @@  do mA    xK_j    ## focusDown
                            mA    xK_k    ## focusUp
         "Down/Up"   @@  do mA    xK_Tab  ## focusDown
@@ -178,7 +179,7 @@ windowKeys conf = "Windows" @@ do
       where vs = [(-mag, 0), (0, -mag), (mag, 0), (0, mag)]
 
 layoutKeys conf = "Layout" @@ do
-    "Restore Default"   @@ mAS  (xK ' ') #  do sinkAll
+    "Restore Default"   @@ mAS   (xK ' ')#  do sinkAll
                                                setLayout $ layoutHook conf
     "Toggle Struts"     @@ mA    xK_f    #> ToggleStruts
     "Left"              @@ mA    xK_a    #> JumpToLayout "left"
