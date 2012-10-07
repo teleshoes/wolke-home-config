@@ -48,8 +48,8 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
     [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
 
 xmoKeys conf = "XMonad" @@ do
-    "Restart"   @@ mA   xK_q   #! "xmonad --restart"
-    "Recompile" @@ mAS  xK_q   #! "xmonad --recompile; xmonad --restart"
+    "Restart"   @@ mCA   xK_Home #! "xmonad --restart"
+    "Recompile" @@ mCA   xK_End  #! "xmonad --recompile; xmonad --restart"
 
 
 shortcuts conf = "Shortcuts" @@ do
