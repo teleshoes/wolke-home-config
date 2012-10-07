@@ -114,6 +114,7 @@ prettyKey = (M.!) . execWriter $ do
     xK_Prior                    # "Prev"
     xK_Return                   # "Enter"
     xK_Tab                      # "Tab"
+    xK_Menu                     # "Menu"
     xF86XK_AudioRaiseVolume     # "VolUp"
     xF86XK_AudioLowerVolume     # "VolDn"
     xF86XK_AudioMute            # "Mute"
