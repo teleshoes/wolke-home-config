@@ -23,12 +23,13 @@ import Bindings.Writer
 
 main = putStr . prettyBindings $ keyBinds testConfig
 
+myMouseBindings = M.fromList . bwBindList . mouseBinds
+myKeyBindings   = M.fromList . bwBindList . keyBinds
+
 workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
 testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
                           , workspaces = workspaceNames }
 
-myMouseBindings = M.fromList . bwBindList . mouseBinds
-myKeyBindings   = M.fromList . bwBindList . keyBinds
 
 infixr 0 #!, ##, #^, #>
 a #! b = a # (spawn b :: X ())
