@@ -30,6 +30,8 @@ workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
 testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
                           , workspaces = workspaceNames }
 
+mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
+keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
 
 infixr 0 #!, ##, #^, #>
 a #! b = a # (spawn b :: X ())

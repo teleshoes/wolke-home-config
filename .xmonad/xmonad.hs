@@ -1,5 +1,7 @@
-import Bindings (myKeyBindings, myMouseBindings, workspaceNames)
+{-# LANGUAGE TemplateHaskell #-}
+import Bindings (myKeyBindings, myMouseBindings, workspaceNames, mouseOverlaps, keyOverlaps)
 import Dzen (spawnHookedDzens, spawnUnhookedDzens, myDzenLogHook)
+import StaticAssert (staticAssert)
 
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
@@ -17,6 +19,12 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Writer
 import Data.Monoid (All(All))
+
+staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
+    tell "Error: Overlap in bindings\n"
+    let pretty = tell . unlines . map ((replicate 8 ' ' ++) . show . map fst)
+    pretty mouseOverlaps
+    pretty keyOverlaps
 
 firefoxExec = "firefox"
 firefoxProcess = "firefox"
