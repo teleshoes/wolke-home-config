@@ -21,6 +21,8 @@ import Data.Maybe
 import Bindings.Keys
 import Bindings.Writer
 
+main = putStr . prettyBindings $ keyBinds testConfig
+
 workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
 testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
                           , workspaces = workspaceNames }
