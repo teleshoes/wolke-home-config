@@ -52,6 +52,7 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
 xmoKeys conf = "XMonad" @@ do
     "Restart"   @@ mCA   xK_Home #! "xmonad --restart"
     "Recompile" @@ mCA   xK_End  #! "xmonad --recompile; xmonad --restart"
+    "Edit Keys" @@ mCA   xK_Del  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
 
 shortcuts conf = "Shortcuts" @@ do
