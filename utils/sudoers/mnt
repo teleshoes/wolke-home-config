@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 my $mountDir = '/media';
+my $delay = 1;
 
 sub mount($);
 sub unmount($);
@@ -15,34 +16,40 @@ sub run(@);
 sub runFail(@);
 sub runFailEcho(@);
 
-my $usage = "Usage:
-  $0          mount all usb partitions at /media/NAME
-  $0 -m       mount all usb partitions at /media/NAME
-  $0 -u       unmount all usb paritions at /media/NAME
+sub usage(){
+  my $ex = `basename $0`;
+  chomp $ex;
+  return "
+  Mounts/unmounts partitions on USB and SD devices.
+  {calls: udevadm, blkid, parted, mount, umount}
+  ==========
+  $ex          mount all usb/card partitions at /media/NAME
+  $ex -m       mount all usb/card partitions at /media/NAME
+  $ex -u       unmount all usb/card paritions at /media/NAME
 
-  $0 -g       for all usb partitions, print 'NAME size {mounted} dev'
-  $0 -n       for all usb partitions, print NAMEs
+  $ex -g       for all usb/card partitions, print 'NAME size {mounted} dev'
+  $ex -n       for all usb/card partitions, print 'NAME'
   
-  $0 -l       loop every 1s, mounting all usb partitions at /media/NAME
-  $0 -l NAME  loop every 1s, waiting for NAME, mount it and exit when found
+  $ex -l       '$ex -m' every ${delay}s forever
+  $ex -l NAME  '$ex -n' every ${delay}s until NAME is found, then '$ex -m NAME'
   
-  $0 -m NAME  mount NAME at /media/NAME
-  $0 -u NAME  unmount /media/NAME
+  $ex -m NAME  mount NAME at /media/NAME
+  $ex -u NAME  unmount /media/NAME
   
   NAME is either
     1) the partition label if blkid finds one
     2) <devname>  or  <devname>_<size>GiB
        if the device is /dev/<devname> and <devname> is alphanumeric
        <size> is the size in GiB, truncated to tenths, if udev reports it
-    3) uuid otherwise
-";
+    3) uuid otherwise\n"
+};
 
 sub main(@){
   my $cmd = shift() || "-m";
-  die $usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
+  die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
   my $name = shift if $cmd =~ /^(-m|-u|-l)$/;
 
-  die $usage if @_ > 0;
+  die usage if @_ > 0;
 
   my @usbParts = grep {isExternal $_} blkid();
   my $selectedPart;
@@ -91,7 +98,7 @@ sub main(@){
         print "waiting for $name\n";
         my %newNames = map {chomp $_; $_ => 1} `$0 -n`;
         last if defined $newNames{$name};
-        sleep 1;
+        sleep $delay;
       }
       print "found! mounting $name\n";
       system $0, "-m", $name;
@@ -99,7 +106,7 @@ sub main(@){
       while(1){
         print "$0 -m\n";
         system $0, "-m";
-        sleep 1;
+        sleep $delay;
       }
     }
   }
