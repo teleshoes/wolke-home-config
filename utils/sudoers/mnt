@@ -4,7 +4,9 @@ use warnings;
 
 my $mountDir = '/media';
 my $delay = 1;
-my $MNT_IGNORE_CARDS = 'MNT_IGNORE_CARDS';
+my $MNT_USB = 'MNT_USB';
+my $MNT_CARD = 'MNT_CARD';
+my $MNT_OTHER = 'MNT_OTHER';
 
 sub mount($);
 sub unmount($);
@@ -12,7 +14,7 @@ sub blkid();
 sub udevadm($);
 sub partedSize($);
 sub getName($);
-sub isExternal($);
+sub isMntDevice($);
 sub run(@);
 sub runFail(@);
 sub runFailEcho(@);
@@ -20,17 +22,24 @@ sub runFailEcho(@);
 sub usage(){
   my $ex = `basename $0`;
   chomp $ex;
-  return "
-  Mounts/unmounts partitions on USB and SD devices.
-  if the environment variable $MNT_IGNORE_CARDS is 'true', only use USB drives
+  return "Usage:
+  Mounts/unmounts partitions on storage devices.
+  By default, only mounts/unmounts USB drives and flash cards.
+  This can be overridden with the following environment variables:
+    $MNT_USB   {defaults to 'true' if not set}   USB devices
+    $MNT_CARD  {defaults to 'true' if not set}   flash card devices
+    $MNT_OTHER {defaults to 'false' if not set}  anything else {e.g. internal}
+      setting the variable to 'true' allows that type
+      setting any other value {including the empty string} disallows that type
+
   {calls: udevadm, blkid, parted, mount, umount}
   ==========
-  $ex          mount all usb/card partitions at /media/NAME
-  $ex -m       mount all usb/card partitions at /media/NAME
-  $ex -u       unmount all usb/card paritions at /media/NAME
+  $ex          mount all partitions at /media/NAME
+  $ex -m       mount all partitions at /media/NAME
+  $ex -u       unmount all paritions at /media/NAME
 
-  $ex -g       for all usb/card partitions, print 'NAME size {mounted} dev'
-  $ex -n       for all usb/card partitions, print 'NAME'
+  $ex -g       for all partitions, print 'NAME size {mounted} dev'
+  $ex -n       for all partitions, print 'NAME'
   
   $ex -l       '$ex -m' every ${delay}s forever
   $ex -l NAME  '$ex -n' every ${delay}s until NAME is found, then '$ex -m NAME'
@@ -43,7 +52,8 @@ sub usage(){
     2) <devname>  or  <devname>_<size>GiB
        if the device is /dev/<devname> and <devname> is alphanumeric
        <size> is the size in GiB, truncated to tenths, if udev reports it
-    3) uuid otherwise\n"
+    3) uuid otherwise
+  ==========\n"
 };
 
 sub main(@){
@@ -53,10 +63,10 @@ sub main(@){
 
   die usage if @_ > 0;
 
-  my @usbParts = grep {isExternal $_} blkid();
+  my @mntParts = grep {isMntDevice $_} blkid();
   my $selectedPart;
   if(defined $name and $cmd =~ /^(-m|-u)$/){
-    foreach(@usbParts){
+    foreach(@mntParts){
       if(${$_}{name} eq $name){
         $selectedPart = $_;
         last;
@@ -70,7 +80,7 @@ sub main(@){
       die "already mounted\n" if isMounted(${$selectedPart}{dev});
       mount $selectedPart;
     }else{
-      my @unmounted = grep {!isMounted(${$_}{dev})} @usbParts;
+      my @unmounted = grep {!isMounted(${$_}{dev})} @mntParts;
       mount $_ foreach @unmounted;
     }
   }elsif($cmd eq '-u'){
@@ -78,11 +88,11 @@ sub main(@){
       die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
       unmount $selectedPart;
     }else{
-      my @mounted = grep {isMounted(${$_}{dev})} @usbParts;
+      my @mounted = grep {isMounted(${$_}{dev})} @mntParts;
       unmount $_ foreach @mounted;
     }
   }elsif($cmd eq '-g'){
-    foreach(@usbParts){
+    foreach(@mntParts){
       my %p = %{$_};
       my $name = "$p{name}";
       my $size = " $p{sizeGiB}GiB" if defined $p{sizeGiB};
@@ -91,7 +101,7 @@ sub main(@){
       print "$name$size$mounted$dev\n";
     }
   }elsif($cmd eq '-n'){
-    foreach(@usbParts){
+    foreach(@mntParts){
       print "${$_}{name}\n";
     }
   }elsif($cmd eq '-l'){
@@ -248,22 +258,30 @@ sub getName($){
   return $p{uuid};
 }
 
-sub isExternal($){
+sub isMntDevice($){
   my %udev = %{${shift()}{udev}};
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
-  my $ignoreCards = $ENV{$MNT_IGNORE_CARDS};
-  $ignoreCards = 'false' if not defined $ignoreCards;
+
+  my $type;
   if(defined $idPath and $idPath =~ /-usb-/){
-    #usb
-    return 1;
-  }elsif($ignoreCards ne 'true' and ($flashSD or $mediaFlashSD)){
-    #card
-    return 1;
+    $type = 'usb';
+  }elsif($flashSD or $mediaFlashSD){
+    $type = 'card';
   }else{
-    return 0;
+    $type = 'other';
   }
+
+  my $mntUsb = defined $ENV{$MNT_USB} ? $ENV{$MNT_USB} : 'true';
+  my $mntCard = defined $ENV{$MNT_CARD} ? $ENV{$MNT_CARD} : 'true';
+  my $mntOther = defined $ENV{$MNT_OTHER} ? $ENV{$MNT_OTHER} : 'false';
+
+  return 0
+    or ($type eq 'usb' and $mntUsb eq 'true')
+    or ($type eq 'card' and $mntCard eq 'true')
+    or ($type eq 'other' and $mntOther eq 'true')
+    ;
 }
 
 sub run(@){
