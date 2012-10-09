@@ -2,11 +2,15 @@
 use strict;
 use warnings;
 
+my $configFile = '/etc/default/mnt';
+
 my $mountDir = '/media';
 my $delay = 1;
-my $MNT_USB = 'MNT_USB';
-my $MNT_CARD = 'MNT_CARD';
-my $MNT_OTHER = 'MNT_OTHER';
+my %devTypes = (
+  MNT_USB => "true",
+  MNT_CARD => "true",
+  MNT_OTHER => "false",
+);
 
 sub mount($);
 sub unmount($);
@@ -22,15 +26,14 @@ sub runFailEcho(@);
 sub usage(){
   my $ex = `basename $0`;
   chomp $ex;
-  return "Usage:
-  Mounts/unmounts partitions on storage devices.
-  By default, only mounts/unmounts USB drives and flash cards.
-  This can be overridden with the following environment variables:
-    $MNT_USB   {defaults to 'true' if not set}   USB devices
-    $MNT_CARD  {defaults to 'true' if not set}   flash card devices
-    $MNT_OTHER {defaults to 'false' if not set}  anything else {e.g. internal}
-      setting the variable to 'true' allows that type
-      setting any other value {including the empty string} disallows that type
+  my $okTypes = '';
+  for my $type(sort keys %devTypes){
+    $okTypes .= "\n    $type {default '$devTypes{$type}'}";
+  }
+  return "
+  Mounts/unmounts partitions on different types of storage devices.
+  If the value in $configFile or an environment variable is set to 'true',
+    devices of that type are mounted:\n$okTypes
 
   {calls: udevadm, blkid, parted, mount, umount}
   ==========
@@ -258,6 +261,21 @@ sub getName($){
   return $p{uuid};
 }
 
+sub getMntConfig($){
+  my $type = shift;
+  die "Unknown device type: $type" if not defined $devTypes{$type};
+  if(defined $ENV{$type}){
+    return $ENV{$type};
+  }
+  if(-e $configFile){
+    my $line = `cat $configFile | grep $type`;
+    if($line =~ /^\s*$type\s*=\s*(.*?)\s*$/){
+      return $1;
+    }
+  }
+  return $devTypes{$type};
+}
+
 sub isMntDevice($){
   my %udev = %{${shift()}{udev}};
   my $idPath = $udev{ID_PATH};
@@ -266,22 +284,14 @@ sub isMntDevice($){
 
   my $type;
   if(defined $idPath and $idPath =~ /-usb-/){
-    $type = 'usb';
+    $type = 'MNT_USB';
   }elsif($flashSD or $mediaFlashSD){
-    $type = 'card';
+    $type = 'MNT_CARD';
   }else{
-    $type = 'other';
+    $type = 'MNT_OTHER';
   }
 
-  my $mntUsb = defined $ENV{$MNT_USB} ? $ENV{$MNT_USB} : 'true';
-  my $mntCard = defined $ENV{$MNT_CARD} ? $ENV{$MNT_CARD} : 'true';
-  my $mntOther = defined $ENV{$MNT_OTHER} ? $ENV{$MNT_OTHER} : 'false';
-
-  return 0
-    or ($type eq 'usb' and $mntUsb eq 'true')
-    or ($type eq 'card' and $mntCard eq 'true')
-    or ($type eq 'other' and $mntOther eq 'true')
-    ;
+  return getMntConfig($type) eq 'true';
 }
 
 sub run(@){
