@@ -144,8 +144,13 @@ sub mount($){
     die "$mountPoint exists and is not removable with rmdir";
   }
   runFail "mkdir", $mountPoint;
-  
-  runFailEcho "mount", "-t", $p{type}, $p{dev}, $mountPoint;
+
+  my @opts;
+  push @opts, "uid=$ENV{SUDO_UID}" if defined $ENV{SUDO_UID};
+  push @opts, "gid=$ENV{SUDO_GID}" if defined $ENV{SUDO_GID};
+  my @optArgs = ("-o", join ",", @opts) if @opts > 0;
+
+  runFailEcho "mount", "-t", $p{type}, $p{dev}, $mountPoint, @optArgs;
   if(isMountedOn $p{dev}, $mountPoint){
     print "  OK\n";
   }else{
