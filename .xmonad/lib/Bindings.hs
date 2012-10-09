@@ -113,6 +113,7 @@ shortcuts conf = "Shortcuts" @@ do
     "Applications"  @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Chrome"        @@ mCA   xK_c    #! "chromium-browser --incognito"
+        "tor"           @@ mCA   xK_v    #! "tor"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
