@@ -65,6 +65,7 @@ shortcuts conf = "Shortcuts" @@ do
     "screenshot"        @@ m_    xK_Print#! "scrot-bag"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen On/Off"     @@ mW    xK_s    #! "screenpwr"
+    "Screen Off Idle"   @@ mCW   xK_s    #! "sleep 0.5; screenOff"
     "thinklight"        @@ mC    xK_PgUp #! "led thinklight"
     "touchclick toggle" @@ mC    xK_Menu #! "touchClick toggle"
     "htop"              @@ mCA   (xK ' ')#! "term htop"
