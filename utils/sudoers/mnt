@@ -4,6 +4,7 @@ use warnings;
 
 my $mountDir = '/media';
 my $delay = 1;
+my $MNT_IGNORE_CARDS = 'MNT_IGNORE_CARDS';
 
 sub mount($);
 sub unmount($);
@@ -21,6 +22,7 @@ sub usage(){
   chomp $ex;
   return "
   Mounts/unmounts partitions on USB and SD devices.
+  if the environment variable $MNT_IGNORE_CARDS is 'true', only use USB drives
   {calls: udevadm, blkid, parted, mount, umount}
   ==========
   $ex          mount all usb/card partitions at /media/NAME
@@ -246,10 +248,12 @@ sub isExternal($){
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
+  my $ignoreCards = $ENV{$MNT_IGNORE_CARDS};
+  $ignoreCards = 'false' if not defined $ignoreCards;
   if(defined $idPath and $idPath =~ /-usb-/){
     #usb
     return 1;
-  }elsif($flashSD or $mediaFlashSD){
+  }elsif($ignoreCards ne 'true' and ($flashSD or $mediaFlashSD)){
     #card
     return 1;
   }else{
