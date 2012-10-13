@@ -13,6 +13,10 @@ my %devTypes = (
 );
 my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
+sub runCommand($$);
+sub getMntParts();
+sub getInfo($);
+sub getNames($);
 sub mount($);
 sub unmount($);
 sub blkid();
@@ -71,20 +75,18 @@ sub main(@){
 
   die usage if @_ > 0;
 
-  my @mntParts = grep {isMntDevice $_} blkid();
-  my $selectedPart;
-  if(defined $name and $cmd =~ /^(-m|-u)$/){
-    foreach(@mntParts){
-      if(${$_}{name} eq $name){
-        $selectedPart = $_;
-        last;
-      }
-    }
-    die "Unknown NAME $name; try '$0 -g'\n" if not defined $selectedPart;
-  }
+  runCommand $cmd, $name;
+}
+
+sub runCommand($$){
+  my $cmd = shift;
+  my $name = shift;
+
+  my @mntParts = getMntParts();
 
   if($cmd eq '-m'){
-    if(defined $selectedPart){
+    if(defined $name){
+      my $selectedPart = getSelectedPart(@mntParts, $name);
       die "already mounted\n" if isMounted(${$selectedPart}{dev});
       mount $selectedPart;
     }else{
@@ -92,7 +94,8 @@ sub main(@){
       mount $_ foreach @unmounted;
     }
   }elsif($cmd eq '-u'){
-    if(defined $selectedPart){
+    if(defined $name){
+      my $selectedPart = getSelectedPart(@mntParts, $name);
       die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
       unmount $selectedPart;
     }else{
@@ -100,36 +103,66 @@ sub main(@){
       unmount $_ foreach @mounted;
     }
   }elsif($cmd eq '-g'){
-    foreach(@mntParts){
-      my %p = %{$_};
-      my $name = "$p{name}";
-      my $size = " $p{sizeGiB}GiB" if defined $p{sizeGiB};
-      my $mounted = isMounted($p{dev}) ? ' mounted' : ' unmounted';
-      my $dev = " $p{dev}";
-      print "$name$size$mounted$dev\n";
-    }
+    print join "\n", getInfo \@mntParts;
+    print "\n";
   }elsif($cmd eq '-n'){
-    foreach(@mntParts){
-      print "${$_}{name}\n";
-    }
+    print join "\n", getNames \@mntParts;
+    print "\n";
   }elsif($cmd eq '-l'){
     if(defined $name){
-      while(1){
-        print "waiting for $name\n";
-        my %newNames = map {chomp $_; $_ => 1} `$0 -n`;
-        last if defined $newNames{$name};
+      print "waiting for $name\n";
+      my %newNames = map {chomp $_; $_ => 1} getNames(\@mntParts);
+      if(defined $newNames{$name}){
+        print "found! mounting $name\n";
+        system $0, "-m", $name;
+      }else{
         sleep $delay;
+        runCommand $cmd, $name;
       }
-      print "found! mounting $name\n";
-      system $0, "-m", $name;
     }else{
-      while(1){
-        print "$0 -m\n";
-        system $0, "-m";
-        sleep $delay;
-      }
+      runCommand "-m", $name;
+      sleep $delay;
+      runCommand $cmd, $name;
     }
   }
+}
+
+sub getMntParts(){
+  return grep {isMntDevice $_} blkid();
+}
+sub getSelectedPart($$){
+  my $name = shift;
+  my @mntParts = @{shift()};
+
+  foreach(@mntParts){
+    if(${$_}{name} eq $name){
+      return $_;
+    }
+  }
+  die "Unknown NAME $name; try '$0 -g'\n";
+}
+
+sub getInfo($){
+  my @mntParts = @{shift()};
+  my @info;
+  foreach(@mntParts){
+    my %p = %{$_};
+    my $name = "$p{name}";
+    my $size = " $p{sizeGiB}GiB" if defined $p{sizeGiB};
+    my $mounted = isMounted($p{dev}) ? ' mounted' : ' unmounted';
+    my $dev = " $p{dev}";
+    push @info, "$name$size$mounted$dev\n";
+  }
+  return @info;
+}
+
+sub getNames($){
+  my @mntParts = @{shift()};
+  my @names;
+  foreach(@mntParts){
+    push @names, "${$_}{name}\n";
+  }
+  return @names;
 }
 
 sub isMounted($){
