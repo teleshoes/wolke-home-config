@@ -148,6 +148,7 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 10"     @@ mCWS  xK_x    #! "n9u -b klomp-cmd seek 10"
         "seek -60"    @@ mCWS  xK_a    #! "n9u -b klomp-cmd seek -60"
         "seek 60"     @@ mCWS  xK_s    #! "n9u -b klomp-cmd seek 60"
+        "dzen rem/loc"@@ mCW   xK_c    #! "toggle-klomp-dzen-remote-cur"
         "vol 10"      @@ mCW   xK_5    #! "n9u -b klomp-cmd volume 10 1"
         "vol 25"      @@ mCW   xK_6    #! "n9u -b klomp-cmd volume 25 1"
         "vol 75"      @@ mCW   xK_7    #! "n9u -b klomp-cmd volume 75 1"
