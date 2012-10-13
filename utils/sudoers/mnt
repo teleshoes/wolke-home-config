@@ -123,20 +123,17 @@ sub runCommand($$$){
   }elsif($cmd eq '-n'){
     print "$_\n" foreach getUnmountedNames \@mntParts;
   }elsif($cmd eq '-l'){
-    if(defined $name){
-      print "waiting for $name\n";
-      my %newNames = map {chomp $_; $_ => 1} getNames(\@mntParts);
-      if(defined $newNames{$name}){
-        print "found! mounting $name\n";
-        system $0, "-m", $name;
-      }else{
-        sleep $delay;
-        runCommand $cmd, $name;
-      }
-    }else{
-      runCommand "-m", $name;
+    my @names = getUnmountedNames \@mntParts;
+    @names = grep {$_ eq $name} @names if defined $name;
+    print "waiting for $name\n" if defined $name;
+    if(@names == 0){
       sleep $delay;
-      runCommand $cmd, $name;
+      runCommand $cmd, $name, \%devOpts;
+    }else{
+      print "partition(s) found, mounting\n";
+      for my $name(@names){
+        runCommand "-m", $name, \%devOpts;
+      }
     }
   }
 }
