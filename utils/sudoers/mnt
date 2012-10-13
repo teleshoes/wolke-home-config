@@ -7,10 +7,11 @@ my $configFile = '/etc/default/mnt';
 my $mountDir = '/media';
 my $delay = 1;
 my %devTypes = (
-  MNT_USB => "true",
-  MNT_CARD => "true",
-  MNT_OTHER => "false",
+  usb => "true",
+  card => "true",
+  other => "false",
 );
+my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
 sub mount($);
 sub unmount($);
@@ -28,7 +29,8 @@ sub usage(){
   chomp $ex;
   my $okTypes = '';
   for my $type(sort keys %devTypes){
-    $okTypes .= "\n    $type {default '$devTypes{$type}'}";
+    my $var = $devEnvVars{$type};
+    $okTypes .= "\n    $var {default '$devTypes{$type}'}";
   }
   return "
   Mounts/unmounts partitions on different types of storage devices.
@@ -269,16 +271,23 @@ sub getName($){
 sub getMntConfig($){
   my $type = shift;
   die "Unknown device type: $type" if not defined $devTypes{$type};
-  if(defined $ENV{$type}){
-    return $ENV{$type};
-  }
-  if(-e $configFile){
-    my $line = `cat $configFile | grep $type`;
-    if($line =~ /^\s*$type\s*=\s*(.*?)\s*$/){
-      return $1;
+
+  my $varName = $devEnvVars{$type};
+  my $val;
+  if(defined $ENV{$varName}){
+    $val = $ENV{$varName};
+  }elsif(-e $configFile){
+    my $line = `cat $configFile | grep $varName`;
+    if($line =~ /^\s*$varName\s*=\s*(.*?)\s*$/){
+      $val = $1;
     }
   }
-  return $devTypes{$type};
+  $val = '' if not defined $val;
+  if($val =~ /^true|false$/){
+    return $val;
+  }else{
+    return $devTypes{$type};
+  }
 }
 
 sub isMntDevice($){
@@ -289,11 +298,11 @@ sub isMntDevice($){
 
   my $type;
   if(defined $idPath and $idPath =~ /-usb-/){
-    $type = 'MNT_USB';
+    $type = 'usb';
   }elsif($flashSD or $mediaFlashSD){
-    $type = 'MNT_CARD';
+    $type = 'card';
   }else{
-    $type = 'MNT_OTHER';
+    $type = 'other';
   }
 
   return getMntConfig($type) eq 'true';
