@@ -48,7 +48,7 @@ sub usage(){
   If SUDO_UID and/or SUDO_GID environment variables are present,
     mount all fat, msdos and ntfs partitions with uid and/or gid opts.
 
-  '$ex' calls: udevadm, blkid, parted, mount, umount
+  '$ex' calls: udevadm, blkid, parted, mount, umount, lsof, fuser
 
   ==========
   $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
@@ -234,8 +234,10 @@ sub unmount($){
   my %p = %{shift()};
   my $mountPoint = "$mountDir/$p{name}";
   die "$p{dev} not mounted\n" if !isMountedOn $p{dev}, $mountPoint;
+  run "lsof", $mountPoint;
+  run "fuser", $mountPoint;
   runFailEcho "umount", $mountPoint;
-  runFail "rmdir", $mountPoint;
+  runFailEcho "rmdir", $mountPoint;
   if(not -e $mountPoint){
     print "  OK\n";
   }else{
