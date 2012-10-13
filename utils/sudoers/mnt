@@ -13,8 +13,8 @@ my %devTypes = (
 );
 my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
-sub runCommand($$);
-sub getMntParts();
+sub runCommand($$$);
+sub getMntParts($);
 sub getInfo($);
 sub getUnmountedNames($);
 sub mount($);
@@ -23,7 +23,8 @@ sub blkid();
 sub udevadm($);
 sub partedSize($);
 sub getName($);
-sub isMntDevice($);
+sub getMntConfig($$);
+sub isMntDevice($$);
 sub run(@);
 sub runFail(@);
 sub runFailEcho(@);
@@ -38,34 +39,38 @@ sub usage(){
   }
   return "
   Mounts/unmounts partitions on different types of storage devices.
-  If the value in $configFile or an environment variable is set to 'true',
-    devices of that type are mounted:\n$okTypes
+  Types of storage devices are controlled with a config file,
+    environment variables, and command line flags.
+
+  Environment variables {or config file settings}:$okTypes
+    'true' includes, 'false' discludes, anything else does the default
 
   If SUDO_UID and/or SUDO_GID environment variables are present,
     mount all fat, msdos and ntfs partitions with uid and/or gid opts.
 
-  {calls: udevadm, blkid, parted, mount, umount}
-  ==========
-  $ex          mount all partitions at /media/NAME
-  $ex -m       mount all partitions at /media/NAME
-  $ex -u       unmount all paritions at /media/NAME
+  '$ex' calls: udevadm, blkid, parted, mount, umount
 
-  $ex -g       for all partitions, print 'NAME size {mounted} dev'
-  $ex -n       for all partitions, print 'NAME'
-  
-  $ex -l       '$ex -m' every ${delay}s forever
-  $ex -l NAME  '$ex -n' every ${delay}s until NAME is found, then '$ex -m NAME'
-  
-  $ex -m NAME  mount NAME at /media/NAME
-  $ex -u NAME  unmount /media/NAME
-  
-  NAME is either
-    1) the partition label if blkid finds one
-    2) <devname>  or  <devname>_<size>GiB
+  ==========
+  $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
+             default is \"-m\"
+  GET_CMD:
+    -g  for all partitions, print 'NAME size {mounted} dev'
+    -n  print 'NAME' of all UNMOUNTED partitions
+
+  ACTION_CMD:
+    -m  mount all partitions {or just NAME} at /media
+        mount point is the same as NAME
+    -u  unmount all partitions {or just NAME}
+    -l  check every ${delay}s until any partition {or just NAME} is available
+          and unmounted, and then mount all partitions
+
+  NAME:
+    the partition label if blkid finds one
+    OR <devname>  or  <devname>_<size>GiB
        if the device is /dev/<devname> and <devname> is alphanumeric
        <size> is the size in GiB, truncated to tenths, if udev reports it
-    3) uuid otherwise
-  ==========\n"
+    OR uuid otherwise
+
   OPTS:
     --usb --no-usb
     --card --no-card
@@ -74,6 +79,7 @@ sub usage(){
       overrides default values, environment vars and $configFile
       latest argument in the command line takes precedence
   ==========
+"
 };
 
 sub main(@){
