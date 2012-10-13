@@ -1,11 +1,13 @@
 module Klomp(main) where
-import Utils (padL, padR, isRunning, chompFile)
+import Utils (padL, padR, isRunning, chompFile, readProc)
+
 import ClickAction (clickActions)
 import TextRows (textRows)
 
 import Prelude hiding(lookup)
 import Data.Map (fromList, Map, lookup)
 import System.Environment (getEnv)
+import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, fromMaybe)
 import Text.Regex.PCRE ((=~))
 
@@ -21,16 +23,22 @@ clickCommands = [ "xdotool key --clearmodifiers alt+9; klomp-term"
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
 
+isRemoteCur = doesFileExist "/tmp/klomp-dzen-remote-cur"
+
+readKlompCur remoteCur = do if remoteCur then remote else local
+  where remote = readProc ["n9u", "-b", "cat ~/.klompcur"]
+        local = do home <- getEnv "HOME"
+                   chompFile $ home ++ "/" ++ ".klompcur"
+
 main = do
-  home <- getEnv "HOME"
-  let curFile = home ++ "/" ++ ".klompcur"
-  cur <- chompFile curFile
+  remote <- isRemoteCur
+  cur <- readKlompCur remote
   running <- isRunning "klomplayer"
 
   let ((posSex, lenSex, path), atts) = parseCur cur
   let [pos,len] = formatTimes [posSex, lenSex]
 
-  let prefix = if running then "" else "x" 
+  let prefix = if remote then "%" else if running then "" else "x" 
   let (top, bot) = if length cur > 0 then
                       ( pos ++ "-" ++ strLookup "artist" atts
                       , len ++ "-" ++ strLookup "title" atts
