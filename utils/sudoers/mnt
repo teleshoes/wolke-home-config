@@ -66,23 +66,39 @@ sub usage(){
        <size> is the size in GiB, truncated to tenths, if udev reports it
     3) uuid otherwise
   ==========\n"
+  OPTS:
+    --usb --no-usb
+    --card --no-card
+    --other --no-other
+      include or disclude devices of the indicated type.
+      overrides default values, environment vars and $configFile
+      latest argument in the command line takes precedence
+  ==========
 };
 
 sub main(@){
+  my %devOpts;
+  while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
+    my $neg = defined $1;
+    $devOpts{$2} = $neg ? "false" : "true";
+    shift;
+  }
+
   my $cmd = shift() || "-m";
   die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
   my $name = shift if $cmd =~ /^(-m|-u|-l)$/;
 
   die usage if @_ > 0;
 
-  runCommand $cmd, $name;
+  runCommand $cmd, $name, \%devOpts;
 }
 
-sub runCommand($$){
+sub runCommand($$$){
   my $cmd = shift;
   my $name = shift;
+  my %devOpts = %{shift()};
 
-  my @mntParts = getMntParts();
+  my @mntParts = getMntParts(\%devOpts);
 
   if($cmd eq '-m'){
     if(defined $name){
@@ -125,8 +141,9 @@ sub runCommand($$){
   }
 }
 
-sub getMntParts(){
-  return grep {isMntDevice $_} blkid();
+sub getMntParts($){
+  my %devOpts = %{shift()};
+  return grep {isMntDevice $_, \%devOpts} blkid();
 }
 sub getSelectedPart($$){
   my @mntParts = @{shift()};
@@ -301,9 +318,14 @@ sub getName($){
   return $p{uuid};
 }
 
-sub getMntConfig($){
+sub getMntConfig($$){
   my $type = shift;
+  my %devOpts = %{shift()};
   die "Unknown device type: $type" if not defined $devTypes{$type};
+
+  if(defined $devOpts{$type}){
+    return $devOpts{$type};
+  }
 
   my $varName = $devEnvVars{$type};
   my $val;
@@ -323,8 +345,9 @@ sub getMntConfig($){
   }
 }
 
-sub isMntDevice($){
+sub isMntDevice($$){
   my %udev = %{${shift()}{udev}};
+  my %devOpts = %{shift()};
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
@@ -338,7 +361,7 @@ sub isMntDevice($){
     $type = 'other';
   }
 
-  return getMntConfig($type) eq 'true';
+  return getMntConfig($type, \%devOpts) eq 'true';
 }
 
 sub run(@){
