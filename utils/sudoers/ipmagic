@@ -49,7 +49,7 @@ my $usage = "Usage:
         -s [CMD ARG ARG..]  ssh to host
         -b  BASHCMD         ssh with bash -c BASHCMD
                             if CONF_FILE has preBashCommand,
-                            cmd is bash -c \"PREBASHCMD; BASHCMD\"
+                            cmd is PREBASHCMD\\; bash -c 'BASHCMD'
         -vnc [VNC_ARGS]     call vncCmd
                             e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
 
@@ -135,14 +135,12 @@ sub main(@){
     die "-b missing command\n" if @_ == 0;
     my $c = "@_";
     $c =~ s/'/'\\''/g;
+    $c = "bash -c '$c'";
     my $preBashCmd = $config{preBashCommand};
     if(defined $preBashCmd){
-      $preBashCmd =~ s/'/'\\''/g;
-      $c = "'$preBashCmd; $c'"
-    }else{
-      $c = "'$c'";
+      $c = "$preBashCmd\; $c"
     }
-    @sshCmd = ("bash -c $c");
+    @sshCmd = ($c);
   }elsif(@_ > 0){
     die $usage;
   }
