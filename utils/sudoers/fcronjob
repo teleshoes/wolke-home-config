@@ -5,6 +5,7 @@ use warnings;
 my $tab = "/etc/fcrontab";
 my $defJob = 'XX';
 
+sub getHHMMInMin($);
 sub getDefaultJobLine($$$);
 sub appendDefaultJob($$$);
 sub listNamedJobs();
@@ -20,10 +21,11 @@ my $usage = "Usage:
   $0                           - list all named jobs
   $0 JOBNAME                   - toggle commenting/uncommenting JOBNAME
   $0 JOBNAME on|off|toggle|del - uncomment, comment, toggle, or remove JOBNAME
-  $0 [JOBNAME] HH:MM           - add a new job {JOBNAME defaults to '$defJob'}
+  $0 [JOBNAME] [HH:MM | MIN]  - add a new job {JOBNAME defaults to '$defJob'}
              e.g.: '$0 10:00' => '$exampleDefaultJob'
      JOBNAME is exactly two alphanumeric characters
      HH:MM is hours 00-23 and minutes 00-59
+     MIN is an integer for minutes in the future
      job changes are taken into account immediately and fcron is reset
 ";
 
@@ -33,7 +35,7 @@ sub main(@){
     exit 0;
   }
   my $jobName;
-  if(@_ == 1 and $_[0] =~ /^(\d\d):(\d\d)$/){
+  if(@_ == 1 and $_[0] =~ /^(\d\d:\d\d|\d+)$/){
     $jobName = $defJob;
   }else{
     $jobName = shift;
@@ -44,15 +46,30 @@ sub main(@){
 
   die $usage if @_ > 0;
   die $usage if $jobName !~ /^[0-9A-Za-z]{2}$/;
-  die $usage if $arg !~ /^(on|off|toggle|del|\d\d:\d\d)$/;
+  die $usage if $arg !~ /^(on|off|toggle|del|\d\d:\d\d|\d+)$/;
+
+  $arg = getHHMMInMin($arg) if $arg =~ /^\d+$/;
 
   if($arg =~ /^(on|off|toggle|del)$/){
     setJobState $jobName, $arg, 0;
-  }
-  if($arg =~ /^(\d\d):(\d\d)$/){
+  }elsif($arg =~ /^(\d\d):(\d\d)$/){
     setJobState $jobName, "del", 1;
     appendDefaultJob $jobName, $1, $2;
   }
+}
+
+sub getHHMMInMin($){
+  my $min = shift;
+  my $now = `date +%H:%M`;
+  chomp $now;
+  my ($h, $m) = split /:/, $now;
+  $m += $min;
+  $h += $m / 60;
+  $m = $m % 60;
+  $h = $h % 24;
+  $h = "0$h" if $h < 10;
+  $m = "0$m" if $m < 10;
+  return "$h:$m";
 }
 
 sub getDefaultJobLine($$$){
