@@ -123,11 +123,11 @@ shortcuts conf = "Shortcuts" @@ do
     "raspi"         @@ do
         "vnc"           @@ mC    xK_F9   #! "pi -vnc"
 
-    "N9"            @@ do
-        "lock"          @@ mC    xK_F12  #! "n9 -s lock"
-        "dontgosleep"   @@ mCS   xK_F12  #! "n9 -s dontgosleep"
-        "vnc portrait"  @@ mC    xK_F11  #! "n9 -vnc"
-        "vnc landscape" @@ mC    xK_F10  #! "n9 -vnc -rotate 0"
+    "N900"            @@ do
+        "lock"          @@ mC    xK_F12  #! "n900 -b lock"
+        "dontgosleep"   @@ mCS   xK_F12  #! "n900 -s dontgosleep"
+        "vnc landscape" @@ mC    xK_F11  #! "n900 -vnc"
+        "vnc portrait"  @@ mC    xK_F10  #! "n900 -vnc -rotate 90"
 
     "Klomp"         @@ do
         "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
@@ -139,22 +139,22 @@ shortcuts conf = "Shortcuts" @@ do
         "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
 
-    "Klomp N9"      @@ do
-        "pause"       @@ mCW   (xK ' ')#! "n9u -b klomp-cmd pause"
-        "prev"        @@ mCW   xK_z    #! "n9u -b klomp-cmd prev"
-        "next"        @@ mCW   xK_x    #! "n9u -b klomp-cmd next"
-        "books pl"    @@ mCW   xK_b    #! "n9u -b klomp-cmd playlist books"
-        "seek -10"    @@ mCWS  xK_z    #! "n9u -b klomp-cmd seek -10"
-        "seek 10"     @@ mCWS  xK_x    #! "n9u -b klomp-cmd seek 10"
-        "seek -60"    @@ mCWS  xK_a    #! "n9u -b klomp-cmd seek -60"
-        "seek 60"     @@ mCWS  xK_s    #! "n9u -b klomp-cmd seek 60"
+    "Klomp N900"      @@ do
+        "pause"       @@ mCW   (xK ' ')#! "n900u -b klomp-cmd pause"
+        "prev"        @@ mCW   xK_z    #! "n900u -b klomp-cmd prev"
+        "next"        @@ mCW   xK_x    #! "n900u -b klomp-cmd next"
+        "books pl"    @@ mCW   xK_b    #! "n900u -b klomp-cmd playlist books"
+        "seek -10"    @@ mCWS  xK_z    #! "n900u -b klomp-cmd seek -10"
+        "seek 10"     @@ mCWS  xK_x    #! "n900u -b klomp-cmd seek 10"
+        "seek -60"    @@ mCWS  xK_a    #! "n900u -b klomp-cmd seek -60"
+        "seek 60"     @@ mCWS  xK_s    #! "n900u -b klomp-cmd seek 60"
         "dzen rem/loc"@@ mCW   xK_c    #! "toggle-klomp-dzen-remote-cur"
-        "vol 10"      @@ mCW   xK_5    #! "n9u -b klomp-cmd volume 10 1"
-        "vol 25"      @@ mCW   xK_6    #! "n9u -b klomp-cmd volume 25 1"
-        "vol 75"      @@ mCW   xK_7    #! "n9u -b klomp-cmd volume 75 1"
-        "vol 100"     @@ mCW   xK_8    #! "n9u -b klomp-cmd volume 100 1"
-        "vol -"       @@ mCW   xK_9    #! "n9u -b klomp-cmd volume -1 0"
-        "vol +"       @@ mCW   xK_0    #! "n9u -b klomp-cmd volume +1 0"
+        "vol 10"      @@ mCW   xK_5    #! "n900u -b klomp-cmd volume 10 1"
+        "vol 25"      @@ mCW   xK_6    #! "n900u -b klomp-cmd volume 25 1"
+        "vol 75"      @@ mCW   xK_7    #! "n900u -b klomp-cmd volume 75 1"
+        "vol 100"     @@ mCW   xK_8    #! "n900u -b klomp-cmd volume 100 1"
+        "vol -"       @@ mCW   xK_9    #! "n900u -b klomp-cmd volume -1 0"
+        "vol +"       @@ mCW   xK_0    #! "n900u -b klomp-cmd volume +1 0"
 
 
 windowKeys conf = "Windows" @@ do
