@@ -102,6 +102,12 @@ shortcuts conf = "Shortcuts" @@ do
         "slow"          @@ mW    xK_F3   #! "sudo cpu-set ondemand 800 800"
         "fast"          @@ mW    xK_F4   #! "sudo cpu-set ondemand 2201 2201"
 
+    "Fan"           @@ do
+        "auto"          @@ mW    xK_F5   #! "sudo fan auto"
+        "fastest"       @@ mW    xK_F6   #! "sudo fan disengaged"
+        "medium"        @@ mW    xK_F7   #! "sudo fan 4"
+        "off"           @@ mW    xK_F8   #! "sudo fan 0"
+
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcronjob co toggle"
         "tea!"          @@ mW    xK_t    #! "fcronjob te toggle"
