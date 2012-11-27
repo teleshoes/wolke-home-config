@@ -2,6 +2,9 @@
 use strict;
 use warnings;
 
+my $modprobeConfFile = "/etc/modprobe.d/thinkpad_acpi.conf";
+my $modprobeOpts = "options thinkpad_acpi fan_control=1\n";
+
 my $kernel = `uname -r`;
 chomp $kernel;
 
@@ -26,6 +29,16 @@ if(-e $mod){
   print "copying $mod to $dir\nbackup in $bak\n";
   system "sudo mv $dir/$mod $dir/$bak";
   system "sudo cp $mod $dir";
+
+  print "\n\n";
+  print "replacing $modprobeConfFile:\n";
+  system "cat", $modprobeConfFile;
+  print "with:\n";
+  open FH, "| sudo tee $modprobeConfFile";
+  print FH $modprobeOpts;
+  close FH;
+  print "\n\n";
+
   print "remove and add module thinkpad_acpi\n";
   system "sudo modprobe -r thinkpad_acpi";
   system "sudo modprobe thinkpad_acpi";
