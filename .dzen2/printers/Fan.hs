@@ -29,7 +29,7 @@ parseFanInfo info = (grps!!0, fromMaybe 0 $ readInt $ grps!!1, grps!!2)
 formatScaling temp status speed level = col $ textRows (pad tmp) (pad spd)
   where col = color level
         pad = padL '0' width . take width
-        spd = take 2 $ show $ speed`div`100
+        spd = take 2 $ if speed == 65535 then "FF" else show $ speed`div`100
         tmp = take 2 $ show temp
 
 color level = case level of
