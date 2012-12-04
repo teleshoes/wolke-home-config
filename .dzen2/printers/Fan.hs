@@ -1,5 +1,6 @@
 module Fan(main) where
-import Utils (fg, bg, padL, regexGroups, readInt, chompFile)
+import Utils (fg, bg, padL, regexGroups,
+  readInt, readDouble, chompFile, readProc)
 import TextRows (textRows)
 import Data.Maybe (fromMaybe)
 
@@ -9,8 +10,14 @@ fanDev = "/proc/acpi/ibm/fan"
 
 main = do
   info <- chompFile fanDev
+  acpiInfo <- readProc ["acpi", "-V"]
+  let temp = parseCpuTemp acpiInfo
   let (status, speed, level) = parseFanInfo info
-  putStrLn $ formatScaling status speed level
+  putStrLn $ formatScaling temp status speed level
+
+parseCpuTemp acpiInfo = fromMaybe 0 $ readDouble $ grps!!0
+  where re = ", (\\d+\\.\\d+) degrees C"
+        grps = fromMaybe [] $ regexGroups re acpiInfo
 
 parseFanInfo info = (grps!!0, fromMaybe 0 $ readInt $ grps!!1, grps!!2)
   where re = ""
@@ -19,10 +26,11 @@ parseFanInfo info = (grps!!0, fromMaybe 0 $ readInt $ grps!!1, grps!!2)
              ++ "level:\\s*(.*)\\n?"
         grps = fromMaybe [] $ regexGroups re info
 
-formatScaling status speed level = col $ textRows (pad top) (pad bot)
+formatScaling temp status speed level = col $ textRows (pad tmp) (pad spd)
   where col = color level
         pad = padL '0' width . take width
-        (top, bot) = (take 2 level, show $ speed `div` 100)
+        spd = take 2 $ show $ speed`div`100
+        tmp = take 2 $ show temp
 
 color level = case level of
                 "auto"       -> bg "blue"
