@@ -125,6 +125,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "stepmania"     @@ mCA   xK_s    #! "stepmania -w"
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
+        "smbc"          @@ mCA   xK_m    #! "smbc"
 
     "raspi"         @@ do
         "vnc"           @@ mC    xK_F9   #! "pi -vnc"
