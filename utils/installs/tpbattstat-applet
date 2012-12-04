@@ -2,30 +2,34 @@
 use strict;
 use warnings;
 
-my $gconfDir = '/apps/tpbattstat_applet/prefs';
-my %gconf = (
-  delay => "1000",
-  use_acpi => "false",
-  discharge_strategy => "system",
-  discharge_leapfrog_threshold => "5",
-  
-  charge_strategy => "system",
-  charge_leapfrog_threshold => "10",
-  charge_brackets_pref_battery => "1",
-  charge_brackets => "[10,20,80,90,95,100]",
-  
-  display_power_usage => "now",
-  display_colored_text => "true",
-  display_icons => "true",
-  display_only_one_icon => "true",
-  display_blinking_indicator => "true",
-  
-  led_patterns_charging => "[blink-orange,blink-both,blink-green]",
-  led_patterns_discharging => "[fastblink-orange,orange,orange," .
-                              "both,both,both," .
-                              "green,green,green,green]",
-  led_patterns_idle => "[slowblink-green]",
+my $confFile = "$ENV{HOME}/.config/tpbattstat.conf";
+
+my @confLines = (
+  "delay = 1000",
+  "interface = SMAPI",
+  "dischargeStrategy = SYSTEM",
+  "dischargeLeapfrogThreshold = 5",
+  "",
+  "chargeStrategy = SYSTEM",
+  "chargeLeapfrogThreshold = 10",
+  "chargeBracketsPrefBattery = 1",
+  "chargeBrackets = [10,20,80,90,95,100]",
+  "",
+  "displayPowerUsage = now",
+  "displayColoredText = true",
+  "displayIcons = true",
+  "displayOnlyOneIcon = true",
+  "displayBlinkingIndicator = true",
+  "",
+  "ledPatternsCharging = [blink-orange,blink-both,blink-green]",
+  "ledPatternsDischarging = ["
+    . "fastblink-orange,orange,orange,"
+    . "both,both,both,"
+    . "green,green,green,green"
+  . "]",
+  "ledPatternsIdle = [slowblink-green]",
 );
+@confLines = map {"$_\n"} @confLines;
 
 my $url = 'git://github.com/teleshoes/tpbattstat-applet.git';
 my $dir = 'tpbattstat-applet';
@@ -37,19 +41,6 @@ system "git clone $url /tmp/$dir";
 
 system "cd /tmp/$dir; $installCmd";
 
-for my $key(keys %gconf){
-  my $val = $gconf{$key};
-  my $type = 'string';
-  $type = 'int' if $val =~ /^\d+$/;
-  $type = 'list' if $val =~ /^\[.*\]$/;
-  $type = 'bool' if $val =~ /^(true|false)$/i;
-  my @cmd = ("gconftool", "-s", "-t", $type);
-  if($type eq 'list'){
-    my $listType = 'string';
-    $listType = 'int' if $val =~ /^\[(\s*\d+\s*,\s*)*\d+\]$/;
-    @cmd = (@cmd, "--list-type", $listType);
-  }
-  @cmd = (@cmd, "$gconfDir/$key", $val);
-  print "@cmd\n";
-  system @cmd;
-}
+open FH, "> $confFile";
+print FH @confLines;
+close FH;
