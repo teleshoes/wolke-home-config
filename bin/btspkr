@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $mac = "C8:2E:94:00:62:02";
+my $dev = "hci0";
+my $asoundrcFile = "$ENV{HOME}/.asoundrc";
+
+sub run(@){
+  print "@_\n";
+  system "@_";
+  return $?;
+}
+
+sub runRepeat($@){
+  my $limit = shift;
+  while($limit > 0){
+    if(run(@_) == 0){
+      return;
+    }else{
+      $limit -= 1;
+      die "command failed too many times\n" if $limit <= 0;
+      print "RERUNNING $limit more times\n";
+    }
+  }
+}
+
+sub asound($){
+  my $mac = shift;
+  my $asoundrc = ''
+    . "pcm.bluetooth {\n"
+    . "  type bluetooth\n"
+    . "device \"C8:2E:94:00:62:02\"\n"
+    ;
+  open FH, "> $asoundrcFile" or die "Couldnt write $asoundrcFile\n";
+  print FH $asoundrc;
+  close FH;
+}
+
+sub main(@){
+  asound $mac;
+  runRepeat 3, "sudo", "bluetooth", "on";
+  run "bluez-test-device", "remove", $mac;
+  run "bluez-test-device", "remove", $mac;
+  runRepeat 3, "bluez-simple-agent", $dev, $mac;
+  runRepeat 3, "bluez-test-audio", "connect", $mac;
+  run "pactl", "un-load-module", "module-alsa-sink";
+  runRepeat 3, "pactl", "load-module", "module-alsa-sink";
+}
+&main(@ARGV);
