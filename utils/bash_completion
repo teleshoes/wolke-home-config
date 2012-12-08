@@ -9,7 +9,8 @@ if(`whoami` ne "root\n"){
 
 my $dir = '/etc/bash_completion.d';
 
-sub getMntNamesSub(){
+sub getMntNamesSub($){
+  my $cmd = shift;
   my $opts = join ' ', qw(
     -m -u -g -n -l --usb --no-usb --card --no-card --other --no-other
   );
@@ -18,7 +19,7 @@ sub getMntNamesSub(){
               cur="${COMP_WORDS[COMP_CWORD]}"
 
               if [ ${#COMP_WORDS[@]} == 3 ]; then
-                names=`mnt -n`
+                names=`' . $cmd . ' -n`
                 COMPREPLY=( $(compgen -W "$names" -- $cur) )
               elif [ ${#COMP_WORDS[@]} == 2 ]; then
                 COMPREPLY=( $(compgen -W "' . $opts . '" -- $cur) )
@@ -27,14 +28,15 @@ sub getMntNamesSub(){
               fi
             }
 
-            complete -F _mntnames mnt
+            complete -F _mntnames ' . $cmd . '
   ';
 }
 
 my $files = {
   'sudo-aliases' => "complete -F _root_command suod sudp\n",
   'spawn' => "complete -F _root_command spawn spawnex spawnexsudo\n",
-  'mnt' => getMntNamesSub(),
+  'mnt' => getMntNamesSub 'mnt',
+  'mnto' => getMntNamesSub 'mnto',
 };
 
 for my $file(keys %$files){
