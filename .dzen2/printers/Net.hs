@@ -6,7 +6,9 @@ import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
 import TextRows (textRows)
 import ClickAction (clickAction)
-import Utils (padL, chompAll, regexFirstGroup, lineBuffering)
+import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
+
+lastSSIDFile = "/tmp/last-ssid"
 
 width = 10
 
@@ -42,7 +44,7 @@ main = do
       Wlan      -> wifi
       Wired     -> message "wired"
       PPP       -> message "pewpewpew"
-      Wconnect  -> message "wconnect"
+      Wconnect  -> lastSSID
       Wauto     -> message "wauto"
       Tethering -> message "tethering"
       None      -> message "no wabs"
@@ -51,6 +53,12 @@ main = do
     threadDelay $ 1*10^6
 
 message s = return $ padtrim width $ Just s
+
+lastSSID = do
+  last <- chompFile lastSSIDFile
+  top <- message "wconnect"
+  bot <- message last
+  return $ textRows top bot
 
 wifi = do
   wlan <- fmap chompAll $ readProcess "ifdev" ["wlan"] ""
