@@ -16,9 +16,10 @@ my $jheadExec = 'jhead';
 
 sub findImages($);
 sub statImage($);
+sub checkInfo($$);
+sub convert($$$$);
 
 sub shellQuiet(@);
-sub convert($$$$);
 
 sub main(@){
   my $srcDir = shift;
@@ -46,9 +47,7 @@ sub main(@){
   my @destImgs = findImages $destDir;
   my %okImgs;
   for my $img(@destImgs){
-    my $info = shellQuiet 'cat', "$destDir/$img.info";
-    my $srcInfo = $srcInfos{$img};
-    if(not defined $srcInfo or $info ne $srcInfo){
+    if(not checkInfo($srcInfos{$img}, "$destDir/$img.info")){
       print "removing $destDir/$img and $destDir/$img.info\n";
       system "rm", "$destDir/$img";
       system "rm", "$destDir/$img.info";
@@ -87,6 +86,16 @@ sub statImage($){
   my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
     $atime,$mtime,$ctime,$blksize,$blocks) = @stat;
   return "$size|$mtime\n";
+}
+
+sub checkInfo($$){
+  my ($srcInfo, $destInfoFile) = @_;
+  if(not defined $srcInfo){
+    return 0;
+  }
+
+  my $destInfo = shellQuiet 'cat', $destInfoFile;
+  return $destInfo eq $srcInfo;
 }
 
 sub wrapTokens(@){
