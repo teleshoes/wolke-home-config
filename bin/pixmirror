@@ -4,6 +4,7 @@
 use strict;
 use warnings;
 
+my $usage = "Usage: $0 src dest\n";
 my @exts = qw(jpg JPG jpeg JPEG png PNG);
 
 my $targetX = 854;
@@ -13,6 +14,9 @@ my $convertExec = 'convert';
 my $identifyExec = 'identify';
 my $jheadExec = 'jhead';
 
+sub findImages($);
+sub statImage($);
+
 sub shellQuiet(@);
 sub convert($$$$);
 
@@ -20,7 +24,7 @@ sub main(@){
   my $srcDir = shift;
   my $destDir = shift;
 
-  die "Usage: $0 src dest" if not defined $srcDir or not defined $destDir;
+  die $usage if not defined $srcDir or not defined $destDir or @_ > 0;
   die "src '$srcDir' is not a directory" if !-d $srcDir;
   die "dest '$destDir' is not a directory" if !-d $destDir;
 
@@ -29,31 +33,19 @@ sub main(@){
   system "which $identifyExec > /dev/null";
   die "Could not exec $identifyExec\n" if $? != 0;
 
-  my @findArgs = join " -or ", map {"-iname '*.$_'"} @exts;
+  my @srcImgs = findImages $srcDir;
+  my $total = @srcImgs;
 
-  my @srcImgs = `cd $srcDir; find @findArgs`;
-  @srcImgs = sort @srcImgs;
-
+  print "running stat on $total images:\n";
   my %srcInfos;
   for my $img(@srcImgs){
-    chomp $img;
-
-    my $stat = shellQuiet 'stat', '--format', '%s:%Y', "$srcDir/$img";
-    if($? == 0 and $stat =~ /(\d+):(\d+)/){
-      my ($filesize, $modified) = ($1, $2);
-      $srcInfos{$img} = "$filesize|$modified\n";
-    }else{
-      die "file not found: $srcDir/$img\n";
-    }
+    $srcInfos{$img} = statImage "$srcDir/$img";
   }
 
-  my @destImgs = `cd $destDir; find @findArgs`;
-  @destImgs = sort @destImgs;
-
+  print "checking pixmirror for extras:\n";
+  my @destImgs = findImages $destDir;
   my %okImgs;
   for my $img(@destImgs){
-    chomp $img;
-
     my $info = shellQuiet 'cat', "$destDir/$img.info";
     my $srcInfo = $srcInfos{$img};
     if(not defined $srcInfo or $info ne $srcInfo){
@@ -65,27 +57,37 @@ sub main(@){
     }
   }
 
-  my $srcImgCount = @srcImgs;
-  print "Converting $srcImgCount images\n";
+  @srcImgs = grep {not defined $okImgs{$_}} @srcImgs;
+  my $toConvert = @srcImgs;
+  my $skipped = $total - $toConvert;
 
-  my $len = length @srcImgs;
-  my $i=0;
-  my $skippedCount = 0;
+  print "\nconverting $toConvert images {skipped $skipped}\n";
   for my $img(@srcImgs){
-    my $dirName = shellQuiet 'dirname', $img;
-    chomp $dirName;
-
-    if(defined $okImgs{$img}){
-      $skippedCount++;
-    }else{
-      convert $img, $srcDir, $destDir, \%srcInfos;
-    }
+    convert $img, $srcDir, $destDir, $srcInfos{$img};
   }
 
-  print "  skipped $skippedCount images\n" if $skippedCount > 0;
+  print "\n\nremoving empty dirs\n";
+  system "find $destDir -mindepth 1 -depth -type d -empty -delete";
+}
 
-  system "find $destDir -depth -type d -empty -execdir rmdir {} \\;";
-  mkdir $destDir;
+sub findImages($){
+  my $dir = shift;
+  my @findArgs = join " -or ", map {"-iname '*.$_'"} @exts;
+
+  my @imgs = `cd $dir; find @findArgs`;
+  map {chomp} @imgs;
+  return sort @imgs;
+}
+
+sub statImage($){
+  my $img = shift;
+  my $stat = shellQuiet 'stat', '--format', '%s:%Y', $img;
+  if($? == 0 and $stat =~ /(\d+):(\d+)/){
+    my ($filesize, $modified) = ($1, $2);
+    return "$filesize|$modified\n";
+  }else{
+    die "file not found: $img\n";
+  }
 }
 
 sub wrapTokens(@){
@@ -121,7 +123,7 @@ sub convert($$$$){
   my $img = shift;
   my $srcDir = shift;
   my $destDir = shift;
-  my $srcInfos = shift;
+  my $statInfo = shift;
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
@@ -144,7 +146,7 @@ sub convert($$$$){
   die "failure: $img\n" if $? != 0;
 
   open INFO, "> $destDir/$img.info";
-  print INFO $$srcInfos{$img};
+  print INFO $statInfo;
   close INFO;
 
   system $jheadExec, "-autorot", "$destDir/$img";
