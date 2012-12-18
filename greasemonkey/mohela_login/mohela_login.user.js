@@ -6,12 +6,12 @@
 
 try{
   //first time page loads
-  e = document.getElementById('ctl00_cphMainForm_txtLoginID');
+  e = document.getElementById('ctl00_cphContent_txtLoginID');
   e.value = secret['loginId']
-  document.getElementById('ctl00_cphMainForm_btnLogin').click()
+  document.getElementById('ctl00_cphContent_btnLogin').click()
 }finally{
   //second time page loads
-  document.getElementById('ctl00_cphMainForm_btnContinue').click()
+  document.getElementById('ctl00_cphContent_btnContinue').click()
 }
 
 // ==/UserScript==
