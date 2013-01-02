@@ -92,7 +92,8 @@ shortcuts conf = "Shortcuts" @@ do
         down        @@  do m_    xK_VolDn#! "pulse-vol -6 100"
                            mA    xK_VolDn#! "pulse-vol -6 150"
                            mC    xK_VolDn#! "pulse-vol -6 300"
-        "Mute Sound"    @@ m_    xK_Mute #! "pulse-vol speaker toggle"
+        "Toggle mute"   @@ m_    xK_Mute #! "pulse-vol speaker toggle"
+        "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
         "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
 
