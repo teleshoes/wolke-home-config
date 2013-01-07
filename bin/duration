@@ -3,27 +3,22 @@ use strict;
 use warnings;
 
 my $usage = "Usage:
-  $0 [-m] [-a] song             print length in seconds
-  $0 [-m] [-a] song song ..     print length and filename, one per line
-  $0 [-m] [-a] -t song song ..  print sum of length in seconds of all inputs
-    -a  =>  use avconv instead of midentify
+  $0 [-m] song             print length in seconds
+  $0 [-m] song song ..     print length and filename, one per line
+  $0 [-m] -t song song ..  print sum of length in seconds of all inputs
     -m  =>  print values in h:mm:ss or m:ss instead of s.ss
 ";
 
-sub getLen($$);
+sub getLen($);
 sub formatLen($$);
 
 sub main(@){
   die $usage if @_ == 0;
-  (my $isTotal = 0, my $useAvconv = 0, my $isSingle = 0, my $hms = 0);
+  (my $isTotal = 0, my $isSingle = 0, my $hms = 0);
   die $usage if $_[0] eq '-h' or $_[0] eq '--help';
 
   if($_[0] eq '-m'){
     $hms = 1;
-    shift;
-  }
-  if($_[0] eq '-a'){
-    $useAvconv = 1;
     shift;
   }
   if($_[0] eq '-t'){
@@ -34,7 +29,7 @@ sub main(@){
 
   my $total = 0;
   for my $song(@_){
-    my $len = getLen $song, $useAvconv;
+    my $len = getLen $song;
     $total += $len;
     if(not $isTotal){
       print formatLen($hms, $len);
@@ -48,7 +43,7 @@ sub main(@){
   }
 }
 sub getLen($$){
-  my ($song, $useAvconv) = @_;
+  my ($song) = @_;
 
   my $shellSong = $song;
   $shellSong =~ s/'/'\\''/g;
@@ -57,16 +52,9 @@ sub getLen($$){
   die "Could not stat file $song\n" if $? != 0;
 
   my $len;
-  if($useAvconv){
-    my $avconfInfo = `avconv -i $shellSong 2>&1`;
-    if($avconfInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
-      $len = $3 + ($2*60) + ($1*60*60);
-    }
-  }else{
-    my $mplayerInfo = `midentify $shellSong 2>/dev/null`;
-    if($mplayerInfo =~ /^ID_LENGTH=(\d+(?:\.\d+)?)$/m){
-      $len = $1;
-    }
+  my $avconfInfo = `avconv -i $shellSong 2>&1`;
+  if($avconfInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
+    $len = $3 + ($2*60) + ($1*60*60);
   }
 
   if(defined $len){
