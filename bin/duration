@@ -1,48 +1,52 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Getopt::Long qw(GetOptionsFromArray :config bundling);
 
 my $usage = "Usage:
-  $0 [-m] song             print length in seconds
-  $0 [-m] song song ..     print length and filename, one per line
-  $0 [-m] -t song song ..  print sum of length in seconds of all inputs
-    -m  =>  print values in h:mm:ss or m:ss instead of s.ss
+  $0 [OPTS] FILENAME FILENAME ..
+    Print the durations of sound files, one per line, using avconv.
+    Format is 'M:SS FILENAME' or 'H:MM:SS FILENAME' for longer files.
+  $0 -h|--help
+    Print this message
+
+  -s, --seconds
+     Print durations in 'S.SS' instead of 'M:SS' or 'H:MM:SS'
+  -t, --total
+     Print total of all files instead of individually.
+  -n, --nofilename
+     Do not print the filename after the duration.
 ";
 
 sub getLen($);
-sub formatLen($$);
+sub formatLenS($);
+sub formatLenHMS($);
 
 sub main(@){
-  die $usage if @_ == 0;
-  (my $isTotal = 0, my $isSingle = 0, my $hms = 0);
-  die $usage if $_[0] eq '-h' or $_[0] eq '--help';
+  my ($help, $seconds, $total, $nofilename);
+  my $ok = GetOptionsFromArray(\@_,
+    "h|help"       => \$help,
+    "s|seconds"    => \$seconds,
+    "t|total"      => \$total,
+    "n|nofilename" => \$nofilename,
+  ) or die $usage;
+  my @files = @_;
 
-  if($_[0] eq '-m'){
-    $hms = 1;
-    shift;
-  }
-  if($_[0] eq '-t'){
-    $isTotal = 1;
-    shift;
-  }
-  $isSingle = @_ == 1;
+  die $usage if not $ok or @files == 0 or $help;
 
-  my $total = 0;
-  for my $song(@_){
-    my $len = getLen $song;
-    $total += $len;
-    if(not $isTotal){
-      print formatLen($hms, $len);
-      print " $song" if not $isSingle;
-      print "\n";
-    }
+  my $lenTotal = 0;
+  for my $file(@_){
+    my $len = getLen $file;
+    $lenTotal += $len;
+    my $fmt = $seconds ? formatLenS $len : formatLenHMS $len;
+    $fmt .= " $file" unless $nofilename;
+    $fmt .= "\n";
+    print $fmt unless $total;
   }
-  if($isTotal){
-    print formatLen($hms, $total);
-    print "\n";
-  }
+  my $fmtTotal = $seconds ? formatLenS $lenTotal : formatLenHMS $lenTotal;
+  print "$fmtTotal\n" if $total;
 }
-sub getLen($$){
+sub getLen($){
   my ($song) = @_;
 
   my $shellSong = $song;
@@ -64,22 +68,22 @@ sub getLen($$){
   }
 }
 
-sub formatLen($$){
-  my ($hms, $len) = @_;
-  if($hms){
-    $len = int(0.5 + $len);
-    my $h = int($len / (60*60));
-    my $m = int($len % (60*60) / (60));
-    my $s = $len - ($m*60) - ($h*60*60);
-    $s = "0$s" if $s < 10;
-    if($h == 0){
-      return "$m:$s";
-    }else{
-      $m = "0$m" if $m < 10;
-      return "$h:$m:$s";
-    }
+sub formatLenS($){
+  return sprintf "%.2f", $_[0];
+}
+sub formatLenHMS($){
+  my $len = shift;
+  $len = int(0.5 + $len);
+  my $h = int($len / (60*60));
+  my $m = int($len % (60*60) / (60));
+  my $s = $len - ($m*60) - ($h*60*60);
+  $s = "0$s" if $s < 10;
+
+  if($h == 0){
+    return "$m:$s";
   }else{
-    return sprintf "%.2f", $len;
+    $m = "0$m" if $m < 10;
+    return "$h:$m:$s";
   }
 }
 
