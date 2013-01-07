@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use IPC::Run qw(run);
 use Getopt::Long qw(GetOptionsFromArray :config bundling);
 
 my $usage = "Usage:
@@ -46,25 +47,17 @@ sub main(@){
   my $fmtTotal = $seconds ? formatLenS $lenTotal : formatLenHMS $lenTotal;
   print "$fmtTotal\n" if $total;
 }
+
 sub getLen($){
-  my ($song) = @_;
+  my $file = shift;
+  die "file not found: $file\n" unless -e $file;
 
-  my $shellSong = $song;
-  $shellSong =~ s/'/'\\''/g;
-  $shellSong = "'$shellSong'";
-  system "stat $shellSong 1>/dev/null 2>/dev/null";
-  die "Could not stat file $song\n" if $? != 0;
-
-  my $len;
-  my $avconfInfo = `avconv -i $shellSong 2>&1`;
-  if($avconfInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
-    $len = $3 + ($2*60) + ($1*60*60);
-  }
-
-  if(defined $len){
-    return $len;
+  my $avconvInfo;
+  run ["avconv", "-i", $file], '>&', \$avconvInfo;
+  if($avconvInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
+    return $3 + ($2*60) + ($1*60*60);
   }else{
-    die "Unknown length for input: $song\n";
+    die "Unknown length for input: $file\n";
   }
 }
 
