@@ -64,7 +64,7 @@ complete -F _root_command spawn spawnex
 alias evince='spawn evince'
 
 
-if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty7" ]; then
+if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty6" ]; then
   exec startx
 fi
 
