@@ -28,7 +28,7 @@ xset b off
 
 pulseaudio --start
 
-mnt --other
+sudo mnt --other
 wauto
 
 #sudo bluetooth off
