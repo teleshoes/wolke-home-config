@@ -28,7 +28,8 @@ xset b off
 
 pulseaudio --start
 
-#sudo wconnect `wguessid` &
+mnt --other
+wauto
 
 #sudo bluetooth off
 
