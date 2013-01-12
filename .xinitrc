@@ -26,6 +26,6 @@ xset -b #no bell
 pulseaudio --start &
 sudo wconnect `wguessid` &
 sudo bluetooth off &
-sudo fan disengaged
+sudo fan auto
 
 exec xmonad
