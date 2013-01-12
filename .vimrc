@@ -47,6 +47,9 @@ imap <C-C> <Esc>:q<CR>
 """delete/paste"""
 imap <C-D> <Esc>ddli
 imap <C-P> <Esc>pli
+
+xmap p "_dp
+xmap P "_dP
 """"""
 
 """Undo"""
