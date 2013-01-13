@@ -7,10 +7,9 @@ if(`whoami` ne "root\n"){
   exec "sudo", $0, @ARGV;
 }
 
-sub run(@){
-  print "@_\n";
-  system @_;
-}
+sub run(@);
+sub writeF($$);
+sub readLines($);
 
 my $w520_patch = '
 462a463
@@ -21,15 +20,11 @@ sub main(@){
 
   run "apt-get install tp-smapi-source";
 
-  open FH, "> /etc/modprobe.d/tp_smapi.conf";
-  print FH "options thinkpad_ec force_io=1\n";
-  close FH;
+  writeF "/etc/modprobe.d/tp_smapi.conf", "options thinkpad_ec force_io=1\n";
   run "modprobe -a tp_smapi";
 
   my $patchFile = "/tmp/tp_smapi-w520.patch";
-  open FH, "> $patchFile";
-  print FH $w520_patch;
-  close FH;
+  writeF $patchFile, $w520_patch;
 
   run "patch /usr/src/tp-smapi-0.40/thinkpad_ec.c $patchFile";
 
@@ -39,18 +34,14 @@ sub main(@){
   die "failed to install tp-smapi\n" if $? != 0;
   run "modprobe tp-smapi";
 
-  open FH, '< /etc/modules';
-  my @lines = <FH>;
-  close FH;
+  my @lines = readLines "/etc/modules";
   my @newlines;
   for my $line(@lines){
     push @newlines, $line if $line !~ /^(tp-smapi)\n?$/;
   }
   push @newlines, "tp-smapi\n";
 
-  open FH, '> /etc/modules';
-  print FH @newlines;
-  close FH;
+  writeF "/etc/modules", join '', @newlines;
 
   run "chmod o+w /etc/modules";
   run
@@ -60,6 +51,24 @@ sub main(@){
     "SYMLINK+=\"input/hdaps/accelerometer-event\"'".
     " | sudo tee /etc/udev/rules.d/51-hdaps.rules";
   run "update-initramfs -u";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+sub writeF($$){
+  my ($file, $content) = @_;
+  open FH, "> $file";
+  print FH $content;
+  close FH;
+}
+sub readLines($){
+  my ($file) = @_;
+  open FH, '< /etc/modules';
+  my @lines = <FH>;
+  close FH;
+  return @lines;
 }
 
 &main(@ARGV);
