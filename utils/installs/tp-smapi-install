@@ -12,49 +12,52 @@ sub run(@){
   system @_;
 }
 
-
-run "apt-get install tp-smapi-source";
-
-run
-  "echo 'options thinkpad_ec force_io=1' > " .
-  "/etc/modprobe.d/tp_smapi.conf";
-run "modprobe -a tp_smapi";
-
 my $w520_patch = '
 462a463
 > 		TP_DMI_MATCH("LENOVO", "ThinkPad"),
 ';
 
-open FH, "> /tmp/tp_smapi-w520.patch";
-print FH $w520_patch;
-close FH;
+sub main(@){
 
-run "patch /usr/src/tp-smapi-0.40/thinkpad_ec.c /tmp/tp_smapi-w520.patch";
+  run "apt-get install tp-smapi-source";
 
+  open FH, "> /etc/modprobe.d/tp_smapi.conf";
+  print FH "options thinkpad_ec force_io=1\n";
+  close FH;
+  run "modprobe -a tp_smapi";
 
-run "module-assistant prepare tp-smapi";
-run "module-assistant auto-install tp-smapi -f";
-run "modprobe tp-smapi";
+  my $patchFile = "/tmp/tp_smapi-w520.patch";
+  open FH, "> $patchFile";
+  print FH $w520_patch;
+  close FH;
 
-open FH, '< /etc/modules';
-my @lines = <FH>;
-close FH;
-my @newlines;
-for my $line(@lines){
-  push @newlines, $line if $line !~ /^(tp-smapi)\n?$/;
+  run "patch /usr/src/tp-smapi-0.40/thinkpad_ec.c $patchFile";
+
+  run "module-assistant prepare tp-smapi";
+  run "module-assistant auto-install tp-smapi -f";
+  run "modprobe tp-smapi";
+
+  open FH, '< /etc/modules';
+  my @lines = <FH>;
+  close FH;
+  my @newlines;
+  for my $line(@lines){
+    push @newlines, $line if $line !~ /^(tp-smapi)\n?$/;
+  }
+  push @newlines, "tp-smapi\n";
+
+  open FH, '> /etc/modules';
+  print FH @newlines;
+  close FH;
+
+  run "chmod o+w /etc/modules";
+  run
+    "echo 'KERNEL==\"event[0-9]*\", " .
+    "ATTRS{phys}==\"hdaps/input1\"," .
+    "ATTRS{modalias}==\"input:b0019v1014p5054e4801-*\",".
+    "SYMLINK+=\"input/hdaps/accelerometer-event\"'".
+    " | sudo tee /etc/udev/rules.d/51-hdaps.rules";
+  run "update-initramfs -u";
 }
-push @newlines, "tp-smapi\n";
 
-open FH, '> /etc/modules';
-print FH @newlines;
-close FH;
-
-run "chmod o+w /etc/modules";
-run
-  "echo 'KERNEL==\"event[0-9]*\", " .
-  "ATTRS{phys}==\"hdaps/input1\"," .
-  "ATTRS{modalias}==\"input:b0019v1014p5054e4801-*\",".
-  "SYMLINK+=\"input/hdaps/accelerometer-event\"'".
-  " | sudo tee /etc/udev/rules.d/51-hdaps.rules";
-run "update-initramfs -u";
-
+&main(@ARGV);
