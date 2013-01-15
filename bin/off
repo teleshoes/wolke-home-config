@@ -5,16 +5,32 @@ import os
 
 def getActions():
   return filter(None, [ None
-    , Action("Shutdown",  "s",  True,  ["gksudo poweroff"    , sys.exit])
-    , Action("Reboot",    "r",  True,  ["gksudo reboot"      , sys.exit])
-    , Action("Sleep",     "l",  True,  ["gksudo pm-suspend"  , sys.exit])
-    , Action("Hibernate", "h",  True,  ["gksudo pm-hibernate", sys.exit])
+    , Action("Shutdown",  "s",  True,  [hideGui, "gksudo poweroff"    , sys.exit])
+    , Action("Reboot",    "r",  True,  [hideGui, "gksudo reboot"      , sys.exit])
+    , Action("Sleep",     "l",  True,  [hideGui, "gksudo pm-suspend"  , sys.exit])
+    , Action("Hibernate", "h",  True,  [hideGui, "gksudo pm-hibernate", sys.exit])
     , Action("Cancel",    None, True,  [sys.exit])
     , Action("Gui",       "g",  False, [showGui])
   ])
 
+def main(args):
+  if len(args) == 2:
+    for a in filter(lambda a: a.key, getActions()):
+      if args[1].lower() == a.key.lower():
+        a.run()
+        sys.exit(0)
+  print >> sys.stderr, usage()
+  sys.exit(1)
+
+gui = None
 def showGui():
-  ActionGui(filter((lambda a: a.isGui), getActions())).mainWindow()
+  global gui
+  if gui == None: gui = ActionGui(filter((lambda a: a.isGui), getActions()))
+  gui.show()
+
+def hideGui():
+  global gui
+  if gui != None: gui.hide()
 
 def usage():
   u = "Usage: " + sys.argv[0] + " ARG"
@@ -32,15 +48,6 @@ def usage():
       + "    " + cmd.ljust(maxCmdLen)
     )
   return u
-
-def main(args):
-  if len(args) == 2:
-    for a in filter(lambda a: a.key, getActions()):
-      if args[1].lower() == a.key.lower():
-        a.run()
-        sys.exit(0)
-  print >> sys.stderr, usage()
-  sys.exit(1)
 
 def isstr(s):
   return isinstance(s, basestring)
@@ -81,27 +88,28 @@ class ActionGui():
     ))
     for a in self.actions:
       self.box.add(ActionButton(a))
-  def mainWindow(self):
-    window = gtk.Window()
-    window.set_default_size(300, 500)
-    window.set_position(gtk.WIN_POS_CENTER)
-    window.set_title("Off")
-    window.add(self.getGtkWidget())
 
-    window.add_events(gtk.gdk.KEY_PRESS_MASK)
-    window.connect("key_press_event", self.keyPress)
+    self.window = gtk.Window()
+    self.window.set_default_size(300, 500)
+    self.window.set_position(gtk.WIN_POS_CENTER)
+    self.window.set_title("Off")
+    self.window.add(self.box)
 
-    window.connect("destroy", gtk.main_quit) 
-    window.show_all()
+    self.window.add_events(gtk.gdk.KEY_PRESS_MASK)
+    self.window.connect("key_press_event", self.keyPress)
+  def show(self):
+    self.window.show_all()
     gtk.main()
+  def hide(self):
+    self.window.hide()
+    while gtk.events_pending():
+      gtk.main_iteration()
   def keyPress(self, widget, event):
     if event.keyval == gtk.keysyms.Escape:
       sys.exit()
     for a in filter(lambda a: a.key, self.actions):
       if a.key.lower() == chr(event.keyval).lower():
         a.run()
-  def getGtkWidget(self):
-    return self.box
 
 if __name__ == "__main__":
   main(sys.argv)
