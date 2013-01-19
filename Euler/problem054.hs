@@ -1,7 +1,7 @@
 #!/usr/bin/runhaskell
 
 import Data.List
-import Char(digitToInt)
+import Data.Char(digitToInt)
 import Data.Function
 
 main :: IO ()

@@ -1,6 +1,6 @@
 #!/usr/bin/runhaskell
 
-import Char
+import Data.Char
 import Data.List
 
 --multiplicand and multiplier have to be 4 digits or less,

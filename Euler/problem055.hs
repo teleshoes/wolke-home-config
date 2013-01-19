@@ -1,6 +1,6 @@
 #!/usr/bin/runhaskell
 
-import Char (intToDigit, digitToInt)
+import Data.Char (intToDigit, digitToInt)
 
 main :: IO ()
 main = print(soln 10000)

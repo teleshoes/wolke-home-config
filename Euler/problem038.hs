@@ -1,6 +1,6 @@
 #!/usr/bin/runhaskell
 
-import Char
+import Data.Char
 import Data.List
 
 main :: IO ()

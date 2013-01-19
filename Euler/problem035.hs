@@ -2,7 +2,7 @@
 
 import Data.List
 import Data.Function (on)
-import Char
+import Data.Char
 
 main :: IO ()
 main = print(soln 1000000)

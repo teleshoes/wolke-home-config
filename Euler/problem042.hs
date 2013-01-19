@@ -1,7 +1,7 @@
 #!/usr/bin/runhaskell
 
 import Data.List
-import Char
+import Data.Char
 
 main :: IO ()
 main = do

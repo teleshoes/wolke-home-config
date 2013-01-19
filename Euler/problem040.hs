@@ -1,6 +1,6 @@
 #!/usr/bin/runhaskell
 
-import Char
+import Data.Char
 
 main :: IO ()
 main = print(soln [1,10,100,1000,10000,100000,1000000])

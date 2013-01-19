@@ -1,6 +1,6 @@
 #!/usr/bin/runhaskell
 
-import Char
+import Data.Char
 
 main :: IO ()
 main = print(soln)

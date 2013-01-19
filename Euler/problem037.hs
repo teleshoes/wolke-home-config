@@ -2,7 +2,7 @@
 
 import Data.List
 import Data.Function (on)
-import Char (intToDigit, digitToInt)
+import Data.Char (intToDigit, digitToInt)
 
 main :: IO ()
 main = print(soln)
