@@ -17,11 +17,11 @@ sub getAllProblemNums();
 sub main(@){
   my $force;
   my $threads;
-  my $quiet;
+  my $verbose;
 
   my $ok = GetOptionsFromArray(\@_,
     'force', \$force,
-    'quiet', \$quiet,
+    'verbose', \$verbose,
     'threads=i{1}', \$threads,
   );
   die $usage if not $ok or @_ == 0;
@@ -46,11 +46,11 @@ sub main(@){
       $num = "0$num";
     }
 
-    my $res = compile $num, $force, $quiet, $threads;
+    my $res = compile $num, $force, $verbose, $threads;
     if($res != 0){
       print "Compile failed with code: $res\n";
     }else{
-      run $num, $quiet, $threads;
+      run $num, $verbose, $threads;
     }
   }
 }
@@ -58,7 +58,7 @@ sub main(@){
 sub compile($$$$){
   my $num = shift;
   my $force = shift;
-  my $quiet = shift;
+  my $verbose = shift;
   my $threads = shift;
 
   if(defined $force){
@@ -74,10 +74,10 @@ sub compile($$$$){
     $compile = "ghc --make $DIR/problem$num.hs -O";
   }
 
-  if(defined $quiet){
-    system "$compile -v0";
-  }else{
+  if(defined $verbose){
     system "$compile";
+  }else{
+    system "$compile -v0";
   }
 
   return $?;
@@ -85,10 +85,10 @@ sub compile($$$$){
 
 sub run($$$){
   my $num = shift;
-  my $quiet = shift;
+  my $verbose = shift;
   my $threads = shift;
   
-  if(not defined $quiet){
+  if(defined $verbose){
     print "Started running at " . localtime() . "\n";
   }
 
@@ -99,7 +99,7 @@ sub run($$$){
     $exec = "$DIR/problem$num";
   }  
 
-  if(defined $quiet){
+  if(not defined $verbose){
     my $start = time;
     
     my $out = `$exec`;
