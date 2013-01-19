@@ -6,12 +6,13 @@ use Getopt::Long qw(GetOptionsFromArray);
 my $DIR = '/home/wolke/Euler';
 
 my $usage = "Usage:
-  $0 [-f|--force] [-q|--quiet] [-t N | --threads=N] PROBLEM
-    PROBLEM must be an integer or 'all'
+  $0 [-f|--force] [-v|--verbose] [-t N | --threads=N] all
+  $0 [-f|--force] [-v|--verbose] [-t N | --threads=N] PROBLEM [PROBLEM ..]
 ";
 
 sub run($$$);
 sub compile($$$$);
+sub getAllProblemNums();
 
 sub main(@){
   my $force;
@@ -23,28 +24,21 @@ sub main(@){
     'quiet', \$quiet,
     'threads=i{1}', \$threads,
   );
-  my $num = shift() || '';
-  die $usage if not $ok or @_ > 0 or $num !~ /^(all|[0-9]+)$/;
-  chdir $DIR;
+  die $usage if not $ok or @_ == 0;
 
-  my @problemNumbers;
-  if($num eq 'all'){
-    my @problems = split /\n/, `ls -1 $DIR/problem*.hs`;
-
-    my $max = 0;
-    foreach my $prob(@problems){
-      $prob =~ /([0-9]+)/;
-      if($1 > $max){
-        $max = $1;
-      }
-    }
-
-    @problemNumbers = (1 .. $max);
+  my @probNums;
+  if(@_ == 1 and $_[0] eq 'all'){
+    @probNums = getAllProblems();
   }else{
-    @problemNumbers = ($num);
+    @probNums = @_;
+  }
+  for my $n(@probNums){
+    die $usage if $n !~ /^\d+$/;
   }
 
-  for my $num(@problemNumbers){
+  chdir $DIR;
+
+  for my $num(@probNums){
     $num = 0+$num;
     if($num < 10){
       $num = "00$num";
@@ -54,7 +48,7 @@ sub main(@){
 
     my $res = compile $num, $force, $quiet, $threads;
     if($res != 0){
-      print "Compiled failed with code: $res\n";
+      print "Compile failed with code: $res\n";
     }else{
       run $num, $quiet, $threads;
     }
@@ -127,6 +121,17 @@ sub run($$$){
     $out =~ s/(?<=[^\\])\\n/\n/g;
     print $out;
   }
+}
+
+sub getAllProblemNums(){
+  my @problems = split /\n/, `ls -1 $DIR/problem*.hs`;
+  my @probNums;
+
+  foreach my $prob(@problems){
+    die "Malformed problem hs file: $prob\n" if $prob !~ /(\d+)/;
+    push @probNums, $1;
+  }
+  return @probNums;
 }
 
 &main(@ARGV);
