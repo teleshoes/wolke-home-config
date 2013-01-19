@@ -22,8 +22,9 @@ sub main(@){
   my $ok = GetOptionsFromArray(\@_,
     'force', \$force,
     'verbose', \$verbose,
-    'threads=i{1}', \$threads,
+    'threads=i', \$threads,
   );
+  $threads = 1 if not defined $threads;
   die $usage if not $ok or @_ == 0;
 
   my @probNums;
@@ -66,20 +67,10 @@ sub compile($$$$){
     system "rm -f $DIR/problem$num.o";
     system "rm -f $DIR/problem$num.hi";
   }
+  my @threaded = $threads > 1 ? ("-threaded") : ();
+  my @verbosity = defined $verbose ? () : ("-v0");
 
-  my $compile;
-  if(defined $threads){
-    $compile = "ghc --make -threaded $DIR/problem$num.hs -O";
-  }else{
-    $compile = "ghc --make $DIR/problem$num.hs -O";
-  }
-
-  if(defined $verbose){
-    system "$compile";
-  }else{
-    system "$compile -v0";
-  }
-
+  system "ghc", "--make", @threaded, "$DIR/problem$num.hs", "-O", @verbosity;
   return $?;
 }
 
@@ -93,7 +84,7 @@ sub run($$$){
   }
 
   my $exec;
-  if(defined $threads){
+  if($threads > 1){
     $exec = "$DIR/problem$num +RTS -N$threads -RTS";
   }else{
     $exec = "$DIR/problem$num";
