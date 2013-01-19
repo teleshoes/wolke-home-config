@@ -2,7 +2,7 @@
 
 import Data.List
 import Data.Function (on)
-import Maybe
+import Data.Maybe
 
 main :: IO ()
 main = print(soln)
