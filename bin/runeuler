@@ -1,20 +1,14 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromArray);
 
 my $DIR = '/home/wolke/Euler';
 
-chdir $DIR;
-
-my $num = shift;
-
-my $force;
-my $threads;
-my $quiet;
-GetOptions('force', \$force,
-           'quiet', \$quiet,
-           'threads=s{1}', \$threads);
+my $usage = "Usage:
+  $0 [-f|--force] [-q|--quiet] [-t N | --threads=N] PROBLEM
+    PROBLEM must be an integer or 'all'
+";
 
 sub compile($$$$){
   my $num = shift;
@@ -85,40 +79,52 @@ sub run($$$){
 }
 
 
-if(not defined $num or $num !~ /^(all|[0-9]+)$/){
-  die 'Expects a problem number or "all"';
-}
 
-my @problemNumbers;
-if($num eq 'all'){
-  my @problems = split /\n/, `ls -1 $DIR/problem*.hs`;
+sub main(@){
+  my $force;
+  my $threads;
+  my $quiet;
 
-  my $max = 0;
-  foreach my $prob(@problems){
-    $prob =~ /([0-9]+)/;
-    if($1 > $max){
-      $max = $1;
+  my $ok = GetOptionsFromArray(\@_,
+    'force', \$force,
+    'quiet', \$quiet,
+    'threads=i{1}', \$threads,
+  );
+  my $num = shift() || '';
+  die $usage if not $ok or @_ > 0 or $num !~ /^(all|[0-9]+)$/;
+  chdir $DIR;
+
+  my @problemNumbers;
+  if($num eq 'all'){
+    my @problems = split /\n/, `ls -1 $DIR/problem*.hs`;
+
+    my $max = 0;
+    foreach my $prob(@problems){
+      $prob =~ /([0-9]+)/;
+      if($1 > $max){
+        $max = $1;
+      }
+    }
+
+    @problemNumbers = (1 .. $max);
+  }else{
+    @problemNumbers = ($num);
+  }
+
+  for my $num(@problemNumbers){
+    if($num < 10){
+      $num = "00$num";
+    }elsif($num <100){
+      $num = "0$num";
+    }
+  
+    my $res = compile $num, $force, $quiet, $threads;
+    if($res != 0){
+      print "Compiled failed with code: $res\n";
+    }else{
+      run $num, $quiet, $threads;
     }
   }
-
-  @problemNumbers = (1 .. $max);
-}else{
-  @problemNumbers = ($num);
 }
 
-for my $num(@problemNumbers){
-  if($num < 10){
-    $num = "00$num";
-  }elsif($num <100){
-    $num = "0$num";
-  }
-  
-  my $res = compile $num, $force, $quiet, $threads;
-  if($res != 0){
-    print "Compiled failed with code: $res\n";
-  }else{
-    run $num, $quiet, $threads;
-  }
-}
-
-
+&main(@ARGV);
