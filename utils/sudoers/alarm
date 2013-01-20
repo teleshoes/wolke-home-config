@@ -2,13 +2,19 @@
 use strict;
 use warnings;
 
-my $alarm = '/usr/share/alarm';
+my $alarmsDir = '/usr/share/alarms';
+die "$alarmsDir/ doesnt exist or isnt a dir\n" if not -d $alarmsDir;
+my $validAlarms = join '|', sort map {chomp; $_} `ls $alarmsDir/`;
+die "$alarmsDir is empty\n" if $validAlarms eq '';
 
 my $usage = "Usage:
-  $0     - runs 'term mplayer $alarm'
-           reruns as the user running pulseaudio if run as root
+  $0 [$validAlarms]   {default is 'default'}
+    runs 'term mplayer $alarmsDir/NAME'
+    reruns as the user running pulseaudio if run as root
 ";
-die $usage if @ARGV != 0;
+my $alarmName = shift;
+$alarmName = 'default' if not defined $alarmName;
+die $usage if @ARGV > 0 or $alarmName !~ /^($validAlarms)$/;
 
 my $pulseUser = `ps --no-heading -o user -C pulseaudio`;
 $pulseUser =~ s/\n.*//s; #first line only
@@ -21,4 +27,4 @@ if($u eq 'root' and length($pulseUser) > 0 and $u ne $pulseUser){
   exec "su", $pulseUser, "-c", "$0 @ARGV";
 }
 
-system "term", "mplayer", $alarm;
+system "term", "mplayer", "$alarmsDir/$alarmName";
