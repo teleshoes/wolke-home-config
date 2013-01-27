@@ -97,6 +97,11 @@ function s           { $@ & disown ; }
 function spawn       { $@ & disown ; }
 function spawnex     { $@ & disown && exit 0 ; }
 function spawnexsudo { gksudo $@ & disown && exit 0 ; }
+function update-repo { sudo apt-get update \
+                         -o Dir::Etc::sourcelist="sources.list.d/$1" \
+                         -o Dir::Etc::sourceparts="-" \
+                         -o APT::Get::List-Cleanup="0"
+}
 
 alias genservices='~/workspace/escribe/tools/genservices'
 alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
