@@ -14,6 +14,6 @@ if(groups != null){
     "Grease monkey is submitting the above");
   input.parentNode.appendChild(txt);
 
-  document.getElementById('trackNumFindBtn').click()
+  document.forms[2].submit()
 }
 // ==/UserScript==
