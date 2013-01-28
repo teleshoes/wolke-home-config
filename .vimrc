@@ -1,4 +1,6 @@
 """filetype plugin indent on
+filetype plugin on
+set ofu=syntaxcomplete#Complete
 set backspace=2
 set uc=0 """no swapfile
 set ic
