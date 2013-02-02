@@ -2,10 +2,21 @@
 use strict;
 use warnings;
 
+my $exec = "/opt/stepmania 5/stepmania";
+my $confDir = "$ENV{HOME}/.stepmania-5.0";
+
+my $saveDir = "$confDir/Save";
+my $themesDir = "$confDir/Themes";
+my $machineProfileDir = "$confDir/Save/MachineProfile";
+my $themeName = "teleshoes";
+
 my $speedMods = "0.5x,1x,1.5x,2x,2.5x,3x,C300,C350,C400,m300";
 my $defaultScreen = 'ScreenSelectMusic';
-my $theme = "_fallback";
-my $defaultModifiers = '"C300, midi-note, Overhead"';
+
+my $metricsPrefs = {
+  'Global' => {'FallbackTheme' => 'default'},
+  'Common' => {'DefaultModifiers' => '"C300, midi-note, Overhead"'},
+};
 
 my $prefs = {
   'Options' => {
@@ -33,7 +44,7 @@ my $prefs = {
   },
   'Game-dance' => {
     Announcer                 => '', #MAX2
-    Theme                     => $theme,
+    Theme                     => $themeName,
   },
 };
 my $themePrefs = {
@@ -91,17 +102,11 @@ my $usage = "Usage:\n"
   . " -i               synonynm for --screen=ScreenTestInput\n"
 ;
 
-my $smExecDir = "$ENV{HOME}/Desktop/Games/stepmania/StepMania-5.0";
-my $prefsDir = "$ENV{HOME}/.stepmania-5.0/Save";
-my $themesDir = "$smExecDir/Themes";
-my $machineProfDir = "$prefsDir/MachineProfile";
-
-my $prefsIni = "$prefsDir/Preferences.ini";
-my $themePrefsIni = "$prefsDir/ThemePrefs.ini";
-my $keymapsIni = "$prefsDir/Keymaps.ini";
-my $themeMetricsIni = "$themesDir/$theme/metrics.ini";
-my $speedModsFile = "$machineProfDir/SpeedMods.txt";
-
+my $prefsIni = "$saveDir/Preferences.ini";
+my $themePrefsIni = "$saveDir/ThemePrefs.ini";
+my $keymapsIni = "$saveDir/Keymaps.ini";
+my $themeMetricsIni = "$themesDir/$themeName/metrics.ini";
+my $speedModsFile = "$machineProfileDir/SpeedMods.txt";
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
@@ -133,15 +138,14 @@ sub main(@){
   my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks $jsp1, $jsp2;
   my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
 
-  system "mkdir", "-p", "$prefsDir";
+  system "mkdir", "-p", "$saveDir";
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
   replaceConf $keymapsIni, generateKeymap(
     $keygrid, $joy1Name, $joy1Num, $joy2Name, $joy2Num, $kb1Name, $kb2Name);
-  replaceConf $themeMetricsIni, {
-    'Common' => {'DefaultModifiers' => $defaultModifiers}};
+  replaceConf $themeMetricsIni, $metricsPrefs;
   setMachineSpeedMods $speedMods;
-  system "$smExecDir/stepmania";
+  system $exec, [];
 }
 
 sub getJoysticks($$){
@@ -205,7 +209,7 @@ sub getJoysticks($$){
 
 sub setMachineSpeedMods($){
   my $speedModsLine = shift;
-  system "mkdir", "-p", $machineProfDir;
+  system "mkdir", "-p", $machineProfileDir;
   open FH, "> $speedModsFile"
     or die "Couldn't write speed mods to $speedModsFile\n";
   print FH "$speedModsLine\n";
@@ -302,7 +306,8 @@ sub modifyConf($$){
 sub replaceConf($$){
   my $file = shift;
   my $changes = shift;
-  my $conf = readConf `cat $file`;
+  $file =~ s/"/\\"/g;
+  my $conf = readConf `cat "$file"`;
   my $content = writeConf(modifyConf($conf, $changes));
   open FH, "> $file" or die "Couldnt open $file for writing.\n";
   print FH $content;
