@@ -147,6 +147,7 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 10"     @@ mWS   xK_x    #! "klomp-cmd seek 10"
         "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
+        "save"        @@ mW    xK_v    #! "save-klomp"
 
     "Klomp N9"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
