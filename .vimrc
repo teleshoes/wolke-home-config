@@ -2,6 +2,12 @@
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
+function LoadTemp()
+  LoadFileTemplate default
+  :normal! Gddgg
+endfunction
+autocmd! BufNewFile * call LoadTemp()
+
 set ofu=syntaxcomplete#Complete
 set backspace=2
 set uc=0 """no swapfile
