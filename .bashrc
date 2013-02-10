@@ -105,7 +105,7 @@ function update-repo { sudo apt-get update \
 }
 
 alias genservices='~/workspace/escribe/tools/genservices'
-alias migl='gvim `~/workspace/escribe/src-sql/migrations/latest-script`'
+alias migl='gvim `~/migs/latest-script`'
 
 ##AUTOLOGIN START##
 if [ -z "$DISPLAY" ]; then
