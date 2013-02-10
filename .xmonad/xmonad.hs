@@ -70,6 +70,7 @@ myManageHook = execWriter $ do
   let a ~~> b = tell (a --> b)
   title     =? "Find/Replace "         ~~> doFloat
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
+  title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
   className =? "Thunderbird"           ~~> doShift "8"
   title     =? "Off"                   ~~> doFloat
