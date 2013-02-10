@@ -68,20 +68,20 @@ myLayoutHook = avoidStruts . smartBorders
 
 myManageHook = execWriter $ do
   let a ~~> b = tell (a --> b)
-  title     =? "Find/Replace "    ~~> doFloat
-  className =? "Eclipse"          ~~> (doShift "A" <+> doUnfloat)
-  className =? "Pidgin"           ~~> doShift "B"
-  className =? "Thunderbird"      ~~> doShift "8"
-  title     =? "Off"              ~~> doFloat
-  title     =? "KLOMP"            ~~> doShift "9"
-  title     =? "Transmission"     ~~> doShift "9"
-  title     =? "Torrent Options"  ~~> doShiftView "9"
-  title     =? firefoxClose       ~~> restartFF
-  title     =? "qtbigtext.py"     ~~> doFull
-  title     =? "StepMania"        ~~> doFull
-  title     =? "npviewer.bin"     ~~> doFull -- flash
-  title     =? "plugin-container" ~~> doFull -- flash
-  title     =? "xfce4-notifyd"    ~~> doIgnore
+  title     =? "Find/Replace "         ~~> doFloat
+  className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
+  className =? "Pidgin"                ~~> doShift "B"
+  className =? "Thunderbird"           ~~> doShift "8"
+  title     =? "Off"                   ~~> doFloat
+  title     =? "KLOMP"                 ~~> doShift "9"
+  title     =? "Transmission"          ~~> doShift "9"
+  title     =? "Torrent Options"       ~~> doShiftView "9"
+  title     =? firefoxClose            ~~> restartFF
+  title     =? "qtbigtext.py"          ~~> doFull
+  title     =? "StepMania"             ~~> doFull
+  title     =? "npviewer.bin"          ~~> doFull -- flash
+  title     =? "plugin-container"      ~~> doFull -- flash
+  title     =? "xfce4-notifyd"         ~~> doIgnore
 
 myHandleEventHook _ = return (All True)
 
