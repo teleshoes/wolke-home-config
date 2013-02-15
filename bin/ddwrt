@@ -6,6 +6,11 @@ my $file = "$ENV{HOME}/.ddwrt";
 my $macRe = ("[a-fA-F0-9]{2}:" x 5) . "[a-fA-F0-9]{2}";
 my $baseFile = "/tmp/ddwrt";
 
+my %wifiAtts = map {$_ => 1} qw(
+  ssid net_mode channel channelbw wpa_psk
+);
+my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
+
 my $usage = "Usage:
   $0 -h|--help
     Print this message
@@ -177,21 +182,16 @@ sub getWifiNvram($){
   my $c = shift;
   my @entries;
 
-  my %keymap = (
-    ssid => 'ssid',
-    mode => 'net_mode',
-    channel => 'channel',
-    bandwidth => 'channelbw',
-    wpa => 'wpa_psk',
-  );
-
   for my $section(keys %$c){
     if($section =~ /^ath\d+$/){
       my $radio = $section;
       my $s = $$c{$radio};
-      $$s{wpa} = decrypt $$s{wpa} if defined $$s{wpa};
-      for my $key(sort keys %keymap){
-        push @entries, "${radio}_$keymap{$key}=$$s{$key}" if defined $$s{$key};
+      for my $att(sort keys %wifiAtts){
+        if(defined $$s{$att}){
+          my $val = $$s{$att};
+          $val = decrypt $val if defined $encWifiAtts{$att};
+          push @entries, "${radio}_$att=$val";
+        }
       }
     }
   }
