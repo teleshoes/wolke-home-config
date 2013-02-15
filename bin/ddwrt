@@ -14,8 +14,10 @@ my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
 my $usage = "Usage:
   $0 -h|--help
     Print this message
-  $0 [get]
+  $0 [info]
     Print restore bootstrap instructions
+  $0 show
+    run nvram show
   $0 restore
     ssh in and setup nvram
     prints nvram info to:
@@ -24,6 +26,7 @@ my $usage = "Usage:
       ${baseFile}_change_TIME.sh
 ";
 
+sub ddwrtShow($);
 sub ddwrtRestore($);
 sub getStarted($);
 sub parse($);
@@ -48,19 +51,27 @@ sub assertPresent($$;$){
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $arg = shift;
-  $arg = 'get' if not defined $arg;
-  die $usage if @_ != 0 or $arg !~ /^(get|restore)$/;
+  $arg = 'info' if not defined $arg;
+  die $usage if @_ > 0 or $arg !~ /^(info|show|restore)$/;
 
   my $c = parse $file;
   assertPresent $c, 'config';
   assertPresent $c, 'config', 'ip_prefix';
   assertPresent $c, 'config', 'router_ip';
   assertPresent $c, 'clients';
-  if($arg eq 'get'){
+  if($arg eq 'info'){
     print getStarted $c;
+  }elsif($arg eq 'show'){
+    ddwrtShow $c;
   }elsif($arg eq 'restore'){
     ddwrtRestore $c;
   }
+}
+
+sub ddwrtShow($){
+  my $c = shift;
+  my $ip = $$c{config}{router_ip};
+  system "ssh root\@$ip nvram show";
 }
 
 sub ddwrtRestore($){
