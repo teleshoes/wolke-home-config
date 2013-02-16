@@ -104,7 +104,8 @@ function update-repo { sudo apt-get update \
                          -o APT::Get::List-Cleanup="0"
 }
 
-alias genservices='~/workspace/escribe/tools/genservices'
+alias genservices='~/workspace/escribe/tools/genservices.pl'
+alias genibatis='~/workspace/escribe/tools/genibatis.pl'
 alias migl='gvim `~/migs/latest-script`'
 
 ##AUTOLOGIN START##
