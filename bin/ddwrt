@@ -18,6 +18,8 @@ my $usage = "Usage:
     Print restore bootstrap instructions
   $0 show
     run nvram show
+  $0 encrypt KEY
+    pass in a wpa key or whatever for encrypting and putting into $file
   $0 restore
     ssh in and setup nvram
     prints nvram info to:
@@ -31,6 +33,7 @@ sub ddwrtRestore($);
 sub getStarted($);
 sub parse($);
 sub getClientIds($);
+sub encrypt($);
 sub decrypt($);
 sub getNvram($);
 sub getPublicKeyNvram($);
@@ -52,6 +55,12 @@ sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $arg = shift;
   $arg = 'info' if not defined $arg;
+  if(@_ == 1 and $arg eq 'encrypt'){
+    print encrypt $_[0];
+    print "\n";
+    exit 0;
+  }
+
   die $usage if @_ > 0 or $arg !~ /^(info|show|restore)$/;
 
   my $c = parse $file;
@@ -121,9 +130,9 @@ sub getStarted($){
 1) hold pin, or Administration => Factory Defaults => Restore => Ok
 2) wconnect $$c{config}{default_ssid} WPA $$c{config}{default_wpa}
 3) browser $$c{config}{router_ip} => Services => Secure Shell => SSHd Enable
-4) root for username, make up a real password
+   admin/password
+4) paste in your pubkey, or use router password
 5) $0 restore
-6) plug wan ethernet into wan port
 ";
 }
 
@@ -166,11 +175,18 @@ sub getClientIds($){
   return @ids;
 }
 
+sub encrypt($){
+  my $s = shift;
+  $s = `gpg-sym $s`;
+  chomp $s;
+  return $s;
+}
+
 sub decrypt($){
   my $s = shift;
-  my $new = `gpg-sym $s`;
-  chomp $new;
-  return $new;
+  $s = `gpg-sym $s`;
+  chomp $s;
+  return $s;
 }
 
 sub getNvram($){
