@@ -54,6 +54,11 @@ nmap <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
 """"""
 
+"""Quit"""
+nmap <C-N> :n<CR>
+imap <C-N> <Esc>:n<CR>
+""""""
+
 """delete/paste"""
 imap <C-D> <Esc>ddli
 imap <C-P> <Esc>pli
