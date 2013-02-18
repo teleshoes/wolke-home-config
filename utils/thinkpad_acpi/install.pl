@@ -9,7 +9,15 @@ my $kernel = `uname -r`;
 chomp $kernel;
 
 my $kernelMajorMinor = $1 if $kernel =~ /^(\d+\.\d+)/;
-my $srcDir = $kernelMajorMinor < 3.3 ? '3.2' : '3.3';
+my $srcDir;
+if($kernelMajorMinor < 3.3){
+  $srcDir = '3.2';
+}elsif($kernelMajorMinor < 3.8){
+  $srcDir = '3.3';
+}else{
+  $srcDir = '3.8';
+}
+
 print "installing version in $srcDir/\n";
 chdir "$srcDir";
 $ENV{PWD} = "$ENV{PWD}/$srcDir";
