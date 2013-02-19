@@ -1,4 +1,3 @@
-"""filetype plugin indent on
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
