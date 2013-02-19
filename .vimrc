@@ -1,6 +1,18 @@
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
+function CSV()
+  if &ft ==? "csv"
+    %UnArrangeCol
+    set filetype=""
+  else
+    set filetype=csv
+    %ArrangeColumn
+  endif
+endfunction
+command CSV call CSV()
+command Csv call CSV()
+
 function LoadTemp()
   LoadFileTemplate default
   :normal! Gddgg
