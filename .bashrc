@@ -104,6 +104,18 @@ function update-repo { sudo apt-get update \
                          -o APT::Get::List-Cleanup="0"
 }
 
+function git()
+{
+  realgit="$(which git)"
+  cmd="git-$1"
+  if [ "$(type -t $cmd)" = "function" ]; then
+    shift
+    $cmd $@
+  else
+    $realgit $@
+  fi
+}
+
 alias genservices='~/workspace/escribe/tools/genservices.pl'
 alias genibatis='~/workspace/escribe/tools/genibatis.pl'
 alias migl='gvim `~/migs/latest-script`'
