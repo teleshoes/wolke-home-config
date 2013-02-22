@@ -104,6 +104,7 @@ function update-repo { sudo apt-get update \
                          -o APT::Get::List-Cleanup="0"
 }
 
+function git-log(){ git logn $@ ; }
 function git()
 {
   realgit="$(which git)"
