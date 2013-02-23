@@ -111,9 +111,9 @@ function git()
   cmd="git-$1"
   if [ "$(type -t $cmd)" = "function" ]; then
     shift
-    $cmd $@
+    $cmd "$@"
   else
-    $realgit $@
+    $realgit "$@"
   fi
 }
 
