@@ -27,6 +27,7 @@ getRemoteCur = chompFile "/tmp/klomp-dzen"
 
 readKlompCur remoteCur = case remoteCur of
                            "n9" -> readProc ["n9u", "-b", "cat ~/.klompcur"]
+                           "raspi" -> readProc ["pi", "-b", "cat ~/.klompcur"]
                            _ -> do home <- getEnv "HOME"
                                    chompFile $ home ++ "/" ++ ".klompcur"
 

@@ -158,8 +158,8 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 10"     @@ mCAWS xK_x    #! "pi -b klomp-cmd seek 10"
         "seek -60"    @@ mCAWS xK_a    #! "pi -b klomp-cmd seek -60"
         "seek 60"     @@ mCAWS xK_s    #! "pi -b klomp-cmd seek 60"
-        "klomp=>xbmc" @@ mCAW  xK_c    #! "pi -b speaker xbmc"
-        "xbmc=>klomp" @@ mCAW  xK_v    #! "pi -b speaker klomp"
+        "klomp=>xbmc" @@ mCAW  xK_c    #! "pi -b speaker xbmc; klomp-dzen local"
+        "xbmc=>klomp" @@ mCAW  xK_v    #! "pi -b speaker klomp; klomp-dzen raspi"
 
     "Klomp N9"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
