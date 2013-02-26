@@ -149,6 +149,18 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
 
+    "Klomp raspi"     @@ do
+        "pause"       @@ mCAW  (xK ' ')#! "pi -b klomp-cmd pause"
+        "prev"        @@ mCAW  xK_z    #! "pi -b klomp-cmd prev"
+        "next"        @@ mCAW  xK_x    #! "pi -b klomp-cmd next"
+        "books pl"    @@ mCAW  xK_b    #! "pi -b klomp-cmd playlist books"
+        "seek -10"    @@ mCAWS xK_z    #! "pi -b klomp-cmd seek -10"
+        "seek 10"     @@ mCAWS xK_x    #! "pi -b klomp-cmd seek 10"
+        "seek -60"    @@ mCAWS xK_a    #! "pi -b klomp-cmd seek -60"
+        "seek 60"     @@ mCAWS xK_s    #! "pi -b klomp-cmd seek 60"
+        "klomp=>xbmc" @@ mCAW  xK_c    #! "pi -b speaker xbmc"
+        "xbmc=>klomp" @@ mCAW  xK_v    #! "pi -b speaker klomp"
+
     "Klomp N9"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
         "prev"        @@ mCW   xK_z    #! "n9 -b udo klomp-cmd prev"
