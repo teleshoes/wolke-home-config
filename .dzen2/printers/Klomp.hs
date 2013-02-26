@@ -23,22 +23,23 @@ clickCommands = [ "xdotool key --clearmodifiers alt+9; klomp-term"
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
 
-isRemoteCur = doesFileExist "/tmp/klomp-dzen-remote-cur"
+getRemoteCur = chompFile "/tmp/klomp-dzen"
 
-readKlompCur remoteCur = do if remoteCur then remote else local
-  where remote = readProc ["n9u", "-b", "cat ~/.klompcur"]
-        local = do home <- getEnv "HOME"
-                   chompFile $ home ++ "/" ++ ".klompcur"
+readKlompCur remoteCur = case remoteCur of
+                           "n9" -> readProc ["n9u", "-b", "cat ~/.klompcur"]
+                           _ -> do home <- getEnv "HOME"
+                                   chompFile $ home ++ "/" ++ ".klompcur"
 
 main = do
-  remote <- isRemoteCur
-  cur <- readKlompCur remote
+  remoteCur <- getRemoteCur
+  let isRemote = not $ null remoteCur
+  cur <- readKlompCur remoteCur
   running <- isRunning "klomplayer"
 
   let ((posSex, lenSex, path), atts) = parseCur cur
   let [pos,len] = formatTimes [posSex, lenSex]
 
-  let prefix = if remote then "%" else if running then "" else "x" 
+  let prefix = if isRemote then "%" else if running then "" else "x"
   let (top, bot) = if length cur > 0 then
                       ( pos ++ "-" ++ strLookup "artist" atts
                       , len ++ "-" ++ strLookup "title" atts
