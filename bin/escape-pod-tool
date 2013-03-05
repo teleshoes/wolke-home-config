@@ -3,11 +3,14 @@ use strict;
 use warnings;
 
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
+my $mp3UrlCache = '/tmp/escape-pod-mp3-url-cache';
 my $csvDelim = ';';
 
-sub getMP3Url($);
+sub getMP3Url($$$);
 sub fetchMP3Url($);
 sub browserLoadArticle($);
+sub readMP3UrlCache();
+sub writeMP3UrlCache($);
 
 sub csv($);
 sub cell($);
@@ -28,11 +31,14 @@ my $usage = "Usage:
     --url
       Print the article url for each EPNUM, using the links in the above url.
     --mp3url
-      Fetch the download URL from the escape pod article url
+      Print the download URL from the escape pod article url.
+      For each EPNUM, if there is a line like \"EPNUM URL\" in $mp3UrlCache,
+        print that URL.
+      Otherwise, fetch it using curl/wget and store it in $mp3UrlCache.
     --mp3filename
       Same as --mp3url, but only print the filename
 
-    EPNUM are escape pod episode numbers; if none are specified, all are used.
+  EPNUM: escape pod episode number. if none are specified, all are used.
 ";
 
 sub main(@){
@@ -70,20 +76,23 @@ sub main(@){
       print "$$eps{$epNum}{url}\n";
     }
   }elsif($cmd eq '--mp3url' or $cmd eq '--mp3filename'){
+    my $cache = readMP3UrlCache();
     for my $epNum(sort keys %$eps){
-      my $mp3Url = getMP3Url($$eps{$epNum}{articleUrl});
+      my $mp3Url = getMP3Url($epNum, $$eps{$epNum}{articleUrl}, $cache);
       if($cmd eq '--mp3filename' and $mp3Url =~ /([^\/]*\.mp3)$/){
         print "$1\n";
       }else{
         print "$mp3Url\n";
       }
+      $$cache{$epNum+0} = $mp3Url if defined $mp3Url;
     }
+    writeMP3UrlCache $cache;
   }
 }
 
-sub getMP3Url($){
-  my $articleUrl = shift;
-  my $mp3Url = undef;
+sub getMP3Url($$$){
+  my ($epNum, $articleUrl, $cache) = @_;
+  my $mp3Url = $$cache{$epNum+0};
 
   my $attempts;
 
@@ -121,8 +130,26 @@ sub browserLoadArticle($){
   system "pkill", "-f", "uzbl.*$articleUrl";
 }
 
+sub readMP3UrlCache(){
+  my $cache = {};
+  if(-e $mp3UrlCache){
+    for my $line(`cat $mp3UrlCache`){
+      if($line =~ /^(\d+) (.*\.mp3)$/){
+        $$cache{$1+0} = $2;
+      }
     }
   }
+  return $cache;
+}
+sub writeMP3UrlCache($){
+  my $cache = shift;
+  my @lines;
+  for my $epNum(sort keys %$cache){
+    push @lines, "$epNum $$cache{$epNum}\n";
+  }
+  open FH, "> $mp3UrlCache";
+  print FH @lines;
+  close FH;
 }
 
 sub cell($){
