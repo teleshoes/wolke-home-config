@@ -11,13 +11,34 @@ sub padl($$);
 sub maxLen(@);
 sub parseTableRow($$);
 
-my $usage = "Usage: $0 [--csv|--url|--mp3url] [epnum]\n";
+my $cmds = join "|", qw(
+  --csv --url --mp3url
+);
+my $usage = "Usage:
+  $0 [$cmds [EPNUM EPNUM ..]]
+    Fetch episode list from $url.
+    Parse it, and print certain info.
+
+    --csv {default if no args specified}
+      Print episodes in CSV with delim=$csvDelim
+    --url
+      Print the escape pod article url
+    --mp3url
+      Fetch the download URL from the escape pod article url
+
+    EPNUM are escape pod episode numbers; if none are specified, all are used.
+";
 
 sub main(@){
-  my $arg = shift;
-  $arg = '--csv' if not defined $arg;
-  my $epNum = shift;
-  die $usage if $arg !~ /^(--csv|--url|--mp3url)$/ or @_ > 0;
+  my $cmd = shift;
+  $cmd = '--csv' if not defined $cmd;
+  die $usage if $cmd !~ /^($cmds)$/;
+
+  my @nums = @_;
+  die $usage if (grep {$_ !~ /^\d+$/} @nums) > 0;
+
+  my %okNums = map {$_+0 => 1} @nums;
+
 
   my $html = `wget -O - $url 2>/dev/null`;
   my @epNums;
@@ -32,17 +53,17 @@ sub main(@){
   my $eps = {};
   for my $tableRow(@tableRows){
     my $ep = parseTableRow $tableRow, $maxLen;
-    next if defined $epNum and $$ep{number} != $epNum;
+    next if keys %okNums > 0 and not defined $okNums{$$ep{number}+0};
     $$eps{$$ep{number}} = $ep;
   }
 
-  if($arg eq '--csv'){
+  if($cmd eq '--csv'){
     print csv $eps;
-  }elsif($arg eq '--url'){
+  }elsif($cmd eq '--url'){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{url}\n";
     }
-  }elsif($arg eq '--mp3url'){
+  }elsif($cmd eq '--mp3url'){
     for my $epNum(sort keys %$eps){
       print getMP3Url($$eps{$epNum}{url}) . "\n";
     }
