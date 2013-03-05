@@ -42,13 +42,17 @@ my $usage = "Usage:
     --mp3filename
       Same as --mp3url, but only print the filename
     --tag
-      Get mp3filename, assume it is in current dir.
+      Set tags and rename files.
+      Gets mp3filename, assume it is in current dir.
+      If mp3filename is not present, use the target name.
+
       Remove all id3 tags from the file, and set new tags.
       Uses 'id3v2' and 'mid3iconv'.
         title = \"TITLE\"
         author = \"AUTHOR [READER]\"
         tracknumber = \"EPNUM\"
         album = \"Escape Pod\"
+      Rename the file from mp3filename => \"###EPNUM TITLE.mp3\"
 
   EPNUM: escape pod episode number. if none are specified, all are used.
 ";
@@ -176,12 +180,16 @@ sub writeMP3UrlCache($){
 }
 sub tagMP3File($$){
   my ($mp3FileName, $ep) = @_;
-  if(not -e $mp3FileName){
-    print "   ERROR: missing $mp3FileName\n";
+  my $oldFileName = $mp3FileName;
+  my $newFileName = "$$ep{number} $$ep{title}.mp3";
+
+  if(not -e $oldFileName and not -e $newFileName){
+    print "   ERROR: missing $oldFileName or $newFileName\n";
     return;
   }
+  $oldFileName = $newFileName if not -e $oldFileName;
 
-  run "id3v2", "--delete-all", $mp3FileName;
+  run "id3v2", "--delete-all", $oldFileName;
   die "error removing id3 tags for $$ep{number}\n" if $? != 0;
 
   run "id3v2",
@@ -189,11 +197,16 @@ sub tagMP3File($$){
     "-a", "$$ep{author} [$$ep{reader}]",
     "-T", $$ep{number}+0,
     "-A", "Escape Pod",
-    $mp3FileName;
+    $oldFileName;
   die "error setting id3 tags for $$ep{number}\n" if $? != 0;
 
-  run "mid3iconv", $mp3FileName;
+  run "mid3iconv", $oldFileName;
   die "error setting encoding to unicode\n" if $? != 0;
+
+  if($oldFileName ne $newFileName){
+    run "mv", "--no-clobber", $oldFileName, $newFileName;
+    die "error renaming file\n" if $? != 0;
+  }
 }
 
 sub parseTableRow($$){
