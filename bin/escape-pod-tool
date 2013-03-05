@@ -11,6 +11,7 @@ sub fetchMP3Url($);
 sub browserLoadArticle($);
 sub readMP3UrlCache();
 sub writeMP3UrlCache($);
+sub tagMP3File($$);
 
 sub parseTableRow($$);
 sub padl($$);
@@ -19,8 +20,10 @@ sub maxLen(@);
 sub csv($);
 sub cell($);
 
+sub run(@);
+
 my $cmds = join "|", qw(
-  --csv --url --mp3url --mp3filename
+  --csv --url --mp3url --mp3filename --tag
 );
 my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
@@ -38,6 +41,13 @@ my $usage = "Usage:
       Otherwise, fetch it using curl/wget and store it in $mp3UrlCache.
     --mp3filename
       Same as --mp3url, but only print the filename
+    --tag
+      Get mp3filename, assume it is in current dir.
+      Remove all id3 tags from the file, and set new tags {using 'id3v2' tool}
+        title = \"TITLE\"
+        author = \"AUTHOR [READER]\"
+        tracknumber = \"EPNUM\"
+        album = \"Escape Pod\"
 
   EPNUM: escape pod episode number. if none are specified, all are used.
 ";
@@ -78,16 +88,20 @@ sub main(@){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{url}\n";
     }
-  }elsif($cmd eq '--mp3url' or $cmd eq '--mp3filename'){
+  }elsif($cmd eq '--mp3url' or $cmd eq '--mp3filename' or $cmd eq '--tag'){
     my $cache = readMP3UrlCache();
     for my $epNum(sort keys %$eps){
       my $mp3Url = getMP3Url($epNum, $$eps{$epNum}{articleUrl}, $cache);
       if(defined $mp3Url){
-        if($cmd eq '--mp3filename' and $mp3Url =~ /([^\/]*\.mp3)$/){
-          print "$1\n";
-        }else{
+        my $mp3FileName = $1 if $mp3Url =~ /([^\/]*\.mp3)$/;
+        if($cmd eq '--mp3url'){
           print "$mp3Url\n";
+        }elsif($cmd eq '--mp3filename'){
+          print "$mp3FileName\n";
+        }elsif($cmd eq '--tag'){
+          tagMp3File $mp3FileName, $$eps{$epNum};
         }
+
         if(not defined $$cache{$epNum+0}){
           $$cache{$epNum+0} = $mp3Url;
           writeMP3UrlCache $cache;
@@ -138,7 +152,6 @@ sub browserLoadArticle($){
   sleep 5;
   system "pkill", "-f", "uzbl.*$articleUrl";
 }
-
 sub readMP3UrlCache(){
   my $cache = {};
   if(-e $mp3UrlCache){
@@ -160,6 +173,11 @@ sub writeMP3UrlCache($){
   print FH @lines;
   close FH;
 }
+sub tagMP3File($$){
+  my ($mp3FileName, $epInfo) = @_;
+  if(not -e $mp3FileName){
+    print "   ERROR: missing $mp3File\n";
+    return;
   }
 
 }
@@ -228,6 +246,11 @@ sub cell($){
   }else{
     return $cell;
   }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
