@@ -12,11 +12,12 @@ sub browserLoadArticle($);
 sub readMP3UrlCache();
 sub writeMP3UrlCache($);
 
-sub csv($);
-sub cell($);
+sub parseTableRow($$);
 sub padl($$);
 sub maxLen(@);
-sub parseTableRow($$);
+
+sub csv($);
+sub cell($);
 
 my $cmds = join "|", qw(
   --csv --url --mp3url --mp3filename
@@ -70,7 +71,9 @@ sub main(@){
   }
 
   if($cmd eq '--csv'){
-    print csv $eps;
+    for my $epNum(sort keys %$eps){
+      print csv $eps{$epNum} . "\n";
+    }
   }elsif($cmd eq '--url'){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{url}\n";
@@ -157,35 +160,8 @@ sub writeMP3UrlCache($){
   print FH @lines;
   close FH;
 }
-
-sub cell($){
-  my $cell = shift;
-  $cell =~ s/\&amp;/\&/g;
-  if($cell =~ /\Q$csvDelim\E/ or $cell =~ /\Q"\E/){
-    $cell =~ s/"/""/g;
-    $cell = "\"$cell\"";
-    return $cell;
-  }else{
-    return $cell;
   }
-}
 
-sub csv($){
-  my $eps = shift;
-  my $csv = '';
-  for my $epNum(sort keys %$eps){
-    my $ep = $$eps{$epNum};
-    my @cols = (
-      cell $$ep{number},
-      cell $$ep{title},
-      cell $$ep{author},
-      cell $$ep{reader},
-      cell $$ep{date},
-      cell $$ep{articleUrl},
-    );
-    $csv .= join($csvDelim, @cols) . "\n";
-  }
-  return $csv;
 }
 
 sub parseTableRow($$){
@@ -217,7 +193,6 @@ sub parseTableRow($$){
     die "fucked up episode: $tr\n";
   }
 }
-
 sub padl($$){
   my ($len, $n) = @_;
   return ('0'x($len - length $n)) . $n;
@@ -228,6 +203,31 @@ sub maxLen(@){
    $maxLen = length $s if length $s > $maxLen; 
   }
   return $maxLen;
+}
+
+
+sub csv($){
+  my $ep = shift;
+  my @cols = (
+    cell $$ep{number},
+    cell $$ep{title},
+    cell $$ep{author},
+    cell $$ep{reader},
+    cell $$ep{date},
+    cell $$ep{articleUrl},
+  );
+  return join ($csvDelim, @cols);
+}
+sub cell($){
+  my $cell = shift;
+  $cell =~ s/\&amp;/\&/g;
+  if($cell =~ /\Q$csvDelim\E/ or $cell =~ /\Q"\E/){
+    $cell =~ s/"/""/g;
+    $cell = "\"$cell\"";
+    return $cell;
+  }else{
+    return $cell;
+  }
 }
 
 &main(@ARGV);
