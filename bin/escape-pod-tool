@@ -174,12 +174,22 @@ sub writeMP3UrlCache($){
   close FH;
 }
 sub tagMP3File($$){
-  my ($mp3FileName, $epInfo) = @_;
+  my ($mp3FileName, $ep) = @_;
   if(not -e $mp3FileName){
     print "   ERROR: missing $mp3FileName\n";
     return;
   }
 
+  run "id3v2", "--delete-all", $mp3FileName;
+  die "error removing id3 tags for $$ep{number}\n" if $? != 0;
+
+  run "id3v2",
+    "-t", $$ep{title},
+    "-a", "$$ep{author} [$$ep{reader}]",
+    "-T", $$ep{number}+0,
+    "-A", "Escape Pod",
+    $mp3FileName;
+  die "error setting id3 tags for $$ep{number}\n" if $? != 0;
 }
 
 sub parseTableRow($$){
