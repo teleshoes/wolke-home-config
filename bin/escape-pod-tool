@@ -1,0 +1,130 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
+my $csvDelim = ';';
+
+sub csv($);
+sub cell($);
+sub padl($$);
+sub maxLen(@);
+sub parseTableRow($$);
+
+my $usage = "Usage: $0 [--csv|--url|--mp3url]\n";
+
+sub main(@){
+  my $arg = shift;
+  $arg = '--csv' if not defined $arg;
+  die $usage if $arg !~ /^(--csv|--url|--mp3url)$/ or @_ > 0;
+
+  my $html = `wget -O - $url 2>/dev/null`;
+  my @epNums;
+  my @tableRows;
+  while($html =~ /<tr>\s*<td>(\d+)<\/td>.*?<\/tr>/gs){
+    push @tableRows, $&;
+    push @epNums, $1;
+  }
+
+  my $maxLen = maxLen @epNums;
+
+  my $eps = {};
+  for my $tableRow(@tableRows){
+    my $ep = parseTableRow $tableRow, $maxLen;
+    $$eps{$$ep{number}} = $ep;
+  }
+
+  if($arg eq '--csv'){
+    print csv $eps;
+  }elsif($arg eq '--url'){
+    for my $epNum(sort keys %$eps){
+      print "$$eps{$epNum}{url}\n";
+    }
+  }elsif($arg eq '--mp3url'){
+    for my $epNum(sort keys %$eps){
+      print getMP3Url($$eps{$epNum}{url}) . "\n";
+    }
+  }
+}
+
+sub getMP3Url($){
+  my $url = shift;
+  my $html = `curl -L "$url" 2>/dev/null`;
+  if($html =~ /href="([^"]*\.mp3)"/){
+    return $1;
+  }
+}
+
+sub cell($){
+  my $cell = shift;
+  $cell =~ s/\&amp;/\&/g;
+  if($cell =~ /\Q$csvDelim\E/ or $cell =~ /\Q"\E/){
+    $cell =~ s/"/""/g;
+    $cell = "\"$cell\"";
+    return $cell;
+  }else{
+    return $cell;
+  }
+}
+
+sub csv($){
+  my $eps = shift;
+  my $csv = '';
+  for my $epNum(sort keys %$eps){
+    my $ep = $$eps{$epNum};
+    my @cols = (
+      cell $$ep{number},
+      cell $$ep{title},
+      cell $$ep{author},
+      cell $$ep{reader},
+      cell $$ep{date},
+      cell $$ep{url},
+    );
+    $csv .= join($csvDelim, @cols) . "\n";
+  }
+  return $csv;
+}
+
+sub parseTableRow($$){
+  my $tr = shift;
+  my $maxLen = shift;
+
+  $tr =~ /href="(http:\/\/escapepod.org\/(\d+\/\d+\/\d+)\/[^"]*)"/;
+  my $url = $1;
+  my $date = $2;
+
+  $tr =~ s/\n/ /g;
+  $tr =~ s/>\s*/>/g;
+  $tr =~ s/\s*</</g;
+  $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
+  $tr =~ s/<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >/<>$1/gsxi;
+  $tr =~ s/^<tr><>(.*)<>EPF<\/tr>$/$1/;
+  if($tr =~ /^(\d+)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
+    return {
+      number => padl($maxLen, $1),
+      title => $2,
+      author => $3,
+      reader => $4,
+      time => $5,
+      parentRating => $6,
+      url => $url,
+      date => $date,
+    };
+  }else{
+    die "fucked up episode: $tr\n";
+  }
+}
+
+sub padl($$){
+  my ($len, $n) = @_;
+  return ('0'x($len - length $n)) . $n;
+}
+sub maxLen(@){
+  my $maxLen = 0;
+  for my $s(@_){
+   $maxLen = length $s if length $s > $maxLen; 
+  }
+  return $maxLen;
+}
+
+&main(@ARGV);
