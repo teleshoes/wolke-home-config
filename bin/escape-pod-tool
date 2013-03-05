@@ -5,6 +5,10 @@ use warnings;
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $csvDelim = ';';
 
+sub getMP3Url($);
+sub fetchMP3Url($);
+sub browserLoadArticle($);
+
 sub csv($);
 sub cell($);
 sub padl($$);
@@ -20,9 +24,9 @@ my $usage = "Usage:
     Parse it, and print certain info.
 
     --csv {default if no args specified}
-      Print episodes in CSV with delim=$csvDelim
+      Print episode info in CSV with delim=$csvDelim
     --url
-      Print the escape pod article url
+      Print the article url for each EPNUM, using the links in the above url.
     --mp3url
       Fetch the download URL from the escape pod article url
     --mp3filename
@@ -65,44 +69,58 @@ sub main(@){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{url}\n";
     }
-  }elsif($cmd eq '--mp3url'){
+  }elsif($cmd eq '--mp3url' or $cmd eq '--mp3filename'){
     for my $epNum(sort keys %$eps){
-      print getMP3Url($$eps{$epNum}{url}) . "\n";
-    }
-  }elsif($cmd eq '--mp3filename'){
-    for my $epNum(sort keys %$eps){
-      my $url = getMP3Url($$eps{$epNum}{url});
-      $url =~ /([^\/]*\.mp3)$/;
-      print "$1\n";
+      my $mp3Url = getMP3Url($$eps{$epNum}{articleUrl});
+      if($cmd eq '--mp3filename' and $mp3Url =~ /([^\/]*\.mp3)$/){
+        print "$1\n";
+      }else{
+        print "$mp3Url\n";
+      }
     }
   }
 }
 
 sub getMP3Url($){
-  my $url = shift;
-  my $attempts = 10;
-  for(my $i=0; $i<$attempts; $i++){
-    my $html = `curl -L "$url" 2>/dev/null`;
-    if($html =~ /href="([^"]*\.mp3)"/){
-      return $1;
-    }
-    $html = `wget "$url" -O - 2>/dev/null`;
-    if($html =~ /href="([^"]*\.mp3)"/){
-      return $1;
-    }
-  }
-  system "uzbl $url >/dev/null 2>/dev/null &";
-  sleep 5;
-  system "pkill", "-f", "uzbl.*$url";
+  my $articleUrl = shift;
+  my $mp3Url = undef;
 
-  for(my $i=0; $i<$attempts; $i++){
-    my $html = `curl -L "$url" 2>/dev/null`;
-    if($html =~ /href="([^"]*\.mp3)"/){
-      return $1;
-    }
-    $html = `wget "$url" -O - 2>/dev/null`;
-    if($html =~ /href="([^"]*\.mp3)"/){
-      return $1;
+  my $attempts;
+
+  $attempts = 10;
+  while(not defined $mp3Url and $attempts > 0){
+    $attempts--;
+    $mp3Url = fetchMP3Url $articleUrl;
+  }
+  if(not defined $mp3Url){
+    browserLoadArticle $articleUrl
+  }
+  $attempts = 10;
+  while(not defined $mp3Url and $attempts > 0){
+    $attempts--;
+    $mp3Url = fetchMP3Url $articleUrl;
+  }
+  return $mp3Url;
+}
+sub fetchMP3Url($){
+  my $articleUrl = shift;
+  my $html = `curl -L "$articleUrl" 2>/dev/null`;
+  if($html =~ /href="([^"]*\.mp3)"/){
+    return $1;
+  }
+  $html = `wget "$articleUrl" -O - 2>/dev/null`;
+  if($html =~ /href="([^"]*\.mp3)"/){
+    return $1;
+  }
+  return undef;
+}
+sub browserLoadArticle($){
+  my $articleUrl = shift;
+  system "uzbl $articleUrl >/dev/null 2>/dev/null &";
+  sleep 5;
+  system "pkill", "-f", "uzbl.*$articleUrl";
+}
+
     }
   }
 }
@@ -130,7 +148,7 @@ sub csv($){
       cell $$ep{author},
       cell $$ep{reader},
       cell $$ep{date},
-      cell $$ep{url},
+      cell $$ep{articleUrl},
     );
     $csv .= join($csvDelim, @cols) . "\n";
   }
@@ -142,7 +160,7 @@ sub parseTableRow($$){
   my $maxLen = shift;
 
   $tr =~ /href="(http:\/\/escapepod.org\/(\d+\/\d+\/\d+)\/[^"]*)"/;
-  my $url = $1;
+  my $articleUrl = $1;
   my $date = $2;
 
   $tr =~ s/\n/ /g;
@@ -159,7 +177,7 @@ sub parseTableRow($$){
       reader => $4,
       time => $5,
       parentRating => $6,
-      url => $url,
+      articleUrl => $articleUrl,
       date => $date,
     };
   }else{
