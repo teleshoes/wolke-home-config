@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $host = `raspi`;
+chomp $host;
+
+sub main(@){
+  my $pl = `klomp-cmd playlist`;
+  chomp $pl;
+  system "klomp-cmd", "playlist-main";
+  system "klomp-cmd", "playlist", "raspi";
+
+  system "rsync", "-avP", "pi\@$host:~/.klomplist", "$ENV{HOME}";
+  system "klomp", "--once";
+  system "rsync", "-avP", "$ENV{HOME}/.klomplist", "pi\@$host:~";
+
+  system "klomp-cmd", "playlist-main";
+  system "klomp-cmd", "playlist", $pl if $pl ne "main";
+
+  system "rm", "-rf", "$ENV{HOME}/.klomplist-raspi";
+}
+
+&main(@ARGV);
