@@ -1,6 +1,8 @@
 [ -f /etc/bashrc ] && . /etc/bashrc
 [ -f /etc/bash_completion ] && . /etc/bash_completion
 
+shopt -s dotglob
+
 export HISTSIZE=1000000
 export HISTCONTROL=ignoredups # don't put duplicate lines in the history
 export HISTCONTROL=ignoreboth # ... and ignore same sucessive entries.
