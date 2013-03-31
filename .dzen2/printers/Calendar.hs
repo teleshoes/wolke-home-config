@@ -1,7 +1,7 @@
 module Calendar(main) where
 import System.Process(readProcess)
 import Data.List (intercalate, intersperse, transpose, isPrefixOf)
-import Data.List.Split (splitEvery, splitOn)
+import Data.List.Split.Internals (chunksOf)
 import Utils (fg, bg, padL, padR, estimateLength)
 import Control.Arrow (first, second, (&&&))
 
@@ -32,7 +32,7 @@ styleThisMonth d c = styleHeader header ++ styleDate dates
         dateSq = padL ' ' 2 $ show d
 
 formatColumns cals height = columns cols "|  "
-  where cols = map (lines.concat) (splitEvery height cals)
+  where cols = map (lines.concat) (chunksOf height cals)
 
 columns :: [[String]] -> String -> String
 columns cols sep = intercalate "\n" $ map concat $ map (intersperse sep) rows
