@@ -35,7 +35,8 @@ formatColumns cals height = columns cols "|  "
   where cols = map (lines.concat) (chunksOf height cals)
 
 columns :: [[String]] -> String -> String
-columns cols sep = intercalate "\n" $ map concat $ map (intersperse sep) rows
-  where rows = transpose paddedCols
+columns cols sep = concatMap (++"\n") lines
+  where lines = map concat $ map (intersperse sep) rows
+        rows = transpose paddedCols
         paddedCols = zipWith (\len col -> map (padR ' ' len) col) maxLens cols
         maxLens = map (maximum . (map estimateLength)) cols
