@@ -1,13 +1,13 @@
 module Clock(main) where
 import System.Environment (getEnv)
-import System.Process(readProcess)
 import ClickAction (clickAction)
 import TextRows (textRows)
+import Utils (chompProc)
 
 main = do
  home <- getEnv "HOME"
- top <- readProcess "date" ["+%a %b %d"] ""
- bot <- readProcess "date" ["+%H:%M:%S"] ""
+ top <- chompProc ["date", "+%a %b %d"]
+ bot <- chompProc ["date", "+%H:%M:%S"]
  putStr $ clickAction 1 (cmd home) (textRows top bot)
 
 cmd home = calCmd ++ " | " ++ popupCmd ++ " 1800 48 -fn inconsolata-14"
