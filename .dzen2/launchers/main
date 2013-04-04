@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep time);
 use IO::Handle;
+use IPC::Open2;
+use POSIX ":sys_wait_h";
+
+sub startPrinter($);
 
 my $height = 36;
 for(my $i=0; $i<@ARGV; $i++){
@@ -25,45 +29,45 @@ sub getIO($);
 my $DIR = "\$HOME/.dzen2/printers";
 
 
-my $spacer = [once => "echo -n '^p(2)^p(;-8)^fg(black)^r(3x$height)^fg()^p(;8)^p(2)'"];
-my $smallSpace = [once => "echo -n '^p(2)'"];
+my $spacer = ["echo -n '^p(2)^p(;-8)^fg(black)^r(3x$height)^fg()^p(;8)^p(2)'"];
+my $smallSpace = ["echo -n '^p(2)'"];
 
 my @printerCommands = (
-  [LOOP => "$DIR/ghcprinter NetStats"],
+  ["$DIR/ghcprinter NetStats"],
   $spacer,
-  [LOOP => "$DIR/ghcprinter Net"],
+  ["$DIR/ghcprinter Net"],
   $spacer,
-  [once => "$DIR/ghcprinter Fcrondyn"],
+  ["$DIR/ghcprinter Fcrondyn"],
   $spacer,
-  [once => "$DIR/ghcprinter Klomp"],
-  [once => "$DIR/ghcprinter Volume"],
-  [once => "$DIR/ghcprinter Mic"],
+  ["$DIR/ghcprinter Klomp"],
+  ["$DIR/ghcprinter Volume"],
+  ["$DIR/ghcprinter Mic"],
   $spacer,
-  [once => "$DIR/ghcprinter PidginPipe"],
-  [once => "$DIR/ghcprinter Thunderbird"],
-  [once => "$DIR/ghcprinter Ekiga"],
+  ["$DIR/ghcprinter PidginPipe"],
+  ["$DIR/ghcprinter Thunderbird"],
+  ["$DIR/ghcprinter Ekiga"],
   $spacer,
-  [once => "$DIR/ghcprinter CpuScaling"],
+  ["$DIR/ghcprinter CpuScaling"],
   $smallSpace,
-  [LOOP => "$DIR/ghcprinter CpuFreqs"],
+  ["$DIR/ghcprinter CpuFreqs"],
   $smallSpace,
-  [once => "$DIR/ghcprinter Fan"],
-  [once => "$DIR/ghcprinter Brightness"],
-  [LOOP => "$DIR/ghcprinter PingMonitor www.google.com G 5"],
-  [once => "$DIR/ghcprinter Openvpn"],
-  [LOOP => "$DIR/ghcprinter PingMonitor source.escribe.com E 5"],
+  ["$DIR/ghcprinter Fan"],
+  ["$DIR/ghcprinter Brightness"],
+  [$DIR/ghcprinter PingMonitor www.google.com G 5"],
+  ["$DIR/ghcprinter Openvpn"],
+  ["$DIR/ghcprinter PingMonitor source.escribe.com E 5"],
   $spacer,
-  [LOOP => "$DIR/ghcprinter TPBattStatApplet"],
+  ["$DIR/ghcprinter TPBattStatApplet"],
   $spacer,
-  [once => "$DIR/ghcprinter Clock"],
+  ["$DIR/ghcprinter Clock"],
   $smallSpace,
 );
 
 my @monitorCommands = (
   $spacer,
-  [LOOP => "$DIR/ghcprinter CpuMonitor"],
+  ["$DIR/ghcprinter CpuMonitor"],
   $smallSpace,
-  [LOOP => "$DIR/ghcprinter MemMonitor"],
+  ["$DIR/ghcprinter MemMonitor"],
 );
 sub loop($$$$$);
 
@@ -87,21 +91,11 @@ sub loop($$$$$){
   open $dzenFH, "| dzen2 $w $x -ta r @$dzenArgs";
   $dzenFH->autoflush(1);
 
-  my @previousOutputs = map {'---'} @$cmds;
-  my @printers;
-  for my $cmdArr(@$cmds){
-    my $schedule = $$cmdArr[0];
-    my $cmd = $$cmdArr[1];
-    if(lc $schedule eq 'loop'){
-      push @printers, ['iohandle', getUnblockedIO($cmd)];
-    }elsif(lc $schedule eq 'once'){
-      push @printers, ['command', $cmd];
-    }
-  }
+  my @printers = map {[${$_}[0], "---", undef, undef]} @$cmds;
 
   while(1){
     my $start = time;
-    print $dzenFH getOutput(\@printers, \@previousOutputs);
+    print $dzenFH getOutput(\@printers);
     print $dzenFH "\n";
     my $end = time;
     my $elapsed = $end - $start;
@@ -113,53 +107,36 @@ sub loop($$$$$){
 }
 
 
-sub getCommandOutput($$){
-  my $command = shift;
-  my $previousOutput = shift;
-  my $out = `$command`;
+sub readHandle($){
+  my $fh = shift;
+  my @lines = $fh->getlines();
+  my $out = @lines > 0 ? $lines[-1] : "";
   $out =~ s/\n*//g;
-  if(not $out){
-    return $previousOutput;
-  }
   return $out;
 }
-sub getIOHandleOutput($$){
-  my $io = shift;
-  my $previousOutput = shift;
-  my @lines = $io->getlines();
-  if(@lines == 0){
-    return $previousOutput;
-  }
-  my $out = $lines[-1];
-  chomp $out;
-  return $out;
-}
-sub getOutput($$){
-  my $output = '';
+
+sub getOutput($){
   my $printers = shift;
-  my $previousOutputs = shift;
-  for(my $i=0; $i<@{$printers}; $i++){
-    my $printer = $$printers[$i];
-    my $out;
-    my $start = time;
-    if($$printer[0] eq 'command'){
-      $out = getCommandOutput $$printer[1], $$previousOutputs[$i];
-    }elsif($$printer[0] eq 'iohandle'){
-      $out = getIOHandleOutput $$printer[1], $$previousOutputs[$i];
-    }
-    my $end = time;
-    $$previousOutputs[$i] = $out;
+  my $output = '';
+  for my $p(@$printers){
+    my ($cmd, $prev, $pid, $fh) = @$p;
+    my $out = readHandle $fh if defined $fh;
+    $out = $prev if not defined $out or $out eq '';
     $output .= $out;
+    $$p[1] = $out;
+    waitpid $$p[2], WNOHANG if defined $$p[2];
+    startPrinter $p if not defined $$p[2] or not kill 0, $$p[2];
   }
   return $output;
 }
 
-sub getUnblockedIO($){
-  my $cmd = shift;
-  my $fh;
-  open $fh, "$cmd |";
+sub startPrinter($){
+  my $p = shift;
+  my ($cmd, $prev, $pid, $fh) = @$p;
+  $pid = open2 $fh, undef, $cmd;
   $fh->blocking(0);
-  return $fh;
+  $$p[2] = $pid;
+  $$p[3] = $fh;
 }
 
 &main(@ARGV);
