@@ -10,7 +10,7 @@ module Utils(
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll, estimateLength,
   nanoTime, lineBuffering, isRunning, chompFile,
-  systemReadLines, readProc, procSuccess,
+  systemReadLines, readProc, chompProc, procSuccess,
   actToChanDelay, listToChan
 ) where
 import Control.Concurrent (
@@ -118,6 +118,8 @@ systemReadLines cmd = fmap lines $ sys >>= \(_,Just h,_,_) -> lineBufContent h
 
 readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
   where snd3 (_,x,_) = x
+
+chompProc = fmap chompAll . readProc
 
 procSuccess (cmd:args) = do
   (exitCode,_,_) <- readProcessWithExitCode cmd args ""
