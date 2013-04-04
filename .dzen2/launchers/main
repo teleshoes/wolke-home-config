@@ -68,24 +68,25 @@ my @monitorCommands = (
   $smallSpace,
   [LOOP => "$DIR/ghcprinter MemMonitor"],
 );
-sub loop($$$$);
+sub loop($$$$$);
 
-sub main(){
+sub main(@){
+  my @dzenArgs = @_;
   my $monitorWidth = 7+(2+$height)*2;
   my $left = 750;
   if(fork()){
-    loop $left, $monitorWidth, 500, \@monitorCommands;
+    loop $left, $monitorWidth, 500, \@dzenArgs, \@monitorCommands;
   }else{
-    loop $left+$monitorWidth, 0, 400, \@printerCommands;
+    loop $left+$monitorWidth, 0, 400, \@dzenArgs, \@printerCommands;
   }
 }
 
-sub loop($$$$){
-  my ($x, $w, $millis, $cmds) = @_;
+sub loop($$$$$){
+  my ($x, $w, $millis, $dzenArgs, $cmds) = @_;
   $x = $x == 0 ? "" : "-x $x";
   $w = $w == 0 ? "" : "-w $w";
   
-  open DZEN, "| dzen2 $w $x -ta r @ARGV";
+  open DZEN, "| dzen2 $w $x -ta r @$dzenArgs";
 
   my @previousOutputs = map {'---'} @$cmds;
   my @printers;
@@ -170,4 +171,4 @@ sub getUnblockedIO($){
   return $fh;
 }
 
-main;
+&main(@ARGV);
