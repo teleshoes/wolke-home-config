@@ -1,12 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 import Bindings (myKeyBindings, myMouseBindings, workspaceNames, mouseOverlaps, keyOverlaps)
-import Dzen (spawnHookedDzens, spawnUnhookedDzens, myDzenLogHook)
 import StaticAssert (staticAssert)
+
+import DBus.Client.Simple (connectSession)
+import System.Taffybar.XMonadLog (dbusLog)
 
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
-import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..))
+import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
@@ -30,19 +32,19 @@ firefoxExec = "firefox"
 firefoxProcess = "firefox"
 firefoxClose = "Close Firefox"
 
-main = xmonad =<< myConfig <$> getEnv "HOME" <*> spawnDzens
+main = xmonad =<< myConfig <$> getEnv "HOME" <*> connectSession
 
-myConfig home dzens = defaultConfig
+myConfig home dbusClient = defaultConfig
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
   , normalBorderColor  = "#dddddd"
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
-  , logHook            = myDzenLogHook home workspaceNames dzens
+  , logHook            = dbusLog dbusClient
   , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook
-  , manageHook         = myManageHook
+  , manageHook         = myManageHook >> manageDocks
 
   , workspaces         = workspaceNames
   , keys               = myKeyBindings
@@ -51,12 +53,6 @@ myConfig home dzens = defaultConfig
   , handleEventHook    = myHandleEventHook
   -- , terminal           =
   }
-
-spawnDzens = do
-    safeSpawn "workspace-image" ("init":workspaceNames)
-    spawn "killall dzen2 2>/dev/null"
-    spawnUnhookedDzens
-    spawnHookedDzens
 
 myStartupHook = spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
 
