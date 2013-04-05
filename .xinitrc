@@ -28,4 +28,4 @@ sudo wconnect `wguessid` &
 sudo bluetooth off &
 sudo fan auto
 
-exec xmonad
+exec ck-launch-session dbus-launch bash -c "taffybar & xmonad"
