@@ -1,4 +1,4 @@
-module Fan(main) where
+module Fan(fan) where
 import Utils (fg, bg, padL, regexGroups,
   readInt, readDouble, chompFile, readProc)
 import TextRows (textRows)
@@ -8,12 +8,12 @@ width = 2
 
 fanDev = "/proc/acpi/ibm/fan"
 
-main = do
+fan = do
   info <- chompFile fanDev
   acpiInfo <- readProc ["acpi", "-V"]
   let temp = parseCpuTemp acpiInfo
   let (status, speed, level) = parseFanInfo info
-  putStrLn $ formatScaling temp status speed level
+  return $ formatScaling temp status speed level
 
 parseCpuTemp acpiInfo = fromMaybe 0 $ readDouble $ grps!!0
   where re = ", (\\d+\\.\\d+) degrees C"

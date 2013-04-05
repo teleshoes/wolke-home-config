@@ -1,4 +1,4 @@
-module CpuScaling(main) where
+module CpuScaling(cpuScaling) where
 import Utils (fg, bg, padL, regexGroups,
               readInt, collectInts, chompFile, readProc)
 import TextRows (textRows)
@@ -14,14 +14,14 @@ width = 2
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-main = do
+cpuScaling = do
   gov <- getCpuField "governor"
   minKHz <- getCpuFieldInt "min_freq"
   maxKHz <- getCpuFieldInt "max_freq"
   avail <- sort <$> getCpuFieldInts "available_frequencies"
   cur <- parseTmpFile avail <$> chompFile tmpFile
   (okGov, okMinKHz, okMaxKHz) <- check gov minKHz maxKHz avail cur
-  putStrLn $ formatScaling okGov okMinKHz okMaxKHz avail
+  return $ formatScaling okGov okMinKHz okMaxKHz avail
 
 allSame [] = False
 allSame [_] = True

@@ -1,4 +1,4 @@
-module Klomp(main) where
+module Klomp(klomp) where
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
 import ClickAction (clickActions)
@@ -31,7 +31,7 @@ readKlompCur remoteCur = case remoteCur of
                            _ -> do home <- getEnv "HOME"
                                    chompFile $ home ++ "/" ++ ".klompcur"
 
-main = do
+klomp = do
   remoteCur <- getRemoteCur
   let isRemote = not $ null remoteCur
   cur <- readKlompCur remoteCur
@@ -50,7 +50,7 @@ main = do
                       , "          no current song"
                       )
 
-  putStr
+  return
     $ clickActions clickCommands
     $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
 

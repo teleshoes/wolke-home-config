@@ -1,4 +1,4 @@
-module Fcrondyn(main) where
+module Fcrondyn(fcrondyn) where
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
@@ -13,13 +13,13 @@ import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
 
-main = do
+fcrondyn = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
   running <- isRunning "fcron"
   if not running then void $ runCommand "sudo fcron" else return ()
   fcrondynOut <- readProc ["sudo", "fcrondyn", "-x", "ls"]
-  putStr $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
+  return $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
 
 cmd = ""
       ++ "term \""
