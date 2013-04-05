@@ -32,8 +32,8 @@ import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 height = 36
 
 -- PRINTERS
-fg color m = "^fg(" ++ color ++ ")" ++ m ++ "^fg()"
-bg color m = "^bg(" ++ color ++ ")" ++ m ++ "^bg()"
+fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"
+bg color m = "<span background=\"" ++ color ++ "\">" ++ m ++ "</span>"
 
 img imgPath = "^i(" ++ imgPath ++ ")"
 circle d = "^c(" ++ show d ++ ")"
