@@ -1,29 +1,32 @@
-module CpuFreqs (main) where
+module CpuFreqs (cpuFreqsLabel) where
+import Label(lbl)
 import CpuFreqsI7z (getFreqsChanI7z)
 import CpuFreqsProc (getFreqsChanProc)
-import TextRows(textRows)
-import Control.Concurrent (Chan, readChan)
+import TextRows (textRows)
+import Control.Concurrent (newMVar, modifyMVar, readChan)
 import Data.List (intercalate)
-import Utils (posX, lineBuffering)
 
-main = do
-  lineBuffering
+cpuFreqsLabel = do
   freqsChan <- getFreqsChanI7z
-  cpuFreqLoop freqsChan []
+  maxLenVar <- newMVar 0
+  lbl 1 $ cpuFreqs freqsChan maxLenVar
 
-cpuFreqLoop :: Chan [Int] -> [Int] -> IO ()
-cpuFreqLoop freqsChan lengths = do
+maxMVar mvar test = modifyMVar mvar maxTest
+  where maxTest old = let new = max old test in return (new, new)
+
+cpuFreqs freqsChan maxLenVar = do
   freqs <- readChan freqsChan
-  let newLengths = take 10 $ (length freqs):lengths
-  putStrLn $ formatFreqs freqs (maximum newLengths)
-  cpuFreqLoop freqsChan newLengths
+  maxLen <- maxMVar maxLenVar $ length freqs
+  return $ formatFreqs freqs maxLen
 
-formatFreqs freqs maxLen = intercalate (posX 4) $ formatCols formattedFreqs
+formatFreqs freqs maxLen = formatRows 2 formattedFreqs
   where formattedFreqs = take maxLen $ (map showFreq freqs) ++ (repeat "??")
-        len = maxLen + (maxLen `mod` 2)
 
-formatCols (f1:f2:fs) = textRows f1 f2 : formatCols fs
-formatCols (f1:fs) = f1 : formatCols fs
-formatCols _ = []
+segs xs n = if n == 0 then [] else cs xs []
+  where size = length xs `div` n
+        cs xs xss | length xss == n-1 = reverse (xs:xss)
+                  | otherwise = cs (drop size xs) (take size xs:xss)
+
+formatRows rows xs = concatMap (++"\n") $ map (intercalate " ") $ segs xs rows
 
 showFreq mhz = (if mhz < 1000 then "0" else "") ++ (show $ mhz `div` 100)
