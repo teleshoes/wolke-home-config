@@ -1,3 +1,14 @@
+import Widgets(label)
+import Volume(volumeW)
+import Openvpn(openvpnW)
+import Fcrondyn(fcrondynW)
+import Net(netW)
+import NetStats(netStatsW)
+import PingMonitor(pingMonitorW)
+import Klomp(klompW)
+import Fan(fanW)
+import CpuFreqs(cpuFreqsW)
+import CpuScaling(cpuScalingW)
 import System.Taffybar
 
 import System.Taffybar.Systray
@@ -6,38 +17,51 @@ import System.Taffybar.SimpleClock
 import System.Taffybar.FreedesktopNotifications
 import System.Taffybar.Weather
 import System.Taffybar.MPRIS
+import System.Taffybar.Battery
 
 import System.Taffybar.Widgets.PollingBar
 import System.Taffybar.Widgets.PollingGraph
+import System.Taffybar.Widgets.PollingLabel
 
+import System.Taffybar.Widgets.VerticalBar
 import System.Information.Memory
 import System.Information.CPU
 
-memCallback = do
+memW w = w $ do
   mi <- parseMeminfo
   return [memoryUsedRatio mi]
 
-cpuCallback = do
+cpuW w = w $ do
   (userLoad, systemLoad, totalLoad) <- cpuLoad
   return [totalLoad, systemLoad]
 
+green d = (0, 1.0, 0)
+
+graph colors = defaultGraphConfig { graphDataColors = colors }
+
 main = do
-  let memCfg = defaultGraphConfig { graphDataColors = [(1, 0, 0, 1)]
-                                  , graphLabel = Just "mem"
-                                  }
-      cpuCfg = defaultGraphConfig { graphDataColors = [ (0, 1, 0, 1)
-                                                      , (1, 0, 1, 0.5)
-                                                      ]
-                                  , graphLabel = Just "cpu"
-                                  }
-  let clock = textClockNew Nothing "<span fgcolor='orange'>%a %b %_d %H:%M</span>" 1
-      log = xmonadLogNew
-      note = notifyAreaNew defaultNotificationConfig
-      wea = weatherNew (defaultWeatherConfig "KMSN") 10
-      mpris = mprisNew
-      mem = pollingGraphNew memCfg 1 memCallback
-      cpu = pollingGraphNew cpuCfg 0.5 cpuCallback
-      tray = systrayNew
-  defaultTaffybar defaultTaffybarConfig { startWidgets = [ log, note ]
-                                        , endWidgets = [ tray, wea, clock, mem, cpu, mpris ]
-                                        }
+  let height = 40
+  let start =
+            [ xmonadLogNew
+            , notifyAreaNew defaultNotificationConfig
+            ]
+  let end = reverse
+          [ cpuW $ pollingGraphNew (graph [ (0, 1, 0, 1), (1, 0, 1, 0.5)]) 0.5
+          , memW $ pollingGraphNew (graph [(1, 0, 0, 1)]) 1
+          , netStatsW $ label 1
+          , netW $ label 1
+          , fcrondynW $ label 1
+          , klompW $ label 1
+          , volumeW $ pollingBarNew (defaultBarConfig green) 1
+          , cpuScalingW $ label 1
+          , cpuFreqsW $ label 1
+          , fanW $ label 1
+          , pingMonitorW (label 1) "www.google.com" "G" 1
+          , openvpnW $ label 1
+          , pingMonitorW (label 1) "source.escribe.com" "E" 1
+          , textBatteryNew "%d" 0.5
+          , textClockNew Nothing "%a %b %d\n%H:%M:%S" 1
+          ]
+
+  defaultTaffybar defaultTaffybarConfig {
+    barHeight=height, startWidgets=start, endWidgets=end}
