@@ -44,7 +44,7 @@ myConfig home dbusClient = defaultConfig
   , logHook            = dbusLog dbusClient
   , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook
-  , manageHook         = myManageHook >> manageDocks
+  , manageHook         = myManageHook <+> manageDocks
 
   , workspaces         = workspaceNames
   , keys               = myKeyBindings
