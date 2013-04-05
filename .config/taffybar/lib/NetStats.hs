@@ -1,11 +1,17 @@
-module NetStats(main) where
-import Control.Concurrent (threadDelay)
+module NetStats(netStatsLbl) where
+import Label(lbl)
+import Control.Concurrent (threadDelay, forkIO, readChan, writeChan, newChan)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 import TextRows (textRows)
 import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups, lineBuffering)
+
+netStatsLbl = do
+  chan <- newChan
+  forkIO $ scanLoop chan []
+  lbl 1 $ readChan chan
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
@@ -36,13 +42,11 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
     packStats [bytes,packets,errs,drop,fifo,frame,compressed,multicast] =
       NetStats bytes packets errs drop fifo frame compressed multicast
 
-main = lineBuffering >> scanLoop []
-
-scanLoop scans = do
+scanLoop chan scans = do
   (oldest, newest, updatedScans) <- updateScans scans
-  putStrLn $ format oldest newest
+  writeChan chan $ format oldest newest
   threadDelay $ 1*10^6
-  scanLoop updatedScans
+  scanLoop chan updatedScans
 
 showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) units)
   where
