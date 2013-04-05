@@ -1,4 +1,4 @@
-module Net(main) where
+module Net(net) where
 import System.Process(readProcess)
 import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
@@ -35,22 +35,19 @@ readWStatus = do
     otherwise      -> return Unknown
 
 
-main = do
-  lineBuffering
+net = do
   home <- getEnv "HOME"
-  forever $ do
-    wstatus <- readWStatus
-    text <- case wstatus of
-      Wlan      -> wifi
-      Wired     -> message "wired"
-      PPP       -> message "pewpewpew"
-      Wconnect  -> lastSSID
-      Wauto     -> message "wauto"
-      Tethering -> message "tethering"
-      None      -> message "no wabs"
-      Unknown   -> message "???"
-    putStrLn $ clickAction 1 (cmd home) text
-    threadDelay $ 1*10^6
+  wstatus <- readWStatus
+  text <- case wstatus of
+    Wlan      -> wifi
+    Wired     -> message "wired"
+    PPP       -> message "pewpewpew"
+    Wconnect  -> lastSSID
+    Wauto     -> message "wauto"
+    Tethering -> message "tethering"
+    None      -> message "no wabs"
+    Unknown   -> message "???"
+  return $ clickAction 1 (cmd home) text
 
 message s = return $ padtrim width $ Just s
 
