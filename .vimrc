@@ -97,6 +97,11 @@ imap <F3> <Esc>:w<CR>li
 vmap <F3> :w<Del><CR>lv
 """"""
 
+"""meld"""
+nmap <F2>      :Exec cd %:p:h; meld %:p &<CR>
+imap <F2> <Esc>:Exec cd %:p:h; meld %:p &<CR>
+""""""
+
 """git"""
 nmap <F4>      :Exec cd %:p:h; git gui &<CR>
 imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
