@@ -1,20 +1,19 @@
-module CpuFreqs (cpuFreqsLabel) where
-import Label(lbl)
+module CpuFreqs (cpuFreqsW) where
 import CpuFreqsI7z (getFreqsChanI7z)
 import CpuFreqsProc (getFreqsChanProc)
 import TextRows (textRows)
 import Control.Concurrent (newMVar, modifyMVar, readChan)
 import Data.List (intercalate)
 
-cpuFreqsLabel = do
+cpuFreqsW w = do
   freqsChan <- getFreqsChanI7z
   maxLenVar <- newMVar 0
-  lbl 1 $ cpuFreqs freqsChan maxLenVar
+  w $ readCpuFreqs freqsChan maxLenVar
 
 maxMVar mvar test = modifyMVar mvar maxTest
   where maxTest old = let new = max old test in return (new, new)
 
-cpuFreqs freqsChan maxLenVar = do
+readCpuFreqs freqsChan maxLenVar = do
   freqs <- readChan freqsChan
   maxLen <- maxMVar maxLenVar $ length freqs
   return $ formatFreqs freqs maxLen

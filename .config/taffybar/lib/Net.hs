@@ -1,4 +1,4 @@
-module Net(net) where
+module Net(netW) where
 import System.Process(readProcess)
 import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
@@ -35,7 +35,7 @@ readWStatus = do
     otherwise      -> return Unknown
 
 
-net = do
+netW w = w $ do
   home <- getEnv "HOME"
   wstatus <- readWStatus
   text <- case wstatus of

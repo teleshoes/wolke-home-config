@@ -1,4 +1,4 @@
-module CpuScaling(cpuScaling) where
+module CpuScaling(cpuScalingW) where
 import Utils (fg, bg, padL, regexGroups,
               readInt, collectInts, chompFile, readProc)
 import TextRows (textRows)
@@ -14,7 +14,7 @@ width = 2
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScaling = do
+cpuScalingW w = w $ do
   gov <- getCpuField "governor"
   minKHz <- getCpuFieldInt "min_freq"
   maxKHz <- getCpuFieldInt "max_freq"

@@ -1,4 +1,4 @@
-module Klomp(klomp) where
+module Klomp(klompW) where
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
 import ClickAction (clickActions)
@@ -31,7 +31,7 @@ readKlompCur remoteCur = case remoteCur of
                            _ -> do home <- getEnv "HOME"
                                    chompFile $ home ++ "/" ++ ".klompcur"
 
-klomp = do
+klompW w = w $ do
   remoteCur <- getRemoteCur
   let isRemote = not $ null remoteCur
   cur <- readKlompCur remoteCur

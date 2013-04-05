@@ -1,4 +1,4 @@
-module Volume (getVol, isMuted) where
+module Volume (volumeW, getVol, isMuted) where
 import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
 import System.Process(readProcess)
@@ -13,6 +13,8 @@ otherColors = "blue":(repeat "orange")
 --  mute <- isMuted "speaker"
 --  let colors = if mute then mutedColors else unmutedColors
 --  putStr $ percentBar vol colors 5
+
+volumeW w = w $ getVol "speaker"
 
 getVol :: String -> IO Double
 getVol = fmap (/100.0) . fmap fromIntegral . fmap fst . getStatus

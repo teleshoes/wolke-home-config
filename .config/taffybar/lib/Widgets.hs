@@ -1,8 +1,8 @@
-module Label(lbl) where
+module Widgets(label) where
 import System.Taffybar.Widgets.PollingLabel (pollingLabelNew)
 import Graphics.UI.Gtk (widgetShowAll)
 
-lbl interval printer = do
+label interval printer = do
   w <- pollingLabelNew "---" interval printer
   widgetShowAll w
   return w

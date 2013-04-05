@@ -1,4 +1,4 @@
-module Fan(fan) where
+module Fan(fanW) where
 import Utils (fg, bg, padL, regexGroups,
   readInt, readDouble, chompFile, readProc)
 import TextRows (textRows)
@@ -8,7 +8,7 @@ width = 2
 
 fanDev = "/proc/acpi/ibm/fan"
 
-fan = do
+fanW w = w $ do
   info <- chompFile fanDev
   acpiInfo <- readProc ["acpi", "-V"]
   let temp = parseCpuTemp acpiInfo

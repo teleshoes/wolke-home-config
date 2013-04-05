@@ -1,4 +1,4 @@
-module Fcrondyn(fcrondyn) where
+module Fcrondyn(fcrondynW) where
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
@@ -13,7 +13,7 @@ import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
 
-fcrondyn = do
+fcrondynW w = w $ do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
   running <- isRunning "fcron"
