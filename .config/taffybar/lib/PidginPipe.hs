@@ -20,7 +20,7 @@ pidginPipeW = do
 getImage = do
   home <- getEnv "HOME"
   let iconSubdir = show height ++ "x" ++ show height
-  let dir = home ++ "/.dzen2/icons/" ++ iconSubdir ++ "/pidgin"
+  let dir = home ++ "/.config/taffybar/icons/" ++ iconSubdir ++ "/pidgin"
   let pipeFile = home ++ "/.purple/plugins/pipe"
 
   pipe <- chompFile pipeFile

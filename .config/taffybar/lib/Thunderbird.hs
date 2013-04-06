@@ -46,7 +46,7 @@ getImage = do
   let imgSize = 16
   let imgSubDir = show imgSize ++ "x" ++ show imgSize
   let imgName = if tbRunning then "thunderbird-on" else "thunderbird-off"
-  return $ home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/" ++ imgName ++ ".xpm"
+  return $ home ++ "/.config/taffybar/icons/" ++ imgSubDir ++ "/" ++ imgName ++ ".xpm"
 
 unreadCountsMarkup = do
   home <- getEnv "HOME"
