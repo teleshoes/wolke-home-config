@@ -1,4 +1,6 @@
 import Widgets(label)
+import PidginPipe(pidginPipeW)
+import Thunderbird(thunderbirdW)
 import Volume(volumeW)
 import Openvpn(openvpnW)
 import Fcrondyn(fcrondynW)
@@ -53,6 +55,8 @@ main = do
           , fcrondynW $ label 1
           , klompW $ label 1
           , volumeW $ pollingBarNew (defaultBarConfig green) 1
+          , pidginPipeW
+          , thunderbirdW
           , cpuScalingW $ label 1
           , cpuFreqsW $ label 1
           , fanW $ label 1

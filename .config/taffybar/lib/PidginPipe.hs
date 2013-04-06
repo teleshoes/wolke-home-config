@@ -1,21 +1,23 @@
-module PidginPipe(main) where
+module PidginPipe(pidginPipeW) where
+import Widgets (pollingImageNew, clickable)
 import System.Environment (getEnv)
 import Data.Char (toLower)
-import ClickableImage (clickableImage)
 import Utils (height, chompAll, isRunning, chompFile)
 
-clickCommands = [ ""
-                  ++ "pidof pidgin; "
-                  ++ "if [ $? == 0 ]; then "
-                    ++ "xdotool key --clearmodifiers alt+2; "
-                  ++ "else "
-                    ++ "pidgin; "
-                  ++ "fi"
-                , "killall pidgin; pidgin"
-                , "killall pidgin"
-                ]
+clickL = Just $ ""
+                ++ " sleep 0.1;"
+                ++ " pkill -0 pidgin"
+                ++ " && xdotool key --clearmodifiers alt+2"
+                ++ " || pidgin"
+clickM = Just "killall pidgin; pidgin"
+clickR = Just "killall pidgin"
 
-main = do
+pidginPipeW = do
+  img <- pollingImageNew 1 getImage
+  click <- clickable img clickL clickM clickR
+  return click
+
+getImage = do
   home <- getEnv "HOME"
   let iconSubdir = show height ++ "x" ++ show height
   let dir = home ++ "/.dzen2/icons/" ++ iconSubdir ++ "/pidgin"
@@ -27,7 +29,7 @@ main = do
   pidginRunning <- if status == "off" then return False else isRunning "pidgin"
 
   let img = if pidginRunning then imgName status else imgName "off"
-  putStrLn $ clickableImage clickCommands (dir ++ "/" ++ img ++ ".xpm")
+  return $ dir ++ "/" ++ img ++ ".xpm"
 
 imgName status = case status of
   "off"            -> "not-running"

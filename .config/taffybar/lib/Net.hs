@@ -1,11 +1,11 @@
 module Net(netW) where
+import Widgets (clickableLeft)
 import System.Process(readProcess)
 import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
 import TextRows (textRows)
-import ClickAction (clickAction)
 import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
 
 lastSSIDFile = "/tmp/last-ssid"
@@ -34,11 +34,9 @@ readWStatus = do
     "none\n"       -> return None
     otherwise      -> return Unknown
 
-
-netW w = w $ do
-  home <- getEnv "HOME"
+getNetMarkup = do
   wstatus <- readWStatus
-  text <- case wstatus of
+  markup <- case wstatus of
     Wlan      -> wifi
     Wired     -> message "wired"
     PPP       -> message "pewpewpew"
@@ -47,7 +45,13 @@ netW w = w $ do
     Tethering -> message "tethering"
     None      -> message "no wabs"
     Unknown   -> message "???"
-  return $ clickAction 1 (cmd home) text
+  return markup
+
+netW w = do
+  home <- getEnv "HOME"
+  lbl <- w getNetMarkup
+  click <- clickableLeft lbl (cmd home)
+  return click
 
 message s = return $ padtrim width $ Just s
 

@@ -1,10 +1,9 @@
-module Thunderbird(main) where
+module Thunderbird(thunderbirdW) where
+import Widgets (pollingImageNew, clickable, label)
+import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  fg, bg, img,
-  posX, shiftTop, shiftBot,
-  regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
 import TextRows (textRows)
-import ClickAction (clickActions)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -15,16 +14,14 @@ exec = "thunderbird"
 process = exec
 dir = "." ++ exec
 
-clickCommands = [ ""
-                  ++ "pidof " ++ process ++ "; "
-                  ++ "if [ $? == 0 ]; then "
-                    ++ "xdotool key --clearmodifiers alt+8; "
-                  ++ "else "
-                    ++ exec ++ "; "
-                  ++ "fi"
-                , exec ++ " --compose"
-                , "killall " ++ process
-                ]
+
+clickL = Just $ ""
+                ++ " sleep 0.1;"
+                ++ " pkill -0 " ++ process
+                ++ " && xdotool key --clearmodifiers alt+8"
+                ++ " || " ++ exec
+clickM = Just $ exec ++ " --compose"
+clickR = Just $ "killall " ++ process
 
 accounts = M.fromList [ ("Gmail", "G")
                       , ("LilleGroup", "L")
@@ -32,27 +29,35 @@ accounts = M.fromList [ ("Gmail", "G")
                       , ("teleshoes", "T")
                       ]
 
-main = do
+thunderbirdW = do
+  img <- pollingImageNew 1 getImage
+  label <- label 1 unreadCountsMarkup
+
+  box <- hBoxNew False 0
+  containerAdd box img
+  containerAdd box label
+
+  click <- clickable box clickL clickM clickR
+  return click
+
+getImage = do
   home <- getEnv "HOME"
+  tbRunning <- isRunning process
   let imgSize = 16
   let imgSubDir = show imgSize ++ "x" ++ show imgSize
-  let imgPath = home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/thunderbird.xpm"
+  let imgName = if tbRunning then "thunderbird-on" else "thunderbird-off"
+  return $ home ++ "/.dzen2/icons/" ++ imgSubDir ++ "/" ++ imgName ++ ".xpm"
 
+unreadCountsMarkup = do
+  home <- getEnv "HOME"
   let cmd = ["find", home ++ "/" ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
-  tbRunning <- isRunning process
-  let runningMarkup = if tbRunning then "  " else fg "red" " X"
-
   unreadCounts <- chompFile ucFile
-  let unreadMarkup = formatUnreadCounts $ parseUnreadCounts unreadCounts
+  let markup = formatUnreadCounts $ parseUnreadCounts unreadCounts
+  return $ fgbg "green" "black" markup
 
-  let icon = posX (-imgSize) ++ shiftTop ++ img imgPath
-
-  putStrLn $
-    clickActions clickCommands $
-    bg "black" $ shiftBot ++ runningMarkup ++ icon ++ fg "green" unreadMarkup
 
 parseUnreadCounts :: String -> [(String, Integer)]
 parseUnreadCounts uc = catMaybes $ map ucMatch $ lines uc

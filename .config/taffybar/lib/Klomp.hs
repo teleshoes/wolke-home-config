@@ -1,7 +1,7 @@
 module Klomp(klompW) where
+import Widgets (clickable)
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
-import ClickAction (clickActions)
 import TextRows (textRows)
 
 import Prelude hiding(lookup)
@@ -15,10 +15,9 @@ rowLength = 34
 gapOffset = 3
 sep = "…"
 
-clickCommands = [ "xdotool key --clearmodifiers alt+9; klomp-term"
-                , "klomp-cmd reset"
-                , "klomp-cmd stop"
-                ]
+clickL = Just "xdotool key --clearmodifiers alt+9; klomp-term"
+clickM = Just "klomp-cmd reset"
+clickR = Just "klomp-cmd stop"
 
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
@@ -31,7 +30,7 @@ readKlompCur remoteCur = case remoteCur of
                            _ -> do home <- getEnv "HOME"
                                    chompFile $ home ++ "/" ++ ".klompcur"
 
-klompW w = w $ do
+getMarkup = do
   remoteCur <- getRemoteCur
   let isRemote = not $ null remoteCur
   cur <- readKlompCur remoteCur
@@ -49,10 +48,12 @@ klompW w = w $ do
                       ( "              KLOMP      "
                       , "          no current song"
                       )
+  return $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
 
-  return
-    $ clickActions clickCommands
-    $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
+klompW w = do
+  lbl <- w getMarkup
+  click <- clickable lbl clickL clickM clickR
+  return click
 
 toFloat = read :: String -> Float
 

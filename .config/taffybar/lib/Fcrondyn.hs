@@ -1,4 +1,5 @@
 module Fcrondyn(fcrondynW) where
+import Widgets (clickableLeft)
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
@@ -6,20 +7,23 @@ import Control.Monad (void)
 
 import Utils(isRunning, padR, readProc)
 import TextRows(textRows)
-import ClickAction (clickAction)
 
 import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
+fcrondynW w = do
+  lbl <- w getMarkup
+  click <- clickableLeft lbl (cmd)
+  return click
 
-fcrondynW w = w $ do
+getMarkup = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
   running <- isRunning "fcron"
   if not running then void $ runCommand "sudo fcron" else return ()
   fcrondynOut <- readProc ["sudo", "fcrondyn", "-x", "ls"]
-  return $ clickAction 1 cmd $ parseAndFormat now tz fcrondynOut
+  return $ parseAndFormat now tz fcrondynOut
 
 cmd = ""
       ++ "term \""

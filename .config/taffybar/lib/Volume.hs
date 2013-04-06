@@ -2,17 +2,11 @@ module Volume (volumeW, getVol, isMuted) where
 import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
 import System.Process(readProcess)
-import PercentBar (percentBar)
 import Utils (regexGroups, readProc)
 
 mutedColors = ["yellow", "red"] ++ otherColors
 unmutedColors = ["black", "green"] ++ otherColors
 otherColors = "blue":(repeat "orange")
-
---  vol <- getVol "speaker"
---  mute <- isMuted "speaker"
---  let colors = if mute then mutedColors else unmutedColors
---  putStr $ percentBar vol colors 5
 
 volumeW w = w $ getVol "speaker"
 

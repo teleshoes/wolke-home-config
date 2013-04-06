@@ -1,12 +1,6 @@
 module Utils(
   height,
-  fg, bg,
-  img, circle, rect,
-  title, clearSlave,
-  clickArea,
-  pos, posX, posY, lockX,
-  posAbs, posAbsX, posAbsY, shiftTop, shiftMid, shiftBot,
-  ignoreBG,
+  fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll, estimateLength,
   nanoTime, lineBuffering, isRunning, chompFile,
@@ -31,33 +25,13 @@ import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 -- CONSTANTS
 height = 36
 
--- PRINTERS
+-- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"
 bg color m = "<span background=\"" ++ color ++ "\">" ++ m ++ "</span>"
-
-img imgPath = "^i(" ++ imgPath ++ ")"
-circle d = "^c(" ++ show d ++ ")"
-rect x y = "^r(" ++ show x ++ "x" ++ show y ++ ")"
-
-title m = "^tw()" ++ m ++ "\n"
-clearSlave = "^cs()" ++ "\n"
-
-clickArea _ "" m = m
-clickArea btn cmd m = "^ca(" ++ show btn ++ ", " ++ cmd ++ ")" ++ m ++ "^ca()"
-
-pos x y = "^p(" ++ show x ++ ";" ++ show y ++ ")"
-posX x = "^p(" ++ show x ++ ")"
-posY y = "^p(;" ++ show y ++ ")"
-lockX m = "^p(_LOCK_X)" ++ m ++ "^p(_UNLOCK_X)"
-
-posAbs x y = "^pa(" ++ show x ++ ";" ++ show y ++ ")"
-posAbsX x = "^pa(" ++ show x ++ ")"
-posAbsY y = "^pa(;" ++ show y ++ ")"
-shiftTop = posAbsY 0
-shiftMid = "^pa()"
-shiftBot = posAbsY $ height `div` 2
-
-ignoreBG m = "^ib(1)" ++ m ++ "^ib(0)"
+fgbg fg bg m = "<span"
+               ++ " foreground=\"" ++ fg ++ "\""
+               ++ " background=\"" ++ bg ++ "\""
+               ++ ">" ++ m ++ "</span>"
 
 -- Parsing
 regexMatch :: String -> String -> Bool
