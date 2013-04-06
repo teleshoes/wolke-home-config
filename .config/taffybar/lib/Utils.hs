@@ -2,7 +2,7 @@ module Utils(
   height,
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, collectInts, padL, padR, chompAll, estimateLength,
+  readInt, readDouble, collectInts, padL, padR, chompAll,
   nanoTime, lineBuffering, isRunning, chompFile,
   systemReadLines, readProc, chompProc, procSuccess,
   actToChanDelay, listToChan
@@ -60,13 +60,6 @@ padL x len xs = replicate (len - length xs) x ++ xs
 padR x len xs = xs ++ replicate (len - length xs) x
 
 chompAll = reverse . dropWhile (== '\n') . reverse
-
-estimateLength = length . chompAll . stripDzenMarkup
-
-stripDzenMarkup ('^':'^':s) = '^' : stripDzenMarkup s
-stripDzenMarkup ('^':s) = stripDzenMarkup $ drop 1 $ dropWhile (/= ')') s
-stripDzenMarkup (c:s) = c : stripDzenMarkup s
-stripDzenMarkup [] = []
 
 -- IO
 nanoTime :: IO Integer
