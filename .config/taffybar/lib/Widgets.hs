@@ -7,49 +7,65 @@ import Utils (defaultDelay)
 
 import System.Taffybar.Widgets.PollingLabel (pollingLabelNew)
 import Graphics.UI.Gtk (
+  Widget, WidgetClass,
   imageNew, imageNewFromFile, imageSetFromFile,
   eventBoxNew, eventBoxSetVisibleWindow, onButtonPress,
   containerAdd, toWidget, on, realize, widgetShowAll, postGUIAsync)
 import Graphics.UI.Gtk.Gdk.Events (
-  eventButton, MouseButton(LeftButton, MiddleButton, RightButton))
+  eventButton, Event, MouseButton(LeftButton, MiddleButton, RightButton))
 import System.Process (system)
 import Control.Monad.Trans (liftIO)
 import Control.Monad (forever, void)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception as E (catch, IOException)
 
+type Act = IO ()
+type CmdA = IO (Maybe String)
+type Cmd = Maybe String
+
+maybeRun :: Cmd -> IO ()
 maybeRun Nothing = return ()
 maybeRun (Just cmd) = void $ forkIO $ void $ system cmd
 
-handleClickAction lAction mAction rAction evt = do
+handleClickAction :: Act -> Act -> Act -> Event -> IO Bool
+handleClickAction lAct mAct rAct evt = do
   case (eventButton evt) of
-    LeftButton -> lAction
-    MiddleButton -> mAction
-    RightButton -> rAction
+    LeftButton -> lAct
+    MiddleButton -> mAct
+    RightButton -> rAct
   return False
 
-clickableActions lAction mAction rAction w = do
+clickableActions :: (WidgetClass w) => Act -> Act -> Act -> w -> IO Widget
+clickableActions lAct mAct rAct w = do
   ebox <- eventBoxNew
-  onButtonPress ebox $ handleClickAction lAction mAction rAction
+  onButtonPress ebox $ handleClickAction lAct mAct rAct
   eventBoxSetVisibleWindow ebox False
   containerAdd ebox w
   widgetShowAll ebox
   return $ toWidget ebox
 
+clickableAsync :: (WidgetClass w) => CmdA -> CmdA -> CmdA -> w -> IO Widget
 clickableAsync lCmdA mCmdA rCmdA w = clickableActions l m r w
   where (l,m,r) = (maybeRun =<< lCmdA, maybeRun =<< mCmdA, maybeRun =<< rCmdA)
 
-clickableLeftAsync cmdAsync w = clickableAsync l m r w
-  where (l,m,r) = (cmdAsync, return Nothing, return Nothing)
+clickableLeftAsync :: (WidgetClass w) => CmdA -> w -> IO Widget
+clickableLeftAsync cmdA w = clickableAsync l m r w
+  where (l,m,r) = (cmdA, return Nothing, return Nothing)
+
+clickable :: (WidgetClass w) => Cmd -> Cmd -> Cmd -> w -> IO Widget
 clickable lCmd mCmd rCmd w = clickableAsync l m r w
   where (l,m,r) = (return lCmd, return mCmd, return rCmd)
+
+clickableLeft :: (WidgetClass w) => String -> w -> IO Widget
 clickableLeft cmd w = clickableAsync l m r w
   where (l,m,r) = (return $ Just cmd, return Nothing, return Nothing)
+
+
+
 
 image file = do
   img <- imageNewFromFile file
   return $ toWidget img
-
 
 pollingImageNew cmd = do
   img <- imageNew
