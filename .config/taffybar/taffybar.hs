@@ -1,4 +1,5 @@
 import Brightness(brightnessW)
+import Clock(clockW)
 import CpuFreqs(cpuFreqsW)
 import CpuScaling(cpuScalingW)
 import Ekiga(ekigaW)
@@ -21,7 +22,6 @@ import Widgets(label)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, startWidgets, endWidgets)
 import System.Taffybar.XMonadLog (xmonadLogNew)
-import System.Taffybar.SimpleClock (textClockNew)
 
 main = do
   let height = 40
@@ -48,7 +48,7 @@ main = do
           , openvpnW
           , pingMonitorW "source.escribe.com" "E"
           , tpBattStatW
-          , textClockNew Nothing "%a %b %d\n%H:%M:%S" 1
+          , clockW
           ]
 
   defaultTaffybar defaultTaffybarConfig {
