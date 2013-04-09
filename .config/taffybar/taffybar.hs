@@ -1,4 +1,5 @@
 import Widgets(label)
+import MonitorCpu(monitorCpuW)
 import Ekiga(ekigaW)
 import TPBattStat(tpBattStatW)
 import PidginPipe(pidginPipeW)
@@ -31,15 +32,10 @@ import System.Taffybar.Widgets.PollingLabel
 
 import System.Taffybar.Widgets.VerticalBar
 import System.Information.Memory
-import System.Information.CPU
 
 memW w = w $ do
   mi <- parseMeminfo
   return [memoryUsedRatio mi]
-
-cpuW w = w $ do
-  (userLoad, systemLoad, totalLoad) <- cpuLoad
-  return [totalLoad, systemLoad]
 
 green d = (0, 1.0, 0)
 
@@ -51,7 +47,7 @@ main = do
             [ xmonadLogNew
             ]
   let end = reverse
-          [ cpuW $ pollingGraphNew (graph [ (0, 1, 0, 1), (1, 0, 1, 0.5)]) 0.5
+          [ monitorCpuW
           , memW $ pollingGraphNew (graph [(1, 0, 0, 1)]) 1
           , netStatsW $ label 1
           , netW $ label 1
