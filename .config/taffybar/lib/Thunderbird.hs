@@ -29,8 +29,8 @@ accounts = M.fromList [ ("Gmail", "G")
                       ]
 
 thunderbirdW = do
-  img <- pollingImageNew 1 getImage
-  label <- label 1 unreadCountsMarkup
+  img <- pollingImageNew getImage
+  label <- label unreadCountsMarkup
 
   box <- hBoxNew False 0
   containerAdd box img

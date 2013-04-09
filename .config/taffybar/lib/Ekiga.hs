@@ -7,6 +7,6 @@ getEkiga = do
   return $ if running then "e" else "-"
 
 ekigaW = do
-  lbl <- label 1 getEkiga
+  lbl <- label getEkiga
   click <- clickable lbl (Just "ekiga") Nothing (Just "pkill ekiga")
   return click

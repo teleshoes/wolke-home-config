@@ -1,5 +1,5 @@
 module Openvpn(openvpnW) where
-import Widgets (clickableLeft)
+import Widgets (clickableLeft, label)
 import Utils (isRunning, fg)
 
 clickCmd = "sudo sslvpn toggle"
@@ -10,7 +10,7 @@ vpnMarkup = do
   let color = if vpnOn then "green" else "red"
   return $ fg color $ "vpn\n" ++ text
 
-openvpnW w = do
-  lbl <- w vpnMarkup
+openvpnW = do
+  lbl <- label vpnMarkup
   click <- clickableLeft lbl clickCmd
   return click

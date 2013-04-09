@@ -31,22 +31,22 @@ main = do
   let end = reverse
           [ monitorCpuW
           , monitorMemW
-          , netStatsW $ label 1
-          , netW $ label 1
-          , fcrondynW $ label 1
-          , klompW $ label 1
+          , netStatsW
+          , netW
+          , fcrondynW
+          , klompW
           , volumeW
           , micW
           , pidginPipeW
           , thunderbirdW
           , ekigaW
-          , cpuScalingW $ label 1
-          , cpuFreqsW $ label 1
-          , fanW $ label 1
+          , cpuScalingW
+          , cpuFreqsW
+          , fanW
           , brightnessW
-          , pingMonitorW (label 1) "www.google.com" "G" 1
-          , openvpnW $ label 1
-          , pingMonitorW (label 1) "source.escribe.com" "E" 1
+          , pingMonitorW "www.google.com" "G"
+          , openvpnW
+          , pingMonitorW "source.escribe.com" "E"
           , tpBattStatW
           , textClockNew Nothing "%a %b %d\n%H:%M:%S" 1
           ]

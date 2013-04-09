@@ -2,6 +2,8 @@ module Widgets(
   clickableAsync, clickable, clickableLeft,
   label, image, pollingImageNew
 ) where
+import Utils (defaultDelay)
+
 import System.Taffybar.Widgets.PollingLabel (pollingLabelNew)
 import Graphics.UI.Gtk hiding (eventButton) --(toWidget, widgetShowAll, buttonNew, buttonSetImage, imageNewFromFile)
 import Graphics.UI.Gtk.Gdk.Events (
@@ -42,7 +44,7 @@ image file = do
   return $ toWidget img
 
 
-pollingImageNew interval cmd = do
+pollingImageNew cmd = do
   img <- imageNew
   on img realize $ do
     forkIO $ forever $ do
@@ -50,14 +52,14 @@ pollingImageNew interval cmd = do
             file <- cmd
             postGUIAsync $ imageSetFromFile img file
       E.catch tryUpdate ignoreIOException
-      threadDelay $ floor (interval * 1000000)
+      threadDelay $ floor (defaultDelay * 1000000)
     return ()
   return img
 
 ignoreIOException :: IOException -> IO ()
 ignoreIOException _ = return ()
 
-label interval printer = do
-  w <- pollingLabelNew "---" interval printer
+label printer = do
+  w <- pollingLabelNew "---" defaultDelay printer
   widgetShowAll w
   return w

@@ -1,6 +1,7 @@
 module CpuScaling(cpuScalingW) where
 import Utils (fg, bg, padL, regexGroups,
               readInt, collectInts, chompFile, readProc)
+import Widgets (label)
 
 import Control.Monad (void)
 import System.Process (system)
@@ -13,7 +14,7 @@ width = 2
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScalingW w = w $ do
+cpuScalingW = label $ do
   gov <- getCpuField "governor"
   minKHz <- getCpuFieldInt "min_freq"
   maxKHz <- getCpuFieldInt "max_freq"

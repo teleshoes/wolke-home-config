@@ -1,5 +1,5 @@
 module Fcrondyn(fcrondynW) where
-import Widgets (clickableLeft)
+import Widgets (clickableLeft, label)
 import System.IO
 import System.Process(runCommand, readProcessWithExitCode)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
@@ -11,8 +11,8 @@ import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
-fcrondynW w = do
-  lbl <- w getMarkup
+fcrondynW = do
+  lbl <- label getMarkup
   click <- clickableLeft lbl (cmd)
   return click
 

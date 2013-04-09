@@ -1,5 +1,5 @@
 module Utils(
-  height,
+  height, defaultDelay,
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
@@ -23,7 +23,11 @@ import System.Process (
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 
 -- CONSTANTS
+height :: Int
 height = 36
+
+defaultDelay :: Double
+defaultDelay = 1
 
 -- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"

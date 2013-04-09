@@ -5,7 +5,7 @@ import Volume (isMuted)
 import Utils (fg)
 
 micW = do
-  lbl <- label 1 getMic
+  lbl <- label getMic
   click <- clickableLeft lbl clickCmd
   return click
 

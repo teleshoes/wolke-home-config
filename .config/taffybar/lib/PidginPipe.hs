@@ -13,7 +13,7 @@ clickM = Just "killall pidgin; pidgin"
 clickR = Just "killall pidgin"
 
 pidginPipeW = do
-  img <- pollingImageNew 1 getImage
+  img <- pollingImageNew getImage
   click <- clickable img clickL clickM clickR
   return click
 

@@ -1,5 +1,5 @@
 module Net(netW) where
-import Widgets (clickableLeft)
+import Widgets (clickableLeft, label)
 import System.Process(readProcess)
 import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
@@ -46,9 +46,9 @@ getNetMarkup = do
     Unknown   -> message "???"
   return markup
 
-netW w = do
+netW = do
   home <- getEnv "HOME"
-  lbl <- w getNetMarkup
+  lbl <- label getNetMarkup
   click <- clickableLeft lbl (cmd home)
   return click
 

@@ -1,5 +1,5 @@
 module Klomp(klompW) where
-import Widgets (clickable)
+import Widgets (clickable, label)
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
 import Prelude hiding(lookup)
@@ -48,8 +48,8 @@ getMarkup = do
                       )
   return $ (adjustLen $ prefix ++ top) ++ "\n" ++ (adjustLen $ prefix ++ bot)
 
-klompW w = do
-  lbl <- w getMarkup
+klompW = do
+  lbl <- label getMarkup
   click <- clickable lbl clickL clickM clickR
   return click
 
