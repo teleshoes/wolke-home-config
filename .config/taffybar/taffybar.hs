@@ -3,6 +3,7 @@ import TPBattStat(tpBattStatW)
 import PidginPipe(pidginPipeW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
+import Brightness(brightnessW)
 import Openvpn(openvpnW)
 import Fcrondyn(fcrondynW)
 import Net(netW)
@@ -60,6 +61,7 @@ main = do
           , cpuScalingW $ label 1
           , cpuFreqsW $ label 1
           , fanW $ label 1
+          , brightnessW
           , pingMonitorW (label 1) "www.google.com" "G" 1
           , openvpnW $ label 1
           , pingMonitorW (label 1) "source.escribe.com" "E" 1

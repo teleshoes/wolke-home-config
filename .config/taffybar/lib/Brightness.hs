@@ -1,18 +1,24 @@
-module Brightness (main) where
+module Brightness (brightnessW) where
+import PercentBarWidget (
+  percentBarWidgetW, percentBarConfig, colorMap, cycleColors)
 import System.Environment (getEnv)
-import System.Process(readProcess, system)
-import PercentBar (percentBar)
+import System.Process(system)
 import Control.Concurrent (threadDelay)
 import Data.Maybe (fromMaybe)
-import Data.Functor ((<$>))
 import Utils (readDouble, readProc)
 
-main = do
-  threadDelay $ 1*10^6
+brightnessW = percentBarWidgetW percentBarConfig 1 readBrightnessBar
+
+lastBrightness = do
+  home <- getEnv "HOME"
+  system $ home ++ "/bin/brightness last > /dev/null"
+
+readBrightnessBar = do
+  let colors = map colorMap $ ["black", "gray"] ++ repeat "orange"
   system "$HOME/bin/brightness last > /dev/null"
-  brightness <- parse <$> readProc ["xbacklight", "-get"]
-  let colors = ["black", "darkgray"] ++ repeat "orange"
-  putStr $ percentBar brightness colors 5
+  p <- getBrightness
+  let (bg, fg) = cycleColors colors p
+  return (fg, bg, p)
 
-parse = round . fromMaybe 300.0 . readDouble
-
+getBrightness = fmap parse $ readProc ["xbacklight", "-get"]
+parse b = (fromMaybe 300.0 $ readDouble b) / 100.0
