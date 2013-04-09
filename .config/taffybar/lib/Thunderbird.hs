@@ -36,8 +36,7 @@ thunderbirdW = do
   containerAdd box img
   containerAdd box label
 
-  click <- clickable box clickL clickM clickR
-  return click
+  clickable clickL clickM clickR box
 
 getImage = do
   home <- getEnv "HOME"

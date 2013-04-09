@@ -12,10 +12,7 @@ clickL = Just $ ""
 clickM = Just "killall pidgin; pidgin"
 clickR = Just "killall pidgin"
 
-pidginPipeW = do
-  img <- pollingImageNew getImage
-  click <- clickable img clickL clickM clickR
-  return click
+pidginPipeW = clickable clickL clickM clickR =<< pollingImageNew getImage
 
 getImage = do
   home <- getEnv "HOME"

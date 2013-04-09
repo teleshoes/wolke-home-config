@@ -48,9 +48,7 @@ getNetMarkup = do
 
 netW = do
   home <- getEnv "HOME"
-  lbl <- label getNetMarkup
-  click <- clickableLeft lbl (cmd home)
-  return click
+  clickableLeft (cmd home) =<< label getNetMarkup
 
 message s = return $ padtrim width $ Just s
 

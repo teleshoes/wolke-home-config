@@ -11,10 +11,7 @@ import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
-fcrondynW = do
-  lbl <- label getMarkup
-  click <- clickableLeft lbl (cmd)
-  return click
+fcrondynW = clickableLeft cmd =<< label getMarkup
 
 getMarkup = do
   now <- getCurrentTime

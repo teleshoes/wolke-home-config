@@ -10,7 +10,4 @@ vpnMarkup = do
   let color = if vpnOn then "green" else "red"
   return $ fg color $ "vpn\n" ++ text
 
-openvpnW = do
-  lbl <- label vpnMarkup
-  click <- clickableLeft lbl clickCmd
-  return click
+openvpnW = clickableLeft clickCmd =<< label vpnMarkup

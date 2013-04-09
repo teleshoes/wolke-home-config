@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 module JsonWidget(jsonWidgetNew) where
-import Widgets (clickableAsync, label)
+import Widgets (clickableLeftAsync, label)
 
 import Data.Maybe (listToMaybe)
 import Control.Monad (forever, void)
@@ -141,6 +141,4 @@ jsonWidgetNew markupReader = do
                                      , clickCommand=Nothing
                                      }
   forkIO $ updateGuiStateLoop markupReader guiStateMVar
-  click <- clickableAsync p
-            (getClickCommand guiStateMVar) (return Nothing) (return Nothing)
-  return $ click
+  clickableLeftAsync (getClickCommand guiStateMVar) p

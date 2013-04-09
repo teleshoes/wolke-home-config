@@ -4,10 +4,7 @@ import System.Environment (getEnv)
 import Volume (isMuted)
 import Utils (fg)
 
-micW = do
-  lbl <- label getMic
-  click <- clickableLeft lbl clickCmd
-  return click
+micW = clickableLeft clickCmd =<< label getMic
 
 getMic = do
   muted <- isMuted "microphone"

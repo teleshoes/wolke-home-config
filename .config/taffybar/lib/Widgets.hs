@@ -1,5 +1,5 @@
 module Widgets(
-  clickableAsync, clickable, clickableLeft,
+  clickableAsync, clickableLeftAsync, clickable, clickableLeft,
   label, image, pollingImageNew
 ) where
 import Utils (defaultDelay)
@@ -30,7 +30,7 @@ clickCommandAsync lCmdAsync mCmdAsync rCmdAsync evt = do
     RightButton -> maybeRun rCmd
   return False
 
-clickableAsync w lCmdAsync mCmdAsync rCmdAsync = do
+clickableAsync lCmdAsync mCmdAsync rCmdAsync w = do
   ebox <- eventBoxNew
   onButtonPress ebox $ clickCommandAsync lCmdAsync mCmdAsync rCmdAsync
   eventBoxSetVisibleWindow ebox False
@@ -38,9 +38,12 @@ clickableAsync w lCmdAsync mCmdAsync rCmdAsync = do
   widgetShowAll ebox
   return $ toWidget ebox
 
-clickable w lCmd mCmd rCmd = clickableAsync w
-                             (return lCmd) (return mCmd) (return rCmd)
-clickableLeft w cmd = clickable w (Just cmd) Nothing Nothing
+clickableLeftAsync cmdAsync w = clickableAsync l c r w
+  where (l,c,r) = (cmdAsync, return Nothing, return Nothing)
+clickable lCmd mCmd rCmd w = clickableAsync l c r w
+  where (l,c,r) = (return lCmd, return mCmd, return rCmd)
+clickableLeft cmd w = clickableAsync l c r w
+  where (l,c,r) = (return $ Just cmd, return Nothing, return Nothing)
 
 image file = do
   img <- imageNewFromFile file

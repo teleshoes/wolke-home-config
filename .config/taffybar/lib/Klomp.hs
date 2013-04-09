@@ -17,6 +17,8 @@ clickL = Just "xdotool key --clearmodifiers alt+9; klomp-term"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
+klompW = clickable clickL clickM clickR =<< label getMarkup
+
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
 
@@ -47,11 +49,6 @@ getMarkup = do
                       , "          no current song"
                       )
   return $ (adjustLen $ prefix ++ top) ++ "\n" ++ (adjustLen $ prefix ++ bot)
-
-klompW = do
-  lbl <- label getMarkup
-  click <- clickable lbl clickL clickM clickR
-  return click
 
 toFloat = read :: String -> Float
 
