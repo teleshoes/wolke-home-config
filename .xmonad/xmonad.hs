@@ -3,12 +3,13 @@ import Bindings (myKeyBindings, myMouseBindings, workspaceNames, mouseOverlaps, 
 import StaticAssert (staticAssert)
 
 import DBus.Client.Simple (connectSession)
-import System.Taffybar.XMonadLog (dbusLog)
+import System.Taffybar.XMonadLog (dbusLogWithPP, taffybarPP)
 
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
 import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
+import XMonad.Hooks.DynamicLog (ppHiddenNoWindows)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
@@ -34,6 +35,12 @@ firefoxClose = "Close Firefox"
 
 main = xmonad =<< myConfig <$> getEnv "HOME" <*> connectSession
 
+donthide xs x | x `elem` xs = "-" ++ x
+              | otherwise = ""
+
+pp = taffybarPP {ppHiddenNoWindows = donthide ["A", "B", "D", "G"]}
+
+
 myConfig home dbusClient = defaultConfig
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
@@ -41,7 +48,7 @@ myConfig home dbusClient = defaultConfig
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
-  , logHook            = dbusLog dbusClient
+  , logHook            = dbusLogWithPP dbusClient pp
   , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook
   , manageHook         = myManageHook <+> manageDocks
