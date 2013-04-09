@@ -1,4 +1,5 @@
 import Widgets(label)
+import TPBattStat(tpBattStatW)
 import PidginPipe(pidginPipeW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
@@ -63,7 +64,7 @@ main = do
           , pingMonitorW (label 1) "www.google.com" "G" 1
           , openvpnW $ label 1
           , pingMonitorW (label 1) "source.escribe.com" "E" 1
-          , textBatteryNew "%d" 0.5
+          , tpBattStatW
           , textClockNew Nothing "%a %b %d\n%H:%M:%S" 1
           ]
 
