@@ -38,12 +38,12 @@ clickableAsync lCmdAsync mCmdAsync rCmdAsync w = do
   widgetShowAll ebox
   return $ toWidget ebox
 
-clickableLeftAsync cmdAsync w = clickableAsync l c r w
-  where (l,c,r) = (cmdAsync, return Nothing, return Nothing)
-clickable lCmd mCmd rCmd w = clickableAsync l c r w
-  where (l,c,r) = (return lCmd, return mCmd, return rCmd)
-clickableLeft cmd w = clickableAsync l c r w
-  where (l,c,r) = (return $ Just cmd, return Nothing, return Nothing)
+clickableLeftAsync cmdAsync w = clickableAsync l m r w
+  where (l,m,r) = (cmdAsync, return Nothing, return Nothing)
+clickable lCmd mCmd rCmd w = clickableAsync l m r w
+  where (l,m,r) = (return lCmd, return mCmd, return rCmd)
+clickableLeft cmd w = clickableAsync l m r w
+  where (l,m,r) = (return $ Just cmd, return Nothing, return Nothing)
 
 image file = do
   img <- imageNewFromFile file
