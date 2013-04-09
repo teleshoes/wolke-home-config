@@ -4,6 +4,7 @@ import TPBattStat(tpBattStatW)
 import PidginPipe(pidginPipeW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
+import Mic(micW)
 import Brightness(brightnessW)
 import Openvpn(openvpnW)
 import Fcrondyn(fcrondynW)
@@ -57,6 +58,7 @@ main = do
           , fcrondynW $ label 1
           , klompW $ label 1
           , volumeW
+          , micW
           , pidginPipeW
           , thunderbirdW
           , ekigaW

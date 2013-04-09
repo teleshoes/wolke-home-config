@@ -1,20 +1,16 @@
-module Mic(main) where
+module Mic(micW) where
+import Widgets (label, clickableLeft)
 import System.Environment (getEnv)
-import System.Process(readProcess)
-import ClickAction (clickAction)
-
 import Volume (isMuted)
-import Utils (height, fg, circle, posY)
+import Utils (fg)
 
-diameter = height `div` 4
+micW = do
+  lbl <- label 1 getMic
+  click <- clickableLeft lbl clickCmd
+  return click
 
-main = do
+getMic = do
   muted <- isMuted "microphone"
-  putStr $ formatCircle muted
-
-formatCircle isM = clickAction 1 clickCmd markup
-  where markup = fg color $ posY shift ++ circle diameter
-        shift = 3 * diameter `div` 2
-        color = if isM then "black" else "red"
+  return $ fg (if muted then "black" else "red") "M"
 
 clickCmd = "pulse-vol microphone toggle"
