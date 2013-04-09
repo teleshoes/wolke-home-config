@@ -1,4 +1,5 @@
 import Widgets(label)
+import Ekiga(ekigaW)
 import TPBattStat(tpBattStatW)
 import PidginPipe(pidginPipeW)
 import Thunderbird(thunderbirdW)
@@ -58,6 +59,7 @@ main = do
           , volumeW
           , pidginPipeW
           , thunderbirdW
+          , ekigaW
           , cpuScalingW $ label 1
           , cpuFreqsW $ label 1
           , fanW $ label 1

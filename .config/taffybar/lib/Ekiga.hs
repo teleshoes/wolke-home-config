@@ -1,8 +1,12 @@
-module Ekiga(main) where
-import Utils(isRunning)
-import ClickAction(clickActions)
+module Ekiga(ekigaW) where
+import Widgets (clickable, label)
+import Utils (isRunning)
 
-main = do
+getEkiga = do
   running <- isRunning "ekiga"
-  let text = if running then "e" else "-"
-  putStr $ clickActions ["ekiga", "", "killall ekiga"] text
+  return $ if running then "e" else "-"
+
+ekigaW = do
+  lbl <- label 1 getEkiga
+  click <- clickable lbl (Just "ekiga") Nothing (Just "pkill ekiga")
+  return click
