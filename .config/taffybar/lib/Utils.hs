@@ -5,7 +5,7 @@ module Utils(
   readInt, readDouble, collectInts, padL, padR, chompAll,
   nanoTime, lineBuffering, isRunning, chompFile,
   systemReadLines, readProc, chompProc, procSuccess,
-  actToChanDelay, listToChan
+  procToChan, actToChanDelay, listToChan
 ) where
 import Control.Concurrent (
   forkIO, threadDelay,
@@ -16,9 +16,9 @@ import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import System.IO (
-  BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents)
+  BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents, hGetLine, hWaitForInput)
 import System.Process (
-  StdStream(CreatePipe), std_out, createProcess, shell,
+  StdStream(CreatePipe), std_out, createProcess, proc, shell,
   readProcessWithExitCode, system)
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 
@@ -91,6 +91,17 @@ chompProc = fmap chompAll . readProc
 procSuccess (cmd:args) = do
   (exitCode,_,_) <- readProcessWithExitCode cmd args ""
   return $ exitCode == ExitSuccess
+
+procToHandle (cmd:args) = do
+  (_,Just out,_,_) <- createProcess (proc cmd args) {std_out=CreatePipe}
+  return out
+
+procToChan cmdarr = do
+  out <- procToHandle cmdarr
+  hSetBuffering out LineBuffering
+  chan <- newChan
+  forkIO . forever $ writeChan chan =<< hGetLine out
+  return chan
 
 actToChanDelay :: Int -> IO a -> IO (Chan a)
 actToChanDelay delayMicro act = do
