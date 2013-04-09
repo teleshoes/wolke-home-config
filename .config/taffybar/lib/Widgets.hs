@@ -5,7 +5,10 @@ module Widgets(
 import Utils (defaultDelay)
 
 import System.Taffybar.Widgets.PollingLabel (pollingLabelNew)
-import Graphics.UI.Gtk hiding (eventButton) --(toWidget, widgetShowAll, buttonNew, buttonSetImage, imageNewFromFile)
+import Graphics.UI.Gtk (
+  imageNew, imageNewFromFile, imageSetFromFile,
+  eventBoxNew, eventBoxSetVisibleWindow, onButtonPress,
+  containerAdd, toWidget, on, realize, widgetShowAll, postGUIAsync)
 import Graphics.UI.Gtk.Gdk.Events (
   eventButton, MouseButton(LeftButton, MiddleButton, RightButton))
 import System.Process (system)
