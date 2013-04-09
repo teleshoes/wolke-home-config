@@ -1,7 +1,6 @@
 module Openvpn(openvpnW) where
 import Widgets (clickableLeft)
 import Utils (isRunning, fg)
-import TextRows (textRows)
 
 clickCmd = "sudo sslvpn toggle"
 

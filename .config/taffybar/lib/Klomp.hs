@@ -2,8 +2,6 @@ module Klomp(klompW) where
 import Widgets (clickable)
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
-import TextRows (textRows)
-
 import Prelude hiding(lookup)
 import Data.Map (fromList, Map, lookup)
 import System.Environment (getEnv)
@@ -48,7 +46,7 @@ getMarkup = do
                       ( "              KLOMP      "
                       , "          no current song"
                       )
-  return $ textRows (adjustLen $ prefix ++ top) (adjustLen $ prefix ++ bot)
+  return $ (adjustLen $ prefix ++ top) ++ "\n" ++ (adjustLen $ prefix ++ bot)
 
 klompW w = do
   lbl <- w getMarkup

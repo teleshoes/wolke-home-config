@@ -6,7 +6,6 @@ import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
 import Control.Monad (void)
 
 import Utils(isRunning, padR, readProc)
-import TextRows(textRows)
 
 import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
@@ -45,7 +44,7 @@ namedJobs (j:js) | isJust mName = (j, fromJust mName):(namedJobs js)
                  | otherwise = namedJobs js
   where mName = maybeJobName j
 
-rows now tz jobs = textRows (padR ' ' 14 top) (padR ' ' 14 bot)
+rows now tz jobs = (padR ' ' 14 top) ++ "\n" ++ (padR ' ' 14 bot)
   where fmt (j,name) = (time j) ++ "|" ++ name
         time j = padR ' ' 11 $ relTime (jobTime tz j) now
         top = if length jobs > 0 then fmt $ jobs !! 0 else "No jobs"

@@ -3,7 +3,6 @@ import Widgets (pollingImageNew, clickable, label)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
   fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
-import TextRows (textRows)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -68,7 +67,7 @@ ucMatch s = fmap (\[count, name] -> (name, read count)) groups
         groups = regexGroups regex s
 
 formatUnreadCounts :: [(String, Integer)] -> String
-formatUnreadCounts unreadCounts = textRows (padL ' ' 3 top) (padL ' ' 3 bot)
+formatUnreadCounts unreadCounts = (padL ' ' 3 top) ++ "\n" ++ (padL ' ' 3 bot)
   where uc = filter isDisplayable unreadCounts
         isDisplayable (name, count) = M.member name accounts && count > 0
         len = length uc

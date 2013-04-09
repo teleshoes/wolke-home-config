@@ -4,7 +4,6 @@ import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
-import TextRows (textRows)
 import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups, lineBuffering)
 
 netStatsW w = do
@@ -59,7 +58,7 @@ showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) units)
     chooseColor ((b, c):bcs) | bytes > b && length bcs > 0 = chooseColor bcs
                              | otherwise = c
 
-format scanInitial scanFinal = textRows dn up
+format scanInitial scanFinal = dn ++ "\n" ++ up
   where
     dn = showBytes $ if elapsedSex == 0 then 0 else rxBytes / elapsedSex
     up = showBytes $ if elapsedSex == 0 then 0 else txBytes / elapsedSex

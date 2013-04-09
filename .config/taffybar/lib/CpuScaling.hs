@@ -1,7 +1,6 @@
 module CpuScaling(cpuScalingW) where
 import Utils (fg, bg, padL, regexGroups,
               readInt, collectInts, chompFile, readProc)
-import TextRows (textRows)
 
 import Control.Monad (void)
 import System.Process (system)
@@ -75,7 +74,7 @@ parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
         parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
         toInt = fromMaybe 0 . readInt
 
-formatScaling gov minKHz maxKHz avail = col $ textRows (pad top) (pad bot)
+formatScaling gov minKHz maxKHz avail = col $ (pad top) ++ "\n" ++ (pad bot)
   where col = color minKHz maxKHz avail
         pad = padL '0' width . take width
         (top, bot) = (show $ minKHz `div` 10^5, show $ maxKHz `div` 10^5)

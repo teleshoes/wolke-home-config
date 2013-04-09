@@ -1,7 +1,6 @@
 module Fan(fanW) where
 import Utils (fg, bg, padL, regexGroups,
   readInt, readDouble, chompFile, readProc)
-import TextRows (textRows)
 import Data.Maybe (fromMaybe)
 
 width = 2
@@ -26,7 +25,7 @@ parseFanInfo info = (grps!!0, fromMaybe 0 $ readInt $ grps!!1, grps!!2)
              ++ "level:\\s*(.*)\\n?"
         grps = fromMaybe [] $ regexGroups re info
 
-formatScaling temp status speed level = col $ textRows (pad tmp) (pad spd)
+formatScaling temp status speed level = col $ (pad tmp) ++ "\n" ++ (pad spd)
   where col = color level
         pad = padL '0' width . take width
         spd = take 2 $ if speed == 65535 then "FF" else show $ speed`div`100

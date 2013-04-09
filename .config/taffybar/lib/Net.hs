@@ -5,7 +5,6 @@ import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
-import TextRows (textRows)
 import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
 
 lastSSIDFile = "/tmp/last-ssid"
@@ -59,7 +58,7 @@ lastSSID = do
   last <- chompFile lastSSIDFile
   top <- message "wconnect"
   bot <- message last
-  return $ textRows top bot
+  return $ top ++ "\n" ++ bot
 
 wifi = do
   wlan <- fmap chompAll $ readProcess "ifdev" ["wlan"] ""
@@ -73,7 +72,7 @@ wifi = do
   let f = frequency freq
   let top = (padtrim (width-6) rate ++ "m") ++ "|" ++ (quality qTop qBot)
   let bot = (padtrim width ssid)
-  return $ textRows top bot
+  return $ top ++ "\n" ++ bot
 
 i = read :: String -> Integer
 d = read :: String -> Double

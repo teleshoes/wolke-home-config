@@ -1,7 +1,6 @@
 module CpuFreqs (cpuFreqsW) where
 import CpuFreqsI7z (getFreqsChanI7z)
 import CpuFreqsProc (getFreqsChanProc)
-import TextRows (textRows)
 import Control.Concurrent (newMVar, modifyMVar, readChan)
 import Data.List (intercalate)
 
