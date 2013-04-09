@@ -1,4 +1,5 @@
 import Widgets(label)
+import MonitorMem(monitorMemW)
 import MonitorCpu(monitorCpuW)
 import Ekiga(ekigaW)
 import TPBattStat(tpBattStatW)
@@ -31,11 +32,6 @@ import System.Taffybar.Widgets.PollingGraph
 import System.Taffybar.Widgets.PollingLabel
 
 import System.Taffybar.Widgets.VerticalBar
-import System.Information.Memory
-
-memW w = w $ do
-  mi <- parseMeminfo
-  return [memoryUsedRatio mi]
 
 green d = (0, 1.0, 0)
 
@@ -48,7 +44,7 @@ main = do
             ]
   let end = reverse
           [ monitorCpuW
-          , memW $ pollingGraphNew (graph [(1, 0, 0, 1)]) 1
+          , monitorMemW
           , netStatsW $ label 1
           , netW $ label 1
           , fcrondynW $ label 1
