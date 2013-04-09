@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 module JsonWidget(jsonWidgetNew) where
 import Widgets (clickableAsync, label)
 
@@ -18,7 +19,7 @@ import Graphics.UI.Gtk (
 import Text.JSON (JSObject, Result(Ok, Error), decode, fromJSObject)
 
 data GuiMarkupF a = Click a | Label a | Image a
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Read, Eq, Ord, Functor)
 type GuiMarkup = GuiMarkupF String
 
 data GuiState = GuiState
