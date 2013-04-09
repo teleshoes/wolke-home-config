@@ -1,6 +1,8 @@
+--yanked from taffybar, small changes as indicated below
+
 -- | A vertical bar that can plot data in the range [0, 1].  The
 -- colors are configurable.
-module System.Taffybar.Widgets.VerticalBar (
+module VerticalBar (
   -- * Types
   VerticalBarHandle,
   BarConfig(..),
@@ -8,6 +10,10 @@ module System.Taffybar.Widgets.VerticalBar (
   -- * Accessors/Constructors
   verticalBarNew,
   verticalBarSetPercent,
+  -------------------------------------------------------------------------------
+  --AUTHOR: Elliot Wolk <elliot.wolk@gmail.com>
+  verticalBarSetColors,
+  -------------------------------------------------------------------------------
   defaultBarConfig
   ) where
 
@@ -44,6 +50,21 @@ defaultBarConfig c = BarConfig { barBorderColor = (0.5, 0.5, 0.5)
                                , barWidth = 15
                                , barDirection = VERTICAL
                                }
+
+-------------------------------------------------------------------------------
+--AUTHOR: Elliot Wolk <elliot.wolk@gmail.com>
+verticalBarSetColors :: VerticalBarHandle
+                     -> (Double -> (Double, Double, Double))
+                     -> (Double, Double, Double)
+                     -> IO ()
+verticalBarSetColors (VBH mv) fg bg = do
+  s <- readMVar mv
+  let bc = (barConfig s) {barColor = fg, barBackgroundColor = bg}
+  modifyMVar_ mv (\s' -> return s' {barConfig = bc})
+  case barIsBootstrapped s of
+    False -> return ()
+    True -> postGUIAsync $ widgetQueueDraw $ barCanvas s
+-------------------------------------------------------------------------------
 
 verticalBarSetPercent :: VerticalBarHandle -> Double -> IO ()
 verticalBarSetPercent (VBH mv) pct = do
