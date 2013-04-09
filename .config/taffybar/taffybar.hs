@@ -17,22 +17,11 @@ import Klomp(klompW)
 import Fan(fanW)
 import CpuFreqs(cpuFreqsW)
 import CpuScaling(cpuScalingW)
-import System.Taffybar
 
-import System.Taffybar.Systray
-import System.Taffybar.XMonadLog
-import System.Taffybar.SimpleClock
-import System.Taffybar.FreedesktopNotifications
-import System.Taffybar.Weather
-import System.Taffybar.MPRIS
-import System.Taffybar.Battery
-
-import System.Taffybar.Widgets.PollingBar
-import System.Taffybar.Widgets.PollingGraph
-import System.Taffybar.Widgets.PollingLabel
-
-import System.Taffybar.Widgets.VerticalBar
-
+import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
+  barHeight, startWidgets, endWidgets)
+import System.Taffybar.XMonadLog (xmonadLogNew)
+import System.Taffybar.SimpleClock (textClockNew)
 
 main = do
   let height = 40
