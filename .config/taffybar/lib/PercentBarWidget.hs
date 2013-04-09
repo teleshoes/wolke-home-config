@@ -1,5 +1,5 @@
 module PercentBarWidget (
-  percentBarWidgetW, percentBarConfig, colorMap, cycleColors
+  percentBarWidgetW, percentBarConfig, cycleColors
 ) where
 import Graphics.UI.Gtk (realize, on)
 import VerticalBar (
@@ -8,15 +8,6 @@ import VerticalBar (
   BarConfig(..), defaultBarConfig)
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad (forever, void)
-
-colorMap s = case s of
-  "black"  -> (0.0, 0.0, 0.0)
-  "gray"   -> (0.5, 0.5, 0.5)
-  "red"    -> (1.0, 0.0, 0.0)
-  "green"  -> (0.0, 1.0, 0.0)
-  "blue"   -> (0.0, 0.0, 1.0)
-  "orange" -> (1.0, 0.5, 0.0)
-  "yellow" -> (1.0, 1.0, 0.0)
 
 constColor c _ = c
 

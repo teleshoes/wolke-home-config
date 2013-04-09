@@ -1,6 +1,7 @@
 module Brightness (brightnessW) where
 import PercentBarWidget (
-  percentBarWidgetW, percentBarConfig, colorMap, cycleColors)
+  percentBarWidgetW, percentBarConfig, cycleColors)
+import Color as C
 import System.Environment (getEnv)
 import System.Process(system)
 import Control.Concurrent (threadDelay)
@@ -14,7 +15,7 @@ lastBrightness = do
   system $ home ++ "/bin/brightness last > /dev/null"
 
 readBrightnessBar = do
-  let colors = map colorMap $ ["black", "gray"] ++ repeat "orange"
+  let colors = map C.rgb $ [C.Black, C.Gray] ++ repeat C.Orange
   system "$HOME/bin/brightness last > /dev/null"
   p <- getBrightness
   let (bg, fg) = cycleColors colors p
