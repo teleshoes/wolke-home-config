@@ -1,14 +1,22 @@
 module Volume (volumeW, getVol, isMuted) where
+import PercentBarWidget (
+  percentBarWidgetW, percentBarConfig, colorMap, cycleColors)
 import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
 import System.Process(readProcess)
 import Utils (regexGroups, readProc)
 
-mutedColors = ["yellow", "red"] ++ otherColors
-unmutedColors = ["black", "green"] ++ otherColors
-otherColors = "blue":(repeat "orange")
+mutedColors = map colorMap ["yellow", "red"] ++ otherColors
+unmutedColors = map colorMap ["black", "green"] ++ otherColors
+otherColors = map colorMap $ "blue":(repeat "orange")
 
-volumeW w = w $ getVol "speaker"
+volumeW = percentBarWidgetW percentBarConfig 0.5 $ readVolBar "speaker"
+
+readVolBar dev = do
+  (vol, mute) <- getStatus dev
+  let p = (fromIntegral vol)/100.0
+  let (bg, fg) = cycleColors (if mute then mutedColors else unmutedColors) p
+  return (fg, bg, p)
 
 getVol :: String -> IO Double
 getVol = fmap (/100.0) . fmap fromIntegral . fmap fst . getStatus
@@ -22,5 +30,3 @@ getStatus dev = do
   let groups = regexGroups "(\\d+) \\((muted|unmuted|unknown)\\)" status
   let [vol, mute] = fromMaybe ["0", "unknown"] groups
   return (read vol, mute == "muted")
-
-

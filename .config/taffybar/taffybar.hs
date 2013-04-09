@@ -54,7 +54,7 @@ main = do
           , netW $ label 1
           , fcrondynW $ label 1
           , klompW $ label 1
-          , volumeW $ pollingBarNew (defaultBarConfig green) 1
+          , volumeW
           , pidginPipeW
           , thunderbirdW
           , cpuScalingW $ label 1
