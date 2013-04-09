@@ -1,5 +1,6 @@
 module Widgets(
-  clickableAsync, clickableLeftAsync, clickable, clickableLeft,
+  clickableActions, clickableAsync, clickableLeftAsync,
+  clickable, clickableLeft,
   label, image, pollingImageNew
 ) where
 import Utils (defaultDelay)
@@ -20,23 +21,23 @@ import Control.Exception as E (catch, IOException)
 maybeRun Nothing = return ()
 maybeRun (Just cmd) = void $ forkIO $ void $ system cmd
 
-clickCommandAsync lCmdAsync mCmdAsync rCmdAsync evt = do
-  lCmd <- lCmdAsync
-  mCmd <- mCmdAsync
-  rCmd <- rCmdAsync
+handleClickAction lAction mAction rAction evt = do
   case (eventButton evt) of
-    LeftButton -> maybeRun lCmd
-    MiddleButton -> maybeRun mCmd
-    RightButton -> maybeRun rCmd
+    LeftButton -> lAction
+    MiddleButton -> mAction
+    RightButton -> rAction
   return False
 
-clickableAsync lCmdAsync mCmdAsync rCmdAsync w = do
+clickableActions lAction mAction rAction w = do
   ebox <- eventBoxNew
-  onButtonPress ebox $ clickCommandAsync lCmdAsync mCmdAsync rCmdAsync
+  onButtonPress ebox $ handleClickAction lAction mAction rAction
   eventBoxSetVisibleWindow ebox False
   containerAdd ebox w
   widgetShowAll ebox
   return $ toWidget ebox
+
+clickableAsync lCmdA mCmdA rCmdA w = clickableActions l m r w
+  where (l,m,r) = (maybeRun =<< lCmdA, maybeRun =<< mCmdA, maybeRun =<< rCmdA)
 
 clickableLeftAsync cmdAsync w = clickableAsync l m r w
   where (l,m,r) = (cmdAsync, return Nothing, return Nothing)
