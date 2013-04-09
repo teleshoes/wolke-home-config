@@ -33,9 +33,6 @@ import System.Taffybar.Widgets.PollingLabel
 
 import System.Taffybar.Widgets.VerticalBar
 
-green d = (0, 1.0, 0)
-
-graph colors = defaultGraphConfig { graphDataColors = colors }
 
 main = do
   let height = 40
