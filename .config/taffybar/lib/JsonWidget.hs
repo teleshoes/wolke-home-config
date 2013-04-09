@@ -3,7 +3,7 @@ module JsonWidget(jsonWidgetNew) where
 import Widgets (clickableAsync, label)
 
 import Data.Maybe (listToMaybe)
-import Control.Monad (forever)
+import Control.Monad (forever, void)
 import Control.Concurrent (forkIO, MVar, newMVar, readMVar, takeMVar, putMVar)
 import Control.Exception (try, SomeException)
 import System.Process (system)
@@ -86,15 +86,23 @@ buildWidget gm = case gm of
   (Label text) -> fmap toWidget $ labelNew Nothing
   (Image img) -> fmap toWidget imageNew
 
+sameWidgetStructure :: [GuiMarkup] -> [GuiMarkup] -> Bool
+sameWidgetStructure xs ys = (map void xs) == (map void ys)
+
 buildWidgets :: [GuiMarkup] -> (MVar GuiState) -> IO ()
 buildWidgets gms guiStateMVar = do
   guiState <- takeMVar guiStateMVar
+  let prevGMs = guiMarkups guiState
   let (clickCmd, newGMs) = parseClickCommand gms
-  let p = panel guiState
-  ws <- mapM buildWidget newGMs
-  clearContainer p
-  mapM (containerAdd p) ws
-  widgetShowAll p
+  ws <- if sameWidgetStructure prevGMs newGMs then do
+          return $ widgets guiState
+        else do
+          let p = panel guiState
+          newWs <- mapM buildWidget newGMs
+          clearContainer p
+          mapM (containerAdd p) newWs
+          widgetShowAll p
+          return newWs
   putMVar guiStateMVar guiState { guiMarkups=newGMs
                                 , widgets=ws
                                 , clickCommand=clickCmd
