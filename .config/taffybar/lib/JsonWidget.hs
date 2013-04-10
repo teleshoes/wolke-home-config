@@ -62,13 +62,17 @@ clearContainer c = containerForeach c (containerRemove c)
 
 guiError :: String -> (MVar GuiState) -> IO ()
 guiError error guiStateMVar = do
-  guiState <- readMVar guiStateMVar
+  guiState <- takeMVar guiStateMVar
   hPutStrLn stderr error
   let p = panel guiState
   clearContainer p
-  lbl <- labelNew $ Just error
-  containerAdd p lbl
+  errorLabel <- fmap toWidget $ labelNew $ Just error
+  containerAdd p errorLabel
   widgetShowAll p
+  putMVar guiStateMVar guiState { guiMarkups = []
+                                , widgets = [errorLabel]
+                                , clickCommand = Nothing
+                                }
 
 parseClickCommand :: [GuiMarkup] -> (Maybe String, [GuiMarkup])
 parseClickCommand gms = (cmd, widgetGuiMarkups)
