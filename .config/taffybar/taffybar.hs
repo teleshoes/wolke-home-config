@@ -17,7 +17,6 @@ import PingMonitor(pingMonitorW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
-import Widgets(label)
 
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, startWidgets, endWidgets)
