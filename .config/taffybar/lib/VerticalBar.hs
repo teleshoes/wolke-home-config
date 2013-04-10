@@ -57,9 +57,9 @@ verticalBarSetColors :: VerticalBarHandle
                      -> (Double -> (Double, Double, Double))
                      -> (Double, Double, Double)
                      -> IO ()
-verticalBarSetColors (VBH mv) fg bg = do
+verticalBarSetColors (VBH mv) color bgColor = do
   s <- readMVar mv
-  let bc = (barConfig s) {barColor = fg, barBackgroundColor = bg}
+  let bc = (barConfig s) {barColor = color, barBackgroundColor = bgColor}
   modifyMVar_ mv (\s' -> return s' {barConfig = bc})
   case barIsBootstrapped s of
     False -> return ()
