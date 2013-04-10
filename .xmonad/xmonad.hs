@@ -10,6 +10,7 @@ import XMonad (
   Tall(..), Mirror(..), Full(..),
   ask, title, className, doF, doFloat, doIgnore, doShift,
   sendMessage, io, spawn, killWindow, liftX, refresh)
+import XMonad.Hooks.DynamicLog (ppHiddenNoWindows)
 import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
@@ -19,6 +20,8 @@ import XMonad.StackSet (sink, view)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
 
 import System.Taffybar.Hooks.PagerHints (pagerHints)
+import DBus.Client (connectSession)
+import System.Taffybar.XMonadLog (dbusLogWithPP, taffybarPP)
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.Writer (execWriter, tell)
@@ -33,13 +36,20 @@ firefoxExec = "firefox"
 firefoxProcess = "firefox"
 firefoxClose = "Close Firefox"
 
-main = xmonad $ ewmh $ pagerHints $ defaultConfig
+donthide xs x | x `elem` xs = "-" ++ x
+              | otherwise = ""
+
+pp = taffybarPP {ppHiddenNoWindows = donthide ["A", "B", "D", "G"]}
+
+main = xmonad . ewmh . pagerHints . myConfig =<< connectSession
+myConfig dbus = defaultConfig
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
   , normalBorderColor  = "#dddddd"
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
+  , logHook            = dbusLogWithPP dbus pp
   , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook
   , manageHook         = myManageHook <+> manageDocks
