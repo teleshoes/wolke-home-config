@@ -11,10 +11,7 @@ lastSSIDFile = "/tmp/last-ssid"
 
 width = 10
 
-cmd home = wscanCmd ++ " | " ++ popupCmd ++ dzenArgs
-  where wscanCmd = home ++ "/.dzen2/printers/ghcprinter WScan"
-        popupCmd = home ++ "/.dzen2/launchers/popup"
-        dzenArgs = " 500 24 -fn inconsolata-14 "
+wscanCmd = "term 'echo LAST:; wscan -l; loop 1 \"echo; echo; date; wscan\"'"
 
 data WStatus = Wlan | Wired | PPP |
                Wconnect | Wauto | Tethering |
@@ -46,9 +43,7 @@ getNetMarkup = do
     Unknown   -> message "???"
   return markup
 
-netW = do
-  home <- getEnv "HOME"
-  clickableLeft (cmd home) =<< label getNetMarkup
+netW = clickableLeft wscanCmd =<< label getNetMarkup
 
 message s = return $ padtrim width $ Just s
 
