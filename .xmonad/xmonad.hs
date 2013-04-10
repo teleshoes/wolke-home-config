@@ -1,27 +1,27 @@
 {-# LANGUAGE TemplateHaskell #-}
-import Bindings (myKeyBindings, myMouseBindings, workspaceNames, mouseOverlaps, keyOverlaps)
+import Bindings (
+  workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps)
 import StaticAssert (staticAssert)
 
-import DBus.Client.Simple (connectSession)
-import System.Taffybar.XMonadLog (dbusLogWithPP, taffybarPP)
-
-import XMonad hiding ( (|||) )
-import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
-
+import XMonad (
+  xmonad,
+  (<+>), (=?), (-->),
+  XConfig(..), defaultConfig, mod1Mask,
+  Tall(..), Mirror(..), Full(..),
+  ask, title, className, doF, doFloat, doIgnore, doShift,
+  sendMessage, io, spawn, killWindow, liftX, refresh)
+import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
-import XMonad.Hooks.DynamicLog (ppHiddenNoWindows)
+import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
-import XMonad.Util.Run (safeSpawn)
+import XMonad.StackSet (sink, view)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
-import System.Environment.UTF8 (getEnv)
 
-import qualified XMonad.StackSet as Stk
+import System.Taffybar.Hooks.PagerHints (pagerHints)
 
-import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Control.Monad.Writer
-import Data.Monoid (All(All))
+import Control.Monad.Writer (execWriter, tell)
 
 staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     tell "Error: Overlap in bindings\n"
@@ -33,22 +33,13 @@ firefoxExec = "firefox"
 firefoxProcess = "firefox"
 firefoxClose = "Close Firefox"
 
-main = xmonad =<< myConfig <$> getEnv "HOME" <*> connectSession
-
-donthide xs x | x `elem` xs = "-" ++ x
-              | otherwise = ""
-
-pp = taffybarPP {ppHiddenNoWindows = donthide ["A", "B", "D", "G"]}
-
-
-myConfig home dbusClient = defaultConfig
+main = xmonad $ ewmh $ pagerHints $ defaultConfig
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
   , normalBorderColor  = "#dddddd"
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
-  , logHook            = dbusLogWithPP dbusClient pp
   , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook
   , manageHook         = myManageHook <+> manageDocks
@@ -56,9 +47,6 @@ myConfig home dbusClient = defaultConfig
   , workspaces         = workspaceNames
   , keys               = myKeyBindings
   , mouseBindings      = myMouseBindings
-
-  , handleEventHook    = myHandleEventHook
-  -- , terminal           =
   }
 
 myStartupHook = spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
@@ -87,8 +75,6 @@ myManageHook = execWriter $ do
   title     =? "plugin-container"      ~~> doFull -- flash
   title     =? "xfce4-notifyd"         ~~> doIgnore
 
-myHandleEventHook _ = return (All True)
-
 restartFF = do
   w <- ask
   let delay = 1
@@ -107,10 +93,10 @@ doFull = do
   liftX . sendMessage $ JumpToLayout "full"
   doF id
 
-doUnfloat = ask >>= doF . Stk.sink
+doUnfloat = ask >>= doF . sink
 
 addStruts = SetStruts [U,D,L,R] []
 removeStruts = SetStruts [] [U,D,L,R]
 
-doView workspace = doF $ Stk.view workspace
+doView workspace = doF $ view workspace
 doShiftView workspace = doShift workspace <+> doView workspace
