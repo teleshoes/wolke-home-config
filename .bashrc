@@ -82,6 +82,8 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
+alias tb='pkill -9 taffybar; taffybar; pkill -9 taffybar'
+
 alias dus='du -s * | sort -g'
 alias killjobs='kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo'
 alias gvim='term vim'
