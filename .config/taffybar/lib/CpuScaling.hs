@@ -30,12 +30,16 @@ getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
   where regex = cpuDir ++ "/cpu[0-9]+/cpufreq/scaling_" ++ field
 
+getCpuField :: String -> IO (Maybe String)
 getCpuField field = do
   devices <- getDevices field
   vals <- mapM chompFile devices
   return $ if allEq vals then listToMaybe vals else Nothing
 
+getCpuFieldInt :: String -> IO (Maybe Integer)
 getCpuFieldInt f = readInt <$> fromMaybe "" <$> getCpuField f
+
+getCpuFieldInts :: String -> IO [Integer]
 getCpuFieldInts f = collectInts <$> fromMaybe "" <$> getCpuField f
 
 setCpuField field val = do
