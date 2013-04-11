@@ -1,13 +1,16 @@
 module CpuScaling(cpuScalingW) where
-import Utils (fg, bg, padL, regexGroups,
-              readInt, collectInts, chompFile, readProc)
+import Utils (
+  fg, bg, padL, regexGroups,
+  readInt, collectInts, chompFile, readProc)
 import Widgets (label)
 
 import Control.Monad (void)
+import Control.Concurrent (forkIO)
+import Control.Error (EitherT(..), runEitherT, note)
 import System.Process (system)
 import Data.Functor ((<$>))
 import Data.List (sort)
-import Data.Maybe (fromMaybe, isJust, listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 
 width = 2
 
@@ -15,16 +18,37 @@ tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
 cpuScalingW = label $ do
-  gov <- getCpuField "governor"
-  minKHz <- getCpuFieldInt "min_freq"
-  maxKHz <- getCpuFieldInt "max_freq"
-  avail <- sort <$> getCpuFieldInts "available_frequencies"
-  cur <- parseTmpFile avail <$> chompFile tmpFile
-  (okGov, okMinKHz, okMaxKHz) <- check gov minKHz maxKHz avail cur
-  return $ formatScaling okGov okMinKHz okMaxKHz avail
+  cpu <- readCpu
+  case cpu of
+    Left err -> return err
+    Right cur@(curGov, curMinFreq, curMaxFreq, curAvail) -> do
+      tmp@(tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) <- readTmp curAvail
+      let mismatchErr = getMismatchError cur tmp
+      case mismatchErr of
+        Just msg -> do
+          cpuSet tmpGov tmpMinFreq tmpMaxFreq
+          return $ "running cpu-set: " ++ msg
+        Nothing -> return $ formatScaling cur
 
-allEq :: [a] -> Bool
+withErr act msg = EitherT $ note msg <$> act
+
+allEq :: Eq a => [a] -> Bool
 allEq xs = null xs || all (== head xs) (tail xs)
+
+readTmp :: [Integer] -> IO (String, Integer, Integer, Integer)
+readTmp avail = parseTmpFile avail <$> chompFile tmpFile
+
+readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
+readCpu = runEitherT $ do
+  gov <- getCpuField "governor"
+         `withErr` "no governor!"
+  minFreq <- getCpuFieldInt "min_freq"
+             `withErr` "no min freq!"
+  maxFreq <- getCpuFieldInt "max_freq"
+             `withErr` "no max freq!"
+  avail <- sort <$> getCpuFieldInts "available_frequencies"
+           `withErr` "no available frequencies!"
+  return (gov, minFreq, maxFreq, avail)
 
 getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
@@ -39,34 +63,29 @@ getCpuField field = do
 getCpuFieldInt :: String -> IO (Maybe Integer)
 getCpuFieldInt f = readInt <$> fromMaybe "" <$> getCpuField f
 
-getCpuFieldInts :: String -> IO [Integer]
-getCpuFieldInts f = collectInts <$> fromMaybe "" <$> getCpuField f
+getCpuFieldInts :: String -> IO (Maybe [Integer])
+getCpuFieldInts f = do
+  ints <- collectInts <$> fromMaybe "" <$> getCpuField f
+  return $ if null ints then Nothing else Just ints
 
-setCpuField field val = do
-  devices <- getDevices field
-  mapM (writeFile val) devices
+getMismatchError :: (String, Integer, Integer, [Integer])
+               -> (String, Integer, Integer, Integer)
+               -> Maybe String
+getMismatchError cur tmp
+  | gov /= tmpGov = Just "mismatched governor!"
+  | minFreq /= tmpMinFreq = Just "mismatched min freq!"
+  | maxFreq /= tmpMaxFreq = Just "mismatched max freq!"
+  | 0 /= tmpFreq = Just "mismatched exact freq!"
+  | otherwise = Nothing
+  where (gov, minFreq, maxFreq, avail) = cur
+        (tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) = tmp
 
-readTmp = collectInts <$> chompFile tmpFile
+cpuSet :: String -> Integer -> Integer -> IO ()
+cpuSet gov minFreq maxFreq = void $ forkIO $ void $ system cmd
+  where cmd = "sudo cpu-set "
+              ++ gov ++ " " ++ show minFreq ++ " " ++ show maxFreq
 
-check gov minKHz maxKHz avail (curGov, curMin, curMax, curFreq) = do
-  okGov <- checkMaybe gov "no governor!"
-  okMin <- checkMaybe minKHz "no min freq!"
-  okMax <- checkMaybe maxKHz "no max freq!"
-  check (not $ null avail) "no available frequencies!"
-  check (okGov == curGov) "mismatched governor!"
-  check (okMin == curMin) "mismatched min freq!"
-  check (okMax == curMax) "mismatched max freq!"
-  return (okGov, okMin, okMax)
-  where check cond str = if cond
-                         then return ()
-                         else rerun $ "Rerunning: " ++ str
-        checkMaybe x str = do check (isJust x) str
-                              return $ fromMaybe (error str) x
-        rerun s = do
-          print s
-          readProc ["sudo", "cpu-set", curGov, show curMin, show curMax]
-          error s
-
+parseTmpFile :: [Integer] -> String -> (String, Integer, Integer, Integer)
 parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
   where re = ""
              ++ "governor=(.*)\\n?"
@@ -78,11 +97,13 @@ parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
         parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
         toInt = fromMaybe 0 . readInt
 
-formatScaling gov minKHz maxKHz avail = col $ (pad top) ++ "\n" ++ (pad bot)
-  where col = color minKHz maxKHz avail
-        pad = padL '0' width . take width
-        (top, bot) = (show $ minKHz `div` 10^5, show $ maxKHz `div` 10^5)
+formatScaling :: (String, Integer, Integer, [Integer]) -> String
+formatScaling (gov, minKHz, maxKHz, avail) = color minKHz maxKHz avail text
+  where pad = padL '0' width . take width
+        fmt kHz = pad $ show $ kHz `div` 10^5
+        text = fmt minKHz ++ "\n" ++ fmt maxKHz
 
+color :: Integer -> Integer -> [Integer] -> String -> String
 color min max avail
   | min == low && max == high = bg "blue"
   | min == low && max == low = bg "red" . fg "black"
