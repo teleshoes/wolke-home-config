@@ -17,16 +17,14 @@ import PingMonitor(pingMonitorW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
+import WMLog(wmLogNew)
 
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, startWidgets, endWidgets)
-import System.Taffybar.XMonadLog (xmonadLogNew)
 
 main = do
   let height = 40
-  let start =
-            [ xmonadLogNew
-            ]
+  let start = [ wmLogNew ]
   let end = reverse
           [ monitorCpuW
           , monitorMemW
