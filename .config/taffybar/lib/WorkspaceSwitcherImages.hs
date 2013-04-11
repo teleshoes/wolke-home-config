@@ -25,6 +25,8 @@ import System.Information.X11DesktopInfo
 type Desktop = ([Workspace], [(String, Maybe Pixbuf)])
 type Workspace = (Label, Image, String)
 
+wsBorderColor = Color 65535 0 0
+
 -- $usage
 -- Display clickable workspace labels and images based on window title/class.
 --
@@ -179,10 +181,12 @@ addButton hbox desktop idx = do
   wsbox <- hBoxNew False 0
   containerAdd wsbox $ lbl ws
   containerAdd wsbox $ img ws
+  frame <- frameNew
+  widgetModifyBg frame StateNormal wsBorderColor
+  containerAdd frame wsbox
   ebox <- eventBoxNew
-  eventBoxSetVisibleWindow ebox False
   on ebox buttonPressEvent $ switch idx
-  containerAdd ebox wsbox
+  containerAdd ebox frame
   containerAdd hbox ebox
 
 -- | Perform all changes needed whenever the active workspace changes.
