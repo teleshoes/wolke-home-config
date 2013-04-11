@@ -23,9 +23,8 @@ cpuScalingW = label $ do
   (okGov, okMinKHz, okMaxKHz) <- check gov minKHz maxKHz avail cur
   return $ formatScaling okGov okMinKHz okMaxKHz avail
 
-allSame [] = False
-allSame [_] = True
-allSame (x:y:xs) = x == y && allSame (y:xs)
+allEq :: [a] -> Bool
+allEq xs = null xs || all (== head xs) (tail xs)
 
 getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
@@ -34,7 +33,7 @@ getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
 getCpuField field = do
   devices <- getDevices field
   vals <- mapM chompFile devices
-  return $ if allSame vals then listToMaybe vals else Nothing
+  return $ if allEq vals then listToMaybe vals else Nothing
 
 getCpuFieldInt f = readInt <$> fromMaybe "" <$> getCpuField f
 getCpuFieldInts f = collectInts <$> fromMaybe "" <$> getCpuField f
