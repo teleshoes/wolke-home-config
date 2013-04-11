@@ -1,25 +1,7 @@
------------------------------------------------------------------------------
--- |
--- Module      : System.Taffybar.WorkspaceSwitcher
--- Copyright   : (c) José A. Romero L.
--- License     : BSD3-style (see LICENSE)
---
--- Maintainer  : José A. Romero L. <escherdragon@gmail.com>
--- Stability   : unstable
--- Portability : unportable
---
--- Composite widget that displays all currently configured workspaces and
--- allows to switch to any of them by clicking on its label. Supports also
--- urgency hints and (with an additional hook) display of other visible
--- workspaces besides the active one (in Xinerama or XRandR installations).
---
--- N.B. If you're just looking for a drop-in replacement for the
--- "System.Taffybar.XMonadLog" widget that is clickable and doesn't require
--- DBus, you may want to see first "System.Taffybar.TaffyPager".
---
------------------------------------------------------------------------------
+--WorkspaceSwitcherImages, Copyright 2013 by Elliot Wolk
+--Based on WorkspaceSwitcher, Copyright 2012 by José A. Romero L.
 
-module System.Taffybar.WorkspaceSwitcher (
+module WorkspaceSwitcherImages (
   -- * Usage
   -- $usage
   wspaceSwitcherNew
