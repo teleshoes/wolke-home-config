@@ -132,7 +132,7 @@ getActiveClass = getActiveProp "WM_CLASS"
 -- | Build the graphical representation of the widget.
 assembleWidget :: Desktop -> IO Widget
 assembleWidget desktop = do
-  hbox <- hBoxNew False 3
+  hbox <- hBoxNew True 3
   mapM_ (addButton hbox desktop) $ [0..(length (getWorkspaces desktop) - 1)]
   widgetShowAll hbox
   return $ toWidget hbox
