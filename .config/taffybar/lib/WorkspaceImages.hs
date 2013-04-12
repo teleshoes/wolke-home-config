@@ -11,12 +11,17 @@ import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
 (imgWidth, imgHeight) = (18, 18)
 
-imageFile name = do
+getImageFile :: String -> IO String
+getImageFile name = do
+  dir <- getImageDir
+  return $ dir ++ "/" ++ name ++ ".png"
+
+getImageDir :: IO String
+getImageDir = do
   home <- getEnv "HOME"
   return $ ""
            ++ home ++ "/.config/taffybar/icons/workspace-images"
            ++ "/" ++ show imgWidth ++ "x" ++ show imgHeight
-           ++ "/" ++ name ++ ".png"
 
 images = [ "blank"
          , "downloads"
@@ -53,7 +58,7 @@ handle act = do
     Right val -> return $ Just val
 
 loadImage :: String -> IO (Maybe Pixbuf)
-loadImage name = handle $ pixbufNewFromFile =<< imageFile name
+loadImage name = handle $ pixbufNewFromFile =<< getImageFile name
 
 
 addAlphaWhite = addAlpha $ Just (65535, 65535, 65535)
