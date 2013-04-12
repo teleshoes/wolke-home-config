@@ -11,7 +11,7 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
-titleLength = 40
+titleLength = 60
 
 bold m = "<b>" ++ m ++ "</b>"
 padTrim n x = take n $ x ++ repeat ' '
