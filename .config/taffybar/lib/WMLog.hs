@@ -23,9 +23,9 @@ pagerConfig = defaultPagerConfig
                                "top"     -> fgbg "blue" "red" "TTT"
                                "full"    -> fgbg "blue" "red" "[ ]"
                                otherwise -> fgbg "blue" "red" "???"
-  , activeWorkspace  = bold . fg "yellow" . escapeMarkup
+  , activeWorkspace  = bold . fgbg "black" "green" . escapeMarkup
   , visibleWorkspace = escapeMarkup
-  , urgentWorkspace  = colorize "red" "yellow" . escapeMarkup
+  , urgentWorkspace  = fgbg "red" "yellow" . escapeMarkup
   , widgetSep        = ""
   }
 
