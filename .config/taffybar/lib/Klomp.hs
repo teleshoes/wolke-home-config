@@ -22,7 +22,7 @@ klompW = clickable clickL clickM clickR =<< label getMarkup
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
 
-getRemoteCur = chompFile "/tmp/klomp-dzen"
+getRemoteCur = chompFile "/tmp/klomp-bar"
 
 readKlompCur remoteCur = case remoteCur of
                            "n9" -> readProc ["n9u", "-b", "cat ~/.klompcur"]
