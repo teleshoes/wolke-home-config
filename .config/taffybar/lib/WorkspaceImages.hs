@@ -78,18 +78,19 @@ getPixbuf pixbufs name = listToMaybe $ catMaybes $ pbs
   where pbs = map snd $ filter ((==name).fst) pixbufs
 
 
-selectImageName :: String -> String -> Maybe String
-selectImageName winTitle winClass = listToMaybe $ catMaybes maybeNames
-  where nTitle = listToMaybe $ filter (winTitle ~~) images :: Maybe String
-        nClass = listToMaybe $ filter (winClass ~~) images :: Maybe String
-        nSpecial = getSpecial winTitle winClass :: Maybe String
+selectImageName :: [String] -> String -> String -> Maybe String
+selectImageName imgNames winTitle winClass = listToMaybe $ catMaybes maybeNames
+  where nTitle = listToMaybe $ filter (winTitle ~~) imgNames
+        nClass = listToMaybe $ filter (winClass ~~) imgNames
+        nSpecial = getSpecial winTitle winClass
         nUnknown = Just "unknown"
         maybeNames = [nSpecial, nClass, nTitle, nUnknown]
 
 selectImage :: [(String, Maybe Pixbuf)] -> Maybe (String, String) -> Maybe Pixbuf
 selectImage _ Nothing = Nothing
 selectImage pixbufs (Just (winTitle, winClass)) = pb
-  where maybeName = selectImageName winTitle winClass
+  where imageNames = map fst pixbufs
+        maybeName = selectImageName imageNames winTitle winClass
         pb = case maybeName of
           Just name -> getPixbuf pixbufs name
           Nothing -> Nothing
