@@ -48,8 +48,7 @@ loadImage name = do
   home <- getEnv "HOME"
   let dir = home ++ "/.config/taffybar/icons/workspace-images"
       file = dir ++ "/" ++ name ++ ".xpm"
-  pb <- handle $ pixbufNewFromFile $ file
-  addAlphaWhite pb
+  handle $ pixbufNewFromFile $ file
 
 addAlphaWhite = addAlpha $ Just (65535, 65535, 65535)
 addAlphaBlack = addAlpha $ Just (0, 0, 0)
