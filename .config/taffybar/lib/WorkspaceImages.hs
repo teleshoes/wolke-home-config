@@ -9,10 +9,13 @@ import Text.Regex.PCRE (
 import System.Environment (getEnv)
 import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
+(imgWidth, imgHeight) = (18, 18)
+
 imageFile name = do
   home <- getEnv "HOME"
   return $ ""
            ++ home ++ "/.config/taffybar/icons/workspace-images"
+           ++ "/" ++ show imgWidth ++ "x" ++ show imgHeight
            ++ "/" ++ name ++ ".png"
 
 images = [ "blank"
