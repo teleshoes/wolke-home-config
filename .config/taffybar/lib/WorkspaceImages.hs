@@ -86,8 +86,9 @@ selectImageName winTitle winClass = listToMaybe $ catMaybes maybeNames
         nUnknown = Just "unknown"
         maybeNames = [nSpecial, nClass, nTitle, nUnknown]
 
-selectImage :: [(String, Maybe Pixbuf)] -> String -> String -> Maybe Pixbuf
-selectImage pixbufs winTitle winClass = pb
+selectImage :: [(String, Maybe Pixbuf)] -> Maybe (String, String) -> Maybe Pixbuf
+selectImage _ Nothing = Nothing
+selectImage pixbufs (Just (winTitle, winClass)) = pb
   where maybeName = selectImageName winTitle winClass
         pb = case maybeName of
           Just name -> getPixbuf pixbufs name

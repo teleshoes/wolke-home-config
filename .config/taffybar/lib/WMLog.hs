@@ -16,7 +16,7 @@ titleLength = 60
 bold m = "<b>" ++ m ++ "</b>"
 padTrim n x = take n $ x ++ repeat ' '
 
-pagerConfig = defaultPagerConfig
+pagerConfig pixbufs = defaultPagerConfig
   { activeWindow     = fg "green" . escapeMarkup . padTrim titleLength
   , activeLayout     = \x -> case x of
                                "left"    ->                   "[]="
@@ -28,12 +28,14 @@ pagerConfig = defaultPagerConfig
   , emptyWorkspace   = escapeMarkup
   , visibleWorkspace = escapeMarkup
   , urgentWorkspace  = fgbg "red" "yellow" . escapeMarkup
+  , imageSelector    = selectImage pixbufs
   , widgetSep        = ""
   }
 
 wmLogNew = do
-  pager <- pagerNew pagerConfig
-  ws <- workspaceSwitcherImagesNew pager
+  pixbufs <- loadImages
+  pager <- pagerNew $ pagerConfig pixbufs
+  ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
 
