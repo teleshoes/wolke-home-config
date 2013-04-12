@@ -11,7 +11,7 @@ import Text.Regex.PCRE (
 import System.Environment (getEnv)
 import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
-(imgWidth, imgHeight) = (18, 18)
+(imgWidth, imgHeight) = (20, 20)
 
 getImageFile :: String -> IO String
 getImageFile name = do
