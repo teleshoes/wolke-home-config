@@ -28,10 +28,16 @@ sub convertImageMagick($$$$){
 
 sub main(@){
   my @imgs = `ls source/`;
+
+  my @sizeDirs = `find -mindepth 1 -maxdepth 1 -regex '.*/[0-9]+x[0-9]+'`;
+  for my $sizeDir(@sizeDirs){
+    chomp $sizeDir;
+    run "rm -r $sizeDir/";
+  }
+
   for my $size(@sizes){
     my ($w, $h) = @$size;
     my $dir = "./${w}x${h}";
-    run "rm", "-r", $dir;
     run "mkdir", $dir;
     for my $img(@imgs){
       chomp $img;
