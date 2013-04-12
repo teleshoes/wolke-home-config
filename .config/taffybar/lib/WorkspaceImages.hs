@@ -9,6 +9,12 @@ import Text.Regex.PCRE (
 import System.Environment (getEnv)
 import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
+imageFile name = do
+  home <- getEnv "HOME"
+  return $ ""
+           ++ home ++ "/.config/taffybar/icons/workspace-images"
+           ++ "/" ++ name ++ ".xpm"
+
 images = [ "blank"
          , "downloads"
          , "eclipse"
@@ -44,11 +50,8 @@ handle act = do
     Right val -> return $ Just val
 
 loadImage :: String -> IO (Maybe Pixbuf)
-loadImage name = do
-  home <- getEnv "HOME"
-  let dir = home ++ "/.config/taffybar/icons/workspace-images"
-      file = dir ++ "/" ++ name ++ ".xpm"
-  handle $ pixbufNewFromFile $ file
+loadImage name = handle $ pixbufNewFromFile =<< imageFile name
+
 
 addAlphaWhite = addAlpha $ Just (65535, 65535, 65535)
 addAlphaBlack = addAlpha $ Just (0, 0, 0)
