@@ -1,5 +1,7 @@
 module WorkspaceImages (loadImages, selectImage, selectImageName) where
 
+import System.Directory (getDirectoryContents)
+import Data.List (isSuffixOf)
 import GHC.Word (Word8)
 import Control.Exception (try, SomeException)
 import Data.Maybe (listToMaybe, catMaybes)
@@ -16,34 +18,22 @@ getImageFile name = do
   dir <- getImageDir
   return $ dir ++ "/" ++ name ++ ".png"
 
+getImageNames :: IO [String]
+getImageNames = do
+  dir <- getImageDir
+  files <- handle $ getDirectoryContents dir
+  case files of
+    Just fs -> return $ catMaybes $ map getPng fs
+    Nothing -> return []
+  where getPng f = if ".png" `isSuffixOf` f then Just $ stripPng f else Nothing
+        stripPng = reverse . drop 4 . reverse
+
 getImageDir :: IO String
 getImageDir = do
   home <- getEnv "HOME"
   return $ ""
            ++ home ++ "/.config/taffybar/icons/workspace-images"
            ++ "/" ++ show imgWidth ++ "x" ++ show imgHeight
-
-images = [ "blank"
-         , "downloads"
-         , "eclipse"
-         , "eog"
-         , "escribe"
-         , "gimp"
-         , "gwt"
-         , "klomp"
-         , "mplayer"
-         , "navigator"
-         , "pidgin"
-         , "reviewboard"
-         , "rhythmbox"
-         , "stepmania"
-         , "terminal"
-         , "thunderbird"
-         , "torbrowserbundle"
-         , "transmission"
-         , "unknown"
-         , "vim"
-         ]
 
 tryAnything :: (IO a) -> IO (Either SomeException a)
 tryAnything = try
@@ -70,8 +60,9 @@ addAlpha color (Just pb) = fmap Just $ pixbufAddAlpha pb color
 
 loadImages :: IO [(String, Maybe Pixbuf)]
 loadImages = do
-  pixbufs <- mapM loadImage images
-  return $ zip images pixbufs
+  imageNames <- getImageNames
+  pixbufs <- mapM loadImage imageNames
+  return $ zip imageNames pixbufs
 
 (~~) s re = match regex s :: Bool
   where regex = makeRegexOpts compCaseless defaultExecOpt re :: Regex
