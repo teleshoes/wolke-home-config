@@ -27,5 +27,6 @@ pulseaudio --start &
 sudo wconnect `wguessid` &
 sudo bluetooth off &
 sudo fan auto
+taffybar &
 
-exec ck-launch-session dbus-launch bash -c "taffybar & xmonad"
+exec xmonad
