@@ -1,9 +1,13 @@
 module WMLog (wmLogNew) where
-import WorkspaceSwitcherImages (workspaceSwitcherImagesNew)
-import Utils (fg, fgbg)
+import WorkspaceImages (loadImages, selectImage)
+import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
+import Utils (fg, bg, fgbg)
 
 import Graphics.UI.Gtk (
-  escapeMarkup, toWidget, hBoxNew, vBoxNew, containerAdd, widgetShowAll)
+  escapeMarkup, widgetShowAll,
+  castToContainer, toWidget,
+  hBoxNew, vBoxNew, containerAdd, containerForeach, containerGetChildren,
+  Color(..), StateType(..), widgetModifyBg)
 
 import System.Taffybar.Pager (
   PagerConfig(..), defaultPagerConfig,
