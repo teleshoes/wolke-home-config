@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+my @sizes = ([16,16], [24,24], [36,36], [40,40], [48,48], [64,64]);
+
 sub run(@){
   print "@_\n";
   system @_;
@@ -26,7 +28,6 @@ sub convertImageMagick($$$$){
 
 sub main(@){
   my @imgs = `ls source/`;
-  my @sizes = ([16,16], [24,24], [36,36], [40,40], [48,48], [64,64]);
   for my $size(@sizes){
     my ($w, $h) = @$size;
     my $dir = "./${w}x${h}";
