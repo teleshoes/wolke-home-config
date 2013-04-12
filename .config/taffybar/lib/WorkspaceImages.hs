@@ -13,7 +13,7 @@ imageFile name = do
   home <- getEnv "HOME"
   return $ ""
            ++ home ++ "/.config/taffybar/icons/workspace-images"
-           ++ "/" ++ name ++ ".xpm"
+           ++ "/" ++ name ++ ".png"
 
 images = [ "blank"
          , "downloads"
