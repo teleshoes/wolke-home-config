@@ -17,13 +17,9 @@ import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
 wsBorderColor = Color 65535 0 0
 
-titleLength = 60
 
-bold m = "<b>" ++ m ++ "</b>"
-padTrim n x = take n $ x ++ repeat ' '
-
-pagerConfig pixbufs = defaultPagerConfig
-  { activeWindow     = fg "green" . escapeMarkup . padTrim titleLength
+pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
+  { activeWindow     = fg "green" . escapeMarkup . fmtTitle titleRows titleLen
   , activeLayout     = \x -> case x of
                                "left"    ->                   "[]="
                                "top"     -> fgbg "blue" "red" "TTT"
@@ -37,6 +33,13 @@ pagerConfig pixbufs = defaultPagerConfig
   , imageSelector    = selectImage pixbufs
   , widgetSep        = ""
   }
+bold m = "<b>" ++ m ++ "</b>"
+
+padTrim n x = take n $ x ++ repeat ' '
+
+fmtTitle rows len t = if rows then titleRows else padTrim len t
+  where titleRows = (padTrim len top) ++ "\n" ++ (padTrim len bot)
+        (top, bot) = splitAt len t
 
 applyToGrandChildren container cb = do
   children <- containerGetChildren $ castToContainer container
@@ -51,8 +54,11 @@ box c ws = do
   return $ toWidget container
 
 wmLogNew = do
+  let titleLength = 60
+      titleRows = False
+
   pixbufs <- loadImages
-  pager <- pagerNew $ pagerConfig pixbufs
+  pager <- pagerNew $ pagerConfig pixbufs titleRows titleLength
 
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
