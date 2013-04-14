@@ -54,7 +54,7 @@ box c ws = do
   return $ toWidget container
 
 wmLogNew = do
-  let titleLength = 24
+  let titleLength = 40
       titleRows = True
 
   pixbufs <- loadImages
