@@ -54,8 +54,8 @@ box c ws = do
   return $ toWidget container
 
 wmLogNew = do
-  let titleLength = 60
-      titleRows = False
+  let titleLength = 24
+      titleRows = True
 
   pixbufs <- loadImages
   pager <- pagerNew $ pagerConfig pixbufs titleRows titleLength
@@ -67,10 +67,8 @@ wmLogNew = do
   applyToGrandChildren ws setWsBorderColor
 
   w <- box (hBoxNew False 3)
-       [ box (vBoxNew True 0)
-         [ return ws
-         , box frameNew [return title]
-         ]
+       [ return ws
+       , box frameNew [return title]
        , return layout
        ]
   widgetShowAll w
