@@ -4,8 +4,8 @@ import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 import Utils (fg, bg, fgbg)
 
 import Graphics.UI.Gtk (
-  escapeMarkup, widgetShowAll,
-  castToContainer, toWidget,
+  Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
+  castToContainer, toWidget, frameNew,
   hBoxNew, vBoxNew, containerAdd, containerForeach, containerGetChildren,
   Color(..), StateType(..), widgetModifyBg)
 
@@ -44,23 +44,28 @@ applyToGrandChildren container cb = do
 
 setWsBorderColor w = widgetModifyBg w StateNormal wsBorderColor
 
+box :: ContainerClass c => WidgetClass w => IO c -> [IO w] -> IO Widget
+box c ws = do
+  container <- c
+  mapM (containerAdd container) =<< sequence ws
+  return $ toWidget container
+
 wmLogNew = do
   pixbufs <- loadImages
   pager <- pagerNew $ pagerConfig pixbufs
+
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
 
   applyToGrandChildren ws setWsBorderColor
 
-  wsTitleBox <- vBoxNew True 0
-  containerAdd wsTitleBox ws
-  containerAdd wsTitleBox title
-
-  wmLogBox <- hBoxNew False 5
-  containerAdd wmLogBox wsTitleBox
-  containerAdd wmLogBox layout
-
-  widgetShowAll wmLogBox
-
-  return $ toWidget wmLogBox
+  w <- box (hBoxNew False 3)
+       [ box (vBoxNew True 0)
+         [ return ws
+         , box frameNew [return title]
+         ]
+       , return layout
+       ]
+  widgetShowAll w
+  return w
