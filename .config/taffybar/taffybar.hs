@@ -23,7 +23,7 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, startWidgets, endWidgets)
 
 main = do
-  let height = 40
+  let height = 36
   let start = [ wmLogNew ]
   let end = reverse
           [ monitorCpuW
