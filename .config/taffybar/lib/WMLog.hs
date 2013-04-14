@@ -26,10 +26,10 @@ pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
                                "full"    -> fgbg "blue" "red" "[ ]"
                                otherwise -> fgbg "blue" "red" "???"
   , activeWorkspace  = bold . fgbg "black" "green" . escapeMarkup
-  , hiddenWorkspace  = fg "orange" . escapeMarkup
-  , emptyWorkspace   = escapeMarkup
+  , hiddenWorkspace  = bold . fg "orange" . escapeMarkup
+  , emptyWorkspace   = bold . escapeMarkup
   , visibleWorkspace = escapeMarkup
-  , urgentWorkspace  = fgbg "red" "yellow" . escapeMarkup
+  , urgentWorkspace  = bold . fgbg "red" "yellow" . escapeMarkup
   , imageSelector    = selectImage pixbufs
   , widgetSep        = ""
   }
