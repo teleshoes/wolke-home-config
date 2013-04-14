@@ -70,7 +70,7 @@ loadImages = do
 getSpecial winTitle winClass
   | null winTitle && null winClass = Just "blank"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
-  | winTitle ~~ "^eScribe .*- Mozille Firefox$" = Just "escribe"
+  | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
   | otherwise = Nothing
 
