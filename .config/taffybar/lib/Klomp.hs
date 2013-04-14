@@ -8,6 +8,7 @@ import System.Environment (getEnv)
 import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, fromMaybe)
 import Text.Regex.PCRE ((=~))
+import Graphics.UI.Gtk (escapeMarkup)
 
 rowLength = 34
 gapOffset = 3
@@ -48,7 +49,7 @@ getMarkup = do
                       ( "              KLOMP      "
                       , "          no current song"
                       )
-  return $ (adjustLen $ prefix ++ top) ++ "\n" ++ (adjustLen $ prefix ++ bot)
+  return $ (formatLine $ prefix ++ top) ++ "\n" ++ (formatLine $ prefix ++ bot)
 
 toFloat = read :: String -> Float
 
@@ -81,6 +82,8 @@ formatTimes ts = map fmt ts
         h t = padL '0' maxHLen $ show $ t `div` 60^2
         m t = padL '0' 2 $ show $ (t `mod` 60^2) `div` 60
         s t = padL '0' 2 $ show $ t `mod` 60
+
+formatLine = escapeMarkup . adjustLen
 
 adjustLen s = padR ' ' rowLength $ sTrim
   where strLen = length s
