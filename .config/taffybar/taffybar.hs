@@ -40,7 +40,7 @@ main = do
           , volumeW
           , micW
           , pidginPipeW $ barHeight cfg
-          , thunderbirdW
+          , thunderbirdW $ barHeight cfg
           , ekigaW
           , cpuScalingW
           , cpuFreqsW

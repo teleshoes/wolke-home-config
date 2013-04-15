@@ -2,7 +2,7 @@ module Thunderbird(thunderbirdW) where
 import Widgets (pollingImageNew, clickable, label)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  barImage, fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -28,8 +28,8 @@ accounts = M.fromList [ ("Gmail", "G")
                       , ("teleshoes", "T")
                       ]
 
-thunderbirdW = do
-  img <- pollingImageNew getImage
+thunderbirdW h = do
+  img <- pollingImageNew (getImage h)
   label <- label unreadCountsMarkup
 
   box <- hBoxNew False 0
@@ -38,12 +38,9 @@ thunderbirdW = do
 
   clickable clickL clickM clickR box
 
-getImage = do
-  home <- getEnv "HOME"
+getImage h = do
   tbRunning <- isRunning process
-  let imgSubDir = "18x36"
-  let imgName = if tbRunning then "thunderbird-on" else "thunderbird-off"
-  return $ home ++ "/.config/taffybar/icons/" ++ imgSubDir ++ "/" ++ imgName ++ ".xpm"
+  barImage h $ if tbRunning then "thunderbird-on" else "thunderbird-off"
 
 unreadCountsMarkup = do
   home <- getEnv "HOME"

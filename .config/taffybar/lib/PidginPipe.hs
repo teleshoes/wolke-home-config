@@ -2,7 +2,7 @@ module PidginPipe(pidginPipeW) where
 import Widgets (pollingImageNew, clickable)
 import System.Environment (getEnv)
 import Data.Char (toLower)
-import Utils (chompAll, isRunning, chompFile)
+import Utils (barImage, chompAll, isRunning, chompFile)
 
 clickL = Just $ ""
                 ++ " sleep 0.1;"
@@ -16,8 +16,6 @@ pidginPipeW h = clickable clickL clickM clickR =<< pollingImageNew (getImage h)
 
 getImage h = do
   home <- getEnv "HOME"
-  let iconSubdir = show h ++ "x" ++ show h
-  let dir = home ++ "/.config/taffybar/icons/" ++ iconSubdir ++ "/pidgin"
   let pipeFile = home ++ "/.purple/plugins/pipe"
 
   pipe <- chompFile pipeFile
@@ -26,7 +24,7 @@ getImage h = do
   pidginRunning <- if status == "off" then return False else isRunning "pidgin"
 
   let img = if pidginRunning then imgName status else imgName "off"
-  return $ dir ++ "/" ++ img ++ ".xpm"
+  barImage h $ "pidgin/" ++ img
 
 imgName status = case status of
   "off"            -> "not-running"

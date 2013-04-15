@@ -1,5 +1,5 @@
 module Utils(
-  height, defaultDelay,
+  defaultDelay, barImage,
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
@@ -15,6 +15,7 @@ import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import System.Environment (getEnv)
 import System.IO (
   BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents, hGetLine, hWaitForInput)
 import System.Process (
@@ -23,11 +24,15 @@ import System.Process (
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 
 -- CONSTANTS
-height :: Int
-height = 36
-
 defaultDelay :: Double
 defaultDelay = 1
+
+barImage h name = do
+  home <- getEnv "HOME"
+  return $ ""
+           ++ home ++ "/.config/taffybar/icons"
+           ++ "/" ++ show h ++ "x" ++ show h
+           ++ "/" ++ name ++ ".xpm"
 
 -- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"
