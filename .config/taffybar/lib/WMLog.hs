@@ -1,7 +1,9 @@
 module WMLog (wmLogNew) where
-import WorkspaceImages (loadImages, selectImage)
-import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
+import Sep (sepW)
 import Utils (fg, bg, fgbg)
+import WorkspaceImages (loadImages, selectImage)
+
+import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
@@ -68,7 +70,8 @@ wmLogNew = do
 
   w <- box (hBoxNew False 3)
        [ return ws
-       , box frameNew [return title]
+       , return title
+       , sepW
        , return layout
        ]
   widgetShowAll w
