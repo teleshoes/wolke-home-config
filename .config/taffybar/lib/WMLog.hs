@@ -17,7 +17,7 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
-wsBorderColor = Color 65535 0 0
+wsBorderColor = Color 40000 30000 10000
 
 
 pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
