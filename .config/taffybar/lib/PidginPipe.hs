@@ -2,7 +2,7 @@ module PidginPipe(pidginPipeW) where
 import Widgets (pollingImageNew, clickable)
 import System.Environment (getEnv)
 import Data.Char (toLower)
-import Utils (height, chompAll, isRunning, chompFile)
+import Utils (chompAll, isRunning, chompFile)
 
 clickL = Just $ ""
                 ++ " sleep 0.1;"
@@ -12,11 +12,11 @@ clickL = Just $ ""
 clickM = Just "killall pidgin; pidgin"
 clickR = Just "killall pidgin"
 
-pidginPipeW = clickable clickL clickM clickR =<< pollingImageNew getImage
+pidginPipeW h = clickable clickL clickM clickR =<< pollingImageNew (getImage h)
 
-getImage = do
+getImage h = do
   home <- getEnv "HOME"
-  let iconSubdir = show height ++ "x" ++ show height
+  let iconSubdir = show h ++ "x" ++ show h
   let dir = home ++ "/.config/taffybar/icons/" ++ iconSubdir ++ "/pidgin"
   let pipeFile = home ++ "/.purple/plugins/pipe"
 
