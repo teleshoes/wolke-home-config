@@ -25,7 +25,7 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 
 main = do
   let height = 36
-  let gap = 10
+  let gap = 5
   let start = [ wmLogNew ]
   let end = reverse
           [ monitorCpuW
