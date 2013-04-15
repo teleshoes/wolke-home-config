@@ -20,10 +20,11 @@ import Volume(volumeW)
 import WMLog(wmLogNew)
 
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
-  barHeight, startWidgets, endWidgets)
+  barHeight, widgetSpacing, startWidgets, endWidgets)
 
 main = do
   let height = 36
+  let gap = 10
   let start = [ wmLogNew ]
   let end = reverse
           [ monitorCpuW
@@ -49,4 +50,4 @@ main = do
           ]
 
   defaultTaffybar defaultTaffybarConfig {
-    barHeight=height, startWidgets=start, endWidgets=end}
+    barHeight=height, widgetSpacing=gap, startWidgets=start, endWidgets=end}
