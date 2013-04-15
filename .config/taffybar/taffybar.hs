@@ -25,9 +25,14 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 
 main = do
   let cfg = defaultTaffybarConfig {barHeight=36, widgetSpacing=5}
+      titleLength = 30
+      wsImageHeight = 24
+      titleRows = True
+      stackWsTitle = False
 
-  let start = [ wmLogNew ]
-  let end = reverse
+
+      start = [ wmLogNew titleLength wsImageHeight titleRows stackWsTitle ]
+      end = reverse
           [ monitorCpuW
           , monitorMemW
           , netStatsW

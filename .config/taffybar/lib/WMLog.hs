@@ -55,11 +55,8 @@ box c ws = do
   mapM (containerAdd container) =<< sequence ws
   return $ toWidget container
 
-wmLogNew = do
-  let titleLength = 30
-      titleRows = True
-
-  pixbufs <- loadImages 24
+wmLogNew titleLength imageHeight titleRows stackWsTitle = do
+  pixbufs <- loadImages imageHeight
   pager <- pagerNew $ pagerConfig pixbufs titleRows titleLength
 
   ws <- wspaceSwitcherNew pager
@@ -68,11 +65,19 @@ wmLogNew = do
 
   applyToGrandChildren ws setWsBorderColor
 
-  w <- box (hBoxNew False 3)
-       [ return ws
-       , return title
-       , sepW
-       , return layout
-       ]
+  w <- box (hBoxNew False 3) $
+       if stackWsTitle then
+         [ box (vBoxNew False 0)
+           [ return ws
+           , return title
+           ]
+         , return layout
+         ]
+       else
+         [ return ws
+         , return title
+         , sepW
+         , return layout
+         ]
   widgetShowAll w
   return w
