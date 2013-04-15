@@ -14,6 +14,7 @@ import NetStats(netStatsW)
 import Openvpn(openvpnW)
 import PidginPipe(pidginPipeW)
 import PingMonitor(pingMonitorW)
+import Sep(sepW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
@@ -30,8 +31,11 @@ main = do
           [ monitorCpuW
           , monitorMemW
           , netStatsW
+          , sepW
           , netW
+          , sepW
           , fcrondynW
+          , sepW
           , klompW
           , volumeW
           , micW
@@ -46,6 +50,7 @@ main = do
           , openvpnW
           , pingMonitorW "source.escribe.com" "E"
           , tpBattStatW
+          , sepW
           , clockW
           ]
 
