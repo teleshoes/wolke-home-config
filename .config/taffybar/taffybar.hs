@@ -54,7 +54,7 @@ main = do
           , pingMonitorW "www.google.com" "G"
           , openvpnW
           , pingMonitorW "source.escribe.com" "E"
-          , tpBattStatW
+          , tpBattStatW $ barHeight cfg
           , sepW
           , clockW
           ]

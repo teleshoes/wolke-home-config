@@ -1,16 +1,16 @@
 module TPBattStat (tpBattStatW) where
 import Widgets (label)
 import JsonWidget (jsonWidgetNew)
-import Utils (procToChan)
+import Utils (defaultDelay, procToChan)
 import Control.Concurrent (readChan)
 
-delayMillis = 1000
+tpBattStatCmd h = [ "/usr/lib/tpbattstat-applet/tpbattstat.py"
+                  , "--json"
+                  , show $ floor $ defaultDelay * 1000
+                  , show h ++ "x" ++ show h
+                  ]
 
-tpBattStatCmd = [ "/usr/lib/tpbattstat-applet/tpbattstat.py"
-                , "--json"
-                , show $ floor $ delayMillis]
-
-tpBattStatW = do
-  chan <- procToChan tpBattStatCmd
+tpBattStatW h = do
+  chan <- procToChan $ tpBattStatCmd h
   widget <- jsonWidgetNew $ readChan chan
   return widget
