@@ -14,7 +14,7 @@ rowLength = 34
 gapOffset = 3
 sep = "…"
 
-clickL = Just "xdotool key --clearmodifiers alt+9; klomp-term"
+clickL = Just "wmctrl -s 8; klomp-term"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
