@@ -2,7 +2,7 @@ module Thunderbird(thunderbirdW) where
 import Widgets (pollingImageNew, clickable, label)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  barImage, fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  imageDir, fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -35,7 +35,9 @@ thunderbirdW h = do
 
 getImage h = do
   tbRunning <- isRunning process
-  barImage h $ if tbRunning then "thunderbird-on" else "thunderbird-off"
+  dir <- imageDir h
+  let img = if tbRunning then "thunderbird-on.png" else "thunderbird-off.png"
+  return $ dir ++ "/" ++ img
 
 unreadCountsMarkup = do
   home <- getEnv "HOME"

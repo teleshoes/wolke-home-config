@@ -2,7 +2,7 @@ module PidginPipe(pidginPipeW) where
 import Widgets (pollingImageNew, clickable)
 import System.Environment (getEnv)
 import Data.Char (toLower)
-import Utils (barImage, chompAll, isRunning, chompFile)
+import Utils (imageDir, chompAll, isRunning, chompFile)
 
 clickL = Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
 clickM = Nothing
@@ -19,8 +19,9 @@ getImage h = do
 
   pidginRunning <- if status == "off" then return False else isRunning "pidgin"
 
+  dir <- imageDir h
   let img = if pidginRunning then imgName status else imgName "off"
-  barImage h $ "pidgin/" ++ img
+  return $ dir ++ "/pidgin/" ++ img ++ ".png"
 
 imgName status = case status of
   "off"            -> "not-running"

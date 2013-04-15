@@ -1,5 +1,5 @@
 module Utils(
-  defaultDelay, barImage,
+  defaultDelay, imageDir,
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
@@ -27,12 +27,9 @@ import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 defaultDelay :: Double
 defaultDelay = 1
 
-barImage h name = do
+imageDir h = do
   home <- getEnv "HOME"
-  return $ ""
-           ++ home ++ "/.config/taffybar/icons"
-           ++ "/" ++ show h
-           ++ "/" ++ name ++ ".xpm"
+  return $ home ++ "/.config/taffybar/icons/" ++ show h
 
 -- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"

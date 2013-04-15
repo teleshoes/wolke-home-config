@@ -59,7 +59,7 @@ wmLogNew = do
   let titleLength = 30
       titleRows = True
 
-  pixbufs <- loadImages
+  pixbufs <- loadImages 24
   pager <- pagerNew $ pagerConfig pixbufs titleRows titleLength
 
   ws <- wspaceSwitcherNew pager

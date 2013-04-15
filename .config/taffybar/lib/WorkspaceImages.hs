@@ -1,4 +1,5 @@
 module WorkspaceImages (loadImages, selectImage, selectImageName) where
+import Utils (imageDir)
 
 import System.Directory (getDirectoryContents)
 import Data.List (isSuffixOf)
@@ -11,16 +12,14 @@ import Text.Regex.PCRE (
 import System.Environment (getEnv)
 import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
-(imgWidth, imgHeight) = (24, 24)
-
-getImageFile :: String -> IO String
-getImageFile name = do
-  dir <- getImageDir
+getImageFile :: Int -> String -> IO String
+getImageFile h name = do
+  dir <- wsImageDir h
   return $ dir ++ "/" ++ name ++ ".png"
 
-getImageNames :: IO [String]
-getImageNames = do
-  dir <- getImageDir
+getImageNames :: Int -> IO [String]
+getImageNames h = do
+  dir <- wsImageDir h
   files <- handle $ getDirectoryContents dir
   case files of
     Just fs -> return $ catMaybes $ map getPng fs
@@ -28,12 +27,8 @@ getImageNames = do
   where getPng f = if ".png" `isSuffixOf` f then Just $ stripPng f else Nothing
         stripPng = reverse . drop 4 . reverse
 
-getImageDir :: IO String
-getImageDir = do
-  home <- getEnv "HOME"
-  return $ ""
-           ++ home ++ "/.config/taffybar/icons/workspace-images"
-           ++ "/" ++ show imgWidth ++ "x" ++ show imgHeight
+wsImageDir :: Int -> IO String
+wsImageDir h = fmap (++ "/workspace-images") $ imageDir h
 
 tryAnything :: (IO a) -> IO (Either SomeException a)
 tryAnything = try
@@ -47,8 +42,8 @@ handle act = do
       return Nothing
     Right val -> return $ Just val
 
-loadImage :: String -> IO (Maybe Pixbuf)
-loadImage name = handle $ pixbufNewFromFile =<< getImageFile name
+loadImage :: Int -> String -> IO (Maybe Pixbuf)
+loadImage h name = handle $ pixbufNewFromFile =<< getImageFile h name
 
 
 addAlphaWhite = addAlpha $ Just (65535, 65535, 65535)
@@ -58,10 +53,10 @@ addAlpha :: Maybe (Word8, Word8, Word8) -> Maybe Pixbuf -> IO (Maybe Pixbuf)
 addAlpha color Nothing = return Nothing
 addAlpha color (Just pb) = fmap Just $ pixbufAddAlpha pb color
 
-loadImages :: IO [(String, Maybe Pixbuf)]
-loadImages = do
-  imageNames <- getImageNames
-  pixbufs <- mapM loadImage imageNames
+loadImages :: Int -> IO [(String, Maybe Pixbuf)]
+loadImages h = do
+  imageNames <- getImageNames h
+  pixbufs <- mapM (loadImage h) imageNames
   return $ zip imageNames pixbufs
 
 (~~) s re = match regex s :: Bool
