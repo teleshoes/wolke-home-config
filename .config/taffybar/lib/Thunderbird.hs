@@ -41,7 +41,7 @@ thunderbirdW = do
 getImage = do
   home <- getEnv "HOME"
   tbRunning <- isRunning process
-  let imgSubDir = "18x40"
+  let imgSubDir = "18x36"
   let imgName = if tbRunning then "thunderbird-on" else "thunderbird-off"
   return $ home ++ "/.config/taffybar/icons/" ++ imgSubDir ++ "/" ++ imgName ++ ".xpm"
 
