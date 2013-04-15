@@ -51,9 +51,12 @@ scanLoop chan scans = do
 
 showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
   where
+    numLen = 5
     unit :: Double -> [String] -> String
-    unit x (u:us) | x >= 1000 && length us > 0 = unit (x/1024) us
-                  | otherwise = printf "%6.1f" x ++ u
+    unit x (u:[]) = fmt x ++ u
+    unit x (u:us) | length (fmt x) > numLen = unit (x/1024) us
+                  | otherwise = fmt x ++ u
+    fmt n = printf ("%" ++ show numLen ++ ".1f") n :: String
     units = ["B", "K", "M", "G", "T", "P", "E", "Z", "Y"]
     byteColors = zip
                    (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
