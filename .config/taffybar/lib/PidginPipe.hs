@@ -4,11 +4,7 @@ import System.Environment (getEnv)
 import Data.Char (toLower)
 import Utils (barImage, chompAll, isRunning, chompFile)
 
-clickL = Just $ ""
-                ++ " sleep 0.1;"
-                ++ " pkill -0 pidgin"
-                ++ " && xdotool key --clearmodifiers alt+2"
-                ++ " || pidgin"
+clickL = Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
 clickM = Nothing
 clickR = Just "pkill pidgin"
 
