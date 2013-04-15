@@ -49,12 +49,12 @@ scanLoop chan scans = do
   threadDelay $ 1*10^6
   scanLoop chan updatedScans
 
-showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) units)
+showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
   where
     unit :: Double -> [String] -> String
     unit x (u:us) | x >= 1000 && length us > 0 = unit (x/1024) us
                   | otherwise = printf "%6.1f" x ++ u
-    units = ["K", "M", "G", "T", "P", "E", "Z", "Y"]
+    units = ["B", "K", "M", "G", "T", "P", "E", "Z", "Y"]
     byteColors = zip
                    (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
                    ["black", "gray", "blue", "purple", "green", "white", "red"]
