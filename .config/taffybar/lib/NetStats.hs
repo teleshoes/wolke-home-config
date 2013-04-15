@@ -58,8 +58,7 @@ showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
                   | otherwise = fmt x ++ u
     fmt n = printf ("%" ++ show numLen ++ ".1f") n :: String
     units = ["B", "K", "M", "G", "T", "P", "E", "Z", "Y"]
-    byteColors = zip
-                   (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
+    byteColors = zip (map (*1024) [1, 8, 16, 128, 512, 1024, 4096])
                    ["black", "gray", "blue", "purple", "green", "white", "red"]
     chooseColor ((b, c):bcs) | bytes > b && length bcs > 0 = chooseColor bcs
                              | otherwise = c
