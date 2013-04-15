@@ -13,14 +13,9 @@ exec = "thunderbird"
 process = exec
 dir = "." ++ exec
 
-
-clickL = Just $ ""
-                ++ " sleep 0.1;"
-                ++ " pkill -0 " ++ process
-                ++ " && xdotool key --clearmodifiers alt+8"
-                ++ " || " ++ exec
+clickL = Just $ exec
 clickM = Just $ exec ++ " --compose"
-clickR = Just $ "killall " ++ process
+clickR = Just $ "pkill " ++ process
 
 accounts = M.fromList [ ("Gmail", "G")
                       , ("LilleGroup", "L")
