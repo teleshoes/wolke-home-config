@@ -24,8 +24,8 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
 
 main = do
-  let height = 36
-  let gap = 5
+  let cfg = defaultTaffybarConfig {barHeight=36, widgetSpacing=5}
+
   let start = [ wmLogNew ]
   let end = reverse
           [ monitorCpuW
@@ -54,5 +54,4 @@ main = do
           , clockW
           ]
 
-  defaultTaffybar defaultTaffybarConfig {
-    barHeight=height, widgetSpacing=gap, startWidgets=start, endWidgets=end}
+  defaultTaffybar cfg {startWidgets=start, endWidgets=end}
