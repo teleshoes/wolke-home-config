@@ -9,8 +9,8 @@ clickL = Just $ ""
                 ++ " pkill -0 pidgin"
                 ++ " && xdotool key --clearmodifiers alt+2"
                 ++ " || pidgin"
-clickR = Just "killall pidgin"
 clickM = Nothing
+clickR = Just "pkill pidgin"
 
 pidginPipeW h = clickable clickL clickM clickR =<< pollingImageNew (getImage h)
 
