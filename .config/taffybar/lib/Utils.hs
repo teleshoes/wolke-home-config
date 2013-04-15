@@ -31,7 +31,7 @@ barImage h name = do
   home <- getEnv "HOME"
   return $ ""
            ++ home ++ "/.config/taffybar/icons"
-           ++ "/" ++ show h ++ "x" ++ show h
+           ++ "/" ++ show h
            ++ "/" ++ name ++ ".xpm"
 
 -- MARKUP
