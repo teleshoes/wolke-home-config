@@ -4,7 +4,7 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
 
 main = do
-  let cfg = defaultTaffybarConfig {barHeight=40, widgetSpacing=5}
+  let cfg = defaultTaffybarConfig {barHeight=38, widgetSpacing=5}
       font = "Inconsolata medium 13"
       bgColor = "#3f3c6d"
       fgColor = "#a8aef7"
