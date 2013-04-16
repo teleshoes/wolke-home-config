@@ -31,8 +31,10 @@ pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
   , emptyWorkspace   = escapeMarkup
   , visibleWorkspace = escapeMarkup
   , urgentWorkspace  = bold . fgbg "red" "yellow" . escapeMarkup
-  , imageSelector    = selectImage pixbufs
+  , hideEmptyWs      = False
+  , wsButtonSpacing  = 3
   , widgetSep        = ""
+  , imageSelector    = selectImage pixbufs
   , wrapWsButton     = wrapBorder wsBorderColor
   }
 
