@@ -7,8 +7,7 @@ import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
-  castToContainer, toWidget, frameNew,
-  hBoxNew, vBoxNew, containerAdd, containerForeach, containerGetChildren,
+  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd,
   Color(..), StateType(..), widgetModifyBg)
 
 import System.Taffybar.Pager (
@@ -34,7 +33,15 @@ pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
   , urgentWorkspace  = bold . fgbg "red" "yellow" . escapeMarkup
   , imageSelector    = selectImage pixbufs
   , widgetSep        = ""
+  , wrapWsButton     = wrapBorder wsBorderColor
   }
+
+wrapBorder color w = do
+  f <- frameNew
+  widgetModifyBg f StateNormal color
+  containerAdd f w
+  return $ toContainer f
+
 bold m = "<b>" ++ m ++ "</b>"
 
 padTrim n x = take n $ x ++ repeat ' '
@@ -42,12 +49,6 @@ padTrim n x = take n $ x ++ repeat ' '
 fmtTitle rows len t = if rows then titleRows else padTrim len t
   where titleRows = (padTrim len top) ++ "\n" ++ (padTrim len bot)
         (top, bot) = splitAt len t
-
-applyToGrandChildren container cb = do
-  children <- containerGetChildren $ castToContainer container
-  mapM (\child -> containerForeach child cb) $ map castToContainer children
-
-setWsBorderColor w = widgetModifyBg w StateNormal wsBorderColor
 
 box :: ContainerClass c => WidgetClass w => IO c -> [IO w] -> IO Widget
 box c ws = do
@@ -62,8 +63,6 @@ wmLogNew titleLength imageHeight titleRows stackWsTitle = do
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
-
-  applyToGrandChildren ws setWsBorderColor
 
   w <- box (hBoxNew False 3) $
        if stackWsTitle then
