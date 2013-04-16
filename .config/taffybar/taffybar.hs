@@ -1,4 +1,4 @@
-import Widgets
+import qualified Widgets as W
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
@@ -15,32 +15,32 @@ main = do
       titleRows = True
       stackWsTitle = False
 
-      start = [ wmLogNew titleLength wsImageHeight titleRows stackWsTitle ]
+      start = [ W.wmLogNew titleLength wsImageHeight titleRows stackWsTitle ]
       end = reverse
-          [ monitorCpuW
-          , monitorMemW
-          , netStatsW
-          , sepW
-          , netW
-          , sepW
-          , fcrondynW
-          , sepW
-          , klompW
-          , volumeW
-          , micW
-          , pidginPipeW $ barHeight cfg
-          , thunderbirdW $ barHeight cfg
-          , ekigaW
-          , cpuScalingW
-          , cpuFreqsW
-          , fanW
-          , brightnessW
-          , pingMonitorW "www.google.com" "G"
-          , openvpnW
-          , pingMonitorW "source.escribe.com" "E"
-          , tpBattStatW $ barHeight cfg
-          , sepW
-          , clockW
+          [ W.monitorCpuW
+          , W.monitorMemW
+          , W.netStatsW
+          , W.sepW
+          , W.netW
+          , W.sepW
+          , W.fcrondynW
+          , W.sepW
+          , W.klompW
+          , W.volumeW
+          , W.micW
+          , W.pidginPipeW $ barHeight cfg
+          , W.thunderbirdW $ barHeight cfg
+          , W.ekigaW
+          , W.cpuScalingW
+          , W.cpuFreqsW
+          , W.fanW
+          , W.brightnessW
+          , W.pingMonitorW "www.google.com" "G"
+          , W.openvpnW
+          , W.pingMonitorW "source.escribe.com" "E"
+          , W.tpBattStatW $ barHeight cfg
+          , W.sepW
+          , W.clockW
           ]
 
   rcParseString $ ""
