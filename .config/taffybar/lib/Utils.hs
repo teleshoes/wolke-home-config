@@ -3,13 +3,14 @@ module Utils(
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
-  nanoTime, isRunning, chompFile,
+  tryMaybe, nanoTime, isRunning, chompFile,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
 import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
+import Control.Exception (SomeException, try)
 import Control.Monad (forever, void)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
@@ -17,7 +18,8 @@ import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import System.Environment (getEnv)
 import System.IO (
-  hGetContents, hGetLine, hSetBuffering, BufferMode(LineBuffering))
+  stderr, hGetContents, hGetLine, hPutStrLn,
+  hSetBuffering, BufferMode(LineBuffering))
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, proc, shell,
   readProcessWithExitCode, system)
@@ -68,6 +70,16 @@ padR x len xs = xs ++ replicate (len - length xs) x
 chompAll = reverse . dropWhile (== '\n') . reverse
 
 -- IO
+tryMaybe :: (IO a) -> IO (Maybe a)
+tryMaybe act = do
+  result <- (try :: IO a -> IO (Either SomeException a)) act
+  case result of
+    Left ex  -> do
+      hPutStrLn stderr $ show ex
+      return Nothing
+    Right val -> return $ Just val
+
+
 nanoTime :: IO Integer
 nanoTime = fmap (fromIntegral . timeSpecToInt64) $ getClockTime monotonicClock
 

@@ -1,10 +1,9 @@
 module WorkspaceImages (loadImages, selectImage, selectImageName) where
-import Utils (imageDir)
+import Utils (imageDir, tryMaybe)
 
 import System.Directory (getDirectoryContents)
 import Data.List (isSuffixOf)
 import GHC.Word (Word8)
-import Control.Exception (try, SomeException)
 import Data.Maybe (listToMaybe, catMaybes)
 
 import Text.Regex.PCRE (
@@ -20,7 +19,7 @@ getImageFile h name = do
 getImageNames :: Int -> IO [String]
 getImageNames h = do
   dir <- wsImageDir h
-  files <- handle $ getDirectoryContents dir
+  files <- tryMaybe $ getDirectoryContents dir
   case files of
     Just fs -> return $ catMaybes $ map getPng fs
     Nothing -> return []
@@ -30,20 +29,8 @@ getImageNames h = do
 wsImageDir :: Int -> IO String
 wsImageDir h = fmap (++ "/workspace-images") $ imageDir h
 
-tryAnything :: (IO a) -> IO (Either SomeException a)
-tryAnything = try
-
-handle :: (IO a) -> IO (Maybe a)
-handle act = do
-  result <- tryAnything act
-  case result of
-    Left ex  -> do
-      print $ show ex
-      return Nothing
-    Right val -> return $ Just val
-
 loadImage :: Int -> String -> IO (Maybe Pixbuf)
-loadImage h name = handle $ pixbufNewFromFile =<< getImageFile h name
+loadImage h name = tryMaybe $ pixbufNewFromFile =<< getImageFile h name
 
 
 addAlphaWhite = addAlpha $ Just (65535, 65535, 65535)
