@@ -3,6 +3,7 @@ import Utils (imageDir, tryMaybe)
 
 import System.Directory (getDirectoryContents)
 import Data.List (isSuffixOf)
+import Data.Maybe (fromMaybe)
 import GHC.Word (Word8)
 import Data.Maybe (listToMaybe, catMaybes)
 
@@ -51,6 +52,7 @@ loadImages h = do
 
 getSpecial winTitle winClass
   | null winTitle && null winClass = Just "blank"
+  | winTitle == "..." && winClass == "..." = Just "blank"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
@@ -70,10 +72,8 @@ selectImageName imgNames winTitle winClass = listToMaybe $ catMaybes maybeNames
         maybeNames = [nSpecial, nClass, nTitle, nUnknown]
 
 selectImage :: [(String, Maybe Pixbuf)] -> Maybe (String, String) -> Maybe Pixbuf
-selectImage _ Nothing = Nothing
+selectImage pixbufs Nothing = getPixbuf pixbufs "blank"
 selectImage pixbufs (Just (winTitle, winClass)) = pb
   where imageNames = map fst pixbufs
         maybeName = selectImageName imageNames winTitle winClass
-        pb = case maybeName of
-          Just name -> getPixbuf pixbufs name
-          Nothing -> Nothing
+        pb = getPixbuf pixbufs $ fromMaybe "blank" maybeName
