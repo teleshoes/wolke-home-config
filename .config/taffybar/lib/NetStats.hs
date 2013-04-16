@@ -1,5 +1,5 @@
 module NetStats(netStatsW) where
-import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups, lineBuffering)
+import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups)
 import Label (labelW)
 
 import Control.Concurrent (threadDelay, forkIO, readChan, writeChan, newChan)

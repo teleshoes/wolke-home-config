@@ -3,7 +3,7 @@ module Utils(
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
-  nanoTime, lineBuffering, isRunning, chompFile,
+  nanoTime, isRunning, chompFile,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
@@ -17,7 +17,7 @@ import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import System.Environment (getEnv)
 import System.IO (
-  BufferMode(LineBuffering), stdout, hSetBuffering, hGetContents, hGetLine, hWaitForInput)
+  hGetContents, hGetLine, hSetBuffering, BufferMode(LineBuffering))
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, proc, shell,
   readProcessWithExitCode, system)
@@ -39,7 +39,7 @@ fgbg fg bg m = "<span"
                ++ " background=\"" ++ bg ++ "\""
                ++ ">" ++ m ++ "</span>"
 
--- Parsing
+-- PARSING
 regexMatch :: String -> String -> Bool
 regexMatch = flip (=~)
 regexGroups :: String -> String -> Maybe [String]
@@ -70,8 +70,6 @@ chompAll = reverse . dropWhile (== '\n') . reverse
 -- IO
 nanoTime :: IO Integer
 nanoTime = fmap (fromIntegral . timeSpecToInt64) $ getClockTime monotonicClock
-
-lineBuffering = hSetBuffering stdout LineBuffering
 
 isRunning :: String -> IO Bool
 isRunning p = do

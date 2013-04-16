@@ -1,7 +1,7 @@
 module Net(netW) where
 import Clickable (clickableLeft)
 import Label (labelW)
-import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
+import Utils (padL, chompAll, regexFirstGroup, chompFile)
 
 import System.Process(readProcess)
 import System.Environment (getEnv)
