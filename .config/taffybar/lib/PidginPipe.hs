@@ -1,5 +1,6 @@
 module PidginPipe(pidginPipeW) where
-import Widgets (pollingImageNew, clickable)
+import Clickable (clickable)
+import Image (imageW)
 import System.Environment (getEnv)
 import Data.Char (toLower)
 import Utils (imageDir, chompAll, isRunning, chompFile)
@@ -8,7 +9,7 @@ clickL = Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
 clickM = Nothing
 clickR = Just "pkill pidgin"
 
-pidginPipeW h = clickable clickL clickM clickR =<< pollingImageNew (getImage h)
+pidginPipeW h = clickable clickL clickM clickR =<< imageW (getImage h)
 
 getImage h = do
   home <- getEnv "HOME"

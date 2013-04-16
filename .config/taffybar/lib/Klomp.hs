@@ -1,5 +1,6 @@
 module Klomp(klompW) where
-import Widgets (clickable, label)
+import Clickable (clickable)
+import Label (labelW)
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
 import Prelude hiding(lookup)
@@ -18,7 +19,7 @@ clickL = Just "wmctrl -s 8; klomp-term"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
-klompW = clickable clickL clickM clickR =<< label getMarkup
+klompW = clickable clickL clickM clickR =<< labelW getMarkup
 
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m

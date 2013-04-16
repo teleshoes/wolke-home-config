@@ -1,11 +1,13 @@
 module Net(netW) where
-import Widgets (clickableLeft, label)
+import Clickable (clickableLeft)
+import Label (labelW)
+import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
+
 import System.Process(readProcess)
 import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
-import Utils (padL, chompAll, regexFirstGroup, lineBuffering, chompFile)
 
 lastSSIDFile = "/tmp/last-ssid"
 
@@ -43,7 +45,7 @@ getNetMarkup = do
     Unknown   -> message "???"
   return markup
 
-netW = clickableLeft wscanCmd =<< label getNetMarkup
+netW = clickableLeft wscanCmd =<< labelW getNetMarkup
 
 message s = return $ padtrim width $ Just s
 

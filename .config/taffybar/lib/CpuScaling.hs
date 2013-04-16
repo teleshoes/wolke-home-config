@@ -2,7 +2,7 @@ module CpuScaling(cpuScalingW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
-import Widgets (label)
+import Label (labelW)
 
 import Control.Monad (void)
 import Control.Concurrent (forkIO)
@@ -17,7 +17,7 @@ width = 2
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScalingW = label $ do
+cpuScalingW = labelW $ do
   cpu <- readCpu
   case cpu of
     Left err -> return err

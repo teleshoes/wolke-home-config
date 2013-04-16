@@ -1,5 +1,6 @@
 module Ekiga(ekigaW) where
-import Widgets (clickable, label)
+import Clickable (clickable)
+import Label (labelW)
 import Utils (isRunning)
 
 clickL = Just "ekiga"
@@ -10,4 +11,4 @@ getEkiga = do
   running <- isRunning "ekiga"
   return $ if running then "e" else "-"
 
-ekigaW = clickable clickL clickM clickR =<< label getEkiga
+ekigaW = clickable clickL clickM clickR =<< labelW getEkiga

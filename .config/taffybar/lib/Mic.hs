@@ -1,10 +1,12 @@
 module Mic(micW) where
-import Widgets (label, clickableLeft)
-import System.Environment (getEnv)
-import Volume (isMuted)
+import Clickable (clickableLeft)
+import Label (labelW)
 import Utils (fg)
+import Volume (isMuted)
 
-micW = clickableLeft clickCmd =<< label getMic
+import System.Environment (getEnv)
+
+micW = clickableLeft clickCmd =<< labelW getMic
 
 getMic = do
   muted <- isMuted "microphone"

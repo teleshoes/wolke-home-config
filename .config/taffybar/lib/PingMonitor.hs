@@ -1,6 +1,6 @@
 module PingMonitor (pingMonitorW) where
+import Label (labelW)
 import Utils (defaultDelay, fg, procSuccess)
-import Widgets (label)
 
 import System.Environment (getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
@@ -13,8 +13,7 @@ pingMonitorW url display = do
   writeChan chan $ "?" ++ display
   let prefixes = cycle [fg "purple" "/", fg "green" "|"]
   forkIO $ mapM_ (ping chan url display defaultDelay) prefixes
-  lbl <- label $ readChan chan
-  return lbl
+  labelW $ readChan chan
 
 ping chan url display timeout prefix = do
   isUp <- isPingable url timeout

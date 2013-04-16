@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 module JsonWidget(jsonWidgetNew) where
-import Widgets (clickableLeftAsync, label)
+import Clickable (clickableLeftAsync)
 
 import Data.Maybe (listToMaybe)
 import Control.Monad (forever, void)

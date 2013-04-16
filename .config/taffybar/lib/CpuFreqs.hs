@@ -1,5 +1,5 @@
 module CpuFreqs (cpuFreqsW) where
-import Widgets (label)
+import Label (labelW)
 
 import CpuFreqsI7z (getFreqsChanI7z)
 import CpuFreqsProc (getFreqsChanProc)
@@ -9,7 +9,7 @@ import Data.List (intercalate)
 cpuFreqsW = do
   freqsChan <- getFreqsChanI7z
   maxLenVar <- newMVar 0
-  label $ readCpuFreqs freqsChan maxLenVar
+  labelW $ readCpuFreqs freqsChan maxLenVar
 
 maxMVar mvar test = modifyMVar mvar maxTest
   where maxTest old = let new = max old test in return (new, new)

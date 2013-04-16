@@ -1,5 +1,7 @@
 module Thunderbird(thunderbirdW) where
-import Widgets (pollingImageNew, clickable, label)
+import Clickable (clickable)
+import Image (imageW)
+import Label (labelW)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
   imageDir, fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
@@ -24,8 +26,8 @@ accounts = M.fromList [ ("Gmail", "G")
                       ]
 
 thunderbirdW h = do
-  img <- pollingImageNew (getImage h)
-  label <- label unreadCountsMarkup
+  img <- imageW (getImage h)
+  label <- labelW unreadCountsMarkup
 
   box <- hBoxNew False 0
   containerAdd box img

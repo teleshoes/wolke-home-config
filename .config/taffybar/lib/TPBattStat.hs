@@ -1,5 +1,4 @@
 module TPBattStat (tpBattStatW) where
-import Widgets (label)
 import JsonWidget (jsonWidgetNew)
 import Utils (defaultDelay, procToChan)
 import Control.Concurrent (readChan)
