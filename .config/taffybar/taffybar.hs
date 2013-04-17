@@ -1,5 +1,5 @@
 import qualified Widgets as W
-import Color (Color(..))
+import Color (Color(..), hexColor)
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
@@ -7,9 +7,9 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 main = do
   let cfg = defaultTaffybarConfig {barHeight=38, widgetSpacing=5}
       font = "Inconsolata medium 13"
-      bgColor = "#333366"
-      fgColor = "#9999ff"
-      textColor = "#FFFFFF"
+      bgColor = hexColor $ RGB (0.2, 0.2, 0.4)
+      fgColor = hexColor $ RGB (0.6, 0.6, 1.0)
+      textColor = hexColor $ Black
       sep = W.sepW Black 2
 
       titleLength = 30
