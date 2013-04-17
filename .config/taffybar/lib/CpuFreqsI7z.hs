@@ -11,6 +11,7 @@ import System.Directory (setCurrentDirectory)
 getFreqsChanI7z :: IO (Chan [Int])
 getFreqsChanI7z = do
   system "sudo i7z-kill"
+  system "pkill -f 'tail -n 0 -F /tmp/i7z'"
   pid <- getProcessID
   let logFile = "/tmp/i7z_" ++ show pid ++ ".log"
 
