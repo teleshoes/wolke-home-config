@@ -57,6 +57,7 @@ getSpecial winTitle winClass
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " - VIM$" = Just "vim"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
+  | winTitle ~~ "^SABnzbd \\d+\\.\\d+\\.\\d+.* - Chromium$" = Just "sabnzbd"
   | winTitle ~~ (""
                 ++ "^\\d+\\.\\d+ [KMG]B/s"
                 ++ " \\| " ++ "\\d+ [KMG]B"
