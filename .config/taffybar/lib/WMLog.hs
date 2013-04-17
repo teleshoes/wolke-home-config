@@ -1,5 +1,5 @@
 module WMLog (wmLogNew) where
-import Color (Color(..))
+import Color (Color(..), widgetBgColor)
 import Sep (sepW)
 import Utils (fg, bg, fgbg)
 import WorkspaceImages (loadImages, selectImage)
@@ -8,8 +8,7 @@ import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
-  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd,
-  Color(..), StateType(..), widgetModifyBg)
+  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd)
 
 import System.Taffybar.Pager (
   PagerConfig(..), defaultPagerConfig,
@@ -17,7 +16,7 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
-wsBorderColor = Color 40000 30000 10000
+wsBorderColor = RGB (0.61, 0.458, 0.153)
 
 
 pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
@@ -41,7 +40,7 @@ pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
 
 wrapBorder color w = do
   f <- frameNew
-  widgetModifyBg f StateNormal color
+  widgetBgColor color f
   containerAdd f w
   return $ toContainer f
 
