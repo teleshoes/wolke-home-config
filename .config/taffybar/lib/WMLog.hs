@@ -1,4 +1,5 @@
 module WMLog (wmLogNew) where
+import Color (Color(..))
 import Sep (sepW)
 import Utils (fg, bg, fgbg)
 import WorkspaceImages (loadImages, selectImage)
@@ -77,7 +78,7 @@ wmLogNew titleLength imageHeight titleRows stackWsTitle = do
        else
          [ return ws
          , return title
-         , sepW
+         , sepW Black 2
          , return layout
          ]
   widgetShowAll w

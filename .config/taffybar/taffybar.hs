@@ -1,4 +1,5 @@
 import qualified Widgets as W
+import Color (Color(..))
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
@@ -9,6 +10,7 @@ main = do
       bgColor = "#3f3c6d"
       fgColor = "#a8aef7"
       textColor = "#FFFFFF"
+      sep = W.sepW Black 2
 
       titleLength = 30
       wsImageHeight = 24
@@ -20,11 +22,11 @@ main = do
           [ W.monitorCpuW
           , W.monitorMemW
           , W.netStatsW
-          , W.sepW
+          , sep
           , W.netW
-          , W.sepW
+          , sep
           , W.fcrondynW
-          , W.sepW
+          , sep
           , W.klompW
           , W.volumeW
           , W.micW
@@ -39,7 +41,7 @@ main = do
           , W.openvpnW
           , W.pingMonitorW "source.escribe.com" "E"
           , W.tpBattStatW $ barHeight cfg
-          , W.sepW
+          , sep
           , W.clockW
           ]
 

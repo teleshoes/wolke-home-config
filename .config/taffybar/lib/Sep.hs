@@ -1,19 +1,17 @@
 module Sep(sepW) where
-
+import Color (Color, gtkColor)
 import Graphics.UI.Gtk (
-  toWidget, widgetShowAll,
+  Widget, toWidget, widgetShowAll,
   eventBoxNew, hBoxNew, containerAdd, widgetSetSizeRequest,
-  Color(..), StateType(..), widgetModifyBg)
+  StateType(..), widgetModifyBg)
 
-sepColor = Color 0 0 0
-sepWidth = 2
-
-sepW = do
+sepW :: Color -> Int -> IO Widget
+sepW color width = do
   bgBox <- eventBoxNew
-  widgetModifyBg bgBox StateNormal sepColor
+  widgetModifyBg bgBox StateNormal (gtkColor color)
 
   sizeBox <- hBoxNew False 0
-  widgetSetSizeRequest sizeBox sepWidth (-1)
+  widgetSetSizeRequest sizeBox width (-1)
 
   containerAdd bgBox sizeBox
   widgetShowAll bgBox
