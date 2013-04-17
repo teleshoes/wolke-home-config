@@ -55,6 +55,7 @@ getSpecial winTitle winClass
   | winTitle == "..." && winClass == "..." = Just "blank"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
+  | winTitle ~~ " - VIM$" = Just "vim"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
   | otherwise = Nothing
 
