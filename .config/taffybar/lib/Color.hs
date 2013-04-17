@@ -31,10 +31,10 @@ rgba c a = (r,g,b,a)
 
 gtkColor c = Gtk.Color (gtk r) (gtk g) (gtk b)
   where (r,g,b) = rgb c
-        gtk = floor . (65535*)
+        gtk = round . (65535*)
 
 byte b = (if b < 16 then "0" else "") ++ showHex b ""
 
 hexColor c = "#" ++ hex r ++ hex g ++ hex b
   where (r,g,b) = rgb c
-        hex = byte . floor . (255*)
+        hex = byte . round . (255*)
