@@ -18,8 +18,7 @@ main = do
                                        , wsImageHeight = 24
                                        , titleRows = True
                                        , stackWsTitle = False
-                                       , wsBorderColor =
-                                           RGB (0.61, 0.458, 0.153)
+                                       , wsBorderColor = RGB (0.6, 0.5, 0.2)
                                        }
               ]
       end = reverse
