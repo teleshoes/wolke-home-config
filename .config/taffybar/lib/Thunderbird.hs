@@ -1,10 +1,11 @@
 module Thunderbird(thunderbirdW) where
+import Color (Color(..), widgetBgColorWrap)
 import Clickable (clickable)
 import Image (imageW)
 import Label (labelW)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  imageDir, fgbg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  imageDir, fg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -33,7 +34,7 @@ thunderbirdW h = do
   containerAdd box img
   containerAdd box label
 
-  clickable clickL clickM clickR box
+  widgetBgColorWrap Black =<< clickable clickL clickM clickR box
 
 getImage h = do
   tbRunning <- isRunning process
@@ -49,7 +50,7 @@ unreadCountsMarkup = do
 
   unreadCounts <- chompFile ucFile
   let markup = formatUnreadCounts $ parseUnreadCounts unreadCounts
-  return $ fgbg "green" "black" markup
+  return $ fg "green" markup
 
 
 parseUnreadCounts :: String -> [(String, Integer)]
