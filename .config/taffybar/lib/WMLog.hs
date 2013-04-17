@@ -1,4 +1,4 @@
-module WMLog (wmLogNew) where
+module WMLog (wmLogNew, WMLogConfig(..)) where
 import Color (Color(..), widgetBgColor)
 import Sep (sepW)
 import Utils (fg, bg, fgbg)
@@ -16,11 +16,15 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
-wsBorderColor = RGB (0.61, 0.458, 0.153)
+data WMLogConfig = WMLogConfig { titleLength :: Int
+                               , wsImageHeight :: Int
+                               , titleRows :: Bool
+                               , stackWsTitle :: Bool
+                               , wsBorderColor :: Color
+                               }
 
-
-pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
-  { activeWindow     = fg "green" . escapeMarkup . fmtTitle titleRows titleLen
+pagerConfig pixbufs cfg = defaultPagerConfig
+  { activeWindow     = fg "green" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
                                "left"    ->                   "[]="
                                "top"     -> fgbg "blue" "red" "TTT"
@@ -35,7 +39,7 @@ pagerConfig pixbufs titleRows titleLen = defaultPagerConfig
   , wsButtonSpacing  = 3
   , widgetSep        = ""
   , imageSelector    = selectImage pixbufs
-  , wrapWsButton     = wrapBorder wsBorderColor
+  , wrapWsButton     = wrapBorder $ wsBorderColor cfg
   }
 
 wrapBorder color w = do
@@ -48,9 +52,10 @@ bold m = "<b>" ++ m ++ "</b>"
 
 padTrim n x = take n $ x ++ repeat ' '
 
-fmtTitle rows len t = if rows then titleRows else padTrim len t
-  where titleRows = (padTrim len top) ++ "\n" ++ (padTrim len bot)
+fmtTitle cfg t = if titleRows cfg then rows else padTrim len t
+  where rows = (padTrim len top) ++ "\n" ++ (padTrim len bot)
         (top, bot) = splitAt len t
+        len = titleLength cfg
 
 box :: ContainerClass c => WidgetClass w => IO c -> [IO w] -> IO Widget
 box c ws = do
@@ -58,16 +63,16 @@ box c ws = do
   mapM (containerAdd container) =<< sequence ws
   return $ toWidget container
 
-wmLogNew titleLength imageHeight titleRows stackWsTitle = do
-  pixbufs <- loadImages imageHeight
-  pager <- pagerNew $ pagerConfig pixbufs titleRows titleLength
+wmLogNew cfg = do
+  pixbufs <- loadImages $ wsImageHeight cfg
+  pager <- pagerNew $ pagerConfig pixbufs cfg
 
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
 
   w <- box (hBoxNew False 3) $
-       if stackWsTitle then
+       if stackWsTitle cfg then
          [ box (vBoxNew False 0)
            [ return ws
            , return title

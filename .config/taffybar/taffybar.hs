@@ -1,5 +1,7 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
+import WMLog (WMLogConfig(..))
+
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, widgetSpacing, startWidgets, endWidgets)
@@ -12,12 +14,14 @@ main = do
       textColor = hexColor $ Black
       sep = W.sepW Black 2
 
-      titleLength = 30
-      wsImageHeight = 24
-      titleRows = True
-      stackWsTitle = False
-
-      start = [ W.wmLogNew titleLength wsImageHeight titleRows stackWsTitle ]
+      start = [ W.wmLogNew WMLogConfig { titleLength = 30
+                                       , wsImageHeight = 24
+                                       , titleRows = True
+                                       , stackWsTitle = False
+                                       , wsBorderColor =
+                                           RGB (0.61, 0.458, 0.153)
+                                       }
+              ]
       end = reverse
           [ W.monitorCpuW
           , W.monitorMemW
