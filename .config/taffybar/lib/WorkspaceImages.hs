@@ -57,6 +57,10 @@ getSpecial winTitle winClass
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " - VIM$" = Just "vim"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
+  | winTitle ~~ (""
+                ++ "^\\d+\\.\\d+ [KMG]B/s"
+                ++ " \\| " ++ "\\d+ [KMG]B"
+                ++ " \\| " ++ "[0-9:]+ left - Chromium$") = Just "sabnzbd"
   | otherwise = Nothing
 
 getPixbuf :: [(String, Maybe Pixbuf)] -> String -> Maybe Pixbuf
