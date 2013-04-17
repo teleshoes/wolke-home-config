@@ -1,4 +1,5 @@
-module Color(Color(..), rgb, rgba) where
+module Color(Color(..), rgb, rgba, gtkColor) where
+import qualified Graphics.UI.Gtk as Gtk (Color(..))
 
 data Color = Black
            | Gray
@@ -26,3 +27,7 @@ rgb c = case c of
 
 rgba c a = (r,g,b,a)
   where (r,g,b) = rgb c
+
+gtkColor c = Gtk.Color (gtk r) (gtk g) (gtk b)
+  where (r,g,b) = rgb c
+        gtk = floor . (65535*)
