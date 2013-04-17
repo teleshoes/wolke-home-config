@@ -1,6 +1,13 @@
-module Color(Color(..), rgb, rgba, gtkColor, hexColor) where
+module Color(
+  Color(..), rgb, rgba, gtkColor, hexColor,
+  widgetBgColor, widgetBgColorWrap
+) where
+
 import Numeric (showHex)
 import qualified Graphics.UI.Gtk as Gtk (Color(..))
+import Graphics.UI.Gtk (
+  StateType(..), widgetModifyBg,
+  containerAdd, eventBoxNew, toWidget, widgetShowAll)
 
 data Color = Black
            | Gray
@@ -38,3 +45,12 @@ byte b = (if b < 16 then "0" else "") ++ showHex b ""
 hexColor c = "#" ++ hex r ++ hex g ++ hex b
   where (r,g,b) = rgb c
         hex = byte . round . (255*)
+
+widgetBgColor c w = widgetModifyBg w StateNormal (gtkColor c)
+
+widgetBgColorWrap c w = do
+  ebox <- eventBoxNew
+  widgetBgColor c ebox
+  containerAdd ebox w
+  widgetShowAll ebox
+  return $ toWidget ebox
