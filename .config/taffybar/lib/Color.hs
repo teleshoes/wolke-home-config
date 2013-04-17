@@ -10,6 +10,7 @@ import Graphics.UI.Gtk (
   containerAdd, eventBoxNew, toWidget, widgetShowAll)
 
 data Color = Black
+           | White
            | Gray
            | Red
            | Green
@@ -23,6 +24,7 @@ data Color = Black
 
 rgb c = case c of
           Black  -> (0.0, 0.0, 0.0)
+          White  -> (1.0, 1.0, 1.0)
           Gray   -> (0.5, 0.5, 0.5)
           Red    -> (1.0, 0.0, 0.0)
           Green  -> (0.0, 1.0, 0.0)
