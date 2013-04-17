@@ -50,7 +50,7 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
     [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
 
 xmoKeys conf = "XMonad" @@ do
-    "Restart Taffybar"  @@ mCA   xK_Home #! "pkill taffybar; sleep 0.1; taffybar"
+    "Restart Taffybar"  @@ mCA   xK_Home #! "taffybar-restart"
     "Recompile Xmonad"  @@ mCA   xK_End  #! "xmonad --recompile; xmonad --restart"
     "Edit Keys"         @@ mCA   xK_Del  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
