@@ -31,7 +31,7 @@ main = do
           , W.volumeW
           , W.micW
           , W.pidginPipeW $ barHeight cfg
-          , W.thunderbirdW $ barHeight cfg
+          , W.thunderbirdW (barHeight cfg) Green Black
           , W.ekigaW
           , W.cpuScalingW
           , W.cpuFreqsW

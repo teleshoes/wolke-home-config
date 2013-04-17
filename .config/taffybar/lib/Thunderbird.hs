@@ -1,5 +1,5 @@
 module Thunderbird(thunderbirdW) where
-import Color (Color(..), widgetBgColorWrap)
+import Color (Color(..), hexColor, widgetBgColorWrap)
 import Clickable (clickable)
 import Image (imageW)
 import Label (labelW)
@@ -26,15 +26,15 @@ accounts = M.fromList [ ("Gmail", "G")
                       , ("teleshoes", "T")
                       ]
 
-thunderbirdW h = do
+thunderbirdW h fgColor bgColor = do
   img <- imageW (getImage h)
-  label <- labelW unreadCountsMarkup
+  label <- labelW $ unreadCountsMarkup $ hexColor fgColor
 
   box <- hBoxNew False 0
   containerAdd box img
   containerAdd box label
 
-  widgetBgColorWrap Black =<< clickable clickL clickM clickR box
+  widgetBgColorWrap bgColor =<< clickable clickL clickM clickR box
 
 getImage h = do
   tbRunning <- isRunning process
@@ -42,7 +42,7 @@ getImage h = do
   let img = if tbRunning then "thunderbird-on.png" else "thunderbird-off.png"
   return $ dir ++ "/" ++ img
 
-unreadCountsMarkup = do
+unreadCountsMarkup color = do
   home <- getEnv "HOME"
   let cmd = ["find", home ++ "/" ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
@@ -50,7 +50,7 @@ unreadCountsMarkup = do
 
   unreadCounts <- chompFile ucFile
   let markup = formatUnreadCounts $ parseUnreadCounts unreadCounts
-  return $ fg "green" markup
+  return $ fg color markup
 
 
 parseUnreadCounts :: String -> [(String, Integer)]
