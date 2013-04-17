@@ -7,8 +7,8 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 main = do
   let cfg = defaultTaffybarConfig {barHeight=38, widgetSpacing=5}
       font = "Inconsolata medium 13"
-      bgColor = hexColor $ RGB (0.2, 0.2, 0.4)
-      fgColor = hexColor $ RGB (0.6, 0.6, 1.0)
+      bgColor = hexColor $ RGB (0.247, 0.235, 0.427)
+      fgColor = hexColor $ RGB (0.659, 0.682, 0.969)
       textColor = hexColor $ Black
       sep = W.sepW Black 2
 
