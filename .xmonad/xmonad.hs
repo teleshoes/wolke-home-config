@@ -33,9 +33,6 @@ firefoxExec = "firefox"
 firefoxProcess = "firefox"
 firefoxClose = "Close Firefox"
 
-donthide xs x | x `elem` xs = "-" ++ x
-              | otherwise = ""
-
 main = xmonad . ewmh . pagerHints $ defaultConfig
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
