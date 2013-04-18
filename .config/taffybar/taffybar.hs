@@ -30,7 +30,7 @@ main = do
           , sep
           , W.fcrondynW
           , sep
-          , W.klompW
+          , W.widthScreenWrapW 0.159375 =<< W.klompW
           , W.volumeW
           , W.micW
           , W.pidginPipeW $ barHeight cfg
