@@ -3,9 +3,12 @@ import Color as C
 import System.Information.CPU (cpuLoad)
 import System.Information.Memory (parseMeminfo, memoryUsedRatio)
 import System.Taffybar.Widgets.PollingGraph (
-  pollingGraphNew, defaultGraphConfig, graphDataColors)
+  pollingGraphNew, defaultGraphConfig, graphDataColors,
+  graphDirection, GraphDirection(..))
 
-graphCfg colors = defaultGraphConfig { graphDataColors = colors }
+graphCfg colors = defaultGraphConfig { graphDataColors = colors
+                                     , graphDirection = RIGHT_TO_LEFT
+                                     }
 
 monitorCpuW = graph $ do
   (userLoad, systemLoad, totalLoad) <- cpuLoad
