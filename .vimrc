@@ -145,6 +145,8 @@ imap <F12> <ESC>"rpi
 vmap <F12>      "rp
 """"""
 
+command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
+
 """:Exec cmd arg arg ..
 " run external commands quietly
 command -nargs=1 Exec
