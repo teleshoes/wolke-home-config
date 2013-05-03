@@ -1,4 +1,4 @@
-module Klomp(klompW) where
+module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW)
 import Utils (padL, padR, isRunning, chompFile, readProc)
@@ -20,6 +20,7 @@ clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
 klompW = clickable clickL clickM clickR =<< labelW getMarkup
+main = putStrLn =<< getMarkup
 
 strLookup :: Ord a => a -> Map a String -> String
 strLookup k m = fromMaybe "" $ lookup k m
