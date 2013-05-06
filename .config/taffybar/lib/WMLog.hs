@@ -12,7 +12,7 @@ import Graphics.UI.Gtk (
 
 import System.Taffybar.Pager (
   PagerConfig(..), defaultPagerConfig,
-  colorize, shorten, wrap, escape, pagerNew)
+  markWs, colorize, shorten, wrap, escape, pagerNew)
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 
@@ -30,11 +30,11 @@ pagerConfig pixbufs cfg = defaultPagerConfig
                                "top"     -> fgbg "blue" "red" "TTT"
                                "full"    -> fgbg "blue" "red" "[ ]"
                                otherwise -> fgbg "blue" "red" "???"
-  , activeWorkspace  = bold . fgbg "black" "green" . escapeMarkup
-  , hiddenWorkspace  = bold . fg "orange" . escapeMarkup
-  , emptyWorkspace   = escapeMarkup
-  , visibleWorkspace = escapeMarkup
-  , urgentWorkspace  = bold . fgbg "red" "yellow" . escapeMarkup
+  , activeWorkspace  = markWs $ bold . fgbg "black" "green" . escapeMarkup
+  , hiddenWorkspace  = markWs $ bold . fg "orange" . escapeMarkup
+  , emptyWorkspace   = markWs $ escapeMarkup
+  , visibleWorkspace = markWs $ escapeMarkup
+  , urgentWorkspace  = markWs $ bold . fgbg "red" "yellow" . escapeMarkup
   , hideEmptyWs      = False
   , wsButtonSpacing  = 3
   , widgetSep        = ""
