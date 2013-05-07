@@ -18,18 +18,6 @@ import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
-data WMLogConfig = WMLogConfig { titleLength :: Int
-                               , wsImageHeight :: Int
-                               , titleRows :: Bool
-                               , stackWsTitle :: Bool
-                               , wsBorderColor :: Color
-                               }
-
-wsStyle cfg borderColor markupFct ws = do
-  let col = fromMaybe (wsBorderColor cfg) borderColor
-  postGUIAsync $ widgetBgColor col (wsContainer ws)
-  markWs (markupFct . escapeMarkup) ws
-
 pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "green" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
@@ -48,6 +36,18 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   , imageSelector    = selectImage pixbufs
   , wrapWsButton     = wrapBorder $ wsBorderColor cfg
   }
+
+data WMLogConfig = WMLogConfig { titleLength :: Int
+                               , wsImageHeight :: Int
+                               , titleRows :: Bool
+                               , stackWsTitle :: Bool
+                               , wsBorderColor :: Color
+                               }
+
+wsStyle cfg borderColor markupFct ws = do
+  let col = fromMaybe (wsBorderColor cfg) borderColor
+  postGUIAsync $ widgetBgColor col (wsContainer ws)
+  markWs (markupFct . escapeMarkup) ws
 
 wrapBorder color w = do
   f <- frameNew
