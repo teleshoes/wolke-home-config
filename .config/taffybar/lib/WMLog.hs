@@ -4,17 +4,19 @@ import Sep (sepW)
 import Utils (fg, bg, fgbg)
 import WorkspaceImages (loadImages, selectImage)
 
-import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
+import Data.Maybe (fromMaybe)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
-  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd)
+  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd,
+  postGUIAsync)
 
 import System.Taffybar.Pager (
-  PagerConfig(..), defaultPagerConfig,
+  PagerConfig(..), Workspace(..), defaultPagerConfig,
   markWs, colorize, shorten, wrap, escape, pagerNew)
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
+import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
 data WMLogConfig = WMLogConfig { titleLength :: Int
                                , wsImageHeight :: Int
@@ -23,6 +25,11 @@ data WMLogConfig = WMLogConfig { titleLength :: Int
                                , wsBorderColor :: Color
                                }
 
+wsStyle cfg borderColor markupFct ws = do
+  let col = fromMaybe (wsBorderColor cfg) borderColor
+  postGUIAsync $ widgetBgColor col (wsContainer ws)
+  markWs (markupFct . escapeMarkup) ws
+
 pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "green" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
@@ -30,11 +37,11 @@ pagerConfig pixbufs cfg = defaultPagerConfig
                                "top"     -> fgbg "blue" "red" "TTT"
                                "full"    -> fgbg "blue" "red" "[ ]"
                                otherwise -> fgbg "blue" "red" "???"
-  , activeWorkspace  = markWs $ bold . fgbg "black" "green" . escapeMarkup
-  , hiddenWorkspace  = markWs $ bold . fg "orange" . escapeMarkup
-  , emptyWorkspace   = markWs $ escapeMarkup
-  , visibleWorkspace = markWs $ escapeMarkup
-  , urgentWorkspace  = markWs $ bold . fgbg "red" "yellow" . escapeMarkup
+  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "black" "green"
+  , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
+  , emptyWorkspace   = wsStyle cfg Nothing $ id
+  , visibleWorkspace = wsStyle cfg Nothing $ id
+  , urgentWorkspace  = wsStyle cfg Nothing $ bold . fgbg "red" "yellow"
   , hideEmptyWs      = False
   , wsButtonSpacing  = 3
   , widgetSep        = ""
