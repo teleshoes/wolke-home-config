@@ -14,4 +14,4 @@ monitorCpuW = graph $ do
   (userLoad, systemLoad, totalLoad) <- cpuLoad
   return [totalLoad, systemLoad]
 
-graph = pollingGraphNew (graphCfg [rgba C.Green 1, rgba C.Purple 0.5]) 0.5
+graph = pollingGraphNew (graphCfg [rgba C.Green 1, rgba C.Purple 0.5]) 1
