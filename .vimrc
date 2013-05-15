@@ -65,7 +65,7 @@ nmap <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
 """"""
 
-"""Quit"""
+"""Next File"""
 nmap <C-N> :n<CR>
 imap <C-N> <Esc>:n<CR>
 """"""
