@@ -65,9 +65,11 @@ nmap <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
 """"""
 
-"""Next File"""
+"""Next/Prev File"""
 nmap <C-N> :n<CR>
 imap <C-N> <Esc>:n<CR>
+nmap <C-P> :N<CR>
+imap <C-P> <Esc>:N<CR>
 """"""
 
 """delete/paste"""
