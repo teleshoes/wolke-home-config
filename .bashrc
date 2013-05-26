@@ -6,6 +6,7 @@ shopt -s dotglob
 export HISTSIZE=1000000
 export HISTCONTROL=ignoredups # don't put duplicate lines in the history
 export HISTCONTROL=ignoreboth # ... and ignore same sucessive entries.
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
 
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 [ -x /usr/bin/lesspipe ] && eval "$(lesspipe)" #less on binary files, e.g. tars
