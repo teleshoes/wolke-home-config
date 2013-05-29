@@ -32,6 +32,7 @@ prependPath "$HOME/bin"
 prependPath "$HOME/bin/phon"
 
 export HD='/media/Charybdis/zuserm'
+export TEXINPUTS=".:"
 
 alias ls='ls --color=auto'
 alias l='ls --group-directories-first'
@@ -61,8 +62,7 @@ function spawn { "$@" & disown ; }
 function spawnex { "$@" & disown && exit 0 ; }
 complete -F _root_command spawn spawnex
 
-alias evince='spawn evince'
-
+alias evi='spawn evince'
 
 if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty7" ]; then
   exec startx
