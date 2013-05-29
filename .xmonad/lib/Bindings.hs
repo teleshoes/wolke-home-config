@@ -140,7 +140,7 @@ workspaceKeys conf = "Workspaces" @@ do
     "Go to"         @@ do
         "Next/Prev" @@  do mCA   xK_Right## viewNext
                            mCA   xK_Left ## viewPrev
-        "<N>"           @@[mA    n       ## greedyView w | (n, w) <- nws]
+        "<N>"           @@[mW    n       ## greedyView w | (n, w) <- nws]
     "Shift Window"  @@ do
         "Next/Prev" @@  do mAS   xK_Right## shiftNext
                            mAS   xK_Left ## shiftPrev
@@ -150,9 +150,9 @@ workspaceKeys conf = "Workspaces" @@ do
                            mCAS  xK_Left ## viewPrev . shiftPrev
         "<N>"           @@[mCAS  n       ## follow w   | (n, w) <- nws]
     "Screens"       @@ do
-        "View <N>"      @@[mW    n       #  screen s view   | (n, s) <- nss]
-        "Shift <N>"     @@[mWS   n       #  screen s shift  | (n, s) <- nss]
-        "Follow <N>"    @@[mCWS  n       #  screen s follow | (n, s) <- nss]
+        "View <N>"      @@[mAW   n       #  screen s view   | (n, s) <- nss]
+        "Shift <N>"     @@[mAWS  n       #  screen s shift  | (n, s) <- nss]
+        "Follow <N>"    @@[mCAWS n       #  screen s follow | (n, s) <- nss]
     "Swap Next W/D" @@  do mCA   xK_Tab  ## flip swapWS_W <*> next . currentTag
                            mCAS  xK_Tab  ## flip swapWS_D <*> next . currentTag
   where
