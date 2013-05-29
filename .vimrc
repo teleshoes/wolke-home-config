@@ -19,6 +19,7 @@ au Syntax haxe source ~/.vim/haxe/haxe.vim
 map <F3> :w<CR>
 imap <F3> <ESC>:w<CR>li
 map <F5> :1wincmd<space>w<CR>:w<CR>:RUN<CR>
+imap <F5> <ESC>:1wincmd<space>w<CR>:w<CR>:RUN<CR>li
 map <C-y> "+y
 map <C-p> "+p
 map , @:
