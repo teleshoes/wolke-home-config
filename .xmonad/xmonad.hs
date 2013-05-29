@@ -7,7 +7,8 @@ import StaticAssert
 import XMonad hiding ( (|||) )
 import XMonad.Layout.LayoutCombinators ( (|||), JumpToLayout(..))
 
-import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..))
+import XMonad.Hooks.EwmhDesktops (ewmh)
+import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Util.Run (safeSpawn)
@@ -15,6 +16,8 @@ import XMonad.Util.Types (Direction2D(U,D,L,R))
 import System.Environment.UTF8 (getEnv)
 
 import qualified XMonad.StackSet as Stk
+
+import System.Taffybar.Hooks.PagerHints (pagerHints)
 
 import Control.Applicative
 import Control.Concurrent (threadDelay)
@@ -27,23 +30,21 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     pretty mouseOverlaps
     pretty keyOverlaps
 
-main = xmonad =<< myConfig <$> getEnv "HOME" <*> spawnDzens 
-
-myConfig home dzens = defaultConfig
+main = xmonad . ewmh . pagerHints $ defaultConfig
     { focusFollowsMouse  = False
     , normalBorderColor  = "#dddddd"
     , focusedBorderColor = "#ff0000"
     , borderWidth        = 2
 
-    , logHook            = myDzenLogHook home workspaceNames dzens
     , startupHook        = myStartupHook
     , layoutHook         = myLayoutHook
-    , manageHook         = myManageHook
+    , manageHook         = myManageHook <+> manageDocks
 
     , workspaces         = workspaceNames
     , keys               = myKeyBindings
     , mouseBindings      = myMouseBindings
 
+    -- , logHook            =
     -- , terminal           =
     -- , handleEventHook    =
     -- , modMask            =
