@@ -1,12 +1,15 @@
+sudo net-mon stop
+sudo wauto &
+
+sudo mnt --other -m Charybdis
+
 Esetroot -scale "$HOME/Pictures/Backgrounds/jamaicadyer-background.jpg"
 xsetroot -cursor_name left_ptr
-xrdb $HOME/.Xresources
+
+for x in $HOME/.Xresources-* ; do xrdb -merge "$x"; done
 
 setxkbmap -option terminate:ctrl_alt_bksp
 setxkbmap -option caps:escape
-
-#tap to nipple click
-#echo -n 1 | sudo tee /sys/devices/platform/i8042/serio1/serio2/press_to_select
 
 tpDev='SynPS/2 Synaptics TouchPad'
 xinput set-prop "$tpDev" "Synaptics Tap Time" 0
@@ -27,14 +30,7 @@ xset dpms 0 0 0
 xset b off
 
 pulseaudio --start
+sudo bluetooth off &
 
-sudo mnt --other
-wauto
-
-#sudo bluetooth off
-
-exec \
-  dbus-launch --exit-with-session \
-  ck-launch-session \
-  xmonad
-
+taffybar &
+exec xmonad
