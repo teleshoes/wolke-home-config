@@ -1,0 +1,26 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use ScriptScript;
+
+sub main(@) {
+    getRoot @_;
+
+    my ($which) = @_;
+
+    my $pred = defined $which ? sub {/$which/} : sub {1};
+
+    if (not defined $which) {
+        run qw(apt-get update);
+        run qw(apt-get upgrade);
+    }
+
+    my %packages = readConfDir "../apt-packages";
+    for my $group (sort grep {&$pred($_)} keys %packages) {
+        print "### installing $group\n";
+        run qw(apt-get -y install), @{$packages{$group}};
+    }
+}
+
+main @ARGV;
+
