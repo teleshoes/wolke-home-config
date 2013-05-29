@@ -1,0 +1,21 @@
+#!/bin/bash
+
+TEX="$1"
+NAME=`basename "$TEX" .tex`
+PDF="$NAME".pdf
+
+pdflatex -interaction nonstopmode "$TEX" &> /dev/null
+function watch {
+    while inotifywait -e modify -e move_self "$TEX" ; do
+        pdflatex -interaction nonstopmode "$TEX"
+    done
+}
+watch &> /dev/null &
+evince "$PDF" &> /dev/null &
+
+vim "$TEX"
+
+kill %1
+kill %2
+rm "$NAME".{log,aux}
+

@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Std;
+
+my ($sort, $find, $path, $player, $clear);
+if (-d "$ENV{HOME}/MyDocs") { # assume phone
+    $sort = "gsort";
+    $find = "gfind";
+    $path = "/media/mmc1";
+    $player = "mplayer -msgcolor -msglevel cplayer=0:decaudio=0:ao=0 -playlist";
+    $clear = "clear";
+} else { # assume laptop
+    $sort = "sort";
+    $find = "find";
+    $path = "$ENV{HOME}/Music";
+    $player = "mplayer -playlist";
+    $clear = "";
+}
+
+my $list = ".tmplist";
+my $editor = "vim";
+my $formats = "264|26l|302|3g2|3gp|ac3|ape|apl|asf|asx|avi|avs|cdg|divx|dxa|eac3|fla|flac|flv|gxf|it|m2v|m3u|m4a|mac|matroska|mid|midi|mj2|mkv|mod|mov|mp3|mp4|mpc|mpc8|mpe|mpeg|mpg|mxf|nsa|nsv|nut|nuv|ogg|ogm|pls|ra|rm|rmvb|s3m|str|swf|viv|vivo|vob|vqf|w64|wav|webm|wma|wmv|wv|xm|y4m";
+my $tests = "-type f -regextype posix-egrep -regex '.*\.($formats)'";
+
+my $ARGP = @ARGV; # save total number of arguments
+our ($opt_l, $opt_e, $opt_r, $opt_t, $opt_w, $opt_p); 
+getopts('lert:w:p:');
+
+# -l "local" do not recurse
+my $local = $opt_l ? "-maxdepth 1" : "";
+# -r "random" note: on if flag or no args
+my $tmpRList = "$list-" . time(); 
+my $random = ($opt_r || !$ARGP) ? 
+    "$sort -R $list > $tmpRList; mv $tmpRList $list" 
+    : "";
+# -e "edit" open generated playlist in vim before playing
+my $edit = $opt_e ? "$editor $list" : "";
+# -t "tests" gets passes directly to find
+$tests .= $opt_t || "";
+# -w "word" finds songs with pattern in the name
+$tests .= $opt_w ? " -iname \"*$opt_w*\"" : "";
+# -p "path" finds songs with pattern anywhere in the path
+$tests .= $opt_p ? " -iwholename \"*$opt_p*\"" : "";
+# path defaults to sd card or ~/Music
+$path = (@ARGV!=0) ? join " ", @ARGV : $path;
+
+my $listcmd = "$find '$path' $local $tests";
+
+system "$listcmd | $sort > $list";
+system "$random";
+system "$edit";
+system "$player $list";
+system "rm $list";
+system "$clear";

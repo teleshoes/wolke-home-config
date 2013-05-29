@@ -1,0 +1,42 @@
+#!/bin/bash
+
+TIME=${1:-7:00}
+SONG=${2:-"$HOME/Music/LBA2 Soundtrack"}
+VOLUME=${3:-80}
+
+if [ `echo $TIME | egrep -o ^[0-9]+:[0-9]+:[0-9]+$` ] ; then
+    TH=`echo $TIME | egrep -o ^[0-9]+: | egrep -o [0-9]+`
+    TM=`echo $TIME | egrep -o :[0-9]+: | egrep -o [0-9]+`
+    TS=`echo $TIME | egrep -o :[0-9]+$ | egrep -o [0-9]+`
+elif [ `echo $TIME | egrep -o ^[0-9]+:[0-9]+$` ] ; then
+    TH=`echo $TIME | egrep -o ^[0-9]+: | egrep -o [0-9]+`
+    TM=`echo $TIME | egrep -o :[0-9]+$ | egrep -o [0-9]+`
+    TS=0
+elif [ `echo $TIME | egrep -o ^[0-9]+$` ] ; then
+    TH=`echo $TIME | egrep -o ^[0-9]+$ | egrep -o [0-9]+`
+    TM=0
+    TS=0
+else 
+    echo "error: time invalid" >&2
+    exit 1
+fi
+
+clear
+echo "alarmpl $TIME '$SONG' $VOLUME"
+
+TARGET=$(( TH*3600 + TM*60 + TS ))
+
+H=$(date +%-H); M=$(date +%-M); S=$(date +%-S)
+TIME=$(( H*3600 + $M*60 + $S ))
+WAIT=$(( TARGET - TIME ))
+
+if [ $WAIT -lt 0 ]; then
+    WAIT=$(( WAIT + 86400 ))
+fi
+
+sleep $WAIT
+
+pulse-vol speaker unmute
+pulse-vol "$VOLUME"
+p "$SONG" 
+

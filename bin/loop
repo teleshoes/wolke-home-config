@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 -h|--help
+     print this usage
+  $0 [-s|-f] [-d] [DELAY] COMMAND
+     run 'COMMAND' with shell interpolation repeatedly
+  $0 [-s|-f] [-d] [DELAY] EXEC [ARG ARG ..]
+     run 'EXEC ARG ARG ..' without interpolation repeatedly
+     note that normal shell interpolation still happens when running $0
+  e.g.:
+    $0 'ls *'
+      while [ 1 ]; do sh -c 'ls *'; sleep 1; done
+      {* is interpolated each time}
+    $0 ls *
+      x=\$(echo *); while [ 1 ]; do ls \$x; sleep 1; done
+      {* is interpolated once, up front}
+
+  DELAY how long to sleep between commands
+        defaults to 1, <= 0 means run without sleeping
+  -d    run 'date' before each invokation
+  -s    run until success
+        do not rerun 'command' after a zero exit code
+  -f    run until failure
+           do not rerun 'command' after a non-zero exit code
+";
+
+sub runOrDie(@){
+  system @_;
+  exit $? if $? != 0;
+}
+
+sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+  my $untilSuccess = 0;
+  my $untilFailure = 0;
+  if(@_ > 0 and $_[0] =~ /^(-s|-f)$/){
+    my $arg = shift;
+    $untilSuccess = 1 if $arg eq '-s';
+    $untilFailure = 1 if $arg eq '-f';
+  }
+
+  die $usage if @_ == 0;
+  my $printDate = 0;
+  $printDate = shift if $_[0] =~ /^-d$/;
+ 
+  die $usage if @_ == 0;
+  my $delay = 1;
+  $delay = shift if $_[0] =~ /^\d+(?:\.\d+)?$/;
+
+  die $usage if @_ == 0;
+  while(1){
+    runOrDie "date" if $printDate;
+    system @_;
+    exit $? if $? == 0 and $untilSuccess;
+    exit $? if $? != 0 and $untilFailure;
+    runOrDie "sleep", $delay if $delay >= 0;
+  }
+}
+
+&main(@ARGV);
