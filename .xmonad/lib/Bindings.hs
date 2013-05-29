@@ -45,10 +45,10 @@ mouseBinds conf = "Mouse Bindings" @@ do
     select w = focus w >> windows shiftMaster >> return w
 
 keyBinds conf = "Key Bindings" @@ mapM_ ($ conf) 
-    [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
+    [xmoKeys, shortcuts, musicKeys, windowKeys, layoutKeys, workspaceKeys]
 
 xmoKeys conf = "XMonad" @@ do
-    "Restart"   @@ mCA xK_Home #! "xmonad --restart"
+    "Restart"   @@ mCA xK_Home #! "taffybar-restart"
     "Recompile" @@ mCA xK_End  #! "xmonad --recompile; xmonad --restart"
     "Bindings"  @@ mCA xK_Ins  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
@@ -88,6 +88,14 @@ shortcuts conf = "Shortcuts" @@ do
         "Pidgin"        @@ mCA   xK_p    #! "pidgin" 
         "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "FBReader"      @@ mCA   xK_b    #! "fbreader"
+
+musicKeys conf = "Music" @@ do
+    "klomp"         @@     mCA   xK_m    #! "term klomp"
+    "edit list"     @@     mCS   xK_m    #! "term vim .klomplist"
+    "play/pause"    @@     mC   (xK ' ') #! "klomp-cmd pause"
+    "prev"          @@     mC   (xK ',') #! "klomp-cmd prev"
+    "next"          @@     mC   (xK '.') #! "klomp-cmd next"
+
 
 windowKeys conf = "Windows" @@ do
     "Current"       @@ do
