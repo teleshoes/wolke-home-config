@@ -2,24 +2,37 @@
 use strict;
 use warnings;
 use ScriptScript;
+ScriptScript::setOpts {runCommand => 0};
+
+sub addSrcs();
 
 sub main(@) {
     getRoot @_;
 
-    my ($which) = @_;
+    my $which = shift || "";
 
-    my $pred = defined $which ? sub {/$which/} : sub {1};
+    addSrcs;
 
-    if (not defined $which) {
-        run qw(apt-get update);
-        run qw(apt-get upgrade);
-    }
+    run qw(apt-get update);
 
     my %packages = readConfDir "../apt-packages";
-    for my $group (sort grep {&$pred($_)} keys %packages) {
+    for my $group (sort grep {/$which/} keys %packages) {
         print "### installing $group\n";
-        run qw(apt-get -y install), @{$packages{$group}};
+        my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
+        run qw(apt-get -y install), @pkgs;
     }
+}
+
+sub addSrcsCnts(@) {
+    (@_, grep {my $l = $_; not grep {/$l/} @_}
+         map {my $l = $_; $l =~ s/^deb /deb-src /; $l}
+         @_)
+}
+
+sub addSrcs() {
+    my @srcsorig = readFile "/etc/apt/sources.list";
+    my @srcs = addSrcsCnts @srcsorig;
+    writeFile "/etc/apt/sources.list", join '', @srcs unless @srcs ~~ @srcsorig;
 }
 
 main @ARGV;
