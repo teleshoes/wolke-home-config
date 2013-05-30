@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
-import Bindings --(myKeyBindings, myMouseBindings, workspaceNames)
-import Bindings.Writer (bwFindOverlap)
-import Dzen (spawnHookedDzens, spawnUnhookedDzens, myDzenLogHook)
+import Bindings
+import Bindings.Writer
 import StaticAssert
 
 import XMonad hiding ( (|||) )
@@ -50,13 +49,7 @@ main = xmonad . ewmh . pagerHints $ defaultConfig
     -- , modMask            =
     }
 
-spawnDzens = do
-    safeSpawn "workspace-image" ("init":workspaceNames)
-    spawn "killall dzen2 2>/dev/null"
-    spawnUnhookedDzens
-    spawnHookedDzens
-
-myStartupHook = return ()--spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
+myStartupHook = return ()
 
 myLayoutHook = avoidStruts . smartBorders 
              $   named "left" (Tall 1 incr ratio)
