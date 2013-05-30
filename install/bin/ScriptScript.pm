@@ -142,7 +142,7 @@ sub editFile($$) {
 
     my $read  = readFile $file;
     my $write = &$edit($read);
-    # TODO rather than using writeFile, and and apply a diff
+    # TODO rather than using writeFile, make and apply a diff
     writeFile $file, $write unless $write eq $read;
 }
 
