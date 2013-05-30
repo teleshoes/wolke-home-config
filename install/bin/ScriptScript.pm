@@ -5,7 +5,7 @@ use String::ShellQuote;
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
-our @EXPORT = qw( run tryrun 
+our @EXPORT = qw( run tryrun
                   shell tryshell
                   cd
                   writeFile tryWriteFile
@@ -54,7 +54,7 @@ sub runProto($$) {
             } else {
                 waitpid $pid, 0;
             }
-            deathWithDishonor if $? != 0 and $dieOnError;         
+            deathWithDishonor if $? != 0 and $dieOnError;
         } else {
             open(STDERR, ">&STDOUT");
             exec $cmd or exit 1;
@@ -150,7 +150,7 @@ sub readAllFiles($) {
     my ($dir) = @_;
 
     my @filenames = split "\n", `ls -A1 $dir`;
-    
+
     my %files = ();
     $files{$_} = readFile "$dir/$_" for @filenames;
     %files
@@ -182,7 +182,7 @@ sub getUsername() {
 sub guessBackupDir() {
     my $user = getUsername;
     my @dirs = sort { (stat($b))[9] <=> (stat($a))[9] }
-               grep { -d $_} 
+               grep { -d $_}
                map {"/media/$_/$user"}
                split "\n", `ls -1 /media`;
     $dirs[0]
