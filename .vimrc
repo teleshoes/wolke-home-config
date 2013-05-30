@@ -110,8 +110,8 @@ imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
 """"""
 
 """RUN"""
-nmap <F5>      :w<CR>:RUN<CR>
-imap <F5> <Esc>:w<CR>:RUN<CR>li
+nmap <F5> :1wincmd<space>w<CR>:w<CR>:RUN<CR>
+imap <F5> <ESC>:1wincmd<space>w<CR>:w<CR>:RUN<CR>li
 
 nmap <F6>      :w<CR>:RUN<Space>
 imap <F6> <Esc>:w<CR>:RUN<Space>li
@@ -171,42 +171,32 @@ function Wc(msg, maybeQuit)
     endif
 endfunction
 
+let g:RUNwin = 1
+let g:RUNsize = 5
 command -nargs=* RUN call RUN(<f-args>)
 function RUN(...)
-    perldo `rm -rf ~/.CONSOLE.swp`
     1wincmd w
     let interpreter = strpart(getline(1),2)
     let abspath = expand("%:p")
     let arguments = join(a:000, " ")
-    let runcmd = interpreter . ' ' . abspath . ' ' . arguments
-    
-    let sep = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    
-    let slurp = "perl -0777 -e 'print qq(" . sep . ") . <>;'"
-
-    let encode = "perldo s/&/&amp;/g; s/;/&semi;/g; s/\n/&nl;/g;"
-    let decode = "%s/&nl;/\r/ge | %s/&semi;/;/ge | %s/&amp;/&/ge"
-
-    let format = '%s/' .
-               \       '\(\_.*\)' . sep . '\(\_.*\)' .
-               \   '/' .
-               \       '\2' . sep . '\r' . '\1' .
-               \   '/'
-
+    let call = interpreter . " " . abspath . " " . arguments
+    let perlexp = "print qq(\n) . q(~)x64 . qq(\n) . <>;"
     if winnr("$") == 1
-        below new ~/.CONSOLE
+        below new
     endif
     2wincmd w
-
-    %s/\_.*/-temp-/g
-
-    execute 'perldo $_=`(' . runcmd . ' | ' . slurp . ') 2>&1 `;'
-    
-    execute encode
-    execute decode
-    execute format
-
-    normal 1G
-    1wincmd w
+    execute "resize " . g:RUNsize
+    %s/\_.*/-/g
+    execute "perldo $_=`(".call." | perl -0777 -e '".perlexp."')2>&1`;"
+    perldo s/&/&a!/g; s/!/&e!/g; s/\n/&nl!/g;
+    %s/&nl!/\r/ge | %s/&e!/!/ge | %s/&a!/&/ge
+    %s/\(\_.*\)\n\(\~\{64}\n\)\(\_.*\)\n/\3\2\1/
+    execute g:RUNwin . "wincmd w"
+endfunction
+command -nargs=* RUNP call RUNP(<f-args>)
+function RUNP(win, size, ...)
+    let g:RUNwin = a:win
+    let g:RUNsize = a:size
+    call RUN(a:000)
 endfunction
 
