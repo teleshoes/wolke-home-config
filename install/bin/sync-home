@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Spec::Unix 'rel2abs';
+use ScriptScript;
+
+sub main(@) {
+    my $backupDir = shift || guessBackupDir;
+
+    my @filesToKeep = readConf "../home-desc/ignore");
+    my @filesToSync = readConf "../home-desc/sinc");
+    my @filesToLink = readConf "../home-desc/link");
+    
+    ### remove files we don't want to sync or keep
+    cd $ENV{HOME};
+    my @files = split "\n", `ls -A1`;
+    for my $f (@files) {
+        if(not grep {$f eq $_} (@filesToSync, @filesToKeep)) {
+            run "rm", "-rf", $f;
+        }
+    }
+
+    ### sync files
+    cd $backupDir
+    tryrun "rsync", "-avc", @filesToSync, $ENV{HOME};
+
+    ### create links
+    my $targetDir = File::Spec::Unix->rel2abs($backupDir);
+    run "ln", "-s", "$targetDir/$_", "$ENV{HOME}/$_" for @filesToLink;
+}
+
+main @ARGV;
+

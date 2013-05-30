@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use ScriptScript;
+
+sub userfile($) {
+    my ($user) = @_;
+    join "\n"
+      , "Defaults\tenv_keep += HOME"
+      , "$user\tALL=(ALL) ALL"
+      , ""
+}
+
+sub nopasswdFileCnts($@) {
+    my ($user, @conf) = @_;
+    join "\n", ((map {"$user\tALL=(ALL) NOPASSWD: $_"} @conf), "")
+}
+
+sub main(@) {
+    getRoot @_;
+
+    my $user = getUsername;
+
+    tryshell "rm /etc/sudoers.d/*";
+    
+    writeFile "/etc/sudoers.d/$user", userfile $user;
+
+    my %confs = readConfDir "../sudo-nopasswd";
+    for my $sufix (sort keys %confs) {
+        my $cnts = nopasswdFileCnts $user, @{$confs{$sufix}};
+        writeFile "/etc/sudoers.d/$user-$sufix", "$cnts";
+    }
+
+    shell "chmod 440 /etc/sudoers.d/*";
+}
+
+main @ARGV;
+

@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use ScriptScript;
+#ScriptScript::setOpts {runCommand => 0};
+
+sub addSrcs($);
+sub doInstalls($);
+
+sub main(@) {
+    getRoot @_;
+
+    my $which = shift || "";
+
+    editFile "/etc/apt/sources.list", \&addSrcs;
+    run qw(apt-get update);
+    doInstalls $which;
+}
+
+sub addSrcs($) {
+    my @lines = split "\n", shift;
+    join "\n", (@lines, grep {my $l = $_; not grep {/$l/} @lines}
+                        map  {my $l = $_; $l =~ s/^deb /deb-src /; $l}
+                        @lines), "", ""
+}
+
+sub doInstalls($) {
+    my ($which) = @_;
+
+    my %packages = readConfDir "../apt-packages";
+    for my $group (sort grep {/$which/} keys %packages) {
+        print "### installing $group\n";
+        my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
+        run qw(apt-get -y install), @pkgs;
+    }
+}
+
+main @ARGV;
+

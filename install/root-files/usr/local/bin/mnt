@@ -1,0 +1,405 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $configFile = '/etc/default/mnt';
+
+my $mountDir = '/media';
+my $delay = 1;
+my %devTypes = (
+  usb => "true",
+  card => "true",
+  other => "false",
+);
+my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
+
+sub runCommand($$$);
+sub getMntParts($);
+sub getInfo($);
+sub getUnmountedNames($);
+sub mount($);
+sub unmount($);
+sub blkid();
+sub udevadm($);
+sub partedSize($);
+sub getName($);
+sub getMntConfig($$);
+sub isAllowedFS($);
+sub isMntDevice($$);
+sub run(@);
+sub runFail(@);
+sub runFailEcho(@);
+
+sub usage(){
+  my $ex = `basename $0`;
+  chomp $ex;
+  my $okTypes = '';
+  for my $type(sort keys %devTypes){
+    my $var = $devEnvVars{$type};
+    $okTypes .= "\n    $var {default '$devTypes{$type}'}";
+  }
+  return "
+  Mounts/unmounts partitions on different types of storage devices.
+  Types of storage devices are controlled with a config file,
+    environment variables, and command line flags.
+
+  Environment variables {or config file settings}:$okTypes
+    'true' includes, 'false' discludes, anything else does the default
+
+  If SUDO_UID and/or SUDO_GID environment variables are present,
+    mount all fat, msdos and ntfs partitions with uid and/or gid opts.
+
+  '$ex' calls: udevadm, blkid, parted, mount, umount, lsof, fuser
+
+  ==========
+  $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
+             default is \"-m\"
+  GET_CMD:
+    -g  for all partitions, print 'NAME size {mounted} dev'
+    -n  print 'NAME' of all UNMOUNTED partitions
+
+  ACTION_CMD:
+    -m  mount all partitions {or just NAME} at /media
+        mount point is the same as NAME
+    -u  unmount all partitions {or just NAME}
+    -l  check every ${delay}s until any partition {or just NAME} is available
+          and unmounted, and then mount all partitions
+
+  NAME:
+    the partition label if blkid finds one
+    OR <devname>  or  <devname>_<size>GiB
+       if the device is /dev/<devname> and <devname> is alphanumeric
+       <size> is the size in GiB, truncated to tenths, if udev reports it
+    OR uuid otherwise
+
+  OPTS:
+    --usb --no-usb
+    --card --no-card
+    --other --no-other
+      include or disclude devices of the indicated type.
+      overrides default values, environment vars and $configFile
+      latest argument in the command line takes precedence
+  ==========
+"
+};
+
+sub main(@){
+  my %devOpts;
+  while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
+    my $neg = defined $1;
+    $devOpts{$2} = $neg ? "false" : "true";
+    shift;
+  }
+
+  my $cmd = shift() || "-m";
+  die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
+  my $name = shift if $cmd =~ /^(-m|-u|-l)$/;
+
+  die usage if @_ > 0;
+
+  runCommand $cmd, $name, \%devOpts;
+}
+
+sub runCommand($$$){
+  my $cmd = shift;
+  my $name = shift;
+  my %devOpts = %{shift()};
+
+  my @mntParts = getMntParts(\%devOpts);
+
+  if($cmd eq '-m'){
+    if(defined $name){
+      my $selectedPart = getSelectedPart(\@mntParts, $name);
+      die "already mounted\n" if isMounted(${$selectedPart}{dev});
+      mount $selectedPart;
+    }else{
+      my @unmounted = grep {!isMounted(${$_}{dev})} @mntParts;
+      mount $_ foreach @unmounted;
+    }
+  }elsif($cmd eq '-u'){
+    if(defined $name){
+      my $selectedPart = getSelectedPart(\@mntParts, $name);
+      die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
+      unmount $selectedPart;
+    }else{
+      my @mounted = grep {isMounted(${$_}{dev})} @mntParts;
+      unmount $_ foreach @mounted;
+    }
+  }elsif($cmd eq '-g'){
+    print "$_\n" foreach getInfo \@mntParts;
+  }elsif($cmd eq '-n'){
+    print "$_\n" foreach getUnmountedNames \@mntParts;
+  }elsif($cmd eq '-l'){
+    my @names = getUnmountedNames \@mntParts;
+    @names = grep {$_ eq $name} @names if defined $name;
+    if(defined $name){
+      print "waiting for $name...\n";
+    }else{
+      print "waiting for unmounted partitions...\n";
+    }
+    if(@names == 0){
+      sleep $delay;
+      runCommand $cmd, $name, \%devOpts;
+    }else{
+      print "partition(s) found, mounting\n";
+      for my $name(@names){
+        runCommand "-m", $name, \%devOpts;
+      }
+    }
+  }
+}
+
+sub getMntParts($){
+  my %devOpts = %{shift()};
+  return grep {isAllowedFS($_) and isMntDevice($_, \%devOpts)} blkid();
+}
+sub getSelectedPart($$){
+  my @mntParts = @{shift()};
+  my $name = shift;
+
+  foreach(@mntParts){
+    if(${$_}{name} eq $name){
+      return $_;
+    }
+  }
+  die "Unknown NAME $name; try '$0 -g'\n";
+}
+
+sub getInfo($){
+  my @mntParts = @{shift()};
+  my @info;
+  foreach my $p (@mntParts){
+    my $name = "$$p{name}";
+    my $size = " $$p{sizeGiB}GiB" if defined $$p{sizeGiB};
+    my $mounted = isMounted($$p{dev}) ? ' mounted' : ' unmounted';
+    my $dev = " $$p{dev}";
+    push @info, "$name$size$mounted$dev";
+  }
+  return @info;
+}
+
+sub getUnmountedNames($){
+  my @mntParts = @{shift()};
+  my @names;
+  foreach my $p (@mntParts){
+    if(not isMounted($$p{dev})){
+      push @names, "$$p{name}";
+    }
+  }
+  return @names;
+}
+
+sub isMounted($){
+  my $dev = shift;
+  my $mountOut = `mount`;
+  if($mountOut =~ /^$dev on /m){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub isMountedOn($$){
+  my ($dev, $mountPoint) = @_;
+  my $mountOut = `mount`;
+  if($mountOut =~ /^$dev on $mountPoint /m){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub mount($){
+  my %p = %{shift()};
+  my $mountPoint = "$mountDir/$p{name}";
+  if(isMountedOn $p{dev}, $mountPoint){
+    print STDERR "$p{dev} already mounted\n";
+    return;
+  }
+  
+  run "rmdir $mountPoint 2>/dev/null";
+  if(-e $mountPoint){
+    die "$mountPoint exists and is not removable with rmdir";
+  }
+  runFail "mkdir", $mountPoint;
+
+  my @opts;
+  if($p{type} =~ /fat|msdos|ntfs/i){
+    push @opts, "uid=$ENV{SUDO_UID}" if defined $ENV{SUDO_UID};
+    push @opts, "gid=$ENV{SUDO_GID}" if defined $ENV{SUDO_GID};
+  }
+  my @optArgs = ("-o", join ",", @opts) if @opts > 0;
+
+  runFailEcho "mount", "-t", $p{type}, $p{dev}, $mountPoint, @optArgs;
+  if(isMountedOn $p{dev}, $mountPoint){
+    print "  OK\n";
+  }else{
+    print STDERR "$p{dev} not mounted on $mountPoint, according to mtab";
+    return;
+  }
+}
+
+sub unmount($){
+  my %p = %{shift()};
+  my $mountPoint = "$mountDir/$p{name}";
+  if(!isMountedOn $p{dev}, $mountPoint){
+    print STDERR "$p{dev} not mounted\n";
+    return;
+  }
+  run "lsof", $mountPoint;
+  run "fuser", $mountPoint;
+  runFailEcho "umount", $mountPoint;
+  run "rmdir", $mountPoint if -e $mountPoint;
+  runFailEcho "rmdir", $mountPoint if -e $mountPoint;
+  if(not -e $mountPoint){
+    print "  OK\n";
+  }else{
+    print STDERR "$mountPoint still exists";
+    return;
+  }
+}
+
+sub blkid(){
+  my @partitions;
+  for my $line(`blkid`){
+    my %p;
+    $p{dev} = $1 if $line =~ /^(.*):/;
+    $p{label} = $1 if $line =~ /LABEL="([^"]+)"/;
+    $p{uuid} = $1 if $line =~ /UUID="([^"]+)"/;
+    $p{type} = $1 if $line =~ /TYPE="([^"]+)"/;
+
+    $p{udev} = udevadm $p{dev};
+
+    my $size = $p{udev}{UDISKS_PARTITION_SIZE};
+    $size = partedSize $p{dev} if not defined $size;
+
+    if(defined $size and $size =~ /^\d+$/){
+      $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
+    }
+
+    $p{name} = getName \%p;
+     
+    push @partitions, \%p;
+  }
+  return @partitions;
+}
+
+sub udevadm($){
+  my $dev = shift;
+  my %udev;
+  for my $line(`udevadm info --query=property --name=$dev`){
+    if($line =~ /^([a-z0-9_\-]+)=(.*)$/i){
+      $udev{$1} = $2;
+    }
+  }
+  return \%udev;
+}
+
+sub partedSize($){
+  my $dev = shift;
+  my $partedOut = `parted -m $dev unit B print`;
+  if($partedOut =~ /^
+    BYT
+    ;\n
+      ([^:]*) :           #dev
+      ([^:]*) :           #size
+      ([^:]*) :           #connection type, e.g.: scsi
+      ([^:]*) : ([^:]*) : #logical & physical sector size
+      ([^:]*) :           #partition table type
+      ([^:]*)             #model name
+    ;\n/xs){
+    my $size = $2;
+    if($size =~ /^(\d+)B$/){
+      return $1;
+    }
+  }
+}
+
+sub getName($){
+  my %p = %{shift()};
+
+  if(defined $p{label} and length $p{label} > 0){
+    return $p{label};
+  }
+
+  my $dev = $p{dev};
+  $dev = '' if not defined $dev;
+  if($dev =~ /^\/dev\/([a-z0-9]+)$/i){
+    my $devName = $1;
+    if(defined $p{sizeGiB}){
+      return "${devName}_$p{sizeGiB}GiB";
+    }else{
+      return $devName;
+    }
+  }
+
+  return $p{uuid};
+}
+
+sub getMntConfig($$){
+  my $type = shift;
+  my %devOpts = %{shift()};
+  die "Unknown device type: $type" if not defined $devTypes{$type};
+
+  if(defined $devOpts{$type}){
+    return $devOpts{$type};
+  }
+
+  my $varName = $devEnvVars{$type};
+  my $val;
+  if(defined $ENV{$varName}){
+    $val = $ENV{$varName};
+  }elsif(-e $configFile){
+    my $line = `cat $configFile | grep $varName`;
+    if($line =~ /^\s*$varName\s*=\s*(.*?)\s*$/){
+      $val = $1;
+    }
+  }
+  $val = '' if not defined $val;
+  if($val =~ /^true|false$/){
+    return $val;
+  }else{
+    return $devTypes{$type};
+  }
+}
+
+sub isAllowedFS($){
+  my $p = shift;
+  if($$p{type} =~ /swap/){
+    return 0;
+  }else{
+    return 1;
+  }
+}
+sub isMntDevice($$){
+  my %udev = %{${shift()}{udev}};
+  my %devOpts = %{shift()};
+  my $idPath = $udev{ID_PATH};
+  my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
+  my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
+
+  my $type;
+  if(defined $idPath and $idPath =~ /-usb-/){
+    $type = 'usb';
+  }elsif($flashSD or $mediaFlashSD){
+    $type = 'card';
+  }else{
+    $type = 'other';
+  }
+
+  return getMntConfig($type, \%devOpts) eq 'true';
+}
+
+sub run(@){
+  system @_;
+}
+sub runFail(@){
+  run @_;
+  die "Command failed: @_\n" if $? != 0;
+}
+sub runFailEcho(@){
+  print "@_\n";
+  runFail @_;
+}
+
+&main(@ARGV);
