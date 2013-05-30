@@ -9,7 +9,7 @@ our @EXPORT = qw( run tryrun
                   shell tryshell
                   cd
                   writeFile tryWriteFile
-                  readFile tryReadFile readAllFiles
+                  readFile tryReadFile editFile readAllFiles
                   getRoot
                   getUsername
                   guessBackupDir
@@ -136,6 +136,15 @@ sub readFileProto($) {
 }
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
+
+sub editFile($$) {
+    my ($file, $edit) = @_;
+
+    my $read  = readFile $file;
+    my $write = &$edit($read);
+    # TODO rather than using writeFile, and and apply a diff
+    writeFile $file, $write unless $write eq $read;
+}
 
 sub readAllFiles($) {
     my ($dir) = @_;
