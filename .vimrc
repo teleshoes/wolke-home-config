@@ -57,6 +57,7 @@ nnoremap g# g#zz
 
 """word wrap"""
 map <C-w><C-w> :s/\v(.{70}[^ ]* *)/\1\r/g<CR>
+map <C-w><C-h> :s/\v(.{70}[^ ]* *)/\1\r--/g<CR>
 """"""
 
 """command repeat"""
