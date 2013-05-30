@@ -19,6 +19,7 @@ function LoadTemp()
 endfunction
 autocmd! BufNewFile * call LoadTemp()
 
+set hidden
 set ofu=syntaxcomplete#Complete
 set backspace=2
 set uc=0 """no swapfile
