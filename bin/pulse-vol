@@ -19,6 +19,8 @@ my $usage = "Usage:
     prints the volume and mute status
   $name [DEVTYPE] get-volume
     prints the volume
+  $name [DEVTYPE] update-volume
+    sets the volume to what get-volume returns
   $name [DEVTYPE] get-mute
     prints the mute status 'muted', 'unmuted', or 'unknown'
   $name [DEVTYPE] VOLUME-ABS
@@ -77,7 +79,7 @@ sub main(@){
   $dev = 'sink' if $dev =~ /^($sinkSyns)$/;
   $dev = 'source' if $dev =~ /^($sourceSyns)$/;
   
-  my ($absVol, $relVol, $maxVol, $muteStatus);
+  my ($absVol, $relVol, $maxVol, $muteStatus, $cmd);
   if(@_ > 0 and $_[0] =~ /^(\d+)$/){
     $absVol = shift;
   }elsif(@_ > 0 and $_[0] =~ /^(\+|-)?(\d+)$/){
@@ -86,6 +88,8 @@ sub main(@){
     $maxVol = 100 if not defined $maxVol;
   }elsif(@_ > 0 and $_[0] =~ /^(mute|unmute|toggle)$/){
     $muteStatus = shift;
+  }elsif(@_ == 1 and $_[0] =~ /^(get-volume|update-volume)$/){
+    $cmd = shift;
   }
   die $usage if @_ > 0;
 
@@ -119,6 +123,11 @@ sub main(@){
     system $unmuteSinkCmd if $muteVal eq 0 and $dev eq 'sink';
     system $muteSourceCmd if $muteVal eq 1 and $dev eq 'source';
     system $unmuteSourceCmd if $muteVal eq 0 and $dev eq 'source';
+  }elsif($cmd eq 'get-volume'){
+    print getAverageVolPercent($pacmdList) . "\n";
+  }elsif($cmd eq 'update-volume'){
+    my $absVol = getAverageVolPercent($pacmdList);
+    setVolPercent $dev, $_, $absVol foreach @indices;
   }else{
     print getAverageVolPercent($pacmdList);
     print " (" . getMuteStatus($pacmdList) . ")";

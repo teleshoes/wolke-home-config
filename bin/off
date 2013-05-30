@@ -5,35 +5,13 @@ import os
 
 def getActions():
   return filter(None, [ None
-    , Action("Shutdown",  "s",  "gksudo poweroff"    , sys.exit, True)
-    , Action("Reboot",    "r",  "gksudo reboot"      , sys.exit, True)
-    , Action("Sleep",     "l",  "gksudo pm-suspend"  , sys.exit, True)
-    , Action("Hibernate", "h",  "gksudo pm-hibernate", sys.exit, True)
-    , Action("Cancel",    None, None                 , sys.exit, True)
-    , Action("Gui",       "g",  None                 , showGui,  False)
+    , Action("Shutdown",  "s",  True,  ["gksudo poweroff"])
+    , Action("Reboot",    "r",  True,  ["gksudo reboot"])
+    , Action("Sleep",     "l",  True,  ["gksudo pm-suspend", wauto])
+    , Action("Hibernate", "h",  True,  ["gksudo pm-hibernate", wauto])
+    , Action("Cancel",    None, True,  [])
+    , Action("Gui",       "g",  False, [showGui])
   ])
-
-def showGui():
-  ActionGui(filter((lambda a: a.gui), getActions())).mainWindow()
-
-def usage():
-  u = "Usage: " + sys.argv[0] + " ARG"
-  maxActLen, maxKeyLen, maxCmdLen, maxFunLen = [0,0,0,0]
-  for a in filter(lambda a: a.key, getActions()):
-    (act, key, cmd, fun) = a.getFormattedAtts()
-    maxActLen = len(act) > maxActLen and len(act) or maxActLen
-    maxKeyLen = len(key) > maxKeyLen and len(key) or maxKeyLen
-    maxCmdLen = len(cmd) > maxCmdLen and len(cmd) or maxCmdLen
-    maxFunLen = len(fun) > maxFunLen and len(fun) or maxFunLen
-  for a in filter(lambda a: a.key, getActions()):
-    (act, key, cmd, fun) = a.getFormattedAtts()
-    u += (""
-      + "\n  " + key.ljust(maxKeyLen)
-      + " => " + act.ljust(maxActLen)
-      + "    " + cmd.ljust(maxCmdLen)
-      + "    " + fun.ljust(maxFunLen)
-    )
-  return u
 
 def main(args):
   if len(args) == 2:
@@ -44,30 +22,64 @@ def main(args):
   print >> sys.stderr, usage()
   sys.exit(1)
 
+gui = None
+def showGui():
+  global gui
+  if gui == None: gui = ActionGui(filter((lambda a: a.isGui), getActions()))
+  gui.show()
+
+def hideGui():
+  global gui
+  if gui != None: gui.hide()
+
+def wauto():
+  wstatus = os.popen('wstatus').read()
+  if wstatus == "none\n":
+    os.system("wauto")
+  else:
+    print "no wauto necessary\n"
+
+def usage():
+  u = "Usage: " + sys.argv[0] + " ARG"
+  maxActLen, maxKeyLen, maxCmdLen, maxFunLen = [0,0,0,0]
+  for a in filter(lambda a: a.key, getActions()):
+    (act, key, cmd) = a.getFormattedAtts()
+    maxActLen = max(len(act), maxActLen)
+    maxKeyLen = max(len(key), maxKeyLen)
+    maxCmdLen = max(len(cmd), maxCmdLen)
+  for a in filter(lambda a: a.key, getActions()):
+    (act, key, cmd) = a.getFormattedAtts()
+    u += (""
+      + "\n  " + key.ljust(maxKeyLen)
+      + " => " + act.ljust(maxActLen)
+      + "    " + cmd.ljust(maxCmdLen)
+    )
+  return u
+
+def isstr(s):
+  return isinstance(s, basestring)
+def shell(cmd):
+  os.system(cmd)
 
 class Action():
-  def __init__(self, name, key=None, cmd=None, fun=None, gui=True):
+  def __init__(self, name, key, isGui, cmds):
     self.name = name
     self.key = key
-    self.cmd = cmd
-    self.fun = fun
-    self.gui = gui
+    self.isGui = isGui
+    self.cmdFuns = map(lambda c: (lambda: shell(c)) if isstr(c) else c, cmds)
+    self.cmdNames = map(lambda c: c if isstr(c) else c.__name__, cmds)
     self.labelText = name
     if self.key != None:
       self.labelText += " (" + self.key + ")"
   def getFormattedAtts(self):
     return [ self.name and self.name or ""
            , self.key and self.key or ""
-           , self.cmd and "'" + self.cmd + "'" or ""
-           , self.fun and self.fun.__name__ + "()" or ""
+           , ', '.join(self.cmdNames)
            ]
   def run(self):
-    if self.cmd != None:
-      print self.cmd
-      os.system(self.cmd)
-    if self.fun != None:
-      print self.fun.__name__ + "()"
-      self.fun()
+    if self.isGui: hideGui()
+    for c in self.cmdFuns: c()
+    if self.isGui: sys.exit(0)
 
 class ActionButton(gtk.Button):
   def __init__(self, action):
@@ -85,27 +97,28 @@ class ActionGui():
     ))
     for a in self.actions:
       self.box.add(ActionButton(a))
-  def mainWindow(self):
-    window = gtk.Window()
-    window.set_default_size(300, 500)
-    window.set_position(gtk.WIN_POS_CENTER)
-    window.set_title("Off")
-    window.add(self.getGtkWidget())
 
-    window.add_events(gtk.gdk.KEY_PRESS_MASK)
-    window.connect("key_press_event", self.keyPress)
+    self.window = gtk.Window()
+    self.window.set_default_size(300, 500)
+    self.window.set_position(gtk.WIN_POS_CENTER)
+    self.window.set_title("Off")
+    self.window.add(self.box)
 
-    window.connect("destroy", gtk.main_quit) 
-    window.show_all()
+    self.window.add_events(gtk.gdk.KEY_PRESS_MASK)
+    self.window.connect("key_press_event", self.keyPress)
+  def show(self):
+    self.window.show_all()
     gtk.main()
+  def hide(self):
+    self.window.hide()
+    while gtk.events_pending():
+      gtk.main_iteration()
   def keyPress(self, widget, event):
     if event.keyval == gtk.keysyms.Escape:
       sys.exit()
     for a in filter(lambda a: a.key, self.actions):
       if a.key.lower() == chr(event.keyval).lower():
         a.run()
-  def getGtkWidget(self):
-    return self.box
 
 if __name__ == "__main__":
   main(sys.argv)
