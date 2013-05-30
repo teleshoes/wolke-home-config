@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use ScriptScript;
+
+sub setUpInit($$);
+sub setUpProfile($);
+
+sub main(@) {
+    getRoot @_;
+
+    my $N = shift || "8";
+    if(not $N =~ /[12345689]/) {
+        print STDERR "usage: set-up-autologin [12345689]\n";
+        exit 1;
+    }
+
+    my $user = getUsername;
+
+    setUpInit $user, $N;
+    setUpProfile $N;
+}
+
+sub setUpInit($$) {
+    my ($user, $N) = @_;
+
+    my $tty = "tty$N";
+    
+    my $dev = "/dev/$tty";
+    my $cmd = "/bin/login -f $user $tty <$dev >$dev 2>&1";
+
+    my $upstart = "/etc/init/$tty.conf";
+    my $inittab = "/etc/inittab";
+    if(-e $upstart) {
+        editFile $upstart, replace("^exec ", "exec $cmd");
+    } elsif(-e $inittab) {
+        editFile $inittab, replace("$N:.*$tty", "$N:2345:respawn$cmd");
+    } else {
+        print STDERR "ERROR: neither $upstart not $inittab exist\n";
+        exit 1;
+    }
+}
+
+sub replace($$) {
+    my ($old, $new) = @_;
+    sub {
+        my ($cnts) = @_;
+        $cnts =~ s/# replaced with autologin: //;
+        $cnts =~ s/$old/# replaced with autologin: $&/;
+        $cnts =~ s/\n# autologin\n.*\n$//;
+        $cnts =~ s/$/\n# autologin\n$new\n/;
+        $cnts
+    }
+}
+
+sub setUpProfile($) {
+    my ($N) = @_;
+    editFile "$ENV{HOME}/.profile", sub {
+        my ($cnts) = @_;
+        if($cnts =~ /exec startx/) {
+            $cnts =~ s/(\$\(tty\) == .\/dev\/tty)\d/$1$N/;
+        } else {
+            $cnts = $cnts . join "\n"
+              , "# autologin"
+              , "if [ -z \"\$DISPLAY\" ] && [ \$(tty) == \"/dev/tty$N\" ]; then"
+              , "  exec startx"
+              , "fi"
+              , "", "";
+        }
+        $cnts
+    }
+}
+
+main @ARGV;
+
