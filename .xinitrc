@@ -26,8 +26,8 @@ xset dpms 0 0 0
 
 xset -b #no bell
 
+sudo wauto &
 pulseaudio --start &
-sudo wconnect `wguessid` &
 sudo bluetooth off &
 sudo fan auto
 taffybar &
