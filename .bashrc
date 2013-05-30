@@ -18,20 +18,21 @@ fi
 
 PS1="\[\033[G\]$PS1"
 
-function prependPath {
-  case $PATH in
-    $@:* | *:$@ | *:$@:* ) ;;
-    *) export PATH=$@:$PATH
-  esac
-}
-#prependPath "$HOME/.ghc/bin"
-#prependPath "$HOME/.ghc-7.4.2/bin"
-#prependPath "$HOME/.ghc-7.6.1/bin"
-prependPath "$HOME/.cabal/bin"
-prependPath "$HOME/bin"
-prependPath "$HOME/bin/phon"
+export PATH="\
+:$HOME/bin\
+:$HOME/.cabal/bin\
+:/usr/local/bin\
+:/usr/bin\
+:/bin\
+:/usr/local/sbin\
+:/usr/sbin\
+:/sbin\
+:/usr/local/games\
+:/usr/games\
+"
 
 export HD='/media/Charybdis/zuserm'
+alias  HD="cd $HD"
 export TEXINPUTS=".:"
 
 alias ls='ls --color=auto'
@@ -64,7 +65,8 @@ complete -F _root_command spawn spawnex
 
 alias evi='spawn evince'
 
-if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty7" ]; then
+# autologin
+if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
   exec startx
 fi
 
