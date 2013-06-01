@@ -84,15 +84,15 @@ sub writeFileProto($) {
         my $escname = shell_quote $name;
 
         my $delim = "EOF";
-        while($cnts =~ /$delim/) { $delim .= "F" }
+        while($cnts =~ /^$delim$/m) { $delim .= "F" }
 
         chomp $cnts;
 
         my $cmd = join "\n"
-            , "( cat << $delim"
-            , $cnts
-            , "$delim"
-            , ") > $escname";
+          , "( cat << $delim"
+          , $cnts
+          , $delim
+          , ") > $escname";
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
