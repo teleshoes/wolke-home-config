@@ -9,7 +9,8 @@ our @EXPORT = qw( run tryrun
                   shell tryshell
                   cd
                   writeFile tryWriteFile
-                  readFile tryReadFile editFile readAllFiles
+                  readFile tryReadFile readAllFiles
+                  editFile
                   getRoot
                   getUsername
                   guessBackupDir
@@ -137,15 +138,6 @@ sub readFileProto($) {
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
 
-sub editFile($$) {
-    my ($file, $edit) = @_;
-
-    my $read  = readFile $file;
-    my $write = &$edit($read);
-    # TODO rather than using writeFile, make and apply a diff
-    writeFile $file, $write unless $write eq $read;
-}
-
 sub readAllFiles($) {
     my ($dir) = @_;
 
@@ -155,6 +147,44 @@ sub readAllFiles($) {
     $files{$_} = readFile "$dir/$_" for @filenames;
     %files
 }
+
+sub editFile($$) {
+    my ($name, $edit) = @_;
+
+    my $read  = readFile $name;
+    my $write = &$edit($read);
+
+    my $diff = "";
+    if($write ne $read) {
+        my $pid = open FHIN, "-|";
+        if($pid) {
+            local $/;
+            $diff = <FHIN>;
+            close FHIN;
+        } else {
+            open(STDERR, ">&STDOUT");
+            open FHOUT, "|-", "diff", $name, "-";
+            print FHOUT $write;
+            close FHOUT;
+            exit;
+        }
+
+        my $escname = shell_quote $name;
+
+        my $delim = "EOF";
+        while($write =~ /^$delim$/m) { $delim .= "F" }
+
+        chomp $diff;
+
+        my $cmd = join "\n"
+          , "patch $escname << $delim"
+          , $diff
+          , $delim;
+
+        shell $cmd;
+    }
+}
+
 
 sub getRoot(@) {
     if(`whoami` ne "root\n") {
