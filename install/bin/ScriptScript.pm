@@ -9,7 +9,7 @@ our @EXPORT = qw( run tryrun
                   shell tryshell
                   cd
                   writeFile tryWriteFile
-                  readFile tryReadFile readAllFiles
+                  readFile tryReadFile
                   editFile
                   getRoot
                   getUsername
@@ -137,16 +137,6 @@ sub readFileProto($) {
 }
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
-
-sub readAllFiles($) {
-    my ($dir) = @_;
-
-    my @filenames = split "\n", `ls -A1 $dir`;
-
-    my %files = ();
-    $files{$_} = readFile "$dir/$_" for @filenames;
-    %files
-}
 
 sub editFile($$) {
     my ($name, $edit) = @_;
