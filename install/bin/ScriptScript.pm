@@ -154,7 +154,9 @@ sub editFile($$;$) {
 
     # create and apply new patch
     my $read  = readFile $name;
-    my $write = &$edit($read);
+    my $tmp   = $read;
+    my $write = &$edit($tmp);
+    deathWithDishonor unless defined $write;
 
     if($write eq $read) {
         shell "rm $patchfile" if -e $patchfile;
