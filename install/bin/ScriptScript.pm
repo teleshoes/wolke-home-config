@@ -10,7 +10,7 @@ our @EXPORT = qw( run tryrun
                   cd
                   writeFile tryWriteFile
                   readFile tryReadFile
-                  editFile
+                  editFile replaceLine replaceOrAddLine
                   getRoot
                   getUsername
                   guessBackupDir
@@ -193,6 +193,26 @@ sub editFile($$;$) {
             shell $cmd;
         }
     }
+}
+
+sub replaceLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    }
+    $&
+}
+
+sub replaceOrAddLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    } else  {
+        chomp $_[0];
+        $_[0] .= "\n";
+        $_[0] =~ s/\n+$/$&$new\n/;
+    }
+    $&
 }
 
 

@@ -33,26 +33,19 @@ sub setUpInit($$) {
     my $inittab = "/etc/inittab";
     if(-e $upstart) {
         editFile $upstart, "autologin", sub {
-            my $s = shift;
-            $s =~ s/^exec .*/exec $cmd/;
-            $s if $&;
+            my $conf = shift;
+            my $rep = replaceLine $conf, "exec ", "exec $cmd";
+            $conf if $rep;
         };
     } elsif(-e $inittab) {
         editFile $inittab, "autologin", sub {
-            my $s = shift;
+            my $conf = shift;
 
-            my $old = "$N:.*$tty";
-            my $new = join "\n"
+            replaceOrAddLine $conf, "$N:.*$tty", join "\n"
               , "# autologin"
               , "$N:2345:respawn:$cmd";
 
-            if($s =~ /^$old/m) {
-                $s =~ s/^$old/$new/m;
-            } else {
-                $s =~ s/$/\n$new\n/;
-            };
-
-            $s
+            $conf
         };
     } else {
         print STDERR "ERROR: neither $upstart not $inittab exist\n";
