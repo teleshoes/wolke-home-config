@@ -143,6 +143,7 @@ sub editFile($$;$) {
 
     my $escname = shell_quote $name;
     my $patchcmd = "patch -fr - $escname";
+    # TODO be quieter if patches match, surreptitious revert to tmpfile first?
 
     # revert previous patch if one exists
     my $patchfile = shell_quote "$name.$patchname.patch" if defined $patchname;
@@ -159,7 +160,7 @@ sub editFile($$;$) {
     deathWithDishonor unless defined $write;
 
     if($write eq $read) {
-        shell "rm $patchfile" if -e $patchfile;
+        shell "rm $patchfile" if defined $patchfile and -e $patchfile;
     } else {
         my $diff;
         my $pid = open FHIN, "-|";
