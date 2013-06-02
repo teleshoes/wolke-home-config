@@ -181,7 +181,7 @@ sub editFile($$;$) {
             shell "$patchcmd $patchfile";
         } else {
             my $delim = "EOF";
-            while($write =~ /^$delim$/m) { $delim .= "F" }
+            while($diff =~ /^$delim$/m) { $delim .= "F" }
 
             chomp $diff;
 
