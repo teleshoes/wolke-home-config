@@ -51,10 +51,8 @@ sub runProto($$) {
                     chomp $line;
                     print "$line\n";
                 }
-                close FH;
-            } else {
-                waitpid $pid, 0;
             }
+            close FH;
             deathWithDishonor if $? != 0 and $dieOnError;
         } else {
             open(STDERR, ">&STDOUT");
