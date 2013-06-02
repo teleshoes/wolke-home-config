@@ -136,14 +136,30 @@ sub readFileProto($) {
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
 
-sub editFile($$) {
-    my ($name, $edit) = @_;
+sub editFile($$;$) {
+    my ($name, $patchname, $edit);
+    ($name, $edit) = @_             if @_ == 2;
+    ($name, $patchname, $edit) = @_ if @_ == 3;
 
+    my $escname = shell_quote $name;
+    my $patchcmd = "patch -fr - $escname";
+
+    # revert previous patch if one exists
+    my $patchfile = shell_quote "$name.$patchname.patch" if defined $patchname;
+    if (defined $patchfile and -f $patchfile) {
+        my $revcmd = "$patchcmd $patchfile -R";
+        shell "$revcmd --dry-run --quiet";
+        shell $revcmd;
+    }
+
+    # create and apply new patch
     my $read  = readFile $name;
     my $write = &$edit($read);
 
-    my $diff = "";
-    if($write ne $read) {
+    if($write eq $read) {
+        shell "rm $patchfile" if -e $patchfile;
+    } else {
+        my $diff;
         my $pid = open FHIN, "-|";
         if($pid) {
             local $/;
@@ -157,19 +173,22 @@ sub editFile($$) {
             exit;
         }
 
-        my $escname = shell_quote $name;
+        if(defined $patchfile) {
+            writeFile $patchfile, $diff;
+            shell "$patchcmd $patchfile";
+        } else {
+            my $delim = "EOF";
+            while($write =~ /^$delim$/m) { $delim .= "F" }
 
-        my $delim = "EOF";
-        while($write =~ /^$delim$/m) { $delim .= "F" }
+            chomp $diff;
 
-        chomp $diff;
+            my $cmd = join "\n"
+              , "$patchcmd << $delim"
+              , $diff
+              , $delim;
 
-        my $cmd = join "\n"
-          , "patch $escname << $delim"
-          , $diff
-          , $delim;
-
-        shell $cmd;
+            shell $cmd;
+        }
     }
 }
 
