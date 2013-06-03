@@ -284,18 +284,21 @@ sub installFromDir($) {
     my ($dir) = @_;
     cd $dir;
     run qw(git pull) if -d ".git";
-    if(`ls` =~ /\.cabal$/) {
+
+    my @ls = split "\n", `ls -1`;
+
+    if(grep {/\.cabal$/} @ls) {
         shell "cabal install";
-    } elsif(`ls` =~ /^install/) {
-        shell "install*";
-    } elsif(system "make -qn all") {
+    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
         shell "make -j all";
         shell "sudo make install";
-    } elsif(system "make -qn") {
+    } elsif(system("make -n >/dev/null 2>&1") == 0) {
         shell "make -j";
         shell "sudo make install";
+    } elsif(grep {/^install/} @ls) {
+        shell "install*";
     } else {
-        print STDERR "### no install file in $dir , exiting";
+        print STDERR "### no install file in $dir , exiting\n";
         exit 1;
     }
 }
