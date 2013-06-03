@@ -43,16 +43,16 @@ sub runProto($$) {
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        my $pid = open FH, "-|";
+        my $pid = open my $fh, "-|";
         if($pid) {
             if($opts->{verbose}) {
-                while(my $line = <FH>) {
+                while(my $line = <$fh>) {
                     print "# " if $opts->{putCommand};
                     chomp $line;
                     print "$line\n";
                 }
             }
-            close FH;
+            close $fh;
             deathWithDishonor if $? != 0 and $dieOnError;
         } else {
             open(STDERR, ">&STDOUT");
@@ -96,10 +96,10 @@ sub writeFileProto($) {
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        my $opened = open FH, ">", $name;
+        my $opened = open my $fh, ">", $name;
         if($opened) {
-            print FH "$cnts\n";
-            close FH;
+            print $fh "$cnts\n";
+            close $fh;
         } elsif($dieOnError) {
             deathWithDishonor
         }
@@ -115,16 +115,16 @@ sub readFileProto($) {
 
         my $escname = shell_quote $name;
 
-        my $opened = open FH, "<", $name;
+        my $opened = open my $fh, "<", $name;
         if($opened) {
             if(wantarray) {
-                my @cnts = <FH>;
-                close FH;
+                my @cnts = <$fh>;
+                close $fh;
                 return @cnts;
             } else {
                 local $/;
-                my $cnts = <FH>;
-                close FH;
+                my $cnts = <$fh>;
+                close $fh;
                 return $cnts;
             }
         } elsif($dieOnError) {
@@ -162,17 +162,16 @@ sub editFile($$;$) {
     if($write eq $read) {
         shell "rm $patchfile" if defined $patchfile and -e $patchfile;
     } else {
-        my $diff;
-        my $pid = open FHIN, "-|";
+        my $pid = open my $in, "-|";
         if($pid) {
             local $/;
-            $diff = <FHIN>;
-            close FHIN;
+            $diff = <$in>;
+            close $in;
         } else {
             open(STDERR, ">&STDOUT");
-            open FHOUT, "|-", "diff", $name, "-";
-            print FHOUT $write;
-            close FHOUT;
+            open my $out, "|-", "diff", $name, "-";
+            print $out $write;
+            close $out;
             exit;
         }
 
