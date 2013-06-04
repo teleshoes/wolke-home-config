@@ -282,10 +282,8 @@ sub guessBackupDir() {
 sub relToScript($) {
     my ($path) = @_;
 
-    my $scriptdir = `dirname $0`;
-    chomp $scriptdir;
-
-    "$scriptdir/$path"
+    $0 =~ /\/[^\/]+$/;
+    "$`/$path"
 }
 
 sub readConf($) {
