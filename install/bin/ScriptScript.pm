@@ -88,7 +88,7 @@ sub writeFileProto($) {
         chomp $cnts;
 
         my $cmd = join "\n"
-          , "( cat << $delim"
+          , "( cat << \"$delim\""
           , $cnts
           , $delim
           , ") > $escname";
