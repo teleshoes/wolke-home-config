@@ -187,7 +187,7 @@ sub editFile($$;$) {
     if(not $pid) {
         open(STDERR, ">&STDOUT");
 
-        my $tmp = "/tmp/$name";
+        my $tmp = "ScriptScript::editFile-" . `date +%s%N`;
         while(-e $tmp) { $tmp .= "X"; }
         open my $fh, ">", $tmp;
         print $fh $read;
