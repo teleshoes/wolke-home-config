@@ -165,7 +165,10 @@ sub editFile($$;$) {
     my $tmp = $read;
     my $write = &$edit($tmp);
     unless(defined $write) {
-        print STDERR "## editFile: edit function failed, exiting\n";
+        my $escname = shell_quote $name;
+        my $escpatch = defined $patchname ? " " .shell_quote $patchname : "";
+        print STDERR "## editFile $escname$escpatch: "; 
+        print STDERR "edit function failed, exiting\n";
         exit 1;
     }
 
