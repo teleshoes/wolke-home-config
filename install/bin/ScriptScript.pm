@@ -2,6 +2,7 @@ package ScriptScript;
 use warnings;
 use strict;
 use String::ShellQuote;
+use File::Temp 'tempfile';
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
@@ -190,9 +191,7 @@ sub editFile($$;$) {
     if(not $pid) {
         open(STDERR, ">&STDOUT");
 
-        my $tmp = "ScriptScript::editFile-" . `date +%s%N`;
-        while(-e $tmp) { $tmp .= "X"; }
-        open my $fh, ">", $tmp;
+        my ($fh, $tmp) = tempfile;
         print $fh $read;
         close $fh;
 
