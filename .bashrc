@@ -19,6 +19,7 @@ fi
 PS1="\[\033[G\]$PS1"
 
 export PATH="\
+:$HOME/install/bin\
 :$HOME/bin\
 :$HOME/.cabal/bin\
 :/usr/local/bin\
