@@ -64,6 +64,7 @@ function tex2pdf { pdflatex -halt-on-error "$1".tex && evince "$1".pdf ; }
 function spawn { "$@" & disown ; }
 function spawnex { "$@" & disown && exit 0 ; }
 complete -F _root_command spawn spawnex
+function vims { vim `which $1` ; }
 
 # autologin
 if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
