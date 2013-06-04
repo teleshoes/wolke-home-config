@@ -44,7 +44,10 @@ sub runProto($$) {
         return     unless $opts->{runCommand};
 
         my $pid = open my $fh, "-|";
-        if($pid) {
+        if(not $pid) {
+            open(STDERR, ">&STDOUT");
+            exec $cmd or exit 1;
+        } else {
             if($opts->{verbose}) {
                 while(my $line = <$fh>) {
                     print "# " if $opts->{putCommand};
@@ -54,9 +57,6 @@ sub runProto($$) {
             }
             close $fh;
             deathWithDishonor if $? != 0 and $dieOnError;
-        } else {
-            open(STDERR, ">&STDOUT");
-            exec $cmd or exit 1;
         }
     }
 }
