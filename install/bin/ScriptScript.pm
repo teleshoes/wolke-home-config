@@ -141,52 +141,82 @@ sub editFile($$;$) {
     ($name, $edit) = @_             if @_ == 2;
     ($name, $patchname, $edit) = @_ if @_ == 3;
 
-    my $escname = shell_quote $name;
-    my $patchcmd = "patch -fr - $escname";
-    # TODO be quieter if patches match, surreptitious revert to tmpfile first?
+    my @patchcmd = ("patch", "-fr", "-", "$name");
+    my $patchfile = "$name.$patchname.patch" if defined $patchname;
+    my @revcmd = (@patchcmd, $patchfile, "-R");
 
-    # revert previous patch if one exists
-    my $patchfile = shell_quote "$name.$patchname.patch" if defined $patchname;
+    my $escpatchcmd = join ' ', shell_quote(@patchcmd);
+    my $escrevcmd   = join ' ', shell_quote(@revcmd);
+
+    my $read;
     if (defined $patchfile and -f $patchfile) {
-        my $revcmd = "$patchcmd $patchfile -R";
-        shell "$revcmd --dry-run --quiet";
-        shell $revcmd;
-    }
-
-    # create and apply new patch
-    my $read  = readFile $name;
-    my $tmp   = $read;
-    my $write = &$edit($tmp);
-    deathWithDishonor unless defined $write;
-
-    if($write eq $read) {
-        shell "rm $patchfile" if defined $patchfile and -e $patchfile;
-    } else {
-        my $pid = open my $in, "-|";
-        if($pid) {
-            local $/;
-            $diff = <$in>;
-            close $in;
-        } else {
-            open(STDERR, ">&STDOUT");
-            open my $out, "|-", "diff", $name, "-";
-            print $out $write;
-            close $out;
-            exit;
+        if(system("$escrevcmd --dry-run >/dev/null 2>&1") != 0) {
+            run @revcmd, "--dry-run";
         }
 
+        open my $fh, "-|", @revcmd, "-s", "-o", "-";
+        local $/;
+        $read = <$fh>;
+        close $fh;
+    } else {
+        $read = readFile $name;
+    }
+
+    my $tmp = $read;
+    my $write = &$edit($tmp);
+    unless(defined $write) {
+        print STDERR "## editFile: edit function failed, exiting\n";
+        exit 1;
+    }
+
+    if($write eq $read) {
+        if(defined $patchfile and -f $patchfile) {
+            run @revcmd;
+            run "rm", $patchfile;
+        }
+        return;
+    }
+
+    my $oldpatch = "";
+    if (defined $patchfile and -f $patchfile) {
+        $oldpatch = readFile $patchfile;
+    }
+
+    my $newpatch;
+    my $pid = open my $in, "-|";
+    if(not $pid) {
+        open(STDERR, ">&STDOUT");
+
+        my $tmp = "/tmp/$name";
+        while(-e $tmp) { $tmp .= "X"; }
+        open my $fh, ">", $tmp;
+        print $fh $read;
+        close $fh;
+
+        open my $out, "|-", "diff", $tmp, "-";
+        print $out $write;
+        close $out;
+        system "rm", $tmp;
+        exit;
+    } else {
+        local $/;
+        $newpatch = <$in>;
+        close $in;
+    }
+
+    if($newpatch ne $oldpatch) {
         if(defined $patchfile) {
-            writeFile $patchfile, $diff;
-            shell "$patchcmd $patchfile";
+            run @revcmd if -f $patchfile;
+            writeFile $patchfile, $newpatch;
+            run @patchcmd, $patchfile;
         } else {
             my $delim = "EOF";
-            while($diff =~ /^$delim$/m) { $delim .= "F" }
+            while($newpatch =~ /^$delim$/m) { $delim .= "F" }
 
-            chomp $diff;
-
+            chomp $newpatch;
             my $cmd = join "\n"
-              , "$patchcmd << $delim"
-              , $diff
+              , "$escpatchcmd - << \"$delim\""
+              , $newpatch
               , $delim;
 
             shell $cmd;
