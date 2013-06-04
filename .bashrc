@@ -49,6 +49,7 @@ alias tags='id3v2 -l'
 alias lk='sudo chown -R root:root'
 alias ulk='sudo chown -R zuserm:zuserm'
 alias printers='sudo system-config-printer'
+alias evi='spawn evince'
 
 alias :l='ghci'
 alias :h='man'
@@ -63,8 +64,6 @@ function tex2pdf { pdflatex -halt-on-error "$1".tex && evince "$1".pdf ; }
 function spawn { "$@" & disown ; }
 function spawnex { "$@" & disown && exit 0 ; }
 complete -F _root_command spawn spawnex
-
-alias evi='spawn evince'
 
 # autologin
 if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
