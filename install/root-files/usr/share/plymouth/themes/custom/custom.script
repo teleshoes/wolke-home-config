@@ -1,0 +1,83 @@
+# based on https://joekuan.wordpress.com/2010/08/05/plymouth-create-your-own-splash-screen-with-scrolling-boot-messages/
+NUM_SCROLL_LINES=24;
+ 
+wallpaper_image = Image("background.png");
+swidth  = Window.GetWidth();
+sheight = Window.GetHeight();
+resized_wallpaper_image = wallpaper_image.Scale(swidth,sheight);
+wallpaper_sprite = Sprite(resized_wallpaper_image);
+wallpaper_sprite.SetZ(-100);
+ 
+# Initialising text images and their positions
+# 20 is the height (including line spacing) of each line
+for (i=0; i < NUM_SCROLL_LINES; i++) {
+    lines[i] = Image.Text("", 0, 0, 1);
+    message_sprite[i] = Sprite();
+    message_sprite[i].SetPosition(40, 40 + i * 20, 100);
+    message_sprite[i].SetImage(lines[i]);
+}
+ 
+fun StrLen(str) {
+    i = 0;
+    while(str.CharAt(i)) i++;
+    return i;
+}
+
+fun StrEq(l,r) {
+    i = 0;
+    while(l.CharAt(i) && r.CharAt(i) && l.CharAt(i) == r.CharAt(i)) i++;
+    return l.CharAt(i) == r.CharAt(i);
+}
+
+curr_line = "";
+fun scroll_message_callback(text, r, g, b) {
+    if(StrEq(text, "")) return;
+
+    if(StrEq(curr_line, "")) {
+        # Shift message one up
+        for (i = 0; i < NUM_SCROLL_LINES - 1; i++) {
+            lines[i] = lines[i+1];
+        }
+     
+        # Re-positioning the text images
+        for (i = 0; i < NUM_SCROLL_LINES - 1; i++) {
+            message_sprite[i].SetImage(lines[i]);
+        }
+    }
+
+    len = StrLen(text);
+    last1 = text.SubString(len-1, len);
+    last2 = text.SubString(len-2, len);
+    eol1 = StrEq(last1, "\n");
+    eol2 = StrEq(last2, "\\n");
+
+    if(!(eol1 || eol2)) {
+        msg = curr_line + text;
+        curr_line += text;
+    }
+    if(eol1) {
+        msg = curr_line + text.SubString(0,len-1);
+        curr_line = "";
+    } 
+    if(eol2) {
+        msg = curr_line + text.SubString(0,len-2);
+        curr_line = "";
+    }
+
+    # Create the image for the latest message
+    i = NUM_SCROLL_LINES - 1;
+    lines[i] = Image.Text(msg, r, g, b);
+    message_sprite[i].SetImage(lines[i]);
+}
+
+fun update_callback(text) {
+    scroll_message_callback(text, 0, 0, 1);
+}
+
+fun message_callback(text) {
+    scroll_message_callback(text, 1, 0, 0);
+}
+
+Plymouth.SetUpdateStatusFunction(update_callback);
+Plymouth.SetMessageFunction(message_callback);
+

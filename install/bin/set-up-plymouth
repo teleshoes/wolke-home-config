@@ -1,0 +1,66 @@
+#!/usr/bin/perl 
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $theme = "custom";
+my $backgroud_src = "$ENV{HOME}/Pictures/Backgrounds/ineedcoffee.jpg";
+my $theme_dir = "/usr/share/plymouth/themes/$theme";
+my $updatecmd = "/bin/plymouth update --status=";
+
+sub main(@) {
+    getRoot @_;
+
+    $backgroud_src =~ /\/([^\/]+)$/;
+    my $img = $1;
+
+    my $png = $img;
+    $png =~ s/\.[^.]+$/.png/;
+
+    my $backgroud = "$theme_dir/$png";
+
+    run "rsync", "-rcv", "--delete"
+      , relToScript("../root-files/$theme_dir/")
+      , $theme_dir;
+
+    editFile "$theme_dir/$theme.script", sub {
+        my $s = shift; $s =~ s/background\.png/$png/; $s if $&
+    };
+
+    run "convert", $backgroud_src, $backgroud;
+    run "chmod", "644", $backgroud;
+
+    editFile "/usr/share/initramfs-tools/scripts/functions", "plymouth", sub {
+        my $s = shift;
+        my $rep = "    $updatecmd" . '"$@"' . "\n";
+        $s =~ s/_log_msg\(\)\n{\n/$&$rep/;
+        $s if $&
+    };
+
+    editFile "/lib/lsb/init-functions", "plymouth", \&edit_lsb;
+    #editFile "/lib/lsb/init-functions.d/20-left-info-blocks", "plymouth", \&edit_lsb;
+
+    run "plymouth-set-default-theme", $theme;
+    run "update-initramfs", "-u";
+}
+
+sub edit_lsb {
+    my $s = shift;
+    # mirror echos
+    $s =~ s,(\n( *)(?:/bin/|)echo (-\w+ |)"([^"]+)".*\n),\n$2$updatecmd$3"$4"$1,g;
+    # remove unwanted commands
+    $s =~ s/\n.*$updatecmd.*\$pid.*//g;
+    # print a \n if the was no -n
+    $s =~ s/$updatecmd(?:-[^"n]+ |)"([^"]+)"/$updatecmd"$1\\n"/g;
+    # remove other options
+    $s =~ s/$updatecmd-\w+ (.*)/$updatecmd$1/g;
+    # remove interpolations that relate to terminal escapes
+    while($s =~ /$updatecmd(.*)\$\{[A-Z]+\}/) {
+        $s =~ s/$updatecmd(.*)\$\{[A-Z]+\}/$updatecmd$1/;
+    }
+    $s
+}
+
+main @ARGV;
+
