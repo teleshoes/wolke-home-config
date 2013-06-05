@@ -144,7 +144,7 @@ sub editFile($$;$) {
 
     my @patchcmd = ("patch", "-fr", "-", "$name");
     my $patchfile = "$name.$patchname.patch" if defined $patchname;
-    my @revcmd = (@patchcmd, $patchfile, "-R");
+    my @revcmd = (@patchcmd, $patchfile, "--reverse");
 
     my $escpatchcmd = join ' ', shell_quote(@patchcmd);
     my $escrevcmd   = join ' ', shell_quote(@revcmd);
