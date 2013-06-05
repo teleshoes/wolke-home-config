@@ -34,6 +34,7 @@ export PATH="\
 
 export HD='/media/Charybdis/zuserm'
 alias  HD="cd $HD"
+alias ply="cd ~/install/root-files/usr/share/plymouth/themes/custom"
 export TEXINPUTS=".:"
 
 alias ls='ls --color=auto'
