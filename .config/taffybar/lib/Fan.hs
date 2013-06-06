@@ -33,8 +33,8 @@ formatScaling temp status speed level = col $ (pad tmp) ++ "\n" ++ (pad spd)
         tmp = take 2 $ show temp
 
 color level = case level of
-                "auto"       -> bg "blue"
+                "auto"       -> fg "#268bd2"
                 "disengaged" -> fg "white"
-                "0"          -> bg "red" . fg "black"
+                "0"          -> bg "red" . fg "#002b36"
                 "7"          -> bg "black" . fg "white"
-                _            -> bg "orange" . fg "black"
+                _            -> bg "orange" . fg "#002b36"
