@@ -13,4 +13,4 @@ monitorMemW = graph $ do
   mi <- parseMeminfo
   return [memoryUsedRatio mi]
 
-graph = pollingGraphNew (graphCfg [rgba C.Red 1]) 1
+graph = pollingGraphNew (graphCfg [(0x26/0xff, 0x8b/0xff, 0xd2/0xff, 1)]) 1
