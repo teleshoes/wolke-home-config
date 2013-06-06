@@ -17,7 +17,7 @@ our @EXPORT = qw( run tryrun
                   guessBackupDir
                   relToScript
                   readConf readConfDir
-                  installFromDir
+                  installFromDir aptSrcInstall
                 );
 
 my $opts = {
@@ -329,6 +329,20 @@ sub installFromDir($) {
     } else {
         print STDERR "### no install file in $dir , exiting\n";
         exit 1;
+    }
+}
+
+sub aptSrcInstall($$) {
+    my ($package, $whichdeb) = @_;
+    shell "sudo apt-get -y build-dep $package";
+    my $srcdir = "$ENV{HOME}/Code/$package";
+    shell "mkdir $srcdir" unless -d $srcdir;
+    cd $srcdir;
+    shell "apt-get -b source $package";
+    for my $file (split "\n", `ls -1`) {
+        if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
+            shell "sudo dpkg -i $file";
+        }
     }
 }
 
