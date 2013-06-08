@@ -93,6 +93,7 @@ musicKeys conf = "Music" @@ do
     "klomp"         @@     mCA   xK_m    #! "term klomp"
     "edit list"     @@     mCS   xK_m    #! "term vim .klomplist"
     "play/pause"    @@     mC   (xK ' ') #! "klomp-cmd pause"
+    "play/pause"    @@     m_    xK_Pause#! "klomp-cmd pause"
     "prev"          @@     mC   (xK ',') #! "klomp-cmd prev"
     "next"          @@     mC   (xK '.') #! "klomp-cmd next"
 
