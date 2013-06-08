@@ -19,7 +19,7 @@ import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 
 pagerConfig pixbufs cfg = defaultPagerConfig
-  { activeWindow     = fg "green" . escapeMarkup . fmtTitle cfg
+  { activeWindow     = fg "white" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
                                "left"    ->                   "[]="
                                "top"     -> fgbg "blue" "red" "TTT"
