@@ -28,8 +28,8 @@ strLookup k m = fromMaybe "" $ lookup k m
 getRemoteCur = chompFile "/tmp/klomp-bar"
 
 readKlompCur remoteCur = case remoteCur of
-                           "n9" -> readProc ["n9u", "-b", "cat ~/.klompcur"]
-                           "raspi" -> readProc ["pi", "-b", "cat ~/.klompcur"]
+                           "n9" -> readProc ["n9u", "cat ~/.klompcur"]
+                           "raspi" -> readProc ["pi", "cat ~/.klompcur"]
                            _ -> do home <- getEnv "HOME"
                                    chompFile $ home ++ "/" ++ ".klompcur"
 
