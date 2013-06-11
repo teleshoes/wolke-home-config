@@ -51,7 +51,7 @@ getMarkup = do
   let topPrefix = if null remoteHost
                   then (if running then "" else "x")
                   else "%"
-      botPrefix = topPrefix
+      botPrefix = take 1 plsFmt
 
   let isPrefixed = not((null topPrefix) && (null botPrefix))
       topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
