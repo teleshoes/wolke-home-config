@@ -1,15 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW)
 import Utils (padL, padR, isRunning, chompFile, readProc)
 
-import Prelude hiding(lookup)
-import Data.Map (fromList, Map, lookup)
-import System.Environment (getEnv)
-import System.Directory (doesFileExist)
-import Data.Maybe (catMaybes, fromMaybe)
-import Text.Regex.PCRE ((=~))
+import Control.Applicative ((<$>), (<*>))
+import Data.Csv(decodeByName, FromNamedRecord, parseNamedRecord, (.:))
 import Graphics.UI.Gtk (escapeMarkup)
+import qualified Data.Vector as Vector
+import qualified Data.Text.Lazy as T
+import Data.Text.Lazy.Encoding (encodeUtf8)
 
 rowLength = 34
 gapOffset = 3
@@ -22,60 +22,73 @@ clickR = Just "klomp-cmd stop"
 klompW = clickable clickL clickM clickR =<< labelW getMarkup
 main = putStrLn =<< getMarkup
 
-strLookup :: Ord a => a -> Map a String -> String
-strLookup k m = fromMaybe "" $ lookup k m
-
-getRemoteCur = chompFile "/tmp/klomp-bar"
-
-readKlompCur remoteCur = case remoteCur of
-                           "n9" -> readProc ["n9u", "cat ~/.klompcur"]
-                           "raspi" -> readProc ["pi", "cat ~/.klompcur"]
-                           _ -> do home <- getEnv "HOME"
-                                   chompFile $ home ++ "/" ++ ".klompcur"
+getKlompInfo remoteHost = do
+  let ipMagic = case remoteHost of
+                  "n9" -> ["n9u"]
+                  "raspi" -> ["pi"]
+                  _ -> []
+  str <- readProc $ ipMagic ++ klompInfoCmd
+  return $ case decodeByName (encodeUtf8 $ T.pack str) of
+    Left msg -> emptyKlompInfo {errorMsg = msg}
+    Right (hdr, csv) -> if Vector.length csv /= 1
+                        then emptyKlompInfo {errorMsg = "rowcount != 1"}
+                        else Vector.head csv
 
 getMarkup = do
-  remoteCur <- getRemoteCur
-  let isRemote = not $ null remoteCur
-  cur <- readKlompCur remoteCur
+  remoteHost <- chompFile "/tmp/klomp-bar"
   running <- isRunning "klomplayer"
+  klompInfo <- getKlompInfo remoteHost
+  let errFmt = errorMsg klompInfo
+      titFmt = T.unpack $ title klompInfo
+      artFmt = T.unpack $ artist klompInfo
+      albFmt = T.unpack $ artist klompInfo
+      numFmt = T.unpack $ artist klompInfo
+      [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
+      perFmt = percent klompInfo
+      plsFmt = T.unpack $ playlist klompInfo
+      endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let ((posSex, lenSex, path), atts) = parseCur cur
-  let [pos,len] = formatTimes [posSex, lenSex]
+  let prefix = if null remoteHost
+               then (if running then "" else "x")
+               else "%"
 
-  let prefix = if isRemote then "%" else if running then "" else "x"
-  let (top, bot) = if length cur > 0 then
-                      ( pos ++ "-" ++ strLookup "artist" atts
-                      , len ++ "-" ++ strLookup "title" atts
-                      )
-                   else
-                      ( "              KLOMP      "
-                      , "          no current song"
-                      )
-  return $ (formatLine $ prefix ++ top) ++ "\n" ++ (formatLine $ prefix ++ bot)
+  let top = formatLine $ prefix ++ posFmt ++ "-" ++ errFmt ++ artFmt
+      bot = formatLine $ prefix ++ lenFmt ++ "-" ++ endFmt ++ titFmt
 
-toFloat = read :: String -> Float
+  return $ top ++ "\n" ++ bot
 
-parseCur :: String -> ((Integer, Integer, String), Map String String)
-parseCur cur = (infoMatch info, fromList $ catMaybes $ map attMatch atts)
-  where lns = lines cur
-        (info:atts) = if length lns > 0 then lns else [""]
+infoColumns = ["title", "artist", "album", "number",
+               "pos", "len", "percent", "playlist", "ended"]
+klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
 
-infoMatch :: String -> (Integer, Integer, String)
-infoMatch s = if isMatch then (posSex, lenSex, path) else (0, 0, "")
-  where regex = "(\\d+(?:\\.\\d+)?) (\\d+(?:\\.\\d+)?) (.*)"
-        match = s =~ regex :: [[String]]
-        isMatch = length match == 1
-        posSex = round $ toFloat $ head match !! 1
-        lenSex = round $ toFloat $ head match !! 2
-        path = head match !! 3
+data KlompInfo = KlompInfo { errorMsg :: !String
+                           , title    :: !T.Text
+                           , artist   :: !T.Text
+                           , album    :: !T.Text
+                           , number   :: !T.Text
+                           , pos      :: !Double
+                           , len      :: !Double
+                           , percent  :: !Int
+                           , playlist :: !T.Text
+                           , ended    :: !T.Text
+                           } deriving Show
+instance FromNamedRecord KlompInfo where
+   parseNamedRecord m = KlompInfo <$> return "" <*>
+                        m .: "title" <*>
+                        m .: "artist" <*>
+                        m .: "album" <*>
+                        m .: "number" <*>
+                        m .: "pos" <*>
+                        m .: "len" <*>
+                        m .: "percent" <*>
+                        m .: "playlist" <*>
+                        m .: "ended"
 
-attMatch :: String -> Maybe (String, String)
-attMatch s = if isMatch then Just (key, val) else Nothing
-  where regex = "([a-z_A-Z]+)=(.*)"
-        match = s =~ regex :: [[String]]
-        isMatch = length match == 1
-        key = head match !! 1
-        val = head match !! 2
+emptyKlompInfo = KlompInfo {errorMsg = "",
+                            title = "", artist = "", album = "", number = "",
+                            pos = 0.0, len = 0.0, percent = 0,
+                            playlist = "", ended = ""}
+
 
 formatTimes ts = map fmt ts 
   where maxH = (maximum ts) `div` (60^2)
