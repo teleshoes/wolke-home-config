@@ -51,11 +51,14 @@ getMarkup = do
   let prefix = if null remoteHost
                then (if running then "" else "x")
                else "%"
+  let rowLen = if null prefix then rowLength -1 else rowLength
+  let prefixFmt = padSquishEsc 1 prefix
 
-  let top = formatLine $ prefix ++ posFmt ++ "-" ++ errFmt ++ artFmt
-      bot = formatLine $ prefix ++ lenFmt ++ "-" ++ endFmt ++ titFmt
+  let top = padSquishEsc rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
+      bot = padSquishEsc rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
 
-  return $ top ++ "\n" ++ bot
+  return $ prefixFmt ++ top ++ "\n" ++ prefixFmt ++ bot
+
 
 infoColumns = ["title", "artist", "album", "number",
                "pos", "len", "percent", "playlist", "ended"]
@@ -98,14 +101,14 @@ formatTimes ts = map fmt ts
         m t = padL '0' 2 $ show $ (t `mod` 60^2) `div` 60
         s t = padL '0' 2 $ show $ t `mod` 60
 
-formatLine = escapeMarkup . adjustLen
+padSquishEsc len s = escapeMarkup $ padSquish len s
 
-adjustLen s = padR ' ' rowLength $ sTrim
+padSquish len s = padR ' ' len $ sTrim
   where strLen = length s
-        sTrim = if strLen > rowLength then beforeGap ++ sep ++ afterGap else s
+        sTrim = if strLen > len then beforeGap ++ sep ++ afterGap else s
         sepLen = length sep
-        gapStart = (rowLength `div` 2) - (sepLen `div` 2) + gapOffset
-        gapLength = strLen - rowLength + sepLen
+        gapStart = (len `div` 2) - (sepLen `div` 2) + gapOffset
+        gapLength = strLen - len + sepLen
         beforeGap = take (gapStart-1) s
         afterGap = drop (gapStart - 1 + gapLength) s
 
