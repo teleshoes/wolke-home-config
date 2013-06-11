@@ -48,16 +48,22 @@ getMarkup = do
       plsFmt = T.unpack $ playlist klompInfo
       endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let prefix = if null remoteHost
-               then (if running then "" else "x")
-               else "%"
-  let rowLen = if null prefix then rowLength -1 else rowLength
-  let prefixFmt = fgbg "green" "black" $ padSquishEsc 1 prefix
+  let topPrefix = if null remoteHost
+                  then (if running then "" else "x")
+                  else "%"
+      botPrefix = topPrefix
+
+  let isPrefixed = not((null topPrefix) && (null botPrefix))
+      topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
+      botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
+      rowLen = if isPrefixed then rowLength - 1 else rowLength
 
   let top = padSquishEsc rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
       bot = padSquishEsc rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
 
-  return $ prefixFmt ++ top ++ "\n" ++ prefixFmt ++ bot
+  return $ topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
+
+prefixFmt = fgbg "green" "black" . padSquishEsc 1
 
 infoColumns = ["title", "artist", "album", "number",
                "pos", "len", "percent", "playlist", "ended"]
