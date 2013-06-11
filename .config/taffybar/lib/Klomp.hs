@@ -14,6 +14,8 @@ import Data.Text.Lazy.Encoding (encodeUtf8)
 rowLength = 34
 gapOffset = 3
 sep = "…"
+raspiPrefix = "ř"
+n9Prefix = "ň"
 
 clickL = Just "wmctrl -s 8; klomp-term"
 clickM = Just "klomp-cmd reset"
@@ -48,9 +50,10 @@ getMarkup = do
       plsFmt = T.unpack $ playlist klompInfo
       endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let topPrefix = if null remoteHost
-                  then (if running then "" else "x")
-                  else "%"
+  let topPrefix = case remoteHost of
+                    "n9" -> n9Prefix
+                    "raspi" -> raspiPrefix
+                    _ -> if running then "" else "x"
       botPrefix = take 1 plsFmt
 
   let isPrefixed = not((null topPrefix) && (null botPrefix))
