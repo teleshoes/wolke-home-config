@@ -2,7 +2,7 @@
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW)
-import Utils (padL, padR, isRunning, chompFile, readProc)
+import Utils (fgbg, padL, padR, isRunning, chompFile, readProc)
 
 import Control.Applicative ((<$>), (<*>))
 import Data.Csv(decodeByName, FromNamedRecord, parseNamedRecord, (.:))
@@ -52,13 +52,12 @@ getMarkup = do
                then (if running then "" else "x")
                else "%"
   let rowLen = if null prefix then rowLength -1 else rowLength
-  let prefixFmt = padSquishEsc 1 prefix
+  let prefixFmt = fgbg "green" "black" $ padSquishEsc 1 prefix
 
   let top = padSquishEsc rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
       bot = padSquishEsc rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
 
   return $ prefixFmt ++ top ++ "\n" ++ prefixFmt ++ bot
-
 
 infoColumns = ["title", "artist", "album", "number",
                "pos", "len", "percent", "playlist", "ended"]
@@ -111,4 +110,3 @@ padSquish len s = padR ' ' len $ sTrim
         gapLength = strLen - len + sepLen
         beforeGap = take (gapStart-1) s
         afterGap = drop (gapStart - 1 + gapLength) s
-
