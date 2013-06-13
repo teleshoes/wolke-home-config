@@ -17,7 +17,7 @@ sep = "…"
 raspiPrefix = "ř"
 n9Prefix = "ň"
 
-clickL = Just "wmctrl -s 8; klomp-term --playlist"
+clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
