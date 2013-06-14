@@ -65,7 +65,6 @@ myManageHook = execWriter $ do
   className =? "Pidgin"                ~~> doShift "B"
   className =? "Thunderbird"           ~~> doShift "8"
   title     =? "Off"                   ~~> doFloat
-  title     =? "KLOMP"                 ~~> doShift "9"
   title     =? "Transmission"          ~~> doShift "9"
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? firefoxClose            ~~> restartFF
