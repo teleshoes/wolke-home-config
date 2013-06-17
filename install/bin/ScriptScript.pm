@@ -335,7 +335,7 @@ sub installFromDir($) {
 sub aptSrcInstall($$) {
     my ($package, $whichdeb) = @_;
     shell "sudo apt-get -y build-dep $package";
-    my $srcdir = "$ENV{HOME}/Code/$package";
+    my $srcdir = "$ENV{HOME}/.src-cache/$package";
     shell "mkdir $srcdir" unless -d $srcdir;
     cd $srcdir;
     shell "apt-get -b source $package";
