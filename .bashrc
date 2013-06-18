@@ -18,8 +18,7 @@ fi
 
 PS1="\[\033[G\]$PS1"
 
-export PATH="\
-:$HOME/install/bin\
+PATH_BASE="\
 :$HOME/bin\
 :$HOME/.cabal/bin\
 :/usr/local/bin\
@@ -31,6 +30,15 @@ export PATH="\
 :/usr/local/games\
 :/usr/games\
 "
+
+export GHC_HP_VERSION="7.6.3"
+PATH_GHC_HP="\
+:$HOME/.cabal-$GHC_HP_VERSION/bin\
+:$HOME/.ghc-$GHC_HP_VERSION/bin\
+$PATH_BASE\
+"
+
+export PATH="$PATH_GHC_HP"
 
 export HD='/media/Charybdis/zuserm'
 alias  HD="cd $HD"
