@@ -22,11 +22,16 @@ import System.Information.EWMHDesktopInfo (
 
 pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "white" . escapeMarkup . fmtTitle cfg
-  , activeLayout     = \x -> return $ case x of
-                               "left"    ->                   "[]="
-                               "top"     -> fgbg "blue" "red" "TTT"
-                               "full"    -> fgbg "blue" "red" "[ ]"
-                               otherwise -> fgbg "blue" "red" "???"
+  , activeLayout     = \x -> case x of
+                               "left"    -> return "[]="
+                               "top"     -> return $ fgbg "blue" "red" "TTT"
+                               "full"    -> do
+                                 cnt <- windowCount
+                                 let fmt = if 0 <= cnt && cnt < 10
+                                           then show cnt
+                                           else "+"
+                                 return $ fgbg "blue" "red" $ "[" ++ fmt ++ "]"
+                               otherwise -> return $ fgbg "blue" "red" "???"
   , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "black" "green"
   , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
   , emptyWorkspace   = wsStyle cfg Nothing $ id
