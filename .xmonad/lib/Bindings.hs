@@ -1,5 +1,4 @@
 module Bindings where
-import Graphics.X11.ExtraTypes.XF86
 import XMonad
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 import XMonad.Actions.FloatKeys (keysMoveWindow, keysResizeWindow)
@@ -10,10 +9,8 @@ import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.StackSet hiding (focus, workspaces, filter)
 import qualified XMonad.StackSet as SS
 
-import Control.Arrow
 import Control.Applicative
 import qualified Data.Foldable as F
-import Data.Function
 import Data.Map ((!))
 import qualified Data.Map as M
 import Data.Maybe

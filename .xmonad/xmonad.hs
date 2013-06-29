@@ -10,18 +10,13 @@ import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
-import XMonad.Util.Run (safeSpawn)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
-import System.Environment.UTF8 (getEnv)
 
 import qualified XMonad.StackSet as Stk
 
 import System.Taffybar.Hooks.PagerHints (pagerHints)
 
-import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Control.Monad.Writer
-import Data.Monoid (All(All))
 
 staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     tell "Error: Overlap in bindings\n"
