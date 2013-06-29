@@ -88,12 +88,20 @@ shortcuts conf = "Shortcuts" @@ do
 
 musicKeys conf = "Music" @@ do
     "klomp"         @@     mCA   xK_m    #! "term klomp"
-    "edit list"     @@     mCS   xK_m    #! "term vim .klomplist"
-    "play/pause"    @@     mC   (xK ' ') #! "klomp-cmd pause"
+    "edit list"     @@     mW    xK_m    #! "term vim .klomplist"
+    "play/pause"    @@     mW   (xK ' ') #! "klomp-cmd pause"
     "play/pause"    @@     m_    xK_Pause#! "klomp-cmd pause"
-    "prev"          @@     mC   (xK ',') #! "klomp-cmd prev"
-    "next"          @@     mC   (xK '.') #! "klomp-cmd next"
-
+    "prev"          @@     mW   (xK ',') #! "klomp-cmd prev"
+    "next"          @@     mW   (xK '.') #! "klomp-cmd next"
+    let [forward,back] = map (\sign -> "seek "++ sign ++ "3/10/60/600") ["+","-"]
+    forward     @@  do mW    xK_Back #! "klomp-cmd seek +3"
+                       mW    xK_Right#! "klomp-cmd seek +10"
+                       mW    xK_Up   #! "klomp-cmd seek +60"
+                       mW    xK_PgUp #! "klomp-cmd seek +600"
+    back        @@  do mW    xK_Fwd  #! "klomp-cmd seek -3"
+                       mW    xK_Left #! "klomp-cmd seek -10"
+                       mW    xK_Down #! "klomp-cmd seek -60"
+                       mW    xK_PgDn #! "klomp-cmd seek -600"
 
 windowKeys conf = "Windows" @@ do
     "Current"       @@ do
@@ -114,7 +122,7 @@ windowKeys conf = "Windows" @@ do
                            mWS   xK_Enter#^ windows . popout
     "Attach/Detach" @@  do mAW   xK_Enter#  killAllOtherCopies
                            mAWS  xK_Enter## copyToAll
-    "Move Floating"     @@ frobWin mW  keysMoveWindow
+    "Move Floating"     @@ frobWin mAW keysMoveWindow
     "Resize Floating"   @@ frobWin mWS $ flip keysResizeWindow (0,0)
   where
     popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
@@ -123,22 +131,22 @@ windowKeys conf = "Windows" @@ do
       where vs = [(-mag, 0), (0, -mag), (mag, 0), (0, mag)]
 
 layoutKeys conf = "Layout" @@ do
-    "Restore Default"   @@ mW   (xK ' ') #  do sinkAll
+    "Restore Default"   @@ mC   (xK ' ') #  do sinkAll
                                                setLayout $ layoutHook conf
-    "Toggle Struts"     @@ mW    xK_d    #> ToggleStruts
-    "Left"              @@ mW    xK_a    #> JumpToLayout "left" 
-    "Top"               @@ mW    xK_w    #> JumpToLayout "top" 
-    "Full"              @@ mW    xK_s    #> JumpToLayout "full" 
-    "Shrink/Expand" @@  do mW    xK_h    #> Shrink
-                           mW    xK_l    #> Expand
-    "+/- Master"    @@  do mW    xK_j    #> IncMasterN 1   
-                           mW    xK_k    #> IncMasterN (-1)
+    "Toggle Struts"     @@ mA    xK_d    #> ToggleStruts
+    "Left"              @@ mA    xK_a    #> JumpToLayout "left" 
+    "Top"               @@ mA    xK_w    #> JumpToLayout "top" 
+    "Full"              @@ mA    xK_s    #> JumpToLayout "full" 
+    "Shrink/Expand" @@  do mA    xK_h    #> Shrink
+                           mA    xK_l    #> Expand
+    "+/- Master"    @@  do mA   (xK ',') #> IncMasterN 1   
+                           mA   (xK '.') #> IncMasterN (-1)
 
 workspaceKeys conf = "Workspaces" @@ do
     "Go to"         @@ do
         "Next/Prev" @@  do mCA   xK_Right## viewNext
                            mCA   xK_Left ## viewPrev
-        "<N>"           @@[mW    n       ## greedyView w | (n, w) <- nws]
+        "<N>"           @@[mA    n       ## greedyView w | (n, w) <- nws]
     "Shift Window"  @@ do
         "Next/Prev" @@  do mAS   xK_Right## shiftNext
                            mAS   xK_Left ## shiftPrev
