@@ -87,8 +87,8 @@ shortcuts conf = "Shortcuts" @@ do
         "FBReader"      @@ mCA   xK_b    #! "fbreader"
 
 musicKeys conf = "Music" @@ do
-    "klomp"         @@     mCA   xK_m    #! "term klomp"
-    "edit list"     @@     mW    xK_m    #! "term vim .klomplist"
+    "klomp"         @@     mW    xK_a    #! "term klomp"
+    "edit playlist" @@     mW    xK_e    #! "term vim .klomplist"
     "play/pause"    @@     mW   (xK ' ') #! "klomp-cmd pause"
     "play/pause"    @@     m_    xK_Pause#! "klomp-cmd pause"
     "prev"          @@     mW   (xK ',') #! "klomp-cmd prev"
