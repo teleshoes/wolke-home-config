@@ -94,11 +94,11 @@ musicKeys conf = "Music" @@ do
     "prev"          @@     mW   (xK ',') #! "klomp-cmd prev"
     "next"          @@     mW   (xK '.') #! "klomp-cmd next"
     let [forward,back] = map (\sign -> "seek "++ sign ++ "3/10/60/600") ["+","-"]
-    forward     @@  do mW    xK_Back #! "klomp-cmd seek +3"
+    forward     @@  do mW    xK_Fwd #! "klomp-cmd seek +3"
                        mW    xK_Right#! "klomp-cmd seek +10"
                        mW    xK_Up   #! "klomp-cmd seek +60"
                        mW    xK_PgUp #! "klomp-cmd seek +600"
-    back        @@  do mW    xK_Fwd  #! "klomp-cmd seek -3"
+    back        @@  do mW    xK_Back #! "klomp-cmd seek -3"
                        mW    xK_Left #! "klomp-cmd seek -10"
                        mW    xK_Down #! "klomp-cmd seek -60"
                        mW    xK_PgDn #! "klomp-cmd seek -600"
