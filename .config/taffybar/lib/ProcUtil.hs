@@ -38,10 +38,12 @@ readProcessWithExitCode' cmd args input =
         (do hClose inh; hClose outh; hClose errh;
             terminateProcess pid; waitForProcess pid) $ restore $ do
         -- fork off a thread to start consuming stdout
+        hSetBinaryMode outh True
         out <- hGetContents outh
         waitOut <- forkWait $ C.evaluate $ rnf out
 
         -- fork off a thread to start consuming stderr
+        hSetBinaryMode errh True
         err <- hGetContents errh
         waitErr <- forkWait $ C.evaluate $ rnf err
 
