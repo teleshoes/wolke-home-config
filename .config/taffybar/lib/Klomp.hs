@@ -4,6 +4,7 @@ import Clickable (clickable)
 import Label (labelW)
 import Utils (fgbg, padL, padR, isRunning, chompFile, readProc)
 
+import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
 import Data.Csv(decodeByName, FromNamedRecord, parseNamedRecord, (.:))
 import Graphics.UI.Gtk (escapeMarkup)
@@ -30,11 +31,13 @@ getKlompInfo remoteHost = do
                   "raspi" -> ["pi"]
                   _ -> []
   str <- readProc $ ipMagic ++ klompInfoCmd
-  return $ case decodeByName (encodeUtf8 $ T.pack str) of
+  return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
     Left msg -> emptyKlompInfo {errorMsg = msg}
     Right (hdr, csv) -> if Vector.length csv /= 1
                         then emptyKlompInfo {errorMsg = "rowcount != 1"}
                         else Vector.head csv
+
+coerceUtf8 = decodeString . utf8Encode
 
 getMarkup = do
   remoteHost <- chompFile "/tmp/klomp-bar"
