@@ -2,20 +2,22 @@ package ScriptScript;
 use warnings;
 use strict;
 use String::ShellQuote;
+use File::Temp 'tempfile';
 require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
-our @EXPORT = qw( run tryrun 
+our @EXPORT = qw( run tryrun
                   shell tryshell
                   cd
                   writeFile tryWriteFile
-                  readFile tryReadFile editFile readAllFiles
+                  readFile tryReadFile
+                  editFile replaceLine replaceOrAddLine
                   getRoot
                   getUsername
                   guessBackupDir
                   relToScript
                   readConf readConfDir
-                  installFromDir
+                  installFromDir aptSrcInstall
                 );
 
 my $opts = {
@@ -42,22 +44,20 @@ sub runProto($$) {
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        my $pid = open FH, "-|";
-        if($pid) {
+        my $pid = open my $fh, "-|";
+        if(not $pid) {
+            open(STDERR, ">&STDOUT");
+            exec $cmd or exit 1;
+        } else {
             if($opts->{verbose}) {
-                while(my $line = <FH>) {
+                while(my $line = <$fh>) {
                     print "# " if $opts->{putCommand};
                     chomp $line;
                     print "$line\n";
                 }
-                close FH;
-            } else {
-                waitpid $pid, 0;
             }
-            deathWithDishonor if $? != 0 and $dieOnError;         
-        } else {
-            open(STDERR, ">&STDOUT");
-            exec $cmd or exit 1;
+            close $fh;
+            deathWithDishonor if $? != 0 and $dieOnError;
         }
     }
 }
@@ -84,23 +84,23 @@ sub writeFileProto($) {
         my $escname = shell_quote $name;
 
         my $delim = "EOF";
-        while($cnts =~ /$delim/) { $delim .= "F" }
+        while($cnts =~ /^$delim$/m) { $delim .= "F" }
 
         chomp $cnts;
 
         my $cmd = join "\n"
-            , "( cat << $delim"
-            , $cnts
-            , "$delim"
-            , ") > $escname";
+          , "( cat << \"$delim\""
+          , $cnts
+          , $delim
+          , ") > $escname";
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        my $opened = open FH, ">", $name;
+        my $opened = open my $fh, ">", $name;
         if($opened) {
-            print FH "$cnts\n";
-            close FH;
+            print $fh "$cnts\n";
+            close $fh;
         } elsif($dieOnError) {
             deathWithDishonor
         }
@@ -116,16 +116,16 @@ sub readFileProto($) {
 
         my $escname = shell_quote $name;
 
-        my $opened = open FH, "<", $name;
+        my $opened = open my $fh, "<", $name;
         if($opened) {
             if(wantarray) {
-                my @cnts = <FH>;
-                close FH;
+                my @cnts = <$fh>;
+                close $fh;
                 return @cnts;
             } else {
                 local $/;
-                my $cnts = <FH>;
-                close FH;
+                my $cnts = <$fh>;
+                close $fh;
                 return $cnts;
             }
         } elsif($dieOnError) {
@@ -137,24 +137,115 @@ sub readFileProto($) {
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
 
-sub editFile($$) {
-    my ($file, $edit) = @_;
+sub editFile($$;$) {
+    my ($name, $patchname, $edit);
+    ($name, $edit) = @_             if @_ == 2;
+    ($name, $patchname, $edit) = @_ if @_ == 3;
 
-    my $read  = readFile $file;
-    my $write = &$edit($read);
-    # TODO rather than using writeFile, and and apply a diff
-    writeFile $file, $write unless $write eq $read;
+    my @patchcmd = ("patch", "-fr", "-", "$name");
+    my $patchfile = "$name.$patchname.patch" if defined $patchname;
+    my @revcmd = (@patchcmd, $patchfile, "--reverse");
+
+    my $escpatchcmd = join ' ', shell_quote(@patchcmd);
+    my $escrevcmd   = join ' ', shell_quote(@revcmd);
+
+    my $read;
+    if (defined $patchfile and -f $patchfile) {
+        if(system("$escrevcmd --dry-run >/dev/null 2>&1") != 0) {
+            run @revcmd, "--dry-run";
+        }
+
+        open my $fh, "-|", @revcmd, "-s", "-o", "-";
+        local $/;
+        $read = <$fh>;
+        close $fh;
+    } else {
+        $read = readFile $name;
+    }
+
+    my $tmp = $read;
+    my $write = &$edit($tmp);
+    unless(defined $write) {
+        my $escname = shell_quote $name;
+        my $escpatch = defined $patchname ? " " .shell_quote $patchname : "";
+        print STDERR "## editFile $escname$escpatch: "; 
+        print STDERR "edit function failed, exiting\n";
+        exit 1;
+    }
+
+    if($write eq $read) {
+        if(defined $patchfile and -f $patchfile) {
+            run @revcmd;
+            run "rm", $patchfile;
+        }
+        return;
+    }
+
+    my $oldpatch = "";
+    if (defined $patchfile and -f $patchfile) {
+        $oldpatch = readFile $patchfile;
+    }
+
+    my $newpatch;
+    my $pid = open my $in, "-|";
+    if(not $pid) {
+        open(STDERR, ">&STDOUT");
+
+        my ($fh, $tmp) = tempfile;
+        print $fh $read;
+        close $fh;
+
+        open my $out, "|-", "diff", $tmp, "-";
+        print $out $write;
+        close $out;
+        system "rm", $tmp;
+        exit;
+    } else {
+        local $/;
+        $newpatch = <$in>;
+        close $in;
+    }
+
+    if($newpatch ne $oldpatch) {
+        if(defined $patchfile) {
+            run @revcmd if -f $patchfile;
+            writeFile $patchfile, $newpatch;
+            run @patchcmd, $patchfile;
+        } else {
+            my $delim = "EOF";
+            while($newpatch =~ /^$delim$/m) { $delim .= "F" }
+
+            chomp $newpatch;
+            my $cmd = join "\n"
+              , "$escpatchcmd - << \"$delim\""
+              , $newpatch
+              , $delim;
+
+            shell $cmd;
+        }
+    }
 }
 
-sub readAllFiles($) {
-    my ($dir) = @_;
-
-    my @filenames = split "\n", `ls -A1 $dir`;
-    
-    my %files = ();
-    $files{$_} = readFile "$dir/$_" for @filenames;
-    %files
+sub replaceLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    }
+    $&
 }
+
+sub replaceOrAddLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    } else  {
+        chomp $_[0];
+        $_[0] .= "\n";
+        $_[0] =~ s/\n+$/$&$new\n/;
+    }
+    $&
+}
+
 
 sub getRoot(@) {
     if(`whoami` ne "root\n") {
@@ -182,7 +273,7 @@ sub getUsername() {
 sub guessBackupDir() {
     my $user = getUsername;
     my @dirs = sort { (stat($b))[9] <=> (stat($a))[9] }
-               grep { -d $_} 
+               grep { -d $_}
                map {"/media/$_/$user"}
                split "\n", `ls -1 /media`;
     $dirs[0]
@@ -191,10 +282,8 @@ sub guessBackupDir() {
 sub relToScript($) {
     my ($path) = @_;
 
-    my $scriptdir = `dirname $0`;
-    chomp $scriptdir;
-
-    "$scriptdir/$path"
+    $0 =~ /\/[^\/]+$/;
+    "$`/$path"
 }
 
 sub readConf($) {
@@ -224,19 +313,36 @@ sub installFromDir($) {
     my ($dir) = @_;
     cd $dir;
     run qw(git pull) if -d ".git";
-    if(`ls` =~ /\.cabal$/) {
+
+    my @ls = split "\n", `ls -1`;
+
+    if(grep {/\.cabal$/} @ls) {
         shell "cabal install";
-    } elsif(`ls` =~ /^install/) {
-        shell "install*";
-    } elsif(system "make -qn all") {
+    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
         shell "make -j all";
         shell "sudo make install";
-    } elsif(system "make -qn") {
+    } elsif(system("make -n >/dev/null 2>&1") == 0) {
         shell "make -j";
         shell "sudo make install";
+    } elsif(grep {/^install/} @ls) {
+        shell "install*";
     } else {
-        print STDERR "### no install file in $dir , exiting";
+        print STDERR "### no install file in $dir , exiting\n";
         exit 1;
+    }
+}
+
+sub aptSrcInstall($$) {
+    my ($package, $whichdeb) = @_;
+    shell "sudo apt-get -y build-dep $package";
+    my $srcdir = "$ENV{HOME}/.src-cache/$package";
+    shell "mkdir $srcdir" unless -d $srcdir;
+    cd $srcdir;
+    shell "apt-get -b source $package";
+    for my $file (split "\n", `ls -1`) {
+        if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
+            shell "sudo dpkg -i $file";
+        }
     }
 }
 

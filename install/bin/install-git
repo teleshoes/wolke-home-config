@@ -3,12 +3,25 @@ use strict;
 use warnings;
 use ScriptScript;
 
-sub installFromDir($);
-
 sub main(@) {
-    # TODO do not assume configured src dir
+    run qw(sudo apt-get install git);
     run qw(sudo apt-get -y build-dep git);
-    installFromDir "$ENV{HOME}/Code/git";
+    my $srcdir = "$ENV{HOME}/.src-cache/git";
+
+    my $conf = "$HOME{ENV}/.gitcongig";
+    my $ignore = "$conf.ignore";
+    run "mv", $conf, $ignore if -e $conf;
+    if (-d $srcdir) {
+        cd $srcdir;
+        run "git pull";
+    } else {
+        run "git", "clone", "https://github.com/git/git.git", $srcdir;
+        cd $srcdir;
+    }
+    run "mv", $ignore, $conf if -e $ignore;
+
+    shell "make -j all";
+    shell "sudo make install";
     tryrun qw(sudo rm /etc/bash_completion.d/git-prompt);
 }
 

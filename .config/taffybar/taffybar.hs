@@ -9,17 +9,18 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 main = do
   let cfg = defaultTaffybarConfig {barHeight=38, widgetSpacing=5}
       font = "Inconsolata medium 13"
-      fgColor = hexColor $ RGB (0.8, 0.8, 0.8)
-      bgColor = hexColor $ RGB (0.25, 0.25, 0.5)
+      fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
+      bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor $ Black
       sep = W.sepW Black 2
 
-      start = [ W.wmLogNew WMLogConfig { titleLength = 30
-                                       , wsImageHeight = 24
-                                       , titleRows = True
-                                       , stackWsTitle = False
-                                       , wsBorderColor = RGB (0.6, 0.5, 0.2)
-                                       }
+      start = [ W.wmLogNew WMLogConfig
+                { titleLength = 30
+                , wsImageHeight = 24
+                , titleRows = True
+                , stackWsTitle = False
+                , wsBorderColor = RGB (0.6, 0.5, 0.2)
+                }
               ]
       end = reverse
           [ W.monitorCpuW

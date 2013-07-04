@@ -21,7 +21,7 @@ import System.Information.EWMHDesktopInfo (
   withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
 pagerConfig pixbufs cfg = defaultPagerConfig
-  { activeWindow     = fg "white" . escapeMarkup . fmtTitle cfg
+  { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
                                "left"    -> return "[]="
                                "top"     -> return $ fgbg "blue" "red" "TTT"
@@ -32,11 +32,11 @@ pagerConfig pixbufs cfg = defaultPagerConfig
                                            else "+"
                                  return $ fgbg "blue" "red" $ "[" ++ fmt ++ "]"
                                otherwise -> return $ fgbg "blue" "red" "???"
-  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "black" "green"
+  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "#002b36" "#eee8d8"
   , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
   , emptyWorkspace   = wsStyle cfg Nothing $ id
   , visibleWorkspace = wsStyle cfg Nothing $ id
-  , urgentWorkspace  = markWs $ bold . fgbg "red" "yellow" . escapeMarkup
+  , urgentWorkspace  = markWs $ bold . fgbg "#002b36" "red" . escapeMarkup
   , hideEmptyWs      = False
   , wsButtonSpacing  = 3
   , widgetSep        = ""

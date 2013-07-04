@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $ghcversion = "7.6.3";
+my $hpversion  = "2013.2.0.0";
+
+sub main(@) {
+    my $prefix = "$ENV{HOME}/.ghc-$ghcversion";
+
+    my $srcdir = "$ENV{HOME}/.src-cache";
+    run "mkdir", $srcdir unless -e $srcdir;
+
+    my $ghcinstalldir = "$srcdir/ghc-$ghcversion";
+    unless(-e $ghcinstalldir) {
+        cd $srcdir;
+        unless(-e "$ghcinstalldir.tar.bz2") {
+            run "wget", "http://www.haskell.org/ghc/dist/$ghcversion/ghc-$ghcversion-x86_64-unknown-linux.tar.bz2";
+        }
+        run "tar", "-xf", "$ghcinstalldir.tar.bz2";
+    }
+    cd $ghcinstalldir;
+    run "./configure", "--prefix=$prefix";
+    run "make install"
+
+    my $hpinstalldir = "$ENV{HOME}/.src-cache/haskell-platform-$hpversion";
+    unless(-e $hpinstalldir) {
+        cd $srcdir;
+        unless(-e "$hpinstalldir.tar.gz") {
+            run "wget", "http://lambda.haskell.org/platform/download/$hpversion/haskell-platform-$hpversion.tar.gz";
+        }
+        run "tar", "-xf", "$hpinstalldir.tar.gz";
+    }
+    cd $hpinstalldir;
+    $ENV{PATH} = "$prefix:$ENV{PATH}" unless $ENV{PATH} =~ /\Q.ghc-$ghcversion\E/;
+    run "./configure", "--prefix=$prefix";
+    run "make"
+    run "make install"
+
+    my $config = "$ENV{HOME}/.cabal/config";
+    run "mv", "$config", "$config-def" unless -e "$config-def";
+    unless(-e "$config-$ghcversion") {
+        run "cp", "$config-def", "$config-$ghcversion";
+        editFile "$config-$ghcversion", sub {
+            my $config = shift;
+            replaceLine "world-file", 
+                "world-file: $ENV{HOME}/.cabal/world-$ghcversion";
+            replaceLine "library-profiling",
+                "library-profiling: True";
+            replaceLine "documentation",
+                "documentation: True";
+            replaceLine " prefix:",
+                "  prefix: /home/zuserm/.cabal-$ghcversion";
+            $config
+        };
+    }
+}
+
+main @ARGV;
+
