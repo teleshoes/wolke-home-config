@@ -1,6 +1,4 @@
 module Volume (volumeW, getVol, isMuted) where
-import Prelude hiding (catch)
-import Control.Exception (catch, SomeException(..))
 import PercentBarWidget (
   percentBarWidgetW, percentBarConfig, cycleColors)
 import Color as C
@@ -29,8 +27,7 @@ isMuted = fmap snd . getStatus
 
 getStatus :: String -> IO (Int, Bool)
 getStatus dev = do
-  status <- readProc ["pulse-vol", dev] 
+  status <- readProc ["pulse-vol", dev]
   let groups = regexGroups "(\\d+) \\((muted|unmuted|unknown)\\)" status
   let [vol, mute] = fromMaybe ["0", "unknown"] groups
   return (read vol, mute == "muted")
-

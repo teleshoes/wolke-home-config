@@ -1,0 +1,308 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
+my $mp3UrlCache = '/tmp/escape-pod-mp3-url-cache';
+my $csvDelim = ';';
+
+sub getMP3Url($$$);
+sub fetchMP3Url($);
+sub browserLoadArticle($);
+sub readMP3UrlCache();
+sub writeMP3UrlCache($);
+sub downloadMP3File($$$);
+sub tagMP3File($$);
+sub newMP3FileName($);
+
+sub parseTableRow($$);
+sub padl($$);
+sub maxLen(@);
+
+sub csv($);
+sub cell($);
+
+sub run(@);
+
+my $cmds = join "|", qw(
+  --csv --url --mp3url --mp3filename --download --tag
+);
+my $usage = "Usage:
+  $0 [$cmds [EPNUM EPNUM ..]]
+    Fetch episode list from $url.
+    Parse it, and print certain info.
+
+    --csv {default if no args specified}
+      Print episode info in CSV with delim=$csvDelim
+    --url
+      Print the article url for each EPNUM, using the links in the above url.
+    --mp3url
+      Print the download URL from the escape pod article url.
+      For each EPNUM, if there is a line like \"EPNUM URL\" in $mp3UrlCache,
+        print that URL.
+      Otherwise, fetch it using curl/wget and store it in $mp3UrlCache.
+    --mp3filename
+      Same as --mp3url, but only print the filename
+    --download
+      Get mp3url and download it with axel, then --tag it as below.
+      Skip an EPNUM if the mp3filename
+        or a file named \"###EPNUM TITLE.mp3\"
+        is already present in the current dir.
+    --tag
+      Set tags and rename files.
+      Gets mp3filename, assume it is in current dir.
+      If mp3filename is not present, use the target name.
+
+      Remove all id3 tags from the file, and set new tags.
+      Uses 'id3v2' and 'mid3iconv'.
+        title = \"TITLE\"
+        author = \"AUTHOR [READER]\"
+        tracknumber = \"EPNUM\"
+        album = \"Escape Pod\"
+      Rename the file from mp3filename => \"###EPNUM TITLE.mp3\"
+      {with /s removed}
+
+  EPNUM: escape pod episode number. if none are specified, all are used.
+";
+
+sub main(@){
+  my $cmd = shift;
+  $cmd = '--csv' if not defined $cmd;
+  die $usage if $cmd !~ /^($cmds)$/;
+
+  my @nums = @_;
+  die $usage if (grep {$_ !~ /^\d+$/} @nums) > 0;
+
+  my %okNums = map {$_+0 => 1} @nums;
+
+
+  my $html = `wget -O - $url 2>/dev/null`;
+  my @epNums;
+  my @tableRows;
+  while($html =~ /<tr>\s*<td>(\d+)<\/td>.*?<\/tr>/gs){
+    push @tableRows, $&;
+    push @epNums, $1;
+  }
+
+  my $maxLen = maxLen @epNums;
+
+  my $eps = {};
+  for my $tableRow(@tableRows){
+    my $ep = parseTableRow $tableRow, $maxLen;
+    next if keys %okNums > 0 and not defined $okNums{$$ep{number}+0};
+    $$eps{$$ep{number}} = $ep;
+  }
+
+  if($cmd eq '--csv'){
+    for my $epNum(sort keys %$eps){
+      print csv($$eps{$epNum}) . "\n";
+    }
+  }elsif($cmd eq '--url'){
+    for my $epNum(sort keys %$eps){
+      print "$$eps{$epNum}{url}\n";
+    }
+  }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--tag)/){
+    my $cache = readMP3UrlCache();
+    for my $epNum(sort keys %$eps){
+      my $mp3Url = getMP3Url($epNum, $$eps{$epNum}{articleUrl}, $cache);
+      if(defined $mp3Url){
+        my $mp3FileName = $1 if $mp3Url =~ /([^\/]*\.mp3)$/;
+        if($cmd eq '--mp3url'){
+          print "$mp3Url\n";
+        }elsif($cmd eq '--mp3filename'){
+          print "$mp3FileName\n";
+        }elsif($cmd eq '--download'){
+          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum});
+        }elsif($cmd eq '--tag'){
+          tagMP3File($mp3FileName, $$eps{$epNum});
+        }
+
+        if(not defined $$cache{$epNum+0}){
+          $$cache{$epNum+0} = $mp3Url;
+          writeMP3UrlCache $cache;
+        }
+      }else{
+        print "   ERROR: $epNum\n";
+      }
+    }
+  }
+}
+
+sub getMP3Url($$$){
+  my ($epNum, $articleUrl, $cache) = @_;
+  my $mp3Url = $$cache{$epNum+0};
+
+  my $attempts;
+
+  $attempts = 10;
+  while(not defined $mp3Url and $attempts > 0){
+    $attempts--;
+    $mp3Url = fetchMP3Url $articleUrl;
+  }
+  if(not defined $mp3Url){
+    browserLoadArticle $articleUrl;
+  }
+  $attempts = 10;
+  while(not defined $mp3Url and $attempts > 0){
+    $attempts--;
+    $mp3Url = fetchMP3Url $articleUrl;
+  }
+  return $mp3Url;
+}
+sub fetchMP3Url($){
+  my $articleUrl = shift;
+  my $html = `curl -L "$articleUrl" 2>/dev/null`;
+  if($html =~ /href="([^"]*\.mp3)"/){
+    return $1;
+  }
+  $html = `wget "$articleUrl" -O - 2>/dev/null`;
+  if($html =~ /href="([^"]*\.mp3)"/){
+    return $1;
+  }
+  return undef;
+}
+sub browserLoadArticle($){
+  my $articleUrl = shift;
+  system "uzbl $articleUrl >/dev/null 2>/dev/null &";
+  sleep 5;
+  system "pkill", "-f", "uzbl.*$articleUrl";
+}
+sub readMP3UrlCache(){
+  my $cache = {};
+  if(-e $mp3UrlCache){
+    for my $line(`cat $mp3UrlCache`){
+      if($line =~ /^(\d+) (.*\.mp3)$/){
+        $$cache{$1+0} = $2;
+      }
+    }
+  }
+  return $cache;
+}
+sub writeMP3UrlCache($){
+  my $cache = shift;
+  my @lines;
+  for my $epNum(sort {$a <=> $b} keys %$cache){
+    push @lines, "$epNum $$cache{$epNum}\n";
+  }
+  open FH, "> $mp3UrlCache";
+  print FH @lines;
+  close FH;
+}
+sub downloadMP3File($$$){
+  my ($mp3Url, $mp3FileName, $ep) = @_;
+  my $newFileName = newMP3FileName $ep;
+  if(-e $mp3FileName or -e $newFileName){
+    print "  skipping $$ep{number}..\n";
+  }else{
+    run "axel", $mp3Url;
+    die " downloading failed\n" if $? != 0;
+    tagMP3File $mp3FileName, $ep;
+  }
+}
+sub tagMP3File($$){
+  my ($mp3FileName, $ep) = @_;
+  my $oldFileName = $mp3FileName;
+  my $newFileName = newMP3FileName $ep;
+
+  if(not -e $oldFileName and not -e $newFileName){
+    print "   ERROR: missing $oldFileName or $newFileName\n";
+    return;
+  }
+  $oldFileName = $newFileName if not -e $oldFileName;
+
+  run "id3v2", "--delete-all", $oldFileName;
+  die "error removing id3 tags for $$ep{number}\n" if $? != 0;
+
+  run "id3v2",
+    "-t", $$ep{title},
+    "-a", "$$ep{author} [$$ep{reader}]",
+    "-T", $$ep{number}+0,
+    "-A", "Escape Pod",
+    $oldFileName;
+  die "error setting id3 tags for $$ep{number}\n" if $? != 0;
+
+  run "mid3iconv", $oldFileName;
+  die "error setting encoding to unicode\n" if $? != 0;
+
+  if($oldFileName ne $newFileName){
+    run "mv", "--no-clobber", $oldFileName, $newFileName;
+    die "error renaming file\n" if $? != 0;
+  }
+}
+sub newMP3FileName($){
+  my $ep = shift;
+  my $newFileName = "$$ep{number} $$ep{title}.mp3";
+  $newFileName =~ s/\//_/g;
+  return $newFileName;
+}
+
+sub parseTableRow($$){
+  my $tr = shift;
+  my $maxLen = shift;
+
+  $tr =~ /href="(http:\/\/escapepod.org\/(\d+\/\d+\/\d+)\/[^"]*)"/;
+  my $articleUrl = $1;
+  my $date = $2;
+
+  $tr =~ s/\n/ /g;
+  $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
+  $tr =~ s/\s*<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >\s*/<>$1/gsxi;
+  $tr =~ s/^\s*<tr>\s*<>(.*)<>\s*EPF\s*<\/tr>\s*$/$1/;
+  if($tr =~ /^(\d+)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
+    return {
+      number => padl($maxLen, $1),
+      title => $2,
+      author => $3,
+      reader => $4,
+      time => $5,
+      parentRating => $6,
+      articleUrl => $articleUrl,
+      date => $date,
+    };
+  }else{
+    die "fucked up episode: $tr\n";
+  }
+}
+sub padl($$){
+  my ($len, $n) = @_;
+  return ('0'x($len - length $n)) . $n;
+}
+sub maxLen(@){
+  my $maxLen = 0;
+  for my $s(@_){
+   $maxLen = length $s if length $s > $maxLen; 
+  }
+  return $maxLen;
+}
+
+
+sub csv($){
+  my $ep = shift;
+  my @cols = (
+    cell $$ep{number},
+    cell $$ep{title},
+    cell $$ep{author},
+    cell $$ep{reader},
+    cell $$ep{date},
+    cell $$ep{articleUrl},
+  );
+  return join ($csvDelim, @cols);
+}
+sub cell($){
+  my $cell = shift;
+  $cell =~ s/\&amp;/\&/g;
+  if($cell =~ /\Q$csvDelim\E/ or $cell =~ /\Q"\E/){
+    $cell =~ s/"/""/g;
+    $cell = "\"$cell\"";
+    return $cell;
+  }else{
+    return $cell;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

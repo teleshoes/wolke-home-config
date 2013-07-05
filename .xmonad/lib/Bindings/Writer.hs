@@ -4,7 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Bindings.Writer 
+module Bindings.Writer
     ( module Control.Monad.Writer
     , Bindings(..)
     , (@@), (#)
@@ -47,7 +47,7 @@ bwBindList :: BW a -> [a]
 bwBindList = concat . catMaybes .  map (snd . snd) . flattenBW
 
 bwFindOverlap :: Ord a => BW (a, b) -> [[(String, a)]]
-bwFindOverlap = filter ((/= 1) . length) 
+bwFindOverlap = filter ((/= 1) . length)
               . groupBy ((==) `on` snd) . sortBy (comparing snd)
               . map (second fst) . bwDescList
 
@@ -114,7 +114,7 @@ instance TellBs ([a], [b])      (a, b)  where (@@) = atat   $ uncurry zip
 instance TellBs [([a], [b])]    (a, b)  where (@@) = atatL  $ uncurry zip
 instance TellBs (LW ([a], [b])) (a, b)  where (@@) = atatLW $ uncurry zip
 
-instance TellBs (LW a) a => TellBs [LW a] a where 
+instance TellBs (LW a) a => TellBs [LW a] a where
     s @@ a = s @@ sequence_ a
 
 -- Bindings Instances

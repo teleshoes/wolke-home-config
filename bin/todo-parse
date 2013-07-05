@@ -1,0 +1,312 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Term::ANSIColor;
+
+my $file = "$ENV{HOME}/TODO";
+
+my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html --ff);
+my $usage = "Usage:
+  $0 [$okFmtArgs]
+    Parse ${file}'s git history to print todos
+
+  $0 --add TODO [TODO ..]
+    Add todos not in git history to $file
+
+    FORMAT:
+    -q       dont print todos
+    -u       print unresolved, outstanding todos only
+    -r       print resolved todos only
+    -a       print all todos, unresolved first {default}
+    --qtodo  print all todos as xml for qtodo
+    --html   print all todos as html
+    --ff     write all todos as html to a tmp file and open it with firefox
+";
+
+my %resColor = (
+  FIXED => 'white bold',
+  NONE => 'red bold',
+  DISCARDED => 'blue bold',
+);
+my %resQtodoColor = (
+  FIXED => 'green',
+  NONE => 'red',
+  DISCARDED => 'yellow',
+);
+my %resHTMLStyle = (
+  FIXED => 'color:black; font-weight:bold',
+  NONE => 'color:red; font-weight:bold',
+  DISCARDED => 'color:blue; font-weight:bold',
+);
+my %resSym = (
+  FIXED => 'x',
+  NONE => ' ',
+  DISCARDED => '~',
+);
+
+sub getPrefix($$);
+sub getSeparator($);
+sub getSuffix($);
+sub getTodos($$$$$);
+sub todoFmt($$$$$);
+sub qtodoFmt($$$$$);
+sub dateFmt($);
+sub col($$);
+
+sub main(@){
+  chdir $ENV{HOME};
+  my @todosToAdd;
+  my $fmtArg = '-a';
+  if(@_ > 1 and $_[0] eq '--add'){
+    shift;
+    @todosToAdd = @_;
+  }elsif(@_ > 0 and $_[0] =~ /^($okFmtArgs)$/){
+    $fmtArg = shift;
+  }elsif(@_ > 0){
+    die $usage;
+  }
+
+  my (%addTodos, %resolveTodos);
+
+  my $diff = `git diff $file`;
+  getTodos $diff, time(), '', \%addTodos, \%resolveTodos if length $diff > 0;
+
+  for my $entry(`git log --format=format:"%H:::%at:::%s" $file`){
+    if($entry =~ /^([a-f0-9]+):::(\d+):::(.*)$/){
+      my ($commit, $date, $summary) = ($1, $2, $3);
+      my $diff = `git diff-tree --cc $commit`;
+      getTodos $diff, $date, $summary, \%addTodos, \%resolveTodos;
+    }else{
+      die "malformed git log line: $entry";
+    }
+  }
+
+  for my $todo(keys %resolveTodos){
+    die "todo never added: $todo\n" if not defined $addTodos{$todo};
+  }
+
+  if(@todosToAdd > 0){
+    my @todoPrefixLines;
+    for my $todo(@todosToAdd){
+      $todo = lc $todo;
+      $todo =~ s/^\s*//;
+      $todo =~ s/\s*$//;
+      $todo =~ s/^-//;
+      if(not defined $addTodos{$todo}){
+        print STDERR "appending todo: '$todo'\n";
+        push @todoPrefixLines, "$todo\n";
+        $addTodos{$todo} = [time(), undef];
+      }
+    }
+    if(@todoPrefixLines > 0){
+      open FH, "< $file" or die "Couldnt read $file\n";
+      my @lines = <FH>;
+      close FH;
+      @lines = (@todoPrefixLines, @lines);
+      open FH, "> $file" or die "Couldnt read $file\n";
+      print FH @lines;
+      close FH;
+    }
+    return 0;
+  }
+
+
+  my $count = 0;
+
+  my @todos;
+
+  my @todoSort = sort {
+    ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
+  } keys %addTodos;
+  for my $todo(@todoSort){
+    my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
+    my $resTodo = $resolveTodos{$todo};
+    my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
+    my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
+
+    $count++;
+    my $fmtSub;
+    if($fmtArg =~ /^(--qtodo)$/){
+      $fmtSub = \&qtodoFmt;
+    }elsif($fmtArg =~ /^(--html|--ff)/){
+      $fmtSub = \&htmlTodoFmt;
+    }else{
+      $fmtSub = \&todoFmt;
+    }
+
+    my $todoStr = &$fmtSub(
+      $todo, $resolution, $dateAdded, $dateResolved, $count);
+    push @todos, [$todoStr, $resolution, $dateAdded, $dateResolved];
+  }
+
+  @todos = sort {
+    my ($aFmt, $aRes, $aDateAdded, $aDateResolved) = @$a;
+    my ($bFmt, $bRes, $bDateAdded, $bDateResolved) = @$b;
+    my %resSort = (NONE => 0, FIXED => 1, DISCARDED => 2);
+    $aDateResolved = '' if not defined $aDateResolved;
+    $bDateResolved = '' if not defined $bDateResolved;
+    return 0
+      || $resSort{$aRes} <=> $resSort{$bRes}
+      || $bDateResolved cmp $aDateResolved
+      || $bDateAdded cmp $aDateAdded
+  } @todos;
+
+  my @unresolved = map {$$_[0]} grep {"NONE" eq $$_[1]} @todos;
+  my @resolved = map {$$_[0]} grep {"NONE" ne $$_[1]} @todos;
+
+
+  my $msg = '';
+  $msg .= getPrefix($fmtArg, $count);
+  $msg .= join '', @unresolved unless $fmtArg =~ /^(-q|-r)$/;
+  $msg .= getSeparator($fmtArg) unless $fmtArg =~ /^(-q|-r|-u)$/;
+  $msg .= join '', @resolved unless $fmtArg =~ /^(-q|-u)$/;
+  $msg .= getSuffix($fmtArg);
+
+  if($fmtArg =~ /^(--ff)$/){
+    my $tmpFile = "/tmp/parse-todo-" . time() . ".html";
+    open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
+    print FH $msg;
+    close FH;
+    system "firefox", $tmpFile;
+  }else{
+    print $msg;
+  }
+}
+
+sub getPrefix($$){
+  my ($fmtArg, $count) = @_;
+  if($fmtArg =~ /qtodo/){
+    return ""
+      . "<?xml version='1.0' encoding='UTF-8'?>\n"
+      . "<root max_id=\"$count\">\n"
+      ;
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
+    return "<html>\n<body style=\"font-family: monospace\">\n<table>\n";
+  }else{
+    return "";
+  }
+}
+sub getSeparator($){
+  my $fmtArg = shift;
+  if($fmtArg =~ /qtodo/){
+    return "";
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
+    return "</table>\n<table>\n";
+  }else{
+    return "\n\n\n";
+  }
+}
+sub getSuffix($){
+  my $fmtArg = shift;
+  if($fmtArg =~ /qtodo/){
+    return "</root>\n"
+  }elsif($fmtArg =~ /^(--html|--ff)$/){
+    return "</table>\n</body>\n<html>\n";
+  }else{
+    return "";
+  }
+}
+
+sub getTodos($$$$$){
+  my ($diff, $date, $summary, $addTodos, $resolveTodos) = @_;
+  my $resolution = $summary =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
+
+  my %adds;
+  my %resolves;
+  if($diff =~ s/^
+    (.|\n)*
+    @@.*@@//x){
+    for my $line(split /\n/, $diff){
+      if($line =~ /^\+-?(.*)$/){
+        $adds{lc $1} = 1;
+      }elsif($line =~ /^--?(.*)$/){
+        $resolves{lc $1} = 1;
+      }
+    }
+  }else{
+    die "malformed diff:\n$diff\n";
+  }
+
+  for my $todo(keys %adds){
+    if(defined $resolves{$todo}){
+      #todo rearranged
+      delete $adds{$todo};
+      delete $resolves{$todo};
+    }
+  }
+
+  for my $todo(keys %adds){
+    die "TODO ADDED TWICE: $todo\n" if defined $$addTodos{$1};
+    $$addTodos{$todo} = [$date, undef];
+  }
+
+  for my $todo(keys %resolves){
+    die "TODO RESOLVED TWICE: $todo\n" if defined $$resolveTodos{$1};
+    $$resolveTodos{$todo} = [$date, $resolution];
+  }
+}
+
+sub todoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+
+  my $sym = $resSym{$resolution};
+  my $color = $resColor{$resolution};
+
+  return ''
+    . "[$sym]"
+    . " $dateAdded"
+    . col($color, " $todo")
+    . (defined $dateResolved ? " {$dateResolved}" : '')
+    . "\n"
+    ;
+}
+
+sub qtodoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+
+  $todo =~ s/&/\&amp;/g;
+  $todo =~ s/</\&lt;/g;
+  $todo = lc $todo;
+  my $color = $resQtodoColor{$resolution};
+
+  return ''
+    . "  <to-do"
+    . ($resolution eq 'NONE' ? '' : " done=\"true\"")
+    . " id=\"$num\""
+    . " color=\"$color\""
+    . ">"
+    . $todo
+    . "</to-do>"
+    . "\n"
+    ;
+}
+
+sub htmlTodoFmt($$$$$){
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+  my $sym = $resSym{$resolution};
+
+  $todo =~ s/&/\&amp;/g;
+  $todo =~ s/</\&lt;/g;
+  $todo = lc $todo;
+  my $style = $resHTMLStyle{$resolution};
+
+  return ''
+    . "  <tr>\n"
+    . "    <td>[$sym]</td>\n"
+    . "    <td>$dateAdded</td>\n"
+    . "    <td style=\"$style\">$todo</td>\n"
+    . "  </tr>\n"
+    ;
+}
+
+sub dateFmt($){
+  my $d = `date -d \@$_[0] +'%Y-%m-%d %H:%M'`;
+  chomp $d;
+  return $d;
+}
+
+sub col($$){
+  return color($_[0]) . $_[1] . color('reset');
+}
+
+&main(@ARGV);

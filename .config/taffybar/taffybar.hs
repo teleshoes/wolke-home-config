@@ -23,10 +23,8 @@ main = do
                 }
               , sep, sep
               ]
-
       end = reverse
-          [ sep, sep
-          , W.monitorCpuW
+          [ W.monitorCpuW
           , W.monitorMemW
           , W.netStatsW
           , sep
@@ -47,6 +45,7 @@ main = do
           , sep
           , W.clockW
           ]
+
   rcParseString $ ""
         ++ "style \"default\" {"
         ++ "  font_name = \"" ++ font ++ "\""

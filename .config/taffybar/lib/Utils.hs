@@ -24,7 +24,8 @@ import System.IO (
   hSetBuffering, BufferMode(LineBuffering))
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, proc, shell,
-  readProcessWithExitCode, system)
+  system)
+import ProcUtil ( readProcessWithExitCode' )
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 
 -- CONSTANTS
@@ -101,13 +102,13 @@ systemReadLines cmd = fmap lines $ sys >>= \(_,Just h,_,_) -> lineBufContent h
   where sys = createProcess (shell cmd) {std_out = CreatePipe}
         lineBufContent h = hSetBuffering h LineBuffering >> hGetContents h
 
-readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode cmd args ""
+readProc (cmd:args) = fmap snd3 $ readProcessWithExitCode' cmd args ""
   where snd3 (_,x,_) = x
 
 chompProc = fmap chompAll . readProc
 
 procSuccess (cmd:args) = do
-  (exitCode,_,_) <- readProcessWithExitCode cmd args ""
+  (exitCode,_,_) <- readProcessWithExitCode' cmd args ""
   return $ exitCode == ExitSuccess
 
 procToHandle (cmd:args) = do

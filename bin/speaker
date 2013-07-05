@@ -1,0 +1,135 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 [get]
+    Print for all cards:
+      [STAR_OR_SPACE_FOR_DEFAULT] INDEX [USB|PCI|UNKNOWN] CARD_NAME
+  $0 default
+    Print for the default card:
+      INDEX [USB|PCI|UNKNOWN] CARD_NAME
+  $0 cycle [usb|pci]
+    Sets as default the sink with the next-highest index, or the lowest index
+    If usb or pci is passed in, only that kind of speaker is considered.
+  $0 type
+    Print USB, PCI, or UNKNOWN depending on the default card.
+  $0 toggle
+    If `$0 type` is USB, same as `$0 cycle pci`
+    If `$0 type` is PCI, same as `$0 cycle usb`
+    Otherwise, same as `$0 cycle usb`
+";
+
+sub getSinks();
+sub getDefault();
+sub formatSinks($);
+sub getType();
+sub cycle($);
+sub setDefault($);
+
+my $pacmd = "pacmd";
+my $pactl = "pactl";
+my $pulseVol = "pulse-vol";
+
+sub main(@){
+  my $cmd = shift;
+  $cmd = 'get' if not defined $cmd;
+  my $arg = shift if $cmd =~ /^(cycle)/;
+  die $usage if @_ > 0;
+
+  if($cmd eq 'get' and @_ == 0){
+    print formatSinks(0);
+  }elsif($cmd eq 'default'){
+    print formatSinks(1);
+  }elsif($cmd eq 'cycle' and (not defined $arg or $arg =~ /^(usb|pci)$/i)){
+    my $type = defined $arg ? lc $arg : 'any';
+    cycle $type;
+    print formatSinks(0);
+  }elsif($cmd eq 'type'){
+    print getType() . "\n";
+  }elsif($cmd eq 'toggle'){
+    my $type = lc getType();
+    if($type eq 'usb'){
+      print "usb => pci\n";
+      cycle 'pci';
+    }elsif($type eq 'pci'){
+      print "pci => usb\n";
+      cycle 'usb';
+    }else{
+      print "??? => usb\n";
+      cycle 'usb';
+    }
+  }else{
+    die $usage;
+  }
+}
+
+sub getSinks(){
+  my $default = `$pacmd list-sinks | grep '  \\* index: [0-9]\\+'`;
+  $default =~ s/\D*//g;
+  $default = -1 if $default eq '';
+  my @sinks;
+  for my $sink(`$pactl list short sinks`){
+    my @cols = split "\t", $sink;
+    next if @cols != 5;
+    my %sink;
+    $sink{default} = $cols[0] == $default;
+    $sink{index} = $cols[0];
+    $sink{name} = $cols[1];
+    $sink{module} = $cols[2];
+    $sink{sample} = $cols[3];
+    $sink{state} = $cols[4];
+    $sink{type} = 'USB' if $cols[1]=~/\.usb/;
+    $sink{type} = 'PCI' if $cols[1]=~/\.pci/;
+    $sink{type} = 'UNKNOWN' if not defined $sink{type};
+    push @sinks, \%sink;
+  }
+  @sinks = sort {$$a{index} <=> $$b{index}} @sinks;
+  return @sinks;
+}
+
+sub getDefault(){
+  for my $s(getSinks){
+    return $s if $$s{default};
+  }
+  return undef;
+}
+
+sub formatSinks($){
+  my $defaultOnly = shift;
+  my $out = '';
+  for my $s(getSinks){
+    next if $defaultOnly and not $$s{default};
+    $out .= $$s{default} ? "* " : "  " if not $defaultOnly;
+    $out .= "$$s{type} $$s{name}\n";
+  }
+  return $out;
+}
+
+sub getType(){
+  my $s = getDefault;
+  my $type = defined $s ? $$s{type} : "UNKNOWN";
+  return $type;
+}
+
+sub cycle($){
+  my $type = shift;
+  my $default = getDefault;
+  my $cur = defined $default ? $$default{index} : -1;
+  my @ok = grep {$type eq 'any' or lc $$_{type} eq $type} getSinks;
+  for my $s(@ok){
+    if($$s{index} > $cur){
+      setDefault $$s{index};
+      return;
+    }
+  }
+  setDefault ${$ok[0]}{index} if @ok > 0;
+}
+
+sub setDefault($){
+  my $index = shift;
+  system "$pulseVol update-volume";
+  system "$pacmd set-default-sink $index > /dev/null 2>/dev/null";
+}
+
+&main(@ARGV);

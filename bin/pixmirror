@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+#Copyright 2011,2012 by Elliot Wolk
+#This is free software, released under the GPLv3
+use strict;
+use warnings;
+
+my $usage = "Usage: $0 src dest\n";
+my @exts = qw(jpg jpeg png);
+
+my $targetX = 854;
+my $targetY = 480;
+
+my $convertExec = 'convert';
+my $identifyExec = 'identify';
+my $jheadExec = 'jhead';
+
+sub findImages($);
+sub statImage($);
+sub checkInfo($$);
+sub convert($$$$);
+
+sub main(@){
+  my $srcDir = shift;
+  my $destDir = shift;
+
+  die $usage if not defined $srcDir or not defined $destDir or @_ > 0;
+  die "src '$srcDir' is not a directory" if !-d $srcDir;
+  die "dest '$destDir' is not a directory" if !-d $destDir;
+
+  system "which $convertExec > /dev/null";
+  die "Could not exec $convertExec\n" if $? != 0;
+  system "which $identifyExec > /dev/null";
+  die "Could not exec $identifyExec\n" if $? != 0;
+
+  my @srcImgs = findImages $srcDir;
+  my $total = @srcImgs;
+
+  print "running stat on $total images:\n";
+  my %srcInfos;
+  for my $img(@srcImgs){
+    $srcInfos{$img} = statImage "$srcDir/$img";
+  }
+
+  print "comparing existing pixmirror info to src info:\n";
+  my @destImgs = findImages $destDir;
+  my %okImgs;
+  for my $img(@destImgs){
+    if(not checkInfo($srcInfos{$img}, "$destDir/$img.info")){
+      print "removing $destDir/$img and $destDir/$img.info\n";
+      system "rm", "$destDir/$img";
+      system "rm", "$destDir/$img.info";
+    }else{
+      $okImgs{$img} = 1;
+    }
+  }
+
+  @srcImgs = grep {not defined $okImgs{$_}} @srcImgs;
+  my $toConvert = @srcImgs;
+  my $skipped = $total - $toConvert;
+
+  print "\nconverting $toConvert images {skipped $skipped}\n";
+  for my $img(@srcImgs){
+    convert $img, $srcDir, $destDir, $srcInfos{$img};
+  }
+
+  print "\n\nremoving empty dirs\n";
+  system "find $destDir -mindepth 1 -depth -type d -empty -delete";
+}
+
+sub findImages($){
+  my $dir = shift;
+  my @findArgs = join " -or ", map {"-iname '*.$_'"} @exts;
+
+  my @imgs = `cd $dir; find @findArgs`;
+  map {chomp} @imgs;
+  return sort @imgs;
+}
+
+sub statImage($){
+  my $img = shift;
+  my @stat = stat $img;
+  die "failed stat on '$img'\n" if @stat != 13;
+
+  my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+    $atime,$mtime,$ctime,$blksize,$blocks) = @stat;
+  return "$size|$mtime\n";
+}
+
+sub checkInfo($$){
+  my ($srcInfo, $destInfoFile) = @_;
+  if(not defined $srcInfo or not -e $destInfoFile){
+    return 0;
+  }
+
+  open FH, "< $destInfoFile\n";
+  my $destInfo = join '', <FH>;
+  close FH;
+  return $destInfo eq $srcInfo;
+}
+
+sub getPix($){
+  my $file = shift;
+  $file =~ s/'/'\\''/g;
+  my $info = `identify '$file'`;
+  if($info =~ /(\d+)x(\d+)/){
+    return ($1, $2);
+  }else{
+    die "Could not find HxW using imagemagick for $file\n";
+  }
+}
+
+sub convert($$$$){
+  my $img = shift;
+  my $srcDir = shift;
+  my $destDir = shift;
+  my $statInfo = shift;
+
+  my $parent = "$destDir/$img";
+  $parent =~ s/\/[^\/]*$/\//;
+  system "mkdir", "-p", $parent;
+
+  my ($x, $y) = getPix "$srcDir/$img";
+  my $ratio;
+  if($x > $y){
+    my $ratio1 = $targetX / $x;
+    my $ratio2 = $targetY / $y;
+    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+  }else{
+    my $ratio1 = $targetY / $x;
+    my $ratio2 = $targetX / $y;
+    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+  }
+  my $percent = sprintf '%.5f', $ratio*100;
+
+  system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
+  die "failure: $img\n" if $? != 0;
+
+  open INFO, "> $destDir/$img.info";
+  print INFO $statInfo;
+  close INFO;
+
+  system $jheadExec, "-autorot", "$destDir/$img";
+
+  system "touch", "$destDir/$img", "--reference=$srcDir/$img";
+  system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
+  print " finished $destDir/$img\n";
+}
+
+&main(@ARGV);

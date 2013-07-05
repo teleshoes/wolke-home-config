@@ -28,7 +28,7 @@ chooseMods = map (,) . map (foldr (.|.) 0) . flip choose masks
 
 choose :: Int -> [a] -> [[a]]
 choose n xs = if n > length xs then [] else go n xs
-  where 
+  where
     go 0 _      = [[]]
     go _ []     = []
     go n (x:xs) = map (x:) (go (n-1) xs) ++ choose n xs
@@ -49,9 +49,11 @@ xK_VolDn = xF86XK_AudioLowerVolume
 xK_Mute  = xF86XK_AudioMute
 xK_Fwd   = xF86XK_Forward
 xK_Back  = xF86XK_Back
+xK_Rfrsh = xF86XK_Reload
 xK_Think = xF86XK_Launch1
+xK_Mic   = xF86XK_Launch2
 xK_BriUp = xF86XK_MonBrightnessUp
-xK_BriDn = xF86XK_MonBrightnessDown 
+xK_BriDn = xF86XK_MonBrightnessDown
 xK_Power = xF86XK_PowerOff
 
 arrKeys = [xK_Left, xK_Up, xK_Right, xK_Down]
@@ -84,8 +86,8 @@ instance Show (PrettyBind KeySym) where
 prettyBind p (m, b) = (prettyMod m) ++ " + " ++ p b
 
 prettyBindList = intercalate ", " . map (pad 12 . show)
-prettyKeyBindList pbs 
-  | areKs arrKeys = showPat $ concat arrStrs 
+prettyKeyBindList pbs
+  | areKs arrKeys = showPat $ concat arrStrs
   | areKs numKeys = showPat "<N>"
   | areKs fKeys   = showPat "F<N>"
   | otherwise = prettyBindList pbs
@@ -98,7 +100,7 @@ prettyKeyBindList pbs
 prettyMod m = flip map mods $ \c -> if maskOf c .&. m == 0 then '_' else c
   where maskOf = fromJust . flip lookup (zip mods masks)
 
-prettyMse = ("B" ++) . show 
+prettyMse = ("B" ++) . show
 
 prettyKey = (M.!) . execWriter $ do
     xK_Caps_Lock                # "Caps"
@@ -112,12 +114,15 @@ prettyKey = (M.!) . execWriter $ do
     xK_Prior                    # "Prev"
     xK_Return                   # "Enter"
     xK_Tab                      # "Tab"
+    xK_Menu                     # "Menu"
     xF86XK_AudioRaiseVolume     # "VolUp"
     xF86XK_AudioLowerVolume     # "VolDn"
     xF86XK_AudioMute            # "Mute"
     xF86XK_Forward              # "Fwd"
     xF86XK_Back                 # "Back"
+    xF86XK_Reload               # "Rfrsh"
     xF86XK_Launch1              # "Think"
+    xF86XK_Launch2              # "Mic"
     xF86XK_MonBrightnessUp      # "BriUp"
     xF86XK_MonBrightnessDown    # "BriDn"
     xF86XK_PowerOff             # "Power"

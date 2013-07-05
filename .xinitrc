@@ -5,8 +5,7 @@ sudo mnt --other -m Charybdis
 
 Esetroot -scale "$HOME/Pictures/Backgrounds/jamaicadyer-background.jpg"
 xsetroot -cursor_name left_ptr
-
-for x in $HOME/.Xresources-* ; do xrdb -merge "$x"; done
+for x in $HOME/.xresources-*; do xrdb -merge "$x"; done
 
 setxkbmap -option terminate:ctrl_alt_bksp
 setxkbmap -option caps:escape
@@ -21,16 +20,17 @@ xinput set-prop "$tpDev" "Synaptics Edge Scrolling" 0 0 0
 xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation" 8 1
 xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Button" 8 2
 xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Axes" 8 6 7 4 5
+xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Timeout" 8 200
 
 xset s off
 xset s noblank
 xset dpms 0 0 0
 
-#turn off beep
-xset b off
+xset -b #no bell
 
-pulseaudio --start
+pulseaudio --start &
 sudo bluetooth off &
-
+sudo fan auto
 taffybar &
+
 exec xmonad

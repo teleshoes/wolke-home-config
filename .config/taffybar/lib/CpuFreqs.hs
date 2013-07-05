@@ -7,7 +7,6 @@ import Control.Concurrent (newMVar, modifyMVar, readChan)
 import Data.List (intercalate)
 
 cpuFreqsW = do
-  -- freqsChan <- getFreqsChanI7z
   freqsChan <- getFreqsChanProc
   maxLenVar <- newMVar 0
   labelW $ readCpuFreqs freqsChan maxLenVar

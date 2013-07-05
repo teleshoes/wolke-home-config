@@ -46,9 +46,9 @@ alias ply="cd ~/install/root-files/usr/share/plymouth/themes/custom"
 export TEXINPUTS=".:"
 
 alias ls='ls --color=auto'
-alias l='ls --group-directories-first'
-alias ll='l -alh'
-alias ld='ll -d'
+alias l='l -alh'
+alias ll='l'
+alias ld='l -d'
 alias cl='. cl'
 alias grep='grep --color=auto'
 alias hat='highlight --out-format=ansi --force'

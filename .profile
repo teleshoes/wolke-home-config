@@ -1,1 +1,1 @@
-/home/zuserm/.bashrc
+.bashrc
