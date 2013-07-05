@@ -24,7 +24,8 @@ main = do
               , sep, sep
               ]
       end = reverse
-          [ W.monitorCpuW
+          [ sep , sep
+          , W.monitorCpuW
           , W.monitorMemW
           , W.netStatsW
           , sep
