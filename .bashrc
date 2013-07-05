@@ -46,7 +46,7 @@ alias ply="cd ~/install/root-files/usr/share/plymouth/themes/custom"
 export TEXINPUTS=".:"
 
 alias ls='ls --color=auto'
-alias l='l -alh'
+alias l='ls -alh'
 alias ll='l'
 alias ld='l -d'
 alias cl='. cl'
