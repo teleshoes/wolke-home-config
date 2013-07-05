@@ -31,15 +31,10 @@ nnoremap g* g*zz
 nnoremap g# g#zz
 """"""
 
-"""word wrap"""
-map <C-w><C-w> :s/\v(.{70}[^ ]*)/\1\r/g<CR>
-map <C-w><C-h> :s/\v(.{70}[^ ]*)/\1\r--/g<CR>
-""""""
-
 """command repeat"""
 nmap , @:
 """"""
-d
+
 """Quit"""
 nmap <C-X><C-C> :q!<CR>
 imap <C-X><C-C> <Esc>:q!<CR>
@@ -56,6 +51,16 @@ nmap <C-R>      <C-R>
 imap <C-R> <Esc><C-R>li
 """"""
 
+"""word wrap"""
+map <C-w><C-w> :s/\v(.{70}[^ ]*)/\1\r/g<CR>
+map <C-w><C-h> :s/\v(.{70}[^ ]*)/\1\r--/g<CR>
+""""""
+
+"""Write"""
+nmap <F3>      :w<CR>
+imap <F3> <Esc>:w<CR>li
+vmap <F3> :w<Del><CR>lv
+""""""
 
 """meld"""
 nmap <F2>      :Exec cd %:p:h; meld %:p &<CR>
@@ -70,6 +75,19 @@ imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
 """RUN"""
 nmap <F5> :1wincmd<space>w<CR>:w<CR>:RUN<CR>
 imap <F5> <ESC>:1wincmd<space>w<CR>:w<CR>:RUN<CR>li
+""""""
+
+"""Clipboard"""
+map <C-y> "+y
+map <C-p> "+p
+
+nmap <F7>      "+y
+imap <F7> <ESC>"+yi
+vmap <F7>      "+y
+
+nmap <F8>      "+p
+imap <F8> <ESC>"+pi
+vmap <F8>      "+p
 """"""
 
 cmap now r! date "+\%Y-\%m-\%d \%a \%H:\%M"<CR>
