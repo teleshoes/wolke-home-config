@@ -7,16 +7,28 @@ use ScriptScript;
 sub addSrcs($);
 sub doInstalls($);
 
+my $dir = "../apt-packages";
+
+my $packageLists = `ls $dir`;
+my $usage = "Usage:
+  $0 [-s] [FILTER]
+    -s skips apt-get update
+    FILTER selects the package list from among:\n$packageLists
+";
+
 sub main(@) {
     getRoot @_;
 
     my $skipUpdate = 0;
     $skipUpdate = shift if @_ > 0 and $_[0] eq '-s';
-    my $which = shift || "";
+
+    my $filter = shift || "";
+
+    die $usage if @_ > 0 or $filter =~ /^(-h|--help)$/;
 
     editFile "/etc/apt/sources.list", \&addDebSrcs;
     run qw(apt-get update) unless $skipUpdate;
-    doInstalls $which;
+    doInstalls $filter;
 }
 
 sub addDebSrcs($) {
@@ -27,10 +39,10 @@ sub addDebSrcs($) {
 }
 
 sub doInstalls($) {
-    my ($which) = @_;
+    my $filter = shift;
 
     my %packages = readConfDir "../apt-packages";
-    for my $group (sort grep {/$which/} keys %packages) {
+    for my $group (sort grep {/$filter/i} keys %packages) {
         print "### installing $group\n";
         my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
         run qw(apt-get -y install), @pkgs;
