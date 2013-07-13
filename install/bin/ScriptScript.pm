@@ -345,7 +345,7 @@ sub installFromDir($) {
         shell "make -j";
         shell "sudo make install";
     } elsif(grep {/^install/} @ls) {
-        shell "install*";
+        shell "./install*";
     } else {
         print STDERR "### no install file in $dir , exiting\n";
         exit 1;
