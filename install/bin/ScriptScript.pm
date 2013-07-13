@@ -329,8 +329,13 @@ sub readConfDir($) {
     %confs
 }
 
-sub installFromDir($) {
-    my ($dir) = @_;
+sub installFromDir($;$) {
+    my ($dir, $gitUrl) = (@_, undef);
+    if(not -d $dir and defined $gitUrl){
+        run "mkdir", "-p", $dir;
+        cd $dir;
+        run "git", "clone", $gitUrl, ".";
+    }
     cd $dir;
     run qw(git pull) if -d ".git";
 
