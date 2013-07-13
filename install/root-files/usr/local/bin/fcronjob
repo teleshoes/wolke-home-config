@@ -1,0 +1,159 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $tab = "/etc/fcrontab";
+my $defJob = 'XX';
+
+sub getHHMMInMin($);
+sub getDefaultJobLine($$$);
+sub appendDefaultJob($$$);
+sub listNamedJobs();
+sub setJobState($$$);
+sub readFcronLines();
+sub writeFcronLines($);
+sub modifyLine($$);
+
+my $exampleDefaultJob = getDefaultJobLine $defJob, 10, 0;
+chomp $exampleDefaultJob;
+
+my $usage = "Usage:
+  $0                           - list all named jobs
+  $0 JOBNAME                   - toggle commenting/uncommenting JOBNAME
+  $0 JOBNAME on|off|toggle|del - uncomment, comment, toggle, or remove JOBNAME
+  $0 [JOBNAME] [HH:MM | MIN]  - add a new job {JOBNAME defaults to '$defJob'}
+             e.g.: '$0 10:00' => '$exampleDefaultJob'
+     JOBNAME is exactly two alphanumeric characters
+     HH:MM is hours 00-23 and minutes 00-59
+     MIN is an integer for minutes in the future
+     job changes are taken into account immediately and fcron is reset
+";
+
+sub main(@){
+  if(@_ == 0){
+    listNamedJobs;
+    exit 0;
+  }
+  my $jobName;
+  if(@_ == 1 and $_[0] =~ /^(\d\d:\d\d|\d+)$/){
+    $jobName = $defJob;
+  }else{
+    $jobName = shift;
+  }
+
+  my $arg = shift;
+  $arg = 'toggle' if not defined $arg;
+
+  die $usage if @_ > 0;
+  die $usage if $jobName !~ /^[0-9A-Za-z]{2}$/;
+  die $usage if $arg !~ /^(on|off|toggle|del|\d\d:\d\d|\d+)$/;
+
+  $arg = getHHMMInMin($arg) if $arg =~ /^\d+$/;
+
+  if($arg =~ /^(on|off|toggle|del)$/){
+    setJobState $jobName, $arg, 0;
+  }elsif($arg =~ /^(\d\d):(\d\d)$/){
+    setJobState $jobName, "del", 1;
+    appendDefaultJob $jobName, $1, $2;
+  }
+}
+
+sub getHHMMInMin($){
+  my $min = shift;
+  my $now = `date +%H:%M`;
+  chomp $now;
+  my ($h, $m) = split /:/, $now;
+  $m += $min;
+  $h += $m / 60;
+  $m = $m % 60;
+  $h = $h % 24;
+  $h = "0$h" if $h < 10;
+  $m = "0$m" if $m < 10;
+  return "$h:$m";
+}
+
+sub getDefaultJobLine($$$){
+  my ($jobName, $hour, $min) = @_;
+  my $cmd = "alarm-fcron $jobName del";
+  return "$min $hour * * * $cmd #$jobName\n";
+}
+sub appendDefaultJob($$$){
+  my ($jobName, $hour, $min) = @_;
+  my $line = getDefaultJobLine $jobName, $hour, $min;
+  print "appending:\n$line";
+  my @lines = (readFcronLines(), $line);
+  writeFcronLines \@lines;
+  system "fcronreset";
+}
+
+sub setJobState($$$){
+  my $jobName = shift;
+  my $state = shift;
+  my $force = shift;
+
+  my $modified = 0;
+  my @lines = readFcronLines();
+  for my $line(@lines){
+    if($line =~ /^\s*(?!##).*#$jobName\s*$/){
+      $line = modifyLine $line, $state;
+      $modified = 1;
+      last if not $force;
+    }
+  }
+  if($modified){
+    writeFcronLines(\@lines);
+    system "fcronreset";
+  }else{
+    die "Job $jobName not found\n" if not $force;
+  }
+}
+
+sub listNamedJobs(){
+  my(@active, @inactive);
+  for my $line(readFcronLines){
+    if($line =~ /^\s*(?!##).*#([0-9A-Za-z]{2})$/){
+      my $name = $1;
+      if($line =~ /^\s*#[^#]/){
+        push @inactive, "$name => $line";
+      }else{
+        push @active, "$name => $line";
+      }
+    }
+  }
+  print @active;
+  print "\ninactive:\n  " . join "  ", @inactive;
+}
+
+sub readFcronLines(){
+  open FH, "< $tab" or die "Could not read $tab\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+
+sub writeFcronLines($){
+  my @lines = @{shift()};
+  open FH, "> $tab" or die "Could not write $tab\n";
+  print FH @lines;
+  close FH;
+}
+
+sub modifyLine($$){
+  my $line = shift;
+  my $state = shift;
+  
+  print "OLD: $line";
+  if($state eq 'del'){
+    $line = '';
+    print "<deleted>\n";
+  }else{
+    my $commented = ($line =~ s/^\s*#([^#])/$1/);
+    if($state eq 'off' or ($state eq 'toggle' and not $commented)){
+      $line = "#$line";
+    }
+    print "NEW: $line";
+  }
+  return $line;
+}
+
+&main(@ARGV);
