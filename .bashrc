@@ -3,6 +3,8 @@
 
 shopt -s dotglob
 
+ssh-add ~/.ssh/id_rsa 2> /dev/null
+
 export HISTSIZE=1000000
 export HISTCONTROL=ignoredups # don't put duplicate lines in the history
 export HISTCONTROL=ignoreboth # ... and ignore same sucessive entries.
