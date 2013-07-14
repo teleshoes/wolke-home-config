@@ -127,11 +127,3 @@ function git()
 alias genservices='~/workspace/escribe/tools/genservices.pl'
 alias genibatis='~/workspace/escribe/tools/genibatis.pl'
 alias migl='gvim `~/migs/latest-script`'
-
-##AUTOLOGIN START##
-if [ -z "$DISPLAY" ]; then
-  if [ "$(tty)" == "/dev/tty6" ]; then
-    exec startx
-  fi
-fi
-##AUTOLOGIN END##
