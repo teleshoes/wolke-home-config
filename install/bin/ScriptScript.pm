@@ -346,6 +346,7 @@ sub installFromDir($;$) {
         run "mkdir", "-p", $dir;
         cd $dir;
         run "git", "clone", $gitUrl, ".";
+        chownUser $dir;
     }
     cd $dir;
     run qw(git pull) if -d ".git";
@@ -371,6 +372,11 @@ sub installFromDir($;$) {
 sub installFromGit($) {
   my $gitUrl = shift;
   my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
+  my $srcCacheDir = "$ENV{HOME}/.src-cache";
+  if(not -d $srcCacheDir){
+    run "mkdir", "-p", $srcCacheDir;
+    chownUser $srcCacheDir;
+  }
   installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl;
 }
 
