@@ -8,6 +8,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
+                  procLines
                   getInstallPath
                   cd chownUser
                   writeFile tryWriteFile
@@ -66,6 +67,12 @@ sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto sub{@_}      , 1}(@_) }
 sub tryshell(@) { &{runProto sub{@_}      , 0}(@_) }
+
+sub procLines(@) {
+    my @lines = `@_`;
+    chomp foreach @lines;
+    return @lines;
+}
 
 sub getUsername() {
     my $user = $ENV{SUDO_USER} || $ENV{USER};
