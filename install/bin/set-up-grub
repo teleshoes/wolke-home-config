@@ -16,13 +16,19 @@ sub main(@) {
     shell "mkdir -p $background_dir";
     shell "cp $background_src $background";
 
+    my %config = (
+      GRUB_TIMEOUT => 4,
+      GRUB_GFXMODE => "800x600",
+      GRUB_DISABLE_RECOVERY => "false",
+      GRUB_BACKGROUND => $background,
+    );
+
     editFile "/etc/default/grub", getUsername, sub {
-        my $grub = shift;
-        replaceOrAddLine $grub, "GRUB_TIMEOUT", "GRUB_TIMEOUT=4";
-        replaceOrAddLine $grub, "GRUB_GFXMODE", "GRUB_GFXMODE=800x600";
-        replaceOrAddLine $grub, "GRUB_DISABLE_RECOVERY", "GRUB_DISABLE_RECOVERY=\"false\"";
-        replaceOrAddLine $grub, "GRUB_BACKGROUND", "GRUB_BACKGROUND=$background";
-        $grub
+        my $cnts = shift;
+        for my $key(keys %config){
+          replaceOrAddLine $cnts, $key, "$key=$config{$key}";
+        }
+        $cnts
     };
 
     my $grubdfile = "/etc/grub.d/07_" . getUsername;
