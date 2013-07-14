@@ -75,9 +75,3 @@ function spawn { "$@" & disown ; }
 function spawnex { "$@" & disown && exit 0 ; }
 complete -F _root_command spawn spawnex
 function vims { vim `which $1` ; }
-
-# autologin
-if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
-  exec startx
-fi
-
