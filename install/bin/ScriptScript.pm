@@ -13,7 +13,8 @@ our @EXPORT = qw( run tryrun
                   cd chownUser
                   writeFile tryWriteFile
                   readFile tryReadFile
-                  editFile replaceLine replaceOrAddLine
+                  replaceLine replaceOrAddLine
+                  editFile editFileConf
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -169,6 +170,26 @@ sub readFileProto($) {
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
 
+sub replaceLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    }
+    $&
+}
+
+sub replaceOrAddLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    } else  {
+        chomp $_[0];
+        $_[0] .= "\n";
+        $_[0] =~ s/\n+$/$&$new\n/;
+    }
+    $&
+}
+
 sub editFile($$;$) {
     my ($name, $patchname, $edit);
     ($name, $edit) = @_             if @_ == 2;
@@ -258,26 +279,16 @@ sub editFile($$;$) {
     }
 }
 
-sub replaceLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
-    }
-    $&
+sub editFileConf($$$) {
+    my ($name, $patchname, $config) = @_;
+    editFile $name, $patchname, sub {
+        my $cnts = shift;
+        for my $key(keys %$config){
+          replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
+        }
+        $cnts
+    };
 }
-
-sub replaceOrAddLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
-    } else  {
-        chomp $_[0];
-        $_[0] .= "\n";
-        $_[0] =~ s/\n+$/$&$new\n/;
-    }
-    $&
-}
-
 
 sub getRoot(@) {
     if(`whoami` ne "root\n") {
