@@ -3,8 +3,19 @@ use strict;
 use warnings;
 use ScriptScript;
 
+my $minVersion = "1.8.1";
+
+sub versionCmp($$);
+
 sub main(@) {
     run qw(sudo apt-get install git);
+    my $v = `git --version`;
+    chomp $v;
+    if(versionCmp($minVersion, $v) > 0){
+      print "skipping: $v >= $minVersion\n";
+      exit 0;
+    }
+
     run qw(sudo apt-get -y build-dep git);
     my $srcdir = "$ENV{HOME}/.src-cache/git";
 
@@ -25,5 +36,18 @@ sub main(@) {
     tryrun qw(sudo rm /etc/bash_completion.d/git-prompt);
 }
 
-main @ARGV;
+sub versionCmp($$){
+  my ($v1, $v2) = @_;
+  my @n1 = $v1 =~ /\d+/g;
+  my @n2 = $v2 =~ /\d+/g;
+  push @n1, 0 while @n1 < @n2;
+  push @n2, 0 while @n1 > @n2;
 
+  for(my $i=0; $i<@n1; $i++){
+    return -1 if $n1[$i] > $n2[$i];
+    return 1 if $n1[$i] < $n2[$i];
+  }
+  return 0;
+}
+
+main @ARGV;
