@@ -8,6 +8,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
+                  getInstallPath
                   cd chownUser
                   writeFile tryWriteFile
                   readFile tryReadFile
@@ -73,6 +74,10 @@ sub getUsername() {
         exit 1;
     }
     $user
+}
+
+sub getInstallPath($) {
+    return "$ENV{HOME}/install/$_[0]";
 }
 
 sub cd($) {
