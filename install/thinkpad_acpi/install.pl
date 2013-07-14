@@ -14,8 +14,10 @@ if($major < 3 or $minor < 3){
   $srcDir = '3.2';
 }elsif($minor < 8){
   $srcDir = '3.3';
-}else{
+}elsif($minor < 10){
   $srcDir = '3.8';
+}else{
+  $srcDir = '3.10';
 }
 
 print "installing version in $srcDir/\n";
