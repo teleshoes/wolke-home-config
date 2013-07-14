@@ -40,7 +40,13 @@ sub doInstalls($) {
     for my $group (sort grep {/$filter/i} keys %packages) {
         print "### installing $group\n";
         my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
-        run qw(apt-get -y install), @pkgs;
+        my $target = undef;
+        if(@pkgs > 0 and $pkgs[0] =~ /^TARGET\s*=\s*([^ \s]+)\s*$/){
+          $target = $1;
+          shift @pkgs
+        }
+        my @targetCmd = defined $target ? ("-t", $target) : ();
+        run "apt-get", "-y", @targetCmd, "install", @pkgs;
     }
 }
 
