@@ -1,1 +1,1 @@
-.bashrc
+[ -n "$BASH_VERSION" ] && . ~/.bashrc
