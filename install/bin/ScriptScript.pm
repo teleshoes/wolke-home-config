@@ -17,7 +17,7 @@ our @EXPORT = qw( run tryrun
                   guessBackupDir
                   relToScript
                   readConf readConfDir
-                  installFromDir aptSrcInstall
+                  installFromDir installFromGit aptSrcInstall
                 );
 
 my $opts = {
@@ -355,6 +355,12 @@ sub installFromDir($;$) {
         print STDERR "### no install file in $dir , exiting\n";
         exit 1;
     }
+}
+
+sub installFromGit($) {
+  my $gitUrl = shift;
+  my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
+  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl;
 }
 
 sub aptSrcInstall($$) {
