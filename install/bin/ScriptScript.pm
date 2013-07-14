@@ -8,7 +8,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  cd
+                  cd chownUser
                   writeFile tryWriteFile
                   readFile tryReadFile
                   editFile replaceLine replaceOrAddLine
@@ -66,14 +66,34 @@ sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto sub{@_}      , 1}(@_) }
 sub tryshell(@) { &{runProto sub{@_}      , 0}(@_) }
 
+sub getUsername() {
+    my $user = $ENV{SUDO_USER} || $ENV{USER};
+    if(not $user or $user eq "root") {
+        print STDERR "ERROR: USER or SUDO_USER must be set and not root";
+        exit 1;
+    }
+    $user
+}
+
 sub cd($) {
-    my $path = join ' ', shell_quote @_;
+    my $path = shift;
     my $cmd = "cd $path";
 
     print "$cmd\n" if $opts->{putCommand};
     return     unless $opts->{runCommand};
 
     chdir $path or deathWithDishonor;
+}
+
+sub chownUser($) {
+    my $path = shift;
+    my $user = getUsername;
+    my $cmd = "chown -R $user. $path";
+
+    print "$cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
+
+    run "sudo", "chown", "-R", "$user.", $path;
 }
 
 sub writeFileProto($) {
@@ -279,15 +299,6 @@ sub getRootSu(@) {
 	  or print "## failed to su, exiting";
         exit 1;
     }
-}
-
-sub getUsername() {
-    my $user = $ENV{SUDO_USER} || $ENV{USER};
-    if(not $user or $user eq "root") {
-        print STDERR "ERROR: USER or SUDO_USER must be set and not root";
-        exit 1;
-    }
-    $user
 }
 
 sub guessBackupDir() {
