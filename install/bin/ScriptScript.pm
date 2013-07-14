@@ -340,8 +340,8 @@ sub readConfDir($) {
     %confs
 }
 
-sub installFromDir($;$) {
-    my ($dir, $gitUrl) = (@_, undef);
+sub installFromDir($;$$) {
+    my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
     if(not -d $dir and defined $gitUrl){
         run "mkdir", "-p", $dir;
         cd $dir;
@@ -351,33 +351,36 @@ sub installFromDir($;$) {
     cd $dir;
     run qw(git pull) if -d ".git";
 
-    my @ls = split "\n", `ls -1`;
-
-    if(grep {/\.cabal$/} @ls) {
-        shell "cabal install";
-    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-        shell "make -j all";
-        shell "sudo make install";
-    } elsif(system("make -n >/dev/null 2>&1") == 0) {
-        shell "make -j";
-        shell "sudo make install";
-    } elsif(grep {/^install/} @ls) {
-        shell "./install*";
-    } else {
-        print STDERR "### no install file in $dir , exiting\n";
-        exit 1;
+    if(defined $cmd){
+      shell $cmd;
+    }else{
+      my @ls = split "\n", `ls -1`;
+      if(grep {/\.cabal$/} @ls) {
+          shell "cabal install";
+      } elsif(system("make -n all >/dev/null 2>&1") == 0) {
+          shell "make -j all";
+          shell "sudo make install";
+      } elsif(system("make -n >/dev/null 2>&1") == 0) {
+          shell "make -j";
+          shell "sudo make install";
+      } elsif(grep {/^install/} @ls) {
+          shell "./install*";
+      } else {
+          print STDERR "### no install file in $dir , exiting\n";
+          exit 1;
+      }
     }
 }
 
-sub installFromGit($) {
-  my $gitUrl = shift;
+sub installFromGit($;$) {
+  my ($gitUrl, $cmd) = (@_, undef);
   my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
   my $srcCacheDir = "$ENV{HOME}/.src-cache";
   if(not -d $srcCacheDir){
     run "mkdir", "-p", $srcCacheDir;
     chownUser $srcCacheDir;
   }
-  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl;
+  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
 }
 
 sub aptSrcInstall($$) {
