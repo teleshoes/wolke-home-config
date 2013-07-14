@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+sub main(@) {
+    getRoot @_;
+
+    my %config = (
+      NODM_ENABLED => 'true',
+      NODM_USER => getUsername,
+      NODM_XSESSION => "\"/bin/bash -c $ENV{HOME}/.xinitrc\"",
+      NODM_FIRST_VT => 7,
+    );
+
+    my @dms = qw(mdm gdm kdm lightdm slim wdm xdm);
+    tryrun qw(pkill -f), $_ foreach @dms;
+    run qw(apt-get -y purge), @dms;
+
+    run qw(apt-get -y install), "nodm";
+
+    editFile "/etc/default/nodm", getUsername, sub {
+        my $cnts = shift;
+        for my $key(keys %config){
+          replaceOrAddLine $cnts, $key, "$key=$config{$key}";
+        }
+        $cnts
+    };
+}
+
+main @ARGV;
