@@ -354,7 +354,7 @@ sub installFromDir($;$$) {
         chownUser $dir;
     }
     cd $dir;
-    run qw(git pull) if -d ".git";
+    tryrun qw(git pull) if -d ".git";
 
     if(defined $cmd){
       shell $cmd;
