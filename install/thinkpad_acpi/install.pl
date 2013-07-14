@@ -8,11 +8,11 @@ my $modprobeOpts = "options thinkpad_acpi fan_control=1\n";
 my $kernel = `uname -r`;
 chomp $kernel;
 
-my $kernelMajorMinor = $1 if $kernel =~ /^(\d+\.\d+)/;
+my ($major, $minor) = ($1, $2) if $kernel =~ /^(\d+)\.(\d+)/;
 my $srcDir;
-if($kernelMajorMinor < 3.3){
+if($major < 3 or $minor < 3){
   $srcDir = '3.2';
-}elsif($kernelMajorMinor < 3.8){
+}elsif($minor < 8){
   $srcDir = '3.3';
 }else{
   $srcDir = '3.8';
