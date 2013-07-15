@@ -76,7 +76,8 @@ cEnd='\[\033[00m\]'
 #the n9 fucks with that line on reboot
 PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
-for cmd in wconnect wauto tether resolv mnt optimus xorg-conf bluetooth fan
+for cmd in wconnect wauto tether resolv \
+           mnt optimus xorg-conf bluetooth fan intel-pstate
 do alias $cmd="sudo $cmd"; done
 
 for sudoTypo in suod sudp
