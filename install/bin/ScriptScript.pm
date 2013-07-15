@@ -8,7 +8,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  procLines
+                  proc procLines
                   getInstallPath
                   cd chownUser
                   writeFile tryWriteFile
@@ -69,6 +69,11 @@ sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto sub{@_}      , 1}(@_) }
 sub tryshell(@) { &{runProto sub{@_}      , 0}(@_) }
 
+sub proc(@) {
+    my $out = `@_`;
+    chomp $out;
+    return $out;
+}
 sub procLines(@) {
     my @lines = `@_`;
     chomp foreach @lines;
