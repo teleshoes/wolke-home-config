@@ -37,7 +37,7 @@ main = do
           , W.pidginPipeW $ barHeight cfg
           , W.thunderbirdW (barHeight cfg) Green Black
           , W.ekigaW
-          , W.cpuGovW
+          , W.cpuIntelPstateW
           , W.cpuFreqsW
           , W.fanW
           , W.brightnessW
