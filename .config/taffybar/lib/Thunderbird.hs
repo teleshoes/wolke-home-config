@@ -12,7 +12,7 @@ import qualified Data.Map as M (fromList, lookup, member)
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
 
-exec = "thunderbird"
+exec = "icedove"
 process = exec
 dir = "." ++ exec
 
