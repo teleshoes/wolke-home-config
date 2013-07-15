@@ -29,10 +29,10 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     pretty mouseOverlaps
     pretty keyOverlaps
 
-firefoxExec = "firefox"
-firefoxProcess = "firefox"
-firefoxClose = "Close Firefox"
-thunderbirdClass = "Thunderbird"
+firefoxExec = "iceweasel"
+firefoxProcess = "iceweasel"
+firefoxClose = "Close Iceweasel"
+thunderbirdClass = "Icedove"
 
 main = xmonad . ewmh . pagerHints $ defaultConfig
   { focusFollowsMouse  = False
