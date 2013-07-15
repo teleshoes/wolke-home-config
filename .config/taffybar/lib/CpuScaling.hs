@@ -13,7 +13,7 @@ import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
 width = 2
-defaultGovernor = "ondemand"
+defaultGovernor = "performance"
 
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
