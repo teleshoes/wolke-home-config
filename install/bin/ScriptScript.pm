@@ -11,6 +11,7 @@ our @EXPORT = qw( run tryrun
                   proc procLines
                   getInstallPath
                   cd chownUser
+                  which
                   writeFile tryWriteFile
                   readFile tryReadFile
                   replaceLine replaceOrAddLine
@@ -91,6 +92,10 @@ sub getUsername() {
 
 sub getInstallPath($) {
     return "$ENV{HOME}/install/$_[0]";
+}
+
+sub which($) {
+    return proc "which", @_;
 }
 
 sub cd($) {
