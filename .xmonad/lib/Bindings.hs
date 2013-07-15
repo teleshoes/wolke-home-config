@@ -46,7 +46,7 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
 
 xmoKeys conf = "XMonad" @@ do
     "Restart"   @@ mCA xK_Home #! "taffybar-restart"
-    "Recompile" @@ mCA xK_End  #! "xmonad --recompile; xmonad --restart"
+    "Recompile" @@ mCA xK_End  #! "xmonad-restart"
     "Bindings"  @@ mCA xK_Ins  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
 shortcuts conf = "Shortcuts" @@ do
