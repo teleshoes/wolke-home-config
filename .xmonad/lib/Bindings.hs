@@ -95,10 +95,10 @@ shortcuts conf = "Shortcuts" @@ do
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
 
     "CPU"           @@ do
-        "normal"        @@ mW    xK_F1   #! "sudo cpu-set ondemand 800 2201"
-        "medium"        @@ mW    xK_F2   #! "sudo cpu-set ondemand 800 1400"
-        "slow"          @@ mW    xK_F3   #! "sudo cpu-set ondemand 800 800"
-        "fast"          @@ mW    xK_F4   #! "sudo cpu-set ondemand 2201 2201"
+        "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
+        "66%"           @@ mW    xK_F2   #! "sudo intel-pstate -s max 66"
+        "33%"           @@ mW    xK_F3   #! "sudo intel-pstate -s max 33"
+        "0%"            @@ mW    xK_F4   #! "sudo intel-pstate -s max 0"
 
     "Fan"           @@ do
         "auto"          @@ mW    xK_F5   #! "sudo fan auto"
