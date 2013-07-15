@@ -1,4 +1,4 @@
-module CpuScaling(cpuScalingW) where
+module CpuScaling(cpuScalingW, cpuGovW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
@@ -13,6 +13,7 @@ import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
 width = 2
+defaultGovernor = "ondemand"
 
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
@@ -22,7 +23,10 @@ cpuScalingW = labelW $ do
   case cpu of
     Left err -> return err
     Right cur@(curGov, curMinFreq, curMaxFreq, curAvail) -> do
-      tmp@(tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) <- readTmp curAvail
+      let defMin = head curAvail
+      let defMax = last curAvail
+      tmp@(tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) <-
+        readTmp (defaultGovernor, defMin, defMax)
       let mismatchErr = getMismatchError cur tmp
       case mismatchErr of
         Just msg -> do
@@ -30,13 +34,24 @@ cpuScalingW = labelW $ do
           return $ "running cpu-set: " ++ msg
         Nothing -> return $ formatScaling cur
 
+cpuGovW = labelW $ do
+  gov <- readGov
+  case gov of
+    Left err -> return err
+    Right curGov -> do
+      tmp@(tmpGov, _, _, _) <- readTmp (defaultGovernor, 0, 0)
+      if curGov /= tmpGov then do
+          cpuSetGov tmpGov
+          return $ "running cpu-set " ++ tmpGov
+      else return $ formatGov curGov
+
 withErr act msg = EitherT $ note msg <$> act
 
 allEq :: Eq a => [a] -> Bool
 allEq xs = null xs || all (== head xs) (tail xs)
 
-readTmp :: [Integer] -> IO (String, Integer, Integer, Integer)
-readTmp avail = parseTmpFile avail <$> chompFile tmpFile
+readTmp :: (String, Integer, Integer) -> IO (String, Integer, Integer, Integer)
+readTmp defaults = parseTmpFile defaults <$> chompFile tmpFile
 
 readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
 readCpu = runEitherT $ do
@@ -49,6 +64,12 @@ readCpu = runEitherT $ do
   avail <- sort <$> getCpuFieldInts "available_frequencies"
            `withErr` "no available frequencies!"
   return (gov, minFreq, maxFreq, avail)
+
+readGov :: IO (Either String String)
+readGov = runEitherT $ do
+  gov <- getCpuField "governor"
+         `withErr` "no governor!"
+  return gov
 
 getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
@@ -85,15 +106,20 @@ cpuSet gov minFreq maxFreq = void $ forkIO $ void $ system cmd
   where cmd = "sudo cpu-set "
               ++ gov ++ " " ++ show minFreq ++ " " ++ show maxFreq
 
-parseTmpFile :: [Integer] -> String -> (String, Integer, Integer, Integer)
-parseTmpFile avail s = parseGroups $ fromMaybe defaultTmp grps
+cpuSetGov :: String -> IO ()
+cpuSetGov gov = void $ forkIO $ void $ system cmd
+  where cmd = "sudo cpu-set " ++ gov
+
+parseTmpFile :: (String, Integer, Integer) -> String
+             -> (String, Integer, Integer, Integer)
+parseTmpFile (defGov, defMin, defMax) s = parseGroups $ fromMaybe defaults grps
   where re = ""
              ++ "governor=(.*)\\n?"
              ++ "min=(\\d*)\\n?"
              ++ "max=(\\d*)\\n?"
              ++ "freq=(\\d*)\\n?"
         grps = regexGroups re s
-        defaultTmp = ["ondemand", show $ head avail, show $ last avail, ""]
+        defaults = [defGov, show defMin, show defMax, ""]
         parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
         toInt = fromMaybe 0 . readInt
 
@@ -102,6 +128,16 @@ formatScaling (gov, minKHz, maxKHz, avail) = color minKHz maxKHz avail text
   where pad = padL '0' width . take width
         fmt kHz = pad $ show $ kHz `div` 10^5
         text = fmt minKHz ++ "\n" ++ fmt maxKHz
+
+formatGov :: String -> String
+formatGov gov = color text
+  where color = case gov of
+                  "performance" -> bg "blue"
+                  "powersave" -> bg "red" . fg "black"
+                  "ondemand" -> bg "green"
+                  "userspace" -> bg "yellow"
+                  otherwise -> bg "orange" . fg "black"
+        text = (take 2 gov) ++ "\n" ++ (take 2 $ drop 2 gov)
 
 color :: Integer -> Integer -> [Integer] -> String -> String
 color min max avail
