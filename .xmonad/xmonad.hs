@@ -32,6 +32,7 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 firefoxExec = "firefox"
 firefoxProcess = "firefox"
 firefoxClose = "Close Firefox"
+thunderbirdClass = "Thunderbird"
 
 main = xmonad . ewmh . pagerHints $ defaultConfig
   { focusFollowsMouse  = False
@@ -63,7 +64,7 @@ myManageHook = execWriter $ do
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
-  className =? "Thunderbird"           ~~> doShift "8"
+  className =? thunderbirdClass        ~~> doShift "8"
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
   title     =? "Torrent Options"       ~~> doShiftView "9"
