@@ -4,17 +4,17 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $gconfDir = '/apps/ekiga';
+my $accountsFile = "../secrets/ekiga-accounts";
+
 sub ranHex($);
 sub formatAccount($$$);
 
 sub main(@){
   die "Usage: $0\n" if @_ > 0;
 
-  my $accounts = join ",", (
-  );
-  my $gconfDir = '/apps/ekiga';
   my %gconf = (
-    'protocols/accounts_list' => "[$accounts]",
+    'protocols/accounts_list' => getAccounts(),
     'protocols/sip/listen_port' => "4250",
     'protocols/h323/listen_port' => "4251",
     'protocols/ports/tcp-port-range' => "4230-4239",
@@ -40,6 +40,18 @@ sub main(@){
     print "@cmd\n";
     system @cmd;
   }
+}
+
+sub getAccounts(){
+  my $acc = '[';
+  for my $line(readConf $accountsFile){
+    if($line =~ /^(.*),\s*(.*),\s*(.*)$/){
+      my ($accountName, $un, $pw) = ($1, $2, $3);
+      $acc .= formatAccount $accountName, $un, $pw;
+    }
+  }
+  $acc .= ']';
+  return $acc;
 }
 
 sub formatAccount($$$){
