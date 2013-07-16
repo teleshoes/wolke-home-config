@@ -1,14 +1,15 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
 
 sub ranHex($);
-sub getEkigaNetAccount($$$);
+sub formatAccount($$$);
 
 my $accounts = join ",", (
-  getEkigaNetAccount('elliot.wolk@ekiga.net', 'elliot.wolk', 'forty242'),
+  formatAccount('elliot.wolk@ekiga.net', 'elliot.wolk', 'forty242'),
 );
-
 my $gconfDir = '/apps/ekiga';
 my %gconf = (
   'protocols/accounts_list' => "[$accounts]",
@@ -20,7 +21,28 @@ my %gconf = (
   'general/nat/stun_server' => "stun.counterpath.com",
 );
 
-sub getEkigaNetAccount($$$){
+sub main(@){
+  die "Usage: $0\n" if @_ > 0;
+  system "killall -9 ekiga";
+  for my $key(keys %gconf){
+    my $val = $gconf{$key};
+    my $type = 'string';
+    $type = 'int' if $val =~ /^\d+$/;
+    $type = 'list' if $val =~ /^\[.*\]$/;
+    $type = 'bool' if $val =~ /^(true|false)$/i;
+    my @cmd = ("gconftool", "-s", "-t", $type);
+    if($type eq 'list'){
+      my $listType = 'string';
+      $listType = 'int' if $val =~ /^\[(\s*\d+\s*,\s*)*\d+\]$/;
+      @cmd = (@cmd, "--list-type", $listType);
+    }
+    @cmd = (@cmd, "$gconfDir/$key", $val);
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+sub formatAccount($$$){
   my ($accountName, $un, $pw) = @_;
   return join "|", (
     "1",
@@ -46,27 +68,6 @@ sub ranHex($){
     $s .= $hex[int(rand()*16)];
   }
   return $s;
-}
-
-sub main(@){
-  die "Usage: $0\n" if @_ > 0;
-  system "killall -9 ekiga";
-  for my $key(keys %gconf){
-    my $val = $gconf{$key};
-    my $type = 'string';
-    $type = 'int' if $val =~ /^\d+$/;
-    $type = 'list' if $val =~ /^\[.*\]$/;
-    $type = 'bool' if $val =~ /^(true|false)$/i;
-    my @cmd = ("gconftool", "-s", "-t", $type);
-    if($type eq 'list'){
-      my $listType = 'string';
-      $listType = 'int' if $val =~ /^\[(\s*\d+\s*,\s*)*\d+\]$/;
-      @cmd = (@cmd, "--list-type", $listType);
-    }
-    @cmd = (@cmd, "$gconfDir/$key", $val);
-    print "@cmd\n";
-    system @cmd;
-  }
 }
 
 &main(@ARGV);
