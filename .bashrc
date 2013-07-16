@@ -100,7 +100,7 @@ alias ld='ls -dAl --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
 alias perms='stat -c %a'
 alias glxgears='vblank_mode=0 glxgears'
-alias mnto='sudo mnt --other --no-usb --no-card'
+function mnto { sudo mnt --other --no-usb --no-card ; }
 alias gparted='spawnexsudo gparted'
 function s           { $@ & disown ; }
 function spawn       { $@ & disown ; }
