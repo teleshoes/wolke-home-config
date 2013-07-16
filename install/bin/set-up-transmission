@@ -1,14 +1,8 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-
-if(`whoami` ne "root\n"){
-  print "rerunning as root\n";
-  exec "sudo", $0, @ARGV;
-}
-
-system "apt-get install transmission-daemon";
-system "apt-get install transmission-gtk";
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
 
 my %settings = (
   "download-dir"                => "\"$ENV{HOME}/Desktop/Torrents\"",
@@ -22,29 +16,38 @@ my @files = (
   "$ENV{HOME}/.config/transmission-daemon/settings.json",
 );
 
-for my $file(@files){
-  print "$file\n";
-  open FH, "< $file" or die "Couldnt read $file\n";
-  my @lines = <FH>;
-  for my $line(@lines){
-    for my $key(keys %settings){
-      if($line =~ /^(\s*)"$key"\s*:\s*(.*?)(,?)\s*$/){
-        my $indent = $1;
-        my $oldVal = $2;
-        my $comma = $3;
-        my $val = $settings{$key};
-        if($oldVal ne $val){
-          print "$key:\n  $oldVal => $val$comma\n";
+sub main(@){
+  getRoot @_;
+
+  system "apt-get install transmission-daemon";
+  system "apt-get install transmission-gtk";
+
+  for my $file(@files){
+    print "$file\n";
+    open FH, "< $file" or die "Couldnt read $file\n";
+    my @lines = <FH>;
+    for my $line(@lines){
+      for my $key(keys %settings){
+        if($line =~ /^(\s*)"$key"\s*:\s*(.*?)(,?)\s*$/){
+          my $indent = $1;
+          my $oldVal = $2;
+          my $comma = $3;
+          my $val = $settings{$key};
+          if($oldVal ne $val){
+            print "$key:\n  $oldVal => $val$comma\n";
+          }
+          $line = "$indent\"$key\": $val$comma\n";
         }
-        $line = "$indent\"$key\": $val$comma\n";
       }
     }
+    close FH;
+    open FH, "> $file" or die "Couldnt write $file\n";
+    print FH @lines;
+    close FH;
   }
-  close FH;
-  open FH, "> $file" or die "Couldnt write $file\n";
-  print FH @lines;
-  close FH;
+
+  system "/etc/init.d/transmission-daemon reload";
+  system "/etc/init.d/transmission-daemon restart";
 }
 
-system "/etc/init.d/transmission-daemon reload";
-system "/etc/init.d/transmission-daemon restart";
+&main(@ARGV);
