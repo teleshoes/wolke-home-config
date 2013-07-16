@@ -6,18 +6,23 @@ use ScriptScript;
 
 my $dir = '/etc/bash_completion.d';
 
+<<<<<<< HEAD
 sub getMntNamesSub($);
 sub getReposSub();
+=======
+sub getFctImpls();
+>>>>>>> deb5cda... install[bash-completion]: pull function impls into one sub
 
 sub main(@) {
   getRoot @_;
 
-  my $reposSub = getReposSub();
+  my $mntNamesSub = "_mntnames()" . ${getFctImpls()}{"_mntnames"};
+  my $reposSub = "_repo_lists()" . ${getFctImpls()}{"_repo_lists"};
   my $files = {
     'sudo-aliases' => "complete -F _root_command suod sudp\n",
     'spawn' => "complete -F _root_command s spawn spawnex spawnexsudo\n",
-    'mnt' => getMntNamesSub 'mnt',
-    'mnto' => getMntNamesSub 'mnto',
+    'mnt' => "$mntNamesSub\ncomplete -F _mntnames mnt\n",
+    'mnto' => "$mntNamesSub\ncomplete -F _mntnames mnto\n",
     'update-repo' => "$reposSub\ncomplete -F _repo_lists update-repo\n",
   };
 
@@ -29,46 +34,38 @@ sub main(@) {
   }
 }
 
-sub getMntNamesSub($){
-  my $cmd = shift;
-  my $opts = join ' ', qw(
-    -m -u -g -n -l --usb --no-usb --card --no-card --other --no-other
-  );
-  return '_mntnames(){
-              local cur names
-              cur="${COMP_WORDS[COMP_CWORD]}"
-              mntexe=$1
+sub getFctImpls(){
+  return {
+    "_mntnames" => '{
+      local cur names
+      cur="${COMP_WORDS[COMP_CWORD]}"
+      mntexe=$1
+      opts="-m -u -g -n -l --usb --no-usb --card --no-card --other --no-other"
 
-              if [ ${#COMP_WORDS[@]} == 3 ]; then
-                names=`$mntexe -n`
-                COMPREPLY=( $(compgen -W "$names" -- $cur) )
-              elif [ ${#COMP_WORDS[@]} == 2 ]; then
-                COMPREPLY=( $(compgen -W "' . $opts . '" -- $cur) )
-              else
-                COMPREPLY=()
-              fi
-            }
+      if [ ${#COMP_WORDS[@]} == 3 ]; then
+        names=`$mntexe -n`
+        COMPREPLY=( $(compgen -W "$names" -- $cur) )
+      elif [ ${#COMP_WORDS[@]} == 2 ]; then
+        COMPREPLY=( $(compgen -W "$opts" -- $cur) )
+      else
+        COMPREPLY=()
+      fi
+    }',
 
-            complete -F _mntnames ' . $cmd . '
-  ';
-}
+    "_repo_lists" => '{
+      local cur
+      cur="${COMP_WORDS[COMP_CWORD]}"
 
-sub getReposSub(){
-  return '
-    _repo_lists(){
-        local cur
-        cur="${COMP_WORDS[COMP_CWORD]}"
-
-        COMPREPLY=($(
-          find /etc/apt/sources.list.d/ \
-            -iname "*$cur*.list" \
-            -exec basename {} \; \
-            2> /dev/null \
-          | sort \
-        ))
-        return 0
-    }
-  ';
+      COMPREPLY=($(
+        find /etc/apt/sources.list.d/ \
+          -iname "*$cur*.list" \
+          -exec basename {} \; \
+          2> /dev/null \
+        | sort \
+      ))
+      return 0
+    }',
+  };
 }
 
 &main(@ARGV);
