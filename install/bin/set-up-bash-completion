@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+if(`whoami` ne "root\n"){
+  print "rerunning as root\n";
+  exec "sudo", $0, @ARGV;
+}
+
+my $dir = '/etc/bash_completion.d';
+
+sub getMntNamesSub($){
+  my $cmd = shift;
+  my $opts = join ' ', qw(
+    -m -u -g -n -l --usb --no-usb --card --no-card --other --no-other
+  );
+  return '_mntnames(){
+              local cur names
+              cur="${COMP_WORDS[COMP_CWORD]}"
+
+              if [ ${#COMP_WORDS[@]} == 3 ]; then
+                names=`' . $cmd . ' -n`
+                COMPREPLY=( $(compgen -W "$names" -- $cur) )
+              elif [ ${#COMP_WORDS[@]} == 2 ]; then
+                COMPREPLY=( $(compgen -W "' . $opts . '" -- $cur) )
+              else
+                COMPREPLY=()
+              fi
+            }
+
+            complete -F _mntnames ' . $cmd . '
+  ';
+}
+
+my $reposSub = '
+  _repo_lists(){
+      local cur
+      cur="${COMP_WORDS[COMP_CWORD]}"
+
+      COMPREPLY=($(
+        find /etc/apt/sources.list.d/ \
+          -iname "*$cur*.list" \
+          -exec basename {} \; \
+          2> /dev/null \
+        | sort \
+      ))
+      return 0
+  }
+';
+
+my $files = {
+  'sudo-aliases' => "complete -F _root_command suod sudp\n",
+  'spawn' => "complete -F _root_command s spawn spawnex spawnexsudo\n",
+  'mnt' => getMntNamesSub 'mnt',
+  'mnto' => getMntNamesSub 'mnto',
+  'update-repo' => "$reposSub\ncomplete -F _repo_lists update-repo\n",
+};
+
+for my $file(keys %$files){
+  my $content = $$files{$file};
+  open FH, "> $dir/$file" or die "Couldnt open file $dir/$file\n";
+  print FH $content;
+  close FH;
+}
