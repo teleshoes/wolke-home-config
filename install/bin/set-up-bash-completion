@@ -1,13 +1,36 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-
-if(`whoami` ne "root\n"){
-  print "rerunning as root\n";
-  exec "sudo", $0, @ARGV;
-}
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
 
 my $dir = '/etc/bash_completion.d';
+
+sub getMntNamesSub($);
+sub getReposSub();
+sub getEsPkgSub;
+
+sub main(@) {
+  getRoot @_;
+
+  my $reposSub = getReposSub();
+  my $esPkgSub = getEsPkgSub();
+  my $files = {
+    'sudo-aliases' => "complete -F _root_command suod sudp\n",
+    'spawn' => "complete -F _root_command s spawn spawnex spawnexsudo\n",
+    'compsql' => "$esPkgSub\ncomplete -F _es_pkg compsql genibatis\n",
+    'mnt' => getMntNamesSub 'mnt',
+    'mnto' => getMntNamesSub 'mnto',
+    'update-repo' => "$reposSub\ncomplete -F _repo_lists update-repo\n",
+  };
+
+  for my $file(keys %$files){
+    my $content = $$files{$file};
+    open FH, "> $dir/$file" or die "Couldnt open file $dir/$file\n";
+    print FH $content;
+    close FH;
+  }
+}
 
 sub getMntNamesSub($){
   my $cmd = shift;
@@ -33,49 +56,40 @@ sub getMntNamesSub($){
   ';
 }
 
-my $reposSub = '
-  _repo_lists(){
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
+sub getReposSub(){
+  return '
+    _repo_lists(){
+        local cur
+        cur="${COMP_WORDS[COMP_CWORD]}"
 
-      COMPREPLY=($(
-        find /etc/apt/sources.list.d/ \
-          -iname "*$cur*.list" \
-          -exec basename {} \; \
-          2> /dev/null \
-        | sort \
-      ))
-      return 0
-  }
-';
-
-my $esPkgSub = '
-  _es_pkg(){
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-
-      COMPREPLY=($(
-        find $HOME/pkg/ \
-          -iname "*$cur*.sql" \
-          -exec basename {} \; \
-          2> /dev/null \
-        | sort \
-      ))
-      return 0
-  }
-';
-my $files = {
-  'sudo-aliases' => "complete -F _root_command suod sudp\n",
-  'spawn' => "complete -F _root_command s spawn spawnex spawnexsudo\n",
-  'compsql' => "$esPkgSub\ncomplete -F _es_pkg compsql genibatis\n",
-  'mnt' => getMntNamesSub 'mnt',
-  'mnto' => getMntNamesSub 'mnto',
-  'update-repo' => "$reposSub\ncomplete -F _repo_lists update-repo\n",
-};
-
-for my $file(keys %$files){
-  my $content = $$files{$file};
-  open FH, "> $dir/$file" or die "Couldnt open file $dir/$file\n";
-  print FH $content;
-  close FH;
+        COMPREPLY=($(
+          find /etc/apt/sources.list.d/ \
+            -iname "*$cur*.list" \
+            -exec basename {} \; \
+            2> /dev/null \
+          | sort \
+        ))
+        return 0
+    }
+  ';
 }
+
+sub getEsPkgSub{
+  return '
+    _es_pkg(){
+        local cur
+        cur="${COMP_WORDS[COMP_CWORD]}"
+
+        COMPREPLY=($(
+          find $HOME/pkg/ \
+            -iname "*$cur*.sql" \
+            -exec basename {} \; \
+            2> /dev/null \
+          | sort \
+        ))
+        return 0
+    }
+  ';
+}
+
+&main(@ARGV);
