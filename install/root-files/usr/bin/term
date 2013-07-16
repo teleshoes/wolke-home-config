@@ -4,6 +4,7 @@ use warnings;
 
 my $titleArgs = "-t|--title|-T|-title";
 my $cwdArgs = "--working-directory|-cd";
+my $autoCwdArgs = "--auto-working-directory|-acd";
 
 my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
@@ -22,6 +23,12 @@ my $usage = "Usage:
       sets the window title on terminals that support it
     $cwdArgs PATH
       sets the current working directory on terminals that support it
+    $autoCwdArgs
+      sets the current working directory to the current window as follows:
+        -extract the PID of the current window {using xdotool}
+        -use a child PID instead if it exists {using ps}
+        -extract the PWD of the PID {using pwdx}
+        -set the PWD like [$cwdArgs]
 ";
 
 sub wrapToken($){
@@ -107,6 +114,33 @@ sub isInstalled($){
   return $? == 0;
 }
 
+sub procChomp(@){
+  my $out = `@_`;
+  chomp $out;
+  return $out;
+}
+
+sub extractActiveCwd(){
+  my $activeWin = procChomp "xdotool getactivewindow";
+  return undef if $activeWin !~ /^\d+$/;
+
+  my $activePid = procChomp "xdotool getwindowpid $activeWin";
+  return undef if $activePid !~ /^\d+$/;
+
+  for my $line(`ps -e -o pid= -o ppid=`){
+    if($line =~ /^\s*(\d+)\s*$activePid\s*$/){
+      $activePid = $1;
+      last;
+    }
+  }
+
+  my $pwd = procChomp "pwdx $activePid";
+  if($pwd =~ /^$activePid:\s*(.*)$/){
+    return $1;
+  }
+  return undef;
+}
+
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   
@@ -118,6 +152,12 @@ sub main(@){
     }elsif(@_ > 1 and $_[0] =~ /^($cwdArgs)$/){
       shift;
       $termArgs{cwd} = wrapToken(shift());
+    }elsif(@_ > 0 and $_[0] =~ /^($autoCwdArgs)$/){
+      shift;
+      my $cwd = extractActiveCwd();
+      if(defined $cwd){
+        $termArgs{cwd} = wrapToken $cwd;
+      }
     }else{
       last;
     }
