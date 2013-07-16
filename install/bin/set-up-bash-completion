@@ -11,23 +11,26 @@ sub getFctImpls();
 sub main(@) {
   getRoot @_;
 
-  my $mntnamesSub = "_mntnames()" . ${getFctImpls()}{"_mntnames"};
-  my $reposSub = "_repo_lists()" . ${getFctImpls()}{"_repo_lists"};
-  my $compsqlSub = "_compsql()" . ${getFctImpls()}{"_compsql"};
   my $files = {
-    'sudo-aliases' => "complete -F _root_command suod sudp\n",
-    'spawn' => "complete -F _root_command s spawn spawnex spawnexsudo\n",
-    'mnt' => "$mntnamesSub\ncomplete -F _mntnames mnt\n",
-    'mnto' => "$mntnamesSub\ncomplete -F _mntnames mnto\n",
-    'update-repo' => "$reposSub\ncomplete -F _repo_lists update-repo\n",
+    'sudo-aliases' => complete("_root_command", qw(suod sudp)),
+    'spawn' => complete("_root_command", qw(s spawn spawnex spawnexsudo)),
+    'mnt' => complete("_mntnames", qw(mnt mnto)),
+    'update-repo' => complete("_repo_lists", qw(update-repo)),
   };
 
   for my $file(keys %$files){
-    my $content = $$files{$file};
-    open FH, "> $dir/$file" or die "Couldnt open file $dir/$file\n";
-    print FH $content;
-    close FH;
+    writeFile "$dir/$file", $$files{$file};
   }
+}
+
+sub complete($@){
+  my ($fct, @cmds) = @_;
+  my $fctImpls = getFctImpls;
+  my $complete = '';
+  $complete .= "$fct()$$fctImpls{$fct}\n" if defined $$fctImpls{$fct};
+  $complete .= "complete -F $fct @cmds\n";
+  print "  completing $fct => @cmds\n";
+  return $complete;
 }
 
 sub getFctImpls(){
