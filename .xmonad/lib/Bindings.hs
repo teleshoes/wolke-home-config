@@ -57,7 +57,7 @@ shortcuts conf = "Shortcuts" @@ do
     "term"              @@ m_    xK_Think#! "term"
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
-    "launch-term"       @@ mA    xK_Think#! "LaunchTerm.hs"
+    "term auto-cwd"     @@ mA    xK_Think#! "term -acd"
     "ghci"              @@ mC    xK_Think#! "term ghci"
     "screenshot"        @@ m_    xK_Print#! "scrot-bag"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
