@@ -25,6 +25,42 @@ our @EXPORT = qw( run tryrun
                   installFromDir installFromGit aptSrcInstall
                 );
 
+sub setOpts($);
+sub deathWithDishonor();
+sub runProto($$);
+sub run(@);
+sub tryrun(@);
+sub shell(@);
+sub tryshell(@);
+sub runUser(@);
+sub runSys(@);
+sub proc(@);
+sub procLines(@);
+sub getUsername();
+sub getInstallPath($);
+sub which($);
+sub cd($);
+sub chownUser($);
+sub writeFileProto($);
+sub writeFile($$);
+sub tryWriteFile($$);
+sub readFileProto($);
+sub readFile($);
+sub tryReadFile($);
+sub replaceLine($$$);
+sub replaceOrAddLine($$$);
+sub editFile($$;$);
+sub editFileConf($$$);
+sub getRoot(@);
+sub getRootSu(@);
+sub guessBackupDir();
+sub relToScript($);
+sub readConf($);
+sub readConfDir($);
+sub installFromDir($;$$);
+sub installFromGit($;$);
+sub aptSrcInstall($$);
+
 my $opts = {
   putCommand => 1,
   runCommand => 1,
