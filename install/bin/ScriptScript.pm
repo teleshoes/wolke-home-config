@@ -61,6 +61,7 @@ sub installFromDir($;$$);
 sub installFromGit($;$);
 sub aptSrcInstall($$);
 
+
 my $opts = {
   putCommand => 1,
   runCommand => 1,
@@ -102,10 +103,12 @@ sub runProto($$) {
         }
     }
 }
+sub id(@){@_}
+
 sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
-sub shell   (@) { &{runProto sub{@_}      , 1}(@_) }
-sub tryshell(@) { &{runProto sub{@_}      , 0}(@_) }
+sub shell   (@) { &{runProto \&id         , 1}(@_) }
+sub tryshell(@) { &{runProto \&id         , 0}(@_) }
 
 sub runSys  (@) {
     print "@_\n";
