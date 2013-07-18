@@ -109,7 +109,13 @@ sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto \&id         , 1}(@_) }
 sub tryshell(@) { &{runProto \&id         , 0}(@_) }
-sub runUser (@) { run("su", getUsername(), "-c", "@_") }
+sub runUser (@) {
+  if(isRoot()){
+      run("su", getUsername(), "-c", "@_")
+  }else{
+      run(@_);
+  }
+}
 
 sub runSys  (@) {
     print "@_\n";
