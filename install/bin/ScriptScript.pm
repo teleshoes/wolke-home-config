@@ -12,6 +12,7 @@ our @EXPORT = qw( run tryrun
                   proc procLines
                   getInstallPath
                   cd chownUser
+                  symlinkDir
                   which
                   writeFile tryWriteFile
                   readFile tryReadFile
@@ -41,6 +42,7 @@ sub getInstallPath($);
 sub which($);
 sub cd($);
 sub chownUser($);
+sub symlinkDir($$);
 sub writeFileProto($);
 sub writeFile($$);
 sub tryWriteFile($$);
@@ -170,6 +172,23 @@ sub chownUser($) {
     return     unless $opts->{runCommand};
 
     run "sudo", "chown", "-R", "$user.", $path;
+}
+
+sub symlinkDir($$) {
+    my ($dir, $target) = @_;
+    if(-d $dir){
+        run "sudo", "rmdir", $dir;
+        print "$dir => $target\n";
+    }
+    if(-p $dir){
+        my $link = readlink $dir;
+        run "sudo", "rm", $dir;
+        if($link ne $target){
+            print "$dir => $target\n";
+        }
+    }
+    die "Could not symlink $dir => $target\n" if -e $dir;
+    run "sudo", "ln", "-s", $target, $dir;
 }
 
 sub writeFileProto($) {
