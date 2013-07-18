@@ -8,7 +8,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  runSys
+                  runSys runUser
                   proc procLines
                   getInstallPath
                   cd chownUser
@@ -109,6 +109,7 @@ sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto \&id         , 1}(@_) }
 sub tryshell(@) { &{runProto \&id         , 0}(@_) }
+sub runUser (@) { run("su", getUsername(), "-c", "@_") }
 
 sub runSys  (@) {
     print "@_\n";
