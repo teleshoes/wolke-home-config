@@ -347,8 +347,12 @@ sub editFileConf($$$) {
     };
 }
 
+sub isRoot(){
+    return `whoami` eq "root\n";
+}
+
 sub getRoot(@) {
-    if(`whoami` ne "root\n") {
+    if(not isRoot()) {
         print "## rerunning as root\n";
 
         my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
@@ -362,21 +366,21 @@ sub getRoot(@) {
 }
 
 sub getRootSu(@) {
-    if(`whoami` ne "root\n") {
+    if(not isRoot()) {
         print "## rerunning as root\n";
 
         my $user = getUsername();
         my $cmd = ""
-	  . "if [ `whoami` != \"root\" ]; "
-	  .   "then exec su -c \"SUDO_USER=$user $0 @_\" ; "
-	  . "fi"
-	  ;
+          . "if [ `whoami` != \"root\" ]; "
+          .   "then exec su -c \"SUDO_USER=$user $0 @_\" ; "
+          . "fi"
+          ;
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
         exec "su", "-c", "SUDO_USER=$user $0 @_"
-	  or print "## failed to su, exiting";
+          or print "## failed to su, exiting";
         exit 1;
     }
 }
