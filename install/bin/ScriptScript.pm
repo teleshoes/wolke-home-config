@@ -99,8 +99,13 @@ sub runProtoIPC($$) {
         my $slave = $pty->slave;
         $pty->blocking(0);
         $slave->blocking(0);
-        my $h = eval { IPC::Run::start(["sh", "-c", "@cmd"], $slave, $pty) };
-        die deathWithDishonor if $dieOnError and not defined $h;
+        my $h = IPC::Run::harness(["sh", "-c", "@cmd"], $slave, $pty);
+        if($dieOnError){
+            $h->start;
+        }else{
+            $h = eval {$h->start};
+            return if not defined $h;
+        }
 
         my $out;
         while($h->pumpable){
