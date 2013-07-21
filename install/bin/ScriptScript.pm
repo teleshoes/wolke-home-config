@@ -11,7 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  runSys runUser
+                  runUser
                   proc procLines
                   getInstallPath
                   cd chownUser
@@ -39,7 +39,6 @@ sub tryrun(@);
 sub shell(@);
 sub tryshell(@);
 sub runUser(@);
-sub runSys(@);
 sub proc(@);
 sub procLines(@);
 sub getUsername();
@@ -161,12 +160,6 @@ sub runUser (@) {
   }else{
       run(@_);
   }
-}
-
-sub runSys  (@) {
-    print "@_\n";
-    system @_;
-    deathWithDishonor if $? != 0;
 }
 
 sub proc(@) {
