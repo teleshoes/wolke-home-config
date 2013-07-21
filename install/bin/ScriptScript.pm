@@ -90,7 +90,33 @@ sub runProto($$){
 }
 sub runProtoIPC($$) {
     my ($esc, $dieOnError) = @_;
-    runProtoNoIPC $esc, $dieOnError;
+    sub {
+        my @cmd = &$esc(@_);
+        print "@cmd\n" if $opts->{putCommand};
+        return     unless $opts->{runCommand};
+
+        my $pty = new IO::Pty();
+        my $slave = $pty->slave;
+        $pty->blocking(0);
+        $slave->blocking(0);
+        my $h = eval { IPC::Run::start(["sh", "-c", "@cmd"], $slave, $pty) };
+        die deathWithDishonor if $dieOnError and not defined $h;
+
+        my $out;
+        while($h->pumpable){
+            eval { $h->pump_nb }; #eval because pumpable doesnt really work
+            $out = <$pty>;
+            if(defined $out and $opts->{verbose}){
+                $out = "# $out" if $opts->{putCommand};
+                chomp $out;
+                print "$out\n";
+            }
+            print $out if defined $out;
+            <$slave>;
+        }
+        IPC::Run::finish $h;
+        die deathWithDishonor if $dieOnError and $h->result != 0;
+    }
 }
 sub runProtoNoIPC($$) {
     my ($esc, $dieOnError) = @_;
