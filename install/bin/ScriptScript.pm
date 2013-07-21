@@ -5,6 +5,7 @@ use String::ShellQuote;
 use File::Temp 'tempfile';
 require Exporter;
 my $IPC_RUN = eval{require IPC::Run};
+my $IO_PTY = eval{require IO::Pty};
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
@@ -84,7 +85,9 @@ sub deathWithDishonor() {
     exit 1;
 }
 
-sub runProto($$){ &{$IPC_RUN ? \&runProtoIPC : \&runProtoNoIPC }(@_) }
+sub runProto($$){
+    return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
+}
 sub runProtoIPC($$) {
     my ($esc, $dieOnError) = @_;
     runProtoNoIPC $esc, $dieOnError;
