@@ -4,6 +4,8 @@ use strict;
 use String::ShellQuote;
 use File::Temp 'tempfile';
 require Exporter;
+my $IPC_RUN = eval{require IPC::Run};
+
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
@@ -29,6 +31,8 @@ our @EXPORT = qw( run tryrun
 sub setOpts($);
 sub deathWithDishonor();
 sub runProto($$);
+sub runProtoIPC($$);
+sub runProtoNoIPC($$);
 sub run(@);
 sub tryrun(@);
 sub shell(@);
@@ -80,7 +84,12 @@ sub deathWithDishonor() {
     exit 1;
 }
 
-sub runProto($$) {
+sub runProto($$){ &{$IPC_RUN ? \&runProtoIPC : \&runProtoNoIPC }(@_) }
+sub runProtoIPC($$) {
+    my ($esc, $dieOnError) = @_;
+    runProtoNoIPC $esc, $dieOnError;
+}
+sub runProtoNoIPC($$) {
     my ($esc, $dieOnError) = @_;
     sub {
         my $cmd = join ' ', &$esc(@_);
@@ -105,6 +114,7 @@ sub runProto($$) {
         }
     }
 }
+
 sub id(@){@_}
 
 sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
