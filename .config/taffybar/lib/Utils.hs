@@ -3,7 +3,7 @@ module Utils(
   fg, bg, fgbg,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
-  tryMaybe, nanoTime, isRunning, chompFile,
+  tryMaybe, nanoTime, isRunning, chompFile, findName,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
@@ -19,6 +19,9 @@ import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import System.Environment (getEnv)
+import System.FilePath.Find (
+  (||?), (&&?), (==?), (~~?), (/=?),
+  find, filePath, fileName, depth)
 import System.IO (
   stderr, hGetContents, hGetLine, hPutStrLn,
   hSetBuffering, BufferMode(LineBuffering))
@@ -93,6 +96,15 @@ isRunning p = do
     ExitFailure _ -> False
     otherwise -> True
 
+--rough equivalent to:
+--  recurse: find DIR -name PTRN
+--  not recurse: find DIR -maxdepth 1 -name PTRN
+findName :: FilePath -> Bool -> String -> IO [FilePath]
+findName dir recurse ptrn = find rec match dir
+  where rec = return recurse ||? depth ==? 0
+        match = fileName ~~? ptrn &&? filePath /=? dir
+
+chompFile :: FilePath -> IO String
 chompFile file = do
   curExists <- doesFileExist file
   if curExists then fmap chompAll $ readFile file else return ""
