@@ -105,6 +105,7 @@ sub runProtoIPC($$) {
             $h = eval {$h->start};
             return if not defined $h;
         }
+        my $progFile = "/tmp/progress-bar-" . time . ".txt";
 
         my $out;
         while($h->pumpable){
@@ -113,12 +114,14 @@ sub runProtoIPC($$) {
             if(defined $out and $opts->{verbose}){
                 $out = "# $out" if $opts->{putCommand};
                 chomp $out;
+                system "echo $1 > $progFile" if $out =~ /(100|\d\d|\d)%/;
                 print "$out\n";
             }
             print $out if defined $out;
             <$slave>;
         }
         IPC::Run::finish $h;
+        system "rm", "-f", $progFile;
         die deathWithDishonor if $dieOnError and $h->result != 0;
     }
 }
