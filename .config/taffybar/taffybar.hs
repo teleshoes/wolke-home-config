@@ -25,6 +25,7 @@ main = do
       end = reverse
           [ W.monitorCpuW
           , W.monitorMemW
+          , W.progressBarW
           , W.netStatsW
           , sep
           , W.netW

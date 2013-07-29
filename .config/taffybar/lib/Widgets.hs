@@ -17,6 +17,7 @@ module Widgets(
   openvpnW,
   pidginPipeW,
   pingMonitorW,
+  progressBarW,
   sepW,
   tpBattStatW,
   thunderbirdW,
@@ -41,6 +42,7 @@ import NetStats(netStatsW)
 import Openvpn(openvpnW)
 import PidginPipe(pidginPipeW)
 import PingMonitor(pingMonitorW)
+import ProgressBar(progressBarW)
 import Sep(sepW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
