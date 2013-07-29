@@ -1,4 +1,5 @@
 ~/.xconfig
+(sleep 10; xconfig) &
 
 sudo wauto &
 pulseaudio --start &
