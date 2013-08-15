@@ -5,6 +5,8 @@ use warnings;
 sub absolutePath($);
 sub assertIp($);
 sub assertMac($);
+sub fingerprint($);
+sub ensureIpFingerprint($$);
 sub parseConfig($);
 sub hostsMarker($);
 sub getHosts($);
@@ -179,6 +181,7 @@ sub main(@){
       print "sshing on port $port\n" if $opts{verbose};
       @sshCmd = ("-p", $port, @sshCmd);
     }
+    ensureIpFingerprint $config{hostname}, $ip if defined $ip;
 
     my %sshOpts = (
       StrictHostKeyChecking => 'no',
@@ -213,6 +216,27 @@ sub assertMac($){
   my $seg = "[0-9a-f]{2}";
   if($mac !~ /^$seg:$seg:$seg:$seg:$seg:$seg$/i){
     die "'$mac' is not a mac address\n"
+  }
+}
+
+sub fingerprint($){
+  my $host = shift;
+  my $key = `ssh-keygen -l -F $host`;
+  if($key =~ /# Host $host found: line \d+ type \w+\n\d+ ([0-9a-f:]+)/s){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+sub ensureIpFingerprint($$){
+  my ($hostname, $ip) = @_;
+  my $hnFp = fingerprint $hostname;
+  my $ipFp = fingerprint $ip;
+  if(defined $ipFp and (not defined $hnFp or $hnFp ne $ipFp)){
+    print "WARNING: Fingerprints differ for $hostname and $ip\n";
+    print "removing known_hosts entry for $ip\n";
+    system "ssh-keygen", "-R", $ip;
   }
 }
 
