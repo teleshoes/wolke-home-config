@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#ROOTSTRAP_URL = "http://harmattan-dev.nokia.com/d6.php?f="
+ROOTSTRAP_URL = "file:///home/wolke/Desktop/Software/scratchbox/"
 '''
 Setup script for the Harmattan SDK
 
@@ -213,7 +215,7 @@ class Target(object):
 
     toolchain_prefix = "cs2009q3-eglibc2.10"
 
-    rootstrap_base_url = "http://harmattan-dev.nokia.com/d6.php?f="
+    rootstrap_base_url = ROOTSTRAP_URL
     rootstrap_suffix = "public-sdk-rootstrap.tgz"
 
     # downloaded rootstrap will be saved into this directory
