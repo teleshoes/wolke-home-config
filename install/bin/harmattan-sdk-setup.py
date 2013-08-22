@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 #ROOTSTRAP_URL = "http://harmattan-dev.nokia.com/d6.php?f="
-ROOTSTRAP_URL = "file:///home/wolke/Desktop/Software/scratchbox/"
+ROOTSTRAP_URL = "file:////media/stuff/Images/scratchbox/"
 '''
 Setup script for the Harmattan SDK
 
