@@ -89,6 +89,7 @@ sub runProto($$){
 }
 sub runProtoIPC($$) {
     my ($esc, $dieOnError) = @_;
+    system "rm -f /tmp/progress-bar-*";
     sub {
         my @cmd = &$esc(@_);
         print "@cmd\n" if $opts->{putCommand};
