@@ -1,24 +1,62 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
 
-my $script = "$ENV{HOME}/install/bin/harmattan-sdk-setup.py";
+my $imgDir = "/media/stuff/Images/scratchbox";
+my $armRS = "arm-public-sdk-rootstrap.tgz";
+my $x86RS = "i386-public-sdk-rootstrap.tgz";
 
-my $dir = "/media/stuff/Images/scratchbox";
-my @rootstraps = map {"$dir/$_"} qw(
-  arm-public-sdk-rootstrap.tgz
-  i386-public-sdk-rootstrap.tgz
+my @pkgs = qw(
+  scratchbox-core scratchbox-libs scratchbox-devkit-qemu
+  scratchbox-devkit-debian-squeeze scratchbox-devkit-perl
+  scratchbox-toolchain-host-gcc
+  scratchbox-toolchain-cs2009q3-eglibc2.10-armv7-hard
+  scratchbox-toolchain-cs2009q3-eglibc2.10-i486
+  scratchbox-devkit-hashutils-squeeze-sdk
 );
 
-for my $f(@rootstraps, $script){
-  die "Missing file: $f\n" if not -e $f;
+sub sboxRun(@){
+  tryrunUser "/scratchbox/login", "\"@_\"";
 }
 
-print "REMEMBER TO DO:
-/scratchbox/login
-sb-menu
-  {SELECT}
-  {ARMEL}
-";
-system "sudo", "python", $script, "admininstall";
+sub main(@){
+  getRoot @_;
+  my $user = getUsername();
+
+  run "apt-get", "-y", "--force-yes", "install", @pkgs;
+
+  tryrun "/scratchbox/sbin/sbox_adduser", $user, "yes";
+  tryrun "groupadd", "sbox";
+  tryrun "usermod", $user, "-a", "-G", "sbox";
+  sboxRun qw(sb-conf st HARMATTAN_ARMEL
+     -c cs2009q3-eglibc2.10-armv7-hard
+     -d qemu:perl:debian-squeeze:hashutils-squeeze-sdk
+     -t qemu-arm-sb
+  );
+  sboxRun qw(sb-conf st HARMATTAN_X86
+    -c cs2009q3-eglibc2.10-i486
+    -d perl:debian-squeeze:hashutils-squeeze-sdk
+    -t none
+  );
+
+  my $chrootDir = "/home/$user/scratchbox";
+  my $mntDir = "/scratchbox/users/$user/$chrootDir";
+  tryrun "mkdir", "-p", $mntDir;
+  tryrun "mount", "-o", "bind", $imgDir, $mntDir;
+
+  die "Missing images\n" if not -e "$imgDir/$armRS" or not -e "$imgDir/$x86RS";
+  sboxRun qw(sb-conf select HARMATTAN_ARMEL);
+  sboxRun "sb-conf", "rs", "$chrootDir/$armRS";
+  sboxRun "sb-conf", "in", "-edFL";
+
+  sboxRun qw(sb-conf select HARMATTAN_X86);
+  sboxRun "sb-conf", "rs", "$chrootDir/$x86RS";
+  sboxRun "sb-conf", "in", "-edFL";
+
+  sboxRun qw(sb-conf select HARMATTAN_ARMEL);
+}
+
+&main(@ARGV);
 
