@@ -11,7 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  runUser
+                  runUser tryrunUser
                   proc procLines
                   getInstallPath
                   cd chownUser
@@ -39,6 +39,8 @@ sub tryrun(@);
 sub shell(@);
 sub tryshell(@);
 sub runUser(@);
+sub tryrunUser(@);
+sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
 sub getUsername();
@@ -158,12 +160,15 @@ sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
 sub shell   (@) { &{runProto \&id         , 1}(@_) }
 sub tryshell(@) { &{runProto \&id         , 0}(@_) }
-sub runUser (@) {
-  if(isRoot()){
-      run("su", getUsername(), "-c", "@_")
-  }else{
-      run(@_);
-  }
+
+sub runUser(@) {
+    run(wrapUserCommand(@_));
+}
+sub tryrunUser(@) {
+    tryrun(wrapUserCommand(@_));
+}
+sub wrapUserCommand(@){
+    return isRoot() ? ("su", getUsername(), "-c", "@_") : @_;
 }
 
 sub proc(@) {
