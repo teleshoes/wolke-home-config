@@ -2,7 +2,7 @@ set uc=0 """no swapfile
 set nocompatible
 set autoindent
 set nowrap
-set number
+set relativenumber
 set expandtab
 set smarttab
 set shiftwidth=4
