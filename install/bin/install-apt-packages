@@ -4,7 +4,7 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub addSrcs($);
+sub addRepos();
 sub doInstalls($);
 
 my $dir = getInstallPath "apt-packages";
@@ -38,11 +38,14 @@ sub main(@) {
 
     die $usage if @_ > 0 or $filter =~ /^(-h|--help)$/;
 
+    addRepos();
+    run qw(apt-get update) if $update;
+    doInstalls $filter if not $reposOnly;
+}
+
+sub addRepos(){
     run "rsync", "-avP", "--no-owner", "--no-group",
       getInstallPath("repos/"), "/etc/apt/sources.list.d";
-    run qw(apt-get update) if $update;
-
-    doInstalls $filter if not $reposOnly;
 }
 
 sub doInstalls($) {
