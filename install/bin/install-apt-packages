@@ -47,6 +47,13 @@ sub main(@) {
 
 sub addRepos(){
     run "rsync", "-avP", "--no-owner", "--no-group", $reposDir, $srcListDir;
+    my %gpgKeys = readConfDir "$reposDir/gpgkeys";
+    for my $repo(keys %gpgKeys){
+        my $gpgKey = ${$gpgKeys{$repo}}[0];
+        print "installing gpg key $repo => $gpgKey\n";
+        run "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
+        shell "gpg -a --export \"$gpgKey\" | sudo apt-key add -";
+    }
 }
 
 sub doInstalls($) {
