@@ -480,9 +480,8 @@ sub readConf($) {
 }
 
 sub readConfDir($) {
-    my ($reldir) = @_;
+    my ($dir) = @_;
 
-    my $dir = relToScript $reldir;
     my @filenames = split "\n", `ls -A1 $dir`;
 
     my %confs = ();
