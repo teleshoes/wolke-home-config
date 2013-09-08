@@ -19,6 +19,7 @@ my $usage = "Usage:
      Do not print the filename after the duration.
 ";
 
+sub selectExec(@);
 sub getLen($);
 sub formatLenS($);
 sub formatLenHMS($);
@@ -48,13 +49,25 @@ sub main(@){
   print "$fmtTotal\n" if $total;
 }
 
+sub selectExec(@){
+  for my $cmd(@_){
+    my $path = `which $cmd`;
+    chomp $path;
+    return $path if $? == 0;
+  }
+}
+
 sub getLen($){
   my $file = shift;
   die "file not found: $file\n" unless -e $file;
 
-  my $avconvInfo;
-  run ["avconv", "-i", $file], '>&', \$avconvInfo;
-  if($avconvInfo =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
+  my @cmds = ("ffmpeg", "avconv");
+  my $exec = selectExec @cmds;
+  die "Could not find these on path: @cmds\n" if not defined $exec;
+
+  my $info;
+  run [$exec, "-i", $file], '>&', \$info;
+  if($info =~ /Duration: (\d+):(\d+):(\d+(?:\.\d+))/){
     return $3 + ($2*60) + ($1*60*60);
   }else{
     die "Unknown length for input: $file\n";
