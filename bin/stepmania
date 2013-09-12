@@ -81,6 +81,7 @@ my %jsIds = (
 
 sub getJoysticks($$);
 sub setMachineSpeedMods($);
+sub setScriptSpeedMods($);
 sub generateKeymap($$$$$$$);
 sub readConf($);
 sub writeConf($);
@@ -107,7 +108,8 @@ my $prefsIni = "$saveDir/Preferences.ini";
 my $themePrefsIni = "$saveDir/ThemePrefs.ini";
 my $keymapsIni = "$saveDir/Keymaps.ini";
 my $themeMetricsIni = "$themesDir/$themeName/metrics.ini";
-my $speedModsFile = "$machineProfileDir/SpeedMods.txt";
+my $machineSpeedModsFile = "$machineProfileDir/SpeedMods.txt";
+my $scriptSpeedModsFile = "$themesDir/_fallback/Scripts/03 CustomSpeedMods.lua";
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
@@ -145,7 +147,8 @@ sub main(@){
   replaceConf $keymapsIni, generateKeymap(
     $keygrid, $joy1Name, $joy1Num, $joy2Name, $joy2Num, $kb1Name, $kb2Name);
   replaceConf $themeMetricsIni, $metricsPrefs;
-  setMachineSpeedMods $speedMods;
+  #setMachineSpeedMods $speedMods;
+  setScriptSpeedMods $speedMods;
   system $exec, [];
 }
 
@@ -208,12 +211,38 @@ sub getJoysticks($$){
   return ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
 }
 
+sub setScriptSpeedMods($){
+  my $newSpeeds = shift;
+  open FH, "< $scriptSpeedModsFile"
+    or die "Couldnt read $scriptSpeedModsFile\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $ok = 0;
+  my $oldSpeeds;
+  my $linePrefixRe = '\s*local\s+DefaultMods\s*=\s*StringToModTable\s*\(\s*"';
+  my $lineSuffixRe = '"\s*\)\s*';
+  for my $line(@lines){
+    if($line =~ s/^($linePrefixRe)(.*)($lineSuffixRe)$/$1$newSpeeds$3/){
+      $oldSpeeds = $2;
+      $ok = 1;
+      last;
+    }
+  }
+  die "Couldnt find speedmods line\n" if not $ok;
+  print "Speeds: $oldSpeeds => $newSpeeds\n" if $oldSpeeds ne $newSpeeds;
+
+  open FH, "> $scriptSpeedModsFile"
+    or die "Couldn't write $scriptSpeedModsFile\n";
+  print FH @lines;
+  close FH;
+}
 sub setMachineSpeedMods($){
-  my $speedModsLine = shift;
+  my $newSpeeds = shift;
   system "mkdir", "-p", $machineProfileDir;
-  open FH, "> $speedModsFile"
-    or die "Couldn't write speed mods to $speedModsFile\n";
-  print FH "$speedModsLine\n";
+  open FH, "> $machineSpeedModsFile"
+    or die "Couldn't write $machineSpeedModsFile\n";
+  print FH "$newSpeeds\n";
   close FH;
 }
 
