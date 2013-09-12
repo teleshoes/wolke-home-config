@@ -55,12 +55,14 @@ my $themePrefs = {
   }
 };
 
-my $defaultJoy1Name = 'ems';
-my $defaultJoy2Name = 'redoctane';
-my $defaultJoy1Num = 3;
-my $defaultJoy2Num = 4;
-my $defaultKb1Name = 'kb1';
-my $defaultKb2Name = 'kb2';
+my $keyArgs = {
+  joy1Name  => "ems",
+  joy2Name  => "redoctane",
+  joy1Index => 3,
+  joy2Index => 4,
+  kb1Name   => "kb1",
+  kb2Name   => "kb2",
+};
 
 my $jsKeyGrid = {
             ##  UP DN LT RT  MU MD ML MR  BK ST
@@ -74,10 +76,11 @@ my $kbKeyGrid = {
   kb2       => "home end delete pgdn  home end delete pgdn  x z",
 };
 my $keyGrid = {%$jsKeyGrid, %$kbKeyGrid};
+my @jsNames = keys %$jsKeyGrid;
 
 sub setMachineSpeedMods($);
 sub setScriptSpeedMods($);
-sub generateKeymap($$$$$$$);
+sub generateKeymap($$);
 sub commentLine($$);
 sub replaceLine($$$);
 sub readLines($);
@@ -92,15 +95,26 @@ my $usage = "Usage:
     Print this message
   $0 [OPTS]
     Launch stepmania after setting up preferences
-  $0 JS1 JS2 [OPTS]
-    shorthand for: $0 --js1=JS1 --js2=JS2 OPTS
+  $0 <JOYNAME> <JS#> [<OPTS>]
+    shorthand for:
+      --js1Name=<JSNAME> --js1=<JS#> <OPTS>
+  $0 <JOYNAME> <JS#> <JOYNAME> <JS#> [<OPTS>]
+    shorthand for:
+      --js1Name=<JSNAME> --js1=<JS#> --js2Name=<JSNAME> --js2=<JS#> <OPTS>
   OPTS:
-   --js1=#          override internal p1 stepmania joystick index
-   --js2=#          override internal p2 stepmania joystick index
-   -w               set Windowed to 1, overriding config
-   -f               set Windowed to 0, overriding config
-   --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}
-   -i               synonynm for --screen=ScreenTestInput
+   --js1Name=JOYNAME p1 joystick name {default=$$keyArgs{joy1Name}}
+   --js2Name=JOYNAME p2 joystick name {default=$$keyArgs{joy2Name}}
+   --js1=JS#         p1 joystick index {default=$$keyArgs{joy1Index}}
+   --js2=JS#         p2 joystick index {default=$$keyArgs{joy2Index}}
+   -w                set Windowed to 1, overriding config
+   -f                set Windowed to 0, overriding config
+   --screen=SCREEN   jump to screen SCREEN {default=$defaultScreen}
+   -i                synonynm for --screen=ScreenTestInput
+
+  JOYNAME: user-defined joystick name, one of:
+           [@jsNames]
+  SCREEN:  screen class name
+  JS#:     integer for internal stepmania joystick index
 ";
 
 my $prefsIni = "$saveDir/Preferences.ini";
@@ -116,18 +130,25 @@ my $fallbackScreenMapOverlay = "$fallbackThemeDir/$screenMapOverlay";
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
 
-  my ($jsp1, $jsp2);
-  if(@_ >= 2 and $_[0] =~ /^\d+$/ and $_[1] =~ /^\d+$/){
-    $jsp1 = shift;
-    $jsp2 = shift;
+  if(@_ >= 2 and defined $$jsKeyGrid{$_[0]} and $_[1] =~ /^\d+$/){
+    $$keyArgs{joy1Name} = shift;
+    $$keyArgs{joy1Index} = shift;
+  }
+  if(@_ >= 2 and defined $$jsKeyGrid{$_[0]} and $_[1] =~ /^\d+$/){
+    $$keyArgs{joy2Name} = shift;
+    $$keyArgs{joy2Index} = shift;
   }
 
   $$prefs{Options}{TestInitialScreen} = $defaultScreen;
   for(my $i=0; $i<@_; $i++){
-    if($_[$i] =~ /--js1=(\d+)/){
-      $jsp1 = $1;
+    if($_[$i] =~ /--js1Name=(.+)/ and defined $$jsKeyGrid{$1}){
+      $$keyArgs{joy1Name} = $1;
+    }elsif($_[$i] =~ /--js2Name=(.+)/ and defined $$jsKeyGrid{$1}){
+      $$keyArgs{joy1Index} = $1;
+    }elsif($_[$i] =~ /--js1=(\d+)/){
+      $$keyArgs{joy2Name} = $1;
     }elsif($_[$i] =~ /--js2=(\d+)/){
-      $jsp2 = $1;
+      $$keyArgs{joy2Index} = $1;
     }elsif($_[$i] eq '-w'){
       $$prefs{Options}{Windowed} = 1;
     }elsif($_[$i] eq '-f'){
@@ -140,13 +161,6 @@ sub main(@){
       die $usage;
     }
   }
-  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) =
-    ($defaultJoy1Name, $defaultJoy1Num, $defaultJoy2Name, $defaultJoy2Num);
-  my ($kb1Name, $kb2Name) =
-    ($defaultKb1Name, $defaultKb2Name);
-
-  $joy1Num = $jsp1 if defined $jsp1;
-  $joy2Num = $jsp2 if defined $jsp2;
 
   commentLine $fallbackMetricsIni, "KeyConfigRequestStall";
   replaceLine $fallbackScreenMapOverlay,
@@ -155,8 +169,7 @@ sub main(@){
   system "mkdir", "-p", "$saveDir";
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
-  replaceConf $keymapsIni, generateKeymap(
-    $keyGrid, $joy1Name, $joy1Num, $joy2Name, $joy2Num, $kb1Name, $kb2Name);
+  replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
   replaceConf $themeMetricsIni, $metricsPrefs;
   #setMachineSpeedMods $speedMods;
   setScriptSpeedMods $speedMods;
@@ -192,11 +205,8 @@ sub setMachineSpeedMods($){
   close FH;
 }
 
-sub generateKeymap($$$$$$$){
-  my ($keyGrid,
-    $joy1Name, $joy1Num,
-    $joy2Name, $joy2Num,
-    $kb1Name, $kb2Name) = @_;
+sub generateKeymap($$){
+  my ($keyGrid, $keyArgs) = @_;
 
   my @buttonOrder = qw(
    Up Down Left Right
@@ -216,9 +226,9 @@ sub generateKeymap($$$$$$$){
 
   my %keymap;
   for my $player((1, 2)){
-    my $joyName = $player == 1 ? $joy1Name : $joy2Name;
-    my $joyNum = $player == 1 ? $joy1Num : $joy2Num;
-    my $kbName = $player == 1 ? $kb1Name : $kb2Name;
+    my $joyName = $player == 1 ? $$keyArgs{joy1Name} : $$keyArgs{joy2Name};
+    my $joyIndex = $player == 1 ? $$keyArgs{joy1Index} : $$keyArgs{joy2Index};
+    my $kbName = $player == 1 ? $$keyArgs{kb1Name} : $$keyArgs{kb2Name};
     die "Unknown joy config: $joyName\n" if not defined $$keys{$joyName};
     die "Unknown kb config: $kbName\n" if not defined $$keys{$kbName};
 
@@ -231,7 +241,7 @@ sub generateKeymap($$$$$$$){
       my $kbBtn = $$keys{$kbName}{$btn};
 
       my $val = '';
-      $val .= "Joy${joyNum}_B$joyBtn" if defined $joyBtn;
+      $val .= "Joy${joyIndex}_B$joyBtn" if defined $joyBtn;
       $val .= ":" if defined $joyBtn and $kbBtn;
       $val .= "Key_$kbBtn" if defined $kbBtn;
       $keymap{"${player}_$btn"} = $val if length($val) > 0;
