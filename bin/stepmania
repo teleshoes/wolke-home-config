@@ -55,6 +55,13 @@ my $themePrefs = {
   }
 };
 
+my $defaultJoy1Name = 'ems';
+my $defaultJoy2Name = 'redoctane';
+my $defaultJoy1Num = 3;
+my $defaultJoy2Num = 4;
+my $defaultKb1Name = 'kb1';
+my $defaultKb2Name = 'kb2';
+
 my @joys = (
   'ems',
   'redoctane',
@@ -80,7 +87,7 @@ my %jsIds = (
   ems => 'usb-0b43_0003-joystick',
 );
 
-sub getJoysticks($$);
+sub guessJoysticks($$);
 sub setMachineSpeedMods($);
 sub setScriptSpeedMods($);
 sub generateKeymap($$$$$$$);
@@ -101,8 +108,8 @@ my $usage = "Usage:\n"
   . "$0 JS1 JS2 [OPTS]\n"
   . "  shorthand for: $0 --js1=JS1 --js2=JS2 OPTS\n"
   . "OPTS:\n"
-  . " --js1=#           override internal p1 stepmania joystick index\n"
-  . " --js2=#           override internal p2 stepmania joystick index\n"
+  . " --js1=#          override internal p1 stepmania joystick index\n"
+  . " --js2=#          override internal p2 stepmania joystick index\n"
   . " -w               set Windowed to 1, overriding config\n"
   . " -f               set Windowed to 0, overriding config\n"
   . " --screen=SCREEN  jump to screen SCREEN {default=$defaultScreen}\n"
@@ -146,8 +153,14 @@ sub main(@){
       die $usage;
     }
   }
-  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = getJoysticks $jsp1, $jsp2;
-  my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
+  #my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = guessJoysticks $jsp1, $jsp2;
+  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) =
+    ($defaultJoy1Name, $defaultJoy1Num, $defaultJoy2Name, $defaultJoy2Num);
+  my ($kb1Name, $kb2Name) =
+    ($defaultKb1Name, $defaultKb2Name);
+
+  $joy1Num = $jsp1 if defined $jsp1;
+  $joy2Num = $jsp2 if defined $jsp2;
 
   commentLine $fallbackMetricsIni, "KeyConfigRequestStall";
   replaceLine $fallbackScreenMapOverlay,
@@ -164,7 +177,7 @@ sub main(@){
   system $exec, [];
 }
 
-sub getJoysticks($$){
+sub guessJoysticks($$){
   my ($jsp1, $jsp2) = @_;
   my ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
   for my $name(@joys){
