@@ -85,6 +85,7 @@ sub setMachineSpeedMods($);
 sub setScriptSpeedMods($);
 sub generateKeymap($$$$$$$);
 sub commentLine($$);
+sub replaceLine($$$);
 sub readLines($);
 sub writeLines($@);
 sub readConf($);
@@ -115,6 +116,8 @@ my $themeMetricsIni = "$themesDir/$themeName/metrics.ini";
 my $machineSpeedModsFile = "$machineProfileDir/SpeedMods.txt";
 my $scriptSpeedModsFile = "$fallbackThemeDir/Scripts/03 CustomSpeedMods.lua";
 my $fallbackMetricsIni = "$fallbackThemeDir/metrics.ini";
+my $screenMapOverlay = "BGAnimations/ScreenMapControllers overlay.lua";
+my $fallbackScreenMapOverlay = "$fallbackThemeDir/$screenMapOverlay";
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
@@ -147,6 +150,9 @@ sub main(@){
   my ($kb1Name, $kb2Name) = ('kb1', 'kb2');
 
   commentLine $fallbackMetricsIni, "KeyConfigRequestStall";
+  replaceLine $fallbackScreenMapOverlay,
+    "local waitTime" => "local waitTime = 0";
+
   system "mkdir", "-p", "$saveDir";
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
@@ -300,6 +306,23 @@ sub commentLine($$){
   die "Could not find line in $file: $regex\n" if not $ok;
   writeLines $file, @lines;
 }
+
+sub replaceLine($$$){
+  my ($file, $regex, $newLine) = @_;
+  my @lines = readLines $file;
+  my $ok = 0;
+  for my $line(@lines){
+    if($line =~ /$regex/){
+      $line = $newLine;
+      chomp $line;
+      $line .= "\n";
+      $ok = 1;
+    }
+  }
+  die "Could not find line in $file: $regex\n" if not $ok;
+  writeLines $file, @lines;
+}
+
 sub readLines($){
   my $file = shift;
   open FH, "< $file" or die "Could not read $file\n";
