@@ -62,11 +62,6 @@ my $defaultJoy2Num = 4;
 my $defaultKb1Name = 'kb1';
 my $defaultKb2Name = 'kb2';
 
-my @joys = (
-  'ems',
-  'redoctane',
-);
-
 my $keygrid = {
             ##  UP DN LT RT  MU MD ML MR  BK ST
   redoctane => "03 02 01 04  05 06 07 08  10 09",
@@ -78,13 +73,6 @@ my $keygrid = {
   kb2       => "home end delete pgdn  home end delete pgdn  x z",
 };
 
-my %jsIds = (
-  redoctane => 'usb-RedOctane_RedOctane_USB_Pad-joystick',
-  energy => 'usb-ff53_USB_Gamepad-joystick',
-  ems => 'usb-0b43_0003-joystick',
-);
-
-sub guessJoysticks($$);
 sub setMachineSpeedMods($);
 sub setScriptSpeedMods($);
 sub generateKeymap($$$$$$$);
@@ -150,7 +138,6 @@ sub main(@){
       die $usage;
     }
   }
-  #my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) = guessJoysticks $jsp1, $jsp2;
   my ($joy1Name, $joy1Num, $joy2Name, $joy2Num) =
     ($defaultJoy1Name, $defaultJoy1Num, $defaultJoy2Name, $defaultJoy2Num);
   my ($kb1Name, $kb2Name) =
@@ -172,65 +159,6 @@ sub main(@){
   #setMachineSpeedMods $speedMods;
   setScriptSpeedMods $speedMods;
   system $exec, [];
-}
-
-sub guessJoysticks($$){
-  my ($jsp1, $jsp2) = @_;
-  my ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
-  for my $name(@joys){
-    my $id = $jsIds{$name};
-    die "Unkown joystick name: $name\n" if not defined $id;
-    my $devPathById = "/dev/input/by-id/$id";
-    if(-e $devPathById){
-      my $devPath = `readlink $devPathById`;
-      chomp $devPath;
-      if($devPath =~ /js(\d+)$/){
-        my $num = $1 + 1;
-        if(not defined $joy1Num){
-          ($joy1Name, $joy1Num) = ($name, $num);
-        }elsif(not defined $joy2Num){
-          ($joy2Name, $joy2Num) = ($name, $num);
-        }
-      }else{
-        print STDERR "expected device named /dev/js##, got: $devPath\n";
-      }
-    }else{
-      print STDERR "pad $name unplugged\n";
-    }
-  }
-  ##### HACK FOR EMS PS2 ADAPTER #####
-  if(
-    defined $joy1Name and $joy1Name eq 'ems'
-      and $joy1Num > 1 and $joy2Num != ($joy1Num-1)
-  ){
-    my $newNum = $joy1Num-1;
-    print STDERR "HACK FOR EMS PS2 ADAPTER: $joy1Num => $newNum\n";
-    $joy1Num = $newNum;
-  }elsif(
-    defined $joy2Name and $joy2Name eq 'ems'
-      and $joy2Num > 1 and $joy1Num != ($joy2Num-1)
-  ){
-    my $newNum = $joy2Num-1;
-    print STDERR "HACK FOR EMS PS2 ADAPTER: $joy2Num => $newNum\n";
-    $joy2Num = $newNum;
-  }
-  ####################################
-
-  if(defined $joy1Num and defined $jsp1 and $joy1Num ne $jsp1){
-    print " {P1 override: $joy1Num => $jsp1}\n";
-    $joy1Num = $jsp1;
-  }
-  if(defined $joy2Num and defined $jsp2 and $joy2Num ne $jsp2){
-    print " {P2 override: $joy2Num => $jsp2}\n";
-    $joy2Num = $jsp2;
-  }
-  if(defined $joy1Name){
-    print "Player 1 Joystick: $joy1Name => $joy1Num\n";
-  }
-  if(defined $joy2Name){
-    print "Player 2 Joystick: $joy2Name => $joy2Num\n";
-  }
-  return ($joy1Name, $joy1Num, $joy2Name, $joy2Num);
 }
 
 sub setScriptSpeedMods($){
