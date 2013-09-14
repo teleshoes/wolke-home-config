@@ -36,6 +36,9 @@ set background=dark
 hi Normal ctermfg=green ctermbg=none
 hi LineNr ctermfg=blue ctermbg=darkgray
 
+hi TrailingWhitespace ctermbg=red guibg=red
+match TrailingWhitespace /\s\+$/
+
 set mouse=a
 
 set hlsearch
