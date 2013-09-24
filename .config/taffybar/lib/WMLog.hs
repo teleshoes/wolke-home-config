@@ -24,7 +24,7 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
       "left"    -> return "[]="
-      "top"     -> return $ fgbg "blue" "red" "TTT"
+      "top"     -> return "TTT"
       "full"    -> do
         cnt <- windowCount
         let fmt = if 0 <= cnt && cnt < 10
