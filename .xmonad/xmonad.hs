@@ -67,6 +67,7 @@ myManageHook = execWriter $ do
   className =? thunderbirdClass        ~~> doShift "8"
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
+  className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? firefoxClose            ~~> restartFF
   title     =? "qtbigtext.py"          ~~> doFull
