@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getAcoustidKeys();
+sub fpcalc($);
+sub fetchTrackId($$);
+
+sub main(@){
+  die "Usage: $0 FILE [FILE ..]\n" if @_ == 0;
+  my $keys = getAcoustidKeys();
+  for my $f(@_){
+    my $fp = fpcalc $f;
+    next if not defined $fp;
+    my $trackId = fetchTrackId $fp, $$keys{clientkey};
+    $trackId = "{no track id}" if not defined $trackId;
+    print "$f - " if @_ > 1;
+    print "$trackId\n";
+  }
+}
+
+sub getAcoustidKeys(){
+  my $file = "$ENV{HOME}/.acoustid";
+  my $keys = {};
+  if(-f $file){
+    open FH, "< $file" or die "Couldnt open $file\n";
+    my @lines = <FH>;
+    close FH;
+    for my $line(@lines){
+      $$keys{$1} = $2 if $line =~ /^\s*([a-zA-Z]+)\s*=\s*(.*?)\s*$/;
+    }
+  }
+  die "clientkey=KEY missing from $file\n" if not defined $$keys{clientkey};
+  return $keys;
+}
+
+sub fpcalc($){
+  my $f = shift;
+  open FH, "-|", "fpcalc", $f or die "Error running fpcalc\n";
+  my @lines = <FH>;
+  close FH;
+  if($? != 0){
+    print "Error running fpcalc on \"$f\"\n";
+    return undef;
+  }
+
+  my $fp = {};
+  for my $line(@lines){
+    $$fp{file} = $1 if $line =~ /^FILE=(.*)$/;
+    $$fp{duration} = $1 if $line =~ /^DURATION=(\d+)$/;
+    $$fp{fingerprint} = $1 if $line =~ /^FINGERPRINT=([a-zA-Z0-9_\-]+)$/;
+  }
+  if(not defined $$fp{duration} or not defined $$fp{fingerprint}){
+    die "error running fpcalc for $f\n";
+  }
+
+  return $fp;
+}
+
+sub fetchTrackId($$){
+  my ($fp, $clientKey) = @_;
+  my $url = "http://api.acoustid.org/v2/lookup"
+    . "?client=$clientKey"
+    . "&duration=$$fp{duration}"
+    . "&fingerprint=$$fp{fingerprint}"
+    ;
+  my $res = `curl "$url" 2>/dev/null`;
+
+  my $h = '(?:[a-f0-9]){%d}';
+  my ($h4, $h8, $h12) = (sprintf($h, 4), sprintf($h, 8), sprintf($h, 12));
+  if($res =~ /"id": "($h8-$h4-$h4-$h4-$h12)"/){
+    return $1;
+  }elsif($res =~ /{"status": "ok", "results": \[\]}/){
+    return undef;
+  }else{
+    die "Invalid response for $$fp{file}: $res\n";
+  }
+}
+
+&main(@ARGV);
