@@ -18,7 +18,7 @@ origSelector = fwd + 'lstOrigin_textBox'
 destSelector = fwd + 'lstDestination_textBox'
 dateSelector = fwd + 'imageE'
 
-regionNortheast = fwd + 'lstRegion_repeater_ctl01_link'
+regionNortheast = fwd + 'lstRegion_repeater_ctl00_link'
 origBoston = fwd + 'lstOrigin_repeater_ctl01_link'
 origNY = fwd + 'lstOrigin_repeater_ctl04_link'
 destBoston = fwd + 'lstDestination_repeater_ctl00_link'
