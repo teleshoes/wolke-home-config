@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = "$ENV{HOME}/.sabnzbd";
+my $iniFile = "$dir/sabnzbd.ini";
+
+sub parseIniLines($@);
+sub mergeIni($$$$$);
+sub fmtIni($);
+sub run(@);
+
+sub main(@){
+  run "pkill", "sabnzbdplus";
+  run "rm", $iniFile, "$iniFile.bak";
+
+  my $ini = [];
+  for my $iniPieceFile(sort `find $dir/inis`){
+    chomp $iniPieceFile;
+    open FH, "< $iniPieceFile" or die "Couldn't read $iniPieceFile\n";
+    my @lines = <FH>;
+    close FH;
+    parseIniLines $ini, @lines;
+  }
+
+  open FH, "> $iniFile" or die "Couldn't write $iniFile\n";
+  print FH fmtIni $ini;
+  close FH;
+
+  run "sabnzbdplus";
+}
+
+sub parseIniLines($@){
+  my ($ini, @lines) = @_;
+  my ($group, $subgroup);
+  for my $line(@lines){
+    if($line =~ /^\s*\[\[(.*)\]\]\s*$/){
+      $subgroup = $1;
+    }elsif($line =~ /^\s*\[(.*)\]\s*$/){
+      $group = $1;
+      $subgroup = undef;
+    }elsif($line =~ /^\s*([^=]+)=(.*?)\s*$/){
+      my ($key, $val) = ($1, $2);
+      mergeIni $ini, $group, $subgroup, $key, $val;
+    }
+  }
+}
+
+sub fmtIni($){
+  my $ini = shift;
+  my $fmt = '';
+  for my $g(@$ini){
+    my ($groupName, $group) = @$g;
+    if($groupName ne ""){
+      $fmt .= "[$groupName]\n";
+    }
+    for my $s(@$group){
+      my ($subgroupName, $subgroup) = @$s;
+      if($subgroupName ne ""){
+        $fmt .= "[[$subgroupName]]\n";
+      }
+      for my $kv(@$subgroup){
+        my ($key, $value) = @$kv;
+        $fmt .= "$key=$value\n";
+      }
+    }
+  }
+  return $fmt;
+}
+
+sub mergeIni($$$$$){
+  my ($ini, $groupName, $subgroupName, $key, $val) = @_;
+  $groupName = '' if not defined $groupName;
+  $subgroupName = '' if not defined $subgroupName;
+
+  my ($group, $subgroup, $keyValue);
+  for my $g(@$ini){
+    my ($curGroupName, $curGroup) = @$g;
+    if($curGroupName eq $groupName){
+      $group = $curGroup;
+      last;
+    }
+  }
+  if(not defined $group){
+    $group = [];
+    push @$ini, [$groupName, $group];
+  }
+  for my $s(@$group){
+    my ($curSubgroupName, $curSubgroup) = @$s;
+    if($curSubgroupName eq $subgroupName){
+      $subgroup = $curSubgroup;
+      last;
+    }
+  }
+  if(not defined $subgroup){
+    $subgroup = [];
+    push @$group, [$subgroupName, $subgroup];
+  }
+  for my $kv(@$subgroup){
+    my ($curKey, $curVal) = @$kv;
+    if($curKey eq $key){
+      $keyValue = $kv;
+      last;
+    }
+  }
+  if(not defined $keyValue){
+    $keyValue = [$key, undef];
+    push @$subgroup, $keyValue;
+  }
+  $$keyValue[1] = $val;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
