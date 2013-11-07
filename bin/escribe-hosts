@@ -3,8 +3,12 @@ use strict;
 use warnings;
 
 my $hostsFile = "/etc/hosts";
+my $sshConfigFile = "$ENV{HOME}/.ssh/config";
+my $defaultUser = "ewolk";
+my $sshMarker = "###escribe-host###";
 
 sub getHosts();
+sub getSSHConfig();
 
 my $escribe = [
   'garuda'    => '10.1.11.11',
@@ -35,16 +39,25 @@ sub main(@){
   die "Usage: $0\n" if @_ != 0;
 
   my @hostLines = getHosts();
+  my @sshConfigLines = getSSHConfig();
 
+  push @sshConfigLines, "$sshMarker\n";
   for(my $i=0; $i<@$escribe; $i+=2){
     my ($host, $ip) = ($$escribe[$i], $$escribe[$i+1]);
     push @hostLines, "$ip\t$host.escribe.com #escribe-host\n" if $host !~ /\./;
     push @hostLines, "$ip\t$host #escribe-host\n";
+    push @sshConfigLines, ("Host $host\n", "    User $defaultUser\n");
   }
+  push @sshConfigLines, "$sshMarker\n";
 
   print "\n\nhosts:\n";
   open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
   print FH @hostLines;
+  close FH;
+
+  print "\n\nssh config:\n";
+  open FH, "| tee $sshConfigFile" or die "Could not write to $hostsFile\n";
+  print FH @sshConfigLines;
   close FH;
 }
 
@@ -58,6 +71,24 @@ sub getHosts(){
     $line = '' if $line =~ /#escribe-host$/;
   }
   return @lines;
+}
+
+sub getSSHConfig(){
+  return () if not -e $sshConfigFile;
+  open FH, "< $sshConfigFile" or die "Could not read $sshConfigFile\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $remove = 0;
+  my @okLines;
+  for my $line(@lines){
+    if($line =~ /^\s*###escribe-host###\s*$/){
+      $remove = not $remove;
+    }else{
+      push @okLines, $line unless $remove;
+    }
+  }
+  return @okLines;
 }
 
 &main(@ARGV);
