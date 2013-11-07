@@ -5,7 +5,7 @@ use warnings;
 my $hostsFile = "/etc/hosts";
 my $sshConfigFile = "$ENV{HOME}/.ssh/config";
 my $defaultUser = "ewolk";
-my $sshMarker = "###escribe-host###";
+my $marker = "###escribe-hosts###";
 
 sub getHosts();
 sub getSSHConfig();
@@ -41,14 +41,14 @@ sub main(@){
   my @hostLines = getHosts();
   my @sshConfigLines = getSSHConfig();
 
-  push @sshConfigLines, "$sshMarker\n";
+  push @sshConfigLines, "$marker\n";
   for(my $i=0; $i<@$escribe; $i+=2){
     my ($host, $ip) = ($$escribe[$i], $$escribe[$i+1]);
-    push @hostLines, "$ip\t$host.escribe.com #escribe-host\n" if $host !~ /\./;
-    push @hostLines, "$ip\t$host #escribe-host\n";
+    push @hostLines, "$ip\t$host.escribe.com $marker\n" if $host !~ /\./;
+    push @hostLines, "$ip\t$host $marker\n";
     push @sshConfigLines, ("Host $host\n", "    User $defaultUser\n");
   }
-  push @sshConfigLines, "$sshMarker\n";
+  push @sshConfigLines, "$marker\n";
 
   print "\n\nhosts:\n";
   open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
@@ -68,7 +68,7 @@ sub getHosts(){
 
   #remove lines with comment #escribe-host at the end
   for my $line(@lines){
-    $line = '' if $line =~ /#escribe-host$/;
+    $line = '' if $line =~ /$marker\s*$/;
   }
   return @lines;
 }
@@ -82,7 +82,7 @@ sub getSSHConfig(){
   my $remove = 0;
   my @okLines;
   for my $line(@lines){
-    if($line =~ /^\s*###escribe-host###\s*$/){
+    if($line =~ /^\s*$marker\s*$/){
       $remove = not $remove;
     }else{
       push @okLines, $line unless $remove;
