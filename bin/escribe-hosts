@@ -31,27 +31,31 @@ my $addtl = {
   'escribehost.com'     => '10.1.14.20',
 };
 
-open FH, "< $HOSTS_FILE" or die "Could not open $HOSTS_FILE for reading";
-my @lines = <FH>;
-close FH;
+sub main(@){
+  open FH, "< $HOSTS_FILE" or die "Could not open $HOSTS_FILE for reading";
+  my @lines = <FH>;
+  close FH;
 
-#remove lines with comment #escribe-host at the end
-for my $line(@lines){
-  $line = '' if $line =~ /#escribe-host$/;
+  #remove lines with comment #escribe-host at the end
+  for my $line(@lines){
+    $line = '' if $line =~ /#escribe-host$/;
+  }
+
+  for my $host(keys %$escribe){
+    my $ip = $$escribe{$host};
+    push @lines, "$ip\t$host.escribe.com #escribe-host\n";
+    push @lines, "$ip\t$host #escribe-host\n";
+  }
+  for my $host(keys %$addtl){
+    my $ip = $$addtl{$host};
+    push @lines, "$ip\t$host #escribe-host\n";
+  }
+
+  print @lines;
+
+  open FH, "> $HOSTS_FILE" or die "Could not write to $HOSTS_FILE";
+  print FH @lines;
+  close FH;
 }
 
-for my $host(keys %$escribe){
-  my $ip = $$escribe{$host};
-  push @lines, "$ip\t$host.escribe.com #escribe-host\n";
-  push @lines, "$ip\t$host #escribe-host\n";
-}
-for my $host(keys %$addtl){
-  my $ip = $$addtl{$host};
-  push @lines, "$ip\t$host #escribe-host\n";
-}
-
-print @lines;
-
-open FH, "> $HOSTS_FILE" or die "Could not write to $HOSTS_FILE";
-print FH @lines;
-close FH;
+&main(@ARGV);
