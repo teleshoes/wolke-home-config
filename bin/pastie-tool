@@ -1,86 +1,85 @@
+#!/usr/bin/python
 import urllib2, urllib, sys, threading
 
-# Pastie binary storage script
-# Copyright (c) 2011 Lan "Lanny" Rogers
-# All rights reserved
+# Pastie Tool
+# Copyright 2013 Elliot Wolk
+# based in part on:
+#    Pastie binary storage script
+#    Copyright (c) 2011 Lan "Lanny" Rogers
 
-def print_dot() :
-    # Print a single dot every second until processing var is unset
-    if processing :
-        sys.stdout.write('.')
-        threading.Timer(1.0, print_dot).start()
+def upload_file(file_name) :
+  print 'Data read into memory, begin encoding'
+  f = open(file_name, 'rb')
+  file_data = f.read().encode('Base64')
+  f.close()
+  segments = []
 
-    else : print
+  #50kb
+  while len(file_data) > 50000:
+    segments.append(file_data[:50000])
+    file_data = file_data[50000:]
 
-def upload_file(upload_file, filename) :
-    input_file = upload_file.read().encode('Base64')
-    print 'Data read into memory, begin encoding'
-    pay_loads = []
+  if len(file_data) > 0:
+    segments.append(file_data)
 
-    # Split up the file into pastie size bites (bytes?)
-    while len(input_file) > 50000 :
-        pay_loads.append(input_file[:50000])
-        input_file = input_file[50000:]
+  pastie_urls = []
+  count = 0
+  total = len(segments)
 
-    pay_loads.append(input_file)
-    store_urls = []
+  for segment in segments:
+    count += 1
+    url = write_pastie(segment)
+    print 'part ' + str(count) + ' of ' + str(total) + ': ' + url
+    pastie_urls.append(url)
 
-    for pay_load in pay_loads :
-        # Upload each chunk
-        enc = urllib.urlencode({'paste[parser_id]': 6,
-                               'paste[restricted]': 0,
-                               'paste[body]': pay_load,
-                               'paste[authorization]': 'burger',
-                               'key': '',
-                               'commit': 'Paste'})
-                
-        print 'Encoding done, begin uploading'
-        response = urllib2.urlopen('http://pastie.org/pastes', enc, 500)
-        # Keep the url of the new paste, used for creating a master paste
-        store_urls.append(response.geturl())
+  master_paste = file_name.strip().split('/')[-1] + "\n"
+  for url in pastie_urls:
+    master_paste += url.strip().split('/')[-1] + "\n"
 
-    # Create index paste
-    # The first line is the filename
-    foo = [filename]
-    # The rest are pastes that compose the file
-    foo.extend(store_urls)
-    master_paste = '\n'.join(foo)
-    enc = urllib.urlencode({'paste[parser_id]': 6,
-                       'paste[restricted]': 0,
-                       'paste[body]': master_paste,
-                       'paste[authorization]': 'burger',
-                       'key': '',
-                       'commit': 'Paste'})
-    
-    print 'Beginning master paste upload'
-    
-    response = urllib2.urlopen('http://pastie.org/pastes', enc, 500)
-    print 'Master paste created, your url is ' + response.geturl()
+  print "master paste:\n" + master_paste
+  master_url = write_pastie(master_paste)
+  print "success, master pastie index:\n" + master_url.split('/')[-1]
 
-def download_file(pastebin_index) :
-    print 'Downloading Base64 data from Pastebin and reading into memory'
-    # ^Yeah, do that
-    master_file = urllib2.urlopen('http://pastie.org/pastes/' + pastebin_index + '/download').read()
 
-    sigma_file = ''
-    # Download each paste and append it to the sigma_file string
-    for segment in master_file.split('\n')[1:] :
-        print 'Downloading data...'
-        segment_data = urllib2.urlopen('http://pastie.org/pastes/' + segment.split('/')[-1] + '/download')
-        print 'Assembeling data...'
-        segment_data = segment_data.read()
-        sigma_file += segment_data
-   
-    print 'Done. Begin decoding and write to a file'
+def download_file(pastie_index, file_name):
+  lines = read_pastie(pastie_index).strip().split('\n')
+  title = lines[0]
+  print "downloaing '" + title + "' to " + file_name
+  segments = lines[1:]
 
-    # And write it :)
-    OutFile = open(master_file.split('\n')[0], 'wb')
-    OutFile.write(sigma_file.decode('Base64'))
-    OutFile.close()
+  file_data = ''
+
+  total = len(segments)
+  count = 0
+  for segment in segments:
+    count += 1
+    print '#Downloading part ' + str(count) + ' of ' + str(total)
+    file_data += read_pastie(segment)
+
+  print 'Done. Begin decoding and write to a file'
+
+  f = open(file_name, 'wb')
+  f.write(file_data.decode('Base64'))
+  f.close()
+
+def read_pastie(pastie_index):
+  return urllib2.urlopen(
+    'http://pastie.org/pastes/' + pastie_index + '/download').read()
+
+def write_pastie(text):
+  params = urllib.urlencode({'paste[parser_id]': 6,
+                     'paste[restricted]': 0,
+                     'paste[body]': text,
+                     'paste[authorization]': 'burger',
+                     'key': '',
+                     'commit': 'Paste'})
+  return urllib2.urlopen('http://pastie.org/pastes', params, 500).geturl()
 
 if __name__ == '__main__' :
-    if '-u' in sys.argv :
-        upload_file(open(sys.argv[-1], 'rb'), sys.argv[-1])
-
-    elif '-d' in sys.argv :
-        download_file(sys.argv[-1])  
+  if len(sys.argv) == 3 and '-u' == sys.argv[1]:
+    upload_file(sys.argv[2])
+  elif len(sys.argv) == 4 and '-d' == sys.argv[1]:
+    download_file(sys.argv[2], sys.argv[3])
+  else:
+    print >> sys.stderr, "Usage: -u FILE | -d INDEX FILE\n"
+    exit(1)
