@@ -1,0 +1,86 @@
+import urllib2, urllib, sys, threading
+
+# Pastie binary storage script
+# Copyright (c) 2011 Lan "Lanny" Rogers
+# All rights reserved
+
+def print_dot() :
+    # Print a single dot every second until processing var is unset
+    if processing :
+        sys.stdout.write('.')
+        threading.Timer(1.0, print_dot).start()
+
+    else : print
+
+def upload_file(upload_file, filename) :
+    input_file = upload_file.read().encode('Base64')
+    print 'Data read into memory, begin encoding'
+    pay_loads = []
+
+    # Split up the file into pastie size bites (bytes?)
+    while len(input_file) > 50000 :
+        pay_loads.append(input_file[:50000])
+        input_file = input_file[50000:]
+
+    pay_loads.append(input_file)
+    store_urls = []
+
+    for pay_load in pay_loads :
+        # Upload each chunk
+        enc = urllib.urlencode({'paste[parser_id]': 6,
+                               'paste[restricted]': 0,
+                               'paste[body]': pay_load,
+                               'paste[authorization]': 'burger',
+                               'key': '',
+                               'commit': 'Paste'})
+                
+        print 'Encoding done, begin uploading'
+        response = urllib2.urlopen('http://pastie.org/pastes', enc, 500)
+        # Keep the url of the new paste, used for creating a master paste
+        store_urls.append(response.geturl())
+
+    # Create index paste
+    # The first line is the filename
+    foo = [filename]
+    # The rest are pastes that compose the file
+    foo.extend(store_urls)
+    master_paste = '\n'.join(foo)
+    enc = urllib.urlencode({'paste[parser_id]': 6,
+                       'paste[restricted]': 0,
+                       'paste[body]': master_paste,
+                       'paste[authorization]': 'burger',
+                       'key': '',
+                       'commit': 'Paste'})
+    
+    print 'Beginning master paste upload'
+    
+    response = urllib2.urlopen('http://pastie.org/pastes', enc, 500)
+    print 'Master paste created, your url is ' + response.geturl()
+
+def download_file(pastebin_index) :
+    print 'Downloading Base64 data from Pastebin and reading into memory'
+    # ^Yeah, do that
+    master_file = urllib2.urlopen('http://pastie.org/pastes/' + pastebin_index + '/download').read()
+
+    sigma_file = ''
+    # Download each paste and append it to the sigma_file string
+    for segment in master_file.split('\n')[1:] :
+        print 'Downloading data...'
+        segment_data = urllib2.urlopen('http://pastie.org/pastes/' + segment.split('/')[-1] + '/download')
+        print 'Assembeling data...'
+        segment_data = segment_data.read()
+        sigma_file += segment_data
+   
+    print 'Done. Begin decoding and write to a file'
+
+    # And write it :)
+    OutFile = open(master_file.split('\n')[0], 'wb')
+    OutFile.write(sigma_file.decode('Base64'))
+    OutFile.close()
+
+if __name__ == '__main__' :
+    if '-u' in sys.argv :
+        upload_file(open(sys.argv[-1], 'rb'), sys.argv[-1])
+
+    elif '-d' in sys.argv :
+        download_file(sys.argv[-1])  
