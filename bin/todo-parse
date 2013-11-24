@@ -4,13 +4,14 @@ use warnings;
 use Term::ANSIColor;
 
 my $file = "$ENV{HOME}/TODO";
+my $notesFile = "$ENV{HOME}/NOTES";
 
 my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html --ff);
 my $usage = "Usage:
   $0 --add TODO [TODO ..]
     Add todos not in git history to $file
 
-  $0 [FORMAT]
+  $0 [OPTS] [FORMAT]
     Parse ${file}'s git history to print todos
 
   FORMAT:
@@ -21,32 +22,40 @@ my $usage = "Usage:
     --qtodo  print all todos as xml for qtodo
     --html   print all todos as html
     --ff     write all todos as html to a tmp file and open it with firefox
+
+  OPTS
+    --notes  include entries in $notesFile in output
 ";
 
 my %resColor = (
   FIXED => 'white bold',
   NONE => 'red bold',
   DISCARDED => 'blue bold',
+  NOTE => 'green bold',
 );
 my %resQtodoColor = (
   FIXED => 'green',
   NONE => 'red',
   DISCARDED => 'yellow',
+  NOTE => 'blue',
 );
 my %resHTMLStyle = (
   FIXED => 'color:black; font-weight:bold',
   NONE => 'color:red; font-weight:bold',
   DISCARDED => 'color:blue; font-weight:bold',
+  NOTE => 'color:green; font-weight:bold',
 );
 my %resSym = (
   FIXED => 'x',
   NONE => ' ',
   DISCARDED => '~',
+  NOTE => '!',
 );
 my %resFinished = (
   FIXED => 1,
   NONE => 0,
   DISCARDED => 1,
+  NOTE => 0,
 );
 
 sub getPrefix($$);
@@ -56,10 +65,14 @@ sub getTodos($$$$$);
 sub todoFmt($$$$$);
 sub qtodoFmt($$$$$);
 sub dateFmt($);
+sub dateFmtNow();
 sub col($$);
 
 sub main(@){
   chdir $ENV{HOME};
+
+  my $notes = shift if @_ > 0 and $_[0] =~ /^(--notes)$/;
+
   my @todosToAdd;
   my $fmtArg = '-a';
   if(@_ > 1 and $_[0] eq '--add'){
@@ -128,6 +141,18 @@ sub main(@){
 
   my @todos;
 
+  if(defined $notes and -e $notesFile){
+    for my $note(`cat $notesFile`){
+      chomp $note;
+      next if $note =~ /^\s*$/;
+      $count++;
+      my $date = dateFmtNow;
+      my $todoStr = &$fmtSub(
+        $note, 'NOTE', $date, undef, $count);
+      push @todos, [$todoStr, 'NOTE', $date, undef];
+    }
+  }
+
   my @todoSort = sort {
     ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
   } keys %addTodos;
@@ -147,7 +172,7 @@ sub main(@){
   @todos = sort {
     my ($aFmt, $aRes, $aDateAdded, $aDateResolved) = @$a;
     my ($bFmt, $bRes, $bDateAdded, $bDateResolved) = @$b;
-    my %resSort = (NONE => 0, FIXED => 1, DISCARDED => 2);
+    my %resSort = (NOTE => 0, NONE => 1, FIXED => 2, DISCARDED => 3);
     $aDateResolved = '' if not defined $aDateResolved;
     $bDateResolved = '' if not defined $bDateResolved;
     return 0
@@ -308,6 +333,9 @@ sub dateFmt($){
   my $d = `date -d \@$_[0] +'%Y-%m-%d %H:%M'`;
   chomp $d;
   return $d;
+}
+sub dateFmtNow(){
+  return dateFmt time;
 }
 
 sub col($$){
