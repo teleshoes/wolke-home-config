@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $max = 98;
+
+my $tocUrl = "http://www.hpmorpodcast.com/?page_id=56";
+my $url = "http://media.blubrry.com/"
+  . "hpmor/p/www.hpmorpodcast.com/wp-content/uploads/episodes";
+
+my @extras = map {"$url/HPMoR_Chap_$_.mp3"} (96, 97, 98);
+
+my @failed;
+
+sub getFile($);
+sub chapExists($);
+sub renameChap($$);
+sub retagChap($$);
+sub uniq(@);
+sub readToc();
+sub run(@);
+sub fmtFailed();
+
+sub main(@){
+  my @urls = (readToc(), @extras);
+  my @chapters;
+  for my $url(uniq @urls){
+    my $file = $url;
+    $file =~ s/^.*\///;
+    my $chap = $1 if $file =~ /^HPMoR_Chap_([0-9a-z\-]+).mp3$/;
+    die "chapter error: $file\n" if not defined $chap;
+    push @chapters, $chap;
+    if(defined getFile($chap)){
+      print "  skipped $file\n";
+    }else{
+      run "wget", $url;
+    }
+    push @failed, $file if not  defined getFile($chap);
+  }
+
+  if(@failed == 0){
+    for(my $i=0; $i<@chapters; $i++){
+      if(renameChap $chapters[$i], $i+1){
+        retagChap $chapters[$i], $i+1;
+      }
+    }
+    print "SUCCESS!\n";
+  }else{
+    die fmtFailed();
+  }
+}
+
+sub getFile($){
+  my $chap = shift;
+  my @files = `ls *_$chap.mp3 *\\ $chap.mp3 2>/dev/null`;
+  die "too many files\n" if @files > 1;
+  my $f = @files == 1 ? $files[0] : '';
+  chomp $f;
+
+  if($f =~ /[ _]$chap\.mp3$/){
+    return $f;
+  }
+  return undef;
+}
+
+sub chapExists($){
+  my $chap = shift;
+  return defined getFile $chap;
+}
+
+sub renameChap($$){
+  my ($chap, $number) = @_;
+  my $oldFile = getFile $chap;
+  if(defined $oldFile){
+    my $fmtChap = $chap;
+    while($fmtChap =~ s/(\D|^)(\d\d)(\D|$)/${1}0${2}${3}/){}
+    while($fmtChap =~ s/(\D|^)(\d)(\D|$)/${1}00${2}${3}/){}
+    my $newFile = sprintf '%03d Chapter %s.mp3', $number, $chap;
+    if($newFile ne $oldFile){
+      run "mv", "--no-clobber", $oldFile, $newFile;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+sub retagChap($$){
+  my ($chap, $number) = @_;
+  my $file = getFile $chap;
+
+  my @chapters = split /-/, $chap;
+
+  run "id3v2", "-D", $file;
+  run "id3v2", $file,
+    "-T", $number,
+    "-t", "HPMoR Chapter $chap",
+    "-A", "Harry Potter and the Methods of Rationality",
+    "-a", "Eliezer Yudkowsky [Eneasz Brodski]",
+  ;
+}
+
+sub uniq(@){
+  my @arr;
+  my %seen;
+  for my $e(@_){
+    push @arr, $e if not defined $seen{$e};
+    $seen{$e} = 1;
+  }
+  return @arr;
+}
+
+sub readToc(){
+  open FH, "-|", "wget", "-O", "-", $tocUrl;
+  my @tocLines = <FH>;
+  close FH;
+  my @urls;
+  for my $tocLine(@tocLines){
+    push @urls, $1 if $tocLine =~ /(http:.*?HPMoR_Chap_[0-9a-f\-]+.mp3)/;
+  }
+  return @urls;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  if($? == 2){
+    die fmtFailed() . "user canceled\n";
+  }
+  return $? == 0;
+}
+
+sub fmtFailed(){
+  return "FAILED:\n  " . (join "\n  ", @failed) . "\n";
+}
+
+&main(@ARGV);
