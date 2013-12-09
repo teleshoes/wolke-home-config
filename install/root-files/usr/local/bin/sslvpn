@@ -6,8 +6,10 @@ my $dir = "$ENV{HOME}/openvpn";
 my $cert = "client.pem";
 my $conf = "client.conf";
 my $status = "status";
+my $user = "ewolk";
 
 sub ensureRoot();
+sub getPasswordFile();
 sub selectCert();
 sub run(@);
 
@@ -23,7 +25,11 @@ sub main(@){
     selectCert();
     die "no cert selected\n" if not -e $cert;
     run "rm", "-f", "status";
-    run "openvpn", "--config", $conf, "--status", $status, "1";
+    run "openvpn",
+      "--auth-user-pass", getPasswordFile(),
+      "--config", $conf,
+      "--status", $status,
+      "1";
   }elsif($_[0] eq 'off'){
     print "stopping, maybe...\n";
     run "pkill", "-9", "openvpn";
@@ -38,6 +44,18 @@ sub ensureRoot(){
     print "rerunning as root\n";
     exec "sudo", $0, @ARGV;
   }
+}
+
+sub getPasswordFile(){
+  my $pass = `yubi`;
+  chomp $pass;
+
+  my $file = "/tmp/openvpn-auth-" . time;
+  open FH, "> $file" or die "Cant write to $file\n";
+  print FH "$user\n";
+  print FH "$pass\n";
+  close FH;
+  return $file;
 }
 
 sub selectCert(){
