@@ -5,6 +5,7 @@ use warnings;
 my $titleArgs = "-t|--title|-T|-title";
 my $cwdArgs = "--working-directory|-cd";
 my $autoCwdArgs = "--auto-working-directory|-acd";
+my $waitArgs = "--wait|-wait";
 
 my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
@@ -29,6 +30,8 @@ my $usage = "Usage:
         -use a child PID instead if it exists {using ps}
         -extract the PWD of the PID {using pwdx}
         -set the PWD like [$cwdArgs]
+    $waitArgs
+      wait for the terminal to exit
 ";
 
 sub urxvt($$);
@@ -59,6 +62,9 @@ sub main(@){
       if(defined $cwd){
         $termArgs{cwd} = wrapToken $cwd;
       }
+    }elsif(@_ > 0 and $_[0] =~ /^($waitArgs)$/){
+      shift;
+      $termArgs{wait} = 1;
     }else{
       last;
     }
@@ -79,7 +85,12 @@ sub main(@){
   }elsif(isInstalled "xterm"){
     @cmd = xterm \%termArgs, \@cmd;
   }
-  exec "bash", "-c", "@cmd & disown";
+
+  if(defined $termArgs{wait} and $termArgs{wait}){
+    exec "bash", "-c", "@cmd";
+  }else{
+    exec "bash", "-c", "@cmd & disown";
+  }
 }
 
 sub urxvt($$){
