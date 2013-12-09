@@ -1,36 +1,47 @@
-#!/bin/bash
-USAGE="Usage: $0 [on|off|toggle]"
-if [ $# -ne 1 ]; then
-  echo $USAGE
-  exit 1
-fi;
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-if [ $1 = 'on' ]; then
-  echo starting, maybe...
-  cd ~/openvpn
-  if [ ! -e "client.pem" -o -h "client.pem" ]; then
-    if [ -e "client.pem.$HOSTNAME" ]; then
-      rm -f client.pem
-      ln -s client.pem.$HOSTNAME client.pem
-    elif [ -e "default.pem" ]; then
-      rm -f client.pem
-      ln -s default.pem client.pem
-    fi
-  fi
-  rm status
-  openvpn --config client.conf --status status 1
-elif [ $1 = 'off' ]; then
-  echo stopping, maybe...
-  killall -9 openvpn
-elif [ $1 = 'toggle' ]; then
-  if [ `pidof openvpn` ]; then
-    $0 off
-  else
-    $0 on
-  fi
-else
-  echo $USAGE
-  exit 1
-fi;
+my $dir = "$ENV{HOME}/openvpn";
+my $cert = "client.pem";
+my $conf = "client.conf";
+my $status = "status";
 
-exit 0;
+sub run(@);
+
+sub main(@){
+  die "Usage: $0 on|off|toggle" if @_ != 1 or $_[0] !~ /^(on|off|toggle)$/;
+
+  if($_[0] eq 'on'){
+    print "starting, maybe...\n";
+    chdir $dir or die "Couldnt cd to $dir\n";
+
+    selectCert();
+    die "no cert selected\n" if not -e $cert;
+    run "rm", "-f", "status";
+    run "openvpn", "--config", $conf, "--status", $status, "1";
+  }elsif($_[0] eq 'off'){
+    print "stopping, maybe...\n";
+    run "pkill", "-9", "openvpn";
+  }elsif($_[0] eq 'toggle'){
+    run "pidof openvpn >/dev/null 2>/dev/null";
+    exec $0, $? ? 'on' : 'off';
+  }
+}
+
+sub selectCert(){
+  my $hostCert = "$cert." . `hostname`;
+  chomp $hostCert;
+  my $defaultCert = "client.pem.default";
+
+  run "rm", "-f", "client.pem" if -l "client.pem";
+  run "ln", "-s", $hostCert, $cert if not -e $cert and -e $hostCert;
+  run "ln", "-s", $defaultCert, $cert if not -e $cert and -e $defaultCert;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
