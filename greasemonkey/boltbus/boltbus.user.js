@@ -20,8 +20,8 @@ dateSelector = fwd + 'imageE'
 
 regionNortheast = fwd + 'lstRegion_repeater_ctl00_link'
 origBoston = fwd + 'lstOrigin_repeater_ctl01_link'
-origNY = fwd + 'lstOrigin_repeater_ctl04_link'
-destBoston = fwd + 'lstDestination_repeater_ctl00_link'
+origNY = fwd + 'lstOrigin_repeater_ctl03_link'
+destBoston = fwd + 'lstDestination_repeater_ctl01_link'
 destNY = fwd + 'lstDestination_repeater_ctl00_link'
 
 function main(){
