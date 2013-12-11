@@ -19,10 +19,11 @@ destSelector = fwd + 'lstDestination_textBox'
 dateSelector = fwd + 'imageE'
 
 regionNortheast = fwd + 'lstRegion_repeater_ctl00_link'
-origBoston = fwd + 'lstOrigin_repeater_ctl01_link'
-origNY = fwd + 'lstOrigin_repeater_ctl03_link'
-destBoston = fwd + 'lstDestination_repeater_ctl01_link'
-destNY = fwd + 'lstDestination_repeater_ctl00_link'
+textRegexBoston = /.*Boston.*South.*Station.*/i
+textRegexNY = /.*New York.*33rd.*/i
+
+origIdRegex = new RegExp(".*" + fwd + "lstOrigin_repeater" + ".*", "i")
+destIdRegex = new RegExp(".*" + fwd + "lstDestination_repeater" + ".*", "i")
 
 function main(){
   if(maybeSignIn()){
@@ -30,13 +31,13 @@ function main(){
   }
   q = window.location.search
   if(q == '?bos-ny'){
-    orig = origBoston
-    dest = destNY
+    origTextRegex = textRegexBoston
+    destTextRegex = textRegexNY
   }else if(q == '?ny-bos'){
-    orig = origNY
-    dest = destBoston
+    origTextRegex = textRegexNY
+    destTextRegex = textRegexBoston
   }
-  clickRoute(orig, dest)
+  clickRoute(origTextRegex, destTextRegex)
 }
 
 function maybeSignIn(){
@@ -52,14 +53,25 @@ function maybeSignIn(){
   }
 }
 
-function clickRoute(orig, dest){
+function clickRoute(origTextRegex, destTextRegex){
   clickDelay(0,    function(){return regionSelector})
   clickDelay(100,  function(){return regionNortheast})
   clickDelay(1500, function(){return origSelector})
-  clickDelay(1600, function(){return orig})
+  clickDelay(1600, function(){return getId(origTextRegex, origIdRegex)})
   clickDelay(3000, function(){return destSelector})
-  clickDelay(3100, function(){return dest})
+  clickDelay(3100, function(){return getId(destTextRegex, destIdRegex)})
   clickDelay(4500, function(){return dateSelector})
+}
+
+function getId(textRegex, idRegex){
+  var as = document.getElementsByTagName("a")
+  for(var i=0; i<as.length; i++){
+    if(idRegex.test(as[i].id) && textRegex.test(as[i].textContent)){
+      return as[i].id
+    }
+  }
+  window.alert('could not find element '
+    + 'id=~' + idRegex + ' and text=~' + textRegex)
 }
 
 function clickDelay(delay, idFct){
