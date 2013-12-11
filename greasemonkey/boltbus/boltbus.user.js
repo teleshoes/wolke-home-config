@@ -18,10 +18,11 @@ origSelector = fwd + 'lstOrigin_textBox'
 destSelector = fwd + 'lstDestination_textBox'
 dateSelector = fwd + 'imageE'
 
-regionNortheast = fwd + 'lstRegion_repeater_ctl00_link'
+textRegexNortheast = /.*Northeast.*/i
 textRegexBoston = /.*Boston.*South.*Station.*/i
 textRegexNY = /.*New York.*33rd.*/i
 
+regionIdRegex = new RegExp(".*" + fwd + "lstRegion_repeater" + ".*", "i")
 origIdRegex = new RegExp(".*" + fwd + "lstOrigin_repeater" + ".*", "i")
 destIdRegex = new RegExp(".*" + fwd + "lstDestination_repeater" + ".*", "i")
 
@@ -31,13 +32,15 @@ function main(){
   }
   q = window.location.search
   if(q == '?bos-ny'){
+    regionTextRegex = textRegexNortheast
     origTextRegex = textRegexBoston
     destTextRegex = textRegexNY
   }else if(q == '?ny-bos'){
+    regionTextRegex = textRegexNortheast
     origTextRegex = textRegexNY
     destTextRegex = textRegexBoston
   }
-  clickRoute(origTextRegex, destTextRegex)
+  clickRoute(regionTextRegex, origTextRegex, destTextRegex)
 }
 
 function maybeSignIn(){
@@ -53,9 +56,9 @@ function maybeSignIn(){
   }
 }
 
-function clickRoute(origTextRegex, destTextRegex){
+function clickRoute(regionTextRegex, origTextRegex, destTextRegex){
   clickDelay(0,    function(){return regionSelector})
-  clickDelay(100,  function(){return regionNortheast})
+  clickDelay(100,  function(){return getId(regionTextRegex, regionIdRegex)})
   clickDelay(1500, function(){return origSelector})
   clickDelay(1600, function(){return getId(origTextRegex, origIdRegex)})
   clickDelay(3000, function(){return destSelector})
