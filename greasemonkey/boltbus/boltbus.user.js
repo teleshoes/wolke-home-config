@@ -53,18 +53,18 @@ function maybeSignIn(){
 }
 
 function clickRoute(orig, dest){
-  clickDelay(0, regionSelector)
-  clickDelay(100, regionNortheast)
-  clickDelay(1500, origSelector)
-  clickDelay(1600, orig)
-  clickDelay(3000, destSelector)
-  clickDelay(3100, dest)
-  clickDelay(4500, dateSelector)
+  clickDelay(0,    function(){return regionSelector})
+  clickDelay(100,  function(){return regionNortheast})
+  clickDelay(1500, function(){return origSelector})
+  clickDelay(1600, function(){return orig})
+  clickDelay(3000, function(){return destSelector})
+  clickDelay(3100, function(){return dest})
+  clickDelay(4500, function(){return dateSelector})
 }
 
-function clickDelay(delay, id){
+function clickDelay(delay, idFct){
   setTimeout(function(){
-    document.getElementById(id).click()
+    document.getElementById(idFct()).click()
   }, delay)
 }
 
