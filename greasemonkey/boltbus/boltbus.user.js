@@ -45,7 +45,7 @@ function main(){
 
 function maybeSignIn(){
   if(document.getElementById(signInSelector)){
-    clickDelay(0, signInSelector)
+    clickDelay(0, function(){return signInSelector})
     setTimeout(function(){
       iframe = document.getElementsByName('ShowModal')[0]
       iframe = iframe.contentDocument || iframe.contentWindow.document
