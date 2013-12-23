@@ -2,7 +2,7 @@ set uc=0 """no swapfile
 set nocompatible
 set autoindent
 set nowrap
-set relativenumber
+set number
 set expandtab
 set smarttab
 set shiftwidth=4
@@ -153,3 +153,11 @@ function RUNP(win, size, ...)
     call RUN(a:000)
 endfunction
 
+nnoremap <C-N> :call ToggleRelativeNumber()<CR>
+function ToggleRelativeNumber()
+    if &relativenumber == 1
+        set number
+    else
+        set relativenumber
+    endif
+endfunction
