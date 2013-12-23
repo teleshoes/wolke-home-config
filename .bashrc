@@ -34,13 +34,17 @@ pathRemove ()  { for x in $@; do
   done
 }
 
-pathPrepend         \
+pathAppend          \
   $HOME/bin         \
   $HOME/.cabal/bin  \
-  /sbin             \
-  /usr/sbin         \
   /usr/local/bin    \
+  /usr/bin          \
+  /bin              \
   /usr/local/sbin   \
+  /usr/sbin         \
+  /sbin             \
+  /usr/local/games  \
+  /usr/games        \
 ;
 
 meego_gnu=/opt/gnu-utils
