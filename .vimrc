@@ -9,6 +9,7 @@ set shiftwidth=4
 set tabstop=4
 set softtabstop=4
 set mouse=a
+set hlsearch
 
 set hidden
 set ofu=syntaxcomplete#Complete
@@ -21,6 +22,9 @@ colorscheme solarized
 
 au BufRead,BufNewFile *.hx set filetype=haxe
 au Syntax haxe source ~/.vim/haxe/haxe.vim
+
+hi TrailingWhitespace ctermbg=red guibg=red
+match TrailingWhitespace /\s\+$/
 
 """keep cursor vertically centered while searching"""
 nnoremap n nzz

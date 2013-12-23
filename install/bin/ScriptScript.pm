@@ -12,6 +12,7 @@ our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
                   runUser
+                  runUser tryrunUser
                   proc procLines
                   getInstallPath
                   cd chownUser
@@ -39,6 +40,8 @@ sub tryrun(@);
 sub shell(@);
 sub tryshell(@);
 sub runUser(@);
+sub tryrunUser(@);
+sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
 sub getUsername();
@@ -89,6 +92,7 @@ sub runProto($$){
 }
 sub runProtoIPC($$) {
     my ($esc, $dieOnError) = @_;
+    system "rm -f /tmp/progress-bar-*";
     sub {
         my @cmd = &$esc(@_);
         print "@cmd\n" if $opts->{putCommand};
@@ -163,6 +167,15 @@ sub runUser (@) {
   }else{
       run(@_);
   }
+
+sub runUser(@) {
+    run(wrapUserCommand(@_));
+}
+sub tryrunUser(@) {
+    tryrun(wrapUserCommand(@_));
+}
+sub wrapUserCommand(@){
+    return isRoot() ? ("su", getUsername(), "-c", "@_") : @_;
 }
 
 sub proc(@) {
@@ -474,9 +487,8 @@ sub readConf($) {
 }
 
 sub readConfDir($) {
-    my ($reldir) = @_;
+    my ($dir) = @_;
 
-    my $dir = relToScript $reldir;
     my @filenames = split "\n", `ls -A1 $dir`;
 
     my %confs = ();

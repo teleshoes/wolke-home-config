@@ -5,12 +5,13 @@ use warnings;
 my $titleArgs = "-t|--title|-T|-title";
 my $cwdArgs = "--working-directory|-cd";
 my $autoCwdArgs = "--auto-working-directory|-acd";
+my $waitArgs = "--wait|-wait";
 
 my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
   $0 [OPTS] SHELLCMD
   $0 -h|--help
-  
+
   Provids a consistent cli to several terminal emulators.
   Spawns the terminal and disowns it {this is bash-specific}
   If SHELLCMD has a space in it, its executed in bash.
@@ -29,12 +30,67 @@ my $usage = "Usage:
         -use a child PID instead if it exists {using ps}
         -extract the PWD of the PID {using pwdx}
         -set the PWD like [$cwdArgs]
+    $waitArgs
+      wait for the terminal to exit
 ";
 
-sub wrapToken($){
-  my $s = shift;
-  $s =~ s/'/'\\''/g;
-  return "'$s'";
+sub urxvt($$);
+sub mtermite($$);
+sub meegoTerminal($$);
+sub gnomeTerminal($$);
+sub xterm($$);
+
+sub isInstalled($);
+sub procChomp(@);
+sub extractActiveCwd();
+sub wrapToken($);
+
+sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+
+  my %termArgs;
+  while(1){
+    if(@_ > 1 and $_[0] =~ /^($titleArgs)$/){
+      shift;
+      $termArgs{title} = wrapToken(shift());
+    }elsif(@_ > 1 and $_[0] =~ /^($cwdArgs)$/){
+      shift;
+      $termArgs{cwd} = wrapToken(shift());
+    }elsif(@_ > 0 and $_[0] =~ /^($autoCwdArgs)$/){
+      shift;
+      my $cwd = extractActiveCwd();
+      if(defined $cwd){
+        $termArgs{cwd} = wrapToken $cwd;
+      }
+    }elsif(@_ > 0 and $_[0] =~ /^($waitArgs)$/){
+      shift;
+      $termArgs{wait} = 1;
+    }else{
+      last;
+    }
+  }
+
+  my @cmd = map {wrapToken $_} @_;
+
+  @cmd = ("bash", "-c", @cmd) if @cmd == 1 and $cmd[0] =~ / /;
+
+  if(isInstalled "urxvt"){
+    @cmd = urxvt \%termArgs, \@cmd;
+  }elsif(isInstalled "/opt/mtermite/bin/mtermite"){
+    @cmd = mtermite \%termArgs, \@cmd;
+  }elsif(isInstalled "meego-terminal"){
+    @cmd = meegoTerminal \%termArgs, \@cmd;
+  }elsif(isInstalled "gnome-terminal"){
+    @cmd = gnomeTerminal \%termArgs, \@cmd;
+  }elsif(isInstalled "xterm"){
+    @cmd = xterm \%termArgs, \@cmd;
+  }
+
+  if(defined $termArgs{wait} and $termArgs{wait}){
+    exec "bash", "-c", "@cmd";
+  }else{
+    exec "bash", "-c", "@cmd & disown";
+  }
 }
 
 sub urxvt($$){
@@ -141,44 +197,10 @@ sub extractActiveCwd(){
   return undef;
 }
 
-sub main(@){
-  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
-  
-  my %termArgs;
-  while(1){
-    if(@_ > 1 and $_[0] =~ /^($titleArgs)$/){
-      shift;
-      $termArgs{title} = wrapToken(shift());
-    }elsif(@_ > 1 and $_[0] =~ /^($cwdArgs)$/){
-      shift;
-      $termArgs{cwd} = wrapToken(shift());
-    }elsif(@_ > 0 and $_[0] =~ /^($autoCwdArgs)$/){
-      shift;
-      my $cwd = extractActiveCwd();
-      if(defined $cwd){
-        $termArgs{cwd} = wrapToken $cwd;
-      }
-    }else{
-      last;
-    }
-  }
-
-  my @cmd = map {wrapToken $_} @_;
-  
-  @cmd = ("bash", "-c", @cmd) if @cmd == 1 and $cmd[0] =~ / /;
-
-  if(isInstalled "urxvt"){
-    @cmd = urxvt \%termArgs, \@cmd;
-  }elsif(isInstalled "/opt/mtermite/bin/mtermite"){
-    @cmd = mtermite \%termArgs, \@cmd;
-  }elsif(isInstalled "meego-terminal"){
-    @cmd = meegoTerminal \%termArgs, \@cmd;
-  }elsif(isInstalled "gnome-terminal"){
-    @cmd = gnomeTerminal \%termArgs, \@cmd;
-  }elsif(isInstalled "xterm"){
-    @cmd = xterm \%termArgs, \@cmd;
-  }
-  exec "bash", "-c", "@cmd & disown";
+sub wrapToken($){
+  my $s = shift;
+  $s =~ s/'/'\\''/g;
+  return "'$s'";
 }
 
 &main(@ARGV);

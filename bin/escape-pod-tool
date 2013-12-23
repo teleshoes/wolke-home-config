@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
-my $mp3UrlCache = '/tmp/escape-pod-mp3-url-cache';
+my $mp3UrlCache = "$ENV{HOME}/ep-mp3urls";
 my $csvDelim = ';';
 
 sub getMP3Url($$$);
@@ -92,6 +92,7 @@ sub main(@){
     next if keys %okNums > 0 and not defined $okNums{$$ep{number}+0};
     $$eps{$$ep{number}} = $ep;
   }
+  my $exitCode = 0;
 
   if($cmd eq '--csv'){
     for my $epNum(sort keys %$eps){
@@ -99,7 +100,7 @@ sub main(@){
     }
   }elsif($cmd eq '--url'){
     for my $epNum(sort keys %$eps){
-      print "$$eps{$epNum}{url}\n";
+      print "$$eps{$epNum}{articleUrl}\n";
     }
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--tag)/){
     my $cache = readMP3UrlCache();
@@ -123,9 +124,11 @@ sub main(@){
         }
       }else{
         print "   ERROR: $epNum\n";
+        $exitCode = 1;
       }
     }
   }
+  exit $exitCode;
 }
 
 sub getMP3Url($$$){
@@ -244,6 +247,7 @@ sub parseTableRow($$){
   my $articleUrl = $1;
   my $date = $2;
 
+  $tr =~ s/<sup.*?<\/sup>//gsxi;
   $tr =~ s/\n/ /g;
   $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
   $tr =~ s/\s*<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >\s*/<>$1/gsxi;

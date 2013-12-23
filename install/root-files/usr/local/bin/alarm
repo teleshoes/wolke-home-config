@@ -15,16 +15,18 @@ my $usage = "Usage:
     OPTS:
       -h|--help       Show this message
       -n|--norerun    Do not rerun as pulse user
+      -o|--once       Do not repeat alarm {don't pass '-loop 0' to mplayer}
       -g|--guess      If alarm does not match, use 'default' instead of failing
 ";
 
 sub pulseExec(@);
 
 sub main(@){
-  my ($help, $norerun, $guess);
+  my ($help, $norerun, $once, $guess);
   my $ok = GetOptionsFromArray(\@_,
     "h|help"       => \$help,
     "n|norerun"    => \$norerun,
+    "o|once"       => \$once,
     "g|guess"      => \$guess,
   );
   my $name = shift() || 'default';
@@ -37,7 +39,9 @@ sub main(@){
     if not $ok or defined $help or @_ > 0 or $name !~ /^($validAlarms)$/;
 
   pulseExec $0, "-n", $name unless defined $norerun;
-  exec "term", "mplayer", "$alarmsDir/$name";
+  my @cmd = ("term", "mplayer", "$alarmsDir/$name");
+  @cmd = (@cmd, "-loop", "0") unless $once;
+  exec @cmd;
 }
 
 sub pulseExec(@){
