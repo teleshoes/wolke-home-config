@@ -24,24 +24,33 @@ if [ "$TERM" == "rxvt" ]; then
   PROMPT_COMMAND='if [ "$WINDOW_TITLE" ]; then '$p1'; else '$p2'; fi'
 fi
 
-prependPath() {
-  case $PATH in
-    $@:* | *:$@ | *:$@:* ) ;;
-    *) export PATH=$@:$PATH
-  esac
+pathAppend ()  { for x in $@; do pathRemove $x; export PATH="$PATH:$x"; done }
+pathPrepend () { for x in $@; do pathRemove $x; export PATH="$x:$PATH"; done }
+pathRemove ()  { for x in $@; do
+  export PATH=`\
+    echo -n $PATH \
+    | awk -v RS=: -v ORS=: '$0 != "'$1'"' \
+    | sed 's/:$//'`;
+  done
 }
-prependPath $HOME/bin
-prependPath $HOME/.cabal/bin
-prependPath /sbin
-prependPath /usr/sbin
-prependPath /usr/local/bin
-prependPath /usr/local/sbin
+
+pathPrepend         \
+  $HOME/bin         \
+  $HOME/.cabal/bin  \
+  /sbin             \
+  /usr/sbin         \
+  /usr/local/bin    \
+  /usr/local/sbin   \
+;
+
 meego_gnu=/opt/gnu-utils
 if [ -d $meego_gnu ]; then
-  prependPath /usr/libexec/git-core
-  prependPath $meego_gnu/bin
-  prependPath $meego_gnu/usr/bin
-  prependPath $meego_gnu/usr/sbin
+  pathPrepend              \
+    /usr/libexec/git-core  \
+    $meego_gnu/bin         \
+    $meego_gnu/usr/bin     \
+    $meego_gnu/usr/sbin    \
+  ;
 fi
 
 if [ `hostname -s` == "wolke-n9" ]; then
