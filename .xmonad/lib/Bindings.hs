@@ -46,12 +46,12 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
 
 xmoKeys conf = "XMonad" @@ do
     "Restart"   @@ mCA xK_Home #! "taffybar-restart"
-    "Recompile" @@ mCA xK_End  #! "xmonad --recompile; xmonad --restart"
+    "Recompile" @@ mCA xK_End  #! "xmonad-restart"
     "Bindings"  @@ mCA xK_Ins  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
 shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc, mCA xK_Del] #! "off g"
-    "term"              @@ m_    xK_Think#! "term"
+    "term auto-cwd"     @@ m_    xK_Think#! "term -acd"
     "term"              @@ mA    xK_F2   #! "term"
     "ghci"              @@ mA    xK_Think#! "term ghci" 
     "Screen Shot"       @@ m_    xK_Print#! "scrot-bag"

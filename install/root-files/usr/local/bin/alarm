@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptionsFromArray :config bundling);
+
+my $alarmsDir = '/usr/share/alarms';
+die "$alarmsDir/ doesnt exist or isnt a dir\n" if not -d $alarmsDir;
+my $validAlarms = join '|', sort map {chomp; $_} `ls $alarmsDir/`;
+die "$alarmsDir is empty\n" if $validAlarms eq '';
+
+my $usage = "Usage:
+  $0 [OPTS] [$validAlarms]   {default is 'default'}
+    Runs 'term mplayer $alarmsDir/NAME'.
+    If run as root, reruns as the user running pulseaudio.
+    OPTS:
+      -h|--help       Show this message
+      -n|--norerun    Do not rerun as pulse user
+      -g|--guess      If alarm does not match, use 'default' instead of failing
+";
+
+sub pulseExec(@);
+
+sub main(@){
+  my ($help, $norerun, $guess);
+  my $ok = GetOptionsFromArray(\@_,
+    "h|help"       => \$help,
+    "n|norerun"    => \$norerun,
+    "g|guess"      => \$guess,
+  );
+  my $name = shift() || 'default';
+  if(defined $guess and $name !~ /^($validAlarms)$/){
+    print "using 'default' instead of '$name'\n";
+    $name = 'default';
+  }
+
+  die $usage
+    if not $ok or defined $help or @_ > 0 or $name !~ /^($validAlarms)$/;
+
+  pulseExec $0, "-n", $name unless defined $norerun;
+  exec "term", "mplayer", "$alarmsDir/$name";
+}
+
+sub pulseExec(@){
+  my $user = `whoami`;
+  chomp $user;
+  my $pulseUser = `ps --no-heading -o user -C pulseaudio | head -1`;
+  chomp $pulseUser;
+
+  if($user eq 'root' and $pulseUser ne 'root' and length($pulseUser) > 0){
+    print "rerunning as pulse user $pulseUser\n";
+    exec "su", $pulseUser, "-c", "@_";
+  }
+}
+&main(@ARGV);

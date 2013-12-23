@@ -7,6 +7,7 @@ HISTSIZE=1000000
 
 shopt -s checkwinsize
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+ssh-add ~/.ssh/id_rsa 2> /dev/null
 
 case "$TERM" in rxvt*) TERM=rxvt ;; esac
 
@@ -77,9 +78,3 @@ function vims { vim `which $1` ; }
 
 # allow <C-S> in vim
 stty stop undef
-
-# autologin
-if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
-  exec startx
-fi
-

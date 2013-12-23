@@ -4,21 +4,69 @@ use strict;
 use String::ShellQuote;
 use File::Temp 'tempfile';
 require Exporter;
+my $IPC_RUN = eval{require IPC::Run};
+my $IO_PTY = eval{require IO::Pty};
+
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  cd
+                  runUser
+                  proc procLines
+                  getInstallPath
+                  cd chownUser
+                  symlinkFile
+                  which
                   writeFile tryWriteFile
                   readFile tryReadFile
-                  editFile replaceLine replaceOrAddLine
-                  getRoot
+                  replaceLine replaceOrAddLine
+                  editFile editFileConf
+                  getRoot getRootSu
                   getUsername
                   guessBackupDir
                   relToScript
                   readConf readConfDir
-                  installFromDir aptSrcInstall
+                  installFromDir installFromGit aptSrcInstall
                 );
+
+sub setOpts($);
+sub deathWithDishonor();
+sub runProto($$);
+sub runProtoIPC($$);
+sub runProtoNoIPC($$);
+sub run(@);
+sub tryrun(@);
+sub shell(@);
+sub tryshell(@);
+sub runUser(@);
+sub proc(@);
+sub procLines(@);
+sub getUsername();
+sub getInstallPath($);
+sub which($);
+sub cd($);
+sub chownUser($);
+sub symlinkFile($$);
+sub writeFileProto($);
+sub writeFile($$);
+sub tryWriteFile($$);
+sub readFileProto($);
+sub readFile($);
+sub tryReadFile($);
+sub replaceLine($$$);
+sub replaceOrAddLine($$$);
+sub editFile($$;$);
+sub editFileConf($$$);
+sub getRoot(@);
+sub getRootSu(@);
+sub guessBackupDir();
+sub relToScript($);
+sub readConf($);
+sub readConfDir($);
+sub installFromDir($;$$);
+sub installFromGit($;$);
+sub aptSrcInstall($$);
+
 
 my $opts = {
   putCommand => 1,
@@ -36,7 +84,48 @@ sub deathWithDishonor() {
     exit 1;
 }
 
-sub runProto($$) {
+sub runProto($$){
+    return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
+}
+sub runProtoIPC($$) {
+    my ($esc, $dieOnError) = @_;
+    sub {
+        my @cmd = &$esc(@_);
+        print "@cmd\n" if $opts->{putCommand};
+        return     unless $opts->{runCommand};
+
+        my $pty = new IO::Pty();
+        my $slave = $pty->slave;
+        $pty->blocking(0);
+        $slave->blocking(0);
+        my $h = IPC::Run::harness(["sh", "-c", "@cmd"], $slave, $pty);
+        if($dieOnError){
+            $h->start;
+        }else{
+            $h = eval {$h->start};
+            return if not defined $h;
+        }
+        my $progFile = "/tmp/progress-bar-" . time . ".txt";
+
+        my $out;
+        while($h->pumpable){
+            eval { $h->pump_nb }; #eval because pumpable doesnt really work
+            $out = <$pty>;
+            if(defined $out and $opts->{verbose}){
+                $out = "# $out" if $opts->{putCommand};
+                chomp $out;
+                system "echo $1 > $progFile" if $out =~ /(100|\d\d|\d)%/;
+                print "$out\n";
+            }
+            print $out if defined $out;
+            <$slave>;
+        }
+        IPC::Run::finish $h;
+        system "rm", "-f", $progFile;
+        die deathWithDishonor if $dieOnError and $h->result != 0;
+    }
+}
+sub runProtoNoIPC($$) {
     my ($esc, $dieOnError) = @_;
     sub {
         my $cmd = join ' ', &$esc(@_);
@@ -61,19 +150,84 @@ sub runProto($$) {
         }
     }
 }
+
+sub id(@){@_}
+
 sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
 sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
-sub shell   (@) { &{runProto sub{@_}      , 1}(@_) }
-sub tryshell(@) { &{runProto sub{@_}      , 0}(@_) }
+sub shell   (@) { &{runProto \&id         , 1}(@_) }
+sub tryshell(@) { &{runProto \&id         , 0}(@_) }
+sub runUser (@) {
+  if(isRoot()){
+      run("su", getUsername(), "-c", "@_")
+  }else{
+      run(@_);
+  }
+}
+
+sub proc(@) {
+    my $out = `@_`;
+    chomp $out;
+    return $out;
+}
+sub procLines(@) {
+    my @lines = `@_`;
+    chomp foreach @lines;
+    return @lines;
+}
+
+sub getUsername() {
+    my $user = $ENV{SUDO_USER} || $ENV{USER};
+    if(not $user or $user eq "root") {
+        print STDERR "ERROR: USER or SUDO_USER must be set and not root";
+        exit 1;
+    }
+    $user
+}
+
+sub getInstallPath($) {
+    return "$ENV{HOME}/install/$_[0]";
+}
+
+sub which($) {
+    return proc "which", @_;
+}
 
 sub cd($) {
-    my $path = join ' ', shell_quote @_;
+    my $path = shift;
     my $cmd = "cd $path";
 
     print "$cmd\n" if $opts->{putCommand};
     return     unless $opts->{runCommand};
 
     chdir $path or deathWithDishonor;
+}
+
+sub chownUser($) {
+    my $path = shift;
+    my $user = getUsername;
+    my $cmd = "chown -R $user. $path";
+
+    print "$cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
+
+    run "sudo", "chown", "-R", "$user.", $path;
+}
+
+sub symlinkFile($$) {
+    my ($file, $target) = @_;
+    if(-l $file){
+        my $link = readlink $file;
+        run "sudo", "rm", $file;
+        if($link ne $target){
+            print "  $file: $link => $target\n";
+        }
+    }elsif(-d $file){
+        run "sudo", "rmdir", $file;
+        print "  $file => $target\n";
+    }
+    die "Could not symlink $file => $target\n" if -e $file;
+    run "sudo", "ln", "-s", $target, $file;
 }
 
 sub writeFileProto($) {
@@ -136,6 +290,26 @@ sub readFileProto($) {
 }
 sub readFile    ($) { &{readFileProto 1}(@_) }
 sub tryReadFile ($) { &{readFileProto 0}(@_) }
+
+sub replaceLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    }
+    $&
+}
+
+sub replaceOrAddLine($$$) {
+    my (undef, $old, $new) = @_;
+    if($_[0] =~ /^#? ?$old/m) {
+        $_[0] =~ s/^#? ?$old.*/$new/m;
+    } else  {
+        chomp $_[0];
+        $_[0] .= "\n";
+        $_[0] =~ s/\n+$/$&$new\n/;
+    }
+    $&
+}
 
 sub editFile($$;$) {
     my ($name, $patchname, $edit);
@@ -226,32 +400,26 @@ sub editFile($$;$) {
     }
 }
 
-sub replaceLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
-    }
-    $&
+sub editFileConf($$$) {
+    my ($name, $patchname, $config) = @_;
+    editFile $name, $patchname, sub {
+        my $cnts = shift;
+        for my $key(keys %$config){
+          replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
+        }
+        $cnts
+    };
 }
 
-sub replaceOrAddLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
-    } else  {
-        chomp $_[0];
-        $_[0] .= "\n";
-        $_[0] =~ s/\n+$/$&$new\n/;
-    }
-    $&
+sub isRoot(){
+    return `whoami` eq "root\n";
 }
-
 
 sub getRoot(@) {
-    if(`whoami` ne "root\n") {
+    if(not isRoot()) {
         print "## rerunning as root\n";
 
-        my $cmd = 'if [ `whoami` != "root" ]; then exec sudo $0 ; fi';
+        my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
@@ -261,13 +429,24 @@ sub getRoot(@) {
     }
 }
 
-sub getUsername() {
-    my $user = $ENV{SUDO_USER} || $ENV{USER};
-    if(not $user or $user eq "root") {
-        print STDERR "ERROR: USER or SUDO_USER must be set and not root";
+sub getRootSu(@) {
+    if(not isRoot()) {
+        print "## rerunning as root\n";
+
+        my $user = getUsername();
+        my $cmd = ""
+          . "if [ `whoami` != \"root\" ]; "
+          .   "then exec su -c \"SUDO_USER=$user $0 @_\" ; "
+          . "fi"
+          ;
+
+        print "$cmd\n" if $opts->{putCommand};
+        return     unless $opts->{runCommand};
+
+        exec "su", "-c", "SUDO_USER=$user $0 @_"
+          or print "## failed to su, exiting";
         exit 1;
     }
-    $user
 }
 
 sub guessBackupDir() {
@@ -309,27 +488,47 @@ sub readConfDir($) {
     %confs
 }
 
-sub installFromDir($) {
-    my ($dir) = @_;
-    cd $dir;
-    run qw(git pull) if -d ".git";
-
-    my @ls = split "\n", `ls -1`;
-
-    if(grep {/\.cabal$/} @ls) {
-        shell "cabal install";
-    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-        shell "make -j all";
-        shell "sudo make install";
-    } elsif(system("make -n >/dev/null 2>&1") == 0) {
-        shell "make -j";
-        shell "sudo make install";
-    } elsif(grep {/^install/} @ls) {
-        shell "install*";
-    } else {
-        print STDERR "### no install file in $dir , exiting\n";
-        exit 1;
+sub installFromDir($;$$) {
+    my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
+    if(not -d $dir and defined $gitUrl){
+        run "mkdir", "-p", $dir;
+        cd $dir;
+        run "git", "clone", $gitUrl, ".";
+        chownUser $dir;
     }
+    cd $dir;
+    tryrun qw(git pull) if -d ".git";
+
+    if(defined $cmd){
+      shell $cmd;
+    }else{
+      my @ls = split "\n", `ls -1`;
+      if(grep {/\.cabal$/} @ls) {
+          shell "cabal install";
+      } elsif(system("make -n all >/dev/null 2>&1") == 0) {
+          shell "make -j all";
+          shell "sudo make install";
+      } elsif(system("make -n >/dev/null 2>&1") == 0) {
+          shell "make -j";
+          shell "sudo make install";
+      } elsif(grep {/^install/} @ls) {
+          shell "./install*";
+      } else {
+          print STDERR "### no install file in $dir , exiting\n";
+          exit 1;
+      }
+    }
+}
+
+sub installFromGit($;$) {
+  my ($gitUrl, $cmd) = (@_, undef);
+  my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
+  my $srcCacheDir = "$ENV{HOME}/.src-cache";
+  if(not -d $srcCacheDir){
+    run "mkdir", "-p", $srcCacheDir;
+    chownUser $srcCacheDir;
+  }
+  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
 }
 
 sub aptSrcInstall($$) {

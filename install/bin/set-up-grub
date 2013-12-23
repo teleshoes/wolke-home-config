@@ -4,24 +4,29 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-my $backgroud_src = "$ENV{HOME}/Pictures/Backgrounds/ineedcoffee.jpg";
-my $backgroud_dir = "/usr/local/share/images";
+my $background_src = getInstallPath "images/grub.jpg";
+my $background_dir = "/usr/local/share/images";
 
 sub main(@) {
     getRoot @_;
 
-    $backgroud_src =~ /\/([^\/]+)$/;
-    my $backgroud = "$backgroud_dir/$1";
+    $background_src =~ /\/([^\/]+)$/;
+    my $background = "$background_dir/$1";
 
-    shell "mkdir -p $backgroud_dir";
-    shell "cp $backgroud_src $backgroud";
+    shell "mkdir -p $background_dir";
+    shell "cp $background_src $background";
 
-    editFile "/etc/default/grub", getUsername, sub {
-        my $grub = shift;
-        replaceOrAddLine $grub, "GRUB_TIMEOUT", "GRUB_TIMEOUT=4";
-        replaceOrAddLine $grub, "GRUB_GFXMODE", "GRUB_GFXMODE=800x600";
-        replaceOrAddLine $grub, "GRUB_BACKGROUND", "GRUB_BACKGROUND=$backgroud";
-        $grub
+    my $linux = "quiet splash";
+    if(-x "/bin/systemd"){
+        $linux .= " init=/bin/systemd";
+    }
+
+    editFileConf "/etc/default/grub", getUsername, {
+      GRUB_TIMEOUT => 4,
+      GRUB_GFXMODE => "800x600",
+      GRUB_DISABLE_RECOVERY => "false",
+      GRUB_BACKGROUND => $background,
+      GRUB_CMDLINE_LINUX_DEFAULT => "\"$linux\"",
     };
 
     my $grubdfile = "/etc/grub.d/07_" . getUsername;

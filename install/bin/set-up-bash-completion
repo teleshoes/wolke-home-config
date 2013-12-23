@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $dir = '/etc/bash_completion.d';
+
+sub getFctImpls();
+
+sub main(@) {
+  getRoot @_;
+
+  my $files = {
+    'sudo-aliases' => complete("_root_command", qw(suod sudp)),
+    'spawn' => complete("_root_command", qw(s spawn spawnex spawnexsudo)),
+    'mnt' => complete("_mntnames", qw(mnt mnto)),
+    'update-repo' => complete("_repo_lists", qw(update-repo)),
+  };
+
+  for my $file(keys %$files){
+    writeFile "$dir/$file", $$files{$file};
+  }
+}
+
+sub complete($@){
+  my ($fct, @cmds) = @_;
+  my $fctImpls = getFctImpls;
+  my $complete = '';
+  $complete .= "$fct()$$fctImpls{$fct}\n" if defined $$fctImpls{$fct};
+  $complete .= "complete -F $fct @cmds\n";
+  print "  completing $fct => @cmds\n";
+  return $complete;
+}
+
+sub getFctImpls(){
+  return {
+    "_mntnames" => '{
+      local cur names
+      cur="${COMP_WORDS[COMP_CWORD]}"
+      mntexe=$1
+      opts="-m -u -g -n -l --usb --no-usb --card --no-card --other --no-other"
+
+      if [ ${#COMP_WORDS[@]} == 3 ]; then
+        names=`$mntexe -n`
+        COMPREPLY=( $(compgen -W "$names" -- $cur) )
+      elif [ ${#COMP_WORDS[@]} == 2 ]; then
+        COMPREPLY=( $(compgen -W "$opts" -- $cur) )
+      else
+        COMPREPLY=()
+      fi
+    }',
+
+    "_repo_lists" => '{
+      local cur
+      cur="${COMP_WORDS[COMP_CWORD]}"
+
+      COMPREPLY=($(
+        find /etc/apt/sources.list.d/ \
+          -iname "*$cur*.list" \
+          -exec basename {} \; \
+          2> /dev/null \
+        | sort \
+      ))
+      return 0
+    }',
+  };
+}
+
+&main(@ARGV);

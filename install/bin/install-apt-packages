@@ -7,31 +7,46 @@ use ScriptScript;
 sub addSrcs($);
 sub doInstalls($);
 
+my $dir = getInstallPath "apt-packages";
+
+my $packageLists = `ls $dir`;
+my $usage = "Usage:
+  $0 [-u] [FILTER]
+    -u perform apt-get update first
+    FILTER is a regex to match package list from among:\n$packageLists
+";
+
 sub main(@) {
     getRoot @_;
 
-    my $which = shift || "";
+    my $update = 0;
+    $update = shift if @_ > 0 and $_[0] eq '-u';
 
-    editFile "/etc/apt/sources.list", \&addDebSrcs;
-    run qw(apt-get update);
-    doInstalls $which;
-}
+    my $filter = shift || "";
 
-sub addDebSrcs($) {
-    my @lines = split "\n", shift;
-    join "\n", (@lines, grep {my $l = $_; not grep {/$l/} @lines}
-                        map  {my $l = $_; $l =~ s/^deb /deb-src /; $l}
-                        @lines), "", ""
+    die $usage if @_ > 0 or $filter =~ /^(-h|--help)$/;
+
+    run "rsync", "-avP", "--no-owner", "--no-group",
+      getInstallPath("repos/"), "/etc/apt/sources.list.d";
+    run qw(apt-get update) if $update;
+
+    doInstalls $filter;
 }
 
 sub doInstalls($) {
-    my ($which) = @_;
+    my $filter = shift;
 
     my %packages = readConfDir "../apt-packages";
-    for my $group (sort grep {/$which/} keys %packages) {
+    for my $group (sort grep {/$filter/i} keys %packages) {
         print "### installing $group\n";
         my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
-        run qw(apt-get -y install), @pkgs;
+        my $target = undef;
+        if(@pkgs > 0 and $pkgs[0] =~ /^TARGET\s*=\s*([^ \s]+)\s*$/){
+          $target = $1;
+          shift @pkgs
+        }
+        my @targetCmd = defined $target ? ("-t", $target) : ();
+        run "apt-get", "-y", @targetCmd, "install", @pkgs;
     }
 }
 
