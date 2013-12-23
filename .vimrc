@@ -177,6 +177,8 @@ vmap <F12>      "rp
 nnoremap <C-S> :set spell!<CR>
 inoremap <C-S> <ESC>:set spell!<CR>li
 
+nnoremap <C-N> :call ToggleRelativeNumber()<CR>
+
 command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
 
 " Disable readonly in vimdiff
@@ -244,6 +246,14 @@ command -nargs=* RunHeight call RunHeight(<f-args>)
 function RunHeight(height, ...)
   let s:RunHeight = a:height
   call Run(a:000)
+endfunction
+
+function ToggleRelativeNumber()
+  if &relativenumber == 1
+    set number
+  else
+    set relativenumber
+  endif
 endfunction
 
 command -nargs=* BandCampToMusicBrainz call BandCampToMusicBrainz(<f-args>)
