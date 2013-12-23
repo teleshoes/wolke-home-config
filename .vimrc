@@ -100,8 +100,6 @@ command -nargs=1 Exec
 \ execute 'silent ! ' . <q-args>
 \ | execute 'redraw! '
 
-
-
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
