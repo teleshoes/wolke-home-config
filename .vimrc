@@ -174,6 +174,9 @@ imap <F12> <ESC>"rpi
 vmap <F12>      "rp
 """"""
 
+nnoremap <C-S> :set spell!<CR>
+inoremap <C-S> <ESC>:set spell!<CR>li
+
 command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
 
 " Disable readonly in vimdiff
