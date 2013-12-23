@@ -75,6 +75,9 @@ function spawnex { "$@" & disown && exit 0 ; }
 complete -F _root_command spawn spawnex
 function vims { vim `which $1` ; }
 
+# allow <C-S> in vim
+stty stop undef
+
 # autologin
 if [ -z "$DISPLAY" ] && [ $(tty) == "/dev/tty8" ]; then
   exec startx
