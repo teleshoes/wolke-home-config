@@ -4,39 +4,62 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub addSrcs($);
+sub addRepos();
 sub doInstalls($);
 
-my $dir = getInstallPath "apt-packages";
+my $pkgDir = getInstallPath "apt-packages";
+my $reposDir = getInstallPath "repos";
+my $srcListDir = "/etc/apt/sources.list.d";
 
-my $packageLists = `ls $dir`;
+my $packageLists = `ls $pkgDir`;
 my $usage = "Usage:
-  $0 [-u] [FILTER]
-    -u perform apt-get update first
-    FILTER is a regex to match package list from among:\n$packageLists
+  $0 [OPTS] [FILTER]
+    OPTS:
+      -u|--update    perform apt-get update first
+      -r|--repos     instead of installing, just sync the repos
+    FILTER: regex to match package list from among:\n$packageLists
 ";
 
 sub main(@) {
     getRoot @_;
 
     my $update = 0;
-    $update = shift if @_ > 0 and $_[0] eq '-u';
+    my $reposOnly = 0;
+    while(@_ > 0 and $_[0] =~ /^-/){
+      my $arg = shift;
+      if($arg =~ /^(-u|--update)$/){
+          $update = 1;
+      }elsif($arg =~ /^(-r|--repos)$/){
+          $reposOnly = 1;
+      }else{
+          die $usage;
+      }
+    }
 
     my $filter = shift || "";
 
     die $usage if @_ > 0 or $filter =~ /^(-h|--help)$/;
 
-    run "rsync", "-avP", "--no-owner", "--no-group",
-      getInstallPath("repos/"), "/etc/apt/sources.list.d";
+    addRepos();
     run qw(apt-get update) if $update;
+    doInstalls $filter if not $reposOnly;
+}
 
-    doInstalls $filter;
+sub addRepos(){
+    run "rsync", "-avP", "--no-owner", "--no-group", $reposDir, $srcListDir;
+    my %gpgKeys = readConfDir "$reposDir/gpgkeys";
+    for my $repo(keys %gpgKeys){
+        my $gpgKey = ${$gpgKeys{$repo}}[0];
+        print "installing gpg key $repo => $gpgKey\n";
+        run "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
+        shell "gpg -a --export \"$gpgKey\" | sudo apt-key add -";
+    }
 }
 
 sub doInstalls($) {
     my $filter = shift;
 
-    my %packages = readConfDir "../apt-packages";
+    my %packages = readConfDir $pkgDir;
     for my $group (sort grep {/$filter/i} keys %packages) {
         print "### installing $group\n";
         my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
@@ -47,8 +70,8 @@ sub doInstalls($) {
         }
         my @targetCmd = defined $target ? ("-t", $target) : ();
         run "apt-get", "-y", @targetCmd, "install", @pkgs;
+        print "\n\n\n\n\n";
     }
 }
 
-main @ARGV;
-
+&main(@ARGV);

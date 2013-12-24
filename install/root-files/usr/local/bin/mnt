@@ -189,24 +189,38 @@ sub getUnmountedNames($){
   return @names;
 }
 
+sub df(){
+  my $df = {};
+  my @dfLines = `df`;
+  shift @dfLines;
+  for my $dfLine(@dfLines){
+    if($dfLine =~ /^(.*?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+\%)\s+(.*)$/){
+      my ($dev, $blocks, $used, $available, $use, $mountpoint) =
+        ($1, $2, $3, $4, $5, $6);
+      $$df{$dev} = {} if not defined $$df{$dev};
+      $$df{$dev}{$mountpoint} = {
+        blocks => $blocks,
+        available => $available,
+        used => $used,
+        use => $use,
+      };
+    }else{
+      die "Invalid df line: $dfLine\n";
+    }
+  }
+  return $df;
+}
+
 sub isMounted($){
   my $dev = shift;
-  my $mountOut = `mount`;
-  if($mountOut =~ /^$dev on /m){
-    return 1;
-  }else{
-    return 0;
-  }
+  my $df = df();
+  return defined $$df{$dev};
 }
 
 sub isMountedOn($$){
   my ($dev, $mountPoint) = @_;
-  my $mountOut = `mount`;
-  if($mountOut =~ /^$dev on $mountPoint /m){
-    return 1;
-  }else{
-    return 0;
-  }
+  my $df = df();
+  return defined $$df{$dev} && defined $$df{$dev}{$mountPoint};
 }
 
 sub mount($){
@@ -243,7 +257,7 @@ sub unmount($){
   my %p = %{shift()};
   my $mountPoint = "$mountDir/$p{name}";
   if(!isMountedOn $p{dev}, $mountPoint){
-    print STDERR "$p{dev} not mounted\n";
+    print STDERR "$p{dev} not mounted on $mountPoint\n";
     return;
   }
   run "lsof", $mountPoint;

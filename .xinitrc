@@ -4,6 +4,7 @@ sudo wauto &
 sudo mnt --other -m Charybdis
 
 ~/.xconfig
+(sleep 10; xconfig) &
 
 pulseaudio --start &
 sudo bluetooth off &

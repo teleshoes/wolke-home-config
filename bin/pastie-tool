@@ -1,0 +1,85 @@
+#!/usr/bin/python
+import urllib2, urllib, sys, threading
+
+# Pastie Tool
+# Copyright 2013 Elliot Wolk
+# based in part on:
+#    Pastie binary storage script
+#    Copyright (c) 2011 Lan "Lanny" Rogers
+
+def upload_file(file_name) :
+  print 'Data read into memory, begin encoding'
+  f = open(file_name, 'rb')
+  file_data = f.read().encode('Base64')
+  f.close()
+  segments = []
+
+  #50kb
+  while len(file_data) > 50000:
+    segments.append(file_data[:50000])
+    file_data = file_data[50000:]
+
+  if len(file_data) > 0:
+    segments.append(file_data)
+
+  pastie_urls = []
+  count = 0
+  total = len(segments)
+
+  for segment in segments:
+    count += 1
+    url = write_pastie(segment)
+    print 'part ' + str(count) + ' of ' + str(total) + ': ' + url
+    pastie_urls.append(url)
+
+  master_paste = file_name.strip().split('/')[-1] + "\n"
+  for url in pastie_urls:
+    master_paste += url.strip().split('/')[-1] + "\n"
+
+  print "master paste:\n" + master_paste
+  master_url = write_pastie(master_paste)
+  print "success, master pastie index:\n" + master_url.split('/')[-1]
+
+
+def download_file(pastie_index, file_name):
+  lines = read_pastie(pastie_index).strip().split('\n')
+  title = lines[0]
+  print "downloaing '" + title + "' to " + file_name
+  segments = lines[1:]
+
+  file_data = ''
+
+  total = len(segments)
+  count = 0
+  for segment in segments:
+    count += 1
+    print '#Downloading part ' + str(count) + ' of ' + str(total)
+    file_data += read_pastie(segment)
+
+  print 'Done. Begin decoding and write to a file'
+
+  f = open(file_name, 'wb')
+  f.write(file_data.decode('Base64'))
+  f.close()
+
+def read_pastie(pastie_index):
+  return urllib2.urlopen(
+    'http://pastie.org/pastes/' + pastie_index + '/download').read()
+
+def write_pastie(text):
+  params = urllib.urlencode({'paste[parser_id]': 6,
+                     'paste[restricted]': 0,
+                     'paste[body]': text,
+                     'paste[authorization]': 'burger',
+                     'key': '',
+                     'commit': 'Paste'})
+  return urllib2.urlopen('http://pastie.org/pastes', params, 500).geturl()
+
+if __name__ == '__main__' :
+  if len(sys.argv) == 3 and '-u' == sys.argv[1]:
+    upload_file(sys.argv[2])
+  elif len(sys.argv) == 4 and '-d' == sys.argv[1]:
+    download_file(sys.argv[2], sys.argv[3])
+  else:
+    print >> sys.stderr, "Usage: -u FILE | -d INDEX FILE\n"
+    exit(1)

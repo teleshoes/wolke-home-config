@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my %settings = (
+  "download-dir"                => "\"$ENV{HOME}/Desktop/Torrents\"",
+  "rpc-authentication-required" => 'false',
+  "rpc-enabled"                 => 'true',
+  "rpc-whitelist-enabled"       => 'false',
+);
+
+my @files = (
+  "/etc/transmission-daemon/settings.json",
+  "$ENV{HOME}/.config/transmission-daemon/settings.json",
+);
+
+sub main(@){
+  getRoot @_;
+
+  system "apt-get install transmission-daemon";
+  system "apt-get install transmission-gtk";
+
+  for my $file(@files){
+    print "$file\n";
+    open FH, "< $file" or die "Couldnt read $file\n";
+    my @lines = <FH>;
+    for my $line(@lines){
+      for my $key(keys %settings){
+        if($line =~ /^(\s*)"$key"\s*:\s*(.*?)(,?)\s*$/){
+          my $indent = $1;
+          my $oldVal = $2;
+          my $comma = $3;
+          my $val = $settings{$key};
+          if($oldVal ne $val){
+            print "$key:\n  $oldVal => $val$comma\n";
+          }
+          $line = "$indent\"$key\": $val$comma\n";
+        }
+      }
+    }
+    close FH;
+    open FH, "> $file" or die "Couldnt write $file\n";
+    print FH @lines;
+    close FH;
+  }
+
+  system "/etc/init.d/transmission-daemon reload";
+  system "/etc/init.d/transmission-daemon restart";
+}
+
+&main(@ARGV);

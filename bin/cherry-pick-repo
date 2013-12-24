@@ -1,0 +1,34 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage: $0 GIT_DIR COMMIT\n";
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($gitDir, $commit) = @_;
+  die "Could not find .git dir: $gitDir\n" if not -d $gitDir;
+  die "Name the git dir *.git, please\n" if $gitDir !~ /\.git$/;
+  my @fmtPatchCmd = (
+    "git",
+    "--git-dir=$gitDir",
+    "format-patch",
+    "-k",
+    "-1",
+    "--stdout",
+    $commit,
+  );
+
+  open FH, "-|", @fmtPatchCmd or die "Could not run @fmtPatchCmd\n";
+  my @lines = <FH>;
+  close FH;
+  die "Error running @fmtPatchCmd\n" if $? != 0;
+
+  my @amCmd = ("git", "am", "-3", "-k");
+  open FH, "|-", @amCmd or die "Could not run @amCmd";
+  print FH @lines;
+  close FH;
+  die "Error running @amCmd\n" if $? != 0;
+}
+
+&main(@ARGV);
