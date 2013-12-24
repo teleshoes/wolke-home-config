@@ -32,7 +32,6 @@ pathRemove ()  { for x in $@; do
 }
 
 pathAppend          \
-  $HOME/bin         \
   $HOME/.cabal/bin  \
   /usr/local/bin    \
   /usr/bin          \
@@ -48,6 +47,7 @@ export GHC_HP_VERSION="7.6.3"
 pathPrepend  \
   $HOME/.cabal-$GHC_HP_VERSION/bin  \
   $HOME/.ghc-$GHC_HP_VERSION/bin    \
+  $HOME/bin                         \
 ;
 
 export HD='/media/Charybdis/zuserm'
