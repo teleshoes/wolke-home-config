@@ -93,7 +93,7 @@ function update-repo { sudo apt-get update \
                          -o Dir::Etc::sourceparts="-" \
                          -o APT::Get::List-Cleanup="0"
 }
-function git-log(){ git logn $@ ; }
+function git-log(){ git ln $@ ; }
 function git()
 {
   realgit="$(which git)"
