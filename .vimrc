@@ -12,7 +12,7 @@ set mouse=a
 
 set hlsearch
 "This unsets the "last search pattern" register by hitting return
-nnoremap <CR> :noh<CR><CR>
+nnoremap <CR> :noh<CR>
 
 set hidden
 set ofu=syntaxcomplete#Complete
