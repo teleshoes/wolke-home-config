@@ -9,7 +9,10 @@ set shiftwidth=4
 set tabstop=4
 set softtabstop=4
 set mouse=a
+
 set hlsearch
+"This unsets the "last search pattern" register by hitting return
+nnoremap <CR> :noh<CR><CR>
 
 set hidden
 set ofu=syntaxcomplete#Complete
