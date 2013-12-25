@@ -163,9 +163,11 @@ inoremap <C-S> <ESC>:set spell!<CR>li
 
 nnoremap <C-N> :call ToggleRelativeNumber()<CR>
 function ToggleRelativeNumber()
-    if &relativenumber == 1
+    if &relativenumber
+        set norelativenumber
         set number
     else
+        set nonumber
         set relativenumber
     endif
 endfunction
