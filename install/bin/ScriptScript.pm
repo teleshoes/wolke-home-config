@@ -157,24 +157,14 @@ sub runProtoNoIPC($$) {
 
 sub id(@){@_}
 
-sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
-sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
-sub shell   (@) { &{runProto \&id         , 1}(@_) }
-sub tryshell(@) { &{runProto \&id         , 0}(@_) }
-sub runUser (@) {
-  if(isRoot()){
-      run("su", getUsername(), "-c", "@_")
-  }else{
-      run(@_);
-  }
+sub run       (@) { &{runProto \&shell_quote, 1}(@_) }
+sub tryrun    (@) { &{runProto \&shell_quote, 0}(@_) }
+sub shell     (@) { &{runProto \&id         , 1}(@_) }
+sub tryshell  (@) { &{runProto \&id         , 0}(@_) }
+sub runUser   (@) { run(wrapUserCommand(@_)); }
+sub tryrunUser(@) { tryrun(wrapUserCommand(@_)); }
 
-sub runUser(@) {
-    run(wrapUserCommand(@_));
-}
-sub tryrunUser(@) {
-    tryrun(wrapUserCommand(@_));
-}
-sub wrapUserCommand(@){
+sub wrapUserCommand(@) {
     return isRoot() ? ("su", getUsername(), "-c", "@_") : @_;
 }
 
