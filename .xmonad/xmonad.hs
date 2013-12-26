@@ -46,7 +46,7 @@ main = xmonad . ewmh . pagerHints $ defaultConfig
 
 myStartupHook = return ()
 
-myLayoutHook = avoidStruts . smartBorders 
+myLayoutHook = avoidStruts . smartBorders
              $   named "left" (Tall 1 incr ratio)
              ||| named "top"  (Mirror $ Tall 1 incr ratio)
              ||| named "full" Full
@@ -55,13 +55,13 @@ myLayoutHook = avoidStruts . smartBorders
 infixr 0 ~~>
 a ~~> b = tell (a --> b)
 
-myManageHook = execWriter $ do 
+myManageHook = execWriter $ do
     title =? "Close Iceweasel"   ~~> restartFF
     title =? "Close Firefox"     ~~> restartFF
     title =? "npviewer.bin"      ~~> doFull
     title =? "plugin-container"  ~~> doFull
 
-restartFF = do 
+restartFF = do
     w <- ask
     let delay = 1
     liftX $ do
