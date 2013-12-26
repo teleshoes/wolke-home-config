@@ -24,15 +24,15 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
   , activeLayout     = \x -> case x of
       "left"    -> return "[]="
-      "top"     -> return $ fgbg "blue" "red" "TTT"
+      "top"     -> return $ fgbg "#002b36" "red" "TTT"
       "full"    -> do
         cnt <- windowCount
         let numFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
-        let color = if cnt > 1 then fgbg "blue" "red" else id
+        let color = if cnt > 1 then fgbg "#002b36" "red" else id
         return $ color $ "[" ++ numFmt ++ "]"
       otherwise -> return $ fgbg "blue" "red" "???"
-  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "#002b36" "#eee8d8"
-  , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
+  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "#002b36" "#93a1a1"
+  , hiddenWorkspace  = wsStyle cfg Nothing $ bold
   , emptyWorkspace   = wsStyle cfg Nothing $ id
   , visibleWorkspace = wsStyle cfg Nothing $ id
   , urgentWorkspace  = markWs $ bold . fgbg "#002b36" "red" . escapeMarkup
