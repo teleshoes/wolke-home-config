@@ -38,10 +38,10 @@ mouseBinds conf = "Mouse Bindings" @@ do
     "Move Window"   @@ mW button1 # select >=> mouseMoveWindow
     "Raise Window"  @@ mW button2 # void . select
     "Resize Window" @@ mW button3 # select >=> mouseResizeWindow
-  where 
+  where
     select w = focus w >> windows shiftMaster >> return w
 
-keyBinds conf = "Key Bindings" @@ mapM_ ($ conf) 
+keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
     [xmoKeys, shortcuts, musicKeys, windowKeys, layoutKeys, workspaceKeys]
 
 xmoKeys conf = "XMonad" @@ do
@@ -53,7 +53,7 @@ shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc, mCA xK_Del] #! "off g"
     "term auto-cwd"     @@ m_    xK_Think#! "term -acd"
     "term"              @@ mA    xK_F2   #! "term"
-    "ghci"              @@ mA    xK_Think#! "term ghci" 
+    "ghci"              @@ mA    xK_Think#! "term ghci"
     "Screen Shot"       @@ m_    xK_Print#! "scrot-bag"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen On/Off" @@  do mCA   xK_Up   #! "sudo screenpwr on"
@@ -66,10 +66,10 @@ shortcuts conf = "Shortcuts" @@ do
     "Sound"         @@ do
         let [up,down] = map (++ ",100/150/300") ["+","-"]
         up          @@  do m_    xK_VolUp#! "pulse-vol +5 100"
-                           mA    xK_VolUp#! "pulse-vol +5 150"  
+                           mA    xK_VolUp#! "pulse-vol +5 150"
                            mC    xK_VolUp#! "pulse-vol +5 300"
         down        @@  do m_    xK_VolDn#! "pulse-vol -5 100"
-                           mA    xK_VolDn#! "pulse-vol -5 150"  
+                           mA    xK_VolDn#! "pulse-vol -5 150"
                            mC    xK_VolDn#! "pulse-vol -5 300"
         "Mute Sound"    @@ m_    xK_Mute #! "pulse-vol speaker toggle"
         "Mute Mic"      @@ mA    xK_Mute #! "pulse-vol microphone toggle"
@@ -84,7 +84,7 @@ shortcuts conf = "Shortcuts" @@ do
     "Applications"  @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Chrome"        @@ mCA   xK_c    #! "chromium-browser --incognito"
-        "Pidgin"        @@ mCA   xK_p    #! "pidgin" 
+        "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "FBReader"      @@ mCA   xK_b    #! "fbreader"
 
@@ -136,12 +136,12 @@ layoutKeys conf = "Layout" @@ do
     "Restore Default"   @@ mC   (xK ' ') #  do sinkAll
                                                setLayout $ layoutHook conf
     "Toggle Struts"     @@ mA    xK_d    #> ToggleStruts
-    "Left"              @@ mA    xK_a    #> JumpToLayout "left" 
-    "Top"               @@ mA    xK_w    #> JumpToLayout "top" 
-    "Full"              @@ mA    xK_s    #> JumpToLayout "full" 
+    "Left"              @@ mA    xK_a    #> JumpToLayout "left"
+    "Top"               @@ mA    xK_w    #> JumpToLayout "top"
+    "Full"              @@ mA    xK_s    #> JumpToLayout "full"
     "Shrink/Expand" @@  do mA    xK_h    #> Shrink
                            mA    xK_l    #> Expand
-    "+/- Master"    @@  do mA   (xK ',') #> IncMasterN 1   
+    "+/- Master"    @@  do mA   (xK ',') #> IncMasterN 1
                            mA   (xK '.') #> IncMasterN (-1)
 
 workspaceKeys conf = "Workspaces" @@ do
