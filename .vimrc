@@ -22,6 +22,7 @@ set history=9000
 
 syntax on
 colorscheme solarized
+set background=dark
 
 au BufRead,BufNewFile *.hx set filetype=haxe
 au Syntax haxe source ~/.vim/haxe/haxe.vim
