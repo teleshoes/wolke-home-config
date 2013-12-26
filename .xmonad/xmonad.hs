@@ -26,8 +26,8 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 
 main = xmonad . ewmh . pagerHints $ defaultConfig
     { focusFollowsMouse  = False
-    , normalBorderColor  = "#dddddd"
-    , focusedBorderColor = "#ff0000"
+    , normalBorderColor  = "#93a1a1"
+    , focusedBorderColor = "#dc322f"
     , borderWidth        = 2
 
     , startupHook        = myStartupHook
