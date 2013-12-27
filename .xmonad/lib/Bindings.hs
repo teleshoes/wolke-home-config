@@ -83,7 +83,7 @@ shortcuts conf = "Shortcuts" @@ do
                            mCA   xK_Back #! "rotate widdershins"
     "Applications"  @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
-        "Chrome"        @@ mCA   xK_c    #! "chromium-browser --incognito"
+        "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "FBReader"      @@ mCA   xK_b    #! "fbreader"
