@@ -1,5 +1,6 @@
 #!/usr/bin/runghc
-import KS
+import Prelude ()
+import KitchenSink
 
-main = clipboard =<< chompFile =<< inHomeDir . (".clips" </>) =<< getArg
+main = clipboard =<< fmap chomp . readFile =<< inHomeDir . (".clips" </>) =<< head <$> getArgs
 
