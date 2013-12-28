@@ -523,14 +523,14 @@ sub installFromDir($;$$) {
 }
 
 sub installFromGit($;$) {
-  my ($gitUrl, $cmd) = (@_, undef);
-  my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
-  my $srcCacheDir = "$ENV{HOME}/.src-cache";
-  if(not -d $srcCacheDir){
-    run "mkdir", "-p", $srcCacheDir;
-    chownUser $srcCacheDir;
-  }
-  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
+    my ($gitUrl, $cmd) = (@_, undef);
+    my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
+    my $srcCacheDir = "$ENV{HOME}/.src-cache";
+    if(not -d $srcCacheDir){
+      run "mkdir", "-p", $srcCacheDir;
+      chownUser $srcCacheDir;
+    }
+    installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
 }
 
 sub aptSrcInstall($$) {
