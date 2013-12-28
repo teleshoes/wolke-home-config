@@ -4,56 +4,28 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub addRepos();
 sub doInstalls($);
 
 my $pkgDir = getInstallPath "apt-packages";
-my $reposDir = getInstallPath "repos";
-my $srcListDir = "/etc/apt/sources.list.d";
 
 my $packageLists = `ls $pkgDir`;
 my $usage = "Usage:
-  $0 [OPTS] [FILTER]
-    OPTS:
-      -u|--update    perform apt-get update first
-      -r|--repos     instead of installing, just sync the repos
+  $0 [FILTER]
     FILTER: regex to match package list from among:\n$packageLists
 ";
 
 sub main(@) {
     getRoot @_;
 
-    my $update = 0;
-    my $reposOnly = 0;
-    while(@_ > 0 and $_[0] =~ /^-/){
-      my $arg = shift;
-      if($arg =~ /^(-u|--update)$/){
-          $update = 1;
-      }elsif($arg =~ /^(-r|--repos)$/){
-          $reposOnly = 1;
-      }else{
-          die $usage;
-      }
-    }
-
     my $filter = shift || "";
 
-    die $usage if @_ > 0 or $filter =~ /^(-h|--help)$/;
-
-    addRepos();
-    run qw(apt-get update) if $update;
-    doInstalls $filter if not $reposOnly;
-}
-
-sub addRepos(){
-    run "rsync", "-avP", "--no-owner", "--no-group", "$reposDir/", $srcListDir;
-    my %gpgKeys = readConfDir "$reposDir/gpgkeys";
-    for my $repo(keys %gpgKeys){
-        my $gpgKey = ${$gpgKeys{$repo}}[0];
-        print "installing gpg key $repo => $gpgKey\n";
-        run "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
-        shell "gpg -a --export \"$gpgKey\" | sudo apt-key add -";
+    if ($filter =~ /^(-h|--help)$/) {
+        print "$usage\n";
+        exit 0;
     }
+    die $usage if @_ > 0;
+
+    doInstalls $filter;
 }
 
 sub doInstalls($) {
@@ -62,6 +34,7 @@ sub doInstalls($) {
     my %packages = readConfDir $pkgDir;
     for my $group (sort grep {/$filter/i} keys %packages) {
         print "### installing $group\n";
+        print "########################################\n";
         my @pkgs = map {s/\s*//g; $_} @{$packages{$group}};
         my $target = undef;
         if(@pkgs > 0 and $pkgs[0] =~ /^TARGET\s*=\s*([^ \s]+)\s*$/){
@@ -70,7 +43,7 @@ sub doInstalls($) {
         }
         my @targetCmd = defined $target ? ("-t", $target) : ();
         run "apt-get", "-y", @targetCmd, "install", @pkgs;
-        print "\n\n\n\n\n";
+        print "\n";
     }
 }
 

@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+sub addKeys();
+sub doInstalls($);
+
+sub main(@) {
+    getRoot @_;
+
+    run qw(dpkg --add-architecture i386);
+    addKeys()
+    run relToScript("sync-root");
+    run qw(apt-get update);
+}
+
+sub addKeys(){
+    my %gpgKeys = readConfDir relToScript("../gpgkeys");
+    for my $repo(keys %gpgKeys){
+        my $gpgKey = ${$gpgKeys{$repo}}[0];
+        print "### installing gpg key $repo => $gpgKey\n";
+        run "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
+        shell "gpg -a --export \"$gpgKey\" | sudo apt-key add -";
+    }
+}
+
+&main(@ARGV);
