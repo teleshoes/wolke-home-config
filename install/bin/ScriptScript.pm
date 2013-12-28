@@ -335,7 +335,7 @@ sub editFile($$;$) {
     unless(defined $write) {
         my $escname = shell_quote $name;
         my $escpatch = defined $patchname ? " " .shell_quote $patchname : "";
-        print STDERR "## editFile $escname$escpatch: "; 
+        print STDERR "## editFile $escname$escpatch: ";
         print STDERR "edit function failed, exiting\n";
         exit 1;
     }
