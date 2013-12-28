@@ -165,7 +165,7 @@ sub runUser   (@) { run(wrapUserCommand(@_)); }
 sub tryrunUser(@) { tryrun(wrapUserCommand(@_)); }
 
 sub wrapUserCommand(@) {
-    return isRoot() ? ("su", getUsername(), "-c", "@_") : @_;
+    return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
 }
 
 sub proc(@) {
