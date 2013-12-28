@@ -21,7 +21,7 @@ our @EXPORT = qw( run tryrun
                   writeFile tryWriteFile
                   readFile tryReadFile
                   replaceLine replaceOrAddLine
-                  editFile editFileConf
+                  editFile editSimpleConf
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -59,7 +59,7 @@ sub tryReadFile($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$;$);
-sub editFileConf($$$);
+sub editSimpleConf($$$);
 sub getRoot(@);
 sub getRootSu(@);
 sub guessBackupDir();
@@ -393,7 +393,7 @@ sub editFile($$;$) {
     }
 }
 
-sub editFileConf($$$) {
+sub editSimpleConf($$$) {
     my ($name, $patchname, $config) = @_;
     editFile $name, $patchname, sub {
         my $cnts = shift;
