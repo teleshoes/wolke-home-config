@@ -198,7 +198,8 @@ sub which($) {
 
 sub cd($) {
     my $path = shift;
-    my $cmd = "cd $path";
+    my $escpath = shell_quote $path;
+    my $cmd = "cd $escpath";
 
     print "$cmd\n" if $opts->{putCommand};
     return     unless $opts->{runCommand};
