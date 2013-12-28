@@ -427,16 +427,18 @@ sub getRootSu(@) {
         print "## rerunning as root\n";
 
         my $user = getUsername();
+        my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
+        print "$innercmd\n";
         my $cmd = ""
-          . "if [ `whoami` != \"root\" ]; "
-          .   "then exec su -c \"SUDO_USER=$user $0 @_\" ; "
+          . "if [ `whoami` != \"root\" ]; then "
+          .   "exec su -c " . (shell_quote $innercmd) . " ; "
           . "fi"
           ;
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        exec "su", "-c", "SUDO_USER=$user $0 @_"
+        exec "su", "-c", $innercmd
           or print "## failed to su, exiting";
         exit 1;
     }
