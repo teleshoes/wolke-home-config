@@ -207,17 +207,6 @@ sub cd($) {
     chdir $path or deathWithDishonor;
 }
 
-sub chownUser($) {
-    my $path = shift;
-    my $user = getUsername;
-    my $cmd = "chown -R $user. $path";
-
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
-
-    run "sudo", "chown", "-R", "$user.", $path;
-}
-
 sub symlinkFile($$) {
     my ($file, $target) = @_;
     if(-l $file){
@@ -494,10 +483,9 @@ sub readConfDir($) {
 sub installFromDir($;$$) {
     my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
     if(not -d $dir and defined $gitUrl){
-        run "mkdir", "-p", $dir;
+        runUser "mkdir", "-p", $dir;
         cd $dir;
-        run "git", "clone", $gitUrl, ".";
-        chownUser $dir;
+        runUser "git", "clone", $gitUrl, ".";
     }
     cd $dir;
     tryrun qw(git pull) if -d ".git";
@@ -527,10 +515,6 @@ sub installFromGit($;$) {
     my ($gitUrl, $cmd) = (@_, undef);
     my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
     my $srcCacheDir = "$ENV{HOME}/.src-cache";
-    if(not -d $srcCacheDir){
-      run "mkdir", "-p", $srcCacheDir;
-      chownUser $srcCacheDir;
-    }
     installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
 }
 
