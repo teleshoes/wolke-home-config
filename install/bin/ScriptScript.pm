@@ -71,10 +71,11 @@ sub aptSrcInstall($$);
 
 
 my $opts = {
-  putCommand  => 1,
-  runCommand  => 1,
-  verbose     => 1,
-  progressBar => 1,
+  putCommand     => 1,
+  runCommand     => 1,
+  verbose        => 1,
+  progressBar    => 1,
+  prependComment => 1,
   };
 
 sub setOpts($) {
@@ -111,18 +112,18 @@ sub runProtoIPC($$) {
         }
         my $progFile = "/tmp/progress-bar-" . time . ".txt";
 
-        my $out;
         while($h->pumpable){
             eval { $h->pump_nb }; #eval because pumpable doesnt really work
-            $out = <$pty>;
-            if(defined $out){
+            my $out = <$pty>;
+            if(defined $out and $out ne ""){
                 if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
                     open my $fh, "> $progFile";
                     print $fh "$1\n";
                     close $fh;
                 }
-                $out = "# $out" if $opts->{putCommand};
-                print $out if defined $opts->{verbose};
+                $out = "# $out" if $opts->{prependComment};
+                chomp $out;
+                print "$out\n" if defined $opts->{verbose};
             }
             <$slave>;
         }
@@ -146,8 +147,8 @@ sub runProtoNoIPC($$) {
         } else {
             if($opts->{verbose}) {
                 while(my $line = <$fh>) {
-                    print "# " if $opts->{putCommand};
                     chomp $line;
+                    $line = "# $line" if $opts->{prependComment};
                     print "$line\n";
                 }
             }
