@@ -71,9 +71,10 @@ sub aptSrcInstall($$);
 
 
 my $opts = {
-  putCommand => 1,
-  runCommand => 1,
-  verbose    => 1,
+  putCommand  => 1,
+  runCommand  => 1,
+  verbose     => 1,
+  progressBar => 1,
   };
 
 sub setOpts($) {
@@ -114,13 +115,13 @@ sub runProtoIPC($$) {
         while($h->pumpable){
             eval { $h->pump_nb }; #eval because pumpable doesnt really work
             $out = <$pty>;
-            if(defined $out and $opts->{verbose}){
+            if(defined $out and $opts->{progressBar}){
                 $out = "# $out" if $opts->{putCommand};
                 chomp $out;
                 system "echo $1 > $progFile" if $out =~ /(100|\d\d|\d)%/;
                 print "$out\n";
             }
-            print $out if defined $out;
+            print $out if defined $out and $opts->{verbose};
             <$slave>;
         }
         IPC::Run::finish $h;
