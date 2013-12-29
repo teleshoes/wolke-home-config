@@ -102,7 +102,7 @@ sub runProtoIPC($$) {
         my $slave = $pty->slave;
         $pty->blocking(0);
         $slave->blocking(0);
-        my $h = IPC::Run::harness(["sh", "-c", "@cmd"], $slave, $pty);
+        my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
         if($dieOnError){
             $h->start;
         }else{
