@@ -115,13 +115,14 @@ sub runProtoIPC($$) {
         while($h->pumpable){
             eval { $h->pump_nb }; #eval because pumpable doesnt really work
             $out = <$pty>;
-            if(defined $out and $opts->{progressBar}){
-                $out = "# $out" if $opts->{putCommand};
-                chomp $out;
-                system "echo $1 > $progFile" if $out =~ /(100|\d\d|\d)%/;
-                print "$out\n";
+            if(defined $out){
+                if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
+                    open my $fh, "> $progFile";
+                    print $fh "$1\n";
+                    close $fh;
+                }
+                print $out if defined $opts->{verbose};
             }
-            print $out if defined $out and $opts->{verbose};
             <$slave>;
         }
         IPC::Run::finish $h;
