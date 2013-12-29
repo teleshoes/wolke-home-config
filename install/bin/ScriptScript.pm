@@ -121,6 +121,7 @@ sub runProtoIPC($$) {
                     print $fh "$1\n";
                     close $fh;
                 }
+                $out = "# $out" if $opts->{putCommand};
                 print $out if defined $opts->{verbose};
             }
             <$slave>;
