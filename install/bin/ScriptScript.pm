@@ -11,7 +11,6 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
-                  runUser
                   runUser tryrunUser
                   proc procLines
                   getInstallPath
