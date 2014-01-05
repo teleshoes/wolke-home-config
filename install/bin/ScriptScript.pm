@@ -11,6 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( run tryrun
                   shell tryshell
+                  runUser
                   runUser tryrunUser
                   proc procLines
                   getInstallPath
@@ -20,7 +21,7 @@ our @EXPORT = qw( run tryrun
                   writeFile tryWriteFile
                   readFile tryReadFile
                   replaceLine replaceOrAddLine
-                  editFile editFileConf
+                  editFile editSimpleConf
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -58,7 +59,7 @@ sub tryReadFile($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$;$);
-sub editFileConf($$$);
+sub editSimpleConf($$$);
 sub getRoot(@);
 sub getRootSu(@);
 sub guessBackupDir();
@@ -160,19 +161,15 @@ sub runProtoNoIPC($$) {
 
 sub id(@){@_}
 
-sub run     (@) { &{runProto \&shell_quote, 1}(@_) }
-sub tryrun  (@) { &{runProto \&shell_quote, 0}(@_) }
-sub shell   (@) { &{runProto \&id         , 1}(@_) }
-sub tryshell(@) { &{runProto \&id         , 0}(@_) }
+sub run       (@) { &{runProto \&shell_quote, 1}(@_) }
+sub tryrun    (@) { &{runProto \&shell_quote, 0}(@_) }
+sub shell     (@) { &{runProto \&id         , 1}(@_) }
+sub tryshell  (@) { &{runProto \&id         , 0}(@_) }
+sub runUser   (@) { run(wrapUserCommand(@_)); }
+sub tryrunUser(@) { tryrun(wrapUserCommand(@_)); }
 
-sub runUser(@) {
-    run(wrapUserCommand(@_));
-}
-sub tryrunUser(@) {
-    tryrun(wrapUserCommand(@_));
-}
-sub wrapUserCommand(@){
-    return isRoot() ? ("su", getUsername(), "-c", "@_") : @_;
+sub wrapUserCommand(@) {
+    return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
 }
 
 sub proc(@) {
@@ -205,23 +202,13 @@ sub which($) {
 
 sub cd($) {
     my $path = shift;
-    my $cmd = "cd $path";
+    my $escpath = shell_quote $path;
+    my $cmd = "cd $escpath";
 
     print "$cmd\n" if $opts->{putCommand};
     return     unless $opts->{runCommand};
 
     chdir $path or deathWithDishonor;
-}
-
-sub chownUser($) {
-    my $path = shift;
-    my $user = getUsername;
-    my $cmd = "chown -R $user. $path";
-
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
-
-    run "sudo", "chown", "-R", "$user.", $path;
 }
 
 sub symlinkFile($$) {
@@ -352,7 +339,7 @@ sub editFile($$;$) {
     unless(defined $write) {
         my $escname = shell_quote $name;
         my $escpatch = defined $patchname ? " " .shell_quote $patchname : "";
-        print STDERR "## editFile $escname$escpatch: "; 
+        print STDERR "## editFile $escname$escpatch: ";
         print STDERR "edit function failed, exiting\n";
         exit 1;
     }
@@ -410,7 +397,7 @@ sub editFile($$;$) {
     }
 }
 
-sub editFileConf($$$) {
+sub editSimpleConf($$$) {
     my ($name, $patchname, $config) = @_;
     editFile $name, $patchname, sub {
         my $cnts = shift;
@@ -444,16 +431,18 @@ sub getRootSu(@) {
         print "## rerunning as root\n";
 
         my $user = getUsername();
+        my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
+        print "$innercmd\n";
         my $cmd = ""
-          . "if [ `whoami` != \"root\" ]; "
-          .   "then exec su -c \"SUDO_USER=$user $0 @_\" ; "
+          . "if [ `whoami` != \"root\" ]; then "
+          .   "exec su -c " . (shell_quote $innercmd) . " ; "
           . "fi"
           ;
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        exec "su", "-c", "SUDO_USER=$user $0 @_"
+        exec "su", "-c", $innercmd
           or print "## failed to su, exiting";
         exit 1;
     }
@@ -500,10 +489,9 @@ sub readConfDir($) {
 sub installFromDir($;$$) {
     my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
     if(not -d $dir and defined $gitUrl){
-        run "mkdir", "-p", $dir;
+        runUser "mkdir", "-p", $dir;
         cd $dir;
-        run "git", "clone", $gitUrl, ".";
-        chownUser $dir;
+        runUser "git", "clone", $gitUrl, ".";
     }
     cd $dir;
     tryrun qw(git pull) if -d ".git";
@@ -530,14 +518,10 @@ sub installFromDir($;$$) {
 }
 
 sub installFromGit($;$) {
-  my ($gitUrl, $cmd) = (@_, undef);
-  my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
-  my $srcCacheDir = "$ENV{HOME}/.src-cache";
-  if(not -d $srcCacheDir){
-    run "mkdir", "-p", $srcCacheDir;
-    chownUser $srcCacheDir;
-  }
-  installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
+    my ($gitUrl, $cmd) = (@_, undef);
+    my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
+    my $srcCacheDir = "$ENV{HOME}/.src-cache";
+    installFromDir "$ENV{HOME}/.src-cache/$repo", $gitUrl, $cmd;
 }
 
 sub aptSrcInstall($$) {
