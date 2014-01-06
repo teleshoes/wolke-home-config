@@ -26,34 +26,15 @@ sub main(@){
 
   print "\n\n\n\n\n\n";
 
-  my $installDir = "/tmp/fcron";
-  if(-e $installDir){
-    chdir $installDir;
-    run "git", "checkout", $commit;
-    if($? != 0){
-      run "rm", "-rf", $installDir;
-    }
-  }
-
-  if(not -e $installDir){
-    run "mkdir", $installDir;
-    chdir $installDir;
-    run "git", "clone", $repo, ".";
-    run "git", "checkout", $commit;
-    if($? != 0){
-      die "Couldnt get repo $repo setup\n";
-    }
-  }
-
-  print "\n\n\n\n\n\n";
-
-  run "git", "apply", $patch;
-
-  print "\n\n\n\n\n\n";
-
-  run "autoconf";
-  run "./configure";
-  run "sudo", "make", "install";
+  installFromGit $repo, "
+    git fetch
+    git reset master --hard
+    git checkout $commit
+    git apply $patch
+    autoconf
+    ./configure
+    sudo make install
+  ";
 
   run "sudo", "cp", $fcron_pam, "/etc/pam.d/fcron";
   run "sudo", "cp", $fcrontab_pam, "/etc/pam.d/fcrontab";
