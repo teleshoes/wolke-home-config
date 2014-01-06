@@ -17,14 +17,13 @@ fcrondynW = clickableLeft cmd =<< labelW getMarkup
 getMarkup = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
-  running <- isRunning "fcron"
-  if not running then void $ runCommand "sudo fcron" else return ()
-  fcrondynOut <- readProc ["sudo", "fcrondyn", "-x", "ls"]
+  runCommand "sudo fcron-start"
+  fcrondynOut <- readProc ["sudo", "fcron-ls"]
   return $ parseAndFormat now tz fcrondynOut
 
 cmd = ""
       ++ "term \""
-      ++ "vim $HOME/.fcrontab; fcronreset; echo OK; read STDIN"
+      ++ "vim $HOME/install/root-files/etc/fcrontab; gksudo $HOME/install/bin/sync-root; sudo fcronreset; echo OK; read STDIN"
       ++ "\""
 
 parseAndFormat now tz fcrondynOut = rows now tz (namedJobs okJobs)
