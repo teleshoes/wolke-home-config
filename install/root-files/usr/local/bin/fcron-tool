@@ -1,27 +1,102 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Getopt::Long qw(GetOptionsFromArray);
 
 my $tab = "/etc/fcrontab";
 my $spool = "/usr/local/var/spool/fcron";
+my $defaultScratchTab = "$ENV{HOME}/.fcrontab";
+
+my @cmds = qw(load get put edit);
+
+my $usage = "Usage:
+  $0 -l|--load
+    Reload fcrontab from $tab as-is
+
+  $0 -g|--get [-f|--file FILE]
+    Copy $tab to FILE
+      {FILE defaults to $defaultScratchTab}
+
+  $0 -p|--put [-f|--file FILE]
+    Copy FILE to $tab
+      {FILE defaults to $defaultScratchTab}
+
+  $0 -e|--edit [-f|--file FILE]
+    Edits $tab with 'editor', using FILE as scratch space
+      {FILE defaults to $defaultScratchTab if not specified}
+    same as:
+      $0 --get -f FILE
+      editor FILE
+      $0 --put -f FILE
+      $0 --load
+
+  $0 [-f|--file FILE]
+    same as $0 --edit -f FILE
+
+  $0 -h|--help
+    show this message
+";
 
 sub fcronReset();
 sub run(@);
+sub tryrun(@);
+sub runUser(@);
+sub wrap($);
 
 sub main(@){
-  fcronReset();
+  my %opts;
+  my $result = GetOptionsFromArray(\@_,
+    "load|l"   => \$opts{load},
+    "get|g"    => \$opts{get},
+    "put|p"    => \$opts{put},
+    "edit"     => \$opts{edit},
+    "file|f=s" => \$opts{file},
+    "h|help"   => \$opts{help},
+  );
+  die "@_\n" if @_ > 0;
+  die $usage if defined $opts{help} or not $result;
+
+  my $cmdCount = 0;
+  $cmdCount++ if defined $opts{load};
+  $cmdCount++ if defined $opts{get};
+  $cmdCount++ if defined $opts{put};
+  $cmdCount++ if defined $opts{edit};
+
+  die $usage if $cmdCount > 1;
+
+  my $file = $opts{file};
+  $file = $defaultScratchTab if not defined $file;
+
+  if(defined $opts{load}){
+    die $usage if defined $opts{file};
+    fcronLoad();
+  }elsif(defined $opts{get}){
+    runUser "cp", $tab, $file;
+  }elsif(defined $opts{put}){
+    die "Missing $file\n" if not -f $file;
+    run "sudo", "cp", $file, $tab;
+  }elsif(defined $opts{edit} or $cmdCount == 0){
+    run $0, "--get", "-f", $file;
+    print "\n";
+    runUser "editor", $file;
+    print "\n";
+    run $0, "--put", "-f", $file;
+    print "\n";
+    run $0, "--load";
+  }
 }
 
-sub fcronReset(){
+sub fcronLoad(){
   print "killing fcron and removing spooled tabs\n";
-  run "sudo", "pkill", "-9", "fcron";
-  run "sudo rm -r $spool/*";
+  tryrun "sudo", "pkill", "-9", "-x", "fcron";
+  tryrun "sudo rm -r $spool/*";
 
   print "restarting fcron";
   run "sudo", "fcron-start";
 
   print "removing fcrontab\n";
   run "sudo", "fcrontab", "-r";
+
   print "loading fcrontab $tab\n";
   run "sudo", "fcrontab", $tab;
 }
@@ -29,6 +104,31 @@ sub fcronReset(){
 sub run(@){
   print "@_\n";
   system @_;
+  die "Error running @_\n" if $? != 0;
+}
+sub tryrun(@){
+  print "@_\n";
+  system @_;
+}
+
+sub runUser(@){
+  if(`whoami` eq "root\n"){
+    if(defined $ENV{SUDO_USER}){
+      my @args = map {wrap $_} @_;
+      print "run as root, rerunning as $ENV{SUDO_USER}\n";
+      run "su", $ENV{SUDO_USER}, "sh", "-c", "@args";
+    }else{
+      die "Error: should not run '@_' as root\n";
+    }
+  }else{
+    run @_;
+  }
+}
+
+sub wrap($){
+  my $s = shift;
+  $s =~ s/"/\\"/g;
+  return $s;
 }
 
 &main(@ARGV);
