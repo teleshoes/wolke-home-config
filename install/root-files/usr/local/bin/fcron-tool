@@ -5,19 +5,23 @@ use warnings;
 my $tab = "/etc/fcrontab";
 my $spool = "/usr/local/var/spool/fcron";
 
-if(`whoami` ne "root\n"){
-  print "rerunning as root\n";
-  exec "sudo", $0, @ARGV;
+sub main(@){
+  if(`whoami` ne "root\n"){
+    print "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+
+  print "killing fcron and removing spooled tabs\n";
+  system "killall", "-9", "fcron";
+  system "rm $spool/*";
+
+  print "restarting fcron";
+  system "fcron-start";
+
+  print "removing fcrontab\n";
+  system "fcrontab", "-r";
+  print "loading fcrontab $tab\n";
+  system "fcrontab", $tab;
 }
 
-print "killing fcron and removing spooled tabs\n";
-system "killall", "-9", "fcron";
-system "rm $spool/*";
-
-print "restarting fcron";
-system "fcron-start";
-
-print "removing fcrontab\n";
-system "fcrontab", "-r";
-print "loading fcrontab $tab\n";
-system "fcrontab", $tab;
+&main(@ARGV);
