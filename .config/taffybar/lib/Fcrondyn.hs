@@ -21,10 +21,7 @@ getMarkup = do
   fcrondynOut <- readProc ["sudo", "fcron-ls"]
   return $ parseAndFormat now tz fcrondynOut
 
-cmd = ""
-      ++ "term \""
-      ++ "vim $HOME/install/root-files/etc/fcrontab; gksudo $HOME/install/bin/sync-root; sudo fcronreset; echo OK; read STDIN"
-      ++ "\""
+cmd = "term \"fcron-tool --edit; echo; echo ENDED; read STDIN\""
 
 parseAndFormat now tz fcrondynOut = rows now tz (namedJobs okJobs)
   where okJobs = catMaybes $ map (regexGroups regex) $ lines fcrondynOut
