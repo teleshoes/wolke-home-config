@@ -37,7 +37,8 @@ hi Normal ctermfg=green ctermbg=none
 hi LineNr ctermfg=blue ctermbg=darkgray
 
 hi TrailingWhitespace ctermbg=red guibg=red
-match TrailingWhitespace /\s\+$/
+autocmd CursorMoved  * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
+autocmd CursorMovedI * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
 
 set mouse=a
 
