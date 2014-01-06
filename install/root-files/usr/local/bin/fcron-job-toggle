@@ -14,6 +14,9 @@ sub readFcronLines();
 sub writeFcronLines($);
 sub modifyLine($$);
 sub ensureRoot();
+sub run(@);
+sub runUser(@);
+sub wrap($);
 
 my $exampleDefaultJob = getDefaultJobLine $defJob, 10, 0;
 chomp $exampleDefaultJob;
@@ -28,6 +31,8 @@ my $usage = "Usage:
      HH:MM is hours 00-23 and minutes 00-59
      MIN is an integer for minutes in the future
      job changes are taken into account immediately and fcron is reset
+
+     After making any change, run 'fcron-tool --get' as SUDO_USER
 ";
 
 sub main(@){
@@ -59,6 +64,8 @@ sub main(@){
     setJobState $jobName, "del", 1;
     appendDefaultJob $jobName, $1, $2;
   }
+
+  runUser "fcron-tool", "--get";
 }
 
 sub getHHMMInMin($){
@@ -164,6 +171,30 @@ sub ensureRoot(){
     print "rerunning as root\n";
     exec "sudo", $0, @ARGV;
   }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running @_\n" if $? != 0;
+}
+sub runUser(@){
+  if(`whoami` eq "root\n"){
+    if(defined $ENV{SUDO_USER}){
+      my @args = map {wrap $_} @_;
+      print "run as root, rerunning as $ENV{SUDO_USER}\n";
+      run "su", $ENV{SUDO_USER}, "sh", "-c", "@args";
+    }else{
+      die "Error: should not run '@_' as root\n";
+    }
+  }else{
+    run @_;
+  }
+}
+sub wrap($){
+  my $s = shift;
+  $s =~ s/"/\\"/g;
+  return $s;
 }
 
 &main(@ARGV);
