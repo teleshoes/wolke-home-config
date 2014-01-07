@@ -107,8 +107,8 @@ shortcuts conf = "Shortcuts" @@ do
         "off"           @@ mW    xK_F8   #! "sudo fan 0"
 
     "alarms"        @@ do
-        "coffee!"       @@ mW    xK_c    #! "fcronjob co toggle"
-        "tea!"          @@ mW    xK_t    #! "fcronjob te toggle"
+        "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co"
+        "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te"
 
     "Rotate Deasil/Widdershins" @@ do
                            mCA   xK_Fwd  #! "rotate deasil"
