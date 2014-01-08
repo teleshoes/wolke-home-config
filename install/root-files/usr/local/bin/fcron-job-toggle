@@ -5,9 +5,9 @@ use warnings;
 my $tab = "/etc/fcrontab";
 my $defJob = 'XX';
 
-sub getHHMMInMin($);
-sub getDefaultJobLine($$$);
-sub appendDefaultJob($$$);
+sub getDefaultJobLine($$);
+sub parseJobTime($);
+sub appendJobLine($);
 sub listNamedJobs();
 sub setJobState($$$);
 sub readFcronLines();
@@ -18,24 +18,82 @@ sub run(@);
 sub runUser(@);
 sub wrap($);
 
+my @commands = qw(on off toggle del);
+my $okCmds = join "|", @commands;
+
+my $jobRe = "^[a-zA-Z][a-zA-Z0-9]\$";
+
+my $h12Re = "(?:0?[0-9]|1[0-2])";
+my $h24Re = "(?:0?[0-9]|1[0-9]|2[0-4])";
+my $minRe = "(?:[0-5][0-9])";
+my $amRe = "(?:[aApP][mM])";
+my $absTimeRe = "^(?:$h24Re:$minRe|$h12Re:$minRe$amRe|$h12Re$amRe)\$";
+
+my $valUnitRe = "(?:[0-9]+[mwdhs])";
+my $relTimeRe = "^(?:[0-9]+|$valUnitRe+|$valUnitRe+[0-9]+)\$";
+
 my $usage = "Usage:
-  $0
-    list all named jobs
-  $0 JOBNAME [on|off|toggle|del]
-    uncomment, comment, toggle, or remove JOBNAME. default is toggle.
-  $0 [JOBNAME] HH:MM|MIN
-    add a new job {JOBNAME defaults to '$defJob'}
-             e.g.: '$0 10:00' => '" . getDefaultJobLine($defJob, 10, 0) . "'
+  Update $tab programmatically and safely, and reload fcrontab.
+  Re-runs with sudo if not run as root.
+  After any job changes, 'fcron-tool --load' is called.
+  If SUDO_USER is set, also runs 'fcron-tool --get' as SUDO_USER.
+
   $0 -h|--help
     print this message
 
-  JOBNAME:  exactly two alphanumeric characters
-  HH:MM:    hours 00-23 and minutes 00-59
-  MIN:      integer for minutes in the future {e.g.: 120=>two hours from now}
+  $0
+    list all named jobs
 
-  Updates $tab and reloads fcrontab. Re-runs with sudo if not run as root.
-  After any job changes, 'fcron-tool --load' is called.
-  If SUDO_USER is set, also runs 'fcron-tool --get' as SUDO_USER.
+  $0 JOBNAME [CMD]
+    modify or remove existing JOBNAME line
+      e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
+            '$0 UP'     => toggle job 'UP'
+            '$0 x2 del' => completely remove job 'x2'
+
+    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
+    CMD       $okCmds {default is 'toggle'}
+              on:     ensure uncommented
+              off:    ensure commented
+              toggle: toggle comment
+              del:    completed remove JOBNAME line, even if commented
+
+  $0 [JOBNAME] HH24:MM|HH12:MMa|HH12a
+    add a new job to go off once at a certain time of day
+      e.g.: '$0 14:45'   => '" . getDefaultJobLine($defJob, '14:45') . "'
+            '$0 5pm'     => '" . getDefaultJobLine($defJob, '5pm') . "'
+            '$0 12:30am' => '" . getDefaultJobLine($defJob, '12:30am') . "'
+
+    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
+    HH24:MM   wallclock time in hours 00-23 and minutes 00-59
+    HH12:MMa  wallclock time in hours 1-12 and minutes 00-59 and AM or PM
+    HH12a     wallclock time in hours 1-12 and AM or PM
+
+  $0 [JOBNAME] RELTIME
+    add a new job to go off after a specified delay
+    {JOBNAME defaults to '$defJob'}
+      e.g.: '$0 30s'   => '" . getDefaultJobLine($defJob, '30s') . "'
+            '$0 5'     => '" . getDefaultJobLine($defJob, '5') . "'
+            '$0 3w5d'  => '" . getDefaultJobLine($defJob, '3w5d') . "'
+
+    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
+    RELTIME   elapsed system time
+              '<MINUTES>' or '<VAL-UNIT>+' or '<VAL-UNIT>+<MINUTES>'
+
+              MINUTES is an integer for elapsed minutes
+              VAL-UNIT is an integer followed by a unit:
+                m:    months  (4 weeks)
+                w:    weeks   (7 days)
+                d:    days    (24 hours)
+                h:    hours   (60 minutes)
+                s:    seconds
+
+              at least one VAL-UNIT, or MINUTES, or both must be specified
+              MINUTES, if specified, must be last, and at most once
+
+            e.g.:
+              5           => 5 minutes
+              10s         => 10 seconds
+              2h5s2h40s10 => 4hr, 10min and 45s
 ";
 
 sub main(@){
@@ -46,54 +104,61 @@ sub main(@){
     listNamedJobs;
     exit 0;
   }
-  my $jobName;
-  if(@_ == 1 and $_[0] =~ /^(\d\d:\d\d|\d+)$/){
-    $jobName = $defJob;
+
+  die $usage if @_ > 2;
+
+  if($_[0] =~ /$jobRe/ and (@_ < 2 or $_[1] =~ /^($okCmds)/)){
+    my $jobName = $_[0];
+    my $cmd = @_ < 2 ? 'toggle' : $_[1];
+    setJobState $jobName, $cmd, 0;
+  }elsif($_[-1] =~ /$absTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
+    my $jobName = @_ < 2 ? $defJob : $_[0];
+    my $absTime = $_[-1];
+    setJobState $jobName, 'del', 1;
+    appendJobLine getDefaultJobLine($jobName, $absTime);
+  }elsif($_[-1] =~ /$relTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
+    my $jobName = @_ < 2 ? $defJob : $_[0];
+    my $relTime = $_[-1];
+    setJobState $jobName, 'del', 1;
+    appendJobLine getDefaultJobLine($jobName, $relTime);
   }else{
-    $jobName = shift;
+    die $usage;
   }
 
-  my $arg = shift;
-  $arg = 'toggle' if not defined $arg;
-
-  die $usage if @_ > 0;
-  die $usage if $jobName !~ /^[0-9A-Za-z]{2}$/;
-  die $usage if $arg !~ /^(on|off|toggle|del|\d\d:\d\d|\d+)$/;
-
-  $arg = getHHMMInMin($arg) if $arg =~ /^\d+$/;
-
-  if($arg =~ /^(on|off|toggle|del)$/){
-    setJobState $jobName, $arg, 0;
-  }elsif($arg =~ /^(\d\d):(\d\d)$/){
-    setJobState $jobName, "del", 1;
-    appendDefaultJob $jobName, $1, $2;
-  }
   system "fcron-tool", "--load";
   runUser "fcron-tool", "--get";
 }
 
-sub getHHMMInMin($){
-  my $min = shift;
-  my $now = `date +%H:%M`;
-  chomp $now;
-  my ($h, $m) = split /:/, $now;
-  $m += $min;
-  $h += $m / 60;
-  $m = $m % 60;
-  $h = $h % 24;
-  $h = "0$h" if $h < 10;
-  $m = "0$m" if $m < 10;
-  return "$h:$m";
-}
-
-sub getDefaultJobLine($$$){
-  my ($jobName, $hour, $min) = @_;
+sub getDefaultJobLine($$){
+  my ($jobName, $time) = @_;
+  my $jobTime = parseJobTime $time;
   my $cmd = "alarm-fcron $jobName del";
-  return "$min $hour * * * $cmd #$jobName";
+  return "$jobTime $cmd #$jobName";
 }
-sub appendDefaultJob($$$){
-  my ($jobName, $hour, $min) = @_;
-  my $line = getDefaultJobLine $jobName, $hour, $min;
+sub parseJobTime($){
+  my $time = shift;
+  if($time =~ /$absTimeRe/){
+    my ($h, $m, $am);
+    if($time =~ /^($h24Re):($minRe)$/){
+      ($h, $m, $am) = ($1, $2, undef);
+    }elsif($time =~ /^($h12Re):($minRe)($amRe)$/){
+      ($h, $m, $am) = ($1, $2, $3);
+    }elsif($time =~ /^($h12Re)($amRe)$/){
+      ($h, $m, $am) = ($1, 0, $2);
+    }
+    if(defined $am){
+      $h %= 12;
+      $h += 12 if lc $am eq "pm";
+    }
+    return "$m $h * * *";
+  }elsif($time =~ /$relTimeRe/){
+    return "@ $time";
+  }else{
+    die "malformed time: $time\n";
+  }
+}
+sub appendJobLine($){
+  my $line = shift;
   chomp $line;
   $line .= "\n";
   print "appending:\n$line";
@@ -144,7 +209,6 @@ sub readFcronLines(){
   close FH;
   return @lines;
 }
-
 sub writeFcronLines($){
   my @lines = @{shift()};
   open FH, "> $tab" or die "Could not write $tab\n";
