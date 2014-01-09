@@ -2,7 +2,7 @@ module Fcrondyn(fcrondynW) where
 import Clickable (clickableLeft)
 import Label (labelW)
 import System.IO
-import System.Process(runCommand, readProcessWithExitCode)
+import System.Process(readProcessWithExitCode, system)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
 import Control.Monad (void)
 
@@ -17,7 +17,7 @@ fcrondynW = clickableLeft cmd =<< labelW getMarkup
 getMarkup = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
-  runCommand "sudo fcron-start"
+  system "sudo fcron-start"
   fcrondynOut <- readProc ["sudo", "fcron-ls"]
   return $ parseAndFormat now tz fcrondynOut
 
