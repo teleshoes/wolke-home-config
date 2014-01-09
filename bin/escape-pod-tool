@@ -11,7 +11,7 @@ sub fetchMP3Url($);
 sub browserLoadArticle($);
 sub readMP3UrlCache();
 sub writeMP3UrlCache($);
-sub downloadMP3File($$$);
+sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
 
@@ -25,7 +25,7 @@ sub cell($);
 sub run(@);
 
 my $cmds = join "|", qw(
-  --csv --url --mp3url --mp3filename --download --tag
+  --csv --url --mp3url --mp3filename --download --download-only --tag
 );
 my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
@@ -48,6 +48,8 @@ my $usage = "Usage:
       Skip an EPNUM if the mp3filename
         or a file named \"###EPNUM TITLE.mp3\"
         is already present in the current dir.
+    --download-only
+      Same as --download, except do not --tag after downloading
     --tag
       Set tags and rename files.
       Gets mp3filename, assume it is in current dir.
@@ -102,7 +104,7 @@ sub main(@){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{articleUrl}\n";
     }
-  }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--tag)/){
+  }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
     my $cache = readMP3UrlCache();
     for my $epNum(sort keys %$eps){
       my $mp3Url = getMP3Url($epNum, $$eps{$epNum}{articleUrl}, $cache);
@@ -113,7 +115,9 @@ sub main(@){
         }elsif($cmd eq '--mp3filename'){
           print "$mp3FileName\n";
         }elsif($cmd eq '--download'){
-          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum});
+          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum}, 1);
+        }elsif($cmd eq '--download-only'){
+          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum}, 0);
         }elsif($cmd eq '--tag'){
           tagMP3File($mp3FileName, $$eps{$epNum});
         }
@@ -191,15 +195,15 @@ sub writeMP3UrlCache($){
   print FH @lines;
   close FH;
 }
-sub downloadMP3File($$$){
-  my ($mp3Url, $mp3FileName, $ep) = @_;
+sub downloadMP3File($$$$){
+  my ($mp3Url, $mp3FileName, $ep, $tagFile) = @_;
   my $newFileName = newMP3FileName $ep;
   if(-e $mp3FileName or -e $newFileName){
     print "  skipping $$ep{number}..\n";
   }else{
     run "axel", $mp3Url;
     die " downloading failed\n" if $? != 0;
-    tagMP3File $mp3FileName, $ep;
+    tagMP3File $mp3FileName, $ep if $tagFile;
   }
 }
 sub tagMP3File($$){
