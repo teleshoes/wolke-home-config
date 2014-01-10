@@ -423,15 +423,9 @@ sub editFile($$;$) {
             writeFile $patchfile, $newpatch;
             run @patchcmd, $patchfile;
         } else {
-            my $delim = "EOF";
-            while($newpatch =~ /^$delim$/m) { $delim .= "F" }
-
             chomp $newpatch;
-            my $cmd = join "\n"
-              , "$escpatchcmd - << \"$delim\""
-              , $newpatch
-              , $delim;
-
+            my $hereDoc = hereDoc $newpatch;
+            my $cmd = "$escpatchcmd - $hereDoc";
             shell $cmd;
         }
     }
