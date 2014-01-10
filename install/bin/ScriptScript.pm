@@ -320,23 +320,24 @@ sub tryReadFile  ($) { &{readFileProto 0, 0}(@_) }
 sub readFileSudo ($) { &{readFileProto 1, 1}(@_) }
 
 sub replaceLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
+    my ($s, $startRegex, $lineReplacement) = @_;
+    chomp $lineReplacement;
+    if($s =~ s/^(# ?)?$startRegex.*/$lineReplacement/m){
+        $_[0] = $s; #update in place
+        return 1;
     }
-    $&
+    return 0;
 }
 
 sub replaceOrAddLine($$$) {
-    my (undef, $old, $new) = @_;
-    if($_[0] =~ /^#? ?$old/m) {
-        $_[0] =~ s/^#? ?$old.*/$new/m;
-    } else  {
-        chomp $_[0];
-        $_[0] .= "\n";
-        $_[0] =~ s/\n+$/$&$new\n/;
+    my ($s, $startRegex, $lineReplacement) = @_;
+    chomp $lineReplacement;
+    if(not replaceLine $s, $startRegex, $lineReplacement){
+      chomp $s;
+      $s .= "\n" unless $s eq "";
+      $s .= "$lineReplacement\n";
     }
-    $&
+    $_[0] = $s;
 }
 
 sub editFile($$;$) {
