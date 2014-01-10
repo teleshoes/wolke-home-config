@@ -17,8 +17,8 @@ our @EXPORT = qw( run tryrun
                   cd chownUser
                   symlinkFile
                   which
-                  writeFile tryWriteFile
-                  readFile tryReadFile
+                  writeFile tryWriteFile writeFileSudo
+                  readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
                   editFile editSimpleConf
                   getRoot getRootSu
@@ -49,12 +49,14 @@ sub which($);
 sub cd($);
 sub chownUser($);
 sub symlinkFile($$);
-sub writeFileProto($);
+sub writeFileProto($$);
 sub writeFile($$);
 sub tryWriteFile($$);
-sub readFileProto($);
+sub writeFileSudo($$);
+sub readFileProto($$);
 sub readFile($);
 sub tryReadFile($);
+sub readFileSudo($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$;$);
@@ -242,8 +244,10 @@ sub hereDoc($){
     . "$delim\n";
 }
 
-sub writeFileProto($) {
-    my ($dieOnError) = @_;
+sub writeFileProto($$) {
+    my ($dieOnError, $sudo) = @_;
+    $sudo = 0 if isRoot();
+
     sub {
         my ($name, $cnts) = @_;
         my $escName = shell_quote $name;
@@ -253,13 +257,24 @@ sub writeFileProto($) {
           my $hereDoc = hereDoc $cnts;
           my $cmd = "( cat $hereDoc )";
 
-          $cmd .= " > $escName";
+          if($sudo){
+              $cmd .= " | sudo tee $escName >/dev/null";
+          }else{
+              $cmd .= " > $escName";
+          }
           print "$cmd\n";
         }
 
         return if not $opts->{runCommand};
 
-        my $opened = open my $fh, ">", $name;
+        my $fh;
+        my $opened;
+        if($sudo){
+          $opened = open $fh, "|-", "sudo tee $escName >/dev/null";
+        }else{
+          $opened = open $fh, ">", $name;
+        }
+
         if($opened) {
             print $fh "$cnts\n";
             close $fh;
@@ -268,17 +283,26 @@ sub writeFileProto($) {
         }
     }
 }
-sub writeFile    ($$) { &{writeFileProto 1}(@_) }
-sub tryWriteFile ($$) { &{writeFileProto 0}(@_) }
+sub writeFile     ($$) { &{writeFileProto 1, 0}(@_) }
+sub tryWriteFile  ($$) { &{writeFileProto 0, 0}(@_) }
+sub writeFileSudo ($$) { &{writeFileProto 1, 1}(@_) }
 
-sub readFileProto($) {
-    my ($dieOnError) = @_;
+sub readFileProto($$) {
+    my ($dieOnError, $sudo) = @_;
+    $sudo = 0 if isRoot();
+
     sub {
         my ($name) = @_;
+        my $escName = shell_quote $name;
 
-        my $escname = shell_quote $name;
+        my $fh;
+        my $opened;
+        if($sudo){
+          $opened = open $fh, "-|", "sudo cat $escName";
+        }else{
+          $opened = open $fh, "<", $name;
+        }
 
-        my $opened = open my $fh, "<", $name;
         if($opened) {
             if(wantarray) {
                 my @cnts = <$fh>;
@@ -295,8 +319,9 @@ sub readFileProto($) {
         }
     }
 }
-sub readFile    ($) { &{readFileProto 1}(@_) }
-sub tryReadFile ($) { &{readFileProto 0}(@_) }
+sub readFile     ($) { &{readFileProto 1, 0}(@_) }
+sub tryReadFile  ($) { &{readFileProto 0, 0}(@_) }
+sub readFileSudo ($) { &{readFileProto 1, 1}(@_) }
 
 sub replaceLine($$$) {
     my (undef, $old, $new) = @_;
