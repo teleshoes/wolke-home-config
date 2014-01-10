@@ -17,15 +17,18 @@ my @files = (
 );
 
 sub main(@){
-  getRoot @_;
+  run "sudo", "apt-get", "install", "transmission-daemon";
+  run "sudo", "apt-get", "install", "transmission-gtk";
 
-  system "apt-get install transmission-daemon";
-  system "apt-get install transmission-gtk";
 
   for my $file(@files){
     print "$file\n";
-    open FH, "< $file" or die "Couldnt read $file\n";
-    my @lines = <FH>;
+
+    my ($readFile, $writeFile) = $file !~ /^$ENV{HOME}/ ?
+      (\&readFileSudo, \&writeFileSudo) : (\&readFile, \&writeFile);
+
+    my @lines = &$readFile($file);
+
     for my $line(@lines){
       for my $key(keys %settings){
         if($line =~ /^(\s*)"$key"\s*:\s*(.*?)(,?)\s*$/){
@@ -40,14 +43,12 @@ sub main(@){
         }
       }
     }
-    close FH;
-    open FH, "> $file" or die "Couldnt write $file\n";
-    print FH @lines;
-    close FH;
+
+    &$writeFile($file, join('', @lines));
   }
 
-  system "/etc/init.d/transmission-daemon reload";
-  system "/etc/init.d/transmission-daemon restart";
+  run "sudo", "/etc/init.d/transmission-daemon", "reload";
+  run "sudo", "/etc/init.d/transmission-daemon", "restart";
 }
 
 &main(@ARGV);
