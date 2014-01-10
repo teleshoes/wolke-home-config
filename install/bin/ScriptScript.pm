@@ -31,6 +31,7 @@ our @EXPORT = qw( run tryrun
 
 sub setOpts($);
 sub deathWithDishonor(;$);
+sub assertDef($@);
 sub runProto($@);
 sub runProtoIPC($@);
 sub runProtoNoIPC($@);
@@ -96,11 +97,22 @@ sub deathWithDishonor(;$) {
     exit 1;
 }
 
+sub assertDef($@){
+  my $h = shift;
+  foreach my $key(@_){
+    deathWithDishonor "missing arg $key" if not defined $$h{$key};
+  }
+  my $size = keys %$h;
+  deathWithDishonor "too many args" if @_ != $size;
+}
+
 sub runProto($@){
     return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
 }
 sub runProtoIPC($@) {
     my $cfg = shift;
+    assertDef $cfg, qw(esc fatal);
+
     my @cmd = &{$$cfg{esc}}(@_);
 
     system "rm -f /tmp/progress-bar-*";
@@ -142,6 +154,8 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
     my $cfg = shift;
+    assertDef $cfg, qw(esc fatal);
+
     my $cmd = join ' ', &{$$cfg{esc}}(@_);
 
     print "$cmd\n" if $opts->{putCommand};
@@ -244,6 +258,8 @@ sub hereDoc($){
 
 sub writeFileProto($@) {
     my $cfg = shift;
+    assertDef $cfg, qw(sudo fatal);
+
     my ($file, $contents) = @_;
 
     $$cfg{sudo} = 0 if isRoot();
@@ -279,12 +295,14 @@ sub writeFileProto($@) {
         deathWithDishonor;
     }
 }
-sub writeFile     ($$) { writeFileProto {fatal => 1, sudo => 0}, @_ }
-sub tryWriteFile  ($$) { writeFileProto {fatal => 0, sudo => 0}, @_ }
-sub writeFileSudo ($$) { writeFileProto {fatal => 1, sudo => 1}, @_ }
+sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
+sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
+sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1}, @_ }
 
 sub readFileProto($@) {
     my $cfg = shift;
+    assertDef $cfg, qw(sudo fatal);
+
     my ($file) = @_;
 
     $$cfg{sudo} = 0 if isRoot();
@@ -311,9 +329,9 @@ sub readFileProto($@) {
         deathWithDishonor "failed to read file $file\n";
     }
 }
-sub readFile     ($) { readFileProto {fatal => 1, sudo => 0}, @_ }
-sub tryReadFile  ($) { readFileProto {fatal => 0, sudo => 0}, @_ }
-sub readFileSudo ($) { readFileProto {fatal => 1, sudo => 1}, @_ }
+sub readFile     ($) { readFileProto {sudo => 0, fatal => 1}, @_ }
+sub tryReadFile  ($) { readFileProto {sudo => 0, fatal => 0}, @_ }
+sub readFileSudo ($) { readFileProto {sudo => 1, fatal => 1}, @_ }
 
 sub replaceLine($$$) {
     my ($s, $startRegex, $lineReplacement) = @_;
