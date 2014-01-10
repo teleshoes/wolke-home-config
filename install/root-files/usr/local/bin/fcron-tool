@@ -23,6 +23,7 @@ my $usage = "Usage:
 
   $0 -e|--edit [-f|--file FILE]
     Edits $tab with 'editor', using FILE as scratch space
+    Exits with an error if FILE is not identical to $tab
       {FILE defaults to $defaultScratchTab if not specified}
     same as:
       $0 --get -f FILE
@@ -37,6 +38,7 @@ my $usage = "Usage:
     show this message
 ";
 
+sub assertFilesEqual($$);
 sub fcronReset();
 sub run(@);
 sub tryrun(@);
@@ -77,12 +79,24 @@ sub main(@){
     run "sudo", "cp", $file, $tab;
     fcronLoad();
   }elsif(defined $opts{edit} or $cmdCount == 0){
+    assertFilesEqual $file, $tab;
     run $0, "--get", "-f", $file;
     print "\n";
     runUser "editor", $file;
     print "\n";
     run $0, "--put", "-f", $file;
   }
+}
+
+sub assertFilesEqual($$){
+  my ($file1, $file2) = @_;
+  die "Missing $file1\n" if not -e $file1;
+  die "Missing $file2\n" if not -e $file2;
+  my $md5sum1 = `md5sum "$file1" | cut -c-32`;
+  my $md5sum2 = `md5sum "$file2" | cut -c-32`;
+  die "Missing md5sum for $file1\n" if $md5sum1 !~ /^[a-f0-9]{32}$/;
+  die "Missing md5sum for $file2\n" if $md5sum2 !~ /^[a-f0-9]{32}$/;
+  die "Mismatched md5sums: $file1 != $file2\n" if $md5sum1 ne $md5sum2;
 }
 
 sub fcronLoad(){
