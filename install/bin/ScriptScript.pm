@@ -231,26 +231,33 @@ sub symlinkFile($$) {
     run "sudo", "ln", "-s", $target, $file;
 }
 
+sub hereDoc($){
+  my $s = shift;
+  my $delim = "EOF";
+  while($s =~ /^$delim$/m){
+      $delim .= "F";
+  }
+  return "<< \"$delim\"\n"
+    . "$s\n"
+    . "$delim\n";
+}
+
 sub writeFileProto($) {
     my ($dieOnError) = @_;
     sub {
         my ($name, $cnts) = @_;
-
-        my $escname = shell_quote $name;
-
-        my $delim = "EOF";
-        while($cnts =~ /^$delim$/m) { $delim .= "F" }
-
+        my $escName = shell_quote $name;
         chomp $cnts;
 
-        my $cmd = join "\n"
-          , "( cat << \"$delim\""
-          , $cnts
-          , $delim
-          , ") > $escname";
+        if($opts->{putCommand}){
+          my $hereDoc = hereDoc $cnts;
+          my $cmd = "( cat $hereDoc )";
 
-        print "$cmd\n" if $opts->{putCommand};
-        return     unless $opts->{runCommand};
+          $cmd .= " > $escName";
+          print "$cmd\n";
+        }
+
+        return if not $opts->{runCommand};
 
         my $opened = open my $fh, ">", $name;
         if($opened) {
