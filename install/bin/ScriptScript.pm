@@ -316,7 +316,7 @@ sub readFileProto($@) {
 
     my $escFile = shell_quote $file;
 
-    my $cmd = $$cfg{sudo} ? ["-|", "sudo cat"] : ["<", $file];
+    my $cmd = $$cfg{sudo} ? ["-|", "sudo cat $escFile"] : ["<", $file];
 
     my @lines = withOpenHandle $cmd, $$cfg{fatal}, sub($){
         my $fh = shift;
