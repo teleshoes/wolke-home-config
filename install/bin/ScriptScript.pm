@@ -13,6 +13,7 @@ our @EXPORT = qw( run tryrun
                   shell tryshell
                   runUser tryrunUser
                   proc procLines
+                  runScript
                   getInstallPath
                   cd chownUser
                   symlinkFile
@@ -45,6 +46,7 @@ sub tryrunUser(@);
 sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
+sub runScript($@);
 sub getUsername();
 sub getInstallPath($);
 sub which($);
@@ -213,6 +215,12 @@ sub procLines(@) {
     my @lines = `@_`;
     chomp foreach @lines;
     return @lines;
+}
+
+sub runScript($@){
+  my $scriptName = shift;
+  my $script = getInstallPath "bin/$scriptName";
+  run "perl", $script, @_;
 }
 
 sub getUsername() {
