@@ -31,6 +31,7 @@ our @EXPORT = qw( run tryrun
 
 sub setOpts($);
 sub deathWithDishonor(;$);
+sub withOpenHandle($$$);
 sub assertDef($@);
 sub runProto($@);
 sub runProtoIPC($@);
@@ -95,6 +96,17 @@ sub deathWithDishonor(;$) {
 
     print STDERR $msg;
     exit 1;
+}
+
+sub withOpenHandle($$$){
+  my ($openCmd, $fatal, $withFHSub) = @_;
+  my ($mode, @openList) = @$openCmd;
+  my $fh;
+  if(open $fh, $mode, @openList){
+    return &$withFHSub($fh);
+  }elsif($fatal){
+    deathWithDishonor "open failed: open @$openCmd";
+  }
 }
 
 sub assertDef($@){
@@ -280,20 +292,14 @@ sub writeFileProto($@) {
 
     return if not $opts->{runCommand};
 
-    my $fh;
-    my $opened;
-    if($$cfg{sudo}){
-      $opened = open $fh, "|-", "sudo tee $escFile >/dev/null";
-    }else{
-      $opened = open $fh, ">", $file;
-    }
+    my $cmd = $$cfg{sudo} ?
+      ["|-", "sudo tee $escFile >/dev/null"] : [">", $file];
 
-    if($opened) {
+    withOpenHandle $cmd, $$cfg{fatal}, sub($){
+        my $fh = shift;
         print $fh $contents;
         close $fh;
-    } elsif($$cfg{fatal}) {
-        deathWithDishonor;
-    }
+    };
 }
 sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
 sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
@@ -309,25 +315,15 @@ sub readFileProto($@) {
 
     my $escFile = shell_quote $file;
 
-    my $fh;
-    my $opened;
-    if($$cfg{sudo}){
-      $opened = open $fh, "-|", "sudo cat $escFile";
-    }else{
-      $opened = open $fh, "<", $file;
-    }
+    my $cmd = $$cfg{sudo} ? ["-|", "sudo cat"] : ["<", $file];
 
-    if($opened) {
+    my @lines = withOpenHandle $cmd, $$cfg{fatal}, sub($){
+        my $fh = shift;
         my @lines = <$fh>;
         close $fh;
-        if(wantarray) {
-            return @lines;
-        } else {
-            return join '', @lines;
-        }
-    } elsif($$cfg{fatal}) {
-        deathWithDishonor "failed to read file $file\n";
-    }
+        return @lines;
+    };
+    return wantarray ? @lines : join '', @lines;
 }
 sub readFile     ($) { readFileProto {sudo => 0, fatal => 1}, @_ }
 sub tryReadFile  ($) { readFileProto {sudo => 0, fatal => 0}, @_ }
