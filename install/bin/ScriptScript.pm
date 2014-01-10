@@ -73,6 +73,7 @@ sub installFromDir($;$$);
 sub installFromGit($;$);
 sub aptSrcInstall($$);
 
+$SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
 
 my $opts = {
   putCommand     => 1,
