@@ -30,7 +30,7 @@ our @EXPORT = qw( run tryrun
                 );
 
 sub setOpts($);
-sub deathWithDishonor();
+sub deathWithDishonor(;$);
 sub runProto($$);
 sub runProtoIPC($$);
 sub runProtoNoIPC($$);
@@ -83,8 +83,14 @@ sub setOpts($) {
     $opts = \%new;
 }
 
-sub deathWithDishonor() {
-    print STDERR "## command failed, exiting\n";
+sub deathWithDishonor(;$) {
+    my $msg = shift;
+    $msg = "command failed" if not defined $msg or $msg eq "";
+    chomp $msg;
+    $msg .= "\n";
+    $msg = "## $msg" if $$opts{prependComment};
+
+    print STDERR $msg;
     exit 1;
 }
 
@@ -129,7 +135,7 @@ sub runProtoIPC($$) {
         }
         IPC::Run::finish $h;
         system "rm", "-f", $progFile;
-        die deathWithDishonor if $dieOnError and $h->result != 0;
+        deathWithDishonor if $dieOnError and $h->result != 0;
     }
 }
 sub runProtoNoIPC($$) {
@@ -143,7 +149,7 @@ sub runProtoNoIPC($$) {
         my $pid = open my $fh, "-|";
         if(not $pid) {
             open(STDERR, ">&STDOUT");
-            exec $cmd or exit 1;
+            exec $cmd or deathWithDishonor;
         } else {
             if($opts->{verbose}) {
                 while(my $line = <$fh>) {
@@ -185,8 +191,7 @@ sub procLines(@) {
 sub getUsername() {
     my $user = $ENV{SUDO_USER} || $ENV{USER};
     if(not $user or $user eq "root") {
-        print STDERR "ERROR: USER or SUDO_USER must be set and not root";
-        exit 1;
+        deathWithDishonor "ERROR: USER or SUDO_USER must be set and not root";
     }
     $user
 }
@@ -222,7 +227,7 @@ sub symlinkFile($$) {
         run "sudo", "rmdir", $file;
         print "  $file => $target\n";
     }
-    die "Could not symlink $file => $target\n" if -e $file;
+    deathWithDishonor "Could not symlink $file => $target\n" if -e $file;
     run "sudo", "ln", "-s", $target, $file;
 }
 
@@ -252,7 +257,7 @@ sub writeFileProto($) {
             print $fh "$cnts\n";
             close $fh;
         } elsif($dieOnError) {
-            deathWithDishonor
+            deathWithDishonor;
         }
     }
 }
@@ -279,8 +284,7 @@ sub readFileProto($) {
                 return $cnts;
             }
         } elsif($dieOnError) {
-            print STDERR "## failed to read file $escname , exiting\n";
-            exit 1;
+            deathWithDishonor "failed to read file $name\n";
         }
     }
 }
@@ -336,11 +340,9 @@ sub editFile($$;$) {
     my $tmp = $read;
     my $write = &$edit($tmp);
     unless(defined $write) {
-        my $escname = shell_quote $name;
-        my $escpatch = defined $patchname ? " " .shell_quote $patchname : "";
-        print STDERR "## editFile $escname$escpatch: ";
-        print STDERR "edit function failed, exiting\n";
-        exit 1;
+        my $msg = shell_quote $name;
+        $msg .= " " . shell_quote $patchname if defined $patchname;
+        deathWithDishonor "ERROR: edit file $msg";
     }
 
     if($write eq $read) {
@@ -401,7 +403,7 @@ sub editSimpleConf($$$) {
     editFile $name, $patchname, sub {
         my $cnts = shift;
         for my $key(keys %$config){
-          replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
+            replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
         }
         $cnts
     };
@@ -420,8 +422,7 @@ sub getRoot(@) {
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        exec "sudo", $0, @_ or print "## failed to sudo, exiting";
-        exit 1;
+        exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
     }
 }
 
@@ -441,9 +442,7 @@ sub getRootSu(@) {
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        exec "su", "-c", $innercmd
-          or print "## failed to su, exiting";
-        exit 1;
+        exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
     }
 }
 
@@ -510,8 +509,7 @@ sub installFromDir($;$$) {
       } elsif(grep {/^install/} @ls) {
           shell "./install*";
       } else {
-          print STDERR "### no install file in $dir , exiting\n";
-          exit 1;
+          deathWithDishonor "### no install file in $dir";
       }
     }
 }
