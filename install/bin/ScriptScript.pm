@@ -89,10 +89,11 @@ my $opts = {
   };
 
 sub getScriptNames(){
-    my @scripts = `ls $ENV{HOME}/install/bin/`;
+    my $bin = getInstallPath "bin";
+    my @scripts = `ls $bin/`;
     chomp foreach @scripts;
     @scripts = grep {/^[a-zA-Z0-9_\-]+$/} @scripts;
-    @scripts = grep { -f "$ENV{HOME}/install/bin/$_" } @scripts;
+    @scripts = grep { -f "$bin/$_" } @scripts;
     return \@scripts;
 }
 sub getSubNames(){
