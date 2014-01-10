@@ -9,7 +9,8 @@ my $IO_PTY = eval{require IO::Pty};
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
-our @EXPORT = qw( run tryrun
+our @EXPORT = qw( getScriptNames getSubNames
+                  run tryrun
                   shell tryshell
                   runUser tryrunUser
                   proc procLines
@@ -30,6 +31,8 @@ our @EXPORT = qw( run tryrun
                   installFromDir installFromGit aptSrcInstall
                 );
 
+sub getScriptNames();
+sub getSubNames();
 sub setOpts($);
 sub deathWithDishonor(;$);
 sub withOpenHandle($$$);
@@ -84,6 +87,19 @@ my $opts = {
   progressBar    => 1,
   prependComment => 1,
   };
+
+sub getScriptNames(){
+    my @scripts = `ls $ENV{HOME}/install/bin/`;
+    chomp foreach @scripts;
+    @scripts = grep {/^[a-zA-Z0-9_\-]+$/} @scripts;
+    @scripts = grep { -f "$ENV{HOME}/install/bin/$_" } @scripts;
+    return \@scripts;
+}
+sub getSubNames(){
+    my @subs = @EXPORT;
+    @subs = grep {/^[a-zA-Z0-9_\-]+$/} @subs;
+    return \@subs;
+}
 
 sub setOpts($) {
     my %new = (%$opts, %{$_[0]});
