@@ -31,9 +31,9 @@ our @EXPORT = qw( run tryrun
 
 sub setOpts($);
 sub deathWithDishonor(;$);
-sub runProto($$);
-sub runProtoIPC($$);
-sub runProtoNoIPC($$);
+sub runProto($@);
+sub runProtoIPC($@);
+sub runProtoNoIPC($@);
 sub run(@);
 sub tryrun(@);
 sub shell(@);
@@ -49,11 +49,11 @@ sub which($);
 sub cd($);
 sub chownUser($);
 sub symlinkFile($$);
-sub writeFileProto($$);
+sub writeFileProto($@);
 sub writeFile($$);
 sub tryWriteFile($$);
 sub writeFileSudo($$);
-sub readFileProto($$);
+sub readFileProto($@);
 sub readFile($);
 sub tryReadFile($);
 sub readFileSudo($);
@@ -96,84 +96,82 @@ sub deathWithDishonor(;$) {
     exit 1;
 }
 
-sub runProto($$){
+sub runProto($@){
     return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
 }
-sub runProtoIPC($$) {
-    my ($esc, $fatal) = @_;
+sub runProtoIPC($@) {
+    my $cfg = shift;
+    my @cmd = &{$$cfg{esc}}(@_);
+
     system "rm -f /tmp/progress-bar-*";
-    sub {
-        my @cmd = &$esc(@_);
-        print "@cmd\n" if $opts->{putCommand};
-        return     unless $opts->{runCommand};
 
-        my $pty = new IO::Pty();
-        my $slave = $pty->slave;
-        $pty->blocking(0);
-        $slave->blocking(0);
-        my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
-        if($fatal){
-            $h->start;
-        }else{
-            $h = eval {$h->start};
-            return if not defined $h;
-        }
-        my $progFile = "/tmp/progress-bar-" . time . ".txt";
+    print "@cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
 
-        while($h->pumpable){
-            eval { $h->pump_nb }; #eval because pumpable doesnt really work
-            my $out = <$pty>;
-            if(defined $out and $out ne ""){
-                if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
-                    open my $fh, "> $progFile";
-                    print $fh "$1\n";
-                    close $fh;
-                }
-                $out = "# $out" if $opts->{prependComment};
-                chomp $out;
-                print "$out\n" if defined $opts->{verbose};
-            }
-            <$slave>;
-        }
-        IPC::Run::finish $h;
-        system "rm", "-f", $progFile;
-        deathWithDishonor if $fatal and $h->result != 0;
+    my $pty = new IO::Pty();
+    my $slave = $pty->slave;
+    $pty->blocking(0);
+    $slave->blocking(0);
+    my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
+    if($$cfg{fatal}){
+        $h->start;
+    }else{
+        $h = eval {$h->start};
+        return if not defined $h;
     }
-}
-sub runProtoNoIPC($$) {
-    my ($esc, $fatal) = @_;
-    sub {
-        my $cmd = join ' ', &$esc(@_);
+    my $progFile = "/tmp/progress-bar-" . time . ".txt";
 
-        print "$cmd\n" if $opts->{putCommand};
-        return     unless $opts->{runCommand};
-
-        my $pid = open my $fh, "-|";
-        if(not $pid) {
-            open(STDERR, ">&STDOUT");
-            exec $cmd or deathWithDishonor;
-        } else {
-            if($opts->{verbose}) {
-                while(my $line = <$fh>) {
-                    chomp $line;
-                    $line = "# $line" if $opts->{prependComment};
-                    print "$line\n";
-                }
+    while($h->pumpable){
+        eval { $h->pump_nb }; #eval because pumpable doesnt really work
+        my $out = <$pty>;
+        if(defined $out and $out ne ""){
+            if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
+                open my $fh, "> $progFile";
+                print $fh "$1\n";
+                close $fh;
             }
-            close $fh;
-            deathWithDishonor if $? != 0 and $fatal;
+            $out = "# $out" if $opts->{prependComment};
+            chomp $out;
+            print "$out\n" if defined $opts->{verbose};
         }
+        <$slave>;
+    }
+    IPC::Run::finish $h;
+    system "rm", "-f", $progFile;
+    deathWithDishonor if $$cfg{fatal} and $h->result != 0;
+}
+sub runProtoNoIPC($@) {
+    my $cfg = shift;
+    my $cmd = join ' ', &{$$cfg{esc}}(@_);
+
+    print "$cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
+
+    my $pid = open my $fh, "-|";
+    if(not $pid) {
+        open(STDERR, ">&STDOUT");
+        exec $cmd or deathWithDishonor;
+    } else {
+        if($opts->{verbose}) {
+            while(my $line = <$fh>) {
+                chomp $line;
+                $line = "# $line" if $opts->{prependComment};
+                print "$line\n";
+            }
+        }
+        close $fh;
+        deathWithDishonor if $? != 0 and $$cfg{fatal};
     }
 }
 
 sub id(@){@_}
 
-sub run       (@) { &{runProto \&shell_quote, 1}(@_) }
-sub tryrun    (@) { &{runProto \&shell_quote, 0}(@_) }
-sub shell     (@) { &{runProto \&id         , 1}(@_) }
-sub tryshell  (@) { &{runProto \&id         , 0}(@_) }
-sub runUser   (@) { run(wrapUserCommand(@_)); }
-sub tryrunUser(@) { tryrun(wrapUserCommand(@_)); }
+sub run       (@) { runProto {esc => \&shell_quote, fatal => 1}, @_ }
+sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0}, @_ }
+sub shell     (@) { runProto {esc => \&id         , fatal => 1}, @_ }
+sub tryshell  (@) { runProto {esc => \&id         , fatal => 0}, @_ }
+sub runUser   (@) { run wrapUserCommand(@_) }
+sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
 sub wrapUserCommand(@) {
     return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
@@ -244,80 +242,78 @@ sub hereDoc($){
     . "$delim\n";
 }
 
-sub writeFileProto($$) {
-    my ($fatal, $sudo) = @_;
-    $sudo = 0 if isRoot();
+sub writeFileProto($@) {
+    my $cfg = shift;
+    my ($file, $contents) = @_;
 
-    sub {
-        my ($file, $contents) = @_;
-        my $escFile = shell_quote $file;
+    $$cfg{sudo} = 0 if isRoot();
 
-        if($opts->{putCommand}){
-          my $hereDoc = hereDoc $contents;
-          my $cmd = "( cat $hereDoc )";
+    my $escFile = shell_quote $file;
 
-          if($sudo){
-              $cmd .= " | sudo tee $escFile >/dev/null";
-          }else{
-              $cmd .= " > $escFile";
-          }
-          print "$cmd\n";
-        }
+    if($opts->{putCommand}){
+      my $hereDoc = hereDoc $contents;
+      my $cmd = "( cat $hereDoc )";
 
-        return if not $opts->{runCommand};
+      if($$cfg{sudo}){
+          $cmd .= " | sudo tee $escFile >/dev/null";
+      }else{
+          $cmd .= " > $escFile";
+      }
+      print "$cmd\n";
+    }
 
-        my $fh;
-        my $opened;
-        if($sudo){
-          $opened = open $fh, "|-", "sudo tee $escFile >/dev/null";
-        }else{
-          $opened = open $fh, ">", $file;
-        }
+    return if not $opts->{runCommand};
 
-        if($opened) {
-            print $fh $contents;
-            close $fh;
-        } elsif($fatal) {
-            deathWithDishonor;
-        }
+    my $fh;
+    my $opened;
+    if($$cfg{sudo}){
+      $opened = open $fh, "|-", "sudo tee $escFile >/dev/null";
+    }else{
+      $opened = open $fh, ">", $file;
+    }
+
+    if($opened) {
+        print $fh $contents;
+        close $fh;
+    } elsif($$cfg{fatal}) {
+        deathWithDishonor;
     }
 }
-sub writeFile     ($$) { &{writeFileProto 1, 0}(@_) }
-sub tryWriteFile  ($$) { &{writeFileProto 0, 0}(@_) }
-sub writeFileSudo ($$) { &{writeFileProto 1, 1}(@_) }
+sub writeFile     ($$) { writeFileProto {fatal => 1, sudo => 0}, @_ }
+sub tryWriteFile  ($$) { writeFileProto {fatal => 0, sudo => 0}, @_ }
+sub writeFileSudo ($$) { writeFileProto {fatal => 1, sudo => 1}, @_ }
 
-sub readFileProto($$) {
-    my ($fatal, $sudo) = @_;
-    $sudo = 0 if isRoot();
+sub readFileProto($@) {
+    my $cfg = shift;
+    my ($file) = @_;
 
-    sub {
-        my ($file) = @_;
-        my $escFile = shell_quote $file;
+    $$cfg{sudo} = 0 if isRoot();
 
-        my $fh;
-        my $opened;
-        if($sudo){
-          $opened = open $fh, "-|", "sudo cat $escFile";
-        }else{
-          $opened = open $fh, "<", $file;
+    my $escFile = shell_quote $file;
+
+    my $fh;
+    my $opened;
+    if($$cfg{sudo}){
+      $opened = open $fh, "-|", "sudo cat $escFile";
+    }else{
+      $opened = open $fh, "<", $file;
+    }
+
+    if($opened) {
+        my @lines = <$fh>;
+        close $fh;
+        if(wantarray) {
+            return @lines;
+        } else {
+            return join '', @lines;
         }
-
-        if($opened) {
-            my @lines = <$fh>;
-            close $fh;
-            if(wantarray) {
-                return @lines;
-            } else {
-                return join '', @lines;
-            }
-        } elsif($fatal) {
-            deathWithDishonor "failed to read file $file\n";
-        }
+    } elsif($$cfg{fatal}) {
+        deathWithDishonor "failed to read file $file\n";
     }
 }
-sub readFile     ($) { &{readFileProto 1, 0}(@_) }
-sub tryReadFile  ($) { &{readFileProto 0, 0}(@_) }
-sub readFileSudo ($) { &{readFileProto 1, 1}(@_) }
+sub readFile     ($) { readFileProto {fatal => 1, sudo => 0}, @_ }
+sub tryReadFile  ($) { readFileProto {fatal => 0, sudo => 0}, @_ }
+sub readFileSudo ($) { readFileProto {fatal => 1, sudo => 1}, @_ }
 
 sub replaceLine($$$) {
     my ($s, $startRegex, $lineReplacement) = @_;
