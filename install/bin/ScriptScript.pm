@@ -249,17 +249,17 @@ sub writeFileProto($$) {
     $sudo = 0 if isRoot();
 
     sub {
-        my ($name, $cnts) = @_;
-        my $escName = shell_quote $name;
+        my ($file, $contents) = @_;
+        my $escFile = shell_quote $file;
 
         if($opts->{putCommand}){
-          my $hereDoc = hereDoc $cnts;
+          my $hereDoc = hereDoc $contents;
           my $cmd = "( cat $hereDoc )";
 
           if($sudo){
-              $cmd .= " | sudo tee $escName >/dev/null";
+              $cmd .= " | sudo tee $escFile >/dev/null";
           }else{
-              $cmd .= " > $escName";
+              $cmd .= " > $escFile";
           }
           print "$cmd\n";
         }
@@ -269,13 +269,13 @@ sub writeFileProto($$) {
         my $fh;
         my $opened;
         if($sudo){
-          $opened = open $fh, "|-", "sudo tee $escName >/dev/null";
+          $opened = open $fh, "|-", "sudo tee $escFile >/dev/null";
         }else{
-          $opened = open $fh, ">", $name;
+          $opened = open $fh, ">", $file;
         }
 
         if($opened) {
-            print $fh $cnts;
+            print $fh $contents;
             close $fh;
         } elsif($dieOnError) {
             deathWithDishonor;
@@ -291,30 +291,27 @@ sub readFileProto($$) {
     $sudo = 0 if isRoot();
 
     sub {
-        my ($name) = @_;
-        my $escName = shell_quote $name;
+        my ($file) = @_;
+        my $escFile = shell_quote $file;
 
         my $fh;
         my $opened;
         if($sudo){
-          $opened = open $fh, "-|", "sudo cat $escName";
+          $opened = open $fh, "-|", "sudo cat $escFile";
         }else{
-          $opened = open $fh, "<", $name;
+          $opened = open $fh, "<", $file;
         }
 
         if($opened) {
+            my @lines = <$fh>;
+            close $fh;
             if(wantarray) {
-                my @cnts = <$fh>;
-                close $fh;
-                return @cnts;
+                return @lines;
             } else {
-                local $/;
-                my $cnts = <$fh>;
-                close $fh;
-                return $cnts;
+                return join '', @lines;
             }
         } elsif($dieOnError) {
-            deathWithDishonor "failed to read file $name\n";
+            deathWithDishonor "failed to read file $file\n";
         }
     }
 }
