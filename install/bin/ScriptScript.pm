@@ -100,7 +100,7 @@ sub runProto($$){
     return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
 }
 sub runProtoIPC($$) {
-    my ($esc, $dieOnError) = @_;
+    my ($esc, $fatal) = @_;
     system "rm -f /tmp/progress-bar-*";
     sub {
         my @cmd = &$esc(@_);
@@ -112,7 +112,7 @@ sub runProtoIPC($$) {
         $pty->blocking(0);
         $slave->blocking(0);
         my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
-        if($dieOnError){
+        if($fatal){
             $h->start;
         }else{
             $h = eval {$h->start};
@@ -137,11 +137,11 @@ sub runProtoIPC($$) {
         }
         IPC::Run::finish $h;
         system "rm", "-f", $progFile;
-        deathWithDishonor if $dieOnError and $h->result != 0;
+        deathWithDishonor if $fatal and $h->result != 0;
     }
 }
 sub runProtoNoIPC($$) {
-    my ($esc, $dieOnError) = @_;
+    my ($esc, $fatal) = @_;
     sub {
         my $cmd = join ' ', &$esc(@_);
 
@@ -161,7 +161,7 @@ sub runProtoNoIPC($$) {
                 }
             }
             close $fh;
-            deathWithDishonor if $? != 0 and $dieOnError;
+            deathWithDishonor if $? != 0 and $fatal;
         }
     }
 }
@@ -245,7 +245,7 @@ sub hereDoc($){
 }
 
 sub writeFileProto($$) {
-    my ($dieOnError, $sudo) = @_;
+    my ($fatal, $sudo) = @_;
     $sudo = 0 if isRoot();
 
     sub {
@@ -277,7 +277,7 @@ sub writeFileProto($$) {
         if($opened) {
             print $fh $contents;
             close $fh;
-        } elsif($dieOnError) {
+        } elsif($fatal) {
             deathWithDishonor;
         }
     }
@@ -287,7 +287,7 @@ sub tryWriteFile  ($$) { &{writeFileProto 0, 0}(@_) }
 sub writeFileSudo ($$) { &{writeFileProto 1, 1}(@_) }
 
 sub readFileProto($$) {
-    my ($dieOnError, $sudo) = @_;
+    my ($fatal, $sudo) = @_;
     $sudo = 0 if isRoot();
 
     sub {
@@ -310,7 +310,7 @@ sub readFileProto($$) {
             } else {
                 return join '', @lines;
             }
-        } elsif($dieOnError) {
+        } elsif($fatal) {
             deathWithDishonor "failed to read file $file\n";
         }
     }
