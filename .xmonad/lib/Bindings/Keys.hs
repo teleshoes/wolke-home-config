@@ -12,6 +12,9 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
 
+-- Additional Keysyms
+xF86XK_AudioMicMute         :: KeySym
+xF86XK_AudioMicMute         = 269025202
 
 -- Modifiers
 mods = "CAWS"
@@ -51,7 +54,7 @@ xK_Fwd   = xF86XK_Forward
 xK_Back  = xF86XK_Back
 xK_Rfrsh = xF86XK_Reload
 xK_Think = xF86XK_Launch1
-xK_Mic   = xF86XK_Launch2
+xK_Mic   = xF86XK_AudioMicMute
 xK_BriUp = xF86XK_MonBrightnessUp
 xK_BriDn = xF86XK_MonBrightnessDown
 xK_Power = xF86XK_PowerOff
