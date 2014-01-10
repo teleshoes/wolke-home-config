@@ -251,7 +251,6 @@ sub writeFileProto($$) {
     sub {
         my ($name, $cnts) = @_;
         my $escName = shell_quote $name;
-        chomp $cnts;
 
         if($opts->{putCommand}){
           my $hereDoc = hereDoc $cnts;
@@ -276,7 +275,7 @@ sub writeFileProto($$) {
         }
 
         if($opened) {
-            print $fh "$cnts\n";
+            print $fh $cnts;
             close $fh;
         } elsif($dieOnError) {
             deathWithDishonor;
