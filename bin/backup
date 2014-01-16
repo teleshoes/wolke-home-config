@@ -1,54 +1,146 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(time);
 
-if(`whoami` ne "root\n"){
-  print STDERR "rerunning as root...\n";
-  exec "sudo", "$0", @ARGV;
-}
+my $mntDir = "/media";
 
-my $mountDir = '/media';
-sub backup($$$);
+my $backups = {
+  "home" => ["/home" => "BACKUP_HOME"],
+  "stuff" => ["/media/stuff" => "BACKUP_STUFF"],
+};
+my $okNames = join "|", sort keys %$backups;
+
+sub mountAndBackup($$);
+sub backup($$);
+sub getSyncedSnapshot($$);
+sub makeSnapshot($);
+sub getLastSnapshot($);
+sub getBtrfsMountDev($);
+
+sub run(@);
+sub ensureRoot();
 
 sub main(@){
-  my $arg = shift() || 'both';
-  my $validArgs = "home|stuff|both";
-  if($arg !~ /^($validArgs)$/){
-    die "Usage: $0 [$validArgs]   {default is 'both'}\n";
+  ensureRoot();
+
+  my $name = shift;
+  if(@_ > 0 or (defined $name and $name !~ /^($okNames)$/)){
+    die "Usage: $0 [$okNames]  {default is to run all of them}\n";
   }
 
-  if($arg =~ /^(home|both)$/){
-    backup("BACKUP_HOME", "/home/", [
-      '.gvfs',
-      ]);
-  }
-
-  if($arg =~ /^(stuff|both)$/){
-    backup("BACKUP_STUFF", "/media/stuff/", [
-      ]);
+  for my $backupName(sort keys $backups){
+    next unless not defined $name or $name eq $backupName;
+    my ($srcDir, $mntName) = @{$$backups{$backupName}};
+    mountAndBackup $srcDir, $mntName;
+    print "\n\n";
   }
 }
 
-sub backup($$$){
-  my ($mntName, $srcDir, $excludeArr) = @_;
+sub mountAndBackup($$){
+  my ($srcDir, $mntName) = @_;
+  my $destDir = "$mntDir/$mntName";
+
   die "dir not found: $srcDir\n" if not -d $srcDir;
-  
-  system "mnt", "-l", $mntName;
-  my $mountPoint = "$mountDir/$mntName";
-  if(system("mountpoint $mountPoint") != 0){
-    die "$mountPoint is not a mount point\n";
+
+  run "mnt", "-u", $mntName if -e $destDir;
+  die "$destDir exists already\n" if -e $destDir;
+
+  run "mnt", "-l", $mntName;
+
+  backup $srcDir, $destDir;
+
+  run "mnt", "-u", $mntName;
+}
+
+sub backup($$){
+  my ($srcDir, $destDir) = @_;
+
+  die "$srcDir is not btrfs\n" if not defined getBtrfsMountDev $srcDir;
+  die "$destDir is not btrfs\n" if not defined getBtrfsMountDev $destDir;
+
+  my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir;
+
+  my $newSnapshot = makeSnapshot $srcDir;
+
+  run "btrfs send"
+    . " -p \"$srcDir/$syncedSnapshot\""
+    . " \"$srcDir/$newSnapshot\""
+    . " | "
+    . " btrfs receive \"$destDir\""
+    ;
+}
+
+sub getSyncedSnapshot($$){
+  my ($srcDir, $destDir) = @_;
+  $srcDir =~ s/\/$//;
+  $destDir =~ s/\/$//;
+  die "not a dir: $srcDir\n" if not -d $srcDir;
+  die "not a dir: $destDir\n" if not -d $destDir;
+
+  my $lastSrc = getLastSnapshot $srcDir;
+  my $lastDest = getLastSnapshot $destDir;
+  if($lastSrc ne $lastDest){
+    die "Mismatched last snapshot:\n$srcDir/$lastSrc\n$destDir/$lastDest\n";
+  }
+  return $lastSrc;
+}
+
+sub makeSnapshot($){
+  my $mountPoint = shift;
+  my $millis = int(time * 1000);
+  my $date = `date +%F`;
+  chomp $date;
+
+  my $snapshot = "BACKUP-${date}_${millis}";
+  my $snapshotDir = "$mountPoint/$snapshot";
+
+  die "$snapshotDir already exists!\n" if -e $snapshotDir;
+  run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
+  run "sync";
+
+  if($snapshot ne getLastSnapshot $mountPoint){
+    die "snapshot failed\n";
   }
 
-  my @excludes = map {"--exclude=$_"} @$excludeArr;
+  return $snapshot;
+}
 
-  my @cmd = ("rsync", "-avP", "--del", @excludes, $srcDir, $mountPoint);
-  print "@cmd\n";
-  sleep 1;
-  system @cmd;
-  die "rsync failed, exiting\n" if $? != 0;
-  sleep 1;
+sub getLastSnapshot($){
+  my $dir = shift;
+  my @subs = `btrfs subvolume list "$dir"`;
+  chomp foreach @subs;
+  @subs = grep {/^ID \d+/} @subs;
+  s/^ID \d+ gen \d+ top level \d+ path // foreach @subs;
+  @subs = grep {/^BACKUP-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
+  @subs = sort @subs;
+  die "no snapshot found for $dir\n" if @subs == 0;
+  my $sub = $subs[-1];
+  die "$dir/$sub is not a dir\n" if not -d "$dir/$sub";
+  return $sub;
+}
 
-  system "mnt", "-u", $mntName;
+sub getBtrfsMountDev($){
+  my $dir = shift;
+  for my $line(`mount`){
+    if($line =~ m/^([_a-zA-Z0-9\/\-]+) on $dir type btrfs /){
+      return $1;
+    }
+  }
+  return undef;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "FAILED: @_\n" if $? != 0;
 }
 
 &main(@ARGV);
