@@ -24,6 +24,9 @@ sub run(@);
 sub ensureRoot();
 
 my $usage = "Usage:
+  $0 -h|--help
+    Print this message
+
   $0 [$okNames]
     Perform backup specified {default is to perform all}
     -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
@@ -36,16 +39,19 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
-  my $name = shift;
-  die $usage if @_ > 0 or (defined $name and $name !~ /^($okNames)$/);
-
-  for my $backupName(sort keys $backups){
-    next unless not defined $name or $name eq $backupName;
-    my ($srcDir, $mntName) = @{$$backups{$backupName}};
-    mountAndBackup $srcDir, $mntName;
-    print "\n\n";
+  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^($okNames)$/)){
+    my $name = shift;
+    for my $backupName(sort keys $backups){
+      next unless not defined $name or $name eq $backupName;
+      my ($srcDir, $mntName) = @{$$backups{$backupName}};
+      mountAndBackup $srcDir, $mntName;
+      print "\n\n";
+    }
+  }else{
+    die $usage;
   }
 }
 
