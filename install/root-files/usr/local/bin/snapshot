@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub run(@);
+sub ensureRoot();
+
+sub main(@){
+  ensureRoot();
+
+  my ($mountPoint, $prefix) = @_;
+  $prefix = "SNAPSHOT" if not defined $prefix;
+
+  die "Usage: $0 MOUNT_POINT [PREFIX]\n" if not defined $mountPoint or @_ > 2;
+  $mountPoint =~ s/\/$//;
+  die "not a dir: $mountPoint\n" if not -d $mountPoint;
+  die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
+
+  my $millis = int(time * 1000);
+  my $date = `date +%F`;
+  chomp $date;
+
+  my $snapshot = "${prefix}-${date}_${millis}";
+  my $snapshotDir = "$mountPoint/$snapshot";
+  die "$snapshotDir already exists!\n" if -e $snapshotDir;
+  run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+&main(@ARGV);
