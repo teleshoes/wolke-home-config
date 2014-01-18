@@ -248,8 +248,16 @@ sub getUsername() {
     $user
 }
 
+sub getHome() {
+    if(not isRoot()) {
+        return $ENV{HOME};
+    }else {
+        return "/home/" . getUsername();
+    }
+}
+
 sub getInstallPath($) {
-    return "$ENV{HOME}/install/$_[0]";
+    return getHome() . "/install/$_[0]";
 }
 
 sub which($) {
