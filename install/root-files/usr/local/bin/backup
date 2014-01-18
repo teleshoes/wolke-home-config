@@ -17,6 +17,7 @@ sub mountAndBackup($$);
 sub backup($$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
+sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub getBtrfsMountDev($);
 
@@ -168,7 +169,7 @@ sub makeSnapshot($$){
   return $snapshot;
 }
 
-sub getLastSnapshot($$){
+sub getSnapshots($$){
   my ($dir, $prefix) = @_;
   my @subs = `btrfs subvolume list "$dir"`;
   chomp foreach @subs;
@@ -183,9 +184,18 @@ sub getLastSnapshot($$){
     }
   }
 
+  for my $sub(@subs){
+    die "$dir/$sub is not a dir\n" if not -d "$dir/$sub";
+  }
+
+  return @subs;
+}
+
+sub getLastSnapshot($$){
+  my ($dir, $prefix) = @_;
+  my @subs = getSnapshots $dir, $prefix;
   die "no snapshot found for $dir\n" if @subs == 0;
   my $sub = $subs[-1];
-  die "$dir/$sub is not a dir\n" if not -d "$dir/$sub";
   return $sub;
 }
 
