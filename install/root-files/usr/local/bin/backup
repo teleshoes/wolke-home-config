@@ -17,7 +17,7 @@ sub mountAndBackup($$);
 sub backup($$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
-sub getLastBackupSnapshot($$);
+sub getLastSnapshot($$);
 sub getBtrfsMountDev($);
 
 sub run(@);
@@ -141,8 +141,8 @@ sub getSyncedSnapshot($$){
   die "not a dir: $srcDir\n" if not -d $srcDir;
   die "not a dir: $destDir\n" if not -d $destDir;
 
-  my $lastSrc = getLastBackupSnapshot $srcDir, "BACKUP";
-  my $lastDest = getLastBackupSnapshot $destDir, "BACKUP";
+  my $lastSrc = getLastSnapshot $srcDir, "BACKUP";
+  my $lastDest = getLastSnapshot $destDir, "BACKUP";
   if($lastSrc ne $lastDest){
     die "Mismatched last snapshot:\n$srcDir/$lastSrc\n$destDir/$lastDest\n";
   }
@@ -161,14 +161,14 @@ sub makeSnapshot($$){
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
   run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
 
-  if($snapshot ne getLastBackupSnapshot $mountPoint, $prefix){
+  if($snapshot ne getLastSnapshot $mountPoint, $prefix){
     die "snapshot failed\n";
   }
 
   return $snapshot;
 }
 
-sub getLastBackupSnapshot($$){
+sub getLastSnapshot($$){
   my ($dir, $prefix) = @_;
   my @subs = `btrfs subvolume list "$dir"`;
   chomp foreach @subs;
