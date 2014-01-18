@@ -1,0 +1,216 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $main = "/media/videos";
+my $mirror = "/media/stuff/Videos";
+my $excludeFile = "$main/exclude";
+
+my @categories = (
+  "Backup",
+  "Clips Shorts Trailers",
+  "Movies",
+  "Series",
+  "Anime",
+  "Concerts",
+);
+my $okCats = join "|", @categories;
+
+my $usage = "Usage: $0 [--sync]\n";
+
+sub formatSizeSummary($$);
+sub getSizes();
+sub readExcludeFile();
+sub checkExcludes($$);
+sub getRsyncExcludes($);
+sub fmtSize($);
+sub run(@);
+sub runQuiet(@);
+sub runPrompt(@);
+
+sub main(@){
+  my $sync = 0;
+  if(@_ == 1 and $_[0] eq "--sync"){
+    $sync = 1;
+    shift;
+  }
+  die $usage if @_ != 0;
+
+  my $excludes = readExcludeFile();
+  my $sizes = getSizes();
+
+  print "=====\n";
+  print "Size summary\n";
+  my $fmtInfo = formatSizeSummary($excludes, $sizes);
+  open FH, "> $main/size-summary" or die "Cannot write to $main/size-summary";
+  print FH $fmtInfo;
+  close FH;
+  print $fmtInfo;
+  run "cp", "$main/size-summary", "$mirror/size-summary";
+  print "=====\n\n";
+
+  print "=====\n";
+  print "Excluded files that are still present:\n";
+  my $unexcluded = checkExcludes $excludes, $sizes;
+  print map {"$_\n"} @$unexcluded;
+  print "=====\n\n";
+
+  my $rsyncExcludes = getRsyncExcludes $excludes;
+
+  my @rsyncInfo = qw(rsync -a --ignore-existing --info=NAME --dry-run);
+
+  print "=====\n";
+  print "New INTERNAL files: (rsync -n, no excludes, $mirror/ => $main/)\n";
+  runQuiet @rsyncInfo, "$mirror/", "$main/";
+  print "=====\n\n";
+
+  print "=====\n";
+  print "New EXTERNAL files: (rsync -n, <EXCLUDES>, $main/ => $mirror/)\n";
+  runQuiet @rsyncInfo, @$rsyncExcludes, "$main/", "$mirror/";
+  print "=====\n\n";
+
+  my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
+
+  print "=====\n";
+  print "MODIFIED\n";
+  runQuiet @rsyncInfoExisting, "$mirror/", "$main/";
+  print "=====\n\n";
+
+  my @rsyncReal = qw(rsync -avP --ignore-existing);
+
+  if($sync){
+    print "=====\n";
+    print "INTERNAL => EXTERNAL\n";
+    run @rsyncReal, "$mirror/", "$main/";
+    print "=====\n\n";
+
+    print "=====\n";
+    print "EXTERNAL => INTERNAL\n";
+    run @rsyncReal, @$rsyncExcludes, "$main/", "$mirror/";
+    print "=====\n\n";
+  }else{
+    print "run with --sync to sync INTERNAL <=> EXTERNAL\n";
+  }
+}
+
+sub formatSizeSummary($$){
+  my ($excludes, $sizes) = @_;
+  my $msg = "";
+
+  my $total = 0;
+  my $totalExcluded = 0;
+  for my $cat(@categories){
+    my $catTotal = 0;
+    my $catTotalExcluded = 0;
+    $msg .= "$cat\n";
+    my $catSizes = $$sizes{$cat};
+    for my $file(sort {$$catSizes{$b} <=> $$catSizes{$a}} keys %$catSizes){
+      my $size = $$catSizes{$file};
+      my $sizeFmt = fmtSize $size;
+      my $isExcluded = defined $$excludes{$cat}{$file};
+      my $exclFmt = $isExcluded ? "*" : " ";
+
+      if($isExcluded){
+        $catTotalExcluded += $size;
+        $totalExcluded += $size;
+      }else{
+        $catTotal += $size;
+        $total += $size;
+      }
+      $msg .= "$exclFmt$sizeFmt $file\n";
+    }
+    my $fmtTotal = fmtSize($catTotal);
+    my $fmtTotalExcluded = fmtSize($catTotalExcluded);
+    $msg .= "$cat total: $fmtTotal (+$fmtTotalExcluded excluded)\n";
+    $msg .= "\n";
+  }
+  my $fmtTotal = fmtSize($total);
+  my $fmtTotalExcluded = fmtSize($totalExcluded);
+  $msg .= "Total: $fmtTotal (+$fmtTotalExcluded excluded)\n";
+}
+
+sub getSizes(){
+  my $sizes = {};
+  for my $cat(@categories){
+    my $catSizes = {};
+    for my $file(`ls "$main/$cat"`){
+      chomp $file;
+      my $size = `du -s "$main/$cat/$file"`;
+      die "Failed du: $file\n" if $size !~ /^(\d+)/;
+      $size = $1;
+      $$catSizes{$file} = $size;
+    }
+    $$sizes{$cat} = $catSizes;
+  }
+  return $sizes;
+}
+
+sub readExcludeFile(){
+  die "Not found: $excludeFile\n" if not -f $excludeFile;
+  my $excludes = {};
+  $$excludes{$_} = {} foreach @categories;
+  my $cat;
+  for my $line(`cat "$excludeFile"`){
+    chomp $line;
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^($okCats)$/){
+      $cat = $line;
+    }elsif($line =~ /^-/){
+      $line =~ s/^-//;
+      die "Missing category\n" if not defined $cat;
+      die "Unknown category\n" if not defined $$excludes{$cat};
+      $$excludes{$cat}{$line} = 1;
+    }else{
+      die "Malformed line: $line\n";
+    }
+  }
+  return $excludes;
+}
+
+sub checkExcludes($$){
+  my ($excludes, $sizes) = @_;
+  my $unexcluded = [];
+  for my $cat(keys %$excludes){
+    for my $file(keys %{$$excludes{$cat}}){
+      die "Unknown exclude: $cat/$file\n" if not defined $$sizes{$cat}{$file};
+      my $mirrorFile = "$mirror/$cat/$file";
+      push @$unexcluded, $mirrorFile if -e $mirrorFile;
+    }
+  }
+  return $unexcluded;
+}
+
+sub getRsyncExcludes($){
+  my ($excludes) = @_;
+  my $rsyncExcludes = [];
+  for my $cat(keys %$excludes){
+    for my $file(keys %{$$excludes{$cat}}){
+      push @$rsyncExcludes, "--exclude=$cat/$file";
+    }
+  }
+  return $rsyncExcludes;
+}
+
+sub fmtSize($){
+  return sprintf "%5.1fG", $_[0] / 1024 / 1024;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running @_\n" if $? != 0;
+}
+sub runQuiet(@){
+  system @_;
+  die "Error running @_\n" if $? != 0;
+}
+sub runPrompt(@){
+  print "@_\nRun above [y/N]? ";
+  my $ok = <STDIN>;
+  if($ok eq "y\n"){
+    run @_;
+  }
+}
+
+&main(@ARGV);
