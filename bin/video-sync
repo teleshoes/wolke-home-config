@@ -4,7 +4,7 @@ use warnings;
 
 my $main = "/media/videos";
 my $mirror = "/media/stuff/Videos";
-my $excludeFile = "$main/exclude";
+my $piMain = "/media/pi-videos";
 
 my @categories = (
   "Backup",
@@ -24,6 +24,7 @@ sub readExcludeFile();
 sub checkExcludes($$);
 sub getRsyncExcludes($);
 sub fmtSize($);
+sub isMountPoint($);
 sub run(@);
 sub runQuiet(@);
 sub runPrompt(@);
@@ -35,6 +36,21 @@ sub main(@){
     shift;
   }
   die $usage if @_ != 0;
+
+  die "ERROR: $mirror does not exist\n" if not -d $mirror;
+  if(not isMountPoint $main){
+    print "$main is not mounted, trying $piMain\n";
+    if(not isMountPoint $piMain){
+      run "nfs-pi-mount-videos";
+    }
+
+    if(isMountPoint($piMain)){
+      print "using $piMain\n";
+      $main = $piMain;
+    }else{
+      die "Could not mount $piMain\n";
+    }
+  }
 
   my $excludes = readExcludeFile();
   my $sizes = getSizes();
@@ -146,6 +162,7 @@ sub getSizes(){
 }
 
 sub readExcludeFile(){
+  my $excludeFile = "$main/exclude";
   die "Not found: $excludeFile\n" if not -f $excludeFile;
   my $excludes = {};
   $$excludes{$_} = {} foreach @categories;
@@ -194,6 +211,11 @@ sub getRsyncExcludes($){
 
 sub fmtSize($){
   return sprintf "%5.1fG", $_[0] / 1024 / 1024;
+}
+
+sub isMountPoint($){
+  system "mountpoint \"$_[0]\" >/dev/null 2>/dev/null";
+  return $? == 0;
 }
 
 sub run(@){
