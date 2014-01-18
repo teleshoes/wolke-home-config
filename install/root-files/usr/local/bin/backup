@@ -16,8 +16,8 @@ my $okNames = join "|", sort keys %$backups;
 sub mountAndBackup($$);
 sub backup($$);
 sub getSyncedSnapshot($$);
-sub makeSnapshot($);
-sub getLastBackupSnapshot($);
+sub makeSnapshot($$);
+sub getLastBackupSnapshot($$);
 sub getBtrfsMountDev($);
 
 sub run(@);
@@ -90,7 +90,7 @@ sub backup($$){
 
   my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir;
 
-  my $newSnapshot = makeSnapshot $srcDir;
+  my $newSnapshot = makeSnapshot $srcDir, "BACKUP";
   if(-e "$destDir/$newSnapshot"){
     die "snapshot exists on dest already: $destDir/$newSnapshot\n";
   }
@@ -124,41 +124,41 @@ sub getSyncedSnapshot($$){
   die "not a dir: $srcDir\n" if not -d $srcDir;
   die "not a dir: $destDir\n" if not -d $destDir;
 
-  my $lastSrc = getLastBackupSnapshot $srcDir;
-  my $lastDest = getLastBackupSnapshot $destDir;
+  my $lastSrc = getLastBackupSnapshot $srcDir, "BACKUP";
+  my $lastDest = getLastBackupSnapshot $destDir, "BACKUP";
   if($lastSrc ne $lastDest){
     die "Mismatched last snapshot:\n$srcDir/$lastSrc\n$destDir/$lastDest\n";
   }
   return $lastSrc;
 }
 
-sub makeSnapshot($){
-  my $mountPoint = shift;
+sub makeSnapshot($$){
+  my ($mountPoint, $prefix) = @_;
   my $millis = int(time * 1000);
   my $date = `date +%F`;
   chomp $date;
 
-  my $snapshot = "BACKUP-${date}_${millis}";
+  my $snapshot = "$prefix-${date}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
   run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
   run "sync";
 
-  if($snapshot ne getLastBackupSnapshot $mountPoint){
+  if($snapshot ne getLastBackupSnapshot $mountPoint, $prefix){
     die "snapshot failed\n";
   }
 
   return $snapshot;
 }
 
-sub getLastBackupSnapshot($){
-  my $dir = shift;
+sub getLastBackupSnapshot($$){
+  my ($dir, $prefix) = @_;
   my @subs = `btrfs subvolume list "$dir"`;
   chomp foreach @subs;
   @subs = grep {/^ID \d+/} @subs;
   s/^ID \d+ gen \d+ top level \d+ path // foreach @subs;
-  @subs = grep {/^BACKUP-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
+  @subs = grep {/^$prefix-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
   @subs = sort @subs;
   die "no snapshot found for $dir\n" if @subs == 0;
   my $sub = $subs[-1];
