@@ -19,6 +19,7 @@ sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
+sub cleanupSnapshots($$$);
 sub getBtrfsMountDev($);
 
 sub run(@);
@@ -47,6 +48,10 @@ my $usage = "Usage:
   $0 --snapshot MOUNT_POINT [PREFIX]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
     PREFIX defaults to \"SNAPSHOT\", and cannot be \"BACKUP\"
+
+  $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
+    remove snapshots named PREFIX-*, leaving the last INSTANCES.
+    INSTANCES is a positive integer.
 ";
 
 sub main(@){
@@ -73,6 +78,10 @@ sub main(@){
 
     die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
+  }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+)$/){
+    my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
+    die "INSTANCES must be > 0\n" if $instances <= 0;
+    cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ == 2){
     my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir;
@@ -197,6 +206,25 @@ sub getLastSnapshot($$){
   die "no snapshot found for $dir\n" if @subs == 0;
   my $sub = $subs[-1];
   return $sub;
+}
+
+sub cleanupSnapshots($$$){
+  my ($mountPoint, $prefix, $instances) = @_;
+  my @subs = getSnapshots $mountPoint, $prefix;
+  @subs = reverse sort @subs;
+  my @toKeep = reverse @subs[0 .. $instances-1];
+  my @toDelete = reverse @subs[$instances .. $#subs];
+  print "to keep (" . scalar(@toKeep) . "):\n ";
+  print join "\n ", @toKeep;
+  print "\n\n";
+  print "to delete (" . scalar(@toDelete) . "):\n ";
+  print join "\n ", @toDelete;
+  print "\n\n";
+  if(@toDelete > 0){
+    my @delSubvolumePaths = map {"$mountPoint/$_"} @toDelete;
+    run "btrfs", "subvolume", "delete", @delSubvolumePaths;
+  }
+  print "deleted " . scalar(@toDelete) . " subvolumes\n";
 }
 
 sub getBtrfsMountDev($){
