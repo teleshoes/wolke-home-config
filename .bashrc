@@ -102,6 +102,7 @@ do alias $exitTypo='exit'; done
 
 alias tb='pkill -9 taffybar; taffybar; pkill -9 taffybar'
 
+alias j='fcron-job-toggle'
 alias snapshot='backup --snapshot'
 alias dus='du -s * | sort -g'
 alias killjobs='kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo'
