@@ -25,7 +25,7 @@ percentBarWidgetW cfg interval barReader = do
   on w realize $ do
     void $ forkIO $ forever $ do
       (fg, bg, p) <- barReader
-      verticalBarSetColors vbh (constColor fg) bg
+      verticalBarSetColors vbh (constColor fg) (constColor bg)
       verticalBarSetPercent vbh (percent p)
       threadDelay $ floor $ interval * 10^6
   return w
