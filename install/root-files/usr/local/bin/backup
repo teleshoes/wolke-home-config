@@ -12,6 +12,8 @@ my $backups = {
 my $firstName = (sort keys %$backups)[0];
 my ($firstSrc, $firstMnt) = @{$$backups{$firstName}};
 my $okNames = join "|", sort keys %$backups;
+my @mntPoints = map {$$_[0]} values %$backups;
+my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$);
 sub backup($$);
@@ -24,6 +26,7 @@ sub getBtrfsMountDev($);
 
 sub sync();
 sub run(@);
+sub tryrun(@);
 sub ensureRoot();
 
 my $usage = "Usage:
@@ -53,6 +56,13 @@ my $usage = "Usage:
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
     remove snapshots named PREFIX-*, leaving the last INSTANCES.
     INSTANCES is a positive integer.
+
+  $0 --remove
+    for each MOUNTPOINT in (" . join(", ", @mntPoints) . "), run:
+      $0 --cleanup=1 /media/MOUNTPOINT \"BACKUP\"
+    for each MOUNTNAME in (" . join(", ", @backupMntNames) . "), run:
+      mnt -m MOUNTNAME
+      $0 --cleanup=1 /media/MOUNTNAME \"BACKUP\"
 ";
 
 sub main(@){
@@ -84,6 +94,20 @@ sub main(@){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
+  }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
+    for my $name(keys %$backups){
+      my ($srcMntPoint, $destMntName) = @{$$backups{$name}};
+      my $destMntPoint = "/media/$destMntName";
+      tryrun "mnt", "-m", $destMntName;
+
+      my $oldBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint);
+      cleanupSnapshots $srcMntPoint, "BACKUP", 1;
+      cleanupSnapshots $destMntPoint, "BACKUP", 1;
+      my $newBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint);
+      if($oldBackup ne $newBackup){
+        die "FATAL ERROR: latest backup is missing- $oldBackup\n";
+      }
+    }
   }elsif(@_ == 2){
     my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir;
@@ -272,6 +296,10 @@ sub run(@){
   print "@_\n";
   system @_;
   die "FAILED: @_\n" if $? != 0;
+}
+sub tryrun(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
