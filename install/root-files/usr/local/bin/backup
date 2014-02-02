@@ -23,6 +23,8 @@ sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
 sub getBtrfsMountDev($);
+sub monitorPvLog();
+sub latestPvLogFile();
 
 sub sync();
 sub run(@);
@@ -63,6 +65,9 @@ my $usage = "Usage:
     for each MOUNTNAME in (" . join(", ", @backupMntNames) . "), run:
       mnt -m MOUNTNAME
       $0 --cleanup=1 /media/MOUNTNAME \"BACKUP\"
+
+  $0 --monitor
+    tail the latest pv log, switching to the latest when a new one is created
 ";
 
 sub main(@){
@@ -109,6 +114,8 @@ sub main(@){
       }
       run "mnt", "-u", $destMntName;
     }
+  }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
+    monitorPvLog();
   }elsif(@_ == 2){
     my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir;
@@ -284,6 +291,33 @@ sub getBtrfsMountDev($){
 
 sub sync(){
   run "sync";
+}
+
+sub monitorPvLog(){
+  my $latest = undef;
+  my $pid = undef;
+  while(1){
+    my $prev = $latest;
+    $latest = latestPvLogFile();
+
+    if(defined $latest and (not defined $prev or $prev ne $latest)){
+      print "\n\nLOG FILE: $latest\n";
+      kill $pid if defined $pid;
+      $pid = fork;
+      if(not $pid){
+        exec "tail", "-F", $latest;
+      }
+    }
+
+    sleep 0.5;
+  }
+}
+
+sub latestPvLogFile(){
+  my @pvLogs = `ls /tmp/BACKUP-*-pv.log 2>/dev/null`;
+  chomp foreach @pvLogs;
+  @pvLogs = sort grep {/^\/tmp\/BACKUP-\d+-\d+-\d+_\d+-pv\.log$/} @pvLogs;
+  return @pvLogs == 0 ? undef : $pvLogs[-1];
 }
 
 sub ensureRoot(){
