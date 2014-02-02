@@ -8,6 +8,8 @@ my $imgDir = "/media/stuff/Images/scratchbox";
 my $armRS = "arm-public-sdk-rootstrap.tgz";
 my $x86RS = "i386-public-sdk-rootstrap.tgz";
 
+my $mirror = "http://mirror.thecust.net/harmattan-dev.nokia.com/";
+
 my @pkgs = qw(
   scratchbox-core scratchbox-libs scratchbox-devkit-qemu
   scratchbox-devkit-debian-squeeze scratchbox-devkit-perl
@@ -18,6 +20,7 @@ my @pkgs = qw(
 );
 
 sub sboxRun(@);
+sub replaceSources($);
 
 sub main(@){
   getRoot @_;
@@ -53,6 +56,9 @@ sub main(@){
   sboxRun "sb-conf", "rs", "$chrootDir/$x86RS";
   sboxRun "sb-conf", "in", "-edFL";
 
+  replaceSources "HARMATTAN_ARMEL";
+  replaceSources "HARMATTAN_X86";
+
   sboxRun qw(sb-conf select HARMATTAN_ARMEL);
   sboxRun qw(apt-get update);
   sboxRun qw(apt-get install -y --force-yes build-essential cmake);
@@ -70,6 +76,23 @@ sub main(@){
 
 sub sboxRun(@){
   tryrunUser "/scratchbox/login", "\"@_\"";
+}
+
+sub replaceSources($){
+  my $target = shift;
+  my $list = "/scratchbox/users/wolke/targets/$target/etc/apt/sources.list";
+  if(not -e $list){
+    die "Could not update $list\n";
+  }
+  open FH, "< $list" or die "Could not update $list\n";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    $line =~ s/https?:\/\/.*harmattan-dev.nokia.com\/?/$mirror/;
+  }
+  open FH, "> $list" or die "Could not update $list\n";
+  print FH @lines;
+  close FH;
 }
 
 &main(@ARGV);
