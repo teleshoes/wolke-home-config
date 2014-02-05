@@ -21,6 +21,7 @@ my $usage = "Usage: $0 [--sync]\n";
 sub formatSizeSummary($$);
 sub getSizes();
 sub readExcludeFile();
+sub syncExcludeFile();
 sub checkExcludes($$);
 sub getRsyncExcludes($);
 sub fmtSize($);
@@ -94,6 +95,8 @@ sub main(@){
   my @rsyncReal = qw(rsync -avP --ignore-existing);
 
   if($sync){
+    syncExcludeFile();
+
     print "=====\n";
     print "INTERNAL => EXTERNAL\n";
     run @rsyncReal, "$mirror/", "$main/";
@@ -187,6 +190,30 @@ sub readExcludeFile(){
     }
   }
   return $excludes;
+}
+
+sub syncExcludeFile(){
+  my $mainExclude = "$main/exclude";
+  my $mirrorExclude = "$mirror/exclude";
+
+  my $mainMd5 = `md5sum $mainExclude | cut -c-32`;
+  my $mirrorMd5 = `md5sum $mirrorExclude | cut -c-32`;
+
+  if($mainMd5 ne $mirrorMd5){
+    print "exclude file changed\n";
+    my $mainMod = `stat -c%Y $mainExclude`;
+    chomp $mainMod;
+    my $mirrorMod = `stat -c%Y $mirrorExclude`;
+    chomp $mirrorMod;
+
+    if($mirrorMod > $mainMod){
+      print "$mirrorExclude is newer, using that\n";
+      run "cp", "-a", $mirrorExclude, $mainExclude;
+    }else{
+      print "$mainExclude is newer, using that\n";
+      run "cp", "-a", $mainExclude, $mirrorExclude;
+    }
+  }
 }
 
 sub checkExcludes($$){
