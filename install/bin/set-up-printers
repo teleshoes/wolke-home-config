@@ -4,18 +4,32 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $printersDir = getInstallPath "printers";
+my $cupsDir = "/etc/cups";
+my $ppdDir = "$cupsDir/ppd";
+
 sub main(@) {
-    #DIR=$HOME/install/printers
-    #test -x initctl && sudo initctl start cups
-    #test -x /etc/init.d/cups && sudo /etc/init.d/cups start
-    #sudo rm -rf /etc/cups/printers.conf
-    #sudo rm -rf /etc/cups/ppd/*
-    #sudo cp $DIR/printers.conf /etc/cups/printers.conf
-    #sudo cp $DIR/ppd/* /etc/cups/ppd/
-    #sudo chown root.lp /etc/cups/printers.conf
-    #sudo chown root.root /etc/cups/ppd/*
-    #test -x initctl && sudo initctl stop cups
-    #test -x /etc/init.d/cups && sudo /etc/init.d/cups start
+    getRoot();
+
+    if(tryrun "test", "-x", "initctl"){
+        tryrun "initctl", "start", "cups";
+    }elsif(-x "/etc/init.d/cups"){
+        tryrun "/etc/init.d/cups", "start";
+    }
+
+    run "cp", "$printersDir/printers.conf", $cupsDir;
+
+    run "rm", "-rf", $ppdDir;
+    run "cp", "-ar", "$printersDir/ppd/", $ppdDir;
+
+    run "chown", "root.lp", "$cupsDir/printers.conf", $ppdDir;
+    shell "chown root.root $ppdDir/*";
+
+    if(tryrun "test", "-x", "initctl"){
+        tryrun "initctl", "stop", "cups";
+    }elsif(-x "/etc/init.d/cups"){
+        tryrun "/etc/init.d/cups", "start";
+    }
 }
 
 &main(@ARGV);
