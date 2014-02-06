@@ -10,10 +10,25 @@ my $printersDir = getInstallPath "printers";
 my $cupsDir = "/etc/cups";
 my $ppdDir = "$cupsDir/ppd";
 
+my $usage = "Usage:
+  $0
+    set printers info from $printersDir => $cupsDir
+  $0 -g
+    copy printers info from $cupsDir => $printersDir
+";
+
 sub main(@) {
     getRoot(@_);
 
+    my $get = 0;
+    if(@_ == 1 and $_[0] =~ /^(-g)$/){
+        run "mkdir", "-p", "$printersDir/ppd";
+        run "cp", "$cupsDir/printers.conf", "$printersDir";
+        shell "cp $cupsDir/ppd/* $printersDir/ppd";
+        run "chown", "-R", getUsername() . ".", $printersDir;
+        exit;
     }
+    die $usage if @_ != 0;
 
     cupsService 'stop';
 
