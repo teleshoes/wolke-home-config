@@ -183,6 +183,7 @@ sub runProtoIPC($@) {
     IPC::Run::finish $h;
     system "rm", "-f", $progFile;
     deathWithDishonor if $$cfg{fatal} and $h->result != 0;
+    return $h->result == 0;
 }
 sub runProtoNoIPC($@) {
     my $cfg = shift;
@@ -207,6 +208,7 @@ sub runProtoNoIPC($@) {
         }
         close $fh;
         deathWithDishonor if $? != 0 and $$cfg{fatal};
+        return $? == 0;
     }
 }
 
