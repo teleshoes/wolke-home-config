@@ -4,18 +4,18 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub cupsService($);
+
 my $printersDir = getInstallPath "printers";
 my $cupsDir = "/etc/cups";
 my $ppdDir = "$cupsDir/ppd";
 
 sub main(@) {
-    getRoot();
+    getRoot(@_);
 
-    if(tryrun "test", "-x", "initctl"){
-        tryrun "initctl", "start", "cups";
-    }elsif(-x "/etc/init.d/cups"){
-        tryrun "/etc/init.d/cups", "start";
     }
+
+    cupsService 'stop';
 
     run "cp", "$printersDir/printers.conf", $cupsDir;
 
@@ -25,10 +25,15 @@ sub main(@) {
     run "chown", "root.lp", "$cupsDir/printers.conf", $ppdDir;
     shell "chown root.root $ppdDir/*";
 
+    cupsService 'start';
+}
+
+sub cupsService($){
+    my $cmd = shift;
     if(tryrun "test", "-x", "initctl"){
-        tryrun "initctl", "stop", "cups";
+        tryrun "initctl", $cmd, "cups";
     }elsif(-x "/etc/init.d/cups"){
-        tryrun "/etc/init.d/cups", "start";
+        tryrun "/etc/init.d/cups", $cmd;
     }
 }
 
