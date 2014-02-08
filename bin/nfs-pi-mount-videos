@@ -8,23 +8,34 @@ my $remoteDir = "/media/videos";
 my $localDir = "/media/pi-videos";
 
 my $usage = "Usage:
-  $0 [-m]
+  $0 [-m] [--quick]
     Restart nfs server on pi and mount $raspiIP:$remoteDir => $localDir:
   $0 -u
     Unmount $localDir
+
+  --quick
+    Do not restart NFS server on pi or run fix-mount
 ";
 
 sub run(@);
 sub isMountPoint($);
 
 sub main(@){
-  if(@_ == 0 or (@_ == 1 and $_[0] eq "-m")){
+  shift if @_ > 0 and $_[0] eq "-m";
+  if(@_ == 0 or (@_ == 1 and $_[0] eq "--quick")){
+    my $quick = 0;
+    if(@_ > 0 and $_[0] eq "--quick"){
+      $quick = 1;
+      shift;
+    }
+    die $usage if @_ != 0;
+
     run "sudo", "mkdir", "-p", $localDir if not -d $localDir;
     if(not isMountPoint $localDir){
       run "raspi", "-s", "
-       fix-mount
-       /etc/init.d/nfs-kernel-server restart
-      ";
+        fix-mount
+        /etc/init.d/nfs-kernel-server restart
+      " unless $quick;
       run "sudo", "mount", "$raspiIP:$remoteDir", $localDir, "-o", "soft";
     }
     die "$localDir is not mounted\n" if not isMountPoint $localDir;
