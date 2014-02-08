@@ -73,8 +73,9 @@ my $usage = "Usage:
   $0 --monitor
     tail the latest pv log, switching to the latest when a new one is created
 
-  $0 --info MOUNTPOINT
-    (re-)enable quotas and rescan, and show all subvolumes and data usage
+  $0 --info [--quick] MOUNTPOINT
+    show all subvolumes and data usage
+    if --quick is not specified, (re-)enable quotas and rescan first
 ";
 
 sub main(@){
@@ -123,8 +124,13 @@ sub main(@){
     }
   }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
     monitorPvLog();
-  }elsif(@_ == 2 and $_[0] =~ /^--info$/){
+  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--info$/){
     shift;
+    my $quick = 0;
+    if($_[0] =~ /^(--quick)$/){
+      $quick = 1;
+      shift;
+    }
     my $mnt = shift;
     die $usage if not defined $mnt or @_ > 0;
 
@@ -132,10 +138,12 @@ sub main(@){
     chomp $fsSize;
     die "could not df $mnt\n" if $fsSize !~ /^\d+$/ or $fsSize == 0;
 
-    print "(re)enabling quota and rescanning:\n";
-    run "btrfs quota disable \"$mnt\"";
-    run "btrfs quota enable \"$mnt\"";
-    run "btrfs quota rescan -w \"$mnt\"";
+    if(not $quick){
+      print "(re-)enabling quota and rescanning:\n";
+      run "btrfs quota disable \"$mnt\"";
+      run "btrfs quota enable \"$mnt\"";
+      run "btrfs quota rescan -w \"$mnt\"";
+    }
 
     my $info = getSubvolumeQuotaInfo $mnt;
 
