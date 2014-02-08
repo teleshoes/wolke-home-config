@@ -414,9 +414,17 @@ sub cleanupSnapshots($$$){
   print join "\n ", @toDelete;
   print "\n\n";
   die "ERROR: no snapshots would remain\n" if @toKeep == 0;
+
+  my $subs = getSubvolumes $mountPoint;
+  my %subIds = map {$$subs{$_} => $_} keys %$subs;
+
   if(@toDelete > 0){
-    my @delSubvolumePaths = map {"$mountPoint/$_"} @toDelete;
-    run "btrfs", "subvolume", "delete", @delSubvolumePaths;
+    my @pathsToDelete = map {"$mountPoint/$_"} @toDelete;
+    my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
+    run "btrfs", "subvolume", "delete", @pathsToDelete;
+    for my $qgroupId(@qgroupsToDelete){
+      tryrun "btrfs", "qgroup", "destroy", $qgroupId, $mountPoint;
+    }
     sync();
   }
   print "deleted " . scalar(@toDelete) . " subvolumes\n";
