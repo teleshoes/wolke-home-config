@@ -22,6 +22,7 @@ sub makeSnapshot($$);
 sub getSubvolumes($);
 sub getSubvolumePaths($);
 sub getSubvolumeQuotaInfo($);
+sub formatSubvolumeQuotaInfo($$);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
@@ -71,6 +72,9 @@ my $usage = "Usage:
 
   $0 --monitor
     tail the latest pv log, switching to the latest when a new one is created
+
+  $0 --info MOUNTPOINT
+    (re-)enable quotas and rescan, and show all subvolumes and data usage
 ";
 
 sub main(@){
@@ -119,6 +123,23 @@ sub main(@){
     }
   }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
     monitorPvLog();
+  }elsif(@_ == 2 and $_[0] =~ /^--info$/){
+    shift;
+    my $mnt = shift;
+    die $usage if not defined $mnt or @_ > 0;
+
+    my $fsSize = `df -B1 --output=size "$mnt" | tail -1`;
+    chomp $fsSize;
+    die "could not df $mnt\n" if $fsSize !~ /^\d+$/ or $fsSize == 0;
+
+    print "(re)enabling quota and rescanning:\n";
+    run "btrfs quota disable \"$mnt\"";
+    run "btrfs quota enable \"$mnt\"";
+    run "btrfs quota rescan -w \"$mnt\"";
+
+    my $info = getSubvolumeQuotaInfo $mnt;
+
+    print formatSubvolumeQuotaInfo($fsSize, $info);
   }elsif(@_ == 2){
     my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir;
@@ -295,6 +316,27 @@ sub getSubvolumeQuotaInfo($){
   }
 
   return $info;
+}
+
+sub formatSubvolumeQuotaInfo($$){
+  my ($fsSize, $info) = @_;
+  my $s = '';
+
+  for my $subId(sort keys %$info){
+    my $path = $$info{$subId}{path};
+    $path = sprintf '%-32s', $path;
+
+    my $size = $$info{$subId}{excl};
+    $size /= 1024;
+    $size = sprintf '%10d', $size;
+
+    my $pct = 100 * ($$info{$subId}{excl} / $fsSize);
+    $pct = sprintf '%7.3f', $pct;
+
+    $s .= "$path ${size}KiB $pct\%\n";
+  }
+
+  return $s;
 }
 
 sub getSnapshots($$){
