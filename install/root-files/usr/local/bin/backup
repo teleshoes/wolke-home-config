@@ -23,6 +23,7 @@ sub getSubvolumes($);
 sub getSubvolumePaths($);
 sub getSubvolumeQuotaInfo($);
 sub formatSubvolumeQuotaInfo($$$);
+sub isQuotaEnabled($);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
@@ -158,6 +159,9 @@ sub main(@){
       run "btrfs quota disable \"$mnt\"";
       run "btrfs quota enable \"$mnt\"";
       run "btrfs quota rescan -w \"$mnt\"";
+    }
+    if(not isQuotaEnabled($mnt)){
+      die "quota is not enabled\n";
     }
 
     my $info = getSubvolumeQuotaInfo $mnt;
@@ -372,6 +376,12 @@ sub formatSubvolumeQuotaInfo($$$){
   }
 
   return $s;
+}
+
+sub isQuotaEnabled($){
+  my $mnt = shift;
+  system "btrfs qgroup show \"$mnt\" >/dev/null 2>/dev/null";
+  return $? == 0;
 }
 
 sub getSnapshots($$){
