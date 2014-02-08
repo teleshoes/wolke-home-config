@@ -21,6 +21,7 @@ sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
 sub getSubvolumes($);
 sub getSubvolumePaths($);
+sub getSubvolumeQuotaInfo($);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
@@ -252,6 +253,48 @@ sub getSubvolumePaths($){
     push @$paths, $$subs{$id};
   }
   return $paths;
+}
+
+sub getSubvolumeQuotaInfo($){
+  my $mnt = shift;
+  my @qgroupLines = `btrfs qgroup show \"$mnt\"`;
+  die "invalid output from qgroup show on $mnt" if 0
+    or @qgroupLines < 3
+    or $qgroupLines[0] !~ /^\s*qgroupid\s*rfer\s*excl\s*$/
+    or $qgroupLines[1] !~ /^\s*-+\s*-+\s*-+\s*$/
+    ;
+  shift @qgroupLines;
+  shift @qgroupLines;
+
+  my $subs = getSubvolumes($mnt);
+  my $root = undef;
+
+  my $info = {};
+  for my $qgroup(@qgroupLines){
+    if($qgroup !~ /^\s*0\/(\d+)\s*(\d+)\s*(\d+)/){
+      die "Malformed qgroup: $qgroup\n";
+    }
+    my($subId, $total, $excl) = ($1, $2, $3);
+    if(not defined $root and not defined $$subs{$subId}){
+      $root = $subId;
+      $$subs{$subId} = "root";
+    }
+
+    die "unknown subvolume: $subId\n" if not defined $$subs{$subId};
+    die "duplicated subvolume: $subId\n" if defined $$info{$subId};
+
+    $$info{$subId} = {
+      path  => $$subs{$subId},
+      total => $total,
+      excl  => $excl,
+    };
+  }
+
+  for my $subId(sort keys %$subs){
+    die "missing qgroup for $subId\n" if not defined $$info{$subId};
+  }
+
+  return $info;
 }
 
 sub getSnapshots($$){
