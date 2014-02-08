@@ -104,6 +104,7 @@ alias tb='pkill -9 taffybar; taffybar; pkill -9 taffybar'
 
 alias j='fcron-job-toggle'
 alias snapshot='backup --snapshot'
+alias qgroups-info='backup --info --quick --sort-by=size'
 alias dus='du -s * | sort -g'
 alias killjobs='kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo'
 alias gvim='term vim'
