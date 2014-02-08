@@ -22,7 +22,7 @@ sub makeSnapshot($$);
 sub getSubvolumes($);
 sub getSubvolumePaths($);
 sub getSubvolumeQuotaInfo($);
-sub formatSubvolumeQuotaInfo($$);
+sub formatSubvolumeQuotaInfo($$$);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
@@ -34,6 +34,9 @@ sub sync();
 sub run(@);
 sub tryrun(@);
 sub ensureRoot();
+
+my $okSortBy = join "|", qw(id path size);
+my $defaultSortBy = 'size';
 
 my $usage = "Usage:
   $0 -h|--help
@@ -73,9 +76,14 @@ my $usage = "Usage:
   $0 --monitor
     tail the latest pv log, switching to the latest when a new one is created
 
-  $0 --info [--quick] MOUNTPOINT
+  $0 --info [--quick] [--sort-by=[$okSortBy] MOUNTPOINT
     show all subvolumes and data usage
     if --quick is not specified, (re-)enable quotas and rescan first
+    --sort-by is the sort order of the subvols (default is $defaultSortBy)
+      id:   subvol id, smallest first
+      path: subvol path, lexicographically
+      size: bytes used exclusively by subvol, largest first
+
 ";
 
 sub main(@){
@@ -124,13 +132,20 @@ sub main(@){
     }
   }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
     monitorPvLog();
-  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--info$/){
+  }elsif(@_ >= 2 and $_[0] =~ /^--info$/){
     shift;
     my $quick = 0;
     if($_[0] =~ /^(--quick)$/){
       $quick = 1;
       shift;
     }
+
+    my $sortBy = $defaultSortBy;
+    if($_[0] =~ /^--sort-by=($okSortBy)$/){
+      $sortBy = $1;
+      shift;
+    }
+
     my $mnt = shift;
     die $usage if not defined $mnt or @_ > 0;
 
@@ -147,7 +162,7 @@ sub main(@){
 
     my $info = getSubvolumeQuotaInfo $mnt;
 
-    print formatSubvolumeQuotaInfo($fsSize, $info);
+    print formatSubvolumeQuotaInfo($fsSize, $info, $sortBy);
   }elsif(@_ == 2){
     my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir;
@@ -326,11 +341,20 @@ sub getSubvolumeQuotaInfo($){
   return $info;
 }
 
-sub formatSubvolumeQuotaInfo($$){
-  my ($fsSize, $info) = @_;
+sub formatSubvolumeQuotaInfo($$$){
+  my ($fsSize, $info, $sortBy) = @_;
   my $s = '';
 
-  for my $subId(sort keys %$info){
+  my $sortFcts = {
+    id   => sub($$){$_[0] <=> $_[1]},
+    size => sub($$){$$info{$_[1]}{excl} <=> $$info{$_[0]}{excl}},
+    path => sub($$){$$info{$_[0]}{path} cmp $$info{$_[1]}{path}},
+  };
+
+  my $sortFct = $$sortFcts{$sortBy};
+  die "unknown sort function: $sortBy\n" if not defined $sortFct
+;
+  for my $subId(sort $sortFct (keys %$info)){
     my $path = $$info{$subId}{path};
     $path = sprintf '%-32s', $path;
 
