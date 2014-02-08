@@ -19,6 +19,8 @@ sub mountAndBackup($$);
 sub backup($$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
+sub getSubvolumes($);
+sub getSubvolumePaths($);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
@@ -228,12 +230,33 @@ sub makeSnapshot($$){
   return $snapshot;
 }
 
+sub getSubvolumes($){
+  my $mnt = shift;
+  my @subLines = `btrfs subvolume list "$mnt"`;
+  my $subs = {};
+  for my $subLine(@subLines){
+    if($subLine =~ /ID (\d+) gen (\d+) top level (\d+) path (.*)$/){
+      my ($id, $gen, $level, $path) = ($1, $2, $3, $4);
+      $$subs{$id} = $path;
+    }else{
+      die "misformatted subvolume line: $subLine\n";
+    }
+  }
+  return $subs;
+}
+sub getSubvolumePaths($){
+  my $mnt = shift;
+  my $subs = getSubvolumes($mnt);
+  my $paths = [];
+  for my $id(sort keys %$subs){
+    push @$paths, $$subs{$id};
+  }
+  return $paths;
+}
+
 sub getSnapshots($$){
   my ($dir, $prefix) = @_;
-  my @subs = `btrfs subvolume list "$dir"`;
-  chomp foreach @subs;
-  @subs = grep {/^ID \d+/} @subs;
-  s/^ID \d+ gen \d+ top level \d+ path // foreach @subs;
+  my @subs = @{getSubvolumePaths($dir)};
   @subs = grep {/^$prefix-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
 
   my @sortedSubs = sort @subs;
