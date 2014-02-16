@@ -27,6 +27,7 @@ sub isQuotaEnabled($);
 sub getSnapshots($$);
 sub getLastSnapshot($$);
 sub cleanupSnapshots($$$);
+sub deleteSnapshots($@);
 sub getBtrfsMountDev($);
 sub monitorPvLog();
 sub latestPvLogFile();
@@ -450,21 +451,27 @@ sub cleanupSnapshots($$$){
     die "ERROR: no snapshots would remain\n" if @toKeep == 0;
   }
 
+  if(@toDelete > 0){
+    deleteSnapshots $mountPoint, @toDelete;
+  }
+  print "deleted " . scalar(@toDelete) . " subvolumes\n";
+}
+
+sub deleteSnapshots($@){
+  my ($mountPoint, @toDelete) = @_;
+
   my $subvolumes = getSubvolumes $mountPoint;
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
 
-  if(@toDelete > 0){
-    my @pathsToDelete = map {"$mountPoint/$_"} @toDelete;
-    my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
-    run "btrfs", "subvolume", "delete", @pathsToDelete;
-    if(isQuotaEnabled($mountPoint)){
-      for my $qgroupId(@qgroupsToDelete){
-        tryrun "btrfs", "qgroup", "destroy", $qgroupId, $mountPoint;
-      }
+  my @pathsToDelete = map {"$mountPoint/$_"} @toDelete;
+  my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
+  run "btrfs", "subvolume", "delete", @pathsToDelete;
+  if(isQuotaEnabled($mountPoint)){
+    for my $qgroupId(@qgroupsToDelete){
+      tryrun "btrfs", "qgroup", "destroy", $qgroupId, $mountPoint;
     }
-    sync();
   }
-  print "deleted " . scalar(@toDelete) . " subvolumes\n";
+  sync();
 }
 
 sub getBtrfsMountDev($){
