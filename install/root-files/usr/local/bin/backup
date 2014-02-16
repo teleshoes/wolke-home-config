@@ -65,7 +65,7 @@ my $usage = "Usage:
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
     remove snapshots named PREFIX-*, leaving the last INSTANCES.
-    INSTANCES is a positive integer.
+    INSTANCES is a positive integer or 'all'
 
   $0 --remove
     for each MOUNTPOINT in (" . join(", ", @mntPoints) . "), run:
@@ -112,9 +112,9 @@ sub main(@){
     die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
     sync();
-  }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+)$/){
+  }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
-    die "INSTANCES must be > 0\n" if $instances <= 0;
+    die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
     for my $name(keys %$backups){
@@ -416,16 +416,27 @@ sub getLastSnapshot($$){
 sub cleanupSnapshots($$$){
   my ($mountPoint, $prefix, $instances) = @_;
   my @subs = getSnapshots $mountPoint, $prefix;
-  @subs = reverse sort @subs;
-  my @toKeep = grep {defined} reverse @subs[0 .. $instances-1];
-  my @toDelete = grep {defined} reverse @subs[$instances .. $#subs];
+
+  my @toKeep;
+  my @toDelete;
+  if($instances eq 'all'){
+    @toKeep = ();
+    @toDelete = @subs;
+  }else{
+    my @revsubs = reverse sort @subs;
+    @toKeep = grep {defined} reverse @revsubs[0 .. $instances-1];
+    @toDelete = grep {defined} reverse @revsubs[$instances .. $#revsubs];
+  }
+
   print "to keep (" . scalar(@toKeep) . "):\n ";
   print join "\n ", @toKeep;
   print "\n\n";
   print "to delete (" . scalar(@toDelete) . "):\n ";
   print join "\n ", @toDelete;
   print "\n\n";
-  die "ERROR: no snapshots would remain\n" if @toKeep == 0;
+  if($instances ne 'all'){
+    die "ERROR: no snapshots would remain\n" if @toKeep == 0;
+  }
 
   my $subvolumes = getSubvolumes $mountPoint;
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
