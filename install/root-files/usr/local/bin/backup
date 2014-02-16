@@ -75,6 +75,11 @@ my $usage = "Usage:
       mnt -m MOUNTNAME
       $0 --cleanup=1 /media/MOUNTNAME \"BACKUP\"
 
+  $0 --delete MOUNT_POINT SUBVOLUME_NAME [SUBVOLUME_NAME...]
+    similar to:
+    'cd MOUNT_POINT; btrfs subvol delete SUBVOLUME_NAME SUBVOLUME_NAME ..'
+    also cleans up qgroups if quota is enabled
+
   $0 --monitor
     tail the latest pv log, switching to the latest when a new one is created
 
@@ -117,6 +122,10 @@ sub main(@){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
+  }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
+    my $mountPoint = $_[1];
+    my @toDelete = @_[2..$#_];
+    deleteSnapshots $mountPoint, @toDelete;
   }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
     for my $name(keys %$backups){
       my ($srcMntPoint, $destMntName) = @{$$backups{$name}};
