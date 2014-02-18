@@ -3,14 +3,16 @@ use strict;
 use warnings;
 
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
-my $mp3UrlCache = "$ENV{HOME}/ep-mp3urls";
+my $epDir = "$ENV{HOME}/escapepod";
 my $csvDelim = ';';
 
-sub getMP3Url($$$);
-sub fetchMP3Url($);
+sub htmlCacheFile($);
+sub ensureHtmlCache($$);
+sub checkHtmlCache($);
+sub attemptPutHtmlCache($$);
+sub readHtmlCache($);
+sub getMP3Url($);
 sub browserLoadArticle($);
-sub readMP3UrlCache();
-sub writeMP3UrlCache($);
 sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
@@ -37,10 +39,8 @@ my $usage = "Usage:
     --url
       Print the article url for each EPNUM, using the links in the above url.
     --mp3url
-      Print the download URL from the escape pod article url.
-      For each EPNUM, if there is a line like \"EPNUM URL\" in $mp3UrlCache,
-        print that URL.
-      Otherwise, fetch it using curl/wget and store it in $mp3UrlCache.
+      Print the download URL, parsed from the escape pod article HTML.
+      HTML is fetched using curl/wget and cached in $epDir/htmlCache/EPNUM.html
     --mp3filename
       Same as --mp3url, but only print the filename
     --download
@@ -105,10 +105,9 @@ sub main(@){
       print "$$eps{$epNum}{articleUrl}\n";
     }
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
-    my $cache = readMP3UrlCache();
     for my $epNum(sort keys %$eps){
-      my $mp3Url = getMP3Url($epNum, $$eps{$epNum}{articleUrl}, $cache);
-      if(defined $mp3Url){
+      if(ensureHtmlCache $epNum, $$eps{$epNum}{articleUrl}){
+        my $mp3Url = getMP3Url $epNum;
         my $mp3FileName = $1 if $mp3Url =~ /([^\/]*\.mp3)$/;
         if($cmd eq '--mp3url'){
           print "$mp3Url\n";
@@ -121,11 +120,6 @@ sub main(@){
         }elsif($cmd eq '--tag'){
           tagMP3File($mp3FileName, $$eps{$epNum});
         }
-
-        if(not defined $$cache{$epNum+0}){
-          $$cache{$epNum+0} = $mp3Url;
-          writeMP3UrlCache $cache;
-        }
       }else{
         print "   ERROR: $epNum\n";
         $exitCode = 1;
@@ -135,66 +129,82 @@ sub main(@){
   exit $exitCode;
 }
 
-sub getMP3Url($$$){
-  my ($epNum, $articleUrl, $cache) = @_;
-  my $mp3Url = $$cache{$epNum+0};
+sub htmlCacheFile($){
+  my $epNum = shift;
+  return "$epDir/htmlCache/$epNum.html";
+}
 
+sub ensureHtmlCache($$){
+  my ($epNum, $articleUrl) = @_;
   my $attempts;
+  return 1 if checkHtmlCache $epNum;
 
   $attempts = 10;
-  while(not defined $mp3Url and $attempts > 0){
+  while($attempts > 0 and not checkHtmlCache $epNum){
     $attempts--;
-    $mp3Url = fetchMP3Url $articleUrl;
+    attemptPutHtmlCache $epNum, $articleUrl;
   }
-  if(not defined $mp3Url){
+  if(not checkHtmlCache $epNum){
     browserLoadArticle $articleUrl;
   }
   $attempts = 10;
-  while(not defined $mp3Url and $attempts > 0){
+  while($attempts > 0 and not checkHtmlCache $epNum){
     $attempts--;
-    $mp3Url = fetchMP3Url $articleUrl;
+    attemptPutHtmlCache $epNum, $articleUrl;
   }
-  return $mp3Url;
+
+  return checkHtmlCache $epNum;
 }
-sub fetchMP3Url($){
-  my $articleUrl = shift;
-  my $html = `curl -L "$articleUrl" 2>/dev/null`;
+
+sub checkHtmlCache($){
+  my $epNum = shift;
+  my $cacheFile = htmlCacheFile $epNum;
+  return 0 if not -e $cacheFile;
+  my $html = `cat $cacheFile`;
   if($html =~ /href="([^"]*\.mp3)"/){
-    return $1;
+    return 1;
+  }else{
+    run "rm", "-f", $cacheFile;
+    return 0;
   }
-  $html = `wget "$articleUrl" -O - 2>/dev/null`;
-  if($html =~ /href="([^"]*\.mp3)"/){
-    return $1;
-  }
-  return undef;
 }
+
+sub attemptPutHtmlCache($$){
+  my ($epNum, $articleUrl) = @_;
+  my $cacheFile = htmlCacheFile $epNum;
+
+  system "curl -L \"$articleUrl\" -o \"$cacheFile\" 2>/dev/null";
+  return 1 if checkHtmlCache $epNum;
+
+  system "wget \"$articleUrl\" -O \"$cacheFile\" 2>/dev/null";
+  return 1 if checkHtmlCache $epNum;
+
+  return 0;
+}
+
+sub readHtmlCache($){
+  my $epNum = shift;
+  my $cacheFile = htmlCacheFile $epNum;
+  die "Missing html file for $epNum\n" if not checkHtmlCache $epNum;
+  return `cat $cacheFile`;
+}
+
 sub browserLoadArticle($){
   my $articleUrl = shift;
   system "uzbl $articleUrl >/dev/null 2>/dev/null &";
   sleep 5;
   system "pkill", "-f", "uzbl.*$articleUrl";
 }
-sub readMP3UrlCache(){
-  my $cache = {};
-  if(-e $mp3UrlCache){
-    for my $line(`cat $mp3UrlCache`){
-      if($line =~ /^(\d+) (.*\.mp3)$/){
-        $$cache{$1+0} = $2;
-      }
-    }
+
+sub getMP3Url($){
+  my $epNum = shift;
+  my $html = readHtmlCache $epNum;
+  if($html !~ /href="([^"]*\.mp3)"/){
+    die "Could not read mp3 url for $epNum\n";
   }
-  return $cache;
+  return $1;
 }
-sub writeMP3UrlCache($){
-  my $cache = shift;
-  my @lines;
-  for my $epNum(sort {$a <=> $b} keys %$cache){
-    push @lines, "$epNum $$cache{$epNum}\n";
-  }
-  open FH, "> $mp3UrlCache";
-  print FH @lines;
-  close FH;
-}
+
 sub downloadMP3File($$$$){
   my ($mp3Url, $mp3FileName, $ep, $tagFile) = @_;
   my $newFileName = newMP3FileName $ep;
