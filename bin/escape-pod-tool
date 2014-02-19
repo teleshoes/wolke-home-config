@@ -4,6 +4,7 @@ use warnings;
 
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $epDir = "$ENV{HOME}/escapepod";
+my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
 my $csvDelim = ';';
 my $forumUrl = "http://forum.escapeartists.net/index.php";
 
@@ -144,6 +145,9 @@ sub parseHtml($){
   my $html = readHtmlCache $epNum;
   my $info = {};
 
+  my $mp3 = `ls "$mp3Dir"/$epNum*.mp3 2>/dev/null`;
+  chomp $mp3;
+
   if($html =~ /<title>(.*)<\/title>/i){
     my $title = $1;
     $title =~ s/[:\.\-]\s*Escape\s*Pod\s*//g;
@@ -155,7 +159,15 @@ sub parseHtml($){
     $$info{title} = $title;
   }
 
-  if($html =~ /<span[^>]*>\s*\[\s*((?:\d+:)+\d+)\s*\]\s*<\/span>/){
+  if($mp3 =~ /^(.*\/)?$epNum[^\/]*\.mp3$/ and -e $mp3){
+    my $dur = `duration -n "$mp3"`;
+    chomp $dur;
+    if($dur =~ /^(\d+:)+\d+$/){
+      $$info{duration} = $dur;
+      $$durCache{$epNum+0} = $dur;
+      writeAttCache 'duration-cache', $durCache;
+    }
+  }elsif($html =~ /<span[^>]*>\s*\[\s*((?:\d+:)+\d+)\s*\]\s*<\/span>/){
     $$info{duration} = $1;
   }
 
