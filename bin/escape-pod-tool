@@ -201,6 +201,9 @@ sub parseHtml($){
   $html =~ s/&#160;/ /g;
   $html =~ s/Â/ /g;
 
+  my $htmlNoMeta = $html;
+  $htmlNoMeta =~ s/<meta$ws*[^>]*>//g;
+
   if(defined $ex{title}){
     $$info{title} = $ex{title};
   }elsif($html =~ /<title>(.*)<\/title>/i){
@@ -217,22 +220,22 @@ sub parseHtml($){
   if(not $isFlash){
     if(defined $ex{author}){
       $$info{author} = $ex{author};
-    }elsif($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
+    }elsif($htmlNoMeta =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
       $$info{author} = $1;
     }
   }else{
     my @authors;
     if(@authors == 0){
-      @authors = $html =~ /<strong>$ws*by$ws+([^<(]*)<\/strong>/gi;
+      @authors = $htmlNoMeta =~ /<strong>$ws*by$ws+([^<(]*)<\/strong>/gi;
     }
     if(@authors == 0){
-      @authors = $html =~ /<\/strong>$ws*by$ws+([^<(]*)</gi;
+      @authors = $htmlNoMeta =~ /<\/strong>$ws*by$ws+([^<(]*)</gi;
     }
     if(@authors == 0){
-      @authors = $html =~ /<\/a>,$ws*by$ws+([^<(]*)</gi;
+      @authors = $htmlNoMeta =~ /<\/a>,$ws*by$ws+([^<(]*)</gi;
     }
     if(@authors == 0){
-      @authors = $html =~ /(?<!narrated)$ws+by$ws+([^<(]*)</gi;
+      @authors = $htmlNoMeta =~ /(?<!narrated)$ws+by$ws+([^<(]*)</gi;
     }
     if(defined $ex{author}){
       $$info{author} = $ex{author};
@@ -242,20 +245,18 @@ sub parseHtml($){
   }
 
   if(not $isFlash){
-    my $newHtml = $html;
-    $newHtml =~ s/<meta$ws*[^>]*>//g;
     if(defined $ex{reader}){
       $$info{reader} = $ex{reader};
-    }elsif($newHtml =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
+    }elsif($htmlNoMeta =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
       $$info{reader} = $1;
     }
   }else{
     my @readers;
     if(@readers == 0){
-      @readers = $html =~ /$readBy(?:<a$ws+[^>]*>)?([^<]+)/gi;
+      @readers = $htmlNoMeta =~ /$readBy(?:<a$ws+[^>]*>)?([^<]+)/gi;
     }
     if(@readers == 0){
-      @readers = $html =~ /\(narrator-? ([^)]+)\)/gi;
+      @readers = $htmlNoMeta =~ /\(narrator-? ([^)]+)\)/gi;
     }
     if(defined $ex{reader}){
       $$info{reader} = $ex{reader};
