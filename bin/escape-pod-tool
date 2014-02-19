@@ -151,6 +151,8 @@ sub parseHtml($){
   my $ws = "[ \\t\\n]";
   my $readBy = "(?:narrated|read)$ws+(?:and produced )?by:?$ws+";
 
+  my $isFlash = $html =~ /<title>.*Flash.*<\/title>/i;
+
   $html =~ s/\xa0/ /g;
   $html =~ s/\xc2/ /g;
   $html =~ s/&nbsp;/ /g;
@@ -168,8 +170,25 @@ sub parseHtml($){
     $$info{title} = $title;
   }
 
-  if($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
-    $$info{author} = $1;
+  if(not $isFlash){
+    if($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
+      $$info{author} = $1;
+    }
+  }else{
+    my @authors;
+    if(@authors == 0){
+      @authors = $html =~ /<strong>$ws*by$ws+([^<(]*)<\/strong>/gi;
+    }
+    if(@authors == 0){
+      @authors = $html =~ /<\/strong>$ws*by$ws+([^<(]*)</gi;
+    }
+    if(@authors == 0){
+      @authors = $html =~ /<\/a>,$ws*by$ws+([^<(]*)</gi;
+    }
+    if(@authors == 0){
+      @authors = $html =~ /(?<!narrated)$ws+by$ws+([^<(]*)</gi;
+    }
+    $$info{author} = join ', ', @authors if @authors > 0;
   }
 
   my $newHtml = $html;
