@@ -45,7 +45,7 @@ my %ratingCategories = @ratings;
 my @ratingOrder = @ratings[grep { !($_ & 1) } 0 .. $#ratings];
 
 my $cmds = join "|", qw(
-  --csv --url --mp3url --mp3filename --download --download-only --tag
+  --csv --url --wiki --mp3url --mp3filename --download --download-only --tag
 );
 my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
@@ -56,6 +56,8 @@ my $usage = "Usage:
       Print episode info in CSV with delim=$csvDelim
     --url
       Print the article url for each EPNUM, using the links in the above url.
+    --wiki
+      Use article HTML pages and forums to approximate the wikipedia page
     --mp3url
       Print the download URL, parsed from the escape pod article HTML.
       HTML is fetched using curl/wget and cached in $epDir/htmlCache/EPNUM.html
@@ -95,7 +97,6 @@ sub main(@){
 
   my %okNums = map {$_+0 => 1} @nums;
 
-
   my $html = `wget -O - $url 2>/dev/null`;
   my @epNums;
   my @tableRows;
@@ -125,6 +126,31 @@ sub main(@){
   }elsif($cmd eq '--url'){
     for my $epNum(sort keys %$eps){
       print "$$eps{$epNum}{articleUrl}\n";
+    }
+  }elsif($cmd eq "--wiki"){
+    if(@nums == 0){
+      @nums = sort map {sprintf "%03d", $_} keys %$articleUrlCache;
+    }
+    for my $epNum(reverse @nums){
+      next if $epNum > 429;
+      my $articleUrl = $$articleUrlCache{$epNum+0};
+      if(ensureHtmlCache $epNum, $articleUrl){
+        my $info = parseHtml $epNum;
+        my $fmt = ''
+          . "|-\n| " . ($epNum+0)
+          . " || [$articleUrl $$info{title}]"
+          . " || [[$$info{author}]]"
+          . " || [[$$info{reader}]]"
+          . " || $$info{rating}"
+          . " || $$info{duration}"
+          . " || [$forumUrl?topic=$$info{forum} EPF]"
+          . "\n"
+          ;
+        $fmt =~ s/&amp;/&/g;
+        print $fmt;
+      }else{
+        print "   ERROR: $epNum\n";
+      }
     }
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
     for my $epNum(sort keys %$eps){
