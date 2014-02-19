@@ -18,6 +18,7 @@ sub getMP3Url($);
 sub browserLoadArticle($);
 sub readAttCache($);
 sub writeAttCache($$);
+sub extraInfo();
 sub crawlForum();
 sub downloadMP3File($$$$);
 sub tagMP3File($$);
@@ -154,6 +155,8 @@ sub parseHtml($){
   my $epNum = shift;
   my $html = readHtmlCache $epNum;
   my $info = {};
+  my $extraInfo = extraInfo;
+  my %ex = %{$$extraInfo{$epNum+0}} if defined $$extraInfo{$epNum+0};
 
   my $mp3 = `ls "$mp3Dir"/$epNum*.mp3 2>/dev/null`;
   chomp $mp3;
@@ -367,6 +370,17 @@ sub writeAttCache($$){
     print FH sprintf "%03d %s\n", $epNum, $$cache{$epNum};
   }
   close FH;
+}
+
+sub extraInfo(){
+  my $file = "$epDir/extra-info";
+  my $extraInfo = {};
+  for my $line(`cat $file`){
+    if($line =~ /^(\d\d\d) (author|rating|forum) (.*)$/){
+      $$extraInfo{$1+0}{$2} = $3;
+    }
+  }
+  return $extraInfo;
 }
 
 sub crawlForum(){
