@@ -148,6 +148,9 @@ sub parseHtml($){
   my $mp3 = `ls "$mp3Dir"/$epNum*.mp3 2>/dev/null`;
   chomp $mp3;
 
+  my $ws = "[ \\t\\n]";
+  my $readBy = "(?:narrated|read)$ws+(?:and produced )?by:?$ws+";
+
   $html =~ s/\xa0/ /g;
   $html =~ s/\xc2/ /g;
   $html =~ s/&nbsp;/ /g;
@@ -163,6 +166,16 @@ sub parseHtml($){
     $title =~ s/&#039;/'/g;
     $title =~ s/&amp;/&/g;
     $$info{title} = $title;
+  }
+
+  if($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
+    $$info{author} = $1;
+  }
+
+  my $newHtml = $html;
+  $newHtml =~ s/<meta$ws*[^>]*>//g;
+  if($newHtml =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
+    $$info{reader} = $1;
   }
 
   my $durCache = readAttCache 'duration-cache';
