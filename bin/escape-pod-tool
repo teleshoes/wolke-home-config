@@ -33,6 +33,16 @@ sub cell($);
 sub arrEquals($$);
 sub run(@);
 
+my @ratings = (
+  "G"     => 'OK for Kids',
+  "PG"    => '10 and Up',
+  "PG-13" => '13 and Up',
+  "R"     => '17 and Up',
+  "X"     => 'Erotica - NOT FOR KIDS',
+);
+my %ratingCategories = @ratings;
+my @ratingOrder = @ratings[grep { !($_ & 1) } 0 .. $#ratings];
+
 my $cmds = join "|", qw(
   --csv --url --mp3url --mp3filename --download --download-only --tag
 );
@@ -206,6 +216,15 @@ sub parseHtml($){
       @readers = $html =~ /\(narrator-? ([^)]+)\)/gi;
     }
     $$info{reader} = join ', ', @readers if @readers > 0;
+  }
+
+  for my $rating(@ratingOrder){
+    my $cat = $ratingCategories{$rating};
+    die "$rating" if not defined $cat;
+    if($html =~ /<meta property="article:section" content="$cat"\s*\/>/){
+      $$info{rating} = $rating;
+      last;
+    }
   }
 
   my $durCache = readAttCache 'duration-cache';
