@@ -172,7 +172,9 @@ sub parseHtml($){
   $html =~ s/&#160;/ /g;
   $html =~ s/Â/ /g;
 
-  if($html =~ /<title>(.*)<\/title>/i){
+  if(defined $ex{title}){
+    $$info{title} = $ex{title};
+  }elsif($html =~ /<title>(.*)<\/title>/i){
     my $title = $1;
     $title =~ s/[:\.\-]\s*Escape\s*Pod\s*//g;
     $title =~ s/^\s*(EP|Escape\s*Pod)\s*\d+[:\-]?//i;
@@ -184,7 +186,9 @@ sub parseHtml($){
   }
 
   if(not $isFlash){
-    if($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
+    if(defined $ex{author}){
+      $$info{author} = $ex{author};
+    }elsif($html =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
       $$info{author} = $1;
     }
   }else{
@@ -201,13 +205,19 @@ sub parseHtml($){
     if(@authors == 0){
       @authors = $html =~ /(?<!narrated)$ws+by$ws+([^<(]*)</gi;
     }
-    $$info{author} = join ', ', @authors if @authors > 0;
+    if(defined $ex{author}){
+      $$info{author} = $ex{author};
+    }else{
+      $$info{author} = join ', ', @authors if @authors > 0;
+    }
   }
 
   if(not $isFlash){
     my $newHtml = $html;
     $newHtml =~ s/<meta$ws*[^>]*>//g;
-    if($newHtml =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
+    if(defined $ex{reader}){
+      $$info{reader} = $ex{reader};
+    }elsif($newHtml =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
       $$info{reader} = $1;
     }
   }else{
@@ -218,15 +228,23 @@ sub parseHtml($){
     if(@readers == 0){
       @readers = $html =~ /\(narrator-? ([^)]+)\)/gi;
     }
-    $$info{reader} = join ', ', @readers if @readers > 0;
+    if(defined $ex{reader}){
+      $$info{reader} = $ex{reader};
+    }else{
+      $$info{reader} = join ', ', @readers if @readers > 0;
+    }
   }
 
-  for my $rating(@ratingOrder){
-    my $cat = $ratingCategories{$rating};
-    die "$rating" if not defined $cat;
-    if($html =~ /<meta property="article:section" content="$cat"\s*\/>/){
-      $$info{rating} = $rating;
-      last;
+  if(defined $ex{rating}){
+    $$info{rating} = $ex{rating};
+  }else{
+    for my $rating(@ratingOrder){
+      my $cat = $ratingCategories{$rating};
+      die "$rating" if not defined $cat;
+      if($html =~ /<meta property="article:section" content="$cat"\s*\/>/){
+        $$info{rating} = $rating;
+        last;
+      }
     }
   }
   if(not defined $$info{rating}){
@@ -263,6 +281,13 @@ sub parseHtml($){
   }
 
   my $forumCache = readAttCache 'forum-cache';
+  if(defined $ex{forum}){
+    my $prev = $$forumCache{$epNum+0};
+    if(not defined $prev or $prev ne $ex{forum}){
+      $$forumCache{$epNum+0} = $ex{forum};
+      writeAttCache 'forum-cache', $forumCache;
+    }
+  }
   if(not defined $$forumCache{$epNum+0}){
     print STDERR "updating forum cache\n";
     my $epArticles = crawlForum;
