@@ -242,7 +242,6 @@ sub downloadMP3File($$$$){
     print "  skipping $$ep{number}..\n";
   }else{
     run "axel", $mp3Url;
-    die " downloading failed\n" if $? != 0;
     tagMP3File $mp3FileName, $ep if $tagFile;
   }
 }
@@ -258,7 +257,6 @@ sub tagMP3File($$){
   $oldFileName = $newFileName if not -e $oldFileName;
 
   run "id3v2", "--delete-all", $oldFileName;
-  die "error removing id3 tags for $$ep{number}\n" if $? != 0;
 
   run "id3v2",
     "--TIT2", $$ep{title},
@@ -268,14 +266,11 @@ sub tagMP3File($$){
     "--TALB", "Escape Pod",
     "--TYER", $$ep{date},
     $oldFileName;
-  die "error setting id3 tags for $$ep{number}\n" if $? != 0;
 
   run "mid3iconv", $oldFileName;
-  die "error setting encoding to unicode\n" if $? != 0;
 
   if($oldFileName ne $newFileName){
     run "mv", "--no-clobber", $oldFileName, $newFileName;
-    die "error renaming file\n" if $? != 0;
   }
 }
 sub newMP3FileName($){
@@ -353,6 +348,7 @@ sub cell($){
 sub run(@){
   print "@_\n";
   system @_;
+  die "error running @_\n" if $? != 0;
 }
 
 &main(@ARGV);
