@@ -5,6 +5,7 @@ use warnings;
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $epDir = "$ENV{HOME}/escapepod";
 my $csvDelim = ';';
+my $forumUrl = "http://forum.escapeartists.net/index.php";
 
 sub htmlCacheFile($);
 sub ensureHtmlCache($$);
@@ -15,6 +16,7 @@ sub getMP3Url($);
 sub browserLoadArticle($);
 sub readAttCache($);
 sub writeAttCache($$);
+sub crawlForum();
 sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
@@ -26,6 +28,7 @@ sub maxLen(@);
 sub csv($);
 sub cell($);
 
+sub arrEquals($$);
 sub run(@);
 
 my $cmds = join "|", qw(
@@ -229,6 +232,30 @@ sub writeAttCache($$){
   close FH;
 }
 
+sub crawlForum(){
+  my $page = 0;
+  my $epArticles = {};
+  my $prevArticles = [];
+  while($page < 50){
+    my $board = "1." . (20*$page);
+    my $url = "$forumUrl?board=$board";
+    my $html = `curl -L \"$url\" 2>/dev/null`;
+    my $pageArticles = [];
+    while($html =~ /<a href="[^"]*topic=(\d+\.\d+)">EP(\d+)[^*]/g){
+      $$epArticles{$2} = $1;
+      push @$pageArticles, $2;
+    }
+    print "@$pageArticles\n";
+    if(arrEquals $pageArticles, $prevArticles){
+      print "REPEAT AT PAGE $page\n";
+      last;
+    }
+    $prevArticles = $pageArticles;
+    $page++;
+  }
+  return $epArticles;
+}
+
 sub getMP3Url($){
   my $epNum = shift;
   my $html = readHtmlCache $epNum;
@@ -346,6 +373,16 @@ sub cell($){
   }else{
     return $cell;
   }
+}
+
+sub arrEquals($$){
+  my ($arr1, $arr2) = @_;
+  return 0 if not defined $arr1 or not defined $arr2;
+  return 0 if @$arr1 != @$arr2;
+  for(my $i=0; $i<@$arr1; $i++){
+    return 0 if $$arr1[$i] ne $$arr2[$i];
+  }
+  return 1;
 }
 
 sub run(@){
