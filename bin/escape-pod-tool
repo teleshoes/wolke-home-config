@@ -13,8 +13,8 @@ sub attemptPutHtmlCache($$);
 sub readHtmlCache($);
 sub getMP3Url($);
 sub browserLoadArticle($);
-sub readArticleUrlCache();
-sub writeArticleUrlCache($);
+sub readAttCache($);
+sub writeAttCache($$);
 sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
@@ -90,7 +90,7 @@ sub main(@){
 
   my $maxLen = maxLen @epNums;
 
-  my $articleUrlCache = readArticleUrlCache;
+  my $articleUrlCache = readAttCache 'article-urls';
   my $eps = {};
   for my $tableRow(@tableRows){
     my $ep = parseTableRow $tableRow, $maxLen;
@@ -99,7 +99,7 @@ sub main(@){
     $$eps{$epNum} = $ep;
     $$articleUrlCache{$epNum+0} = $$ep{articleUrl};
   }
-  writeArticleUrlCache $articleUrlCache;
+  writeAttCache 'article-urls', $articleUrlCache;
   my $exitCode = 0;
 
   if($cmd eq '--csv'){
@@ -202,8 +202,9 @@ sub browserLoadArticle($){
   system "pkill", "-f", "uzbl.*$articleUrl";
 }
 
-sub readArticleUrlCache(){
-  my $cacheFile = "$epDir/article-urls";
+sub readAttCache($){
+  my $name = shift;
+  my $cacheFile = "$epDir/$name";
   my @lines = `cat $cacheFile 2>/dev/null`;
   my $cache = {};
   for my $line(@lines){
@@ -214,12 +215,12 @@ sub readArticleUrlCache(){
   return $cache;
 }
 
-sub writeArticleUrlCache($){
-  my $cache = shift;
-  my $cacheFile = "$epDir/article-urls";
+sub writeAttCache($$){
+  my ($name, $cache) = @_;
+  my $cacheFile = "$epDir/$name";
   my $s = '';
   open FH, "> $cacheFile" or die "Couldnt write to $cacheFile\n";
-  for my $epNum(sort {$a <=> $b} keys $cache){
+  for my $epNum(sort {$a <=> $b} keys %$cache){
     print FH sprintf "%03d %s\n", $epNum, $$cache{$epNum};
   }
   close FH;
