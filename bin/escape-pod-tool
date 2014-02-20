@@ -210,6 +210,7 @@ sub parseHtml($$){
   my $mp3 = `ls "$mp3Dir"/$epNum*.mp3 2>/dev/null`;
   chomp $mp3;
 
+  my $b = "(?:<\\/?\\s*(?:b|strong)[^>]*>)";
   my $ws = "[ \\t\\n]";
   my $readBy = "(?:narrated|read)$ws+(?:and produced )?by:?$ws+";
 
@@ -247,16 +248,16 @@ sub parseHtml($$){
   if(not $isFlash){
     if(defined $$ex{author}){
       $$info{author} = $$ex{author};
-    }elsif($htmlNoMeta =~ />by$ws*:?\s*(?:<\/strong>)?(?:<a [^>]*>)?(?:<strong[^>]*>)?([^<(]+)/i){
+    }elsif($htmlNoMeta =~ />by$ws*:?\s*$b?(?:<a [^>]*>)?$b?([^<(]+)/i){
       $$info{author} = $1;
     }
   }else{
     my @authors;
     if(@authors == 0){
-      @authors = $htmlNoMeta =~ /<strong>$ws*by$ws+([^<(]*)<\/strong>/gi;
+      @authors = $htmlNoMeta =~ /$b$ws*by$ws+([^<(]*)$b/gi;
     }
     if(@authors == 0){
-      @authors = $htmlNoMeta =~ /<\/strong>$ws*by$ws+([^<(]*)</gi;
+      @authors = $htmlNoMeta =~ /$b$ws*by$ws+([^<(]*)</gi;
     }
     if(@authors == 0){
       @authors = $htmlNoMeta =~ /<\/a>,$ws*by$ws+([^<(]*)</gi;
@@ -274,7 +275,7 @@ sub parseHtml($$){
   if(not $isFlash){
     if(defined $$ex{reader}){
       $$info{reader} = $$ex{reader};
-    }elsif($htmlNoMeta =~ /$readBy(?:<\/strong>)?(?:<a [^>]*>)?(?:<strong[^>]*>)?([^<(]+)/i){
+    }elsif($htmlNoMeta =~ /$readBy$b?(?:<a [^>]*>)?$b?([^<(]+)/i){
       $$info{reader} = $1;
     }
   }else{
@@ -301,10 +302,9 @@ sub parseHtml($$){
   }else{
     my $for = "(?:for [ ,a-zA-Z]+)";
     my $okRatings = join "|", @ratingOrder;
-    my $b = "(?:b|strong)";
 
     if(not defined $$info{rating}){
-      if($html =~ /<$b>\s*Rated ($okRatings)\s*\.?:?$for?\s*<\/$b>/){
+      if($html =~ /$b\s*Rated ($okRatings)\s*\.?:?$for?\s*$b/){
         $$info{rating} = $1;
       }
     }
@@ -312,7 +312,7 @@ sub parseHtml($$){
     if(not defined $$info{rating}){
       for my $rating(@ratingOrder){
         my $cat = $ratingCategories{$rating};
-        if($html =~ /<$b>\s*Rated $cat\s*\.?:?$for?\s*<\/$b>/i){
+        if($html =~ /$b\s*Rated $cat\s*\.?:?$for?\s*$b/i){
           $$info{rating} = $rating;
         }
       }
