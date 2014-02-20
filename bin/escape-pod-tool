@@ -269,21 +269,14 @@ sub parseHtml($){
   if(defined $ex{rating}){
     $$info{rating} = $ex{rating};
   }else{
-    for my $rating(@ratingOrder){
-      my $cat = $ratingCategories{$rating};
-      die "$rating" if not defined $cat;
-      if($html =~ /<meta property="article:section" content="$cat"\s*\/>/){
-        $$info{rating} = $rating;
-        last;
-      }
-    }
-  }
-  if(not defined $$info{rating}){
-    my $okRatings = join "|", @ratingOrder;
     my $for = "(?:for [ ,a-zA-Z]+)";
+    my $okRatings = join "|", @ratingOrder;
     my $b = "(?:b|strong)";
-    if($html =~ /<$b>\s*Rated ($okRatings)\s*\.?:?$for?\s*<\/$b>/){
-      $$info{rating} = $1;
+
+    if(not defined $$info{rating}){
+      if($html =~ /<$b>\s*Rated ($okRatings)\s*\.?:?$for?\s*<\/$b>/){
+        $$info{rating} = $1;
+      }
     }
 
     if(not defined $$info{rating}){
@@ -291,6 +284,17 @@ sub parseHtml($){
         my $cat = $ratingCategories{$rating};
         if($html =~ /<$b>\s*Rated $cat\s*\.?:?$for?\s*<\/$b>/i){
           $$info{rating} = $rating;
+        }
+      }
+    }
+
+    if(not defined $$info{rating}){
+      for my $rating(@ratingOrder){
+        my $cat = $ratingCategories{$rating};
+        die "$rating" if not defined $cat;
+        if($html =~ /<meta property="article:section" content="$cat"\s*\/>/){
+          $$info{rating} = $rating;
+          last;
         }
       }
     }
