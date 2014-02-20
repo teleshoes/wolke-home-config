@@ -9,7 +9,7 @@ my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
 my $csvDelim = ';';
 my $forumUrl = "http://forum.escapeartists.net/index.php";
 
-sub parseHtml($);
+sub parseHtml($$);
 sub htmlCacheFile($);
 sub ensureHtmlCache($$);
 sub checkHtmlCache($);
@@ -135,8 +135,11 @@ sub main(@){
     for my $epNum(reverse @nums){
       next if $epNum > 429;
       my $articleUrl = $$articleUrlCache{$epNum+0};
+      my $extraInfo = extraInfo();
       if(ensureHtmlCache $epNum, $articleUrl){
-        my $info = parseHtml $epNum;
+        my $ex = {};
+        $ex = $$extraInfo{$epNum+0} if defined $$extraInfo{$epNum+0};
+        my $info = parseHtml $epNum, $ex;
         my $fmt = ''
           . "|-\n| " . ($epNum+0)
           . " || [$articleUrl $$info{title}]"
@@ -178,13 +181,11 @@ sub main(@){
   exit $exitCode;
 }
 
-sub parseHtml($){
-  my $epNum = shift;
+sub parseHtml($$){
+  my ($epNum, $ex) = @_;
   my $html = readHtmlCache $epNum;
 
   my $info = {};
-  my $extraInfo = extraInfo;
-  my %ex = %{$$extraInfo{$epNum+0}} if defined $$extraInfo{$epNum+0};
 
   my @atts = qw(title author reader rating duration forum);
 
@@ -205,8 +206,8 @@ sub parseHtml($){
   my $htmlNoMeta = $html;
   $htmlNoMeta =~ s/<meta$ws*[^>]*>//g;
 
-  if(defined $ex{title}){
-    $$info{title} = $ex{title};
+  if(defined $$ex{title}){
+    $$info{title} = $$ex{title};
   }elsif($html =~ /<title>(.*)<\/title>/i){
     my $title = $1;
     $title =~ s/[:\.\-]\s*Escape\s*Pod\s*//g;
@@ -219,8 +220,8 @@ sub parseHtml($){
   }
 
   if(not $isFlash){
-    if(defined $ex{author}){
-      $$info{author} = $ex{author};
+    if(defined $$ex{author}){
+      $$info{author} = $$ex{author};
     }elsif($htmlNoMeta =~ />by$ws*(?:<a [^>]*>)?([^<(]+)/i){
       $$info{author} = $1;
     }
@@ -238,16 +239,16 @@ sub parseHtml($){
     if(@authors == 0){
       @authors = $htmlNoMeta =~ /(?<!narrated)$ws+by$ws+([^<(]*)</gi;
     }
-    if(defined $ex{author}){
-      $$info{author} = $ex{author};
+    if(defined $$ex{author}){
+      $$info{author} = $$ex{author};
     }else{
       $$info{author} = join ', ', @authors if @authors > 0;
     }
   }
 
   if(not $isFlash){
-    if(defined $ex{reader}){
-      $$info{reader} = $ex{reader};
+    if(defined $$ex{reader}){
+      $$info{reader} = $$ex{reader};
     }elsif($htmlNoMeta =~ /$readBy(?:<a$ws+[^>]*>)?([^<(]+)/i){
       $$info{reader} = $1;
     }
@@ -259,15 +260,15 @@ sub parseHtml($){
     if(@readers == 0){
       @readers = $htmlNoMeta =~ /\(narrator-? ([^)]+)\)/gi;
     }
-    if(defined $ex{reader}){
-      $$info{reader} = $ex{reader};
+    if(defined $$ex{reader}){
+      $$info{reader} = $$ex{reader};
     }else{
       $$info{reader} = join ', ', @readers if @readers > 0;
     }
   }
 
-  if(defined $ex{rating}){
-    $$info{rating} = $ex{rating};
+  if(defined $$ex{rating}){
+    $$info{rating} = $$ex{rating};
   }else{
     my $for = "(?:for [ ,a-zA-Z]+)";
     my $okRatings = join "|", @ratingOrder;
@@ -316,10 +317,10 @@ sub parseHtml($){
   }
 
   my $forumCache = readAttCache 'forum-cache';
-  if(defined $ex{forum}){
+  if(defined $$ex{forum}){
     my $prev = $$forumCache{$epNum+0};
-    if(not defined $prev or $prev ne $ex{forum}){
-      $$forumCache{$epNum+0} = $ex{forum};
+    if(not defined $prev or $prev ne $$ex{forum}){
+      $$forumCache{$epNum+0} = $$ex{forum};
       writeAttCache 'forum-cache', $forumCache;
     }
   }
