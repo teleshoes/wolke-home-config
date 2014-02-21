@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $prefs = {
+};
+
+sub editMozillaPrefs($$$) {
+  my ($name, $patchname, $config) = @_;
+  editFile $name, $patchname, sub {
+    my $cnts = shift;
+    for my $key(keys %$config){
+      my $re = "user_pref.*$key";
+      replaceOrAddLine $cnts, $re, "user_pref(\"$key\", $$config{$key});";
+    }
+    $cnts
+  };
+}
+
+sub main(@){
+  my $home = getHome();
+  my $prefsJs = `ls $home/.mozilla/firefox/*.default/prefs.js`;
+  chomp $prefsJs;
+  die "Could not find prefs file\n" if not -f $prefsJs;
+
+  editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
+}
+
+&main(@ARGV);
