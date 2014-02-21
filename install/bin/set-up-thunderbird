@@ -4,6 +4,11 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $folderUris = {
+};
+my $folderAlerts = {
+};
+
 my $mbaExt = "extensions.mailboxalert";
 
 my $msgDur = '3';
@@ -89,6 +94,18 @@ sub fmtAlerts($@){
       $val = "\"$val\"" unless $val =~ /^(\d+|true|false)$/;
       $s .= "user_pref(\"$mbaExt.alerts.$id.$pref\", $val);\n";
     }
+  }
+
+  for my $folder(sort keys %$folderUris){
+    die "No alerts for: $folder\n" if not defined $$folderAlerts{$folder};
+    my $uri = $$folderUris{$folder};
+    my @alertIds;
+    for my $alertName(@{$$folderAlerts{$folder}}){
+      die "Unknonw alert: $alertName\n" if not defined $$ids{$alertName};
+      push @alertIds, $$ids{$alertName};
+    }
+    my $fmtIds = join ",", @alertIds;
+    $s .= "user_pref(\"$mbaExt.folders.$uri.alerts\", \"$fmtIds\");\n";
   }
   return $s;
 }
