@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $mbaExt = "extensions.mailboxalert";
+
+my $msgDur = '3';
+my $msgPos = 'bottom-right';
+my $msgText = '%subject';
+my $msgHeader = '%sendername on %originalfolder';
+
+my $soundDir = "/media/stuff/Music/Sounds";
+
+sub msgAlertPrefs($);
+sub soundAlertPrefs($$);
+sub fmtAlerts(@);
+
+sub main(@){
+  my $home = getHome();
+  my $prefsJs = `ls $home/.thunderbird/*.default/prefs.js`;
+  chomp $prefsJs;
+  die "Could not find prefs file\n" if not -f $prefsJs;
+  my @alerts;
+  push @alerts, msgAlertPrefs "msg";
+  for my $sound(`ls "$soundDir"/*.wav`){
+    chomp $sound;
+    my $name = $sound;
+    $name =~ s/.*\///;
+    $name =~ s/\.wav$//;
+    $name = "snd:$name";
+    push @alerts, soundAlertPrefs $name, $sound;
+  }
+
+  my @lines = `cat \"$prefsJs\"`;
+  my @newLines;
+  for my $line(@lines){
+    if($line =~ /$mbaExt.prefsversion/){
+      push @newLines, fmtAlerts @alerts;
+    }elsif($line =~ /$mbaExt/){
+      next;
+    }
+    push @newLines, $line;
+  }
+  open FH, "> $prefsJs" or die "Could not write to $prefsJs\n";
+  print FH @newLines;
+  close FH;
+}
+
+sub msgAlertPrefs($){
+  return {
+    name => "\"$_[0]\"",
+    show_message => "true",
+    show_message_duration => "$msgDur",
+    show_message_effect => "\"none\"",
+    show_message_message => "\"$msgText\"",
+    show_message_position => "\"$msgPos\"",
+    show_message_subject => "\"$msgHeader\"",
+  };
+}
+
+sub soundAlertPrefs($$){
+  return {
+    name => "\"$_[0]\"",
+    command => "\"/usr/bin/mplayer $_[1]\"",
+    execute_command => "true",
+  };
+}
+
+sub fmtAlerts(@){
+  my $id = 1;
+  my $s = '';
+  for my $alert(@_){
+    for my $pref(sort keys %$alert){
+      $s .= "user_pref(\"$mbaExt.alerts.$id.$pref\", $$alert{$pref});\n";
+    }
+    $id++;
+  }
+  return $s;
+}
+
+&main(@ARGV);
