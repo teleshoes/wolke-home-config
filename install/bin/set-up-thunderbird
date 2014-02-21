@@ -15,13 +15,15 @@ my $soundDir = "/media/stuff/Music/Sounds";
 
 sub msgAlertPrefs($);
 sub soundAlertPrefs($$);
-sub fmtAlerts(@);
+sub fmtAlerts($@);
 
 sub main(@){
   my $home = getHome();
   my $prefsJs = `ls $home/.thunderbird/*.default/prefs.js`;
   chomp $prefsJs;
   die "Could not find prefs file\n" if not -f $prefsJs;
+  my %alertIds;
+
   my @alerts;
   push @alerts, msgAlertPrefs "msg";
   for my $sound(`ls "$soundDir"/*.wav`){
@@ -33,16 +35,24 @@ sub main(@){
     push @alerts, soundAlertPrefs $name, $sound;
   }
 
+  my $alertIds = {};
+
+  my $curId = 1;
+  for my $alert(@alerts){
+    $$alertIds{$$alert{name}} = $curId++;
+  }
+
   my @lines = `cat \"$prefsJs\"`;
   my @newLines;
   for my $line(@lines){
     if($line =~ /$mbaExt.prefsversion/){
-      push @newLines, fmtAlerts @alerts;
+      push @newLines, fmtAlerts $alertIds, @alerts;
     }elsif($line =~ /$mbaExt/){
       next;
     }
     push @newLines, $line;
   }
+
   open FH, "> $prefsJs" or die "Could not write to $prefsJs\n";
   print FH @newLines;
   close FH;
@@ -68,16 +78,17 @@ sub soundAlertPrefs($$){
   };
 }
 
-sub fmtAlerts(@){
-  my $id = 1;
+sub fmtAlerts($@){
+  my $ids = shift;
   my $s = '';
   for my $alert(@_){
+    my $id = $$ids{$$alert{name}};
+    die "Missing alert id\n" if not defined $id;
     for my $pref(sort keys %$alert){
       my $val = $$alert{$pref};
       $val = "\"$val\"" unless $val =~ /^(\d+|true|false)$/;
       $s .= "user_pref(\"$mbaExt.alerts.$id.$pref\", $val);\n";
     }
-    $id++;
   }
   return $s;
 }
