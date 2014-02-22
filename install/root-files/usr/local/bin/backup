@@ -31,6 +31,9 @@ sub deleteSnapshots($@);
 sub getBtrfsMountDev($);
 sub monitorPvLog();
 sub latestPvLogFile();
+sub guessPrefixes($);
+sub guessSubvolNames($);
+sub bashComplete($$);
 
 sub sync();
 sub run(@);
@@ -91,9 +94,18 @@ my $usage = "Usage:
       path: subvol path, lexicographically
       size: bytes used exclusively by subvol, largest first
 
+   $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
 ";
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
@@ -499,6 +511,89 @@ sub getBtrfsMountDev($){
     }
   }
   return undef;
+}
+
+sub guessPrefixes($){
+  my $mountPoint = shift;
+  my @subs = guessSubvolNames $mountPoint;
+  my @prefixWords = map { /^(\w+)/; $1} @subs;
+  my %uniqPrefixWords = map { $_ => 1} @prefixWords;
+  return sort keys %uniqPrefixWords;
+}
+sub guessSubvolNames($){
+  my $mountPoint = shift;
+  $mountPoint =~ s/'/'\\''/g;
+  my @subs = `ls '$mountPoint' 2>/dev/null`;
+  my %subvolNames;
+  for my $sub(@subs){
+    if($sub =~ /^(?:.*\/)?(\w+-\d{4}-\d{2}-\d{2}_\d+)$/){
+      $subvolNames{$1} = 1;
+    }
+  }
+  return sort keys %subvolNames;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  my @backupNames = sort keys %$backups;
+
+  my @cmds = qw(
+    -h --help
+    --snapshot
+    --cleanup=1 --cleanup=30 --cleanup=all
+    --remove
+    --delete
+    --monitor
+    --info
+    --bash-complete
+  );
+
+  if(@words == 0){
+    return (@backupNames, @mntPoints, @cmds);
+  }
+
+  if($words[0] =~ /^(--snapshot|--cleanup.*)/){
+    if(@words == 1){
+      return @mntPoints;
+    }elsif(@words == 2){
+      my $mnt = $words[1];
+      my @prefixes = guessPrefixes $mnt;
+      push @prefixes, "SNAPSHOT" if $words[0] =~ /^(--snapshot)$/;
+      return @prefixes;
+    }
+  }
+
+  if($words[0] =~ /^(--delete)$/){
+    if(@words == 1){
+      return @mntPoints;
+    }elsif(@words > 1){
+      my $mnt = $words[1];
+      return guessSubvolNames $mnt;
+    }
+  }
+
+  if($words[0] =~ /^(--info)$/){
+    my @quick = qw(--quick);
+    my @sortBy = qw(--sort-by=id --sort-by=path --sort-by=size);
+    if(@words == 1){
+      return (@quick, @sortBy, @mntPoints);
+    }elsif(@words == 2 and $words[1] =~ /^(--quick)$/){
+      return (@sortBy, @mntPoints);
+    }elsif(@words == 3 and $words[2] =~ /^(--sort-by.*)$/){
+      return (@mntPoints);
+    }
+  }
+
+  return ();
 }
 
 sub sync(){
