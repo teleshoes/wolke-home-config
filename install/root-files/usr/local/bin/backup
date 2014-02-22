@@ -468,12 +468,14 @@ sub cleanupSnapshots($$$){
 sub deleteSnapshots($@){
   my ($mountPoint, @toDelete) = @_;
 
-  for my $sub(@toDelete){
-    die "MISSING SNAPSHOT: $sub\n" if not -d "$mountPoint/$sub";
-  }
+  @toDelete = map {s/\/$//; $_} @toDelete;
 
   my $subvolumes = getSubvolumes $mountPoint;
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
+
+  for my $sub(@toDelete){
+    die "MISSING SNAPSHOT: $sub\n" if not -d "$mountPoint/$sub";
+  }
 
   my @pathsToDelete = map {"$mountPoint/$_"} @toDelete;
   my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
