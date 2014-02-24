@@ -24,6 +24,9 @@ sub wifi($$);
 sub twip($$);
 sub guess($$);
 
+my $ifconfigExec = '/sbin/ifconfig';
+my $iwconfigExec = '/sbin/iwconfig';
+
 my $confDir = "$ENV{HOME}/.config/ipmagic";
 my @confFiles = `ls \"$confDir\" 2>/dev/null`;
 chomp foreach @confFiles;
@@ -171,6 +174,18 @@ sub main(@){
     }
     @sshCmd = ($c);
   }
+
+  if(not -x $ifconfigExec){
+    $ifconfigExec = `which ifconfig`;
+    chomp $ifconfigExec;
+  }
+  print STDERR "WARNING: no ifconfig exec found\n" if not -x $ifconfigExec;
+
+  if(not -x $iwconfigExec){
+    $iwconfigExec = `which iwconfig`;
+    chomp $iwconfigExec;
+  }
+  print STDERR "WARNING: no iwconfig exec found\n" if not -x $iwconfigExec;
 
   my ($ip, $method);
   if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
@@ -432,7 +447,7 @@ sub quickPingable($){
 
 sub ifup($$){
   my ($dev, $ip) = @_;
-  system "ifconfig"
+  system "$ifconfigExec"
     . " $dev $ip netmask 255.255.255.0 up"
     . " > /dev/null"
     ;
@@ -452,7 +467,7 @@ sub usb($$){
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
 
-  my $ifconfig = `ifconfig -a`;
+  my $ifconfig = `$ifconfigExec -a`;
   my @macs;
   if(defined $config{macList}){
     @macs = @{$config{macList}};
@@ -462,7 +477,7 @@ sub usb($$){
     if($ifconfig =~ /^(usb\d+)/mi){ #assume any usb, because mac keeps changing
       my $dev = $1;
       print "USB network device $dev found, assuming this is it\n" if $opts{verbose};
-      $ifconfig = `ifconfig $dev`;
+      $ifconfig = `$ifconfigExec $dev`;
       if($ifconfig !~ /inet addr:$localIp/){
         print STDERR "USB DEVICE UP\n";
         sudoIfup $dev, $localIp;
@@ -484,7 +499,7 @@ sub wifi($$){
   my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
   my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
 
-  my $iwconfig = `iwconfig 2>/dev/null`;
+  my $iwconfig = `$iwconfigExec 2>/dev/null`;
   my $mac = lc ($iwconfig =~ /Access Point: ([a-z0-9:]+)/i ? $1 : '<none>');
   my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
   print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $opts{verbose};
