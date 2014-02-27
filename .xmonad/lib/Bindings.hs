@@ -128,6 +128,7 @@ shortcuts conf = "Shortcuts" @@ do
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
     "raspi"         @@ do
+        "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
         "vnc"           @@ mC    xK_F9   #! "pi -vnc"
 
     "N9"            @@ do
