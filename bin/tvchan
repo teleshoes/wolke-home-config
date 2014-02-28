@@ -4,14 +4,22 @@ use warnings;
 
 my @ext = qw(mkv mp4 avi wmv m2ts);
 
+my $inputConfFile = "/tmp/mplayer-tvchan-input.conf";
+my $input = {
+};
+
 sub play($$);
 sub getRandomEntry($);
 sub getRandomPos($);
+sub writeInputConf();
 sub getProcLines(@);
 
 sub main(@){
   my @dirs = @_;
   die "Usage: $0 DIR [DIR ..]\n" if @dirs == 0;
+
+  writeInputConf;
+
   my @cmd;
   push @cmd, "find";
   for my $dir(@dirs){
@@ -62,6 +70,16 @@ sub getRandomPos($){
   die "Malformed duration: $dur\n" if $dur !~ /^\d+(\.\d+)?$/;
   my $pos = rand() * $dur;
   return sprintf '%.2f', $pos;
+}
+
+sub writeInputConf(){
+  my $conf = '';
+  for my $key(keys %$input){
+    $conf .= "$key $$input{$key}\n";
+  }
+  open FH, "> $inputConfFile" or die "Could not write to $inputConfFile\n";
+  print FH $conf;
+  close FH;
 }
 
 sub getProcLines(@){
