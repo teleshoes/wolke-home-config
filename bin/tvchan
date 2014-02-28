@@ -4,6 +4,9 @@ use warnings;
 
 my @ext = qw(mkv mp4 avi wmv m2ts);
 
+sub play($$);
+sub getRandomEntry($);
+sub getRandomPos($);
 sub getProcLines(@);
 
 sub main(@){
@@ -23,18 +26,38 @@ sub main(@){
   my $files = getProcLines @cmd;
   chomp foreach @$files;
   while(1){
-    my $randIndex = rand @$files;
-    my $file = $$files[$randIndex];
-    chomp $file;
-    my $dur = `duration -n -s "$file"`;
-    chomp $dur;
-    my $s = rand() * $dur;
-    system "mplayer", "-ss", $s, $file;
-    if($? != 0){
-      print "\nmplayer non-zero exit status, terminating\n";
-      exit;
-    }
+    my $file = getRandomEntry $files;
+    my $pos = getRandomPos $file;
+    play $file, $pos;
   }
+}
+
+sub play($$){
+  my ($file, $pos) = @_;
+  system "mplayer", "-ss", $pos, $file;
+  if($? != 0){
+    print "\nmplayer non-zero exit status, terminating\n";
+    exit;
+  }
+}
+
+sub getRandomEntry($){
+  my $arr = shift;
+  my $randIndex = rand @$arr;
+  return $$arr[$randIndex];
+}
+
+sub getRandomPos($){
+  my $file = shift;
+  die "Could not find \"$file\"\n" if not -f $file;
+  my $durLines = getProcLines "duration", "-n", "-s", $file;
+  die "Error running duration on $file\n" if @$durLines != 1;
+  my $dur = $$durLines[0];
+  chomp $dur;
+
+  die "Malformed duration: $dur\n" if $dur !~ /^\d+(\.\d+)?$/;
+  my $pos = rand() * $dur;
+  return sprintf '%.2f', $pos;
 }
 
 sub getProcLines(@){
