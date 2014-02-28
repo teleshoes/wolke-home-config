@@ -4,8 +4,9 @@ use warnings;
 
 my @ext = qw(mkv mp4 avi wmv m2ts);
 
+my $inputCmdFile = "/tmp/mplayer-tvchan-commands";
 my $inputConfFile = "/tmp/mplayer-tvchan-input.conf";
-my $input = {
+my $inputConf = {
   F9    => 'quit 209',  #back
   F10   => 'quit 210',  #forward
   F11   => 'quit 211',  #go to end
@@ -18,6 +19,7 @@ sub play($$);
 sub getRandomEntry($);
 sub getRandomPos($);
 sub writeInputConf();
+sub writeInputCommands(@);
 sub getProcLines(@);
 
 sub main(@){
@@ -71,8 +73,11 @@ sub main(@){
 
 sub play($$){
   my ($file, $pos) = @_;
+  writeInputCommands(
+  );
   system "mplayer",
     "-input", "conf=$inputConfFile",
+    "-input", "file=$inputCmdFile",
     "-ss", $pos,
     $file,
   ;
@@ -102,11 +107,21 @@ sub getRandomPos($){
 
 sub writeInputConf(){
   my $conf = '';
-  for my $key(keys %$input){
-    $conf .= "$key $$input{$key}\n";
+  for my $key(keys %$inputConf){
+    $conf .= "$key $$inputConf{$key}\n";
   }
   open FH, "> $inputConfFile" or die "Could not write to $inputConfFile\n";
   print FH $conf;
+  close FH;
+}
+
+sub writeInputCommands(@){
+  my $cmds = '';
+  for my $cmd(@_){
+    $cmds .= "$cmd\n";
+  }
+  open FH, "> $inputCmdFile" or die "Could not write to $inputCmdFile\n";
+  print FH $cmds;
   close FH;
 }
 
