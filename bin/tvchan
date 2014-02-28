@@ -13,20 +13,20 @@ my $mplayerConf = {
   "fs"                => "yes",
   "subfont-osd-scale" => 2,
 };
-my $exitCodes = {
-  back    => 209,
-  forward => 210,
-  end     => 211,
-  quit    => 212,
-};
-my $inputConf = {
-  F9    => "quit $$exitCodes{back}",
-  F10   => "quit $$exitCodes{forward}",
-  F11   => "quit $$exitCodes{end}",
-  F12   => "quit $$exitCodes{quit}",
-  q     => "quit $$exitCodes{quit}",
-  ENTER => "quit $$exitCodes{forward}",
-};
+
+my %commands = (
+  back    => [209, [qw( F9        )]],
+  forward => [210, [qw( F10 ENTER )]],
+  end     => [211, [qw( F11       )]],
+  quit    => [212, [qw( F12 q     )]],
+);
+my %exitCodes = map {$_ => ${$commands{$_}}[0]} keys %commands;
+
+my $inputConf = {};
+for my $cmd(values %commands){
+  my ($exitCode, $keys) = @$cmd;
+  $$inputConf{$_} = "quit $exitCode" foreach @$keys;
+}
 
 sub play($$$);
 sub getRandomEntry($);
@@ -79,15 +79,15 @@ sub main(@){
 
     print "\n\nPLAYING: $file @ $pos\n\n";
     my $status = play $file, $pos, $msg;
-    if($status == $$exitCodes{back}){
+    if($status == $exitCodes{back}){
       $index--;
       $index = 0 if $index < 0;
-    }elsif($status == $$exitCodes{forward} or $status == 0){
+    }elsif($status == $exitCodes{forward} or $status == 0){
       $index++;
       $index = @history if $index > @history;
-    }elsif($status == $$exitCodes{end}){
+    }elsif($status == $exitCodes{end}){
       $index = @history;
-    }elsif($status == $$exitCodes{quit}){
+    }elsif($status == $exitCodes{quit}){
       last;
     }elsif($status != 0){
       die "\nunexpected mplayer exit code, terminating\n";
