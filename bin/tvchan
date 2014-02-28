@@ -6,15 +6,22 @@ use warnings;
 my $dir = "/media/stuff/Videos/Clips Shorts Trailers";
 my @ext = qw(mkv mp4 avi wmv m2ts);
 
+sub getProcLines(@);
+
 sub main(@){
-  my $cmd = "find \"$dir\" -false ";
+  my @cmd;
+  push @cmd, "find";
+  push @cmd, $dir;
+  push @cmd, "-false";
   for my $ext(@ext){
-    $cmd .= " -or -iname *.$ext";
+    push @cmd, ("-or", "-iname", "*.$ext");
   }
-  my @files = `$cmd`;
+
+  my $files = getProcLines @cmd;
+  chomp foreach @$files;
   while(1){
-    my $randIndex = rand @files;
-    my $file = $files[$randIndex];
+    my $randIndex = rand @$files;
+    my $file = $$files[$randIndex];
     chomp $file;
     my $dur = `duration -n -s "$file"`;
     chomp $dur;
@@ -25,6 +32,14 @@ sub main(@){
       exit;
     }
   }
+}
+
+sub getProcLines(@){
+  open FH, "-|", @_;
+  my @lines = <FH>;
+  close FH;
+  die "Error running \"@_\"\n" if $? != 0;
+  return \@lines;
 }
 
 &main(@ARGV);
