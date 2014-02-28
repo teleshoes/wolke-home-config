@@ -4,8 +4,12 @@ use warnings;
 
 my @ext = qw(mkv mp4 avi wmv m2ts);
 
+my $mplayerConfFile = "/tmp/mplayer-tvchan.conf";
 my $inputCmdFile = "/tmp/mplayer-tvchan-commands";
 my $inputConfFile = "/tmp/mplayer-tvchan-input.conf";
+
+my $mplayerConf = {
+};
 my $inputConf = {
   F9    => 'quit 209',  #back
   F10   => 'quit 210',  #forward
@@ -19,6 +23,7 @@ sub play($$);
 sub getRandomEntry($);
 sub getRandomPos($);
 sub writeInputConf();
+sub writeMplayerConf();
 sub writeInputCommands(@);
 sub getProcLines(@);
 
@@ -27,6 +32,7 @@ sub main(@){
   die "Usage: $0 DIR [DIR ..]\n" if @dirs == 0;
 
   writeInputConf;
+  writeMplayerConf;
 
   my @cmd;
   push @cmd, "find";
@@ -78,6 +84,7 @@ sub play($$){
   system "mplayer",
     "-input", "conf=$inputConfFile",
     "-input", "file=$inputCmdFile",
+    "-include", $mplayerConfFile,
     "-ss", $pos,
     $file,
   ;
@@ -115,6 +122,15 @@ sub writeInputConf(){
   close FH;
 }
 
+sub writeMplayerConf(){
+  my $conf = '';
+  for my $key(keys %$mplayerConf){
+    $conf .= "$key=$$mplayerConf{$key}\n";
+  }
+  open FH, "> $mplayerConfFile" or die "Could not write to $mplayerConfFile\n";
+  print FH $conf;
+  close FH;
+}
 sub writeInputCommands(@){
   my $cmds = '';
   for my $cmd(@_){
