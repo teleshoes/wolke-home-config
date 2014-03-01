@@ -120,6 +120,8 @@ alias glxgears='vblank_mode=0 glxgears'
 alias cpcon='git cherry-pick --continue'
 function mnto { sudo mnt --other --no-usb --no-card $@ ; }
 alias gparted='spawnexsudo gparted'
+alias time='command time'
+alias mkdir='mkdir -p'
 function s           { $@ & disown ; }
 function spawn       { $@ & disown ; }
 function spawnex     { $@ & disown && exit 0 ; }
