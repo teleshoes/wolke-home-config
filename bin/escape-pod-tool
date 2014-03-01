@@ -14,6 +14,7 @@ sub htmlCacheFile($);
 sub ensureHtmlCache($$);
 sub checkHtmlCache($);
 sub attemptPutHtmlCache($$);
+sub attemptGunzip($);
 sub readHtmlCache($);
 sub getMP3Url($);
 sub browserLoadArticle($);
@@ -440,12 +441,27 @@ sub attemptPutHtmlCache($$){
 
   run "curl -L \"$articleUrl\" -o \"$cacheFile\" 2>/dev/null";
   return 1 if checkHtmlCache $epNum;
+  attemptGunzip($cacheFile);
+  return 1 if checkHtmlCache $epNum;
 
   run "wget \"$articleUrl\" -O \"$cacheFile\" 2>/dev/null";
+  return 1 if checkHtmlCache $epNum;
+  attemptGunzip($cacheFile);
   return 1 if checkHtmlCache $epNum;
 
   run "rm", "-f", $cacheFile;
   return 0;
+}
+
+sub attemptGunzip($){
+  my $file = shift;
+  if(-e $file){
+    run "mv", $file, "$file.gz";
+    run "gunzip", "$file.gz";
+  }
+  if(-e "$file.gz"){
+    run "rm", "-f", "$file.gz";
+  }
 }
 
 sub readHtmlCache($){
