@@ -43,23 +43,27 @@ sub main(@){
     "b|background" => \$background,
   );
 
+  my $defaultFile = "$alarmsDir/default";
+
   my $name = shift() || 'default';
-  if(defined $guess and $name !~ /^($validAlarms)$/){
-    print "using 'default' instead of '$name'\n";
-    $name = 'default';
+  my $file;
+  if($name =~ /^($validAlarms)$/){
+    $file = "$alarmsDir/$name";
+  }elsif(defined $guess and -e $defaultFile){
+    print "Could not find '$name'; using '$defaultFile'\n";
+    $file = $defaultFile;
   }
 
   die $usage if not $ok or @_ > 0
     or defined $help
-    or $name !~ /^($validAlarms)$/
+    or not defined $file
     or (defined $vol and $vol < 0)
     ;
 
   pulseExec $0, @ARGV unless defined $norerun;
 
-  my $alarmFile = "$alarmsDir/$name";
-  $alarmFile = abs_path $alarmFile if -l $alarmFile;
-  die "Missing alarm file $alarmFile\n" if not -e $alarmFile;
+  $file = abs_path $file if -l $file;
+  die "Missing alarm file $file\n" if not -f $file;
 
   if(defined $vol){
     system "pulse-vol", "unmute";
@@ -68,7 +72,7 @@ sub main(@){
 
   my @cmd;
   @cmd = (@cmd, "term") unless $background;
-  @cmd = (@cmd, "mplayer", "$alarmsDir/$name");
+  @cmd = (@cmd, "mplayer", $file);
   @cmd = (@cmd, "-loop", "0") unless $once;
 
   if(not $background){
