@@ -143,6 +143,15 @@ function git()
   fi
 }
 
+function m() {
+  mvn -DskipTests -Djetty.port=8081 -Dcheckstyle.style=true install $@
+  if [ $? == 0 ]; then
+    alarm -s ff7-loaded.wav
+  else
+    alarm -s ff7-cancel.wav
+  fi
+}
+
 alias genservices='~/workspace/escribe/tools/genservices.pl'
 alias genibatis='~/workspace/escribe/tools/genibatis.pl'
 alias migl='gvim `~/migs/latest-script`'
