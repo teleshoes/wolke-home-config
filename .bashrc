@@ -144,7 +144,7 @@ function git()
 }
 
 function m() {
-  mvn -DskipTests -Djetty.port=8081 -Dcheckstyle.style=true install $@
+  mvn -DskipTests -Djetty.port=8081 -Dcheckstyle.skip=true install $@
   if [ $? == 0 ]; then
     alarm -s ff7-loaded.wav
   else
