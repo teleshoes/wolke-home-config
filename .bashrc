@@ -145,11 +145,13 @@ function git()
 
 function execAlarm() {
   $@
-  if [ $? == 0 ]; then
+  exitCode="$?"
+  if [ $exitCode == 0 ]; then
     alarm -s ff7-loaded.wav
   else
     alarm -s ff7-cancel.wav
   fi
+  bash -c "exit $exitCode"
 }
 
 alias maven="execAlarm mvn -Djetty.port=8081 $@"
