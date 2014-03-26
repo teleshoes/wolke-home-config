@@ -143,8 +143,8 @@ function git()
   fi
 }
 
-function m() {
-  mvn -DskipTests -Djetty.port=8081 -Dcheckstyle.skip=true install $@
+function execAlarm() {
+  $@
   if [ $? == 0 ]; then
     alarm -s ff7-loaded.wav
   else
@@ -152,6 +152,9 @@ function m() {
   fi
 }
 
+function m() {
+  execAlarm mvn -DskipTests -Djetty.port=8081 -Dcheckstyle.skip=true install $@
+}
 alias genservices='~/workspace/escribe/tools/genservices.pl'
 alias genibatis='~/workspace/escribe/tools/genibatis.pl'
 alias migl='gvim `~/migs/latest-script`'
