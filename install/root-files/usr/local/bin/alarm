@@ -4,9 +4,12 @@ use warnings;
 use Getopt::Long qw(GetOptionsFromArray :config bundling);
 use Cwd 'abs_path';
 
+sub listFiles($);
+sub pulseExec(@);
+
 my $alarmsDir = '/usr/share/alarms';
 die "$alarmsDir/ doesnt exist or isnt a dir\n" if not -d $alarmsDir;
-my $validAlarms = join '|', sort map {chomp; $_} `ls $alarmsDir/`;
+my $validAlarms = join '|', listFiles $alarmsDir;
 die "$alarmsDir is empty\n" if $validAlarms eq '';
 
 my $usage = "Usage:
@@ -21,7 +24,6 @@ my $usage = "Usage:
       -v N|--vol=N    Attempt to unmute and set volume to N % using pulse-vol
 ";
 
-sub pulseExec(@);
 
 sub main(@){
   my ($help, $norerun, $once, $guess, $vol);
@@ -61,6 +63,10 @@ sub main(@){
   exec @cmd;
 }
 
+sub listFiles($){
+  return sort map {chomp; $_} `ls $_[0]/`;
+}
+
 sub pulseExec(@){
   my $user = `whoami`;
   chomp $user;
@@ -72,4 +78,5 @@ sub pulseExec(@){
     exec "su", $pulseUser, "-c", "@_";
   }
 }
+
 &main(@ARGV);
