@@ -28,17 +28,19 @@ my $usage = "Usage:
       -o|--once       Do not repeat alarm {don't pass '-loop 0' to mplayer}
       -g|--guess      If alarm does not match, use 'default' instead of failing
       -v N|--vol=N    Attempt to unmute and set volume to N % using pulse-vol
+      -b|--background Run in background and do not use term
 ";
 
 
 sub main(@){
-  my ($help, $norerun, $once, $guess, $vol);
+  my ($help, $norerun, $once, $guess, $vol, $background);
   my $ok = GetOptionsFromArray(\@_,
     "h|help"       => \$help,
     "n|norerun"    => \$norerun,
     "o|once"       => \$once,
     "g|guess"      => \$guess,
     "v|vol=i"      => \$vol,
+    "b|background" => \$background,
   );
 
   my $name = shift() || 'default';
@@ -65,9 +67,19 @@ sub main(@){
   }
 
   my @cmd;
-  @cmd = (@cmd, "term", "mplayer", "$alarmsDir/$name");
+  @cmd = (@cmd, "term") unless $background;
+  @cmd = (@cmd, "mplayer", "$alarmsDir/$name");
   @cmd = (@cmd, "-loop", "0") unless $once;
-  exec @cmd;
+
+  if(not $background){
+    exec @cmd;
+  }else{
+    if(not fork){
+      close STDOUT;
+      close STDERR;
+      exec @cmd;
+    }
+  }
 }
 
 sub listFiles($){
