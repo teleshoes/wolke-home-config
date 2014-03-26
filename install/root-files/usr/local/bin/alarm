@@ -6,6 +6,7 @@ use Cwd 'abs_path';
 
 sub listFiles($);
 sub pulseExec(@);
+sub bashComplete($$);
 
 my $alarmsDir = '/usr/share/alarms';
 my $soundsDir = '/usr/share/sounds/custom';
@@ -22,6 +23,11 @@ my $usage = "Usage:
   $0 [OPTS] [ALARM_NAME|SOUND_NAME]
     Runs 'term mplayer $alarmsDir/ALARM_NAME -loop 0'.
     If run as root, reruns as the user running pulseaudio.
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion
+    COMP_LINE:  the full cmdline as a string
+    COMP_POINT: the cursor position in the cmdline
 
     ALARM_NAME:
       File name under $alarmsDir
@@ -43,6 +49,11 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   my ($help, $norerun, $once, $guess, $vol, $background, $sound);
   my $ok = GetOptionsFromArray(\@_,
     "h|help"       => \$help,
@@ -116,6 +127,20 @@ sub pulseExec(@){
     print "rerunning as pulse user $pulseUser\n";
     exec "su", $pulseUser, "-c", "@_";
   }
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my @opts = qw(
+    -h --help
+    -n --norerun
+    -o --once
+    -g --guess
+    -v --vol
+    -b --background
+    -s --sound
+  );
+  return (@opts, @alarms, @sounds);
 }
 
 &main(@ARGV);
