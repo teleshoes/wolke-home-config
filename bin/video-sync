@@ -19,6 +19,10 @@ my $okCats = join "|", @categories;
 
 my $usage = "Usage: $0 [--sync] [--quick] [--nomount]\n";
 
+sub readInfoCache($);
+sub writeInfoCache($$);
+sub formatInfoLine($$);
+sub updateInfoCache($$);
 sub formatSizeSummary($$);
 sub getSizes();
 sub readExcludeFile();
@@ -128,9 +132,89 @@ sub main(@){
     print "run with --sync to sync INTERNAL <=> EXTERNAL\n";
   }
 
+  print "=====\n";
+  print "Info cache\n";
+  updateInfoCache $main, "$main/info-cache";
+  run "cp", "-a", "$main/info-cache", "$mirror/info-cache";
+  print "=====\n\n";
+
   if($main eq $piMain){
     print "unmounting nfs\n";
     run "nfs-pi-mount-videos", "-u";
+  }
+}
+
+sub readInfoCache($){
+  my ($cacheFile) = @_;
+  my $cache = {};
+  if(-e $cacheFile){
+    open FH, "< $cacheFile" or die "Could not read $cacheFile\n";
+    my @lines = <FH>;
+    close FH;
+    for my $line(@lines){
+      next if $line =~ /^\s*$/;
+      chomp $line;
+      if($line =~ /^\s*(\d+|\?)k\s+(\d+\.\d+|\?)s\s+(.+)$/){
+        my ($size, $dur, $file) = ($1, $2, $3);
+        $size = undef if $size eq "?";
+        $dur = undef if $dur eq "?";
+        $$cache{$file} = [$size, $dur];
+      }else{
+        die "Malformed info cache line: $line\n";
+      }
+    }
+  }
+  return $cache;
+}
+sub writeInfoCache($$){
+  my ($cacheFile, $cache) = @_;
+  my @lines = map{formatInfoLine($cache, $_)} sort keys %$cache;
+  open FH, "> $cacheFile" or die "Could not write to $cacheFile\n";
+  print FH @lines;
+  close FH;
+}
+sub formatInfoLine($$){
+  my ($cache, $file) = @_;
+  die "missing $file\n" if not defined $$cache{$file};
+  my ($size, $dur) = @{$$cache{$file}};
+
+  my $sizeFmt = defined $size ? sprintf "%9d", $size : sprintf "%9s", "?";
+  my $durFmt = defined $dur ? sprintf "%8.2f", $dur : sprintf "%8s", "?";
+  return "${sizeFmt}k ${durFmt}s $file\n";
+}
+sub updateInfoCache($$){
+  my ($dir, $cacheFile) = @_;
+  my $cache = readInfoCache $cacheFile;
+
+  chdir $dir;
+  my @files = `find -mindepth 2 -type f`;
+  chomp foreach @files;
+  s/^\.\/// foreach @files;
+
+  my %okFiles = map {$_ => 1} @files;
+
+  for my $file(keys %$cache){
+    if(not defined $okFiles{$file}){
+      delete $$cache{$file};
+      print "Remove: $file\n";
+      writeInfoCache $cacheFile, $cache;
+    }
+  }
+
+  for my $file(sort @files){
+    if(not defined $$cache{$file}){
+      my $size = `du -s "$file"`;
+      chomp $size;
+      $size = $size =~ /^(\d+)\s/ ? $1 : undef;
+
+      my $dur = `duration -s "$dir/$file" 2>/dev/null`;
+      chomp $dur;
+      $dur = $dur =~ /^(\d+\.\d+)\s/ ? $1 : undef;
+
+      $$cache{$file} = [$size, $dur];
+      print "Add: " . formatInfoLine($cache, $file);
+      writeInfoCache $cacheFile, $cache;
+    }
   }
 }
 
