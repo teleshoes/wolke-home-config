@@ -149,9 +149,9 @@ function execAlarm() {
   $@
   exitCode="$?"
   if [ $exitCode == 0 ]; then
-    alarm -s ff7-loaded.wav
+    alarm -s success
   else
-    alarm -s ff7-cancel.wav
+    alarm -s failure
   fi
   bash -c "exit $exitCode"
 }
