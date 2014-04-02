@@ -64,6 +64,12 @@ my $usage = "Usage:
     -make a new snapshot in SRC
     -send the difference between the old SRC and new SRC to DEST
 
+  $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT]
+    Call send/receive to send a btrfs image.
+    Roughly equivalent to:
+      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
+    If PARENT_SNAPSHOT is omitted, no -p argument is given
+
   $0 --snapshot MOUNT_POINT [PREFIX]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
     PREFIX defaults to \"SNAPSHOT\", and cannot be \"BACKUP\"
@@ -118,6 +124,10 @@ sub main(@){
       mountAndBackup $srcDir, $mntName;
       print "\n\n";
     }
+  }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
+    shift;
+    my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
+    sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot;
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
     shift;
     my ($mountPoint, $prefix) = @_;
@@ -560,6 +570,7 @@ sub bashComplete($$){
 
   my @cmds = qw(
     -h --help
+    --sendreceive
     --snapshot
     --cleanup=1 --cleanup=30 --cleanup=all
     --remove
@@ -571,6 +582,15 @@ sub bashComplete($$){
 
   if(@words == 0){
     return (@backupNames, @mntPoints, @cmds);
+  }
+
+  if($words[0] =~ /^(--sendreceive)/){
+    if(@words == 1 or @words == 2){
+      return @mntPoints;
+    }elsif(@words == 3 or @words == 4){
+      my $src = $words[1];
+      return guessSubvolNames $src;
+    }
   }
 
   if($words[0] =~ /^(--snapshot|--cleanup.*)/){
