@@ -123,7 +123,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "FBreader"      @@ mCA   xK_r    #! "fbreader"
-        "stepmania"     @@ mCA   xK_s    #! "stepmania"
+        "stepmania -w"  @@ mCA   xK_s    #! "stepmania -w"
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
