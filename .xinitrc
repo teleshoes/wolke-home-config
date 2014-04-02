@@ -7,6 +7,6 @@ sudo bluetooth off &
 sudo fan auto &
 taffybar &
 parcellite -d &
-pulse-vol mic mute &
+( sleep 2; pulse-vol mic mute ) &
 
 exec xmonad
