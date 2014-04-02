@@ -17,6 +17,7 @@ my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$);
 sub backup($$);
+sub sendReceive($$$$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
 sub getSubvolumes($);
@@ -227,34 +228,7 @@ sub backup($$){
 
   sync();
 
-  if(-e "$destDir/$newSnapshot"){
-    die "snapshot exists on dest already: $destDir/$newSnapshot\n";
-  }
-
-  my $pvLog = "/tmp/$newSnapshot-pv.log";
-  my $rcvLog = "/tmp/$newSnapshot-btrfs-rcv.log";
-  print "\nLOGS: $pvLog $rcvLog\n";
-
-  print "\n";
-  run "bash", "-c", "time ( "
-    . " btrfs send"
-    . " -p \"$srcDir/$syncedSnapshot\""
-    . " \"$srcDir/$newSnapshot\""
-    . " | "
-    . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
-    . " | "
-    . " btrfs receive -v -v \"$destDir\" 2> >(tee $rcvLog 1>&2)"
-    . " )"
-    ;
-
-  print "\nLOGS: $pvLog $rcvLog\n";
-  print "\n";
-  run "cat", $pvLog;
-  print "\n";
-
-  if(not -d "$destDir/$newSnapshot"){
-    die "snapshot send/receive failed: $destDir/$newSnapshot\n";
-  }
+  sendReceive $srcDir, $destDir, $newSnapshot, $syncedSnapshot;
 
   if(-l "$destDir/backup"){
     run "rm", "$destDir/backup";
@@ -264,6 +238,44 @@ sub backup($$){
     run "ln", "-s", $newSnapshot, "$destDir/backup";
   }else{
     print STDERR "$destDir/backup exists, not creating symlink\n";
+  }
+}
+
+sub sendReceive($$$$){
+  my ($sendDir, $receiveDir, $snapshotName, $parentSnapshotName) = @_;
+
+  my $parent = '';
+  if(defined $parentSnapshotName){
+    $parent = "-p \"$sendDir/$parentSnapshotName\"";
+  }
+
+  if(-e "$receiveDir/$snapshotName"){
+    die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
+  }
+
+  my $pvLog = "/tmp/$snapshotName-pv.log";
+  my $rcvLog = "/tmp/$snapshotName-btrfs-rcv.log";
+  print "\nLOGS: $pvLog $rcvLog\n";
+
+  print "\n";
+  run "bash", "-c", "time ( "
+    . " btrfs send"
+    . " $parent"
+    . " \"$sendDir/$snapshotName\""
+    . " | "
+    . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
+    . " | "
+    . " btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
+    . " )"
+    ;
+
+  print "\nLOGS: $pvLog $rcvLog\n";
+  print "\n";
+  run "cat", $pvLog;
+  print "\n";
+
+  if(not -d "$receiveDir/$snapshotName"){
+    die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
   }
 }
 
