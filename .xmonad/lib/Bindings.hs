@@ -116,7 +116,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "Applications"  @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
-        "Chrome"        @@ mCA   xK_c    #! "chromium-browser --incognito"
+        "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
         "tor"           @@ mCA   xK_v    #! "tor"
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
