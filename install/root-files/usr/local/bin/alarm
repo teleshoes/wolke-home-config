@@ -4,6 +4,7 @@ use warnings;
 use Getopt::Long qw(GetOptionsFromArray :config bundling);
 use Cwd 'abs_path';
 
+sub selectAlarmFile($);
 sub listFiles($);
 sub pulseExec(@);
 sub bashComplete($$);
@@ -84,11 +85,11 @@ sub main(@){
 
   my $name = shift() || 'default';
   my $file;
-  if($name =~ /^($validAlarms)$/){
-    $file = "$alarmsDir/$name";
-  }elsif($name =~ /^($validSounds)$/){
-    $file = "$soundsDir/$name";
-  }elsif(defined $guess and -e $defaultFile){
+  $file = selectAlarmFile $name if not defined $file;
+  $file = selectAlarmFile "$name.wav" if not defined $file;
+  $file = selectAlarmFile "$name.flac" if not defined $file;
+
+  if(not defined $file and defined $guess and -e $defaultFile){
     print "Could not find '$name'; using '$defaultFile'\n";
     $file = $defaultFile;
   }
@@ -122,6 +123,17 @@ sub main(@){
       close STDERR;
       exec @cmd;
     }
+  }
+}
+
+sub selectAlarmFile($){
+  my $name = shift;
+  if($name =~ /^($validAlarms)$/){
+    return "$alarmsDir/$name";
+  }elsif($name =~ /^($validSounds)$/){
+    return "$soundsDir/$name";
+  }else{
+    return undef;
   }
 }
 
