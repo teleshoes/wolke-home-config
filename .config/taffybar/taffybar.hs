@@ -44,6 +44,7 @@ main = do
           , W.brightnessW
           , W.pingMonitorW [[ ("www.google.com", "G")
                             , ("source.escribe.com", "E")
+                            , ("ehr-01", "A")
                            ]]
           , W.openvpnW
           , W.tpBattStatW $ barHeight cfg
