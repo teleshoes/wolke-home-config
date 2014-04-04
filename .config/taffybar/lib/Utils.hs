@@ -1,6 +1,7 @@
 module Utils(
   defaultDelay, imageDir,
   fg, bg, fgbg,
+  rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
   tryMaybe, nanoTime, isRunning, chompFile, findName,
@@ -14,6 +15,9 @@ import Control.Concurrent (
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (SomeException, try)
 import Control.Monad (forever, void)
+import Graphics.UI.Gtk (
+  Container, Widget, hBoxNew, vBoxNew, containerAdd,
+  toWidget, toContainer, widgetShowAll)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
@@ -46,6 +50,19 @@ fgbg fg bg m = "<span"
                ++ " foreground=\"" ++ fg ++ "\""
                ++ " background=\"" ++ bg ++ "\""
                ++ ">" ++ m ++ "</span>"
+
+-- WIDGETS
+rowW :: [Widget] -> IO Widget
+rowW widgets = containerW widgets =<< toContainer `fmap` hBoxNew False 0
+
+colW :: [Widget] -> IO Widget
+colW widgets = containerW widgets =<< toContainer `fmap` vBoxNew False 0
+
+containerW :: [Widget] -> Container -> IO Widget
+containerW widgets box = do
+  mapM_ (containerAdd box) widgets
+  widgetShowAll box
+  return $ toWidget box
 
 -- PARSING
 regexMatch :: String -> String -> Bool
