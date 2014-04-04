@@ -42,9 +42,10 @@ main = do
           , W.cpuFreqsW
           , W.fanW
           , W.brightnessW
-          , W.pingMonitorW "www.google.com" "G"
+          , W.pingMonitorW [[ ("www.google.com", "G")
+                            , ("source.escribe.com", "E")
+                           ]]
           , W.openvpnW
-          , W.pingMonitorW "source.escribe.com" "E"
           , W.tpBattStatW $ barHeight cfg
           , sep
           , W.clockW
