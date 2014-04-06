@@ -1,6 +1,6 @@
 module PingMonitor (pingMonitorW, pingLabelW) where
 import Label (labelW)
-import Utils (defaultDelay, fg, rowW, colW, procSuccess)
+import Utils (defaultDelay, fg, bg, rowW, colW, procSuccess)
 
 import System.Environment (getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
@@ -40,6 +40,6 @@ ping chan url display timeout toggle = do
   let color = if isUp then "green" else "red"
   let toggleColor = if toggle then toggleColorTrue else toggleColorFalse
 
-  writeChan chan $ fg color char ++ fg toggleColor display
+  writeChan chan $ bg "black" $ fg color char ++ fg toggleColor display
 
   threadDelay $ wait * 10^6
