@@ -4,9 +4,9 @@ use warnings;
 
 my $dir = "$ENV{HOME}/openvpn";
 my $cert = "client.pem";
-my $conf = "client.conf";
 my $status = "status";
 my $user = "ewolk";
+my $defaultName = "escribe";
 
 sub ensureRoot();
 sub getPasswordFile();
@@ -14,33 +14,40 @@ sub selectCert();
 sub run(@);
 
 my $usage = "Usage:
-  $0 on|off|toggle
+  $0 on|off|toggle [CONF_NAME]
 ";
 
 sub main(@){
   ensureRoot();
+  my $cmd = shift;
+  my $name = shift;
 
-  die $usage if @_ != 1 or $_[0] !~ /^(on|off|toggle)$/;
+  die $usage if @_ != 0 or not defined $cmd or $cmd !~ /^(on|off|toggle)$/;
+  chdir $dir or die "couldnt set cwd to $dir\n";
 
-  if($_[0] eq 'on'){
+  $name = $defaultName if not defined $name;
+  $name =~ s/\.conf$//;
+  die "$dir/$name.conf not found\n" if not -f "$name.conf";
+
+  if($cmd eq 'on'){
     print "starting, maybe...\n";
-    chdir $dir or die "Couldnt cd to $dir\n";
+
 
     selectCert();
     die "no cert selected\n" if not -e $cert;
     run "rm", "-f", "status";
     run "openvpn",
       "--auth-user-pass", getPasswordFile(),
-      "--config", $conf,
+      "--config", "$name.conf",
       "--status", $status,
       "--reneg-sec", 0,
       "1";
-  }elsif($_[0] eq 'off'){
+  }elsif($cmd eq 'off'){
     print "stopping, maybe...\n";
     run "pkill", "-9", "openvpn";
-  }elsif($_[0] eq 'toggle'){
+  }elsif($cmd eq 'toggle'){
     run "pidof openvpn >/dev/null 2>/dev/null";
-    exec $0, $? ? 'on' : 'off';
+    exec $0, ($? == 0 ? 'off' : 'on'), defined $name ? ($name) : ();
   }
 }
 
