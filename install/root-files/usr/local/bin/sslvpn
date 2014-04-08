@@ -3,14 +3,13 @@ use strict;
 use warnings;
 
 my $dir = "$ENV{HOME}/openvpn";
-my $cert = "client.pem";
 my $status = "status";
 my $user = "ewolk";
 my $defaultName = "escribe";
 
 sub ensureRoot();
 sub getPasswordFile();
-sub selectCert();
+sub symlinkPem($);
 sub run(@);
 
 my $usage = "Usage:
@@ -32,9 +31,8 @@ sub main(@){
   if($cmd eq 'on'){
     print "starting, maybe...\n";
 
+    symlinkPem($name);
 
-    selectCert();
-    die "no cert selected\n" if not -e $cert;
     run "rm", "-f", "status";
     run "openvpn",
       "--auth-user-pass", getPasswordFile(),
@@ -70,14 +68,23 @@ sub getPasswordFile(){
   return $file;
 }
 
-sub selectCert(){
-  my $hostCert = "$cert." . `hostname`;
-  chomp $hostCert;
-  my $defaultCert = "client.pem.default";
+sub symlinkPem($){
+  my $name = shift;
+  my $pem = "$name.pem";
 
-  run "rm", "-f", "client.pem" if -l "client.pem";
-  run "ln", "-s", $hostCert, $cert if not -e $cert and -e $hostCert;
-  run "ln", "-s", $defaultCert, $cert if not -e $cert and -e $defaultCert;
+  my $hostname = `hostname`;
+  chomp $hostname;
+
+  my $hostPem = "$pem.$hostname";
+  my $defaultPem = "$pem.default";
+
+  run "rm", "-f", $pem if -l $pem;
+  die "$pem exists and is not a symlink" if -e $pem;
+
+  run "ln", "-s", $hostPem, $pem if not -e $pem and -e $hostPem;
+  run "ln", "-s", $defaultPem, $pem if not -e $pem and -e $defaultPem;
+
+  die "could not select $pem\n" if not -e $pem;
 }
 
 sub run(@){
