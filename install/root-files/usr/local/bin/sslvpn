@@ -10,25 +10,41 @@ my $defaultName = "escribe";
 sub ensureRoot();
 sub getPasswordFile();
 sub symlinkPem($);
+sub isRunning($);
 sub run(@);
 
 my $usage = "Usage:
-  $0 on|off|toggle [CONF_NAME]
+  $0 on [CONF_NAME]
+    start openvpn using --config CONF_NAME.conf
+  $0 off [CONF_NAME]
+    kill openvpn with '--config CONF_NAME'
+  $0 running CONF_NAME
+    check for openvpn with '--config CONF_NAME'
+    exits with 0 for running and 1 for not running
+  $0 toggle [CONF_NAME]
+    check '$0 running CONF_NAME' and then run:
+      '$0 off CONF_NAME' or '$0 on CONF_NAME'
+
+  CONF_NAME
+    optional, defaults to $defaultName
+    there should be a file named $dir/CONF_NAME.conf
 ";
+
+my $okCmds = join "|", qw(on off running running toggle);
 
 sub main(@){
   ensureRoot();
   my $cmd = shift;
   my $name = shift;
 
-  die $usage if @_ != 0 or not defined $cmd or $cmd !~ /^(on|off|toggle)$/;
+  die $usage if @_ != 0 or not defined $cmd or $cmd !~ /^($okCmds)$/;
   chdir $dir or die "couldnt set cwd to $dir\n";
 
   $name = $defaultName if not defined $name;
   $name =~ s/\.conf$//;
   die "$dir/$name.conf not found\n" if not -f "$name.conf";
 
-  my $procPtrn = "^openvpn.*--config $name\\.conf ";
+  my $procPattern = "^openvpn.*--config $name\\.conf ";
 
   if($cmd eq 'on'){
     print "starting, maybe...\n";
@@ -42,12 +58,17 @@ sub main(@){
       "--status", $status,
       "--reneg-sec", 0,
       "1";
+  }elsif($cmd eq 'running'){
+    exit (isRunning $procPattern ? 0 : 1);
   }elsif($cmd eq 'off'){
     print "stopping, maybe...\n";
-    run "pkill", "-f", $procPtrn;
+    run "pkill", "-f", $procPattern;
   }elsif($cmd eq 'toggle'){
-    run "pgrep -f '$procPtrn' >/dev/null 2>/dev/null";
-    exec $0, ($? == 0 ? 'off' : 'on'), defined $name ? ($name) : ();
+    my @cmd;
+    push @cmd, $0;
+    push @cmd, isRunning $procPattern ? 'off' : 'on';
+    push @cmd, $name if defined $name;
+    exec @cmd;
   }
 }
 
@@ -87,6 +108,12 @@ sub symlinkPem($){
   run "ln", "-s", $defaultPem, $pem if not -e $pem and -e $defaultPem;
 
   die "could not select $pem\n" if not -e $pem;
+}
+
+sub isRunning($){
+  my $procPattern = shift;
+  run "pgrep -f '$procPattern' >/dev/null 2>/dev/null";
+  return $? == 0;
 }
 
 sub run(@){
