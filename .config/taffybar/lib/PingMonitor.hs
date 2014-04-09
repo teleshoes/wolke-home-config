@@ -1,6 +1,6 @@
-module PingMonitor (pingMonitorW, pingLabelW) where
+module PingMonitor (pingMonitorW) where
 import Label (labelW)
-import Utils (defaultDelay, fg, bg, rowW, colW, procSuccess)
+import Utils (defaultDelay, fg, bg, procSuccess)
 
 import System.Environment (getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
@@ -15,25 +15,15 @@ toggleColorFalse = "gray"
 
 isPingable url timeout = procSuccess ["ping", url, "-c", "1", "-w", show timeout]
 
-pingMonitorW :: [[(String, String)]] -> IO Widget
-pingMonitorW urlDisplayColumns = do
-  columns <- mapM pingMonitorColW urlDisplayColumns
-  rowW columns
-
-pingMonitorColW :: [(String, String)] -> IO Widget
-pingMonitorColW urlDisplays = do
-  monitors <- mapM (\(url, display) -> pingLabelW (url, display)) urlDisplays
-  colW monitors
-
-pingLabelW :: (String, String) -> IO Widget
-pingLabelW (url, display) = do
+pingMonitorW :: String -> String -> IO Widget
+pingMonitorW display url = do
   chan <- newChan
   writeChan chan $ "?" ++ display
   let toggle = cycle [True, False]
-  forkIO $ mapM_ (ping chan url display defaultDelay) toggle
+  forkIO $ mapM_ (ping chan display url defaultDelay) toggle
   labelW $ readChan chan
 
-ping chan url display timeout toggle = do
+ping chan display url timeout toggle = do
   isUp <- isPingable url timeout
   let wait = if isUp then 3 else 1
 

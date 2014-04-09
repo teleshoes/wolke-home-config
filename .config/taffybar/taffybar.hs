@@ -1,6 +1,7 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
 import WMLog (WMLogConfig(..))
+import Utils (colW)
 
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
@@ -42,10 +43,10 @@ main = do
           , W.cpuFreqsW
           , W.fanW
           , W.brightnessW
-          , W.pingMonitorW [[ ("www.google.com", "G")
-                            , ("source.escribe.com", "E")
-                            , ("ehr-01", "A")
-                           ]]
+          , colW [ W.pingMonitorW "G" "www.google.com"
+                 , W.pingMonitorW "E" "source.escribe.com"
+                 , W.pingMonitorW "A" "ehr-01"
+                 ]
           , W.openvpnW "escribe"
           , W.tpBattStatW $ barHeight cfg
           , sep

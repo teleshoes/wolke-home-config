@@ -52,15 +52,16 @@ fgbg fg bg m = "<span"
                ++ ">" ++ m ++ "</span>"
 
 -- WIDGETS
-rowW :: [Widget] -> IO Widget
+rowW :: [IO Widget] -> IO Widget
 rowW widgets = containerW widgets =<< toContainer `fmap` hBoxNew False 0
 
-colW :: [Widget] -> IO Widget
+colW :: [IO Widget] -> IO Widget
 colW widgets = containerW widgets =<< toContainer `fmap` vBoxNew False 0
 
-containerW :: [Widget] -> Container -> IO Widget
+containerW :: [IO Widget] -> Container -> IO Widget
 containerW widgets box = do
-  mapM_ (containerAdd box) widgets
+  ws <- sequence widgets
+  mapM_ (containerAdd box) ws
   widgetShowAll box
   return $ toWidget box
 
