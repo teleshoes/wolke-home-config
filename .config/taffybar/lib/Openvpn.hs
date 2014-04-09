@@ -11,9 +11,8 @@ sslCmdText cmd confName = intercalate " " $ sslCmd cmd confName
 
 vpnMarkup confName = do
   vpnOn <- procSuccess $ sslCmd "running" confName
-  let text = if vpnOn then "yes" else "off"
   let color = if vpnOn then "green" else "red"
-  return $ fg color $ take 3 confName ++ "\n" ++ text
+  return $ fg color $ take 3 confName
 
 openvpnW confName = do
   label <- labelW $ vpnMarkup confName
