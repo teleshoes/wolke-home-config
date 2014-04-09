@@ -1,14 +1,20 @@
 module Openvpn(openvpnW) where
 import Clickable (clickableLeft)
 import Label (labelW)
-import Utils (isRunning, fg)
+import Utils (procSuccess, fg)
+import Data.List (intercalate)
 
-clickCmd = "sudo sslvpn toggle"
+sslCmd :: String -> String -> [String]
+sslCmd cmd confName = ["sudo", "sslvpn", cmd, confName]
+sslCmdText :: String -> String -> String
+sslCmdText cmd confName = intercalate " " $ sslCmd cmd confName
 
-vpnMarkup = do
-  vpnOn <- isRunning "openvpn"
+vpnMarkup confName = do
+  vpnOn <- procSuccess $ sslCmd "running" confName
   let text = if vpnOn then "yes" else "off"
   let color = if vpnOn then "green" else "red"
-  return $ fg color $ "vpn\n" ++ text
+  return $ fg color $ take 3 confName ++ "\n" ++ text
 
-openvpnW = clickableLeft clickCmd =<< labelW vpnMarkup
+openvpnW confName = do
+  label <- labelW $ vpnMarkup confName
+  clickableLeft (sslCmdText "toggle" confName) label

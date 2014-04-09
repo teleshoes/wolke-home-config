@@ -46,7 +46,7 @@ main = do
                             , ("source.escribe.com", "E")
                             , ("ehr-01", "A")
                            ]]
-          , W.openvpnW
+          , W.openvpnW "escribe"
           , W.tpBattStatW $ barHeight cfg
           , sep
           , W.clockW
