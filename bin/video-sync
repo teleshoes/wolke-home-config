@@ -23,6 +23,8 @@ sub readInfoCache($);
 sub writeInfoCache($$);
 sub formatInfoLine($$);
 sub updateInfoCache($$);
+sub parseDuration($);
+sub formatDuration($);
 sub formatSizeSummary($$);
 sub getSizes();
 sub readExcludeFile();
@@ -154,10 +156,10 @@ sub readInfoCache($){
     for my $line(@lines){
       next if $line =~ /^\s*$/;
       chomp $line;
-      if($line =~ /^\s*(\d+|\?)k\s+(\d+\.\d+|\?)s\s+(.+)$/){
+      if($line =~ /^\s*(\d+|\?)k\s+(\d+:\d\d:\d\d\.\d\d|\?)\s+(.+)$/){
         my ($size, $dur, $file) = ($1, $2, $3);
         $size = undef if $size eq "?";
-        $dur = undef if $dur eq "?";
+        $dur = parseDuration $dur;
         $$cache{$file} = [$size, $dur];
       }else{
         die "Malformed info cache line: $line\n";
@@ -179,8 +181,8 @@ sub formatInfoLine($$){
   my ($size, $dur) = @{$$cache{$file}};
 
   my $sizeFmt = defined $size ? sprintf "%9d", $size : sprintf "%9s", "?";
-  my $durFmt = defined $dur ? sprintf "%8.2f", $dur : sprintf "%8s", "?";
-  return "${sizeFmt}k ${durFmt}s $file\n";
+  my $durFmt = formatDuration $dur;
+  return "${sizeFmt}k ${durFmt} $file\n";
 }
 sub updateInfoCache($$){
   my ($dir, $cacheFile) = @_;
@@ -216,6 +218,25 @@ sub updateInfoCache($$){
       writeInfoCache $cacheFile, $cache;
     }
   }
+}
+
+sub parseDuration($){
+  my $dur = shift;
+  return undef if $dur =~ /^\s*\?\s*$/;
+  if($dur !~ /^(\d+):(\d+):(\d+|\d+.\d+)$/){
+    die "Malformed duration: $dur\n";
+  }
+  return $1*60*60 + $2*60 + $3;
+}
+
+sub formatDuration($){
+  my $dur = shift;
+  return sprintf "%11s", "?" if not defined $dur;
+
+  my $h = int($dur/60/60);
+  my $m = int($dur/60) - ($h*60);
+  my $s = $dur - ($h*60*60) - ($m*60);
+  return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
 }
 
 sub formatSizeSummary($$){
