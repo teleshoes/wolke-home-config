@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(sleep);
+use IPC::Open3;
+use Symbol qw(gensym);
 
 my $main = "/media/videos";
 my $mirror = "/media/stuff/Videos";
@@ -31,11 +34,16 @@ sub readExcludeFile();
 sub syncExcludeFile();
 sub checkExcludes($$);
 sub getRsyncExcludes($);
+sub md5($);
 sub fmtSize($);
 sub isMountPoint($);
+sub printCmd(@);
 sub run(@);
 sub runQuiet(@);
 sub runPrompt(@);
+sub readProc(@);
+sub readProcSilent(@);
+sub readProcStdout($$);
 
 sub main(@){
   my $sync = 0;
@@ -193,7 +201,7 @@ sub updateInfoCache($$){
   my $cache = readInfoCache $cacheFile;
 
   chdir $dir;
-  my @files = `find -mindepth 2 -type f`;
+  my @files = readProc "find", "-mindepth", "2", "-type", "f";
   chomp foreach @files;
   s/^\.\/// foreach @files;
 
@@ -209,11 +217,11 @@ sub updateInfoCache($$){
 
   for my $file(sort @files){
     if(not defined $$cache{$file}){
-      my $size = `du -s "$file"`;
+      my $size = readProc "du", "-s", $file;
       chomp $size;
       $size = $size =~ /^(\d+)\s/ ? $1 : undef;
 
-      my $dur = `duration -s "$dir/$file" 2>/dev/null`;
+      my $dur = readProcSilent "duration", "-s", "$dir/$file";
       chomp $dur;
       $dur = $dur =~ /^(\d+\.\d+)\s/ ? $1 : undef;
 
@@ -283,9 +291,9 @@ sub getSizes(){
   my $sizes = {};
   for my $cat(@categories){
     my $catSizes = {};
-    for my $file(`ls "$main/$cat"`){
+    for my $file(readProc "ls", "$main/$cat"){
       chomp $file;
-      my $size = `du -s "$main/$cat/$file"`;
+      my $size = readProc "du", "-s", "$main/$cat/$file";
       die "Failed du: $file\n" if $size !~ /^(\d+)/;
       $size = $1;
       $$catSizes{$file} = $size;
@@ -301,7 +309,7 @@ sub readExcludeFile(){
   my $excludes = {};
   $$excludes{$_} = {} foreach @categories;
   my $cat;
-  for my $line(`cat "$excludeFile"`){
+  for my $line(readProc "cat", $excludeFile){
     chomp $line;
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
@@ -323,14 +331,14 @@ sub syncExcludeFile(){
   my $mainExclude = "$main/exclude";
   my $mirrorExclude = "$mirror/exclude";
 
-  my $mainMd5 = `md5sum $mainExclude | cut -c-32`;
-  my $mirrorMd5 = `md5sum $mirrorExclude | cut -c-32`;
+  my $mainMd5 = md5 $mainExclude;
+  my $mirrorMd5 = md5 $mirrorExclude;
 
   if($mainMd5 ne $mirrorMd5){
     print "exclude file changed\n";
-    my $mainMod = `stat -c%Y $mainExclude`;
+    my $mainMod = readProc "stat", "-c%Y", $mainExclude;
     chomp $mainMod;
-    my $mirrorMod = `stat -c%Y $mirrorExclude`;
+    my $mirrorMod = readProc "stat", "-c%Y", $mirrorExclude;
     chomp $mirrorMod;
 
     if($mirrorMod > $mainMod){
@@ -369,6 +377,16 @@ sub getRsyncExcludes($){
   return $rsyncExcludes;
 }
 
+sub md5($){
+  my $file = shift;
+  my $md5 = readProcSilent "md5sum", $file;
+  if($md5 =~ /^([0-9a-f]{32})\s*/){
+    return $1;
+  }else{
+    die "Error finding md5sum for: $file\n";
+  }
+}
+
 sub fmtSize($){
   return sprintf "%5.1fG", $_[0] / 1024 / 1024;
 }
@@ -378,7 +396,7 @@ sub isMountPoint($){
   return $? == 0;
 }
 
-sub run(@){
+sub printCmd(@){
   my @escArgs;
   for my $arg(@_){
     my $escArg = $arg;
@@ -389,9 +407,11 @@ sub run(@){
     push @escArgs, $escArg;
   }
   print "@escArgs\n";
+}
 
-  system @_;
-  die "Error running @_\n" if $? != 0;
+sub run(@){
+  printCmd @_;
+  runQuiet @_;
 }
 sub runQuiet(@){
   system @_;
@@ -402,6 +422,25 @@ sub runPrompt(@){
   my $ok = <STDIN>;
   if($ok eq "y\n"){
     run @_;
+  }
+}
+
+sub readProc(@){
+  return readProcStdout \@_, ">&STDERR";
+}
+sub readProcSilent(@){
+  return readProcStdout \@_, ">/dev/null";
+}
+sub readProcStdout($$){
+  my $cmd = shift;
+  my $stderr = shift;
+  my $pid = open3(gensym, \*OUT, $stderr, @$cmd);
+  my @lines = <OUT>;
+  waitpid($pid, 0);
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
   }
 }
 
