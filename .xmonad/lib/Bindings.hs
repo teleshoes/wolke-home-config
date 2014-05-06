@@ -129,7 +129,6 @@ shortcuts conf = "Shortcuts" @@ do
 
     "raspi"         @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
-        "vnc"           @@ mC    xK_F9   #! "pi -vnc"
 
     "N9"            @@ do
         "lock"          @@ mC    xK_F12  #! "n9 -b lock"
@@ -148,17 +147,17 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
 
-    "Klomp raspi"     @@ do
-        "pause"       @@ mCAW  (xK ' ')#! "pi -b klomp-cmd pause"
-        "prev"        @@ mCAW  xK_z    #! "pi -b klomp-cmd prev"
-        "next"        @@ mCAW  xK_x    #! "pi -b klomp-cmd next"
-        "books pl"    @@ mCAW  xK_b    #! "pi -b klomp-cmd playlist books"
-        "seek -10"    @@ mCAWS xK_z    #! "pi -b klomp-cmd seek -10"
-        "seek 10"     @@ mCAWS xK_x    #! "pi -b klomp-cmd seek 10"
-        "seek -60"    @@ mCAWS xK_a    #! "pi -b klomp-cmd seek -60"
-        "seek 60"     @@ mCAWS xK_s    #! "pi -b klomp-cmd seek 60"
-        "klomp=>xbmc" @@ mCAW  xK_c    #! "pi -b speaker xbmc; klomp-bar local"
-        "xbmc=>klomp" @@ mCAW  xK_v    #! "pi -b speaker klomp; klomp-bar raspi"
+    "Klomp nuc"     @@ do
+        "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"
+        "prev"        @@ mCAW  xK_z    #! "nuc klomp-cmd prev"
+        "next"        @@ mCAW  xK_x    #! "nuc klomp-cmd next"
+        "books pl"    @@ mCAW  xK_b    #! "nuc klomp-cmd playlist books"
+        "seek -10"    @@ mCAWS xK_z    #! "nuc klomp-cmd seek -10"
+        "seek 10"     @@ mCAWS xK_x    #! "nuc klomp-cmd seek 10"
+        "seek -60"    @@ mCAWS xK_a    #! "nuc klomp-cmd seek -60"
+        "seek 60"     @@ mCAWS xK_s    #! "nuc klomp-cmd seek 60"
+        "display off" @@ mCAW  xK_c    #! "nuc klomp-display --off; klomp-bar local"
+        "display on"  @@ mCAW  xK_v    #! "nuc klomp-display --on; klomp-bar nuc"
 
     "Klomp N9"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
