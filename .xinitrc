@@ -2,7 +2,7 @@ resconfig
 ~/.xconfig
 ( sleep 10; xconfig ) &
 
-sudo wauto -p &
+sudo wired &
 pulse-enable on
 sudo bluetooth off &
 sudo fan default &
