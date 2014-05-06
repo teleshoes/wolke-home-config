@@ -17,6 +17,7 @@ gapOffset = 3
 sep = "…"
 raspiPrefix = "ř"
 n9Prefix = "ň"
+nucPrefix = "₪"
 
 clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
@@ -29,6 +30,7 @@ getKlompInfo remoteHost = do
   let ipMagic = case remoteHost of
                   "n9" -> ["n9u"]
                   "raspi" -> ["pi"]
+                  "nuc" -> ["nuc"]
                   _ -> []
   str <- readProc $ ipMagic ++ klompInfoCmd
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
@@ -56,6 +58,7 @@ getMarkup = do
   let topPrefix = case remoteHost of
                     "n9" -> n9Prefix
                     "raspi" -> raspiPrefix
+                    "nuc" -> nucPrefix
                     _ -> if running then "" else "x"
       botPrefix = take 1 plsFmt
 
