@@ -155,7 +155,7 @@ function execAlarm() {
   bash -c "exit $exitCode"
 }
 
-alias maven="execAlarm mvn -Djetty.port=8081 $@"
+alias maven="execAlarm mvn -Pmock -Djetty.port=8081 $@"
 alias m="maven -DskipTests -Dcheckstyle.skip=true install"
 alias mc="maven clean install"
 
