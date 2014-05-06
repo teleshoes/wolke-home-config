@@ -28,6 +28,16 @@ sub main(@){
   for my $dir(@dirs){
     run "rsync", "-avP", "$ENV{HOME}/$dir/", "$host:~/$dir/";
   }
+
+  for my $file(`ls $ENV{HOME}/.config/ipmagic`){
+    chomp $file;
+    $file = `readlink "$ENV{HOME}/.config/ipmagic/$file"`;
+    chomp $file;
+    my $dir = $file;
+    $dir =~ s/\/[^\/]*$//;
+    run "nuc", "mkdir -p \"$dir\"";
+    run "rsync", "-avP", $file, "$host:$file";
+  }
 }
 
 sub run(@){
