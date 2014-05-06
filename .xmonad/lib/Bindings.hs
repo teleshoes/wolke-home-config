@@ -128,6 +128,9 @@ shortcuts conf = "Shortcuts" @@ do
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
+    "nuc"           @@ do
+        "vnc"           @@ mC    xK_F9   #! "nuc -vnc"
+
     "raspi"         @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
 
