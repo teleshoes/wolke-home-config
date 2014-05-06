@@ -8,6 +8,7 @@ my $url = 'https://github.com/teleshoes/wolke-home-config.git';
 my @dirs = (
   "install/root-files/usr/share/sounds/custom",
   ".config/taffybar/icons",
+  "Desktop/Backgrounds",
 );
 
 sub main(@){
