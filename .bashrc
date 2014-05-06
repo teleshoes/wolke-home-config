@@ -158,6 +158,7 @@ function execAlarm() {
 alias maven="execAlarm mvn -Pmock -Djetty.port=8081 $@"
 alias m="maven -DskipTests -Dcheckstyle.skip=true install"
 alias mc="maven clean install"
+alias mck="maven checkstyle:check"
 
 alias genservices='~/workspace/escribe/tools/genservices.pl'
 alias genibatis='~/workspace/escribe/tools/genibatis.pl'
