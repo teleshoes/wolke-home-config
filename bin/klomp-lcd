@@ -1,0 +1,126 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::CSV;
+use Time::HiRes qw(sleep);
+
+sub getKlompCsvRow();
+sub parseCsv($);
+sub klompInfo(@);
+sub sameInfo($$);
+sub parseCol($$);
+sub offset($$$);
+sub run(@);
+
+my $lastInfo;
+my $count = 0;
+
+sub main(@){
+  my $pi = shift if @_ > 0 and $_[0] =~ /^--pi$/;
+  my $delay = shift if @_ > 0 and $_[0] =~ /^(\d+\.)?\d+$/;
+  die "Usage: $0 [--pi] [DELAY]\n" if @_ != 0;
+
+  my $cmd = "sudo lcd --stdin";
+  $cmd = "pi $cmd" if defined $pi;
+
+  open FH, "|-", $cmd or die "Could not run lcd --stdin\n";
+
+  if(defined $delay){
+    while(1){
+      print FH getKlompCsvRow();
+      sleep $delay;
+    }
+  }else{
+    print FH getKlompCsvRow();
+  }
+
+  close FH;
+}
+
+sub getKlompCsvRow(){
+  my $info = klompInfo(qw(pos len title artist album));
+  if(not sameInfo $info, $lastInfo){
+    $count = 0;
+  }
+
+  my $csvRow = [$count,
+    "$$info{pos} / $$info{len}",
+    $$info{title},
+    $$info{artist},
+    $$info{album},
+  ];
+
+  $lastInfo = $info;
+  $count++;
+
+  return parseCsv [$csvRow];
+}
+
+sub parseCsv($){
+  my $rows = shift;
+  my $s = '';
+  for my $row(@$rows){
+    for my $col(@$row){
+      $col =~ s/"/""/g;
+      $col =~ s/^/"/;
+      $col =~ s/$/"/;
+    }
+    $s .= join ",", @$row;
+    $s .= "\n";
+  }
+  return $s;
+}
+
+sub klompInfo(@){
+  my @cols = @_;
+
+  my $csv = Text::CSV->new ( { binary => 1 } );
+  $csv->parse(`klomp-info -c @cols`);
+
+  my @vals = $csv->fields();
+  die "Error parsing klomp-info CSV\n" if @cols != @vals;
+
+  my $info = {};
+  for(my $i=0; $i<@cols; $i++){
+    my $col = $cols[$i];
+    my $val = $vals[$i];
+    $$info{$col} = parseCol $col, $val;
+  }
+  return $info;
+}
+
+sub sameInfo($$){
+  my ($info1, $info2) = @_;
+  return 0 if not defined $info1 or not defined $info2;
+  return 0 if length(keys %$info1) ne length(keys %$info2);
+  for my $key(keys %$info1){
+    next if $key eq 'pos';
+    return 0 if not defined $$info1{$key} or not defined $$info2{$key};
+    return 0 if $$info1{$key} ne $$info2{$key};
+  }
+  return 1;
+}
+
+sub parseCol($$){
+  my $field = shift;
+  my $s = shift;
+  $s =~ s/[\n\r\t]/ /g;
+  $s =~ s/^\s*(.*?)\s*$/$1/;
+
+  if($s =~ /[^\x00-\x7F]/){
+    print "non-ascii chars, guessing\n";
+    my $g = `klomp-tag --guess=$field "" "$s"`;
+    $g =~ s/[\n\r\t]/ /g;
+    $g =~ s/^\s*(.*?)\s*$/$1/;
+    $s = $g if length $g > 0;
+    $s =~ s/[^\x00-\x7F]/?/g;
+  }
+  return $s;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
