@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+sub run(@);
+
 my $url = 'https://github.com/teleshoes/wolke-home-config.git';
 my @dirs = (
   "install/root-files/usr/share/sounds/custom",
@@ -12,8 +14,8 @@ sub main(@){
   my $host = `nuc`;
   chomp $host;
 
-  system "nuc", "-u", "root", "apt-get install git rsync";
-  system "nuc", "
+  run "nuc", "-u", "root", "apt-get install git rsync";
+  run "nuc", "
     if [ ! -d .git ]; then
       git init
       git remote add origin \"$url\"
@@ -23,8 +25,13 @@ sub main(@){
     fi
   ";
   for my $dir(@dirs){
-    system "rsync", "-avP", "$ENV{HOME}/$dir/", "$host:~/$dir/";
+    run "rsync", "-avP", "$ENV{HOME}/$dir/", "$host:~/$dir/";
   }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
