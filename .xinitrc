@@ -1,7 +1,7 @@
 ~/.xconfig
 (sleep 10; xconfig) &
 
-sudo wauto &
+sudo wired &
 pulseaudio --start &
 sudo bluetooth off &
 sudo fan auto &
