@@ -1,6 +1,7 @@
 ~/.xconfig
 (sleep 10; xconfig) &
 
+mnt
 sudo wired &
 pulseaudio --start &
 sudo bluetooth off &
