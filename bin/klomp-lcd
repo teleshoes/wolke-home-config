@@ -15,23 +15,53 @@ sub run(@);
 my $lastInfo;
 my $count = 0;
 
+my @cmd = qw(lcd --stdin);
+my $defaultDelayMillis = 1000;
+
+my $usage = "Usage:
+  $0 [OPTS]
+    runs \"@cmd\" and generates CSV using klomp-info to feed into it
+
+    OPTS
+       --ipmagic=CONFNAME
+         runs \"ipmagic CONFNAME @cmd\" instead of \"@cmd\"
+
+       --delay=DELAY_MILLIS
+         time to sleep in milliseconds between generating CSV rows
+         default is $defaultDelayMillis
+
+       --once
+         run once and quit
+";
+
 sub main(@){
-  my $pi = shift if @_ > 0 and $_[0] =~ /^--pi$/;
-  my $delay = shift if @_ > 0 and $_[0] =~ /^(\d+\.)?\d+$/;
-  die "Usage: $0 [--pi] [DELAY]\n" if @_ != 0;
+  my $ipmagic;
+  my $delay = $defaultDelayMillis;
+  my $once = 0;
+  while(@_ > 0){
+    my $arg=shift;
+    if($arg =~ /^--ipmagic=(.*)$/){
+      $ipmagic = $1;
+    }elsif($arg =~ /^--delay=(\d+)$/){
+      $delay = $1;
+    }elsif($arg =~ /^--once$/){
+      $once = 1;
+    }else{
+      die $usage;
+    }
+  }
 
-  my $cmd = "sudo lcd --stdin";
-  $cmd = "pi $cmd" if defined $pi;
+  @cmd = ("ipmagic", $ipmagic, @cmd) if defined $ipmagic;
 
-  open FH, "|-", $cmd or die "Could not run lcd --stdin\n";
+  open FH, "|-", @cmd or die "Could not run @cmd\n";
 
-  if(defined $delay){
+  if($once){
+    print FH getKlompCsvRow();
+  }else{
     while(1){
       print FH getKlompCsvRow();
-      sleep $delay;
+      sleep ($delay/1000);
     }
-  }else{
-    print FH getKlompCsvRow();
   }
 
   close FH;
