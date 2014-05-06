@@ -38,19 +38,10 @@ main = do
           , W.micW
           , W.pidginPipeW $ barHeight cfg
           , W.thunderbirdW (barHeight cfg) Green Black
-          , W.ekigaW
           , W.cpuIntelPstateW
           , W.cpuFreqsW
-          , W.fanW
-          , W.brightnessW
           , colW [ W.pingMonitorW "G" "www.google.com"
-                 , W.pingMonitorW "E" "source.escribe.com"
-                 , W.pingMonitorW "A" "ehr-01"
                  ]
-          , colW [ W.openvpnW "escribe"
-                 , W.openvpnW "aws"
-                 ]
-          , W.tpBattStatW $ barHeight cfg
           , sep
           , W.clockW
           ]
