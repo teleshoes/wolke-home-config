@@ -93,6 +93,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
         "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
+        "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
 
     "CPU"           @@ do
         "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
