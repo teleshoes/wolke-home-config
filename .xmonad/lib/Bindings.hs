@@ -130,6 +130,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "nuc"           @@ do
         "vnc"           @@ mC    xK_F9   #! "nuc -vnc"
+        "vnc"           @@ mCS   xK_F9   #! "nuc -vnc --x2vnc"
 
     "raspi"         @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
