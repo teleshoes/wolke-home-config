@@ -1,9 +1,11 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(sleep);
 
 my $sshControlFile = '/tmp/vncSSH.ctl';
 my $port = '5900';
+my $delay = 5000;
 
 my @server = (
   "x11vnc",
@@ -14,7 +16,14 @@ my @client = (
   "vncviewer",
     "localhost:0",
     "-quality", "0",
-    "-compresslevel", "1",
+    "-compresslevel", "5",
+    "-bgr233",
+);
+my @x2vncClient = (
+  "x2vnc",
+    "-hotkey", "a-F9",
+    "-edgewidth", "0",
+    "localhost:0",
 );
 my @sshBind = (
   "ssh", "-f",
@@ -28,21 +37,31 @@ my @sshExit = (
     "localhost",
 );
 
+my $usage = "Usage:
+  $0 HOST [--x2vnc]
+    start x11vnc on the HOST, setup an ssh tunnel and then connect to it
+    if --x2vnc is given, client is x2vnc. otherwise, client is vncviewer
+
+  $0 off
+    disconnect ssh tunnel
+";
+
 sub main(@){
-  my $arg = shift();
-  die "Usage: $0 host   or  $0 off\n" if not defined $arg or @_ > 0;
-  if($arg eq 'off'){
+  if(@_ == 1 and $_[0] eq 'off'){
     exec @sshExit;
   }else{
+    my $host = shift if @_ > 0;
+    my $x2vnc = shift if @_ > 0 and $_[0] eq "--x2vnc";
+    die $usage if not defined $host or @_ > 0;
+
     system @sshExit;
-    my $host = $arg;
 
     system @sshBind, $host, "@server";
     exit $? if $? != 0;
 
-    sleep 5;
+    sleep $delay/1000;
 
-    system @client;
+    system (defined $x2vnc ? @x2vncClient : @client);
   }
 }
 

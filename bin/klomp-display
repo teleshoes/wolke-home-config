@@ -2,14 +2,27 @@
 use strict;
 use warnings;
 
-my $arg = shift;
-if($arg eq "--off"){
-  system "klomp-cmd", "stop";
-  system "pkill", "-9", "-f", "klomp-lcd";
-  system "pi lcd --off";
-}elsif($arg eq "--on"){
-  system "pkill", "-9", "-f", "klomp-lcd";
-  system "pi lcd --on";
-  system "nohup klomp-lcd --ipmagic=raspi >/dev/null 2>/dev/null &";
-  system "klomp-cmd", "start";
+sub main(@){
+  my $arg = "--toggle";
+  $arg = shift if @_ == 1;
+  die "Usage: $0 [--on|--off|--toggle]  {default is --toggle}\n" if @_ != 0;
+
+  if($arg eq "--toggle"){
+    system "pkill", "-0", "klomplayer";
+    $arg = ($? == 0) ? "off" : "on";
+  }
+
+  if($arg eq "--off"){
+    system "klomp-cmd", "stop";
+    system "pkill", "-9", "-f", "klomp-lcd";
+    system "pi lcd --off";
+  }elsif($arg eq "--on"){
+    system "klomp-mnt";
+    system "pkill", "-9", "-f", "klomp-lcd";
+    system "pi lcd --on";
+    system "nohup klomp-lcd --ipmagic=raspi >/dev/null 2>/dev/null &";
+    system "klomp-cmd", "start";
+  }
 }
+
+&main(@ARGV);
