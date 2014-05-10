@@ -17,6 +17,7 @@ my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$);
 sub backup($$);
+sub backupSymlink($$);
 sub sendReceive($$$$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
@@ -69,6 +70,9 @@ my $usage = "Usage:
     Roughly equivalent to:
       btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
     If PARENT_SNAPSHOT is omitted, no -p argument is given
+
+  $0 --lastsnapshot MOUNT_POINT [PREFIX]
+    Print the last snapshot of the given prefix
 
   $0 --snapshot MOUNT_POINT [PREFIX]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
@@ -141,6 +145,19 @@ sub main(@){
     die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
     sync();
+  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
+    shift;
+    my ($mountPoint, $prefix) = @_;
+    $prefix = "SNAPSHOT" if not defined $prefix;
+    $mountPoint =~ s/\/$//;
+    die "not a dir: $mountPoint\n" if not -d $mountPoint;
+
+    die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
+    die "PREFIX cannot be 'BACKUP'\n" if $prefix eq "BACKUP";
+
+    die $usage if not defined $mountPoint or @_ > 2;
+    my $snapshot = getLastSnapshot $mountPoint, $prefix;
+    print "$snapshot\n";
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
@@ -240,14 +257,20 @@ sub backup($$){
 
   sendReceive $srcDir, $destDir, $newSnapshot, $syncedSnapshot;
 
-  if(-l "$destDir/backup"){
-    run "rm", "$destDir/backup";
+  backupSymlink $destDir, $newSnapshot;
+}
+
+sub backupSymlink($$){
+  my ($dir, $snapshotName) = @_;
+
+  if(-l "$dir/backup"){
+    run "rm", "$dir/backup";
   }
 
-  if(not -e "$destDir/backup"){
-    run "ln", "-s", $newSnapshot, "$destDir/backup";
+  if(not -e "$dir/backup"){
+    run "ln", "-s", $snapshotName, "$dir/backup";
   }else{
-    print STDERR "$destDir/backup exists, not creating symlink\n";
+    print STDERR "$dir/backup exists, not creating symlink\n";
   }
 }
 
@@ -293,8 +316,6 @@ sub getSyncedSnapshot($$){
   my ($srcDir, $destDir) = @_;
   $srcDir =~ s/\/$//;
   $destDir =~ s/\/$//;
-  die "not a dir: $srcDir\n" if not -d $srcDir;
-  die "not a dir: $destDir\n" if not -d $destDir;
 
   my $lastSrc = getLastSnapshot $srcDir, "BACKUP";
   my $lastDest = getLastSnapshot $destDir, "BACKUP";
@@ -451,6 +472,8 @@ sub getSnapshots($$){
 
 sub getLastSnapshot($$){
   my ($dir, $prefix) = @_;
+  die "not a dir: $dir\n" if not -d $dir;
+
   my @subs = getSnapshots $dir, $prefix;
   die "no snapshot found for $dir\n" if @subs == 0;
   my $sub = $subs[-1];
@@ -593,7 +616,7 @@ sub bashComplete($$){
     }
   }
 
-  if($words[0] =~ /^(--snapshot|--cleanup.*)/){
+  if($words[0] =~ /^(--snapshot|--lastsnapshot|--cleanup.*)/){
     if(@words == 1){
       return @mntPoints;
     }elsif(@words == 2){
