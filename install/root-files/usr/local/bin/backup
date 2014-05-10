@@ -70,6 +70,9 @@ my $usage = "Usage:
       btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
     If PARENT_SNAPSHOT is omitted, no -p argument is given
 
+  $0 --lastsnapshot MOUNT_POINT [PREFIX]
+    Print the last snapshot of the given prefix
+
   $0 --snapshot MOUNT_POINT [PREFIX]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
     PREFIX defaults to \"SNAPSHOT\", and cannot be \"BACKUP\"
@@ -141,6 +144,19 @@ sub main(@){
     die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
     sync();
+  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
+    shift;
+    my ($mountPoint, $prefix) = @_;
+    $prefix = "SNAPSHOT" if not defined $prefix;
+    $mountPoint =~ s/\/$//;
+    die "not a dir: $mountPoint\n" if not -d $mountPoint;
+
+    die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
+    die "PREFIX cannot be 'BACKUP'\n" if $prefix eq "BACKUP";
+
+    die $usage if not defined $mountPoint or @_ > 2;
+    my $snapshot = getLastSnapshot $mountPoint, $prefix;
+    print "$snapshot\n";
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
@@ -593,7 +609,7 @@ sub bashComplete($$){
     }
   }
 
-  if($words[0] =~ /^(--snapshot|--cleanup.*)/){
+  if($words[0] =~ /^(--snapshot|--lastsnapshot|--cleanup.*)/){
     if(@words == 1){
       return @mntPoints;
     }elsif(@words == 2){
