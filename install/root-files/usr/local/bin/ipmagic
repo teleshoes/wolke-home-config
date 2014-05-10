@@ -19,6 +19,7 @@ sub writeTmpFile($$);
 sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
+sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
 sub twip($$);
@@ -32,6 +33,10 @@ my @confFiles = `ls \"$confDir\" 2>/dev/null`;
 chomp foreach @confFiles;
 
 my $methods = join "|", qw(any tmp usb wifi twip guess);
+
+my $byteRegex = "[0-9a-fA-F]{2}";
+my $macRegex = join ":", ($byteRegex) x 6;
+my $ipRegex = "\\d+\\.\\d+\\.\\d+\\.\\d+";
 
 my $usage = "Usage:
     $0 -h|--help
@@ -256,15 +261,14 @@ sub absolutePath($){
 
 sub assertIp($){
   my $ip = shift;
-  if($ip !~ /^\d+\.\d+\.\d+\.\d+$/){
+  if($ip !~ /^$ipRegex$/){
     die "'$ip' is not an ip4 address\n"
   }
 }
 
 sub assertMac($){
   my $mac = shift;
-  my $seg = "[0-9a-f]{2}";
-  if($mac !~ /^$seg:$seg:$seg:$seg:$seg:$seg$/i){
+  if($mac !~ /^$macRegex$/i){
     die "'$mac' is not a mac address\n"
   }
 }
@@ -359,7 +363,7 @@ sub getHosts($){
   my $hostsMarker = hostsMarker \%config;
   my $hostname = $config{hostname};
   for my $line(`cat /etc/hosts`){
-    if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
+    if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
       return $1;
     }
   }
@@ -370,11 +374,11 @@ sub setHosts($$$){
   my ($hostname, $hostsMarker, $ip) = @_;
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
-    if($line =~ /^(\d+\.\d+\.\d+\.\d+)\s*$hostname\s*#$hostsMarker$/){
+    if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
       $line = '';
     }
   }
-  if(defined $ip and $ip =~ /^\d+\.\d+\.\d+\.\d+$/){
+  if(defined $ip and $ip =~ /^$ipRegex$/){
     push @lines, "$ip\t$hostname#$hostsMarker\n";
   }
 
@@ -463,6 +467,18 @@ sub sudoIfup($$){
   system "sudo", $0, "--ifup", $dev, $ip;
 }
 
+sub getDefaultGatewayMac(){
+  my $route = `route -n`;
+  if($route =~ /^0\.0\.0\.0\s*($ipRegex)/m){
+    my $ip = $1;
+    my $arp = `arp -n $ip`;
+    if($arp =~ /^$ip\s*[a-zA-Z0-9_]+\s*($macRegex)/m){
+      return $1;
+    }
+  }
+  return undef;
+}
+
 sub usb($$){
   my %config = %{shift()};
   my %opts = %{shift()};
@@ -510,6 +526,11 @@ sub wifi($$){
   my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
   print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $opts{verbose};
 
+  if($mac eq '<none>'){
+    my $gwMac = getDefaultGatewayMac();
+    $mac = lc $gwMac if defined $gwMac;
+  }
+
   my $macIp;
   for my $macConfig(keys %macIpMap){
     $macIp = $macIpMap{$macConfig} if lc $macConfig eq lc $mac;
@@ -537,7 +558,7 @@ sub twip($$){
     my $ip = `twipc --fetch`;
     chomp $ip;
     print "  got $ip\n";
-    if($ip =~ /^\d+ \. \d+ \. \d+ \. \d+$/x){
+    if($ip =~ /^$ipRegex$/){
       print "  success!\n" if $opts{verbose};
       return $ip;
     }
