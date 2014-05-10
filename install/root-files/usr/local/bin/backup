@@ -17,6 +17,7 @@ my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$);
 sub backup($$);
+sub backupSymlink($$);
 sub sendReceive($$$$);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
@@ -256,14 +257,20 @@ sub backup($$){
 
   sendReceive $srcDir, $destDir, $newSnapshot, $syncedSnapshot;
 
-  if(-l "$destDir/backup"){
-    run "rm", "$destDir/backup";
+  backupSymlink $destDir, $newSnapshot;
+}
+
+sub backupSymlink($$){
+  my ($dir, $snapshotName) = @_;
+
+  if(-l "$dir/backup"){
+    run "rm", "$dir/backup";
   }
 
-  if(not -e "$destDir/backup"){
-    run "ln", "-s", $newSnapshot, "$destDir/backup";
+  if(not -e "$dir/backup"){
+    run "ln", "-s", $snapshotName, "$dir/backup";
   }else{
-    print STDERR "$destDir/backup exists, not creating symlink\n";
+    print STDERR "$dir/backup exists, not creating symlink\n";
   }
 }
 
