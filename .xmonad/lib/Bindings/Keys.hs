@@ -53,6 +53,7 @@ xK_Mute  = xF86XK_AudioMute
 xK_Fwd   = xF86XK_Forward
 xK_Back  = xF86XK_Back
 xK_Rfrsh = xF86XK_Reload
+xK_Tools = xF86XK_Tools
 xK_Think = xF86XK_Launch1
 xK_Mic   = xF86XK_AudioMicMute
 xK_BriUp = xF86XK_MonBrightnessUp
