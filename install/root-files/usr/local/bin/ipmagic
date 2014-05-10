@@ -19,6 +19,7 @@ sub writeTmpFile($$);
 sub quickPingable($);
 sub ifup($$);
 sub sudoIfup($$);
+sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
 sub twip($$);
@@ -466,6 +467,18 @@ sub sudoIfup($$){
   system "sudo", $0, "--ifup", $dev, $ip;
 }
 
+sub getDefaultGatewayMac(){
+  my $route = `route -n`;
+  if($route =~ /^0\.0\.0\.0\s*($ipRegex)/m){
+    my $ip = $1;
+    my $arp = `arp -n $ip`;
+    if($arp =~ /^$ip\s*[a-zA-Z0-9_]+\s*($macRegex)/m){
+      return $1;
+    }
+  }
+  return undef;
+}
+
 sub usb($$){
   my %config = %{shift()};
   my %opts = %{shift()};
@@ -512,6 +525,11 @@ sub wifi($$){
   my $mac = lc ($iwconfig =~ /Access Point: ([a-z0-9:]+)/i ? $1 : '<none>');
   my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
   print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $opts{verbose};
+
+  if($mac eq '<none>'){
+    my $gwMac = getDefaultGatewayMac();
+    $mac = lc $gwMac if defined $gwMac;
+  }
 
   my $macIp;
   for my $macConfig(keys %macIpMap){
