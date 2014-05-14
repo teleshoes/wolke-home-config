@@ -7,7 +7,7 @@ import Control.Monad (void)
 import System.Process (system)
 
 checkDelayMillis = 1 * 1000
-idleTimeoutMillis = 10 * 1000
+idleTimeoutMillis = 10 * 60 * 1000
 
 screenSaverW = do
   chan <- newChan
