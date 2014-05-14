@@ -38,6 +38,8 @@ main = do
           , W.micW
           , W.cpuIntelPstateW
           , W.cpuFreqsW
+          , W.screenSaverW
+          , W.brightnessW
           , colW [ W.pingMonitorW "G" "www.google.com"
                  ]
           , sep
