@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(sleep);
 
 sub ceil($);
 sub getBrightness();
@@ -67,17 +68,18 @@ sub main(@){
       }
     }
   }elsif($arg =~ /^(last)$/){
-    if(-e $lastFile){
-      my $brightness = `cat $lastFile`;
-      chomp $brightness;
-      if($brightness =~ /^\d+$/){
-        if($brightness ne getBrightness()){
-          setBrightness $brightness, 1;
+    if(-e $lastFile or -e $lastFileXrandr){
+      my $brightness = getBrightness();
+      my $last = $disableXbacklight ? `cat $lastFileXrandr` : `cat $lastFile`;
+      chomp $last;
+      if($last =~ /^\d+$/){
+        if($last ne $brightness){
+          setBrightness $last, 1;
         }
       }
     }
   }elsif($arg =~ /^(system)$/){
-    system "rm", "-f", $lastFile;
+    system "rm", "-f", $lastFile, $lastFileXrandr;
   }elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
     setBrightness $arg, 0;
   }else{
@@ -144,10 +146,12 @@ sub setBrightnessXrandr($$){
     die "Too many xrandr devices: @devs\n";
   }
 
-  system "echo $target > $lastFileXrandr" if not $softUpdate;
   $target /= 100;
-
   system "DISPLAY=$display xrandr --output $devs[0] --brightness $target";
+  sleep 0.1;
+
+  my $b = getBrightness();
+  system "echo $b > $lastFileXrandr" if not $softUpdate;
 }
 
 sub ensureXrandrDevs(){
