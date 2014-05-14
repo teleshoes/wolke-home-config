@@ -20,7 +20,7 @@ checkScreenSaver chan prevState = do
   let state = xidle > idleTimeoutMillis
   let timeoutS = (idleTimeoutMillis - xidle) `div` 1000
   let msg = padL ' ' 4 $ if state then "SCRN" else show timeoutS
-  writeChan chan msg
+  writeChan chan $ msg ++ "\nidle"
   if state && not prevState then screenSaverOn else return ()
   if not state && prevState then screenSaverOff else return ()
 
