@@ -36,8 +36,6 @@ main = do
           , W.widthScreenWrapW 0.159375 =<< W.klompW
           , W.volumeW
           , W.micW
-          , W.pidginPipeW $ barHeight cfg
-          , W.thunderbirdW (barHeight cfg) Green Black
           , W.cpuIntelPstateW
           , W.cpuFreqsW
           , colW [ W.pingMonitorW "G" "www.google.com"
