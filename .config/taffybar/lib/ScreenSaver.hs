@@ -7,6 +7,8 @@ import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 
+screenSaverBrightness = 30
+
 overrideFile = "/tmp/screen-saver-override"
 
 checkDelayMillis = 1 * 1000
@@ -37,7 +39,7 @@ checkScreenSaver chan prevState = do
 
 getOverride = chompFile overrideFile
 
-screenSaverOn = void $ system "brightness 50"
+screenSaverOn = void $ system $ "brightness " ++ show screenSaverBrightness
 screenSaverOff = void $ system "brightness 100"
 
 getXidle :: IO Integer
