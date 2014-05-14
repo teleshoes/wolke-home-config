@@ -21,5 +21,5 @@ readBrightnessBar = do
   let (bg, fg) = cycleColors colors p
   return (fg, bg, p)
 
-getBrightness = fmap parse $ readProc ["xbacklight", "-get"]
+getBrightness = fmap parse $ readProc ["brightness"]
 parse b = (fromMaybe 300.0 $ readDouble b) / 100.0
