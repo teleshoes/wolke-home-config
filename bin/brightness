@@ -2,6 +2,10 @@
 use strict;
 use warnings;
 
+sub ceil($);
+sub getBrightness();
+sub setBrightness($$);
+
 my $lastFile = "/tmp/brightness";
 
 my @brackets = (0, 34, 67, 80, 100);
@@ -24,6 +28,39 @@ my $usage = "Usage:\n"
   . "should NOT change the brightness\n"
   ;
 
+sub main(@){
+  my $arg = shift;
+  die $usage if @_ != 0;
+  if(not defined $arg){
+    print getBrightness() . "\n";
+  }elsif($arg =~ /^(up|down)$/){
+    my $b = getBrightness;
+    @brackets = reverse @brackets if $arg eq 'down';
+    for my $bracket(@brackets){
+      if(($arg eq 'up' and $bracket > $b) or ($arg eq 'down' and $bracket < $b)){
+        setBrightness $bracket, 0;
+        last;
+      }
+    }
+  }elsif($arg =~ /^(last)$/){
+    if(-e $lastFile){
+      my $brightness = `cat $lastFile`;
+      chomp $brightness;
+      if($brightness =~ /^\d+$/){
+        if($brightness ne getBrightness()){
+          setBrightness $brightness, 1;
+        }
+      }
+    }
+  }elsif($arg =~ /^(system)$/){
+    system "rm", "-f", $lastFile;
+  }elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
+    setBrightness $arg, 0;
+  }else{
+    die $usage;
+  }
+}
+
 sub ceil($){
   chomp $_[0];
   my $i = int($_[0]);
@@ -42,35 +79,4 @@ sub setBrightness($$){
   system "xbacklight -time 0 -set $target";
 }
 
-my $arg = shift;
-die $usage if @ARGV != 0;
-if(not defined $arg){
-  print getBrightness() . "\n";
-}elsif($arg =~ /^(up|down)$/){
-  my $b = getBrightness;
-  @brackets = reverse @brackets if $arg eq 'down';
-  for my $bracket(@brackets){
-    if(($arg eq 'up' and $bracket > $b) or ($arg eq 'down' and $bracket < $b)){
-      setBrightness $bracket, 0;
-      last;
-    }
-  }
-}elsif($arg =~ /^(last)$/){
-  if(-e $lastFile){
-    my $brightness = `cat $lastFile`;
-    chomp $brightness;
-    if($brightness =~ /^\d+$/){
-      if($brightness ne getBrightness()){
-        setBrightness $brightness, 1;
-      }
-    }
-  }
-}elsif($arg =~ /^(system)$/){
-  system "rm", "-f", $lastFile;
-}elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
-  setBrightness $arg, 0;
-}else{
-  die $usage;
-}
-
-
+&main(@ARGV);
