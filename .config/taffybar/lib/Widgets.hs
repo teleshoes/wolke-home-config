@@ -18,6 +18,7 @@ module Widgets(
   pidginPipeW,
   pingMonitorW,
   progressBarW,
+  screenSaverW,
   sepW,
   tpBattStatW,
   thunderbirdW,
@@ -43,6 +44,7 @@ import Openvpn(openvpnW)
 import PidginPipe(pidginPipeW)
 import PingMonitor(pingMonitorW)
 import ProgressBar(progressBarW)
+import ScreenSaver(screenSaverW)
 import Sep(sepW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
