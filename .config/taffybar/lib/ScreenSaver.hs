@@ -1,9 +1,10 @@
 module ScreenSaver(screenSaverW) where
 import Label (labelW)
-import Utils(chompFile, padL, readProc)
+import Utils(chompFile, padL, readInt, readProc)
 
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (void)
+import Data.Maybe (fromMaybe)
 import System.Process (system)
 
 overrideFile = "/tmp/screen-saver-override"
@@ -40,4 +41,4 @@ screenSaverOn = void $ system "brightness 50"
 screenSaverOff = void $ system "brightness 100"
 
 getXidle :: IO Integer
-getXidle = fmap read $ readProc ["xprintidle"]
+getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
