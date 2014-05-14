@@ -7,7 +7,7 @@ import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 
-screenSaverBrightness = 50
+screenSaverBrightness = 30
 
 overrideFile = "/tmp/screen-saver-override"
 
