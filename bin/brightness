@@ -73,7 +73,10 @@ sub main(@){
       my $last = $disableXbacklight ? `cat $lastFileXrandr` : `cat $lastFile`;
       chomp $last;
       if($last =~ /^\d+$/){
-        if($last ne $brightness){
+        my $diff = $brightness - $last;
+        $diff *= -1 if $diff < 0;
+        my $buffer = $disableXbacklight ? 2 : 0;
+        if($diff > $buffer){
           setBrightness $last, 1;
         }
       }
@@ -146,12 +149,10 @@ sub setBrightnessXrandr($$){
     die "Too many xrandr devices: @devs\n";
   }
 
+  system "echo $target > $lastFileXrandr" if not $softUpdate;
   $target /= 100;
-  system "DISPLAY=$display xrandr --output $devs[0] --brightness $target";
-  sleep 0.1;
 
-  my $b = getBrightness();
-  system "echo $b > $lastFileXrandr" if not $softUpdate;
+  system "DISPLAY=$display xrandr --output $devs[0] --brightness $target";
 }
 
 sub ensureXrandrDevs(){
