@@ -5,8 +5,17 @@ use warnings;
 sub ceil($);
 sub getBrightness();
 sub setBrightness($$);
+sub getBrightnessXrandr();
+sub setBrightnessXrandr($$);
+sub ensureXrandrDevs();
 
 my $lastFile = "/tmp/brightness";
+my $lastFileXrandr = "/tmp/brightness-xrandr";
+
+my $disableXbacklight = 0;
+my $xbacklightFailureMessage = "No outputs have backlight property";
+my $display = ":0";
+my $xrandrDevs = undef;
 
 my @brackets = (0, 34, 67, 80, 100);
 
@@ -17,7 +26,12 @@ my $usage = "Usage:
     $0 last       set brightness to value read from $lastFile
     $0 system     remove $lastFile
 
-  xbacklight wrapper
+  xbacklight wrapper that stores previous settings in $lastFile
+
+  if xbacklight prints \"$xbacklightFailureMessage\",
+      xrandr is used to control brightness instead {in software}
+      if xrandr is used, brightness is written to $lastFileXrandr
+      instead of $lastFile
 
   note: when brightness percentage is not an integer,
     xbacklight -set `xbacklight -get`
@@ -69,14 +83,79 @@ sub ceil($){
 }
 
 sub getBrightness(){
-  return ceil `xbacklight -get`;
+  if($disableXbacklight){
+    return getBrightnessXrandr;
+  }else{
+    my $b = `xbacklight -get 2>&1`;
+    if($b =~ /^$xbacklightFailureMessage/){
+      print STDERR "$xbacklightFailureMessage\nusing xrandr instead\n";
+      $disableXbacklight = 1;
+      return getBrightnessXrandr();
+    }
+
+    return ceil $b;
+  }
 }
+
 sub setBrightness($$){
   my $target = ceil $_[0];
   my $softUpdate = $_[1];
-  system "echo $target > $lastFile" if not $softUpdate;
   print getBrightness() . " => $target\n";
-  system "xbacklight -time 0 -set $target";
+  if($disableXbacklight){
+    setBrightnessXrandr $target, $softUpdate;
+  }else{
+    system "echo $target > $lastFile" if not $softUpdate;
+    system "xbacklight -time 0 -set $target";
+  }
+}
+
+sub getBrightnessXrandr(){
+  ensureXrandrDevs();
+  my @devs = sort keys %$xrandrDevs;
+  if(@devs < 1){
+    die "Could not read brightness from any xrandr dev\n";
+  }elsif(@devs > 1){
+    die "Too many xrandr devices: @devs\n";
+  }
+
+  my $b = $$xrandrDevs{$devs[0]};
+  return ceil($b*100)
+}
+
+sub setBrightnessXrandr($$){
+  my $target = ceil $_[0];
+  my $softUpdate = $_[1];
+  ensureXrandrDevs();
+
+  my @devs = sort keys %$xrandrDevs;
+  if(@devs < 1){
+    die "Could not set brightness on any xrandr dev\n";
+  }elsif(@devs > 1){
+    die "Too many xrandr devices: @devs\n";
+  }
+
+  system "echo $target > $lastFileXrandr" if not $softUpdate;
+  $target /= 100;
+
+  system "DISPLAY=$display xrandr --output $devs[0] --brightness $target";
+}
+
+sub ensureXrandrDevs(){
+  return if defined $xrandrDevs;
+  $xrandrDevs = {};
+
+  my $curDev = undef;
+  for my $line(`DISPLAY=$display xrandr --verbose`){
+    if($line =~ /^([a-zA-Z0-9]+) (connected|disconnected)/){
+      if($2 eq "connected"){
+        $curDev = $1;
+      }else{
+        $curDev = undef;
+      }
+    }elsif($line =~ /^\s*Brightness: ([0-9\.]+)$/ and defined $curDev){
+      $$xrandrDevs{$curDev} = $1;
+    }
+  }
 }
 
 &main(@ARGV);
