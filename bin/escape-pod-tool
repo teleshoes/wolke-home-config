@@ -28,9 +28,8 @@ sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
 
-sub parseTableRow($$);
+sub parseTableRow($);
 sub padl($$);
-sub maxLen(@);
 
 sub csv($);
 sub cell($);
@@ -135,12 +134,10 @@ sub main(@){
     push @epNums, $1;
   }
 
-  my $maxLen = maxLen @epNums;
-
   my $articleUrlCache = readAttCache 'article-url-cache';
   my $eps = {};
   for my $tableRow(@tableRows){
-    my $ep = parseTableRow $tableRow, $maxLen;
+    my $ep = parseTableRow $tableRow;
     next if keys %okNums > 0 and not defined $okNums{$$ep{number}};
     my $epNum = $$ep{number};
     $$eps{$epNum} = $ep;
@@ -670,9 +667,8 @@ sub newMP3FileName($){
   return $newFileName;
 }
 
-sub parseTableRow($$){
+sub parseTableRow($){
   my $tr = shift;
-  my $maxLen = shift;
 
   $tr =~ /href="(http:\/\/escapepod.org\/(\d+\/\d+\/\d+)\/[^"]*)"/;
   my $articleUrl = $1;
@@ -683,14 +679,14 @@ sub parseTableRow($$){
   $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
   $tr =~ s/\s*<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >\s*/<>$1/gsxi;
   $tr =~ s/^\s*<tr>\s*<>(.*)<>\s*(EPF|none)\s*<\/tr>\s*$/$1/;
-  if($tr =~ /^(\d+[ab]?)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
+  if($tr =~ /^(\d+)([ab]?)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
     return {
-      number => padl($maxLen, $1),
-      title => $2,
-      author => $3,
-      reader => $4,
-      rating => $5,
-      duration => $6,
+      number => padl(3, $1) . $2,
+      title => $3,
+      author => $4,
+      reader => $5,
+      rating => $6,
+      duration => $7,
       articleUrl => $articleUrl,
       date => $date,
     };
@@ -701,13 +697,6 @@ sub parseTableRow($$){
 sub padl($$){
   my ($len, $n) = @_;
   return ('0'x($len - length $n)) . $n;
-}
-sub maxLen(@){
-  my $maxLen = 0;
-  for my $s(@_){
-   $maxLen = length $s if length $s > $maxLen; 
-  }
-  return $maxLen;
 }
 
 
