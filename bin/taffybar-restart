@@ -2,21 +2,27 @@
 use strict;
 use warnings;
 
+my $log = "/tmp/taffybar-log";
+
 sub main(@){
-  system "killall", "taffybar-linux-x86_64";
+  system "killall taffybar-linux-x86_64 2>/dev/null";
   my $ok = 1;
-  open TB, "taffybar 2>&1 |";
+  open TB, "-|", "taffybar 2>&1 | tee $log";
   my $line;
   while($line = <TB>){
-    if($line =~ /Error occurred while loading configuration file/){
-      close TB;
-      system "term", "bash", "-c", "taffybar; read";
-      system "alarm -s failure";
+    if($line =~ /^Error occurred while loading configuration file\.$/){
       $ok = 0;
+      system "alarm -s failure";
+    }elsif($line =~ /^Launching custom binary/ and $ok){
+      system "alarm -s success" if $ok;
     }
+    print $line;
   }
   close TB;
-  system "alarm -s success" if $ok;
+
+  if(not $ok){
+    system "term", "less", $log;
+  }
 }
 
 &main(@ARGV);
