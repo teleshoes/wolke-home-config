@@ -1,6 +1,7 @@
 ~/.xconfig
 (sleep 10; xconfig) &
 
+brightness 80
 mnt
 sudo wired &
 pulseaudio --start &
