@@ -117,15 +117,20 @@ sub main(@){
   $cmd = '--csv' if not defined $cmd;
   die $usage if $cmd !~ /^($cmds)$/;
 
-  my @nums = @_;
-  die $usage if (grep {$_ !~ /^\d+$/} @nums) > 0;
+  my @nums;
+  for my $num(@_){
+    die $usage if $num !~ /^(\d+)([ab]?)$/;
+    my $epNum = sprintf "%03d%s", $1+0, $2;
+    push @nums, $epNum;
+  }
+  die $usage if (grep {$_ !~ /^\d+[ab]?$/} @nums) > 0;
 
-  my %okNums = map {$_+0 => 1} @nums;
+  my %okNums = map {$_ => 1} @nums;
 
   my $html = `wget -O - $url 2>/dev/null`;
   my @epNums;
   my @tableRows;
-  while($html =~ /<tr>\s*<td>(\d+)<\/td>.*?<\/tr>/gs){
+  while($html =~ /<tr>\s*<td>(\d+[ab]?)<\/td>.*?<\/tr>/gs){
     push @tableRows, $&;
     push @epNums, $1;
   }
@@ -136,10 +141,10 @@ sub main(@){
   my $eps = {};
   for my $tableRow(@tableRows){
     my $ep = parseTableRow $tableRow, $maxLen;
-    next if keys %okNums > 0 and not defined $okNums{$$ep{number}+0};
+    next if keys %okNums > 0 and not defined $okNums{$$ep{number}};
     my $epNum = $$ep{number};
     $$eps{$epNum} = $ep;
-    $$articleUrlCache{$epNum+0} = $$ep{articleUrl};
+    $$articleUrlCache{$epNum} = $$ep{articleUrl};
   }
   writeAttCache 'article-url-cache', $articleUrlCache;
   my $exitCode = 0;
@@ -158,12 +163,12 @@ sub main(@){
     }
     print $wikiPrefix if @nums == keys %$articleUrlCache;
     for my $epNum(reverse @nums){
-      my $articleUrl = $$articleUrlCache{$epNum+0};
+      my $articleUrl = $$articleUrlCache{$epNum};
       my $extraInfo = extraInfo();
       my $personLinks = personLinks();
       if(ensureHtmlCache $epNum, $articleUrl){
         my $ex = {};
-        $ex = $$extraInfo{$epNum+0} if defined $$extraInfo{$epNum+0};
+        $ex = $$extraInfo{$epNum} if defined $$extraInfo{$epNum};
         my $info = parseHtml $epNum, $ex;
 
         my $rating = $$info{rating};
@@ -178,10 +183,13 @@ sub main(@){
           $forum = "none";
         }
 
+        die "Malformed episode number: $epNum\n" if $epNum !~ /^(\d+)([ab]?)$/;
+        my $num = sprintf "%d%s", $1+0, $2;
+
         my $note = '';
         $note = " $$ex{note}" if defined $$ex{note};
         my $fmt = ''
-          . "|-\n| " . ($epNum+0)
+          . "|-\n| " . ($num)
           . " || [$articleUrl $$info{title}]$note"
           . " || " . fmtPersonLink($$info{author}, $personLinks)
           . " || " . fmtPersonLink($$info{reader}, $personLinks)
@@ -256,7 +264,7 @@ sub parseHtml($$){
     my $title = $1;
     utf8::decode $title;
     $title =~ s/[:\.\-]\s*Escape\s*Pod\s*//g;
-    $title =~ s/^\s*(EP|Escape\s*Pod|Episode)\s*\d+[:\-]?//i;
+    $title =~ s/^\s*(EP|Escape\s*Pod|Episode)\s*\d+[ab]?[:\-]?//i;
     $title =~ s/^\s*//;
     $title =~ s/\s*$//;
     $title =~ s/&#039;/'/g;
@@ -355,15 +363,15 @@ sub parseHtml($$){
   }
 
   my $durCache = readAttCache 'duration-cache';
-  if(defined $$durCache{$epNum+0}){
-    $$info{duration} = $$durCache{$epNum+0};
+  if(defined $$durCache{$epNum}){
+    $$info{duration} = $$durCache{$epNum};
   }elsif($mp3 =~ /^(.*\/)?$epNum[^\/]*\.mp3$/ and -e $mp3){
     $mp3 =~ s/"/\\"/g;
     my $dur = `duration -n "$mp3"`;
     chomp $dur;
     if($dur =~ /^(\d+:)+\d+$/){
       $$info{duration} = $dur;
-      $$durCache{$epNum+0} = $dur;
+      $$durCache{$epNum} = $dur;
       writeAttCache 'duration-cache', $durCache;
     }
   }elsif($html =~ /<span[^>]*>\s*\[\s*((?:\d+:)+\d+)\s*\]\s*<\/span>/){
@@ -372,22 +380,22 @@ sub parseHtml($$){
 
   my $forumCache = readAttCache 'forum-cache';
   if(defined $$ex{forum}){
-    my $prev = $$forumCache{$epNum+0};
+    my $prev = $$forumCache{$epNum};
     if(not defined $prev or $prev ne $$ex{forum}){
-      $$forumCache{$epNum+0} = $$ex{forum};
+      $$forumCache{$epNum} = $$ex{forum};
       writeAttCache 'forum-cache', $forumCache;
     }
   }
-  if(not defined $$forumCache{$epNum+0}){
+  if(not defined $$forumCache{$epNum}){
     print STDERR "updating forum cache\n";
     my $epArticles = crawlForum;
     for my $ep(sort keys %$epArticles){
-      $$forumCache{$ep+0} = $$epArticles{$ep};
+      $$forumCache{$ep} = $$epArticles{$ep};
     }
     writeAttCache 'forum-cache', $forumCache;
   }
-  if(defined $$forumCache{$epNum+0}){
-    $$info{forum} = $$forumCache{$epNum+0};
+  if(defined $$forumCache{$epNum}){
+    $$info{forum} = $$forumCache{$epNum};
   }
 
   for my $att(@atts){
@@ -488,8 +496,8 @@ sub readAttCache($){
   my @lines = `cat $cacheFile 2>/dev/null`;
   my $cache = {};
   for my $line(@lines){
-    if($line =~ /^(\d+)\s+(.*)$/){
-      $$cache{$1+0} = $2;
+    if($line =~ /^(\d+[ab]?)\s+(.*)$/){
+      $$cache{$1} = $2;
     }
   }
   return $cache;
@@ -500,8 +508,9 @@ sub writeAttCache($$){
   my $cacheFile = "$epDir/$name";
   my $s = '';
   open FH, "> $cacheFile" or die "Couldnt write to $cacheFile\n";
-  for my $epNum(sort {$a <=> $b} keys %$cache){
-    print FH sprintf "%03d %s\n", $epNum, $$cache{$epNum};
+  for my $epNum(sort {$a cmp $b} keys %$cache){
+    die "Malformed episode number: $epNum\n" if $epNum !~ /^(\d+)([ab]?)$/;
+    print FH sprintf "%03d%s %s\n", $1, $2, $$cache{$epNum};
   }
   close FH;
 }
@@ -512,8 +521,8 @@ sub extraInfo(){
   for my $line(`cat $file`){
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
-    if($line =~ /^(\d\d\d) (title|author|reader|rating|forum|note) (.*)$/){
-      $$extraInfo{$1+0}{$2} = $3;
+    if($line =~ /^(\d\d\d[ab]?) (title|author|reader|rating|forum|note) (.*)$/){
+      $$extraInfo{$1}{$2} = $3;
     }else{
       die "malformed extra-info line: $line";
     }
@@ -589,7 +598,7 @@ sub crawlForum(){
     my $url = "$forumUrl?board=$board";
     my $html = `curl -L \"$url\" 2>/dev/null`;
     my $pageArticles = [];
-    while($html =~ /<a href="[^"]*topic=(\d+\.\d+)">EP(\d+)[^*]/g){
+    while($html =~ /<a href="[^"]*topic=(\d+\.\d+)">EP(\d+[ab]?)[^*]/g){
       $$epArticles{$2} = $1;
       push @$pageArticles, $2;
     }
@@ -636,11 +645,14 @@ sub tagMP3File($$){
 
   run "id3v2", "--delete-all", $oldFileName;
 
+  my $num = 0;
+  $num += $1 if $$ep{number} =~ /(\d+)/;
+
   run "id3v2",
     "--TIT2", $$ep{title},
     "--TPE1", $$ep{author},
     "--TPE2", $$ep{reader},
-    "--TRCK", $$ep{number}+0,
+    "--TRCK", $num,
     "--TALB", "Escape Pod",
     "--TYER", $$ep{date},
     $oldFileName;
@@ -671,7 +683,7 @@ sub parseTableRow($$){
   $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
   $tr =~ s/\s*<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >\s*/<>$1/gsxi;
   $tr =~ s/^\s*<tr>\s*<>(.*)<>\s*(EPF|none)\s*<\/tr>\s*$/$1/;
-  if($tr =~ /^(\d+)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
+  if($tr =~ /^(\d+[ab]?)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
     return {
       number => padl($maxLen, $1),
       title => $2,
