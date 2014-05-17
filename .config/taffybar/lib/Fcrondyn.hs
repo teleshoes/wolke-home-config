@@ -17,7 +17,7 @@ fcrondynW = clickableLeft cmd =<< labelW getMarkup
 getMarkup = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
-  system "sudo fcron-start"
+  system "sudo fcron-start >/dev/null"
   fcrondynOut <- readProc ["sudo", "fcron-ls"]
   return $ parseAndFormat now tz fcrondynOut
 
