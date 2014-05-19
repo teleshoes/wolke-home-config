@@ -24,6 +24,7 @@ my $usage = "Usage:
 
     --ipmagic
       interpret URL as an ipmagic conf, and use `ipmagic URL --ip` as the url
+      also, if the IP is not ping-able, tries SSH as a fallback
 ";
 
 sub main(@){
@@ -65,14 +66,21 @@ sub main(@){
 
 sub attemptPing($$$){
   my ($url, $useIpmagic, $deadline) = @_;
+  my $ipmagicConf;
   if($useIpmagic){
-    $url = `ipmagic "$url" --ip`;
+    $ipmagicConf = $url;
+    $url = `ipmagic "$ipmagicConf" --ip`;
     chomp $url;
     print "Using \"$url\"\n";
   }
   $url =~ s/'/'\\''/g;
   system "ping -c 1 -w $deadline '$url' >/dev/null 2>/dev/null";
-  return $? == 0;
+  my $success = $? == 0;
+  if(not $success and $useIpmagic){
+    system "ipmagic", $ipmagicConf, "echo ssh $ipmagicConf success!\n";
+    $success = $? == 0;
+  }
+  return $success;
 }
 
 &main(@ARGV);
