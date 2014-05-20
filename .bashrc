@@ -102,6 +102,7 @@ do alias $exitTypo='exit'; done
 
 alias tb='pkill -9 taffybar; taffybar; pkill -9 taffybar'
 
+alias vol='pulse-vol'
 alias j='fcron-job-toggle'
 alias snapshot='backup --snapshot'
 alias qgroups-info='backup --info --quick --sort-by=size'
