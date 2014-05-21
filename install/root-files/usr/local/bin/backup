@@ -19,6 +19,7 @@ sub mountAndBackup($$);
 sub backup($$);
 sub backupSymlink($$);
 sub sendReceive($$$$);
+sub test(@);
 sub getSyncedSnapshot($$);
 sub makeSnapshot($$);
 sub getSubvolumes($);
@@ -262,11 +263,11 @@ sub backup($$){
 sub backupSymlink($$){
   my ($dir, $snapshotName) = @_;
 
-  if(-l "$dir/backup"){
+  if(test "-h", "$dir/backup"){
     run "rm", "$dir/backup";
   }
 
-  if(not -e "$dir/backup"){
+  if(not test "-e", "$dir/backup"){
     run "ln", "-s", $snapshotName, "$dir/backup";
   }else{
     print STDERR "$dir/backup exists, not creating symlink\n";
@@ -281,7 +282,7 @@ sub sendReceive($$$$){
     $parent = "-p \"$sendDir/$parentSnapshotName\"";
   }
 
-  if(-e "$receiveDir/$snapshotName"){
+  if(test "-e", "$receiveDir/$snapshotName"){
     die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
   }
 
@@ -304,9 +305,15 @@ sub sendReceive($$$$){
   run "cat", $pvLog;
   print "\n";
 
-  if(not -d "$receiveDir/$snapshotName"){
+  if(not test "-d", "$receiveDir/$snapshotName"){
     die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
   }
+}
+
+sub test(@){
+  my @test = ("test", @_);
+  tryrun @test;
+  return $? == 0;
 }
 
 sub getSyncedSnapshot($$){
