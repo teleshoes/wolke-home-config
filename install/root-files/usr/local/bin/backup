@@ -126,7 +126,14 @@ sub main(@){
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
+  my $ipmagic;
+  if(@_ > 0 and $_[-1] =~ /^--ipmagic=(.*)/){
+    pop;
+    $ipmagic = $1;
+  }
+
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^($okNames)$/)){
+    die $usage if defined $ipmagic;
     my $name = shift;
     for my $backupName(sort keys $backups){
       next unless not defined $name or $name eq $backupName;
@@ -134,21 +141,12 @@ sub main(@){
       mountAndBackup $srcDir, $mntName;
       print "\n\n";
     }
-  }elsif((@_ == 4 or @_ == 5 or @_ == 6) and $_[0] =~ /^--sendreceive$/){
+  }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
     shift;
-    my $ipmagic;
-    if($_[-1] =~ /^--ipmagic=(.*)/){
-      pop;
-      $ipmagic = $1;
-    }
-    my $srcDir = shift;
-    my $destDir = shift;
-    my $snapshot = shift;
-    my $parent = shift;
-    die $usage if @_ > 0;
-
-    sendReceive $srcDir, $destDir, $snapshot, $parent, $ipmagic;
+    my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
+    sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
+    die $usage if defined $ipmagic;
     shift;
     my ($mountPoint, $prefix) = @_;
     $prefix = "SNAPSHOT" if not defined $prefix;
@@ -162,6 +160,7 @@ sub main(@){
     makeSnapshot $mountPoint, $prefix;
     sync();
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
+    die $usage if defined $ipmagic;
     shift;
     my ($mountPoint, $prefix) = @_;
     $prefix = "SNAPSHOT" if not defined $prefix;
@@ -174,14 +173,17 @@ sub main(@){
     my $snapshot = getLastSnapshot $mountPoint, $prefix, undef;
     print "$snapshot\n";
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
+    die $usage if defined $ipmagic;
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
+    die $usage if defined $ipmagic;
     my $mountPoint = $_[1];
     my @toDelete = @_[2..$#_];
     deleteSnapshots $mountPoint, @toDelete;
   }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
+    die $usage if defined $ipmagic;
     for my $name(sort keys %$backups){
       my ($srcMntPoint, $destMntName) = @{$$backups{$name}};
       my $destMntPoint = "/media/$destMntName";
@@ -197,8 +199,10 @@ sub main(@){
       run "mnt", "-u", $destMntName;
     }
   }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
+    die $usage if defined $ipmagic;
     monitorPvLog();
   }elsif(@_ >= 2 and $_[0] =~ /^--info$/){
+    die $usage if defined $ipmagic;
     shift;
     my $quick = 0;
     if($_[0] =~ /^(--quick)$/){
@@ -232,16 +236,8 @@ sub main(@){
     my $info = getSubvolumeQuotaInfo $mnt;
 
     print formatSubvolumeQuotaInfo($fsSize, $info, $sortBy);
-  }elsif(@_ == 2 or @_ == 3){
-    my $ipmagic;
-    if($_[-1] =~ /^--ipmagic=(.*)/){
-      pop;
-      $ipmagic = $1;
-    }
-    my $srcDir = shift;
-    my $destDir = shift;
-    die $usage if @_ > 0;
-
+  }elsif(@_ == 2){
+    my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir, $ipmagic;
   }else{
     die $usage;
