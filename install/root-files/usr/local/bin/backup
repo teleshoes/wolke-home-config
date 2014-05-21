@@ -253,7 +253,8 @@ sub mountAndBackup($$$){
 
   my @ipmagicCmd = getIpmagicCmd $ipmagic;
 
-  run @ipmagicCmd, "mnt", "-u", $mntName if test $ipmagic, "-e", $destDir;
+  my $wasMounted = test $ipmagic, "-e", $destDir;
+  run @ipmagicCmd, "mnt", "-u", $mntName if $wasMounted;
   die "$destDir exists already\n" if test $ipmagic, "-e", $destDir;
 
   run @ipmagicCmd, "mnt", "-l", $mntName;
@@ -261,6 +262,7 @@ sub mountAndBackup($$$){
   backup $srcDir, $destDir, $ipmagic;
 
   run @ipmagicCmd, "mnt", "-u", $mntName;
+  run @ipmagicCmd, "mnt", "-m", $mntName if $wasMounted;
 }
 
 sub backup($$$){
@@ -347,7 +349,7 @@ sub test($@){
   my $remoteIpmagic = shift;
   my @test = (getIpmagicCmd($remoteIpmagic), "test", @_);
   tryrun @test;
-  return $? == 0;
+  return $? == 0 ? 1 : 0;
 }
 
 sub getSyncedSnapshot($$$){
