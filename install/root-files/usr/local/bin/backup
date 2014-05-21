@@ -39,6 +39,7 @@ sub guessSubvolNames($);
 sub bashComplete($$);
 
 sub sync();
+sub getIpmagicCmd($);
 sub run(@);
 sub tryrun(@);
 sub ensureRoot();
@@ -290,12 +291,14 @@ sub backup($$$){
 sub backupSymlink($$$){
   my ($dir, $snapshotName, $remoteIpmagic) = @_;
 
+  my @ipmagicCmd = getIpmagicCmd $remoteIpmagic;
+
   if(test $remoteIpmagic, "-h", "$dir/backup"){
-    run "rm", "$dir/backup";
+    run @ipmagicCmd, "rm", "$dir/backup";
   }
 
   if(not test $remoteIpmagic, "-e", "$dir/backup"){
-    run "ln", "-s", $snapshotName, "$dir/backup";
+    run @ipmagicCmd, "ln", "-s", $snapshotName, "$dir/backup";
   }else{
     print STDERR "$dir/backup exists, not creating symlink\n";
   }
@@ -315,6 +318,8 @@ sub sendReceive($$$$$){
     die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
   }
 
+  my $ipmagicCmd = getIpmagicCmd($remoteDestIpmagic);
+
   my $pvLog = "/tmp/$snapshotName-pv.log";
   my $rcvLog = "/tmp/$snapshotName-btrfs-rcv.log";
   print "\nLOGS: $pvLog $rcvLog\n";
@@ -325,7 +330,7 @@ sub sendReceive($$$$$){
     . " | "
     . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
     . " | "
-    . " btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
+    . " $ipmagicCmd btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
     . " )"
     ;
 
@@ -341,7 +346,7 @@ sub sendReceive($$$$$){
 
 sub test($@){
   my $remoteIpmagic = shift;
-  my @test = ("test", @_);
+  my @test = (getIpmagicCmd($remoteIpmagic), "test", @_);
   tryrun @test;
   return $? == 0;
 }
@@ -507,11 +512,20 @@ sub getSnapshots($$){
 
 sub getLastSnapshot($$$){
   my ($dir, $prefix, $remoteIpmagic) = @_;
-  die "not a dir: $dir\n" if not -d $dir;
+  my $sub;
+  if(defined $remoteIpmagic){
+    my $ipmagicCmd = getIpmagicCmd $remoteIpmagic;
+    $sub = `$ipmagicCmd $0 --lastsnapshot "$dir" "$prefix"`;
+    die "Failed to fetch subvol $prefix from $remoteIpmagic" if $? != 0;
+    chomp $sub;
+  }else{
+    die "not a dir: $dir\n" if not -d $dir;
 
-  my @subs = getSnapshots $dir, $prefix;
-  die "no snapshot found for $dir\n" if @subs == 0;
-  my $sub = $subs[-1];
+    my @subs = getSnapshots $dir, $prefix;
+    die "no snapshot found for $dir\n" if @subs == 0;
+    $sub = $subs[-1];
+  }
+  die "Malformed snapshot: $sub\n" if $sub !~ /^$prefix-\d+-\d+-\d+_\d+$/;
   return $sub;
 }
 
@@ -585,7 +599,9 @@ sub deleteSnapshots($@){
 
 sub getBtrfsMountDev($$){
   my ($dir, $ipmagic) = @_;
-  for my $line(`mount`){
+  my $ipmagicCmd = getIpmagicCmd($ipmagic);
+  my @mountLines = `$ipmagicCmd mount`;
+  for my $line(@mountLines){
     if($line =~ m/^([_a-zA-Z0-9\/\-]+) on $dir type btrfs /){
       return $1;
     }
@@ -736,6 +752,21 @@ sub ensureRoot(){
   if(`whoami` ne "root\n"){
     print STDERR "rerunning as root\n";
     exec "sudo", $0, @ARGV;
+  }
+}
+
+sub getIpmagicCmd($){
+  my $ipmagic = shift;
+  my @cmd;
+  if(defined $ipmagic){
+    @cmd = (@cmd, "sudo", "-u", "$ENV{SUDO_USER}") if defined $ENV{SUDO_USER};
+    @cmd = (@cmd, "ipmagic", $ipmagic, "-u", "root");
+  }
+
+  if(wantarray){
+    return @cmd;
+  }else{
+    return "@cmd";
   }
 }
 
