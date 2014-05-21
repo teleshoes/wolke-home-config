@@ -16,10 +16,11 @@ my @mntPoints = map {$$_[0]} values %$backups;
 my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$);
-sub backup($$);
-sub backupSymlink($$);
-sub sendReceive($$$$);
-sub getSyncedSnapshot($$);
+sub backup($$$);
+sub backupSymlink($$$);
+sub sendReceive($$$$$);
+sub test($@);
+sub getSyncedSnapshot($$$);
 sub makeSnapshot($$);
 sub getSubvolumes($);
 sub getSubvolumePaths($);
@@ -27,10 +28,10 @@ sub getSubvolumeQuotaInfo($);
 sub formatSubvolumeQuotaInfo($$$);
 sub isQuotaEnabled($);
 sub getSnapshots($$);
-sub getLastSnapshot($$);
+sub getLastSnapshot($$$);
 sub cleanupSnapshots($$$);
 sub deleteSnapshots($@);
-sub getBtrfsMountDev($);
+sub getBtrfsMountDev($$);
 sub monitorPvLog();
 sub latestPvLogFile();
 sub guessPrefixes($);
@@ -38,6 +39,7 @@ sub guessSubvolNames($);
 sub bashComplete($$);
 
 sub sync();
+sub getIpmagicCmd($);
 sub run(@);
 sub tryrun(@);
 sub ensureRoot();
@@ -59,17 +61,21 @@ my $usage = "Usage:
     -send the difference between the old SRC and new SRC to DEST
     -use mnt to unmount DEST
 
-  $0 SRC DEST
+  $0 SRC DEST [--ipmagic=IPMAGIC]
     Perform an incremental backup between two btrfs filesystems
-    -find the last agreed upon snapshot in SRC and DEST
-    -make a new snapshot in SRC
-    -send the difference between the old SRC and new SRC to DEST
+      -find the last agreed upon snapshot in SRC and DEST
+      -make a new snapshot in SRC
+      -send the difference between the old SRC and new SRC to DEST
+    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
+      -runs 'btrfs receive' and all DEST commands using 'ipmagic IPMAGIC'
 
-  $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT]
+  $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT] [--ipmagic=IPMAGIC]
     Call send/receive to send a btrfs image.
     Roughly equivalent to:
       btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
     If PARENT_SNAPSHOT is omitted, no -p argument is given
+    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
+      -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
 
   $0 --lastsnapshot MOUNT_POINT [PREFIX]
     Print the last snapshot of the given prefix
@@ -128,10 +134,20 @@ sub main(@){
       mountAndBackup $srcDir, $mntName;
       print "\n\n";
     }
-  }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
+  }elsif((@_ == 4 or @_ == 5 or @_ == 6) and $_[0] =~ /^--sendreceive$/){
     shift;
-    my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
-    sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot;
+    my $ipmagic;
+    if($_[-1] =~ /^--ipmagic=(.*)/){
+      pop;
+      $ipmagic = $1;
+    }
+    my $srcDir = shift;
+    my $destDir = shift;
+    my $snapshot = shift;
+    my $parent = shift;
+    die $usage if @_ > 0;
+
+    sendReceive $srcDir, $destDir, $snapshot, $parent, $ipmagic;
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
     shift;
     my ($mountPoint, $prefix) = @_;
@@ -153,10 +169,9 @@ sub main(@){
     die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
     die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
-    die "PREFIX cannot be 'BACKUP'\n" if $prefix eq "BACKUP";
 
     die $usage if not defined $mountPoint or @_ > 2;
-    my $snapshot = getLastSnapshot $mountPoint, $prefix;
+    my $snapshot = getLastSnapshot $mountPoint, $prefix, undef;
     print "$snapshot\n";
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
@@ -172,10 +187,10 @@ sub main(@){
       my $destMntPoint = "/media/$destMntName";
       tryrun "mnt", "-m", $destMntName;
 
-      my $oldBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint);
+      my $oldBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint, undef);
       cleanupSnapshots $srcMntPoint, "BACKUP", 1;
       cleanupSnapshots $destMntPoint, "BACKUP", 1;
-      my $newBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint);
+      my $newBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint, undef);
       if($oldBackup ne $newBackup){
         die "FATAL ERROR: latest backup is missing- $oldBackup\n";
       }
@@ -217,9 +232,17 @@ sub main(@){
     my $info = getSubvolumeQuotaInfo $mnt;
 
     print formatSubvolumeQuotaInfo($fsSize, $info, $sortBy);
-  }elsif(@_ == 2){
-    my ($srcDir, $destDir) = @_;
-    backup $srcDir, $destDir;
+  }elsif(@_ == 2 or @_ == 3){
+    my $ipmagic;
+    if($_[-1] =~ /^--ipmagic=(.*)/){
+      pop;
+      $ipmagic = $1;
+    }
+    my $srcDir = shift;
+    my $destDir = shift;
+    die $usage if @_ > 0;
+
+    backup $srcDir, $destDir, $ipmagic;
   }else{
     die $usage;
   }
@@ -236,55 +259,66 @@ sub mountAndBackup($$){
 
   run "mnt", "-l", $mntName;
 
-  backup $srcDir, $destDir;
+  backup $srcDir, $destDir, undef;
 
   run "mnt", "-u", $mntName;
 }
 
-sub backup($$){
-  my ($srcDir, $destDir) = @_;
+sub backup($$$){
+  my ($srcDir, $destDir, $remoteDestIpmagic) = @_;
   $srcDir =~ s/\/$//;
   $destDir =~ s/\/$//;
 
-  die "$srcDir is not btrfs\n" if not defined getBtrfsMountDev $srcDir;
-  die "$destDir is not btrfs\n" if not defined getBtrfsMountDev $destDir;
+  if(not defined getBtrfsMountDev $srcDir, undef){
+    die "$srcDir is not btrfs\n";
+  }elsif(not defined getBtrfsMountDev $destDir, $remoteDestIpmagic){
+    die "$destDir is not btrfs\n";
+  }
 
-  my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir;
+  my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
 
   my $newSnapshot = makeSnapshot $srcDir, "BACKUP";
 
   sync();
 
-  sendReceive $srcDir, $destDir, $newSnapshot, $syncedSnapshot;
+  sendReceive $srcDir, $destDir,
+    $newSnapshot, $syncedSnapshot,
+    $remoteDestIpmagic;
 
-  backupSymlink $destDir, $newSnapshot;
+  backupSymlink $destDir, $newSnapshot, $remoteDestIpmagic;
 }
 
-sub backupSymlink($$){
-  my ($dir, $snapshotName) = @_;
+sub backupSymlink($$$){
+  my ($dir, $snapshotName, $remoteIpmagic) = @_;
 
-  if(-l "$dir/backup"){
-    run "rm", "$dir/backup";
+  my @ipmagicCmd = getIpmagicCmd $remoteIpmagic;
+
+  if(test $remoteIpmagic, "-h", "$dir/backup"){
+    run @ipmagicCmd, "rm", "$dir/backup";
   }
 
-  if(not -e "$dir/backup"){
-    run "ln", "-s", $snapshotName, "$dir/backup";
+  if(not test $remoteIpmagic, "-e", "$dir/backup"){
+    run @ipmagicCmd, "ln", "-s", $snapshotName, "$dir/backup";
   }else{
     print STDERR "$dir/backup exists, not creating symlink\n";
   }
 }
 
-sub sendReceive($$$$){
-  my ($sendDir, $receiveDir, $snapshotName, $parentSnapshotName) = @_;
+sub sendReceive($$$$$){
+  my ($sendDir, $receiveDir,
+      $snapshotName, $parentSnapshotName,
+      $remoteDestIpmagic) = @_;
 
   my $parent = '';
   if(defined $parentSnapshotName){
     $parent = "-p \"$sendDir/$parentSnapshotName\"";
   }
 
-  if(-e "$receiveDir/$snapshotName"){
+  if(test $remoteDestIpmagic, "-e", "$receiveDir/$snapshotName"){
     die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
   }
+
+  my $ipmagicCmd = getIpmagicCmd($remoteDestIpmagic);
 
   my $pvLog = "/tmp/$snapshotName-pv.log";
   my $rcvLog = "/tmp/$snapshotName-btrfs-rcv.log";
@@ -292,13 +326,11 @@ sub sendReceive($$$$){
 
   print "\n";
   run "bash", "-c", "time ( "
-    . " btrfs send"
-    . " $parent"
-    . " \"$sendDir/$snapshotName\""
+    . " btrfs send $parent \"$sendDir/$snapshotName\""
     . " | "
     . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
     . " | "
-    . " btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
+    . " $ipmagicCmd btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
     . " )"
     ;
 
@@ -307,18 +339,26 @@ sub sendReceive($$$$){
   run "cat", $pvLog;
   print "\n";
 
-  if(not -d "$receiveDir/$snapshotName"){
+  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotName"){
     die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
   }
 }
 
-sub getSyncedSnapshot($$){
-  my ($srcDir, $destDir) = @_;
+sub test($@){
+  my $remoteIpmagic = shift;
+  my @test = (getIpmagicCmd($remoteIpmagic), "test", @_);
+  tryrun @test;
+  return $? == 0;
+}
+
+sub getSyncedSnapshot($$$){
+  my ($srcDir, $destDir, $remoteDestIpmagic) = @_;
   $srcDir =~ s/\/$//;
   $destDir =~ s/\/$//;
 
-  my $lastSrc = getLastSnapshot $srcDir, "BACKUP";
-  my $lastDest = getLastSnapshot $destDir, "BACKUP";
+  my $lastSrc = getLastSnapshot $srcDir, "BACKUP", undef;
+  my $lastDest = getLastSnapshot $destDir, "BACKUP", $remoteDestIpmagic;
+
   if($lastSrc ne $lastDest){
     die "Mismatched last snapshot:\n$srcDir/$lastSrc\n$destDir/$lastDest\n";
   }
@@ -337,7 +377,7 @@ sub makeSnapshot($$){
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
   run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
 
-  if($snapshot ne getLastSnapshot $mountPoint, $prefix){
+  if($snapshot ne getLastSnapshot $mountPoint, $prefix, undef){
     die "snapshot failed\n";
   }
 
@@ -470,13 +510,22 @@ sub getSnapshots($$){
   return @subs;
 }
 
-sub getLastSnapshot($$){
-  my ($dir, $prefix) = @_;
-  die "not a dir: $dir\n" if not -d $dir;
+sub getLastSnapshot($$$){
+  my ($dir, $prefix, $remoteIpmagic) = @_;
+  my $sub;
+  if(defined $remoteIpmagic){
+    my $ipmagicCmd = getIpmagicCmd $remoteIpmagic;
+    $sub = `$ipmagicCmd $0 --lastsnapshot "$dir" "$prefix"`;
+    die "Failed to fetch subvol $prefix from $remoteIpmagic" if $? != 0;
+    chomp $sub;
+  }else{
+    die "not a dir: $dir\n" if not -d $dir;
 
-  my @subs = getSnapshots $dir, $prefix;
-  die "no snapshot found for $dir\n" if @subs == 0;
-  my $sub = $subs[-1];
+    my @subs = getSnapshots $dir, $prefix;
+    die "no snapshot found for $dir\n" if @subs == 0;
+    $sub = $subs[-1];
+  }
+  die "Malformed snapshot: $sub\n" if $sub !~ /^$prefix-\d+-\d+-\d+_\d+$/;
   return $sub;
 }
 
@@ -548,9 +597,11 @@ sub deleteSnapshots($@){
   sync();
 }
 
-sub getBtrfsMountDev($){
-  my $dir = shift;
-  for my $line(`mount`){
+sub getBtrfsMountDev($$){
+  my ($dir, $ipmagic) = @_;
+  my $ipmagicCmd = getIpmagicCmd($ipmagic);
+  my @mountLines = `$ipmagicCmd mount`;
+  for my $line(@mountLines){
     if($line =~ m/^([_a-zA-Z0-9\/\-]+) on $dir type btrfs /){
       return $1;
     }
@@ -603,6 +654,10 @@ sub bashComplete($$){
     --bash-complete
   );
 
+  my @opts = qw(
+    --ipmagic=
+  );
+
   if(@words == 0){
     return (@backupNames, @mntPoints, @cmds);
   }
@@ -610,9 +665,14 @@ sub bashComplete($$){
   if($words[0] =~ /^(--sendreceive)/){
     if(@words == 1 or @words == 2){
       return @mntPoints;
-    }elsif(@words == 3 or @words == 4){
+    }elsif(@words == 3){
       my $src = $words[1];
       return guessSubvolNames $src;
+    }elsif(@words == 4){
+      my $src = $words[1];
+      return (@opts, guessSubvolNames $src);
+    }elsif(@words == 5){
+      return @opts;
     }
   }
 
@@ -646,6 +706,12 @@ sub bashComplete($$){
     }elsif(@words == 3 and $words[2] =~ /^(--sort-by.*)$/){
       return (@mntPoints);
     }
+  }
+
+  if(@words == 1){
+    return @mntPoints;
+  }elsif(@words == 2){
+    return @opts;
   }
 
   return ();
@@ -686,6 +752,21 @@ sub ensureRoot(){
   if(`whoami` ne "root\n"){
     print STDERR "rerunning as root\n";
     exec "sudo", $0, @ARGV;
+  }
+}
+
+sub getIpmagicCmd($){
+  my $ipmagic = shift;
+  my @cmd;
+  if(defined $ipmagic){
+    @cmd = (@cmd, "sudo", "-u", "$ENV{SUDO_USER}") if defined $ENV{SUDO_USER};
+    @cmd = (@cmd, "ipmagic", $ipmagic, "-u", "root");
+  }
+
+  if(wantarray){
+    return @cmd;
+  }else{
+    return "@cmd";
   }
 }
 
