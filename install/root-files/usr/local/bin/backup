@@ -15,7 +15,7 @@ my $okNames = join "|", sort keys %$backups;
 my @mntPoints = map {$$_[0]} values %$backups;
 my @backupMntNames = map {$$_[1]} values %$backups;
 
-sub mountAndBackup($$);
+sub mountAndBackup($$$);
 sub backup($$$);
 sub backupSymlink($$$);
 sub sendReceive($$$$$);
@@ -51,15 +51,17 @@ my $usage = "Usage:
   $0 -h|--help
     Print this message
 
-  $0 [$okNames]
+  $0 [$okNames] [--ipmagic=IPMAGIC]
     Perform backup specified {default is to perform all}
-    -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
-    -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
-    -use mnt to (re)mount DEST
-    -find the last sync-ed snapshot in SRC and DEST
-    -make a new snapshot in SRC
-    -send the difference between the old SRC and new SRC to DEST
-    -use mnt to unmount DEST
+      -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
+      -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
+      -use mnt to (re)mount DEST
+      -find the last sync-ed snapshot in SRC and DEST
+      -make a new snapshot in SRC
+      -send the difference between the old SRC and new SRC to DEST
+      -use mnt to unmount DEST
+    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
+      -runs 'btrfs receive', 'mnt', etc using 'ipmagic IPMAGIC'
 
   $0 SRC DEST [--ipmagic=IPMAGIC]
     Perform an incremental backup between two btrfs filesystems
@@ -133,12 +135,11 @@ sub main(@){
   }
 
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^($okNames)$/)){
-    die $usage if defined $ipmagic;
     my $name = shift;
     for my $backupName(sort keys $backups){
       next unless not defined $name or $name eq $backupName;
       my ($srcDir, $mntName) = @{$$backups{$backupName}};
-      mountAndBackup $srcDir, $mntName;
+      mountAndBackup $srcDir, $mntName, $ipmagic;
       print "\n\n";
     }
   }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
@@ -244,20 +245,22 @@ sub main(@){
   }
 }
 
-sub mountAndBackup($$){
-  my ($srcDir, $mntName) = @_;
+sub mountAndBackup($$$){
+  my ($srcDir, $mntName, $ipmagic) = @_;
   my $destDir = "$mntDir/$mntName";
 
   die "dir not found: $srcDir\n" if not -d $srcDir;
 
-  run "mnt", "-u", $mntName if -e $destDir;
-  die "$destDir exists already\n" if -e $destDir;
+  my @ipmagicCmd = getIpmagicCmd $ipmagic;
 
-  run "mnt", "-l", $mntName;
+  run @ipmagicCmd, "mnt", "-u", $mntName if test $ipmagic, "-e", $destDir;
+  die "$destDir exists already\n" if test $ipmagic, "-e", $destDir;
 
-  backup $srcDir, $destDir, undef;
+  run @ipmagicCmd, "mnt", "-l", $mntName;
 
-  run "mnt", "-u", $mntName;
+  backup $srcDir, $destDir, $ipmagic;
+
+  run @ipmagicCmd, "mnt", "-u", $mntName;
 }
 
 sub backup($$$){
@@ -655,7 +658,7 @@ sub bashComplete($$){
   );
 
   if(@words == 0){
-    return (@backupNames, @mntPoints, @cmds);
+    return (@backupNames, @mntPoints, @cmds, @opts);
   }
 
   if($words[0] =~ /^(--sendreceive)/){
@@ -702,6 +705,10 @@ sub bashComplete($$){
     }elsif(@words == 3 and $words[2] =~ /^(--sort-by.*)$/){
       return (@mntPoints);
     }
+  }
+
+  if($words[0] =~ /^($okNames)/){
+    return @opts;
   }
 
   if(@words == 1){
