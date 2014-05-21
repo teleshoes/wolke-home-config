@@ -15,7 +15,7 @@ my $okNames = join "|", sort keys %$backups;
 my @mntPoints = map {$$_[0]} values %$backups;
 my @backupMntNames = map {$$_[1]} values %$backups;
 
-sub mountAndBackup($$);
+sub mountAndBackup($$$);
 sub backup($$$);
 sub backupSymlink($$$);
 sub sendReceive($$$$$);
@@ -51,15 +51,17 @@ my $usage = "Usage:
   $0 -h|--help
     Print this message
 
-  $0 [$okNames]
+  $0 [$okNames] [--ipmagic=IPMAGIC]
     Perform backup specified {default is to perform all}
-    -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
-    -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
-    -use mnt to (re)mount DEST
-    -find the last sync-ed snapshot in SRC and DEST
-    -make a new snapshot in SRC
-    -send the difference between the old SRC and new SRC to DEST
-    -use mnt to unmount DEST
+      -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
+      -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
+      -use mnt to (re)mount DEST
+      -find the last sync-ed snapshot in SRC and DEST
+      -make a new snapshot in SRC
+      -send the difference between the old SRC and new SRC to DEST
+      -use mnt to unmount DEST
+    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
+      -runs 'btrfs receive', 'mnt', etc using 'ipmagic IPMAGIC'
 
   $0 SRC DEST [--ipmagic=IPMAGIC]
     Perform an incremental backup between two btrfs filesystems
@@ -126,29 +128,26 @@ sub main(@){
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
+  my $ipmagic;
+  if(@_ > 0 and $_[-1] =~ /^--ipmagic=(.*)/){
+    pop;
+    $ipmagic = $1;
+  }
+
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^($okNames)$/)){
     my $name = shift;
     for my $backupName(sort keys $backups){
       next unless not defined $name or $name eq $backupName;
       my ($srcDir, $mntName) = @{$$backups{$backupName}};
-      mountAndBackup $srcDir, $mntName;
+      mountAndBackup $srcDir, $mntName, $ipmagic;
       print "\n\n";
     }
-  }elsif((@_ == 4 or @_ == 5 or @_ == 6) and $_[0] =~ /^--sendreceive$/){
+  }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
     shift;
-    my $ipmagic;
-    if($_[-1] =~ /^--ipmagic=(.*)/){
-      pop;
-      $ipmagic = $1;
-    }
-    my $srcDir = shift;
-    my $destDir = shift;
-    my $snapshot = shift;
-    my $parent = shift;
-    die $usage if @_ > 0;
-
-    sendReceive $srcDir, $destDir, $snapshot, $parent, $ipmagic;
+    my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
+    sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
+    die $usage if defined $ipmagic;
     shift;
     my ($mountPoint, $prefix) = @_;
     $prefix = "SNAPSHOT" if not defined $prefix;
@@ -162,6 +161,7 @@ sub main(@){
     makeSnapshot $mountPoint, $prefix;
     sync();
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
+    die $usage if defined $ipmagic;
     shift;
     my ($mountPoint, $prefix) = @_;
     $prefix = "SNAPSHOT" if not defined $prefix;
@@ -174,14 +174,17 @@ sub main(@){
     my $snapshot = getLastSnapshot $mountPoint, $prefix, undef;
     print "$snapshot\n";
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
+    die $usage if defined $ipmagic;
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
     die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
+    die $usage if defined $ipmagic;
     my $mountPoint = $_[1];
     my @toDelete = @_[2..$#_];
     deleteSnapshots $mountPoint, @toDelete;
   }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
+    die $usage if defined $ipmagic;
     for my $name(sort keys %$backups){
       my ($srcMntPoint, $destMntName) = @{$$backups{$name}};
       my $destMntPoint = "/media/$destMntName";
@@ -197,8 +200,10 @@ sub main(@){
       run "mnt", "-u", $destMntName;
     }
   }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
+    die $usage if defined $ipmagic;
     monitorPvLog();
   }elsif(@_ >= 2 and $_[0] =~ /^--info$/){
+    die $usage if defined $ipmagic;
     shift;
     my $quick = 0;
     if($_[0] =~ /^(--quick)$/){
@@ -232,36 +237,30 @@ sub main(@){
     my $info = getSubvolumeQuotaInfo $mnt;
 
     print formatSubvolumeQuotaInfo($fsSize, $info, $sortBy);
-  }elsif(@_ == 2 or @_ == 3){
-    my $ipmagic;
-    if($_[-1] =~ /^--ipmagic=(.*)/){
-      pop;
-      $ipmagic = $1;
-    }
-    my $srcDir = shift;
-    my $destDir = shift;
-    die $usage if @_ > 0;
-
+  }elsif(@_ == 2){
+    my ($srcDir, $destDir) = @_;
     backup $srcDir, $destDir, $ipmagic;
   }else{
     die $usage;
   }
 }
 
-sub mountAndBackup($$){
-  my ($srcDir, $mntName) = @_;
+sub mountAndBackup($$$){
+  my ($srcDir, $mntName, $ipmagic) = @_;
   my $destDir = "$mntDir/$mntName";
 
   die "dir not found: $srcDir\n" if not -d $srcDir;
 
-  run "mnt", "-u", $mntName if -e $destDir;
-  die "$destDir exists already\n" if -e $destDir;
+  my @ipmagicCmd = getIpmagicCmd $ipmagic;
 
-  run "mnt", "-l", $mntName;
+  run @ipmagicCmd, "mnt", "-u", $mntName if test $ipmagic, "-e", $destDir;
+  die "$destDir exists already\n" if test $ipmagic, "-e", $destDir;
 
-  backup $srcDir, $destDir, undef;
+  run @ipmagicCmd, "mnt", "-l", $mntName;
 
-  run "mnt", "-u", $mntName;
+  backup $srcDir, $destDir, $ipmagic;
+
+  run @ipmagicCmd, "mnt", "-u", $mntName;
 }
 
 sub backup($$$){
@@ -659,7 +658,7 @@ sub bashComplete($$){
   );
 
   if(@words == 0){
-    return (@backupNames, @mntPoints, @cmds);
+    return (@backupNames, @mntPoints, @cmds, @opts);
   }
 
   if($words[0] =~ /^(--sendreceive)/){
@@ -706,6 +705,10 @@ sub bashComplete($$){
     }elsif(@words == 3 and $words[2] =~ /^(--sort-by.*)$/){
       return (@mntPoints);
     }
+  }
+
+  if($words[0] =~ /^($okNames)/){
+    return @opts;
   }
 
   if(@words == 1){
