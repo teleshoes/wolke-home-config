@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $nucIP = `nuc --ip`;
+chomp $nucIP;
+my $remoteDir = "/media/videos";
+my $localDir = "/media/nuc-videos";
+
+my $usage = "Usage:
+  $0 [-m] [--quick]
+    Restart nfs server on nuc and mount $nucIP:$remoteDir => $localDir:
+  $0 -u
+    Unmount $localDir
+
+  --quick
+    Do not restart NFS server on nuc or run fix-mount
+";
+
+sub run(@);
+sub isMountPoint($);
+
+sub main(@){
+  shift if @_ > 0 and $_[0] eq "-m";
+  if(@_ == 0 or (@_ == 1 and $_[0] eq "--quick")){
+    my $quick = 0;
+    if(@_ > 0 and $_[0] eq "--quick"){
+      $quick = 1;
+      shift;
+    }
+    die $usage if @_ != 0;
+
+    run "sudo", "mkdir", "-p", $localDir if not -d $localDir;
+    if(not isMountPoint $localDir){
+      run "nuc", "-u", "root", "-s", "
+        fix-mount
+        /etc/init.d/nfs-kernel-server restart
+      " unless $quick;
+      run "sudo", "mount", "$nucIP:$remoteDir", $localDir, "-o", "soft";
+    }
+    die "$localDir is not mounted\n" if not isMountPoint $localDir;
+  }elsif(@_ == 1 and $_[0] eq "-u"){
+    run "sudo", "umount", $localDir if isMountPoint $localDir;
+    die "Could not umount $localDir\n" if isMountPoint $localDir;
+    run "sudo", "rmdir", $localDir if -d $localDir;
+    die "$localDir still exists\n" if -d $localDir;
+  }else{
+    die $usage;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running: @_\n" if $? != 0;
+}
+
+sub isMountPoint($){
+  system "mountpoint \"$_[0]\" >/dev/null 2>/dev/null";
+  return $? == 0;
+}
+
+&main(@ARGV);
