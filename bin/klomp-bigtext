@@ -1,0 +1,134 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::CSV;
+use Time::HiRes qw(sleep);
+
+sub bigtextKlompInfo($$);
+sub runIpmagic($$@);
+sub klompInfo(@);
+sub sameInfo($$);
+sub offset($$$);
+sub run(@);
+
+my @extraCmd = qw(xscreensaver-command -deactivate);
+my $lastInfo;
+my $defaultDelayMillis = 5000;
+
+my $usage = "Usage:
+  $0 [OPTS]
+    run bigtext with info from klomp-info
+    also runs \"@extraCmd\"
+
+    OPTS
+       --ipmagic=CONFNAME
+         runs \"ipmagic CONFNAME bigtext\"
+
+       --ipmagic-user=USERNAME
+         runs \"ipmagic CONFNAME -u USERNAME bigtext\"
+
+       --delay=DELAY_MILLIS
+         time to sleep in milliseconds between generating CSV rows
+         default is $defaultDelayMillis
+
+       --once
+         run once and quit
+";
+
+sub main(@){
+  my $ipmagic;
+  my $ipmagicUser;
+  my $delay = $defaultDelayMillis;
+  my $once = 0;
+  while(@_ > 0){
+    my $arg=shift;
+    if($arg =~ /^--ipmagic=(.*)$/){
+      $ipmagic = $1;
+    }elsif($arg =~ /^--ipmagic-user=(.*)$/){
+      $ipmagicUser = $1;
+    }elsif($arg =~ /^--delay=(\d+)$/){
+      $delay = $1;
+    }elsif($arg =~ /^--once$/){
+      $once = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  while(1){
+    runIpmagic $ipmagic, $ipmagicUser, @extraCmd;
+    bigtextKlompInfo($ipmagic, $ipmagicUser);
+    last if $once;
+    sleep ($delay/1000);
+  }
+}
+
+sub bigtextKlompInfo($$){
+  my $ipmagic = shift;
+  my $ipmagicUser = shift;
+  my $info = klompInfo(qw(pos len title artist album));
+  if(not sameInfo $info, $lastInfo){
+    runIpmagic $ipmagic, $ipmagicUser, "bigtext", "-k";
+  }
+
+  runIpmagic $ipmagic, $ipmagicUser, "bigtext", "'"
+    . "$$info{pos} / $$info{len}\n"
+    . "$$info{artist}\n"
+    . "$$info{album}\n"
+    . "$$info{title}\n"
+    . "'"
+    ;
+
+  $lastInfo = $info;
+}
+
+sub runIpmagic($$@){
+  my $ipmagic = shift;
+  my $ipmagicUser = shift;
+  my @cmd = @_;
+  if(defined $ipmagic){
+    if(defined $ipmagicUser){
+      @cmd = ("ipmagic", $ipmagic, "-u", $ipmagicUser, @cmd);
+    }else{
+      @cmd = ("ipmagic", $ipmagic, @cmd);
+    }
+  }
+  run @cmd;
+}
+
+sub klompInfo(@){
+  my @cols = @_;
+
+  my $csv = Text::CSV->new ( { binary => 1 } );
+  $csv->parse(`klomp-info -c @cols`);
+
+  my @vals = $csv->fields();
+  die "Error parsing klomp-info CSV\n" if @cols != @vals;
+
+  my $info = {};
+  for(my $i=0; $i<@cols; $i++){
+    my $col = $cols[$i];
+    my $val = $vals[$i];
+    $$info{$col} = $val;
+  }
+  return $info;
+}
+
+sub sameInfo($$){
+  my ($info1, $info2) = @_;
+  return 0 if not defined $info1 or not defined $info2;
+  return 0 if length(keys %$info1) ne length(keys %$info2);
+  for my $key(keys %$info1){
+    next if $key eq 'pos';
+    return 0 if not defined $$info1{$key} or not defined $$info2{$key};
+    return 0 if $$info1{$key} ne $$info2{$key};
+  }
+  return 1;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
