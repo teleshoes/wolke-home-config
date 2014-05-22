@@ -63,7 +63,7 @@ if [ `hostname -s` == "wolke-n9" ]; then
 fi
 
 #command prompt
-if [ "$DISPLAY" == "" ]; then
+if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
   case `hostname -s` in
     "wolke-w520"              ) h='@w520' ;;
@@ -77,6 +77,11 @@ if [ "$DISPLAY" == "" ]; then
 else
   #if display is set, you probably know where you are
   h=""
+fi
+
+#make a wild guess at the DISPLAY you might want
+if [[ -z "$DISPLAY" ]]; then
+  export DISPLAY=`ps -ef | grep /usr/bin/X | grep ' :[0-9] ' -o | grep :[0-9] -o`
 fi
 
 u="\u"
