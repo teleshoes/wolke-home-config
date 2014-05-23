@@ -12,6 +12,7 @@ sub run(@);
 
 my @extraCmd = qw(xscreensaver-command -deactivate);
 my $lastInfo;
+my $defaultInitialDelayMillis = 5000;
 my $defaultDelayMillis = 1000;
 
 my $usage = "Usage:
@@ -26,8 +27,12 @@ my $usage = "Usage:
        --ipmagic-user=USERNAME
          runs \"ipmagic CONFNAME -u USERNAME bigtext\"
 
-       --delay=DELAY_MILLIS
-         time to sleep in milliseconds between generating CSV rows
+       --initial-delay=MILLIS
+         time to sleep in milliseconds after the first klomp display
+         default is $defaultInitialDelayMillis
+
+       --delay=MILLIS
+         time to sleep in milliseconds after subsequent klomp displays
          default is $defaultDelayMillis
 
        --once
@@ -37,6 +42,7 @@ my $usage = "Usage:
 sub main(@){
   my $ipmagic;
   my $ipmagicUser;
+  my $initialDelay = $defaultInitialDelayMillis;
   my $delay = $defaultDelayMillis;
   my $once = 0;
   while(@_ > 0){
@@ -45,6 +51,8 @@ sub main(@){
       $ipmagic = $1;
     }elsif($arg =~ /^--ipmagic-user=(.*)$/){
       $ipmagicUser = $1;
+    }elsif($arg =~ /^--initial-delay=(\d+)$/){
+      $initialDelay = $1;
     }elsif($arg =~ /^--delay=(\d+)$/){
       $delay = $1;
     }elsif($arg =~ /^--once$/){
@@ -54,6 +62,8 @@ sub main(@){
     }
   }
 
+  my $sleepMillis = $initialDelay;
+
   while(1){
     my $now = time;
 
@@ -61,8 +71,9 @@ sub main(@){
     bigtextKlompInfo($ipmagic, $ipmagicUser);
     last if $once;
 
-    my $toWait = ($delay/1000) - (time - $now);
+    my $toWait = ($sleepMillis/1000) - (time - $now);
     sleep $toWait if $toWait > 0;
+    $sleepMillis = $delay;
   }
 }
 
