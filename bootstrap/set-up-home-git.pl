@@ -11,6 +11,12 @@ my @dirs = (
   "Desktop/Backgrounds",
 );
 
+my @secrets = (
+  "$ENV{HOME}/wifi.conf",
+  "$ENV{HOME}/wifi-auto.conf",
+  "$ENV{HOME}/wvdial.conf",
+);
+
 sub main(@){
   my $host = `nuc`;
   chomp $host;
@@ -37,6 +43,10 @@ sub main(@){
     $dir =~ s/\/[^\/]*$//;
     run "nuc", "mkdir -p \"$dir\"";
     run "rsync", "-avP", $file, "$host:$file";
+  }
+
+  for my $secret(@secrets){
+    run "scp", $secret, "$host:$secret";
   }
 }
 
