@@ -33,7 +33,7 @@ main = do
           , sep
           , W.fcrondynW
           , sep
-          , W.widthScreenWrapW 0.159375 =<< W.klompW
+          , W.widthScreenWrapW 0.194271 =<< W.klompW
           , W.volumeW
           , W.micW
           , W.cpuIntelPstateW
