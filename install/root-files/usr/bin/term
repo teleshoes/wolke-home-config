@@ -18,6 +18,7 @@ my %args = (
   cwd     => [qw(--working-directory -cd)],
   autoCwd => [qw(--auto-working-directory -acd)],
   wait    => [qw(--wait -wait)],
+  echo    => [qw(-e --echo -echo)],
 );
 my %okArgs = map {$_ => join "|", @{$args{$_}}} keys %args;
 
@@ -61,6 +62,9 @@ my $usage = "Usage:
         -set the PWD like [$okArgs{cwd}]
     $okArgs{wait}
       wait for the terminal to exit
+    $okArgs{echo}
+      runs command inside bash with -x shell opt
+      {reuses the bash for running as a shell command if possible}
 ";
 
 sub main(@){
@@ -80,15 +84,23 @@ sub main(@){
       }
     }elsif($arg =~ /^($okArgs{wait})$/){
       $termArgs{wait} = 1;
+    }elsif($arg =~ /^($okArgs{echo})$/){
+      $termArgs{echo} = 1;
     }else{
       die $usage;
     }
   }
 
-  my @cmd = map {wrapToken $_} @_;
+  die $usage if @_ == 0 and $termArgs{echo};
 
-  if(@cmd == 1 and $cmd[0] =~ / /){
-    @cmd = ("bash", "-c", @cmd);
+  my @cmd = map {wrapToken $_} @_;
+  my $isShellCmd = @cmd == 1 and $cmd[0] =~ / /;
+
+  if($isShellCmd or $termArgs{echo}){
+    my $cmdStr = "@cmd";
+    $cmdStr = wrapToken $cmdStr if not $isShellCmd;
+    my @bashOpts = $termArgs{echo} ? ("-x") : ();
+    @cmd = ("bash", @bashOpts, "-c", $cmdStr);
   }
 
   for my $term(@termOrder){
