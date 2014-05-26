@@ -31,8 +31,6 @@ main = do
           , sep
           , W.netW
           , sep
-          , W.fcrondynW
-          , sep
           , W.widthScreenWrapW 0.194271 =<< W.klompW
           , W.volumeW
           , W.micW
