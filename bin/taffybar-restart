@@ -6,9 +6,11 @@ my $log = "/tmp/taffybar-log";
 
 sub main(@){
   my $daemon = shift if @_ > 0 and $_[0] =~ /^(-d|--daemon)$/;
-  die "Usage: $0 [-d|--daemon]\n" if @_ != 0;
+  my $quiet = shift if @_ > 0 and $_[0] =~ /^(-q|--quiet)$/;
+  die "Usage: $0 [-d|--daemon] [-q|--quiet]\n" if @_ != 0;
   if(defined $daemon){
-    exec "nohup \"$0\" >/dev/null 2>/dev/null &";
+    my $cmd = $quiet ? "$0 -q" : "$0";
+    exec "nohup $cmd >/dev/null 2>/dev/null &";
   }
 
   system "killall taffybar-linux-x86_64 2>/dev/null";
@@ -18,9 +20,9 @@ sub main(@){
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
       $ok = 0;
-      system "alarm -s failure";
+      system "alarm -s failure" if not $quiet;
     }elsif($line =~ /^Launching custom binary/ and $ok){
-      system "alarm -s success" if $ok;
+      system "alarm -s success" if $ok and not $quiet;
     }
     print $line;
   }
