@@ -94,6 +94,8 @@ shortcuts conf = "Shortcuts" @@ do
         "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
         "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
+        "nuc vol up"    @@ mCA   xK_VolUp#! "nuc pulse-vol +6 100"
+        "nuc vol down"  @@ mCA   xK_VolDn#! "nuc pulse-vol -6 100"
         "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
 
     "CPU"           @@ do

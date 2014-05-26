@@ -1,6 +1,7 @@
 module Clickable(
-  clickableActions, clickableAsync, clickableLeftAsync,
-  clickable, clickableLeft
+  clickableActions,
+  clickableAsync, clickableLeftAsync, clickableMiddleAsync, clickableRightAsync,
+  clickable, clickableLeft, clickableMiddle, clickableRight
 ) where
 
 import Graphics.UI.Gtk (
@@ -47,6 +48,14 @@ clickableLeftAsync :: (WidgetClass w) => CmdA -> w -> IO Widget
 clickableLeftAsync cmdA w = clickableAsync l m r w
   where (l,m,r) = (cmdA, return Nothing, return Nothing)
 
+clickableMiddleAsync :: (WidgetClass w) => CmdA -> w -> IO Widget
+clickableMiddleAsync cmdA w = clickableAsync l m r w
+  where (l,m,r) = (return Nothing, cmdA, return Nothing)
+
+clickableRightAsync :: (WidgetClass w) => CmdA -> w -> IO Widget
+clickableRightAsync cmdA w = clickableAsync l m r w
+  where (l,m,r) = (return Nothing, return Nothing, cmdA)
+
 clickable :: (WidgetClass w) => Cmd -> Cmd -> Cmd -> w -> IO Widget
 clickable lCmd mCmd rCmd w = clickableAsync l m r w
   where (l,m,r) = (return lCmd, return mCmd, return rCmd)
@@ -54,3 +63,11 @@ clickable lCmd mCmd rCmd w = clickableAsync l m r w
 clickableLeft :: (WidgetClass w) => String -> w -> IO Widget
 clickableLeft cmd w = clickableAsync l m r w
   where (l,m,r) = (return $ Just cmd, return Nothing, return Nothing)
+
+clickableMiddle :: (WidgetClass w) => String -> w -> IO Widget
+clickableMiddle cmd w = clickableAsync l m r w
+  where (l,m,r) = (return Nothing, return $ Just cmd, return Nothing)
+
+clickableRight :: (WidgetClass w) => String -> w -> IO Widget
+clickableRight cmd w = clickableAsync l m r w
+  where (l,m,r) = (return Nothing, return Nothing, return $ Just cmd)

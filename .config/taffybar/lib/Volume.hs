@@ -4,7 +4,6 @@ import PercentBarWidget (
 import Color as C
 import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
-import System.Process(readProcess)
 import Utils (regexGroups, readProc)
 
 mutedColors = map C.rgb [C.Yellow, C.Red] ++ otherColors

@@ -3,28 +3,25 @@ use strict;
 use warnings;
 
 my $usage = "Usage:
-  $0 [get]
-    Print for all cards:
-      [STAR_OR_SPACE_FOR_DEFAULT] INDEX [USB|PCI|UNKNOWN] CARD_NAME
-  $0 default
-    Print for the default card:
-      INDEX [USB|PCI|UNKNOWN] CARD_NAME
-  $0 cycle [usb|pci]
-    Sets as default the sink with the next-highest index, or the lowest index
-    If usb or pci is passed in, only that kind of speaker is considered.
-  $0 type
-    Print USB, PCI, or UNKNOWN depending on the default card.
-  $0 toggle
-    If `$0 type` is USB, same as `$0 cycle pci`
-    If `$0 type` is PCI, same as `$0 cycle usb`
-    Otherwise, same as `$0 cycle usb`
+  $0 [-g|--get|get]
+    Print all speaker card names, prefixing the default with \"*\"
+
+  $0 -d|--default|default
+    Print just the default speaker card name {with no prefix}
+
+  $0 -s|--set|set CARD_PATTERN
+    Set as default the lowest-indexed speaker that matches CARD_PATTERN
+    CARD_PATTERN is a case insensitive regex that cannot contain ( or )
+    {does nothing if already set as default}
+
+  $0 -c|--cycle|cycle
+    Set as default the lowest-indexed speaker with index larger than this one,
+    or the lowest-indexed speaker if none are larger than this one.
 ";
 
 sub getSinks();
-sub getDefault();
 sub formatSinks($);
-sub getType();
-sub cycle($);
+sub cycle();
 sub setDefault($);
 
 my $pacmd = "pacmd";
@@ -33,32 +30,29 @@ my $pulseVol = "pulse-vol";
 
 sub main(@){
   my $cmd = shift;
-  $cmd = 'get' if not defined $cmd;
-  my $arg = shift if $cmd =~ /^(cycle)/;
-  die $usage if @_ > 0;
+  $cmd = '-g' if not defined $cmd;
 
-  if($cmd eq 'get' and @_ == 0){
+  if(@_ == 0 and $cmd =~ /^(-g|--get|get)$/){
     print formatSinks(0);
-  }elsif($cmd eq 'default'){
+  }elsif(@_ == 0 and $cmd =~ /^(-d|--default|default)$/){
     print formatSinks(1);
-  }elsif($cmd eq 'cycle' and (not defined $arg or $arg =~ /^(usb|pci)$/i)){
-    my $type = defined $arg ? lc $arg : 'any';
-    cycle $type;
-    print formatSinks(0);
-  }elsif($cmd eq 'type'){
-    print getType() . "\n";
-  }elsif($cmd eq 'toggle'){
-    my $type = lc getType();
-    if($type eq 'usb'){
-      print "usb => pci\n";
-      cycle 'pci';
-    }elsif($type eq 'pci'){
-      print "pci => usb\n";
-      cycle 'usb';
-    }else{
-      print "??? => usb\n";
-      cycle 'usb';
+  }elsif(@_ == 1 and $cmd =~ /^(-s|--set|set)$/){
+    my $cardPtrn = shift;
+    die "CARD_PATTERN cannot contain ( or )\n" if $cardPtrn =~ /[()]/;
+    my $old = formatSinks(1);
+    for my $sink(getSinks()){
+      if($$sink{name} =~ /$cardPtrn/){
+        setDefault $$sink{index};
+        last;
+      }
     }
+    my $new = formatSinks(1);
+    print "$old=>\n$new\n" if $old ne $new;
+  }elsif(@_ == 0 and $cmd =~ /^(-c|--cycle|cycle)$/){
+    my $old = formatSinks(1);
+    cycle();
+    my $new = formatSinks(1);
+    print "$old=>\n$new\n" if $old ne $new;
   }else{
     die $usage;
   }
@@ -79,51 +73,48 @@ sub getSinks(){
     $sink{module} = $cols[2];
     $sink{sample} = $cols[3];
     $sink{state} = $cols[4];
-    $sink{type} = 'USB' if $cols[1]=~/\.usb/;
-    $sink{type} = 'PCI' if $cols[1]=~/\.pci/;
-    $sink{type} = 'UNKNOWN' if not defined $sink{type};
     push @sinks, \%sink;
   }
   @sinks = sort {$$a{index} <=> $$b{index}} @sinks;
   return @sinks;
 }
 
-sub getDefault(){
-  for my $s(getSinks){
-    return $s if $$s{default};
-  }
-  return undef;
-}
-
 sub formatSinks($){
   my $defaultOnly = shift;
   my $out = '';
   for my $s(getSinks){
-    next if $defaultOnly and not $$s{default};
-    $out .= $$s{default} ? "* " : "  " if not $defaultOnly;
-    $out .= "$$s{type} $$s{name}\n";
+    if($defaultOnly){
+      next if not $$s{default};
+    }else{
+      $out .= $$s{default} ? "* " : "  ";
+    }
+    $out .= "$$s{name}\n";
   }
   return $out;
 }
 
-sub getType(){
-  my $s = getDefault;
-  my $type = defined $s ? $$s{type} : "UNKNOWN";
-  return $type;
-}
+sub cycle(){
+  my @sinks = getSinks();
+  return if @sinks == 0;
 
-sub cycle($){
-  my $type = shift;
-  my $default = getDefault;
-  my $cur = defined $default ? $$default{index} : -1;
-  my @ok = grep {$type eq 'any' or lc $$_{type} eq $type} getSinks;
-  for my $s(@ok){
-    if($$s{index} > $cur){
-      setDefault $$s{index};
-      return;
+  my $curIndex = -1;
+  for my $s(getSinks){
+    if($$s{default}){
+      $curIndex = $$s{index};
+      last;
     }
   }
-  setDefault ${$ok[0]}{index} if @ok > 0;
+
+  my @indices = sort map {$$_{index}} @sinks;
+
+  my $target = $indices[0];
+  for my $i(@indices){
+    if($i > $curIndex){
+      $target = $i;
+      last;
+    }
+  }
+  setDefault $target;
 }
 
 sub setDefault($){

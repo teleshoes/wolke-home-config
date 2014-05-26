@@ -96,7 +96,7 @@ PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
 
 for cmd in wconnect wauto tether resolv \
            mnt optimus xorg-conf bluetooth fan intel-pstate flasher \
-           tpacpi-bat
+           tpacpi-bat sbox-umount
 do alias $cmd="sudo $cmd"; done
 
 for sudoTypo in suod sudp
