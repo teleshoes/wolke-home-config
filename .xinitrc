@@ -5,7 +5,7 @@ sudo wauto &
 pulseaudio --start &
 sudo bluetooth off &
 sudo fan auto &
-taffybar-restart --daemon
+taffybar-restart --daemon --quiet
 parcellite -d &
 sudo sbox-umount &
 ( sleep 2; pulse-vol mic mute ) &
