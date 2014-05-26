@@ -13,10 +13,13 @@ sub procChomp(@);
 sub extractActiveCwd();
 sub wrapToken($);
 
-my $titleArgs = "-t|--title|-T|-title";
-my $cwdArgs = "--working-directory|-cd";
-my $autoCwdArgs = "--auto-working-directory|-acd";
-my $waitArgs = "--wait|-wait";
+my %args = (
+  title   => [qw(-t --title -T -title)],
+  cwd     => [qw(--working-directory -cd)],
+  autoCwd => [qw(--auto-working-directory -acd)],
+  wait    => [qw(--wait -wait)],
+);
+my %okArgs = map {$_ => join "|", @{$args{$_}}} keys %args;
 
 my @terms = (
   "urxvt" => \&urxvt,
@@ -46,17 +49,17 @@ my $usage = "Usage:
     $0 --title 'log search' --working-directory / find -iname '*.log'
 
   OPTS
-    $titleArgs TITLE
+    $okArgs{title} TITLE
       sets the window title on terminals that support it
-    $cwdArgs PATH
+    $okArgs{cwd} PATH
       sets the current working directory on terminals that support it
-    $autoCwdArgs
+    $okArgs{autoCwd}
       sets the current working directory to the current window as follows:
         -extract the PID of the current window {using xdotool}
         -use a child PID instead if it exists {using ps}
         -extract the PWD of the PID {using pwdx}
-        -set the PWD like [$cwdArgs]
-    $waitArgs
+        -set the PWD like [$okArgs{cwd}]
+    $okArgs{wait}
       wait for the terminal to exit
 ";
 
@@ -64,24 +67,21 @@ sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
 
   my %termArgs;
-  while(1){
-    if(@_ > 1 and $_[0] =~ /^($titleArgs)$/){
-      shift;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^($okArgs{title})$/ and @_ > 1){
       $termArgs{title} = wrapToken(shift());
-    }elsif(@_ > 1 and $_[0] =~ /^($cwdArgs)$/){
-      shift;
+    }elsif($arg =~ /^($okArgs{cwd})$/ and @_ > 1){
       $termArgs{cwd} = wrapToken(shift());
-    }elsif(@_ > 0 and $_[0] =~ /^($autoCwdArgs)$/){
-      shift;
+    }elsif($arg =~ /^($okArgs{autoCwd})$/){
       my $cwd = extractActiveCwd();
       if(defined $cwd){
         $termArgs{cwd} = wrapToken $cwd;
       }
-    }elsif(@_ > 0 and $_[0] =~ /^($waitArgs)$/){
-      shift;
+    }elsif($arg =~ /^($okArgs{wait})$/){
       $termArgs{wait} = 1;
     }else{
-      last;
+      die $usage;
     }
   }
 
