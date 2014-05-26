@@ -18,6 +18,7 @@ my %args = (
   cwd     => [qw(--working-directory -cd)],
   autoCwd => [qw(--auto-working-directory -acd)],
   wait    => [qw(--wait -wait)],
+  read    => [qw(-r --read -read)],
   echo    => [qw(-e --echo -echo)],
 );
 my %okArgs = map {$_ => join "|", @{$args{$_}}} keys %args;
@@ -47,7 +48,7 @@ my $usage = "Usage:
 
   e.g.:
     $0 \"echo 'bananas; apples; oranges'; sleep 2\"
-    $0 --title 'log search' --working-directory /var/log find -iname '*.log'
+    $0 -r -t 'log search' --working-directory /var/log find -iname '*.log'
 
   OPTS
     $okArgs{title} TITLE
@@ -62,6 +63,9 @@ my $usage = "Usage:
         -set the PWD like [$okArgs{cwd}]
     $okArgs{wait}
       wait for the terminal to exit
+    $okArgs{read}
+      appends command with \"; read\" to wait for a newline after running
+      runs command inside a new bash shell
     $okArgs{echo}
       runs command inside bash with -x shell opt
       {reuses the bash for running as a shell command if possible}
@@ -84,6 +88,8 @@ sub main(@){
       }
     }elsif($arg =~ /^($okArgs{wait})$/){
       $termArgs{wait} = 1;
+    }elsif($arg =~ /^($okArgs{read})$/){
+      $termArgs{read} = 1;
     }elsif($arg =~ /^($okArgs{echo})$/){
       $termArgs{echo} = 1;
     }else{
@@ -91,7 +97,7 @@ sub main(@){
     }
   }
 
-  die $usage if @_ == 0 and $termArgs{echo};
+  die $usage if @_ == 0 and ($termArgs{read} or $termArgs{echo});
 
   my @cmd = map {wrapToken $_} @_;
   my $isShellCmd = @cmd == 1 and $cmd[0] =~ / /;
@@ -101,6 +107,10 @@ sub main(@){
     $cmdStr = wrapToken $cmdStr if not $isShellCmd;
     my @bashOpts = $termArgs{echo} ? ("-x") : ();
     @cmd = ("bash", @bashOpts, "-c", $cmdStr);
+  }
+
+  if($termArgs{read}){
+    @cmd = ("bash", "-c", wrapToken "@cmd; read");
   }
 
   for my $term(@termOrder){
