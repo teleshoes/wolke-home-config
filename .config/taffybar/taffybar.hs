@@ -32,6 +32,7 @@ main = do
           , W.netW
           , sep
           , W.widthScreenWrapW 0.194271 =<< W.klompW
+          , W.speakerW
           , W.volumeW
           , W.micW
           , W.cpuIntelPstateW
