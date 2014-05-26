@@ -2,10 +2,32 @@
 use strict;
 use warnings;
 
+sub urxvt($$);
+sub mtermite($$);
+sub meegoTerminal($$);
+sub gnomeTerminal($$);
+sub xterm($$);
+
+sub isInstalled($);
+sub procChomp(@);
+sub extractActiveCwd();
+sub wrapToken($);
+
 my $titleArgs = "-t|--title|-T|-title";
 my $cwdArgs = "--working-directory|-cd";
 my $autoCwdArgs = "--auto-working-directory|-acd";
 my $waitArgs = "--wait|-wait";
+
+my @terms = (
+  "urxvt" => \&urxvt,
+  "/opt/mtermite/bin/mtermite" => \&mtermite,
+  "meego-terminal" => \&meegoTerminal,
+  "gnome-terminal" => \&gnomeTerminal,
+  "xterm" => \&xterm,
+);
+my $oddEven = 0;
+my @termOrder = grep { $oddEven = not $oddEven } @terms;
+my %termSubs = @terms;
 
 my $usage = "Usage:
   $0 [OPTS] [CMD [ARG ARG ... ]]
@@ -15,6 +37,10 @@ my $usage = "Usage:
   Provids a consistent cli to several terminal emulators.
   Spawns the terminal and disowns it {this is bash-specific}
   If SHELLCMD has a space in it, its executed in bash.
+
+  Runs the first of these terms that is on the path, using `command -v`:
+    " . join("\n    ", @termOrder) . "
+
   e.g.:
     $0 \"echo 'bananas; apples; oranges'; sleep 2\"
     $0 --title 'log search' --working-directory / find -iname '*.log'
@@ -33,17 +59,6 @@ my $usage = "Usage:
     $waitArgs
       wait for the terminal to exit
 ";
-
-sub urxvt($$);
-sub mtermite($$);
-sub meegoTerminal($$);
-sub gnomeTerminal($$);
-sub xterm($$);
-
-sub isInstalled($);
-sub procChomp(@);
-sub extractActiveCwd();
-sub wrapToken($);
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
@@ -76,16 +91,11 @@ sub main(@){
     @cmd = ("bash", "-c", @cmd);
   }
 
-  if(isInstalled "urxvt"){
-    @cmd = urxvt \%termArgs, \@cmd;
-  }elsif(isInstalled "/opt/mtermite/bin/mtermite"){
-    @cmd = mtermite \%termArgs, \@cmd;
-  }elsif(isInstalled "meego-terminal"){
-    @cmd = meegoTerminal \%termArgs, \@cmd;
-  }elsif(isInstalled "gnome-terminal"){
-    @cmd = gnomeTerminal \%termArgs, \@cmd;
-  }elsif(isInstalled "xterm"){
-    @cmd = xterm \%termArgs, \@cmd;
+  for my $term(@termOrder){
+    if(isInstalled $term){
+      @cmd = &{$termSubs{$term}}(\%termArgs, \@cmd);
+      last;
+    }
   }
 
   if(defined $termArgs{wait} and $termArgs{wait}){
