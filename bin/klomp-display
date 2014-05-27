@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+sub checkIpmagic($);
 sub run(@);
 
 sub main(@){
@@ -20,16 +21,25 @@ sub main(@){
   if($arg eq "--off"){
     run "klomp-cmd", "stop";
     run "pkill", "-9", "-f", "klomp-bigtext";
-    run "nohup pi tv >/dev/null 2>/dev/null";
-    run "nohup pi bigtext -k >/dev/null 2>/dev/null &";
-    run "nohup pi xscreensaver-command -activate >/dev/null 2>/dev/null &";
+    if(checkIpmagic("raspi")){
+      run "pi tv";
+      run "pi bigtext -k";
+      run "pi xscreensaver-command -activate";
+    }
   }elsif($arg eq "--on"){
     run "klomp-mnt";
-    run "nohup pi tv >/dev/null 2>/dev/null";
-    run "pkill", "-9", "-f", "klomp-bigtext";
-    run "nohup klomp-bigtext --ipmagic=raspi --ipmagic-user=pi >/dev/null 2>/dev/null &";
     run "klomp-cmd", "start";
+    run "pkill", "-9", "-f", "klomp-bigtext";
+    if(checkIpmagic("raspi")){
+      run "pi tv";
+      run "nohup klomp-bigtext --ipmagic=raspi --ipmagic-user=pi >/dev/null 2>/dev/null &";
+    }
   }
+}
+
+sub checkIpmagic($){
+  run "execPing --timeout=5 --ipmagic $_[0] echo ok";
+  return $? == 0;
 }
 
 sub run(@){
