@@ -109,6 +109,8 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
+function time         { command time; }
+function mkdir        { command mkdir -p $@; }
 
 function vol          { pulse-vol $@; }
 function j            { fcron-job-toggle $@; }
@@ -128,8 +130,6 @@ function perms        { stat -c %a $@; }
 function glxgears     { vblank_mode=0 glxgears $@; }
 function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
 function gparted      { spawnexsudo gparted $@; }
-function time         { command time; }
-function mkdir        { command mkdir -p $@; }
 
 function s            { $@ & disown $@; }
 function spawn        { $@ & disown $@; }
