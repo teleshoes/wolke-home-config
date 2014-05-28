@@ -109,7 +109,6 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
-function tb           { pkill -9 taffybar; taffybar; pkill -9 taffybar $@; }
 
 function vol          { pulse-vol $@; }
 function j            { fcron-job-toggle $@; }
