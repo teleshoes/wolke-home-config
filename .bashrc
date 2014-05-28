@@ -127,23 +127,23 @@ alias ld='ls -dAl --color=auto'
 alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
 alias perms='stat -c %a'
 alias glxgears='vblank_mode=0 glxgears'
-function mnto { sudo mnt --other --no-usb --no-card $@ ; }
+function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
 alias gparted='spawnexsudo gparted'
 alias time='command time'
 alias mkdir='mkdir -p'
-function s           { $@ & disown ; }
-function spawn       { $@ & disown ; }
-function spawnex     { $@ & disown && exit 0 ; }
-function spawnexsudo { gksudo $@ & disown && exit 0 ; }
-function update-repo { sudo apt-get update \
+
+function s            { $@ & disown $@; }
+function spawn        { $@ & disown $@; }
+function spawnex      { $@ & disown && exit 0 $@; }
+function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
+function update-repo  { sudo apt-get update \
                          -o Dir::Etc::sourcelist="sources.list.d/$1" \
                          -o Dir::Etc::sourceparts="-" \
                          -o APT::Get::List-Cleanup="0"
 }
 
-function git-log(){ git logn $@ ; }
-function git()
-{
+function git-log()    { git logn $@; }
+function git() {
   realgit="$(which git)"
   cmd="git-$1"
   if [ "$(type -t $cmd)" = "function" ]; then
