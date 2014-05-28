@@ -94,7 +94,9 @@ c2='\[\033[01;34m\]'
 cEnd='\[\033[00m\]'
 #if you have 'PS1={stuff}' then a literal colon character
 #the n9 fucks with that line on reboot
-PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
+if [ -n "PS1" ]; then
+  PS1="$c1$u$h$cEnd$colon$c2\w$cEnd\$ "
+fi
 
 for cmd in wconnect wauto tether resolv \
            mnt optimus xorg-conf bluetooth fan intel-pstate flasher \
