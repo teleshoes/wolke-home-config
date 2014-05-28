@@ -109,28 +109,28 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
-alias tb='pkill -9 taffybar; taffybar; pkill -9 taffybar'
+function tb           { pkill -9 taffybar; taffybar; pkill -9 taffybar $@; }
 
-alias vol='pulse-vol'
-alias j='fcron-job-toggle'
-alias snapshot='backup --snapshot'
-alias qgroups-info='backup --info --quick --sort-by=size'
-alias dus='du -s * | sort -g'
-alias killjobs='kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo'
-alias gvim='term vim'
-alias cx='chmod +x'
-alias :q='exit'
-alias shutdown='poweroff'
-alias l='ls -Al --color=auto'
-alias ll='ls -Al --color=auto'
-alias ld='ls -dAl --color=auto'
-alias mplayer='WINDOW_TITLE=MPLAYER; mplayer'
-alias perms='stat -c %a'
-alias glxgears='vblank_mode=0 glxgears'
+function vol          { pulse-vol $@; }
+function j            { fcron-job-toggle $@; }
+function snapshot     { backup --snapshot $@; }
+function qgroups-info { backup --info --quick --sort-by=size $@; }
+function dus          { du -s * | sort -g $@; }
+function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo $@; }
+function gvim         { term vim $@; }
+function cx           { chmod +x $@; }
+function :q           { exit $@; }
+function shutdown     { poweroff $@; }
+function l            { ls -Al --color=auto $@; }
+function ll           { ls -Al --color=auto $@; }
+function ld           { ls -dAl --color=auto $@; }
+function mplayer      { WINDOW_TITLE=MPLAYER; mplayer $@; }
+function perms        { stat -c %a $@; }
+function glxgears     { vblank_mode=0 glxgears $@; }
 function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
-alias gparted='spawnexsudo gparted'
-alias time='command time'
-alias mkdir='mkdir -p'
+function gparted      { spawnexsudo gparted $@; }
+function time         { command time; }
+function mkdir        { command mkdir -p $@; }
 
 function s            { $@ & disown $@; }
 function spawn        { $@ & disown $@; }
@@ -165,11 +165,11 @@ function execAlarm() {
   bash -c "exit $exitCode"
 }
 
-alias maven="execAlarm mvn -Pmock -Djetty.port=8081 $@"
-alias m="maven -DskipTests -Dcheckstyle.skip=true install"
-alias mc="maven clean install"
-alias mck="maven checkstyle:check"
+function maven        { execAlarm mvn -Pmock -Djetty.port=8081 $@ $@; }
+function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
+function mc           { maven clean install $@; }
+function mck          { maven checkstyle:check $@; }
 
-alias genservices='~/workspace/escribe/tools/genservices.pl'
-alias genibatis='~/workspace/escribe/tools/genibatis.pl'
-alias migl='gvim `~/migs/latest-script`'
+function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
+function genibatis    { ~/workspace/escribe/tools/genibatis.pl $@; }
+function migl         { gvim `~/migs/latest-script` $@; }
