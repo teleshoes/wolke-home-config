@@ -109,8 +109,8 @@ do alias $sudoTypo='sudo'; done
 for exitTypo in exot exut
 do alias $exitTypo='exit'; done
 
-function time         { command time; }
-function mkdir        { command mkdir -p $@; }
+alias time="command time"
+alias mkdir="mkdir -p"
 
 function vol          { pulse-vol $@; }
 function j            { fcron-job-toggle $@; }
