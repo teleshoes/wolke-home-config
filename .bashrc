@@ -1,5 +1,5 @@
 [ -f /etc/bashrc ] && . /etc/bashrc
-[ -f /etc/bash_completion ] && . /etc/bash_completion
+[ -n "$PS1" ] && [ -f /etc/bash_completion ] && . /etc/bash_completion
 
 shopt -s dotglob
 
@@ -34,18 +34,20 @@ pathRemove ()  { for x in $@; do
   done
 }
 
-pathAppend          \
-  $HOME/bin         \
-  $HOME/.cabal/bin  \
-  /usr/local/bin    \
-  /usr/bin          \
-  /bin              \
-  /usr/local/sbin   \
-  /usr/sbin         \
-  /sbin             \
-  /usr/local/games  \
-  /usr/games        \
-;
+if [ -n "$PS1" ]; then
+  pathAppend          \
+    $HOME/bin         \
+    $HOME/.cabal/bin  \
+    /usr/local/bin    \
+    /usr/bin          \
+    /bin              \
+    /usr/local/sbin   \
+    /usr/sbin         \
+    /sbin             \
+    /usr/local/games  \
+    /usr/games        \
+  ;
+fi
 
 meego_gnu=/opt/gnu-utils
 if [ -d $meego_gnu ]; then
