@@ -135,23 +135,15 @@ function s            { $@ & disown $@; }
 function spawn        { $@ & disown $@; }
 function spawnex      { $@ & disown && exit 0 $@; }
 function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
-function update-repo  { sudo apt-get update \
-                         -o Dir::Etc::sourcelist="sources.list.d/$1" \
-                         -o Dir::Etc::sourceparts="-" \
-                         -o APT::Get::List-Cleanup="0"
-}
 
-function git-log()    { git logn $@; }
-function git() {
-  realgit="$(which git)"
-  cmd="git-$1"
-  if [ "$(type -t $cmd)" = "function" ]; then
-    shift
-    $cmd "$@"
-  else
-    $realgit "$@"
-  fi
-}
+function maven        { execAlarm mvn -Pmock -Djetty.port=8081 $@ $@; }
+function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
+function mc           { maven clean install $@; }
+function mck          { maven checkstyle:check $@; }
+
+function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
+function genibatis    { ~/workspace/escribe/tools/genibatis.pl $@; }
+function migl         { gvim `~/migs/latest-script` $@; }
 
 function execAlarm() {
   $@
@@ -164,11 +156,24 @@ function execAlarm() {
   bash -c "exit $exitCode"
 }
 
-function maven        { execAlarm mvn -Pmock -Djetty.port=8081 $@ $@; }
-function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
-function mc           { maven clean install $@; }
-function mck          { maven checkstyle:check $@; }
+function update-repo {
+  sudo apt-get update \
+    -o Dir::Etc::sourcelist="sources.list.d/$1" \
+    -o Dir::Etc::sourceparts="-" \
+    -o APT::Get::List-Cleanup="0"
+}
 
-function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
-function genibatis    { ~/workspace/escribe/tools/genibatis.pl $@; }
-function migl         { gvim `~/migs/latest-script` $@; }
+
+function git-log() {
+  git logn $@
+}
+function git() {
+  realgit="$(which git)"
+  cmd="git-$1"
+  if [ "$(type -t $cmd)" = "function" ]; then
+    shift
+    $cmd "$@"
+  else
+    $realgit "$@"
+  fi
+}
