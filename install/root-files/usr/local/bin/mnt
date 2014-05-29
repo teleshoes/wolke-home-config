@@ -130,21 +130,23 @@ sub runCommand($$$){
   }elsif($cmd eq '-n'){
     print "$_\n" foreach getUnmountedNames \@mntParts;
   }elsif($cmd eq '-l'){
-    my @names = getUnmountedNames \@mntParts;
-    @names = grep {$_ eq $name} @names if defined $name;
-    if(defined $name){
-      print "waiting for $name...\n";
-    }else{
-      print "waiting for unmounted partitions...\n";
-    }
-    if(@names == 0){
-      sleep $delay;
-      runCommand $cmd, $name, \%devOpts;
-    }else{
-      print "partition(s) found, mounting\n";
-      for my $name(@names){
-        runCommand "-m", $name, \%devOpts;
+    my @names;
+    while(@names == 0){
+      @names = getUnmountedNames \@mntParts;
+      @names = grep {$_ eq $name} @names if defined $name;
+      if(defined $name){
+        print "waiting for $name...\n";
+      }else{
+        print "waiting for unmounted partitions...\n";
       }
+      if(@names == 0){
+        sleep $delay;
+        @mntParts = getMntParts(\%devOpts);
+      }
+    }
+    print "partition(s) found, mounting\n";
+    for my $name(@names){
+      runCommand "-m", $name, \%devOpts;
     }
   }
 }
