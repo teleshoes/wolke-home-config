@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 sub absolutePath($);
+sub assertBool($);
 sub assertIp($);
 sub assertMac($);
 sub fingerprint($);
@@ -259,6 +260,13 @@ sub absolutePath($){
   return $absPath;
 }
 
+sub assertBool($){
+  my $bool = shift;
+  if($bool !~ /^(true|false)$/i){
+    die "'$bool' is not 'true' or 'false'\n"
+  }
+}
+
 sub assertIp($){
   my $ip = shift;
   if($ip !~ /^$ipRegex$/){
@@ -306,6 +314,7 @@ sub parseConfig($){
     hostname twipPort vncCommand vncDefaultArgs defaultUser
     usbLocalIp usbRemoteIp preBashCommand
   );
+  my %assertBool = map {$_ => 1} qw();
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
   my %assertMac = map {$_ => 1} qw(mac);
   my %assertIpLeft = map {$_ => 1} qw();
@@ -334,12 +343,14 @@ sub parseConfig($){
       $config{$key} = {} if not defined $config{$key};
       ${$config{$key}}{$valLeft} = $valRight;
     }elsif(defined $listKeys{$key}){
+      assertBool $val if defined $assertBool{$key};
       assertIp $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       $key .= "List";
       $config{$key} = [] if not defined $config{$key};
       push @{$config{$key}}, $val;
     }elsif(defined $singleKeys{$key}){
+      assertBool $val if defined $assertBool{$key};
       assertIp $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       die "Duplicate single conf entry $key\n" if defined $config{$key};
