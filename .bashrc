@@ -34,20 +34,18 @@ pathRemove ()  { for x in $@; do
   done
 }
 
-if [ -n "$PS1" ]; then
-  pathAppend          \
-    $HOME/bin         \
-    $HOME/.cabal/bin  \
-    /usr/local/bin    \
-    /usr/bin          \
-    /bin              \
-    /usr/local/sbin   \
-    /usr/sbin         \
-    /sbin             \
-    /usr/local/games  \
-    /usr/games        \
-  ;
-fi
+pathAppend          \
+  $HOME/bin         \
+  $HOME/.cabal/bin  \
+  /usr/local/bin    \
+  /usr/bin          \
+  /bin              \
+  /usr/local/sbin   \
+  /usr/sbin         \
+  /sbin             \
+  /usr/local/games  \
+  /usr/games        \
+;
 
 meego_gnu=/opt/gnu-utils
 if [ -d $meego_gnu ]; then
