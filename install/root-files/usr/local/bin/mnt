@@ -5,7 +5,9 @@ use warnings;
 my $configFile = '/etc/default/mnt';
 
 my $mountDir = '/media';
+my $maxTimeout = 60;
 my $delay = 1;
+
 my %devTypes = (
   usb => "true",
   card => "true",
@@ -131,6 +133,7 @@ sub runCommand($$$){
     print "$_\n" foreach getUnmountedNames \@mntParts;
   }elsif($cmd eq '-l'){
     my @names;
+    my $start = time;
     while(@names == 0){
       @names = getUnmountedNames \@mntParts;
       @names = grep {$_ eq $name} @names if defined $name;
@@ -140,6 +143,7 @@ sub runCommand($$$){
         print "waiting for unmounted partitions...\n";
       }
       if(@names == 0){
+        die "timeout exceeded\n" if time > ($start+$maxTimeout);
         sleep $delay;
         @mntParts = getMntParts(\%devOpts);
       }
