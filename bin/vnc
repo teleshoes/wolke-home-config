@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+sub guessDisplay($);
+
+my $defaultDisplay = ":0";
+
 my $sshControlFile = '/tmp/vncSSH.ctl';
 my $port = '5900';
 my $delay = 5000;
@@ -10,7 +14,6 @@ my $delay = 5000;
 my @server = (
   "x11vnc",
     "-safer", "-localhost", "-nopw", "-once",
-    "-display", ":0",
 );
 my @client = (
   "vncviewer",
@@ -56,6 +59,8 @@ sub main(@){
 
     system @sshExit;
 
+    @server = (@server, '-display', guessDisplay $host);
+
     system @sshBind, $host, "@server";
     exit $? if $? != 0;
 
@@ -63,6 +68,15 @@ sub main(@){
 
     system (defined $x2vnc ? @x2vncClient : @client);
   }
+}
+
+sub guessDisplay($){
+  my $host = shift;
+  my $ps = `ssh "$host" ps -ef`;
+  if($ps =~ /\/usr\/bin\/X.* (:\d+) /){
+    return $1;
+  }
+  return $defaultDisplay;
 }
 
 &main(@ARGV);
