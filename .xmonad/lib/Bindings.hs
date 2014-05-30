@@ -56,6 +56,8 @@ shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc] #! "off g"
     "term"              @@ m_    xK_Think#! "term"
     "term"              @@ m_    xK_Tools#! "term"
+    "term auto-cwd"     @@ mA    xK_Tools#! "term -acd"
+    "ghci"              @@ mC    xK_Tools#! "term ghci"
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
     "term auto-cwd"     @@ mA    xK_Think#! "term -acd"
