@@ -134,7 +134,7 @@ function spawn        { $@ & disown $@; }
 function spawnex      { $@ & disown && exit 0 $@; }
 function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
 
-function maven        { execAlarm mvn -Pmock -Djetty.port=8081 $@ $@; }
+function maven        { execAlarm mvn -Psdm,mock $@; }
 function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
 function mc           { maven clean install $@; }
 function mck          { maven checkstyle:check $@; }
