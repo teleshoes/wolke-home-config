@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 sub absolutePath($);
+sub assertBool($);
 sub assertIp($);
 sub assertMac($);
 sub fingerprint($);
@@ -31,6 +32,8 @@ my $iwconfigExec = '/sbin/iwconfig';
 my $confDir = "$ENV{HOME}/.config/ipmagic";
 my @confFiles = `ls \"$confDir\" 2>/dev/null`;
 chomp foreach @confFiles;
+
+my $defaultPreBashCommand = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
 my $methods = join "|", qw(any tmp usb wifi twip guess);
 
@@ -68,9 +71,21 @@ my $usage = "Usage:
         -s [CMD ARG ARG..]  ssh to host
 
         CMD [ARG ARG..]     ssh with bash -c \"CMD ARG ARG\"
-        -b CMD [ARG ARG..]  if config file has preBashCommand, cmd is:
-                            preBashCommand\\; bash -c \"CMD ARG ARG\"
-                            double quotes in the command or args are escaped
+        -b CMD [ARG ARG..]  if IGNORE_BASH_COMMAND is 'true', runs this command:
+                              bash -c \"CMD ARG ARG\"
+                            otherwise, runs the command:
+                              bash -c \"PRE_BASH_COMMAND; CMD ARG ARG\"
+
+                            double quotes in the CMD or ARGs are escaped
+
+                            IGNORE_BASH_COMMAND is 'true' or 'false, and
+                            can be set in the config file:
+                            ignoreBashCommand=IGNORE_BASH_COMMAND
+                            {default is 'true'}
+
+                            PRE_BASH_COMMAND can be set in the config file:
+                            preBashCommand=PRE_BASH_COMMAND
+                            {default is $defaultPreBashCommand}
 
         -vnc [VNC_ARGS]     call vncCmd
                             e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
@@ -172,10 +187,16 @@ sub main(@){
     die "-b missing command\n" if @_ == 0;
     my $c = "@_";
     $c =~ s/"/\\"/g;
-    $c = "bash -c \"$c\"";
+
     my $preBashCmd = $config{preBashCommand};
-    if(defined $preBashCmd){
-      $c = "$preBashCmd\; $c"
+    $preBashCmd = $defaultPreBashCommand if not defined $preBashCmd;
+    my $ignoreBashCmd = $config{ignorePreBashCommand};
+    $ignoreBashCmd = 'false' if not defined $ignoreBashCmd;
+
+    if($ignoreBashCmd !~ /^(true)$/i){
+      $c = "bash -c \"$preBashCmd; $c\"";
+    }else{
+      $c = "bash -c \"$c\"";
     }
     @sshCmd = ($c);
   }
@@ -259,6 +280,13 @@ sub absolutePath($){
   return $absPath;
 }
 
+sub assertBool($){
+  my $bool = shift;
+  if($bool !~ /^(true|false)$/i){
+    die "'$bool' is not 'true' or 'false'\n"
+  }
+}
+
 sub assertIp($){
   my $ip = shift;
   if($ip !~ /^$ipRegex$/){
@@ -304,8 +332,9 @@ sub parseConfig($){
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
     hostname twipPort vncCommand vncDefaultArgs defaultUser
-    usbLocalIp usbRemoteIp preBashCommand
+    usbLocalIp usbRemoteIp preBashCommand ignorePreBashCommand
   );
+  my %assertBool = map {$_ => 1} qw(ignorePreBashCommand);
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
   my %assertMac = map {$_ => 1} qw(mac);
   my %assertIpLeft = map {$_ => 1} qw();
@@ -334,12 +363,14 @@ sub parseConfig($){
       $config{$key} = {} if not defined $config{$key};
       ${$config{$key}}{$valLeft} = $valRight;
     }elsif(defined $listKeys{$key}){
+      assertBool $val if defined $assertBool{$key};
       assertIp $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       $key .= "List";
       $config{$key} = [] if not defined $config{$key};
       push @{$config{$key}}, $val;
     }elsif(defined $singleKeys{$key}){
+      assertBool $val if defined $assertBool{$key};
       assertIp $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       die "Duplicate single conf entry $key\n" if defined $config{$key};

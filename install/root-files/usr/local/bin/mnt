@@ -5,7 +5,9 @@ use warnings;
 my $configFile = '/etc/default/mnt';
 
 my $mountDir = '/media';
+my $maxTimeout = 60;
 my $delay = 1;
+
 my %devTypes = (
   usb => "true",
   card => "true",
@@ -130,21 +132,25 @@ sub runCommand($$$){
   }elsif($cmd eq '-n'){
     print "$_\n" foreach getUnmountedNames \@mntParts;
   }elsif($cmd eq '-l'){
-    my @names = getUnmountedNames \@mntParts;
-    @names = grep {$_ eq $name} @names if defined $name;
-    if(defined $name){
-      print "waiting for $name...\n";
-    }else{
-      print "waiting for unmounted partitions...\n";
-    }
-    if(@names == 0){
-      sleep $delay;
-      runCommand $cmd, $name, \%devOpts;
-    }else{
-      print "partition(s) found, mounting\n";
-      for my $name(@names){
-        runCommand "-m", $name, \%devOpts;
+    my @names;
+    my $start = time;
+    while(@names == 0){
+      @names = getUnmountedNames \@mntParts;
+      @names = grep {$_ eq $name} @names if defined $name;
+      if(defined $name){
+        print "waiting for $name...\n";
+      }else{
+        print "waiting for unmounted partitions...\n";
       }
+      if(@names == 0){
+        die "timeout exceeded\n" if time > ($start+$maxTimeout);
+        sleep $delay;
+        @mntParts = getMntParts(\%devOpts);
+      }
+    }
+    print "partition(s) found, mounting\n";
+    for my $name(@names){
+      runCommand "-m", $name, \%devOpts;
     }
   }
 }
@@ -230,7 +236,7 @@ sub mount($){
     print STDERR "$p{dev} already mounted\n";
     return;
   }
-  
+
   run "rmdir $mountPoint 2>/dev/null";
   if(-e $mountPoint){
     die "$mountPoint exists and is not removable with rmdir";
@@ -292,7 +298,7 @@ sub blkid(){
     }
 
     $p{name} = getName \%p;
-     
+
     push @partitions, \%p;
   }
   return @partitions;
