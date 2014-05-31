@@ -7,22 +7,48 @@
 // @grant       none
 // ==/UserScript==
 
+baseUrl = "https://github.com"
+
 function main(){
-  q = window.location.search
   url = document.URL
-  if(q == "?teleshoes" || /teleshoes/.exec(url)){
-    targetUserName = "teleshoes"
-  }else if(q == "?ewolk" || /ewolk/.exec(url)){
-    targetUserName = "ewolk"
-  }else{
-    return
+
+  landingPage = isLandingPage()
+  targetUserName = getTargetUserName(url)
+  userName = getUserName()
+
+  if(landingPage && targetUserName == null && userName == null){
   }
 
-  userName = getUserName()
-  if(userName != null && userName != targetUserName){
+  if(userName != null && targetUserName != null && userName != targetUserName){
     logout();
-  }else if(/github.com\/login/.exec(url)){
+  }else if(targetUserName != null && /github.com\/login/.exec(url)){
     login(targetUserName)
+  }else if(landingPage){
+    if(targetUserName == null){
+      targetUserName = getTargetUserName(document.referrer)
+    }
+    if(targetUserName != null){
+      newUrl = baseUrl + "/login?" + targetUserName
+      window.open(newUrl, '_self', false);
+    }
+  }
+}
+
+function isLandingPage(){
+  btns = document.getElementsByClassName('signin')
+  if(btns.length == 1 && /\/login$/.exec(btns[0].href)){
+    return true;
+  }
+  return false;
+}
+
+function getTargetUserName(url){
+  if(/[?\/]teleshoes/.exec(url)){
+    return "teleshoes";
+  }else if(/[?\/]ewolk/.exec(url)){
+    return "ewolk";
+  }else{
+    return null;
   }
 }
 
