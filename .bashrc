@@ -123,7 +123,6 @@ function shutdown     { poweroff $@; }
 function l            { ls -Al --color=auto $@; }
 function ll           { ls -Al --color=auto $@; }
 function ld           { ls -dAl --color=auto $@; }
-function mplayer      { WINDOW_TITLE=MPLAYER; mplayer $@; }
 function perms        { stat -c %a $@; }
 function glxgears     { vblank_mode=0 glxgears $@; }
 function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
