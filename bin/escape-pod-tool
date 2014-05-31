@@ -38,26 +38,6 @@ sub arrEquals($$);
 sub uniqArr(@);
 sub run(@);
 
-my $wikiPrefix = q@
-List of episodes for the [[Escape Pod (podcast) | Escape Pod podcast]].
-
-{| cellpadding="3" cellspacing="0" border="1" align="center" style="text-align:center" class="sortable"
-|- style="background-color:#EFEFEF"
-! '''#''' !! '''Name''' !! '''Author''' !! '''Reader''' !! '''Rating''' !! '''Time''' !! class="unsortable"|'''Discussion'''
-@;
-$wikiPrefix =~ s/^\n+//;
-my $wikiSuffix = q@
-|}
-
-[[Category:Lists of podcast episodes|Escape Pod]]
-
-<!--
-|-
-|  || [] || [[]] || [[]] ||  ||  || [ EPF]
--->
-@;
-$wikiSuffix =~ s/^\n+//;
-
 my @ratings = (
   "G"     => 'OK for Kids',
   "PG"    => '10 and Up',
@@ -165,10 +145,17 @@ sub main(@){
       @nums = sort @nums;
     }
 
+    my $isAllEps = @nums == keys %$articleUrlCache;
+    my $prefixFile = "$epDir/wiki-prefix";
+    my $suffixFile = "$epDir/wiki-suffix";
+
     open OUT, "> $epDir/wiki-out";
 
-    print $wikiPrefix if @nums == keys %$articleUrlCache;
-    print OUT $wikiPrefix if @nums == keys %$articleUrlCache;
+    if($isAllEps and -e $prefixFile){
+      my $prefix = `cat $prefixFile`;
+      print $prefix;
+      print OUT $prefix;
+    }
 
     for my $epNum(reverse @nums){
       my $articleUrl = $$articleUrlCache{$epNum};
@@ -214,8 +201,11 @@ sub main(@){
         print STDERR "   ERROR: $epNum\n";
       }
     }
-    print $wikiSuffix if @nums == keys %$articleUrlCache;
-    print OUT $wikiSuffix if @nums == keys %$articleUrlCache;
+    if($isAllEps and -e $suffixFile){
+      my $suffix = `cat $suffixFile`;
+      print $suffix;
+      print OUT $suffix;
+    }
     close OUT;
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
     for my $epNum(sort keys %$eps){
