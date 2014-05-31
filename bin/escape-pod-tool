@@ -81,7 +81,9 @@ my $usage = "Usage:
     --url
       Print the article url for each EPNUM, using the links in the above url.
     --wiki
-      Use article HTML pages and forums to approximate the wikipedia page
+      Use article HTML pages and forums to generate output in the same format as
+      the wikipedia page.
+      Prints to stdout and to the file $epDir/wiki-out
     --mp3url
       Print the download URL, parsed from the escape pod article HTML.
       HTML is fetched using curl/wget and cached in $epDir/html-cache/EPNUM.html
@@ -162,7 +164,12 @@ sub main(@){
       }
       @nums = sort @nums;
     }
+
+    open OUT, "> $epDir/wiki-out";
+
     print $wikiPrefix if @nums == keys %$articleUrlCache;
+    print OUT $wikiPrefix if @nums == keys %$articleUrlCache;
+
     for my $epNum(reverse @nums){
       my $articleUrl = $$articleUrlCache{$epNum};
       my $extraInfo = extraInfo();
@@ -202,11 +209,14 @@ sub main(@){
         $fmt =~ s/&#8217;/'/g;
         $fmt =~ s/&amp;/&/g;
         print $fmt;
+        print OUT $fmt;
       }else{
         print STDERR "   ERROR: $epNum\n";
       }
     }
     print $wikiSuffix if @nums == keys %$articleUrlCache;
+    print OUT $wikiSuffix if @nums == keys %$articleUrlCache;
+    close OUT;
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
     for my $epNum(sort keys %$eps){
       if(ensureHtmlCache $epNum, $$eps{$epNum}{articleUrl}){
