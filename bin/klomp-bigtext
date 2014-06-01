@@ -4,7 +4,7 @@ use warnings;
 use Text::CSV;
 use Time::HiRes qw(sleep time);
 
-sub bigtextKlompInfo($$);
+sub formatKlompInfoLine($$);
 sub getIpmagicCommand($$@);
 sub klompInfo(@);
 sub offset($$$);
@@ -53,19 +53,24 @@ sub main(@){
     }
   }
 
+  open FH, "|-", getIpmagicCommand($ipmagic, $ipmagicUser,
+    "bigtext", "--stdin");
+
   while(1){
     my $now = time;
 
     run getIpmagicCommand($ipmagic, $ipmagicUser, @extraCmd);
-    bigtextKlompInfo($ipmagic, $ipmagicUser);
+    print FH formatKlompInfoLine($ipmagic, $ipmagicUser);
     last if $once;
 
     my $toWait = ($delay/1000) - (time - $now);
     sleep $toWait if $toWait > 0;
   }
+
+  close FH;
 }
 
-sub bigtextKlompInfo($$){
+sub formatKlompInfoLine($$){
   my $ipmagic = shift;
   my $ipmagicUser = shift;
   my $info = klompInfo(qw(pos len title artist album));
@@ -76,7 +81,11 @@ sub bigtextKlompInfo($$){
     . "$$info{album}\n"
     . "$$info{title}\n"
     ;
-  run getIpmagicCommand($ipmagic, $ipmagicUser, "bigtext", $fmt);
+  $fmt =~ s/\\/\\\\/g;
+  $fmt =~ s/\n/\\n/g;
+  $fmt =~ s/\t/\\t/g;
+  $fmt =~ s/\r//g;
+  return "$fmt\n";
 }
 
 sub getIpmagicCommand($$@){
