@@ -4,14 +4,13 @@ use warnings;
 use Text::CSV;
 use Time::HiRes qw(sleep time);
 
-sub bigtextKlompInfo($$);
-sub runIpmagic($$@);
+sub formatKlompInfoLine($$);
+sub getIpmagicCommand($$@);
 sub klompInfo(@);
 sub offset($$$);
 sub run(@);
 
 my @extraCmd = qw(xscreensaver-command -deactivate);
-my $lastInfo;
 my $defaultDelayMillis = 1000;
 
 my $usage = "Usage:
@@ -54,19 +53,24 @@ sub main(@){
     }
   }
 
+  open FH, "|-", getIpmagicCommand($ipmagic, $ipmagicUser,
+    "bigtext", "--stdin");
+
   while(1){
     my $now = time;
 
-    runIpmagic $ipmagic, $ipmagicUser, @extraCmd;
-    bigtextKlompInfo($ipmagic, $ipmagicUser);
+    run getIpmagicCommand($ipmagic, $ipmagicUser, @extraCmd);
+    print FH formatKlompInfoLine($ipmagic, $ipmagicUser);
     last if $once;
 
     my $toWait = ($delay/1000) - (time - $now);
     sleep $toWait if $toWait > 0;
   }
+
+  close FH;
 }
 
-sub bigtextKlompInfo($$){
+sub formatKlompInfoLine($$){
   my $ipmagic = shift;
   my $ipmagicUser = shift;
   my $info = klompInfo(qw(pos len title artist album));
@@ -77,12 +81,14 @@ sub bigtextKlompInfo($$){
     . "$$info{album}\n"
     . "$$info{title}\n"
     ;
-  runIpmagic $ipmagic, $ipmagicUser, "bigtext", $fmt;
-
-  $lastInfo = $info;
+  $fmt =~ s/\\/\\\\/g;
+  $fmt =~ s/\n/\\n/g;
+  $fmt =~ s/\t/\\t/g;
+  $fmt =~ s/\r//g;
+  return "$fmt\n";
 }
 
-sub runIpmagic($$@){
+sub getIpmagicCommand($$@){
   my $ipmagic = shift;
   my $ipmagicUser = shift;
   my @cmd = @_;
@@ -94,7 +100,7 @@ sub runIpmagic($$@){
       @cmd = ("ipmagic", $ipmagic, @cmd);
     }
   }
-  run @cmd;
+  return @cmd;
 }
 
 sub klompInfo(@){
