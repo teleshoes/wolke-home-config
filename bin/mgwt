@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $port = 8081;
+my $pcDefault = "nopc";
+
+my @opts = (
+  "-Psdm,mock",
+  "-DskipTests",
+  "-Dcheckstyle.skip=true"
+);
+
+sub run(@);
+
+my $usage = "Usage:
+  $0 [pc|nopc]
+     pc/nopc enable/disable precompile {default is $pcDefault}
+";
+
+sub main(@){
+  my $pc = $pcDefault;
+  shift if @_ > 0 and $_[0] =~ /^(pc|nopc)$/;
+
+  my $precompile = $pc eq "pc" ? "true" : "false";
+  @opts = (@opts, "-Dgwt.codeServer.precompile=$precompile");
+
+  open FH, "-|", "mvn", @opts, "gwt:run-codeserver";
+  my $line;
+  while($line = <FH>){
+    print $line;
+    if($line =~ /Compile completed in \d+ ms/){
+      run "alarm", "-s", "success";
+    }elsif($line =~ /Compiler returned false/){
+      run "alarm", "-s", "failure";
+    }
+  }
+  close FH;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
