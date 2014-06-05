@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@);
+sub appendRemoteURLs($$);
+
+my $usage = "Usage: $0 [--off]  enable/disable lillegroup git configs\n";
+
+sub main(@){
+  my $off = shift if @_ == 1 and $_[0] =~ /^(--off)$/;
+  die $usage if @_ != 0;
+
+  my $lillegroup = 1;
+  $lillegroup = 0 if defined $off;
+
+  if($lillegroup){
+    print "\n--overriding user\n";
+    run "git", "config", "user.name", "Elliot Wolk";
+    run "git", "config", "user.email", "elliot.wolk\@lillegroup.com";
+  }else{
+    print "\n--removing user override\n";
+    run "git", "config", "--unset", "user.name";
+    run "git", "config", "--unset", "user.email";
+  }
+
+  my $hostSuffix = $lillegroup ? "lillegroup" : undef;
+  appendRemoteURLs("github.com", $hostSuffix);
+  appendRemoteURLs("bitbucket.org", $hostSuffix);
+}
+
+sub appendRemoteURLs($$){
+  my ($targetHost, $hostSuffix) = @_;
+
+  my @remoteUrls = `git config --get-regexp remote\\..*\\.url`;
+  for my $url(@remoteUrls){
+    if($url =~ /^(remote\.[^.]+\.url) ([^@]+@)?($targetHost(?:-[^:]*)?):(.*)/){
+      my ($configKey, $user, $host, $repo) = ($1, $2, $3, $4);
+      $user = "" if not defined $user;
+      my $newHost = $targetHost;
+      $newHost .= "-$hostSuffix" if defined $hostSuffix;
+      print "\n--$host\n";
+      if($host ne $newHost){
+        print "=> $newHost\n";
+        run "git", "config", $configKey, "$user$newHost:$repo";
+      }
+    }
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+&main(@ARGV);
