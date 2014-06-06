@@ -9,6 +9,7 @@ my $msgLen = 60;
 my $mplayerConfFile = "/tmp/mplayer-tvchan.conf";
 my $inputCmdFile = "/tmp/mplayer-tvchan-commands";
 my $inputConfFile = "/tmp/mplayer-tvchan-input.conf";
+my $defaultAutoSkipDelay = 30;
 
 my $mplayerConf = {
   "fs"                => "yes",
@@ -21,6 +22,7 @@ my %commands = (
   forward  => [$exitCode++, [qw( F10 2 ENTER )]],
   end      => [$exitCode++, [qw( F11 3       )]],
   quit     => [$exitCode++, [qw( F12 4 q     )]],
+  autoskip => [$exitCode++, [qw( F5  5       )]],
 );
 my %exitCodes = map {$_ => ${$commands{$_}}[0]} keys %commands;
 
@@ -38,9 +40,33 @@ sub writeMplayerConf();
 sub writeInputCommands(@);
 sub getProcLines(@);
 
+my $usage = "Usage:
+  $0 [OPTS] DIR [DIR ..]
+
+  OPTS:
+  --autoskip  | --autoskip=SECONDS
+     start in autoskip mode, and optionally set the delay to SECONDS
+       {default is $defaultAutoSkipDelay}
+     SECONDS is the number of seconds to wait before running forward
+     autoskip timer is reset when a new video is opened
+     autoskip is suspended/resumed when 'auto' key command is run
+";
+
 sub main(@){
+  my $autoSkip = 0;
+  my $autoSkipDelay = $defaultAutoSkipDelay;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--autoskip(?:=(\d+))?$/){
+      $autoSkip = 1;
+      $autoSkipDelay = $1 if defined $1;
+    }else{
+      die $usage;
+    }
+  }
+
   my @dirs = @_;
-  die "Usage: $0 DIR [DIR ..]\n" if @dirs == 0;
+  die $usage if @dirs == 0;
 
   writeInputConf;
   writeMplayerConf;
@@ -82,16 +108,23 @@ sub main(@){
     print "\n\nPLAYING: $file @ $pos\n\n";
     my $status;
     my $pid = fork;
+    my $start = time;
     if($pid == 0){
       execPlay $file, $pos, $msg;
     }else{
       my $kid;
       do{
         $kid = waitpid $pid, WNOHANG;
+        $status = $?;
+        $status /= 256 if $status > 256;
         sleep 1;
+        if($autoSkip && time - $start > $autoSkipDelay){
+          print "\nauto-skipped\n";
+          system "kill $pid";
+          waitpid $pid, 0;
+          $status = $exitCodes{forward};
+        }
       } while $kid == 0;
-      $status = $?;
-      $status /= 256 if $status > 256;
     }
 
     if($status == $exitCodes{back}){
@@ -104,6 +137,8 @@ sub main(@){
       $index = @history;
     }elsif($status == $exitCodes{quit}){
       last;
+    }elsif($status == $exitCodes{autoskip}){
+      $autoSkip = not $autoSkip;
     }elsif($status != 0){
       die "\nunexpected mplayer exit code, terminating\n";
     }
