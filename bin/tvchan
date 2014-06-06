@@ -29,7 +29,7 @@ for my $cmd(values %commands){
   $$inputConf{$_} = "quit $exitCode" foreach @$keys;
 }
 
-sub play($$$);
+sub execPlay($$$);
 sub getRandomEntry($);
 sub getRandomPos($);
 sub writeInputConf();
@@ -79,7 +79,16 @@ sub main(@){
     }
 
     print "\n\nPLAYING: $file @ $pos\n\n";
-    my $status = play $file, $pos, $msg;
+    my $status;
+    my $pid = fork;
+    if($pid == 0){
+      execPlay $file, $pos, $msg;
+    }else{
+      waitpid $pid, 0;
+      $status = $?;
+      $status /= 256 if $status > 256;
+    }
+
     if($status == $exitCodes{back}){
       $index--;
       $index = 0 if $index < 0;
@@ -96,21 +105,18 @@ sub main(@){
   }
 }
 
-sub play($$$){
+sub execPlay($$$){
   my ($file, $pos, $msg) = @_;
   writeInputCommands(
     "osd_show_text \"$msg\" 1000",
   );
-  system "mplayer",
+  exec "mplayer",
     "-input", "conf=$inputConfFile",
     "-input", "file=$inputCmdFile",
     "-include", $mplayerConfFile,
     "-ss", $pos,
     $file,
   ;
-  my $code = $?;
-  $code /= 256 if $code > 256;
-  return $code;
 }
 
 sub getRandomEntry($){
