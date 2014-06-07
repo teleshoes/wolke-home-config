@@ -6,10 +6,12 @@ use ScriptScript;
 
 sub getLinuxMenuReplacements();
 sub formatMenuConfig($);
+sub formatCustomMenuEntries(@);
 
 my $grubCfgFile = "/etc/default/grub.d/xx_" . getUsername() . ".cfg";
 my $menuCfgFile = "/etc/grub.d/07_" . getUsername();
 my $linuxMenuFile = "/etc/grub.d/10_linux";
+my $customMenuFile = "/etc/grub.d/40_custom";
 
 my $backgroundSrc = getInstallPath "images/grub.jpg";
 my $backgroundDest = "/usr/local/share/images/grub.jpg";
@@ -33,6 +35,7 @@ my $menuConfig = {
   menu_color_normal => "blue/black",
 };
 
+my @customMenuEntries;
 sub main(@) {
     getRoot @_;
 
@@ -58,6 +61,10 @@ sub main(@) {
       }
       $config;
     };
+
+    ### custom menu entries
+    writeFile $customMenuFile, formatCustomMenuEntries(@customMenuEntries);
+    run "chmod", "755", $customMenuFile;
 
     ### update grub
     shell "update-grub";
@@ -90,6 +97,18 @@ sub formatMenuConfig($){
   }
   $s .= "EOF\n";
   return $s;
+}
+
+sub formatCustomMenuEntries(@){
+  my $prefix = ""
+    . "#!/bin/sh\n"
+    . "exec tail -n +3 \$0\n"
+    . "# This file provides an easy way to add custom menu entries.  Simply type the\n"
+    . "# menu entries you want to add after this comment.  Be careful not to change\n"
+    . "# the 'exec tail' line above.\n"
+    ;
+  my @entries = map {s/\n$//; s/^\n$//; "\n$_\n"} @_;
+  return $prefix . (join '', @entries);
 }
 
 &main(@ARGV);
