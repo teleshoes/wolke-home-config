@@ -6,6 +6,22 @@ use ScriptScript;
 
 my $background_src = getInstallPath "images/grub.jpg";
 my $background_dir = "/usr/local/share/images";
+my $grubCfg = "/etc/default/grub.d/xx_wolke.cfg";
+
+my $linuxCfg = "/etc/grub.d/10_linux";
+
+my $simpleCfgRegex = '.*echo.*menuentry.*menuentry_id_option.*gnulinux-simple.*';
+  ;
+my $simpleCfgReplacement = ''
+  . '      '
+  . 'title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"'
+  . "\n"
+  . '      '
+  . 'echo "menuentry \'$(echo "$title" | grub_quote)\''
+  . ' ${CLASS} \$menuentry_id_option \'gnulinux-simple-$boot_device_id\''
+  . ' {" | sed "s/^/$submenu_indentation/"'
+  . "\n"
+  ;
 
 sub main(@) {
     getRoot @_;
@@ -16,17 +32,25 @@ sub main(@) {
     shell "mkdir -p $background_dir";
     shell "cp $background_src $background";
 
+    editFile $linuxCfg, "add-kernel-to-simple", sub {
+      my $config = shift;
+      replaceLine $config, $simpleCfgRegex, $simpleCfgReplacement;
+      $config;
+    };
+
     my $linux = "quiet splash";
     if(-x "/bin/systemd"){
         $linux .= " init=/bin/systemd";
     }
 
-    editSimpleConf "/etc/default/grub", getUsername, {
+    run "touch", $grubCfg;
+    editSimpleConf $grubCfg, getUsername, {
       GRUB_TIMEOUT => 4,
       GRUB_GFXMODE => "800x600",
       GRUB_DISABLE_RECOVERY => "false",
       GRUB_BACKGROUND => $background,
       GRUB_CMDLINE_LINUX_DEFAULT => "\"$linux\"",
+      GRUB_DISTRIBUTOR => "\"siduction\"",
     };
 
     my $grubdfile = "/etc/grub.d/07_" . getUsername;
@@ -43,5 +67,4 @@ sub main(@) {
     shell "update-grub";
 }
 
-main @ARGV;
-
+&main(@ARGV);
