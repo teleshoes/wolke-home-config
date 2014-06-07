@@ -4,67 +4,92 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-my $background_src = getInstallPath "images/grub.jpg";
-my $background_dir = "/usr/local/share/images";
-my $grubCfg = "/etc/default/grub.d/xx_wolke.cfg";
+sub getLinuxMenuReplacements();
+sub formatMenuConfig($);
 
-my $linuxCfg = "/etc/grub.d/10_linux";
+my $grubCfgFile = "/etc/default/grub.d/xx_" . getUsername() . ".cfg";
+my $menuCfgFile = "/etc/grub.d/07_" . getUsername();
+my $linuxMenuFile = "/etc/grub.d/10_linux";
 
-my $simpleCfgRegex = '.*echo.*menuentry.*menuentry_id_option.*gnulinux-simple.*';
-  ;
-my $simpleCfgReplacement = ''
-  . '      '
-  . 'title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"'
-  . "\n"
-  . '      '
-  . 'echo "menuentry \'$(echo "$title" | grub_quote)\''
-  . ' ${CLASS} \$menuentry_id_option \'gnulinux-simple-$boot_device_id\''
-  . ' {" | sed "s/^/$submenu_indentation/"'
-  . "\n"
-  ;
+my $backgroundSrc = getInstallPath "images/grub.jpg";
+my $backgroundDest = "/usr/local/share/images/grub.jpg";
+
+my $linux = "quiet splash";
+$linux .= " init=/bin/systemd" if -x "/bin/systemd";
+
+my $grubConfig = {
+  GRUB_TIMEOUT => 4,
+  GRUB_GFXMODE => "800x600",
+  GRUB_DISABLE_RECOVERY => "false",
+  GRUB_BACKGROUND => $backgroundDest,
+  GRUB_CMDLINE_LINUX_DEFAULT => "\"$linux\"",
+  GRUB_DISTRIBUTOR => "\"siduction\"",
+};
+
+my $menuConfig = {
+  color_highlight => "blue/light-gray",
+  color_normal => "blue/black",
+  menu_color_highlight => "blue/light-gray",
+  menu_color_normal => "blue/black",
+};
 
 sub main(@) {
     getRoot @_;
 
-    $background_src =~ /\/([^\/]+)$/;
-    my $background = "$background_dir/$1";
+    ### grub config
+    my $bgDir = $backgroundDest;
+    $bgDir =~ s/\/[^\/]*$//;
+    shell "mkdir -p $bgDir";
+    shell "cp $backgroundSrc $backgroundDest";
 
-    shell "mkdir -p $background_dir";
-    shell "cp $background_src $background";
+    run "touch", $grubCfgFile;
+    editSimpleConf $grubCfgFile, getUsername, $grubConfig;
 
-    editFile $linuxCfg, "add-kernel-to-simple", sub {
+    ### menu config
+    writeFile $menuCfgFile, formatMenuConfig($menuConfig);
+    run "chmod", "755", $menuCfgFile;
+
+    ### linux menu entries
+    editFile $linuxMenuFile, "add-kernel-to-simple", sub {
       my $config = shift;
-      replaceLine $config, $simpleCfgRegex, $simpleCfgReplacement;
+      for my $replacementPair(getLinuxMenuReplacements()){
+        my ($regex, $replacement) = @$replacementPair;
+        replaceLine $config, $regex, $replacement;
+      }
       $config;
     };
 
-    my $linux = "quiet splash";
-    if(-x "/bin/systemd"){
-        $linux .= " init=/bin/systemd";
-    }
-
-    run "touch", $grubCfg;
-    editSimpleConf $grubCfg, getUsername, {
-      GRUB_TIMEOUT => 4,
-      GRUB_GFXMODE => "800x600",
-      GRUB_DISABLE_RECOVERY => "false",
-      GRUB_BACKGROUND => $background,
-      GRUB_CMDLINE_LINUX_DEFAULT => "\"$linux\"",
-      GRUB_DISTRIBUTOR => "\"siduction\"",
-    };
-
-    my $grubdfile = "/etc/grub.d/07_" . getUsername;
-    writeFile $grubdfile, join "\n"
-      , "cat << EOF"
-      , "set menu_color_highlight=blue/light-gray"
-      , "set menu_color_normal=blue/black"
-      , "set color_highlight=blue/light-gray"
-      , "set color_normal=blue/black"
-      , "EOF", "";
-
-    run "chmod", "755", $grubdfile;
-
+    ### update grub
     shell "update-grub";
+}
+
+sub getLinuxMenuReplacements(){
+  my $simpleCfgRegex = ''
+    . '.*echo.*menuentry.*menuentry_id_option.*gnulinux-simple.*'
+    ;
+  my $simpleCfgReplacement = ''
+    . '      '
+    . 'title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"'
+    . "\n"
+    . '      '
+    . 'echo "menuentry \'$(echo "$title" | grub_quote)\''
+    . ' ${CLASS} \$menuentry_id_option \'gnulinux-simple-$boot_device_id\''
+    . ' {" | sed "s/^/$submenu_indentation/"'
+    . "\n"
+    ;
+
+  return ([$simpleCfgRegex, $simpleCfgReplacement]);
+}
+
+sub formatMenuConfig($){
+  my $config = shift;
+  my $s = '';
+  $s .= "cat << EOF\n";
+  for my $key(sort keys %$config){
+    $s .= "set $key=$$config{$key}\n";
+  }
+  $s .= "EOF\n";
+  return $s;
 }
 
 &main(@ARGV);
