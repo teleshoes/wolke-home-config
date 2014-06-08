@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub cd($);
+sub run(@);
+sub absolutePath($);
+
+sub main(@){
+  die "Usage: $0 zipfile [relativefilepath]\n" if @_ <= 0 or @_ > 2;
+  my ($zip, $file) = @_;
+  $zip = absolutePath $zip;
+  die "Missing zip: $zip\n" if not -f $zip;
+
+  my $ms = int(time * 1000);
+
+  my $tmpDir = "/tmp/zipmod-$ms";
+  die "$tmpDir already exists\n" if -e $tmpDir;
+  run "mkdir", $tmpDir;
+
+  my $zipFileName = $zip;
+  $zipFileName =~ s/.*\///;
+
+  run "cp", $zip, "$tmpDir/$zipFileName";
+
+  run "mkdir", "$tmpDir/contents";
+  cd "$tmpDir/contents";
+
+  run "unzip", "$tmpDir/$zipFileName";
+
+  if(defined $file){
+    run "gvim", "$tmpDir/contents/$file";
+  }
+  while(1){
+
+    print "previous zip file is at: $tmpDir/$zipFileName\n";
+    print "contents are at {modify them}: $tmpDir/contents\n";
+    print "zip up contents and replace zip file[Y/n]? ";
+    my $ok = <STDIN>;
+    die "canceled\n" if $ok =~ /^[nN]/;
+
+    my $newZip = "$tmpDir/$zipFileName.new";
+    run "rm", "-f", $newZip;
+    run "zip -9 -r $newZip *";
+
+    run "cp", $newZip, $zip;
+  }
+}
+
+sub cd($){
+  chdir $_[0];
+  $ENV{PWD} = $_[0];
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running @_\n" if $? != 0;
+}
+
+sub absolutePath($){
+  my $relPath = shift;
+  $relPath =~ s/"/""/g;
+  my $absPath = `readlink -m "$relPath"`;
+  chomp $absPath;
+
+  if($absPath =~ /^\s*$/){
+    $absPath = `readlink -f "$relPath"`;
+    chomp $absPath;
+  }
+
+  return $absPath;
+}
+&main(@ARGV);
