@@ -4,7 +4,7 @@ module Utils(
   rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, collectInts, padL, padR, chompAll,
-  tryMaybe, nanoTime, isRunning, chompFile, findName,
+  tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
@@ -103,6 +103,8 @@ tryMaybe act = do
       return Nothing
     Right val -> return $ Just val
 
+millisTime :: IO Integer
+millisTime = fmap (`div`10^6) nanoTime
 
 nanoTime :: IO Integer
 nanoTime = fmap (fromIntegral . timeSpecToInt64) $ getClockTime monotonicClock
