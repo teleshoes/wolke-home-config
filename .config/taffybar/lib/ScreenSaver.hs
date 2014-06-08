@@ -21,7 +21,7 @@ idleTimeoutMillis = 10 * 60 * 1000
 -- delay between runs
 checkDelayMillis = 1 * 1000
 -- minimum amount of time to run screensaver when forcibly turning it on
-minRunningMillis = 3 * 1000
+minRunningMillis = 2 * 1000
 
 screenSaverW = do
   chan <- newChan
