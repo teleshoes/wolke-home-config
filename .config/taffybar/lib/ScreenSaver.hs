@@ -1,4 +1,5 @@
 module ScreenSaver(screenSaverW) where
+import Clickable (clickableActions)
 import Label (labelW)
 import Utils(chompFile, padL, readInt, readProc, millisTime)
 
@@ -6,6 +7,10 @@ import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
+
+clickL = writeOverride "on"
+clickM = return ()
+clickR = writeOverride "off"
 
 screenSaverBrightness = 5
 
@@ -18,7 +23,8 @@ screenSaverW = do
   chan <- newChan
   writeChan chan $ "????"
   forkIO $ checkScreenSaver chan False 0 Nothing
-  labelW $ readChan chan
+  label <- labelW $ readChan chan
+  clickableActions clickL clickM clickR label
 
 checkScreenSaver chan prevState prevXidle prevStartTimeMillis = do
   xidle <- getXidle
