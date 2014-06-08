@@ -16,8 +16,12 @@ screenSaverBrightness = 5
 
 overrideFile = "/tmp/screen-saver-override"
 
-checkDelayMillis = 1 * 1000
+-- screensaver timeout
 idleTimeoutMillis = 10 * 60 * 1000
+-- delay between runs
+checkDelayMillis = 1 * 1000
+-- minimum amount of time to run screensaver when forcibly turning it on
+minRunningMillis = 3 * 1000
 
 screenSaverW = do
   chan <- newChan
@@ -34,7 +38,7 @@ checkScreenSaver chan prevState prevXidle prevStartTimeMillis = do
 
   let state = case override of
                 "off" -> False
-                "on"  -> runningMillis < 3000 || xidle > prevXidle
+                "on"  -> runningMillis < minRunningMillis || xidle > prevXidle
                 _     -> xidle > idleTimeoutMillis
   let startTime = if state
                   then Just $ fromMaybe nowMillis prevStartTimeMillis
