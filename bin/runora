@@ -2,15 +2,48 @@
 use strict;
 use warnings;
 
-my $defaultServer = 'dev';
-my $user = 'ewolk';
+sub readSecrets();
+sub run(@);
 
-my $server = shift;
-$server = $defaultServer if not defined $server;
-die "Usage: $0 [server]  {default is $defaultServer}\n" if @ARGV > 0;
+my $secretsFile = "$ENV{HOME}/.secrets";
 
-system "ssh", "$user\@$server", "
-  echo \$HOSTNAME
-  source /etc/profile
-  runora
-";
+my $urls = {
+  ehrdev => 'ehr-db.dev',
+};
+my $port = 2483;
+
+my $defaultSid = "ehrdev";
+my $defaultSchema = "escribe";
+
+sub main(@){
+  my $sid = $defaultSid;
+  my $schema = $defaultSchema;
+
+  my $dbs = readSecrets;
+  my $pw = $$dbs{$sid}{$schema};
+  my $url = $$urls{$sid};
+  die "missing password for sid=$sid and schema=$schema\n" if not defined $pw;
+  die "Unknown url for sid=$sid\n" if not defined $url;
+
+  run "gqlplus", "$schema/$pw\@$url:$port/$sid";
+}
+
+sub readSecrets(){
+  my @lines = `cat $secretsFile`;
+  my $dbs = {};
+  for my $line(@lines){
+    if($line =~ /^oracle\.([^\.]+)\.([^\.]+)\s*=\s*(.+)$/){
+      my ($sid, $schema, $pw) = ($1, $2, $3);
+      $$dbs{$sid} = {} if not defined $$dbs{$sid};
+      $$dbs{$sid}{$schema} = $pw;
+    }
+  }
+  return $dbs;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
