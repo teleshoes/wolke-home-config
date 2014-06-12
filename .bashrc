@@ -133,9 +133,9 @@ function spawn        { $@ & disown $@; }
 function spawnex      { $@ & disown && exit 0 $@; }
 function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
 
-function maven        { execAlarm mvn -Psdm $@; }
-function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
-function mc           { maven clean install $@; }
+function maven        { execAlarm mvn $@; }
+function m            { maven -Psdm -DskipTests -Dcheckstyle.skip=true install $@; }
+function mc           { maven -Psdm clean install $@; }
 function mck          { maven checkstyle:check $@; }
 
 function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
