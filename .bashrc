@@ -134,7 +134,8 @@ function spawnex      { $@ & disown && exit 0 $@; }
 function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
 
 function maven        { execAlarm mvn $@; }
-function m            { maven -Psdm -DskipTests -Dcheckstyle.skip=true install $@; }
+function mskip        { maven -DskipTests -Dcheckstyle.skip=true $@; }
+function m            { mskip -Psdm install $@; }
 function mc           { maven -Psdm clean install $@; }
 function mck          { maven checkstyle:check $@; }
 
