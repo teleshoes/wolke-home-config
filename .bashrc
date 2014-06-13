@@ -109,6 +109,7 @@ do alias $exitTypo='exit'; done
 
 alias time="command time"
 alias mkdir="mkdir -p"
+alias :q='exit'
 
 function vol          { pulse-vol $@; }
 function j            { fcron-job-toggle $@; }
@@ -118,7 +119,6 @@ function dus          { du -s * | sort -g $@; }
 function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo $@; }
 function gvim         { term vim $@; }
 function cx           { chmod +x $@; }
-function :q           { exit $@; }
 function shutdown     { poweroff $@; }
 function l            { ls -Al --color=auto $@; }
 function ll           { ls -Al --color=auto $@; }
