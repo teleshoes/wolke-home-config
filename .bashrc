@@ -165,7 +165,7 @@ function update-repo {
 
 
 function git-log() {
-  git logn $@
+  git logn "$@"
 }
 function git() {
   realgit="$(which git)"
