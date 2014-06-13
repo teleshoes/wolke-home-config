@@ -169,10 +169,15 @@ function git-log() {
 }
 function git() {
   realgit="$(which git)"
-  cmd="git-$1"
-  if [ "$(type -t $cmd)" = "function" ]; then
+  realcmd="$1"
+  fct="git-$realcmd"
+  if [ "$(type -t $fct)" = "function" ]; then
     shift
-    $cmd "$@"
+    $fct "$@"
+  elif [[ "$realcmd" == *-real ]]; then
+    shift
+    cmd=${realcmd%-real}
+    $realgit $cmd "$@"
   else
     $realgit "$@"
   fi
