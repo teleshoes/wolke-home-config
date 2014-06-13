@@ -128,10 +128,10 @@ function glxgears     { vblank_mode=0 glxgears $@; }
 function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
 function gparted      { spawnexsudo gparted $@; }
 
-function s            { $@ & disown $@; }
-function spawn        { $@ & disown $@; }
-function spawnex      { $@ & disown && exit 0 $@; }
-function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
+function s            { "$@" & disown; }
+function spawn        { "$@" & disown; }
+function spawnex      { "$@" & disown && exit 0; }
+function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
 function maven        { execAlarm mvn $@; }
 function mskip        { maven -DskipTests -Dcheckstyle.skip=true $@; }
