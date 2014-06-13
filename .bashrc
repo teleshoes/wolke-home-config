@@ -111,39 +111,39 @@ alias time="command time"
 alias mkdir="mkdir -p"
 alias :q='exit'
 
-function vol          { pulse-vol $@; }
-function j            { fcron-job-toggle $@; }
-function snapshot     { backup --snapshot $@; }
-function qgroups-info { backup --info --quick --sort-by=size $@; }
-function dus          { du -s * | sort -g $@; }
-function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo $@; }
-function gvim         { term vim $@; }
-function cx           { chmod +x $@; }
-function shutdown     { poweroff $@; }
-function l            { ls -Al --color=auto $@; }
-function ll           { ls -Al --color=auto $@; }
-function ld           { ls -dAl --color=auto $@; }
-function perms        { stat -c %a $@; }
-function glxgears     { vblank_mode=0 glxgears $@; }
-function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
-function gparted      { spawnexsudo gparted $@; }
+function vol          { pulse-vol "$@"; }
+function j            { fcron-job-toggle "$@"; }
+function snapshot     { backup --snapshot "$@"; }
+function qgroups-info { backup --info --quick --sort-by=size "$@"; }
+function dus          { du -s * | sort -g "$@"; }
+function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo; }
+function gvim         { term vim "$@"; }
+function cx           { chmod +x "$@"; }
+function shutdown     { poweroff "$@"; }
+function l            { ls -Al --color=auto "$@"; }
+function ll           { ls -Al --color=auto "$@"; }
+function ld           { ls -dAl --color=auto "$@"; }
+function perms        { stat -c %a "$@"; }
+function glxgears     { vblank_mode=0 glxgears "$@"; }
+function mnto         { sudo mnt --other --no-usb --no-card "$@"; }
+function gparted      { spawnexsudo gparted "$@"; }
 
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
-function maven        { execAlarm mvn $@; }
-function mskip        { maven -DskipTests -Dcheckstyle.skip=true $@; }
-function m            { mskip -Psdm install $@; }
-function mc           { maven -Psdm clean install $@; }
-function mck          { maven checkstyle:check $@; }
-function findmvn      { find $@ -not -path '*/target/*'; }
-function grepmvn      { grep $@ --exclude-dir=target; }
+function maven        { execAlarm mvn "$@"; }
+function mskip        { maven -DskipTests -Dcheckstyle.skip=true "$@"; }
+function m            { mskip -Psdm install "$@"; }
+function mc           { maven -Psdm clean install "$@"; }
+function mck          { maven checkstyle:check "$@"; }
+function findmvn      { find "$@" -not -path '*/target/*'; }
+function grepmvn      { grep "$@" --exclude-dir=target; }
 
-function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
-function genibatis    { ~/workspace/escribe/tools/genibatis.pl $@; }
-function migl         { gvim `~/migs/latest-script` $@; }
+function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
+function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
+function migl         { gvim `~/migs/latest-script` "$@"; }
 
 function execAlarm() {
   $@
