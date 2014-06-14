@@ -27,6 +27,8 @@ isMuted = fmap snd . getStatus
 getStatus :: String -> IO (Int, Bool)
 getStatus dev = do
   status <- readProc ["pulse-vol", dev]
-  let groups = regexGroups "(\\d+(?:\\.\\d+)?) \\((muted|unmuted|unknown)\\)" status
+  let groups = regexGroups
+                 "^(\\d+(?:\\.\\d+)?) \\((muted|unmuted|unknown)\\)$"
+                 status
   let [vol, mute] = fromMaybe ["0", "unknown"] groups
   return (floor $ (read vol :: Double), mute == "muted")
