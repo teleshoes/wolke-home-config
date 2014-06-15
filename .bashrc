@@ -110,6 +110,7 @@ do alias $exitTypo='exit'; done
 alias time="command time"
 alias mkdir="mkdir -p"
 alias :q='exit'
+alias :r='. /etc/profile; . ~/.bashrc;'
 
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
