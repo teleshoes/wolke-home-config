@@ -146,6 +146,22 @@ function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
 
+function find() {
+  if [[ "$PWD" =~ "escribe" ]]; then
+    findmvn $@
+  else
+    command find "$@"
+  fi
+}
+
+function grep() {
+  if [[ "$PWD" =~ "escribe" ]]; then
+    grepmvn $@
+  else
+    command grep "$@"
+  fi
+}
+
 function execAlarm() {
   $@
   exitCode="$?"
