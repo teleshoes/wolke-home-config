@@ -148,7 +148,7 @@ function migl         { gvim `~/migs/latest-script` "$@"; }
 
 function find() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    findmvn $@
+    findmvn "$@"
   else
     command find "$@"
   fi
@@ -156,7 +156,7 @@ function find() {
 
 function grep() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    grepmvn $@
+    grepmvn "$@"
   else
     command grep "$@"
   fi
