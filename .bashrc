@@ -139,8 +139,8 @@ function mskip        { maven -DskipTests -Dcheckstyle.skip=true "$@"; }
 function m            { mskip -Psdm install "$@"; }
 function mc           { maven -Psdm clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
-function findmvn      { find "$@" -not -path '*/target/*'; }
-function grepmvn      { grep "$@" --exclude-dir=target; }
+function findmvn      { command find "$@" -not -path '*/target/*'; }
+function grepmvn      { command grep "$@" --exclude-dir=target; }
 
 function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
