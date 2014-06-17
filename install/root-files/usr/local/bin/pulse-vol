@@ -64,11 +64,13 @@ my $usage = "Usage:
     note that sometimes the max level without amp is much lower
     {i.e. the default can blow your speakers if they suck}
 
-  MUTE-STATUS:  [mute|unmute|toggle]
+  MUTE-STATUS:  [mute|unmute|toggle|equal]
     [un]mutes all sinks or all sources
     mute: mutes all
     unmute: unmutes all
     toggle: if all are muted, unmutes all, otherwise mutes all
+    equal: if any are muted, mutes all, otherwise unmutes all
+           {ensures all devices are the same and runs the mute command}
 
   e.g.:
     $0 100
@@ -97,7 +99,7 @@ sub main(@){
     $relVol = shift;
     $maxVol = shift if @_ > 0 and $_[0] =~ /^\d+$/;
     $maxVol = 100 if not defined $maxVol;
-  }elsif(@_ > 0 and $_[0] =~ /^(mute|unmute|toggle)$/){
+  }elsif(@_ > 0 and $_[0] =~ /^(mute|unmute|toggle|equal)$/){
     $muteStatus = shift;
   }elsif(@_ == 1 and $_[0] =~ /^($allOkCmds)$/){
     $cmd = shift;
@@ -129,6 +131,8 @@ sub main(@){
       $muteVal = 0;
     }elsif($muteStatus eq 'toggle'){
       $muteVal = getMuteStatus($pacmdList) eq 'muted' ? '0' : '1';
+    }elsif($muteStatus eq 'equal'){
+      $muteVal = anyMuted($pacmdList) ? '1' : '0';
     }
     setMuteStatus($dev, $_, $muteVal) foreach @indices;
     system $muteSinkCmd if $muteVal eq 1 and $dev eq 'sink';
