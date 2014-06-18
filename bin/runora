@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+sub sqlplusExec();
 sub readSecrets();
 sub run(@);
 
@@ -34,7 +35,20 @@ sub main(@){
   die "missing password for sid=$sid and schema=$schema\n" if not defined $pw;
   die "Unknown url for sid=$sid\n" if not defined $url;
 
-  run "gqlplus", "$schema/$pw\@$url:$port/$sid";
+  my $sqlplus = sqlplusExec();
+  run $sqlplus, "$schema/$pw\@$url:$port/$sid";
+}
+
+sub sqlplusExec(){
+  my @execs = qw(gqlplus sqlplus);
+  my @paths;
+  push @paths, map {"./$_"} @execs;
+  push @paths, map {$_=`which $_`; chomp; $_} @execs;
+
+  for my $path(@paths){
+    return $path if -e $path and -x $path;
+  }
+  return undef;
 }
 
 sub readSecrets(){
