@@ -134,9 +134,7 @@ function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
-function maven        { execAlarm mvn "$@"; }
-function mskip        { maven -DskipTests -Dcheckstyle.skip=true "$@"; }
-function m            { mskip -Psdm install "$@"; }
+function m            { maven -Psdm install "$@"; }
 function mc           { maven -Psdm clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
@@ -145,6 +143,17 @@ function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen
 function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
+
+function maven() {
+  args=""
+  if ! [[ "$@" =~ (^| )test($| ) ]]; then
+    args="$args -DskipTests"
+  fi
+  if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
+    args="$args -Dcheckstyle.skip=true"
+  fi
+  execAlarm mvn "$args" "$@";
+}
 
 function find() {
   if [[ "$PWD" =~ "escribe" ]]; then
