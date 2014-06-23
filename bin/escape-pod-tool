@@ -3,17 +3,20 @@ use strict;
 use warnings;
 use utf8;
 
+my $baseUrl = "http://escapepod.org";
+
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $baseDir = "$ENV{HOME}/escapepod";
+my $htmlCacheDir = "$baseDir/html-cache";
 my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
 my $csvDelim = ';';
 my $forumUrl = "http://forum.escapeartists.net/index.php";
 
-sub parseHtml($$);
+sub parseHtml($$$);
 sub htmlCacheFile($);
-sub ensureHtmlCache($$);
+sub ensureHtmlCache($);
 sub checkHtmlCache($);
-sub attemptPutHtmlCache($$);
+sub attemptPutHtmlCache($);
 sub attemptGunzip($);
 sub readHtmlCache($);
 sub getMP3Url($);
@@ -56,6 +59,7 @@ my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
     Fetch episode list from $url.
     Parse it, and print certain info.
+    HTML is fetched using curl/wget and cached in $baseDir/html-cache
 
     --csv {default if no args specified}
       Print episode info in CSV with delim=$csvDelim
@@ -68,7 +72,6 @@ my $usage = "Usage:
         {runs 'cat $baseDir/wiki-out | xsel -b'}
     --mp3url
       Print the download URL, parsed from the escape pod article HTML.
-      HTML is fetched using curl/wget and cached in $baseDir/html-cache/EPNUM.html
     --mp3filename
       Same as --mp3url, but only print the filename
     --download
@@ -166,7 +169,7 @@ sub main(@){
       if(ensureHtmlCache $epNum, $articleUrl){
         my $ex = {};
         $ex = $$extraInfo{$epNum} if defined $$extraInfo{$epNum};
-        my $info = parseHtml $epNum, $ex;
+        my $info = parseHtml $epNum, $articleUrl, $ex;
 
         my $rating = $$info{rating};
         $rating = "" if $rating eq "?";
@@ -215,7 +218,7 @@ sub main(@){
     $ENV{PWD} = $mp3Dir;
     for my $epNum(sort keys %$eps){
       if(ensureHtmlCache $epNum, $$eps{$epNum}{articleUrl}){
-        my $mp3Url = getMP3Url $epNum;
+        my $mp3Url = getMP3Url $$eps{$epNum}{articleUrl};
         my $mp3FileName = $1 if $mp3Url =~ /([^\/]*\.mp3)$/;
         if($cmd eq '--mp3url'){
           print "$mp3Url\n";
@@ -237,9 +240,9 @@ sub main(@){
   exit $exitCode;
 }
 
-sub parseHtml($$){
-  my ($epNum, $ex) = @_;
-  my $html = readHtmlCache $epNum;
+sub parseHtml($$$){
+  my ($epNum, $url, $ex) = @_;
+  my $html = readHtmlCache $url;
 
   my $info = {};
 
@@ -412,35 +415,40 @@ sub parseHtml($$){
 }
 
 sub htmlCacheFile($){
-  my $epNum = shift;
-  return "$baseDir/html-cache/$epNum.html";
+  my $url = shift;
+  my $name = $url;
+  $name =~ s/^\Q$baseUrl\E//;
+  $name =~ s/^\///;
+  $name =~ s/\/$//;
+  $name =~ s/\//%%/g;
+  return "$htmlCacheDir/$name";
 }
 
-sub ensureHtmlCache($$){
-  my ($epNum, $articleUrl) = @_;
+sub ensureHtmlCache($){
+  my $url = shift;
   my $attempts;
-  return 1 if checkHtmlCache $epNum;
+  return 1 if checkHtmlCache $url;
 
   $attempts = 10;
-  while($attempts > 0 and not checkHtmlCache $epNum){
+  while($attempts > 0 and not checkHtmlCache $url){
     $attempts--;
-    attemptPutHtmlCache $epNum, $articleUrl;
+    attemptPutHtmlCache $url;
   }
-  if(not checkHtmlCache $epNum){
-    browserLoadArticle $articleUrl;
+  if(not checkHtmlCache $url){
+    browserLoadArticle $url;
   }
   $attempts = 10;
-  while($attempts > 0 and not checkHtmlCache $epNum){
+  while($attempts > 0 and not checkHtmlCache $url){
     $attempts--;
-    attemptPutHtmlCache $epNum, $articleUrl;
+    attemptPutHtmlCache $url;
   }
 
-  return checkHtmlCache $epNum;
+  return checkHtmlCache $url;
 }
 
 sub checkHtmlCache($){
-  my $epNum = shift;
-  my $cacheFile = htmlCacheFile $epNum;
+  my $url = shift;
+  my $cacheFile = htmlCacheFile $url;
   return 0 if not -e $cacheFile;
   my $html = `cat $cacheFile`;
   if($html =~ /<html/){
@@ -450,19 +458,20 @@ sub checkHtmlCache($){
   }
 }
 
-sub attemptPutHtmlCache($$){
-  my ($epNum, $articleUrl) = @_;
-  my $cacheFile = htmlCacheFile $epNum;
+sub attemptPutHtmlCache($){
+  my $url = shift;
 
-  run "curl -L \"$articleUrl\" -o \"$cacheFile\" 2>/dev/null";
-  return 1 if checkHtmlCache $epNum;
-  attemptGunzip($cacheFile);
-  return 1 if checkHtmlCache $epNum;
+  my $cacheFile = htmlCacheFile $url;
 
-  run "wget \"$articleUrl\" -O \"$cacheFile\" 2>/dev/null";
-  return 1 if checkHtmlCache $epNum;
+  run "curl -L \"$url\" -o \"$cacheFile\" 2>/dev/null";
+  return 1 if checkHtmlCache $url;
   attemptGunzip($cacheFile);
-  return 1 if checkHtmlCache $epNum;
+  return 1 if checkHtmlCache $url;
+
+  run "wget \"$url\" -O \"$cacheFile\" 2>/dev/null";
+  return 1 if checkHtmlCache $url;
+  attemptGunzip($cacheFile);
+  return 1 if checkHtmlCache $url;
 
   run "rm", "-f", $cacheFile;
   return 0;
@@ -480,9 +489,9 @@ sub attemptGunzip($){
 }
 
 sub readHtmlCache($){
-  my $epNum = shift;
-  my $cacheFile = htmlCacheFile $epNum;
-  die "Missing html file for $epNum\n" if not checkHtmlCache $epNum;
+  my $url = shift;
+  my $cacheFile = htmlCacheFile $url;
+  die "Missing html file for $url\n" if not checkHtmlCache $url;
   open FH, "< $cacheFile" or die "failed to read $cacheFile\n";
   my @lines = <FH>;
   close FH;
@@ -620,10 +629,10 @@ sub crawlForum(){
 }
 
 sub getMP3Url($){
-  my $epNum = shift;
-  my $html = readHtmlCache $epNum;
+  my $articleUrl = shift;
+  my $html = readHtmlCache $articleUrl;
   if($html !~ /href="([^"]*\.mp3)"/){
-    die "Could not read mp3 url for $epNum\n";
+    die "Could not read mp3 url for $articleUrl\n";
   }
   return $1;
 }
