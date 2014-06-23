@@ -2,12 +2,16 @@
 use strict;
 use warnings;
 use utf8;
+use List::Util qw(max);
 
 my $baseUrl = "http://escapepod.org";
+my $firstUrl = "$baseUrl/2005/05/12/ep001-imperial-by-jonathon-sullivan/";
 
 my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $baseDir = "$ENV{HOME}/escapepod";
 my $htmlCacheDir = "$baseDir/html-cache";
+my $urlOverridesFile = "$baseDir/url-overrides";
+
 my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
 my $csvDelim = ';';
 my $forumUrl = "http://forum.escapeartists.net/index.php";
@@ -21,6 +25,12 @@ sub attemptGunzip($);
 sub readHtmlCache($);
 sub getMP3Url($);
 sub browserLoadArticle($);
+sub ensureArticleUrlCache();
+sub getMissingArticleUrls($);
+sub getAllUrls();
+sub getNextUrl($);
+sub getArticleUrls();
+sub getUrlOverrides($);
 sub readAttCache($);
 sub writeAttCache($$);
 sub extraInfo();
@@ -113,6 +123,7 @@ sub main(@){
 
   my %okNums = map {$_ => 1} @nums;
 
+  ensureArticleUrlCache();
   my $html = `wget -O - $url 2>/dev/null`;
   my @epNums;
   my @tableRows;
@@ -504,6 +515,108 @@ sub browserLoadArticle($){
   system "uzbl $articleUrl >/dev/null 2>/dev/null &";
   sleep 5;
   system "pkill", "-f", "uzbl.*$articleUrl";
+}
+
+sub ensureArticleUrlCache(){
+  my $cache = readAttCache 'article-url-cache';
+  my @missing = getMissingArticleUrls $cache;
+  if(keys %$cache == 0 or @missing > 0){
+    $cache = getArticleUrls();
+    @missing = getMissingArticleUrls $cache;
+  }
+  if(@missing > 0){
+    print STDERR "Missing articles:\n" . join("\n", @missing) . "\n";
+  }
+  if(keys %$cache == 0 or @missing > 0){
+    die "article url cache is incomplete\n";
+  }
+  writeAttCache 'article-url-cache', $cache;
+  return $cache;
+}
+
+sub getMissingArticleUrls($){
+  my $cache = shift;
+  my @epNums = keys %$cache;
+  my @numericEpNums = map {s/[^0-9]+//g; 0+$_} @epNums;
+  my %okNumericEpNums = map {$_ => 1} @numericEpNums;
+  my $max = max @numericEpNums;
+  my @expectedNums = (1..$max);
+  my @missing = grep {not defined $okNumericEpNums{$_}} @expectedNums;
+  return @missing;
+}
+
+sub getAllUrls(){
+  my $url = $firstUrl;
+  my @urls;
+  while(defined $url){
+    attemptPutHtmlCache $url;
+    push @urls, $url;
+    $url = getNextUrl($url);
+  }
+  return @urls;
+}
+
+sub getNextUrl($){
+  my $url = shift;
+  my $html = readHtmlCache $url;
+  my @anchors = $html =~ /<a [^>]+>/g;
+  for my $anchor(@anchors){
+    if($anchor =~ /rel="next"/ and $anchor =~ /href="([^"]+)"/){
+      return $1;
+    }
+  }
+  return undef;
+}
+
+sub getArticleUrls(){
+  my $urlOverrides = getUrlOverrides($urlOverridesFile);
+  my $articleUrls = {};
+  my @errors;
+  for my $url(getAllUrls()){
+    my $num = undef;
+    my $skip = 0;
+    my $html = readHtmlCache $url;
+
+    my $title = $1 if $html =~ /<title[^>]*>([^<]*)<\/title>/;
+
+    my $regex = "(?:ep|escape ?pod|episode-?)-?(\\d+[a-b]?)";
+    if(defined $title and $title =~ /$regex/i){
+      $num = $1;
+    }elsif($url =~ /$regex/){
+      $num = $1;
+    }
+
+    if(defined $$urlOverrides{$url}){
+      if($$urlOverrides{$url} =~ /^(skip)$/i){
+        $skip = 1;
+      }elsif($$urlOverrides{$url} =~ /^(\d+[ab]?)$/){
+        $num = $1;
+      }
+    }
+
+    if(defined $num and not $skip){
+      die $usage if $num !~ /^(\d+)([ab]?)$/;
+      my $epNum = sprintf "%03d%s", $1+0, $2;
+      if(defined $$articleUrls{$epNum}){
+        push @errors, "duplicate url: \n$$articleUrls{$epNum}\n$url\n";
+      }
+      $$articleUrls{$epNum} = $url;
+    }
+  }
+  die @errors if @errors > 0;
+  return $articleUrls;
+}
+
+sub getUrlOverrides($){
+  my $file = shift;
+  my @lines = `cat $file 2>/dev/null`;
+  my $overrides = {};
+  for my $line(@lines){
+    if($line =~ /^(\d+[ab]?|skip) (.*)$/){
+      $$overrides{$2} = $1;
+    }
+  }
+  return $overrides;
 }
 
 sub readAttCache($){
