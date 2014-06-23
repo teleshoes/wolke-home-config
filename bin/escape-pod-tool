@@ -21,6 +21,7 @@ sub htmlCacheFile($);
 sub ensureHtmlCache($);
 sub checkHtmlCache($);
 sub attemptPutHtmlCache($);
+sub refetchHtmlCache($);
 sub attemptGunzip($);
 sub readHtmlCache($);
 sub getMP3Url($);
@@ -487,6 +488,20 @@ sub attemptPutHtmlCache($){
   return 0;
 }
 
+sub refetchHtmlCache($){
+  my $url = shift;
+
+  my $file = htmlCacheFile $url;
+  my $tmp = "$file.tmp";
+
+  run "mv", $file, $tmp;
+  if(ensureHtmlCache $url){
+    system "rm", $tmp;
+  }else{
+    system "mv", $tmp, $file;
+  }
+}
+
 sub attemptGunzip($){
   my $file = shift;
   if(-e $file){
@@ -550,7 +565,13 @@ sub getAllUrls(){
   while(defined $url){
     attemptPutHtmlCache $url;
     push @urls, $url;
-    $url = getNextUrl($url);
+    my $nextUrl = getNextUrl($url);
+    if(not defined $nextUrl){
+      print "\nrefetching $url\n";
+      refetchHtmlCache $url;
+      $nextUrl = getNextUrl($url);
+    }
+    $url = $nextUrl;
   }
   return @urls;
 }
