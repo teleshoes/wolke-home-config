@@ -6,15 +6,15 @@ use List::Util qw(max);
 
 my $baseUrl = "http://escapepod.org";
 my $firstUrl = "$baseUrl/2005/05/12/ep001-imperial-by-jonathon-sullivan/";
+my $wikiUrl = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
+my $forumUrl = "http://forum.escapeartists.net/index.php";
 
-my $url = 'https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes';
 my $baseDir = "$ENV{HOME}/escapepod";
 my $htmlCacheDir = "$baseDir/html-cache";
 my $urlOverridesFile = "$baseDir/url-overrides";
 
 my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
 my $csvDelim = ';';
-my $forumUrl = "http://forum.escapeartists.net/index.php";
 
 sub parseHtml($$$);
 sub htmlCacheFile($);
@@ -41,9 +41,6 @@ sub downloadMP3File($$$$);
 sub tagMP3File($$);
 sub newMP3FileName($);
 
-sub parseTableRow($);
-sub padl($$);
-
 sub csv($);
 sub cell($);
 
@@ -67,17 +64,16 @@ my $cmds = join "|", qw(
 );
 my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
-    Fetch episode list from $url.
-    Parse it, and print certain info.
+    Crawl $baseUrl and print information about each epiosde.
     HTML is fetched using curl/wget and cached in $baseDir/html-cache
 
     --csv {default if no args specified}
       Print episode info in CSV with delim=$csvDelim
     --url
-      Print the article url for each EPNUM, using the links in the above url.
+      Print the article url for each EPNUM
     --wiki
       Use article HTML pages and forums to generate output in the same format as
-        the wikipedia page.
+        the wikipedia page at $wikiUrl.
       Prints to stdout and to the file $baseDir/wiki-out, and copies to the clipboard.
         {runs 'cat $baseDir/wiki-out | xsel -b'}
     --mp3url
@@ -124,44 +120,40 @@ sub main(@){
   my %okNums = map {$_ => 1} @nums;
 
   ensureArticleUrlCache();
-  my $html = `wget -O - $url 2>/dev/null`;
-  my @epNums;
-  my @tableRows;
-  while($html =~ /<tr>\s*<td>(\d+[ab]?)<\/td>.*?<\/tr>/gs){
-    push @tableRows, $&;
-    push @epNums, $1;
+
+  my $articleUrls = readAttCache 'article-url-cache';
+  my @epNums = @nums;
+  @epNums = sort keys %$articleUrls if @nums == 0;
+
+  my $epInfo = {};
+  my $extraInfo = extraInfo();
+  for my $epNum(@epNums){
+    my $url = $$articleUrls{$epNum};
+    die "Missing article url for $epNum\n" if not defined $url;
+    my $ex = $$extraInfo{$epNum};
+    $$epInfo{$epNum} = parseHtml $epNum, $url, $ex;
   }
 
-  my $articleUrlCache = readAttCache 'article-url-cache';
-  my $eps = {};
-  for my $tableRow(@tableRows){
-    my $ep = parseTableRow $tableRow;
-    next if keys %okNums > 0 and not defined $okNums{$$ep{number}};
-    my $epNum = $$ep{number};
-    $$eps{$epNum} = $ep;
-    $$articleUrlCache{$epNum} = $$ep{articleUrl};
-  }
-  writeAttCache 'article-url-cache', $articleUrlCache;
   my $exitCode = 0;
 
   if($cmd eq '--csv'){
-    for my $epNum(sort keys %$eps){
-      print csv($$eps{$epNum}) . "\n";
+    for my $epNum(sort keys %$epInfo){
+      print csv($$epInfo{$epNum}) . "\n";
     }
   }elsif($cmd eq '--url'){
-    for my $epNum(sort keys %$eps){
-      print "$$eps{$epNum}{articleUrl}\n";
+    for my $epNum(sort keys %$epInfo){
+      print "$$epInfo{$epNum}{articleUrl}\n";
     }
   }elsif($cmd eq "--wiki"){
     if(@nums == 0){
-      for my $num(keys %$articleUrlCache){
+      for my $num(keys %$articleUrls){
         die $usage if $num !~ /^(\d+)([ab]?)$/;
         push @nums, sprintf "%03d%s", $1+0, $2;
       }
       @nums = sort @nums;
     }
 
-    my $isAllEps = @nums == keys %$articleUrlCache;
+    my $isAllEps = @nums == keys %$articleUrls;
     my $prefixFile = "$baseDir/wiki-prefix";
     my $suffixFile = "$baseDir/wiki-suffix";
 
@@ -174,13 +166,10 @@ sub main(@){
     }
 
     for my $epNum(reverse @nums){
-      my $articleUrl = $$articleUrlCache{$epNum};
-      my $extraInfo = extraInfo();
+      my $articleUrl = $$articleUrls{$epNum};
       my $personLinks = personLinks();
-      if(ensureHtmlCache $epNum, $articleUrl){
-        my $ex = {};
-        $ex = $$extraInfo{$epNum} if defined $$extraInfo{$epNum};
-        my $info = parseHtml $epNum, $articleUrl, $ex;
+      if(ensureHtmlCache $articleUrl){
+        my $info = $$epInfo{$epNum};
 
         my $rating = $$info{rating};
         $rating = "" if $rating eq "?";
@@ -198,7 +187,7 @@ sub main(@){
         my $num = sprintf "%d%s", $1+0, $2;
 
         my $note = '';
-        $note = " $$ex{note}" if defined $$ex{note};
+        $note = " $$info{note}" if defined $$info{note};
         my $fmt = ''
           . "|-\n| " . ($num)
           . " || [$articleUrl $$info{title}]$note"
@@ -227,20 +216,21 @@ sub main(@){
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
     chdir $mp3Dir;
     $ENV{PWD} = $mp3Dir;
-    for my $epNum(sort keys %$eps){
-      if(ensureHtmlCache $epNum, $$eps{$epNum}{articleUrl}){
-        my $mp3Url = getMP3Url $$eps{$epNum}{articleUrl};
+    for my $epNum(sort keys %$epInfo){
+      my $articleUrl = $$epInfo{$epNum}{articleUrl};
+      if(ensureHtmlCache $articleUrl){
+        my $mp3Url = getMP3Url $articleUrl;
         my $mp3FileName = $1 if $mp3Url =~ /([^\/]*\.mp3)$/;
         if($cmd eq '--mp3url'){
           print "$mp3Url\n";
         }elsif($cmd eq '--mp3filename'){
           print "$mp3FileName\n";
         }elsif($cmd eq '--download'){
-          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum}, 1);
+          downloadMP3File($mp3Url, $mp3FileName, $$epInfo{$epNum}, 1);
         }elsif($cmd eq '--download-only'){
-          downloadMP3File($mp3Url, $mp3FileName, $$eps{$epNum}, 0);
+          downloadMP3File($mp3Url, $mp3FileName, $$epInfo{$epNum}, 0);
         }elsif($cmd eq '--tag'){
-          tagMP3File($mp3FileName, $$eps{$epNum});
+          tagMP3File($mp3FileName, $$epInfo{$epNum});
         }
       }else{
         print "   ERROR: $epNum\n";
@@ -256,6 +246,9 @@ sub parseHtml($$$){
   my $html = readHtmlCache $url;
 
   my $info = {};
+  $$info{number} = $epNum;
+  $$info{articleUrl} = $url;
+  $$info{date} = $1 if $url =~ /^$baseUrl\/(\d+\/\d+\/\d+)/;
 
   my @atts = qw(title author reader rating duration forum);
 
@@ -277,6 +270,10 @@ sub parseHtml($$$){
 
   my $htmlNoMeta = $html;
   $htmlNoMeta =~ s/<meta$ws*[^>]*>//g;
+
+  if(defined $$ex{note}){
+    $$info{note} = $$ex{note};
+  }
 
   if(defined $$ex{title}){
     $$info{title} = $$ex{title};
@@ -798,39 +795,6 @@ sub newMP3FileName($){
   $newFileName =~ s/\//_/g;
   return $newFileName;
 }
-
-sub parseTableRow($){
-  my $tr = shift;
-
-  $tr =~ /href="(http:\/\/escapepod.org\/(\d+\/\d+\/\d+)\/[^"]*)"/;
-  my $articleUrl = $1;
-  my $date = $2;
-
-  $tr =~ s/<sup.*?<\/sup>//gsxi;
-  $tr =~ s/\n/ /g;
-  $tr =~ s/<a [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* a \s* >/$1/gsxi;
-  $tr =~ s/\s*<td [^<>]* >  \s*(.*?)\s*  < \s* \/ \s* td \s* >\s*/<>$1/gsxi;
-  $tr =~ s/^\s*<tr>\s*<>(.*)<>\s*(EPF|none)\s*<\/tr>\s*$/$1/;
-  if($tr =~ /^(\d+)([ab]?)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)<>([^<]*)$/){
-    return {
-      number => padl(3, $1) . $2,
-      title => $3,
-      author => $4,
-      reader => $5,
-      rating => $6,
-      duration => $7,
-      articleUrl => $articleUrl,
-      date => $date,
-    };
-  }else{
-    die "fucked up episode: $tr\n";
-  }
-}
-sub padl($$){
-  my ($len, $n) = @_;
-  return ('0'x($len - length $n)) . $n;
-}
-
 
 sub csv($){
   my $ep = shift;
