@@ -131,14 +131,15 @@ sub main(@){
     my $url = $$articleUrls{$epNum};
     die "Missing article url for $epNum\n" if not defined $url;
     my $ex = $$extraInfo{$epNum};
-    $$epInfo{$epNum} = parseHtml $epNum, $url, $ex;
+    $$epInfo{$epNum} = sub{parseHtml $epNum, $url, $ex};
   }
 
   my $exitCode = 0;
 
   if($cmd eq '--csv'){
     for my $epNum(sort keys %$epInfo){
-      print csv($$epInfo{$epNum}) . "\n";
+      my $info = &{$$epInfo{$epNum}}();
+      print csv($info) . "\n";
     }
   }elsif($cmd eq '--url'){
     for my $epNum(sort keys %$epInfo){
@@ -169,7 +170,7 @@ sub main(@){
       my $articleUrl = $$articleUrls{$epNum};
       my $personLinks = personLinks();
       if(ensureHtmlCache $articleUrl){
-        my $info = $$epInfo{$epNum};
+        my $info = &{$$epInfo{$epNum}}();
 
         my $rating = $$info{rating};
         $rating = "" if $rating eq "?";
