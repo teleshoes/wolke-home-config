@@ -9,12 +9,15 @@ my $firstUrl = "$baseUrl/2005/05/12/ep001-imperial-by-jonathon-sullivan/";
 my $wikiUrl = "https://en.wikipedia.org/wiki/List_of_Escape_Pod_episodes";
 my $forumUrl = "http://forum.escapeartists.net/index.php";
 my $forumBoard = "1";
+my $podcastInitials = "EP";
+my $podcastName = "Escape Pod";
+my $podcastRegex = "(?:(?:escape\\s*pod|ep|episode)-?)";
 
 my $baseDir = "$ENV{HOME}/escapepod";
 my $htmlCacheDir = "$baseDir/html-cache";
 my $urlOverridesFile = "$baseDir/url-overrides";
 
-my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/Escape Pod";
+my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/$podcastName";
 my $csvDelim = ';';
 
 sub parseHtml($$$);
@@ -82,7 +85,7 @@ my $usage = "Usage:
       Prints to stdout and to the file $baseDir/wiki-out, and copies to the clipboard.
         {runs 'cat $baseDir/wiki-out | xsel -b'}
     --mp3url
-      Print the download URL, parsed from the escape pod article HTML.
+      Print the download URL, parsed from the article HTML.
     --mp3filename
       Same as --mp3url, but only print the filename
     --download
@@ -102,14 +105,14 @@ my $usage = "Usage:
         title = \"TITLE\"
         author = \"AUTHOR [READER]\"
         tracknumber = \"EPNUM\"
-        album = \"Escape Pod\"
+        album = \"$podcastName\"
       Rename the file from mp3filename => \"###EPNUM TITLE.mp3\"
       {with /s removed}
 
   $0 --refetch-url
     Refresh article url cache
 
-  EPNUM: escape pod episode number. if none are specified, all are used.
+  EPNUM: podcast episode number. if none are specified, all are used.
 ";
 
 sub main(@){
@@ -193,7 +196,7 @@ sub main(@){
 
         my $forum;
         if($$info{forum} ne "?"){
-          $forum = "[$forumUrl?topic=$$info{forum} EPF]";
+          $forum = "[$forumUrl?topic=$$info{forum} ${podcastInitials}F]";
         }else{
           $forum = "none";
         }
@@ -295,8 +298,8 @@ sub parseHtml($$$){
   }elsif($html =~ /<title>(.*)<\/title>/i){
     my $title = $1;
     utf8::decode $title;
-    $title =~ s/[:\.\-]\s*Escape\s*Pod\s*//g;
-    $title =~ s/^\s*(EP|Escape\s*Pod|Episode)\s*\d+[ab]?[:\-]?//i;
+    $title =~ s/[:\.\-]\s*$podcastName\s*//g;
+    $title =~ s/^\s*($podcastRegex)\s*\d+[ab]?[:\-]?//i;
     $title =~ s/^\s*//;
     $title =~ s/\s*$//;
     $title =~ s/&#039;/'/g;
@@ -617,7 +620,7 @@ sub getArticleUrls(){
 
     my $title = $1 if $html =~ /<title[^>]*>([^<]*)<\/title>/;
 
-    my $regex = "(?:ep|escape ?pod|episode-?)-?(\\d+[a-b]?)";
+    my $regex = "(?:$podcastRegex)-?(\\d+[a-b]?)";
     if(defined $title and $title =~ /$regex/i){
       $num = $1;
     }elsif($url =~ /$regex/){
@@ -765,7 +768,11 @@ sub crawlForum(){
     my $url = "$forumUrl?board=$board";
     my $html = `curl -L \"$url\" 2>/dev/null`;
     my $pageArticles = [];
-    while($html =~ /<a href="[^"]*topic=(\d+\.\d+)">EP(\d+[ab]?)[^*]/g){
+    while($html =~ /
+        <a\s*href="[^"]*topic=(\d+\.\d+)">
+        \s*$podcastRegex\s*
+        (\d+[ab]?)[^*]
+    /gxi){
       $$epArticles{$2} = $1;
       push @$pageArticles, $2;
     }
@@ -820,7 +827,7 @@ sub tagMP3File($$){
     "--TPE1", $$ep{author},
     "--TPE2", $$ep{reader},
     "--TRCK", $num,
-    "--TALB", "Escape Pod",
+    "--TALB", $podcastName,
     "--TYER", $$ep{date},
     $oldFileName;
 
