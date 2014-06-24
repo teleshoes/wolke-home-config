@@ -4,20 +4,44 @@ use warnings;
 use utf8;
 use List::Util qw(max);
 
-my $baseUrl = "http://escapepod.org";
-my $firstUrl = "$baseUrl/2005/05/12/ep001-imperial-by-jonathon-sullivan/";
-my $forumUrl = "http://forum.escapeartists.net/index.php";
-my $forumBoard = "1";
-my $podcastInitials = "EP";
-my $podcastName = "Escape Pod";
-my $podcastRegex = "(?:(?:escape\\s*pod|ep|episode)-?)";
+sub getConfig($);
 
-my $baseDir = "$ENV{HOME}/escapepod";
-my $htmlCacheDir = "$baseDir/html-cache";
-my $urlOverridesFile = "$baseDir/url-overrides";
+my $escapePodConfig = getConfig({
+  podcastName => 'Escape Pod',
+  podcastWord => 'escapepod',
+  podcastInitials => 'EP',
+  firstUrlSuffix => '2005/05/12/ep001-imperial-by-jonathon-sullivan/',
+  forumBoard => '1',
+});
 
-my $mp3Dir = "$ENV{HOME}/Desktop/Music/books/$podcastName";
-my $csvDelim = ';';
+sub getConfig($){
+  my $base = shift;
+  my $podcastWordsRe = " $$base{podcastWord} ";
+  $podcastWordsRe =~ s/pod/ pod /i;
+  $podcastWordsRe =~ s/\s+/\\s*/g;
+
+  my $baseDir = "$ENV{HOME}/$$base{podcastWord}";
+
+  return {%$base,
+    baseUrl => "http://$$base{podcastWord}.org",
+    firstUrl => "http://$$base{podcastWord}.org/$$base{firstUrlSuffix}",
+    forumUrl => "http://forum.escapeartists.net/index.php",
+    podcastRegex => "(?:"
+      . "(?:$podcastWordsRe|$$base{podcastInitials}|episode)"
+      . "\\s*-?\\s*"
+      . "(?:episode-?\\s*)?"
+      . ")",
+
+    baseDir => "$baseDir",
+    htmlCacheDir => "$baseDir/html-cache",
+    urlOverridesFile => "$baseDir/url-overrides",
+
+    mp3Dir => "$ENV{HOME}/Desktop/Music/books/$$base{podcastName}",
+    csvDelim => ';',
+  };
+}
+
+my $config = $escapePodConfig;
 
 sub parseHtml($$$);
 sub htmlCacheFile($);
@@ -71,23 +95,23 @@ my $cmds = join "|", qw(
 );
 my $usage = "Usage:
   $0 [$cmds [EPNUM EPNUM ..]]
-    Crawl $baseUrl and print information about each epiosde.
-    HTML is fetched using curl/wget and cached in $baseDir/html-cache
+    Crawl BASE_URL and print information about each epiosde.
+    HTML is fetched using curl/wget and cached in BASE_DIR/html-cache
 
     --csv {default if no args specified}
-      Print episode info in CSV with delim=$csvDelim
+      Print episode info in CSV with delim=CSV_DELIM
     --url
       Print the article url for each EPNUM
     --wiki
       Use article HTML pages and forums to generate output in wikipedia-list format.
-      Prints to stdout and to the file $baseDir/wiki-out, and copies to the clipboard.
-        {runs 'cat $baseDir/wiki-out | xsel -b'}
+      Prints to stdout and to the file BASE_DIR/wiki-out, and copies to the clipboard.
+        {runs 'cat BASE_DIR/wiki-out | xsel -b'}
     --mp3url
       Print the download URL, parsed from the article HTML.
     --mp3filename
       Same as --mp3url, but only print the filename
     --download
-      Get mp3url and download it with axel, then --tag it as below.
+      Get mp3url and download it with axel to MP3_DIR, then --tag it as below.
       Skip an EPNUM if the mp3filename
         or a file named \"###EPNUM TITLE.mp3\"
         is already present in the current dir.
@@ -103,7 +127,8 @@ my $usage = "Usage:
         title = \"TITLE\"
         author = \"AUTHOR [READER]\"
         tracknumber = \"EPNUM\"
-        album = \"$podcastName\"
+        album = \"PODCAST_NAME\"
+        date = \"DATE\"
       Rename the file from mp3filename => \"###EPNUM TITLE.mp3\"
       {with /s removed}
 
@@ -111,6 +136,15 @@ my $usage = "Usage:
     Refresh article url cache
 
   EPNUM: podcast episode number. if none are specified, all are used.
+  TITLE: the title as fetched from the html and extra-info
+  AUTHOR: the author as fetched from the html and extra-info
+  READER: the reader as fetched from the html and extra-info
+  DATE: the date as indicated in the article URL
+
+  PODCAST_NAME:       $$escapePodConfig{podcastName}
+  BASE_URL:           $$escapePodConfig{baseUrl}
+  MP3_DIR:            $$escapePodConfig{mp3Dir}
+  BASE_DIR:           $$escapePodConfig{baseDir}
 ";
 
 sub main(@){
@@ -170,10 +204,10 @@ sub main(@){
     }
 
     my $isAllEps = @nums == keys %$articleUrls;
-    my $prefixFile = "$baseDir/wiki-prefix";
-    my $suffixFile = "$baseDir/wiki-suffix";
+    my $prefixFile = "$$config{baseDir}/wiki-prefix";
+    my $suffixFile = "$$config{baseDir}/wiki-suffix";
 
-    open OUT, "> $baseDir/wiki-out";
+    open OUT, "> $$config{baseDir}/wiki-out";
 
     if($isAllEps and -e $prefixFile){
       my $prefix = `cat $prefixFile`;
@@ -192,9 +226,12 @@ sub main(@){
         $rating =~ s/^\s*//;
         $rating =~ s/\s*$//;
 
+        my $forumUrl = $$config{forumUrl};
+        my $initials = $$config{podcastInitials};
+
         my $forum;
         if($$info{forum} ne "?"){
-          $forum = "[$forumUrl?topic=$$info{forum} ${podcastInitials}F]";
+          $forum = "[$forumUrl?topic=$$info{forum} ${initials}F]";
         }else{
           $forum = "none";
         }
@@ -228,10 +265,10 @@ sub main(@){
       print OUT $suffix;
     }
     close OUT;
-    run "cat $baseDir/wiki-out | xsel -b";
+    run "cat $$config{baseDir}/wiki-out | xsel -b";
   }elsif($cmd =~ /^(--mp3url|--mp3filename|--download|--download-only|--tag)/){
-    chdir $mp3Dir;
-    $ENV{PWD} = $mp3Dir;
+    chdir $$config{mp3Dir};
+    $ENV{PWD} = $$config{mp3Dir};
     for my $epNum(sort keys %$epInfo){
       my $articleUrl = $$epInfo{$epNum}{articleUrl};
       if(ensureHtmlCache $articleUrl){
@@ -264,11 +301,11 @@ sub parseHtml($$$){
   my $info = {};
   $$info{number} = $epNum;
   $$info{articleUrl} = $url;
-  $$info{date} = $1 if $url =~ /^$baseUrl\/(\d+\/\d+\/\d+)/;
+  $$info{date} = $1 if $url =~ /^$$config{baseUrl}\/(\d+\/\d+\/\d+)/;
 
   my @atts = qw(title author reader rating duration forum);
 
-  my $mp3 = `ls "$mp3Dir"/$epNum*.mp3 2>/dev/null`;
+  my $mp3 = `ls "$$config{mp3Dir}"/$epNum*.mp3 2>/dev/null`;
   chomp $mp3;
 
   my $b = "(?:<\\/?\\s*(?:b|strong)[^>]*>)";
@@ -296,8 +333,8 @@ sub parseHtml($$$){
   }elsif($html =~ /<title>(.*)<\/title>/i){
     my $title = $1;
     utf8::decode $title;
-    $title =~ s/[:\.\-]\s*$podcastName\s*//g;
-    $title =~ s/^\s*($podcastRegex)\s*\d+[ab]?[:\-]?//i;
+    $title =~ s/[:\.\-]\s*$$config{podcastName}\s*//g;
+    $title =~ s/^\s*($$config{podcastRegex})\s*\d+[ab]?[:\-]?//i;
     $title =~ s/^\s*//;
     $title =~ s/\s*$//;
     $title =~ s/&#039;/'/g;
@@ -441,11 +478,11 @@ sub parseHtml($$$){
 sub htmlCacheFile($){
   my $url = shift;
   my $name = $url;
-  $name =~ s/^\Q$baseUrl\E//;
+  $name =~ s/^\Q$$config{baseUrl}\E//;
   $name =~ s/^\///;
   $name =~ s/\/$//;
   $name =~ s/\//%%/g;
-  return "$htmlCacheDir/$name";
+  return "$$config{htmlCacheDir}/$name";
 }
 
 sub ensureHtmlCache($){
@@ -485,7 +522,7 @@ sub checkHtmlCache($){
 sub attemptPutHtmlCache($){
   my $url = shift;
 
-  run "mkdir", "-p", $htmlCacheDir if not -d $htmlCacheDir;
+  run "mkdir", "-p", $$config{htmlCacheDir} if not -d $$config{htmlCacheDir};
   my $cacheFile = htmlCacheFile $url;
   return 1 if checkHtmlCache $url;
 
@@ -575,10 +612,10 @@ sub getMissingArticleUrls($){
 }
 
 sub getAllUrls(){
-  my $url = $firstUrl;
+  my $url = $$config{firstUrl};
   my @urls;
 
-  print STDERR "fetching all posts from $baseUrl\n";
+  print STDERR "fetching all posts from $$config{baseUrl}\n";
   while(defined $url){
     print STDERR ".";
     attemptPutHtmlCache $url;
@@ -608,7 +645,7 @@ sub getNextUrl($){
 }
 
 sub getArticleUrls(){
-  my $urlOverrides = getUrlOverrides($urlOverridesFile);
+  my $urlOverrides = getUrlOverrides($$config{urlOverridesFile});
   my $articleUrls = {};
   my @errors;
   for my $url(getAllUrls()){
@@ -618,7 +655,7 @@ sub getArticleUrls(){
 
     my $title = $1 if $html =~ /<title[^>]*>([^<]*)<\/title>/;
 
-    my $regex = "(?:$podcastRegex)-?(\\d+[a-b]?)";
+    my $regex = "(?:$$config{podcastRegex})-?(\\d+[a-b]?)";
     if(defined $title and $title =~ /$regex/i){
       $num = $1;
     }elsif($url =~ /$regex/){
@@ -660,7 +697,7 @@ sub getUrlOverrides($){
 
 sub readAttCache($){
   my $name = shift;
-  my $cacheFile = "$baseDir/$name";
+  my $cacheFile = "$$config{baseDir}/$name";
   my @lines = `cat $cacheFile 2>/dev/null`;
   my $cache = {};
   for my $line(@lines){
@@ -673,7 +710,7 @@ sub readAttCache($){
 
 sub writeAttCache($$){
   my ($name, $cache) = @_;
-  my $cacheFile = "$baseDir/$name";
+  my $cacheFile = "$$config{baseDir}/$name";
   my $s = '';
   open FH, "> $cacheFile" or die "Couldnt write to $cacheFile\n";
   for my $epNum(sort {$a cmp $b} keys %$cache){
@@ -684,7 +721,7 @@ sub writeAttCache($$){
 }
 
 sub extraInfo(){
-  my $file = "$baseDir/extra-info";
+  my $file = "$$config{baseDir}/extra-info";
   my $extraInfo = {};
   for my $line(`cat $file`){
     $line =~ s/#.*//;
@@ -699,7 +736,7 @@ sub extraInfo(){
 }
 
 sub personLinks(){
-  my $file = "$baseDir/person-links";
+  my $file = "$$config{baseDir}/person-links";
   my $personLinks = {};
   for my $line(`cat $file`){
     $line =~ s/#.*//;
@@ -762,15 +799,15 @@ sub crawlForum(){
   my $epTopics = {};
   my $prevEps = [];
   while($page < 50){
-    my $board = "$forumBoard." . (20*$page);
-    my $url = "$forumUrl?board=$board";
+    my $board = "$$config{forumBoard}." . (20*$page);
+    my $url = "$$config{forumUrl}?board=$board";
     my $html = `curl -L \"$url\" 2>/dev/null`;
     my $pageEps = [];
     my $forumAnchor = "";
     my %eps;
     while($html =~ /
         <a\s*href="[^"]*topic=(\d+\.\d+)">
-        \s*$podcastRegex\s*
+        \s*$$config{podcastRegex}\s*
         (\d+[ab]?)[^*]
     /gxi){
       my ($topic, $ep) = ($1, $2);
@@ -834,7 +871,7 @@ sub tagMP3File($$){
     "--TPE1", $$ep{author},
     "--TPE2", $$ep{reader},
     "--TRCK", $num,
-    "--TALB", $podcastName,
+    "--TALB", $$config{podcastName},
     "--TYER", $$ep{date},
     $oldFileName;
 
@@ -861,12 +898,12 @@ sub csv($){
     cell $$ep{date},
     cell $$ep{articleUrl},
   );
-  return join ($csvDelim, @cols);
+  return join ($$config{csvDelim}, @cols);
 }
 sub cell($){
   my $cell = shift;
   $cell =~ s/\&amp;/\&/g;
-  if($cell =~ /\Q$csvDelim\E/ or $cell =~ /\Q"\E/){
+  if($cell =~ /\Q$$config{csvDelim}\E/ or $cell =~ /\Q"\E/){
     $cell =~ s/"/""/g;
     $cell = "\"$cell\"";
     return $cell;
