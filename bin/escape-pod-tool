@@ -56,7 +56,7 @@ sub getConfig($){
 }
 
 
-sub parseHtml($$$);
+sub parseHtml($$$$);
 sub htmlCacheFile($);
 sub ensureHtmlCache($);
 sub checkHtmlCache($);
@@ -204,6 +204,7 @@ sub main(@){
   ensureArticleUrlCache();
   my $articleUrls = readAttCache 'article-url-cache';
   my @allEpNums = sort keys %$articleUrls;
+  my $maxEpNum = $allEpNums[-1];
 
   for my $range(@ranges){
     my $low = $$range[0];
@@ -226,7 +227,8 @@ sub main(@){
     my $url = $$articleUrls{$epNum};
     die "Missing article url for $epNum\n" if not defined $url;
     my $ex = $$extraInfo{$epNum};
-    $$epInfo{$epNum} = sub{parseHtml $epNum, $url, $ex};
+    my $isLast = $epNum eq $maxEpNum ? 1 : 0;
+    $$epInfo{$epNum} = sub{parseHtml $epNum, $url, $ex, $isLast};
   }
 
   my $exitCode = 0;
@@ -342,8 +344,8 @@ sub main(@){
   exit $exitCode;
 }
 
-sub parseHtml($$$){
-  my ($epNum, $url, $ex) = @_;
+sub parseHtml($$$$){
+  my ($epNum, $url, $ex, $isLast) = @_;
   my $html = readHtmlCache $url;
 
   my $info = {};
@@ -522,7 +524,14 @@ sub parseHtml($$$){
   }
 
   for my $att(@atts){
-    die "Missing '$att' for $epNum\n" if not defined $$info{$att};
+    if(not defined $$info{$att}){
+      print STDERR "Missing '$att' for $epNum\n";
+      if($isLast){
+        $$info{$att} = "?";
+      }else{
+        exit 1;
+      }
+    }
   }
 
   return $info;
