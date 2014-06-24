@@ -162,6 +162,7 @@ my $usage = "Usage:
       BASE_DIR:     $$podcastConfigs{podcastle}{baseDir}
 
   EPNUM: podcast episode number. if none are specified, all are used.
+         a range can be specified as [LOW-HIGH] => LOW <= EPNUM <= HIGH
   TITLE: the title as fetched from the html and extra-info
   AUTHOR: the author as fetched from the html and extra-info
   READER: the reader as fetched from the html and extra-info
@@ -186,20 +187,38 @@ sub main(@){
   }
 
   my @nums;
+  my @ranges;
   for my $num(@_){
-    die $usage if $num !~ /^(\d+)([ab]?)$/;
-    my $epNum = sprintf "%03d%s", $1+0, $2;
-    push @nums, $epNum;
+    if($num =~ /^(\d+)([ab]?)$/){
+      my $epNum = sprintf "%03d%s", $1+0, $2;
+      push @nums, $epNum;
+    }elsif($num =~ /^\[(\d+)([ab]?)-(\d+)([ab]?)\]$/){
+      my $epNumLow = sprintf "%03d%s", $1+0, $2;
+      my $epNumHigh = sprintf "%03d%s", $3+0, $4;
+      push @ranges, [$epNumLow, $epNumHigh];
+    }else{
+      die $usage;
+    }
   }
-  die $usage if (grep {$_ !~ /^\d+[ab]?$/} @nums) > 0;
-
-  my %okNums = map {$_ => 1} @nums;
 
   ensureArticleUrlCache();
-
   my $articleUrls = readAttCache 'article-url-cache';
-  my @epNums = @nums;
-  @epNums = sort keys %$articleUrls if @nums == 0;
+  my @allEpNums = sort keys %$articleUrls;
+
+  for my $range(@ranges){
+    my $low = $$range[0];
+    my $high = $$range[1];
+    for my $epNum(@allEpNums){
+      push @nums, $epNum if $low le $epNum && $epNum le $high;
+    }
+  }
+
+  my @epNums = @nums == 0 ? @allEpNums : @nums;
+
+  die $usage if (grep {$_ !~ /^\d+[ab]?$/} @epNums) > 0;
+
+  my %okNums = map {$_ => 1} @epNums;
+
 
   my $epInfo = {};
   my $extraInfo = extraInfo();
