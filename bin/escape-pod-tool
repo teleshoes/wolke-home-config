@@ -6,13 +6,20 @@ use List::Util qw(max);
 
 sub getConfig($);
 
-my $escapePodConfig = getConfig({
-  podcastName => 'Escape Pod',
-  podcastWord => 'escapepod',
-  podcastInitials => 'EP',
-  firstUrlSuffix => '2005/05/12/ep001-imperial-by-jonathon-sullivan/',
-  forumBoard => '1',
-});
+my $config = undef;
+my @podcasts = qw(escapepod);
+my $defaultPodcast = "escapepod";
+my $okPodcasts = join "|", map {"--$_"} @podcasts;
+
+my $podcastConfigs = {
+  escapepod => getConfig({
+    podcastName => 'Escape Pod',
+    podcastWord => 'escapepod',
+    podcastInitials => 'EP',
+    firstUrlSuffix => '2005/05/12/ep001-imperial-by-jonathon-sullivan/',
+    forumBoard => '1',
+  }),
+};
 
 sub getConfig($){
   my $base = shift;
@@ -41,7 +48,6 @@ sub getConfig($){
   };
 }
 
-my $config = $escapePodConfig;
 
 sub parseHtml($$$);
 sub htmlCacheFile($);
@@ -94,7 +100,7 @@ my $cmds = join "|", qw(
   --refetch-url
 );
 my $usage = "Usage:
-  $0 [$cmds [EPNUM EPNUM ..]]
+  $0 [PODCAST] [$cmds [EPNUM EPNUM ..]]
     Crawl BASE_URL and print information about each epiosde.
     HTML is fetched using curl/wget and cached in BASE_DIR/html-cache
 
@@ -132,8 +138,16 @@ my $usage = "Usage:
       Rename the file from mp3filename => \"###EPNUM TITLE.mp3\"
       {with /s removed}
 
-  $0 --refetch-url
+  $0 [PODCAST] --refetch-url
     Refresh article url cache
+
+  PODCAST: one of \"$okPodcasts\", default is $defaultPodcast
+    determines the following configurations
+    --escapepod:
+      PODCAST_NAME: $$podcastConfigs{escapepod}{podcastName}
+      BASE_URL:     $$podcastConfigs{escapepod}{baseUrl}
+      MP3_DIR:      $$podcastConfigs{escapepod}{mp3Dir}
+      BASE_DIR:     $$podcastConfigs{escapepod}{baseDir}
 
   EPNUM: podcast episode number. if none are specified, all are used.
   TITLE: the title as fetched from the html and extra-info
@@ -141,13 +155,14 @@ my $usage = "Usage:
   READER: the reader as fetched from the html and extra-info
   DATE: the date as indicated in the article URL
 
-  PODCAST_NAME:       $$escapePodConfig{podcastName}
-  BASE_URL:           $$escapePodConfig{baseUrl}
-  MP3_DIR:            $$escapePodConfig{mp3Dir}
-  BASE_DIR:           $$escapePodConfig{baseDir}
 ";
 
 sub main(@){
+  my $podcast = shift if @_ > 0 and $_[0] =~ /^($okPodcasts)$/;
+  $podcast = $defaultPodcast if not defined $podcast;
+  $podcast =~ s/^--//;
+  $config = $$podcastConfigs{$podcast};
+
   my $cmd = shift;
   $cmd = '--csv' if not defined $cmd;
   die $usage if $cmd !~ /^($cmds)$/;
