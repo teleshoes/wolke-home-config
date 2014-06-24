@@ -761,30 +761,39 @@ sub fmtPersonLink($$){
 
 sub crawlForum(){
   my $page = 0;
-  my $epArticles = {};
-  my $prevArticles = [];
+  my $epTopics = {};
+  my $prevEps = [];
   while($page < 50){
     my $board = "$forumBoard." . (20*$page);
     my $url = "$forumUrl?board=$board";
     my $html = `curl -L \"$url\" 2>/dev/null`;
-    my $pageArticles = [];
+    my $pageEps = [];
+    my $forumAnchor = "";
+    my %eps;
     while($html =~ /
         <a\s*href="[^"]*topic=(\d+\.\d+)">
         \s*$podcastRegex\s*
         (\d+[ab]?)[^*]
     /gxi){
-      $$epArticles{$2} = $1;
-      push @$pageArticles, $2;
+      my ($topic, $ep) = ($1, $2);
+      $eps{$ep} = $topic;
     }
-    print "@$pageArticles\n";
-    if(arrEquals $pageArticles, $prevArticles){
+    for my $ep(keys %eps){
+      my $topic = $eps{$ep};
+      die "malformed forum link\n" if $ep !~ /^(\d+)([ab]?)$/;
+      my $epNum = sprintf "%03d%s", $1+0, $2;
+      $$epTopics{$epNum} = $topic;
+      push @$pageEps, $epNum;
+    }
+    print "@$pageEps\n";
+    if(arrEquals $pageEps, $prevEps){
       print "REPEAT AT PAGE $page\n";
       last;
     }
-    $prevArticles = $pageArticles;
+    $prevEps = $pageEps;
     $page++;
   }
-  return $epArticles;
+  return $epTopics;
 }
 
 sub getMP3Url($){
