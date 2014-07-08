@@ -7,6 +7,7 @@ use Symbol qw(gensym);
 
 my $main = "/media/videos";
 my $mirror = "/media/stuff/Videos";
+my $defaultIpmagic = "nuc";
 
 my @categories = (
   "Backup",
@@ -21,28 +22,34 @@ my $okCats = join "|", @categories;
 
 my $usage = "Usage: $0 [--sync] [--quick] [--nomount]\n";
 
-sub readInfoCache($);
-sub writeInfoCache($$);
+sub readInfoCache($$);
+sub writeInfoCache($$$);
 sub formatInfoLine($$);
-sub updateInfoCache($$);
+sub updateInfoCache($$$);
 sub parseDuration($);
 sub formatDuration($);
 sub formatSizeSummary($$);
-sub getSizes();
-sub readExcludeFile();
-sub syncExcludeFile();
+sub getSizes($);
+sub readExcludeFile($);
+sub syncExcludeFile($);
 sub checkExcludes($$);
 sub getRsyncExcludes($);
-sub md5($);
+sub md5($$);
 sub fmtSize($);
-sub isMountPoint($);
+sub isMountPoint($$);
+sub test($@);
+sub getIpmagicCmd($@);
+sub getIpmagicFile($$);
+sub readFile($$);
+sub writeFile($$@);
 sub printCmd(@);
 sub run(@);
+sub tryrunQuiet(@);
 sub runQuiet(@);
 sub runPrompt(@);
-sub readProc(@);
-sub readProcSilent(@);
-sub readProcStdout($$);
+sub readProc($@);
+sub readProcSilent($@);
+sub readProcStdout($$$);
 
 sub main(@){
   my $sync = 0;
@@ -64,24 +71,34 @@ sub main(@){
 
   die "ERROR: $mirror does not exist\n" if not -d $mirror;
 
+
+  my $ipmagic;
+  my $mainIpmagic;
+  if(isMountPoint undef, $main){
+    $ipmagic = undef;
+  }elsif(isMountPoint $defaultIpmagic, $main){
+    $ipmagic = $defaultIpmagic;
+  }else{
+    die "\"$main\" not found locally or with \"ipmagic $defaultIpmagic\"\n";
+  }
+  $mainIpmagic = getIpmagicFile $ipmagic, $main;
+
   if($sync){
     print "\n";
     print "=====\n";
-    syncExcludeFile();
+    syncExcludeFile($ipmagic);
     print "=====\n\n";
   }
 
-  my $excludes = readExcludeFile();
-  my $sizes = getSizes();
+  my $excludes = readExcludeFile($ipmagic);
+  my $sizes = getSizes($ipmagic);
 
   print "=====\n";
   print "Size summary\n";
   my $fmtInfo = formatSizeSummary($excludes, $sizes);
-  open FH, "> $main/size-summary" or die "Cannot write to $main/size-summary";
-  print FH $fmtInfo;
-  close FH;
+  writeFile $ipmagic, "$main/size-summary", $fmtInfo;
   print $fmtInfo;
-  run "cp", "-a", "$main/size-summary", "$mirror/size-summary";
+  run "rsync", "-a", "$mainIpmagic/size-summary", "$mirror/size-summary";
   print "=====\n\n";
 
   print "=====\n";
@@ -96,12 +113,12 @@ sub main(@){
 
   print "=====\n";
   print "New INTERNAL files: (rsync -n, no excludes, $mirror/ => $main/)\n";
-  runQuiet @rsyncInfo, "$mirror/", "$main/";
+  runQuiet @rsyncInfo, "$mirror/", "$mainIpmagic/";
   print "=====\n\n";
 
   print "=====\n";
   print "New EXTERNAL files: (rsync -n, <EXCLUDES>, $main/ => $mirror/)\n";
-  runQuiet @rsyncInfo, @$rsyncExcludes, "$main/", "$mirror/";
+  runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
   print "=====\n\n";
 
   my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
@@ -116,12 +133,12 @@ sub main(@){
   if($sync){
     print "=====\n";
     print "INTERNAL => EXTERNAL\n";
-    run @rsyncReal, "$mirror/", "$main/";
+    run @rsyncReal, "$mirror/", "$mainIpmagic/";
     print "=====\n\n";
 
     print "=====\n";
     print "EXTERNAL => INTERNAL\n";
-    run @rsyncReal, @$rsyncExcludes, "$main/", "$mirror/";
+    run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
     print "=====\n\n";
   }else{
     print "run with --sync to sync INTERNAL <=> EXTERNAL\n";
@@ -129,18 +146,16 @@ sub main(@){
 
   print "=====\n";
   print "Info cache\n";
-  updateInfoCache $main, "$main/info-cache";
-  run "cp", "-a", "$main/info-cache", "$mirror/info-cache";
+  updateInfoCache $ipmagic, $main, "$main/info-cache";
+  run "rsync", "-avP", "$mainIpmagic/info-cache", "$mirror/info-cache";
   print "=====\n\n";
 }
 
-sub readInfoCache($){
-  my ($cacheFile) = @_;
+sub readInfoCache($$){
+  my ($ipmagic, $cacheFile) = @_;
   my $cache = {};
-  if(-e $cacheFile){
-    open FH, "< $cacheFile" or die "Could not read $cacheFile\n";
-    my @lines = <FH>;
-    close FH;
+  if(test $ipmagic, "-e", $cacheFile){
+    my @lines = readFile $ipmagic, $cacheFile;
     for my $line(@lines){
       next if $line =~ /^\s*$/;
       chomp $line;
@@ -160,12 +175,10 @@ sub readInfoCache($){
   }
   return $cache;
 }
-sub writeInfoCache($$){
-  my ($cacheFile, $cache) = @_;
+sub writeInfoCache($$$){
+  my ($ipmagic, $cacheFile, $cache) = @_;
   my @lines = map{formatInfoLine($cache, $_)} sort keys %$cache;
-  open FH, "> $cacheFile" or die "Could not write to $cacheFile\n";
-  print FH @lines;
-  close FH;
+  writeFile $ipmagic, $cacheFile, @lines;
 }
 sub formatInfoLine($$){
   my ($cache, $file) = @_;
@@ -176,11 +189,13 @@ sub formatInfoLine($$){
   my $durFmt = formatDuration $dur;
   return "${sizeFmt}k | ${durFmt} | $file\n";
 }
-sub updateInfoCache($$){
-  my ($dir, $cacheFile) = @_;
-  my $cache = readInfoCache $cacheFile;
+sub updateInfoCache($$$){
+  my ($ipmagic, $dir, $cacheFile) = @_;
+  my $cache = readInfoCache $ipmagic, $cacheFile;
 
-  my @files = readProc "find", $dir, "-mindepth", "2", "-type", "f";
+  my @files = readProc $ipmagic, "find", $dir,
+    "-mindepth", "2",
+    "-type", "f";
   chomp foreach @files;
   s/^$dir\/// foreach @files;
 
@@ -190,23 +205,23 @@ sub updateInfoCache($$){
     if(not defined $okFiles{$file}){
       delete $$cache{$file};
       print "Remove: $file\n";
-      writeInfoCache $cacheFile, $cache;
+      writeInfoCache $ipmagic, $cacheFile, $cache;
     }
   }
 
   for my $file(sort @files){
     if(not defined $$cache{$file}){
-      my $size = readProc "du", "-s", "$dir/$file";
+      my $size = readProc $ipmagic, "du", "-s", "$dir/$file";
       chomp $size;
       $size = $size =~ /^(\d+)\s/ ? $1 : undef;
 
-      my $dur = readProcSilent "duration", "-s", "$dir/$file";
+      my $dur = readProcSilent $ipmagic, "duration", "-s", "$dir/$file";
       chomp $dur;
       $dur = $dur =~ /^(\d+\.\d+)\s/ ? $1 : undef;
 
       $$cache{$file} = [$size, $dur];
       print "Add: " . formatInfoLine($cache, $file);
-      writeInfoCache $cacheFile, $cache;
+      writeInfoCache $ipmagic, $cacheFile, $cache;
     }
   }
 }
@@ -266,13 +281,15 @@ sub formatSizeSummary($$){
   $msg .= "Total: $fmtTotal (+$fmtTotalExcluded excluded)\n";
 }
 
-sub getSizes(){
+sub getSizes($){
+  my $ipmagic = shift;
   my $sizes = {};
   for my $cat(@categories){
     my $catSizes = {};
-    for my $file(readProc "ls", "$main/$cat"){
+    for my $file(readProc $ipmagic, "ls", "$main/$cat"){
       chomp $file;
-      my $size = readProc "du", "-s", "$main/$cat/$file";
+      print "$main/$cat/$file\n";
+      my $size = readProc $ipmagic, "du", "-s", "$main/$cat/$file";
       die "Failed du: $file\n" if $size !~ /^(\d+)/;
       $size = $1;
       $$catSizes{$file} = $size;
@@ -282,13 +299,15 @@ sub getSizes(){
   return $sizes;
 }
 
-sub readExcludeFile(){
+sub readExcludeFile($){
+  my $ipmagic = shift;
   my $excludeFile = "$main/exclude";
-  die "Not found: $excludeFile\n" if not -f $excludeFile;
+  my $excludeFileIpmagic = getIpmagicFile $ipmagic, $excludeFile;
+  die "Not found: $excludeFile\n" if not test $ipmagic, "-f", $excludeFile;
   my $excludes = {};
   $$excludes{$_} = {} foreach @categories;
   my $cat;
-  for my $line(readProc "cat", $excludeFile){
+  for my $line(readFile $ipmagic, $excludeFile){
     chomp $line;
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
@@ -306,26 +325,29 @@ sub readExcludeFile(){
   return $excludes;
 }
 
-sub syncExcludeFile(){
+sub syncExcludeFile($){
+  my $ipmagic = shift;
   my $mainExclude = "$main/exclude";
   my $mirrorExclude = "$mirror/exclude";
 
-  my $mainMd5 = md5 $mainExclude;
-  my $mirrorMd5 = md5 $mirrorExclude;
+  my $mainMd5 = md5 $ipmagic, $mainExclude;
+  my $mirrorMd5 = md5 undef, $mirrorExclude;
+  my $mainExcludeIpmagic = getIpmagicFile($ipmagic, $mainExclude);
 
+  die "flork md5: $mainMd5 $mirrorMd5";
   if($mainMd5 ne $mirrorMd5){
     print "exclude file changed\n";
-    my $mainMod = readProc "stat", "-c%Y", $mainExclude;
+    my $mainMod = readProc $ipmagic, "stat", "-c%Y", $mainExclude;
     chomp $mainMod;
-    my $mirrorMod = readProc "stat", "-c%Y", $mirrorExclude;
+    my $mirrorMod = readProc undef, "stat", "-c%Y", $mirrorExclude;
     chomp $mirrorMod;
 
     if($mirrorMod > $mainMod){
       print "$mirrorExclude is newer, using that\n";
-      run "cp", "-a", $mirrorExclude, $mainExclude;
+      run "rsync", "-avP", $mirrorExclude, $mainExcludeIpmagic;
     }else{
       print "$mainExclude is newer, using that\n";
-      run "cp", "-a", $mainExclude, $mirrorExclude;
+      run "rsync", "-avP", $mainExcludeIpmagic, $mirrorExclude;
     }
   }else{
     print "exclude file unchanged\n";
@@ -339,7 +361,7 @@ sub checkExcludes($$){
     for my $file(keys %{$$excludes{$cat}}){
       die "Unknown exclude: $cat/$file\n" if not defined $$sizes{$cat}{$file};
       my $mirrorFile = "$mirror/$cat/$file";
-      push @$unexcluded, $mirrorFile if -e $mirrorFile;
+      push @$unexcluded, $mirrorFile if test undef, "-e", $mirrorFile;
     }
   }
   return $unexcluded;
@@ -356,9 +378,9 @@ sub getRsyncExcludes($){
   return $rsyncExcludes;
 }
 
-sub md5($){
-  my $file = shift;
-  my $md5 = readProcSilent "md5sum", $file;
+sub md5($$){
+  my ($ipmagic, $file) = @_;
+  my $md5 = readProcSilent $ipmagic, "md5sum", $file;
   if($md5 =~ /^([0-9a-f]{32})\s*/){
     return $1;
   }else{
@@ -370,9 +392,62 @@ sub fmtSize($){
   return sprintf "%5.1fG", $_[0] / 1024 / 1024;
 }
 
-sub isMountPoint($){
-  system "mountpoint \"$_[0]\" >/dev/null 2>/dev/null";
+sub isMountPoint($$){
+  my ($ipmagic, $dir) = @_;
+  readProcSilent $ipmagic, "mountpoint", $dir;
   return $? == 0;
+}
+
+sub test($@){
+  my $ipmagic = shift;
+  my @test = getIpmagicCmd($ipmagic, "test", @_);
+  tryrunQuiet @test;
+  return $? == 0 ? 1 : 0;
+}
+
+sub getIpmagicCmd($@){
+  my ($ipmagic, @cmd) = @_;
+  if(defined $ipmagic){
+    s/"/\\\\"/g foreach @cmd;
+    s/^(.*)$/"$1"/ foreach @cmd;
+    @cmd = ("ipmagic", $ipmagic, "@cmd");
+  }
+
+  if(wantarray){
+    return @cmd;
+  }else{
+    return "@cmd";
+  }
+}
+
+sub getIpmagicFile($$){
+  my ($ipmagic, $file) = @_;
+
+  if(defined $ipmagic){
+    my $host = `ipmagic $ipmagic`;
+    chomp $host;
+    $file = "$host:$file";
+  }
+  return $file;
+}
+
+sub readFile($$){
+  my ($ipmagic, $file) = @_;
+  my @lines = readProc $ipmagic, "cat", $file;
+  if(wantarray){
+    return @lines;
+  }else{
+    return "@lines";
+  }
+}
+sub writeFile($$@){
+  my ($ipmagic, $file, @lines) = @_;
+  my $tmpFile = "/tmp/video-sync-" . time . ".tmp";
+  open FH, "> $tmpFile" or die "Could not write to $tmpFile ($file)\n";
+  print FH @lines;
+  close FH;
+
+  runQuiet "rsync", "-aqP", $tmpFile, getIpmagicFile($ipmagic, $file);
 }
 
 sub printCmd(@){
@@ -392,6 +467,9 @@ sub run(@){
   printCmd @_;
   runQuiet @_;
 }
+sub tryrunQuiet(@){
+  system @_;
+}
 sub runQuiet(@){
   system @_;
   die "Error running @_\n" if $? != 0;
@@ -404,16 +482,18 @@ sub runPrompt(@){
   }
 }
 
-sub readProc(@){
-  return readProcStdout \@_, ">&STDERR";
+sub readProc($@){
+  my ($ipmagic, @cmd) = @_;
+  return readProcStdout $ipmagic, \@cmd, ">&STDERR";
 }
-sub readProcSilent(@){
-  return readProcStdout \@_, ">/dev/null";
+sub readProcSilent($@){
+  my ($ipmagic, @cmd) = @_;
+  return readProcStdout $ipmagic, \@cmd, ">/dev/null";
 }
-sub readProcStdout($$){
-  my $cmd = shift;
-  my $stderr = shift;
-  my $pid = open3(gensym, \*OUT, $stderr, @$cmd);
+sub readProcStdout($$$){
+  my ($ipmagic, $cmd, $stderr) = @_;
+  my @cmdArr = getIpmagicCmd $ipmagic, @$cmd;
+  my $pid = open3(gensym, \*OUT, $stderr, @cmdArr);
   my @lines = <OUT>;
   waitpid($pid, 0);
   if(wantarray){
