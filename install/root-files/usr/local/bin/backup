@@ -82,9 +82,10 @@ my $usage = "Usage:
   $0 --lastsnapshot MOUNT_POINT [PREFIX]
     Print the last snapshot of the given prefix
 
-  $0 --snapshot MOUNT_POINT [PREFIX]
+  $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
-    PREFIX defaults to \"SNAPSHOT\", and cannot be \"BACKUP\"
+    PREFIX defaults to \"SNAPSHOT\",
+    PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
     remove snapshots named PREFIX-*, leaving the last INSTANCES.
@@ -146,16 +147,22 @@ sub main(@){
     shift;
     my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
     sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
-  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
+  }elsif((@_ == 2 or @_ == 3 or @_ == 4) and $_[0] =~ /^--snapshot$/){
     die $usage if defined $ipmagic;
     shift;
-    my ($mountPoint, $prefix) = @_;
+    my $allowBackup = pop if @_ > 0 and $_[-1] eq "--allow-backup";
+    my $mountPoint = shift;
+    my $prefix = shift;
     $prefix = "SNAPSHOT" if not defined $prefix;
+    die $usage if @_ != 0;
+
     $mountPoint =~ s/\/$//;
     die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
     die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
-    die "PREFIX cannot be 'BACKUP'\n" if $prefix eq "BACKUP";
+    if($prefix eq "BACKUP" and not defined $allowBackup){
+      die "PREFIX cannot be 'BACKUP' unless --allow-backup is given\n";
+    }
 
     die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
@@ -685,6 +692,8 @@ sub bashComplete($$){
       my @prefixes = guessPrefixes $mnt;
       push @prefixes, "SNAPSHOT" if $words[0] =~ /^(--snapshot)$/;
       return @prefixes;
+    }elsif(@words == 3){
+      return ("--allow-backup");
     }
   }
 
