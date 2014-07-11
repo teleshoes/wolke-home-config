@@ -13,17 +13,35 @@ my %hangouts = (
   retrospective => "$arcBees/sprint",
   developer     => "$arcBees/simon",
 );
-my $okHangouts = join "|", sort keys %hangouts;
+my @hangoutNames = sort keys %hangouts;
+my $okHangouts = join "|", @hangoutNames;
+my $hangoutFmt = join "      ", map {"$_ => $hangouts{$_}\n"} @hangoutNames;
 my $defaultHangout = "standup";
 
-my $usage = "Usage: $0 [$okHangouts]  {default is $defaultHangout}\n";
+my $usage = "Usage:
+  $0 [$okHangouts]
+    if no arg is given, $defaultHangout is used
+    opens browser with URL:
+      $hangoutFmt
+
+  $0 URL
+    opens browser with given URL
+";
 
 sub main(@){
-  my $hangout = shift() || $defaultHangout;
-  die $usage if @_ > 0 or $hangout !~ /^($okHangouts)$/;
+  my $arg = shift() || $defaultHangout;
+  die $usage if @_ > 0;
+  my $url;
+  if($arg =~ /^($okHangouts)$/){
+    $url = $hangouts{$arg};
+  }elsif($arg =~ /^https?:\/\//){
+    $url = $arg;
+  }else{
+    die $usage;
+  }
 
   run "sudo", "modprobe", "-r", "uvcvideo";
-  run "chromium", "--url", $hangouts{$hangout};
+  run "chromium", "--url", $url;
   run "pkill", "-f", "Google";
 }
 
