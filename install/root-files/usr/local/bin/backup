@@ -3,18 +3,6 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $mntDir = "/media";
-
-my $backups = {
-  "home" => ["/home" => "BACKUP_HOME"],
-  "stuff" => ["/media/stuff" => "BACKUP_STUFF"],
-};
-my $firstName = (sort keys %$backups)[0];
-my ($firstSrc, $firstMnt) = @{$$backups{$firstName}};
-my $okNames = join "|", sort keys %$backups;
-my @mntPoints = map {$$_[0]} values %$backups;
-my @backupMntNames = map {$$_[1]} values %$backups;
-
 sub mountAndBackup($$$);
 sub backup($$$;$);
 sub backupSymlink($$$);
@@ -36,6 +24,7 @@ sub monitorPvLog();
 sub latestPvLogFile();
 sub guessPrefixes($);
 sub guessSubvolNames($);
+sub readBackupConf($);
 sub bashComplete($$);
 
 sub sync();
@@ -43,6 +32,14 @@ sub getIpmagicCmd($);
 sub run(@);
 sub tryrun(@);
 sub ensureRoot();
+
+my $mntDir = "/media";
+my $backupConf = "$ENV{HOME}/.config/backup.conf";
+my $backups = readBackupConf($backupConf);
+
+my $okNames = join "|", sort keys %$backups;
+my @mntPoints = map {$$_[0]} values %$backups;
+my @backupMntNames = map {$$_[1]} values %$backups;
 
 my $okSortBy = join "|", qw(id path size);
 my $defaultSortBy = 'size';
@@ -52,9 +49,14 @@ my $usage = "Usage:
     Print this message
 
   $0 [$okNames] [--ipmagic=IPMAGIC]
-    Perform backup specified {default is to perform all}
-      -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
-      -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
+    Perform backup specified in $backupConf
+      {default is to perform all}
+    $backupConf contains one backup per line, formatted like this:
+      NAME: SRC_MOUNT_POINT => DEST_MNT_NAME
+      {e.g.: \"home: /home => /media/HOME_BAK\"}
+    Performs these operations to run backup:
+      -use specified SRC {e.g.: '/home'}
+      -use specified DEST {e.g.: '$mntDir/HOME_BAK'}
       -use mnt to (re)mount DEST
       -find the last sync-ed snapshot in SRC and DEST
       -make a new snapshot in SRC
@@ -650,6 +652,27 @@ sub guessSubvolNames($){
     }
   }
   return sort keys %subvolNames;
+}
+
+sub readBackupConf($){
+  my $file = shift;
+  my $backups = {};
+  if(-f $file){
+    my @lines = `cat "$file"`;
+    for my $line(@lines){
+      chomp $line;
+      next if $line =~ /^\s*(#.*)?$/;
+      if($line =~ /^\s*(\w+)\s*:\s*(.+?)\s*=>\s*(.+?)\s*$/){
+        my ($name, $srcDir, $destName) = ($1, $2, $3);
+        $$backups{$name} = [$srcDir, $destName];
+      }else{
+        print STDERR "warning: malformed config line: $line\n";
+      }
+    }
+  }else{
+    print STDERR "warning: $file does not exist\n";
+  }
+  return $backups;
 }
 
 sub bashComplete($$){
