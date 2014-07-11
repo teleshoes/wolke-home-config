@@ -16,7 +16,7 @@ my @mntPoints = map {$$_[0]} values %$backups;
 my @backupMntNames = map {$$_[1]} values %$backups;
 
 sub mountAndBackup($$$);
-sub backup($$$);
+sub backup($$$;$);
 sub backupSymlink($$$);
 sub sendReceive($$$$$);
 sub test($@);
@@ -78,6 +78,13 @@ my $usage = "Usage:
     If PARENT_SNAPSHOT is omitted, no -p argument is given
     If IPMAGIC is given, assumes that DEST is located at that ipmagic host
       -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
+
+  $0 --seed SRC DEST [--ipmagic=IPMAGIC]
+    Make a BACKUP snapshot on SRC, and call send/receive
+    roughly equivalent to:
+      backup --snapshot \$SRC BACKUP --allow-backup
+      last=`backup --lastsnapshot \$SRC BACKUP`
+      backup --sendreceive SRC DEST \$last --ipmagic=IPMAGIC
 
   $0 --lastsnapshot MOUNT_POINT [PREFIX]
     Print the last snapshot of the given prefix
@@ -147,6 +154,10 @@ sub main(@){
     shift;
     my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
     sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
+  }elsif(@_ == 3 and $_[0] =~ /^--seed$/){
+    shift;
+    my ($srcDir, $destDir) = @_;
+    backup $srcDir, $destDir, $ipmagic, 1;
   }elsif((@_ == 2 or @_ == 3 or @_ == 4) and $_[0] =~ /^--snapshot$/){
     die $usage if defined $ipmagic;
     shift;
@@ -268,8 +279,8 @@ sub mountAndBackup($$$){
   run @ipmagicCmd, "mnt", "-m", $mntName if $wasMounted;
 }
 
-sub backup($$$){
-  my ($srcDir, $destDir, $remoteDestIpmagic) = @_;
+sub backup($$$;$){
+  my ($srcDir, $destDir, $remoteDestIpmagic, $seed) = @_;
   $srcDir =~ s/\/$//;
   $destDir =~ s/\/$//;
 
@@ -279,7 +290,12 @@ sub backup($$$){
     die "$destDir is not btrfs\n";
   }
 
-  my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
+  my $syncedSnapshot;
+  if(defined $seed and $seed){
+    $syncedSnapshot = undef;
+  }else{
+    $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
+  }
 
   my $newSnapshot = makeSnapshot $srcDir, "BACKUP";
 
@@ -652,6 +668,7 @@ sub bashComplete($$){
   my @cmds = qw(
     -h --help
     --sendreceive
+    --seed
     --lastsnapshot
     --snapshot
     --cleanup=1 --cleanup=30 --cleanup=all
@@ -680,6 +697,14 @@ sub bashComplete($$){
       my $src = $words[1];
       return (@opts, guessSubvolNames $src);
     }elsif(@words == 5){
+      return @opts;
+    }
+  }
+
+  if($words[0] =~ /^(--seed)/){
+    if(@words == 1 or @words == 2){
+      return @mntPoints;
+    }elsif(@words == 3){
       return @opts;
     }
   }
