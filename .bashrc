@@ -130,6 +130,7 @@ function mnto         { sudo mnt --other --no-usb --no-card "$@"; }
 function gparted      { spawnexsudo gparted "$@"; }
 function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
+function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
