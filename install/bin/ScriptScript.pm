@@ -565,19 +565,19 @@ sub installFromDir($;$$) {
         runUser "git", "clone", $gitUrl, ".";
     }
     cd $dir;
-    tryrun qw(git pull) if -d ".git";
+    tryrunUser qw(git pull) if -d ".git";
 
     if(defined $cmd){
       shell $cmd;
     }else{
       my @ls = split "\n", `ls -1`;
       if(grep {/\.cabal$/} @ls) {
-          shell "cabal install";
+          runUser "cabal", "install";
       } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-          shell "make -j all";
+          runUser "make", "-j", "all";
           shell "sudo make install";
       } elsif(system("make -n >/dev/null 2>&1") == 0) {
-          shell "make -j";
+          runUser "make", "-j";
           shell "sudo make install";
       } elsif(grep {/^install/} @ls) {
           shell "./install*";
