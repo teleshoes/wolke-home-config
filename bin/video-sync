@@ -28,6 +28,7 @@ sub formatInfoLine($$);
 sub updateInfoCache($$$);
 sub parseDuration($);
 sub formatDuration($);
+sub updateSizeSummary($$$);
 sub formatSizeSummary($$);
 sub getSizes($);
 sub readExcludeFile($);
@@ -99,9 +100,7 @@ sub main(@){
   print "\n";
 
   print "generating size summary\n";
-  my $fmtInfo = formatSizeSummary($excludes, $sizes);
-  writeFile $ipmagic, "$main/size-summary", $fmtInfo;
-  run "rsync", "-a", "$mainIpmagic/size-summary", "$mirror/size-summary";
+  updateSizeSummary($ipmagic, $excludes, $sizes);
 
   print "\n";
 
@@ -251,6 +250,14 @@ sub formatDuration($){
   my $m = int($dur/60) - ($h*60);
   my $s = $dur - ($h*60*60) - ($m*60);
   return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
+}
+
+sub updateSizeSummary($$$){
+  my ($ipmagic, $excludes, $sizes) = @_;
+  my $fmtInfo = formatSizeSummary($excludes, $sizes);
+  my $mainIpmagic = getIpmagicFile $ipmagic, $main;
+  writeFile $ipmagic, "$main/size-summary", $fmtInfo;
+  run "rsync", "-a", "$mainIpmagic/size-summary", "$mirror/size-summary";
 }
 
 sub formatSizeSummary($$){
