@@ -42,6 +42,7 @@ sub getIpmagicCmd($@);
 sub getIpmagicFile($$);
 sub readFile($$);
 sub writeFile($$@);
+sub gitCmd($@);
 sub printCmd(@);
 sub run(@);
 sub tryrunQuiet(@);
@@ -70,7 +71,6 @@ sub main(@){
   die $usage if @_ != 0;
 
   die "ERROR: $mirror does not exist\n" if not -d $mirror;
-
 
   my $ipmagic;
   my $mainIpmagic;
@@ -149,6 +149,11 @@ sub main(@){
   updateInfoCache $ipmagic, $main, "$main/info-cache";
   runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$mirror/info-cache";
   print "=====\n\n";
+
+  print "=====\n";
+  print "Git repo\n";
+  gitCmd $ipmagic, "commit", "-a", "-m", "automatic commit";
+  print "=====\n\n";
 }
 
 sub readInfoCache($$){
@@ -194,6 +199,7 @@ sub updateInfoCache($$$){
   my $cache = readInfoCache $ipmagic, $cacheFile;
 
   my @files = readProc $ipmagic, "find", $dir,
+    "-not", "-path", "$dir/.git*",
     "-mindepth", "2",
     "-type", "f";
   chomp foreach @files;
@@ -383,6 +389,7 @@ sub getRsyncExcludes($){
       push @$rsyncExcludes, "--exclude=$cat/$file";
     }
   }
+  push @$rsyncExcludes, "--exclude=.git*";
   return $rsyncExcludes;
 }
 
@@ -456,6 +463,11 @@ sub writeFile($$@){
   close FH;
 
   runQuiet "rsync", "-aqP", $tmpFile, getIpmagicFile($ipmagic, $file);
+}
+
+sub gitCmd($@){
+  my ($ipmagic, @cmd) = @_;
+  tryrunQuiet getIpmagicCmd $ipmagic, "git", "-C", $main, @cmd;
 }
 
 sub printCmd(@){
