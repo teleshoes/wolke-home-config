@@ -239,7 +239,7 @@ sub procLines(@) {
 sub runScript($@){
   my $scriptName = shift;
   my $script = getInstallPath "bin/$scriptName";
-  run "perl", $script, @_;
+  run $script, @_;
 }
 
 sub getUsername() {
@@ -490,12 +490,12 @@ sub getRoot(@) {
     if(not isRoot()) {
         print "## rerunning as root\n";
 
-        my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo perl $0 @_; fi";
+        my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
 
         print "$cmd\n" if $opts->{putCommand};
         return     unless $opts->{runCommand};
 
-        exec "sudo", "perl", $0, @_ or deathWithDishonor "failed to sudo";
+        exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
     }
 }
 
@@ -504,7 +504,7 @@ sub getRootSu(@) {
         print "## rerunning as root\n";
 
         my $user = getUsername();
-        my $innercmd = join ' ', "SUDO_USER=$user", "perl", (shell_quote $0, @_);
+        my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
         print "$innercmd\n";
         my $cmd = ""
           . "if [ `whoami` != \"root\" ]; then "
