@@ -23,21 +23,36 @@ sub rmFiles(@);
 my $dir = "$ENV{HOME}/install/bin";
 my $module = "$dir/ScriptScript.pm";
 
+my $usage = "Usage:
+  $0 SCRIPT_NAME ARGS
+    run '$ssDir/SCRIPT_NAME ARGS'
+      or '$compiledDir/SCRIPT_NAME.run ARGS'
+
+  $0 --compile SCRIPT_NAME
+    ensure that '$compiledDir/SCRIPT_NAME.run' is up-to-date,
+    compiling it if it is not
+    {checks mtime against '$ssDir/SCRIPT_NAME'}
+
+";
+
 sub main(@){
-  my $compile = shift if @_ > 0 and $_[0] =~ /--compile/;
-  my $scriptName = shift;
-  my @args = @_;
-  die "Usage: $0 [--compile] SCRIPT_NAME [ARGS]\n" if not defined $scriptName;
+  if(@_ == 2 and $_[0] =~ /^(--compile)$/){
+    my $scriptName = $_[1];
+    if(not checkCompiled $scriptName){
+      ensureCompile();
+      compileScript $scriptName;
+    }
+  }elsif(@_ > 0){
+    my $scriptName = shift;
+    my @args = @_;
 
-  if($compile and not checkCompiled $scriptName){
-    ensureCompile();
-    compileScript $scriptName;
-  }
-
-  if(checkCompiled $scriptName){
-    exec getExec($scriptName), @args;
+    if(checkCompiled $scriptName){
+      exec getExec($scriptName), @args;
+    }else{
+      exec getScript($scriptName), @args;
+    }
   }else{
-    exec getScript($scriptName), @args;
+    die $usage;
   }
 }
 
