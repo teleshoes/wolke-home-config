@@ -26,7 +26,6 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
-                  relToScript
                   readConf readConfDir
                   installFromDir installFromGit aptSrcInstall
                 );
@@ -71,7 +70,6 @@ sub editSimpleConf($$$);
 sub getRoot(@);
 sub getRootSu(@);
 sub guessBackupDir();
-sub relToScript($);
 sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
@@ -528,17 +526,10 @@ sub guessBackupDir() {
     $dirs[0]
 }
 
-sub relToScript($) {
-    my ($path) = @_;
-
-    $0 =~ /\/[^\/]+$/;
-    "$`/$path"
-}
-
 sub readConf($) {
     my ($file) = @_;
 
-    my @lines = readFile(relToScript $file);
+    my @lines = readFile($file);
     chomp @lines;
     @lines
 }
