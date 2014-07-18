@@ -6,8 +6,10 @@ my $ssDir = "$ENV{HOME}/install/bin";
 my $compiledDir = "$ENV{HOME}/.cache/ss-compiled";
 my $perl = "/usr/bin/perl";
 my $cpanm = "/usr/bin/cpanm";
+my @filesToCheck = ("$ssDir/ScriptScript.pm", "$ssDir/String/ShellQuote.pm");
 
 sub getScript($);
+sub getInfoFile($);
 sub getExec($);
 sub getCFile($);
 sub checkCompiled($);
@@ -17,6 +19,8 @@ sub generateC($$);
 sub generateExec($$);
 sub ensureCompile();
 sub testCompile();
+sub readInfo($);
+sub writeInfo($);
 sub mtime($);
 sub rmFiles(@);
 
@@ -31,7 +35,7 @@ my $usage = "Usage:
   $0 --compile SCRIPT_NAME
     ensure that '$compiledDir/SCRIPT_NAME.run' is up-to-date,
     compiling it if it is not
-    {checks mtime against '$ssDir/SCRIPT_NAME'}
+    {checks mtime against '$ssDir/SCRIPT_NAME' and @filesToCheck}
 
   $0 --recompile SCRIPT_NAME
     compile '$compiledDir/SCRIPT_NAME.run'
@@ -64,6 +68,9 @@ sub main(@){
 sub getScript($){
   return "$ssDir/$_[0]";
 }
+sub getInfoFile($){
+  return "$compiledDir/$_[0].info";
+}
 sub getExec($){
   return "$compiledDir/$_[0].run";
 }
@@ -74,22 +81,37 @@ sub getCFile($){
 sub checkCompiled($){
   my $scriptName = shift;
   my $script = getScript $scriptName;
+  my $infoFile = getInfoFile $scriptName;
   my $cFile = getCFile $scriptName;
   my $exec = getExec $scriptName;
-  if(-e $exec and mtime($script) == mtime($exec)){
-    return 1;
+  my $mtime = mtime($exec);
+  my $ok = 1;
+  if(-x $exec and -e $infoFile){
+    my $info = readInfo $scriptName;
+    for my $file(sort keys %$info){
+      if(mtime($file) != $$info{$file}){
+        print "$file updated, recompiling\n";
+        $ok = 0;
+        last;
+      }
+    }
   }else{
-    rmFiles $cFile, $exec;
+    $ok = 0;
   }
+  rmFiles $cFile, $exec, $infoFile if not $ok;
+  return $ok;
 }
 
 sub compileScript($){
   my $scriptName = shift;
-  return compile(
+  my $ok = compile(
     getScript $scriptName,
     getCFile $scriptName,
     getExec $scriptName,
   );
+
+  writeInfo $scriptName;
+  return $ok;
 }
 sub compile($$$){
   my ($script, $cFile, $exec) = @_;
@@ -106,8 +128,6 @@ sub compile($$$){
     return 0;
   }
 
-  system "touch", $cFile, "-r", $script;
-  system "touch", $exec, "-r", $script;
   return 1;
 }
 sub generateC($$){
@@ -158,6 +178,32 @@ sub testCompile(){
 
   rmFiles $testScript, $testCFile, $testExec;
   return 1;
+}
+
+sub readInfo($){
+  my $scriptName = shift;
+  my $infoFile = getInfoFile($scriptName);
+  my $info = {};
+  open FH, "< $infoFile" or die "Could not read $infoFile\n";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    die "Malformed info line in $infoFile: $line\n" if $line !~ /^(\d+) (.+)$/;
+    my ($mtime, $file) = ($1, $2);
+    $$info{$file} = $mtime;
+  }
+  return $info;
+}
+
+sub writeInfo($){
+  my $scriptName = shift;
+  my $infoFile = getInfoFile($scriptName);
+  my @files = (getScript $scriptName, @filesToCheck);
+  open FH, "> $infoFile" or die "Could not write $infoFile\n";
+  for my $file(@files){
+    print FH mtime($file) . " $file\n";
+  }
+  close FH;
 }
 
 sub mtime($){
