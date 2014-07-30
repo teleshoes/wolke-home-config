@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+sub getDebAlien($$);
+sub getPkg($$$);
+
+my $version = '11.2.0.3.0';
+my $majMinVersion = $version;
+$majMinVersion =~ s/^(\d+\.\d+).*/$1/;
+
+my $pkgDir = "/media/stuff/Images/sqlplus";
+my $ldConf = "/etc/ld.so.conf.d/oracle.conf";
+my $libDir = "/usr/lib/oracle/$majMinVersion/client64/lib/";
+
+sub main(@) {
+    getRoot();
+    run "apt-get", "install", "libaio1";
+
+    my $basicDeb = getDebAlien "basic", $version;
+    my $sqlplusDeb = getDebAlien "sqlplus", $version;
+
+    tryrun "apt-get", "remove", "oracle-instantclient.*";
+    shell "dpkg -i $basicDeb";
+    shell "dpkg -i $sqlplusDeb";
+    shell "dpkg -i $pkgDir/gqlplus*.deb";
+
+    my $sqlplus = "/usr/bin/sqlplus";
+    my $sqlplus64 = "/usr/bin/sqlplus64";
+    if(-l $sqlplus and -e $sqlplus64){
+      run "rm", $sqlplus;
+      run "ln", "-s", $sqlplus64, $sqlplus;
+    }
+
+    open FH, "> $ldConf";
+    print FH "$libDir\n";
+    close FH;
+
+    run "ldconfig";
+}
+
+sub getDebAlien($$){
+  my ($name, $version) = @_;
+  my $rpm = getPkg $name, $version, "rpm";
+  die "Missing oracle instantclient garbage $name v$version\n" if not -e $rpm;
+
+  my $deb = getPkg $name, $version, "deb";
+
+  return $deb if -e $deb;
+
+  print "making alien deb for $rpm\n";
+  chdir $pkgDir;
+  $ENV{PWD} = $pkgDir;
+
+  run "alien", "--to-deb", $rpm;
+  $deb = getPkg $name, $version, "deb";
+
+  die "Could not make $deb\n" if not -e $deb;
+  run "chown", getUsername() . ".", $deb;
+
+  return $deb;
+}
+
+sub getPkg($$$){
+  my ($name, $version, $suffix) = @_;
+  my $pkg = `ls $pkgDir/oracle*$name*$version*.$suffix 2>/dev/null`;
+  chomp $pkg;
+  return $pkg;
+}
+
+&main(@ARGV);

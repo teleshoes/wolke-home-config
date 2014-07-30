@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $defaultPort = 8042;
+
+sub getSurefireOpts($){(
+  "-Xdebug",
+  "-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=$_[0]",
+  "-Xnoagent",
+  "-Djava.compiler=NONE",
+)};
+my @opts = (
+  "-Dcheckstyle.skip=true"
+);
+my @defaultArgs = qw(test);
+
+sub run(@);
+
+my $usage = "Usage:
+  $0 -h|--help
+     print this message
+
+  $0 [PORT] [ARGS]
+     run mvn surefire
+     PORT is the jdbc connection port {defaults to 5005}
+     ARGS are passed to mvn {targets, opts, etc} {default is \"@defaultArgs\"}
+";
+
+sub main(@){
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+  my $port = $defaultPort;
+  $port = shift if @_ > 0 and $_[0] =~ /^(\d+)$/;
+
+  my @surefireOpts = getSurefireOpts $port;
+
+  my @args = @_;
+  @args = @defaultArgs if @args == 0;
+
+  my @cmd = ("mvn", @opts, "-Dmaven.surefire.debug=@surefireOpts", @args);
+
+  my $alarm = 0;
+  open FH, "-|", @cmd;
+  my $line;
+  while($line = <FH>){
+    if($line =~ /Listening for transport dt_socket at address: $port/){
+      if($alarm){
+        run "alarm", "-s", "failure";
+        die "error: listening for port again\n";
+      }
+      run "alarm", "-s", "success";
+      $alarm = 1;
+    }elsif($line =~ /bind failed: Address already in use/){
+      run "alarm", "-s", "failure";
+      $alarm = 1;
+    }
+    print $line;
+  }
+  close FH;
+  run "alarm", "-s", "failure" if $? != 0 and not $alarm;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

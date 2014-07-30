@@ -1,1 +1,232 @@
-perl ~/install/bin/$@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $ssDir = "$ENV{HOME}/install/bin";
+my $compiledDir = "$ENV{HOME}/.cache/ss-compiled";
+my $perl = "/usr/bin/perl";
+my $cpanm = "/usr/bin/cpanm";
+my @filesToCheck = ("$ssDir/ScriptScript.pm", "$ssDir/String/ShellQuote.pm");
+
+sub getScript($);
+sub getInfoFile($);
+sub getExec($);
+sub getCFile($);
+sub checkCompiled($);
+sub compileScript($);
+sub compile($$$);
+sub generateC($$);
+sub generateExec($$);
+sub ensureCompile();
+sub testCompile();
+sub readInfo($);
+sub writeInfo($);
+sub mtime($);
+sub rmFiles(@);
+
+my $dir = "$ENV{HOME}/install/bin";
+my $module = "$dir/ScriptScript.pm";
+
+my $usage = "Usage:
+  $0 SCRIPT_NAME ARGS
+    run '$ssDir/SCRIPT_NAME ARGS'
+      or '$compiledDir/SCRIPT_NAME.run ARGS'
+
+  $0 --compile SCRIPT_NAME
+    ensure that '$compiledDir/SCRIPT_NAME.run' is up-to-date,
+    compiling it if it is not
+    {checks mtime against '$ssDir/SCRIPT_NAME' and @filesToCheck}
+
+  $0 --recompile SCRIPT_NAME
+    compile '$compiledDir/SCRIPT_NAME.run'
+
+  $0 --remove SCRIPT_NAME
+    remove compiled files for SCRIPT_NAME
+";
+
+sub main(@){
+  if(@_ == 2 and $_[0] =~ /^(--compile)$/){
+    my $scriptName = $_[1];
+    if(not checkCompiled $scriptName){
+      compileScript $scriptName;
+    }
+  }elsif(@_ == 2 and $_[0] =~ /^(--recompile)$/){
+    my $scriptName = $_[1];
+    compileScript $scriptName;
+  }elsif(@_ == 2 and $_[0] =~ /^(--remove)$/){
+    my $scriptName = $_[1];
+    rmFiles(
+      getCFile($scriptName),
+      getExec($scriptName),
+      getInfoFile($scriptName),
+    );
+  }elsif(@_ > 0){
+    my $scriptName = shift;
+    my @args = @_;
+
+    if(checkCompiled $scriptName){
+      exec getExec($scriptName), @args;
+    }else{
+      exec getScript($scriptName), @args;
+    }
+  }else{
+    die $usage;
+  }
+}
+
+sub getScript($){
+  return "$ssDir/$_[0]";
+}
+sub getInfoFile($){
+  return "$compiledDir/$_[0].info";
+}
+sub getExec($){
+  return "$compiledDir/$_[0].run";
+}
+sub getCFile($){
+  return "$compiledDir/$_[0].c";
+}
+
+sub checkCompiled($){
+  my $scriptName = shift;
+  my $script = getScript $scriptName;
+  my $infoFile = getInfoFile $scriptName;
+  my $cFile = getCFile $scriptName;
+  my $exec = getExec $scriptName;
+  my $mtime = mtime($exec);
+  my $ok = 1;
+  if(-x $exec and -e $infoFile){
+    my $info = readInfo $scriptName;
+    for my $file(sort keys %$info){
+      if(mtime($file) != $$info{$file}){
+        print "$file updated, recompiling\n";
+        $ok = 0;
+        last;
+      }
+    }
+  }else{
+    $ok = 0;
+  }
+  rmFiles $cFile, $exec, $infoFile if not $ok;
+  return $ok;
+}
+
+sub compileScript($){
+  my $scriptName = shift;
+  ensureCompile();
+  my $ok = compile(
+    getScript $scriptName,
+    getCFile $scriptName,
+    getExec $scriptName,
+  );
+
+  writeInfo $scriptName;
+  return $ok;
+}
+sub compile($$$){
+  my ($script, $cFile, $exec) = @_;
+  system "mkdir", "-p", $compiledDir;
+
+  print STDERR "Generating C $script => $cFile\n";
+  if(!generateC($script, $cFile)){
+    print STDERR "failed to generate c for $script\n";
+    return 0;
+  }
+  print STDERR "Compiling C $cFile => $exec\n";
+  if(!generateExec($cFile, $exec)){
+    print STDERR "failed to compile $cFile\n";
+    return 0;
+  }
+
+  return 1;
+}
+sub generateC($$){
+  my ($script, $cFile) = @_;
+
+  rmFiles $cFile;
+  my $cmd = "$perl -MO=C,-o\"$cFile\" \"$script\"";
+  my $output = `$cmd 2>&1`;
+
+  return 0 if $output =~ /B::C|B\/C\.pm/ or not -f $cFile;
+  return 1;
+}
+sub generateExec($$){
+  my ($cFile, $exec) = @_;
+  rmFiles $exec;
+  my $cmd = "cc_harness -o \"$exec\" \"$cFile\"";
+  my $output = `$cmd 2>&1`;
+  return 0 if $? != 0 or not -f $exec;
+  return 1;
+}
+
+sub ensureCompile(){
+  return 1 if testCompile();
+  return 0 if not -x $cpanm;
+  system "sudo", "cpanm", "install", "--notest", "B::C";
+  return 1 if testCompile();
+}
+
+sub testCompile(){
+  my $testScript = "/tmp/test-perl-b-c.pl";
+  my $testCFile = "/tmp/test-perl-b-c.c";
+  my $testExec = "/tmp/test-perl-b-c";
+
+  rmFiles $testScript, $testCFile, $testExec;
+
+  my $msg = "hello world";
+
+  open FH, "> $testScript" or die "Couldnt write to $testScript\n";
+  print FH "print '$msg'\n";
+  close FH;
+
+  if(!compile $testScript, $testCFile, $testExec){
+    return 0;
+  }
+
+  my $res = `$testExec`;
+  return 0 if $res !~ /^hello world$/;
+
+  rmFiles $testScript, $testCFile, $testExec;
+  return 1;
+}
+
+sub readInfo($){
+  my $scriptName = shift;
+  my $infoFile = getInfoFile($scriptName);
+  my $info = {};
+  open FH, "< $infoFile" or die "Could not read $infoFile\n";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    die "Malformed info line in $infoFile: $line\n" if $line !~ /^(\d+) (.+)$/;
+    my ($mtime, $file) = ($1, $2);
+    $$info{$file} = $mtime;
+  }
+  return $info;
+}
+
+sub writeInfo($){
+  my $scriptName = shift;
+  my $infoFile = getInfoFile($scriptName);
+  my @files = (getScript $scriptName, @filesToCheck);
+  open FH, "> $infoFile" or die "Could not write $infoFile\n";
+  for my $file(@files){
+    print FH mtime($file) . " $file\n";
+  }
+  close FH;
+}
+
+sub mtime($){
+  my $file = shift;
+  return undef if not -e $file;
+  return (stat($file))[9];
+}
+
+sub rmFiles(@){
+  for my $file(@_){
+    system "rm", $file if -f $file;
+    die "Could not remove $file\n" if -e $file;
+  }
+}
+
+&main(@ARGV);

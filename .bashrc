@@ -109,38 +109,70 @@ do alias $exitTypo='exit'; done
 
 alias time="command time"
 alias mkdir="mkdir -p"
+alias :q='exit'
+alias :r='. /etc/profile; . ~/.bashrc;'
 
-function vol          { pulse-vol $@; }
-function j            { fcron-job-toggle $@; }
-function snapshot     { backup --snapshot $@; }
-function qgroups-info { backup --info --quick --sort-by=size $@; }
-function dus          { du -s * | sort -g $@; }
-function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo $@; }
-function gvim         { term vim $@; }
-function cx           { chmod +x $@; }
-function :q           { exit $@; }
-function shutdown     { poweroff $@; }
-function l            { ls -Al --color=auto $@; }
-function ll           { ls -Al --color=auto $@; }
-function ld           { ls -dAl --color=auto $@; }
-function perms        { stat -c %a $@; }
-function glxgears     { vblank_mode=0 glxgears $@; }
-function mnto         { sudo mnt --other --no-usb --no-card $@ $@; }
-function gparted      { spawnexsudo gparted $@; }
+function vol          { pulse-vol "$@"; }
+function j            { fcron-job-toggle "$@"; }
+function snapshot     { backup --snapshot "$@"; }
+function qgroups-info { backup --info --quick --sort-by=size "$@"; }
+function dus          { du -s * | sort -g "$@"; }
+function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo; }
+function gvim         { term vim "$@"; }
+function cx           { chmod +x "$@"; }
+function shutdown     { poweroff "$@"; }
+function l            { ls -Al --color=auto "$@"; }
+function ll           { ls -Al --color=auto "$@"; }
+function ld           { ls -dAl --color=auto "$@"; }
+function perms        { stat -c %a "$@"; }
+function glxgears     { vblank_mode=0 glxgears "$@"; }
+function mnto         { sudo mnt --other --no-usb --no-card "$@"; }
+function gparted      { spawnexsudo gparted "$@"; }
+function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
+function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
+function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 
-function s            { $@ & disown $@; }
-function spawn        { $@ & disown $@; }
-function spawnex      { $@ & disown && exit 0 $@; }
-function spawnexsudo  { gksudo $@ & disown && exit 0 $@; }
+function s            { "$@" & disown; }
+function spawn        { "$@" & disown; }
+function spawnex      { "$@" & disown && exit 0; }
+function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
-function maven        { execAlarm mvn -Psdm,mock $@; }
-function m            { maven -DskipTests -Dcheckstyle.skip=true install $@; }
-function mc           { maven clean install $@; }
-function mck          { maven checkstyle:check $@; }
+function m            { maven -Psdm install "$@"; }
+function mc           { maven -Psdm clean install "$@"; }
+function mck          { maven checkstyle:check "$@"; }
+function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
+function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
 
-function genservices  { ~/workspace/escribe/tools/genservices.pl $@; }
-function genibatis    { ~/workspace/escribe/tools/genibatis.pl $@; }
-function migl         { gvim `~/migs/latest-script` $@; }
+function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
+function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
+function migl         { gvim `~/migs/latest-script` "$@"; }
+
+function maven() {
+  args=""
+  if ! [[ "$@" =~ (^| )test($| ) ]]; then
+    args="$args -DskipTests"
+  fi
+  if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
+    args="$args -Dcheckstyle.skip=true"
+  fi
+  execAlarm mvn "$args" "$@";
+}
+
+function find() {
+  if [[ "$PWD" =~ "escribe" ]]; then
+    findmvn "$@"
+  else
+    command find "$@"
+  fi
+}
+
+function grep() {
+  if [[ "$PWD" =~ "escribe" ]]; then
+    grepmvn "$@"
+  else
+    command grep "$@"
+  fi
+}
 
 function execAlarm() {
   $@
@@ -162,14 +194,19 @@ function update-repo {
 
 
 function git-log() {
-  git logn $@
+  git logn "$@"
 }
 function git() {
   realgit="$(which git)"
-  cmd="git-$1"
-  if [ "$(type -t $cmd)" = "function" ]; then
+  realcmd="$1"
+  fct="git-$realcmd"
+  if [ "$(type -t $fct)" = "function" ]; then
     shift
-    $cmd "$@"
+    $fct "$@"
+  elif [[ "$realcmd" == *-real ]]; then
+    shift
+    cmd=${realcmd%-real}
+    $realgit $cmd "$@"
   else
     $realgit "$@"
   fi

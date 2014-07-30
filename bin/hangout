@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@);
+
+my $arcBees = "https://plus.google.com/hangouts/_/arcbees.com";
+
+my %hangouts = (
+  standup       => "$arcBees/daily-standup",
+  planning      => "$arcBees/sprint-planning",
+  acceptance    => "$arcBees/sprint-review",
+  retrospective => "$arcBees/sprint",
+  developer     => "$arcBees/simon",
+);
+my @hangoutNames = sort keys %hangouts;
+my $okHangouts = join "|", @hangoutNames;
+my $hangoutFmt = join "      ", map {"$_ => $hangouts{$_}\n"} @hangoutNames;
+my $defaultHangout = "standup";
+
+my $usage = "Usage:
+  $0 [$okHangouts]
+    if no arg is given, $defaultHangout is used
+    opens browser with URL:
+      $hangoutFmt
+
+  $0 URL
+    opens browser with given URL
+";
+
+sub main(@){
+  my $arg = shift() || $defaultHangout;
+  die $usage if @_ > 0;
+  my $url;
+  if($arg =~ /^($okHangouts)$/){
+    $url = $hangouts{$arg};
+  }elsif($arg =~ /^https?:\/\//){
+    $url = $arg;
+  }else{
+    die $usage;
+  }
+
+  my $pepperSrc = "/usr/lib/chromium-browser/pepper/";
+  my $pepperDest = "/usr/lib/chromium/pepper";
+  run "sudo", "ln", "-s", $pepperSrc, $pepperDest if not -e $pepperDest;
+
+  run "sudo", "modprobe", "-r", "uvcvideo";
+  run "chromium", "--url", $url;
+  run "pkill", "-f", "Google";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

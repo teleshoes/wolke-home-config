@@ -3,20 +3,8 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $mntDir = "/media";
-
-my $backups = {
-  "home" => ["/home" => "BACKUP_HOME"],
-  "stuff" => ["/media/stuff" => "BACKUP_STUFF"],
-};
-my $firstName = (sort keys %$backups)[0];
-my ($firstSrc, $firstMnt) = @{$$backups{$firstName}};
-my $okNames = join "|", sort keys %$backups;
-my @mntPoints = map {$$_[0]} values %$backups;
-my @backupMntNames = map {$$_[1]} values %$backups;
-
 sub mountAndBackup($$$);
-sub backup($$$);
+sub backup($$$;$);
 sub backupSymlink($$$);
 sub sendReceive($$$$$);
 sub test($@);
@@ -36,6 +24,7 @@ sub monitorPvLog();
 sub latestPvLogFile();
 sub guessPrefixes($);
 sub guessSubvolNames($);
+sub readBackupConf($);
 sub bashComplete($$);
 
 sub sync();
@@ -43,6 +32,14 @@ sub getIpmagicCmd($);
 sub run(@);
 sub tryrun(@);
 sub ensureRoot();
+
+my $mntDir = "/media";
+my $backupConf = "$ENV{HOME}/.config/backup.conf";
+my $backups = readBackupConf($backupConf);
+
+my $okNames = join "|", sort keys %$backups;
+my @mntPoints = map {$$_[0]} values %$backups;
+my @backupMntNames = map {$$_[1]} values %$backups;
 
 my $okSortBy = join "|", qw(id path size);
 my $defaultSortBy = 'size';
@@ -52,9 +49,14 @@ my $usage = "Usage:
     Print this message
 
   $0 [$okNames] [--ipmagic=IPMAGIC]
-    Perform backup specified {default is to perform all}
-      -use specified SRC {e.g.: '$firstSrc' for '$firstName'}
-      -use specified DEST {e.g.: '$mntDir/$firstMnt' for '$firstName'}
+    Perform backup specified in $backupConf
+      {default is to perform all}
+    $backupConf contains one backup per line, formatted like this:
+      NAME: SRC_MOUNT_POINT => DEST_MNT_NAME
+      {e.g.: \"home: /home => /media/HOME_BAK\"}
+    Performs these operations to run backup:
+      -use specified SRC {e.g.: '/home'}
+      -use specified DEST {e.g.: '$mntDir/HOME_BAK'}
       -use mnt to (re)mount DEST
       -find the last sync-ed snapshot in SRC and DEST
       -make a new snapshot in SRC
@@ -79,12 +81,20 @@ my $usage = "Usage:
     If IPMAGIC is given, assumes that DEST is located at that ipmagic host
       -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
 
+  $0 --seed SRC DEST [--ipmagic=IPMAGIC]
+    Make a BACKUP snapshot on SRC, and call send/receive
+    roughly equivalent to:
+      backup --snapshot \$SRC BACKUP --allow-backup
+      last=`backup --lastsnapshot \$SRC BACKUP`
+      backup --sendreceive SRC DEST \$last --ipmagic=IPMAGIC
+
   $0 --lastsnapshot MOUNT_POINT [PREFIX]
     Print the last snapshot of the given prefix
 
-  $0 --snapshot MOUNT_POINT [PREFIX]
+  $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
     make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
-    PREFIX defaults to \"SNAPSHOT\", and cannot be \"BACKUP\"
+    PREFIX defaults to \"SNAPSHOT\",
+    PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
     remove snapshots named PREFIX-*, leaving the last INSTANCES.
@@ -146,18 +156,24 @@ sub main(@){
     shift;
     my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
     sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
-  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--snapshot$/){
+  }elsif(@_ == 3 and $_[0] =~ /^--seed$/){
+    shift;
+    my ($srcDir, $destDir) = @_;
+    backup $srcDir, $destDir, $ipmagic, 1;
+  }elsif((@_ == 2 or @_ == 3 or @_ == 4) and $_[0] =~ /^--snapshot$/){
     die $usage if defined $ipmagic;
     shift;
-    my ($mountPoint, $prefix) = @_;
+    my $allowBackup = pop if @_ > 0 and $_[-1] eq "--allow-backup";
+    my $mountPoint = shift;
+    my $prefix = shift;
     $prefix = "SNAPSHOT" if not defined $prefix;
-    $mountPoint =~ s/\/$//;
-    die "not a dir: $mountPoint\n" if not -d $mountPoint;
+    die $usage if @_ != 0;
 
     die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
-    die "PREFIX cannot be 'BACKUP'\n" if $prefix eq "BACKUP";
+    if($prefix eq "BACKUP" and not defined $allowBackup){
+      die "PREFIX cannot be 'BACKUP' unless --allow-backup is given\n";
+    }
 
-    die $usage if not defined $mountPoint or @_ > 2;
     makeSnapshot $mountPoint, $prefix;
     sync();
   }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
@@ -265,8 +281,8 @@ sub mountAndBackup($$$){
   run @ipmagicCmd, "mnt", "-m", $mntName if $wasMounted;
 }
 
-sub backup($$$){
-  my ($srcDir, $destDir, $remoteDestIpmagic) = @_;
+sub backup($$$;$){
+  my ($srcDir, $destDir, $remoteDestIpmagic, $seed) = @_;
   $srcDir =~ s/\/$//;
   $destDir =~ s/\/$//;
 
@@ -276,7 +292,12 @@ sub backup($$$){
     die "$destDir is not btrfs\n";
   }
 
-  my $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
+  my $syncedSnapshot;
+  if(defined $seed and $seed){
+    $syncedSnapshot = undef;
+  }else{
+    $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
+  }
 
   my $newSnapshot = makeSnapshot $srcDir, "BACKUP";
 
@@ -371,6 +392,9 @@ sub makeSnapshot($$){
   my $millis = int(time * 1000);
   my $date = `date +%F`;
   chomp $date;
+
+  $mountPoint =~ s/\/$//;
+  die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
   my $snapshot = "$prefix-${date}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
@@ -523,7 +547,7 @@ sub getLastSnapshot($$$){
     die "not a dir: $dir\n" if not -d $dir;
 
     my @subs = getSnapshots $dir, $prefix;
-    die "no snapshot found for $dir\n" if @subs == 0;
+    die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
     $sub = $subs[-1];
   }
   die "Malformed snapshot: $sub\n" if $sub !~ /^$prefix-\d+-\d+-\d+_\d+$/;
@@ -630,6 +654,27 @@ sub guessSubvolNames($){
   return sort keys %subvolNames;
 }
 
+sub readBackupConf($){
+  my $file = shift;
+  my $backups = {};
+  if(-f $file){
+    my @lines = `cat "$file"`;
+    for my $line(@lines){
+      chomp $line;
+      next if $line =~ /^\s*(#.*)?$/;
+      if($line =~ /^\s*(\w+)\s*:\s*(.+?)\s*=>\s*(.+?)\s*$/){
+        my ($name, $srcDir, $destName) = ($1, $2, $3);
+        $$backups{$name} = [$srcDir, $destName];
+      }else{
+        print STDERR "warning: malformed config line: $line\n";
+      }
+    }
+  }else{
+    print STDERR "warning: $file does not exist\n";
+  }
+  return $backups;
+}
+
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
   my $cmd = substr $cmdLine, 0, $pos;
@@ -646,6 +691,8 @@ sub bashComplete($$){
   my @cmds = qw(
     -h --help
     --sendreceive
+    --seed
+    --lastsnapshot
     --snapshot
     --cleanup=1 --cleanup=30 --cleanup=all
     --remove
@@ -677,6 +724,14 @@ sub bashComplete($$){
     }
   }
 
+  if($words[0] =~ /^(--seed)/){
+    if(@words == 1 or @words == 2){
+      return @mntPoints;
+    }elsif(@words == 3){
+      return @opts;
+    }
+  }
+
   if($words[0] =~ /^(--snapshot|--lastsnapshot|--cleanup.*)/){
     if(@words == 1){
       return @mntPoints;
@@ -685,6 +740,8 @@ sub bashComplete($$){
       my @prefixes = guessPrefixes $mnt;
       push @prefixes, "SNAPSHOT" if $words[0] =~ /^(--snapshot)$/;
       return @prefixes;
+    }elsif(@words == 3){
+      return ("--allow-backup");
     }
   }
 
