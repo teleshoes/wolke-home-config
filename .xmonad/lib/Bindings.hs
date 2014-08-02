@@ -14,11 +14,16 @@ import qualified Data.Foldable as F
 import Data.Map ((!))
 import qualified Data.Map as M
 import Data.Maybe
+import System.IO.Error (catchIOError)
 
 import Bindings.Keys
 import Bindings.Writer
 
 main = putStr . prettyBindings $ keyBinds testConfig
+
+tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
+writeKeyBindingsCache file = writeFile file fmt
+  where fmt = prettyBindingsCL $ keyBinds testConfig
 
 myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
@@ -85,7 +90,7 @@ shortcuts conf = "Shortcuts" @@ do
         "{system down}" @@ m_    xK_BriDn#! "brightness system"
 
     "Sound"         @@ do
-        let [up,down] = map (++ ",100/150/300") ["+","-"]
+        let [up,down] = map (++ "100/150/300") ["+","-"]
         up          @@  do m_    xK_VolUp#! "pulse-vol +6 100"
                            mA    xK_VolUp#! "pulse-vol +6 150"
                            mC    xK_VolUp#! "pulse-vol +6 300"

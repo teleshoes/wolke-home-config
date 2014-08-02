@@ -119,6 +119,9 @@ prettyKey = (M.!) . execWriter $ do
     xK_Return                   # "Enter"
     xK_Tab                      # "Tab"
     xK_Menu                     # "Menu"
+    xK_Pause                    # "Pause"
+    xK_Mic                      # "Mic"
+    xK_Tools                    # "Tools"
     xF86XK_AudioRaiseVolume     # "VolUp"
     xF86XK_AudioLowerVolume     # "VolDn"
     xF86XK_AudioMute            # "Mute"
@@ -130,6 +133,12 @@ prettyKey = (M.!) . execWriter $ do
     xF86XK_MonBrightnessUp      # "BriUp"
     xF86XK_MonBrightnessDown    # "BriDn"
     xF86XK_PowerOff             # "Power"
+    xK_KP_Insert                # "KPIns"
+    xK_KP_Add                   # "KP+"
+    xK_KP_Subtract              # "KP-"
+    xK_KP_Multiply              # "KP*"
+    xK_KP_Delete                # "KPDel"
+    xK_KP_Enter                 # "KPEnt"
     xK ' '                      # "' '"
     tellZ arrKeys arrStrs
     let cs = [33..126] in tellZM cs chrl

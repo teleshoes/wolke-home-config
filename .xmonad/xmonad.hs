@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 import Bindings (
-  workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps)
+  workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps,
+  tryWriteKeyBindingsCache)
 import StaticAssert (staticAssert)
 
 import XMonad (
@@ -22,6 +23,7 @@ import System.Taffybar.Hooks.PagerHints (pagerHints)
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.Writer (execWriter, tell)
+import System.Directory (getHomeDirectory)
 
 staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     tell "Error: Overlap in bindings\n"
@@ -33,6 +35,8 @@ firefoxExec = "iceweasel"
 firefoxProcess = "iceweasel"
 firefoxClose = "Close Iceweasel"
 thunderbirdClass = "Icedove"
+
+relToHomeDir file = fmap (++ "/" ++ file) getHomeDirectory
 
 main = xmonad . ewmh . pagerHints $ defaultConfig
   { focusFollowsMouse  = False
@@ -50,7 +54,9 @@ main = xmonad . ewmh . pagerHints $ defaultConfig
   , mouseBindings      = myMouseBindings
   }
 
-myStartupHook = spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
+myStartupHook = do
+  spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
+  io $ tryWriteKeyBindingsCache =<< relToHomeDir ".cache/xmonad-bindings"
 
 myLayoutHook = avoidStruts . smartBorders
              $   named "left" (Tall 1 incr ratio)

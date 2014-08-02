@@ -9,18 +9,19 @@ module Bindings.Writer
     , Bindings(..)
     , (@@), (#)
     , bwBindList, bwFindOverlap
-    , prettyBindings
+    , prettyBindings, prettyBindingsCL
     ) where
 
 import XMonad
 import Control.Arrow
+import Control.Applicative
 import Control.Monad.Writer
 import Data.Function
 import Data.List
-import Data.Map (Map)
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Ord
+import Text.Printf
+import Text.Parsec hiding (many)
 
 import Bindings.Keys
 
@@ -65,6 +66,30 @@ prettyBindings bw = concat . mapFlatBW pLine $ bw
     pLine n s Nothing   = ind n ++ s ++ "\n"
     pLine n s (Just as) = pad l (ind n ++ s ++ ":")
                         ++ show (map (PBind . fst) as) ++ "\n"
+
+prettyBindingsCL :: Integral a => BW ((KeyMask, a), b) -> String
+prettyBindingsCL
+  = concatMap (\((m,k),d) -> concat [m," ",k," ",init.tail.show.tail$d,"\n"])
+  . go . execWriter
+  where
+    go Binds{..} = dist bDesc . map (prettyMod *** toHex) . map fst $ bBinds
+    go BList{..} = map (second (bDesc :)) $ concatMap go bList
+    toHex = (printf "0x%08x" :: Integer -> String) . fromIntegral
+    dist bDesc binds
+      | Right mkDesc         <- numeric = zipWith (\n -> (,[mkDesc n])) [1..] binds
+      | Right (mkDesc, strs) <- slashed
+      , length strs == length binds     = zipWith (\s -> (,[mkDesc s])) strs binds
+      | otherwise                       = map (,[bDesc]) binds
+      where
+        matchDesc p f = runP (f <$> manyTill anyChar (try $ lookAhead p)
+                                <*> p
+                                <*> many anyChar) () "" bDesc
+
+        numeric = matchDesc (string "<N>") $ \before _ after n -> before ++ show n ++ after
+        slashed = matchDesc slashes $ \before strs after -> (\str -> before ++ str ++ after, strs)
+          where
+            slashes = many1 alphaNum `sepBy2` string "/"
+            sepBy2 p s = (:) <$> (p <* s) <*> (p `sepBy1` s)
 
 infixr 0 @@, #
 
