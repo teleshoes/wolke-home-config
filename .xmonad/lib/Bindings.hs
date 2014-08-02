@@ -9,12 +9,9 @@ import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.StackSet hiding (focus, workspaces, filter)
 import qualified XMonad.StackSet as SS
 
-import Control.Applicative
 import qualified Data.Foldable as F
-import Data.Function (on)
 import Data.List (transpose)
-import Data.List.Split (chunk)
-import Data.Map ((!))
+import Data.List.Split (chunksOf)
 import qualified Data.Map as M
 import Data.Maybe
 import System.IO.Error (catchIOError)
@@ -42,11 +39,10 @@ keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
 
 cols colCount lines = unlines $ map concat $ transpose cols
   where
-        lineCount = length lines
-        maxLen = maximum $ map length lines
-        colSize = ceiling $ ((/) `on` fromIntegral) lineCount colCount
-        cols = chunk colSize $ map pad lines
-        pad line = line ++ replicate (maxLen+2 - length line) ' '
+    maxLen = maximum $ map length lines
+    colSize = negate $ negate (length lines) `div` colCount
+    cols = chunksOf colSize $ map pad lines
+    pad line = take (maxLen+2) $ line ++ repeat ' '
 
 infixr 0 #!, ##, #^, #>
 a #! b = a # (spawn b :: X ())
