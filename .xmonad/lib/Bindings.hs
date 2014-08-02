@@ -14,11 +14,16 @@ import qualified Data.Foldable as F
 import Data.Map ((!))
 import qualified Data.Map as M
 import Data.Maybe
+import System.IO.Error (catchIOError)
 
 import Bindings.Keys
 import Bindings.Writer
 
 main = putStr . prettyBindings $ keyBinds testConfig
+
+tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
+writeKeyBindingsCache file = writeFile file fmt
+  where fmt = prettyBindingsCL $ keyBinds testConfig
 
 myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
