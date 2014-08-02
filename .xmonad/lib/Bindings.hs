@@ -11,6 +11,9 @@ import qualified XMonad.StackSet as SS
 
 import Control.Applicative
 import qualified Data.Foldable as F
+import Data.Function (on)
+import Data.List (transpose)
+import Data.List.Split (chunk)
 import Data.Map ((!))
 import qualified Data.Map as M
 import Data.Maybe
@@ -20,6 +23,10 @@ import Bindings.Keys
 import Bindings.Writer
 
 main = putStr . prettyBindings $ keyBinds testConfig
+
+tryWriteKeyBindingsPrettyCache file = writeKeyBindingsPrettyCache file `catchIOError` print
+writeKeyBindingsPrettyCache file = writeFile file $ fmt
+  where fmt = cols 4 $ lines $ prettyBindingsCL $ keyBinds testConfig
 
 tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
 writeKeyBindingsCache file = writeFile file fmt
@@ -34,6 +41,14 @@ testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
 
 mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
 keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
+
+cols colCount lines = unlines $ map concat $ transpose cols
+  where
+        lineCount = length lines
+        maxLen = maximum $ map length lines
+        colSize = ceiling $ ((/) `on` fromIntegral) lineCount colCount
+        cols = chunk colSize $ map pad lines
+        pad line = line ++ replicate (maxLen+2 - length line) ' '
 
 infixr 0 #!, ##, #^, #>
 a #! b = a # (spawn b :: X ())

@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 import Bindings (
   workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps,
-  tryWriteKeyBindingsCache)
+  tryWriteKeyBindingsCache, tryWriteKeyBindingsPrettyCache)
 import StaticAssert (staticAssert)
 
 import XMonad (
@@ -57,6 +57,7 @@ main = xmonad . ewmh . pagerHints $ defaultConfig
 myStartupHook = do
   spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
   io $ tryWriteKeyBindingsCache =<< relToHomeDir ".cache/xmonad-bindings"
+  io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
 myLayoutHook = avoidStruts . smartBorders
              $   named "left" (Tall 1 incr ratio)
