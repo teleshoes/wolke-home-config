@@ -83,7 +83,7 @@ shortcuts conf = "Shortcuts" @@ do
         "{system down}" @@ m_    xK_BriDn#! "brightness system"
 
     "Sound"         @@ do
-        let [up,down] = map (++ ",100/150/300") ["+","-"]
+        let [up,down] = map (++ "100/150/300") ["+","-"]
         up          @@  do m_    xK_VolUp#! "pulse-vol +6 100"
                            mA    xK_VolUp#! "pulse-vol +6 150"
                            mC    xK_VolUp#! "pulse-vol +6 300"
