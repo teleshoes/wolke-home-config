@@ -22,14 +22,13 @@ import System.IO.Error (catchIOError)
 import Bindings.Keys
 import Bindings.Writer
 
-main = putStr . prettyBindings $ keyBinds testConfig
+main = putStr . prettyBindingsIndented $ keyBinds testConfig
 
 tryWriteKeyBindingsPrettyCache file = writeKeyBindingsPrettyCache file `catchIOError` print
-writeKeyBindingsPrettyCache file = writeFile file $ fmt
-  where fmt = cols 4 $ lines $ prettyBindingsCL $ keyBinds testConfig
+writeKeyBindingsPrettyCache = flip writeFile $ cols 4 $ lines $ prettyBindingsFlat $ keyBinds testConfig
 
 tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
-writeKeyBindingsCache = flip writeFile $ prettyBindingsCL $ keyBinds testConfig
+writeKeyBindingsCache = flip writeFile $ prettyBindingsFlatHex $ keyBinds testConfig
 
 myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
