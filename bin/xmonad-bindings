@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::ParseWords qw(quotewords);
+
+my $cacheFile = "$ENV{HOME}/.cache/xmonad-bindings";
+
+sub pseBindings();
+sub parseBindingName($);
+sub parseMod($);
+sub xdotool($$);
+
+my $usage = "Usage:
+   $0 -h|--help
+     Show this message
+
+   $0 <BINDING_NAME> [<EXTRA_KEY>]
+     Read bindings from $cacheFile
+     Run binding keystrokes for <BINDING_NAME>, plus optional key <EXTRA_KEY>,
+       using xdotool
+
+     Bindings are one per line and are formatted like this:
+       <MOD> <KEY> <NAME>
+         <MOD> is a modifier string containing any number of these characters:
+             C => Control
+             A => Alt
+             W => Super
+             S => Shift
+             _ =>
+           e.g.: _A_S
+                 => Alt+Shift
+
+         <KEY> is a keycode in hexadecimal
+           e.g.: 0x0032
+                 => space key
+
+         <NAME> is a double-quoted comma-separated list of name segments
+           non-word characters are replaced with _s,
+             and segments are joined with '.', in order to make BINDING_NAME
+             if the last segment is \"<N>\", it is dropped from the name.
+           e.g.:  \"Windows\", \"Current\", \"Toggle Border\"
+                  => windows.current.toggle_border
+
+   $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
+";
+
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    die $usage;
+  }elsif(@_ == 1 and $_[0] =~ /^(--gen)$/){
+    generateKeyBindings();
+  }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+  }elsif(@_ == 1 or @_ == 2){
+    my $bindingName = shift;
+    my $extraKey = shift;
+    my @bindings = parseBindings();
+    for my $binding(@bindings){
+      my ($mod, $key, $name) = @$binding;
+      if($name eq $bindingName){
+        xdotool $mod, $key;
+        exit 0;
+      }
+    }
+  }
+}
+
+sub parseBindings(){
+  my @bindings;
+  die "Could not find bindings at $xmonadBindings\n" if not -f $xmonadBindings;
+
+  for my $line(`cat $cacheFile`){
+    if($line =~ /^\s*([CAWS_]+)\s*(0x[0-9a-f]+)\s*(.*)$/i){
+      my ($mod, $key, $name) = ($1, $2, $3);
+      my $bindingName = parseBindingName $name;
+      push @bindings, [$mod, $key, $bindingName];
+    }else{
+      die "Malformed binding in $cacheFile: $line\n";
+    }
+  }
+
+  return @bindings;
+}
+
+sub parseBindingName($){
+  my $name = shift;
+  my @words = quotewords('\s*,\s*', 0, $name);
+  my @nameSections;
+  for my $word(@words){
+    $word =~ s/\W+/_/g;
+    $word =~ s/^_+//;
+    $word =~ s/_+$//;
+    $word = lc $word;
+    push @nameSections, $word;
+  }
+  return join '.', @nameSections;
+}
+
+sub parseMod($){
+  my $mod = shift;
+  my @mods;
+  push @mods, "Ctrl"  if $mod =~ /C/i;
+  push @mods, "Alt"   if $mod =~ /A/i;
+  push @mods, "Super" if $mod =~ /W/i;
+  push @mods, "Shift" if $mod =~ /S/i;
+  return @mods;
+}
+
+sub xdotool($$){
+  my ($mod, $key) = @_;
+  my @mods = parseMod $mod;
+  my $keyStr = join "+", (@mods, $key);
+  my @cmd = ("xdotool", "key", "--clearmodifiers", $keyStr);
+  print "@cmd\n";
+  system @cmd;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  if(@words == 0){
+    my @bindingNames = map {$$_[2]} parseBindings();
+    return (@bindingNames, "--gen", "--bash-complete");
+  }
+
+  return ();
+}
+
+&main(@ARGV);
