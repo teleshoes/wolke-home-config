@@ -21,8 +21,10 @@ import XMonad.Util.Types (Direction2D(U,D,L,R))
 
 import System.Taffybar.Hooks.PagerHints (pagerHints)
 
+import Control.Applicative ((<$>))
 import Control.Concurrent (threadDelay)
 import Control.Monad.Writer (execWriter, tell)
+import System.FilePath ((</>))
 import System.Directory (getHomeDirectory)
 
 staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
@@ -36,7 +38,7 @@ firefoxProcess = "iceweasel"
 firefoxClose = "Close Iceweasel"
 thunderbirdClass = "Icedove"
 
-relToHomeDir file = fmap (++ "/" ++ file) getHomeDirectory
+relToHomeDir file = (</> file) <$> getHomeDirectory
 
 main = xmonad . ewmh . pagerHints $ defaultConfig
   { focusFollowsMouse  = False

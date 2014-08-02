@@ -29,8 +29,7 @@ writeKeyBindingsPrettyCache file = writeFile file $ fmt
   where fmt = cols 4 $ lines $ prettyBindingsCL $ keyBinds testConfig
 
 tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
-writeKeyBindingsCache file = writeFile file fmt
-  where fmt = prettyBindingsCL $ keyBinds testConfig
+writeKeyBindingsCache = flip writeFile $ prettyBindingsCL $ keyBinds testConfig
 
 myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
