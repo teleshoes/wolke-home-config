@@ -121,6 +121,7 @@ function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo; }
 function gvim         { term vim "$@"; }
 function cx           { chmod +x "$@"; }
 function shutdown     { poweroff "$@"; }
+function xmb          { xmonad-bindings "$@"; }
 function l            { ls -Al --color=auto "$@"; }
 function ll           { ls -Al --color=auto "$@"; }
 function ld           { ls -dAl --color=auto "$@"; }
