@@ -1,9 +1,9 @@
 xconfig
 BG_DIR="/media/BACKUP_HOME/backup/wolke/Desktop/Backgrounds/"
-( sleep 10; xconfig ) &
+( sleep 10; xconfig; wallpaper-changer "$BG_DIR" ) &
 
 brightness 80
-(sudo mnt; wallpaper-changer "$BG_DIR") &
+sudo mnt &
 sudo wired &
 pulseaudio --start &
 sudo bluetooth off &
