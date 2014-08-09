@@ -10,6 +10,7 @@ my $IO_PTY = eval{require IO::Pty};
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( getScriptNames getSubNames
+                  getInstallNames getInstallScriptNames getInstallSrcNames
                   run tryrun
                   shell tryshell
                   runUser tryrunUser
@@ -98,6 +99,25 @@ sub getSubNames(){
     my @subs = @EXPORT;
     @subs = grep {/^[a-zA-Z0-9_\-]+$/} @subs;
     return \@subs;
+}
+sub getInstallNames(){
+    my @installNames = (@{getInstallScriptNames()}, @{getInstallSrcNames()});
+    return \@installNames;
+}
+sub getInstallScriptNames(){
+    my @installScriptNames;
+    my $scriptNames = getScriptNames;
+    for my $scriptName(@$scriptNames){
+      push @installScriptNames, $1 if $scriptName =~ /install-(.*)/;
+    }
+    return \@installScriptNames;
+}
+sub getInstallSrcNames(){
+  my $installSrcCmd = getInstallPath "bin/install-src";
+
+  my @installSrcNames = `$installSrcCmd --list`;
+  chomp foreach @installSrcNames;
+  return \@installSrcNames;
 }
 
 sub setOpts($) {

@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+sub install($);
+
+my @installs = (
+  klomp => ["git://github.com/teleshoes/klomp.git", ''
+      . " ./dependency-install.pl;"
+      . " ./install.pl;"
+      ],
+
+  qtbigtext => ["git://github.com/teleshoes/qtbigtext.git"],
+
+  twip => ["git://github.com/teleshoes/twip.git"],
+
+  kitchensink => ["git://github.com/bacchanalia/KitchenSink.git"],
+
+  hhpc => ["git://github.com/aktau/hhpc.git", ''
+      . " make;"
+      . " sudo cp hhpc /usr/local/bin;"
+      ],
+);
+
+my @installOrder = @installs[ grep { ! ($_ % 2) } 0 .. $#installs ];
+my %gitInstalls = @installs;
+
+sub main(@) {
+  if(@_ == 1 and $_[0] =~ /^(--list)$/){
+    print map {"$_\n"} @installOrder;
+    exit 0;
+  }
+
+  my @installs = @_;
+  @installs = @installOrder if @installs == 0;
+
+  for my $install(@installs){
+    install $install;
+  }
+}
+
+sub install($){
+  my $install = shift;
+  my $arr = $gitInstalls{$install};
+  die "Unknown install '$install'\n" if not defined $arr;
+
+  my $url = shift @$arr;
+  my $cmd = shift @$arr;
+  installFromGit $url, $cmd;
+}
+
+&main(@ARGV);
