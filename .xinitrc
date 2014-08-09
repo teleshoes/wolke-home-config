@@ -3,7 +3,7 @@ resconfig
 ( sleep 10; xconfig ) &
 
 brightness 80
-mnt
+sudo mnt &
 sudo wired &
 pulse-enable on
 sudo bluetooth off &
