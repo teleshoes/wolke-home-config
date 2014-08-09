@@ -4,22 +4,46 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub main(@) {
-    installFromGit "git://github.com/teleshoes/klomp.git", ''
+sub install($);
+
+my @installs = (
+  klomp => ["git://github.com/teleshoes/klomp.git", ''
       . " ./dependency-install.pl;"
       . " ./install.pl;"
-      ;
+      ],
 
-    installFromGit "git://github.com/teleshoes/qtbigtext.git";
+  qtbigtext => ["git://github.com/teleshoes/qtbigtext.git"],
 
-    installFromGit "git://github.com/teleshoes/twip.git";
+  twip => ["git://github.com/teleshoes/twip.git"],
 
-    installFromGit "git://github.com/bacchanalia/KitchenSink.git";
+  kitchensink => ["git://github.com/bacchanalia/KitchenSink.git"],
 
-    installFromGit "git://github.com/aktau/hhpc.git", ''
+  hhpc => ["git://github.com/aktau/hhpc.git", ''
       . " make;"
       . " sudo cp hhpc /usr/local/bin;"
-      ;
+      ],
+);
+
+my @installOrder = @installs[ grep { ! ($_ % 2) } 0 .. $#installs ];
+my %gitInstalls = @installs;
+
+sub main(@) {
+  my @installs = @_;
+  @installs = @installOrder if @installs == 0;
+
+  for my $install(@installs){
+    install $install;
+  }
+}
+
+sub install($){
+  my $install = shift;
+  my $arr = $gitInstalls{$install};
+  die "Unknown install '$install'\n" if not defined $arr;
+
+  my $url = shift @$arr;
+  my $cmd = shift @$arr;
+  installFromGit $url, $cmd;
 }
 
 &main(@ARGV);
