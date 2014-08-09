@@ -65,10 +65,10 @@ getOverride = chompFile overrideFile
 writeOverride state = writeFile overrideFile $ state ++ "\n"
 
 screenSaverOn = do
-  hhpc False
+  hhpc True
   void $ system $ "brightness " ++ show screenSaverBrightness
 screenSaverOff = do
-  hhpc True
+  hhpc False
   void $ system "brightness 100"
 
 hhpc on = do
