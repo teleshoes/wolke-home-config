@@ -12,7 +12,7 @@ clickL = writeOverride "on"
 clickM = return ()
 clickR = writeOverride "off"
 
-screenSaverBrightness = 5
+screenSaverBrightness = 25
 
 overrideFile = "/tmp/screen-saver-override"
 
