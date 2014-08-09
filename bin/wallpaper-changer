@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub setBackground($);
+sub remove($@);
+sub getFiles();
+
+my $delay = 300;
+
+my $usage = "Usage: $0 DIR\n";
+
+sub main(@){
+  my $dir = shift;
+  die $usage if not defined $dir or @_ > 0;
+  die "Missing dir $dir\n" if not -d $dir;
+  chdir $dir;
+  $ENV{PWD} = $dir;
+
+  my $curFile;
+  while(1){
+    my @files = getFiles();
+    @files = remove $curFile, @files if defined $curFile;
+    my $i = rand @files;
+    $curFile = $files[$i];
+    setBackground $curFile;
+    sleep $delay;
+  }
+}
+
+sub setBackground($){
+  my $file = shift;
+  print "$file\n";
+  $file =~ s/'/'\\''/g;
+  system "Esetroot '$file' >/dev/null 2>/dev/null";
+}
+
+sub remove($@){
+  my ($elem, @arr) = @_;
+  my @newArr;
+  for my $e(@arr){
+    push @newArr, $e unless $elem eq $e;
+  }
+  return @newArr;
+}
+
+sub getFiles(){
+  my @files = `ls *.jpg *.JPG *.png *.PNG 2>/dev/null`;
+  chomp foreach @files;
+  return @files;
+}
+
+&main(@ARGV);
