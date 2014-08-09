@@ -64,7 +64,16 @@ sub fetchTrackId($$){
     . "&duration=$$fp{duration}"
     . "&fingerprint=$$fp{fingerprint}"
     ;
-  my $res = `curl "$url" 2>/dev/null`;
+  my $retries = 10;
+  my $res;
+  while(not defined $res and $retries > 0){
+    $res = `curl -m 3 "$url" 2>/dev/null`;
+    if($? != 0){
+      $res = undef;
+      $retries--;
+      print STDERR "HTTP GET failed, retrying $retries more times..\n";
+    }
+  }
 
   my $h = '(?:[a-f0-9]){%d}';
   my ($h4, $h8, $h12) = (sprintf($h, 4), sprintf($h, 8), sprintf($h, 12));

@@ -8,7 +8,6 @@ import Control.Monad.Writer
 import Data.Bits
 import Data.Char
 import Data.List
-import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -106,22 +105,16 @@ prettyMod m = flip map mods $ \c -> if maskOf c .&. m == 0 then '_' else c
 
 prettyMse = ("B" ++) . show
 
-prettyKey = (M.!) . execWriter $ do
+prettyKey key = format
+  . fromMaybe (keysymToString key)
+  . M.lookup key
+  $ execWriter $ do
     xK_Caps_Lock                # "Caps"
     xK_Delete                   # "Del"
     xK_Escape                   # "Esc"
-    xK_Home                     # "Home"
-    xK_End                      # "End"
     xK_Insert                   # "Ins"
-    xK_Next                     # "Next"
-    xK_Print                    # "Print"
     xK_Prior                    # "Prev"
     xK_Return                   # "Enter"
-    xK_Tab                      # "Tab"
-    xK_Menu                     # "Menu"
-    xK_Pause                    # "Pause"
-    xK_Mic                      # "Mic"
-    xK_Tools                    # "Tools"
     xF86XK_AudioRaiseVolume     # "VolUp"
     xF86XK_AudioLowerVolume     # "VolDn"
     xF86XK_AudioMute            # "Mute"
@@ -132,20 +125,19 @@ prettyKey = (M.!) . execWriter $ do
     xF86XK_Launch2              # "Mic"
     xF86XK_MonBrightnessUp      # "BriUp"
     xF86XK_MonBrightnessDown    # "BriDn"
-    xF86XK_PowerOff             # "Power"
-    xK_KP_Insert                # "KPIns"
     xK_KP_Add                   # "KP+"
     xK_KP_Subtract              # "KP-"
     xK_KP_Multiply              # "KP*"
-    xK_KP_Delete                # "KPDel"
-    xK_KP_Enter                 # "KPEnt"
+    xK_KP_Divide                # "KP/"
     xK ' '                      # "' '"
     tellZ arrKeys arrStrs
-    let cs = [33..126] in tellZM cs chrl
+    let cs = [33..126] in tellZM cs $ return . chr . fromIntegral
     let cs = fKeys     in tellZM cs $ \c -> "F" ++ show (c - xK_F1 + 1)
   where
     k # s = tell $ M.singleton k s
     tellZ  ks vs = tell . M.fromList $ zip ks vs
     tellZM ks f  = tellZ ks $ map f ks
-    chrl = return . chr . fromIntegral
+
+    format str = take 5 . (++ repeat ' ') . filter (/= '_')
+               $ if "XF86" `isPrefixOf` str then drop 4 str else str
 

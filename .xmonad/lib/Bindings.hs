@@ -9,9 +9,10 @@ import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.StackSet hiding (focus, workspaces, filter)
 import qualified XMonad.StackSet as SS
 
-import Control.Applicative
+import Control.Arrow (first)
 import qualified Data.Foldable as F
-import Data.Map ((!))
+import Data.List (find, intercalate, isInfixOf, transpose)
+import Data.List.Split (chunksOf, splitOn)
 import qualified Data.Map as M
 import Data.Maybe
 import System.IO.Error (catchIOError)
@@ -19,11 +20,25 @@ import System.IO.Error (catchIOError)
 import Bindings.Keys
 import Bindings.Writer
 
-main = putStr . prettyBindings $ keyBinds testConfig
+main = putStr . prettyBindingsIndented $ keyBinds testConfig
+
+tryWriteKeyBindingsPrettyCache file = writeKeyBindingsPrettyCache file `catchIOError` print
+writeKeyBindingsPrettyCache = flip writeFile $ cols 4 $ lines $
+    renameWorkspaces $ prettyBindingsFlat $ keyBinds testConfig
 
 tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
-writeKeyBindingsCache file = writeFile file fmt
-  where fmt = prettyBindingsCL $ keyBinds testConfig
+writeKeyBindingsCache = flip writeFile $
+    renameWorkspaces $ prettyBindingsFlatHex $ keyBinds testConfig
+
+renameWorkspaces = unlines . map rename . lines
+  where
+    rename line
+      | "\"Workspaces\"" `isInfixOf` line
+      , Just (old, new) <- findWorkspaceName = intercalate (show new) $ splitOn old line
+      | otherwise                            = line
+      where
+        findWorkspaceName = find ((`isInfixOf` line) . fst) $
+            map (first $ show . show) $ zip [1..] workspaceNames
 
 myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
@@ -34,6 +49,13 @@ testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
 
 mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
 keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
+
+cols colCount lines = unlines $ map concat $ transpose cols
+  where
+    maxLen = maximum $ map length lines
+    colSize = negate $ negate (length lines) `div` colCount
+    cols = chunksOf colSize $ map pad lines
+    pad line = take (maxLen+2) $ line ++ repeat ' '
 
 infixr 0 #!, ##, #^, #>
 a #! b = a # (spawn b :: X ())

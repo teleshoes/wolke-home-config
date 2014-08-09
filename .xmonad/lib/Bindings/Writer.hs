@@ -9,7 +9,7 @@ module Bindings.Writer
     , Bindings(..)
     , (@@), (#)
     , bwBindList, bwFindOverlap
-    , prettyBindings, prettyBindingsCL
+    , prettyBindingsIndented, prettyBindingsFlat, prettyBindingsFlatHex
     ) where
 
 import XMonad
@@ -58,8 +58,8 @@ bwDescList = go . execWriter
     go Binds{..} = map (bDesc, ) bBinds
     go BList{..} = map (first $ \s -> bDesc ++ ":" ++ s) $ concatMap go bList
 
-prettyBindings :: Show (PrettyBind a) => BW ((KeyMask, a), b) -> String
-prettyBindings bw = concat . mapFlatBW pLine $ bw
+prettyBindingsIndented :: Show (PrettyBind a) => BW ((KeyMask, a), b) -> String
+prettyBindingsIndented bw = concat . mapFlatBW pLine $ bw
   where
     l = maximum $ mapFlatBW (\n s _ -> 4*n + length s + 2) bw
     ind n = replicate (4*n) ' '
@@ -67,14 +67,11 @@ prettyBindings bw = concat . mapFlatBW pLine $ bw
     pLine n s (Just as) = pad l (ind n ++ s ++ ":")
                         ++ show (map (PBind . fst) as) ++ "\n"
 
-prettyBindingsCL :: Integral a => BW ((KeyMask, a), b) -> String
-prettyBindingsCL
-  = concatMap (\((m,k),d) -> concat [m," ",k," ",init.tail.show.tail$d,"\n"])
-  . go . execWriter
+bindingPaths :: BW ((a, b), c) -> [((a, b), [String])]
+bindingPaths = go . execWriter
   where
-    go Binds{..} = dist bDesc . map (prettyMod *** toHex) . map fst $ bBinds
+    go Binds{..} = dist bDesc . map fst $ bBinds
     go BList{..} = map (second (bDesc :)) $ concatMap go bList
-    toHex = (printf "0x%08x" :: Integer -> String) . fromIntegral
     dist bDesc binds
       | Right mkDesc         <- numeric = zipWith (\n -> (,[mkDesc n])) [1..] binds
       | Right (mkDesc, strs) <- slashed
@@ -90,6 +87,17 @@ prettyBindingsCL
           where
             slashes = many1 alphaNum `sepBy2` string "/"
             sepBy2 p s = (:) <$> (p <* s) <*> (p `sepBy1` s)
+
+prettyBindingsFlat :: Integral a => BW ((KeyMask, KeySym), b) -> String
+prettyBindingsFlat = concatMap format . bindingPaths
+  where
+    format ((m,k),d) = concat [prettyMod m," ",prettyKey k," ",init.tail.show.tail$d,"\n"]
+
+prettyBindingsFlatHex :: Integral a => BW ((KeyMask, a), b) -> String
+prettyBindingsFlatHex = concatMap format . bindingPaths
+  where
+    format ((m,k),d) = concat [prettyMod m," ",toHex k," ",init.tail.show.tail$d,"\n"]
+    toHex = (printf "0x%08x" :: Integer -> String) . fromIntegral
 
 infixr 0 @@, #
 
@@ -156,4 +164,4 @@ instance Functor Bindings where
     fmap f (BList s bs) = BList s $ fmap (fmap f) bs
 
 instance Show (PrettyBind a) => Show (BW ((KeyMask, a), b)) where
-    show = prettyBindings
+    show = prettyBindingsIndented
