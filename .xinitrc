@@ -2,7 +2,7 @@
 ( sleep 10; xconfig ) &
 
 brightness 80
-mnt
+sudo mnt &
 sudo wired &
 pulseaudio --start &
 sudo bluetooth off &
