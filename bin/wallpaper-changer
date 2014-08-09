@@ -4,35 +4,41 @@ use warnings;
 
 sub setBackground($);
 sub remove($@);
-sub getFiles();
+sub getFiles($);
 
 my $delay = 300;
+my $verbose = 1;
 
-my $usage = "Usage: $0 DIR\n";
+my @exts = qw(jpg jpeg png gif bmp);
+
+my $usage = "Usage: $0 [-q] DIR\n";
 
 sub main(@){
+  my $quiet = shift if @_ > 0 and $_[0] eq "-q";
   my $dir = shift;
   die $usage if not defined $dir or @_ > 0;
-  die "Missing dir $dir\n" if not -d $dir;
-  chdir $dir;
-  $ENV{PWD} = $dir;
+
+  $verbose = 0 if defined $quiet;
 
   my $curFile;
   while(1){
-    my @files = getFiles();
-    @files = remove $curFile, @files if defined $curFile;
-    my $i = rand @files;
-    $curFile = $files[$i];
-    setBackground $curFile;
+    if(-d $dir){
+      my @files = getFiles($dir);
+      @files = remove $curFile, @files if defined $curFile;
+      my $i = rand @files;
+      $curFile = $files[$i];
+      setBackground $curFile;
+    }
     sleep $delay;
   }
 }
 
 sub setBackground($){
   my $file = shift;
-  print "$file\n";
+  print "$file\n" if $verbose;
   $file =~ s/'/'\\''/g;
-  system "Esetroot '$file' >/dev/null 2>/dev/null";
+  my $redirect = $verbose ? '' : ">/dev/null 2>/dev/null";
+  system "Esetroot '$file' $redirect";
 }
 
 sub remove($@){
@@ -44,8 +50,11 @@ sub remove($@){
   return @newArr;
 }
 
-sub getFiles(){
-  my @files = `ls *.jpg *.JPG *.png *.PNG 2>/dev/null`;
+sub getFiles($){
+  my $dir = shift;
+  my @exts = map { ("-or", "-iname", "*.$_") } @exts;
+  open FH, "-|", "find", $dir, "-false", @exts;
+  my @files = <FH>;
   chomp foreach @files;
   return @files;
 }
