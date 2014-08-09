@@ -64,8 +64,8 @@ getOverride = chompFile overrideFile
 
 writeOverride state = writeFile overrideFile $ state ++ "\n"
 
-screenSaverOn = void $ system $ "brightness " ++ show screenSaverBrightness
-screenSaverOff = void $ system "brightness 100"
+screenSaverOn = void $ system $ "hhpc; brightness " ++ show screenSaverBrightness
+screenSaverOff = void $ system "pkill hhpc; brightness 100"
 
 getXidle :: IO Integer
 getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
