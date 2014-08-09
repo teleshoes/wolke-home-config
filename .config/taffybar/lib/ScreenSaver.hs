@@ -4,7 +4,7 @@ import Label (labelW)
 import Utils(chompFile, padL, readInt, readProc, millisTime)
 
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
-import Control.Monad (void)
+import Control.Monad (when, void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 
@@ -64,8 +64,16 @@ getOverride = chompFile overrideFile
 
 writeOverride state = writeFile overrideFile $ state ++ "\n"
 
-screenSaverOn = void $ system $ "hhpc; brightness " ++ show screenSaverBrightness
-screenSaverOff = void $ system "pkill hhpc; brightness 100"
+screenSaverOn = do
+  hhpc False
+  void $ system $ "brightness " ++ show screenSaverBrightness
+screenSaverOff = do
+  hhpc True
+  void $ system "brightness 100"
+
+hhpc on = do
+  void $ system "pkill hhpc"
+  when on $ void $ system "hhpc &"
 
 getXidle :: IO Integer
 getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
