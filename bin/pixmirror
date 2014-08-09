@@ -6,19 +6,42 @@ use warnings;
 
 sub findImages($);
 sub statImage($);
+sub getPix($);
 sub checkInfo($$);
 sub convert($$$$);
+sub getOrientation($$);
 
 my @exts = qw(jpg jpeg png);
 
 my $targetX = 854;
 my $targetY = 480;
+my $targetOrientation = getOrientation $targetX, $targetY;
 
 my $convertExec = 'convert';
 my $identifyExec = 'identify';
 my $jheadExec = 'jhead';
 
-my $usage = "Usage: $0 SRC_DIR DEST_DIR\n";
+my $usage = "Usage:
+  $0 <SRC_DIR> <DEST_DIR>
+    Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
+      resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
+
+    If target is landscape-oriented and source is portrait-oriented
+      {or vice-versa}, <TARGET_X> and <TARGET_Y> are swapped.
+      Landscape means x>y and portrait means y>=x.
+      Default is $targetOrientation.
+
+    The original filesize and modified timestamp are recorded for each file
+      in a file with the same path as the original, appended with \".info\".
+      If copies already exist on the target, they are not replaced unless the mtime
+      or filesize of the original has changed, even if new arguments are given.
+
+    Mirror images are auto-rotated from their EXIF metadata using '$jheadExec'
+
+  <TARGET_X> is $targetX
+  <TARGET_Y> is $targetY
+
+";
 
 sub main(@){
   my $srcDir = shift;
@@ -122,15 +145,16 @@ sub convert($$$$){
 
   my ($x, $y) = getPix "$srcDir/$img";
   my $ratio;
-  if($x > $y){
-    my $ratio1 = $targetX / $x;
-    my $ratio2 = $targetY / $y;
-    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
-  }else{
-    my $ratio1 = $targetY / $x;
-    my $ratio2 = $targetX / $y;
-    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
+  my $srcOrientation = getOrientation $x, $y;
+  if($srcOrientation ne $targetOrientation){
+    ($targetX, $targetY) = ($targetY, $targetX);
   }
+
+  my $ratio1 = $targetX / $x;
+  my $ratio2 = $targetY / $y;
+  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
   my $percent = sprintf '%.5f', $ratio*100;
 
   system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
@@ -145,6 +169,11 @@ sub convert($$$$){
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
+}
+
+sub getOrientation($$){
+  my ($x, $y) = @_;
+  return $x > $y ? "landscape" : "portrait";
 }
 
 &main(@ARGV);
