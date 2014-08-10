@@ -1,6 +1,6 @@
 resconfig
 xconfig
-BG_DIR="/media/BACKUP_HOME/backup/wolke/Desktop/Backgrounds/"
+BG_DIR="/media/home/wolke/Desktop/bg/fhd/"
 ( sleep 10; xconfig; wallpaper-changer "$BG_DIR" ) &
 
 brightness 80
