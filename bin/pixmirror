@@ -10,7 +10,8 @@ sub getPix($);
 sub checkInfo($$);
 sub handleImage($$$$);
 sub getNewPix($);
-sub resize($$$);
+sub isOrientMatch($$);
+sub getResizePercent($$$$);
 sub pad($$$);
 sub runConvert($@);
 sub getOrientation($$);
@@ -196,47 +197,45 @@ sub handleImage($$$$){
 
   system "cp", "-a", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
 
-  my ($newX, $newY) = getNewPix "$destDir/$img";
+  system $jheadExec, "-autorot", "$destDir/$img";
 
-  resize "$destDir/$img", $newX, $newY;
+  my ($oldX, $oldY) = getPix "$destDir/$img";
+  my ($newX, $newY) = ($targetX, $targetY);
+
+  if($orientSwap and not isOrientMatch $oldX, $oldY){
+    ($newX, $newY) = ($newY, $newX);
+  }
+
+  my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
+  runConvert "$destDir/$img", "-resize", "$percent%";
+
+  pad "$destDir/$img", $newX, $newY;
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
   close INFO;
-
-  system $jheadExec, "-autorot", "$destDir/$img";
-
-  pad "$destDir/$img", $newX, $newY;
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
 }
 
-sub getNewPix($){
-  my $file = shift;
-  my ($x, $y) = getPix $file;
-  my ($newX, $newY);
-  my $srcOrientation = getOrientation $x, $y;
-  if($orientSwap and $srcOrientation ne $targetOrientation){
-    return ($targetY, $targetX);
-  }else{
-    return ($targetX, $targetY);
-  }
+sub isOrientMatch($$){
+  my ($oldX, $oldY) = @_;
+  return getOrientation($oldX, $oldY) eq $targetOrientation;
 }
 
-sub resize($$$){
-  my ($file, $newX, $newY) = @_;
+sub getResizePercent($$$$){
+  my ($newX, $newY, $oldX, $oldY) = @_;
   my $ratio;
 
-  my ($x, $y) = getPix $file;
-  my $ratio1 = $newX / $x;
-  my $ratio2 = $newY / $y;
+  my $ratio1 = $newX / $oldX;
+  my $ratio2 = $newY / $oldY;
   $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
 
   my $percent = sprintf '%.5f', $ratio*100;
 
-  runConvert $file, "-resize", "$percent%";
+  return $percent;
 }
 
 sub pad($$$){
