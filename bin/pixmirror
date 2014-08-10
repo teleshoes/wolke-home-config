@@ -4,26 +4,101 @@
 use strict;
 use warnings;
 
-my $usage = "Usage: $0 src dest\n";
+sub findImages($);
+sub statImage($);
+sub getPix($);
+sub checkInfo($$);
+sub convert($$$$);
+sub getOrientation($$);
+
 my @exts = qw(jpg jpeg png);
 
-my $targetX = 854;
-my $targetY = 480;
+my $targetX = 1920;
+my $targetY = 1080;
+my $targetOrientation = getOrientation $targetX, $targetY;
+my $orientSwap = 0;
+
+my $pad = 0;
+my $padColor = 'black';
+my $padGravity = 'center';
+my $okGravity = join "|", split /\n+/, `convert -list gravity 2>/dev/null`;
 
 my $convertExec = 'convert';
 my $identifyExec = 'identify';
 my $jheadExec = 'jhead';
 
-sub findImages($);
-sub statImage($);
-sub checkInfo($$);
-sub convert($$$$);
+my $usage = "Usage:
+  $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
+    Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
+      resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
+
+    The original filesize and modified timestamp are recorded for each file
+      in a file with the same path as the original, appended with \".info\".
+      If copies already exist on the target, they are not replaced unless the
+      mtime or filesize of the original has changed, even if new arguments
+      are given.
+
+    Mirrored images are auto-rotated from EXIF metadata using '$jheadExec'
+
+  <OPTS>
+    --size=<TARGET_X>x<TARGET_Y>   {default is ${targetX}x${targetY}}
+      target width and height in pixels {or height and width if src y>x}
+
+    --orient  --no-orient          {default is --no-orient}
+      Does not rotate the image.
+      Permits the image to instead optionally fit in a <TARGET_Y>x<TARGET_X>
+        frame, in order to be larger than if it fix in <TARGET_X>x<TARGET_Y>.
+      If <TARGET_X>x<TARGET_X> is landscape-oriented and the source image
+        is portrait-oriented {or vice-versa},
+        <TARGET_X> and <TARGET_Y> are swapped.
+      Landscape means x>y and portrait means y>=x.
+      By default, the orientation is $targetOrientation {${targetX}x{$targetY}}
+        {and can be changed with --size=<TARGET_X>x<TARGET_Y>}
+
+    --pad  --no-pad                {default is --no-pad}
+      Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
+        with a solid black border on top/bottom or left/right.
+
+    --pad-color=<COLOR>            {default is $padColor}
+      when --pad is given, set the background to <COLOR>
+
+    --pad-gravity=<GRAVITY>        {default is $padGravity}
+      when padding, use gravity=<GRAVITY>
+      <GRAVITY> is one of {$okGravity}
+      e.g.: $0 --size=5000x50 --pad --pad-gravity=South
+               append 4950 rows of black pixels to the top of a 50x50 image
+";
 
 sub main(@){
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--size=(\d+)x(\d+)$/){
+      $targetX = $1+0;
+      $targetY = $2+0;
+      $targetOrientation = getOrientation $targetX, $targetY;
+    }elsif($arg =~ /^--orient$/){
+      $orientSwap = 1;
+    }elsif($arg =~ /^--no-orient$/){
+      $orientSwap = 0;
+    }elsif($arg =~ /^--pad$/){
+      $pad = 1;
+    }elsif($arg =~ /^--no-pad$/){
+      $pad = 0;
+    }elsif($arg =~ /^--pad-color=(\w+)$/){
+      $padColor = $1;
+    }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
+      $padGravity = $1;
+    }else{
+      die $usage;
+    }
+  }
+
   my $srcDir = shift;
   my $destDir = shift;
 
   die $usage if not defined $srcDir or not defined $destDir or @_ > 0;
+
+  system "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
@@ -101,8 +176,8 @@ sub checkInfo($$){
 sub getPix($){
   my $file = shift;
   $file =~ s/'/'\\''/g;
-  my $info = `identify '$file'`;
-  if($info =~ /(\d+)x(\d+)/){
+  my $info = `identify -verbose '$file'`;
+  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
     return ($1, $2);
   }else{
     die "Could not find HxW using imagemagick for $file\n";
@@ -121,15 +196,19 @@ sub convert($$$$){
 
   my ($x, $y) = getPix "$srcDir/$img";
   my $ratio;
-  if($x > $y){
-    my $ratio1 = $targetX / $x;
-    my $ratio2 = $targetY / $y;
-    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
+  my ($newX, $newY);
+  my $srcOrientation = getOrientation $x, $y;
+  if($orientSwap and $srcOrientation ne $targetOrientation){
+    ($newX, $newY) = ($targetY, $targetX);
   }else{
-    my $ratio1 = $targetY / $x;
-    my $ratio2 = $targetX / $y;
-    $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+    ($newX, $newY) = ($targetX, $targetY);
   }
+
+  my $ratio1 = $newX / $x;
+  my $ratio2 = $newY / $y;
+  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
   my $percent = sprintf '%.5f', $ratio*100;
 
   system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
@@ -141,9 +220,28 @@ sub convert($$$$){
 
   system $jheadExec, "-autorot", "$destDir/$img";
 
+  if($pad){
+    my $tmp = "$srcDir/$img";
+    $tmp =~ s/\//_/g;
+    $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
+    system $convertExec,
+      "-gravity", $padGravity,
+      "-background", $padColor,
+      "-extent", "${newX}x${newY}",
+      "$destDir/$img", $tmp,
+      ;
+    die "failed to pad $srcDir/$img\n" if not -f $tmp;
+    system "mv", $tmp, "$destDir/$img";
+  }
+
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
+}
+
+sub getOrientation($$){
+  my ($x, $y) = @_;
+  return $x > $y ? "landscape" : "portrait";
 }
 
 &main(@ARGV);
