@@ -16,6 +16,7 @@ my @exts = qw(jpg jpeg png);
 my $targetX = 854;
 my $targetY = 480;
 my $targetOrientation = getOrientation $targetX, $targetY;
+my $orientSwap = 1;
 
 my $convertExec = 'convert';
 my $identifyExec = 'identify';
@@ -25,11 +26,6 @@ my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
     Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
       resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
-
-    If target is landscape-oriented and source is portrait-oriented
-      {or vice-versa}, <TARGET_X> and <TARGET_Y> are swapped.
-      Landscape means x>y and portrait means y>=x.
-      Default is $targetOrientation.
 
     The original filesize and modified timestamp are recorded for each file
       in a file with the same path as the original, appended with \".info\".
@@ -41,6 +37,17 @@ my $usage = "Usage:
   <OPTS>
     --size=<TARGET_X>x<TARGET_Y>   {default is ${targetX}x${targetY}}
       target width and height in pixels {or height and width if src y>x}
+
+    --orient  --no-orient          {default is --orient}
+      Does not rotate the image.
+      Permits the image to instead optionally fit in a <TARGET_Y>x<TARGET_X>
+        frame, in order to be larger than if it fix in <TARGET_X>x<TARGET_Y>.
+      If <TARGET_X>x<TARGET_X> is landscape-oriented and the source image
+        is portrait-oriented {or vice-versa},
+        <TARGET_X> and <TARGET_Y> are swapped.
+      Landscape means x>y and portrait means y>=x.
+      By default, the orientation is $targetOrientation {${targetX}x{$targetY}}
+        {and can be changed with --size=<TARGET_X>x<TARGET_Y>}
 ";
 
 sub main(@){
@@ -50,6 +57,10 @@ sub main(@){
       $targetX = $1+0;
       $targetY = $2+0;
       $targetOrientation = getOrientation $targetX, $targetY;
+    }elsif($arg =~ /^--orient$/){
+      $orientSwap = 1;
+    }elsif($arg =~ /^--no-orient$/){
+      $orientSwap = 0;
     }
   }
 
@@ -156,7 +167,7 @@ sub convert($$$$){
   my $ratio;
 
   my $srcOrientation = getOrientation $x, $y;
-  if($srcOrientation ne $targetOrientation){
+  if($orientSwap and $srcOrientation ne $targetOrientation){
     ($targetX, $targetY) = ($targetY, $targetX);
   }
 
