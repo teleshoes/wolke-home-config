@@ -18,6 +18,8 @@ my $targetY = 1080;
 my $targetOrientation = getOrientation $targetX, $targetY;
 my $orientSwap = 0;
 
+my $pad = 0;
+
 my $convertExec = 'convert';
 my $identifyExec = 'identify';
 my $jheadExec = 'jhead';
@@ -49,6 +51,10 @@ my $usage = "Usage:
       Landscape means x>y and portrait means y>=x.
       By default, the orientation is $targetOrientation {${targetX}x{$targetY}}
         {and can be changed with --size=<TARGET_X>x<TARGET_Y>}
+
+    --pad  --no-pad                {default is --no-pad}
+      Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
+        with a solid black border on top/bottom or left/right.
 ";
 
 sub main(@){
@@ -62,6 +68,10 @@ sub main(@){
       $orientSwap = 1;
     }elsif($arg =~ /^--no-orient$/){
       $orientSwap = 0;
+    }elsif($arg =~ /^--pad$/){
+      $pad = 1;
+    }elsif($arg =~ /^--no-pad$/){
+      $pad = 0;
     }
   }
 
@@ -189,6 +199,20 @@ sub convert($$$$){
   close INFO;
 
   system $jheadExec, "-autorot", "$destDir/$img";
+
+  if($pad){
+    my $tmp = "$srcDir/$img";
+    $tmp =~ s/\//_/g;
+    $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
+    system $convertExec,
+      "-gravity", "center",
+      "-background", "black",
+      "-extent", "${newX}x${newY}",
+      "$destDir/$img", $tmp,
+      ;
+    die "failed to pad $srcDir/$img\n" if not -f $tmp;
+    system "mv", $tmp, "$destDir/$img";
+  }
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
