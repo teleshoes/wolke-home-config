@@ -24,7 +24,9 @@ my $jheadExec = 'jhead';
 my $targetX = 1920;
 my $targetY = 1080;
 my $targetOrientation = getOrientation $targetX, $targetY;
+
 my $orientSwap = 0;
+my $rotate = 0;
 
 my $pad = 0;
 my $padColor = 'black';
@@ -59,6 +61,11 @@ my $usage = "Usage:
       By default, the orientation is $targetOrientation {${targetX}x{$targetY}}
         {and can be changed with --size=<TARGET_X>x<TARGET_Y>}
 
+    --rotate  --no-rotate          {default is --no-rotate}
+      Implies --orient. Instead of just scaling like --orient,
+        actually rotate 90 degress clockwise if the orientations do not match.
+      This is done after '$jheadExec' auto-rotation
+
     --pad  --no-pad                {default is --no-pad}
       Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
         with a solid black border on top/bottom or left/right.
@@ -84,6 +91,10 @@ sub main(@){
       $orientSwap = 1;
     }elsif($arg =~ /^--no-orient$/){
       $orientSwap = 0;
+    }elsif($arg =~ /^--rotate$/){
+      $rotate = 1;
+    }elsif($arg =~ /^--no-rotate$/){
+      $rotate = 0;
     }elsif($arg =~ /^--pad$/){
       $pad = 1;
     }elsif($arg =~ /^--no-pad$/){
@@ -202,7 +213,10 @@ sub handleImage($$$$){
   my ($oldX, $oldY) = getPix "$destDir/$img";
   my ($newX, $newY) = ($targetX, $targetY);
 
-  if($orientSwap and not isOrientMatch $oldX, $oldY){
+  if($rotate and not isOrientMatch $oldX, $oldY){
+    runConvert "$destDir/$img", "-rotate", 90;
+    ($oldX, $oldY) = ($oldY, $oldX);
+  }elsif($orientSwap and not isOrientMatch $oldX, $oldY){
     ($newX, $newY) = ($newY, $newX);
   }
 
