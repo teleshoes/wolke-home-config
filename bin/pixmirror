@@ -8,8 +8,11 @@ sub findImages($);
 sub statImage($);
 sub getPix($);
 sub checkInfo($$);
-sub modifyImage($$$$);
-sub convertInPlace($@);
+sub handleImage($$$$);
+sub getNewPix($);
+sub resize($$$);
+sub pad($$$);
+sub runConvert($@);
 sub getOrientation($$);
 
 my @exts = qw(jpg jpeg png);
@@ -135,7 +138,7 @@ sub main(@){
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
   for my $img(@srcImgs){
-    modifyImage $img, $srcDir, $destDir, $srcInfos{$img};
+    handleImage $img, $srcDir, $destDir, $srcInfos{$img};
   }
 
   print "\n\nremoving empty dirs\n";
@@ -184,35 +187,18 @@ sub getPix($){
   }
 }
 
-sub modifyImage($$$$){
-  my $img = shift;
-  my $srcDir = shift;
-  my $destDir = shift;
-  my $statInfo = shift;
+sub handleImage($$$$){
+  my ($img, $srcDir, $destDir, $statInfo) = @_;
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
   system "mkdir", "-p", $parent;
 
-  my ($x, $y) = getPix "$srcDir/$img";
-  my $ratio;
-
-  my ($newX, $newY);
-  my $srcOrientation = getOrientation $x, $y;
-  if($orientSwap and $srcOrientation ne $targetOrientation){
-    ($newX, $newY) = ($targetY, $targetX);
-  }else{
-    ($newX, $newY) = ($targetX, $targetY);
-  }
-
-  my $ratio1 = $newX / $x;
-  my $ratio2 = $newY / $y;
-  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
-
-  my $percent = sprintf '%.5f', $ratio*100;
-
   system "cp", "-a", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
-  convertInPlace "$destDir/$img", "-resize", "$percent%";
+
+  my ($newX, $newY) = getNewPix "$destDir/$img";
+
+  resize "$destDir/$img", $newX, $newY;
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -220,20 +206,52 @@ sub modifyImage($$$$){
 
   system $jheadExec, "-autorot", "$destDir/$img";
 
-  if($pad){
-    convertInPlace "$destDir/$img",
-      "-gravity", $padGravity,
-      "-background", $padColor,
-      "-extent", "${newX}x${newY}",
-      ;
-  }
+  pad "$destDir/$img", $newX, $newY;
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
 }
 
-sub convertInPlace($@){
+sub getNewPix($){
+  my $file = shift;
+  my ($x, $y) = getPix $file;
+  my ($newX, $newY);
+  my $srcOrientation = getOrientation $x, $y;
+  if($orientSwap and $srcOrientation ne $targetOrientation){
+    return ($targetY, $targetX);
+  }else{
+    return ($targetX, $targetY);
+  }
+}
+
+sub resize($$$){
+  my ($file, $newX, $newY) = @_;
+  my $ratio;
+
+  my ($x, $y) = getPix $file;
+  my $ratio1 = $newX / $x;
+  my $ratio2 = $newY / $y;
+  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
+  my $percent = sprintf '%.5f', $ratio*100;
+
+  runConvert $file, "-resize", "$percent%";
+}
+
+sub pad($$$){
+  my ($file, $newX, $newY) = @_;
+
+  if($pad){
+    runConvert $file,
+      "-gravity", $padGravity,
+      "-background", $padColor,
+      "-extent", "${newX}x${newY}",
+      ;
+  }
+}
+
+sub runConvert($@){
   my ($file, @args) = @_;
 
   my $tmp = $file;
