@@ -20,6 +20,8 @@ my $orientSwap = 0;
 
 my $pad = 0;
 my $padColor = 'black';
+my $padGravity = 'center';
+my $okGravity = join "|", split /\n+/, `convert -list gravity 2>/dev/null`;
 
 my $convertExec = 'convert';
 my $identifyExec = 'identify';
@@ -59,6 +61,12 @@ my $usage = "Usage:
 
     --pad-color=<COLOR>            {default is $padColor}
       when --pad is given, set the background to <COLOR>
+
+    --pad-gravity=<GRAVITY>        {default is $padGravity}
+      when padding, use gravity=<GRAVITY>
+      <GRAVITY> is one of {$okGravity}
+      e.g.: $0 --size=5000x50 --pad --pad-gravity=South
+               append 4950 rows of black pixels to the top of a 50x50 image
 ";
 
 sub main(@){
@@ -78,6 +86,8 @@ sub main(@){
       $pad = 0;
     }elsif($arg =~ /^--pad-color=(\w+)$/){
       $padColor = $1;
+    }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
+      $padGravity = $1;
     }else{
       die $usage;
     }
@@ -213,7 +223,7 @@ sub convert($$$$){
     $tmp =~ s/\//_/g;
     $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
     system $convertExec,
-      "-gravity", "center",
+      "-gravity", $padGravity,
       "-background", $padColor,
       "-extent", "${newX}x${newY}",
       "$destDir/$img", $tmp,
