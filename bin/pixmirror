@@ -8,7 +8,8 @@ sub findImages($);
 sub statImage($);
 sub getPix($);
 sub checkInfo($$);
-sub convert($$$$);
+sub modifyImage($$$$);
+sub convertInPlace($@);
 sub getOrientation($$);
 
 my @exts = qw(jpg jpeg png);
@@ -134,7 +135,7 @@ sub main(@){
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
   for my $img(@srcImgs){
-    convert $img, $srcDir, $destDir, $srcInfos{$img};
+    modifyImage $img, $srcDir, $destDir, $srcInfos{$img};
   }
 
   print "\n\nremoving empty dirs\n";
@@ -183,7 +184,7 @@ sub getPix($){
   }
 }
 
-sub convert($$$$){
+sub modifyImage($$$$){
   my $img = shift;
   my $srcDir = shift;
   my $destDir = shift;
@@ -210,8 +211,8 @@ sub convert($$$$){
 
   my $percent = sprintf '%.5f', $ratio*100;
 
-  system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
-  die "failure: $img\n" if $? != 0;
+  system "cp", "-a", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
+  convertInPlace "$destDir/$img", "-resize", "$percent%";
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -220,22 +221,30 @@ sub convert($$$$){
   system $jheadExec, "-autorot", "$destDir/$img";
 
   if($pad){
-    my $tmp = "$srcDir/$img";
-    $tmp =~ s/\//_/g;
-    $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
-    system $convertExec,
+    convertInPlace "$destDir/$img",
       "-gravity", $padGravity,
       "-background", $padColor,
       "-extent", "${newX}x${newY}",
-      "$destDir/$img", $tmp,
       ;
-    die "failed to pad $srcDir/$img\n" if not -f $tmp;
-    system "mv", $tmp, "$destDir/$img";
   }
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
+}
+
+sub convertInPlace($@){
+  my ($file, @args) = @_;
+
+  my $tmp = $file;
+  $tmp =~ s/\//_/g;
+  $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
+  die "$tmp already exists!\n" if -f $tmp;
+  system $convertExec, @args, $file, $tmp;
+  die "failed to run convert on $file {@args}\n" if $? != 0 or not -f $tmp;
+
+  system "rm", $file;
+  system "mv", $tmp, $file;
 }
 
 sub getOrientation($$){
