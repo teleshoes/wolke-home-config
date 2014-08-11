@@ -12,7 +12,6 @@ sub handleImage($$$$);
 sub getNewPix($);
 sub isOrientMatch($$);
 sub getResizePercent($$$$);
-sub pad($$$);
 sub runConvert($@);
 sub getOrientation($$);
 
@@ -213,17 +212,26 @@ sub handleImage($$$$){
   my ($oldX, $oldY) = getPix "$destDir/$img";
   my ($newX, $newY) = ($targetX, $targetY);
 
+  my @args;
   if($rotate and not isOrientMatch $oldX, $oldY){
-    runConvert "$destDir/$img", "-rotate", 90;
+    @args = (@args, "-rotate", 90);
     ($oldX, $oldY) = ($oldY, $oldX);
   }elsif($orientSwap and not isOrientMatch $oldX, $oldY){
     ($newX, $newY) = ($newY, $newX);
   }
 
   my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
-  runConvert "$destDir/$img", "-resize", "$percent%";
+  @args = (@args, "-resize", "$percent%");
 
-  pad "$destDir/$img", $newX, $newY;
+  if($pad){
+    @args = (@args,
+      "-gravity", $padGravity,
+      "-background", $padColor,
+      "-extent", "${newX}x${newY}",
+    );
+  }
+
+  runConvert "$destDir/$img", @args;
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -250,18 +258,6 @@ sub getResizePercent($$$$){
   my $percent = sprintf '%.5f', $ratio*100;
 
   return $percent;
-}
-
-sub pad($$$){
-  my ($file, $newX, $newY) = @_;
-
-  if($pad){
-    runConvert $file,
-      "-gravity", $padGravity,
-      "-background", $padColor,
-      "-extent", "${newX}x${newY}",
-      ;
-  }
 }
 
 sub runConvert($@){
