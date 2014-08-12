@@ -6,7 +6,7 @@ use warnings;
 
 sub findImages($);
 sub statImage($);
-sub getPix($);
+sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$);
 sub getNewPix($);
@@ -194,15 +194,21 @@ sub checkInfo($$){
   return $destInfo eq $srcInfo;
 }
 
-sub getPix($){
+sub getInfo($){
   my $file = shift;
   $file =~ s/'/'\\''/g;
   my $info = `identify -verbose '$file'`;
-  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
-    return ($1, $2);
-  }else{
-    die "Could not find HxW using imagemagick for $file\n";
+  my ($format, $x, $y);
+  if($info =~ /^\s*Format: (\w+)/m){
+    $format = $1;
   }
+  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
+    ($x, $y) = ($1, $2);
+  }
+  if(not defined $format or not defined $x or not defined $y){
+    die "Error getting geometry/format using imagemagick: identify $file\n";
+  }
+  return {format=>$format, x=>$x, y=>$y};
 }
 
 sub handleImage($$$$){
@@ -214,8 +220,9 @@ sub handleImage($$$$){
 
   system "cp", "-a", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
 
+  my $info = getInfo "$destDir/$img";
 
-  my ($oldX, $oldY) = getPix "$destDir/$img";
+  my ($oldX, $oldY) = ($$info{x}, $$info{y});
   my ($newX, $newY) = ($targetX, $targetY);
 
   my @args;
