@@ -27,6 +27,9 @@ my $targetOrientation = getOrientation $targetX, $targetY;
 my $orientSwap = 0;
 my $rotate = 0;
 
+my $downscaleSharpenPercentThreshold = 90;
+my $unsharpArg = "0x0.5";
+
 my $pad = 0;
 my $padColor = 'black';
 my $padGravity = 'center';
@@ -42,6 +45,10 @@ my $usage = "Usage:
       If copies already exist on the target, they are not replaced unless the
       mtime or filesize of the original has changed, even if new arguments
       are given.
+
+    If the image is being downscaled to less than
+      $downscaleSharpenPercentThreshold\%, run '-unsharp $unsharpArg'
+      after resizing to slightly sharpen the image.
 
     Mirrored images are auto-rotated from EXIF metadata using '$jheadExec'
 
@@ -222,6 +229,10 @@ sub handleImage($$$$){
 
   my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
   @args = (@args, "-resize", "$percent%");
+
+  if($percent < $downscaleSharpenPercentThreshold){
+    @args = (@args, "-unsharp", $unsharpArg);
+  }
 
   if($pad){
     @args = (@args,
