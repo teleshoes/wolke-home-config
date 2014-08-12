@@ -12,14 +12,20 @@ my $verbose = 1;
 
 my @exts = qw(jpg jpeg png gif bmp);
 
-my $usage = "Usage: $0 [-q] DIR\n";
+my $usage = "Usage: $0 [--exclude=PATTERN] [-q] DIR\n";
 
 sub main(@){
   my $verbose = 1;
+  my $excludePattern = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-q)$/){
       $verbose = 0;
+    }elsif($arg =~ /^--exclude=(.*)$/){
+      $excludePattern = $1;
+      if($excludePattern =~ /[(){}\[\]]/){
+        die "Invalid pattern, no brackets are allowed: $excludePattern\n";
+      }
     }else{
       die $usage;
     }
@@ -32,6 +38,9 @@ sub main(@){
   while(1){
     if(-d $dir){
       my @files = getFiles($dir);
+      if(defined $excludePattern){
+        @files = grep {$_ !~ /$excludePattern/i} @files;
+      }
       @files = remove $curFile, @files if defined $curFile;
       my $i = rand @files;
       $curFile = $files[$i];
