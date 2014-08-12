@@ -12,11 +12,11 @@ sub handleImage($$$$);
 sub getNewPix($);
 sub isOrientMatch($$);
 sub getResizePercent($$$$);
-sub runConvert($@);
+sub runMogrify($@);
 sub getOrientation($$);
 
 my @exts = qw(jpg jpeg png);
-my $convertExec = 'convert';
+my $mogrifyExec = 'mogrify';
 my $identifyExec = 'identify';
 my $jheadExec = 'jhead';
 
@@ -30,7 +30,7 @@ my $rotate = 0;
 my $pad = 0;
 my $padColor = 'black';
 my $padGravity = 'center';
-my $okGravity = join "|", split /\n+/, `$convertExec -list gravity 2>/dev/null`;
+my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -116,8 +116,8 @@ sub main(@){
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
-  system "which $convertExec > /dev/null";
-  die "Could not exec $convertExec\n" if $? != 0;
+  system "which $mogrifyExec > /dev/null";
+  die "Could not exec $mogrifyExec\n" if $? != 0;
   system "which $identifyExec > /dev/null";
   die "Could not exec $identifyExec\n" if $? != 0;
 
@@ -231,7 +231,7 @@ sub handleImage($$$$){
     );
   }
 
-  runConvert "$destDir/$img", @args;
+  runMogrify "$destDir/$img", @args;
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -260,18 +260,11 @@ sub getResizePercent($$$$){
   return $percent;
 }
 
-sub runConvert($@){
+sub runMogrify($@){
   my ($file, @args) = @_;
 
-  my $tmp = $file;
-  $tmp =~ s/\//_/g;
-  $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
-  die "$tmp already exists!\n" if -f $tmp;
-  system $convertExec, @args, $file, $tmp;
-  die "failed to run convert on $file {@args}\n" if $? != 0 or not -f $tmp;
-
-  system "rm", $file;
-  system "mv", $tmp, $file;
+  system $mogrifyExec, @args, $file;
+  die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
 sub getOrientation($$){
