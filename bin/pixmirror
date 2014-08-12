@@ -6,26 +6,34 @@ use warnings;
 
 sub findImages($);
 sub statImage($);
-sub getPix($);
+sub getInfo($);
 sub checkInfo($$);
-sub convert($$$$);
+sub handleImage($$$$);
+sub getNewPix($);
+sub isOrientMatch($$);
+sub getResizePercent($$$$);
+sub runMogrify($@);
 sub getOrientation($$);
 
 my @exts = qw(jpg jpeg png);
+my $mogrifyExec = 'mogrify';
+my $identifyExec = 'identify';
+my $jheadExec = 'jhead';
 
 my $targetX = 1920;
 my $targetY = 1080;
 my $targetOrientation = getOrientation $targetX, $targetY;
+
 my $orientSwap = 0;
+my $rotate = 0;
+
+my $downscaleSharpenPercentThreshold = 90;
+my $unsharpArg = "0x0.5";
 
 my $pad = 0;
 my $padColor = 'black';
 my $padGravity = 'center';
-my $okGravity = join "|", split /\n+/, `convert -list gravity 2>/dev/null`;
-
-my $convertExec = 'convert';
-my $identifyExec = 'identify';
-my $jheadExec = 'jhead';
+my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -37,6 +45,10 @@ my $usage = "Usage:
       If copies already exist on the target, they are not replaced unless the
       mtime or filesize of the original has changed, even if new arguments
       are given.
+
+    If the image is being downscaled to less than
+      $downscaleSharpenPercentThreshold\%, run '-unsharp $unsharpArg'
+      after resizing to slightly sharpen the image.
 
     Mirrored images are auto-rotated from EXIF metadata using '$jheadExec'
 
@@ -54,6 +66,11 @@ my $usage = "Usage:
       Landscape means x>y and portrait means y>=x.
       By default, the orientation is $targetOrientation {${targetX}x{$targetY}}
         {and can be changed with --size=<TARGET_X>x<TARGET_Y>}
+
+    --rotate  --no-rotate          {default is --no-rotate}
+      Implies --orient. Instead of just scaling like --orient,
+        actually rotate 90 degress clockwise if the orientations do not match.
+      This is done after '$jheadExec' auto-rotation
 
     --pad  --no-pad                {default is --no-pad}
       Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
@@ -80,6 +97,10 @@ sub main(@){
       $orientSwap = 1;
     }elsif($arg =~ /^--no-orient$/){
       $orientSwap = 0;
+    }elsif($arg =~ /^--rotate$/){
+      $rotate = 1;
+    }elsif($arg =~ /^--no-rotate$/){
+      $rotate = 0;
     }elsif($arg =~ /^--pad$/){
       $pad = 1;
     }elsif($arg =~ /^--no-pad$/){
@@ -102,8 +123,8 @@ sub main(@){
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
-  system "which $convertExec > /dev/null";
-  die "Could not exec $convertExec\n" if $? != 0;
+  system "which $mogrifyExec > /dev/null";
+  die "Could not exec $mogrifyExec\n" if $? != 0;
   system "which $identifyExec > /dev/null";
   die "Could not exec $identifyExec\n" if $? != 0;
 
@@ -135,7 +156,7 @@ sub main(@){
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
   for my $img(@srcImgs){
-    convert $img, $srcDir, $destDir, $srcInfos{$img};
+    handleImage $img, $srcDir, $destDir, $srcInfos{$img};
   }
 
   print "\n\nremoving empty dirs\n";
@@ -173,70 +194,97 @@ sub checkInfo($$){
   return $destInfo eq $srcInfo;
 }
 
-sub getPix($){
+sub getInfo($){
   my $file = shift;
   $file =~ s/'/'\\''/g;
   my $info = `identify -verbose '$file'`;
-  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
-    return ($1, $2);
-  }else{
-    die "Could not find HxW using imagemagick for $file\n";
+  my ($format, $x, $y);
+  if($info =~ /^\s*Format: (\w+)/m){
+    $format = $1;
   }
+  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
+    ($x, $y) = ($1, $2);
+  }
+  if(not defined $format or not defined $x or not defined $y){
+    die "Error getting geometry/format using imagemagick: identify $file\n";
+  }
+  return {format=>$format, x=>$x, y=>$y};
 }
 
-sub convert($$$$){
-  my $img = shift;
-  my $srcDir = shift;
-  my $destDir = shift;
-  my $statInfo = shift;
+sub handleImage($$$$){
+  my ($img, $srcDir, $destDir, $statInfo) = @_;
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
   system "mkdir", "-p", $parent;
 
-  my ($x, $y) = getPix "$srcDir/$img";
-  my $ratio;
+  system "cp", "-a", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
 
-  my ($newX, $newY);
-  my $srcOrientation = getOrientation $x, $y;
-  if($orientSwap and $srcOrientation ne $targetOrientation){
-    ($newX, $newY) = ($targetY, $targetX);
-  }else{
-    ($newX, $newY) = ($targetX, $targetY);
+  my $info = getInfo "$destDir/$img";
+  my $isJpeg = $$info{format} =~ /JPEG/i;
+
+  my ($oldX, $oldY) = ($$info{x}, $$info{y});
+  my ($newX, $newY) = ($targetX, $targetY);
+
+  my @args;
+  if($rotate and not isOrientMatch $oldX, $oldY){
+    @args = (@args, "-rotate", 90);
+    ($oldX, $oldY) = ($oldY, $oldX);
+  }elsif($orientSwap and not isOrientMatch $oldX, $oldY){
+    ($newX, $newY) = ($newY, $newX);
   }
 
-  my $ratio1 = $newX / $x;
-  my $ratio2 = $newY / $y;
-  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+  my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
+  @args = (@args, "-resize", "$percent%");
 
-  my $percent = sprintf '%.5f', $ratio*100;
+  if($percent < $downscaleSharpenPercentThreshold){
+    @args = (@args, "-unsharp", $unsharpArg);
+  }
 
-  system $convertExec, "-resize", "$percent%", "$srcDir/$img", "$destDir/$img";
-  die "failure: $img\n" if $? != 0;
+  if($pad){
+    @args = (@args,
+      "-gravity", $padGravity,
+      "-background", $padColor,
+      "-extent", "${newX}x${newY}",
+    );
+  }
+
+  runMogrify "$destDir/$img", @args;
+
+  system $jheadExec, "-autorot", "$destDir/$img" if $isJpeg;
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
   close INFO;
 
-  system $jheadExec, "-autorot", "$destDir/$img";
-
-  if($pad){
-    my $tmp = "$srcDir/$img";
-    $tmp =~ s/\//_/g;
-    $tmp = "/tmp/pixmirror-" . time() . "-$tmp";
-    system $convertExec,
-      "-gravity", $padGravity,
-      "-background", $padColor,
-      "-extent", "${newX}x${newY}",
-      "$destDir/$img", $tmp,
-      ;
-    die "failed to pad $srcDir/$img\n" if not -f $tmp;
-    system "mv", $tmp, "$destDir/$img";
-  }
-
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
+}
+
+sub isOrientMatch($$){
+  my ($oldX, $oldY) = @_;
+  return getOrientation($oldX, $oldY) eq $targetOrientation;
+}
+
+sub getResizePercent($$$$){
+  my ($newX, $newY, $oldX, $oldY) = @_;
+  my $ratio;
+
+  my $ratio1 = $newX / $oldX;
+  my $ratio2 = $newY / $oldY;
+  $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
+
+  my $percent = sprintf '%.5f', $ratio*100;
+
+  return $percent;
+}
+
+sub runMogrify($@){
+  my ($file, @args) = @_;
+
+  system $mogrifyExec, @args, $file;
+  die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
 sub getOrientation($$){
