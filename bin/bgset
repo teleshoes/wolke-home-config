@@ -37,6 +37,10 @@ my $usage = "Usage:
     -if not set, TARGET defaults to \"BACKGROUND_DIR/BACKGROUND_SUBDIR\"
     -\"$setExec\" is used to set the X root image
 
+  $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
 
   OPTS
     -q|--quiet / -v|--verbose          {default is --verbose}
@@ -67,6 +71,11 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
     die $usage;
   }
@@ -184,6 +193,66 @@ sub getFiles($){
   my @files = <FH>;
   chomp foreach @files;
   return @files;
+}
+
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    -q --quiet  -v --verbose
+    -w --wait
+    --dir=
+    --subdir=
+    --delay=
+    --exclude=
+
+    -h --help
+    --sendreceive
+    --seed
+    --lastsnapshot
+    --snapshot
+    --cleanup=1 --cleanup=30 --cleanup=all
+    --remove
+    --delete
+    --monitor
+    --info
+    --bash-complete
+  );
+
+  for my $word(@words){
+    if($word =~ /^--dir=(.*)$/){
+      $backgroundDir = $1;
+    }elsif($word =~ /^--subdir=(.*)$/){
+      $backgroundSubdir = $1;
+    }
+  }
+
+  if(@words > 0 and $words[-1] =~ /^-/){
+    return @opts;
+  }else{
+    my @files = getFiles "$backgroundDir/$backgroundSubdir";
+    my %names;
+    for my $file(@files){
+      my $name = $file;
+      $name =~ s/.*\///;
+      $name =~ s/\.($okExts)?//i;
+      $name = lc $name;
+      $names{$name} = 1;
+    }
+    return sort keys %names;
+  }
+
+  return ();
 }
 
 &main(@ARGV);
