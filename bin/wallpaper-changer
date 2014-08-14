@@ -41,6 +41,11 @@ my $usage = "Usage:
         and suppress output from $setExec
       otherwise, print each file selected and do not suppress output
 
+    -w|--wait                          {default is to not wait}
+      If TARGET does not exist and does not match any files in
+        \"BACKGROUND_DIR/BACKGROUND_SUBDIR\", wait ${delay}s and check if it
+        exists again, forever.
+
     --dir=BACKGROUND_DIR               {default is $backgroundDir}
       set the default root dir for selecting images
 
@@ -60,6 +65,7 @@ my $usage = "Usage:
 
 sub main(@){
   my $verbose = 1;
+  my $wait = 0;
   my $excludePattern = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -67,6 +73,8 @@ sub main(@){
       $verbose = 0;
     }elsif($arg =~ /^(-v|--verbose)$/){
       $verbose = 1;
+    }elsif($arg =~ /^(-w|--wait)$/){
+      $wait = 1;
     }elsif($arg =~ /^--dir=(.*)$/){
       $backgroundDir = $1;
     }elsif($arg =~ /^--subdir=(.*)$/){
@@ -89,26 +97,32 @@ sub main(@){
   die $usage if @_ > 0;
 
   my $curFile = undef;
-  if(-f $target){
-    setBackground $target;
-  }elsif(-d $target){
-    while(1){
-      my $file = getRandomBackground $target, $excludePattern, $curFile;
+  while(1){
+    if(-f $target){
+      setBackground $target;
+      exit 0 if not $wait;
+    }elsif(-d $target){
+      while(1){
+        my $file = getRandomBackground $target, $excludePattern, $curFile;
+        if(defined $file and -f $file){
+          setBackground $file;
+          $curFile = $file;
+        }
+        sleep $delay;
+      }
+    }else{
+      my $file = findFile "$backgroundDir/$backgroundSubdir/", $target;
       if(defined $file and -f $file){
         setBackground $file;
-        $curFile = $file;
+        exit 0;
+      }elsif(not $wait){
+        die "could not find $target\n";
       }
-      sleep $delay;
     }
-  }else{
-    my $file = findFile "$backgroundDir/$backgroundSubdir/", $target;
-    if(defined $file and -f $file){
-      setBackground $file;
-    }else{
-      die "could not find $target\n";
-    }
-  }
 
+    print STDERR "could not find $target, waiting\n" if $verbose;
+    sleep $delay if $wait
+  }
 }
 
 sub findFile($$){
