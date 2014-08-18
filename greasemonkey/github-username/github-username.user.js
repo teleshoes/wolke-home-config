@@ -31,6 +31,13 @@ function main(){
       newUrl = baseUrl + "/login?" + targetUserName
       window.open(newUrl, '_self', false);
     }
+  }else if(is404()){
+    if(/[?\/]lillegroup/.exec(url)){
+      targetUserName = "ewolk";
+      newUrl = baseUrl + "/?" + targetUserName
+      window.open(newUrl, '_blank', true);
+      setTimeout(function(){ location.reload(true) }, 5000);
+    }
   }
 }
 
@@ -40,6 +47,10 @@ function isLandingPage(){
     return true;
   }
   return false;
+}
+
+function is404(){
+  return /Page not found/.exec(document.title) ? true : false;
 }
 
 function getTargetUserName(url){
