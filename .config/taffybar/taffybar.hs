@@ -5,10 +5,19 @@ import Utils (colW)
 
 import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
-  barHeight, widgetSpacing, startWidgets, endWidgets)
+  barHeight, barPosition, widgetSpacing, startWidgets, endWidgets,
+  Position(Top, Bottom))
+
+import Data.Functor ((<$>))
+import System.Environment (getArgs)
 
 main = do
-  let cfg = defaultTaffybarConfig {barHeight=42, widgetSpacing=5}
+  isBot <- elem "--bottom" <$> getArgs
+  let cfg = defaultTaffybarConfig { barHeight=42
+                                  , widgetSpacing=5
+                                  , barPosition=if isBot then Bottom else Top
+                                  }
+
       font = "Inconsolata medium 16"
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)

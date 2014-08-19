@@ -4,25 +4,63 @@ use warnings;
 
 my $log = "/tmp/taffybar-log";
 
+my $successCmd = "alarm -s success";
+my $failureCmd = "alarm -s failure";
+
+my $usage = "Usage:
+  $0 [-d|--daemon] [-q|--quiet]
+    restart taffybar
+    run '$successCmd' on success
+    run '$failureCmd' on failure
+    open a terminal with compilation errors on failure
+
+  -d|--daemon
+    close stdin/stderr, ignore sig kills, run in background
+
+  -q|--quiet
+    do not run '$successCmd' or '$failureCmd'
+
+  -b|--bottom
+    pass '--bottom' to taffybar
+";
+
 sub main(@){
-  my $daemon = shift if @_ > 0 and $_[0] =~ /^(-d|--daemon)$/;
-  my $quiet = shift if @_ > 0 and $_[0] =~ /^(-q|--quiet)$/;
-  die "Usage: $0 [-d|--daemon] [-q|--quiet]\n" if @_ != 0;
-  if(defined $daemon){
-    my $cmd = $quiet ? "$0 -q" : "$0";
-    exec "nohup $cmd >/dev/null 2>/dev/null &";
+  my $daemon = 0;
+  my $quiet = 0;
+  my $bottom = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-d|--daemon)$/){
+      $daemon = 1;
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $quiet = 1;
+    }elsif($arg =~ /^(-b|--bottom)$/){
+      $bottom = 1;
+    }else{
+      die $usage;
+    }
   }
+  die $usage if @_ != 0;
+
+  if($daemon){
+    my @cmd = ($0);
+    push @cmd, "-q" if $quiet;
+    push @cmd, "-b" if $bottom;
+    exec "nohup @cmd >/dev/null 2>/dev/null &";
+  }
+
+  my $bottomArg = $bottom ? "--bottom" : "";
 
   system "killall taffybar-linux-x86_64 2>/dev/null";
   my $ok = 1;
-  open TB, "-|", "taffybar 2>&1 | tee $log";
+  open TB, "-|", "taffybar $bottomArg 2>&1 | tee $log";
   my $line;
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
       $ok = 0;
-      system "alarm -s failure" if not $quiet;
+      system $failureCmd if not $quiet;
     }elsif($line =~ /^Launching custom binary/ and $ok){
-      system "alarm -s success" if $ok and not $quiet;
+      system $successCmd if $ok and not $quiet;
     }
     print $line;
   }

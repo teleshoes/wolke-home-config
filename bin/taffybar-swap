@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub taffybarRestart($);
+sub getState();
+sub setState($);
+
+my $delay = 10;
+my $stateFile = "/tmp/taffybar-swap";
+
+my $usage = "Usage:
+  $0 --top
+    If $stateFile exists and contains 'bottom', restart on top.
+    Write 'top' to $stateFile.
+
+  $0 --bottom
+    If $stateFile exists and contains 'bottom', restart on top.
+    Write 'top' to $stateFile.
+
+  $0 --toggle
+    Toggle taffybar location.
+    If $stateFile exists and contains 'bottom', restart on top.
+    Otherwise, restart on bottom.
+    Write 'top' to $stateFile if starting on top.
+    Write 'bottom' to $stateFile if starting on bottom.
+
+  $0 --delay
+    Wait $delay seconds, toggle taffybar location like --toggle,
+      and repeat forever.
+";
+
+my $okArgs = join "|", qw(--top --bottom --toggle --delay);
+
+sub main(@){
+  my $arg = shift;
+  die $usage if @_ > 0 or not defined $arg or $arg !~ /^($okArgs)$/;
+
+  my $pos;
+  if($arg =~ /^(--top)$/){
+    taffybarRestart("top");
+  }elsif($arg =~ /^(--bottom)$/){
+    taffybarRestart("bottom");
+  }elsif($arg =~ /^(--toggle)$/){
+    $pos = getState() eq "top" ? "bottom" : "top";
+    taffybarRestart($pos);
+  }elsif($arg =~ /^(--delay)$/){
+    while(1){
+      sleep $delay;
+      $pos = getState() eq "top" ? "bottom" : "top";
+      taffybarRestart($pos);
+    }
+  }
+
+}
+
+sub taffybarRestart($){
+  my $pos = shift;
+  if($pos ne getState()){
+    my @cmd = ("taffybar-restart", "-d", "-q");
+    push @cmd, "--bottom" if $pos eq "bottom";
+    system @cmd;
+    setState($pos);
+  }
+}
+
+sub getState(){
+  my $state = -f $stateFile ? `cat $stateFile` : "";
+  my $isBottom = $state =~ /bottom/;
+  return $isBottom ? "bottom" : "top";
+}
+sub setState($){
+  my $state = shift;
+  open FH, "> $stateFile" or die "Could not write to $stateFile\n";
+  print FH "$state\n";
+  close FH;
+}
+
+&main(@ARGV);

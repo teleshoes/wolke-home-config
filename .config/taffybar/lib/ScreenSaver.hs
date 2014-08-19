@@ -66,14 +66,21 @@ writeOverride state = writeFile overrideFile $ state ++ "\n"
 
 screenSaverOn = do
   hhpc True
+  taffybarSwap True
   void $ system $ "brightness " ++ show screenSaverBrightness
 screenSaverOff = do
   hhpc False
+  taffybarSwap False
   void $ system "brightness 100"
 
 hhpc on = do
   void $ system "pkill hhpc"
   when on $ void $ system "hhpc &"
+
+taffybarSwap on = do
+  void $ system "killall taffybar-swap"
+  when on $ void $ system "taffybar-swap --delay &"
+  when (not on) $ void $ system "( sleep 1; taffybar-swap --top ) &"
 
 getXidle :: IO Integer
 getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
