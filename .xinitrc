@@ -1,7 +1,7 @@
 ~/.xconfig
 ( sleep 10; xconfig ) &
 
-sudo wauto www.google.com &
+sudo wauto -p &
 pulseaudio --start &
 sudo bluetooth off &
 sudo fan auto &
