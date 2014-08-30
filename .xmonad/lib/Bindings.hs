@@ -82,6 +82,7 @@ xmoKeys conf = "XMonad" @@ do
 shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc] #! "off g"
     "term"              @@ m_    xK_Think#! "term"
+    "term"              @@ m_    xK_Audio#! "term"
     "term"              @@ m_    xK_Tools#! "term"
     "term auto-cwd"     @@ mA    xK_Tools#! "term -acd"
     "ghci"              @@ mC    xK_Tools#! "term ghci"

@@ -17,12 +17,18 @@ sub main(@) {
     'alarm' => complete("_alarm", qw(alarm)),
     'sudo-aliases' => complete("_root_command", qw(suod sudp)),
     'extra-rootcmd' => complete("_root_command", qw(nuc)),
-    'spawn' => complete("_root_command", qw(s spawn spawnex spawnexsudo)),
+    'spawn' => complete("_root_command", qw(spawn spawnex s sx spawnexsudo)),
     'compsql' => complete ("_compsql", qw(compsql genibatis)),
     'mnt' => complete("_mntnames", qw(mnt mnto)),
     'update-repo' => complete("_repo_lists", qw(update-repo)),
     'bgset' => complete("_bgset", qw(bgset)),
     'xmonad-bindings' => complete("_xmonad_bindings", qw(xmonad-bindings xmb)),
+    'completion-aliases' => completionAliases(
+       'evince' => [qw(evi)],
+       'git'    => [qw(g)],
+       'mkdir'  => [qw(mkdit)],
+       'vim'    => [qw(bim cim)],
+       ),
   };
 
   for my $file(keys %$files){
@@ -136,6 +142,39 @@ sub getFctImpls(){
       COMPREPLY=( $(compgen -W "$words" -- $cur) )
     }',
   };
+}
+
+sub completionAliases(%){
+  my %aliases = @_;
+
+  print join "\n",
+    "  completing _completion_aliases => {",
+    (map { my $realcmd = $_;
+    "    @{$aliases{$realcmd}} => $realcmd,"
+    } sort keys %aliases),
+    "  }",
+    "";
+
+  return join "\n",
+    'declare -A _completion_alias_map',
+    '_completion_alias_map=(',
+    (map { my $realcmd = $_; map { my $cmd = $_;
+    "  [\"$cmd\"]=\"$realcmd\""
+    } sort @{$aliases{$realcmd}} } sort keys %aliases),
+    '  )',
+    '',
+    'function _completion_aliases {',
+    '  local cmd=${COMP_WORDS[0]}',
+    '  local realcmd=${_completion_alias_map[$cmd]}',
+    '',
+    '  COMP_LINE="$realcmd $(echo "$COMP_LINE" | cut -d" " -f2-)"',
+    '  COMP_WORDS[0]="$realcmd"',
+    '  ((COMP_POINT+=${#realcmd}-${#cmd}))',
+    '  _command_offset 0',
+    '}',
+    '',
+    'complete -F _completion_aliases ${!_completion_alias_map[@]}',
+    '';
 }
 
 &main(@ARGV);

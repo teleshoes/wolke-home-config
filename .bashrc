@@ -132,8 +132,10 @@ function gparted      { spawnexsudo gparted "$@"; }
 function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
+function g            { git "$@"; }
 
 function s            { "$@" & disown; }
+function sx           { "$@" & disown && exit 0; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
@@ -147,6 +149,11 @@ function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen
 function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
+
+# common typos
+function mkdit        { mkdir "$@"; }
+function cim          { vim "$@"; }
+function bim          { vim "$@"; }
 
 function maven() {
   args=""
