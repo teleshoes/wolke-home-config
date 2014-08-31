@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub readSecrets();
+
+my $secretsFile = "$ENV{HOME}/.secrets";
+my @configKeys = qw(server port username password);
+
+my @initCmds = (
+  "set ftp:ssl-force true",
+  "set ftp:ssl-protect-data true",
+  "set ssl:verify-certificate no",
+);
+
+my $usage = "Usage: $0 [CMD]\n";
+
+sub main(@){
+  my $cmd = @_ > 0 ? "@_" : undef;
+
+  my $config = readSecrets();
+  my $url = "ftp://$$config{server}:$$config{port}";
+  my @lftpCmd = ("lftp", "-u", "$$config{username},$$config{password}", $url);
+
+  open FH, "|-", @lftpCmd;
+  my $fh = select FH;
+  $| = 1;
+  select $fh;
+  print FH "$_\n" foreach @initCmds;
+  if(defined $cmd){
+    print FH "$cmd\nexit\n";
+    close FH;
+  }else{
+    my $line;
+    while($line = <STDIN>){
+      print FH $line or die "lftp is closed\n";
+    }
+  }
+}
+
+sub readSecrets(){
+  my @lines = `cat $secretsFile 2>/dev/null`;
+  my $cfg = {};
+  my $okConfigKeys = join "|", @configKeys;
+  for my $line(@lines){
+    if($line =~ /^seedbox\.($okConfigKeys)\s*=\s*(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort @configKeys){
+    die "Missing config '$key' in $secretsFile\n" if not defined $$cfg{$key};
+  }
+  return $cfg;
+}
+
+&main(@ARGV);
