@@ -4,6 +4,7 @@ use warnings;
 
 my $remoteTorrentDir = "rtorrent/torrents";
 
+sub magnetToTorrent($);
 sub readSecrets();
 
 my $secretsFile = "$ENV{HOME}/.secrets";
@@ -21,6 +22,9 @@ my $usage = "Usage:
 
   $0 TORRENT_FILE
      upload torrent file to seedbox:$remoteTorrentDir
+
+  $0 MAGNET_LINK
+     create a .torrent file and upload it to seedbox:$remoteTorrentDir
 ";
 
 sub main(@){
@@ -29,6 +33,9 @@ sub main(@){
     $cmd = undef;
   }elsif(@_ == 1 and $_[0] =~ /\.torrent$/ and -f $_[0]){
     my $torrentFile = $_[0];
+    $cmd = "cd $remoteTorrentDir && put $torrentFile";
+  }elsif(@_ == 1 and $_[0] =~ /xt=urn:btih:/){
+    my $torrentFile = magnetToTorrent $_[0];
     $cmd = "cd $remoteTorrentDir && put $torrentFile";
   }else{
     die $usage;
@@ -52,6 +59,17 @@ sub main(@){
       print FH $line or die "lftp is closed\n";
     }
   }
+}
+
+sub magnetToTorrent($){
+  my $magnet = shift;
+  chomp $magnet;
+  my $tmpFile = "/tmp/seedbox-magnet-" . time . ".torrent";
+  my $len = length $magnet;
+  open FH, "> $tmpFile" or die "Could not write $tmpFile\n";
+  print FH "d10:magnet-uri${len}:${magnet}e\n";
+  close FH;
+  return $tmpFile;
 }
 
 sub readSecrets(){
