@@ -2,17 +2,43 @@
 use strict;
 use warnings;
 
+my $logDir = "$ENV{HOME}/.seedbox";
+my $latestLogFile = "$logDir/fetch-seedbox-latest.log";
+
 my $delay = 60*60;
 
-sub main(@){
-  my $date = `date +%Y-%m-%d_%s`;
-  chomp $date;
-  my $logFile = "/tmp/fetch-seedbox-$date.log";
+my $usage = "Usage:
+  $0
+     run 'seedbox -g' every ${delay}s
+     keep a log at $logDir, and update $latestLogFile to show it
 
-  while(1){
-    system "date >> $logFile";
-    system "seedbox -g 2>&1 | tee -a $logFile";
-    sleep $delay;
+  $0 -g|--get|-l|--log|-i|--info
+     run 'tail -F $latestLogFile'
+";
+
+sub main(@){
+  my $log = shift if @_ == 1 and $_[0] =~ /^(-g|--get|-l|--log|-i|--info)$/;
+  die $usage if @_ > 0;
+
+  if($log){
+    die "no log file at $latestLogFile\n" if not -e $latestLogFile;
+    exec "tail", "-F", $latestLogFile;
+  }else{
+    system "mkdir", "-p", $logDir;
+
+    my $date = `date +%Y-%m-%d_%s`;
+    chomp $date;
+    my $logFile = "$logDir/fetch-seedbox-$date.log";
+
+    system "rm", "-f", $latestLogFile;
+    system "ln", "-s", $logFile, $latestLogFile;
+
+    while(1){
+      system "date >> $logFile";
+      system "seedbox -g 2>&1 >$logFile";
+      system "echo >> $logFile";
+      sleep $delay;
+    }
   }
 }
 
