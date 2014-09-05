@@ -3,16 +3,16 @@ use strict;
 use warnings;
 use Term::ANSIColor;
 
-my $file = "$ENV{HOME}/TODO";
+my $todoFile = "$ENV{HOME}/TODO";
 my $notesFile = "$ENV{HOME}/NOTES";
 
 my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html --ff);
 my $usage = "Usage:
   $0 --add TODO [TODO ..]
-    Add todos not in git history to $file
+    Add todos not in git history to $todoFile
 
   $0 [OPTS] [FORMAT]
-    Parse ${file}'s git history to print todos
+    Parse ${todoFile}'s git history to print todos
 
   FORMAT:
     -q       dont print todos
@@ -86,10 +86,10 @@ sub main(@){
 
   my (%addTodos, %resolveTodos);
 
-  my $diff = `git diff $file`;
+  my $diff = `git diff $todoFile`;
   getTodos $diff, time(), '', \%addTodos, \%resolveTodos if length $diff > 0;
 
-  for my $entry(`git log --format=format:"%H:::%at:::%s" $file`){
+  for my $entry(`git log --format=format:"%H:::%at:::%s" $todoFile`){
     if($entry =~ /^([a-f0-9]+):::(\d+):::(.*)$/){
       my ($commit, $date, $summary) = ($1, $2, $3);
       my $diff = `git diff-tree --cc $commit`;
@@ -117,11 +117,11 @@ sub main(@){
       }
     }
     if(@todoPrefixLines > 0){
-      open FH, "< $file" or die "Couldnt read $file\n";
+      open FH, "< $todoFile" or die "Couldnt read $todoFile\n";
       my @lines = <FH>;
       close FH;
       @lines = (@todoPrefixLines, @lines);
-      open FH, "> $file" or die "Couldnt read $file\n";
+      open FH, "> $todoFile" or die "Couldnt read $todoFile\n";
       print FH @lines;
       close FH;
     }
