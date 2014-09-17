@@ -8,6 +8,7 @@ BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 brightness 80
 sudo mnt &
 sudo wired &
+execPing revtun &
 pulse-enable on
 sudo bluetooth off &
 sudo fan default &
