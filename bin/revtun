@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $defaultHostCmd = "seedbox -h";
+my $defaultPort = 19426;
+
+my $sshCmd = "autossh";
+my $localPort = 22;
+my $localHost = "localhost";
+
+my $usage = "Usage:
+  $0 [--exit|--attach] [[USER@]HOST PORT]
+    set up a reverse SSH tunnel to HOST as USER on PORT
+    \"USER\@HOST\" defaults to `$defaultHostCmd`
+    PORT defaults to $defaultPort
+
+    uses a screen session named \"revtun-PORT\"
+    kills any screen sessions with that name, starts a new screen session,
+      runs ssh, and detaches from the screen session
+
+    --exit
+      close tunnel and exit
+
+    --attach
+      do not detach from the screen session
+";
+
+sub main(@){
+  my $exit = 0;
+  my $attach = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $opt = shift;
+    if($opt =~ /^(--exit)$/){
+      $exit = 1;
+    }elsif($opt =~ /^(--attach)$/){
+      $attach = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  my ($host, $port);
+  if(@_ == 0){
+    $host = `$defaultHostCmd`;
+    chomp $host;
+    $port = $defaultPort;
+  }elsif(@_ == 2 and $_[1] =~ /^\d+$/){
+    $host = $_[0];
+    $port = $_[1];
+  }else{
+    die $usage;
+  }
+
+  my @cmd = ("$sshCmd", "-R", "$port:$localHost:$localPort", $host);
+
+  my $screenSession = "revtun-$port";
+  system "screen -S $screenSession -X quit >/dev/null";
+  system "pkill -f '@cmd' 2>/dev/null";
+
+  if(not $exit){
+    my $detach = $attach ? "" : "-d -m";
+    system "screen -S $screenSession $detach @cmd";
+  }
+}
+
+
+
+&main(@ARGV);
