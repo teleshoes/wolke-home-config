@@ -3,7 +3,7 @@ xconfig
 BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 ( sleep 10; xconfig; killall bgset; bgset --exclude="porn/" "$BG_DIR" ) &
 
-( pkill -f fetch-seedbox; fetch-seedbox >/dev/null 2>/dev/null ) &
+screen-cmd fetch-seedbox
 
 brightness 80
 sudo mnt &
