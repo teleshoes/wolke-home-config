@@ -7,7 +7,7 @@ screen-cmd fetch-seedbox
 brightness 80
 sudo mnt &
 sudo wired &
-execPing revtun &
+execPing screen-cmd revtun &
 pulseaudio --start &
 sudo bluetooth off &
 sudo fan auto &
