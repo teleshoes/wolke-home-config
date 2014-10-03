@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $sessionNameMaxLen = 120;
+
+my $usage = "Usage:
+  $0 [--exit|--attach] CMD [ARG ARG ..]
+    daemonizes a command with screen
+
+    sets up a screen session and runs \"CMD ARG ARG ..\"
+      session is named \"screencmd_CMD_ARG_ARG..._ARG\",
+      with all non-word characters replaced with hyphens,
+      trimmed to $sessionNameMaxLen characters
+
+    kills any screen sessions with that name, starts a new screen session,
+      runs the command, and detaches from the screen session
+
+    --exit
+      quit the command and exit
+
+    --attach
+      do not detach from the screen session
+";
+
+sub main(@){
+  my $exit = 0;
+  my $attach = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $opt = shift;
+    if($opt =~ /^(--exit)$/){
+      $exit = 1;
+    }elsif($opt =~ /^(--attach)$/){
+      $attach = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  die $usage if @_ > 0 and $_[0] =~ /^-/;
+
+  my @cmd = @_;
+  die $usage if @cmd == 0;
+
+  my $screenSession = join "_", ("screencmd", @cmd);
+  $screenSession =~ s/\W/-/g;
+  $screenSession = substr $screenSession, 0, $sessionNameMaxLen;
+
+  system "screen -S $screenSession -X quit >/dev/null";
+
+  if(not $exit){
+    my $detach = $attach ? "" : "-d -m";
+    system "screen -S $screenSession $detach @cmd";
+  }
+}
+
+&main(@ARGV);
