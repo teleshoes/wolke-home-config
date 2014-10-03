@@ -21,17 +21,23 @@ my $usage = "Usage:
 
     --no-detach
       do not detach from the screen session after starting it
+
+    --attach-only
+      do not run the command, merely attach to the screen session if it is already runing
 ";
 
 sub main(@){
   my $exit = 0;
   my $noDetach = 0;
+  my $attachOnly = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(--exit)$/){
       $exit = 1;
     }elsif($opt =~ /^(--no-detach)$/){
       $noDetach = 1;
+    }elsif($opt =~ /^(--attach-only)$/){
+      $attachOnly = 1;
     }else{
       die $usage;
     }
@@ -46,11 +52,18 @@ sub main(@){
   $screenSession =~ s/\W/-/g;
   $screenSession = substr $screenSession, 0, $sessionNameMaxLen;
 
-  system "screen -S $screenSession -X quit >/dev/null";
+  if(not $attachOnly){
+    system "screen -S $screenSession -X quit >/dev/null";
+  }
 
   if(not $exit){
-    my $detach = $noDetach ? "" : "-d -m";
-    system "screen -S $screenSession $detach @cmd";
+    if($attachOnly){
+      system "screen -S $screenSession -d -r";
+    }elsif($noDetach){
+      system "screen -S $screenSession @cmd";
+    }else{
+      system "screen -S $screenSession -d -m @cmd";
+    }
   }
 }
 
