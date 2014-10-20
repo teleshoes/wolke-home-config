@@ -7,6 +7,9 @@ my $remoteDownloads = "files";
 my $localDownloads = "$ENV{HOME}/Desktop/Torrents/seedbox";
 
 sub ftpCommand($@);
+sub rsyncFetch($);
+sub ssh($;\@);
+sub sshRevtun($;\@);
 sub magnetToTorrent($);
 sub readSecrets();
 
@@ -53,40 +56,21 @@ my $usage = "Usage:
 sub main(@){
   my $config = readSecrets();
 
-  my $cmd;
   if(@_ == 1 and $_[0] =~ /^(-h)$/){
     print "$$config{username}\@$$config{server}\n";
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-f)$/){
     ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
-    my @rsyncCmd = ("rsync", "-avP",
-      "$$config{username}\@$$config{server}:$remoteDownloads/",
-      $localDownloads,
-      );
-    print "@rsyncCmd\n";
-    exec @rsyncCmd;
+    rsyncFetch $config;
   }elsif(@_ >= 1 and $_[0] =~ /^(-s)$/){
     shift;
     my @cmd = @_;
-    my @sshCmd = ("ssh", "$$config{username}\@$$config{server}", @cmd);
-    print "@sshCmd\n";
-    exec @sshCmd;
+    ssh $config, @cmd;
   }elsif(@_ >= 1 and $_[0] =~ /^(-r)$/){
     shift;
     my @cmd = @_;
-    my $revtunUsername = $$config{"revtun.username"};
-    my $revtunPort = $$config{"revtun.port"};
-    my $revtunSshCmd = "ssh"
-      . " $revtunRemoteOpts"
-      . " $revtunUsername\@localhost"
-      . " -p $revtunPort"
-      . " @cmd"
-      ;
-    my @sshCmd = ("ssh", $revtunLocalOpts, "$$config{username}\@$$config{server}");
-    @sshCmd = (@sshCmd, $revtunSshCmd);
-    print "@sshCmd\n";
-    exec @sshCmd;
+    sshRevtun $config, @cmd;
   }elsif(@_ == 1 and $_[0] =~ /\.torrent$/ and -f $_[0]){
     my $torrentFile = $_[0];
     $torrentFile =~ s/'/'\\''/g;
@@ -123,6 +107,42 @@ sub ftpCommand($@){
       close FH;
     }
   }
+}
+
+sub rsyncFetch($){
+  my $config = shift;
+
+  my @rsyncCmd = ("rsync", "-avP",
+    "$$config{username}\@$$config{server}:$remoteDownloads/",
+    $localDownloads,
+    );
+  print "@rsyncCmd\n";
+  exec @rsyncCmd;
+}
+
+sub ssh($;\@){
+  my ($config, $cmd) = @_;
+
+  my @sshCmd = ("ssh", "$$config{username}\@$$config{server}", @$cmd);
+  print "@sshCmd\n";
+  exec @sshCmd;
+}
+
+sub sshRevtun($;\@){
+  my ($config, $cmd) = @_;
+
+  my $revtunUsername = $$config{"revtun.username"};
+  my $revtunPort = $$config{"revtun.port"};
+  my $revtunSshCmd = "ssh"
+    . " $revtunRemoteOpts"
+    . " $revtunUsername\@localhost"
+    . " -p $revtunPort"
+    . " @$cmd"
+    ;
+  my @sshCmd = ("ssh", $revtunLocalOpts, "$$config{username}\@$$config{server}");
+  @sshCmd = (@sshCmd, $revtunSshCmd);
+  print "@sshCmd\n";
+  exec @sshCmd;
 }
 
 sub magnetToTorrent($){
