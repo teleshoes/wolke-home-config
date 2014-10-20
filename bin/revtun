@@ -8,20 +8,39 @@ my $localHost = "localhost";
 my $secretsFile = "$ENV{HOME}/.secrets";
 
 sub readSecrets();
-my @configKeys = qw(user host port);
+my @configKeys = qw(user host port localport);
 
 my $usage = "Usage:
-  $0 [[USER@]HOST PORT]
+  $0 [--local[=LOCAL_PORT]] [[USER@]HOST PORT]
     set up a reverse SSH tunnel to HOST as USER on PORT
 
     if no args are given, USER/HOST/PORT default to
       revtun.user/revtun.host/revtun.port from $secretsFile
+
+    --local[=LOCAL_PORT]
+      if --local is given, use -L instead of -R,
+        and use LOCAL_PORT instead of $localPort
+        if LOCAL_PORT is not given, read revtun.localport from $secretsFile
 ";
 
 sub main(@){
   my ($host, $port);
+  my $config;
+
+  my $local = 0;
+  if(@_ > 0 and $_[0] =~ /^--local(?:=(\d+))?$/){
+    shift;
+    $local = 1;
+    if(defined $1){
+      $localPort = $1;
+    }else{
+      $config = readSecrets() if not defined $config;
+      $localPort = $$config{localport};
+    }
+  }
+
   if(@_ == 0){
-    my $config = readSecrets();
+    $config = readSecrets() if not defined $config;
     $host = "$$config{user}\@$$config{host}";
     $port = $$config{port};
   }elsif(@_ == 2 and $_[1] =~ /^\d+$/){
@@ -31,7 +50,12 @@ sub main(@){
     die $usage;
   }
 
-  my @cmd = ("$sshCmd", "-R", "$port:$localHost:$localPort", $host);
+  my @cmd;
+  if($local){
+    @cmd = ("$sshCmd", "-L", "$localPort:$localHost:$port", $host);
+  }else{
+    @cmd = ("$sshCmd", "-R", "$port:$localHost:$localPort", $host);
+  }
   print "@cmd\n";
   exec @cmd;
 }
