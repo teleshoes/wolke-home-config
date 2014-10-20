@@ -23,7 +23,6 @@ sub sudoIfup($$);
 sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
-sub twip($$);
 sub guess($$);
 
 my $ifconfigExec = '/sbin/ifconfig';
@@ -35,7 +34,7 @@ chomp foreach @confFiles;
 
 my $defaultPreBashCommand = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
-my $methods = join "|", qw(any tmp usb wifi twip guess);
+my $methods = join "|", qw(any tmp usb wifi guess);
 
 my $byteRegex = "[0-9a-fA-F]{2}";
 my $macRegex = join ":", ($byteRegex) x 6;
@@ -223,9 +222,6 @@ sub main(@){
   if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
     ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
   }
-  if(not defined $ip and $opts{method} =~ /^(any|twip)$/){
-    ($ip, $method) = (twip(\%config, \%opts), 'twip');
-  }
   if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
     ($ip, $method) = (guess(\%config, \%opts), 'guess');
   }
@@ -246,11 +242,6 @@ sub main(@){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
   }elsif($isSsh){
-    if($method eq 'twip' and defined $config{twipPort}){
-      my $port = $config{twipPort};
-      print "sshing on port $port\n" if $opts{verbose};
-      @sshCmd = ("-p", $port, @sshCmd);
-    }
     ensureIpFingerprint $config{hostname}, $ip if defined $ip;
 
     my %sshOpts = (
@@ -331,7 +322,7 @@ sub parseConfig($){
   my %mapKeys = map {$_ => 1} qw(macIp ssidIp);
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
-    hostname twipPort vncCommand vncDefaultArgs defaultUser
+    hostname vncCommand vncDefaultArgs defaultUser
     usbLocalIp usbRemoteIp preBashCommand ignorePreBashCommand
   );
   my %assertBool = map {$_ => 1} qw(ignorePreBashCommand);
@@ -578,22 +569,6 @@ sub wifi($$){
     return $ssidIp;
   }
 
-  return undef;
-}
-
-sub twip($$){
-  my %config = %{shift()};
-  my %opts = %{shift()};
-  if(defined $config{twipPort}){
-    print "Trying twip\n" if $opts{verbose};
-    my $ip = `twipc --fetch`;
-    chomp $ip;
-    print "  got $ip\n";
-    if($ip =~ /^$ipRegex$/){
-      print "  success!\n" if $opts{verbose};
-      return $ip;
-    }
-  }
   return undef;
 }
 
