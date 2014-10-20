@@ -7,12 +7,17 @@ my $localPort = 22;
 my $localHost = "localhost";
 my $secretsFile = "$ENV{HOME}/.secrets";
 my @sshOpts = ();
+my @unsafeSshOpts = (
+  "NoHostAuthenticationForLocalhost=yes",
+  "UserKnownHostsFile=/dev/null",
+  "StrictHostKeyChecking=no",
+);
 
 sub readSecrets();
 my @configKeys = qw(user host port localport);
 
 my $usage = "Usage:
-  $0 [--local[=LOCAL_PORT]] [[USER@]HOST PORT]
+  $0 [--unsafe] [--local[=LOCAL_PORT]] [[USER@]HOST PORT]
     set up a reverse SSH tunnel to HOST as USER on PORT
 
     if no args are given, USER/HOST/PORT default to
@@ -22,11 +27,19 @@ my $usage = "Usage:
       use normal port forwarding instead of reverse, i.e.: -L instead of -R,
         and use LOCAL_PORT instead of $localPort
         if LOCAL_PORT is not given, read revtun.localport from $secretsFile
+
+    --unsafe
+      use @unsafeSshOpts
 ";
 
 sub main(@){
   my ($host, $port);
   my $config;
+
+  if(@_ > 0 and $_[0] =~ /^(--unsafe)$/){
+    shift;
+    @sshOpts = (@sshOpts, @unsafeSshOpts);
+  }
 
   my $local = 0;
   if(@_ > 0 and $_[0] =~ /^--local(?:=(\d+))?$/){
