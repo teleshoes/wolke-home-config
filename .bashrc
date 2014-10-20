@@ -140,8 +140,9 @@ function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
-function m            { maven -Psdm install "$@"; }
-function mc           { maven -Psdm clean install "$@"; }
+function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true install "$@"; }
+function mtest        { maven -Psdm -Pdev test "$@"; }
+function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
 function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
