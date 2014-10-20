@@ -6,6 +6,7 @@ my $remoteTorrentDir = "watch";
 my $remoteDownloads = "files";
 my $localDownloads = "$ENV{HOME}/Desktop/Torrents/seedbox";
 
+sub ftpCommand($@);
 sub magnetToTorrent($);
 sub readSecrets();
 
@@ -17,7 +18,7 @@ my @mirrorOpts = ("-c", "--parallel=8");
 my $revtunLocalOpts = "-t";
 my $revtunRemoteOpts = "-t -o 'NoHostAuthenticationForLocalhost yes'";
 
-my @initCmds = (
+my @ftpInitCmds = (
   "set ftp:ssl-force true",
   "set ftp:ssl-protect-data true",
   "set ssl:verify-certificate no",
@@ -57,7 +58,7 @@ sub main(@){
     print "$$config{username}\@$$config{server}\n";
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-f)$/){
-    $cmd = undef;
+    ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
     my @rsyncCmd = ("rsync", "-avP",
       "$$config{username}\@$$config{server}:$remoteDownloads/",
@@ -88,14 +89,17 @@ sub main(@){
     exec @sshCmd;
   }elsif(@_ == 1 and $_[0] =~ /\.torrent$/ and -f $_[0]){
     my $torrentFile = $_[0];
-    $cmd = "cd $remoteTorrentDir && put $torrentFile";
+    ftpCommand $config, "cd $remoteTorrentDir && put $torrentFile";
   }elsif(@_ == 1 and $_[0] =~ /xt=urn:btih:/){
     my $torrentFile = magnetToTorrent $_[0];
-    $cmd = "cd $remoteTorrentDir && put $torrentFile";
+    ftpCommand $config, "cd $remoteTorrentDir && put $torrentFile";
   }else{
     die $usage;
   }
+}
 
+sub ftpCommand($@){
+  my ($config, @cmds) = @_;
   my $url = "ftp://$$config{server}:$$config{port}";
   my @lftpCmd = ("lftp", "-u", "$$config{username},$$config{password}", $url);
 
@@ -103,15 +107,19 @@ sub main(@){
   my $fh = select FH;
   $| = 1;
   select $fh;
-  print FH "$_\n" foreach @initCmds;
-  if(defined $cmd){
-    print "running $cmd\n";
-    print FH "$cmd\nexit\n";
-    close FH;
-  }else{
+  print FH "$_\n" foreach @ftpInitCmds;
+
+  if(@cmds == 0){
+    print "waiting for ftp commands via STDIN\n";
     my $line;
     while($line = <STDIN>){
       print FH $line or die "lftp is closed\n";
+    }
+  }else{
+    for my $cmd(@cmds){
+      print "running $cmd\n";
+      print FH "$cmd\nexit\n";
+      close FH;
     }
   }
 }
