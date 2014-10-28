@@ -3,10 +3,19 @@ import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups)
 import Label (labelW)
 
 import Control.Concurrent (threadDelay, forkIO, readChan, writeChan, newChan)
+import Control.Monad (forever)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
+
+main = do
+  chan <- newChan
+  forkIO $ scanLoop chan []
+  forever $ do
+    msg <- readChan chan
+    print msg
+  return ()
 
 netStatsW = do
   chan <- newChan
