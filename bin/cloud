@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my $logDir = "$ENV{HOME}/.cyphertite/logs";
+
+my $backups = {
+  backgrounds => '/media/home/wolke/Desktop/Backgrounds',
+  dcim => '/media/home/wolke/Desktop/DCIM',
+  documents => '/media/home/wolke/Desktop/Documents',
+  games => '/media/home/wolke/Desktop/Games',
+  music => '/media/stuff/Music',
+  pictures => '/media/home/wolke/Desktop/Pictures',
+  records => '/media/home/wolke/Desktop/Records',
+};
+
+my $okBackups = join "|", sort keys %$backups;
+
+sub getLatestLogFile($);
+sub run(@);
+
+sub main(@){
+  die "Usage: $0 $okBackups\n" if @_ != 1 or not defined $$backups{$_[0]};
+  my $ctfile = shift;
+  my $dir = $$backups{$ctfile};
+  if($dir !~ /^(.+)\/([^\/]+)$/){
+    die "error parsing dir $dir\n";
+  }
+  my ($parent, $child) = ($1, $2);
+  die "dir not found: $parent\n" if not -d $parent;
+  chdir $parent;
+  $ENV{PWD} = $parent;
+
+  die "dir not found: $child\n" if not -d $child;
+
+  my $oldLog = getLatestLogFile($ctfile);
+  $oldLog = "" if not defined $oldLog;
+
+  run "screen-cmd", "ct-log", $ctfile, $child;
+
+  my $newLog = getLatestLogFile($ctfile);
+
+  if(not defined $newLog or $newLog eq $oldLog){
+    sleep 0.5;
+    $newLog = getLatestLogFile($ctfile);
+  }
+  if(not defined $newLog or $newLog eq $oldLog){
+    die "no log found for $ctfile\n";
+  }
+  chomp $newLog if defined $newLog;
+
+  run "tail", "-F", $newLog;
+}
+
+sub getLatestLogFile($){
+  my $ctfile = shift;
+  my @files = sort `find $logDir -name ${ctfile}_*_*.log 2>/dev/null`;
+  return @files == 0 ? undef : $files[-1];
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
