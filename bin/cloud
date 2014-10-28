@@ -18,16 +18,27 @@ my $backups = {
 
 sub getLatestLogFile($);
 sub run(@);
+sub bashComplete($$);
 
 my $usage = "Usage:
   $0 NAME
      run 'ct-log NAME DIR'
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
 
   NAME => DIR:
     " . join("\n    ", map {"$_ => $$backups{$_}"} sort keys %$backups) . "
 ";
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   die $usage if @_ != 1 or not defined $$backups{$_[0]};
   my $ctfile = shift;
   my $dir = $$backups{$ctfile};
@@ -69,6 +80,33 @@ sub getLatestLogFile($){
 sub run(@){
   print "@_\n";
   system @_;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  my @names = sort keys %$backups;
+
+  my @cmds = qw(
+    --bash-complete
+  );
+
+  my @opts = qw(
+  );
+
+  if(@words == 0){
+    return (@names, @cmds, @opts);
+  }
+
+  return ();
 }
 
 &main(@ARGV);
