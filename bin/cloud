@@ -17,12 +17,16 @@ my $backups = {
 };
 
 sub getLatestLogFile($);
+sub formatStatus($$);
 sub run(@);
 sub bashComplete($$);
 
 my $usage = "Usage:
   $0 NAME
      run 'ct-log NAME DIR'
+
+  $0 --status NAME
+     print count and size of files uploaded using the latest log in ct-log
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion
@@ -39,8 +43,11 @@ sub main(@){
     exit 0;
   }
 
+  my $status = shift if @_ > 0 and $_[0] =~ /^--status$/;
+
   die $usage if @_ != 1 or not defined $$backups{$_[0]};
   my $ctfile = shift;
+
   my $dir = $$backups{$ctfile};
   if($dir !~ /^(.+)\/([^\/]+)$/){
     die "error parsing dir $dir\n";
@@ -51,6 +58,11 @@ sub main(@){
   $ENV{PWD} = $parent;
 
   die "dir not found: $child\n" if not -d $child;
+
+  if(defined $status){
+    print formatStatus($ctfile, $child);
+    exit 0;
+  }
 
   my $oldLog = getLatestLogFile($ctfile);
   $oldLog = "" if not defined $oldLog;
@@ -77,6 +89,67 @@ sub getLatestLogFile($){
   return @files == 0 ? undef : $files[-1];
 }
 
+sub formatStatus($$){
+  my ($ctfile, $dir) = @_;
+  my $log = getLatestLogFile($ctfile);
+  die "no log found for $ctfile\n" if not defined $log;
+  my @lines = `cat $log`;
+  shift @lines;
+  shift @lines;
+  chomp foreach @lines;
+
+  my $ignoredRegex = join "|", (
+    "^prev backup time.*",
+    "^ .*",
+    "^Generating filelist, this may take a few minutes...",
+    "^Done! Initiating backup...",
+    "^Files scanned.*",
+    "^Total data.*",
+    "^Data read.*",
+    "^Data skipped.*",
+    "^Data compressed.*",
+    "^Data exists.*",
+    "^Data sent.*",
+    "^Reduction ratio.*",
+    "^Total Time.*",
+    "^unable to access.*",
+    "^can't open directory.*",
+    "Lost connection to server will attempt to reconnect",
+    "Unable to contact server, continuing to retry connection",
+    "Reconnected",
+  );
+
+  my @files = @lines;
+  s/($ignoredRegex).*// foreach @files;
+  @files = grep {$_ !~ /^\s*$/} @files;
+
+  @files = grep {not -l $_} @files;
+
+  my $msg = '';
+
+  my @failedFiles = grep {not -e $_} @files;
+  if(@failedFiles > 0){
+    $msg .= "files not found:\n" . join("\n", @failedFiles) . "\n";
+  }
+  my $fileCount = `find $dir -type f -not -type l | wc -l`;
+  my @okFiles = grep {-f $_} @files;
+  print "file count: " . scalar(@okFiles) . " / $fileCount";
+  $msg .= "no files handled\n" if @okFiles == 0;
+  my $size = 0;
+  my $du = `du -s $dir`;
+  my $total = $1 if $du =~ /^(\d+)/;
+  for my $file(@okFiles){
+    $file =~ s/'/'\\''/g;
+    my $du = `du -s '$file'`;
+    $size += $1 if $du =~ /^(\d+)/;
+  }
+  if(defined $size and defined $total){
+    my $percent = int(100*$size/$total);
+    $msg .= "size: $percent\%   ${size}k / ${total}k\n";
+  }
+  return $msg;
+}
+
 sub run(@){
   print "@_\n";
   system @_;
@@ -96,6 +169,7 @@ sub bashComplete($$){
   my @names = sort keys %$backups;
 
   my @cmds = qw(
+    --status
     --bash-complete
   );
 
@@ -104,6 +178,10 @@ sub bashComplete($$){
 
   if(@words == 0){
     return (@names, @cmds, @opts);
+  }
+
+  if(@words == 1 and $words[0] =~ /^--status$/){
+    return (@names);
   }
 
   return ();
