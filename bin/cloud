@@ -25,6 +25,9 @@ my $usage = "Usage:
   $0 NAME
      run 'ct-log NAME DIR'
 
+  $0 --log NAME
+     run tail -F on the latest log file
+
   $0 --status NAME
      print count and size of files uploaded using the latest log in ct-log
 
@@ -43,7 +46,7 @@ sub main(@){
     exit 0;
   }
 
-  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--status)$/;
+  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--log|--status)$/;
   $cmd = '' if not defined $cmd;
 
   die $usage if @_ != 1 or not defined $$backups{$_[0]};
@@ -62,6 +65,11 @@ sub main(@){
 
   if($cmd =~ /^(--status)$/){
     print formatStatus($ctfile, $child);
+    exit 0;
+  }elsif($cmd =~ /^(--log)$/){
+    my $log = getLatestLogFile($ctfile);
+    die "no log exists for $ctfile\n" if not defined $log;
+    run "tail", "-F", $log;
     exit 0;
   }
 
@@ -170,6 +178,7 @@ sub bashComplete($$){
   my @names = sort keys %$backups;
 
   my @cmds = qw(
+    --log
     --status
     --bash-complete
   );
@@ -181,7 +190,7 @@ sub bashComplete($$){
     return (@names, @cmds, @opts);
   }
 
-  if(@words == 1 and $words[0] =~ /^--status$/){
+  if(@words == 1 and $words[0] =~ /^(--log|--status)$/){
     return (@names);
   }
 
