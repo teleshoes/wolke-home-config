@@ -39,6 +39,11 @@ my $usage = "Usage:
       ${baseFile}_old_TIME
       ${baseFile}_new_TIME
       ${baseFile}_change_TIME.sh
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
 ";
 my @args = qw(
   -i --info -h --help -s -r --reboot
@@ -61,8 +66,14 @@ sub getWifiNvram($);
 sub getStaticLeasesNvram($);
 sub getExtraNvram($);
 sub getPortForwardingNvram($);
+sub bashComplete($$);
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $arg = shift;
   $arg = '-i' if not defined $arg;
@@ -392,6 +403,24 @@ sub getExtraNvram($){
     }
   }
   return @nvram;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  if(@words == 0){
+    return (@args);
+  }
+
+  return ();
 }
 
 &main(@ARGV);
