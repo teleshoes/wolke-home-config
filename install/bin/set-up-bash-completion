@@ -7,6 +7,7 @@ use ScriptScript;
 my $dir = '/etc/bash_completion.d';
 
 sub getFctImpls();
+my %okFcts = map {$_ => 1} qw(_root_command);
 
 sub main(@) {
   getRoot @_;
@@ -24,6 +25,7 @@ sub main(@) {
     'bgset' => complete("_bgset", qw(bgset)),
     'xmonad-bindings' => complete("_xmonad_bindings", qw(xmonad-bindings xmb)),
     'cloud' => complete("_cloud", qw(cloud)),
+    'ddwrt' => complete("_ddwrt", qw(ddwrt)),
     'completion-aliases' => completionAliases(
        'evince' => [qw(evi)],
        'git'    => [qw(g)],
@@ -41,14 +43,31 @@ sub complete($@){
   my ($fct, @cmds) = @_;
   my $fctImpls = getFctImpls;
   my $complete = '';
-  $complete .= "$fct()$$fctImpls{$fct}\n" if defined $$fctImpls{$fct};
+  if(defined $$fctImpls{$fct}){
+    $complete .= "$fct()$$fctImpls{$fct}\n";
+  }elsif(not defined $okFcts{$fct}){
+    die "no implementation for $fct\n";
+  }
   $complete .= "complete -F $fct @cmds\n";
   print "  completing $fct => @cmds\n";
   return $complete;
 }
 
 sub getFctImpls(){
-  return {
+  my $autoCompleteImpls = {};
+  for my $cmd(qw(alarm backup bgset cloud ddwrt xmb xmonad-bindings)){
+    my $fct = "_$cmd";
+    $fct =~ s/\W+/_/g;
+    $$autoCompleteImpls{$fct} = '{
+      local cur
+      cur="${COMP_WORDS[COMP_CWORD]}"
+      words=$( ' . $cmd . ' --bash-complete "$COMP_LINE" "$COMP_POINT" )
+
+      COMPREPLY=( $(compgen -W "$words" -- $cur) )
+    }',
+  }
+
+  return {%$autoCompleteImpls,
     "_ssrun" => '{
       local cur
       cur="${COMP_WORDS[COMP_CWORD]}"
@@ -65,22 +84,6 @@ sub getFctImpls(){
       else
         COMPREPLY=()
       fi
-    }',
-
-    "_backup" => '{
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      words=$( backup --bash-complete "$COMP_LINE" "$COMP_POINT" )
-
-      COMPREPLY=( $(compgen -W "$words" -- $cur) )
-    }',
-
-    "_alarm" => '{
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      words=$( alarm --bash-complete "$COMP_LINE" "$COMP_POINT" )
-
-      COMPREPLY=( $(compgen -W "$words" -- $cur) )
     }',
 
     "_mntnames" => '{
@@ -125,30 +128,6 @@ sub getFctImpls(){
         | sort \
       ))
       return 0
-    }',
-
-    "_bgset" => '{
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      words=$( bgset --bash-complete "$COMP_LINE" "$COMP_POINT" )
-
-      COMPREPLY=( $(compgen -W "$words" -- $cur) )
-    }',
-
-    "_xmonad_bindings" => '{
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      words=$( xmonad-bindings --bash-complete "$COMP_LINE" "$COMP_POINT" )
-
-      COMPREPLY=( $(compgen -W "$words" -- $cur) )
-    }',
-
-    "_cloud" => '{
-      local cur
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      words=$( cloud --bash-complete "$COMP_LINE" "$COMP_POINT" )
-
-      COMPREPLY=( $(compgen -W "$words" -- $cur) )
     }',
   };
 }

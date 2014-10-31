@@ -12,26 +12,46 @@ my %wifiAtts = map {$_ => 1} qw(
 my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
 
 my $usage = "Usage:
+  $0 [-i|--info]
+    Print restore bootstrap instructions {default if no arg given}
+
   $0 -h|--help
     Print this message
+
   $0 -s
-    get the ip from the file and attempt to ssh to it
-  $0 [info]
-    Print restore bootstrap instructions
-  $0 speedtest
+    get IP from $file and run 'ssh root\@IP'
+
+  $0 -r|--reboot
+    get IP from $file and run 'ssh root\@IP reboot &'
+
+  $0 -t|--test|--speedtest
     perform a speedtest with netcat
-  $0 show
+
+  $0 --show
     run nvram show
-  $0 encrypt KEY
+
+  $0 -e|--encrypt KEY
     pass in a wpa key or whatever for encrypting and putting into $file
-  $0 restore
+
+  $0 --restore
     ssh in and setup nvram
-    prints nvram info to:
+    prints nvram info (TIME is like \"date +\%s\"):
       ${baseFile}_old_TIME
       ${baseFile}_new_TIME
       ${baseFile}_change_TIME.sh
-";
 
+  $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
+";
+my @args = qw(
+  -i --info -h --help -s -r --reboot
+  -t --test --speedtest --show -e --encrypt --restore
+);
+my $okArgs = join '|', @args;
+
+sub assertPresent($$;$);
 sub speedtest($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
@@ -46,6 +66,45 @@ sub getWifiNvram($);
 sub getStaticLeasesNvram($);
 sub getExtraNvram($);
 sub getPortForwardingNvram($);
+sub bashComplete($$);
+
+sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+  my $arg = shift;
+  $arg = '-i' if not defined $arg;
+
+  if(@_ == 1 and $arg =~ /^(-e|--encrypt)$/){
+    print encrypt $_[0];
+    print "\n";
+    exit 0;
+  }
+
+  die $usage if @_ > 0 or $arg !~ /^($okArgs)$/;
+
+  my $c = parse $file;
+  assertPresent $c, 'config';
+  assertPresent $c, 'config', 'ip_prefix';
+  assertPresent $c, 'config', 'router_ip';
+  assertPresent $c, 'clients';
+  if($arg =~ /^(-s)$/){
+    system "ssh", "root\@$$c{config}{router_ip}";
+  }elsif($arg =~ /^(-r|--reboot)$/){
+    system "ssh root\@$$c{config}{router_ip} reboot &";
+  }elsif($arg =~ /^(-i|--info)$/){
+    print getStarted $c;
+  }elsif($arg =~ /^(-t|--test|--speedtest)$/){
+    speedtest $c;
+  }elsif($arg =~ /^(--show)$/){
+    ddwrtShow $c;
+  }elsif($arg =~ /^(^--restore$)$/){
+    ddwrtRestore $c;
+  }
+}
 
 sub assertPresent($$;$){
   my ($c, $section, $item) = @_;
@@ -53,36 +112,6 @@ sub assertPresent($$;$){
     die "Missing $section.$item\n" if not defined $$c{$section}{$item};
   }else{
     die "Missing section $section\n" if not defined $$c{$section};
-  }
-}
-
-sub main(@){
-  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
-  my $arg = shift;
-  $arg = 'info' if not defined $arg;
-  if(@_ == 1 and $arg eq 'encrypt'){
-    print encrypt $_[0];
-    print "\n";
-    exit 0;
-  }
-
-  die $usage if @_ > 0 or $arg !~ /^(-s|info|speedtest|show|restore)$/;
-
-  my $c = parse $file;
-  assertPresent $c, 'config';
-  assertPresent $c, 'config', 'ip_prefix';
-  assertPresent $c, 'config', 'router_ip';
-  assertPresent $c, 'clients';
-  if($arg eq '-s'){
-    system "ssh", "root\@$$c{config}{router_ip}";
-  }elsif($arg eq 'info'){
-    print getStarted $c;
-  }elsif($arg eq 'speedtest'){
-    speedtest $c;
-  }elsif($arg eq 'show'){
-    ddwrtShow $c;
-  }elsif($arg eq 'restore'){
-    ddwrtRestore $c;
   }
 }
 
@@ -374,6 +403,24 @@ sub getExtraNvram($){
     }
   }
   return @nvram;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  if(@words == 0){
+    return (@args);
+  }
+
+  return ();
 }
 
 &main(@ARGV);
