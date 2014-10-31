@@ -5,7 +5,7 @@ BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 
 screen-cmd fetch-seedbox
 
-screen-cmd execPing --watchdog ddwrt --reboot
+screen-cmd execPing --watchdog ddwrt --restart-dev
 
 brightness 80
 sudo mnt &
