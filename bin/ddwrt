@@ -12,31 +12,36 @@ my %wifiAtts = map {$_ => 1} qw(
 my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
 
 my $usage = "Usage:
+  $0 [-i|--info]
+    Print restore bootstrap instructions {default if no arg given}
+
   $0 -h|--help
     Print this message
 
   $0 -s
-    get the ip from the file and attempt to ssh to it
+    get IP from $file and run 'ssh root\@IP'
 
-  $0 [info]
-    Print restore bootstrap instructions
-
-  $0 speedtest
+  $0 -t|--test|--speedtest
     perform a speedtest with netcat
 
-  $0 show
+  $0 --show
     run nvram show
 
-  $0 encrypt KEY
+  $0 -e|--encrypt KEY
     pass in a wpa key or whatever for encrypting and putting into $file
 
-  $0 restore
+  $0 --restore
     ssh in and setup nvram
-    prints nvram info to:
+    prints nvram info (TIME is like \"date +\%s\"):
       ${baseFile}_old_TIME
       ${baseFile}_new_TIME
       ${baseFile}_change_TIME.sh
 ";
+my @args = qw(
+  -i --info -h --help -s -r --reboot
+  -t --test --speedtest --show -e --encrypt --restore
+);
+my $okArgs = join '|', @args;
 
 sub speedtest($);
 sub ddwrtShow($);
@@ -65,29 +70,30 @@ sub assertPresent($$;$){
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $arg = shift;
-  $arg = 'info' if not defined $arg;
-  if(@_ == 1 and $arg eq 'encrypt'){
+  $arg = '-i' if not defined $arg;
+
+  if(@_ == 1 and $arg =~ /^(-e|--encrypt)$/){
     print encrypt $_[0];
     print "\n";
     exit 0;
   }
 
-  die $usage if @_ > 0 or $arg !~ /^(-s|info|speedtest|show|restore)$/;
+  die $usage if @_ > 0 or $arg !~ /^($okArgs)$/;
 
   my $c = parse $file;
   assertPresent $c, 'config';
   assertPresent $c, 'config', 'ip_prefix';
   assertPresent $c, 'config', 'router_ip';
   assertPresent $c, 'clients';
-  if($arg eq '-s'){
+  if($arg =~ /^(-s)$/){
     system "ssh", "root\@$$c{config}{router_ip}";
-  }elsif($arg eq 'info'){
+  }elsif($arg =~ /^(-i|--info)$/){
     print getStarted $c;
-  }elsif($arg eq 'speedtest'){
+  }elsif($arg =~ /^(-t|--test|--speedtest)$/){
     speedtest $c;
-  }elsif($arg eq 'show'){
+  }elsif($arg =~ /^(--show)$/){
     ddwrtShow $c;
-  }elsif($arg eq 'restore'){
+  }elsif($arg =~ /^(^--restore$)$/){
     ddwrtRestore $c;
   }
 }
