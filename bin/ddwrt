@@ -6,6 +6,9 @@ my $file = "$ENV{HOME}/.ddwrt";
 my $macRe = ("[a-fA-F0-9]{2}:" x 5) . "[a-fA-F0-9]{2}";
 my $baseFile = "/tmp/ddwrt";
 
+my $defaultDev = 'ath0';
+my @restartDevCmds = qw(wpa_supplicant upnp udhcpc);
+
 my %wifiAtts = map {$_ => 1} qw(
   ssid mode net_mode channel channelbw wpa_psk
 );
@@ -23,6 +26,12 @@ my $usage = "Usage:
 
   $0 -r|--reboot
     get IP from $file and run 'ssh root\@IP reboot &'
+
+  $0 --restart-dev [DEV]
+    runs 'ifconfig DEV down && ifconfig DEV up' on the router
+    gets all processes starting with one of @restartDevCmds and containing DEV
+    kills those processes on the router, and reruns them
+    DEV defaults to $defaultDev
 
   $0 -t|--test|--speedtest
     perform a speedtest with netcat
@@ -46,11 +55,12 @@ my $usage = "Usage:
      COMP_POINT - the cursor position in the cmdline
 ";
 my @args = qw(
-  -i --info -h --help -s -r --reboot
+  -i --info -h --help -s -r --reboot --restart-dev
   -t --test --speedtest --show -e --encrypt --restore
 );
 my $okArgs = join '|', @args;
 
+sub restartDev($$);
 sub assertPresent($$;$);
 sub speedtest($);
 sub ddwrtShow($);
@@ -78,6 +88,11 @@ sub main(@){
   my $arg = shift;
   $arg = '-i' if not defined $arg;
 
+  my $dev = $defaultDev;
+  if(@_ == 1 and $arg =~ /^(--restart-dev)$/){
+    $dev = shift;
+  }
+
   if(@_ == 1 and $arg =~ /^(-e|--encrypt)$/){
     print encrypt $_[0];
     print "\n";
@@ -95,6 +110,8 @@ sub main(@){
     system "ssh", "root\@$$c{config}{router_ip}";
   }elsif($arg =~ /^(-r|--reboot)$/){
     system "ssh root\@$$c{config}{router_ip} reboot &";
+  }elsif($arg =~ /^(--restart-dev)$/){
+    restartDev $c, $dev;
   }elsif($arg =~ /^(-i|--info)$/){
     print getStarted $c;
   }elsif($arg =~ /^(-t|--test|--speedtest)$/){
@@ -104,6 +121,27 @@ sub main(@){
   }elsif($arg =~ /^(^--restore$)$/){
     ddwrtRestore $c;
   }
+}
+
+sub restartDev($$){
+  my ($c, $dev) = @_;
+  my $host = "root\@$$c{config}{router_ip}";
+  my @ps = `ssh $host ps w`;
+  my @cmds;
+  push @cmds, "ifconfig $dev down";
+  push @cmds, "ifconfig $dev up";
+  for my $cmd(@restartDevCmds){
+    for my $line(@ps){
+      if($line =~ /(\d+)\s*root\s*(?:\d+)\s*\w+\s*($cmd.*$dev.*)/){
+        my ($pid, $fullCmd) = ($1, $2);
+        push @cmds, "kill $pid";
+        push @cmds, "$fullCmd";
+      }
+    }
+  }
+  print "\n\n" . join("\n", @cmds) . "\n\n";
+
+  system "ssh", "$host", join('; ', @cmds);
 }
 
 sub assertPresent($$;$){
@@ -418,6 +456,10 @@ sub bashComplete($$){
 
   if(@words == 0){
     return (@args);
+  }
+
+  if(@words == 1 and $words[0] =~ /^(--restart-dev)$/){
+    return ($defaultDev);
   }
 
   return ();
