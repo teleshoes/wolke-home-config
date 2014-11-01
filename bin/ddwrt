@@ -210,24 +210,24 @@ sub ddwrtRestore($){
   chomp $host;
   die "Couldnt ssh, or wrong host\n" if $host ne "DD-WRT" and $host ne "ddwrt";
 
-  my @cmds = map {"nvram set '$_'"} getNvram($c);
-
   my $now = time;
   my $oldF = "${baseFile}_old_${now}";
   my $newF = "${baseFile}_new_${now}";
-  my $changesF = "${baseFile}_changes_${now}.sh";
+  my $script = "${baseFile}_script_${now}.sh";
 
-  open FH, "> $changesF";
-  print FH join("\n", @cmds);
+  open FH, "> $script";
+  for my $nvram(getNvram($c)){
+    print FH "nvram set '$nvram'\n";
+  }
   close FH;
-  system "scp", $changesF, "root\@$ip:$changesF";
+  system "scp", $script, "root\@$ip:$script";
 
   my $old = `ssh root\@$ip nvram show`;
   open FH, "> $oldF";
   print FH $old;
   close FH;
 
-  system "ssh", "root\@$ip", "sh $changesF";
+  system "ssh", "root\@$ip", "sh $script";
 
   my $new = `ssh root\@$ip nvram show`;
   open FH, "> $newF";
