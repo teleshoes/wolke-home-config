@@ -133,6 +133,7 @@ function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
+function mp           { mplayer "$@"; }
 
 function s            { "$@" & disown; }
 function sx           { "$@" & disown && exit 0; }
