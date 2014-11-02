@@ -10,7 +10,9 @@ my $defaultDev = 'ath0';
 my @restartDevCmds = qw(wpa_supplicant upnp udhcpc);
 
 my %wifiAtts = map {$_ => 1} qw(
-  ssid mode net_mode channel channelbw wpa_psk
+  ssid mode net_mode channel channelbw
+  security_mode akm crypto wpa_psk
+  regdomain
 );
 my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
 
@@ -158,20 +160,24 @@ sub speedtest($){
   my $ip = $$c{config}{router_ip};
   my $port = 5000 + int(rand(1000)); #5000-5999
   my @sendCmd = "nc -v -v -n $ip $port";
-  my @rcvCmd = "nc -l -p $port";
+  my @rcvCmd = "nc -l -w 60 -p $port";
   my $timeout = 15;
+
+  print "listening on $ip:$port..\n";
   if(fork){
-    if(fork){
-      print "listening on $ip:$port for $timeout seconds..\n";
-      system "ssh root\@$ip sh -c '\"@rcvCmd > /dev/null 2>/dev/null\"'";
-      exit 0;
-    }else{
-      sleep $timeout;
-      system "ssh root\@$ip killall nc";
-      exit 0;
-    }
+    exec "ssh", "root\@$ip", "@rcvCmd >/dev/null 2>/dev/null";
+  }else{
+    my $sshDelay = 10;
+    print "waiting ${sshDelay}s for netcat to start\n";
+    sleep $sshDelay;
   }
-  sleep 3;
+
+  if(fork){
+    print "waiting $timeout seconds and killing nc\n";
+    sleep $timeout;
+    exec "ssh", "root\@$ip", "killall nc";
+  }
+
 
   print "writing to $ip:$port\n";
   my $start = `date +%s.%N`;
@@ -182,7 +188,7 @@ sub speedtest($){
   chomp $stop;
   my $bytes = $1;
   my $elapsed = $stop - $start;
-  printf("\n\n%d KiB/s  {%d bytes in %.5f seconds}\n",
+  printf("\n\n%d KiB/s  {%d bytes in %.5f seconds}\n\n",
      int($bytes / $elapsed / 1024),
      $bytes,
      $elapsed);
@@ -204,24 +210,25 @@ sub ddwrtRestore($){
   chomp $host;
   die "Couldnt ssh, or wrong host\n" if $host ne "DD-WRT" and $host ne "ddwrt";
 
-  my @cmds = map {"nvram set '$_'"} getNvram($c);
-
   my $now = time;
   my $oldF = "${baseFile}_old_${now}";
   my $newF = "${baseFile}_new_${now}";
-  my $changesF = "${baseFile}_changes_${now}.sh";
+  my $script = "${baseFile}_script_${now}.sh";
 
-  open FH, "> $changesF";
-  print FH join("\n", @cmds);
+  open FH, "> $script";
+  for my $nvram(getNvram($c)){
+    print FH "nvram set '$nvram'\n";
+  }
+  print FH "nvram commit\n";
   close FH;
-  system "scp", $changesF, "root\@$ip:$changesF";
+  system "scp", $script, "root\@$ip:$script";
 
   my $old = `ssh root\@$ip nvram show`;
   open FH, "> $oldF";
   print FH $old;
   close FH;
 
-  system "ssh", "root\@$ip", "sh $changesF";
+  system "ssh", "root\@$ip", "sh $script";
 
   my $new = `ssh root\@$ip nvram show`;
   open FH, "> $newF";
@@ -231,37 +238,65 @@ sub ddwrtRestore($){
   print "DIFF:\n";
   system "diff $oldF $newF";
 
-  print "nvram commit [y/N]?\n";
+  print "rerun script and reboot router [y/N]?\n";
   if(<STDIN> eq "y\n"){
-    system "ssh", "root\@$ip", "nvram commit";
-  }
-  print "router reboot [y/N]?\n";
-  if(<STDIN> eq "y\n"){
-    system "ssh", "root\@$ip", "reboot";
+    system "ssh", "root\@$ip", "sh $script; sleep 1; sh $script; reboot";
   }
 }
 
 sub getStarted($){
   my $c = shift;
+  my $wpa = $$c{config}{default_wpa};
+  $wpa = "" if not defined $wpa;
+  $wpa =~ s/^\s+//g;
+  $wpa =~ s/\s+$//g;
+  if($wpa eq ""){
+    $wpa = " NONE";
+  }else{
+    $wpa = " WPA $wpa";
+  }
+
+  my $ipMsg;
+  if($$c{config}{default_router_ip} eq $$c{config}{router_ip}){
+    $ipMsg = "{skip this, default IP is the same as dest IP}";
+  }else{
+    $ipMsg = "{$$c{config}{default_router_ip} => $$c{config}{router_ip}}";
+  }
+
   return "
 1) hold pin, or Administration => Factory Defaults => Restore => Ok
 2) connect to default network
 
-   wconnect $$c{config}{default_ssid} WPA $$c{config}{default_wpa}
+   wconnect $$c{config}{default_ssid}$wpa
 
-3) enable ssh
-
-   browser $$c{config}{router_ip}
+3) set router IP $ipMsg
+   browser $$c{config}{default_router_ip}
      admin/password
-     [cancel], skip[x], [cancel], wait, [done]
+     for buffalo-branded: [cancel], skip[x], [cancel], wait, [done]
+
+   Setup => Router IP => $$c{config}{router_ip}
+
+   apply settings
+
+   wconnect $$c{config}{default_ssid}$wpa
+
+4) enable ssh
+   browser $$c{config}{router_ip}
 
    Services => Secure Shell => SSHd Enable
-4) paste in your pubkey, or use router password
+
+   apply settings
+
+5) paste in your pubkey, or use router password
 
    cat ~/.ssh/*.pub | xsel -b
 
-5) run restore
-  loop -s ddwrt restore
+   apply settings
+
+   reboot router {more or less required, for some reason}
+
+6) run restore and wait for router to reboot {possibly twice...}
+   loop -s ddwrt --restore
 ";
 }
 
