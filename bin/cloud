@@ -18,6 +18,7 @@ my $backups = {
   pictures => "$home/Desktop/Pictures",
   records => "$home/Desktop/Records",
   pidgin => "$home/.purple",
+  thunderbird => "$home/.thunderbird",
 };
 
 sub getLatestLogFile($);
@@ -132,6 +133,14 @@ sub formatStatus($$){
     "Reconnected",
   );
 
+  my $finished = 0;
+  for my $line(@lines){
+    if($line =~ /^Total Time/){
+      $finished = 1;
+      last;
+    }
+  }
+
   my @files = @lines;
   s/($ignoredRegex).*// foreach @files;
   @files = grep {$_ !~ /^\s*$/} @files;
@@ -147,19 +156,27 @@ sub formatStatus($$){
   $dir =~ s/'/'\\''/g;
   my $fileCount = `find '$dir' -type f -not -type l | wc -l`;
   my @okFiles = grep {-f $_} @files;
-  print "file count: " . scalar(@okFiles) . " / $fileCount";
-  $msg .= "no files handled\n" if @okFiles == 0;
+
   my $size = 0;
-  my $du = `du -s '$dir'`;
+  my $du = `du -s -b '$dir'`;
   my $total = $1 if $du =~ /^(\d+)/;
   for my $file(@okFiles){
-    $file =~ s/'/'\\''/g;
-    my $du = `du -s '$file'`;
-    $size += $1 if $du =~ /^(\d+)/;
+    my $fsize = -s $file if -f $file;
+    $size += $fsize;
   }
-  if(defined $size and defined $total){
-    my $percent = int(100*$size/$total);
-    $msg .= "size: $percent\%   ${size}k / ${total}k\n";
+  $msg .= "FINISHED\n" if $finished;
+  if(defined $fileCount and $fileCount > 0){
+    $msg .= sprintf "files: %.1f%%   %d / %d\n",
+      100*@okFiles/$fileCount,
+      scalar(@okFiles),
+      $fileCount;
+  }
+  $msg .= "no files handled\n" if @okFiles == 0;
+  if(defined $total and $total > 0){
+    $msg .= sprintf "size : %.1f%%   %d / %d\n",
+      100*$size/$total,
+      $size,
+      $total;
   }
   return $msg;
 }
