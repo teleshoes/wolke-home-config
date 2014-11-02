@@ -184,7 +184,7 @@ function grep() {
 }
 
 function execAlarm() {
-  $@
+  "$@"
   exitCode="$?"
   if [ $exitCode == 0 ]; then
     alarm -s success
