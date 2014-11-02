@@ -46,11 +46,9 @@ my $usage = "Usage:
 
       ssh -t $revtunRemoteOpts REVTUN_USERNAME\@localhost -p REVTUN_PORT
 
-  $0 TORRENT_FILE
-     upload torrent file to seedbox:$remoteTorrentDir
-
-  $0 MAGNET_LINK
-     create a .torrent file and upload it to seedbox:$remoteTorrentDir
+  $0 TORRENT [TORRENT TORRENT ..]
+     if TORRENT is the path to a torrent file, send it to seedbox:$remoteTorrentDir
+     if TORRENT is a magnet link, create a .torrent file
 ";
 
 sub main(@){
@@ -71,15 +69,20 @@ sub main(@){
     shift;
     my @cmd = @_;
     sshRevtun $config, @cmd;
-  }elsif(@_ == 1 and $_[0] =~ /\.torrent$/ and -f $_[0]){
-    my $torrentFile = $_[0];
-    $torrentFile =~ s/'/'\\''/g;
-    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-  }elsif(@_ == 1 and $_[0] =~ /xt=urn:btih:/){
-    my $torrentFile = magnetToTorrent $_[0];
-    ftpCommand $config, "cd $remoteTorrentDir && put $torrentFile";
   }else{
-    die $usage;
+    for my $torrent(@_){
+      if($torrent =~ /\.torrent$/ and -f $torrent){
+        my $torrentFile = $torrent;
+        $torrentFile =~ s/'/'\\''/g;
+        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+      }elsif(@_ == 1 and $_[0] =~ /xt=urn:btih:/){
+        my $torrentFile = magnetToTorrent $torrent;
+        $torrentFile =~ s/'/'\\''/g;
+        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+      }else{
+        die $usage;
+      }
+    }
   }
 }
 
