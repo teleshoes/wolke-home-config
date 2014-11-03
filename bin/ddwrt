@@ -9,6 +9,12 @@ my $baseFile = "/tmp/ddwrt";
 my $defaultDev = 'ath0';
 my @restartDevCmds = qw(wpa_supplicant upnp udhcpc);
 
+my @sshOpts = map {("-o", $_)} (
+  "KexAlgorithms=diffie-hellman-group1-sha1", #speed
+  "StrictHostKeyChecking=no",
+  "UserKnownHostsFile=/dev/null",
+);
+
 my %wifiAtts = map {$_ => 1} qw(
   ssid mode net_mode channel channelbw
   security_mode akm crypto wpa_psk
@@ -23,11 +29,11 @@ my $usage = "Usage:
   $0 -h|--help
     Print this message
 
-  $0 -s
-    get IP from $file and run 'ssh root\@IP'
+  $0 -s [CMD ARG ARG ..]
+    get IP from $file and run 'ssh SSH_OPTS root\@IP CMD ARG ARG ..'
 
   $0 -r|--reboot
-    get IP from $file and run 'ssh root\@IP reboot &'
+    get IP from $file and run 'ssh SSH_OPTS root\@IP reboot &'
 
   $0 --restart-dev [DEV]
     runs 'ifconfig DEV down && ifconfig DEV up' on the router
@@ -55,6 +61,8 @@ my $usage = "Usage:
      print a list of words for bash completion
      COMP_LINE  - the full cmdline as a string
      COMP_POINT - the cursor position in the cmdline
+
+  SSH_OPTS = @sshOpts
 ";
 my @args = qw(
   -i --info -h --help -s -r --reboot --restart-dev
@@ -90,6 +98,12 @@ sub main(@){
   my $arg = shift;
   $arg = '-i' if not defined $arg;
 
+  my @sshCmd;
+  if($arg =~ /^(-s)$/){
+    @sshCmd = @_;
+    @_ = ();
+  }
+
   my $dev = $defaultDev;
   if(@_ == 1 and $arg =~ /^(--restart-dev)$/){
     $dev = shift;
@@ -109,9 +123,9 @@ sub main(@){
   assertPresent $c, 'config', 'router_ip';
   assertPresent $c, 'clients';
   if($arg =~ /^(-s)$/){
-    system "ssh", "root\@$$c{config}{router_ip}";
+    system "ssh", @sshOpts, "root\@$$c{config}{router_ip}", @sshCmd;
   }elsif($arg =~ /^(-r|--reboot)$/){
-    system "ssh root\@$$c{config}{router_ip} reboot &";
+    system "ssh @sshOpts root\@$$c{config}{router_ip} reboot &";
   }elsif($arg =~ /^(--restart-dev)$/){
     restartDev $c, $dev;
   }elsif($arg =~ /^(-i|--info)$/){
@@ -128,7 +142,7 @@ sub main(@){
 sub restartDev($$){
   my ($c, $dev) = @_;
   my $host = "root\@$$c{config}{router_ip}";
-  my @ps = `ssh $host ps w`;
+  my @ps = `ssh @sshOpts $host ps w`;
   my @cmds;
   push @cmds, "ifconfig $dev down";
   push @cmds, "ifconfig $dev up";
@@ -143,7 +157,7 @@ sub restartDev($$){
   }
   print "\n\n" . join("\n", @cmds) . "\n\n";
 
-  system "ssh", "$host", join('; ', @cmds);
+  system "ssh", @sshOpts, "$host", join('; ', @cmds);
 }
 
 sub assertPresent($$;$){
@@ -165,7 +179,7 @@ sub speedtest($){
 
   print "listening on $ip:$port..\n";
   if(fork){
-    exec "ssh", "root\@$ip", "@rcvCmd >/dev/null 2>/dev/null";
+    exec "ssh", @sshOpts, "root\@$ip", "@rcvCmd >/dev/null 2>/dev/null";
   }else{
     my $sshDelay = 10;
     print "waiting ${sshDelay}s for netcat to start\n";
@@ -175,7 +189,7 @@ sub speedtest($){
   if(fork){
     print "waiting $timeout seconds and killing nc\n";
     sleep $timeout;
-    exec "ssh", "root\@$ip", "killall nc";
+    exec "ssh", @sshOpts, "root\@$ip", "killall nc";
   }
 
 
@@ -197,7 +211,7 @@ sub speedtest($){
 sub ddwrtShow($){
   my $c = shift;
   my $ip = $$c{config}{router_ip};
-  system "ssh root\@$ip nvram show";
+  system "ssh @sshOpts root\@$ip nvram show";
 }
 
 sub ddwrtRestore($){
@@ -205,10 +219,9 @@ sub ddwrtRestore($){
   my $ip = $$c{config}{router_ip};
 
   #test ssh
-  system "ssh-keygen", "-f", "$ENV{HOME}/.ssh/known_hosts", "-R", $ip;
-  my $host = `ssh -o StrictHostKeyChecking=no root\@$ip hostname`;
+  my $host = `ssh @sshOpts root\@$ip hostname`;
   chomp $host;
-  die "Couldnt ssh, or wrong host\n" if $host ne "DD-WRT" and $host ne "ddwrt";
+  die "Couldnt ssh, or wrong host\n" if $host !~ /^(DD-WRT|ddwrt)$/;
 
   my $now = time;
   my $oldF = "${baseFile}_old_${now}";
@@ -223,14 +236,14 @@ sub ddwrtRestore($){
   close FH;
   system "scp", $script, "root\@$ip:$script";
 
-  my $old = `ssh root\@$ip nvram show`;
+  my $old = `ssh @sshOpts root\@$ip nvram show`;
   open FH, "> $oldF";
   print FH $old;
   close FH;
 
-  system "ssh", "root\@$ip", "sh $script";
+  system "ssh", @sshOpts, "root\@$ip", "sh $script";
 
-  my $new = `ssh root\@$ip nvram show`;
+  my $new = `ssh @sshOpts root\@$ip nvram show`;
   open FH, "> $newF";
   print FH $new;
   close FH;
@@ -240,7 +253,8 @@ sub ddwrtRestore($){
 
   print "rerun script and reboot router [y/N]?\n";
   if(<STDIN> eq "y\n"){
-    system "ssh", "root\@$ip", "sh $script; sleep 1; sh $script; reboot";
+    system "ssh", @sshOpts, "root\@$ip",
+      "sh $script; sleep 1; sh $script; reboot";
   }
 }
 
