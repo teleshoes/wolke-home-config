@@ -29,8 +29,8 @@ my $usage = "Usage:
   $0 -h|--help
     Print this message
 
-  $0 -s
-    get IP from $file and run 'ssh SSH_OPTS root\@IP'
+  $0 -s [CMD ARG ARG ..]
+    get IP from $file and run 'ssh SSH_OPTS root\@IP CMD ARG ARG ..'
 
   $0 -r|--reboot
     get IP from $file and run 'ssh SSH_OPTS root\@IP reboot &'
@@ -98,6 +98,12 @@ sub main(@){
   my $arg = shift;
   $arg = '-i' if not defined $arg;
 
+  my @sshCmd;
+  if($arg =~ /^(-s)$/){
+    @sshCmd = @_;
+    @_ = ();
+  }
+
   my $dev = $defaultDev;
   if(@_ == 1 and $arg =~ /^(--restart-dev)$/){
     $dev = shift;
@@ -117,7 +123,7 @@ sub main(@){
   assertPresent $c, 'config', 'router_ip';
   assertPresent $c, 'clients';
   if($arg =~ /^(-s)$/){
-    system "ssh", @sshOpts, "root\@$$c{config}{router_ip}";
+    system "ssh", @sshOpts, "root\@$$c{config}{router_ip}", @sshCmd;
   }elsif($arg =~ /^(-r|--reboot)$/){
     system "ssh @sshOpts root\@$$c{config}{router_ip} reboot &";
   }elsif($arg =~ /^(--restart-dev)$/){
