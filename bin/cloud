@@ -28,6 +28,9 @@ sub run(@);
 sub bashComplete($$);
 
 my $usage = "Usage:
+  $0 --all
+     run 'ct-log NAME DIR' for all (NAME => DIR) pairs
+
   $0 NAME
      run 'ct-log NAME DIR'
 
@@ -52,12 +55,18 @@ sub main(@){
     exit 0;
   }
 
-  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--log|--status)$/;
+  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--all|--log|--status)$/;
   $cmd = '' if not defined $cmd;
 
-  die $usage if @_ != 1 or not defined $$backups{$_[0]};
-  my $ctfile = shift;
-  handleCtfile $ctfile, $cmd;
+  if($cmd =~ /^(--all)$/){
+    for my $ctfile(sort keys %$backups){
+      print "\n\n===$ctfile===\n\n";
+      handleCtfile $ctfile, "";
+    }
+  }else{
+    my $ctfile = shift;
+    handleCtfile $ctfile, $cmd;
+  }
 }
 
 sub handleCtfile($$){
@@ -209,6 +218,7 @@ sub bashComplete($$){
   my @names = sort keys %$backups;
 
   my @cmds = qw(
+    --all
     --log
     --status
     --bash-complete
