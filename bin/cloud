@@ -85,7 +85,8 @@ sub handleCtfile($$){
     my $oldLog = getLatestLogFile($ctfile);
     $oldLog = "" if not defined $oldLog;
 
-    run "screen-cmd", "ct-log", $ctfile, $child;
+    my @cmd = ("ct-log", $ctfile, $child);
+    run "screen-cmd", @cmd;
 
     my $newLog = getLatestLogFile($ctfile);
 
@@ -96,8 +97,11 @@ sub handleCtfile($$){
     if(not defined $newLog or $newLog eq $oldLog){
       die "no log found for $ctfile\n";
     }
+    my $screenPid = `screen-cmd --pid @cmd`;
+    chomp $screenPid;
+    my $pidArg = $screenPid =~ /^\d+$/ ? "--pid=$screenPid" : "";
 
-    run "tail", "-F", $newLog;
+    run "tail", "-F", $pidArg, $newLog;
   }
 }
 
