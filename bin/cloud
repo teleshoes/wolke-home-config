@@ -21,6 +21,7 @@ my $backups = {
   thunderbird => "$home/.thunderbird",
 };
 
+sub handleCtfile($$);
 sub getLatestLogFile($);
 sub formatStatus($$);
 sub run(@);
@@ -56,6 +57,12 @@ sub main(@){
 
   die $usage if @_ != 1 or not defined $$backups{$_[0]};
   my $ctfile = shift;
+  handleCtfile $ctfile, $cmd;
+}
+
+sub handleCtfile($$){
+  my ($ctfile, $cmd) = @_;
+  die $usage if not defined $ctfile or not defined $$backups{$ctfile};
 
   my $dir = $$backups{$ctfile};
   if($dir !~ /^(.+)\/([^\/]+)$/){
@@ -70,30 +77,28 @@ sub main(@){
 
   if($cmd =~ /^(--status)$/){
     print formatStatus($ctfile, $child);
-    exit 0;
   }elsif($cmd =~ /^(--log)$/){
     my $log = getLatestLogFile($ctfile);
     die "no log exists for $ctfile\n" if not defined $log;
     run "tail", "-F", $log;
-    exit 0;
+  }else{
+    my $oldLog = getLatestLogFile($ctfile);
+    $oldLog = "" if not defined $oldLog;
+
+    run "screen-cmd", "ct-log", $ctfile, $child;
+
+    my $newLog = getLatestLogFile($ctfile);
+
+    if(not defined $newLog or $newLog eq $oldLog){
+      sleep 0.5;
+      $newLog = getLatestLogFile($ctfile);
+    }
+    if(not defined $newLog or $newLog eq $oldLog){
+      die "no log found for $ctfile\n";
+    }
+
+    run "tail", "-F", $newLog;
   }
-
-  my $oldLog = getLatestLogFile($ctfile);
-  $oldLog = "" if not defined $oldLog;
-
-  run "screen-cmd", "ct-log", $ctfile, $child;
-
-  my $newLog = getLatestLogFile($ctfile);
-
-  if(not defined $newLog or $newLog eq $oldLog){
-    sleep 0.5;
-    $newLog = getLatestLogFile($ctfile);
-  }
-  if(not defined $newLog or $newLog eq $oldLog){
-    die "no log found for $ctfile\n";
-  }
-
-  run "tail", "-F", $newLog;
 }
 
 sub getLatestLogFile($){
