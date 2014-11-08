@@ -3,6 +3,8 @@ use strict;
 use warnings;
 
 sub getScheduleText($$);
+sub getLatestCache($$);
+sub checkInternet();
 sub parseTrains($);
 sub formatTrain($);
 sub getStations();
@@ -16,6 +18,7 @@ my $synonyms = {
   FMD => ["farm", "fmdl", "fdl", "farmingdale"],
 };
 
+my $cacheDir = "$ENV{HOME}/.cache/lirr_train_time";
 my $baseUrl = "http://wx3.lirr.org/lirr/TrainTime";
 my $okStations = join '', map {  "$_ => $$stations{$_}\n"} sort keys %$stations;
 
@@ -51,7 +54,6 @@ sub getScheduleText($$){
   my ($from, $to) = @_;
   my $url = "$baseUrl/traintime.php?startsta=$from&endsta=$to";
 
-  my $cacheDir = "$ENV{HOME}/.cache/lirr_train_time";
   run "mkdir", "-p", $cacheDir;
 
   my $fileName = "$cacheDir/${from}_${to}_" . time . ".html";
@@ -68,6 +70,33 @@ sub getScheduleText($$){
   }
 
   return $schedule;
+}
+
+sub getLatestCache($$){
+  my ($from, $to) = @_;
+  my @caches = `ls $cacheDir/${from}_${to}_*.html 2>/dev/null`;
+  my $latest = undef;
+  my $latestCache = undef;
+  for my $cache(@caches){
+    chomp $cache;
+    if($cache =~ /${from}_${to}_(\d+)\.html$/){
+      my $time = $1;
+      if(not defined $latest or $latest < $time){
+        $latest = $time;
+        $latestCache = $cache;
+      }
+    }
+  }
+  return $latestCache;
+}
+
+sub checkInternet(){
+  my $test = `execPing --timeout=2`;
+  if($? == 0 and $test =~ /^ok:/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub parseTrains($){
