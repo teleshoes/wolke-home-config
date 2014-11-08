@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+sub getScheduleText($$);
 sub parseTrains($);
 sub formatTrain($);
 sub getStations();
@@ -35,6 +36,12 @@ sub main(@){
   system "bigtext", "-k";
   system "bigtext --lineSeparator=true loading &";
 
+  my $schedule = getScheduleText($from, $to);
+  system "bigtext", $schedule;
+}
+
+sub getScheduleText($$){
+  my ($from, $to) = @_;
   my $url = "$baseUrl/traintime.php?startsta=$from&endsta=$to";
 
   my $cacheDir = "$ENV{HOME}/.cache/lirr_train_time";
@@ -46,13 +53,14 @@ sub main(@){
   my $html = `cat $fileName`;
   my @trains = parseTrains($html);
 
-  my $text = join "\n", (map {formatTrain($_)} @trains);
-  if($text eq "" and $html =~ /no.*trains.*scheduled/i){
-    $text = "no trains";
-  }elsif($text eq ""){
-    $text = "error";
+  my $schedule = join "\n", (map {formatTrain($_)} @trains);
+  if($schedule eq "" and $html =~ /no.*trains.*scheduled/i){
+    $schedule = "no trains";
+  }elsif($schedule eq ""){
+    $schedule = "error";
   }
-  system "bigtext", $text;
+
+  return $schedule;
 }
 
 sub parseTrains($){
