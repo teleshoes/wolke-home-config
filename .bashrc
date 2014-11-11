@@ -165,7 +165,7 @@ function maven() {
   if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
     args="$args -Dcheckstyle.skip=true"
   fi
-  execAlarm mvn "$args" "$@";
+  execAlarm mvn $args $@;
 }
 
 function find() {
