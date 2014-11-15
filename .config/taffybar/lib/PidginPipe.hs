@@ -1,15 +1,18 @@
 module PidginPipe(pidginPipeW) where
 import Clickable (clickable)
+import Label (mainLabel)
 import Image (imageW)
 import System.Environment (getEnv)
+import Control.Monad (forever)
 import Data.Char (toLower)
 import Utils (imageDir, chompAll, isRunning, chompFile)
+
+main = mainLabel $ getImage 0
+pidginPipeW h = clickable clickL clickM clickR =<< imageW (getImage h)
 
 clickL = Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
 clickM = Nothing
 clickR = Just "pkill pidgin"
-
-pidginPipeW h = clickable clickL clickM clickR =<< imageW (getImage h)
 
 getImage h = do
   home <- getEnv "HOME"
