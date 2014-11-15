@@ -65,13 +65,15 @@ fi
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
-  case `hostname -s` in
+  case `hostname` in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n9"                ) h='@n9' ;;
     "wolke-n900"              ) h='@n900' ;;
     "raspberrypi"             ) h='@raspi' ;;
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
+    ci-*.dev.*                ) h='@ci.dev' ;;
+    ci-*.stage.*              ) h='@ci.stage' ;;
     *                         ) h='@\h' ;;
   esac
 else
