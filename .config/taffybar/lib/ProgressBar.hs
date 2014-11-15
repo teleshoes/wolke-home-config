@@ -2,13 +2,12 @@ module ProgressBar (progressBarW, getProgs, main) where
 import JsonWidget (jsonWidgetNew)
 import Color as C
 import Control.Concurrent (threadDelay)
+import Control.Monad (forever)
 import Data.Maybe (catMaybes)
 import Data.List (intersperse)
 import Utils (readInt, regexGroups, readProc, findName, chompFile)
 
-main = do
-  x <- getProgs
-  print x
+main = forever $ print =<< getProgs
 
 progressBarW = jsonWidgetNew $ fmap fmtProgs getProgs
 
