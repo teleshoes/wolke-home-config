@@ -4,6 +4,7 @@ module Utils(
   rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts, padL, padR, chompAll,
+  pollingGraphMain,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
@@ -98,6 +99,11 @@ padR x len xs = xs ++ replicate (len - length xs) x
 chompAll = reverse . dropWhile (== '\n') . reverse
 
 -- IO
+pollingGraphMain delay reader = forever $ do
+  values <- reader
+  print $ map (printfReal "%.3f") values
+  threadDelay $ round $ delay * 10^6
+
 tryMaybe :: (IO a) -> IO (Maybe a)
 tryMaybe act = do
   result <- (try :: IO a -> IO (Either SomeException a)) act
