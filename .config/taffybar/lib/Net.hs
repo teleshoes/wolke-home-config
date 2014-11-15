@@ -1,6 +1,6 @@
 module Net(netW) where
 import Clickable (clickableLeft)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils (padL, chompAll, regexFirstGroup, chompFile)
 
 import System.Process(readProcess)
@@ -8,6 +8,9 @@ import System.Environment (getEnv)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.Maybe (listToMaybe)
+
+main = mainLabel netReader
+netW = clickableLeft wscanCmd =<< labelW netReader
 
 lastSSIDFile = "/tmp/last-ssid"
 
@@ -32,7 +35,7 @@ readWStatus = do
     "none\n"       -> return None
     otherwise      -> return Unknown
 
-getNetMarkup = do
+netReader = do
   wstatus <- readWStatus
   markup <- case wstatus of
     Wlan      -> wifi
@@ -44,8 +47,6 @@ getNetMarkup = do
     None      -> message "no wabs"
     Unknown   -> message "???"
   return markup
-
-netW = clickableLeft wscanCmd =<< labelW getNetMarkup
 
 message s = return $ padtrim width $ Just s
 

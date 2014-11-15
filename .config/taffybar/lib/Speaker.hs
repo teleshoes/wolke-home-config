@@ -1,13 +1,14 @@
 module Speaker(speakerW) where
 import Clickable (clickableRight)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils (padL, fg, readProc, regexMatch)
 
 import System.Environment (getEnv)
 
-speakerW = clickableRight clickCmd =<< labelW getSpeakerMarkup
+main = mainLabel speakerReader
+speakerW = clickableRight clickCmd =<< labelW speakerReader
 
-getSpeakerMarkup = fmap format getDefaultSink
+speakerReader = fmap format getDefaultSink
 
 getDefaultSink :: IO String
 getDefaultSink = readProc ["speaker", "--default"]

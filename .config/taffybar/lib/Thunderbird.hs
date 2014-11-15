@@ -2,7 +2,7 @@ module Thunderbird(thunderbirdW) where
 import Color (Color(..), hexColor, widgetBgColorWrap)
 import Clickable (clickable)
 import Image (imageW)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
   imageDir, fg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
@@ -11,6 +11,18 @@ import qualified Data.Map as M (fromList, lookup, member)
 
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
+
+main = mainLabel $ unreadCountsMarkup $ hexColor White
+thunderbirdW h fgColor bgColor = do
+  img <- imageW (getImage h)
+  label <- labelW $ unreadCountsMarkup $ hexColor fgColor
+
+  box <- hBoxNew False 0
+  containerAdd box img
+  containerAdd box label
+
+  widgetBgColorWrap bgColor =<< clickable clickL clickM clickR box
+
 
 exec = "icedove"
 process = exec
@@ -25,16 +37,6 @@ accounts = M.fromList [ ("Gmail", "G")
                       , ("AOL - LiberiFataliVIII", "A")
                       , ("teleshoes", "T")
                       ]
-
-thunderbirdW h fgColor bgColor = do
-  img <- imageW (getImage h)
-  label <- labelW $ unreadCountsMarkup $ hexColor fgColor
-
-  box <- hBoxNew False 0
-  containerAdd box img
-  containerAdd box label
-
-  widgetBgColorWrap bgColor =<< clickable clickL clickM clickR box
 
 getImage h = do
   tbRunning <- isRunning process

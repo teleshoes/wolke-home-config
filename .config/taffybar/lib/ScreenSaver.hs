@@ -1,12 +1,15 @@
 module ScreenSaver(screenSaverW) where
 import Clickable (clickableActions)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils(chompFile, padL, readInt, readProc, millisTime)
 
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (when, void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
+
+main = mainLabel =<< screenSaverReader
+screenSaverW = clickableActions clickL clickM clickR =<< labelW =<< screenSaverReader
 
 clickL = writeOverride "on"
 clickM = return ()
@@ -23,12 +26,12 @@ checkDelayMillis = 1 * 1000
 -- minimum amount of time to run screensaver when forcibly turning it on
 minRunningMillis = 2 * 1000
 
-screenSaverW = do
+screenSaverReader :: IO (IO String)
+screenSaverReader = do
   chan <- newChan
   writeChan chan $ "????"
   forkIO $ checkScreenSaver chan False 0 Nothing
-  label <- labelW $ readChan chan
-  clickableActions clickL clickM clickR label
+  return $ readChan chan
 
 checkScreenSaver chan prevState prevXidle prevStartTimeMillis = do
   xidle <- getXidle

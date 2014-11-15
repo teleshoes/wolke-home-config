@@ -2,7 +2,7 @@ module CpuIntelPstate(cpuIntelPstateW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
-import Label (labelW)
+import Label (labelW, mainLabel)
 
 import Control.Monad (void)
 import Control.Concurrent (forkIO)
@@ -12,23 +12,21 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
+main = mainLabel cpuIntelPstateReader
+cpuIntelPstateW = labelW cpuIntelPstateReader
+
 width = 2
 defaultGovernor = "performance"
 
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-toPct :: String -> Integer
-toPct n = case readInt n of
-                 Just pct | (0 <= pct && pct <= 100) -> pct
-                 _ -> 0-1
-
-get dev = fmap toPct $ readProc ["sudo", "intel-pstate", "-g", dev]
-
-cpuIntelPstateW = labelW $ do
+cpuIntelPstateReader = do
   min <- get "min"
   max <- get "max"
   return $ format min max
+
+get dev = fmap toPct $ readProc ["sudo", "intel-pstate", "-g", dev]
 
 format :: Integer -> Integer -> String
 format min max = color $ fmt max ++ "\n" ++ fmt min
@@ -41,3 +39,8 @@ format min max = color $ fmt max ++ "\n" ++ fmt min
               | x < 10 = '0':show x
               | x == 100 = "HH"
               | otherwise = show x
+
+toPct :: String -> Integer
+toPct n = case readInt n of
+                 Just pct | (0 <= pct && pct <= 100) -> pct
+                 _ -> 0-1

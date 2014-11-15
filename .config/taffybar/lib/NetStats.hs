@@ -1,6 +1,6 @@
 module NetStats(netStatsW) where
 import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups)
-import Label (labelW)
+import Label (labelW, mainLabel)
 
 import Control.Concurrent (threadDelay, forkIO, readChan, writeChan, newChan)
 import Control.Monad (forever)
@@ -9,19 +9,14 @@ import Data.Ord (comparing)
 import Data.List (minimumBy, maximumBy)
 import Text.Printf (printf)
 
-main = do
-  chan <- newChan
-  forkIO $ scanLoop chan []
-  forever $ do
-    msg <- readChan chan
-    print msg
-  return ()
+main = mainLabel =<< netStatsReader
+netStatsW = labelW =<< netStatsReader
 
-netStatsW = do
+netStatsReader :: IO (IO String)
+netStatsReader = do
   chan <- newChan
   forkIO $ scanLoop chan []
-  lbl <- labelW $ readChan chan
-  return lbl
+  return $ readChan chan
 
 ignoredInterfacesRegex = "(lo|tun\\d+)"
 
