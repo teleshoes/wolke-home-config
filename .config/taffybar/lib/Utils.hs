@@ -3,7 +3,7 @@ module Utils(
   fg, bg, fgbg,
   rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, collectInts, padL, padR, chompAll,
+  readInt, readDouble, printfReal, collectInts, padL, padR, chompAll,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
@@ -34,6 +34,7 @@ import System.Process (
   system)
 import ProcUtil ( readProcessWithExitCode' )
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
+import Text.Printf (printf)
 
 -- CONSTANTS
 defaultDelay :: Double
@@ -84,6 +85,9 @@ readDouble :: String -> Maybe Double
 readDouble s = case reads s of
               ((x,_):_) -> Just x
               _ -> Nothing
+
+printfReal :: Real a => String -> a -> String
+printfReal fmt rat = printf fmt $ (fromRational $ toRational rat :: Double)
 
 collectInts :: String -> [Integer]
 collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
