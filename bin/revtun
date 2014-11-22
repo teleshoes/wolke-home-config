@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+my $portMin=30000;
+my $portMax=39999;
 my $sshCmd = "autossh";
 my $localPort = 22;
 my $localHost = "localhost";
@@ -34,6 +36,9 @@ my $usage = "Usage:
 
     --unsafe
       use @unsafeSshOpts
+
+    -r|--random-port
+      use a random port between $portMin and $portMax for the remote port
 ";
 
 sub main(@){
@@ -41,6 +46,7 @@ sub main(@){
   my $config;
 
   my $local = 0;
+  my $randomPort = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(--unsafe)$/){
@@ -53,6 +59,8 @@ sub main(@){
         $config = readSecrets() if not defined $config;
         $localPort = $$config{localport};
       }
+    }elsif($arg =~ /^(-r|--random-port)$/){
+      $randomPort = 1;
     }else{
       die $usage;
     }
@@ -67,6 +75,10 @@ sub main(@){
     $port = $_[1];
   }else{
     die $usage;
+  }
+
+  if($randomPort){
+    $port = int(rand() * ($portMax - $portMin)) + $portMin;
   }
 
   my @opts = map {("-o", $_)} @sshOpts;
