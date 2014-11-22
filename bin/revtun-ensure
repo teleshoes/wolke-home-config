@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::Out qw(timeout) ;
+
+my $timeoutS = 10;
+my $delayS = 5 * 60;
+
+sub run(@);
+
+sub main(@){
+  while(1){
+    if(not test()){
+      run "screen-cmd", "revtun", "-r";
+    }
+    sleep $delayS;
+  }
+}
+
+sub test(){
+  system "date";
+  my $hostname = `hostname`;
+  chomp $hostname;
+  $hostname="wolke-nuc";
+  my $revtunHostname = timeout $timeoutS => sub {
+    return `seedbox -r hostname`;
+  };
+  if(defined $revtunHostname and $revtunHostname =~ /$hostname/){
+    print "success\n";
+    return 1;
+  }else{
+    print "\n\n\nseedbox -r failed, rerunning revtun\n";
+    return 0;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
