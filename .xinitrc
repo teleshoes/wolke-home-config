@@ -10,7 +10,7 @@ screen-cmd execPing --watchdog ddwrt --restart-dev
 brightness 80
 sudo mnt &
 sudo wired &
-execPing screen-cmd revtun &
+execPing screen-cmd revtun-ensure &
 pulse-enable on
 sudo bluetooth off &
 sudo fan default &
