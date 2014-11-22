@@ -1,11 +1,19 @@
 module PingMonitor (pingMonitorW) where
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils (defaultDelay, fg, bg, procSuccess)
 
 import System.Environment (getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
+import Control.Monad (when)
 import System.Environment.UTF8 (getArgs)
 import Graphics.UI.Gtk (Widget)
+
+main = do
+  args <- getArgs
+  when (length args /= 2) (error "Usage: PingMonitor DISPLAY URL")
+  let (display, url) = (args !! 0, args !! 1)
+  mainLabel =<< pingMonitorReader display url
+pingMonitorW display url = labelW =<< pingMonitorReader display url
 
 char = "●"
 upColor = "green"
@@ -15,13 +23,13 @@ toggleColorFalse = "gray"
 
 isPingable url timeout = procSuccess ["ping", url, "-c", "1", "-w", show timeout]
 
-pingMonitorW :: String -> String -> IO Widget
-pingMonitorW display url = do
+pingMonitorReader :: String -> String -> IO (IO String)
+pingMonitorReader display url = do
   chan <- newChan
   writeChan chan $ "?" ++ display
   let toggle = cycle [True, False]
   forkIO $ mapM_ (ping chan display url defaultDelay) toggle
-  labelW $ readChan chan
+  return $ readChan chan
 
 ping chan display url timeout toggle = do
   isUp <- isPingable url timeout

@@ -1,14 +1,17 @@
 module Fan(fanW) where
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils (fg, bg, padL, regexGroups,
   readInt, readDouble, chompFile, readProc)
 import Data.Maybe (fromMaybe)
+
+main = mainLabel fanReader
+fanW = labelW fanReader
 
 width = 2
 
 fanDev = "/proc/acpi/ibm/fan"
 
-fanW = labelW $ do
+fanReader = do
   info <- chompFile fanDev
   acpiInfo <- readProc ["acpi", "-V"]
   let temp = parseCpuTemp acpiInfo

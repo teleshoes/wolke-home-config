@@ -1,15 +1,16 @@
 module Volume (volumeW, getVol, isMuted) where
-import PercentBarWidget (percentBarWidgetW, percentBarConfig)
+import PercentBarWidget (percentBarWidgetW, percentBarConfig, mainPercentBarWidget)
 import Color as C
 import Data.Maybe (fromMaybe)
 import System.Environment (getEnv)
 import Utils (regexGroups, readProc)
 
+main = mainPercentBarWidget 0.5 $ readVolBar "speaker"
+volumeW = percentBarWidgetW percentBarConfig 0.5 $ readVolBar "speaker"
+
 mutedColors = map C.rgb [C.Yellow, C.Red] ++ otherColors
 unmutedColors = map C.rgb [C.Black, C.Green] ++ otherColors
 otherColors = map C.rgb $ take 10 $ cycle [C.Blue, C.Orange]
-
-volumeW = percentBarWidgetW percentBarConfig 0.5 $ readVolBar "speaker"
 
 readVolBar dev = do
   (vol, mute) <- getStatus dev

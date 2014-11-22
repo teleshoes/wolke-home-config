@@ -65,13 +65,15 @@ fi
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
-  case `hostname -s` in
+  case `hostname` in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n9"                ) h='@n9' ;;
     "wolke-n900"              ) h='@n900' ;;
     "raspberrypi"             ) h='@raspi' ;;
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
+    ci-*.dev.*                ) h='@ci.dev' ;;
+    ci-*.stage.*              ) h='@ci.stage' ;;
     *                         ) h='@\h' ;;
   esac
 else
@@ -148,8 +150,8 @@ function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
 function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
 
-function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
-function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
+function genservices  { ~/workspace/old-escribe/tools/genservices.pl "$@"; }
+function genibatis    { ~/workspace/old-escribe/tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
 
 # common typos
@@ -165,7 +167,7 @@ function maven() {
   if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
     args="$args -Dcheckstyle.skip=true"
   fi
-  execAlarm mvn "$args" "$@";
+  execAlarm mvn $args $@;
 }
 
 function find() {

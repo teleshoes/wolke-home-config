@@ -2,7 +2,7 @@ module CpuScaling(cpuScalingW, cpuGovW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
-import Label (labelW)
+import Label (labelW, mainLabel)
 
 import Control.Monad (void)
 import Control.Concurrent (forkIO)
@@ -12,13 +12,16 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
+main = mainLabel cpuScalingReader
+cpuScalingW = labelW cpuScalingReader
+
 width = 2
 defaultGovernor = "performance"
 
 tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScalingW = labelW $ do
+cpuScalingReader = do
   cpu <- readCpu
   case cpu of
     Left err -> return err

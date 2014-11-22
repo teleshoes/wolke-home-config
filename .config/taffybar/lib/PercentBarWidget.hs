@@ -1,5 +1,5 @@
 module PercentBarWidget (
-  percentBarWidgetW, percentBarConfig
+  percentBarWidgetW, percentBarConfig, mainPercentBarWidget
 ) where
 import Graphics.UI.Gtk (realize, on)
 import System.Taffybar.Widgets.VerticalBar (
@@ -8,6 +8,13 @@ import System.Taffybar.Widgets.VerticalBar (
   BarConfig(..), defaultBarConfig)
 import Control.Concurrent (threadDelay, forkIO)
 import Control.Monad (forever, when, void)
+
+mainPercentBarWidget interval barReader = forever $ do
+  (p, colors) <- barReader
+  checkLen "too many colors" colors 100
+  let (bg, fg) = selectColors colors p
+  print (p, bg, fg)
+  threadDelay $ floor $ interval * 10^6
 
 percentBarConfig = cfg { barWidth = 10 }
   where cfg = defaultBarConfig (constColor (0,0,0))

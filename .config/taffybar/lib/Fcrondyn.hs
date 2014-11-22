@@ -1,6 +1,6 @@
 module Fcrondyn(fcrondynW) where
 import Clickable (clickableLeft)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import System.IO
 import System.Process(readProcessWithExitCode, system)
 import Data.Maybe (catMaybes, fromMaybe, fromJust, isJust)
@@ -12,9 +12,10 @@ import Data.Time.Calendar (toModifiedJulianDay, fromGregorian, showGregorian)
 import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
-fcrondynW = clickableLeft cmd =<< labelW getMarkup
+main = mainLabel fcrondynReader
+fcrondynW = clickableLeft cmd =<< labelW fcrondynReader
 
-getMarkup = do
+fcrondynReader = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
   system "sudo fcron-start >/dev/null"

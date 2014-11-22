@@ -24,12 +24,20 @@ my $usage = "Usage:
 
     -a|--attach-only
       do not run the command, merely attach to the screen session if it is already runing
+
+  $0 --pid CMD [ARG ARG ..]
+    do not perform any actions.
+    print the pid of the screen session named as it would be by running:
+      $0 CMD [ARG ARG ..]
+    print nothing if no session is found with that name
+      and exit with exit code = 1
 ";
 
 sub main(@){
   my $exit = 0;
   my $noDetach = 0;
   my $attachOnly = 0;
+  my $pid = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-q|--quit|--exit)$/){
@@ -38,6 +46,8 @@ sub main(@){
       $noDetach = 1;
     }elsif($opt =~ /^(-a|--attach-only)$/){
       $attachOnly = 1;
+    }elsif($opt =~ /^(--pid)$/){
+      $pid = 1;
     }else{
       die $usage;
     }
@@ -51,6 +61,22 @@ sub main(@){
   my $screenSession = join "_", ("screencmd", @cmd);
   $screenSession =~ s/\W/-/g;
   $screenSession = substr $screenSession, 0, $sessionNameMaxLen;
+
+  if($pid){
+    my $screenPid = undef;
+    for my $line(`screen -list`){
+      if($line =~ /^\s*(\d+)\.$screenSession\s+/){
+        $screenPid = $1;
+        last;
+      }
+    }
+    if(defined $screenPid){
+      print "$screenPid\n" if defined $screenPid;
+      exit 0;
+    }else{
+      exit 1;
+    }
+  }
 
   if(not $attachOnly){
     system "screen -S $screenSession -X quit >/dev/null";

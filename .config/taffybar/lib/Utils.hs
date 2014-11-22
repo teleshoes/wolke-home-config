@@ -3,7 +3,8 @@ module Utils(
   fg, bg, fgbg,
   rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, collectInts, padL, padR, chompAll,
+  readInt, readDouble, printfReal, collectInts, padL, padR, chompAll,
+  pollingGraphMain,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
@@ -34,6 +35,7 @@ import System.Process (
   system)
 import ProcUtil ( readProcessWithExitCode' )
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
+import Text.Printf (printf)
 
 -- CONSTANTS
 defaultDelay :: Double
@@ -85,6 +87,9 @@ readDouble s = case reads s of
               ((x,_):_) -> Just x
               _ -> Nothing
 
+printfReal :: Real a => String -> a -> String
+printfReal fmt rat = printf fmt $ (fromRational $ toRational rat :: Double)
+
 collectInts :: String -> [Integer]
 collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
 
@@ -94,6 +99,11 @@ padR x len xs = xs ++ replicate (len - length xs) x
 chompAll = reverse . dropWhile (== '\n') . reverse
 
 -- IO
+pollingGraphMain delay reader = forever $ do
+  values <- reader
+  print $ map (printfReal "%.3f") values
+  threadDelay $ round $ delay * 10^6
+
 tryMaybe :: (IO a) -> IO (Maybe a)
 tryMaybe act = do
   result <- (try :: IO a -> IO (Either SomeException a)) act

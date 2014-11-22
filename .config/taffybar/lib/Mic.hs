@@ -1,14 +1,15 @@
 module Mic(micW) where
 import Clickable (clickableLeft)
-import Label (labelW)
+import Label (labelW, mainLabel)
 import Utils (fg)
 import Volume (isMuted)
 
 import System.Environment (getEnv)
 
-micW = clickableLeft clickCmd =<< labelW getMic
+main = mainLabel micReader
+micW = clickableLeft clickCmd =<< labelW micReader
 
-getMic = do
+micReader = do
   muted <- isMuted "microphone"
   return $ fg (if muted then "black" else "red") "M"
 
