@@ -150,8 +150,8 @@ function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
 function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
 
-function genservices  { ~/workspace/escribe/tools/genservices.pl "$@"; }
-function genibatis    { ~/workspace/escribe/tools/genibatis.pl "$@"; }
+function genservices  { ~/workspace/old-escribe/tools/genservices.pl "$@"; }
+function genibatis    { ~/workspace/old-escribe/tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
 
 # common typos
