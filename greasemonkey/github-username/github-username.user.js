@@ -88,12 +88,7 @@ function login(userName){
 }
 
 function logout(){
-  setTimeout(function(){
-    btns = document.getElementsByClassName("sign-out-button")
-    if(btns.length == 1){
-      btns[0].click()
-    }
-  }, 500);
+  document.getElementsByClassName('logout-form')[0].submit();
 }
 
 function getUserName(){
