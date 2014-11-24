@@ -10,31 +10,28 @@
 baseUrl = "https://github.com"
 
 function main(){
-  url = document.URL
+  url = document.URL;
 
-  landingPage = isLandingPage()
-  targetUserName = getTargetUserName(url)
-  userName = getUserName()
-
-  if(landingPage && targetUserName == null && userName == null){
-  }
+  landingPage = isLandingPage();
+  targetUserName = getTargetUserName(url);
+  userName = getUserName();
 
   if(userName != null && targetUserName != null && userName != targetUserName){
     logout();
     setTimeout(navToLogin, 200);
   }else if(targetUserName != null && /github.com\/login/.exec(url)){
-    login(targetUserName)
+    login(targetUserName);
   }else if(landingPage){
     if(targetUserName == null){
-      targetUserName = getTargetUserName(document.referrer)
+      targetUserName = getTargetUserName(document.referrer);
     }
     if(targetUserName != null){
-      navToLogin(targetUserName)
+      navToLogin(targetUserName);
     }
   }else if(is404()){
     if(/[?\/]lillegroup/.exec(url)){
       targetUserName = "ewolk";
-      newUrl = baseUrl + "/?" + targetUserName
+      newUrl = baseUrl + "/?" + targetUserName;
       window.open(newUrl, '_blank', true);
       setTimeout(function(){ location.reload(true) }, 5000);
     }
@@ -42,7 +39,7 @@ function main(){
 }
 
 function isLandingPage(){
-  btns = document.getElementsByClassName('signin')
+  btns = document.getElementsByClassName('signin');
   if(btns.length == 1 && /\/login$/.exec(btns[0].href)){
     return true;
   }
@@ -64,27 +61,27 @@ function getTargetUserName(url){
 }
 
 function navToLogin(userName){
-  newUrl = baseUrl + "/login?" + targetUserName
+  newUrl = baseUrl + "/login?" + targetUserName;
   window.open(newUrl, '_self', false);
 }
 
 function login(userName){
-  un = document.getElementById('login_field')
-  pw = document.getElementById('password')
+  un = document.getElementById('login_field');
+  pw = document.getElementById('password');
 
-  btn = null
-  login = document.getElementById('login')
+  btn = null;
+  login = document.getElementById('login');
   if(login != null){
-    btns = login.getElementsByClassName('button')
+    btns = login.getElementsByClassName('button');
     if(btns.length == 1){
-      btn = btns[0]
+      btn = btns[0];
     }
   }
 
   if(un != null && pw != null && btn != null){
-    un.value = userName
-    pw.value = secret[userName]
-    btn.click()
+    un.value = userName;
+    pw.value = secret[userName];
+    btn.click();
   }
 }
 
@@ -93,19 +90,19 @@ function logout(){
 }
 
 function getUserName(){
-  ul = document.getElementById('user-links')
+  ul = document.getElementById('user-links');
   if(ul != null){
-    as = ul.getElementsByTagName("a")
+    as = ul.getElementsByTagName("a");
     if(as.length > 0){
-      a = as[0]
-      href = a.href
-      arr = /\/([a-zA-Z0-9_]+)$/.exec(href)
+      a = as[0];
+      href = a.href;
+      arr = /\/([a-zA-Z0-9_]+)$/.exec(href);
       if(arr != null && arr.length == 2){
-        return arr[1]
+        return arr[1];
       }
     }
   }
-  return null
+  return null;
 }
 
-main()
+main();
