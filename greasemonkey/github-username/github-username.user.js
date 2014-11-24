@@ -18,7 +18,7 @@ function main(){
 
   if(userName != null && targetUserName != null && userName != targetUserName){
     logout();
-    setTimeout(navToLogin, 200);
+    setTimeout(navToLogin, 100);
   }else if(targetUserName != null && /github.com\/login/.exec(url)){
     login(targetUserName);
   }else if(landingPage){
