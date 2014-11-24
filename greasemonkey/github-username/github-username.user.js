@@ -28,8 +28,7 @@ function main(){
       targetUserName = getTargetUserName(document.referrer)
     }
     if(targetUserName != null){
-      newUrl = baseUrl + "/login?" + targetUserName
-      window.open(newUrl, '_self', false);
+      navToLogin(targetUserName)
     }
   }else if(is404()){
     if(/[?\/]lillegroup/.exec(url)){
@@ -61,6 +60,11 @@ function getTargetUserName(url){
   }else{
     return null;
   }
+}
+
+function navToLogin(userName){
+  newUrl = baseUrl + "/login?" + targetUserName
+  window.open(newUrl, '_self', false);
 }
 
 function login(userName){
