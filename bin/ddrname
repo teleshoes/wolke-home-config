@@ -1,0 +1,168 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my @songArgs = qw(
+  max300
+  max300smmm
+  paranoiasurvivor
+  paranoiarespect
+);
+my $okSongArgs = join '|', @songArgs;
+
+my @difficultyArgs = qw(beginner basic difficult expert challenge);
+my $okDifficultyArgs = join '|', @difficultyArgs;
+
+my @roundArgs = qw(1st 2nd 3rd);
+my $okRoundArgs = join '|', @roundArgs;
+
+my @barArgs = qw(bar nobar);
+my $okBarArgs = join '|', @barArgs;
+
+my @extraArgs = qw(fc pfc);
+my $okExtraArgs = join '|', @extraArgs;
+
+my $usage = "Usage:
+  $0 JPG_FILE [ARG ARG ..]
+
+  rename a jpeg file using a consistent format
+  \"########_###_SONG_DIFFICULTY_SCORE_EXTRA_BAR_ROUND.jpg\"
+  ######## is presumably a date in YYYYMMDD and ### is the camera pic index
+
+     JPG_FILE
+       jpeg file to rename
+       must start with '########_###' and end with '.jpg'
+
+     ARG
+       one of [SONG|DIFFICULTY|SCORE|ROUND|BAR|EXTRA]
+       exactly one SONG, SCORE, ROUND, and BAR must be given
+       exactly zero or one EXTRA args can be given
+
+     SONG
+       one of [$okSongArgs]
+
+     DIFFICULTY
+       one of [$okDifficultyArgs]
+
+     SCORE
+       an integer between 100,000 and 1,000,000
+       must be a multiple of 10
+       commas, if present, are stripped out
+
+     EXTRA
+       one of [$okExtraArgs]
+
+     BAR
+       one of [$okBarArgs]
+
+     ROUND
+       one of [$okRoundArgs]
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
+";
+
+sub parseArgs(@);
+sub bashComplete($$);
+
+sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
+  my $file = shift;
+  my $info = parseArgs @_;
+  die $usage if not defined $file or not -f $file or not defined $info;
+  die "missing SONG\n" if not defined $$info{song};
+  die "missing DIFFICULTY\n" if not defined $$info{difficulty};
+  die "missing SCORE\n" if not defined $$info{score};
+  die "missing BAR\n" if not defined $$info{bar};
+  die "missing ROUND\n" if not defined $$info{round};
+
+  if($file !~ /^(\d{8}_\d{3}).*\.jpg$/){
+    die "misnamed jpg file: $file\n";
+  }
+  my $prefix = $1;
+
+  my $newFileName = '';
+  $newFileName .= "$prefix";
+  $newFileName .= "_$$info{song}";
+  $newFileName .= "_$$info{difficulty}";
+  $newFileName .= "_$$info{score}";
+  $newFileName .= "_$$info{extra}" if defined $$info{extra};
+  $newFileName .= "_$$info{bar}";
+  $newFileName .= "_$$info{round}";
+  $newFileName .= ".jpg";
+
+  my @cmd = ("mv", $file, $newFileName);
+  print "@cmd\n";
+}
+
+sub parseArgs(@){
+  my $info = {};
+  for my $arg(@_){
+    if($arg =~ /^($okSongArgs)$/){
+      return undef if defined $$info{song};
+      $$info{song} = $arg;
+    }elsif($arg =~ /^($okDifficultyArgs)$/){
+      return undef if defined $$info{difficulty};
+      $$info{difficulty} = $arg;
+    }elsif($arg =~ /^(\d,?){5,6}0$/){
+      my $score = $arg;
+      $score =~ s/,//g;
+      $score = int($score);
+      return undef if defined $$info{score} or $score > 1000000;
+      $$info{score} = $score;
+    }elsif($arg =~ /^($okExtraArgs)$/){
+      return undef if defined $$info{extra};
+      $$info{extra} = $arg;
+    }elsif($arg =~ /^($okBarArgs)$/){
+      return undef if defined $$info{bar};
+      $$info{bar} = $arg;
+    }elsif($arg =~ /^($okRoundArgs)$/){
+      return undef if defined $$info{round};
+      $$info{round} = $arg;
+    }else{
+      return undef;
+    }
+  }
+  return $info;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  if(@words == 0){
+    my @jpgFiles = `ls *.jpg 2>/dev/null`;
+    chomp foreach @jpgFiles;
+    return @jpgFiles;
+  }
+  shift @words;
+
+  my $info = parseArgs @words;
+  if(not defined $info){
+    return ();
+  }
+
+  my @complete;
+  @complete = (@songArgs, @complete) if not defined $$info{song};
+  @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
+  @complete = (@extraArgs, @complete) if not defined $$info{extra};
+  @complete = (@barArgs, @complete) if not defined $$info{bar};
+  @complete = (@roundArgs, @complete) if not defined $$info{round};
+
+  return @complete;
+}
+
+&main(@ARGV);
