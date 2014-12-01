@@ -15,9 +15,11 @@ my %devTypes = (
 );
 my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
+sub parseOpts(@);
 sub runCommand($$$);
 sub getMntParts($);
 sub getInfo($);
+sub getMountedNames($);
 sub getUnmountedNames($);
 sub mount($);
 sub unmount($);
@@ -32,6 +34,7 @@ sub isMntDevice($$);
 sub run(@);
 sub runFail(@);
 sub runFailEcho(@);
+sub bashComplete($$);
 
 sub usage(){
   my $ex = `basename $0`;
@@ -42,6 +45,9 @@ sub usage(){
     $okTypes .= "\n    $var {default '$devTypes{$type}'}";
   }
   return "
+  $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
+             default is \"-m\"
+
   Mounts/unmounts partitions on different types of storage devices.
   Types of storage devices are controlled with a config file,
     environment variables, and command line flags.
@@ -54,9 +60,12 @@ sub usage(){
 
   '$ex' calls: udevadm, blkid, parted, mount, umount, lsof, fuser
 
+  $ex --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
+
   ==========
-  $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
-             default is \"-m\"
   GET_CMD:
     -g  for all partitions, print 'NAME size {mounted} dev'
     -n  print 'NAME' of all UNMOUNTED partitions
@@ -88,29 +97,38 @@ sub usage(){
 
 sub main(@){
   exec "sudo", $0, @_ if `whoami` ne "root\n";
-
-  my %devOpts;
-  while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
-    my $neg = defined $1;
-    $devOpts{$2} = $neg ? "false" : "true";
-    shift;
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
   }
 
-  my $cmd = shift() || "-m";
+  my ($devOpts, @args) = parseOpts @_;
+
+  my $cmd = shift @args || "-m";
   die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
-  my $name = shift if $cmd =~ /^(-m|-u|-l)$/;
+  my $name = shift @args if $cmd =~ /^(-m|-u|-l)$/;
 
-  die usage if @_ > 0;
+  die usage if @args > 0;
 
-  runCommand $cmd, $name, \%devOpts;
+  runCommand $cmd, $name, $devOpts;
+}
+
+sub parseOpts(@){
+  my $devOpts = {};
+  while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
+    my $neg = defined $1;
+    $$devOpts{$2} = $neg ? "false" : "true";
+    shift;
+  }
+  return ($devOpts, @_);
 }
 
 sub runCommand($$$){
   my $cmd = shift;
   my $name = shift;
-  my %devOpts = %{shift()};
+  my $devOpts = shift;
 
-  my @mntParts = getMntParts(\%devOpts);
+  my @mntParts = getMntParts($devOpts);
 
   if($cmd eq '-m'){
     if(defined $name){
@@ -148,19 +166,19 @@ sub runCommand($$$){
       if(@names == 0){
         die "timeout exceeded\n" if time > ($start+$maxTimeout);
         sleep $delay;
-        @mntParts = getMntParts(\%devOpts);
+        @mntParts = getMntParts($devOpts);
       }
     }
     print "partition(s) found, mounting\n";
     for my $name(@names){
-      runCommand "-m", $name, \%devOpts;
+      runCommand "-m", $name, $devOpts;
     }
   }
 }
 
 sub getMntParts($){
-  my %devOpts = %{shift()};
-  return grep {isAllowedFS($_) and isMntDevice($_, \%devOpts)} blkid();
+  my $devOpts = shift;
+  return grep {isAllowedFS($_) and isMntDevice($_, $devOpts)} blkid();
 }
 sub getSelectedPart($$){
   my @mntParts = @{shift()};
@@ -180,7 +198,7 @@ sub getInfo($){
   foreach my $p (@mntParts){
     ensureSize $p;
     my $name = "$$p{name}";
-    my $size = " $$p{sizeGiB}GiB" if defined $$p{sizeGiB};
+    my $size = defined $$p{sizeGiB} ? " $$p{sizeGiB}GiB" : "";
     my $mounted = isMounted($$p{dev}) ? ' mounted' : ' unmounted';
     my $dev = " $$p{dev}";
     push @info, "$name$size$mounted$dev";
@@ -188,6 +206,16 @@ sub getInfo($){
   return @info;
 }
 
+sub getMountedNames($){
+  my @mntParts = @{shift()};
+  my @names;
+  foreach my $p (@mntParts){
+    if(isMounted($$p{dev})){
+      push @names, "$$p{name}";
+    }
+  }
+  return @names;
+}
 sub getUnmountedNames($){
   my @mntParts = @{shift()};
   my @names;
@@ -302,14 +330,14 @@ sub blkid(){
 }
 
 sub ensureSize($){
-  my %p = %{shift()};
-  return if defined $p{sizeGiB};
+  my $p = shift;
+  return if defined $$p{sizeGiB};
 
-  my $size = $p{udev}{UDISKS_PARTITION_SIZE};
-  $size = partedSize $p{dev} if not defined $size;
+  my $size = $$p{udev}{UDISKS_PARTITION_SIZE};
+  $size = partedSize $$p{dev} if not defined $size;
 
   if(defined $size and $size =~ /^\d+$/){
-    $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
+    $$p{sizeGiB} = sprintf "%.1f", $size / 2**30;
   }
 }
 
@@ -327,52 +355,40 @@ sub udevadm($){
 sub partedSize($){
   my $dev = shift;
   my $partedOut = `parted -m $dev unit B print`;
-  if($partedOut =~ /^
-    BYT
-    ;\n
-      ([^:]*) :           #dev
-      ([^:]*) :           #size
-      ([^:]*) :           #connection type, e.g.: scsi
-      ([^:]*) : ([^:]*) : #logical & physical sector size
-      ([^:]*) :           #partition table type
-      ([^:]*)             #model name
-    ;\n/xs){
-    my $size = $2;
-    if($size =~ /^(\d+)B$/){
-      return $1;
-    }
+  if($partedOut =~ /^BYT;\n$dev:(\d+)B/){
+    return $1;
   }
 }
 
 sub getName($){
-  my %p = %{shift()};
+  my $p = shift;
 
-  if(defined $p{label} and length $p{label} > 0){
-    return $p{label};
+  if(defined $$p{label} and length $$p{label} > 0){
+    return $$p{label};
   }
 
-  my $dev = $p{dev};
+  my $dev = $$p{dev};
   $dev = '' if not defined $dev;
   if($dev =~ /^\/dev\/([a-z0-9]+)$/i){
     my $devName = $1;
-    ensureSize \%p;
-    if(defined $p{sizeGiB}){
-      return "${devName}_$p{sizeGiB}GiB";
+    ensureSize $p;
+    if(defined $$p{sizeGiB}){
+      return "${devName}_$$p{sizeGiB}GiB";
     }else{
       return $devName;
     }
   }
 
-  return $p{uuid};
+  return $$p{uuid};
 }
 
 sub getMntConfig($$){
   my $type = shift;
-  my %devOpts = %{shift()};
+  my $devOpts = shift;
   die "Unknown device type: $type" if not defined $devTypes{$type};
 
-  if(defined $devOpts{$type}){
-    return $devOpts{$type};
+  if(defined $$devOpts{$type}){
+    return $$devOpts{$type};
   }
 
   my $varName = $devEnvVars{$type};
@@ -403,7 +419,7 @@ sub isAllowedFS($){
 }
 sub isMntDevice($$){
   my %udev = %{${shift()}{udev}};
-  my %devOpts = %{shift()};
+  my $devOpts = shift;
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
@@ -417,7 +433,7 @@ sub isMntDevice($$){
     $type = 'other';
   }
 
-  return getMntConfig($type, \%devOpts) eq 'true';
+  return getMntConfig($type, $devOpts) eq 'true';
 }
 
 sub run(@){
@@ -430,6 +446,49 @@ sub runFail(@){
 sub runFailEcho(@){
   print "@_\n";
   runFail @_;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  my @opts = qw(
+    --usb --no-usb
+    --card --no-card
+    --other --no-other
+  );
+  my @getCmds = qw(-g -n);
+  my @actionCmds = qw(-m -u -l);
+
+  my $okGetCmds = join "|", @getCmds;
+  my $okActionCmds = join "|", @actionCmds;
+
+  my $devOpts;
+  ($devOpts, @words) = parseOpts @words;
+
+  if(@words == 1 and $words[0] =~ /^($okGetCmds)$/){
+    return ();
+  }
+
+  if(@words == 0 or (@words == 1 and $words[0] =~ /^($okActionCmds)/)){
+    my @mntParts = getMntParts($devOpts);
+
+    if(@words == 0){
+      return (@opts, @getCmds, @actionCmds, getUnmountedNames \@mntParts);
+    }elsif($words[0] =~ /^(-m|-l)$/){
+      return (getUnmountedNames \@mntParts);
+    }elsif($words[0] =~ /^(-u)$/){
+      return (getMountedNames \@mntParts);
+    }
+  }
+  return ();
 }
 
 &main(@ARGV);
