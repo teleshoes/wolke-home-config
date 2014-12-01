@@ -15,6 +15,7 @@ my %devTypes = (
 );
 my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
+sub parseOpts(@);
 sub runCommand($$$);
 sub getMntParts($);
 sub getInfo($);
@@ -89,20 +90,25 @@ sub usage(){
 sub main(@){
   exec "sudo", $0, @_ if `whoami` ne "root\n";
 
-  my %devOpts;
+  my ($devOpts, @args) = parseOpts @_;
+
+  my $cmd = shift @args || "-m";
+  die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
+  my $name = shift @args if $cmd =~ /^(-m|-u|-l)$/;
+
+  die usage if @args > 0;
+
+  runCommand $cmd, $name, $devOpts;
+}
+
+sub parseOpts(@){
+  my $devOpts = {};
   while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
     my $neg = defined $1;
-    $devOpts{$2} = $neg ? "false" : "true";
+    $$devOpts{$2} = $neg ? "false" : "true";
     shift;
   }
-
-  my $cmd = shift() || "-m";
-  die usage if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
-  my $name = shift if $cmd =~ /^(-m|-u|-l)$/;
-
-  die usage if @_ > 0;
-
-  runCommand $cmd, $name, \%devOpts;
+  return ($devOpts, @_);
 }
 
 sub runCommand($$$){
