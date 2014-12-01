@@ -22,6 +22,7 @@ sub getUnmountedNames($);
 sub mount($);
 sub unmount($);
 sub blkid();
+sub ensureSize($);
 sub udevadm($);
 sub partedSize($);
 sub getName($);
@@ -177,6 +178,7 @@ sub getInfo($){
   my @mntParts = @{shift()};
   my @info;
   foreach my $p (@mntParts){
+    ensureSize $p;
     my $name = "$$p{name}";
     my $size = " $$p{sizeGiB}GiB" if defined $$p{sizeGiB};
     my $mounted = isMounted($$p{dev}) ? ' mounted' : ' unmounted';
@@ -292,18 +294,23 @@ sub blkid(){
 
     $p{udev} = udevadm $p{dev};
 
-    my $size = $p{udev}{UDISKS_PARTITION_SIZE};
-    $size = partedSize $p{dev} if not defined $size;
-
-    if(defined $size and $size =~ /^\d+$/){
-      $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
-    }
-
     $p{name} = getName \%p;
 
     push @partitions, \%p;
   }
   return @partitions;
+}
+
+sub ensureSize($){
+  my %p = %{shift()};
+  return if defined $p{sizeGiB};
+
+  my $size = $p{udev}{UDISKS_PARTITION_SIZE};
+  $size = partedSize $p{dev} if not defined $size;
+
+  if(defined $size and $size =~ /^\d+$/){
+    $p{sizeGiB} = sprintf "%.1f", $size / 2**30;
+  }
 }
 
 sub udevadm($){
@@ -348,6 +355,7 @@ sub getName($){
   $dev = '' if not defined $dev;
   if($dev =~ /^\/dev\/([a-z0-9]+)$/i){
     my $devName = $1;
+    ensureSize \%p;
     if(defined $p{sizeGiB}){
       return "${devName}_$p{sizeGiB}GiB";
     }else{
