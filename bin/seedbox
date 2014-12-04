@@ -5,6 +5,7 @@ use warnings;
 my $remoteTorrentDir = "watch";
 my $remoteDownloads = "files";
 my $localDownloads = "$ENV{HOME}/Desktop/Torrents/seedbox";
+my @cleanupCmd = ("find $remoteDownloads/ -type d -execdir chmod og-w {} \\;");
 
 sub ftpCommand($@);
 sub rsyncFetch($);
@@ -48,6 +49,9 @@ my $usage = "Usage:
      sync seedbox:$remoteDownloads => $localDownloads
      {runs rsync -avP USERNAME\@SERVER:$remoteDownloads/ $localDownloads}
 
+  $0 --cleanup
+     run '@cleanupCmd' on seedbox
+
   $0 -s [CMD]
      ssh to seedbox
 
@@ -71,6 +75,8 @@ sub main(@){
     ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
     rsyncFetch $config;
+  }elsif(@_ == 1 and $_[0] =~ /^(--cleanup)$/){
+    ssh $config, @cleanupCmd;
   }elsif(@_ >= 1 and $_[0] =~ /^(-s)$/){
     shift;
     my @cmd = @_;
@@ -90,7 +96,6 @@ sub main(@){
         $torrentFile =~ s/'/'\\''/g;
         ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
       }else{
-        die $torrent;
         die $usage;
       }
     }
