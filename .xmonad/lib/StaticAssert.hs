@@ -4,5 +4,5 @@ module StaticAssert where
 import Control.Monad
 import Language.Haskell.TH
 
-staticAssert cond msg = unless cond (report True msg) >> return []
+staticAssert cond msg = unless cond (reportError msg) >> return []
 
