@@ -31,7 +31,8 @@ function main(){
   }else if(is404()){
     if(/[?\/]lillegroup/.exec(url)){
       targetUserName = "ewolk";
-      newUrl = baseUrl + "/?" + targetUserName;
+      newUrl = baseUrl + "/login?" + targetUserName;
+      window.alert(newUrl)
       window.open(newUrl, '_blank', true);
       setTimeout(function(){ location.reload(true) }, 5000);
     }
