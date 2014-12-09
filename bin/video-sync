@@ -312,18 +312,21 @@ sub getSizes($){
     my @files = readProc $ipmagic, "ls", "$main/$cat";
     chomp foreach @files;
     @files = map {"$main/$cat/$_"} @files;
-    my @lines = readProc $ipmagic, "du", "-s", @files;
 
-    for my $line(@lines){
-      if($line !~ /^(\d+)\t(.*)$/){
-        die "Failed du: $line\n";
+    if(@files > 0){
+      my @lines = readProc $ipmagic, "du", "-s", @files;
+
+      for my $line(@lines){
+        if($line !~ /^(\d+)\t(.*)$/){
+          die "Failed du: $line\n";
+        }
+        my ($size, $file) = ($1, $2);
+        if($file !~ /^$main\/$cat\/(.+)$/){
+          die "Malformed filename from du: $line\n";
+        }
+        my $fileName = $1;
+        $$catSizes{$fileName} = $size;
       }
-      my ($size, $file) = ($1, $2);
-      if($file !~ /^$main\/$cat\/(.+)$/){
-        die "Malformed filename from du: $line\n";
-      }
-      my $fileName = $1;
-      $$catSizes{$fileName} = $size;
     }
     $$sizes{$cat} = $catSizes;
   }
