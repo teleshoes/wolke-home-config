@@ -18,7 +18,7 @@ function main(){
 
   if(userName != null && targetUserName != null && userName != targetUserName){
     logout();
-    setTimeout(navToLogin, 100);
+    navToLoginDelay(targetUserName);
   }else if(targetUserName != null && /github.com\/login/.exec(url)){
     login(targetUserName);
   }else if(landingPage){
@@ -26,7 +26,7 @@ function main(){
       targetUserName = getTargetUserName(document.referrer);
     }
     if(targetUserName != null){
-      navToLogin(targetUserName);
+      navToLoginDelay(targetUserName);
     }
   }else if(is404()){
     if(/[?\/]lillegroup/.exec(url)){
@@ -60,9 +60,11 @@ function getTargetUserName(url){
   }
 }
 
-function navToLogin(userName){
-  newUrl = baseUrl + "/login?" + targetUserName;
-  window.open(newUrl, '_self', false);
+function navToLoginDelay(userName){
+  setTimeout(function(){
+    newUrl = baseUrl + "/login?" + userName;
+    window.open(newUrl, '_self', false);
+  }, 100);
 }
 
 function login(userName){
