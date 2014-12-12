@@ -21,6 +21,8 @@ function main(){
     navToLoginDelay(targetUserName);
   }else if(targetUserName != null && /github.com\/login/.exec(url)){
     login(targetUserName);
+  }else if(userName == null && targetUserName != null){
+    navToLoginDelay(targetUserName);
   }else if(landingPage){
     if(targetUserName == null){
       targetUserName = getTargetUserName(document.referrer);
