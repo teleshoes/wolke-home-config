@@ -79,9 +79,9 @@ myManageHook = execWriter $ do
   className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? firefoxClose            ~~> restartFF
-  title     =? "StepMania"             ~~> doFull
-  title     =? "npviewer.bin"          ~~> doFull -- flash
-  title     =? "plugin-container"      ~~> doFull -- flash
+  title     =? "StepMania"             ~~> doFloat
+  title     =? "npviewer.bin"          ~~> doFloat -- flash
+  title     =? "plugin-container"      ~~> doFloat -- flash
   title     =? "xfce4-notifyd"         ~~> doIgnore
 
 restartFF = do
