@@ -48,23 +48,24 @@ sub main(@){
     @nextChunkNums = grep {defined $_} @nextChunkNums;
 
     my $copyNextChunk = 1;
+    my $msg;
 
     if($copyNextChunk){
       if(@nextChunkNums < $$serial{chunkSize}){
-        print "skipping $$serial{album}, not enough left to copy\n";
+        $msg = "not enough left to copy";
         $copyNextChunk = 0;
       }
     }
     if($copyNextChunk){
       if(@curChunkNums < $$serial{chunkSize}){
-        print "skipping $$serial{album}, not enough present to replace\n";
+        $msg = "not enough present to replace";
         $copyNextChunk = 0;
       }
     }
     if($copyNextChunk){
       for my $num(@curChunkNums){
         if(not elem $num, @histNums){
-          print "skipping $$serial{album}, $num is not in history\n";
+          $msg = "$num is not in history";
           $copyNextChunk = 0;
           last;
         }
@@ -72,6 +73,7 @@ sub main(@){
     }
 
     if($copyNextChunk){
+      print "\n$$serial{album}: copying chunk @nextChunkNums\n\n";
       for my $num(@nextChunkNums){
         copyNum $serial, $num;
       }
@@ -97,6 +99,8 @@ sub main(@){
           run @remoteCmd, "klomp", "--append", "'$query'";
         }
       }
+    }else{
+      print "\n$$serial{album}: skipping, $msg\n\n";
     }
 
     setPlaylist $serial, $origPlaylist;
