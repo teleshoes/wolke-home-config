@@ -137,6 +137,10 @@ function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
 function mp           { mplayer "$@"; }
 
+function sb           { seedbox "$@"; }
+function sbr          { seedbox -r "$@"; }
+function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
+
 function s            { "$@" & disown; }
 function sx           { "$@" & disown && exit 0; }
 function spawn        { "$@" & disown; }

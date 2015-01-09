@@ -74,6 +74,7 @@ myManageHook = execWriter $ do
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
   className =? thunderbirdClass        ~~> doShift "8"
+  className =? "feh"                   ~~> doFloat
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
   className =? "Transmission-gtk"      ~~> doUnfloat
