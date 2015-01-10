@@ -12,7 +12,6 @@ my $fallbackThemeDir = "$themesDir/_fallback";
 my $machineProfileDir = "$confDir/Save/MachineProfile";
 my $themeName = "teleshoes";
 
-my $speedMods = "0.5x,1x,1.5x,2x,2.5x,3x,C300,C350,C400,m550";
 my $defaultScreen = 'ScreenSelectMusic';
 
 my $metricsPrefs = {
@@ -102,8 +101,6 @@ my @okScreens = qw(
 );
 my %okScreensHash = map {$_ => 1} @okScreens;
 
-sub setMachineSpeedMods($);
-sub setScriptSpeedMods($);
 sub generateKeymap($$);
 sub commentLine($$);
 sub replaceLine($$$);
@@ -146,8 +143,6 @@ my $prefsIni = "$saveDir/Preferences.ini";
 my $themePrefsIni = "$saveDir/ThemePrefs.ini";
 my $keymapsIni = "$saveDir/Keymaps.ini";
 my $themeMetricsIni = "$themesDir/$themeName/metrics.ini";
-my $machineSpeedModsFile = "$machineProfileDir/SpeedMods.txt";
-my $scriptSpeedModsFile = "$fallbackThemeDir/Scripts/03 CustomSpeedMods.lua";
 my $fallbackMetricsIni = "$fallbackThemeDir/metrics.ini";
 my $screenMapOverlay = "BGAnimations/ScreenMapControllers overlay.lua";
 my $fallbackScreenMapOverlay = "$fallbackThemeDir/$screenMapOverlay";
@@ -197,41 +192,10 @@ sub main(@){
   replaceConf $themePrefsIni, $themePrefs;
   replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
   replaceConf $themeMetricsIni, $metricsPrefs;
-  #setMachineSpeedMods $speedMods;
-  setScriptSpeedMods $speedMods;
   my $fullscreen = $$prefs{Options}{Windowed} == 0;
   system "bash", "-c", $fullscreenUpCmd if $fullscreen;
   system $exec, [];
   system "bash", "-c", $fullscreenDownCmd if $fullscreen;
-}
-
-sub setScriptSpeedMods($){
-  my $newSpeeds = shift;
-  my @lines = readLines $scriptSpeedModsFile;
-
-  my $ok = 0;
-  my $oldSpeeds;
-  my $linePrefixRe = '\s*local\s+DefaultMods\s*=\s*StringToModTable\s*\(\s*"';
-  my $lineSuffixRe = '"\s*\)\s*';
-  for my $line(@lines){
-    if($line =~ s/^($linePrefixRe)(.*)($lineSuffixRe)$/$1$newSpeeds$3/){
-      $oldSpeeds = $2;
-      $ok = 1;
-      last;
-    }
-  }
-  die "Couldnt find speedmods line\n" if not $ok;
-  print "Speeds: $oldSpeeds => $newSpeeds\n" if $oldSpeeds ne $newSpeeds;
-
-  writeLines $scriptSpeedModsFile, @lines;
-}
-sub setMachineSpeedMods($){
-  my $newSpeeds = shift;
-  system "mkdir", "-p", $machineProfileDir;
-  open FH, "> $machineSpeedModsFile"
-    or die "Couldn't write $machineSpeedModsFile\n";
-  print FH "$newSpeeds\n";
-  close FH;
 }
 
 sub generateKeymap($$){
