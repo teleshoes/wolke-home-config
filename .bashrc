@@ -203,10 +203,13 @@ function execAlarm() {
 }
 
 function update-repo {
+  repo="$1"
+  shift
   sudo apt-get update \
-    -o Dir::Etc::sourcelist="sources.list.d/$1" \
+    -o Dir::Etc::sourcelist="sources.list.d/$repo" \
     -o Dir::Etc::sourceparts="-" \
-    -o APT::Get::List-Cleanup="0"
+    -o APT::Get::List-Cleanup="0" \
+    "$@"
 }
 
 
