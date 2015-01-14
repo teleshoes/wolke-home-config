@@ -2,6 +2,7 @@
 [ -n "$PS1" ] && [ -f /etc/bash_completion ] && . /etc/bash_completion
 
 shopt -s dotglob
+shopt -s extglob
 
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 
@@ -116,6 +117,7 @@ alias :r='. /etc/profile; . ~/.bashrc;'
 
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
+function f            { feh -ZF "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }
@@ -202,10 +204,13 @@ function execAlarm() {
 }
 
 function update-repo {
+  repo="$1"
+  shift
   sudo apt-get update \
-    -o Dir::Etc::sourcelist="sources.list.d/$1" \
+    -o Dir::Etc::sourcelist="sources.list.d/$repo" \
     -o Dir::Etc::sourceparts="-" \
-    -o APT::Get::List-Cleanup="0"
+    -o APT::Get::List-Cleanup="0" \
+    "$@"
 }
 
 
