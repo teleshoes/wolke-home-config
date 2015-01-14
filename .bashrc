@@ -2,6 +2,7 @@
 [ -n "$PS1" ] && [ -f /etc/bash_completion ] && . /etc/bash_completion
 
 shopt -s dotglob
+shopt -s extglob
 
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 
