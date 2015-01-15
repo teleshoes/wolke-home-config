@@ -33,10 +33,10 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     pretty mouseOverlaps
     pretty keyOverlaps
 
-firefoxExec = "iceweasel"
-firefoxProcess = "iceweasel"
-firefoxClose = "Close Iceweasel"
-thunderbirdClass = "Icedove"
+ffExec = "iceweasel"
+ffName = "Iceweasel"
+tbExec = "icedove"
+tbName = "Icedove"
 
 relToHomeDir file = (</> file) <$> getHomeDirectory
 
@@ -73,13 +73,13 @@ myManageHook = execWriter $ do
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
-  className =? thunderbirdClass        ~~> doShift "8"
+  className =? tbName                  ~~> doShift "8"
   className =? "feh"                   ~~> doFloat
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
   className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
-  title     =? firefoxClose            ~~> restartFF
+  title     =? ("Close " ++ ffName)    ~~> restartFF
   title     =? "StepMania"             ~~> doFloat
   title     =? "npviewer.bin"          ~~> doFloat -- flash
   title     =? "plugin-container"      ~~> doFloat -- flash
@@ -88,13 +88,13 @@ myManageHook = execWriter $ do
 restartFF = do
   w <- ask
   let delay = 1
-  let msg = "'restarting " ++ firefoxExec ++ " in " ++ show delay ++ "s'"
+  let msg = "'restarting " ++ ffExec ++ " in " ++ show delay ++ "s'"
   liftX $ do
-    spawn $ "killall -9 " ++ firefoxProcess
+    spawn $ "killall -9 " ++ ffExec
     killWindow w
     spawn $ "notify-send -t 3000 " ++ msg
     io . threadDelay $ delay*10^6
-    spawn firefoxExec
+    spawn ffExec
     refresh
   doF id
 
