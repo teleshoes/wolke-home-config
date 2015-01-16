@@ -149,6 +149,7 @@ shortcuts conf = "Shortcuts" @@ do
                            mCA   xK_Back #! "rotate widdershins"
 
     "Applications"  @@ do
+        "kodi"          @@ mCA   xK_k    #! "AE_SINK=ALSA kodi"
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
         "tor"           @@ mCA   xK_v    #! "tor"
