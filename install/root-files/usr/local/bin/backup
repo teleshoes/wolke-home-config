@@ -97,12 +97,12 @@ my $usage = "Usage:
 
   $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
     make a read-only snapshot of MOUNT_POINT named:
-      <PREFIX>-<$dateTimeFormat>_<MILLIS>
+      <PREFIX>_<$dateTimeFormat>_<MILLIS>
     PREFIX defaults to \"SNAPSHOT\",
     PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
-    remove snapshots named PREFIX-*, leaving the last INSTANCES.
+    remove snapshots named PREFIX_*, leaving the last INSTANCES.
     INSTANCES is a positive integer or 'all'
 
   $0 --remove
@@ -401,7 +401,7 @@ sub makeSnapshot($$){
   $mountPoint =~ s/\/$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
-  my $snapshot = "${prefix}-${dateTime}_${millis}";
+  my $snapshot = "${prefix}_${dateTime}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
@@ -524,7 +524,7 @@ sub isQuotaEnabled($){
 sub getSnapshots($$){
   my ($dir, $prefix) = @_;
   my @subs = @{getSubvolumePaths($dir)};
-  @subs = grep {/^${prefix}-${dateTimeRegex}_${millisRegex}$/} @subs;
+  @subs = grep {/^${prefix}_${dateTimeRegex}_${millisRegex}$/} @subs;
 
   my @sortedSubs = sort @subs;
   for(my $i=0; $i<@subs; $i++){
@@ -555,7 +555,7 @@ sub getLastSnapshot($$$){
     die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
     $sub = $subs[-1];
   }
-  die "Malformed snapshot: $sub\n" if $sub !~ /^${prefix}-${dateTimeRegex}_${millisRegex}$/;
+  die "Malformed snapshot: $sub\n" if $sub !~ /^${prefix}_${dateTimeRegex}_${millisRegex}$/;
   return $sub;
 }
 
@@ -652,7 +652,7 @@ sub guessSubvolNames($){
   my @subs = `ls '$mountPoint' 2>/dev/null`;
   my %subvolNames;
   for my $sub(@subs){
-    if($sub =~ /^(?:.*\/)?(\w+-${dateTimeRegex}_${millisRegex})$/){
+    if($sub =~ /^(?:.*\/)?(\w+_${dateTimeRegex}_${millisRegex})$/){
       $subvolNames{$1} = 1;
     }
   }
@@ -811,7 +811,7 @@ sub monitorPvLog(){
 sub latestPvLogFile(){
   my @pvLogs = `ls /tmp/BACKUP-*-pv.log 2>/dev/null`;
   chomp foreach @pvLogs;
-  @pvLogs = sort grep {/^\/tmp\/BACKUP-${dateTimeRegex}_${millisRegex}-pv\.log$/} @pvLogs;
+  @pvLogs = sort grep {/^\/tmp\/BACKUP_${dateTimeRegex}_${millisRegex}-pv\.log$/} @pvLogs;
   return @pvLogs == 0 ? undef : $pvLogs[-1];
 }
 
