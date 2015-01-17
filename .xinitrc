@@ -10,7 +10,7 @@ brightness 80
 sudo mnt &
 sudo wired &
 execPing screen-cmd revtun-ensure &
-pulseaudio --start &
+pulse-enable on
 sudo bluetooth off &
 sudo fan auto &
 taffybar-restart --daemon --quiet
