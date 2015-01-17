@@ -390,7 +390,7 @@ sub readFileSudo ($) { readFileProto {sudo => 1, fatal => 1}, @_ }
 sub replaceLine($$$) {
     my ($s, $startRegex, $lineReplacement) = @_;
     chomp $lineReplacement;
-    if($s =~ s/^(# ?)?$startRegex.*/$lineReplacement/m){
+    if($s =~ s/(^|\n+)(# ?)?$startRegex.*/$1$lineReplacement/){
         $_[0] = $s; #update in place
         return 1;
     }
