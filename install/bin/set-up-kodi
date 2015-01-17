@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $guisettingsFile = getHome() . "/.kodi/userdata/guisettings.xml";
+
+my $skin = {
+};
+
+sub main(@) {
+    getRoot @_;
+
+    editFile $guisettingsFile, sub {
+      my $c = shift;
+      for my $key(sort keys %$skin){
+        my $val = $$skin{$key};
+        my $type = $val =~ /^(true|false)$/ ? "bool" : "string";
+
+        my $typeAtt = "type=\"$type\"";
+        my $nameAtt = "name=\"$key\"";
+
+        my $prefix = "\\s*<setting\\s*$typeAtt\\s*$nameAtt>";
+        my $line = "        <setting $typeAtt $nameAtt>$val</setting>";
+
+        if(not replaceLine $c, $prefix, $line){
+          die "could not update skin setting $key = $val\n";
+        }
+      }
+      $c;
+    };
+}
+
+&main(@ARGV);
