@@ -80,7 +80,8 @@ my $usage = "Usage:
   $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT] [--ipmagic=IPMAGIC]
     Call send/receive to send a btrfs image.
     Roughly equivalent to:
-      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
+      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST/SDIR
+      # SDIR is SNAPSHOT with the last path name removed
     If PARENT_SNAPSHOT is omitted, no -p argument is given
     If IPMAGIC is given, assumes that DEST is located at that ipmagic host
       -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
@@ -336,19 +337,31 @@ sub sendReceive($$$$$){
       $snapshotName, $parentSnapshotName,
       $remoteDestIpmagic) = @_;
 
+  my $snapshotBaseName = $snapshotName;
+  $snapshotBaseName =~ s/^.*\///;
+
+  my $destDir = $snapshotName;
+  $destDir =~ s/([^\/]*)$//;
+  $destDir = "$receiveDir/$destDir";
+
   my $parent = '';
   if(defined $parentSnapshotName){
     $parent = "-p \"$sendDir/$parentSnapshotName\"";
   }
 
+  if(not test $remoteDestIpmagic, "-d", "$receiveDir"){
+    die "dir does not exist on dest: $receiveDir\n";
+  }
   if(test $remoteDestIpmagic, "-e", "$receiveDir/$snapshotName"){
     die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
   }
 
   my $ipmagicCmd = getIpmagicCmd($remoteDestIpmagic);
 
-  my $pvLog = "/tmp/$snapshotName-pv.log";
-  my $rcvLog = "/tmp/$snapshotName-btrfs-rcv.log";
+  run "$ipmagicCmd mkdir -p $destDir";
+
+  my $pvLog = "/tmp/$snapshotBaseName-pv.log";
+  my $rcvLog = "/tmp/$snapshotBaseName-btrfs-rcv.log";
   print "\nLOGS: $pvLog $rcvLog\n";
 
   print "\n";
@@ -357,7 +370,7 @@ sub sendReceive($$$$$){
     . " | "
     . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
     . " | "
-    . " $ipmagicCmd btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
+    . " $ipmagicCmd btrfs receive -v -v \"$destDir\" 2> >(tee $rcvLog 1>&2)"
     . " )"
     ;
 
@@ -366,8 +379,8 @@ sub sendReceive($$$$$){
   run "cat", $pvLog;
   print "\n";
 
-  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotName"){
-    die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
+  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotBaseName"){
+    die "snapshot send/receive failed: $receiveDir/$snapshotBaseName\n";
   }
 }
 
