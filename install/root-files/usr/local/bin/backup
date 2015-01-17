@@ -33,6 +33,8 @@ sub run(@);
 sub tryrun(@);
 sub ensureRoot();
 
+my $dateTimeFormat = "%F";
+
 my $mntDir = "/media";
 my $backupConf = "$ENV{HOME}/.config/backup.conf";
 my $backups = readBackupConf($backupConf);
@@ -92,7 +94,8 @@ my $usage = "Usage:
     Print the last snapshot of the given prefix
 
   $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
-    make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
+    make a read-only snapshot of MOUNT_POINT named:
+      <PREFIX>-<$dateTimeFormat>_<MILLIS>
     PREFIX defaults to \"SNAPSHOT\",
     PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
@@ -390,13 +393,13 @@ sub getSyncedSnapshot($$$){
 sub makeSnapshot($$){
   my ($mountPoint, $prefix) = @_;
   my $millis = int(time * 1000);
-  my $date = `date +%F`;
-  chomp $date;
+  my $dateTime = `date +$dateTimeFormat`;
+  chomp $dateTime;
 
   $mountPoint =~ s/\/$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
-  my $snapshot = "$prefix-${date}_${millis}";
+  my $snapshot = "$prefix-${dateTime}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
