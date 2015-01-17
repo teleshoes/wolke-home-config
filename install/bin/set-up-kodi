@@ -10,6 +10,7 @@ my $pulse = 1;
 
 my $card = $pulse ? "PULSE:Default" : "ALSA:hdmi:CARD=HDMI,DEV=0";
 
+my $addonsDb = "$kodiDir/userdata/Database/Addons16.db";
 my $guisettingsFile = "$kodiDir/userdata/guisettings.xml";
 
 my $bgDir = getHome() . "/.cache/backgrounds/fhd";
@@ -28,8 +29,22 @@ my $guisettings = {
   enablerssfeeds => "false",
 };
 
+my $disabledAddons = {
+  1 => "service.xbmc.versioncheck",
+  2 => "metadata.musicvideos.theaudiodb.com",
+};
+
 sub main(@) {
     getRoot @_;
+
+    for my $id(sort keys %$disabledAddons){
+      my $addonId = $$disabledAddons{$id};
+      print "disabling $addonId in addons database\n";
+      system "sqlite3", $addonsDb, "
+        delete from disabled where id=$id;
+        insert into disabled(id, addonID) values($id, '$addonId');
+      ";
+    }
 
     editFile $guisettingsFile, sub {
       my $c = shift;
