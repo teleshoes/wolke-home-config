@@ -34,6 +34,8 @@ sub tryrun(@);
 sub ensureRoot();
 
 my $dateTimeFormat = "%F";
+my $dateTimeRegex = "\\d{4}-\\d{2}-\\d{2}";
+my $millisRegex = "\\d{13}";
 
 my $mntDir = "/media";
 my $backupConf = "$ENV{HOME}/.config/backup.conf";
@@ -399,7 +401,7 @@ sub makeSnapshot($$){
   $mountPoint =~ s/\/$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
-  my $snapshot = "$prefix-${dateTime}_${millis}";
+  my $snapshot = "${prefix}-${dateTime}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
@@ -522,7 +524,7 @@ sub isQuotaEnabled($){
 sub getSnapshots($$){
   my ($dir, $prefix) = @_;
   my @subs = @{getSubvolumePaths($dir)};
-  @subs = grep {/^$prefix-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
+  @subs = grep {/^${prefix}-${dateTimeRegex}_${millisRegex}$/} @subs;
 
   my @sortedSubs = sort @subs;
   for(my $i=0; $i<@subs; $i++){
@@ -553,7 +555,7 @@ sub getLastSnapshot($$$){
     die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
     $sub = $subs[-1];
   }
-  die "Malformed snapshot: $sub\n" if $sub !~ /^$prefix-\d+-\d+-\d+_\d+$/;
+  die "Malformed snapshot: $sub\n" if $sub !~ /^${prefix}-${dateTimeRegex}_${millisRegex}$/;
   return $sub;
 }
 
@@ -650,7 +652,7 @@ sub guessSubvolNames($){
   my @subs = `ls '$mountPoint' 2>/dev/null`;
   my %subvolNames;
   for my $sub(@subs){
-    if($sub =~ /^(?:.*\/)?(\w+-\d{4}-\d{2}-\d{2}_\d+)$/){
+    if($sub =~ /^(?:.*\/)?(\w+-${dateTimeRegex}_${millisRegex})$/){
       $subvolNames{$1} = 1;
     }
   }
@@ -809,7 +811,7 @@ sub monitorPvLog(){
 sub latestPvLogFile(){
   my @pvLogs = `ls /tmp/BACKUP-*-pv.log 2>/dev/null`;
   chomp foreach @pvLogs;
-  @pvLogs = sort grep {/^\/tmp\/BACKUP-\d+-\d+-\d+_\d+-pv\.log$/} @pvLogs;
+  @pvLogs = sort grep {/^\/tmp\/BACKUP-${dateTimeRegex}_${millisRegex}-pv\.log$/} @pvLogs;
   return @pvLogs == 0 ? undef : $pvLogs[-1];
 }
 
