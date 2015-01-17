@@ -193,8 +193,7 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 10"     @@ mCAWS xK_x    #! "nuc klomp-cmd seek 10"
         "seek -60"    @@ mCAWS xK_a    #! "nuc klomp-cmd seek -60"
         "seek 60"     @@ mCAWS xK_s    #! "nuc klomp-cmd seek 60"
-        "display off" @@ mCAW  xK_c    #! "nuc klomp-pi-display --off; klomp-bar local"
-        "display on"  @@ mCAW  xK_v    #! "nuc klomp-pi-display --on; klomp-bar nuc"
+        "stop"        @@ mCAW  xK_c    #! "nuc klomp-cmd stop"
 
     "Klomp N9"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
