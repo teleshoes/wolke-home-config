@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $kodiDir = getHome() . "/.kodi";
+
+my $pulse = 1;
+
+my $card = $pulse ? "PULSE:Default" : "ALSA:hdmi:CARD=HDMI,DEV=0";
+
+my $addonsDb = "$kodiDir/userdata/Database/Addons16.db";
+my $guisettingsFile = "$kodiDir/userdata/guisettings.xml";
+
+my $bgDir = getHome() . "/.cache/backgrounds/fhd";
+
+my $skin = {
+  "skin.confluence.UseCustomBackground" => "true",
+  "skin.confluence.CustomBackgroundPath" => "$bgDir/ghibli/nausicaa.jpg",
+};
+
+my $guisettings = {
+  showhidden => "true",
+  audiodevice => $card,
+  passthrough => $pulse ? "false" : "true",
+  passthroughdevice => $pulse ? "default" : $card,
+  streamsilence => "-1", #keep audio device alive
+  enablerssfeeds => "false",
+};
+
+my $disabledAddons = {
+  1 => "service.xbmc.versioncheck",
+  2 => "metadata.musicvideos.theaudiodb.com",
+};
+
+sub main(@) {
+    getRoot @_;
+
+    for my $id(sort keys %$disabledAddons){
+      my $addonId = $$disabledAddons{$id};
+      print "disabling $addonId in addons database\n";
+      system "sqlite3", $addonsDb, "
+        delete from disabled where id=$id;
+        insert into disabled(id, addonID) values($id, '$addonId');
+      ";
+    }
+
+    editFile $guisettingsFile, sub {
+      my $c = shift;
+      for my $key(sort keys %$skin){
+        my $val = $$skin{$key};
+        my $type = $val =~ /^(true|false)$/ ? "bool" : "string";
+
+        my $typeAtt = "type=\"$type\"";
+        my $nameAtt = "name=\"$key\"";
+
+        my $prefix = "\\s*<setting\\s*$typeAtt\\s*$nameAtt>";
+        my $line = "        <setting $typeAtt $nameAtt>$val</setting>";
+
+        if(not replaceLine $c, $prefix, $line){
+          die "could not update skin setting $key = $val\n";
+        }
+      }
+      for my $key(sort keys %$guisettings){
+        my $val = $$guisettings{$key};
+        my $prefix = "\\s*<$key( [^>]*)?";
+        my $line = "        <$key>$val</$key>";
+        if(not replaceLine $c, $prefix, $line){
+          die "could not update gui setting $key = $val\n";
+        }
+      }
+      $c;
+    };
+}
+
+&main(@ARGV);
