@@ -33,6 +33,11 @@ sub run(@);
 sub tryrun(@);
 sub ensureRoot();
 
+my $subvolContainer = "SUBVOL";
+my $dateTimeFormat = "%Y-%m-%d_%H-%M-%S";
+my $dateTimeRegex = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
+my $millisRegex = "\\d{13}";
+
 my $mntDir = "/media";
 my $backupConf = "$ENV{HOME}/.config/backup.conf";
 my $backups = readBackupConf($backupConf);
@@ -76,7 +81,8 @@ my $usage = "Usage:
   $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT] [--ipmagic=IPMAGIC]
     Call send/receive to send a btrfs image.
     Roughly equivalent to:
-      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST
+      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST/SDIR
+      # SDIR is SNAPSHOT with the last path name removed
     If PARENT_SNAPSHOT is omitted, no -p argument is given
     If IPMAGIC is given, assumes that DEST is located at that ipmagic host
       -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
@@ -92,13 +98,15 @@ my $usage = "Usage:
     Print the last snapshot of the given prefix
 
   $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
-    make a read-only snapshot of MOUNT_POINT named PREFIX-YYYY-MM-DD_MILLIS
+    make a read-only snapshot of MOUNT_POINT named:
+      $subvolContainer/<PREFIX>/<PREFIX>_<$dateTimeFormat>_<MILLIS>
     PREFIX defaults to \"SNAPSHOT\",
     PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
-    remove snapshots named PREFIX-*, leaving the last INSTANCES.
-    INSTANCES is a positive integer or 'all'
+    remove snapshots named $subvolContainer/<PREFIX>/<PREFIX>_*,
+      ensuring that the there are at least INSTANCES left {the last ones}
+    INSTANCES is a positive integer, or 'all' to leave 0 instances.
 
   $0 --remove
     for each MOUNT_POINT in (" . join(", ", @mntPoints) . "), run:
@@ -192,7 +200,7 @@ sub main(@){
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     die $usage if defined $ipmagic;
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
-    die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
+    die "INSTANCES must be > 0 {use 'all' for 0}\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
     die $usage if defined $ipmagic;
@@ -331,19 +339,31 @@ sub sendReceive($$$$$){
       $snapshotName, $parentSnapshotName,
       $remoteDestIpmagic) = @_;
 
+  my $snapshotBaseName = $snapshotName;
+  $snapshotBaseName =~ s/^.*\///;
+
+  my $destDir = $snapshotName;
+  $destDir =~ s/([^\/]*)$//;
+  $destDir = "$receiveDir/$destDir";
+
   my $parent = '';
   if(defined $parentSnapshotName){
     $parent = "-p \"$sendDir/$parentSnapshotName\"";
   }
 
+  if(not test $remoteDestIpmagic, "-d", "$receiveDir"){
+    die "dir does not exist on dest: $receiveDir\n";
+  }
   if(test $remoteDestIpmagic, "-e", "$receiveDir/$snapshotName"){
     die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
   }
 
   my $ipmagicCmd = getIpmagicCmd($remoteDestIpmagic);
 
-  my $pvLog = "/tmp/$snapshotName-pv.log";
-  my $rcvLog = "/tmp/$snapshotName-btrfs-rcv.log";
+  run "$ipmagicCmd mkdir -p $destDir";
+
+  my $pvLog = "/tmp/$snapshotBaseName-pv.log";
+  my $rcvLog = "/tmp/$snapshotBaseName-btrfs-rcv.log";
   print "\nLOGS: $pvLog $rcvLog\n";
 
   print "\n";
@@ -352,7 +372,7 @@ sub sendReceive($$$$$){
     . " | "
     . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
     . " | "
-    . " $ipmagicCmd btrfs receive -v -v \"$receiveDir\" 2> >(tee $rcvLog 1>&2)"
+    . " $ipmagicCmd btrfs receive -v -v \"$destDir\" 2> >(tee $rcvLog 1>&2)"
     . " )"
     ;
 
@@ -361,8 +381,8 @@ sub sendReceive($$$$$){
   run "cat", $pvLog;
   print "\n";
 
-  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotName"){
-    die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
+  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotBaseName"){
+    die "snapshot send/receive failed: $receiveDir/$snapshotBaseName\n";
   }
 }
 
@@ -390,13 +410,16 @@ sub getSyncedSnapshot($$$){
 sub makeSnapshot($$){
   my ($mountPoint, $prefix) = @_;
   my $millis = int(time * 1000);
-  my $date = `date +%F`;
-  chomp $date;
+  my $dateTime = `date +$dateTimeFormat`;
+  chomp $dateTime;
 
   $mountPoint =~ s/\/$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
-  my $snapshot = "$prefix-${date}_${millis}";
+  my $parentDir = "$subvolContainer/$prefix";
+  run "mkdir", "-p", "$mountPoint/$parentDir";
+
+  my $snapshot = "$parentDir/${prefix}_${dateTime}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
@@ -418,7 +441,7 @@ sub getSubvolumes($){
       my ($id, $gen, $level, $path) = ($1, $2, $3, $4);
       $$subs{$id} = $path;
     }else{
-      die "misformatted subvolume line: $subLine\n";
+      die "malformed subvolume line: $subLine\n";
     }
   }
   return $subs;
@@ -519,7 +542,7 @@ sub isQuotaEnabled($){
 sub getSnapshots($$){
   my ($dir, $prefix) = @_;
   my @subs = @{getSubvolumePaths($dir)};
-  @subs = grep {/^$prefix-\d\d\d\d-\d\d-\d\d_\d+$/} @subs;
+  @subs = grep {/^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/} @subs;
 
   my @sortedSubs = sort @subs;
   for(my $i=0; $i<@subs; $i++){
@@ -550,7 +573,7 @@ sub getLastSnapshot($$$){
     die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
     $sub = $subs[-1];
   }
-  die "Malformed snapshot: $sub\n" if $sub !~ /^$prefix-\d+-\d+-\d+_\d+$/;
+  die "Malformed snapshot: $sub\n" if $sub !~ /^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/;
   return $sub;
 }
 
@@ -605,7 +628,6 @@ sub deleteSnapshots($@){
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
 
   for my $sub(@toDelete){
-    die "MALFORMED SNAPSHOT NAME: '$sub' contains '/'\n" if $sub =~ /\//;
     die "MISSING SNAPSHOT: $sub\n" if not -d "$mountPoint/$sub";
     die "SUBVOLUME ID NOT FOUND: $sub\n" if not defined $subIds{$sub};
   }
@@ -637,17 +659,17 @@ sub getBtrfsMountDev($$){
 sub guessPrefixes($){
   my $mountPoint = shift;
   my @subs = guessSubvolNames $mountPoint;
-  my @prefixWords = map { /^(\w+)/; $1} @subs;
+  my @prefixWords = map { /^$subvolContainer\/(\w+)/; $1} @subs;
   my %uniqPrefixWords = map { $_ => 1} @prefixWords;
   return sort keys %uniqPrefixWords;
 }
 sub guessSubvolNames($){
   my $mountPoint = shift;
   $mountPoint =~ s/'/'\\''/g;
-  my @subs = `ls '$mountPoint' 2>/dev/null`;
+  my @subs = `ls -d '$mountPoint'/$subvolContainer/*/* 2>/dev/null`;
   my %subvolNames;
   for my $sub(@subs){
-    if($sub =~ /^(?:.*\/)?(\w+-\d{4}-\d{2}-\d{2}_\d+)$/){
+    if($sub =~ /^(?:.*\/)?(${subvolContainer}\/\w+\/\w+_${dateTimeRegex}_${millisRegex})$/){
       $subvolNames{$1} = 1;
     }
   }
@@ -806,7 +828,7 @@ sub monitorPvLog(){
 sub latestPvLogFile(){
   my @pvLogs = `ls /tmp/BACKUP-*-pv.log 2>/dev/null`;
   chomp foreach @pvLogs;
-  @pvLogs = sort grep {/^\/tmp\/BACKUP-\d+-\d+-\d+_\d+-pv\.log$/} @pvLogs;
+  @pvLogs = sort grep {/^\/tmp\/BACKUP_${dateTimeRegex}_${millisRegex}-pv\.log$/} @pvLogs;
   return @pvLogs == 0 ? undef : $pvLogs[-1];
 }
 
