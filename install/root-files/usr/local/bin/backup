@@ -33,6 +33,7 @@ sub run(@);
 sub tryrun(@);
 sub ensureRoot();
 
+my $subvolContainer = "SUBVOL";
 my $dateTimeFormat = "%Y-%m-%d_%H-%M-%S";
 my $dateTimeRegex = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
 my $millisRegex = "\\d{13}";
@@ -98,13 +99,14 @@ my $usage = "Usage:
 
   $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
     make a read-only snapshot of MOUNT_POINT named:
-      <PREFIX>_<$dateTimeFormat>_<MILLIS>
+      $subvolContainer/<PREFIX>/<PREFIX>_<$dateTimeFormat>_<MILLIS>
     PREFIX defaults to \"SNAPSHOT\",
     PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
 
   $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
-    remove snapshots named PREFIX_*, leaving the last INSTANCES.
-    INSTANCES is a positive integer or 'all' for 0.
+    remove snapshots named $subvolContainer/<PREFIX>/<PREFIX>_*,
+      ensuring that the there are at least INSTANCES left {the last ones}
+    INSTANCES is a positive integer, or 'all' to leave 0 instances.
 
   $0 --remove
     for each MOUNT_POINT in (" . join(", ", @mntPoints) . "), run:
@@ -198,7 +200,7 @@ sub main(@){
   }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
     die $usage if defined $ipmagic;
     my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
-    die "INSTANCES must be > 0\n" if $instances ne 'all' and $instances <= 0;
+    die "INSTANCES must be > 0 {use 'all' for 0}\n" if $instances ne 'all' and $instances <= 0;
     cleanupSnapshots $mountPoint, $prefix, $instances;
   }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
     die $usage if defined $ipmagic;
@@ -414,7 +416,10 @@ sub makeSnapshot($$){
   $mountPoint =~ s/\/$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
 
-  my $snapshot = "${prefix}_${dateTime}_${millis}";
+  my $parentDir = "$subvolContainer/$prefix";
+  run "mkdir", "-p", "$mountPoint/$parentDir";
+
+  my $snapshot = "$parentDir/${prefix}_${dateTime}_${millis}";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
@@ -436,7 +441,7 @@ sub getSubvolumes($){
       my ($id, $gen, $level, $path) = ($1, $2, $3, $4);
       $$subs{$id} = $path;
     }else{
-      die "misformatted subvolume line: $subLine\n";
+      die "malformed subvolume line: $subLine\n";
     }
   }
   return $subs;
@@ -537,7 +542,7 @@ sub isQuotaEnabled($){
 sub getSnapshots($$){
   my ($dir, $prefix) = @_;
   my @subs = @{getSubvolumePaths($dir)};
-  @subs = grep {/^${prefix}_${dateTimeRegex}_${millisRegex}$/} @subs;
+  @subs = grep {/^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/} @subs;
 
   my @sortedSubs = sort @subs;
   for(my $i=0; $i<@subs; $i++){
@@ -568,7 +573,7 @@ sub getLastSnapshot($$$){
     die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
     $sub = $subs[-1];
   }
-  die "Malformed snapshot: $sub\n" if $sub !~ /^${prefix}_${dateTimeRegex}_${millisRegex}$/;
+  die "Malformed snapshot: $sub\n" if $sub !~ /^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/;
   return $sub;
 }
 
@@ -623,7 +628,6 @@ sub deleteSnapshots($@){
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
 
   for my $sub(@toDelete){
-    die "MALFORMED SNAPSHOT NAME: '$sub' contains '/'\n" if $sub =~ /\//;
     die "MISSING SNAPSHOT: $sub\n" if not -d "$mountPoint/$sub";
     die "SUBVOLUME ID NOT FOUND: $sub\n" if not defined $subIds{$sub};
   }
@@ -655,17 +659,17 @@ sub getBtrfsMountDev($$){
 sub guessPrefixes($){
   my $mountPoint = shift;
   my @subs = guessSubvolNames $mountPoint;
-  my @prefixWords = map { /^(\w+)/; $1} @subs;
+  my @prefixWords = map { /^$subvolContainer\/(\w+)/; $1} @subs;
   my %uniqPrefixWords = map { $_ => 1} @prefixWords;
   return sort keys %uniqPrefixWords;
 }
 sub guessSubvolNames($){
   my $mountPoint = shift;
   $mountPoint =~ s/'/'\\''/g;
-  my @subs = `ls '$mountPoint' 2>/dev/null`;
+  my @subs = `ls -d '$mountPoint'/$subvolContainer/*/* 2>/dev/null`;
   my %subvolNames;
   for my $sub(@subs){
-    if($sub =~ /^(?:.*\/)?(\w+_${dateTimeRegex}_${millisRegex})$/){
+    if($sub =~ /^(?:.*\/)?(${subvolContainer}\/\w+\/\w+_${dateTimeRegex}_${millisRegex})$/){
       $subvolNames{$1} = 1;
     }
   }
