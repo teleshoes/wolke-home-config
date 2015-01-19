@@ -46,9 +46,9 @@ set hlsearch
 set expandtab
 set autoindent
 set smarttab
-set tabstop=4
-set softtabstop=4
-set shiftwidth=4
+set tabstop=2
+set softtabstop=2
+set shiftwidth=2
 
 """keep cursor vertically centered while searching"""
 nnoremap n nzz
