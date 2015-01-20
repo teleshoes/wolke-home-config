@@ -9,7 +9,7 @@ our $keyDelay = 0.1;
 
 sub readKeys();
 sub readKeyBytes();
-sub startsWith($$);
+sub arrContainsAt($$$);
 
 my $seqByte = 0x1b;
 
@@ -65,9 +65,9 @@ sub readKeys(){
     }elsif($b == $seqByte){
       for my $keyByteSeq(@$keyByteSeqs){
         my ($key, $byteSeq) = @$keyByteSeq;
-        my @remBytes = @$bytes;
-        shift @remBytes;
-        if(startsWith \@remBytes, $byteSeq){
+        my $seq = [@$bytes];
+        shift @$seq;
+        if(arrContainsAt $seq, $byteSeq, $i){
           $i+=@$byteSeq; #mark the next few bytes as read
           push @keys, $key;
           last;
@@ -109,13 +109,15 @@ sub readKeyBytes(){
   return \@bytes;
 }
 
-sub startsWith($$){
+sub arrContainsAt($$$){
   my $arr = shift;
-  my $prefix = shift;
+  my $subArr = shift;
+  my $offset = shift;
 
-  return 0 if @$arr < @$prefix;
-  for(my $i=0; $i<@$prefix; $i++){
-    if(chr ord $$arr[$i] ne chr ord $$prefix[$i]){
+  for(my $i=0; $i<@$subArr; $i++){
+    my $pos = $i + $offset;
+    return 0 if $pos >= @$arr;
+    if($$arr[$pos] ne $$subArr[$i]){
       return 0;
     }
   }
