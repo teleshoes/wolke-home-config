@@ -7,69 +7,58 @@ $SIG{'INT'} = sub{ReadMode 0; exit 0};
 
 our $keyDelay = 0.1;
 
-sub getSomeKeys();
-sub getSomeInput();
+sub readKeys();
+sub readKeyBytes();
+
+my @byteSeqs = (
+  ['[', 'A'],      'UP',
+  ['[', 'B'],      'DOWN',
+  ['[', 'C'],      'RIGHT',
+  ['[', 'D'],      'LEFT',
+  ['O', 'H'],      'HOME',
+  ['O', 'F'],      'END',
+  ['[', '2', '~'], 'INSERT',
+  ['[', '3', '~'], 'DELETE',
+  ['[', '5', '~'], 'PGUP',
+  ['[', '6', '~'], 'PGDN',
+);
 
 sub main(){
   select((select(STDOUT), $|=1)[0]);
   my %keys;
   while(1){
-    for my $key(@{getSomeKeys()}){
+    for my $key(@{readKeys()}){
       print "$key\n";
     }
   }
 }
 
-sub getSomeInput(){
-  ReadMode 3;
-  my @bytes;
-  my $start = time;
-
-  while(1){
-    my $byte = ReadKey($keyDelay);
-    last if not defined $byte and time - $start > $keyDelay;
-    push @bytes, $byte if defined $byte;
-  }
-  ReadMode 0;
-  return \@bytes;
-}
-
 #assumes utf8
-sub getSomeKeys(){
+sub readKeys(){
   my $enter = 'ENTER';
   my $bkspc = 'BACKSPACE';
-  my @cmds = (
-    ['[', 'A'], 'UP',
-    ['[', 'B'], 'DOWN',
-    ['[', 'C'], 'RIGHT',
-    ['[', 'D'], 'LEFT',
-    ['O', 'H'], 'HOME',
-    ['O', 'F'], 'END',
-    ['[', '2', '~'], 'INSERT',
-    ['[', '3', '~'], 'DELETE',
-    ['[', '5', '~'], 'PGUP',
-    ['[', '6', '~'], 'PGDN',
-  );
 
   my @keys;
-  my @bytes = @{getSomeInput()};
+  my @bytes = @{readKeyBytes()};
   for(my $i=0; $i<@bytes; $i++){
     if(ord $bytes[$i] == 0x1b){
       my $k1 = $i+1<=$#bytes ? $bytes[$i+1] : '';
       my $k2 = $i+2<=$#bytes ? $bytes[$i+2] : '';
       my $k3 = $i+3<=$#bytes ? $bytes[$i+3] : '';
-      for(my $c=0; $c<@cmds; $c+=2){
-        my @cmdArr= @{$cmds[$c]};
-        my $cmd= $cmds[$c+1];
-        if(@cmdArr == 2 and $cmdArr[0] eq $k1 and $cmdArr[1] eq $k2){
-          push @keys, $cmd;
+      for(my $c=0; $c<@byteSeqs; $c+=2){
+        my @seqArr = @{$byteSeqs[$c]};
+        my $seqKey = $byteSeqs[$c+1];
+        if(@seqArr == 2 and
+           $seqArr[0] eq $k1 and
+           $seqArr[1] eq $k2){
+          push @keys, $seqKey;
           $i+=2;
           last;
-        }elsif(@cmdArr == 3 and
-               $cmdArr[0] eq $k1 and
-               $cmdArr[1] eq $k2 and
-               $cmdArr[2] eq $k3){
-          push @keys, $cmd;
+        }elsif(@seqArr == 3 and
+               $seqArr[0] eq $k1 and
+               $seqArr[1] eq $k2 and
+               $seqArr[2] eq $k3){
+          push @keys, $seqKey;
           $i+=3;
           last;
         }
@@ -84,7 +73,7 @@ sub getSomeKeys(){
       my $key = "$b1$b2";
       $i+=1;
       utf8::decode($key);
-      push @keys, $key; 
+      push @keys, $key;
     }elsif(ord $bytes[$i] >= 0xe0 and ord $bytes[$i] <= 0xef){
       my $b1 = $bytes[$i];
       my $b2 = $i+1<=$#bytes ? $bytes[$i+1] : '';
@@ -98,6 +87,20 @@ sub getSomeKeys(){
     }
   }
   return \@keys;
+}
+
+sub readKeyBytes(){
+  ReadMode 3;
+  my @bytes;
+  my $start = time;
+
+  while(1){
+    my $byte = ReadKey($keyDelay);
+    last if not defined $byte and time - $start > $keyDelay;
+    push @bytes, $byte if defined $byte;
+  }
+  ReadMode 0;
+  return \@bytes;
 }
 
 &main;
