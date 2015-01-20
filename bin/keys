@@ -11,9 +11,14 @@ sub readKeys();
 sub readKeyBytes();
 sub startsWith($$);
 
-my $enter = 'KP_Enter';
-my $bkspc = 'BackSpace';
-my $byteSeqs = [
+my $seqC = chr 0x1b;
+
+my $keyBytes = {
+ 0x0A => 'KP_Enter',
+ 0x7F => 'BackSpace',
+};
+
+my $keyByteSeqs = [
   ['Up',        ['[', 'A']],
   ['Down',      ['[', 'B']],
   ['Right',     ['[', 'C']],
@@ -53,21 +58,19 @@ sub readKeys(){
   my @keys;
   my $bytes = readKeyBytes();
   for(my $i=0; $i<@$bytes; $i++){
-    if(ord $$bytes[$i] == 0x1b){
-      for my $byteSeq(@$byteSeqs){
-        my ($seqKey, $seqArr) = @$byteSeq;
+    if(defined $$keyBytes{ord $$bytes[$i]}){
+      push @keys, $$keyBytes{ord $$bytes[$i]};
+    }elsif($$bytes[$i] eq $seqC){
+      for my $keyByteSeq(@$keyByteSeqs){
+        my ($key, $byteSeq) = @$keyByteSeq;
         my @remBytes = @$bytes;
         shift @remBytes;
-        if(startsWith \@remBytes, $seqArr){
-          $i+=@$seqArr; #mark the next few bytes as read
-          push @keys, $seqKey;
+        if(startsWith \@remBytes, $byteSeq){
+          $i+=@$byteSeq; #mark the next few bytes as read
+          push @keys, $key;
           last;
         }
       }
-    }elsif($$bytes[$i] eq "\n"){
-      push @keys, $enter;
-    }elsif(ord $$bytes[$i] == 0x7f){
-      push @keys, $bkspc;
     }elsif(ord $$bytes[$i] >= 0xc2 and ord $$bytes[$i] <= 0xdf){
       my $b1 = $$bytes[$i];
       my $b2 = $i+1<@$bytes ? $$bytes[$i+1] : '';
