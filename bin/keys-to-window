@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub wmClassToWindowId($);
+
+sub main(@){
+  my $wmClass = shift;
+  my $windowId = wmClassToWindowId $wmClass;
+  if(not defined $windowId){
+    die "No window found for WM_CLASS=$wmClass using wmctrl\n";
+  }
+
+  open STDIN, "-|", "keys" or die "Could not run 'keys'\n";
+  while(my $key = <STDIN>){
+    chomp $key;
+    my $cmd = 'key';
+    if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
+      $cmd = 'type';
+    }
+    system "xdotool", $cmd, "--window", $windowId, $key;
+  }
+}
+
+sub wmClassToWindowId($){
+  my $wmClass = shift;
+  my $wmctrl = `wmctrl -r $wmClass -x -v -b add,wmctrl_wants_you 2>&1`;
+  $wmctrl = `wmctrl -r $wmClass -x -v -b remove,wmctrl_wants_you 2>&1`;
+
+  if($wmctrl =~ /(0x[0-9a-f]+)/){
+    return $1;
+  }
+  return undef;
+}
+
+&main(@ARGV);
