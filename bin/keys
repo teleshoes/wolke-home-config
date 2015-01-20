@@ -9,19 +9,20 @@ our $keyDelay = 0.1;
 
 sub readKeys();
 sub readKeyBytes();
+sub startsWith($$);
 
-my @byteSeqs = (
-  ['[', 'A'],      'UP',
-  ['[', 'B'],      'DOWN',
-  ['[', 'C'],      'RIGHT',
-  ['[', 'D'],      'LEFT',
-  ['O', 'H'],      'HOME',
-  ['O', 'F'],      'END',
-  ['[', '2', '~'], 'INSERT',
-  ['[', '3', '~'], 'DELETE',
-  ['[', '5', '~'], 'PGUP',
-  ['[', '6', '~'], 'PGDN',
-);
+my $byteSeqs = [
+  ['UP',     ['[', 'A']],
+  ['DOWN',   ['[', 'B']],
+  ['RIGHT',  ['[', 'C']],
+  ['LEFT',   ['[', 'D']],
+  ['HOME',   ['O', 'H']],
+  ['END',    ['O', 'F']],
+  ['INSERT', ['[', '2', '~']],
+  ['DELETE', ['[', '3', '~']],
+  ['PGUP',   ['[', '5', '~']],
+  ['PGDN',   ['[', '6', '~']],
+];
 
 sub main(){
   select((select(STDOUT), $|=1)[0]);
@@ -39,51 +40,40 @@ sub readKeys(){
   my $bkspc = 'BACKSPACE';
 
   my @keys;
-  my @bytes = @{readKeyBytes()};
-  for(my $i=0; $i<@bytes; $i++){
-    if(ord $bytes[$i] == 0x1b){
-      my $k1 = $i+1<=$#bytes ? $bytes[$i+1] : '';
-      my $k2 = $i+2<=$#bytes ? $bytes[$i+2] : '';
-      my $k3 = $i+3<=$#bytes ? $bytes[$i+3] : '';
-      for(my $c=0; $c<@byteSeqs; $c+=2){
-        my @seqArr = @{$byteSeqs[$c]};
-        my $seqKey = $byteSeqs[$c+1];
-        if(@seqArr == 2 and
-           $seqArr[0] eq $k1 and
-           $seqArr[1] eq $k2){
+  my $bytes = readKeyBytes();
+  for(my $i=0; $i<@$bytes; $i++){
+    if(ord $$bytes[$i] == 0x1b){
+      for my $byteSeq(@$byteSeqs){
+        my ($seqKey, $seqArr) = @$byteSeq;
+        my @remBytes = @$bytes;
+        shift @remBytes;
+        if(startsWith \@remBytes, $seqArr){
+          $i+=@$seqArr; #mark the next few bytes as read
           push @keys, $seqKey;
-          $i+=2;
-          last;
-        }elsif(@seqArr == 3 and
-               $seqArr[0] eq $k1 and
-               $seqArr[1] eq $k2 and
-               $seqArr[2] eq $k3){
-          push @keys, $seqKey;
-          $i+=3;
           last;
         }
       }
-    }elsif($bytes[$i] eq "\n"){
+    }elsif($$bytes[$i] eq "\n"){
       push @keys, $enter;
-    }elsif(ord $bytes[$i] == 0x7f){
+    }elsif(ord $$bytes[$i] == 0x7f){
       push @keys, $bkspc;
-    }elsif(ord $bytes[$i] >= 0xc2 and ord $bytes[$i] <= 0xdf){
-      my $b1 = $bytes[$i];
-      my $b2 = $i+1<=$#bytes ? $bytes[$i+1] : '';
+    }elsif(ord $$bytes[$i] >= 0xc2 and ord $$bytes[$i] <= 0xdf){
+      my $b1 = $$bytes[$i];
+      my $b2 = $i+1<@$bytes ? $$bytes[$i+1] : '';
       my $key = "$b1$b2";
       $i+=1;
       utf8::decode($key);
       push @keys, $key;
-    }elsif(ord $bytes[$i] >= 0xe0 and ord $bytes[$i] <= 0xef){
-      my $b1 = $bytes[$i];
-      my $b2 = $i+1<=$#bytes ? $bytes[$i+1] : '';
-      my $b3 = $i+2<=$#bytes ? $bytes[$i+2] : '';
+    }elsif(ord $$bytes[$i] >= 0xe0 and ord $$bytes[$i] <= 0xef){
+      my $b1 = $$bytes[$i];
+      my $b2 = $i+1<@$bytes ? $$bytes[$i+1] : '';
+      my $b3 = $i+2<@$bytes ? $$bytes[$i+2] : '';
       my $key = "$b1$b2$b3";
       $i+=2;
       utf8::decode($key);
       push @keys, $key;
     }else{
-      push @keys, $bytes[$i];
+      push @keys, $$bytes[$i];
     }
   }
   return \@keys;
@@ -101,6 +91,19 @@ sub readKeyBytes(){
   }
   ReadMode 0;
   return \@bytes;
+}
+
+sub startsWith($$){
+  my $arr = shift;
+  my $prefix = shift;
+
+  return 0 if @$arr < @$prefix;
+  for(my $i=0; $i<@$prefix; $i++){
+    if(chr ord $$arr[$i] ne chr ord $$prefix[$i]){
+      return 0;
+    }
+  }
+  return 1;
 }
 
 &main;
