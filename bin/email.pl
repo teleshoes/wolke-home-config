@@ -4,6 +4,9 @@ use warnings;
 use Mail::IMAPClient;
 use IO::Socket::SSL;
 
+sub mergeUnreadCounts($);
+sub readUnreadCounts();
+sub writeUnreadCounts($);
 sub getUnreadHeaders($);
 sub getClient($);
 sub getSocket($);
@@ -14,6 +17,7 @@ my @configKeys = qw(user password server port folder);
 my @extraConfigKeys = qw(ssl);
 
 my @headerFields = qw(Date Subject From);
+my $unreadCountsFile = "$ENV{HOME}/.unread-counts";
 
 my $settings = {
   Peek => 1,
@@ -23,14 +27,46 @@ my $settings = {
 sub main(@){
   my %okAccs = map {$_ => 1} @_;
   my $accounts = readSecrets();
+
+  my $counts = {};
+
   for my $accName(sort keys %$accounts){
     next unless keys %okAccs == 0 or defined $okAccs{$accName};
     my $unread = getUnreadHeaders $$accounts{$accName};
+    $$counts{$accName} = keys %$unread;
     for my $uid(sort keys %$unread){
       my $hdr = $$unread{$uid};
       print "$accName $uid $$hdr{Date} $$hdr{Subject}\n"
     }
   }
+
+  mergeUnreadCounts $counts;
+}
+
+sub mergeUnreadCounts($){
+  my $counts = shift;
+  $counts = {%{readUnreadCounts()}, %$counts};
+  writeUnreadCounts($counts);
+}
+sub readUnreadCounts(){
+  open FH, "< $unreadCountsFile" or die "Could not read $unreadCountsFile\n";
+  my $counts = {};
+  for my $line(<FH>){
+    if($line =~ /^(\d+):(.*)/){
+      $$counts{$2} = $1;
+    }else{
+      die "malformed $unreadCountsFile line: $line";
+    }
+  }
+  return $counts;
+}
+sub writeUnreadCounts($){
+  my $counts = shift;
+  open FH, "> $unreadCountsFile" or die "Could not write $unreadCountsFile\n";
+  for my $accName(sort keys %$counts){
+    print FH "$$counts{$accName}:$accName\n";
+  }
+  close FH;
 }
 
 sub getUnreadHeaders($){
