@@ -38,7 +38,7 @@ sub getUnreadHeaders($){
   my $c = getClient $acc;
 
   if(not defined $c or not $c->IsAuthenticated()){
-    warn "Could not authenticate $$acc{name} {$$acc{user}\n";
+    warn "Could not authenticate $$acc{name} ($$acc{user})\n";
     return;
   }
   my @folders = $c->folders($$acc{folder});
@@ -91,7 +91,6 @@ sub getSocket($){
     PeerPort => $$acc{port},
   );
 }
-
 
 sub readSecrets(){
   my @lines = `cat $secretsFile 2>/dev/null`;
