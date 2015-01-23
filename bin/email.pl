@@ -47,6 +47,12 @@ my $usage = "
     if accounts are specified, all but those are omitted
     e.g.: A3 G6
 
+  $0 --is-empty [ACCOUNT_NAME ACCOUNT_NAME ...]
+    does not fetch anything, merely reads $unreadCountsFile
+    checks for any unread emails
+    if accounts are specified, all but those are ignored
+    print \"empty\" and exit with zero exit code if there are no unread emails
+    otherwise, print \"not empty\" and exit with non-zero exit code
 ";
 
 sub main(@){
@@ -80,6 +86,19 @@ sub main(@){
       push @fmts, substr($accName, 0, 1) . $count if $count > 0;
     }
     print "@fmts\n";
+  }elsif($cmd =~ /^(--is-empty)/){
+    my $counts = readUnreadCounts();
+    my @fmts;
+    for my $accName(@accNames){
+      die "Unknown account $accName\n" if not defined $$counts{$accName};
+      my $count = $$counts{$accName};
+      if($count > 0){
+        print "not empty\n";
+        exit 1;
+      }
+    }
+    print "empty\n";
+    exit 0;
   }
 }
 
