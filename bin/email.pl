@@ -24,23 +24,45 @@ my $settings = {
   Uid => 1,
 };
 
+my $usage = "
+  $0 -h|--help
+    show this message
+
+  $0 [--update] [ACCOUNT_NAME ACCOUNT_NAME ...]
+    print unread message headers, and write unread counts to $unreadCountsFile
+    if accounts are specified, all but those are ignored
+    {ignored or missing accounts are preserved in $unreadCountsFile}
+
+    write the unread counts, one line per account, to $unreadCountsFile
+    e.g.: 3:AOL
+          6:GMAIL
+          0:WORK_GMAIL
+
+";
+
 sub main(@){
-  my %okAccs = map {$_ => 1} @_;
+  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--update|--print|--is-empty)$/;
+  $cmd = "--update" if not defined $cmd;
+
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+
+  my @accNames = @_;
   my $accounts = readSecrets();
+  @accNames = sort keys %$accounts if @accNames == 0;
 
-  my $counts = {};
-
-  for my $accName(sort keys %$accounts){
-    next unless keys %okAccs == 0 or defined $okAccs{$accName};
-    my $unread = getUnreadHeaders $$accounts{$accName};
-    $$counts{$accName} = keys %$unread;
-    for my $uid(sort keys %$unread){
-      my $hdr = $$unread{$uid};
-      print "$accName $uid $$hdr{Date} $$hdr{Subject}\n"
+  if($cmd =~ /^(--update)$/){
+    my $counts = {};
+    for my $accName(@accNames){
+      die "Unknown account $accName\n" if not defined $$accounts{$accName};
+      my $unread = getUnreadHeaders $$accounts{$accName};
+      $$counts{$accName} = keys %$unread;
+      for my $uid(sort keys %$unread){
+        my $hdr = $$unread{$uid};
+        print "$accName $uid $$hdr{Date} $$hdr{Subject}\n"
+      }
     }
+    mergeUnreadCounts $counts;
   }
-
-  mergeUnreadCounts $counts;
 }
 
 sub mergeUnreadCounts($){
