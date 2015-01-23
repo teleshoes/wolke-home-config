@@ -43,6 +43,7 @@ my $usage = "
     format and print $unreadCountsFile
     the string is a space-separated list of the first character of
       each account name followed by the integer count
+    no newline character is printed
     if the count is zero for a given account, it is omitted
     if accounts are specified, all but those are omitted
     e.g.: A3 G6
@@ -85,7 +86,7 @@ sub main(@){
       my $count = $$counts{$accName};
       push @fmts, substr($accName, 0, 1) . $count if $count > 0;
     }
-    print "@fmts\n";
+    print "@fmts";
   }elsif($cmd =~ /^(--is-empty)/){
     my $counts = readUnreadCounts();
     my @fmts;
