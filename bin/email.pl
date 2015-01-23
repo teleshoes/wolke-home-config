@@ -11,6 +11,7 @@ sub readSecrets();
 
 my $secretsFile = "$ENV{HOME}/.secrets";
 my @configKeys = qw(user password server port folder);
+my @extraConfigKeys = qw(ssl);
 
 my @headerFields = qw(Date Subject From);
 
@@ -62,8 +63,19 @@ sub getUnreadHeaders($){
 
 sub getClient($){
   my $acc = shift;
+  my $network;
+  if(defined $$acc{ssl} and $$acc{ssl} =~ /^false$/){
+    $network = {
+      Server => $$acc{server},
+      Port => $$acc{port},
+    };
+  }else{
+    $network = {
+      Socket => getSocket($acc),
+    };
+  }
   return Mail::IMAPClient->new(
-    Socket   => getSocket($acc),
+    %$network,
     User     => $$acc{user},
     Password => $$acc{password},
     %$settings,
@@ -82,7 +94,7 @@ sub getSocket($){
 sub readSecrets(){
   my @lines = `cat $secretsFile 2>/dev/null`;
   my $accounts = {};
-  my $okConfigKeys = join "|", @configKeys;
+  my $okConfigKeys = join "|", (@configKeys, @extraConfigKeys);
   for my $line(@lines){
     if($line =~ /^email\.(\w+)\.($okConfigKeys)\s*=\s*(.+)$/){
       $$accounts{$1} = {} if not defined $$accounts{$1};
