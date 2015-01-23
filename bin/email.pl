@@ -108,8 +108,11 @@ sub mergeUnreadCounts($){
   writeUnreadCounts($counts);
 }
 sub readUnreadCounts(){
-  open FH, "< $unreadCountsFile" or die "Could not read $unreadCountsFile\n";
   my $counts = {};
+  if(not -e $unreadCountsFile){
+    return $counts;
+  }
+  open FH, "< $unreadCountsFile" or die "Could not read $unreadCountsFile\n";
   for my $line(<FH>){
     if($line =~ /^(\d+):(.*)/){
       $$counts{$2} = $1;
