@@ -21,8 +21,10 @@ my $settings = {
 };
 
 sub main(@){
+  my %okAccs = map {$_ => 1} @_;
   my $accounts = readSecrets();
   for my $accName(sort keys %$accounts){
+    next unless keys %okAccs == 0 or defined $okAccs{$accName};
     my $unread = getUnreadHeaders $$accounts{$accName};
     for my $uid(sort keys %$unread){
       my $hdr = $$unread{$uid};
