@@ -38,6 +38,15 @@ my $usage = "
           6:GMAIL
           0:WORK_GMAIL
 
+  $0 --print [ACCOUNT_NAME ACCOUNT_NAME ...]
+    does not fetch anything, merely reads $unreadCountsFile
+    format and print $unreadCountsFile
+    the string is a space-separated list of the first character of
+      each account name followed by the integer count
+    if the count is zero for a given account, it is omitted
+    if accounts are specified, all but those are omitted
+    e.g.: A3 G6
+
 ";
 
 sub main(@){
@@ -62,6 +71,15 @@ sub main(@){
       }
     }
     mergeUnreadCounts $counts;
+  }elsif($cmd =~ /^(--print)/){
+    my $counts = readUnreadCounts();
+    my @fmts;
+    for my $accName(@accNames){
+      die "Unknown account $accName\n" if not defined $$counts{$accName};
+      my $count = $$counts{$accName};
+      push @fmts, substr($accName, 0, 1) . $count if $count > 0;
+    }
+    print "@fmts\n";
   }
 }
 
