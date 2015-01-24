@@ -140,7 +140,13 @@ sub main(@){
     for my $accName(@accNames){
       die "Unknown account $accName\n" if not defined $$counts{$accName};
       my $count = $$counts{$accName};
-      push @fmts, substr($accName, 0, 1) . $count if $count > 0;
+      my $errorFile = "$emailDir/$accName/error";
+      my $fmt = substr($accName, 0, 1) . $count;
+      if(-f $errorFile){
+        push @fmts, "$fmt!err";
+      }else{
+        push @fmts, $fmt if $count > 0;
+      }
     }
     print "@fmts";
   }elsif($cmd =~ /^(--has-new-unread)/){
