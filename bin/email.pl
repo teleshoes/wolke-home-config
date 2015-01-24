@@ -104,10 +104,10 @@ sub main(@){
       my @unread = $c->unseen;
       $$counts{$accName} = @unread;
 
-      my %oldUnread = map {$_ => 1} readUidFile $acc, "unread";
-      writeUidFile $acc, "unread", @unread;
+      my %oldUnread = map {$_ => 1} readUidFile $accName, "unread";
+      writeUidFile $accName, "unread", @unread;
       my @newUnread = grep {not defined $oldUnread{$_}} @unread;
-      writeUidFile $acc, "new-unread", @newUnread;
+      writeUidFile $accName, "new-unread", @newUnread;
 
       for my $uid(@unread){
         my $hdr = readCachedHeader($acc, $uid);
@@ -170,8 +170,8 @@ sub writeUnreadCounts($){
 }
 
 sub readUidFile($$){
-  my ($acc, $fileName) = @_;
-  my $dir = "$emailDir/$$acc{name}";
+  my ($accName, $fileName) = @_;
+  my $dir = "$emailDir/$accName";
 
   if(not -f "$dir/$fileName"){
     return ();
@@ -183,8 +183,8 @@ sub readUidFile($$){
 }
 
 sub writeUidFile($$@){
-  my ($acc, $fileName, @uids) = @_;
-  my $dir = "$emailDir/$$acc{name}";
+  my ($accName, $fileName, @uids) = @_;
+  my $dir = "$emailDir/$accName";
   system "mkdir", "-p", $dir;
 
   open FH, "> $dir/$fileName" or die "Could not write $dir/$fileName\n";
@@ -199,7 +199,7 @@ sub cacheAllHeaders($$$){
   print "fetched " . @messages . " ids\n";
 
   my $dir = "$emailDir/$$acc{name}";
-  writeUidFile $acc, "all", @messages;
+  writeUidFile $$acc{name}, "all", @messages;
 
   my $headersDir = "$dir/headers";
   system "mkdir", "-p", $headersDir;
