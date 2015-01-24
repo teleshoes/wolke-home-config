@@ -97,14 +97,24 @@ sub main(@){
     for my $accName(@accNames){
       my $acc = $$accounts{$accName};
       die "Unknown account $accName\n" if not defined $acc;
+      my $errorFile = "$emailDir/$accName/error";
+      system "rm", "-f", $errorFile;
       my $c = getClient($acc);
       if(not defined $c or not $c->IsAuthenticated()){
-        warn "Could not authenticate $$acc{name} ($$acc{user})\n";
+        my $msg = "Could not authenticate $$acc{name} ($$acc{user})\n";
+        warn $msg;
+        open FH, "> $errorFile";
+        print FH $msg;
+        close FH;
         next;
       }
       my $f = examineFolder($acc, $c);
       if(not defined $f){
-        warn "Error getting folder $$acc{folder}\n";
+        my $msg = "Error getting folder $$acc{folder}\n";
+        warn $msg;
+        open FH, "> $errorFile";
+        print FH $msg;
+        close FH;
         next;
       }
 
