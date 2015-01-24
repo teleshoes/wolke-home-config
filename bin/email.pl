@@ -98,7 +98,7 @@ sub main(@){
       my @newUnread = grep {not defined $oldUnread{$_}} @unread;
       writeUidFile $acc, "new-unread", @newUnread;
 
-      for my $uid($c->unseen){
+      for my $uid(@unread){
         my $hdr = readCachedHeader($acc, $uid);
         print "$accName $uid $$hdr{Date} $$hdr{From} $$hdr{Subject}\n"
       }
