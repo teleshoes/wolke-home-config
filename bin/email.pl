@@ -30,7 +30,7 @@ my $settings = {
   Uid => 1,
 };
 
-my $okCmds = join "|", qw(--update --print --is-empty);
+my $okCmds = join "|", qw(--update --print --has-new-unread --has-unread);
 
 my $usage = "
   $0 -h|--help
@@ -65,12 +65,21 @@ my $usage = "
     if accounts are specified, all but those are omitted
     e.g.: A3 G6
 
-  $0 --is-empty [ACCOUNT_NAME ACCOUNT_NAME ...]
+  $0 --has-new-unread [ACCOUNT_NAME ACCOUNT_NAME ...]
     does not fetch anything, merely reads $unreadCountsFile
-    checks for any unread emails
+    checks for any NEW unread emails, in any account
+      {UIDs in $emailDir/ACCOUNT_NAME/new-unread}
     if accounts are specified, all but those are ignored
-    print \"empty\" and exit with zero exit code if there are no unread emails
-    otherwise, print \"not empty\" and exit with non-zero exit code
+    print \"yes\" and exit with zero exit code if there are new unread emails
+    otherwise, print \"no\" and exit with non-zero exit code
+
+  $0 --has-unread [ACCOUNT_NAME ACCOUNT_NAME ...]
+    does not fetch anything, merely reads $unreadCountsFile
+    checks for any unread emails, in any account
+      {UIDs in $emailDir/ACCOUNT_NAME/unread}
+    if accounts are specified, all but those are ignored
+    print \"yes\" and exit with zero exit code if there are unread emails
+    otherwise, print \"no\" and exit with non-zero exit code
 ";
 
 sub main(@){
@@ -124,19 +133,28 @@ sub main(@){
       push @fmts, substr($accName, 0, 1) . $count if $count > 0;
     }
     print "@fmts";
-  }elsif($cmd =~ /^(--is-empty)/){
-    my $counts = readUnreadCounts();
+  }elsif($cmd =~ /^(--has-new-unread)/){
     my @fmts;
     for my $accName(@accNames){
-      die "Unknown account $accName\n" if not defined $$counts{$accName};
-      my $count = $$counts{$accName};
-      if($count > 0){
-        print "not empty\n";
-        exit 1;
+      my @unread = readUidFile $accName, "new-unread";
+      if(@unread > 0){
+        print "yes\n";
+        exit 0;
       }
     }
-    print "empty\n";
-    exit 0;
+    print "no\n";
+    exit 1;
+  }elsif($cmd =~ /^(--has-unread)/){
+    my @fmts;
+    for my $accName(@accNames){
+      my @unread = readUidFile $accName, "unread";
+      if(@unread > 0){
+        print "yes\n";
+        exit 0;
+      }
+    }
+    print "no\n";
+    exit 1;
   }
 }
 
