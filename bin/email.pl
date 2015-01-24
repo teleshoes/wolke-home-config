@@ -7,7 +7,10 @@ use IO::Socket::SSL;
 sub mergeUnreadCounts($);
 sub readUnreadCounts();
 sub writeUnreadCounts($);
-sub getUnreadHeaders($);
+sub cacheAllHeaders($$$);
+sub getCachedHeaderUids($);
+sub readCachedHeader($$);
+sub examineFolder($$);
 sub getClient($);
 sub getSocket($);
 sub readSecrets();
@@ -18,6 +21,7 @@ my @extraConfigKeys = qw(ssl);
 
 my @headerFields = qw(Date Subject From);
 my $unreadCountsFile = "$ENV{HOME}/.unread-counts";
+my $emailDir = "$ENV{HOME}/.cache/email";
 
 my $settings = {
   Peek => 1,
@@ -69,12 +73,26 @@ sub main(@){
   if($cmd =~ /^(--update)$/){
     my $counts = {};
     for my $accName(@accNames){
-      die "Unknown account $accName\n" if not defined $$accounts{$accName};
-      my $unread = getUnreadHeaders $$accounts{$accName};
-      $$counts{$accName} = keys %$unread;
-      for my $uid(sort keys %$unread){
-        my $hdr = $$unread{$uid};
-        print "$accName $uid $$hdr{Date} $$hdr{Subject}\n"
+      my $acc = $$accounts{$accName};
+      die "Unknown account $accName\n" if not defined $acc;
+      my $c = getClient($acc);
+      if(not defined $c or not $c->IsAuthenticated()){
+        warn "Could not authenticate $$acc{name} ($$acc{user})\n";
+        next;
+      }
+      my $f = examineFolder($acc, $c);
+      if(not defined $f){
+        warn "Error getting folder $$acc{folder}\n";
+        next;
+      }
+
+      cacheAllHeaders($acc, $c, $f);
+
+      my @unread = $c->unseen;
+      $$counts{$accName} = @unread;
+      for my $uid($c->unseen){
+        my $hdr = readCachedHeader($acc, $uid);
+        print "$accName $uid $$hdr{Date} $$hdr{From} $$hdr{Subject}\n"
       }
     }
     mergeUnreadCounts $counts;
@@ -132,38 +150,89 @@ sub writeUnreadCounts($){
   close FH;
 }
 
-sub getUnreadHeaders($){
-  my $acc = shift;
-  my $c = getClient $acc;
+sub cacheAllHeaders($$$){
+  my ($acc, $c, $f) = @_;
+  print "fetching all message ids\n";
+  my @messages = $c->messages;
+  print "fetched " . @messages . " ids\n";
 
-  if(not defined $c or not $c->IsAuthenticated()){
-    warn "Could not authenticate $$acc{name} ($$acc{user})\n";
-    return;
+  my $dir = "$emailDir/$$acc{name}";
+  system "mkdir", "-p", $dir;
+  open FH, "> $dir/all";
+  for my $uid(@messages){
+    print FH "$uid\n";
   }
+  close FH;
+
+  my $headersDir = "$dir/headers";
+  system "mkdir", "-p", $headersDir;
+
+  my %toSkip = map {$_ => 1} getCachedHeaderUids($acc);
+
+  @messages = grep {not defined $toSkip{$_}} @messages;
+  print "caching headers for " . @messages . " messages\n";
+
+  my $headers = $c->parse_headers(\@messages, @headerFields);
+  for my $uid(keys %$headers){
+    my $hdr = $$headers{$uid};
+    open FH, "> $headersDir/$uid";
+    for my $field(sort @headerFields){
+      my $vals = $$hdr{$field};
+      my $val = "";
+      if(not defined $vals or @$vals == 0){
+        warn "WARNING: $uid has no field $field\n";
+      }else{
+        $val = $$vals[0];
+      }
+      if($val =~ s/\n/\\n/){
+        warn "WARNING: newlines in $uid $field {replaced with \\n}\n";
+      }
+      print FH "$field: $val\n";
+    }
+    close FH;
+  }
+}
+
+sub getCachedHeaderUids($){
+  my $acc = shift;
+  my $headersDir = "$emailDir/$$acc{name}/headers";
+  my @cachedHeaders = `cd "$headersDir"; ls`;
+  chomp foreach @cachedHeaders;
+  return @cachedHeaders;
+}
+
+sub readCachedHeader($$){
+  my ($acc, $uid) = @_;
+  my $hdrFile = "$emailDir/$$acc{name}/headers/$uid";
+  if(not -e $hdrFile){
+    return undef;
+  }
+  my $header = {};
+  my @lines = `cat "$hdrFile"`;
+  for my $line(@lines){
+    if($line =~ /^(\w+): (.*)$/){
+      $$header{$1} = $2;
+    }else{
+      warn "WARNING: malformed header line: $line\n";
+    }
+  }
+  return $header;
+}
+
+sub examineFolder($$){
+  my ($acc, $c) = @_;
   my @folders = $c->folders($$acc{folder});
   if(@folders != 1){
-    warn "Error getting folder $$acc{folder}\n";
-    return;
+    return undef;
   }
 
   my $f = $folders[0];
-  $c->select($f);
-
-  my $unread = {};
-  for my $uid($c->unseen){
-    $$unread{$uid} = {uid => $uid};
-    my $hdr = $c->parse_headers($uid, @headerFields);
-    for my $field(@headerFields){
-      $$unread{$uid}{$field} = ${$$hdr{$field}}[0];
-    }
-  }
-
-
-  return $unread;
+  $c->examine($f);
+  return $f;
 }
 
 sub getClient($){
-  my $acc = shift;
+  my ($acc) = @_;
   my $network;
   if(defined $$acc{ssl} and $$acc{ssl} =~ /^false$/){
     $network = {
@@ -175,6 +244,7 @@ sub getClient($){
       Socket => getSocket($acc),
     };
   }
+  print "$$acc{name}: logging in\n";
   return Mail::IMAPClient->new(
     %$network,
     User     => $$acc{user},
