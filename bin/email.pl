@@ -295,8 +295,11 @@ sub getClient($){
       Port => $$acc{port},
     };
   }else{
+    my $socket = getSocket($acc);
+    return undef if not defined $socket;
+
     $network = {
-      Socket => getSocket($acc),
+      Socket => $socket,
     };
   }
   print "$$acc{name}: logging in\n";
