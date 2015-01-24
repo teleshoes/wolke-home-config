@@ -30,6 +30,8 @@ my $settings = {
   Uid => 1,
 };
 
+my $okCmds = join "|", qw(--update --print --is-empty);
+
 my $usage = "
   $0 -h|--help
     show this message
@@ -72,7 +74,7 @@ my $usage = "
 ";
 
 sub main(@){
-  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--update|--print|--is-empty)$/;
+  my $cmd = shift if @_ > 0 and $_[0] =~ /^($okCmds)$/;
   $cmd = "--update" if not defined $cmd;
 
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
