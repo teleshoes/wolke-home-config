@@ -7,6 +7,8 @@ use IO::Socket::SSL;
 sub mergeUnreadCounts($);
 sub readUnreadCounts();
 sub writeUnreadCounts($);
+sub readUidFile($$);
+sub writeUidFile($$@);
 sub cacheAllHeaders($$$);
 sub getCachedHeaderUids($);
 sub readCachedHeader($$);
@@ -150,6 +152,29 @@ sub writeUnreadCounts($){
   close FH;
 }
 
+sub readUidFile($$){
+  my ($acc, $fileName) = @_;
+  my $dir = "$emailDir/$$acc{name}";
+
+  if(not -f "$dir/$fileName"){
+    return ();
+  }else{
+    my @uids = `cat "$dir/$fileName"`;
+    chomp foreach @uids;
+    return @uids;
+  }
+}
+
+sub writeUidFile($$@){
+  my ($acc, $fileName, @uids) = @_;
+  my $dir = "$emailDir/$$acc{name}";
+  system "mkdir", "-p", $dir;
+
+  open FH, "> $dir/$fileName" or die "Could not write $dir/$fileName\n";
+  print FH "$_\n" foreach @uids;
+  close FH;
+}
+
 sub cacheAllHeaders($$$){
   my ($acc, $c, $f) = @_;
   print "fetching all message ids\n";
@@ -157,12 +182,7 @@ sub cacheAllHeaders($$$){
   print "fetched " . @messages . " ids\n";
 
   my $dir = "$emailDir/$$acc{name}";
-  system "mkdir", "-p", $dir;
-  open FH, "> $dir/all";
-  for my $uid(@messages){
-    print FH "$uid\n";
-  }
-  close FH;
+  writeUidFile $acc, "all", @messages;
 
   my $headersDir = "$dir/headers";
   system "mkdir", "-p", $headersDir;
