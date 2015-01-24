@@ -35,14 +35,23 @@ my $usage = "
     show this message
 
   $0 [--update] [ACCOUNT_NAME ACCOUNT_NAME ...]
-    print unread message headers, and write unread counts to $unreadCountsFile
-    if accounts are specified, all but those are ignored
-    {ignored or missing accounts are preserved in $unreadCountsFile}
+    -for each account specified, or all if none are specified:
+      -fetch and write all message UIDs to
+        $emailDir/ACCOUNT_NAME/all
+      -fetch and cache all message headers in
+        $emailDir/ACCOUNT_NAME/headers/UID
+      -fetch all unread messages and write their UIDs to
+        $emailDir/ACCOUNT_NAME/unread
+      -write all message UIDs that are now in unread and were not before
+        $emailDir/ACCOUNT_NAME/new-unread
+      -print unread message headers
+    -update global unread counts file $unreadCountsFile
+      ignored or missing accounts are preserved in $unreadCountsFile
 
-    write the unread counts, one line per account, to $unreadCountsFile
-    e.g.: 3:AOL
-          6:GMAIL
-          0:WORK_GMAIL
+      write the unread counts, one line per account, to $unreadCountsFile
+      e.g.: 3:AOL
+            6:GMAIL
+            0:WORK_GMAIL
 
   $0 --print [ACCOUNT_NAME ACCOUNT_NAME ...]
     does not fetch anything, merely reads $unreadCountsFile
