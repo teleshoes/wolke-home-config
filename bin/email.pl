@@ -380,10 +380,12 @@ sub getBody($$){
   for my $isHtml((0, 1)){
     my $fmt = join "\n", parseBody($mimeBody, $isHtml);
     if(hasWords $fmt){
+      $mimeParser->filer->purge;
       return $fmt;
     }
   }
 
+  $mimeParser->filer->purge;
   return undef;
 }
 
