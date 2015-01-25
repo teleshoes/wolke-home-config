@@ -38,7 +38,7 @@ my $settings = {
 };
 
 my $okCmds = join "|", qw(
-  --update --body
+  --update --body --body-html
   --print --summary --unread-line
   --has-error --has-new-unread --has-unread
 );
@@ -69,6 +69,9 @@ my $usage = "
   $0 --body ACCOUNT_NAME UID
     download, format and print the body of message UID in account ACCOUNT_NAME
     if body is cached, skip download
+
+  $0 --body-html ACCOUNT_NAME UID
+    same as --body, but prefer HTML instead of plaintext
 
   $0 --print [ACCOUNT_NAME ACCOUNT_NAME ...]
     format and print cached unread message headers and bodies
@@ -157,8 +160,9 @@ sub main(@){
       writeUidFile $accName, "new-unread", @newUnread;
     }
     mergeUnreadCounts $counts;
-  }elsif($cmd =~ /^(--body)$/){
+  }elsif($cmd =~ /^(--body|--body-html)$/){
     die $usage if @_ != 2;
+    my $preferHtml = $cmd =~ /body-html/;
     my $accName = shift;
     my $uid = shift;
     my $acc = $$accounts{$accName};
@@ -174,7 +178,7 @@ sub main(@){
     }
     die "No body found for $accName $uid\n" if not defined $body;
     my $mimeParser = MIME::Parser->new();
-    my $fmt = getBody($mimeParser, $body, 0);
+    my $fmt = getBody($mimeParser, $body, $preferHtml);
     chomp $fmt;
     print "$fmt\n";
   }elsif($cmd =~ /^(--print)$/){
