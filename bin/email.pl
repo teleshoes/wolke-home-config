@@ -340,11 +340,12 @@ sub getBody($$){
   my ($mimeParser, $bodyString) = @_;
   my $mimeBody = $mimeParser->parse_data($bodyString);
 
-  my $textBody = join "\n", parseBody($mimeBody, 0);
-  return $textBody if hasWords $textBody;
-
-  my $htmlBody = join "\n", parseBody($mimeBody, 1);
-  return $htmlBody if hasWords $htmlBody;
+  for my $isHtml((0, 1)){
+    my $fmt = join "\n", parseBody($mimeBody, $isHtml);
+    if(hasWords $fmt){
+      return $fmt;
+    }
+  }
 
   return undef;
 }
