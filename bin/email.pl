@@ -143,7 +143,7 @@ sub main(@){
 
       for my $uid(@unread){
         my $hdr = readCachedHeader($acc, $uid);
-        print "$accName $uid $$hdr{Date} $$hdr{From} $$hdr{Subject}\n"
+        print "$accName $$hdr{Date} $$hdr{From}\n  $$hdr{Subject}\n";
       }
     }
     mergeUnreadCounts $counts;
