@@ -12,7 +12,7 @@ sub readUidFile($$);
 sub writeUidFile($$@);
 sub cacheAllHeaders($$$);
 sub cacheBodies($$@);
-sub getBody($$);
+sub getBody($$$);
 sub hasWords($);
 sub parseBody($$);
 sub getCachedHeaderUids($);
@@ -174,7 +174,7 @@ sub main(@){
     }
     die "No body found for $accName $uid\n" if not defined $body;
     my $mimeParser = MIME::Parser->new();
-    my $fmt = getBody($mimeParser, $body);
+    my $fmt = getBody($mimeParser, $body, 0);
     chomp $fmt;
     print "$fmt\n";
   }elsif($cmd =~ /^(--print)$/){
@@ -184,7 +184,7 @@ sub main(@){
       my @unread = readUidFile $accName, "unread";
       for my $uid(@unread){
         my $hdr = readCachedHeader($accName, $uid);
-        my $body = getBody($mimeParser, readCachedBody($accName, $uid));
+        my $body = getBody($mimeParser, readCachedBody($accName, $uid), 0);
         $body = "" if not defined $body;
         $body = "[NO BODY]\n" if $body =~ /^\s*$/;
         $body =~ s/^/  /mg;
@@ -373,11 +373,11 @@ sub cacheBodies($$@){
   }
 }
 
-sub getBody($$){
-  my ($mimeParser, $bodyString) = @_;
+sub getBody($$$){
+  my ($mimeParser, $bodyString, $preferHtml) = @_;
   my $mimeBody = $mimeParser->parse_data($bodyString);
 
-  for my $isHtml((0, 1)){
+  for my $isHtml($preferHtml ? (1, 0) : (0, 1)){
     my $fmt = join "\n", parseBody($mimeBody, $isHtml);
     if(hasWords $fmt){
       $mimeParser->filer->purge;
