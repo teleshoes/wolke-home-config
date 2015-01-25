@@ -404,7 +404,7 @@ sub parseBody($$){
   my $count = $entity->parts;
   if($count > 0){
     my @parts;
-    for(my $i=1; $i<$count; $i++){
+    for(my $i=0; $i<$count; $i++){
       my @subParts = parseBody($entity->parts($i - 1), $html);
       @parts = (@parts, @subParts);
     }
