@@ -38,7 +38,7 @@ my $settings = {
 };
 
 my $okCmds = join "|", qw(
-  --update
+  --update --body
   --print --summary --unread-line
   --has-error --has-new-unread --has-unread
 );
@@ -65,6 +65,10 @@ my $usage = "
       e.g.: 3:AOL
             6:GMAIL
             0:WORK_GMAIL
+
+  $0 --body ACCOUNT_NAME UID
+    download, format and print the body of message UID in account ACCOUNT_NAME
+    if body is cached, skip download
 
   $0 --print [ACCOUNT_NAME ACCOUNT_NAME ...]
     format and print cached unread message headers and bodies
@@ -153,6 +157,26 @@ sub main(@){
       writeUidFile $accName, "new-unread", @newUnread;
     }
     mergeUnreadCounts $counts;
+  }elsif($cmd =~ /^(--body)$/){
+    die $usage if @_ != 2;
+    my $accName = shift;
+    my $uid = shift;
+    my $acc = $$accounts{$accName};
+    my $body = readCachedBody($accName, $uid);
+    if(not defined $body){
+      die "Unknown account $accName\n" if not defined $acc;
+      my $c = getClient($acc);
+      die "Could not authenticate $accName ($$acc{user})\n" if not defined $c;
+      my $f = examineFolder($acc, $c);
+      die "Error getting folder $$acc{folder}\n" if not defined $f;
+      cacheBodies($acc, $c, $uid);
+      $body = readCachedBody($accName, $uid);
+    }
+    die "No body found for $accName $uid\n" if not defined $body;
+    my $mimeParser = MIME::Parser->new();
+    my $fmt = getBody($mimeParser, $body);
+    chomp $fmt;
+    print "$fmt\n";
   }elsif($cmd =~ /^(--print)$/){
     my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my $mimeParser = MIME::Parser->new();
