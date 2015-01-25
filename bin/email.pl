@@ -110,12 +110,11 @@ sub main(@){
 
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
 
-  my @accNames = @_;
   my $accounts = readSecrets();
-  @accNames = sort keys %$accounts if @accNames == 0;
 
   if($cmd =~ /^(--update)$/){
     $VERBOSE = 1;
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my $counts = {};
     for my $accName(@accNames){
       my $acc = $$accounts{$accName};
@@ -155,6 +154,7 @@ sub main(@){
     }
     mergeUnreadCounts $counts;
   }elsif($cmd =~ /^(--print)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my $mimeParser = MIME::Parser->new();
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "unread";
@@ -176,6 +176,7 @@ sub main(@){
       }
     }
   }elsif($cmd =~ /^(--summary)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "unread";
       for my $uid(@unread){
@@ -184,6 +185,7 @@ sub main(@){
       }
     }
   }elsif($cmd =~ /^(--unread-line)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my $counts = readUnreadCounts();
     my @fmts;
     for my $accName(@accNames){
@@ -199,6 +201,7 @@ sub main(@){
     }
     print "@fmts";
   }elsif($cmd =~ /^(--has-error)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     for my $accName(@accNames){
       if(-f "$emailDir/$accName/error"){
         print "yes\n";
@@ -208,6 +211,7 @@ sub main(@){
     print "no\n";
     exit 1;
   }elsif($cmd =~ /^(--has-new-unread)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my @fmts;
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "new-unread";
@@ -219,6 +223,7 @@ sub main(@){
     print "no\n";
     exit 1;
   }elsif($cmd =~ /^(--has-unread)$/){
+    my @accNames = @_ == 0 ? sort keys %$accounts : @_;
     my @fmts;
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "unread";
