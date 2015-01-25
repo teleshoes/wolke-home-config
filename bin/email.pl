@@ -123,7 +123,7 @@ sub main(@){
       my $errorFile = "$emailDir/$accName/error";
       system "rm", "-f", $errorFile;
       my $c = getClient($acc);
-      if(not defined $c or not $c->IsAuthenticated()){
+      if(not defined $c){
         my $msg = "Could not authenticate $$acc{name} ($$acc{user})\n";
         warn $msg;
         open FH, "> $errorFile";
@@ -452,13 +452,15 @@ sub getClient($){
       Socket => $socket,
     };
   }
-  print "$$acc{name}: logging in\n";
-  return Mail::IMAPClient->new(
+  print "$$acc{name}: logging in\n" if $VERBOSE;
+  my $c = Mail::IMAPClient->new(
     %$network,
     User     => $$acc{user},
     Password => $$acc{password},
     %$settings,
   );
+  return undef if not $c->IsAuthenticated();
+  return $c;
 }
 
 sub getSocket($){
