@@ -35,7 +35,11 @@ my $settings = {
   Uid => 1,
 };
 
-my $okCmds = join "|", qw(--update --print --has-error --has-new-unread --has-unread);
+my $okCmds = join "|", qw(
+  --update
+  --print --summary --unread-line
+  --has-error --has-new-unread --has-unread
+);
 
 my $usage = "
   $0 -h|--help
@@ -52,7 +56,6 @@ my $usage = "
         $emailDir/ACCOUNT_NAME/unread
       -write all message UIDs that are now in unread and were not before
         $emailDir/ACCOUNT_NAME/new-unread
-      -print unread message headers
     -update global unread counts file $unreadCountsFile
       ignored or missing accounts are preserved in $unreadCountsFile
 
@@ -62,6 +65,12 @@ my $usage = "
             0:WORK_GMAIL
 
   $0 --print [ACCOUNT_NAME ACCOUNT_NAME ...]
+    format and print cached unread message headers and bodies
+
+  $0 --summary [ACCOUNT_NAME ACCOUNT_NAME ...]
+    format and print cached unread message headers
+
+  $0 --unread-line [ACCOUNT_NAME ACCOUNT_NAME ...]
     does not fetch anything, merely reads $unreadCountsFile
     format and print $unreadCountsFile
     the string is a space-separated list of the first character of
@@ -140,14 +149,38 @@ sub main(@){
       writeUidFile $accName, "unread", @unread;
       my @newUnread = grep {not defined $oldUnread{$_}} @unread;
       writeUidFile $accName, "new-unread", @newUnread;
-
+    }
+    mergeUnreadCounts $counts;
+  }elsif($cmd =~ /^(--print)$/){
+    my $mimeParser = MIME::Parser->new();
+    for my $accName(@accNames){
+      my @unread = readUidFile $accName, "unread";
       for my $uid(@unread){
-        my $hdr = readCachedHeader($acc, $uid);
+        my $hdr = readCachedHeader($accName, $uid);
+        my $body = getBody($mimeParser, readCachedBody($accName, $uid));
+        $body = "" if not defined $body;
+        $body = "[NO BODY]\n" if $body =~ /^\s*$/;
+        $body =~ s/^/  /mg;
+        print "\n"
+          . "ACCOUNT: $accName\n"
+          . "UID: $uid\n"
+          . "DATE: $$hdr{Date}\n"
+          . "FROM: $$hdr{From}\n"
+          . "SUBJECT: $$hdr{Subject}\n"
+          . "BODY:\n$body\n"
+          . "\n"
+          ;
+      }
+    }
+  }elsif($cmd =~ /^(--summary)$/){
+    for my $accName(@accNames){
+      my @unread = readUidFile $accName, "unread";
+      for my $uid(@unread){
+        my $hdr = readCachedHeader($accName, $uid);
         print "$accName $$hdr{Date} $$hdr{From}\n  $$hdr{Subject}\n";
       }
     }
-    mergeUnreadCounts $counts;
-  }elsif($cmd =~ /^(--print)/){
+  }elsif($cmd =~ /^(--unread-line)$/){
     my $counts = readUnreadCounts();
     my @fmts;
     for my $accName(@accNames){
@@ -162,7 +195,7 @@ sub main(@){
       }
     }
     print "@fmts";
-  }elsif($cmd =~ /^(--has-error)/){
+  }elsif($cmd =~ /^(--has-error)$/){
     for my $accName(@accNames){
       if(-f "$emailDir/$accName/error"){
         print "yes\n";
@@ -171,7 +204,7 @@ sub main(@){
     }
     print "no\n";
     exit 1;
-  }elsif($cmd =~ /^(--has-new-unread)/){
+  }elsif($cmd =~ /^(--has-new-unread)$/){
     my @fmts;
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "new-unread";
@@ -182,7 +215,7 @@ sub main(@){
     }
     print "no\n";
     exit 1;
-  }elsif($cmd =~ /^(--has-unread)/){
+  }elsif($cmd =~ /^(--has-unread)$/){
     my @fmts;
     for my $accName(@accNames){
       my @unread = readUidFile $accName, "unread";
@@ -361,8 +394,8 @@ sub getCachedBodyUids($){
 }
 
 sub readCachedBody($$){
-  my ($acc, $uid) = @_;
-  my $bodyFile = "$emailDir/$$acc{name}/bodies/$uid";
+  my ($accName, $uid) = @_;
+  my $bodyFile = "$emailDir/$accName/bodies/$uid";
   if(not -f $bodyFile){
     return undef;
   }
@@ -370,8 +403,8 @@ sub readCachedBody($$){
 }
 
 sub readCachedHeader($$){
-  my ($acc, $uid) = @_;
-  my $hdrFile = "$emailDir/$$acc{name}/headers/$uid";
+  my ($accName, $uid) = @_;
+  my $hdrFile = "$emailDir/$accName/headers/$uid";
   if(not -f $hdrFile){
     return undef;
   }
