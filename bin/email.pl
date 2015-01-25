@@ -30,6 +30,8 @@ my @headerFields = qw(Date Subject From);
 my $unreadCountsFile = "$ENV{HOME}/.unread-counts";
 my $emailDir = "$ENV{HOME}/.cache/email";
 
+my $VERBOSE = 0;
+
 my $settings = {
   Peek => 1,
   Uid => 1,
@@ -113,6 +115,7 @@ sub main(@){
   @accNames = sort keys %$accounts if @accNames == 0;
 
   if($cmd =~ /^(--update)$/){
+    $VERBOSE = 1;
     my $counts = {};
     for my $accName(@accNames){
       my $acc = $$accounts{$accName};
@@ -283,9 +286,9 @@ sub writeUidFile($$@){
 
 sub cacheAllHeaders($$$){
   my ($acc, $c, $f) = @_;
-  print "fetching all message ids\n";
+  print "fetching all message ids\n" if $VERBOSE;
   my @messages = $c->messages;
-  print "fetched " . @messages . " ids\n";
+  print "fetched " . @messages . " ids\n" if $VERBOSE;
 
   my $dir = "$emailDir/$$acc{name}";
   writeUidFile $$acc{name}, "all", @messages;
@@ -296,7 +299,7 @@ sub cacheAllHeaders($$$){
   my %toSkip = map {$_ => 1} getCachedHeaderUids($acc);
 
   @messages = grep {not defined $toSkip{$_}} @messages;
-  print "caching headers for " . @messages . " messages\n";
+  print "caching headers for " . @messages . " messages\n" if $VERBOSE;
 
   my $headers = $c->parse_headers(\@messages, @headerFields);
   for my $uid(keys %$headers){
@@ -326,7 +329,7 @@ sub cacheBodies($$@){
 
   my %toSkip = map {$_ => 1} getCachedBodyUids($acc);
   @messages = grep {not defined $toSkip{$_}} @messages;
-  print "caching bodies for " . @messages . " messages\n";
+  print "caching bodies for " . @messages . " messages\n" if $VERBOSE;
 
   for my $uid(@messages){
     my $body = $c->message_string($uid);
