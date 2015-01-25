@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Mail::IMAPClient;
 use IO::Socket::SSL;
+use MIME::Parser;
 
 sub mergeUnreadCounts($);
 sub readUnreadCounts();
@@ -10,6 +11,10 @@ sub writeUnreadCounts($);
 sub readUidFile($$);
 sub writeUidFile($$@);
 sub cacheAllHeaders($$$);
+sub cacheBodies($$@);
+sub getBody($$);
+sub hasWords($);
+sub parseBody($$);
 sub getCachedHeaderUids($);
 sub readCachedHeader($$);
 sub examineFolder($$);
@@ -128,6 +133,8 @@ sub main(@){
 
       my @unread = $c->unseen;
       $$counts{$accName} = @unread;
+
+      cacheBodies($acc, $c, @unread);
 
       my %oldUnread = map {$_ => 1} readUidFile $accName, "unread";
       writeUidFile $accName, "unread", @unread;
@@ -279,6 +286,65 @@ sub cacheAllHeaders($$$){
   }
 }
 
+sub cacheBodies($$@){
+  my ($acc, $c, @messages) = @_;
+  my $bodiesDir = "$emailDir/$$acc{name}/bodies";
+  system "mkdir", "-p", $bodiesDir;
+
+  my %toSkip = map {$_ => 1} getCachedBodyUids($acc);
+  @messages = grep {not defined $toSkip{$_}} @messages;
+  print "caching bodies for " . @messages . " messages\n";
+
+  for my $uid(@messages){
+    my $body = $c->message_string($uid);
+    open FH, "> $bodiesDir/$uid" or die "Could not write $bodiesDir/$uid\n";
+    print FH $body;
+    close FH;
+  }
+}
+
+sub getBody($$){
+  my ($mimeParser, $bodyString) = @_;
+  my $mimeBody = $mimeParser->parse_data($bodyString);
+
+  my $textBody = join "\n", parseBody($mimeBody, 0);
+  return $textBody if hasWords $textBody;
+
+  my $htmlBody = join "\n", parseBody($mimeBody, 1);
+  return $htmlBody if hasWords $htmlBody;
+
+  return undef;
+}
+
+sub hasWords($){
+  my $msg = shift;
+  $msg =~ s/\W+//g;
+  return length($msg) > 0;
+}
+
+sub parseBody($$){
+  my ($entity, $html) = @_;
+  my $count = $entity->parts;
+  if($count > 0){
+    my @parts;
+    for(my $i=1; $i<$count; $i++){
+      my @subParts = parseBody($entity->parts($i - 1), $html);
+      @parts = (@parts, @subParts);
+    }
+    return @parts;
+  }else{
+    my $type = $entity->effective_type;
+    if(not $html and $type eq "text/plain"){
+      return ($entity->bodyhandle->as_string);
+    }elsif($html and $type eq "text/html"){
+      return ($entity->bodyhandle->as_string);
+    }else{
+      return ();
+    }
+  }
+}
+
+
 sub getCachedHeaderUids($){
   my $acc = shift;
   my $headersDir = "$emailDir/$$acc{name}/headers";
@@ -286,11 +352,27 @@ sub getCachedHeaderUids($){
   chomp foreach @cachedHeaders;
   return @cachedHeaders;
 }
+sub getCachedBodyUids($){
+  my $acc = shift;
+  my $bodiesDir = "$emailDir/$$acc{name}/bodies";
+  my @cachedBodies = `cd "$bodiesDir"; ls`;
+  chomp foreach @cachedBodies;
+  return @cachedBodies;
+}
+
+sub readCachedBody($$){
+  my ($acc, $uid) = @_;
+  my $bodyFile = "$emailDir/$$acc{name}/bodies/$uid";
+  if(not -f $bodyFile){
+    return undef;
+  }
+  return `cat "$bodyFile"`;
+}
 
 sub readCachedHeader($$){
   my ($acc, $uid) = @_;
   my $hdrFile = "$emailDir/$$acc{name}/headers/$uid";
-  if(not -e $hdrFile){
+  if(not -f $hdrFile){
     return undef;
   }
   my $header = {};
