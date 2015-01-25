@@ -362,9 +362,14 @@ sub cacheBodies($$@){
 
   for my $uid(@messages){
     my $body = $c->message_string($uid);
-    open FH, "> $bodiesDir/$uid" or die "Could not write $bodiesDir/$uid\n";
-    print FH $body;
-    close FH;
+    $body = "" if not defined $body;
+    if($body =~ /^\s*$/){
+      warn "WARNING: no body found for $$acc{name} $uid\n" if $body =~ /^\s*$/;
+    }else{
+      open FH, "> $bodiesDir/$uid" or die "Could not write $bodiesDir/$uid\n";
+      print FH $body;
+      close FH;
+    }
   }
 }
 
