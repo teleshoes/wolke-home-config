@@ -46,9 +46,9 @@ set hlsearch
 set expandtab
 set autoindent
 set smarttab
-set tabstop=4
-set softtabstop=4
-set shiftwidth=4
+set tabstop=2
+set softtabstop=2
+set shiftwidth=2
 
 """keep cursor vertically centered while searching"""
 nnoremap n nzz
@@ -159,6 +159,11 @@ vmap <F12>      "rp
 """"""
 
 command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
+
+" Disable readonly in vimdiff
+if &diff
+  set noro
+endif
 
 """:Exec cmd arg arg ..
 " run external commands quietly
