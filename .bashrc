@@ -160,6 +160,9 @@ function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
 function migl         { gvim `~/migs/latest-script` "$@"; }
 
+function first        { ls "$@" | head -1; }
+function last         { ls "$@" | tail -1; }
+
 # common typos
 function mkdit        { mkdir "$@"; }
 function cim          { vim "$@"; }
