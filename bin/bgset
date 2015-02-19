@@ -18,6 +18,7 @@ my $okExts = join "|", @exts;
 
 my $backgroundDir = "$ENV{HOME}/.cache/backgrounds";
 my $backgroundSubdir = "fhd";
+my $historyFile = "$backgroundDir/history";
 
 my $usage = "Usage:
   $0 -h|--help
@@ -36,6 +37,9 @@ my $usage = "Usage:
 
     -if not set, TARGET defaults to \"BACKGROUND_DIR/BACKGROUND_SUBDIR\"
     -\"$setExec\" is used to set the X root image
+
+    The date and the filepath is appended to:
+      $historyFile
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion
@@ -186,6 +190,13 @@ sub setBackground($){
   print "$file\n" if $verbose;
   $file =~ s/'/'\\''/g;
   my $redirect = $verbose ? '' : ">/dev/null 2>/dev/null";
+
+  my $date = `date`;
+  chomp $date;
+  my $historyEntry = "$date|$file\n";
+  open FH, ">> $historyFile" or warn "Could not write to $historyFile\n";
+  print FH $historyEntry;
+  close FH;
   system "$setExec '$file' $redirect";
 }
 
