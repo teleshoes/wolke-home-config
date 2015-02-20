@@ -166,10 +166,10 @@ shortcuts conf = "Shortcuts" @@ do
         "vnc"           @@ mC    xK_F9   #! "nuc -vnc"
         "vnc"           @@ mCS   xK_F9   #! "nuc -vnc --x2vnc"
         "bgset --next"  @@ mCAW  xK_w    #! "nuc bgset --next"
-        "bgset --prev"  @@ mCAW  xK_w    #! "nuc bgset --prev"
+        "bgset --prev"  @@ mCAWS xK_w    #! "nuc bgset --prev"
 
     "raspi"         @@ do
-        "nuc pi outlet" @@ mC    xK_PgDn #! "nuc pi outlet"
+        "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
 
     "N9"            @@ do
         "lock"          @@ mC    xK_F12  #! "n9 -b lock"
