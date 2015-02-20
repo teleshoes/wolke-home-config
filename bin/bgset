@@ -2,12 +2,21 @@
 use strict;
 use warnings;
 use Time::HiRes qw(sleep);
+use Cwd 'abs_path';
 
 sub findFile($$);
 sub getRandomBackground($$@);
 sub setBackground($);
+sub setBackgroundNoHistory($);
 sub remove($@);
 sub getFiles($);
+sub back();
+sub popBack();
+sub resetBack();
+sub readHistoryFile($);
+sub writeHistoryFile($@);
+sub appendBackFile($);
+sub appendBackLine($);
 
 my $setExec = "Esetroot";
 my $delay = 300;
@@ -18,6 +27,8 @@ my $okExts = join "|", @exts;
 
 my $backgroundDir = "$ENV{HOME}/.cache/backgrounds";
 my $backgroundSubdir = "fhd";
+my $historyFile = "$backgroundDir/history";
+my $historyBackFile = "$backgroundDir/history-back";
 
 my $usage = "Usage:
   $0 -h|--help
@@ -37,10 +48,23 @@ my $usage = "Usage:
     -if not set, TARGET defaults to \"BACKGROUND_DIR/BACKGROUND_SUBDIR\"
     -\"$setExec\" is used to set the X root image
 
+    The contents of: $historyBackFile
+      are appended to: $historyFile
+      and $historyBackFile is removed
+
+    The date and the filepath is appended to:
+      $historyFile
+
+  $0  --back
+    Read and remove the last line of: $historyFile
+      and prepend it to: $historyBackFile
+
+    Set the file indicated in the removed line
+
   $0 --bash-complete COMP_LINE COMP_POINT
-     print a list of words for bash completion
-     COMP_LINE  - the full cmdline as a string
-     COMP_POINT - the cursor position in the cmdline
+    print a list of words for bash completion
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
 
   OPTS
     -q|--quiet / -v|--verbose          {default is --verbose}
@@ -81,6 +105,11 @@ sub main(@){
 
   if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
     die $usage;
+  }
+
+  if(@_ == 1 and $_[0] =~ /^(--back)/){
+    back();
+    exit 0;
   }
 
   my $verbose = 1;
@@ -183,6 +212,12 @@ sub getRandomBackground($$@){
 
 sub setBackground($){
   my $file = shift;
+  $file = abs_path $file;
+  appendBackFile $file;
+  setBackgroundNoHistory $file;
+}
+sub setBackgroundNoHistory($){
+  my $file = shift;
   print "$file\n" if $verbose;
   $file =~ s/'/'\\''/g;
   my $redirect = $verbose ? '' : ">/dev/null 2>/dev/null";
@@ -207,6 +242,70 @@ sub getFiles($){
   return @files;
 }
 
+sub back(){
+  if(not -f $historyBackFile){
+    popBack();
+  }
+  my $this = popBack();
+  if(defined $this and $this =~ /\|(.*)$/){
+    my $file = $1;
+    setBackgroundNoHistory $file;
+  }
+}
+sub popBack(){
+  my @history = readHistoryFile $historyFile;
+  my @back = readHistoryFile $historyBackFile;
+  if(@history > 0){
+    my $this = pop @history;
+    @back = ($this, @back);
+    writeHistoryFile $historyFile, @history;
+    writeHistoryFile $historyBackFile, @back;
+    return $this;
+  }
+  return undef;
+}
+sub resetBack(){
+  my @history = readHistoryFile $historyFile;
+  my @back = readHistoryFile $historyBackFile;
+  if(@back > 0){
+    @history = (@history, @back);
+    writeHistoryFile $historyFile, @history;
+  }
+  system "rm", "-f", $historyBackFile;
+}
+
+sub readHistoryFile($){
+  my $file = shift;
+  my @lines;
+  if(-f $file){
+    open FH, "< $file" or die "Could not read $file\n";
+    @lines = <FH>;
+    close FH;
+  }
+  return @lines;
+}
+sub writeHistoryFile($@){
+  my ($file, @lines) = @_;
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH @lines;
+  close FH;
+}
+
+sub appendBackFile($){
+  my $file = shift;
+  my $date = `date`;
+  chomp $date;
+  my $historyEntry = "$date|$file\n";
+  appendBackLine "$date|$file";
+}
+sub appendBackLine($){
+  my $line = shift;
+  chomp $line;
+  resetBack();
+  open FH, ">> $historyFile" or die "Could not write to $historyFile\n";
+  print FH "$line\n";
+  close FH;
+}
 
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
