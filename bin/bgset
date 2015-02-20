@@ -6,17 +6,17 @@ use Cwd 'abs_path';
 
 sub findFile($$);
 sub getRandomBackground($$@);
-sub setBackground($);
-sub setBackgroundNoHistory($);
+sub setBackground($;$);
 sub remove($@);
 sub getFiles($);
 sub back();
-sub popBack();
-sub resetBack();
+sub forward();
+sub shiftHistory($);
+sub resetHistoryPosition();
 sub readHistoryFile($);
 sub writeHistoryFile($@);
-sub appendBackFile($);
-sub appendBackLine($);
+sub setHistoryCurFile($);
+sub setHistoryCurLine($);
 
 my $setExec = "Esetroot";
 my $delay = 300;
@@ -27,8 +27,9 @@ my $okExts = join "|", @exts;
 
 my $backgroundDir = "$ENV{HOME}/.cache/backgrounds";
 my $backgroundSubdir = "fhd";
-my $historyFile = "$backgroundDir/history";
-my $historyBackFile = "$backgroundDir/history-back";
+my $historyPrevFile = "$backgroundDir/history-prev";
+my $historyNextFile = "$backgroundDir/history-next";
+my $historyCurFile = "$backgroundDir/history-cur";
 
 my $usage = "Usage:
   $0 -h|--help
@@ -48,18 +49,35 @@ my $usage = "Usage:
     -if not set, TARGET defaults to \"BACKGROUND_DIR/BACKGROUND_SUBDIR\"
     -\"$setExec\" is used to set the X root image
 
-    The contents of: $historyBackFile
-      are appended to: $historyFile
-      and $historyBackFile is removed
+    Each time an image is set as the background:
+      the contents of: $historyNextFile
+        are appended to: $historyPrevFile
+        and $historyNextFile is removed
+      the contenxt of: $historyCurFile
+        are appended to: $historyPrevFile
+        and $historyCurFile is removed
+      the date and the filepath is written to:
+        $historyCurFile
 
-    The date and the filepath is appended to:
-      $historyFile
+  $0 --back|back|--prev|prev
+    Append $historyCurFile to $historyNextFile
 
-  $0  --back
-    Read and remove the last line of: $historyFile
-      and prepend it to: $historyBackFile
+    Read and remove the last line of: $historyPrevFile
 
     Set the file indicated in the removed line
+      and write the line to $historyCurFile
+
+    If there is no such line, do nothing
+
+  $0 --forward|forward|--next|next
+    Append $historyCurFile to $historyPrevFile
+
+    Read and remove the first line of: $historyNextFile
+
+    Set the file indicated in the removed line
+      and write the line to $historyCurFile
+
+    If there is no such line, run `$0 --once`
 
   $0 --bash-complete COMP_LINE COMP_POINT
     print a list of words for bash completion
@@ -107,8 +125,11 @@ sub main(@){
     die $usage;
   }
 
-  if(@_ == 1 and $_[0] =~ /^(--back)/){
+  if(@_ == 1 and $_[0] =~ /^(--back|back|--prev|prev)/){
     back();
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(--forward|forward|--next|next)/){
+    forward();
     exit 0;
   }
 
@@ -210,15 +231,14 @@ sub getRandomBackground($$@){
   }
 }
 
-sub setBackground($){
-  my $file = shift;
+sub setBackground($;$){
+  my ($file, $resetHistoryPosition) = @_;
+  $resetHistoryPosition = 1 if not defined $resetHistoryPosition;
   $file = abs_path $file;
-  appendBackFile $file;
-  setBackgroundNoHistory $file;
-}
-sub setBackgroundNoHistory($){
-  my $file = shift;
   print "$file\n" if $verbose;
+  resetHistoryPosition() unless not $resetHistoryPosition;
+  setHistoryCurFile $file;
+
   $file =~ s/'/'\\''/g;
   my $redirect = $verbose ? '' : ">/dev/null 2>/dev/null";
   system "$setExec '$file' $redirect";
@@ -243,35 +263,53 @@ sub getFiles($){
 }
 
 sub back(){
-  if(not -f $historyBackFile){
-    popBack();
-  }
-  my $this = popBack();
-  if(defined $this and $this =~ /\|(.*)$/){
-    my $file = $1;
-    setBackgroundNoHistory $file;
+  my $item = shiftHistory 'prev';
+  if(defined $item and $item =~ /^([^|]*)\|(.*)$/){
+    setBackground $2, 0;
   }
 }
-sub popBack(){
-  my @history = readHistoryFile $historyFile;
-  my @back = readHistoryFile $historyBackFile;
-  if(@history > 0){
-    my $this = pop @history;
-    @back = ($this, @back);
-    writeHistoryFile $historyFile, @history;
-    writeHistoryFile $historyBackFile, @back;
-    return $this;
+sub forward(){
+  my $item = shiftHistory 'next';
+  if(defined $item and $item =~ /^([^|]*)\|(.*)$/){
+    setBackground $2, 0;
+  }else{
+    exec $0, "--once";
   }
-  return undef;
 }
-sub resetBack(){
-  my @history = readHistoryFile $historyFile;
-  my @back = readHistoryFile $historyBackFile;
-  if(@back > 0){
-    @history = (@history, @back);
-    writeHistoryFile $historyFile, @history;
+sub shiftHistory($){
+  my $direction = shift;
+  my @cur = readHistoryFile $historyCurFile;
+  my @prev = readHistoryFile $historyPrevFile;
+  my @next = readHistoryFile $historyNextFile;
+  my $item;
+  if($direction eq "prev"){
+    if(@prev > 0){
+      $item = pop @prev;
+      @next = (@cur, @next);
+      @cur = ();
+    }
+  }elsif($direction eq "next"){
+    if(@next > 0){
+      $item = shift @next if @next > 0;
+      @prev = (@prev, @cur);
+      @cur = ();
+    }
+  }else{
+    die "invalid direction: $direction\n";
   }
-  system "rm", "-f", $historyBackFile;
+  writeHistoryFile $historyCurFile, @cur;
+  writeHistoryFile $historyPrevFile, @prev;
+  writeHistoryFile $historyNextFile, @next;
+  return $item;
+}
+sub resetHistoryPosition(){
+  my @cur = readHistoryFile $historyCurFile;
+  my @prev = readHistoryFile $historyPrevFile;
+  my @next = readHistoryFile $historyNextFile;
+
+  writeHistoryFile $historyCurFile, ();
+  writeHistoryFile $historyPrevFile, (@prev, @cur, @next);
+  writeHistoryFile $historyNextFile, ();
 }
 
 sub readHistoryFile($){
@@ -286,25 +324,26 @@ sub readHistoryFile($){
 }
 sub writeHistoryFile($@){
   my ($file, @lines) = @_;
-  open FH, "> $file" or die "Could not write $file\n";
-  print FH @lines;
-  close FH;
+  if(@lines == 0){
+    system "rm", "-f", $file;
+  }else{
+    open FH, "> $file" or die "Could not write $file\n";
+    print FH @lines;
+    close FH;
+  }
 }
 
-sub appendBackFile($){
+sub setHistoryCurFile($){
   my $file = shift;
   my $date = `date`;
   chomp $date;
-  my $historyEntry = "$date|$file\n";
-  appendBackLine "$date|$file";
+  setHistoryCurLine "$date|$file\n";
 }
-sub appendBackLine($){
+sub setHistoryCurLine($){
   my $line = shift;
   chomp $line;
-  resetBack();
-  open FH, ">> $historyFile" or die "Could not write to $historyFile\n";
-  print FH "$line\n";
-  close FH;
+  $line = "$line\n";
+  writeHistoryFile $historyCurFile, ($line);
 }
 
 sub bashComplete($$){

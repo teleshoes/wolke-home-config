@@ -90,7 +90,8 @@ shortcuts conf = "Shortcuts" @@ do
     "term"              @@ mA    xK_F2   #! "term"
     "term auto-cwd"     @@ mA    xK_Think#! "term -acd"
     "ghci"              @@ mC    xK_Think#! "term ghci"
-    "bgset --once"      @@ mW    xK_w    #! "bgset --once"
+    "bgset --next"      @@ mW    xK_w    #! "bgset --next"
+    "bgset --prev"      @@ mWS   xK_w    #! "bgset --prev"
     "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Desktop/Pictures/Screenshots"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen Off Idle"   @@ mW    xK_s    #! "sleep 0.5; screenOff"
@@ -166,9 +167,11 @@ shortcuts conf = "Shortcuts" @@ do
     "nuc"           @@ do
         "vnc"           @@ mC    xK_F9   #! "nuc -vnc"
         "vnc"           @@ mCS   xK_F9   #! "nuc -vnc --x2vnc"
+        "bgset --next"  @@ mCAW  xK_w    #! "nuc bgset --next"
+        "bgset --prev"  @@ mCAWS xK_w    #! "nuc bgset --prev"
 
     "raspi"         @@ do
-        "nuc pi outlet" @@ mC    xK_PgDn #! "nuc pi outlet"
+        "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
 
     "N9"            @@ do
         "lock"          @@ mC    xK_F12  #! "n9 -b lock"
