@@ -2,12 +2,16 @@
 use strict;
 use warnings;
 use Time::HiRes qw(sleep);
+use Cwd 'abs_path';
 
 sub findFile($$);
 sub getRandomBackground($$@);
 sub setBackground($);
+sub setBackgroundNoHistory($);
 sub remove($@);
 sub getFiles($);
+sub appendBackFile($);
+sub appendBackLine($);
 
 my $setExec = "Esetroot";
 my $delay = 300;
@@ -187,16 +191,15 @@ sub getRandomBackground($$@){
 
 sub setBackground($){
   my $file = shift;
+  $file = abs_path $file;
+  appendBackFile $file;
+  setBackgroundNoHistory $file;
+}
+sub setBackgroundNoHistory($){
+  my $file = shift;
   print "$file\n" if $verbose;
   $file =~ s/'/'\\''/g;
   my $redirect = $verbose ? '' : ">/dev/null 2>/dev/null";
-
-  my $date = `date`;
-  chomp $date;
-  my $historyEntry = "$date|$file\n";
-  open FH, ">> $historyFile" or warn "Could not write to $historyFile\n";
-  print FH $historyEntry;
-  close FH;
   system "$setExec '$file' $redirect";
 }
 
@@ -218,6 +221,21 @@ sub getFiles($){
   return @files;
 }
 
+sub appendBackFile($){
+  my $file = shift;
+  my $date = `date`;
+  chomp $date;
+  my $historyEntry = "$date|$file\n";
+  appendBackLine "$date|$file";
+}
+sub appendBackLine($){
+  my $line = shift;
+  chomp $line;
+  resetBack();
+  open FH, ">> $historyFile" or die "Could not write to $historyFile\n";
+  print FH "$line\n";
+  close FH;
+}
 
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
