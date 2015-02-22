@@ -42,6 +42,10 @@ sub main(@){
 
     my @tts;
 
+    my $total = @files;
+    my $fetched = 0;
+    my $skipped = 0;
+
     my $filesDir = "$IMDB_SCAN_DIR/files";
     runOrDie "mkdir", "-p", $filesDir;
     for my $file(sort @files){
@@ -69,15 +73,21 @@ sub main(@){
         print "getting tt for $file\n";
         $tt = getTT(getQueries $file);
         if(defined $tt){
+          $fetched++;
           runOrDie "mkdir", "-p", $scanDir;
           open FH, "> $scanFile" or die "Could not write $scanFile\n";
           print FH "$tt\n";
           close FH;
         }
+      }else{
+        $skipped++;
       }
 
       push @tts, $tt if defined $tt;
     }
+    my $missing = $total - $fetched - $skipped;
+    print "title=>tt complete\n";
+    print "missing $missing/$total   (skipped $skipped, fetched $fetched)\n";
 
     my $ttsDir = "$IMDB_SCAN_DIR/tts";
     runOrDie "mkdir", "-p", $ttsDir;
