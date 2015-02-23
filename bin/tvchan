@@ -45,6 +45,9 @@ my $usage = "Usage:
   $0 [OPTS] DIR [DIR ..]
 
   OPTS:
+  -s STRING
+    use imdb to filter files
+
   --autoskip  | --autoskip=SECONDS
      start in autoskip mode, and optionally set the delay to SECONDS
        {default is $defaultAutoSkipDelay}
@@ -56,11 +59,14 @@ my $usage = "Usage:
 sub main(@){
   my $autoSkip = 0;
   my $autoSkipDelay = $defaultAutoSkipDelay;
+  my $search;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--autoskip(?:=(\d+))?$/){
       $autoSkip = 1;
       $autoSkipDelay = $1 if defined $1;
+    }elsif($arg =~ /-s/ and @_ > 0){
+      $search = shift;
     }else{
       die $usage;
     }
@@ -85,6 +91,19 @@ sub main(@){
 
   my $files = getProcLines @cmd;
   chomp foreach @$files;
+
+  if(defined $search){
+    my $newFiles = [];
+    for my $file(@$files){
+      my $imdb = join '', @{getProcLines("imdb", "-c", $file)};
+      if($imdb =~ /$search/i){
+        push @$newFiles, $file;
+      }
+    }
+    $files = $newFiles;
+    print "SELECTED:\n" . join "\n", @$files;
+  }
+
   my @history;
   my $index = 0;
   while(1){

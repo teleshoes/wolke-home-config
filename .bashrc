@@ -58,11 +58,6 @@ if [ -d $meego_gnu ]; then
   ;
 fi
 
-if [ `hostname -s` == "wolke-n9" ]; then
-  alias apt-get="AEGIS_FIXED_ORIGIN=com.nokia.maemo apt-get"
-  alias dpkg="AEGIS_FIXED_ORIGIN=com.nokia.maemo dpkg"
-fi
-
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
@@ -137,6 +132,7 @@ function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
+function gs           { g s; }
 function mp           { mplayer "$@"; }
 
 function sb           { seedbox "$@"; }
