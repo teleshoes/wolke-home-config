@@ -40,6 +40,7 @@ sub writeInputConf();
 sub writeMplayerConf();
 sub writeInputCommands(@);
 sub getProcLines(@);
+sub getProcLinesNoFail(@);
 
 my $usage = "Usage:
   $0 [OPTS] DIR [DIR ..]
@@ -95,7 +96,7 @@ sub main(@){
   if(defined $search){
     my $newFiles = [];
     for my $file(@$files){
-      my $imdb = join '', @{getProcLines("imdb", "-c", $file)};
+      my $imdb = join '', @{getProcLinesNoFail("imdb", "-c", $file)};
       if($imdb =~ /$search/i){
         push @$newFiles, $file;
       }
@@ -228,10 +229,14 @@ sub writeInputCommands(@){
 }
 
 sub getProcLines(@){
+  my $lines = getProcLinesNoFail @_;
+  die "Error running \"@_\"\n" if $? != 0;
+  return $lines;
+}
+sub getProcLinesNoFail(@){
   open FH, "-|", @_;
   my @lines = <FH>;
   close FH;
-  die "Error running \"@_\"\n" if $? != 0;
   return \@lines;
 }
 
