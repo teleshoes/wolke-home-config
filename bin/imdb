@@ -26,6 +26,12 @@ my $usage = "Usage:
   $0 DIR
     scan DIR
 
+  $0 -t|-tt FILE
+    print cached tt for FILE
+
+  $0 -c FILE
+    print cached info for FILE
+
   $0 -s FILE|TITLE
     attempt to print IMDB info for the file or title indicated
 ";
@@ -101,6 +107,37 @@ sub main(@){
         print FH $omdb;
         close FH;
       }
+    }
+  }elsif(@_ == 2 and $_[0] =~ /(-c|-t|-tt)/ and -f $_[1]){
+    my $cmd = shift;
+    my $file = shift;
+    $file = abs_path $file;
+    my $mountPoint = getMountPoint($file);
+    $file =~ s/^$mountPoint\/?//;
+    my $filesDir = "$IMDB_SCAN_DIR/files";
+    my $ttsDir = "$IMDB_SCAN_DIR/tts";
+    my $scanFile = "$filesDir/$file";
+    if(-f $scanFile){
+      open FH, "< $scanFile" or die "Could not read $scanFile\n";
+      my $tt = join '', <FH>;
+      close FH;
+      chomp $tt;
+      $tt = undef if $tt !~ /^tt\d\d\d\d+$/;
+      if(not defined $tt){
+        die "invalid cache at $scanFile\n";
+      }
+      if($cmd =~ /^(-t|-tt)$/){
+        print "$tt\n";
+      }elsif($cmd =~ /^(-c)/){
+        my $ttFile = "$ttsDir/$tt";
+        if(not -f $ttFile){
+          die "no info cache found for $tt\n";
+        }else{
+          run "cat", $ttFile;
+        }
+      }
+    }else{
+      die "no tt cache found for $file\n";
     }
   }elsif(@_ == 2 and $_[0] =~ /^(-s)$/){
     my $cmd = shift;
