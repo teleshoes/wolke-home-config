@@ -37,17 +37,26 @@ my @ftpInitCmds = (
   "set ftp:ssl-protect-data true",
   "set ssl:verify-certificate no",
 );
+my @mirrorOptions = qw(
+  --verbose
+  --use-pget=3
+  --parallel=2
+);
 
 my $usage = "Usage:
-  $0 [-h]
+  $0 [--host]
      print \"user\@seedbox\"
 
   $0 -f
      read from stdin and send the commands to lftp
 
   $0 -g
-     sync seedbox:$remoteDownloads => $localDownloads
-     {runs rsync -avP USERNAME\@SERVER:$remoteDownloads/ $localDownloads}
+     use lftp mirror to sync seedbox:$remoteDownloads => $localDownloads
+     like: lftp SERVER -c \"mirror $remoteDownloads $localDownloads\"
+
+  $0 --rsync
+     use rsync to sync seedbox:$remoteDownloads => $localDownloads
+     like: rsync -avP SERVER:$remoteDownloads/ $localDownloads
 
   $0 --cleanup
      run '@cleanupCmd' on seedbox
@@ -68,12 +77,14 @@ my $usage = "Usage:
 sub main(@){
   my $config = readSecrets();
 
-  if(@_ == 0 or @_ == 1 and $_[0] =~ /^(-h)$/){
+  if(@_ == 0 or @_ == 1 and $_[0] =~ /^(--host)$/){
     print "$$config{username}\@$$config{server}\n";
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-f)$/){
     ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
+    ftpCommand $config, "mirror @mirrorOptions $remoteDownloads $localDownloads";
+  }elsif(@_ == 1 and $_[0] =~ /^(--rsync)$/){
     rsyncFetch $config;
   }elsif(@_ == 1 and $_[0] =~ /^(--cleanup)$/){
     ssh $config, @cleanupCmd;
@@ -107,6 +118,13 @@ sub ftpCommand($@){
   my $url = "ftp://$$config{server}:$$config{port}";
   my @lftpCmd = ("lftp", "-u", "$$config{username},$$config{password}", $url);
 
+  my @fakeCmd = ("lftp", "-u", "$$config{username},PASSWORD", $url);
+  print "running:\n";
+  print "  @fakeCmd\n";
+  print "  $_\n" foreach @ftpInitCmds;
+  print "  $_\n" foreach @cmds;
+  print "\n";
+
   open FH, "|-", @lftpCmd;
   my $fh = select FH;
   $| = 1;
@@ -121,7 +139,7 @@ sub ftpCommand($@){
     }
   }else{
     for my $cmd(@cmds){
-      print "running $cmd\n";
+      print "running: $cmd\n";
       print FH "$cmd\nexit\n";
       close FH;
     }
