@@ -13,11 +13,12 @@ my @opts = (
 sub run(@);
 
 my $usage = "Usage:
-  $0 [pc|nopc]
+  $0 [--super] [pc|nopc]
      pc/nopc enable/disable precompile {default is $pcDefault}
 ";
 
 sub main(@){
+  my $super = shift if @_ > 0 and $_[0] =~ /^(--super)$/;
   my $pc = $pcDefault;
   $pc = shift if @_ > 0 and $_[0] =~ /^(pc|nopc)$/;
   die $usage if @_ > 0;
@@ -25,7 +26,16 @@ sub main(@){
   my $precompile = $pc eq "pc" ? "true" : "false";
   @opts = (@opts, "-Dgwt.codeServer.precompile=$precompile");
 
-  my @cmd = ("mvn", @opts, "gwt:run-codeserver");
+  @opts = (@opts, "-Dgwt.superDevMode=false") if not defined $super;
+
+  my $goal;
+  if(defined $super){
+    $goal = "gwt:run-codeserver";
+  }else{
+    $goal = "gwt:run";
+  }
+
+  my @cmd = ("mvn", @opts, $goal);
   print "@cmd\n";
 
   open FH, "-|", @cmd;
