@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my $pcDefault = "nopc";
+my $pcDefault = 'false';
 my $debugPort = 8957;
 
 my @opts = (
@@ -14,19 +14,39 @@ my @opts = (
 sub run(@);
 
 my $usage = "Usage:
-  $0 [--super] [--debug] [pc|nopc]
-     pc/nopc enable/disable precompile {default is $pcDefault}
+  $0 [OPTS]
+
+  OPTS:
+    --super
+      use goal gwt:run-codeserver, dont set gwt.superDevMode to false
+    --debug
+      use goal gwt:debug, set gwt.debugPort = $debugPort
+    --pc
+    --nopc
+      enable/disable precompile {default is $pcDefault}
 ";
 
 sub main(@){
-  my $super = shift if @_ > 0 and $_[0] =~ /^(--super)$/;
-  my $debug = shift if @_ > 0 and $_[0] =~ /^(--debug)$/;
+  my $super = undef;
+  my $debug = undef;
   my $pc = $pcDefault;
-  $pc = shift if @_ > 0 and $_[0] =~ /^(pc|nopc)$/;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--super)$/){
+      $super = 1;
+    }elsif($arg =~ /^(--debug)$/){
+      $debug = 1;
+    }elsif($arg =~ /^(--pc)$/){
+      $pc = 'true';
+    }elsif($arg =~ /^(--nopc)$/){
+      $pc = 'false';
+    }else{
+      die $usage;
+    }
+  }
   die $usage if @_ > 0;
 
-  my $precompile = $pc eq "pc" ? "true" : "false";
-  @opts = (@opts, "-Dgwt.codeServer.precompile=$precompile");
+  @opts = (@opts, "-Dgwt.codeServer.precompile=$pc");
 
   @opts = (@opts, "-Dgwt.superDevMode=false") if not defined $super;
   @opts = (@opts, "-Dgwt.debugPort=$debugPort") if defined $debug;
