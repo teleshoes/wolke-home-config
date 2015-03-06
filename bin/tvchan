@@ -4,7 +4,8 @@ use warnings;
 use POSIX ":sys_wait_h";
 use Time::HiRes qw(sleep time);
 
-my @ext = qw(mkv mp4 avi 3gp wmv m2ts ogv);
+my @videoExt = qw(mkv mp4 avi 3gp wmv m2ts ogv);
+my @musicExt = qw(mp3 flac ogg m4a wma wav);
 
 my $msgLen = 60;
 my $mplayerConfFile = "/tmp/mplayer-tvchan.conf";
@@ -49,6 +50,9 @@ my $usage = "Usage:
   -s STRING
     use imdb to filter files
 
+  -m
+    include (@musicExt) instead of just (@videoExt)
+
   --autoskip  | --autoskip=SECONDS
      start in autoskip mode, and optionally set the delay to SECONDS
        {default is $defaultAutoSkipDelay}
@@ -59,6 +63,7 @@ my $usage = "Usage:
 
 sub main(@){
   my $autoSkip = 0;
+  my $music = 0;
   my $autoSkipDelay = $defaultAutoSkipDelay;
   my $search;
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -66,12 +71,16 @@ sub main(@){
     if($arg =~ /^--autoskip(?:=(\d+))?$/){
       $autoSkip = 1;
       $autoSkipDelay = $1 if defined $1;
+    }elsif($arg =~ /^(-m)$/){
+      $music = 1;
     }elsif($arg =~ /^(-s)$/ and @_ > 0){
       $search = shift;
     }else{
       die $usage;
     }
   }
+
+  my @ext = $music ? (@videoExt, @musicExt) : (@videoExt);
 
   my @dirs = @_;
   die $usage if @dirs == 0;
