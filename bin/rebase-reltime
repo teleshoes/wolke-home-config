@@ -9,6 +9,7 @@ my $dateRange = int(20 * 365 * 24 * 60 * 60);
 sub getFilterScript($);
 sub checkTime($);
 sub getTime($);
+sub absTime($);
 sub formatTime($);
 sub run(@);
 
@@ -102,8 +103,32 @@ sub checkTime($){
 
 sub getTime($){
   my $date = shift;
-  my $t = checkTime $date ? $date : str2time $date;
+
+  my $t;
+  if(checkTime $date){
+    $t = $date;
+  }elsif($date =~ /^([0-9.]+) seconds ago$/){
+    $t = absTime int($1);
+  }elsif($date =~ /^([0-9.]+) minutes ago$/){
+    $t = absTime int($1*60);
+  }elsif($date =~ /^([0-9.]+) hours ago$/){
+    $t = absTime int($1*60*60);
+  }elsif($date =~ /^([0-9.]+) days ago$/){
+    $t = absTime int($1*24*60*60);
+  }elsif($date =~ /^now$/){
+    $t = absTime 0;
+  }else{
+    $t = str2time $date;
+  }
+
   die "Invalid date: $date\n" if not checkTime $t;
+  return $t;
+}
+
+sub absTime($){
+  my $secAgo = shift;
+  my $t = `date --date="$secAgo seconds ago" +%s`;
+  chomp $t;
   return $t;
 }
 
