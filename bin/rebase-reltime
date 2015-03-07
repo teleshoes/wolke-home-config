@@ -33,14 +33,18 @@ my $usage = "Usage:
 
   OPTS
     -f  use -f in git filter-branch command
+    -e  edit the dates in an editor before filtering on them
 ";
 
 sub main(@){
   my $force = 0;
+  my $edit = 0;
   while (@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
+    }elsif($arg =~ /^(-e)$/){
+      $edit = 1;
     }else{
       die $usage;
     }
@@ -90,6 +94,14 @@ sub main(@){
     my $newDate = $startDate + $offset;
     $originalDates{$c} = $t;
     push @$filterCommits, [$c, $newDate];
+  }
+
+  if($edit){
+    my $tmpFile = "/tmp/rebase-reltime-" . time;
+    writeFilterCommitsFile $tmpFile, $filterCommits;
+    run "editor", $tmpFile;
+    $filterCommits = readFilterCommitsFile $tmpFile;
+    print "\n";
   }
 
   print "Changing the following commits:\n";
