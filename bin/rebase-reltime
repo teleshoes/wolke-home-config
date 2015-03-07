@@ -25,6 +25,8 @@ my $usage = "Usage:
       -relative past time of the form: \"X UNITs ago\"
        UNIT can be days, hours, minutes, or seconds
       -\"now\" for right now
+      -\"start\" for the oldest date in the commits
+      -\"end\" for the newest date in the commits
 
   OPTS
     -f  use -f in git filter-branch command
@@ -44,8 +46,12 @@ sub main(@){
   my ($targetCommit, $startDate, $endDate) = @_;
   my @commits = `git rev-list $targetCommit..HEAD`;
   chomp foreach @commits;
-  $startDate = getTime $startDate;
-  $endDate = getTime $endDate;
+  if($startDate !~ /^(start|end)$/){
+    $startDate = getTime $startDate;
+  }
+  if($endDate !~ /^(start|end)$/){
+    $endDate = getTime $endDate;
+  }
 
   my ($oldest, $newest);
   for my $c(@commits){
@@ -56,6 +62,11 @@ sub main(@){
     $newest = $t if not defined $newest or $t > $newest;
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
+
+  $startDate = $oldest if $startDate =~ /^(start)$/;
+  $startDate = $newest if $startDate =~ /^(end)$/;
+  $endDate = $oldest if $endDate =~ /^(start)$/;
+  $endDate = $newest if $endDate =~ /^(end)$/;
 
   printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
   printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
