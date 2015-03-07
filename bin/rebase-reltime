@@ -153,9 +153,20 @@ sub readFilterCommitsFile($){
 sub writeFilterCommitsFile($$){
   my ($file, $filterCommits) = @_;
   open FH, "> $file" or die "Could not write $file\n";
+  print FH ''
+    . "# edit the dates below\n"
+    . "# each commit is one per line\n"
+    . "# format is \"COMMIT_SHA1 $dateDisplayFormat #LOG_SUMMARY\"\n"
+    . "# leading/trailing whitespace on lines is ignored\n"
+    . "# removing a line will cause that commit not to be modified\n"
+    . "# anything following a # on a line is a comment and is ignored\n"
+    . "\n"
+    ;
   for my $commitDate(@$filterCommits){
     my ($commit, $t) = @$commitDate;
-    printf FH "%s %s\n", $commit, formatTime($t);
+    my $info = `git show --format='%s {old: %ci}' -s $commit`;
+    chomp $info;
+    printf FH "%s %s       #$info\n", substr($commit, 0, 7), formatTime($t);
   }
   close FH;
 }
