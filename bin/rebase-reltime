@@ -6,6 +6,8 @@ use Date::Format qw(time2str);
 
 my $dateRange = int(20 * 365 * 24 * 60 * 60);
 
+sub readFilterCommitsFile($);
+sub writeFilterCommitsFile($$);
 sub getFilterScript($);
 sub checkTime($);
 sub getTime($);
@@ -14,6 +16,7 @@ sub formatTime($);
 sub run(@);
 
 my $dateDisplayFormat = "%Y-%m-%d %H:%M:%S";
+my $dateDisplayFormatRegex = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}";
 
 my $usage = "Usage:
   $0 [OPTS] TARGET_COMMIT START_DATE END_DATE
@@ -92,6 +95,37 @@ sub main(@){
   @cmd = (@cmd, "-f") if $force;
   @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommit..HEAD");
   run @cmd;
+}
+
+sub readFilterCommitsFile($){
+  my ($file) = @_;
+  my $filterCommits = [];
+  open FH, "< $file" or die "Could not read $file\n";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    my $parsedLine = $line;
+    chomp $parsedLine;
+    $parsedLine =~ s/#.*//;
+    $parsedLine =~ s/^\s+//;
+    $parsedLine =~ s/\s+$//;
+    next if $parsedLine =~ /^\s*$/;
+    if($parsedLine =~ /^([a-f0-9]{40}) ($dateDisplayFormatRegex)$/){
+      push @$filterCommits, [$1, getTime($2)];
+    }else{
+      die "Malformed line: $line";
+    }
+  }
+  return $filterCommits;
+}
+sub writeFilterCommitsFile($$){
+  my ($file, $filterCommits) = @_;
+  open FH, "> $file" or die "Could not write $file\n";
+  for my $commitDate(@$filterCommits){
+    my ($commit, $t) = @$commitDate;
+    printf FH "%s %s\n", $commit, formatTime($t);
+  }
+  close FH;
 }
 
 sub getFilterScript($){
