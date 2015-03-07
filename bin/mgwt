@@ -2,30 +2,66 @@
 use strict;
 use warnings;
 
-my $pcDefault = "nopc";
+my $pcDefault = 'false';
+my $debugPort = 8957;
 
 my @opts = (
-  "-Psdm,mock",
+  "-Psdm",
   "-DskipTests",
-  "-Dcheckstyle.skip=true"
+  "-Dcheckstyle.skip=true",
+  "-Dgwt.style=PRETTY",
 );
 
 sub run(@);
 
 my $usage = "Usage:
-  $0 [pc|nopc]
-     pc/nopc enable/disable precompile {default is $pcDefault}
+  $0 [OPTS]
+
+  OPTS:
+    --super
+      use goal gwt:run-codeserver, dont set gwt.superDevMode to false
+    --debug
+      use goal gwt:debug, set gwt.debugPort = $debugPort
+    --pc
+    --nopc
+      enable/disable precompile {default is $pcDefault}
 ";
 
 sub main(@){
+  my $super = undef;
+  my $debug = undef;
   my $pc = $pcDefault;
-  $pc = shift if @_ > 0 and $_[0] =~ /^(pc|nopc)$/;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--super)$/){
+      $super = 1;
+    }elsif($arg =~ /^(--debug)$/){
+      $debug = 1;
+    }elsif($arg =~ /^(--pc)$/){
+      $pc = 'true';
+    }elsif($arg =~ /^(--nopc)$/){
+      $pc = 'false';
+    }else{
+      die $usage;
+    }
+  }
   die $usage if @_ > 0;
 
-  my $precompile = $pc eq "pc" ? "true" : "false";
-  @opts = (@opts, "-Dgwt.codeServer.precompile=$precompile");
+  @opts = (@opts, "-Dgwt.codeServer.precompile=$pc");
 
-  my @cmd = ("mvn", @opts, "gwt:run-codeserver");
+  @opts = (@opts, "-Dgwt.superDevMode=false") if not defined $super;
+  @opts = (@opts, "-Dgwt.debugPort=$debugPort") if defined $debug;
+
+  my $goal;
+  if(defined $super){
+    $goal = "gwt:run-codeserver";
+  }elsif(defined $debug){
+    $goal = "gwt:debug";
+  }else{
+    $goal = "gwt:run";
+  }
+
+  my @cmd = ("mvn", @opts, $goal);
   print "@cmd\n";
 
   open FH, "-|", @cmd;
@@ -39,6 +75,8 @@ sub main(@){
       run "alarm", "-s", "success";
     }elsif($line =~ /Compiler returned false/){
       run "alarm", "-s", "failure";
+    }elsif($line =~ /Skipping exploding war file/){
+      run "alarm", "-s", "success";
     }
   }
   close FH;

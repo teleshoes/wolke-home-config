@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Date::Parse qw(str2time);
+use Date::Format qw(time2str);
+
+my $dateRange = int(20 * 365 * 24 * 60 * 60);
+
+sub getFilterScript($);
+sub checkTime($);
+sub getTime($);
+sub absTime($);
+sub formatTime($);
+sub run(@);
+
+my $displayFormat = "%Y-%m-%d %H:%M:%S";
+
+my $usage = "Usage:
+  $0 [OPTS] TARGET_COMMIT START_DATE END_DATE
+    rebase HEAD onto git commit TARGET_COMMIT
+    make earliest commit START_DATE and latest commit END_DATE,
+      and make each intermediate commit fall between them
+
+  OPTS
+    -f  use -f in git filter-branch command
+";
+
+sub main(@){
+  my $force = 0;
+  while (@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-f)$/){
+      $force = 1;
+    }else{
+      die $usage;
+    }
+  }
+  die $usage if @_ != 3;
+  my ($targetCommit, $startDate, $endDate) = @_;
+  my @commits = `git rev-list $targetCommit..HEAD`;
+  chomp foreach @commits;
+  $startDate = getTime $startDate;
+  $endDate = getTime $endDate;
+
+  die $usage if $startDate !~ /^\d+$/;
+
+  my ($oldest, $newest);
+  for my $c(@commits){
+    my $t = `git show -s --format=%ct $c`;
+    chomp $t;
+    die "Invalid commit date: $t\n" if not checkTime $t;
+    $oldest = $t if not defined $oldest or $t < $oldest;
+    $newest = $t if not defined $newest or $t > $newest;
+  }
+  die "no commits\n" if not defined $oldest or not defined $newest;
+
+  printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
+  printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
+
+  my $filterCommits = {};
+  for my $c(@commits){
+    my $t = `git show -s --format=%ct $c`;
+    chomp $t;
+    my $offsetRatio = ($t-$oldest) / ($newest-$oldest);
+    my $offset = $offsetRatio * ($endDate - $startDate);
+    my $newDate = $startDate + $offset;
+    $$filterCommits{$c} = $newDate;
+    printf "$c %s => %s\n", formatTime($t), formatTime($newDate);
+  }
+
+  my $filterScript = getFilterScript $filterCommits;
+  my @cmd = ("git", "filter-branch");
+  @cmd = (@cmd, "-f") if $force;
+  @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommit..HEAD");
+  run @cmd;
+}
+
+sub getFilterScript($){
+  my $filterCommits = shift;
+  my $script = '';
+  for my $commit(sort keys %$filterCommits){
+    my $t = $$filterCommits{$commit};
+    my $tz = `date +%z`;
+    chomp $tz;
+    my $date = "$t $tz";
+    $script .= ""
+      . "  if [ \$GIT_COMMIT = $commit ]\n"
+      . "  then\n"
+      . "    export GIT_AUTHOR_DATE=\"$date\"\n"
+      . "    export GIT_COMMITTER_DATE=\"$date\"\n"
+      . "  fi\n"
+      ;
+  }
+  return $script;
+}
+
+sub checkTime($){
+  my $t = shift;
+  my $now = time;
+  return $t =~ /^\d+$/
+    && ($now - $dateRange) < $t && $t < ($now + $dateRange);
+}
+
+sub getTime($){
+  my $date = shift;
+
+  my $t;
+  if(checkTime $date){
+    $t = $date;
+  }elsif($date =~ /^([0-9.]+) seconds ago$/){
+    $t = absTime int($1);
+  }elsif($date =~ /^([0-9.]+) minutes ago$/){
+    $t = absTime int($1*60);
+  }elsif($date =~ /^([0-9.]+) hours ago$/){
+    $t = absTime int($1*60*60);
+  }elsif($date =~ /^([0-9.]+) days ago$/){
+    $t = absTime int($1*24*60*60);
+  }elsif($date =~ /^now$/){
+    $t = absTime 0;
+  }else{
+    $t = str2time $date;
+  }
+
+  die "Invalid date: $date\n" if not checkTime $t;
+  return $t;
+}
+
+sub absTime($){
+  my $secAgo = shift;
+  my $t = `date --date="$secAgo seconds ago" +%s`;
+  chomp $t;
+  return $t;
+}
+
+sub formatTime($){
+  my $t = shift;
+  return time2str $displayFormat, $t;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running '@_'\n" if $? != 0;
+}
+
+&main(@ARGV);

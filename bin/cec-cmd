@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+use IPC::Open3;
+
+my $commands = {
+  on    => "on",
+  off   => "standby",
+  volup => "volup",
+  voldn => "voldown",
+  mute  => "mute",
+};
+
+my $usage = "Usage:
+  $0 [OPTS] [CMD]
+     send \"CMD address\" using cec-client
+  $0 [OPTS] vol +N
+     same as doing 'volup' N times, using only one cec-client session
+  $0 [OPTS] vol -N
+     same as doing 'voldn' N times, using only one cec-client session
+  $0 [OPTS] vol N
+     calculates the difference between 'getvol' and N, and runs vol +/- N
+  $0 [OPTS] getvol
+     send msg 71 to address, read audio status, and calculate the volume from it
+     {the volume is apparently the floor of S-S/5, where S is the status}
+
+  OPTS:
+    --tv  use address 0 {default}
+    --av  use address 5
+
+  CMD:
+    " . (join "\n    ", map {"$_  => $$commands{$_}"} sort keys %$commands) . "
+";
+
+sub cec($$@);
+sub getVol($);
+
+sub main(@){
+  my $addr = 0;
+  while(@_ > 0 and $_[0] =~ /^(--tv|--av)$/){
+    my $opt = shift;
+    $addr = 0 if $opt =~ /^--tv$/;
+    $addr = 5 if $opt =~ /^--av$/;
+  }
+
+  if(@_ == 1 and defined $$commands{$_[0]}){
+    cec $addr, 0, "$$commands{$_[0]} $addr";
+  }elsif(@_ == 1 and $_[0] =~ /^getvol$/){
+    my $vol = getVol $addr;
+    die if not defined $vol;
+    print "$vol\n";
+  }elsif(@_ == 2 and $_[0] =~ /^vol$/ and $_[1] =~ /^(\+|-)?(\d+)$/){
+    my ($sign, $vol) = ($1, $2);
+    if(not defined $sign){
+      my $curVol = getVol $addr;
+      die if not defined $curVol;
+      $vol -= $curVol;
+      if($vol < 0){
+        $vol *= -1;
+        $sign = "-";
+      }else{
+        $sign = "+";
+      }
+      print "vol $sign$vol\n";
+    }
+    my $cmd = $sign eq "+" ? $$commands{volup} : $$commands{voldn};
+    cec $addr, 0, ("$cmd $addr")x$vol;
+  }else{
+    die $usage;
+  }
+}
+
+sub cec($$@){
+  my ($addr, $read, @cmds) = @_;
+  my $pid = open3(\*CEC_IN, \*CEC_OUT, \*CEC_ERR, 'cec-client');
+  print CEC_IN "name $addr\n";
+  for my $cmd(@cmds){
+    chomp $cmd;
+    print CEC_IN "$cmd\n";
+  }
+  if($read){
+    print CEC_IN "name $addr\n";
+    sleep 0.5;
+  }
+  print CEC_IN "quit\n";
+  my $out = '';
+  my $err = '';
+  my $line;
+  while($line = <CEC_OUT>){
+    $out .= $line;
+  }
+  while($line = <CEC_ERR>){
+    $err .= $line;
+  }
+  waitpid $pid, 0;
+  print STDERR "Error running cec-client: $err\n" if $? != 0;
+  return ($out, $err);
+}
+
+sub getVol($){
+  my ($addr) = @_;
+  my ($out, $err) = cec $addr, 1, "tx 4$addr:71";
+  my $h = "[0-9a-f]";
+  if($out =~ /audio status changed from\s*$h+\s*to\s*($h+)/){
+    my $status = sprintf "%d", hex($1);
+    my $vol = $status - int($status / 5); #why? who knows?
+    return $vol;
+  }
+  print STDERR "Could not find volume\n";
+  return undef;
+}
+
+&main(@ARGV);
