@@ -75,6 +75,7 @@ sub main(@){
   printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
 
   my $filterCommits = [];
+  my %originalDates;
   for my $c(@commits){
     my $t = `git show -s --format=%ct $c`;
     chomp $t;
@@ -86,10 +87,15 @@ sub main(@){
     }
     my $offset = $offsetRatio * ($endDate - $startDate);
     my $newDate = $startDate + $offset;
-    printf "$c %s => %s\n", formatTime($t), formatTime($newDate);
+    $originalDates{$c} = $t;
     push @$filterCommits, [$c, $newDate];
   }
 
+  for my $commitDate(@$filterCommits){
+    my ($commit, $newDate) = @$commitDate;
+    my $originalDate = $originalDates{$commit};
+    printf "$commit %s => %s\n", formatTime($originalDate), formatTime($newDate);
+  }
   my $filterScript = getFilterScript $filterCommits;
   my @cmd = ("git", "filter-branch");
   @cmd = (@cmd, "-f") if $force;
