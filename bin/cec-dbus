@@ -1,0 +1,148 @@
+#!/usr/bin/python
+
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+import fcntl
+import gobject
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+DBUS_SERVICE = "org.teleshoes.cec"
+
+usage = """Usage: %(exec)s""" % {"exec": sys.argv[0]}
+
+def main(args):
+  if len(args) > 0:
+    print >> sys.stderr, usage
+    sys.exit(2)
+
+  dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+
+  CecDbus()
+
+  gobject.MainLoop().run()
+
+
+class CecClient():
+  def start(self):
+    self.p = subprocess.Popen(["cec-client"],
+      stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+    flags = fcntl.fcntl(self.p.stdout, fcntl.F_GETFL)
+    fcntl.fcntl(self.p.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+    self.nameCmd(5)
+
+  def read(self):
+    out = ''
+    while True:
+      try:
+        line = self.p.stdout.readline()
+      except:
+        break
+      if len(line) > 0:
+        out += line
+      else:
+        break
+    return out
+  def write(self, cecInput):
+    self.p.stdin.write(cecInput)
+    self.p.stdin.flush()
+
+  def writeCommands(self, commands):
+    first=True
+    for c in commands:
+      if not first:
+        time.sleep(0.25)
+      first=False
+      self.write(c + "\n")
+
+  def nameCmd(self, address):
+    self.writeCommands(["name " + str(address)])
+    print self.read()
+  def volCmd(self, cmd, address, count):
+    commands = [cmd + " " + str(address) for i in range(count)]
+    self.writeCommands(commands)
+    print self.read()
+
+  def getVolumeCmd(self, address):
+    self.writeCommands(["tx 4" + str(address) + ":71"])
+    time.sleep(0.25)
+    out = self.read()
+    print out
+    lines = out.splitlines()
+    lines.reverse()
+
+    status = None
+    for line in lines:
+      print line
+      m = re.search('[0-9a-f][0-9a-f]:7a:([0-9a-f][0-9a-f])', line)
+      if m:
+        status = int(m.group(1), 16)
+        break
+    if status == None:
+      return None
+    else:
+      return status - int(status/5) #why? who knows?
+
+
+class CecDbus(dbus.service.Object):
+  def __init__(self):
+    self.cecClient = CecClient()
+    self.cecClient.start()
+    dbus.service.Object.__init__(self, self.getBusName(), '/')
+  def getBusName(self):
+    return dbus.service.BusName(DBUS_SERVICE, bus=dbus.SessionBus())
+
+  @dbus.service.method(DBUS_SERVICE)
+  def init(self, address):
+    print("DBUS: init " + address)
+    self.cecClient.nameCmd(address)
+    return "initialized address " + str(address)
+
+  @dbus.service.method(DBUS_SERVICE)
+  def command(self, address, command):
+    print("DBUS: command " + address + " " + command)
+    self.cecClient.writeCommands([command + " " + address])
+    return "ran " + command + " " + address
+
+  @dbus.service.method(DBUS_SERVICE)
+  def getvol(self, address):
+    print("DBUS: getvol " + address)
+    curVol = self.cecClient.getVolumeCmd(address)
+    return curVol
+
+  @dbus.service.method(DBUS_SERVICE)
+  def volup(self, address, relVol):
+    print("DBUS: volup " + address + " " + relVol)
+    self.cecClient.volCmd("volup", address, int(relVol))
+    return "vol +" + str(relVol) + " on address " + str(address)
+
+  @dbus.service.method(DBUS_SERVICE)
+  def voldown(self, address, relVol):
+    print("DBUS: voldown " + address + " " + relVol)
+    self.cecClient.volCmd("voldown", address, int(relVol))
+    return "vol -" + str(relVol) + " on address " + str(address)
+
+  @dbus.service.method(DBUS_SERVICE)
+  def setvol(self, address, absVol):
+    print("DBUS: setvol " + address + " " + absVol)
+    curVol = self.cecClient.getVolumeCmd(address)
+    delta = int(absVol) - curVol
+    cmd = "volup"
+    if delta < 0:
+      delta = 0 - delta
+      cmd = "voldown"
+    self.cecClient.volCmd(cmd, address, delta)
+    return str(curVol) + " => " + absVol + " on address " + str(address)
+
+if __name__ == "__main__":
+  args = sys.argv
+  args.pop(0)
+  sys.exit(main(args))
