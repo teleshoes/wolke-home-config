@@ -7,6 +7,8 @@ screen-cmd fetch-seedbox
 screen-cmd execPing --watchdog ddwrt --restart-dev
 
 brightness 80
+cec-dbus  &
+( sleep 2 ; cec-cmd init ) &
 sudo mnt &
 sudo wired &
 execPing screen-cmd revtun-ensure &
