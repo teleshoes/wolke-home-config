@@ -61,15 +61,17 @@ sub main(@){
   my $cmd = shift if @_ > 0 and $_[0] =~ /^(--all|--log|--status)$/;
   $cmd = '' if not defined $cmd;
 
+  my $summary = '';
   if($cmd =~ /^(--all)$/){
     for my $ctfile(sort keys %$backups){
       print "\n\n===$ctfile===\n\n";
-      handleCtfile $ctfile, "";
+      $summary .= handleCtfile $ctfile, "";
     }
   }else{
     my $ctfile = shift;
-    handleCtfile $ctfile, $cmd;
+    $summary .= handleCtfile $ctfile, $cmd;
   }
+  print $summary;
 }
 
 sub handleCtfile($$){
@@ -86,6 +88,8 @@ sub handleCtfile($$){
   $ENV{PWD} = $parent;
 
   die "dir not found: $child\n" if not -d $child;
+
+  my $summary = '';
 
   if($cmd =~ /^(--status)$/){
     print formatStatus($ctfile, $child, getLatestLogFile($ctfile));
@@ -115,6 +119,8 @@ sub handleCtfile($$){
 
     run "tail", "-F", $pidArg, $newLog;
   }
+
+  return $summary;
 }
 
 sub getLatestLogFile($){
