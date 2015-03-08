@@ -1,40 +1,44 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Time::HiRes qw(sleep);
-use IPC::Open3;
+
+my $dbusService = "org.teleshoes.cec";
 
 my $commands = {
-  on    => "on",
-  off   => "standby",
-  volup => "volup",
-  voldn => "voldown",
-  mute  => "mute",
+  on      => "on",
+  off     => "standby",
+  volup   => "volup",
+  voldown => "voldown",
+  mute    => "mute",
 };
 
 my $usage = "Usage:
-  $0 [OPTS] [CMD]
-     send \"CMD address\" using cec-client
+  $0 [OPTS] CMD
+     call $dbusService / command ADDRESS CMD
+     sends \"<CMD> <ADDRESS>\" using cec-client
   $0 [OPTS] vol +N
-     same as doing 'volup' N times, using only one cec-client session
+     call $dbusService / volup ADDRESS N
+     sends \"volup <ADDRESS>\" N times using cec-client
   $0 [OPTS] vol -N
-     same as doing 'voldn' N times, using only one cec-client session
+     call $dbusService / voldown ADDRESS N
+     sends \"voldown <ADDRESS>\" N times using cec-client
   $0 [OPTS] vol N
+     call $dbusService / setvol ADDRESS N
      calculates the difference between 'getvol' and N, and runs vol +/- N
   $0 [OPTS] getvol
-     send msg 71 to address, read audio status, and calculate the volume from it
+     call $dbusService / getvol ADDRESS
+     send \"tx 4<ADDRESS>:71\", read audio status, and calculate the volume
      {the volume is apparently the floor of S-S/5, where S is the status}
 
   OPTS:
-    --av  use address 5 {default}
-    --tv  use address 0
+    --av  use ADDRESS 5 {default}
+    --tv  use ADDRESS 0
 
   CMD:
     " . (join "\n    ", map {"$_  => $$commands{$_}"} sort keys %$commands) . "
 ";
 
-sub cec($$@);
-sub getVol($);
+sub cecDbus(@);
 
 sub main(@){
   my $addr = 5;
@@ -45,70 +49,26 @@ sub main(@){
   }
 
   if(@_ == 1 and defined $$commands{$_[0]}){
-    cec $addr, 0, "$$commands{$_[0]} $addr";
+    cecDbus $addr, "command", $$commands{$_[0]};
   }elsif(@_ == 1 and $_[0] =~ /^getvol$/){
-    my $vol = getVol $addr;
-    die if not defined $vol;
-    print "$vol\n";
+    cecDbus $addr, "getvol";
   }elsif(@_ == 2 and $_[0] =~ /^vol$/ and $_[1] =~ /^(\+|-)?(\d+)$/){
     my ($sign, $vol) = ($1, $2);
+    my $cmd;
     if(not defined $sign){
-      my $curVol = getVol $addr;
-      die if not defined $curVol;
-      $vol -= $curVol;
-      if($vol < 0){
-        $vol *= -1;
-        $sign = "-";
-      }else{
-        $sign = "+";
-      }
-      print "vol $sign$vol\n";
+      $cmd = "setvol";
+    }else{
+      $cmd = $sign eq "+" ? "volup" : "voldown";
     }
-    my $cmd = $sign eq "+" ? $$commands{volup} : $$commands{voldn};
-    cec $addr, 0, ("$cmd $addr")x$vol;
+    cecDbus $cmd, $addr, $vol;
   }else{
     die $usage;
   }
 }
 
-sub cec($$@){
-  my ($addr, $read, @cmds) = @_;
-  my $pid = open3(\*CEC_IN, \*CEC_OUT, \*CEC_ERR, 'cec-client');
-  print CEC_IN "name $addr\n";
-  for my $cmd(@cmds){
-    chomp $cmd;
-    print CEC_IN "$cmd\n";
-  }
-  if($read){
-    print CEC_IN "name $addr\n";
-    sleep 0.5;
-  }
-  print CEC_IN "quit\n";
-  my $out = '';
-  my $err = '';
-  my $line;
-  while($line = <CEC_OUT>){
-    $out .= $line;
-  }
-  while($line = <CEC_ERR>){
-    $err .= $line;
-  }
-  waitpid $pid, 0;
-  print STDERR "Error running cec-client: $err\n" if $? != 0;
-  return ($out, $err);
-}
-
-sub getVol($){
-  my ($addr) = @_;
-  my ($out, $err) = cec $addr, 1, "tx 4$addr:71";
-  my $h = "[0-9a-f]";
-  if($out =~ /audio status changed from\s*$h+\s*to\s*($h+)/){
-    my $status = sprintf "%d", hex($1);
-    my $vol = $status - int($status / 5); #why? who knows?
-    return $vol;
-  }
-  print STDERR "Could not find volume\n";
-  return undef;
+sub cecDbus(@){
+  my $out = `qdbus $dbusService / @_`;
+  print $out;
 }
 
 &main(@ARGV);
