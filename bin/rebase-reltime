@@ -6,6 +6,8 @@ use Date::Format qw(time2str);
 
 my $dateRange = int(20 * 365 * 24 * 60 * 60);
 
+sub readFilterCommitsFile($);
+sub writeFilterCommitsFile($$);
 sub getFilterScript($);
 sub checkTime($);
 sub getTime($);
@@ -13,24 +15,36 @@ sub absTime($);
 sub formatTime($);
 sub run(@);
 
-my $displayFormat = "%Y-%m-%d %H:%M:%S";
+my $dateDisplayFormat = "%Y-%m-%d %H:%M:%S";
+my $dateDisplayFormatRegex = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}";
 
 my $usage = "Usage:
   $0 [OPTS] TARGET_COMMIT START_DATE END_DATE
     rebase HEAD onto git commit TARGET_COMMIT
     make earliest commit START_DATE and latest commit END_DATE,
       and make each intermediate commit fall between them
+    START_DATE and END_DATE can be:
+      -unix timestamp {seconds since epoch}
+      -relative past time of the form: \"X UNITs ago\"
+       UNIT can be days, hours, minutes, or seconds
+      -\"now\" for right now
+      -\"start\" for the oldest date in the commits
+      -\"end\" for the newest date in the commits
 
   OPTS
     -f  use -f in git filter-branch command
+    -e  edit the dates in an editor before filtering on them
 ";
 
 sub main(@){
   my $force = 0;
+  my $edit = 0;
   while (@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
+    }elsif($arg =~ /^(-e)$/){
+      $edit = 1;
     }else{
       die $usage;
     }
@@ -39,10 +53,12 @@ sub main(@){
   my ($targetCommit, $startDate, $endDate) = @_;
   my @commits = `git rev-list $targetCommit..HEAD`;
   chomp foreach @commits;
-  $startDate = getTime $startDate;
-  $endDate = getTime $endDate;
-
-  die $usage if $startDate !~ /^\d+$/;
+  if($startDate !~ /^(start|end)$/){
+    $startDate = getTime $startDate;
+  }
+  if($endDate !~ /^(start|end)$/){
+    $endDate = getTime $endDate;
+  }
 
   my ($oldest, $newest);
   for my $c(@commits){
@@ -54,19 +70,52 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
+  $startDate = $oldest if $startDate =~ /^(start)$/;
+  $startDate = $newest if $startDate =~ /^(end)$/;
+  $endDate = $oldest if $endDate =~ /^(start)$/;
+  $endDate = $newest if $endDate =~ /^(end)$/;
+
   printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
   printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
+  print "\n";
 
-  my $filterCommits = {};
+  my $filterCommits = [];
+  my %originalDates;
   for my $c(@commits){
     my $t = `git show -s --format=%ct $c`;
     chomp $t;
-    my $offsetRatio = ($t-$oldest) / ($newest-$oldest);
+    my $offsetRatio;
+    if($newest == $oldest){
+      $offsetRatio = 0;
+    }else{
+      $offsetRatio = ($t-$oldest) / ($newest-$oldest);
+    }
     my $offset = $offsetRatio * ($endDate - $startDate);
     my $newDate = $startDate + $offset;
-    $$filterCommits{$c} = $newDate;
-    printf "$c %s => %s\n", formatTime($t), formatTime($newDate);
+    $originalDates{$c} = $t;
+    push @$filterCommits, [$c, $newDate];
   }
+
+  if($edit){
+    my $tmpFile = "/tmp/rebase-reltime-" . time;
+    writeFilterCommitsFile $tmpFile, $filterCommits;
+    run "editor", $tmpFile;
+    $filterCommits = readFilterCommitsFile $tmpFile;
+    print "\n";
+  }
+
+  print "Changing the following commits:\n";
+  for my $commitDate(@$filterCommits){
+    my ($commit, $newDate) = @$commitDate;
+    my $originalDate = $originalDates{$commit};
+    printf "%s %s => %s\n",
+      substr($commit, 0, 7), formatTime($originalDate), formatTime($newDate);
+  }
+  print "\n";
+
+  print "proceed? [y/N]";
+  my $response = <STDIN>;
+  die "aborted\n" unless $response eq "y\n";
 
   my $filterScript = getFilterScript $filterCommits;
   my @cmd = ("git", "filter-branch");
@@ -75,11 +124,58 @@ sub main(@){
   run @cmd;
 }
 
+sub readFilterCommitsFile($){
+  my ($file) = @_;
+  my $filterCommits = [];
+  open FH, "< $file" or die "Could not read $file\n";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    my $parsedLine = $line;
+    chomp $parsedLine;
+    $parsedLine =~ s/#.*//;
+    $parsedLine =~ s/^\s+//;
+    $parsedLine =~ s/\s+$//;
+    next if $parsedLine =~ /^\s*$/;
+    if($parsedLine =~ /^([a-f0-9]{40}|[a-f0-9]{7}) ($dateDisplayFormatRegex)$/){
+      my ($commit, $t) = ($1, $2);
+      print "$commit\n";
+      $commit = `git rev-parse $commit`;
+      chomp $commit;
+      print "$commit\n";
+      push @$filterCommits, [$commit, getTime($t)];
+    }else{
+      die "Malformed line: $line";
+    }
+  }
+  return $filterCommits;
+}
+sub writeFilterCommitsFile($$){
+  my ($file, $filterCommits) = @_;
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH ''
+    . "# edit the dates below\n"
+    . "# each commit is one per line\n"
+    . "# format is \"COMMIT_SHA1 $dateDisplayFormat #LOG_SUMMARY\"\n"
+    . "# leading/trailing whitespace on lines is ignored\n"
+    . "# removing a line will cause that commit not to be modified\n"
+    . "# anything following a # on a line is a comment and is ignored\n"
+    . "\n"
+    ;
+  for my $commitDate(@$filterCommits){
+    my ($commit, $t) = @$commitDate;
+    my $info = `git show --format='%s {old: %ci}' -s $commit`;
+    chomp $info;
+    printf FH "%s %s       #$info\n", substr($commit, 0, 7), formatTime($t);
+  }
+  close FH;
+}
+
 sub getFilterScript($){
-  my $filterCommits = shift;
+  my ($filterCommits) = @_;
   my $script = '';
-  for my $commit(sort keys %$filterCommits){
-    my $t = $$filterCommits{$commit};
+  for my $commitDate(@$filterCommits){
+    my ($commit, $t) = @$commitDate;
     my $tz = `date +%z`;
     chomp $tz;
     my $date = "$t $tz";
@@ -95,14 +191,14 @@ sub getFilterScript($){
 }
 
 sub checkTime($){
-  my $t = shift;
+  my ($t) = @_;
   my $now = time;
   return $t =~ /^\d+$/
     && ($now - $dateRange) < $t && $t < ($now + $dateRange);
 }
 
 sub getTime($){
-  my $date = shift;
+  my ($date) = @_;
 
   my $t;
   if(checkTime $date){
@@ -126,15 +222,15 @@ sub getTime($){
 }
 
 sub absTime($){
-  my $secAgo = shift;
+  my ($secAgo) = @_;
   my $t = `date --date="$secAgo seconds ago" +%s`;
   chomp $t;
   return $t;
 }
 
 sub formatTime($){
-  my $t = shift;
-  return time2str $displayFormat, $t;
+  my ($t) = @_;
+  return time2str $dateDisplayFormat, $t;
 }
 
 sub run(@){
