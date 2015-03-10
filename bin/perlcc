@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my @args = qw(-H -i -b -k -s -S -m);
+my $okArgs = join "|", @args;
+
+my $usage = "Usage: [$okArgs|-F<FILE>] <SCRIPT_FILE>\n";
+
+sub main(@){
+  die $usage if @_ == 0;
+  my $script = pop;
+  my @compileArgs;
+  my $isModule = 0;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^($okArgs|-F(?:.+))$/){
+      push @compileArgs, $1;
+      if($1 eq "-m"){
+        $isModule = 1;
+      }
+    }else{
+      die $usage;
+    }
+  }
+
+  my $output = $script;
+  $output =~ s/(\.pl|\.pm)$//;
+  $output .= $isModule ? ".pmc" : ".plc";
+
+  @compileArgs = ("Bytecode", "-o$output", @compileArgs);
+  my @cmd = ("perl", "-MO=" . (join ',', @compileArgs), $script);
+  print "@cmd\n";
+  exec @cmd;
+}
+
+&main(@ARGV);
