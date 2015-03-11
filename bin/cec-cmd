@@ -13,6 +13,16 @@ my $commands = {
   mute    => "mute",
 };
 
+my @restartCmds = (
+  "pkill -9 cec-dbus",
+  "pkill -9 cec-client",
+  "nohup cec-dbus >/dev/null 2>/dev/null &",
+  "sleep 2",
+  "$0 --tv init",
+  "$0 --av init",
+);
+my $restartFmt = "\n      " . join "\n      ", @restartCmds;
+
 my $usage = "Usage:
   $0 [OPTS] CMD
      call $dbusService / command ADDRESS CMD
@@ -34,6 +44,8 @@ my $usage = "Usage:
   $0 [OPTS] init
      call $dbusService / init ADDRESS
      sends \"name <ADDRESS>\" using cec-client
+  $0 restart
+     run:$restartFmt
 
   OPTS:
     --av  use ADDRESS 5 {default}
@@ -44,8 +56,15 @@ my $usage = "Usage:
 ";
 
 sub cecDbus(@);
+sub run(@);
 
 sub main(@){
+  if(@_ == 1 and $_[0] eq "restart"){
+    for my $cmd(@restartCmds){
+      run $cmd;
+    }
+    exit 0;
+  }
   my $addr = 5;
   while(@_ > 0 and $_[0] =~ /^(--tv|--av)$/){
     my $opt = shift;
@@ -76,6 +95,11 @@ sub main(@){
 sub cecDbus(@){
   my $out = `qdbus $dbusService / @_`;
   print $out;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
