@@ -51,7 +51,11 @@ sub main(@){
   }
   die $usage if @_ != 3;
   my ($targetCommit, $startDate, $endDate) = @_;
-  my @commits = `git rev-list $targetCommit..HEAD`;
+  my $targetCommitHash = `git rev-parse $targetCommit`;
+  chomp $targetCommitHash;
+  die "did not understand $targetCommit\n" if $targetCommitHash !~ /^[0-9a-f]{40}$/;
+
+  my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
   if($startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
@@ -120,7 +124,7 @@ sub main(@){
   my $filterScript = getFilterScript $filterCommits;
   my @cmd = ("git", "filter-branch");
   @cmd = (@cmd, "-f") if $force;
-  @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommit..HEAD");
+  @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommitHash..HEAD");
   run @cmd;
 }
 
