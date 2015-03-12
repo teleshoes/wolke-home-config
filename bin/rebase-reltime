@@ -6,6 +6,7 @@ use Date::Format qw(time2str);
 
 my $dateRange = int(20 * 365 * 24 * 60 * 60);
 
+sub runFilterBranch($@);
 sub readFilterCommitsFile($);
 sub writeFilterCommitsFile($$);
 sub getFilterScript($);
@@ -123,10 +124,20 @@ sub main(@){
   die "aborted\n" unless $response eq "y\n";
 
   my $filterScript = getFilterScript $filterCommits;
+  my @args = ("--env-filter", $filterScript, "$targetCommitHash..HEAD");
+  my $success = runFilterBranch $force, @args;
+  if(not $success){
+    die "FAILED\n";
+  }
+}
+
+sub runFilterBranch($@){
+  my ($force, @args) = @_;
   my @cmd = ("git", "filter-branch");
   @cmd = (@cmd, "-f") if $force;
-  @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommitHash..HEAD");
-  run @cmd;
+  @cmd = (@cmd, @args);
+  maybeRun @cmd;
+  return $? == 0;
 }
 
 sub readFilterCommitsFile($){
