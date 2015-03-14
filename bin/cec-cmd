@@ -55,14 +55,13 @@ my $usage = "Usage:
     " . (join "\n    ", map {"$_  => $$commands{$_}"} sort keys %$commands) . "
 ";
 
+sub restart();
 sub cecDbus(@);
 sub run(@);
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /^(start|restart)$/){
-    for my $cmd(@restartCmds){
-      run $cmd;
-    }
+    restart();
     exit 0;
   }
   my $addr = 5;
@@ -92,9 +91,21 @@ sub main(@){
   }
 }
 
+sub restart(){
+  for my $cmd(@restartCmds){
+    run $cmd;
+  }
+}
+
 sub cecDbus(@){
-  my $out = `qdbus $dbusService / @_`;
-  print $out;
+  my @cmd = ("qdbus", $dbusService, "/", @_);
+  run @cmd;
+
+  if($? != 0){
+    print "FAILED '@cmd': restarting and trying again\n";
+    restart();
+    run @cmd;
+  }
 }
 
 sub run(@){
