@@ -6,6 +6,7 @@ use Date::Format qw(time2str);
 
 my $dateRange = int(20 * 365 * 24 * 60 * 60);
 
+sub runFilterBranch($@);
 sub readFilterCommitsFile($);
 sub writeFilterCommitsFile($$);
 sub getFilterScript($);
@@ -14,6 +15,7 @@ sub getTime($);
 sub absTime($);
 sub formatTime($);
 sub run(@);
+sub maybeRun(@);
 
 my $dateDisplayFormat = "%Y-%m-%d %H:%M:%S";
 my $dateDisplayFormatRegex = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}";
@@ -51,7 +53,11 @@ sub main(@){
   }
   die $usage if @_ != 3;
   my ($targetCommit, $startDate, $endDate) = @_;
-  my @commits = `git rev-list $targetCommit..HEAD`;
+  my $targetCommitHash = `git rev-parse $targetCommit`;
+  chomp $targetCommitHash;
+  die "did not understand $targetCommit\n" if $targetCommitHash !~ /^[0-9a-f]{40}$/;
+
+  my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
   if($startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
@@ -62,7 +68,7 @@ sub main(@){
 
   my ($oldest, $newest);
   for my $c(@commits){
-    my $t = `git show -s --format=%ct $c`;
+    my $t = `git show -s --format=%at $c`;
     chomp $t;
     die "Invalid commit date: $t\n" if not checkTime $t;
     $oldest = $t if not defined $oldest or $t < $oldest;
@@ -82,7 +88,7 @@ sub main(@){
   my $filterCommits = [];
   my %originalDates;
   for my $c(@commits){
-    my $t = `git show -s --format=%ct $c`;
+    my $t = `git show -s --format=%at $c`;
     chomp $t;
     my $offsetRatio;
     if($newest == $oldest){
@@ -118,10 +124,26 @@ sub main(@){
   die "aborted\n" unless $response eq "y\n";
 
   my $filterScript = getFilterScript $filterCommits;
+  my @args = ("--env-filter", $filterScript, "$targetCommitHash..HEAD");
+  my $success = runFilterBranch $force, @args;
+  if(not $force and not $success){
+    print "rerun with -f? [y/N]";
+    $response = <STDIN>;
+    die "aborted\n" unless $response eq "y\n";
+    $success = runFilterBranch 1, @args;
+    if(not $success){
+      die "FAILED\n";
+    }
+  }
+}
+
+sub runFilterBranch($@){
+  my ($force, @args) = @_;
   my @cmd = ("git", "filter-branch");
   @cmd = (@cmd, "-f") if $force;
-  @cmd = (@cmd, "--env-filter", $filterScript, "$targetCommit..HEAD");
-  run @cmd;
+  @cmd = (@cmd, @args);
+  maybeRun @cmd;
+  return $? == 0;
 }
 
 sub readFilterCommitsFile($){
@@ -139,10 +161,8 @@ sub readFilterCommitsFile($){
     next if $parsedLine =~ /^\s*$/;
     if($parsedLine =~ /^([a-f0-9]{40}|[a-f0-9]{7}) ($dateDisplayFormatRegex)$/){
       my ($commit, $t) = ($1, $2);
-      print "$commit\n";
       $commit = `git rev-parse $commit`;
       chomp $commit;
-      print "$commit\n";
       push @$filterCommits, [$commit, getTime($t)];
     }else{
       die "Malformed line: $line";
@@ -234,9 +254,12 @@ sub formatTime($){
 }
 
 sub run(@){
+  maybeRun @_;
+  die "Error running '@_'\n" if $? != 0;
+}
+sub maybeRun(@){
   print "@_\n";
   system @_;
-  die "Error running '@_'\n" if $? != 0;
 }
 
 &main(@ARGV);
