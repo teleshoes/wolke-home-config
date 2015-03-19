@@ -156,6 +156,7 @@ shortcuts conf = "Shortcuts" @@ do
     "Applications"  @@ do
         "kodi-alsa"     @@ mCA   xK_k    #! "kodi-alsa"
         "Firefox"       @@ mCA   xK_f    #! "firefox"
+        "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
         "tor"           @@ mCA   xK_v    #! "tor"
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
