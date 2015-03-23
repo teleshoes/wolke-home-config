@@ -12,15 +12,20 @@ sub getPartDevs($);
 sub isMountPoint($);
 sub diskBusy(@);
 sub diskStats();
+sub logMsg($);
 sub run(@);
 
 my $usage = "Usage:
   $0 --spindown MOUNT_POINT
     check for disk activity and do hdparm -y <dev>
+
+  $0 --log MOUNT_POINT
+    run hdparm -C <dev> every second
+    when it changes, print the new state and the date
 ";
 
 sub main(@){
-  if(@_ == 2 and $_[0] =~ /^(--spindown)$/){
+  if(@_ == 2 and $_[0] =~ /^(--spindown|--log)$/){
     my $cmd = shift;
     my $mountPoint = shift;
     $mountPoint =~ s/\/+$//;
@@ -30,10 +35,32 @@ sub main(@){
     my $diskDev = getDiskDev $mountDev;
     my @partDevs = getPartDevs $diskDev;
     print "$diskDev  =>  @partDevs\n";
-    if(diskBusy(@partDevs)){
-      die "disk busy, doing nothing\n";
+
+    if($cmd =~ /^(--spindown)$/){
+      if(diskBusy(@partDevs)){
+        die "disk busy, doing nothing\n";
+      }
+      run "hdparm", "-y", $diskDev;
+    }elsif($cmd =~ /^(--log)$/){
+      my @validStates = ("standby", "active/idle", "sleeping");
+      my $okStates = join '|', @validStates;
+      my $prevState;
+      logMsg "starting log for $diskDev";
+      while(1){
+        my $hdparm = `hdparm -C $diskDev`;
+        my $state;
+        if($hdparm =~ /^[ \t\n]*$diskDev:[ \t\n]*drive state is:\s*($okStates)$/){
+          $state = $1;
+        }else{
+          $state = "ERROR";
+        }
+        if(not defined $prevState or $prevState ne $state){
+          logMsg "$state $diskDev";
+        }
+        $prevState = $state;
+        sleep 1;
+      }
     }
-    run "hdparm", "-y", $diskDev;
   }else{
     die $usage;
   }
@@ -139,8 +166,14 @@ sub diskStats(){
   return $diskstats;
 }
 
+sub logMsg($){
+  my $msg = shift;
+  printf "%d %-30s %s", int(time), $msg, `date`;
+}
+
 sub run(@){
   print "@_\n";
   system @_;
 }
+
 &main(@ARGV);
