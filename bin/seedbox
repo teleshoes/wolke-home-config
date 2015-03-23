@@ -10,11 +10,16 @@ my @cleanupCmd = ("find $remoteDownloads/ -type d -execdir chmod og-w {} \\;");
 sub ftpCommand($@);
 sub rsyncFetch($);
 sub ssh($;\@);
+sub readCmd($$);
 sub sshRevtun($;\@);
 sub magnetToTorrent($);
+sub fetchMtime($);
+sub readMtime();
+sub writeMtime($);
 sub readSecrets();
 
 my $secretsFile = "$ENV{HOME}/.secrets";
+my $mtimeFile = "$ENV{HOME}/.cache/seedbox-mtime";
 my @configKeys = qw(server port username password revtun.username revtun.portfile);
 
 my @mirrorOpts = ("-c", "--parallel=8");
@@ -54,6 +59,13 @@ my $usage = "Usage:
      use lftp mirror to sync seedbox:$remoteDownloads => $localDownloads
      like: lftp SERVER -c \"mirror $remoteDownloads $localDownloads\"
 
+  $0 --mark-up-to-date
+     fetch mtime of $remoteDownloads from seedbox and write to file $mtimeFile
+
+  $0 --is-up-to-date
+     compare mtime of $remoteDownloads on seedbox and contents of file $mtimeFile
+     if different, print 'modified', else print 'up-to-date'
+
   $0 --rsync
      use rsync to sync seedbox:$remoteDownloads => $localDownloads
      like: rsync -avP SERVER:$remoteDownloads/ $localDownloads
@@ -84,6 +96,18 @@ sub main(@){
     ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
     ftpCommand $config, "mirror @mirrorOptions $remoteDownloads $localDownloads";
+  }elsif(@_ == 1 and $_[0] =~ /^(--mark-up-to-date)$/){
+    my $mtime = fetchMtime $config;
+    writeMtime $mtime;
+    print "stored mtime $mtime\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--is-up-to-date)$/){
+    my $mtime = fetchMtime $config;
+    my $prevMtime = readMtime();
+    if(defined $prevMtime and $mtime == $prevMtime){
+      print "up-to-date\n";
+    }else{
+      print "modified\n";
+    }
   }elsif(@_ == 1 and $_[0] =~ /^(--rsync)$/){
     rsyncFetch $config;
   }elsif(@_ == 1 and $_[0] =~ /^(--cleanup)$/){
@@ -165,6 +189,13 @@ sub ssh($;\@){
   exec @sshCmd;
 }
 
+sub readCmd($$){
+  my ($config, $cmd) = @_;
+  $cmd =~ s/'/'\\''/g;
+  my $res = `ssh $$config{username}\@$$config{server} '$cmd'`;
+  return $res;
+}
+
 sub sshRevtun($;\@){
   my ($config, $cmd) = @_;
 
@@ -191,6 +222,29 @@ sub magnetToTorrent($){
   print FH "d10:magnet-uri${len}:${magnet}e\n";
   close FH;
   return $tmpFile;
+}
+
+sub fetchMtime($){
+  my $config = shift;
+  my $mtime = readCmd($config, "stat -c%Y $remoteDownloads");
+  chomp $mtime;
+  die "error geting mtime\n" if $mtime !~ /^\d+$/;
+  return $mtime;
+}
+sub readMtime(){
+  return undef if not -f $mtimeFile;
+  open FH, "< $mtimeFile" or die "Could not read $mtimeFile\n";
+  my $mtime = join '', <FH>;
+  close FH;
+  chomp $mtime;
+  die "Invalid stored mtime: $mtime\n" if $mtime !~ /^\d+$/;
+  return $mtime;
+}
+sub writeMtime($){
+  my $mtime = shift;
+  open FH, "> $mtimeFile" or die "Could not write $mtimeFile\n";
+  print FH "$mtime\n";
+  close FH;
 }
 
 sub readSecrets(){
