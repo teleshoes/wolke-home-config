@@ -16,6 +16,16 @@ sub logMsg($);
 sub run(@);
 
 my $usage = "Usage:
+  $0 --idle MOUNT_POINT
+    run 'hdparm -S 12 <dev>' and 'hdparm -B 1 <dev>'
+      this sets the spindown timeout to 12*5s => 1min,
+      and the Advanced Power Management to most-power-saving-WITH-spindown
+
+  $0 --active MOUNT_POINT
+    run 'hdparm -S 0 <dev>' and 'hdparm -B 128 <dev>'
+      this sets the spindown timeout to never,
+      and the Advanced Power Management to most-power-saving-WITHOUT-spindown
+
   $0 --spindown MOUNT_POINT
     check for disk activity using /proc/diskstats,
       and do 'hdparm -y <dev>' if there is no activity
@@ -26,7 +36,7 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 2 and $_[0] =~ /^(--spindown|--log)$/){
+  if(@_ == 2 and $_[0] =~ /^(--idle|--active|--spindown|--log)$/){
     ensureRoot();
     my $cmd = shift;
     my $mountPoint = shift;
@@ -38,7 +48,13 @@ sub main(@){
     my @partDevs = getPartDevs $diskDev;
     print "$diskDev  =>  @partDevs\n";
 
-    if($cmd =~ /^(--spindown)$/){
+    if($cmd =~ /^(--idle)$/){
+      run "hdparm", "-S", 12, $diskDev;
+      run "hdparm", "-B", 1, $diskDev;
+    }elsif($cmd =~ /^(--active)$/){
+      run "hdparm", "-S", 0, $diskDev;
+      run "hdparm", "-B", 128, $diskDev;
+    }elsif($cmd =~ /^(--spindown)$/){
       if(diskBusy(@partDevs)){
         die "disk busy, doing nothing\n";
       }
