@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+
+my $diskBusyAttempts = 100;
+my $diskBusyMinTimePeriodMillis = 10 * 1000;
+
+sub getMountDev($);
+sub getDiskDev($);
+sub getPartDevs($);
+sub isMountPoint($);
+sub diskBusy(@);
+sub diskStats();
+sub run(@);
+
+my $usage = "Usage:
+  $0 --spindown MOUNT_POINT
+    check for disk activity and do hdparm -y <dev>
+";
+
+sub main(@){
+  if(@_ == 2 and $_[0] =~ /^(--spindown)$/){
+    my $cmd = shift;
+    my $mountPoint = shift;
+    $mountPoint =~ s/\/+$//;
+    die "$mountPoint is not a mountpoint\n" if not isMountPoint $mountPoint;
+
+    my $mountDev = getMountDev $mountPoint;
+    my $diskDev = getDiskDev $mountDev;
+    my @partDevs = getPartDevs $diskDev;
+    print "$diskDev  =>  @partDevs\n";
+    if(diskBusy(@partDevs)){
+      die "disk busy, doing nothing\n";
+    }
+    run "hdparm", "-y", $diskDev;
+  }else{
+    die $usage;
+  }
+}
+
+sub getMountDev($){
+  my $mountPoint = shift;
+  my @lines = `mount`;
+  for my $line(@lines){
+    if($line =~ /^(\/dev\/\w+) on $mountPoint type/){
+      my $dev = $1;
+      die "$dev is not a block device\n" if not -b $dev;
+      return $dev;
+    }
+  }
+  return undef;
+}
+sub getDiskDev($){
+  my $dev = shift;
+  $dev =~ s/\d+$//;
+  die "$dev is not a block device\n" if not -b $dev;
+  return $dev;
+}
+sub getPartDevs($){
+  my $diskDev = shift;
+  my @lines = `mount`;
+  my @parts;
+  for my $line(@lines){
+    if($line =~ /^($diskDev\d+) on /){
+      my $dev = $1;
+      die "$dev is not a block device\n" if not -b $dev;
+      push @parts, $dev;
+    }
+  }
+  return @parts;
+}
+
+sub isMountPoint($){
+  my $dir = shift;
+  $dir =~ s/'/'\\''/g;
+  system "mountpoint '$dir' >/dev/null 2>/dev/null";
+  return $? == 0;
+}
+
+sub diskBusy(@){
+  my @devs = @_;
+  s/\/dev\/// foreach @devs;
+  print "checking @devs for activity\n";
+  my $start = time;
+  my $delay = $diskBusyMinTimePeriodMillis / $diskBusyAttempts;
+  my $busy = 0;
+  for(my $i=0; $i<$diskBusyAttempts; $i++){
+    sleep ($delay / 1000.0);
+    my $s = diskStats();
+    for my $dev(@devs){
+      if(not defined $$s{$dev}){
+        die "missing dev $dev from /proc/diskstats\n";
+      }
+      if($$s{$dev}{ios_in_progress} != 0){
+        print "$dev busy!\n";
+        return 1;
+      }
+    }
+  }
+  print "@devs not busy, elapsed: " . (1000*(time - $start)) . "ms\n";
+  return 0;
+}
+
+sub diskStats(){
+  my @lines = `cat /proc/diskstats`;
+  my $diskstats = {};
+  for my $line(@lines){
+    if($line =~ /^\s*
+      (\d+) \s+ (\d+) \s+ (\w+) \s+
+      (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+
+      (\d+) \s+ (\d+) \s+ (\d+) \s+ (\d+) \s+
+      (\d+) \s+ (\d+) \s+ (\d+)
+      \s*$/x){
+      $$diskstats{$3} = {
+        disk_stats_line         => $line,
+        major_number            => $1,
+        minor_number            => $2,
+        device_name             => $3,
+
+        reads_completed         => $4,
+        reads_merged            => $5,
+        sectors_read            => $6,
+        time_spent_reading      => $7,
+
+        writes_completed        => $8,
+        writes_merged           => $9,
+        sectors_written         => $10,
+        time_spent_writing      => $11,
+
+        ios_in_progress         => $12,
+        time_spent_ios          => $13,
+        weighted_time_spent_ios => $14,
+      }
+    }else{
+      die "malformed /proc/diskstats line: $line";
+    }
+  }
+  return $diskstats;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+&main(@ARGV);
