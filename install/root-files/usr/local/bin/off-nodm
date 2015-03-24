@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use POSIX;
+
+my $usage = "Usage:
+  $0
+    stop nodm service
+  $0 -s
+    stop nodm service and poweroff
+  $0 -r
+    stop nodm service and reboot
+";
+
+sub main(@){
+  die "Must run $0 as root\n" if `whoami` ne "root\n";
+  die $usage if @_ > 1 or (@_ == 1 and $_[0] !~ /^(-s|-r)$/);
+
+  daemonize();
+  system "systemctl", "stop", "nodm";
+  system "poweroff" if $_[0] eq "-s";
+  system "reboot" if $_[0] eq "-r";
+}
+
+sub daemonize{
+  fork and exit;
+  POSIX::setsid();
+  fork and exit;
+  umask 0;
+  chdir '/';
+  close STDIN;
+  close STDOUT;
+  close STDERR;
+}
+
+&main(@ARGV);
