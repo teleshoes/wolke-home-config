@@ -3,21 +3,26 @@ import gtk
 import sys
 import os
 
+gui = None
+
 def getActions():
   return filter(None, [ None
-    , Action("Shutdown",  "s",  True,  [
-      "term --wait 'gksudo mnt -u'",
-      "gksudo nodm-stop",
-      "gksudo poweroff"])
-    , Action("Reboot",    "r",  True,  [
-      "term --wait 'gksudo mnt -u'",
-      "gksudo nodm-stop",
-      "gksudo reboot"])
-    , Action("Sleep",     "l",  True,  ["gksudo pm-suspend", wauto, micEq])
-    , Action("Hibernate", "h",  True,  ["gksudo pm-hibernate", wauto, micEq])
+    , Action("Shutdown",  "s",  True,
+        [cmd("mnt -u"), cmd("nodm-stop"), cmd("poweroff")])
+    , Action("Reboot",    "r",  True,
+        [cmd("mnt -u"), cmd("nodm-stop"), cmd("reboot")])
+    , Action("Sleep",     "l",  True,
+        [cmd("pm-suspend"), fun(wauto), fun(micEq)])
+    , Action("Hibernate", "h",  True,
+        [cmd("pm-hibernate"), fun(wauto), fun(micEq)])
     , Action("Cancel",    None, True,  [])
-    , Action("Gui",       "g",  False, [showGui])
+    , Action("Gui",       "g",  False, [fun(showGui)])
   ])
+def cmd(cmdString):
+  return (cmdString, lambda: runRootCommand(cmdString))
+def fun(function):
+  return (function.__name__, function)
+
 
 def main(args):
   if len(args) == 2:
@@ -28,12 +33,18 @@ def main(args):
   print >> sys.stderr, usage()
   sys.exit(1)
 
-gui = None
+
+def runRootCommand(cmdString):
+  if gui != None:
+    cmdString = "term --wait 'gksudo " + cmdString + "'"
+  else:
+    cmdString = "sudo " + cmdString
+  os.system(cmdString)
+
 def showGui():
   global gui
-  if gui == None: gui = ActionGui(filter((lambda a: a.isGui), getActions()))
+  if gui == None: gui = ActionGui(filter((lambda a: a.showInGui), getActions()))
   gui.show()
-
 def hideGui():
   global gui
   if gui != None: gui.hide()
@@ -65,18 +76,13 @@ def usage():
     )
   return u
 
-def isstr(s):
-  return isinstance(s, basestring)
-def shell(cmd):
-  os.system(cmd)
-
 class Action():
-  def __init__(self, name, key, isGui, cmds):
+  def __init__(self, name, key, showInGui, cmds):
     self.name = name
     self.key = key
-    self.isGui = isGui
-    self.cmdFuns = map(lambda c: (lambda: shell(c)) if isstr(c) else c, cmds)
-    self.cmdNames = map(lambda c: c if isstr(c) else c.__name__, cmds)
+    self.showInGui = showInGui
+    self.cmds = map(lambda c: c[1], cmds)
+    self.cmdNames = map(lambda c: c[0], cmds)
     self.labelText = name
     if self.key != None:
       self.labelText += " (" + self.key + ")"
@@ -86,15 +92,15 @@ class Action():
            , ', '.join(self.cmdNames)
            ]
   def run(self):
-    if self.isGui: hideGui()
-    for c in self.cmdFuns: c()
-    if self.isGui: sys.exit(0)
+    for c in self.cmds:
+      c()
+
 
 class ActionButton(gtk.Button):
-  def __init__(self, action):
+  def __init__(self, actionGui, action):
     gtk.Button.__init__(self, action.labelText)
-    self.connect("clicked", lambda widget: action.run())
-    
+    self.connect("clicked", lambda widget: actionGui.runAction(action))
+
 class ActionGui():
   def __init__(self, actions):
     self.actions = actions
@@ -105,7 +111,7 @@ class ActionGui():
       + "or press shortcut key"
     ))
     for a in self.actions:
-      self.box.add(ActionButton(a))
+      self.box.add(ActionButton(self, a))
 
     self.window = gtk.Window()
     self.window.set_default_size(300, 500)
@@ -128,7 +134,10 @@ class ActionGui():
     for a in filter(lambda a: a.key, self.actions):
       if a.key.lower() == chr(event.keyval).lower():
         a.run()
+  def runAction(self, a):
+    hideGui()
+    a.run()
+    sys.exit(0)
 
 if __name__ == "__main__":
   main(sys.argv)
-
