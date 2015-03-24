@@ -76,7 +76,7 @@ function login(userName){
   btn = null;
   login = document.getElementById('login');
   if(login != null){
-    btns = login.getElementsByClassName('button');
+    btns = login.getElementsByClassName('btn');
     if(btns.length == 1){
       btn = btns[0];
     }
