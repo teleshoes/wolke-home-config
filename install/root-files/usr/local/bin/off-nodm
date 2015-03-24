@@ -1,9 +1,30 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use POSIX;
+
+my $usage = "Usage:
+  $0
+    stop nodm service
+";
 
 sub main(@){
-  exec "systemctl", "stop", "nodm";
+  die "Must run $0 as root\n" if `whoami` ne "root\n";
+  die $usage if @_ > 0;
+
+  daemonize();
+  system "systemctl", "stop", "nodm";
+}
+
+sub daemonize{
+  fork and exit;
+  POSIX::setsid();
+  fork and exit;
+  umask 0;
+  chdir '/';
+  close STDIN;
+  close STDOUT;
+  close STDERR;
 }
 
 &main(@ARGV);
