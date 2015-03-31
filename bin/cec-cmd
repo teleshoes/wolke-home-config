@@ -18,8 +18,8 @@ my @restartCmds = (
   "pkill -9 cec-client",
   "nohup cec-dbus >/dev/null 2>/dev/null &",
   "sleep 2",
-  "$0 --tv init",
-  "$0 --av init",
+  "$0 --tv --no-retry init",
+  "$0 --av --no-retry init",
 );
 my $restartFmt = "\n      " . join "\n      ", @restartCmds;
 
@@ -50,13 +50,15 @@ my $usage = "Usage:
   OPTS:
     --av  use ADDRESS 5 {default}
     --tv  use ADDRESS 0
+    --no-retry
+      do not retry dbus call after failure
 
   CMD:
     " . (join "\n    ", map {"$_  => $$commands{$_}"} sort keys %$commands) . "
 ";
 
 sub restart();
-sub cecDbus(@);
+sub cecDbus($@);
 sub run(@);
 
 sub main(@){
@@ -64,19 +66,21 @@ sub main(@){
     restart();
     exit 0;
   }
+  my $retry = 1;
   my $addr = 5;
-  while(@_ > 0 and $_[0] =~ /^(--tv|--av)$/){
+  while(@_ > 0 and $_[0] =~ /^(--tv|--av|--no-retry)$/){
     my $opt = shift;
     $addr = 0 if $opt =~ /^--tv$/;
     $addr = 5 if $opt =~ /^--av$/;
+    $retry = 0 if $opt =~ /^--no-retry$/;
   }
 
   if(@_ == 1 and defined $$commands{$_[0]}){
-    cecDbus "command", $addr, $$commands{$_[0]};
+    cecDbus $retry, "command", $addr, $$commands{$_[0]};
   }elsif(@_ == 1 and $_[0] =~ /^getvol$/){
-    cecDbus "getvol", $addr;
+    cecDbus $retry, "getvol", $addr;
   }elsif(@_ == 1 and $_[0] =~ /^init$/){
-    cecDbus "init", $addr;
+    cecDbus $retry, "init", $addr;
   }elsif(@_ == 2 and $_[0] =~ /^vol$/ and $_[1] =~ /^(\+|-)?(\d+)$/){
     my ($sign, $vol) = ($1, $2);
     my $cmd;
@@ -85,7 +89,7 @@ sub main(@){
     }else{
       $cmd = $sign eq "+" ? "volup" : "voldown";
     }
-    cecDbus $cmd, $addr, $vol;
+    cecDbus $retry, $cmd, $addr, $vol;
   }else{
     die $usage;
   }
@@ -97,11 +101,12 @@ sub restart(){
   }
 }
 
-sub cecDbus(@){
+sub cecDbus($@){
+  my $retry = shift;
   my @cmd = ("qdbus", $dbusService, "/", @_);
   run @cmd;
 
-  if($? != 0){
+  if($retry and $? != 0){
     print "FAILED '@cmd': restarting and trying again\n";
     restart();
     run @cmd;
