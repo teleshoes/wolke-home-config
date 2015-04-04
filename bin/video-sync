@@ -33,6 +33,9 @@ sub readInfoCache($$);
 sub writeInfoCache($$$);
 sub formatInfoLine($$);
 sub updateInfoCache($$$);
+sub readMd5sumCache($$);
+sub writeMd5sumCache($$$);
+sub formatMd5sumLine($$);
 sub parseDuration($);
 sub formatDuration($);
 sub updateSizeSummary($$$);
@@ -245,6 +248,41 @@ sub updateInfoCache($$$){
       writeInfoCache $ipmagic, $cacheFile, $cache;
     }
   }
+}
+
+sub readMd5sumCache($$){
+  my ($ipmagic, $cacheFile) = @_;
+  my $cache = {};
+  if(test $ipmagic, "-e", $cacheFile){
+    my @lines = readFile $ipmagic, $cacheFile;
+    for my $line(@lines){
+      next if $line =~ /^\s*$/;
+      chomp $line;
+      if($line =~ /^
+        \s* ([0-9a-f]{32})
+        \s* \| \s* (\d+)
+        \s* \| \s* (\d+)b
+        \s* \| \s* (.+)
+      $/x){
+        my ($md5sum, $mtime, $size, $file) = ($1, $2, $3, $4);
+        $$cache{$file} = {md5sum=>$md5sum, size=>$size, mtime=>$mtime};
+      }else{
+        die "Malformed md5sum cache line: $line\n";
+      }
+    }
+  }
+  return $cache;
+}
+sub writeMd5sumCache($$$){
+  my ($ipmagic, $cacheFile, $cache) = @_;
+  my @lines = map{formatMd5sumLine($cache, $_)} sort keys %$cache;
+  writeFile $ipmagic, $cacheFile, @lines;
+}
+sub formatMd5sumLine($$){
+  my ($cache, $file) = @_;
+  my $f = $$cache{$file};
+  die "missing $file\n" if not defined $f;
+  return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
 }
 
 sub parseDuration($){
