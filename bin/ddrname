@@ -138,7 +138,7 @@ sub getScoreFiles();
 sub parseScoreFiles(@);
 sub getScoreBuckets($@);
 sub formatBucketCsv($);
-sub formatScores();
+sub formatScores($);
 sub bashComplete($$);
 
 sub main(@){
@@ -147,8 +147,9 @@ sub main(@){
     exit 0;
   }
 
-  if(@_ == 1 and $_[0] =~ /^(--print)$/){
-    my $fmt = formatScores();
+  if(@_ >= 1 and $_[0] =~ /^(--print)$/){
+    my $filters = {};
+    my $fmt = formatScores($filters);
     print $fmt;
     exit 0;
   }
@@ -291,9 +292,18 @@ sub formatBucketCsv($){
   return $fmt;
 }
 
-sub formatScores(){
+sub formatScores($){
+  my $filters = shift;
+
   my @scoreFiles = getScoreFiles();
   my $scores = parseScoreFiles(@scoreFiles);
+
+  for my $file(keys %$scores){
+    my $s = $$scores{$file};
+    my $ok = 1;
+    delete $$scores{$file} if not $ok;
+  }
+
   my $buckets = getScoreBuckets($scores, qw(song game difficulty));
 
   my $fmt = "";
