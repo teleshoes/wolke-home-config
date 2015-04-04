@@ -316,6 +316,31 @@ sub updateMd5sumCache($$$$){
   }
 
   my %okFiles = map {$_ => 1} @files;
+
+  my @extraMd5sums;
+  for my $file(sort keys %$md5sums){
+    my $info = $$md5sums{$file};
+    my $isExtra = 0;
+    if(not defined $okFiles{$file}){
+      print "$file is not present, moving cache entry to extra\n";
+      $isExtra = 1;
+    }elsif($mtimes{$file} != $$info{mtime} or $sizes{$file} != $$info{size}){
+      print "$file is out of date, moving cache entry to extra\n";
+      $isExtra = 1;
+    }
+
+    if($isExtra){
+      push @extraMd5sums, formatMd5sumLine $md5sums, $file;
+      delete $$md5sums{$file};
+    }
+  }
+
+  if(@extraMd5sums > 0){
+    print "appending " . (0+@extraMd5sums) . " extras to $md5sumExtraFile\n";
+    appendFile $ipmagic, $md5sumExtraFile, @extraMd5sums;
+    writeMd5sumCache $ipmagic, $md5sumCacheFile, $md5sums;
+  }
+
 }
 
 sub parseDuration($){
