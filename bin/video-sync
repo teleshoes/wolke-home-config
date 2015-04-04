@@ -36,6 +36,7 @@ sub updateInfoCache($$$);
 sub readMd5sumCache($$);
 sub writeMd5sumCache($$$);
 sub formatMd5sumLine($$);
+sub updateMd5sumCache($$$$);
 sub parseDuration($);
 sub formatDuration($);
 sub updateSizeSummary($$$);
@@ -284,6 +285,37 @@ sub formatMd5sumLine($$){
   my $f = $$cache{$file};
   die "missing $file\n" if not defined $f;
   return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
+}
+sub updateMd5sumCache($$$$){
+  my ($ipmagic, $dir, $md5sumCacheFile, $md5sumExtraFile) = @_;
+  my $md5sums = readMd5sumCache $ipmagic, $md5sumCacheFile;
+
+  print "fetching all mtimes and filesizes\n";
+  my @fileStats = readProc $ipmagic, "find",
+    "-L",
+    $dir,
+    "-not", "-path", "$dir/.git*",
+    "-mindepth", "2",
+    "-type", "f",
+    "-exec", "stat", "-c%s-%Y-%n", "{}", ";",
+    ;
+
+  my @files;
+  my %sizes;
+  my %mtimes;
+  for my $fileStat(@fileStats){
+    if($fileStat !~ /^(\d+)-(\d+)-(.*)\n$/){
+      die "invalid stat output: $fileStat";
+    }
+    my ($size, $mtime, $file) = ($1, $2, $3);
+    $file =~ s/^$dir\///;
+
+    push @files, $file;
+    $sizes{$file} = $size;
+    $mtimes{$file} = $mtime;
+  }
+
+  my %okFiles = map {$_ => 1} @files;
 }
 
 sub parseDuration($){
