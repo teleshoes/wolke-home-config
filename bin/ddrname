@@ -58,10 +58,13 @@ my @extraArgs = qw(fc pfc);
 my $okExtraArgs = join '|', @extraArgs;
 
 my $usage = "Usage:
-  $0 --print
+  $0 --print [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
 
+    FILTER
+      --hard     include only scores where SONG is a HARD_SONG
+      --nothard  include only scores where SONG is a HARD_SONG
     scores are grouped into sections by '\"<SONG>-<GAME>-<DIFFICULTY>\"'
     '<GAME>-' is omitted if GAME is not set
     each section starts with the name, and then contains the scores,
@@ -148,7 +151,18 @@ sub main(@){
   }
 
   if(@_ >= 1 and $_[0] =~ /^(--print)$/){
+    shift;
     my $filters = {};
+    while(@_ > 0){
+      my $arg = shift;
+      if($arg =~ /^(--hard)$/){
+        $$filters{songs} = {map {$_ => 0} @otherSongs};
+      }elsif($arg =~ /^(--nothard)$/){
+        $$filters{songs} = {map {$_ => 0} @hardSongs};
+      }else{
+        die "$usage\nunknown filter: $arg\n";
+      }
+    }
     my $fmt = formatScores($filters);
     print $fmt;
     exit 0;
