@@ -24,21 +24,28 @@ my $baseUrl = "http://traintime.lirr.org";
 my $okStations = join '', map {  "$_ => $$stations{$_}\n"} sort keys %$stations;
 
 my $usage = "
-  Usage: $0 FROM TO
+  Usage: $0 [OPTS] FROM TO
     fetch schedule from $baseUrl, parse it, and show it
 
   STATIONS:\n$okStations
 
   $0 --file=FILE
     use FILE instead of fetching from $baseUrl
+
+  OPTS:
+    -b|--bigtext|--qtbigtext
+      show using bigtext
 ";
 
 sub main(@){
   my $file;
+  my $bigtext = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--file=(.+)$/){
       $file = $1;
+    }elsif($arg =~ /^(-b|--bigtext|--qtbigtext)$/){
+      $bigtext = 1;
     }else{
       die "$usage\nunknown option $arg\n";
     }
@@ -63,17 +70,23 @@ sub main(@){
   }
 
 
-  my $schedule;
-  my $pid = fork;
-  if($pid == 0){
-    system "bigtext", "-k";
-    exec "bigtext", "--lineSeparator=true", "loading";
-  }else{
-    $schedule = getScheduleText($from, $to, $file);
-    waitpid $pid, 0;
-  }
+  if($bigtext){
+    my $schedule;
+    my $pid = fork;
+    if($pid == 0){
+      system "bigtext", "-k";
+      exec "bigtext", "--lineSeparator=true", "loading";
+    }else{
+      $schedule = getScheduleText($from, $to, $file);
+      waitpid $pid, 0;
+    }
 
-  system "bigtext", $schedule;
+    system "bigtext", $schedule;
+  }else{
+    my $schedule = getScheduleText $from, $to, $file;
+    my $sep = "\n" . ("-"x30) . "\n";
+    print $sep . $schedule . $sep;
+  }
 }
 
 sub getScheduleText($$$){
