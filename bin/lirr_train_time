@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-sub getScheduleText($$);
+sub getScheduleText($$$);
 sub getLatestCache($$);
 sub checkInternet();
 sub parseTrains($);
@@ -25,52 +25,76 @@ my $okStations = join '', map {  "$_ => $$stations{$_}\n"} sort keys %$stations;
 
 my $usage = "
   Usage: $0 FROM TO
+    fetch schedule from $baseUrl, parse it, and show it
 
   STATIONS:\n$okStations
+
+  $0 --file=FILE
+    use FILE instead of fetching from $baseUrl
 ";
 
 sub main(@){
-  die $usage if @_ != 2;
-  my ($fromSyn, $toSyn) = @_;
-  my ($from, $to);
-  for my $station(keys %$synonyms){
-    my %syns = map {lc $_ => 1} @{$$synonyms{$station}};
-    $from = $station if not defined $from and defined $syns{lc $fromSyn};
-    $to = $station if not defined $to and defined $syns{lc $toSyn};
+  my $file;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--file=(.+)$/){
+      $file = $1;
+    }else{
+      die "$usage\nunknown option $arg\n";
+    }
   }
-  $from = uc $fromSyn if not defined $from;
-  $to = uc $toSyn if not defined $to;
-  die "Invalid starting station: $from\n" if not defined $$stations{$from};
-  die "Invalid ending station: $to\n" if not defined $$stations{$to};
+
+  my ($from, $to);
+  if(defined $file){
+    die $usage if @_ != 0;
+  }else{
+    die $usage if @_ != 2;
+
+    my ($fromSyn, $toSyn) = @_;
+    for my $station(keys %$synonyms){
+      my %syns = map {lc $_ => 1} @{$$synonyms{$station}};
+      $from = $station if not defined $from and defined $syns{lc $fromSyn};
+      $to = $station if not defined $to and defined $syns{lc $toSyn};
+    }
+    $from = uc $fromSyn if not defined $from;
+    $to = uc $toSyn if not defined $to;
+    die "Invalid starting station: $from\n" if not defined $$stations{$from};
+    die "Invalid ending station: $to\n" if not defined $$stations{$to};
+  }
+
 
   my $schedule;
-
   my $pid = fork;
   if($pid == 0){
     system "bigtext", "-k";
     exec "bigtext", "--lineSeparator=true", "loading";
   }else{
-    $schedule = getScheduleText($from, $to);
+    $schedule = getScheduleText($from, $to, $file);
     waitpid $pid, 0;
   }
 
   system "bigtext", $schedule;
 }
 
-sub getScheduleText($$){
-  my ($from, $to) = @_;
-  my $url = "$baseUrl/traintime.php?startsta=$from&endsta=$to";
-
-  run "mkdir", "-p", $cacheDir;
+sub getScheduleText($$$){
+  my ($from, $to, $file) = @_;
 
   my $fileName;
   my $isCached = 0;
-  if(checkInternet()){
-    $fileName = "$cacheDir/${from}_${to}_" . time . ".html";
-    run "wget", $url, "-O", $fileName;
+  if(defined $file){
+    $fileName = $file;
   }else{
-    $fileName = getLatestCache($from, $to);
-    $isCached = 1;
+    my $url = "$baseUrl/traintime.php?startsta=$from&endsta=$to";
+
+    run "mkdir", "-p", $cacheDir;
+
+    if(checkInternet()){
+      $fileName = "$cacheDir/${from}_${to}_" . time . ".html";
+      run "wget", $url, "-O", $fileName;
+    }else{
+      $fileName = getLatestCache($from, $to);
+      $isCached = 1;
+    }
   }
 
   my $schedule;
