@@ -164,52 +164,64 @@ sub checkInternet(){
 
 sub parseTrains($){
   my $html = shift;
-  my $tdO = "<[^<>]*td[^<>]*>";
-  my $tdC = "</[^<>]*td[^<>]*>";
-  my $stuff = "(?:[^<>]|<i>|</i>|<b>|</b>)*?";
-  my @htmlTrains = $html =~ /(?: $tdO $stuff $tdC ){11}/gx;
+
+  $html =~ s/%/<!PCT!>/g;
+  $html =~ s/<\s*td[^<>]*?\/>/%tdo%%tdc%/g;
+  $html =~ s/<\s*td[^<>]*>/%tdo%/g;
+  $html =~ s/<\s*\/\s*td[^<>]*>/%tdc%/g;
+
+  $html =~ s/<\s*tr[^<>]*?\/>/%tro%%trc%/g;
+  $html =~ s/<\s*tr[^<>]*>/%tro%/g;
+  $html =~ s/<\s*\/\s*tr[^<>]*>/%trc%/g;
+
+  my $stuff = "(?:(?:[^%]|\\n)*)";
+  my @trainRows = $html =~ /
+    %tro%
+    (?: $stuff %tdo% $stuff %tdc% $stuff){13}
+    %trc%
+  /gxsi;
+
+  my $time = "\\d+:\\d+[AP]M";
+
   my @trains;
-  for my $htmlTrain(@htmlTrains){
-    if($htmlTrain =~ /^
-      $tdO  $stuff (\d+:\d+[AP]M)           $stuff $tdC  #departs
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+)    $stuff $tdC  #for
-      $tdO  $stuff (\d+|--)?                $stuff $tdC  #track
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+)    $stuff $tdC  #status
-      $tdO  $stuff (\d+:\d+[AP]M|-)?        $stuff $tdC  #xfer1 at
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+|-)? $stuff $tdC  #xfer1 to
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+|-)? $stuff $tdC  #xfer1 status
-      $tdO  $stuff (\d+:\d+[AP]M|-)?        $stuff $tdC  #xfer2 at
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+|-)? $stuff $tdC  #xfer2 to
-      $tdO  $stuff ([a-zA-Z0-9\-_. \t]+|-)? $stuff $tdC  #xfer2 status
-      $tdO  $stuff (\d+:\d+[AP]M)           $stuff $tdC  #eta
+  for my $trainRow(@trainRows){
+    if($trainRow =~ /^
+      $stuff %tro%
+      $stuff %tdo% ($time)                      %tdc% #depart time
+      $stuff %tdo%   $stuff                     %tdc% #  'to'
+      $stuff %tdo% ([a-zA-Z0-9\-_. \t]+)        %tdc% #for
+      $stuff %tdo% (\w+|--)?                    %tdc% #track
+      $stuff %tdo% ([a-zA-Z0-9\-_. \t]+)        %tdc% #status
+      $stuff %tdo% ((?:\*\w+(?:<br\/>)?)*)      %tdc% #xfer at
+      $stuff %tdo% ((?:$time(?:<br\/>)?)*)      %tdc% #xfer departs
+      $stuff %tdo%   $stuff                     %tdc% #  'to'
+      $stuff %tdo% ((?:\w+(?:<br\/>)?)*)        %tdc% #xfer to
+      $stuff %tdo% ($time)                      %tdc% #arrives time
+      $stuff %tdo% (\d+\ mins\.)                %tdc% #duration
+      $stuff %tdo% $stuff(Off\ Peak|Peak)$stuff %tdc% #peak
+      $stuff %tdo% ($stuff)                     %tdc% #info
+      $stuff %trc%
     $/x){
       push @trains, {
         departs => $1,
         for => $2,
         track => $3,
         status => $4,
-        xfer1At => $5,
-        xfer1To => $6,
-        xfer1Status => $7,
-        xfer2At => $8,
-        xfer2To => $9,
-        xfer2Status => $10,
-        eta => $11,
+        xferAt => $5,
+        xferDeparts => $6,
+        xferArrives => $7,
+        arrives => $8,
+        duration => $9,
+        info => $10,
       };
     }else{
-      print STDERR "malformed train: $htmlTrain\n";
+      print STDERR "malformed train: $trainRow\n";
     }
   }
+  if(@trains == 0){
+    print STDERR "\n\nWARN: error parsing trains\n";
+  }
   return @trains;
-
-  #<td style="text-align: right" class='whtbold BY' title="6130">7:25PM</td>
-  #<td class='notranslate whtbold BY'> Babylon </td>
-  #<td class='whtbold BY'>--</td>
-  #<td class='whtbold BY'>ON TIME</td>
-  #<td>&nbsp;-</td><td>-&nbsp;</td>
-  #<td>&nbsp;-</td><td>&nbsp;-</td>
-  #<td>-&nbsp;</td><td>&nbsp;-</td>
-  #<td>8:34PM</td>
 }
 
 sub formatTrain($){
