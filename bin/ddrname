@@ -71,8 +71,10 @@ my $usage = "Usage:
         include only scores where GAME is NOT doubles
       --doubles
         include only scores where GAME is doubles
-      --score=N
+      --score=N, --minscore=N
         include only scores where SCORE >= N
+      --maxscore=N
+        include only scores where SCORE <= N
 
     scores are grouped into sections by '\"<SONG>-<GAME>-<DIFFICULTY>\"'
     '<GAME>-' is omitted if GAME is not set
@@ -172,9 +174,10 @@ sub main(@){
         $$filters{game} = {doubles => 0, "" => 1};
       }elsif($arg =~ /^(--doubles)$/){
         $$filters{game} = {doubles => 1, "" => 0};
-      }elsif($arg =~ /^--score=(\d+)$/){
-        my $minScore = $1;
-        $$filters{score} = sub{my $score = shift; $score >= $minScore};
+      }elsif($arg =~ /^(?:--score|--minscore)=(\d+)$/){
+        $$filters{minscore} = $1;
+      }elsif($arg =~ /^(?:--score|--maxscore)=(\d+)$/){
+        $$filters{maxscore} = $1;
       }else{
         die "$usage\nunknown filter: $arg\n";
       }
@@ -346,10 +349,17 @@ sub formatScores($){
         $ok = 0;
       }
     }
-    if(defined $$filters{score}){
-      my $f = $$filters{score};
+    if(defined $$filters{minscore}){
+      my $f = $$filters{minscore};
       my $score = $$s{score};
-      if(not &$f($score)){
+      if($score < $f){
+        $ok = 0;
+      }
+    }
+    if(defined $$filters{maxscore}){
+      my $f = $$filters{maxscore};
+      my $score = $$s{score};
+      if($score > $f){
         $ok = 0;
       }
     }
