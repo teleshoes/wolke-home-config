@@ -81,6 +81,9 @@ my $usage = "Usage:
 
       ssh -t @revtunRemoteOpts REVTUN_USERNAME\@localhost -p REVTUN_PORT
 
+  $0 -i
+     read lines from STDIN and parse as TORRENT below
+
   $0 TORRENT [TORRENT TORRENT ..]
      if TORRENT is the path to a torrent file, send it to seedbox:$remoteTorrentDir
      if TORRENT is a magnet link, create a .torrent file
@@ -120,6 +123,14 @@ sub main(@){
     shift;
     my @cmd = @_;
     sshRevtun $config, @cmd;
+  }elsif(@_ == 1 and $_[0] =~ /^(-i)$/){
+    while(my $line = <STDIN>){
+      my $torrent = $line;
+      chomp $torrent;
+      if(not handleTorrent $config, $torrent){
+        print STDERR "WARN: could not parse $torrent\n";
+      }
+    }
   }else{
     for my $torrent(@_){
       if(not handleTorrent $config, $torrent){
