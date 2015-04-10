@@ -7,6 +7,7 @@ my $remoteDownloads = "files";
 my $localDownloads = "/media/seedbox";
 my @cleanupCmd = ("find $remoteDownloads/ -type d -execdir chmod og-w {} \\;");
 
+sub handleTorrent($$);
 sub ftpCommand($@);
 sub rsyncFetch($);
 sub ssh($;\@);
@@ -121,18 +122,27 @@ sub main(@){
     sshRevtun $config, @cmd;
   }else{
     for my $torrent(@_){
-      if($torrent =~ /\.torrent$/ and -f $torrent){
-        my $torrentFile = $torrent;
-        $torrentFile =~ s/'/'\\''/g;
-        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-      }elsif($_[0] =~ /xt=urn:btih:/){
-        my $torrentFile = magnetToTorrent $torrent;
-        $torrentFile =~ s/'/'\\''/g;
-        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-      }else{
+      if(not handleTorrent $config, $torrent){
         die $usage;
       }
     }
+  }
+}
+
+sub handleTorrent($$){
+  my ($config, $torrent) = @_;
+  if($torrent =~ /\.torrent$/ and -f $torrent){
+    my $torrentFile = $torrent;
+    $torrentFile =~ s/'/'\\''/g;
+    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+    return 1;
+  }elsif($torrent =~ /xt=urn:btih:/){
+    my $torrentFile = magnetToTorrent $torrent;
+    $torrentFile =~ s/'/'\\''/g;
+    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+    return 1;
+  }else{
+    return 0;
   }
 }
 
