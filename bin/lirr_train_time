@@ -37,10 +37,22 @@ my $usage = "
       show using bigtext
 
   DATE:
-    the date, formatted as YYYYMMDD
+    the date, formatted as YYYYMMDD, or 'today', or 'tomorrow'
+    can also be 'next', which is either today or tomorrow depending on TIME
 
   TIME:
     the time, formatted as HH24:MM
+    if TIME is after the current time and DATE is 'next',
+      'today' is used for DATE
+    if TIME is before the current time and DATE is 'next',
+      'tomorrow' is used for DATE
+
+  e.g.:
+      $0 NYK BTA next 17:00
+        if run at noon on April 3rd, show trains for later that same afternoon
+        if run at 8pm on April 3rd, show trains for April 4th
+      $0 NYK BTA 20150403 05:00
+        always show early morning trains for April 3rd
 ";
 
 sub main(@){
@@ -73,6 +85,27 @@ sub main(@){
     $to = uc $toSyn if not defined $to;
     die "Invalid starting station: $from\n" if not defined $$stations{$from};
     die "Invalid ending station: $to\n" if not defined $$stations{$to};
+
+    if(defined $dateArg and $dateArg =~ /^(next|today|tomorrow)$/){
+      my $hrMin = "$1$2" if $timeArg =~ /^(\d\d):(\d\d)$/;
+      my @lt = localtime(time);
+      my @ltTmrw = localtime(time + 24*60*60);
+      my $curHrMin = sprintf "%02d%02d", $lt[2], $lt[1];
+      my $today = sprintf "%04d%02d%02d", $lt[5]+1900, $lt[4]+1, $lt[3];
+      my $tmrw = sprintf "%04d%02d%02d", $ltTmrw[5]+1900, $ltTmrw[4]+1, $ltTmrw[3];
+      if($dateArg eq "next"){
+        if($hrMin < $curHrMin){
+          $dateArg = "tomorrow";
+          print "using $dateArg for next $timeArg\n";
+        }else{
+          $dateArg = "today";
+          print "using $dateArg for next $timeArg\n";
+        }
+      }
+      $dateArg = $tmrw if $dateArg eq "tomorrow";
+      $dateArg = $today if $dateArg eq "today";
+      print "date => $dateArg\n";
+    }
     $date = $dateArg;
     $time = $timeArg;
   }
