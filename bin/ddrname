@@ -68,12 +68,15 @@ my $usage = "Usage:
     some FILTERs override others as indicated, so specifying both is useless
 
     FILTER: SONG
+      --song=REGEX
+        include only scores where the whole SONG string matches REGEX
+        {overrides --hard and --nothard}
       --hard
         include only scores where SONG is a HARD_SONG
-        {overrides --nothard}
+        {overrides --nothard and --song}
       --nothard
         include only scores where SONG is not a HARD_SONG
-        {overrides --hard}
+        {overrides --song and --hard}
 
     FILTER: GAME
       --singles
@@ -189,7 +192,10 @@ sub main(@){
     my $filters = {};
     while(@_ > 0){
       my $arg = shift;
-      if($arg =~ /^(--hard)$/){
+      if($arg =~ /^--song=(.*)$/){
+        my $regex = "^$1\$";
+        $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
+      }elsif($arg =~ /^(--hard)$/){
         my $regex = "($okHardSongs)";
         $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
       }elsif($arg =~ /^(--nothard)$/){
