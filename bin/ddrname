@@ -6,6 +6,8 @@ use DateTime;
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 my $gnuplotDefaultPngSize = "1920,1080";
 
+my @notesArgs = qw(extra highscore nobar 3rd);
+
 my @hardSongs = qw(
   arrabbiata
   chaos
@@ -198,8 +200,8 @@ sub parseArgs(@);
 sub getScoreFiles();
 sub parseScoreFiles(@);
 sub getScoreBuckets($@);
-sub formatBucketCsv($$);
-sub formatScores($);
+sub formatBucketCsv($$$);
+sub formatScores($$);
 sub gnuplot($$);
 sub bashComplete($$);
 
@@ -225,6 +227,8 @@ sub main(@){
         }
       }
     }
+
+    my $okNotes = {map {$_ => 1} @notesArgs};
 
     my $filters = {};
     while(@_ > 0){
@@ -257,7 +261,7 @@ sub main(@){
         die "$usage\nunknown filter: $arg\n";
       }
     }
-    my $fmt = formatScores($filters);
+    my $fmt = formatScores($okNotes, $filters);
     if($cmd =~ /^(--print)$/){
       print $fmt;
     }elsif($cmd =~ /^(--gnuplot)$/){
@@ -386,8 +390,8 @@ sub getScoreBuckets($@){
   return $buckets;
 }
 
-sub formatBucketCsv($$){
-  my ($bucketName, $bucket) = @_;
+sub formatBucketCsv($$$){
+  my ($okNotes, $bucketName, $bucket) = @_;
 
   my %isHardSong = map {$_ => 1} @hardSongs;
 
@@ -403,10 +407,19 @@ sub formatBucketCsv($$){
   my $fmt = "";
   for my $s(sort @$bucket){
     my @notes;
-    push @notes, "$bucketName $$s{score}" if $$s{file} eq $maxScoreFile;
-    push @notes, $$s{extra} if defined $$s{extra};
-    push @notes, $$s{bar} if $$s{bar} eq "nobar" and $isHardSong{$$s{song}};
-    push @notes, $$s{round} if $$s{round} eq "3rd" and $isHardSong{$$s{song}};
+    if($$okNotes{'extra'} and defined $$s{extra}){
+      push @notes, $$s{extra};
+    }
+    if($$okNotes{'highscore'} and $$s{file} eq $maxScoreFile){
+      push @notes, "$bucketName $$s{score}";
+    }
+    if($$okNotes{'nobar'} and $$s{bar} eq "nobar" and $isHardSong{$$s{song}}){
+      push @notes, $$s{bar};
+    }
+    if($$okNotes{'3rd'} and $$s{round} eq "3rd" and $isHardSong{$$s{song}}){
+      push @notes, $$s{round};
+    }
+
     my $note = join " ", @notes;
     $fmt .= "$$s{date},$$s{score},$note\n";
   }
@@ -414,8 +427,8 @@ sub formatBucketCsv($$){
   return $fmt;
 }
 
-sub formatScores($){
-  my $filters = shift;
+sub formatScores($$){
+  my ($okNotes, $filters) = @_;
 
   my @scoreFiles = getScoreFiles();
   my $scores = parseScoreFiles(@scoreFiles);
@@ -476,7 +489,7 @@ sub formatScores($){
     my $bucket = $$buckets{$bucketName};
     $fmt .= "\n\n" unless $fmt eq "";
     $fmt .= "\"$bucketName\"\n";
-    $fmt .= formatBucketCsv $bucketName, $bucket;
+    $fmt .= formatBucketCsv $okNotes, $bucketName, $bucket;
   }
   return $fmt;
 }
