@@ -122,6 +122,10 @@ my $usage = "Usage:
             \"paranoiarespect-expert\"
             20140331,723150,
 
+  $0 --gnuplot [FILTER FILTER ..]
+    format songs as above and write to a tmp file
+    write a gnuplot script and run it in gnuplot
+
   $0 JPG_FILE [ARG ARG ..]
 
   rename a jpeg file using a consistent format
@@ -179,6 +183,7 @@ sub parseScoreFiles(@);
 sub getScoreBuckets($@);
 sub formatBucketCsv($);
 sub formatScores($);
+sub gnuplot($);
 sub bashComplete($$);
 
 sub main(@){
@@ -187,8 +192,8 @@ sub main(@){
     exit 0;
   }
 
-  if(@_ >= 1 and $_[0] =~ /^(--print)$/){
-    shift;
+  if(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
+    my $cmd = shift;
     my $filters = {};
     while(@_ > 0){
       my $arg = shift;
@@ -221,7 +226,11 @@ sub main(@){
       }
     }
     my $fmt = formatScores($filters);
-    print $fmt;
+    if($cmd =~ /^(--print)$/){
+      print $fmt;
+    }elsif($cmd =~ /^(--gnuplot)$/){
+      gnuplot $fmt;
+    }
     exit 0;
   }
 
@@ -428,6 +437,41 @@ sub formatScores($){
     $fmt .= formatBucketCsv $bucket;
   }
   return $fmt;
+}
+
+sub gnuplot($){
+  my $data = shift;
+  my $dataFile = "/tmp/ddrname-gnuplot-data";
+  my $scriptFile = "/tmp/ddrname-gnuplot-script";
+  my $outputFile = "/tmp/ddrname-gnuplot-output.png";
+
+  my $segmentCount = split /\n\n/, $data;
+  my $lastBucket = $segmentCount - 1;
+
+  my $script = "";
+  $script .= "set xdata time\n";
+  $script .= "set timefmt \"\%Y\%m\%d\"\n";
+  $script .= "set datafile separator \",\"\n";
+
+  $script .= "set term pngcairo size 1920,1080\n";
+  $script .= "set output \"$outputFile\"\n";
+  $script .= "plot"
+    . " for [BUCKET=0:$lastBucket]"
+    . " \"$dataFile\" index BUCKET"
+    . " using 1:2"
+    . " with linespoints"
+    . " title columnheader(1)"
+    . "\n"
+    ;
+
+  open FH, "> $dataFile" or die "Could not write $dataFile\n";
+  print FH $data;
+  close FH;
+  open FH, "> $scriptFile" or die "Could not write $scriptFile\n";
+  print FH $script;
+  close FH;
+
+  system "gnuplot", "-p", $scriptFile;
 }
 
 sub bashComplete($$){
