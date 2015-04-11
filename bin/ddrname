@@ -62,13 +62,27 @@ my @extraArgs = qw(fc pfc);
 my $okExtraArgs = join '|', @extraArgs;
 
 my $usage = "Usage:
-  $0 --print [FILTER FILTER ..]
+  $0 --print [--notes=NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
 
     each successive FILTER can only remove scores
     specifying the same FILTER twice is legal, but useless
     some FILTERs override others as indicated, so specifying both is useless
+
+    NOTES_CSV
+      comma-separated list of notes to add.
+      default is all.
+      use empty string for none
+
+      extra
+        add EXTRA if EXTRA is set for the song
+      highscore
+        add 'BUCKET_NAME SCORE' if SCORE is the highest in the bucket
+      nobar
+        add 'nobar' if SONG is a HARD_SONG and BAR is 'nobar'
+      3rd
+        add '3rd' if SONG is a HARD_SONG and ROUND is '3rd'
 
     FILTER: SONG
       --song=REGEX
@@ -125,7 +139,7 @@ my $usage = "Usage:
             \"paranoiarespect-expert\"
             20140331,723150,
 
-  $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [FILTER FILTER ..]
+  $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [--notes=NOTES_CSV] [FILTER FILTER ..]
     format songs as above and write to a tmp file
     write a gnuplot script and run it in gnuplot
       all PLOT_OPTIONs must precede all FILTERs
@@ -141,6 +155,9 @@ my $usage = "Usage:
 
       --smooth
         use 'smooth bezier' instead of 'with linespoints'
+
+    NOTES_CSV
+      see --print NOTES_CSV
 
     FILTER
       see --print FILTER
@@ -229,6 +246,17 @@ sub main(@){
     }
 
     my $okNotes = {map {$_ => 1} @notesArgs};
+    if(@_ > 0 and $_[0] =~ /^--notes=(.*)$/){
+      my $notesCsv = $1;
+      shift;
+      $$okNotes{$_} = 0 foreach keys %$okNotes;
+
+      my @notes = split /\s*,\s*/, $notesCsv;
+      for my $note(@notes){
+        die "invalid NOTES_CSV: $notesCsv\n" if not defined $$okNotes{$note};
+        $$okNotes{$note} = 1;
+      }
+    }
 
     my $filters = {};
     while(@_ > 0){
