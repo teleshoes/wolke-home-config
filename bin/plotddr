@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = "$ENV{HOME}/.cache/gnuplot-ddr";
+
+my @curSongs = qw(max300 legendofmax max300smmm paranoiasurvivor270 paranoiarespect maxxunlimited);
+my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
+
+my $plots = {
+  '1cursongs_recent' =>
+    ["--notes=highscore", "--song=$curSongsRegex", "--recent", "--singles"],
+  '2cursongs_recent_smooth' =>
+    ["--smooth", "--notes=highscore", "--song=$curSongsRegex", "--recent", "--singles"],
+  '3hard_recent' =>
+    ["--notes=highscore", "--hard", "--recent", "--singles"],
+  '4hard_recent_smooth' =>
+    ["--smooth", "--notes=highscore", "--hard", "--recent", "--singles"],
+  '5high' =>
+    ["--notes=highscore,extra", "--score=870000", "--singles"],
+  '6doubles' =>
+    ["--notes=highscore", "--recent", "--doubles"],
+};
+
+my $subdirVariants = {
+  'fhd' => ["--size=1920x1080"],
+};
+
+sub main(@){
+  for my $subdir(sort keys %$subdirVariants){
+    system "mkdir", "-p", "$dir/$subdir";
+    my $variants = $$subdirVariants{$subdir};
+    for my $name(sort keys %$plots){
+      my $plot = $$plots{$name};
+      my $file = "$dir/$subdir/gnuplot-$name.png";
+      my @cmd = ("ddrname", "--gnuplot", "--file=$file", @$variants, @$plot);
+      system @cmd;
+      die "error running plot $name => @$plot\n" if $? != 0;
+    }
+  }
+
+  system "feh -ZF '$dir/fhd' >/dev/null 2>/dev/null &";
+}
+
+&main(@ARGV);
