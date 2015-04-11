@@ -122,9 +122,17 @@ my $usage = "Usage:
             \"paranoiarespect-expert\"
             20140331,723150,
 
-  $0 --gnuplot [FILTER FILTER ..]
+  $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [FILTER FILTER ..]
     format songs as above and write to a tmp file
     write a gnuplot script and run it in gnuplot
+      all PLOT_OPTIONs must precede all FILTERs
+
+    PLOT_OPTION
+      --file=PNG_FILE_PATH
+        output PNG file to indicated path
+
+    FILTER
+      see --print FILTER
 
   $0 JPG_FILE [ARG ARG ..]
 
@@ -183,7 +191,7 @@ sub parseScoreFiles(@);
 sub getScoreBuckets($@);
 sub formatBucketCsv($);
 sub formatScores($);
-sub gnuplot($);
+sub gnuplot($$);
 sub bashComplete($$);
 
 sub main(@){
@@ -194,6 +202,16 @@ sub main(@){
 
   if(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
     my $cmd = shift;
+    my $plotOptions = {};
+    if($cmd =~ /^(--gnuplot)$/){
+      while(@_ > 0 and $_[0] =~ /^(--file=.*)$/){
+        my $arg = shift;
+        if($arg =~ /^--file=(.*)$/){
+          $$plotOptions{file} = $1;
+        }
+      }
+    }
+
     my $filters = {};
     while(@_ > 0){
       my $arg = shift;
@@ -229,7 +247,7 @@ sub main(@){
     if($cmd =~ /^(--print)$/){
       print $fmt;
     }elsif($cmd =~ /^(--gnuplot)$/){
-      gnuplot $fmt;
+      gnuplot $plotOptions, $fmt;
     }
     exit 0;
   }
@@ -439,11 +457,12 @@ sub formatScores($){
   return $fmt;
 }
 
-sub gnuplot($){
-  my $data = shift;
+sub gnuplot($$){
+  my ($plotOptions, $data) = @_;
   my $dataFile = "/tmp/ddrname-gnuplot-data";
   my $scriptFile = "/tmp/ddrname-gnuplot-script";
   my $outputFile = "/tmp/ddrname-gnuplot-output.png";
+  $outputFile = $$plotOptions{file} if defined $$plotOptions{file};
 
   my $segmentCount = split /\n\n/, $data;
   my $lastBucket = $segmentCount - 1;
