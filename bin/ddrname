@@ -137,6 +137,9 @@ my $usage = "Usage:
         'x' can be any combination of spaces, commas, and 'x's
         default is: $gnuplotDefaultPngSize
 
+      --smooth
+        use 'smooth bezier' instead of 'with linespoints'
+
     FILTER
       see --print FILTER
 
@@ -208,14 +211,17 @@ sub main(@){
 
   if(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
     my $cmd = shift;
+
     my $plotOptions = {};
     if($cmd =~ /^(--gnuplot)$/){
-      while(@_ > 0 and $_[0] =~ /^(--file=.*|--size=.*)$/){
+      while(@_ > 0 and $_[0] =~ /^(--file=.*|--size=.*|--smooth)$/){
         my $arg = shift;
         if($arg =~ /^--file=(.*)$/){
           $$plotOptions{file} = $1;
         }elsif($arg =~ /^--size=(\d+)[ ,x]+(\d+)$/){
           $$plotOptions{size} = "$1,$2";
+        }elsif($arg =~ /^(--smooth)$/){
+          $$plotOptions{smooth} = 1;
         }
       }
     }
@@ -479,6 +485,8 @@ sub gnuplot($$){
   my $segmentCount = split /\n\n/, $data;
   my $lastBucket = $segmentCount - 1;
 
+  my $lineStyle = $$plotOptions{smooth} ? "smooth bezier" : "with linespoints";
+
   my $script = "";
   $script .= "set xdata time\n";
   $script .= "set timefmt \"\%Y\%m\%d\"\n";
@@ -490,7 +498,7 @@ sub gnuplot($$){
     . " for [BUCKET=0:$lastBucket]"
     . " \"$dataFile\" index BUCKET"
     . " using 1:2"
-    . " with linespoints"
+    . " $lineStyle"
     . " title columnheader(1)"
     . "\n"
     ;
