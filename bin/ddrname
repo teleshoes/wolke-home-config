@@ -247,6 +247,7 @@ sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
 sub formatScores($$);
 sub gnuplot($$);
+sub combine(@);
 sub bashComplete($$);
 
 sub main(@){
@@ -632,6 +633,18 @@ sub gnuplot($$){
   die "error runnning gnuplot script:\n===\n$script===\n" if $? != 0;
 }
 
+sub combine(@){
+  return ([]) if @_ == 0;
+  my $e = shift;
+  my @c;
+  my @rest = combine @_;
+  for my $list(@rest){
+    push @c, [$e, @$list];
+    push @c, [@$list];
+  }
+  return @c;
+}
+
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
   my $cmd = substr $cmdLine, 0, $pos;
@@ -657,6 +670,10 @@ sub bashComplete($$){
 
     if($lastWord =~ /^(--song)$/){
       return @songArgs;
+    }elsif($lastWord =~ /^(--notes)$/){
+      my @combinations = combine sort keys %$defaultNotes;
+      my @csv = sort map {join ",", @$_} @combinations;
+      return sort @csv;
     }
     if($cmd =~ /^(--gnuplot)$/){
       while(@words > 0 and $words[0] =~ /^($okPlotOptionsRegex)$/){
