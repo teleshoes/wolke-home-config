@@ -24,7 +24,7 @@ my $baseUrl = "http://traintime.lirr.org";
 my $okStations = join '', map {  "$_ => $$stations{$_}\n"} sort keys %$stations;
 
 my $usage = "
-  Usage: $0 [OPTS] FROM TO
+  Usage: $0 [OPTS] FROM TO [DATE TIME]
     fetch schedule from $baseUrl, parse it, and show it
 
   STATIONS:\n$okStations
@@ -35,6 +35,12 @@ my $usage = "
   OPTS:
     -b|--bigtext|--qtbigtext
       show using bigtext
+
+  DATE:
+    the date, formatted as YYYYMMDD
+
+  TIME:
+    the time, formatted as HH24:MM
 ";
 
 sub main(@){
@@ -55,9 +61,9 @@ sub main(@){
   if(defined $file){
     die $usage if @_ != 0;
   }else{
-    die $usage if @_ != 2;
+    die $usage if @_ != 2 and @_ != 4;
 
-    my ($fromSyn, $toSyn) = @_;
+    my ($fromSyn, $toSyn, $dateArg, $timeArg) = @_;
     for my $station(keys %$synonyms){
       my %syns = map {lc $_ => 1} @{$$synonyms{$station}};
       $from = $station if not defined $from and defined $syns{lc $fromSyn};
@@ -67,6 +73,8 @@ sub main(@){
     $to = uc $toSyn if not defined $to;
     die "Invalid starting station: $from\n" if not defined $$stations{$from};
     die "Invalid ending station: $to\n" if not defined $$stations{$to};
+    $date = $dateArg;
+    $time = $timeArg;
   }
 
 
@@ -92,12 +100,38 @@ sub main(@){
 sub getScheduleText($$$$$){
   my ($from, $to, $date, $time, $file) = @_;
 
+  my ($y, $m, $d, $hr, $min, $ampm);
+
+  if(defined $date or defined $time){
+    if($date !~ /^(\d{4})(\d{2})(\d{2})$/){
+      die "Invalid date: $date\n";
+    }
+    ($y, $m, $d) = ($1, $2, $3);
+
+    if($time !~ /^(\d{2}):(\d{2})$/){
+      die "Invalid time: $time\n";
+    }
+    ($hr, $min) = ($1, $2);
+    die "Invalid time: $time\n" if $hr >= 24 or $min >= 60;
+
+    if($hr >= 12){
+      $ampm = "PM";
+      $hr -= 12;
+      $hr = "0$hr" if $hr < 10;
+    }else{
+      $ampm = "AM";
+    }
+    $hr = "12" if $hr == 0;
+  }
+
   my $fileName;
   my $isCached = 0;
   if(defined $file){
     $fileName = $file;
   }else{
     my $url = "$baseUrl/traintime.php?startsta=$from&endsta=$to";
+    $url .= "\&RequestDate=$m\%2F$d\%2F$y" if defined $date;
+    $url .= "\&RequestTime=$hr\%3A$min\&RequestAMPM=$ampm" if defined $time;
 
     run "mkdir", "-p", $cacheDir;
 
