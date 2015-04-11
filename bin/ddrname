@@ -15,19 +15,19 @@ my $defaultNotes = {
 my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes;
 
 my @okFilters = qw(
-  --song= --hard --nothard
+  --song --hard --nothard
   --singles --doubles
-  --score= --minscore= --maxscore=
-  --date= --mindate=
-  --maxdate=
+  --score --minscore --maxscore
+  --date --mindate
+  --maxdate
   --recent --sixmos --sixmonths --6mos
 );
 my @okPlotOptions = qw(
-  --file=
-  --size=
+  --file
+  --size
   --smooth
 );
-my $okPlotOptionsRegex = join "|", (map {my $opt=$_; $opt =~ s/=/=.*/; $opt} @okPlotOptions);
+my $okPlotOptionsRegex = join "|", @okPlotOptions;
 
 my @hardSongs = qw(
   arrabbiata
@@ -83,7 +83,7 @@ my @extraArgs = qw(fc pfc);
 my $okExtraArgs = join '|', @extraArgs;
 
 my $usage = "Usage:
-  $0 --print [--notes=NOTES_CSV] [FILTER FILTER ..]
+  $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
 
@@ -106,7 +106,7 @@ my $usage = "Usage:
         add '3rd' if SONG is a HARD_SONG and ROUND is '3rd'
 
     FILTER: SONG
-      --song=REGEX
+      --song REGEX
         include only scores where the whole SONG string matches REGEX
         {overrides --hard and --nothard}
       --hard
@@ -125,19 +125,19 @@ my $usage = "Usage:
         {overrides --singles}
 
     FILTER: SCORE
-      --score=N, --minscore=N
+      --score N, --minscore N
         include only scores where SCORE >= N
-      --maxscore=N
+      --maxscore N
         include only scores where SCORE <= N
 
     FILTER: DATE
-      --date=YYYYMMDD, --mindate=YYYYMMDD
+      --date YYYYMMDD, --mindate YYYYMMDD
         include only scores where DATE >= YYYYMMDD
         {overrides --recent}
-      --maxdate=YYYYMMDD
+      --maxdate YYYYMMDD
         include only scores where DATE <= YYYYMMDD
       --recent, --sixmos, --sixmonths, --6mos
-        same as --mindate=N, where N is the date 180 days ago
+        same as '--mindate N', where N is the date 180 days ago
         {overrides --date}
 
     scores are grouped into sections by '\"<SONG>-<GAME>-<DIFFICULTY>\"'
@@ -166,10 +166,10 @@ my $usage = "Usage:
       all PLOT_OPTIONs must precede all FILTERs
 
     PLOT_OPTION
-      --file=PNG_FILE_PATH
+      --file PNG_FILE_PATH
         output PNG file to indicated path
 
-      --size=PNG_SIZE
+      --size PNG_SIZE
         output PNG pixelsize, WIDTHxHEIGHT
         'x' can be any combination of spaces, commas, and 'x's
         default is: $gnuplotDefaultPngSize
@@ -256,12 +256,22 @@ sub main(@){
     my $plotOptions = {};
     if($cmd =~ /^(--gnuplot)$/){
       while(@_ > 0 and $_[0] =~ /^($okPlotOptionsRegex)$/){
-        my $arg = shift;
-        if($arg =~ /^--file=(.*)$/){
-          $$plotOptions{file} = $1;
-        }elsif($arg =~ /^--size=(\d+)[ ,x]+(\d+)$/){
+        my $opt = shift;
+        my $arg;
+        my $argOptRegex = join "|", qw(
+          --file --size
+        );
+        if($opt =~ /^($argOptRegex)$/){
+          die "$usage\nmissing arg to $opt\n" if @_ == 0;
+          $arg = shift;
+        }
+
+        if($opt =~ /^(--file)$/){
+          $$plotOptions{file} = $arg;
+        }elsif($opt =~ /^(--size)$/){
+          die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
           $$plotOptions{size} = "$1,$2";
-        }elsif($arg =~ /^(--smooth)$/){
+        }elsif($opt =~ /^(--smooth)$/){
           $$plotOptions{smooth} = 1;
         }
       }
@@ -272,47 +282,63 @@ sub main(@){
       $okNotes = {map {$_ => 0} keys %$okNotes};
     }
 
-    if(@_ > 0 and $_[0] =~ /^--notes=(.*)$/){
-      my $notesCsv = $1;
-      shift;
+    if(@_ > 0 and $_[0] =~ /^(--notes)$/){
+      my $opt = shift;
+      die "$usage\nmissing arg to $opt\n" if @_ == 0;
+      my $arg = shift;
+      my $notesCsv = $arg;
       $$okNotes{$_} = 0 foreach keys %$okNotes;
 
       my @notes = split /\s*,\s*/, $notesCsv;
       for my $note(@notes){
-        die "invalid NOTES_CSV: $notesCsv\n" if not defined $$okNotes{$note};
+        die "invalid $opt: $arg\n" if not defined $$okNotes{$note};
         $$okNotes{$note} = 1;
       }
     }
 
     my $filters = {};
     while(@_ > 0){
-      my $arg = shift;
-      if($arg =~ /^--song=(.*)$/){
-        my $regex = "^$1\$";
+      my $opt = shift;
+      my $arg;
+      my $argOptRegex = join "|", qw(
+         --song --score --minscore --maxscore --mindate --date --maxdate
+      );
+      if($opt =~ /^($argOptRegex)$/){
+        die "$usage\nmissing arg to $opt\n" if @_ == 0;
+        $arg = shift;
+      }
+
+      if($opt =~ /^(--song)$/){
+        die "$usage\nmissing arg to $opt\n" if not defined $arg;
+        my $regex = "^$arg\$";
         $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($arg =~ /^(--hard)$/){
+      }elsif($opt =~ /^(--hard)$/){
         my $regex = "($okHardSongs)";
         $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($arg =~ /^(--nothard)$/){
+      }elsif($opt =~ /^(--nothard)$/){
         my $regex = "($okOtherSongs)";
         $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($arg =~ /^(--singles)$/){
+      }elsif($opt =~ /^(--singles)$/){
         $$filters{game} = {doubles => 0, "" => 1};
-      }elsif($arg =~ /^(--doubles)$/){
+      }elsif($opt =~ /^(--doubles)$/){
         $$filters{game} = {doubles => 1, "" => 0};
-      }elsif($arg =~ /^(?:--score|--minscore)=(\d+)$/){
+      }elsif($opt =~ /^(--score|--minscore)$/){
+        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
         $$filters{minscore} = $1;
-      }elsif($opt =~ /^--maxscore=(\d+)$/){
+      }elsif($opt =~ /^(--maxscore)$/){
+        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
         $$filters{maxscore} = $1;
-      }elsif($arg =~ /^(?:--mindate|--date)=(\d{8})$/){
+      }elsif($opt =~ /^(--mindate|--date)$/){
+        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
         $$filters{mindate} = $1;
-      }elsif($arg =~ /^(?:--recent|--sixmonths|--sixmos|--6mos)$/){
+      }elsif($opt =~ /^(--recent|--sixmonths|--sixmos|--6mos)$/){
         my $sixmos = DateTime->now->subtract(days=>180)->strftime('%Y%m%d');
         $$filters{mindate} = $sixmos;
-      }elsif($arg =~ /^--maxdate=(\d{8})$/){
+      }elsif($opt =~ /^(--maxdate)$/){
+        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
         $$filters{maxdate} = $1;
       }else{
-        die "$usage\nunknown filter: $arg\n";
+        die "$usage\nunknown filter: $opt\n";
       }
     }
     my $fmt = formatScores($okNotes, $filters);
