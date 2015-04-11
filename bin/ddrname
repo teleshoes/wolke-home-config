@@ -485,8 +485,6 @@ sub gnuplot($$){
   my $segmentCount = split /\n\n/, $data;
   my $lastBucket = $segmentCount - 1;
 
-  my $lineStyle = $$plotOptions{smooth} ? "smooth bezier" : "with linespoints";
-
   my $script = "";
   $script .= "set xdata time\n";
   $script .= "set timefmt \"\%Y\%m\%d\"\n";
@@ -495,17 +493,27 @@ sub gnuplot($$){
 
   $script .= "set term pngcairo size $pngSize\n";
   $script .= "set output \"$outputFile\"\n";
-  $script .= "plot"
-    . " for [BUCKET=0:$lastBucket]"
+
+  my $linePlot = ""
     . " \"$dataFile\" index BUCKET"
     . " using 1:2"
-    . " $lineStyle"
-    . " , \"$dataFile\" index BUCKET"
+    . " with linespoints"
+    ;
+  my $smoothPlot = ""
+    . " \"$dataFile\" index BUCKET"
+    . " using 1:2"
+    . " smooth bezier"
+    ;
+  my $notesPlot = ""
+    . " \"$dataFile\" index BUCKET"
     . " using 1:2:3"
     . " with labels"
     . " notitle"
-    . "\n"
     ;
+
+  my @plots = $$plotOptions{smooth} ? ($smoothPlot, $notesPlot) : ($linePlot, $notesPlot);
+
+  $script .= "plot for [BUCKET=0:$lastBucket]" . join(", ", @plots) . "\n";
 
   open FH, "> $dataFile" or die "Could not write $dataFile\n";
   print FH $data;
