@@ -4,6 +4,7 @@ use warnings;
 use DateTime;
 
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
+my $gnuplotDefaultPngSize = "1920,1080";
 
 my @hardSongs = qw(
   arrabbiata
@@ -131,6 +132,11 @@ my $usage = "Usage:
       --file=PNG_FILE_PATH
         output PNG file to indicated path
 
+      --size=PNG_SIZE
+        output PNG pixelsize, WIDTHxHEIGHT
+        'x' can be any combination of spaces, commas, and 'x's
+        default is: $gnuplotDefaultPngSize
+
     FILTER
       see --print FILTER
 
@@ -204,10 +210,12 @@ sub main(@){
     my $cmd = shift;
     my $plotOptions = {};
     if($cmd =~ /^(--gnuplot)$/){
-      while(@_ > 0 and $_[0] =~ /^(--file=.*)$/){
+      while(@_ > 0 and $_[0] =~ /^(--file=.*|--size=.*)$/){
         my $arg = shift;
         if($arg =~ /^--file=(.*)$/){
           $$plotOptions{file} = $1;
+        }elsif($arg =~ /^--size=(\d+)[ ,x]+(\d+)$/){
+          $$plotOptions{size} = "$1,$2";
         }
       }
     }
@@ -461,8 +469,12 @@ sub gnuplot($$){
   my ($plotOptions, $data) = @_;
   my $dataFile = "/tmp/ddrname-gnuplot-data";
   my $scriptFile = "/tmp/ddrname-gnuplot-script";
+
   my $outputFile = "/tmp/ddrname-gnuplot-output.png";
   $outputFile = $$plotOptions{file} if defined $$plotOptions{file};
+
+  my $pngSize = $gnuplotDefaultPngSize;
+  $pngSize = $$plotOptions{size} if defined $$plotOptions{size};
 
   my $segmentCount = split /\n\n/, $data;
   my $lastBucket = $segmentCount - 1;
@@ -472,7 +484,7 @@ sub gnuplot($$){
   $script .= "set timefmt \"\%Y\%m\%d\"\n";
   $script .= "set datafile separator \",\"\n";
 
-  $script .= "set term pngcairo size 1920,1080\n";
+  $script .= "set term pngcairo size $pngSize\n";
   $script .= "set output \"$outputFile\"\n";
   $script .= "plot"
     . " for [BUCKET=0:$lastBucket]"
