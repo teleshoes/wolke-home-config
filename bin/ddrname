@@ -252,6 +252,9 @@ my $usage = "Usage:
      COMP_POINT - the cursor position in the cmdline
 ";
 
+sub fehterm($@);
+sub scoreStats($@);
+sub name(@);
 sub parseArgs(@);
 sub getScoreFiles();
 sub parseScoreFiles(@);
@@ -270,124 +273,138 @@ sub main(@){
   }
 
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
-    my $windowTitle = "ddrname-fehterm";
-    run ("term",
-      "-t", $windowTitle,
-      "export WINDOW_TITLE=$windowTitle; bash",
-    );
-    sleep 0.5;
-
-    my $xwininfo = `xwininfo -name '$windowTitle'`;
-    if($xwininfo !~ /Window id: (0x[0-9a-f]+) "$windowTitle"/){
-      die "Could not find window id for name=$windowTitle\n";
-    }
-    my $windowId = $1;
-
-    my $infoCmd = ""
-      . "xdotool key --delay 1 --window $windowId" . (" BackSpace" x 50) . "; "
-      . "xdotool type --window $windowId 'ddrname \%f '; "
-      . "echo %f; "
-      ;
-
-    run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
-  }
-
-  if(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
     my $cmd = shift;
+    fehterm($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
+    my $cmd = shift;
+    scoreStats($cmd, @_);
+  }else{
+    name(@_);
+  }
+}
 
-    my $plotOptions = {};
-    if($cmd =~ /^(--gnuplot)$/){
-      while(@_ > 0 and $_[0] =~ /^($okPlotOptionsRegex)$/){
-        my $opt = shift;
-        my $arg;
-        if($opt =~ /^($argOptPlotOptionsRegex)$/){
-          die "$usage\nmissing arg to $opt\n" if @_ == 0;
-          $arg = shift;
-        }
+sub fehterm($@){
+  my $cmd = shift;
+  die $usage if @_ != 0;
 
-        if($opt =~ /^(--file)$/){
-          $$plotOptions{file} = $arg;
-        }elsif($opt =~ /^(--size)$/){
-          die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
-          $$plotOptions{size} = "$1,$2";
-        }elsif($opt =~ /^(--smooth)$/){
-          $$plotOptions{smooth} = 1;
-        }
-      }
-    }
+  my $windowTitle = "ddrname-fehterm";
+  run ("term",
+    "-t", $windowTitle,
+    "export WINDOW_TITLE=$windowTitle; bash",
+  );
+  sleep 0.5;
 
-    my $okNotes = $defaultNotes;
-    if($$plotOptions{smooth}){
-      $okNotes = {map {$_ => 0} keys %$okNotes};
-    }
+  my $xwininfo = `xwininfo -name '$windowTitle'`;
+  if($xwininfo !~ /Window id: (0x[0-9a-f]+) "$windowTitle"/){
+    die "Could not find window id for name=$windowTitle\n";
+  }
+  my $windowId = $1;
 
-    if(@_ > 0 and $_[0] =~ /^(--notes)$/){
-      my $opt = shift;
-      die "$usage\nmissing arg to $opt\n" if @_ == 0;
-      my $arg = shift;
-      my $notesCsv = $arg;
-      $$okNotes{$_} = 0 foreach keys %$okNotes;
+  my $infoCmd = ""
+    . "xdotool key --delay 1 --window $windowId" . (" BackSpace" x 50) . "; "
+    . "xdotool type --window $windowId 'ddrname \%f '; "
+    . "echo %f; "
+    ;
 
-      my @notes = split /\s*,\s*/, $notesCsv;
-      for my $note(@notes){
-        die "invalid $opt: $arg\n" if not defined $$okNotes{$note};
-        $$okNotes{$note} = 1;
-      }
-    }
+  run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
+}
 
-    my $filters = {};
-    while(@_ > 0){
+sub scoreStats($@){
+  my $cmd = shift;
+
+  my $plotOptions = {};
+  if($cmd =~ /^(--gnuplot)$/){
+    while(@_ > 0 and $_[0] =~ /^($okPlotOptionsRegex)$/){
       my $opt = shift;
       my $arg;
-      if($opt =~ /^($argOptFiltersRegex)$/){
+      if($opt =~ /^($argOptPlotOptionsRegex)$/){
         die "$usage\nmissing arg to $opt\n" if @_ == 0;
         $arg = shift;
       }
 
-      if($opt =~ /^(--song)$/){
-        die "$usage\nmissing arg to $opt\n" if not defined $arg;
-        my $regex = "^$arg\$";
-        $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($opt =~ /^(--hard)$/){
-        my $regex = "($okHardSongs)";
-        $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($opt =~ /^(--nothard)$/){
-        my $regex = "($okOtherSongs)";
-        $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
-      }elsif($opt =~ /^(--singles)$/){
-        $$filters{game} = {nonstop => 0, doubles => 0, "" => 1};
-      }elsif($opt =~ /^(--doubles)$/){
-        $$filters{game} = {nonstop => 0, doubles => 1, "" => 0};
-      }elsif($opt =~ /^(--nonstop)$/){
-        $$filters{game} = {nonstop => 1, doubles => 0, "" => 0};
-      }elsif($opt =~ /^(--score|--minscore)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
-        $$filters{minscore} = $1;
-      }elsif($opt =~ /^(--maxscore)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
-        $$filters{maxscore} = $1;
-      }elsif($opt =~ /^(--mindate|--date)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
-        $$filters{mindate} = $1;
-      }elsif($opt =~ /^(--recent|--sixmonths|--sixmos|--6mos)$/){
-        my $sixmos = DateTime->now->subtract(days=>180)->strftime('%Y%m%d');
-        $$filters{mindate} = $sixmos;
-      }elsif($opt =~ /^(--maxdate)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
-        $$filters{maxdate} = $1;
-      }else{
-        die "$usage\nunknown filter: $opt\n";
+      if($opt =~ /^(--file)$/){
+        $$plotOptions{file} = $arg;
+      }elsif($opt =~ /^(--size)$/){
+        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
+        $$plotOptions{size} = "$1,$2";
+      }elsif($opt =~ /^(--smooth)$/){
+        $$plotOptions{smooth} = 1;
       }
     }
-    my $fmt = formatScores($okNotes, $filters);
-    if($cmd =~ /^(--print)$/){
-      print $fmt;
-    }elsif($cmd =~ /^(--gnuplot)$/){
-      gnuplot $plotOptions, $fmt;
-    }
-    exit 0;
   }
 
+  my $okNotes = $defaultNotes;
+  if($$plotOptions{smooth}){
+    $okNotes = {map {$_ => 0} keys %$okNotes};
+  }
+
+  if(@_ > 0 and $_[0] =~ /^(--notes)$/){
+    my $opt = shift;
+    die "$usage\nmissing arg to $opt\n" if @_ == 0;
+    my $arg = shift;
+    my $notesCsv = $arg;
+    $$okNotes{$_} = 0 foreach keys %$okNotes;
+
+    my @notes = split /\s*,\s*/, $notesCsv;
+    for my $note(@notes){
+      die "invalid $opt: $arg\n" if not defined $$okNotes{$note};
+      $$okNotes{$note} = 1;
+    }
+  }
+
+  my $filters = {};
+  while(@_ > 0){
+    my $opt = shift;
+    my $arg;
+    if($opt =~ /^($argOptFiltersRegex)$/){
+      die "$usage\nmissing arg to $opt\n" if @_ == 0;
+      $arg = shift;
+    }
+
+    if($opt =~ /^(--song)$/){
+      die "$usage\nmissing arg to $opt\n" if not defined $arg;
+      my $regex = "^$arg\$";
+      $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
+    }elsif($opt =~ /^(--hard)$/){
+      my $regex = "($okHardSongs)";
+      $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
+    }elsif($opt =~ /^(--nothard)$/){
+      my $regex = "($okOtherSongs)";
+      $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
+    }elsif($opt =~ /^(--singles)$/){
+      $$filters{game} = {nonstop => 0, doubles => 0, "" => 1};
+    }elsif($opt =~ /^(--doubles)$/){
+      $$filters{game} = {nonstop => 0, doubles => 1, "" => 0};
+    }elsif($opt =~ /^(--nonstop)$/){
+      $$filters{game} = {nonstop => 1, doubles => 0, "" => 0};
+    }elsif($opt =~ /^(--score|--minscore)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
+      $$filters{minscore} = $1;
+    }elsif($opt =~ /^(--maxscore)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
+      $$filters{maxscore} = $1;
+    }elsif($opt =~ /^(--mindate|--date)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
+      $$filters{mindate} = $1;
+    }elsif($opt =~ /^(--recent|--sixmonths|--sixmos|--6mos)$/){
+      my $sixmos = DateTime->now->subtract(days=>180)->strftime('%Y%m%d');
+      $$filters{mindate} = $sixmos;
+    }elsif($opt =~ /^(--maxdate)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
+      $$filters{maxdate} = $1;
+    }else{
+      die "$usage\nunknown filter: $opt\n";
+    }
+  }
+  my $fmt = formatScores($okNotes, $filters);
+  if($cmd =~ /^(--print)$/){
+    print $fmt;
+  }elsif($cmd =~ /^(--gnuplot)$/){
+    gnuplot $plotOptions, $fmt;
+  }
+}
+
+sub name(@){
   my $file = shift;
   my $info = parseArgs @_;
   die $usage if not defined $file or not -f $file or not defined $info;
