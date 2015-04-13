@@ -324,10 +324,10 @@ sub dateStats($@){
   die $usage if @_ != 0;
 
   my @scoreFiles = getScoreFiles();
-  my $scores = parseScoreFiles(@scoreFiles);
+  my $scoresByFile = parseScoreFiles(@scoreFiles);
   my $dateBuckets = {};
-  for my $file(sort keys %$scores){
-    my $score = $$scores{$file};
+  for my $file(sort keys %$scoresByFile){
+    my $score = $$scoresByFile{$file};
     my $date = $$score{date};
     $$dateBuckets{$date} = [] if not defined $$dateBuckets{$date};
     push @{$$dateBuckets{$date}}, $score;
@@ -544,13 +544,12 @@ sub parseScoreFiles(@){
 sub getScoreBuckets($@){
   my ($scores, @bucketFields) = @_;
   my $buckets = {};
-  for my $file(keys %$scores){
-    my $s = $$scores{$file};
-    my @bucketFieldVals = map {$$s{$_}} @bucketFields;
+  for my $score(@$scores){
+    my @bucketFieldVals = map {$$score{$_}} @bucketFields;
 
     my $bucketName = join "-", grep {defined $_} @bucketFieldVals;
     $$buckets{$bucketName} = [] if not defined $$buckets{$bucketName};
-    push @{$$buckets{$bucketName}}, $s;
+    push @{$$buckets{$bucketName}}, $score;
   }
   return $buckets;
 }
@@ -597,10 +596,10 @@ sub formatScores($$){
   my ($okNotes, $filters) = @_;
 
   my @scoreFiles = getScoreFiles();
-  my $scores = parseScoreFiles(@scoreFiles);
+  my $scoresByFile = parseScoreFiles(@scoreFiles);
 
-  for my $file(sort keys %$scores){
-    my $s = $$scores{$file};
+  for my $file(sort keys %$scoresByFile){
+    my $s = $$scoresByFile{$file};
     my $ok = 1;
     if(defined $$filters{songs}){
       my $f = $$filters{songs};
@@ -645,11 +644,12 @@ sub formatScores($$){
         $ok = 0;
       }
     }
-    delete $$scores{$file} if not $ok;
+    delete $$scoresByFile{$file} if not $ok;
   }
-  die "no scores found\n" if keys %$scores == 0;
+  die "no scores found\n" if keys %$scoresByFile == 0;
 
-  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+  my @scores = map { $$scoresByFile{$_} } sort keys %$scoresByFile;
+  my $buckets = getScoreBuckets(\@scores, qw(song game difficulty));
 
   my $fmt = "";
   for my $bucketName(sort keys %$buckets){
