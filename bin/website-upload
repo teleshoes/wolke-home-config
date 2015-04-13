@@ -5,18 +5,26 @@ use warnings;
 my $secretsFile = "$ENV{HOME}/.secrets";
 my @secretKeys = qw(username password host);
 
+sub uploadFile($$$);
 sub readSecrets();
 
 sub main(@){
-  my $s = readSecrets();
+  my $secrets = readSecrets();
   my $tmpFile = "/tmp/parse-todo-" . time() . ".html";
   my $msg = `todo-parse --html`;
   open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
   print FH $msg;
   close FH;
-  system "lftp", "-u", "$$s{username},$$s{password}", $$s{host}, "-e",
-    "put $tmpFile -o index.html; exit",
-  ;
+  uploadFile $secrets, $tmpFile, "index.html";
+}
+
+sub uploadFile($$$){
+  my ($secrets, $src, $dest) = @_;
+  system "lftp",
+    $$secrets{host},
+    "-u", "$$secrets{username},$$secrets{password}",
+    "-e", "put $src -o $dest; exit",
+    ;
 }
 
 sub readSecrets(){
