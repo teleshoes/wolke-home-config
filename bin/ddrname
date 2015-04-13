@@ -359,8 +359,40 @@ sub dateStats($@){
         $otherSinglesCount++;
       }
     }
+
+    my $buckets = getScoreBuckets \@dateScores, qw(song game difficulty);
+    my @bucketSummary;
+    for my $bucketName(sort keys %$buckets){
+      my @scores = @{$$buckets{$bucketName}};
+      my $first = $scores[0];
+      my ($song, $game, $difficulty) = (
+        $$first{song}, $$first{game}, $$first{difficulty});
+
+      my $songAbbrev = $songAbbrevs{$song};
+      my $diffAbbrev = $difficultyAbbrevs{$difficulty};
+      my $shortName = $songAbbrevs{$song};
+      my $isDoubles = 0;
+      if(defined $game and $game eq "doubles"){
+        $shortName .= "-DBL";
+        $isDoubles = 1;
+      }
+      if($difficulty ne $defaultDifficulty{$song}){
+        $shortName .= "-$diffAbbrev";
+      }
+
+      my $count = @scores;
+      push @bucketSummary, {
+        name=>$shortName,
+        count=>$count,
+      };
+    }
+
     printf "%s %2d-H %2d-D %2d-O",
       $date, $hardSinglesCount, $doublesCount, $otherSinglesCount;
+
+    for my $summary(@bucketSummary){
+      printf "  %2d %s", $$summary{count}, $$summary{name};
+    }
 
     print "\n";
   }
