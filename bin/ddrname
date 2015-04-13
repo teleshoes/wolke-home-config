@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use DateTime;
+use Time::HiRes qw(sleep);
 
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 my $gnuplotDefaultPngSize = "1920,1080";
@@ -88,6 +89,10 @@ my @extraArgs = qw(fc pfc);
 my $okExtraArgs = join '|', @extraArgs;
 
 my $usage = "Usage:
+  $0 --fehterm
+    -open a terminal using term and get its window id with xwininfo
+    -open feh with --info set to type in the newly opened terminal with xdotool
+
   $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
@@ -255,6 +260,27 @@ sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print join ' ', bashComplete($_[1], $_[2]);
     exit 0;
+  }
+
+  if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
+    my $windowTitle = "ddrname-fehterm";
+    run ("term",
+      "-t", $windowTitle,
+      "export WINDOW_TITLE=$windowTitle; bash",
+    );
+    sleep 0.5;
+
+    my $xwininfo = `xwininfo -name '$windowTitle'`;
+    if($xwininfo !~ /Window id: (0x[0-9a-f]+) "$windowTitle"/){
+      die "Could not find window id for name=$windowTitle\n";
+    }
+    my $windowId = $1;
+
+    my $infoCmd = ""
+      . "xdotool type --window $windowId 'ddrname \%f '; "
+      ;
+
+    run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
   }
 
   if(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
