@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $secretsFile = "$ENV{HOME}/.secrets";
+my @secretKeys = qw(username password host);
+
+sub readSecrets();
+
+sub main(@){
+  my $s = readSecrets();
+  my $tmpFile = "/tmp/parse-todo-" . time() . ".html";
+  my $msg = `todo-parse --html`;
+  open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
+  print FH $msg;
+  close FH;
+  system "lftp", "-u", "$$s{username},$$s{password}", $$s{host}, "-e",
+    "put $tmpFile -o index.html; exit",
+  ;
+}
+
+sub readSecrets(){
+  my @lines = `cat $secretsFile 2>/dev/null`;
+  my $cfg = {};
+  my $okSecretKeys = join "|", @secretKeys;
+  for my $line(@lines){
+    if($line =~ /^website\.($okSecretKeys)\s*=\s*(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort @secretKeys){
+    die "Missing secret '$key' in $secretsFile\n" if not defined $$cfg{$key};
+  }
+  return $cfg;
+}
+
+&main(@ARGV);

@@ -6,8 +6,6 @@ use Term::ANSIColor;
 my $dir = $ENV{HOME};
 my $todoFile = "$dir/TODO";
 my $notesFile = "$dir/NOTES";
-my $secretsFile = "$ENV{HOME}/.secrets";
-my @secretKeys = qw(username password host);
 
 my $okFmtArgs = join "|", qw(-q -u -r -a --qtodo --html --ff);
 my $usage = "Usage:
@@ -16,10 +14,6 @@ my $usage = "Usage:
 
   $0 [--dir=DIR] [--notes] [FORMAT]
     Parse ${todoFile}'s git history to print todos
-
-  $0 [--dir=DIR] [--notes] --upload
-    Parse ${todoFile}'s git history, format as HTML,
-      and upload to website in $secretsFile using lftp
 
   FORMAT:
     -q       dont print todos
@@ -78,7 +72,6 @@ sub qtodoFmt($$$$$);
 sub dateFmt($);
 sub dateFmtNow();
 sub col($$);
-sub readSecrets();
 
 sub main(@){
   if(@_ > 0 and $_[0] =~ /^--dir=(.*)$/){
@@ -94,15 +87,11 @@ sub main(@){
 
   my @todosToAdd;
   my $fmtArg = '-a';
-  my $upload = 0;
   if(@_ > 1 and $_[0] eq '--add'){
     shift;
     @todosToAdd = @_;
   }elsif(@_ > 0 and $_[0] =~ /^($okFmtArgs)$/){
     $fmtArg = shift;
-  }elsif(@_ > 0 and $_[0] =~ /^(--upload)$/){
-    $fmtArg = '--html';
-    $upload = 1;
   }elsif(@_ > 0){
     die $usage;
   }
@@ -221,15 +210,6 @@ sub main(@){
     print FH $msg;
     close FH;
     system "firefox", $tmpFile;
-  }elsif($upload){
-    my $s = readSecrets();
-    my $tmpFile = "/tmp/parse-todo-" . time() . ".html";
-    open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
-    print FH $msg;
-    close FH;
-    system "lftp", "-u", "$$s{username},$$s{password}", $$s{host}, "-e",
-      "put $tmpFile -o index.html; exit",
-    ;
   }else{
     print $msg;
   }
@@ -366,21 +346,6 @@ sub dateFmtNow(){
 
 sub col($$){
   return color($_[0]) . $_[1] . color('reset');
-}
-
-sub readSecrets(){
-  my @lines = `cat $secretsFile 2>/dev/null`;
-  my $cfg = {};
-  my $okSecretKeys = join "|", @secretKeys;
-  for my $line(@lines){
-    if($line =~ /^website\.($okSecretKeys)\s*=\s*(.+)$/){
-      $$cfg{$1} = $2;
-    }
-  }
-  for my $key(sort @secretKeys){
-    die "Missing secret '$key' in $secretsFile\n" if not defined $$cfg{$key};
-  }
-  return $cfg;
 }
 
 &main(@ARGV);
