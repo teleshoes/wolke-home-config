@@ -97,6 +97,9 @@ my $usage = "Usage:
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
 
+  $0 --datestats
+    format stats for each date
+
   $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
@@ -275,6 +278,9 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
     fehterm($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
+    my $cmd = shift;
+    dateStats($cmd, @_);
   }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
@@ -307,6 +313,26 @@ sub fehterm($@){
     ;
 
   run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
+}
+
+sub dateStats($@){
+  my $cmd = shift;
+  die $usage if @_ != 0;
+
+  my @scoreFiles = getScoreFiles();
+  my $scores = parseScoreFiles(@scoreFiles);
+  my $dateBuckets = {};
+  for my $file(sort keys %$scores){
+    my $score = $$scores{$file};
+    my $date = $$score{date};
+    $$dateBuckets{$date} = [] if not defined $$dateBuckets{$date};
+    push @{$$dateBuckets{$date}}, $score;
+  }
+
+  for my $date(sort keys %$dateBuckets){
+    my @scores = @{$$dateBuckets{$date}};
+    print "$date - " . (0+@scores) . "\n";
+  }
 }
 
 sub scoreStats($@){
@@ -714,7 +740,7 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--print", "--gnuplot", @jpgFiles);
+    return ("--fehterm", "--datestats", "--print", "--gnuplot", @jpgFiles);
   }
 
   if($words[0] =~ /^(--print|--gnuplot)$/){
