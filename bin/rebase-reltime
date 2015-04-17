@@ -9,7 +9,7 @@ my $dateRange = int(20 * 365 * 24 * 60 * 60);
 sub runFilterBranch($@);
 sub readFilterCommitsFile($);
 sub writeFilterCommitsFile($$);
-sub getFilterScript($);
+sub getFilterScript($$);
 sub checkTime($);
 sub getTime($);
 sub absTime($);
@@ -40,17 +40,21 @@ my $usage = "Usage:
   OPTS
     -f             use -f in git filter-branch command
     -e             edit the dates in an editor before filtering on them
+    --timezone=TZ  use TZ for timezone instead of `date +%z`
 ";
 
 sub main(@){
   my $force = 0;
   my $edit = 0;
+  my $timezone = undef;
   while (@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
     }elsif($arg =~ /^(-e)$/){
       $edit = 1;
+    }elsif($arg =~ /^--timezone=(.+)$/){
+      $timezone = $1;
     }else{
       die $usage;
     }
@@ -146,7 +150,12 @@ sub main(@){
   my $response = <STDIN>;
   die "aborted\n" unless $response eq "y\n";
 
-  my $filterScript = getFilterScript $filterCommits;
+  if(not defined $timezone){
+    $timezone = `date +%z`;
+    chomp $timezone;
+  }
+
+  my $filterScript = getFilterScript $filterCommits, $timezone;
   my @args = ("--env-filter", $filterScript, "$targetCommitHash..HEAD");
   my $success = runFilterBranch $force, @args;
   if(not $force and not $success){
@@ -214,14 +223,12 @@ sub writeFilterCommitsFile($$){
   close FH;
 }
 
-sub getFilterScript($){
-  my ($filterCommits) = @_;
+sub getFilterScript($$){
+  my ($filterCommits, $timezone) = @_;
   my $script = '';
   for my $commitDate(@$filterCommits){
     my ($commit, $t) = @$commitDate;
-    my $tz = `date +%z`;
-    chomp $tz;
-    my $date = "$t $tz";
+    my $date = "$t $timezone";
     $script .= ""
       . "  if [ \$GIT_COMMIT = $commit ]\n"
       . "  then\n"
