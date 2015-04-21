@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = "$ENV{HOME}/.cache/gnuplot-ddr";
+
+my @curSongs = qw(max300 legendofmax max300smmm paranoiasurvivor270 paranoiarespect maxxunlimited);
+my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
+
+my @plotArr = (
+  'cursongs_recent' =>
+    ["--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles"],
+  'cursongs_recent_smooth' =>
+    ["--smooth", "--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles"],
+  'hard_recent' =>
+    ["--notes", "highscore", "--hard", "--recent", "--singles"],
+  'hard_recent_smooth' =>
+    ["--smooth", "--notes", "highscore", "--hard", "--recent", "--singles"],
+  'high' =>
+    ["--notes", "highscore,extra", "--score", "870000", "--singles"],
+  'doubles' =>
+    ["--notes", "highscore", "--recent", "--doubles"],
+);
+my $plots = {@plotArr};
+my @plotOrder = map {$plotArr[$_]} grep {$_%2 == 0} (0 .. $#plotArr);
+
+my $subdirVariants = {
+  'fhd' => ["--size", "1920x1080"],
+  'n9' => ["--size", "854x480"],
+};
+
+my $usage = "Usage: $0 [--nofeh|--non9]\n";
+
+sub main(@){
+  my $noFeh = 0;
+  my $noN9 = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--nofeh/){
+      $noFeh = 1;
+    }elsif($arg =~ /^--non9/){
+      $noN9 = 1;
+    }else{
+      die $usage;
+    }
+  }
+  die $usage if @_ > 0;
+
+  system "rm", "-rf", $dir;
+  for my $subdir(sort keys %$subdirVariants){
+    system "mkdir", "-p", "$dir/$subdir";
+    my $variants = $$subdirVariants{$subdir};
+    my $num = 0;
+    my @order = @plotOrder;
+    @order = reverse @order if $subdir eq 'n9';
+    for my $name(@order){
+      $num++;
+      my $plot = $$plots{$name};
+      my $file = "$dir/$subdir/$num-gnuplot-$name.png";
+      my @cmd = ("ddrname", "--gnuplot", "--file", $file, @$variants, @$plot);
+      system @cmd;
+      die "error running plot $name => @$plot\n" if $? != 0;
+    }
+  }
+
+  if(not $noFeh){
+    system "feh -ZF '$dir/fhd' >/dev/null 2>/dev/null &";
+  }
+  if(not $noN9){
+    my $n9Host = `n9`;
+    chomp $n9Host;
+
+    system "rsync", "-avP", "--del", "$dir/n9/", "user\@$n9Host:~/xgnuplotddr";
+  }
+}
+
+&main(@ARGV);

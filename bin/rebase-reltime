@@ -9,7 +9,7 @@ my $dateRange = int(20 * 365 * 24 * 60 * 60);
 sub runFilterBranch($@);
 sub readFilterCommitsFile($);
 sub writeFilterCommitsFile($$);
-sub getFilterScript($);
+sub getFilterScript($$);
 sub checkTime($);
 sub getTime($);
 sub absTime($);
@@ -33,36 +33,54 @@ my $usage = "Usage:
       -\"start\" for the oldest date in the commits
       -\"end\" for the newest date in the commits
 
+  $0 [OPTS] TARGET_COMMIT --same
+    same as above, except do not modify times.
+    useful with -e
+
   OPTS
-    -f  use -f in git filter-branch command
-    -e  edit the dates in an editor before filtering on them
+    -f             use -f in git filter-branch command
+    -e             edit the dates in an editor before filtering on them
+    --timezone=TZ  use TZ for timezone instead of `date +%z`
 ";
 
 sub main(@){
   my $force = 0;
   my $edit = 0;
+  my $timezone = undef;
   while (@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
     }elsif($arg =~ /^(-e)$/){
       $edit = 1;
+    }elsif($arg =~ /^--timezone=(.+)$/){
+      $timezone = $1;
     }else{
       die $usage;
     }
   }
-  die $usage if @_ != 3;
-  my ($targetCommit, $startDate, $endDate) = @_;
+
+  my ($targetCommit, $startDate, $endDate, $same);
+  if(@_ == 2 and $_[1] =~ /^(--same)$/){
+    ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
+    $same = 1;
+  }elsif(@_ == 3){
+    ($targetCommit, $startDate, $endDate) = @_;
+    $same = 0;
+  }else{
+    die $usage;
+  }
+
   my $targetCommitHash = `git rev-parse $targetCommit`;
   chomp $targetCommitHash;
   die "did not understand $targetCommit\n" if $targetCommitHash !~ /^[0-9a-f]{40}$/;
 
   my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
-  if($startDate !~ /^(start|end)$/){
+  if(not $same and $startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
   }
-  if($endDate !~ /^(start|end)$/){
+  if(not $same and $endDate !~ /^(start|end)$/){
     $endDate = getTime $endDate;
   }
 
@@ -76,14 +94,18 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
-  $startDate = $oldest if $startDate =~ /^(start)$/;
-  $startDate = $newest if $startDate =~ /^(end)$/;
-  $endDate = $oldest if $endDate =~ /^(start)$/;
-  $endDate = $newest if $endDate =~ /^(end)$/;
+  if($same){
+    print "using original commit dates\n";
+  }else{
+    $startDate = $oldest if $startDate =~ /^(start)$/;
+    $startDate = $newest if $startDate =~ /^(end)$/;
+    $endDate = $oldest if $endDate =~ /^(start)$/;
+    $endDate = $newest if $endDate =~ /^(end)$/;
 
-  printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
-  printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
-  print "\n";
+    printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
+    printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
+    print "\n";
+  }
 
   my $filterCommits = [];
   my %originalDates;
@@ -96,8 +118,13 @@ sub main(@){
     }else{
       $offsetRatio = ($t-$oldest) / ($newest-$oldest);
     }
-    my $offset = $offsetRatio * ($endDate - $startDate);
-    my $newDate = $startDate + $offset;
+    my $newDate;
+    if($same){
+      $newDate = $t;
+    }else{
+      my $offset = $offsetRatio * ($endDate - $startDate);
+      $newDate = $startDate + $offset;
+    }
     $originalDates{$c} = $t;
     push @$filterCommits, [$c, $newDate];
   }
@@ -123,7 +150,12 @@ sub main(@){
   my $response = <STDIN>;
   die "aborted\n" unless $response eq "y\n";
 
-  my $filterScript = getFilterScript $filterCommits;
+  if(not defined $timezone){
+    $timezone = `date +%z`;
+    chomp $timezone;
+  }
+
+  my $filterScript = getFilterScript $filterCommits, $timezone;
   my @args = ("--env-filter", $filterScript, "$targetCommitHash..HEAD");
   my $success = runFilterBranch $force, @args;
   if(not $force and not $success){
@@ -191,14 +223,12 @@ sub writeFilterCommitsFile($$){
   close FH;
 }
 
-sub getFilterScript($){
-  my ($filterCommits) = @_;
+sub getFilterScript($$){
+  my ($filterCommits, $timezone) = @_;
   my $script = '';
   for my $commitDate(@$filterCommits){
     my ($commit, $t) = @$commitDate;
-    my $tz = `date +%z`;
-    chomp $tz;
-    my $date = "$t $tz";
+    my $date = "$t $timezone";
     $script .= ""
       . "  if [ \$GIT_COMMIT = $commit ]\n"
       . "  then\n"

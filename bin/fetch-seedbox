@@ -37,9 +37,23 @@ sub main(@){
       system "date | tee -a $logFile";
       my $upToDate = `seedbox --is-up-to-date`;
       if($upToDate =~ /modified/){
-        system "seedbox --cleanup 2>&1 | tee -a $logFile";
-        system "unbuffer seedbox -g 2>&1 | tee -a $logFile";
-        system "seedbox --mark-up-to-date";
+        my $attempts = 5;
+        while($upToDate =~ /modified/ and $attempts > 0){
+          $attempts--;
+          system "seedbox --cleanup 2>&1 | tee -a $logFile";
+          system "seedbox --mark-up-to-date";
+          system "unbuffer seedbox -g 2>&1 | tee -a $logFile";
+          $upToDate = `seedbox --is-up-to-date`;
+          if($upToDate =~ /modified/){
+            if($attempts <= 0){
+              print "skipping (no attempts left), still out of date\n";
+            }else{
+              print "rerunning (${attempts}x left), still out of date\n";
+            }
+          }else{
+            print "finished, 'seedbox --is-up-to-date' is up-to-date\n"
+          }
+        }
       }else{
         print "skipping, 'seedbox --is-up-to-date' is up-to-date\n"
       }

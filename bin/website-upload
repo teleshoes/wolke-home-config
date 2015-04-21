@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $secretsFile = "$ENV{HOME}/.secrets";
+my @secretKeys = qw(username password host);
+
+my $gnuplotDdrDir = "$ENV{HOME}/.cache/gnuplot-ddr";
+
+sub uploadIndex($);
+sub uploadGnuplotDdr($);
+sub getGnuplotDdrHtml($);
+sub getTodoHtml();
+sub uploadFile($$$);
+sub uploadFileContents($$$);
+sub lftpCommand($@);
+sub readSecrets();
+
+sub main(@){
+  my $secrets = readSecrets();
+  if(@_ == 1 and $_[0] =~ /^(-s|--login)$/){
+    lftpCommand $secrets;
+    exit 0;
+  }
+  die "Usage: $0 [-s|--login]\n" if @_ != 0;
+
+  system "plotddr", "--nofeh", "--non9";
+
+  uploadIndex $secrets;
+  uploadGnuplotDdr $secrets;
+}
+
+sub uploadIndex($){
+  my ($secrets) = @_;
+
+  my $gnuplotDdrN9Html = getGnuplotDdrHtml 'n9';
+  my $gnuplotDdrFhdHtml = getGnuplotDdrHtml 'fhd';
+  my $todoHtml = getTodoHtml();
+
+  my $indexHtml = ""
+    . "<html>\n"
+    . "<head/>\n"
+    . "<body>\n"
+    . "  <hr/>\n"
+    . "\n"
+    . "  <a href=\"#ddrn9\" style=\"font-size: 150%\"/>ddr-small</a>\n"
+    . "  <br/><br/>\n"
+    . "  <a href=\"#ddrfhd\" style=\"font-size: 150%\"/>ddr-large</a>\n"
+    . "  <br/><br/>\n"
+    . "  <a href=\"#todo\" style=\"font-size: 150%\"/>todo</a>\n"
+    . "\n"
+    . "  <hr/>\n"
+    . "  <a name=\"ddrn9\"></a>\n"
+    . $gnuplotDdrN9Html
+    . "  <a name=\"ddrfhd\"></a>\n"
+    . $gnuplotDdrFhdHtml
+    . "\n"
+    . "  <hr/>\n"
+    . "  <a name=\"todo\"></a>\n"
+    . "  <div>\n"
+    . $todoHtml
+    . "  </div>\n"
+    . "\n"
+    . "  <hr/>\n"
+    . "</body>\n"
+    . "</html>\n"
+    ;
+
+  uploadFileContents $secrets, $indexHtml, "index.html";
+}
+
+sub uploadGnuplotDdr($){
+  my ($secrets) = @_;
+  lftpCommand $secrets, "-e", "mirror -R --delete $gnuplotDdrDir/; exit";
+}
+
+sub getGnuplotDdrHtml($){
+  my $subdir = shift;
+  my @files = `ls $gnuplotDdrDir/$subdir/`;
+  chomp foreach @files;
+  return join '', map {"  <img src=\"gnuplot-ddr/$subdir/$_\"><hr/>\n"} @files;
+}
+
+sub getTodoHtml(){
+  my $todoHtml = `todo-parse --html`;
+  die "error getting todo HTML\n" if $? != 0;
+  return $todoHtml;
+}
+
+sub uploadFile($$$){
+  my ($secrets, $src, $dest) = @_;
+  lftpCommand $secrets, "-e", "put $src -o $dest; exit",
+}
+sub uploadFileContents($$$){
+  my ($secrets, $contents, $dest) = @_;
+  my $tmpFile = "/tmp/website-upload-" . time();
+  open FH, "> $tmpFile" or die "Couldnt write to $tmpFile\n";
+  print FH $contents;
+  close FH;
+  uploadFile $secrets, $tmpFile, $dest;
+}
+
+sub lftpCommand($@){
+  my ($secrets, @cmd) = @_;
+  system "lftp",
+    "-u", "$$secrets{username},$$secrets{password}",
+    $$secrets{host},
+    @cmd,
+    ;
+}
+
+sub readSecrets(){
+  my @lines = `cat $secretsFile 2>/dev/null`;
+  my $cfg = {};
+  my $okSecretKeys = join "|", @secretKeys;
+  for my $line(@lines){
+    if($line =~ /^website\.($okSecretKeys)\s*=\s*(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort @secretKeys){
+    die "Missing secret '$key' in $secretsFile\n" if not defined $$cfg{$key};
+  }
+  return $cfg;
+}
+
+&main(@ARGV);

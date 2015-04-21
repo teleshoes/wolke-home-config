@@ -7,6 +7,7 @@ my $remoteDownloads = "files";
 my $localDownloads = "/media/seedbox";
 my @cleanupCmd = ("find $remoteDownloads/ -type d -execdir chmod og-w {} \\;");
 
+sub handleTorrent($$);
 sub ftpCommand($@);
 sub rsyncFetch($);
 sub ssh($;\@);
@@ -80,6 +81,9 @@ my $usage = "Usage:
 
       ssh -t @revtunRemoteOpts REVTUN_USERNAME\@localhost -p REVTUN_PORT
 
+  $0 -i
+     read lines from STDIN and parse as TORRENT below
+
   $0 TORRENT [TORRENT TORRENT ..]
      if TORRENT is the path to a torrent file, send it to seedbox:$remoteTorrentDir
      if TORRENT is a magnet link, create a .torrent file
@@ -119,20 +123,37 @@ sub main(@){
     shift;
     my @cmd = @_;
     sshRevtun $config, @cmd;
+  }elsif(@_ == 1 and $_[0] =~ /^(-i)$/){
+    while(my $line = <STDIN>){
+      my $torrent = $line;
+      chomp $torrent;
+      if(not handleTorrent $config, $torrent){
+        print STDERR "WARN: could not parse $torrent\n";
+      }
+    }
   }else{
     for my $torrent(@_){
-      if($torrent =~ /\.torrent$/ and -f $torrent){
-        my $torrentFile = $torrent;
-        $torrentFile =~ s/'/'\\''/g;
-        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-      }elsif($_[0] =~ /xt=urn:btih:/){
-        my $torrentFile = magnetToTorrent $torrent;
-        $torrentFile =~ s/'/'\\''/g;
-        ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-      }else{
+      if(not handleTorrent $config, $torrent){
         die $usage;
       }
     }
+  }
+}
+
+sub handleTorrent($$){
+  my ($config, $torrent) = @_;
+  if($torrent =~ /\.torrent$/ and -f $torrent){
+    my $torrentFile = $torrent;
+    $torrentFile =~ s/'/'\\''/g;
+    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+    return 1;
+  }elsif($torrent =~ /xt=urn:btih:/){
+    my $torrentFile = magnetToTorrent $torrent;
+    $torrentFile =~ s/'/'\\''/g;
+    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+    return 1;
+  }else{
+    return 0;
   }
 }
 

@@ -20,12 +20,24 @@ my @categories = (
 );
 my $okCats = join "|", @categories;
 
-my $usage = "Usage: $0 [--sync] [--quick] [--nomount]\n";
+my $usage = "Usage:
+  $0 [OPTS]
+
+  OPTS
+    --sync
+    --quick
+    --nomount
+    --md5sum
+";
 
 sub readInfoCache($$);
 sub writeInfoCache($$$);
 sub formatInfoLine($$);
 sub updateInfoCache($$$);
+sub readMd5sumCache($$);
+sub writeMd5sumCache($$$);
+sub formatMd5sumLine($$);
+sub updateMd5sumCache($$$$);
 sub parseDuration($);
 sub formatDuration($);
 sub updateSizeSummary($$$);
@@ -43,6 +55,7 @@ sub getIpmagicCmd($@);
 sub getIpmagicFile($$);
 sub readFile($$);
 sub writeFile($$@);
+sub appendFile($$@);
 sub gitCmd($@);
 sub printCmd(@);
 sub run(@);
@@ -55,19 +68,20 @@ sub readProcStdout($$$);
 
 sub main(@){
   my $sync = 0;
-  if(@_ > 0 and $_[0] eq "--sync"){
-    $sync = 1;
-    shift;
-  }
   my $quick = 0;
-  if(@_ > 0 and $_[0] eq "--quick"){
-    $quick = 1;
-    shift;
-  }
   my $nomount = 0;
-  if(@_ > 0 and $_[0] eq "--nomount"){
-    $nomount = 1;
-    shift;
+  my $md5sum = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--sync)$/){
+      $sync = 1;
+    }elsif($arg =~ /^(--quick)$/){
+      $quick = 1;
+    }elsif($arg =~ /^(--nomount)$/){
+      $nomount = 1;
+    }else{
+      die "$usage\nunknown option: $arg\n";
+    }
   }
   die $usage if @_ != 0;
 
@@ -157,6 +171,13 @@ sub main(@){
   print "=====\n\n";
 
   print "=====\n";
+  print "Md5sum cache\n";
+  updateMd5sumCache $ipmagic, $main, "$main/md5sum-cache", "$main/md5sum-extra";
+  runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$mirror/md5sum-cache";
+  runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$mirror/md5sum-extra";
+  print "=====\n\n";
+
+  print "=====\n";
   print "Git repo\n";
   gitCmd $ipmagic, "commit", "-a", "-m", "automatic commit";
   print "=====\n\n";
@@ -236,6 +257,111 @@ sub updateInfoCache($$$){
       $$cache{$file} = [$size, $dur];
       print "Add: " . formatInfoLine($cache, $file);
       writeInfoCache $ipmagic, $cacheFile, $cache;
+    }
+  }
+}
+
+sub readMd5sumCache($$){
+  my ($ipmagic, $cacheFile) = @_;
+  my $cache = {};
+  if(test $ipmagic, "-e", $cacheFile){
+    my @lines = readFile $ipmagic, $cacheFile;
+    for my $line(@lines){
+      next if $line =~ /^\s*$/;
+      chomp $line;
+      if($line =~ /^
+        \s* ([0-9a-f]{32})
+        \s* \| \s* (\d+)
+        \s* \| \s* (\d+)b
+        \s* \| \s* (.+)
+      $/x){
+        my ($md5sum, $mtime, $size, $file) = ($1, $2, $3, $4);
+        $$cache{$file} = {md5sum=>$md5sum, size=>$size, mtime=>$mtime};
+      }else{
+        die "Malformed md5sum cache line: $line\n";
+      }
+    }
+  }
+  return $cache;
+}
+sub writeMd5sumCache($$$){
+  my ($ipmagic, $cacheFile, $cache) = @_;
+  my @lines = map{formatMd5sumLine($cache, $_)} sort keys %$cache;
+  writeFile $ipmagic, $cacheFile, @lines;
+}
+sub formatMd5sumLine($$){
+  my ($cache, $file) = @_;
+  my $f = $$cache{$file};
+  die "missing $file\n" if not defined $f;
+  return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
+}
+sub updateMd5sumCache($$$$){
+  my ($ipmagic, $dir, $md5sumCacheFile, $md5sumExtraFile) = @_;
+  my $md5sums = readMd5sumCache $ipmagic, $md5sumCacheFile;
+
+  print "fetching all mtimes and filesizes\n";
+  my @fileStats = readProc $ipmagic, "find",
+    "-L",
+    $dir,
+    "-not", "-path", "$dir/.git*",
+    "-mindepth", "2",
+    "-type", "f",
+    "-exec", "stat", "-c%s-%Y-%n", "{}", ";",
+    ;
+
+  my @files;
+  my %sizes;
+  my %mtimes;
+  for my $fileStat(@fileStats){
+    if($fileStat !~ /^(\d+)-(\d+)-(.*)\n$/){
+      die "invalid stat output: $fileStat";
+    }
+    my ($size, $mtime, $file) = ($1, $2, $3);
+    $file =~ s/^$dir\///;
+
+    push @files, $file;
+    $sizes{$file} = $size;
+    $mtimes{$file} = $mtime;
+  }
+
+  my %okFiles = map {$_ => 1} @files;
+
+  my @extraMd5sums;
+  for my $file(sort keys %$md5sums){
+    my $info = $$md5sums{$file};
+    my $isExtra = 0;
+    if(not defined $okFiles{$file}){
+      print "$file is not present, moving cache entry to extra\n";
+      $isExtra = 1;
+    }elsif($mtimes{$file} != $$info{mtime} or $sizes{$file} != $$info{size}){
+      print "$file is out of date, moving cache entry to extra\n";
+      $isExtra = 1;
+    }
+
+    if($isExtra){
+      push @extraMd5sums, formatMd5sumLine $md5sums, $file;
+      delete $$md5sums{$file};
+    }
+  }
+
+  if(@extraMd5sums > 0){
+    print "appending " . (0+@extraMd5sums) . " extras to $md5sumExtraFile\n";
+    appendFile $ipmagic, $md5sumExtraFile, @extraMd5sums;
+    writeMd5sumCache $ipmagic, $md5sumCacheFile, $md5sums;
+  }
+
+  my @missingFiles = grep {not defined $$md5sums{$_}} @files;
+
+  print "missing:\n";
+  print map {"$_\n"} @missingFiles;
+  print "(" . (0+@missingFiles) . " missing files)\n";
+
+  for my $file(sort @files){
+    if(not defined $$md5sums{$file}){
+      print "fetching md5sum for: $file\n";
+      my $md5 = md5 $ipmagic, "$dir/$file";
+      $$md5sums{$file} = {md5sum=>$md5, size=>$sizes{$file}, mtime=>$mtimes{$file}};
+      writeMd5sumCache $ipmagic, $md5sumCacheFile, $md5sums;
     }
   }
 }
@@ -489,6 +615,11 @@ sub writeFile($$@){
   close FH;
 
   runQuiet "rsync", "-aqP", $tmpFile, getIpmagicFile($ipmagic, $file);
+}
+sub appendFile($$@){
+  my ($ipmagic, $file, @lines) = @_;
+  my @prevLines = readFile $ipmagic, $file;
+  writeFile $ipmagic, $file, (@prevLines, @lines);
 }
 
 sub gitCmd($@){

@@ -112,7 +112,7 @@ alias :r='. /etc/profile; . ~/.bashrc;'
 
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
-function f            { feh "$@"; }
+function f            { feh -ZF "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }

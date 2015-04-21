@@ -4,11 +4,18 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $shortcutJsonRelpath =
+  "jetpack/customizable-shortcuts\@timtaubert.de/simple-storage/store.json";
+
 my $prefs = {
   "middlemouse.contentLoadURL"  => "false",
   "browser.download.dir"        => "\"" . getHome() . "/Desktop/Downloads\"",
   "ui.key.menuAccessKeyFocuses" => "false",
   "full-screen-api.approval-required" => "false",
+};
+my $shortcutKeys = {
+  key_fullZoomEnlarge => [  ["control","shift"], "VK_UP" ],
+  key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
 };
 
 sub editMozillaPrefs($$$) {
@@ -23,13 +30,47 @@ sub editMozillaPrefs($$$) {
   };
 }
 
-sub main(@){
-  my $home = getHome();
-  my $prefsJs = `ls $home/.mozilla/firefox/*.default/prefs.js`;
-  chomp $prefsJs;
-  die "Could not find prefs file\n" if not -f $prefsJs;
 
+sub getShortcutJson(){
+  my @overlays;
+  for my $keyId(sort keys %$shortcutKeys){
+    my ($mods, $keycode) = @{$$shortcutKeys{$keyId}};
+    my $modArrStr = "[" . (join ",", map {"\"$_\""} @$mods) . "]";
+    push @overlays, ''
+      . '{'
+        . '"_type":"overlay",'
+        . '"key":'
+        . '{'
+          . '"_type":"key",'
+          . '"id":"' . $keyId . '"'
+        . '},'
+        . '"shortcut":'
+        . '{'
+          . '"_type":"shortcut",'
+          . '"keycode":"' . $keycode . '",'
+          . '"modifiers":'
+          . '{'
+            . '"_type":"modifiers",'
+            . '"modifiers":' . $modArrStr
+          . '}'
+        . '}'
+      . '}'
+    ;
+  }
+  return '{"overlays":[' . (join ",", @overlays) . ']}';
+}
+
+sub main(@){
+  my $profileDir = glob getHome() . "/.mozilla/firefox/*.default";
+  die "Could not find profile dir" if not -d $profileDir;
+
+  my $prefsJs = "$profileDir/prefs.js";
+  die "Could not find prefs file\n" if not -f $prefsJs;
   editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
+
+  my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
+  die "Could not find shorcuts JSON file\n" if not -f $shortcutsJson;
+  writeFile $shortcutsJson, getShortcutJson();
 }
 
 &main(@ARGV);
