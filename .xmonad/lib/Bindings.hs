@@ -153,7 +153,7 @@ shortcuts conf = "Shortcuts" @@ do
                            mCA   xK_Back #! "rotate widdershins"
 
     "Applications"  @@ do
-        "kodi-alsa"     @@ mCA   xK_k    #! "kodi-alsa"
+        "kodi"          @@ mCA   xK_k    #! "kodi"
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
