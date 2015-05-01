@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 my $logDir = "$ENV{HOME}/.cyphertite/logs";
+my $cacheDir = "$ENV{HOME}/.cyphertite/ct_cachedir";
 
 my $home = $ENV{HOME};
 $home = "/media/$home" if -d "/media/$home";
@@ -25,6 +26,7 @@ my $backups = {
 };
 
 sub handleCtfile($$);
+sub cleanupCtCache($);
 sub getLatestLogFile($);
 sub formatStatus($$$);
 sub run(@);
@@ -43,6 +45,9 @@ my $usage = "Usage:
   $0 --status NAME
      print count and size of files uploaded using the latest log in ct-log
 
+  $0 --cleanup NAME
+     remove all but the latest entry in ~/.cyphertite/ct_cachedir/*-NAME
+
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion
      COMP_LINE  - the full cmdline as a string
@@ -58,7 +63,7 @@ sub main(@){
     exit 0;
   }
 
-  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--all|--log|--status)$/;
+  my $cmd = shift if @_ > 0 and $_[0] =~ /^(--all|--log|--status|--cleanup)$/;
   $cmd = '' if not defined $cmd;
 
   my $summary = '';
@@ -97,6 +102,8 @@ sub handleCtfile($$){
     my $log = getLatestLogFile($ctfile);
     die "no log exists for $ctfile\n" if not defined $log;
     run "tail", "-F", $log;
+  }elsif($cmd =~ /^(--cleanup)$/){
+    $summary .= cleanupCtCache $ctfile;
   }else{
     my $oldLog = getLatestLogFile($ctfile);
     $oldLog = "" if not defined $oldLog;
@@ -124,6 +131,28 @@ sub handleCtfile($$){
       ;
   }
 
+  return $summary;
+}
+
+sub cleanupCtCache($){
+  my $ctfile = shift;
+  my $summary = '';
+  my @ctCacheFiles = glob "$cacheDir/*-$ctfile";
+  if(@ctCacheFiles <= 1){
+    $summary .= "no old ct cache files to cleanup\n";
+  }else{
+    @ctCacheFiles = sort @ctCacheFiles;
+    my $latest = pop @ctCacheFiles;
+    $latest =~ s/^$cacheDir\///;
+    run "rm", @ctCacheFiles;
+    $summary .= ''
+      . "$ctfile: removed "
+      . (0+@ctCacheFiles)
+      . " old cache files"
+      . "  {latest=$latest}"
+      . "\n"
+      ;
+  }
   return $summary;
 }
 
