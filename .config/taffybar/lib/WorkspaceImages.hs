@@ -53,6 +53,7 @@ loadImages h = do
 getSpecial winTitle winClass
   | null winTitle && null winClass = Just "blank"
   | winTitle == "..." && winClass == "..." = Just "blank"
+  | winTitle ~~ "email-gui.py" = Just "qtemail"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " - VIM$" = Just "vim"
