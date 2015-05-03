@@ -45,7 +45,7 @@ main = do
           , W.volumeW
           , W.micW
           , W.pidginPipeW $ barHeight cfg
-          , W.thunderbirdW (barHeight cfg) Green Black
+          , W.qtemailW (barHeight cfg) Green Black
           , W.ekigaW
           , W.cpuIntelPstateW
           , W.cpuFreqsW
