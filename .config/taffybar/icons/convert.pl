@@ -20,7 +20,7 @@ sub convertRsvg($$$){
 }
 sub convertImageMagick($$$){
   my ($src, $dest, $h) = @_;
-  run "convert", "-resize", "${h}", $src, $dest;
+  run "convert", "-resize", "${h}x${h}", $src, $dest;
 }
 
 sub main(@){
