@@ -77,7 +77,7 @@ function navToLoginDelay(userName){
   setTimeout(function(){
     newUrl = baseUrl + "/login?" + userName;
     window.open(newUrl, '_self', false);
-  }, 100);
+  }, 300);
 }
 
 function login(userName){
