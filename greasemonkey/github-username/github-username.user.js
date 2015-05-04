@@ -15,6 +15,7 @@ function main(){
   landingPage = isLandingPage();
   targetUserName = getTargetUserName(url);
   userName = getUserName();
+  isLogoutUrl = isLogout(url);
 
   if(userName != null && targetUserName != null && userName != targetUserName){
     logout();
@@ -37,6 +38,8 @@ function main(){
       window.open(newUrl, '_blank', true);
       setTimeout(function(){ location.reload(true) }, 5000);
     }
+  }else if(isLogoutUrl){
+    logout()
   }
 }
 
@@ -59,6 +62,14 @@ function getTargetUserName(url){
     return "ewolk";
   }else{
     return null;
+  }
+}
+
+function isLogout(url){
+  if(/github.com\/logout/.exec(url)){
+    return true;
+  }else{
+    return false;
   }
 }
 
