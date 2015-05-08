@@ -4,19 +4,37 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-my $clientConf = "/etc/pulse/client.conf";
+my $clientConfFile = "/etc/pulse/client.conf";
+my $clientConf = {
+  'autospawn' => "no",
+};
 
-my $config = {
-  autospawn => "no",
+my $daemonConfFile = "/etc/pulse/daemon.conf";
+my $daemonConf = {
+  'realtime-scheduling'        => "yes",
+  'realtime-priority'          => "5",
+  'default-sample-format'      => "s16le",
+  'default-sample-rate'        => "44100",
+  'default-sample-channels'    => "2",
+  'default-fragments'          => "2",
+  'default-fragment-size-msec' => "125",
 };
 
 sub main(@) {
     getRoot @_;
 
-    editFile $clientConf, sub {
+    editFile $clientConfFile, sub {
       my $c = shift;
-      for my $key(sort keys %$config){
-        replaceOrAddLine $c, "\\s*;?\\s*$key\\s*=", "$key = $$config{$key}";
+      for my $key(sort keys %$clientConf){
+        replaceOrAddLine $c, "\\s*;?\\s*$key\\s*=", "$key = $$clientConf{$key}";
+      }
+      $c;
+    };
+
+    editFile $daemonConfFile, sub {
+      my $c = shift;
+      for my $key(sort keys %$daemonConf){
+        replaceOrAddLine $c, "\\s*;?\\s*$key\\s*=", "$key = $$daemonConf{$key}";
       }
       $c;
     };
