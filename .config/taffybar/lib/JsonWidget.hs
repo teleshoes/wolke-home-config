@@ -87,7 +87,7 @@ parseClickCommand gms = (cmd, widgetGuiMarkups)
 
 buildWidget :: GuiMarkup -> IO Widget
 buildWidget gm = case gm of
-  (Label text) -> fmap toWidget $ labelNew Nothing
+  (Label text) -> fmap toWidget $ labelNew (Nothing :: Maybe String)
   (Image img) -> fmap toWidget imageNew
 
 sameWidgetStructure :: [GuiMarkup] -> [GuiMarkup] -> Bool
