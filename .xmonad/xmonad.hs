@@ -82,6 +82,7 @@ myManageHook = execWriter $ do
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
   className =? tbName                  ~~> doShift "8"
+  title     =? "email-gui.py"          ~~> doShift "8"
   className =? "feh"                   ~~> doFloat
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
