@@ -10,9 +10,11 @@ import Utils (imageDir, chompAll, isRunning, chompFile)
 main = mainLabel $ getImage 0
 pidginPipeW h = clickableAsync clickL clickM clickR =<< imageW (getImage h)
 
-clickL = return $ Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
+exec = "pidgin"
+
+clickL = return $ Just $ "pkill -0 " ++ exec ++ " && wmctrl -s 1 || " ++ exec
 clickM = return $ Nothing
-clickR = return $ Just "pkill pidgin"
+clickR = return $ Just $ "pkill " ++ exec
 
 getImage h = do
   home <- getEnv "HOME"
@@ -21,7 +23,7 @@ getImage h = do
   pipe <- chompFile pipeFile
   let status = if null pipe then "off" else map toLower pipe
 
-  pidginRunning <- if status == "off" then return False else isRunning "pidgin"
+  pidginRunning <- if status == "off" then return False else isRunning exec
 
   dir <- imageDir h
   let img = if pidginRunning then imgName status else imgName "off"
