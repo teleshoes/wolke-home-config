@@ -5,16 +5,21 @@ import Image (imageW)
 import System.Environment (getEnv)
 import Control.Monad (forever)
 import Data.Char (toLower)
-import Utils (imageDir, chompAll, isRunning, chompFile)
+import Utils (ifM, imageDir, chompAll, isRunning, chompFile)
 
 main = mainLabel $ getImage 0
 pidginPipeW h = clickableAsync clickL clickM clickR =<< imageW (getImage h)
 
 exec = "pidgin"
+process = exec
+workspace = 2
 
-clickL = return $ Just $ "pkill -0 " ++ exec ++ " && wmctrl -s 1 || " ++ exec
-clickM = return $ Nothing
-clickR = return $ Just $ "pkill " ++ exec
+runCmd = exec
+wsCmd = "wmctrl -s " ++ show (workspace-1)
+
+clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
+clickM = return Nothing
+clickR = return $ Just $ "pkill " ++ process
 
 getImage h = do
   home <- getEnv "HOME"
