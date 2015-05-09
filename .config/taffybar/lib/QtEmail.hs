@@ -23,6 +23,10 @@ qtemailW h fgColor bgColor = do
 exec = "email-gui.py"
 process = exec
 
+workspace = 8
+runCmd = exec
+wsCmd = "wmctrl -s " ++ show (workspace-1)
+
 clickL = return $ Just exec
 clickM = return Nothing
 clickR = return $ Just $ "pkill " ++ process
