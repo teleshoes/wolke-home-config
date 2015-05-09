@@ -9,5 +9,6 @@ taffybar-restart --daemon --quiet
 parcellite -d &
 sudo sbox-umount &
 ( sleep 2; pulse-vol mic mute ) &
+term -t qtemail-daemon -r email-daemon.pl
 
 exec xmonad
