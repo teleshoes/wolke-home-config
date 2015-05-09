@@ -5,7 +5,7 @@ import Image (imageW)
 import Label (labelW, mainLabel)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  imageDir, fg, isRunning, chompFile)
+  ifM, imageDir, fg, isRunning, chompFile)
 
 import System.Environment (getEnv)
 
@@ -27,7 +27,7 @@ workspace = 8
 runCmd = exec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
-clickL = return $ Just exec
+clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
 clickR = return $ Just $ "pkill " ++ process
 
