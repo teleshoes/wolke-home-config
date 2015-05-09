@@ -83,6 +83,7 @@ myManageHook = execWriter $ do
   className =? "Pidgin"                ~~> doShift "B"
   className =? tbName                  ~~> doShift "8"
   title     =? "email-gui.py"          ~~> doShift "8"
+  title     =? "qtemail-daemon"        ~~> doShift "9"
   className =? "feh"                   ~~> doFloat
   title     =? "Off"                   ~~> doFloat
   title     =? "Transmission"          ~~> doShift "9"
