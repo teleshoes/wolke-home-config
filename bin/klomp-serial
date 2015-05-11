@@ -64,15 +64,18 @@ sub main(@){
     @nextChunkNums = grep {defined $_} @nextChunkNums;
 
     my $copyNextChunk = 1;
+    my $deleteCurChunk = 1;
     my $msg = "\n";
 
     if(@nextChunkNums < $$serial{chunkSize}){
       $msg .= "not enough left to copy\n";
       $copyNextChunk = 0;
+      $deleteCurChunk = 0;
     }
     if(@curChunkNums < $$serial{chunkSize}){
       $msg .= "not enough present to replace\n";
       $copyNextChunk = 0;
+      $deleteCurChunk = 0;
     }
     for my $num(@curChunkNums){
       if(not elem $num, @histNums){
@@ -84,17 +87,28 @@ sub main(@){
           $msg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
         }
         $copyNextChunk = 0;
+        $deleteCurChunk = 0;
         last;
       }
     }
 
-    if($copyNextChunk){
-      print "\n$$serial{album}: copying chunk @nextChunkNums\n\n";
-      for my $num(@nextChunkNums){
-        copyNum $serial, $num;
+    if($copyNextChunk or $deleteCurChunk){
+      print "\n$$serial{album}:\n";
+      if($copyNextChunk){
+        print "copying chunk @nextChunkNums\n\n";
+        for my $num(@nextChunkNums){
+          copyNum $serial, $num;
+        }
+      }else{
+        print "skipping copy next chunk {there is at least one full chunk}\n\n";
       }
-      for my $num(@curChunkNums){
-        removeNum $serial, $num;
+      if($deleteCurChunk){
+        print "deleting chunk @curChunkNums\n\n";
+        for my $num(@curChunkNums){
+          removeNum $serial, $num;
+        }
+      }else{
+        print "skipping delete cur chunk {already underneath the maximum}\n\n";
       }
       run "klomp-db", "-m", "--force=$$serial{chunkSize}", $$serial{destLib};
       run "klomp-db", "-u", $$serial{destLib};
