@@ -72,26 +72,28 @@ sub main(@){
 
     my $copyNextChunk = 1;
     my $deleteCurChunk = 1;
-    my $msg = "\n";
+
+    my $skipCopyMsg = "\n";
+    my $skipDeleteMsg = "\n";
 
     if(@nextChunkNums < $$serial{chunkSize}){
-      $msg .= "not enough left to copy\n";
+      $skipCopyMsg .= "not enough left to copy\n";
       $copyNextChunk = 0;
       $deleteCurChunk = 0;
     }
     if(@curChunkNums < $$serial{chunkSize}){
-      $msg .= "not enough present to replace\n";
+      $skipCopyMsg .= "not enough present to replace\n";
       $copyNextChunk = 0;
       $deleteCurChunk = 0;
     }
     for my $num(@curChunkNums){
       if(not elem $num, @histNums){
-        $msg .= "$num is not in history\n";
+        $skipCopyMsg .= "$num is not in history\n";
         if(defined $maxHistNum and $maxHistNum gt $num){
-          $msg .= "\n\n";
-          $msg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
-          $msg .= "POSSIBLE SKIP: $maxHistNum is in history\n";
-          $msg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
+          $skipCopyMsg .= "\n\n";
+          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
+          $skipCopyMsg .= "POSSIBLE SKIP: $maxHistNum is in history\n";
+          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
         }
         $copyNextChunk = 0;
         $deleteCurChunk = 0;
@@ -100,12 +102,14 @@ sub main(@){
     }
     if($notInHistCount >= $$serial{chunkSize}){
       $copyNextChunk = 0;
+      $skipCopyMsg .= "at least one full chunk not in hist\n\n";
     }
 
     my $finalCount = @curNums;
     $finalCount += @nextChunkNums if $copyNextChunk;
     if($finalCount <= $$serial{maxSize}){
       $deleteCurChunk = 0;
+      $skipDeleteMsg .= "already underneath the maximum\n\n";
     }
 
     if($copyNextChunk or $deleteCurChunk){
@@ -116,7 +120,7 @@ sub main(@){
           copyNum $serial, $num;
         }
       }else{
-        print "skipping copy next chunk {there is at least one full chunk}\n\n";
+        print "skipping copy next chunk\n$skipCopyMsg\n\n";
       }
       if($deleteCurChunk){
         print "deleting chunk @curChunkNums\n\n";
@@ -124,7 +128,7 @@ sub main(@){
           removeNum $serial, $num;
         }
       }else{
-        print "skipping delete cur chunk {already underneath the maximum}\n\n";
+        print "skipping delete cur chunk\n$skipDeleteMsg\n\n";
       }
       run "klomp-db", "-m", "--force=$$serial{chunkSize}", $$serial{destLib};
       run "klomp-db", "-u", $$serial{destLib};
@@ -148,7 +152,7 @@ sub main(@){
         }
       }
     }else{
-      print "\n$$serial{album}: skipping, $msg\n";
+      print "\n$$serial{album}: skipping, $skipCopyMsg\n";
     }
 
     setPlaylist $serial, $origPlaylist;
