@@ -1,18 +1,25 @@
 module PidginPipe(pidginPipeW) where
-import Clickable (clickable)
+import Clickable (clickableAsync)
 import Label (mainLabel)
 import Image (imageW)
 import System.Environment (getEnv)
 import Control.Monad (forever)
 import Data.Char (toLower)
-import Utils (imageDir, chompAll, isRunning, chompFile)
+import Utils (ifM, imageDir, chompAll, isRunning, chompFile)
 
 main = mainLabel $ getImage 0
-pidginPipeW h = clickable clickL clickM clickR =<< imageW (getImage h)
+pidginPipeW h = clickableAsync clickL clickM clickR =<< imageW (getImage h)
 
-clickL = Just "pkill -0 pidgin && wmctrl -s 1 || pidgin"
-clickM = Nothing
-clickR = Just "pkill pidgin"
+exec = "pidgin"
+process = exec
+workspace = 2
+
+runCmd = exec
+wsCmd = "wmctrl -s " ++ show (workspace-1)
+
+clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
+clickM = return Nothing
+clickR = return $ Just $ "pkill " ++ process
 
 getImage h = do
   home <- getEnv "HOME"
@@ -21,7 +28,7 @@ getImage h = do
   pipe <- chompFile pipeFile
   let status = if null pipe then "off" else map toLower pipe
 
-  pidginRunning <- if status == "off" then return False else isRunning "pidgin"
+  pidginRunning <- if status == "off" then return False else isRunning exec
 
   dir <- imageDir h
   let img = if pidginRunning then imgName status else imgName "off"

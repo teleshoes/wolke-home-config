@@ -26,7 +26,7 @@ my $serials = [
     destLib     => "b",
     srcRelPath  => "PodCastle",
     destRelPath => "podcastle",
-    maxSize     => 10,
+    maxSize     => 15,
     chunkSize   => 5,
   },
   {
@@ -38,7 +38,7 @@ my $serials = [
     destLib     => "b",
     srcRelPath  => "Escape Pod",
     destRelPath => "escapepod",
-    maxSize     => 10,
+    maxSize     => 15,
     chunkSize   => 5,
   },
 ];
@@ -63,44 +63,73 @@ sub main(@){
     @curChunkNums = grep {defined $_} @curChunkNums;
     @nextChunkNums = grep {defined $_} @nextChunkNums;
 
+    my @notInHist;
+    for my $num(@curNums){
+      if(not elem $num, @histNums){
+        push @notInHist, $num;
+      }
+    }
+
     my $copyNextChunk = 1;
-    my $msg;
+    my $deleteCurChunk = 1;
 
-    if($copyNextChunk){
-      if(@nextChunkNums < $$serial{chunkSize}){
-        $msg = "not enough left to copy";
-        $copyNextChunk = 0;
-      }
+    my $skipCopyMsg = "\n";
+    my $skipDeleteMsg = "\n";
+
+    if(@nextChunkNums < $$serial{chunkSize}){
+      $skipCopyMsg .= "not enough left to copy\n";
+      $copyNextChunk = 0;
+      $deleteCurChunk = 0;
     }
-    if($copyNextChunk){
-      if(@curChunkNums < $$serial{chunkSize}){
-        $msg = "not enough present to replace";
-        $copyNextChunk = 0;
-      }
+    if(@curChunkNums < $$serial{chunkSize}){
+      $skipCopyMsg .= "not enough present to replace\n";
+      $copyNextChunk = 0;
+      $deleteCurChunk = 0;
     }
-    if($copyNextChunk){
-      for my $num(@curChunkNums){
-        if(not elem $num, @histNums){
-          $msg = "$num is not in history";
-          if(defined $maxHistNum and $maxHistNum gt $num){
-            $msg .= "\n\n";
-            $msg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
-            $msg .= "POSSIBLE SKIP: $maxHistNum is in history\n";
-            $msg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
-          }
-          $copyNextChunk = 0;
-          last;
+    for my $num(@curChunkNums){
+      if(not elem $num, @histNums){
+        $skipCopyMsg .= "$num is not in history\n";
+        if(defined $maxHistNum and $maxHistNum gt $num){
+          $skipCopyMsg .= "\n\n";
+          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
+          $skipCopyMsg .= "POSSIBLE SKIP: $maxHistNum is in history\n";
+          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
         }
+        $copyNextChunk = 0;
+        $deleteCurChunk = 0;
+        last;
       }
     }
 
-    if($copyNextChunk){
-      print "\n$$serial{album}: copying chunk @nextChunkNums\n\n";
-      for my $num(@nextChunkNums){
-        copyNum $serial, $num;
+    if(@notInHist >= $$serial{chunkSize}){
+      $copyNextChunk = 0;
+      $skipCopyMsg .= "at least one full chunk not in hist: @notInHist\n\n";
+    }
+
+    my $finalCount = @curNums;
+    $finalCount += @nextChunkNums if $copyNextChunk;
+    if($finalCount <= $$serial{maxSize}){
+      $deleteCurChunk = 0;
+      $skipDeleteMsg .= "already underneath the maximum\n\n";
+    }
+
+    if($copyNextChunk or $deleteCurChunk){
+      print "\n$$serial{album}:\n";
+      if($copyNextChunk){
+        print "copying chunk @nextChunkNums\n\n";
+        for my $num(@nextChunkNums){
+          copyNum $serial, $num;
+        }
+      }else{
+        print "skipping copy next chunk\n$skipCopyMsg\n\n";
       }
-      for my $num(@curChunkNums){
-        removeNum $serial, $num;
+      if($deleteCurChunk){
+        print "deleting chunk @curChunkNums\n\n";
+        for my $num(@curChunkNums){
+          removeNum $serial, $num;
+        }
+      }else{
+        print "skipping delete cur chunk\n$skipDeleteMsg\n\n";
       }
       run "klomp-db", "-m", "--force=$$serial{chunkSize}", $$serial{destLib};
       run "klomp-db", "-u", $$serial{destLib};
@@ -113,16 +142,18 @@ sub main(@){
         }
         run "klomp-sync", $host, "--nopresync", $$serial{destLib};
         my @remoteCmd = getRemoteCmd $serial;
-        for my $num(@nextChunkNums){
-          my $queryLib = "\@$$serial{destLib}";
-          my $queryAlbum = "\@l^\"$$serial{album}\"\$";
-          my $queryNumber = "\@n^\"$num\"\$";
-          my $query = "$queryLib $queryAlbum $queryNumber";
-          run @remoteCmd, "klomp", "--append", "'$query'";
+        if($copyNextChunk){
+          for my $num(@nextChunkNums){
+            my $queryLib = "\@$$serial{destLib}";
+            my $queryAlbum = "\@l^\"$$serial{album}\"\$";
+            my $queryNumber = "\@n^\"$num\"\$";
+            my $query = "$queryLib $queryAlbum $queryNumber";
+            run @remoteCmd, "klomp", "--append", "'$query'";
+          }
         }
       }
     }else{
-      print "\n$$serial{album}: skipping, $msg\n\n";
+      print "\n$$serial{album}: skipping, $skipCopyMsg\n";
     }
 
     setPlaylist $serial, $origPlaylist;

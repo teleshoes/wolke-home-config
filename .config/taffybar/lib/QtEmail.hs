@@ -1,11 +1,11 @@
 module QtEmail(qtemailW) where
 import Color (Color(..), hexColor, widgetBgColorWrap)
-import Clickable (clickable)
+import Clickable (clickableAsync)
 import Image (imageW)
 import Label (labelW, mainLabel)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  imageDir, fg, isRunning, chompFile)
+  ifM, imageDir, fg, isRunning, chompFile)
 
 import System.Environment (getEnv)
 
@@ -18,14 +18,18 @@ qtemailW h fgColor bgColor = do
   containerAdd box img
   containerAdd box label
 
-  widgetBgColorWrap bgColor =<< clickable clickL clickM clickR box
+  widgetBgColorWrap bgColor =<< clickableAsync clickL clickM clickR box
 
 exec = "email-gui.py"
 process = exec
+workspace = 8
 
-clickL = Just $ exec
-clickM = Nothing
-clickR = Just $ "pkill " ++ process
+runCmd = exec
+wsCmd = "wmctrl -s " ++ show (workspace-1)
+
+clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
+clickM = return Nothing
+clickR = return $ Just $ "pkill " ++ process
 
 getImage h = do
   running <- isRunning process
