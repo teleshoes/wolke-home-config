@@ -17,7 +17,7 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 
 my @okFilters = qw(
   --song --hard --nothard
-  --singles --doubles --nonstop
+  --singles --doubles --nonstop --nonstopdoubles
   --score --minscore --maxscore
   --date --mindate
   --maxdate
@@ -85,7 +85,7 @@ my $okOtherSongs = join '|', @otherSongs;
 my @songArgs = sort {$a cmp $b} (@hardSongs, @otherSongs);
 my $okSongArgs = join '|', @songArgs;
 
-my @gameArgs = qw(doubles nonstop);
+my @gameArgs = qw(doubles nonstop nonstopdoubles);
 my $okGameArgs = join '|', @gameArgs;
 
 my @difficultyArgs = qw(beginner basic difficult expert challenge);
@@ -152,12 +152,15 @@ my $usage = "Usage:
     FILTER: GAME
       --singles
         include only scores where GAME is not defined
-        {overrides --doubles and --nonstop}
+        {overrides --doubles and --nonstop and --nonstopdoubles}
       --doubles
         include only scores where GAME is doubles
-        {overrides --singles and --nonstop}
+        {overrides --singles and --nonstop and --nonstopdoubles}
       --nonstop
         include only scores where GAME is nonstop
+        {overrides --singles and --doubles and --nonstopdoubles}
+      --nonstopdoubles
+        include only scores where GAME is nonstopdoubles
         {overrides --singles and --doubles}
 
     FILTER: SCORE
@@ -473,11 +476,13 @@ sub scoreStats($@){
       my $regex = "($okOtherSongs)";
       $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
     }elsif($opt =~ /^(--singles)$/){
-      $$filters{game} = {doubles => 0, nonstop => 0, "" => 1};
+      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 0, "" => 1};
     }elsif($opt =~ /^(--doubles)$/){
-      $$filters{game} = {doubles => 1, nonstop => 0, "" => 0};
+      $$filters{game} = {doubles => 1, nonstop => 0, nonstopdoubles => 0, "" => 0};
     }elsif($opt =~ /^(--nonstop)$/){
-      $$filters{game} = {doubles => 0, nonstop => 1, "" => 0};
+      $$filters{game} = {doubles => 0, nonstop => 1, nonstopdoubles => 0, "" => 0};
+    }elsif($opt =~ /^(--nonstopdoubles)$/){
+      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 1, "" => 0};
     }elsif($opt =~ /^(--score|--minscore)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;
