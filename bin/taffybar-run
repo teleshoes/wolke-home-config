@@ -1,0 +1,96 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+use Cwd 'abs_path';
+
+sub getAllHaskellFiles();
+sub getWidgetNames();
+sub getHaskellFileByWidgetName($);
+sub bashComplete($$);
+
+my $widgetDir = "$ENV{HOME}/.config/taffybar/lib";
+my @widgetNames = getWidgetNames();
+
+my $usage = "Usage:
+  $0 -h|--help
+    Print this message
+
+  $0 WIDGET_NAME [ARGS]
+    find the haskell file in $widgetDir
+      that matches WIDGET_NAME case insensitively,
+      and run: \"runhaskell <haskell file> <ARGS>\"
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
+";
+
+sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print join ' ', bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
+    die $usage;
+  }
+
+  die $usage if @_ == 0;
+  my ($widgetName, @args) = @_;
+  my $hsFile = getHaskellFileByWidgetName $widgetName;
+  die "Could not find '$widgetName' in $widgetDir\n" if not defined $hsFile;
+  chdir $widgetDir;
+  system "runhaskell", $hsFile, @args;
+}
+
+sub getAllHaskellFiles(){
+  return glob "$widgetDir/*.hs";
+}
+
+sub getWidgetNames(){
+  my @hsFiles = getAllHaskellFiles();
+  s/^$widgetDir\/?// foreach @hsFiles;
+  s/\.hs$// foreach @hsFiles;
+  @hsFiles = map {lc $_} @hsFiles;
+  return @hsFiles;
+}
+
+sub getHaskellFileByWidgetName($){
+  my $widgetName = shift;
+  for my $hsFile(getAllHaskellFiles()){
+    if($hsFile =~ /^$widgetDir\/$widgetName\.hs$/i){
+      return $hsFile;
+    }
+  }
+  return undef;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $curWord = pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    --bash-complete
+  );
+  my $optWord = $isNewWord ? $words[-1] : $curWord;
+
+  if(defined $optWord and $optWord =~ /^-/){
+    return @opts;
+  }else{
+    return sort @widgetNames;
+  }
+
+  return ();
+}
+
+&main(@ARGV);

@@ -17,7 +17,7 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 
 my @okFilters = qw(
   --song --hard --nothard
-  --singles --doubles --nonstop
+  --singles --doubles --nonstop --nonstopdoubles
   --score --minscore --maxscore
   --date --mindate
   --maxdate
@@ -47,6 +47,7 @@ my @songArr = (
   ['maxxunlimited'            => 'maxxU' => 'hard' => 'expert'],
   ['paranoiarespect'          => 'prRsp' => 'hard' => 'expert'],
   ['paranoiasurvivor270'      => 'prSur' => 'hard' => 'expert'],
+  ['paranoiasurvivormax290'   => 'prSrM' => 'hard' => 'expert'],
   ['xepher'                   => 'xephe' => 'hard' => 'challenge'],
 
   ['321stars'                 => '321st' => 'other' => 'expert'],
@@ -59,18 +60,23 @@ my @songArr = (
   ['dynamiteraveairspecial'   => 'dyrvA' => 'other' => 'challenge'],
   ['exoticethnic'             => 'exEth' => 'other' => 'expert'],
   ['flowers'                  => 'flwrs' => 'other' => 'expert'],
+  ['healingvision'            => 'hgVsn' => 'other' => 'expert'],
   ['healingvisionangelic'     => 'hgVnA' => 'other' => 'expert'],
   ['matsurijapan'             => 'matsu' => 'other' => 'expert'],
   ['mugen'                    => 'mugen' => 'other' => 'expert'],
   ['mysummerlove'             => 'mySLv' => 'other' => 'expert'],
   ['no13'                     => 'no13T' => 'other' => 'expert'],
   ['orioneuro'                => 'ornEu' => 'other' => 'expert'],
+  ['paranoia'                 => 'paran' => 'other' => 'expert'],
   ['paranoiaeternalstm200'    => 'prEte' => 'other' => 'expert'],
   ['paranoiaevolution200'     => 'prEvo' => 'other' => 'expert'],
+  ['raspberryheart'           => 'rsphr' => 'other' => 'expert'],
   ['sanamollete'              => 'sanaM' => 'other' => 'expert'],
+  ['sunkissdrop'              => 'snkdr' => 'other' => 'expert'],
   ['tsugaru'                  => 'tsuga' => 'other' => 'expert'],
 
   ['bemanispirits'            => 'nonBS' => 'other' => 'difficult'],
+  ['terra'                    => 'nonTR' => 'other' => 'difficult'],
 );
 
 my %songAbbrevs = map { $$_[0] => $$_[1] } @songArr;
@@ -85,7 +91,7 @@ my $okOtherSongs = join '|', @otherSongs;
 my @songArgs = sort {$a cmp $b} (@hardSongs, @otherSongs);
 my $okSongArgs = join '|', @songArgs;
 
-my @gameArgs = qw(doubles nonstop);
+my @gameArgs = qw(doubles nonstop nonstopdoubles);
 my $okGameArgs = join '|', @gameArgs;
 
 my @difficultyArgs = qw(beginner basic difficult expert challenge);
@@ -152,12 +158,15 @@ my $usage = "Usage:
     FILTER: GAME
       --singles
         include only scores where GAME is not defined
-        {overrides --doubles and --nonstop}
+        {overrides --doubles and --nonstop and --nonstopdoubles}
       --doubles
         include only scores where GAME is doubles
-        {overrides --singles and --nonstop}
+        {overrides --singles and --nonstop and --nonstopdoubles}
       --nonstop
         include only scores where GAME is nonstop
+        {overrides --singles and --doubles and --nonstopdoubles}
+      --nonstopdoubles
+        include only scores where GAME is nonstopdoubles
         {overrides --singles and --doubles}
 
     FILTER: SCORE
@@ -473,11 +482,13 @@ sub scoreStats($@){
       my $regex = "($okOtherSongs)";
       $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
     }elsif($opt =~ /^(--singles)$/){
-      $$filters{game} = {nonstop => 0, doubles => 0, "" => 1};
+      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 0, "" => 1};
     }elsif($opt =~ /^(--doubles)$/){
-      $$filters{game} = {nonstop => 0, doubles => 1, "" => 0};
+      $$filters{game} = {doubles => 1, nonstop => 0, nonstopdoubles => 0, "" => 0};
     }elsif($opt =~ /^(--nonstop)$/){
-      $$filters{game} = {nonstop => 1, doubles => 0, "" => 0};
+      $$filters{game} = {doubles => 0, nonstop => 1, nonstopdoubles => 0, "" => 0};
+    }elsif($opt =~ /^(--nonstopdoubles)$/){
+      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 1, "" => 0};
     }elsif($opt =~ /^(--score|--minscore)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;

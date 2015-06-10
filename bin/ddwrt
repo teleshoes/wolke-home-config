@@ -2,7 +2,10 @@
 use strict;
 use warnings;
 
-my $file = "$ENV{HOME}/.ddwrt";
+my $dir = "$ENV{HOME}/ddwrt";
+my $okRouters = join "|", qw(buffalo);
+my $defaultRouter = "buffalo";
+
 my $macRe = ("[a-fA-F0-9]{2}:" x 5) . "[a-fA-F0-9]{2}";
 my $baseFile = "/tmp/ddwrt";
 
@@ -23,34 +26,34 @@ my %wifiAtts = map {$_ => 1} qw(
 my %encWifiAtts = map {$_ => 1} qw( wpa_psk );
 
 my $usage = "Usage:
-  $0 [-i|--info]
+  $0 [ROUTER] [-i|--info]
     Print restore bootstrap instructions {default if no arg given}
 
-  $0 -h|--help
+  $0 [ROUTER] -h|--help
     Print this message
 
-  $0 -s [CMD ARG ARG ..]
-    get IP from $file and run 'ssh SSH_OPTS root\@IP CMD ARG ARG ..'
+  $0 [ROUTER] -s [CMD ARG ARG ..]
+    get IP from $dir/ROUTER and run 'ssh SSH_OPTS root\@IP CMD ARG ARG ..'
 
-  $0 -r|--reboot
-    get IP from $file and run 'ssh SSH_OPTS root\@IP reboot &'
+  $0 [ROUTER] -r|--reboot
+    get IP from $dir/ROUTER and run 'ssh SSH_OPTS root\@IP reboot &'
 
-  $0 --restart-dev [DEV]
+  $0 [ROUTER] --restart-dev [DEV]
     runs 'ifconfig DEV down && ifconfig DEV up' on the router
     gets all processes starting with one of @restartDevCmds and containing DEV
     kills those processes on the router, and reruns them
     DEV defaults to $defaultDev
 
-  $0 -t|--test|--speedtest
+  $0 [ROUTER] -t|--test|--speedtest
     perform a speedtest with netcat
 
-  $0 --show
+  $0 [ROUTER] --show
     run nvram show
 
-  $0 -e|--encrypt KEY
-    pass in a wpa key or whatever for encrypting and putting into $file
+  $0 [ROUTER] -e|--encrypt KEY
+    pass in a wpa key or whatever for encrypting and putting into $dir/ROUTER
 
-  $0 --restore
+  $0 [ROUTER] --restore
     ssh in and setup nvram
     prints nvram info (TIME is like \"date +\%s\"):
       ${baseFile}_old_TIME
@@ -62,6 +65,7 @@ my $usage = "Usage:
      COMP_LINE  - the full cmdline as a string
      COMP_POINT - the cursor position in the cmdline
 
+  ROUTER = router nickname, one of [$okRouters]
   SSH_OPTS = @sshOpts
 ";
 my @args = qw(
@@ -75,7 +79,7 @@ sub assertPresent($$;$);
 sub speedtest($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
-sub getStarted($);
+sub getStarted($$);
 sub parse($);
 sub getClientIds($);
 sub encrypt($);
@@ -92,6 +96,11 @@ sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print join ' ', bashComplete($_[1], $_[2]);
     exit 0;
+  }
+
+  my $router = $defaultRouter;
+  if(@_ > 0 and $_[0] =~ /^($okRouters)$/){
+    $router = shift;
   }
 
   die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
@@ -117,7 +126,7 @@ sub main(@){
 
   die $usage if @_ > 0 or $arg !~ /^($okArgs)$/;
 
-  my $c = parse $file;
+  my $c = parse "$dir/$router";
   assertPresent $c, 'config';
   assertPresent $c, 'config', 'ip_prefix';
   assertPresent $c, 'config', 'router_ip';
@@ -129,7 +138,7 @@ sub main(@){
   }elsif($arg =~ /^(--restart-dev)$/){
     restartDev $c, $dev;
   }elsif($arg =~ /^(-i|--info)$/){
-    print getStarted $c;
+    print getStarted $c, $router;
   }elsif($arg =~ /^(-t|--test|--speedtest)$/){
     speedtest $c;
   }elsif($arg =~ /^(--show)$/){
@@ -236,14 +245,14 @@ sub ddwrtRestore($){
   close FH;
   system "scp", $script, "root\@$ip:$script";
 
-  my $old = `ssh @sshOpts root\@$ip nvram show`;
+  my $old = `ssh @sshOpts root\@$ip nvram show | sort`;
   open FH, "> $oldF";
   print FH $old;
   close FH;
 
   system "ssh", @sshOpts, "root\@$ip", "sh $script";
 
-  my $new = `ssh @sshOpts root\@$ip nvram show`;
+  my $new = `ssh @sshOpts root\@$ip nvram show | sort`;
   open FH, "> $newF";
   print FH $new;
   close FH;
@@ -258,8 +267,8 @@ sub ddwrtRestore($){
   }
 }
 
-sub getStarted($){
-  my $c = shift;
+sub getStarted($$){
+  my ($c, $router) = @_;
   my $wpa = $$c{config}{default_wpa};
   $wpa = "" if not defined $wpa;
   $wpa =~ s/^\s+//g;
@@ -290,27 +299,37 @@ sub getStarted($){
 
    Setup => Router IP => $$c{config}{router_ip}
 
-   apply settings
-
-   wconnect $$c{config}{default_ssid}$wpa
+   SAVE settings (apply later)
 
 4) enable ssh
-   browser $$c{config}{router_ip}
+   browser $$c{config}{default_router_ip}
 
    Services => Secure Shell => SSHd Enable
 
-   apply settings
+   SAVE settings (apply later)
 
 5) paste in your pubkey, or use router password
 
    cat ~/.ssh/*.pub | xsel -b
 
-   apply settings
+   SAVE settings (applied after reboot)
 
    reboot router {more or less required, for some reason}
 
-6) run restore and wait for router to reboot {possibly twice...}
-   loop -s ddwrt --restore
+   wconnect $$c{config}{default_ssid}$wpa
+
+   check ddwrt $router -s
+     if not:
+       Services => Secure Shell => SSHd Disable
+       Apply Settings
+       Services => Secure Shell => SSHd Enable
+
+6) remove router from known_hosts
+
+   ssh-keygen -f \"\$HOME/.ssh/known_hosts\" -R 192.168.11.1
+
+7) run restore and wait for router to reboot {possibly twice...}
+   loop -s ddwrt $router --restore
 ";
 }
 
