@@ -230,6 +230,13 @@ my $usage = "Usage:
     FILTER
       see --print FILTER
 
+  $0 --bestfiles [FILTER FILTER ..]
+    print the filename of the highest score for each set of scores with the same:
+      [<SONG>, <GAME>, <DIFFICULTY>]
+
+    FILTER
+      see --print FILTER
+
   $0 JPG_FILE [ARG ARG ..]
 
   rename a jpeg file using a consistent format
@@ -310,7 +317,7 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
     my $cmd = shift;
     dateStats($cmd, @_);
-  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot)$/){
+  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
   }else{
@@ -524,6 +531,11 @@ sub scoreStats($@){
   }elsif($cmd =~ /^(--gnuplot)$/){
     my $fmt = formatScores($okNotes, $filters);
     gnuplot $plotOptions, $fmt;
+  }elsif($cmd =~ /^(--bestfiles)$/){
+    my $bestScores = getBestScores($filters);
+    for my $bucketName(sort keys %$bestScores){
+      print $$bestScores{$bucketName}{file} . "\n";
+    }
   }
 }
 
@@ -781,6 +793,31 @@ sub formatScores($$){
   return $fmt;
 }
 
+sub getBestScores($){
+  my ($filters) = @_;
+
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
+
+  my $scores = [values %$scoresByFile];
+  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+
+  my $bestScores = {};
+
+  for my $bucketName(sort keys %$buckets){
+    my $bucketScores = $$buckets{$bucketName};
+    my $maxScore;
+    for my $s(@$bucketScores){
+      if(not defined $maxScore or $$s{score} > $$maxScore{score}){
+        $maxScore = $s;
+      }
+    }
+    $$bestScores{$bucketName} = $maxScore if defined $maxScore;
+  }
+
+  return $bestScores;
+}
+
 sub gnuplot($$){
   my ($plotOptions, $data) = @_;
   my $dataFile = "/tmp/ddrname-gnuplot-data";
@@ -866,10 +903,10 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--datestats", "--print", "--gnuplot", @jpgFiles);
+    return ("--fehterm", "--datestats", "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
