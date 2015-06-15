@@ -288,6 +288,7 @@ sub parseArgs(@);
 sub getScoresByFile();
 sub listScoreFiles();
 sub parseScoreFile($);
+sub sortScores($);
 sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
 sub filterScores($$);
@@ -633,8 +634,25 @@ sub parseScoreFile($){
   };
 }
 
+sub sortScores($){
+  my $scores = shift;
+  return [sort {
+    $$a{date} <=> $$b{date}
+    ||
+    $$a{game} cmp $$b{game}
+    ||
+    $$a{song} cmp $$b{song}
+    ||
+    $$a{difficulty} cmp $$b{difficulty}
+    ||
+    $$a{file} cmp $$b{file}
+  } @$scores];
+}
+
 sub getScoreBuckets($@){
   my ($scores, @bucketFields) = @_;
+  $scores = sortScores $scores;
+
   my $buckets = {};
   for my $score(@$scores){
     my @bucketFieldVals = map {$$score{$_}} @bucketFields;
@@ -647,13 +665,15 @@ sub getScoreBuckets($@){
 }
 
 sub formatBucketCsv($$$){
-  my ($okNotes, $bucketName, $bucket) = @_;
+  my ($okNotes, $bucketName, $bucketScores) = @_;
 
   my %isHardSong = map {$_ => 1} @hardSongs;
 
+  $bucketScores = sortScores $bucketScores;
+
   my $maxScore = undef;
   my $maxScoreFile = undef;
-  for my $s(sort @$bucket){
+  for my $s(@$bucketScores){
     if(not defined $maxScore or $$s{score} > $maxScore){
       $maxScore = $$s{score};
       $maxScoreFile = $$s{file};
@@ -661,7 +681,7 @@ sub formatBucketCsv($$$){
   }
 
   my $fmt = "";
-  for my $s(sort @$bucket){
+  for my $s(@$bucketScores){
     my @notes;
     if($$okNotes{'extra'} and defined $$s{extra}){
       push @notes, $$s{extra};
@@ -746,15 +766,15 @@ sub formatScores($$){
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
 
-  my @scores = map { $$scoresByFile{$_} } sort keys %$scoresByFile;
-  my $buckets = getScoreBuckets(\@scores, qw(song game difficulty));
+  my $scores = [values %$scoresByFile];
+  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
 
   my $fmt = "";
   for my $bucketName(sort keys %$buckets){
-    my $bucket = $$buckets{$bucketName};
+    my $bucketScores = $$buckets{$bucketName};
     $fmt .= "\n\n" unless $fmt eq "";
     $fmt .= "\"$bucketName\"\n";
-    $fmt .= formatBucketCsv $okNotes, $bucketName, $bucket;
+    $fmt .= formatBucketCsv $okNotes, $bucketName, $bucketScores;
   }
   return $fmt;
 }
