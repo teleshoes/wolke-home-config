@@ -290,6 +290,7 @@ sub listScoreFiles();
 sub parseScoreFile($);
 sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
+sub filterScores($$);
 sub formatScores($$);
 sub gnuplot($$);
 sub combine(@);
@@ -683,11 +684,8 @@ sub formatBucketCsv($$$){
   return $fmt;
 }
 
-sub formatScores($$){
-  my ($okNotes, $filters) = @_;
-
-  my @scoreFiles = getScoreFiles();
-  my $scoresByFile = parseScoreFiles(@scoreFiles);
+sub filterScores($$){
+  my ($scoresByFile, $filters) = @_;
 
   for my $file(sort keys %$scoresByFile){
     my $s = $$scoresByFile{$file};
@@ -738,6 +736,15 @@ sub formatScores($$){
     delete $$scoresByFile{$file} if not $ok;
   }
   die "no scores found\n" if keys %$scoresByFile == 0;
+
+  return $scoresByFile;
+}
+
+sub formatScores($$){
+  my ($okNotes, $filters) = @_;
+
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
 
   my @scores = map { $$scoresByFile{$_} } sort keys %$scoresByFile;
   my $buckets = getScoreBuckets(\@scores, qw(song game difficulty));
