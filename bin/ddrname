@@ -285,8 +285,9 @@ sub fehterm($@);
 sub scoreStats($@);
 sub name(@);
 sub parseArgs(@);
-sub getScoreFiles();
-sub parseScoreFiles(@);
+sub getScoresByFile();
+sub listScoreFiles();
+sub parseScoreFile($);
 sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
 sub formatScores($$);
@@ -345,8 +346,8 @@ sub dateStats($@){
   my $cmd = shift;
   die $usage if @_ != 0;
 
-  my @scoreFiles = getScoreFiles();
-  my $scoresByFile = parseScoreFiles(@scoreFiles);
+  my $scoresByFile = getScoresByFile();
+
   my $dateBuckets = {};
   for my $file(sort keys %$scoresByFile){
     my $score = $$scoresByFile{$file};
@@ -589,44 +590,46 @@ sub parseArgs(@){
   return $info;
 }
 
-sub getScoreFiles(){
+sub getScoresByFile(){
+  my @files = listScoreFiles();
+  my $scoresByFile = { map {$_ => parseScoreFile $_} @files };
+  return $scoresByFile;
+}
+
+sub listScoreFiles(){
   my @files = `cd $scoreDir && ls *.jpg`;
   chomp foreach @files;
   @files = grep {$_ =~ /^\d+_.*\.jpg$/ and $_ !~ /_reminder_/} @files;
   return @files;
 }
 
-sub parseScoreFiles(@){
-  my @files = @_;
-  my $scores = {};
-  for my $file(@files){
-    if($file !~ /^
-      (\d{8})
-      _(\d+)
-      _($okSongArgs)
-      (?:_($okGameArgs))?
-      _($okDifficultyArgs)
-      _(\d+)
-      (?:_($okExtraArgs))?
-      _($okBarArgs)
-      _($okRoundArgs)
-      \.jpg$/x){
-      die "malformed file name: $file\n";
-    }
-    $$scores{$file} = {
-      file       => $file,
-      date       => $1,
-      index      => $2,
-      song       => $3,
-      game       => $4,
-      difficulty => $5,
-      score      => $6,
-      extra      => $7,
-      bar        => $8,
-      round      => $9,
-    };
+sub parseScoreFile($){
+  my $file = shift;
+  if($file !~ /^
+    (\d{8})
+    _(\d+)
+    _($okSongArgs)
+    (?:_($okGameArgs))?
+    _($okDifficultyArgs)
+    _(\d+)
+    (?:_($okExtraArgs))?
+    _($okBarArgs)
+    _($okRoundArgs)
+    \.jpg$/x){
+    die "malformed file name: $file\n";
   }
-  return $scores;
+  return {
+    file       => $file,
+    date       => $1,
+    index      => $2,
+    song       => $3,
+    game       => $4,
+    difficulty => $5,
+    score      => $6,
+    extra      => $7,
+    bar        => $8,
+    round      => $9,
+  };
 }
 
 sub getScoreBuckets($@){
