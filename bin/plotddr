@@ -5,6 +5,8 @@ use warnings;
 sub run(@);
 
 my $gnuplotDir = "$ENV{HOME}/.cache/gnuplot-ddr";
+my $bestDir = "$ENV{HOME}/.cache/best-ddr";
+my $pixmirrorDir = "$ENV{HOME}/Desktop/DCIM-pixmirror/xddr";
 
 my @curSongs = qw(max300 legendofmax max300smmm paranoiasurvivor270 paranoiasurvivormax290 paranoiarespect maxxunlimited);
 my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
@@ -65,6 +67,32 @@ sub main(@){
     }
   }
 
+  system "rm", "-rf", $bestDir;
+  my @bestNotHard;
+  my @bestHard;
+  my @bestDoubles;
+
+  @bestHard = (@bestHard, `ddrname --bestfiles --hard --singles`);
+  @bestHard = (@bestHard, `ddrname --bestfiles --nonstop`);
+
+  @bestNotHard = (@bestNotHard, `ddrname --bestfiles --nothard --singles`);
+
+  @bestDoubles = (@bestDoubles, `ddrname --bestfiles --doubles`);
+  @bestDoubles = (@bestDoubles, `ddrname --bestfiles --nonstopdoubles`);
+
+  chomp foreach @bestHard;
+  chomp foreach @bestNotHard;
+  chomp foreach @bestDoubles;
+
+  @bestHard = map { "$pixmirrorDir/$_" } @bestHard;
+  @bestNotHard = map { "$pixmirrorDir/$_" } @bestNotHard;
+  @bestDoubles = map { "$pixmirrorDir/$_" } @bestDoubles;
+
+  system "mkdir", "-p", "$bestDir/hard", "$bestDir/nothard", "$bestDir/doubles";
+  system "cp", "-ar", @bestHard, "$bestDir/hard";
+  system "cp", "-ar", @bestNotHard, "$bestDir/nothard";
+  system "cp", "-ar", @bestDoubles, "$bestDir/doubles";
+
   if(not $noFeh){
     run "feh -ZF '$gnuplotDir/fhd' >/dev/null 2>/dev/null &";
   }
@@ -73,6 +101,7 @@ sub main(@){
     chomp $n9Host;
 
     run "rsync", "-avP", "--del", "$gnuplotDir/n9/", "user\@$n9Host:~/xgnuplotddr";
+    run "rsync", "-avP", "--del", "$bestDir/", "user\@$n9Host:~/xbestddr";
   }
 }
 
