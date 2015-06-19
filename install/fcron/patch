@@ -1,5 +1,5 @@
 diff --git a/config.h.in b/config.h.in
-index 309517d..e3a3de3 100644
+index 5fef4be..6d9d0c2 100644
 --- a/config.h.in
 +++ b/config.h.in
 @@ -33,7 +33,7 @@
@@ -12,7 +12,7 @@ index 309517d..e3a3de3 100644
  #define SENDMAIL_ARGS	 "-Ffcron", "-odi"   /* args of mail command */
  
 diff --git a/fcrontab.c b/fcrontab.c
-index 8f68462..6ac2a94 100644
+index cc57597..228824d 100644
 --- a/fcrontab.c
 +++ b/fcrontab.c
 @@ -176,9 +176,9 @@ xexit(int exit_val)
@@ -28,57 +28,57 @@ index 8f68462..6ac2a94 100644
      pam_end(pamh, pam_close_session(pamh, PAM_SILENT));
  #endif
 diff --git a/socket.c b/socket.c
-index e52c957..df2ffca 100644
+index b3016a0..2347433 100644
 --- a/socket.c
 +++ b/socket.c
-@@ -258,8 +258,8 @@ auth_client_getpeer(struct fcrondyn_cl *client)
+@@ -278,8 +278,8 @@ auth_client_getpeer(struct fcrondyn_cl *client)
      /* Successfully identified user: */
      client->fcl_user = strdup2(p_entry->pw_name);
  
--    explain("Client's pid=%d, uid=%d, gid=%d username=%s\n", cred.pid, cred.uid,
--            cred.gid, client->fcl_user);
-+    //explain("Client's pid=%d, uid=%d, gid=%d username=%s\n", cred.pid, cred.uid,
-+    //        cred.gid, client->fcl_user);
+-    explain("Client's uid=%d, gid=%d username=%s", euid, egid,
+-            client->fcl_user);
++    //explain("Client's uid=%d, gid=%d username=%s", euid, egid,
++    //        client->fcl_user);
  
  }
- #endif                          /* HAVE_GETPEERUCRED || HAVE_GETPEEREID */
-@@ -308,8 +308,8 @@ auth_client_so_peercred(struct fcrondyn_cl *client)
+ #endif                          /* HAVE_GETPEEREID */
+@@ -328,8 +328,8 @@ auth_client_so_peercred(struct fcrondyn_cl *client)
      /* Successfully identified user: */
      client->fcl_user = strdup2(p_entry->pw_name);
  
--    explain("Client's pid=%d, uid=%d, gid=%d username=%s\n", cred.pid, cred.uid,
+-    explain("Client's pid=%d, uid=%d, gid=%d username=%s", cred.pid, cred.uid,
 -            cred.gid, client->fcl_user);
-+    //explain("Client's pid=%d, uid=%d, gid=%d username=%s\n", cred.pid, cred.uid,
++    //explain("Client's pid=%d, uid=%d, gid=%d username=%s", cred.pid, cred.uid,
 +    //        cred.gid, client->fcl_user);
  
  }
  #endif                          /* SO_PEERCRED */
-@@ -476,9 +476,9 @@ print_line(int fd, struct cl_t *line, unsigned char *details, pid_t pid,
+@@ -496,9 +496,10 @@ print_line(int fd, struct cl_t *line, unsigned char *details, pid_t pid,
              ftime = localtime(&until);
              len +=
                  snprintf(buf + len, sizeof(buf) - len,
--                         " %02d/%02d/%d %02d:%02d %s", (ftime->tm_mon + 1),
-+                         " %02d/%02d/%d %02d:%02d:%02d %s", (ftime->tm_mon + 1),
-                          ftime->tm_mday, (ftime->tm_year + 1900),
--                         ftime->tm_hour, ftime->tm_min,
-+                         ftime->tm_hour, ftime->tm_min, ftime->tm_sec,
+-                         " %04d-%02d-%02d %02d:%02d %s",
++                         " %04d-%02d-%02d %02d:%02d:%02d %s",
+                          (ftime->tm_year + 1900), (ftime->tm_mon + 1),
+                          ftime->tm_mday, ftime->tm_hour, ftime->tm_min,
++                         ftime->tm_sec,
                           (is_strict(line->cl_option)) ? "Y" : "N");
          }
          else
-@@ -488,9 +488,9 @@ print_line(int fd, struct cl_t *line, unsigned char *details, pid_t pid,
-     }
+@@ -509,9 +510,9 @@ print_line(int fd, struct cl_t *line, unsigned char *details, pid_t pid,
      if (bit_test(details, FIELD_SCHEDULE)) {
          ftime = localtime(&(line->cl_nextexe));
--        len += snprintf(buf + len, sizeof(buf) - len, " %02d/%02d/%d %02d:%02d",
-+        len += snprintf(buf + len, sizeof(buf) - len, " %02d/%02d/%d %02d:%02d:%02d",
-                         (ftime->tm_mon + 1), ftime->tm_mday,
--                        (ftime->tm_year + 1900), ftime->tm_hour, ftime->tm_min);
-+                        (ftime->tm_year + 1900), ftime->tm_hour, ftime->tm_min, ftime->tm_sec );
+         len +=
+-            snprintf(buf + len, sizeof(buf) - len, "|%04d-%02d-%02d %02d:%02d",
++            snprintf(buf + len, sizeof(buf) - len, "|%04d-%02d-%02d %02d:%02d:%02d",
+                      (ftime->tm_year + 1900), (ftime->tm_mon + 1),
+-                     ftime->tm_mday, ftime->tm_hour, ftime->tm_min);
++                     ftime->tm_mday, ftime->tm_hour, ftime->tm_min, ftime->tm_sec);
      }
-     len += snprintf(buf + len, sizeof(buf) - len, " %s\n", line->cl_shell);
+     len += snprintf(buf + len, sizeof(buf) - len, "|%s\n", line->cl_shell);
  
 diff --git a/subs.c b/subs.c
-index 5a04a21..8704469 100644
+index 1288f84..7ee6234 100644
 --- a/subs.c
 +++ b/subs.c
 @@ -68,7 +68,7 @@ seteuid_safe(uid_t euid)
