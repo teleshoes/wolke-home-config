@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 2012-2014 Matt Martz
+# small changes, Copyright 2015 Elliot Wolk
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -475,6 +476,10 @@ def speedtest():
     parser.add_argument('--share', action='store_true',
                         help='Generate and provide a URL to the speedtest.net '
                              'share results image')
+    parser.add_argument('--skipDownload', action='store_true',
+                        help='Skip download speed test, show 0b/s')
+    parser.add_argument('--skipUpload', action='store_true',
+                        help='Skip upload speed test, show 0b/s')
     parser.add_argument('--simple', action='store_true',
                         help='Suppress verbose output, only show basic '
                              'information')
@@ -616,7 +621,10 @@ def speedtest():
                         (os.path.dirname(best['url']), size, size))
     if not args.simple:
         print_('Testing download speed', end='')
-    dlspeed = downloadSpeed(urls, args.simple)
+    if not args.skipDownload:
+      dlspeed = downloadSpeed(urls, args.simple)
+    else:
+      dlspeed = 0
     if not args.simple:
         print_()
     print_('Download: %0.2f M%s/s' %
@@ -629,7 +637,10 @@ def speedtest():
             sizes.append(size)
     if not args.simple:
         print_('Testing upload speed', end='')
-    ulspeed = uploadSpeed(best['url'], sizes, args.simple)
+    if not args.skipUpload:
+      ulspeed = uploadSpeed(best['url'], sizes, args.simple)
+    else:
+      ulspeed = 0
     if not args.simple:
         print_()
     print_('Upload: %0.2f M%s/s' %
