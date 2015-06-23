@@ -18,7 +18,7 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 my @okFilters = qw(
   --song --hard --nothard
   --singles --doubles --nonstop --nonstopdoubles
-  --score --minscore --maxscore
+  --score --minscore --maxscore --monotonic --increasing --records
   --date --mindate
   --maxdate
   --recent --sixmos --sixmonths --6mos
@@ -176,6 +176,9 @@ my $usage = "Usage:
         include only scores where SCORE >= N
       --maxscore N
         include only scores where SCORE <= N
+      --monotonic, --increasing, --records
+        disclude any score that is lower than any score from a previous date,
+        with the same SONG, GAME, and DIFFICULTY
 
     FILTER: DATE
       --date YYYYMMDD, --mindate YYYYMMDD
@@ -510,6 +513,8 @@ sub scoreStats($@){
     }elsif($opt =~ /^(--mindate|--date)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
       $$filters{mindate} = $1;
+    }elsif($opt =~ /^(--monotonic|--increasing|--records)$/){
+      $$filters{monotonic} = 1;
     }elsif($opt =~ /^(--recent|--sixmonths|--sixmos|--6mos)$/){
       eval {
         require DateTime;
@@ -772,6 +777,24 @@ sub filterScores($$){
     }
     delete $$scoresByFile{$file} if not $ok;
   }
+
+  if($$filters{monotonic}){
+    my $scores = [values %$scoresByFile];
+    my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    for my $bucketName(sort keys %$buckets){
+      my $bucketScores = $$buckets{$bucketName};
+      sortScores $bucketScores;
+      my $curMaxScore = undef;
+      for my $score(@$bucketScores){
+        if(not defined $curMaxScore or $$score{score} > $curMaxScore){
+          $curMaxScore = $$score{score};
+        }else{
+          delete $$scoresByFile{$$score{file}};
+        }
+      }
+    }
+  }
+
   die "no scores found\n" if keys %$scoresByFile == 0;
 
   return $scoresByFile;
