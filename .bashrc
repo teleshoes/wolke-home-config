@@ -146,6 +146,7 @@ function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
 function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true install "$@"; }
+function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
 function mtest        { maven -Psdm -Pdev test "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
@@ -172,6 +173,20 @@ function maven() {
   echo mvn $args $@
   execAlarm mvn $args $@;
 }
+function mavenDebug() {
+  port="8000"
+  debugOpts="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=$port -Xnoagent -Djava.compiler=NONE"
+  args=""
+  if ! [[ "$@" =~ (^| )test($| ) ]]; then
+    args="$args -DskipTests"
+  fi
+  if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
+    args="$args -Dcheckstyle.skip=true"
+  fi
+  echo mvn -Dmaven.surefire.debug=\'$debugOpts\' $args $@
+  execAlarm mvn -Dmaven.surefire.debug="$debugOpts" $args $@;
+}
+
 
 function find() {
   if [[ "$PWD" =~ "escribe" ]]; then
