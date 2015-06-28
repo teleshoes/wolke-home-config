@@ -5,6 +5,7 @@ use Time::HiRes qw(time);
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 
+sub printBackupSets(@);
 sub getRecentBackupSets();
 sub parseBackupSets($$);
 sub filterLog($$);
@@ -65,13 +66,8 @@ sub main(@){
   }elsif($cmd =~ /^(-l|--log|log)$/ and (@_ == 0 or (@_ == 1 and $_[0] =~ /$okBackupNames/))){
     my $backupName = shift if @_ > 0;
     my @backupSets = getRecentBackupSets();
-    for my $backupStatus(("skipped", "complete", "incomplete", "running", "error")){
-      for my $backupSet(@backupSets){
-        next if defined $backupName and $$backupSet{backupName} ne $backupName;
-        print formatBackupSet($backupSet) if $$backupSet{backupStatus} eq $backupStatus;
-      }
-      print "\n";
-    }
+    @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
+    printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
     exec "sudo", $engineExec, $cmd;
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
@@ -79,6 +75,15 @@ sub main(@){
     exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
   }else{
     die $usage;
+  }
+}
+
+sub printBackupSets(@){
+  for my $backupStatus(("skipped", "complete", "incomplete", "running", "error")){
+    for my $backupSet(@_){
+      print formatBackupSet($backupSet) if $$backupSet{backupStatus} eq $backupStatus;
+    }
+    print "\n";
   }
 }
 
