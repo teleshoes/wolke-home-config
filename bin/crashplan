@@ -1,9 +1,13 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Date::Parse qw(str2time);
+
+sub parseLog();
 
 my $dir = "/usr/local/crashplan";
 my $guiExec = "$dir/bin/CrashPlanDesktop";
+my $logFile = "$dir/log/history.log.0";
 
 my $okCmds = join "|", qw( --gui );
 my $defaultCmd = "--gui";
@@ -19,5 +23,83 @@ sub main(@){
     exec "CrashPlanDesktop";
   }
 }
+sub parseLog(){
+  my @lines = `cat $logFile`;
+  my $log = {};
 
+  for my $line(@lines){
+    my ($time, $backupName);
+    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\]/){
+      my ($mon, $day, $year, $hour, $min, $ampm, $name) = ($1, $2, $3, $4, $5, $6, $7);
+
+      $time = str2time "$mon/$day/$year $hour:$min$ampm";
+      $backupName = $name;
+    }else{
+      next;
+    }
+
+    my $dur = '(?:< )?\d+ (?:minute|hour|day)s?';
+    my $n = '[0-9,]+';
+    my $fs = '[0-9\.]+\s*[KMGT]?B';
+    my $speed = '.*[0-9\.]+\s*[KMGT]?bps';
+
+    my $entry;
+    if($line =~ /Scanning for files to back up$/){
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "scan-start",
+      }
+    }elsif($line =~ /Scanning for files completed in ($dur): ($n) files? \(($fs)\) found$/){
+      my ($duration, $fileCount, $size) = ($1, $2, $3);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "scan-end",
+        duration => $duration,
+        filecount => $fileCount,
+        size => $size,
+      };
+    }elsif($line =~ /Starting backup to CrashPlan Central: ($n) files? \(($fs)\) to back up$/){
+      my ($fileCount, $size) = ($1, $2);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "backup-start",
+        filecount => $fileCount,
+        size => $size,
+      };
+    }elsif($line =~ /(Stopped|Completed) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
+      my ($completestate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "backup-end",
+        completestate => $completestate eq "Completed" ? "complete" : "incomplete",
+        duration => $duration,
+        filecount => $fileCount,
+        size => $size,
+        encsize => $encsize,
+        speed => $speed,
+      };
+    }
+
+    if(defined $entry and defined $$entry{filecount}){
+      my $count = $$entry{filecount};
+      $count =~ s/,//g;
+      die "Malformed count: $count\n" if $count !~ /^\d+$/;
+      $$entry{filecount} = $count;
+    }
+
+    if(defined $entry){
+      $$log{$$entry{name}} = [] if not defined $$log{$$entry{name}};
+      push @{$$log{$$entry{name}}}, $entry;
+    }
+  }
+  return $log;
+}
 &main(@ARGV);
