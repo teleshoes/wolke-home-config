@@ -6,6 +6,7 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 
 sub printBackupSets(@);
+sub runBackup();
 sub getRecentBackupSets();
 sub parseBackupSets($$);
 sub filterLog($$);
@@ -15,6 +16,7 @@ sub parseSizeMiB($);
 sub padl($$);
 sub padr($$);
 sub formatTime($);
+sub run(@);
 
 my $dir = "/usr/local/crashplan";
 my $guiExec = "$dir/bin/CrashPlanDesktop";
@@ -55,6 +57,14 @@ my $usage = "Usage:
 
   $0 $okEngineCmds
     run 'sudo $engineExec <ARG>'
+
+  $0 -b|--backup|backup
+    1) stop crashplan => start crashplan => send 'scan' command to crashplan
+    2) tail -F $logFile
+    3) check newly added log entries every ${checkCompleteIntervalMillis}ms
+    4) if all backups look complete, wait an extra ${assertCompleteMillis}ms
+    5) if they still do, or if ${backupLimitMillis}ms is reached, stop crashplan
+    6) kill tail, show the newly added log entries
 ";
 
 sub main(@){
@@ -73,6 +83,8 @@ sub main(@){
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
     chdir $dir;
     exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
+  }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ == 0){
+    runBackup();
   }else{
     die $usage;
   }
@@ -87,6 +99,9 @@ sub printBackupSets(@){
       }
     }
   }
+}
+
+sub runBackup(){
 }
 
 sub getRecentBackupSets(){
@@ -351,6 +366,12 @@ sub padr($$){
 sub formatTime($){
   my ($t) = @_;
   return time2str $dateDisplayFormat, $t;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running '@_'\n" if $? != 0;
 }
 
 &main(@ARGV);
