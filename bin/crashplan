@@ -1,9 +1,12 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(time);
 use Date::Parse qw(str2time);
 
+sub getRecentBackupSets();
 sub parseBackupSets($$);
+sub filterLog($$);
 sub parseLog();
 
 my $dir = "/usr/local/crashplan";
@@ -13,6 +16,8 @@ my $crashplanJar = "lib/com.backup42.desktop.jar";
 my $cliWrapperSrc = "cliwrapper";
 my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $logFile = "$dir/log/history.log.0";
+
+my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
 
 my @serviceCmds = qw(scan pause resume);
 my $okServiceCmds = join "|", @serviceCmds;
@@ -60,6 +65,17 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub getRecentBackupSets(){
+  my $log = parseLog();
+  my $cutoffMillis = time*1000.0 - $recentLogMillis;
+  filterLog($log, $cutoffMillis);
+  my @backupSets;
+  for my $name(sort keys %$log){
+    @backupSets = (@backupSets, parseBackupSets $log, $name);
+  }
+  return @backupSets;
 }
 
 sub parseBackupSets($$){
@@ -141,6 +157,16 @@ sub parseBackupSets($$){
     };
   }
   return @backupSets;
+}
+
+sub filterLog($$){
+  my ($log, $cutoffMillis) = @_;
+
+  for my $name(sort keys %$log){
+    my @entries = @{$$log{$name}};
+    $$log{$name} = [grep {$$_{time} >= $cutoffMillis/1000.0} @entries];
+  }
+  return $log;
 }
 
 sub parseLog(){
