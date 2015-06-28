@@ -3,11 +3,17 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 use Date::Parse qw(str2time);
+use Date::Format qw(time2str);
 
 sub getRecentBackupSets();
 sub parseBackupSets($$);
 sub filterLog($$);
 sub parseLog();
+sub formatBackupSet($);
+sub parseSizeMiB($);
+sub padl($$);
+sub padr($$);
+sub formatTime($);
 
 my $dir = "/usr/local/crashplan";
 my $guiExec = "$dir/bin/CrashPlanDesktop";
@@ -18,6 +24,7 @@ my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $logFile = "$dir/log/history.log.0";
 
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
+my $dateDisplayFormat = "%Y-%m-%d %H:%M";
 
 my @serviceCmds = qw(scan pause resume);
 my $okServiceCmds = join "|", @serviceCmds;
@@ -247,6 +254,88 @@ sub parseLog(){
     }
   }
   return $log;
+}
+
+sub formatBackupSet($){
+  my ($set) = @_;
+
+  my $maxLen = 0;
+  for my $name(@backupNames){
+    $maxLen = length $name if length $name > $maxLen;
+  }
+
+  my @allLines;
+  push @allLines, $$set{scanStart}{line} if defined $$set{scanStart};
+  push @allLines, $$set{scanEnd}{line} if defined $$set{scanEnd};
+  push @allLines, $$set{backupStart}{line} if defined $$set{backupStart};
+  push @allLines, $$set{backupEnd}{line} if defined $$set{backupEnd};
+
+  if($$set{backupStatus} eq "error"){
+    my $reason = "";
+    $reason = "missing scan-start" if not defined $$set{scanStart};
+    $reason = "missing scan-end" if not defined $$set{scanEnd};
+    $reason = "missing backup-start" if not defined $$set{backupStart};
+    return "\n!!!$reason\n@allLines\n\n";
+  }
+
+  my $start = formatTime($$set{scanStart}{time});
+  my $name = padr $$set{backupName}, $maxLen;
+  my $status = "";
+  $status = "!RUN!" if $$set{backupStatus} eq "running";
+  $status = "inc" if $$set{backupStatus} eq "incomplete";
+  $status = "skip" if $$set{backupStatus} eq "skipped";
+  $status = padl $status, 5;
+  my $info = "";
+
+  my $size;
+  $size = $$set{backupEnd}{size} if not defined $size and defined $$set{backupEnd};
+  $size = $$set{scanEnd}{size} if not defined $size and defined $$set{scanEnd};
+  $size = parseSizeMiB $size;
+  $size = sprintf "%.3f", $size;
+  $size = padl $size, 10;
+
+  my $filecount;
+  $filecount = $$set{backupEnd}{filecount} if not defined $filecount and defined $$set{backupEnd};
+  $filecount = $$set{scanEnd}{filecount} if not defined $filecount and defined $$set{scanEnd};
+  $filecount = padl $filecount, 6;
+
+  if(defined $$set{backupEnd}){
+    $info = "${filecount}f ${size}MiB \@ $$set{backupEnd}{speed}";
+  }else{
+    $info = "${filecount}f ${size}MiB";
+  }
+
+  return "$name $start $status $info\n";
+}
+
+sub parseSizeMiB($){
+  my ($size) = @_;
+  if($size !~ /^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/){
+    die "malformed size: $size\n";
+  }
+  my ($num, $unit) = ($1, $2);
+  my $scale = 1024; #just guessing, they could actually mean mega instead of mibi
+
+  my $bytes;
+  $bytes = $num * $scale * $scale * $scale * $scale if $unit eq "TB";
+  $bytes = $num * $scale * $scale * $scale if $unit eq "GB";
+  $bytes = $num * $scale * $scale if $unit eq "MB";
+  $bytes = $num * $scale if $unit eq "KB";
+  $bytes = $num if $unit eq "B";
+
+  return ($bytes / 1024.0 / 1024.0);
+}
+sub padl($$){
+  my ($s, $len) = @_;
+  return ' 'x($len - length $s) . $s;
+}
+sub padr($$){
+  my ($s, $len) = @_;
+  return $s . ' 'x($len - length $s);
+}
+sub formatTime($){
+  my ($t) = @_;
+  return time2str $dateDisplayFormat, $t;
 }
 
 &main(@ARGV);
