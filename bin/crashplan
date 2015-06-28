@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Date::Parse qw(str2time);
 
+sub parseBackupSets($$);
 sub parseLog();
 
 my $dir = "/usr/local/crashplan";
@@ -59,6 +60,87 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub parseBackupSets($$){
+  my ($log, $backupName) = @_;
+
+  my @allEntries = @{$$log{$backupName}};
+
+  my @entrySets;
+  my @entrySet;
+  for my $entry(@allEntries){
+    if($$entry{type} eq "scan-start" and @entrySet > 0){
+      push @entrySets, [@entrySet];
+      @entrySet = ();
+    }
+    push @entrySet, $entry;
+  }
+  push @entrySets, [@entrySet] if @entrySet > 0;
+
+  my @backupSets;
+  for my $entrySet(@entrySets){
+    my ($scanStart, $scanEnd, $backupStart, $backupIncomplete, $backupComplete);
+    for my $entry(@$entrySet){
+      if($$entry{type} eq "scan-start"){
+        if(defined $scanStart){
+          die "duplicate scan-start:\n$$scanStart{line}$$entry{line}";
+        }
+        $scanStart = $entry;
+      }elsif($$entry{type} eq "scan-end"){
+        if(defined $scanEnd){
+          die "duplicate scan-end:\n$$scanEnd{line}$$entry{line}";
+        }
+        $scanEnd = $entry;
+      }elsif($$entry{type} eq "backup-start"){
+        if(not defined $backupStart or $$entry{filecount} > $$backupStart{filecount}){
+          $backupStart = $entry;
+        }
+      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "incomplete"){
+        $backupIncomplete = $entry;
+      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+        if(defined $backupComplete){
+          die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
+        }
+        $backupComplete = $entry;
+      }
+    }
+    my $backupEnd;
+    $backupEnd = $backupComplete if not defined $backupEnd and defined $backupComplete;
+    $backupEnd = $backupIncomplete if not defined $backupEnd and defined $backupIncomplete;
+
+    my @times;
+    push @times, $$scanStart{time} if defined $scanStart;
+    push @times, $$scanEnd{time} if defined $scanEnd;
+    push @times, $$backupStart{time} if defined $backupStart;
+    push @times, $$backupEnd{time} if defined $backupEnd;
+    my $minTime = undef;
+    for my $time(@times){
+      $minTime = $time if not defined $minTime or $time < $minTime;
+    }
+
+    my $backupStatus;
+    $backupStatus = "running" if defined $backupStart and not defined $backupEnd;
+    $backupStatus = "skipped" if not defined $backupStart;
+    $backupStatus = "incomplete" if defined $backupEnd and $$backupEnd{completestate} eq "incomplete";
+    $backupStatus = "complete" if defined $backupEnd and $$backupEnd{completestate} eq "complete";
+    $backupStatus = "error" if
+      not defined $scanStart
+      or not defined $scanEnd
+      or (defined $backupEnd and not defined $backupStart);
+
+    push @backupSets, {
+      backupId => "$backupName-$backupStatus-$minTime",
+      backupName => $backupName,
+      backupStatus => $backupStatus,
+      time => $minTime,
+      scanStart => $scanStart,
+      scanEnd => $scanEnd,
+      backupStart => $backupStart,
+      backupEnd => $backupEnd,
+    };
+  }
+  return @backupSets;
 }
 
 sub parseLog(){
