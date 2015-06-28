@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Time::HiRes qw(time);
+use Time::HiRes qw(sleep time);
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 
@@ -27,6 +27,10 @@ my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $logFile = "$dir/log/history.log.0";
 
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
+my $backupLimitMillis = 4 * 60 * 60 * 1000; #4hr
+my $checkCompleteIntervalMillis = 30 * 1000;
+my $assertCompleteMillis = 60 * 1000;
+
 my $dateDisplayFormat = "%Y-%m-%d %H:%M";
 
 my @serviceCmds = qw(scan pause resume);
@@ -102,6 +106,57 @@ sub printBackupSets(@){
 }
 
 sub runBackup(){
+  my $startMillis = time*1000.0;
+  my @initialBackupSets = getRecentBackupSets();
+  my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
+
+  run $0, "stop";
+  run $0, "start";
+  sleep 5;
+  run $0, "scan";
+  my $pid = fork;
+  if($pid == 0){
+    exec "tail", "-F", $logFile;
+  }
+
+  my $finishedMillis;
+  while(time*1000.0 < $startMillis + $backupLimitMillis){
+    my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
+    $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
+    sleep $toSleepMillis/1000.0;
+
+    my @newBackupSets = getRecentBackupSets();
+    @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+    my @finishedSets = grep {$$_{backupStatus} =~ /^(skipped|complete)$/} @newBackupSets;
+    my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
+    my $isDone = 1;
+    for my $backupName(@backupNames){
+      if(not defined $finishedBackupNames{$backupName}){
+        $isDone = 0;
+        last;
+      }
+    }
+    $finishedMillis = undef if not $isDone;
+
+    if($isDone and not defined $finishedMillis){
+      $finishedMillis = time * 1000.0;
+      print "\n\n";
+      printBackupSets @newBackupSets;
+      print "\n\n";
+      print "backup tentatively complete after ${finishedMillis}ms\n";
+      print "waiting ${assertCompleteMillis}ms to make sure it stays finished\n";
+    }elsif($isDone and (time*1000.0 - $finishedMillis) > $assertCompleteMillis){
+      print "\nbackup seems complete, stopping\n";
+      last;
+    }
+  }
+
+  run "kill", "-9", $pid;
+  run $0, "stop";
+
+  my @newBackupSets = getRecentBackupSets();
+  @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+  printBackupSets @newBackupSets;
 }
 
 sub getRecentBackupSets(){
