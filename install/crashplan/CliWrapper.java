@@ -153,6 +153,15 @@ public class CliWrapper {
       SystemOut.log(Level.ERROR, CliWrapper.class, "init", msg);
       throw e;
     }
+
+    Thread.sleep(1000);
+    System.out.println("\n\n");
+    for(String arg : args){
+        Services.getInstance().sendCommand(arg, new MessageReceiverProxy());
+    }
+    System.out.println("\n\n");
+    Thread.sleep(1000);
+    Runtime.getRuntime().halt(0);
   }
   
   public static void secondaryMain(String[] args)
