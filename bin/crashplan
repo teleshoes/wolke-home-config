@@ -7,9 +7,9 @@ use Date::Format qw(time2str);
 
 sub printBackupSets(@);
 sub runBackup();
-sub getFilteredBackupSets($);
+sub getFilteredBackupSets($$);
 sub parseBackupSets($$);
-sub filterLog($$);
+sub filterLog($$$);
 sub parseLog();
 sub formatBackupSet($);
 sub parseSizeMiB($);
@@ -17,6 +17,7 @@ sub parseSpeedMbps($);
 sub padl($$);
 sub padr($$);
 sub formatTime($);
+sub ymd($);
 sub run(@);
 
 my $dir = "/usr/local/crashplan";
@@ -87,7 +88,7 @@ sub main(@){
     }
     die $usage if @_ > 0;
 
-    my @backupSets = getFilteredBackupSets($recentLogMillis);
+    my @backupSets = getFilteredBackupSets($recentLogMillis, undef);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
     printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
@@ -118,7 +119,7 @@ sub runBackup(){
   run "rsync", "-avP", "$dir/log/", $logBackupDir;
 
   my $startMillis = time*1000.0;
-  my @initialBackupSets = getFilteredBackupSets($recentLogMillis);
+  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
   run $0, "stop";
@@ -136,7 +137,7 @@ sub runBackup(){
     $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
     sleep $toSleepMillis/1000.0;
 
-    my @newBackupSets = getFilteredBackupSets($recentLogMillis);
+    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
     my @finishedSets = grep {$$_{backupStatus} =~ /^(skipped|complete)$/} @newBackupSets;
     my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
@@ -169,16 +170,16 @@ sub runBackup(){
   run "kill", "-9", $pid;
   run $0, "stop";
 
-  my @newBackupSets = getFilteredBackupSets($recentLogMillis);
+  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
   printBackupSets @newBackupSets;
 }
 
-sub getFilteredBackupSets($){
-  my ($maxTimeAgoMillis) = @_;
+sub getFilteredBackupSets($$){
+  my ($maxTimeAgoMillis, $exactDate) = @_;
 
   my $log = parseLog();
-  filterLog($log, $maxTimeAgoMillis);
+  filterLog($log, $maxTimeAgoMillis, $exactDate);
   my @backupSets;
   for my $name(sort keys %$log){
     @backupSets = (@backupSets, parseBackupSets $log, $name);
@@ -271,8 +272,8 @@ sub parseBackupSets($$){
   return @backupSets;
 }
 
-sub filterLog($$){
-  my ($log, $maxTimeAgoMillis) = @_;
+sub filterLog($$$){
+  my ($log, $maxTimeAgoMillis, $exactDate) = @_;
   my $minTimeMillis;
   if(defined $maxTimeAgoMillis){
     $minTimeMillis = time*1000.0 - $maxTimeAgoMillis;
@@ -282,6 +283,9 @@ sub filterLog($$){
     my @entries = @{$$log{$name}};
     if(defined $minTimeMillis){
       @entries = grep {$$_{time} >= $minTimeMillis/1000.0} @entries;
+    }
+    if(defined $exactDate){
+      @entries = grep {ymd($$_{time}) eq $exactDate} @entries;
     }
     $$log{$name} = [@entries];
   }
@@ -477,6 +481,10 @@ sub padr($$){
 sub formatTime($){
   my ($t) = @_;
   return time2str $dateDisplayFormat, $t;
+}
+sub ymd($){
+  my ($t) = @_;
+  return time2str "%Y-%m-%d", $t;
 }
 
 sub run(@){
