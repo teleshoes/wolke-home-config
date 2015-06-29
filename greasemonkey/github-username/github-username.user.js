@@ -8,6 +8,7 @@
 // ==/UserScript==
 
 baseUrl = "https://github.com"
+okUserNames = ["teleshoes", "ewolk"]
 
 function main(){
   url = document.URL;
@@ -108,12 +109,15 @@ function getUserName(){
   ul = document.getElementById('user-links');
   if(ul != null){
     as = ul.getElementsByTagName("a");
-    if(as.length > 0){
-      a = as[0];
+    for(i=0; i<as.length; i++){
+      a = as[i];
       href = a.href;
       arr = /\/([a-zA-Z0-9_]+)$/.exec(href);
       if(arr != null && arr.length == 2){
-        return arr[1];
+        userName = arr[1]
+        if(okUserNames.indexOf(userName) >= 0){
+          return userName
+        }
       }
     }
   }

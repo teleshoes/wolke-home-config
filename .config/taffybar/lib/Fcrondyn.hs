@@ -27,10 +27,10 @@ cmd = "term \"fcron-tool --edit; echo; echo ENDED; read STDIN\""
 parseAndFormat now tz fcrondynOut = rows now tz (namedJobs okJobs)
   where okJobs = catMaybes $ map (regexGroups regex) $ lines fcrondynOut
         regex = ""
-                ++ "(\\d+)\\s*"
-                ++ "(\\w+)\\s*"
-                ++ "(\\d+)/(\\d+)/(\\d+)\\s*"
-                ++ "(\\d+):(\\d+):(\\d+)\\s*"
+                ++ "(\\d+)\\s*\\|"
+                ++ "(\\w+)\\s*\\|"
+                ++ "(\\d+)-(\\d+)-(\\d+)\\s*"
+                ++ "(\\d+):(\\d+):(\\d+)\\s*\\|"
                 ++ "(.*)"
 
 
@@ -47,9 +47,9 @@ rows now tz jobs = (padR ' ' 14 top) ++ "\n" ++ (padR ' ' 14 bot)
 
 maybeJobName job = regexFirstGroup "#([a-zA-Z0-9]{2})$" $ jobCmd job
 
-jobCmd  (id:user:mon:day:year:h:m:s:cmd:[]) = cmd
-jobTime tz (id:user:mon:day:year:h:m:s:cmd:[]) = t
-  where t = utcTime tz h m s mon day year
+jobCmd  (id:user:year:mon:day:h:m:s:cmd:[]) = cmd
+jobTime tz (id:user:year:mon:day:h:m:s:cmd:[]) = t
+  where t = utcTime tz h m s year mon day
 
 showDHMS ("0","00","00","00") = "now"
 showDHMS ("0","00","00",s) = (unzero s)++"s"
@@ -68,7 +68,7 @@ relTime t1 t2 = showDHMS (show d,sh h,sh m,sh s)
         sh s = (if s < 10 then "0" else "") ++ show s
 
 
-utcTime tz h m s mon day year = localTimeToUTC tz $ LocalTime jDay tod
+utcTime tz h m s year mon day = localTimeToUTC tz $ LocalTime jDay tod
   where jDay = fromGregorian (i year) (int mon) (int day)
         tod = TimeOfDay (int h) (int m) (f s)
 
@@ -76,5 +76,5 @@ f = realToFrac . read
 i = read :: String -> Integer
 int = read :: String -> Int
 
-hdr = "ID    USER   SCHEDULE         CMD"
+hdr = "ID   |USER     |SCHEDULE        |CMD"
 

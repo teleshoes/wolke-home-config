@@ -1,0 +1,513 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+use Date::Parse qw(str2time);
+use Date::Format qw(time2str);
+
+sub printBackupSets(@);
+sub runBackup();
+sub getFilteredBackupSets($$);
+sub parseBackupSets($$);
+sub filterLog($$$);
+sub parseLog();
+sub formatBackupSet($);
+sub parseSizeMiB($);
+sub parseSpeedMbps($);
+sub padl($$);
+sub padr($$);
+sub formatTime($);
+sub ymd($);
+sub run(@);
+
+my $dir = "/usr/local/crashplan";
+my $guiExec = "$dir/bin/CrashPlanDesktop";
+my $engineExec = "$dir/bin/CrashPlanEngine";
+my $crashplanJar = "lib/com.backup42.desktop.jar";
+my $cliWrapperSrc = "cliwrapper";
+my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
+my $logFile = "$dir/log/history.log.0";
+my $logBackupDir = "/media/stuff/logs/crashplan";
+
+my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
+my $backupLimitMillis = 4 * 60 * 60 * 1000; #4hr
+my $checkCompleteIntervalMillis = 30 * 1000;
+my $assertCompleteMillis = 60 * 1000;
+
+my $dateDisplayFormat = "%Y-%m-%d %H:%M";
+
+my @serviceCmds = qw(scan pause resume);
+my $okServiceCmds = join "|", @serviceCmds;
+
+my @engineCmds = qw(start stop restart status force-reload);
+my $okEngineCmds = join "|", @engineCmds;
+
+my @backupNames = qw(
+  backgrounds cameravideos dcim documents email firefox
+  games logs music n9 pictures pidgin records stepmania thunderbird
+);
+my $okBackupNames = join "|", @backupNames;
+
+my $defaultCmd = "gui";
+my $usage = "Usage:
+  $0
+  $0 -g|--gui
+    run '$guiExec'
+
+  $0 -l|--log|log [--date=DATE] [BACKUP_NAME]
+    format recent info from $logFile
+      DATE
+        YYYY-MM-DD   show only info from that date
+        all          do not filter log info
+        recent       show all info from the last ${recentLogMillis}ms
+                     this is the default if not --date arg is given
+
+      BACKUP_NAME
+        one of [$okBackupNames]
+        if given, only show info for that backup.
+        otherwise, show all
+
+  $0 $okServiceCmds
+    use custom CliWrapper to run the GUI 'CLI' commands in a REAL command line
+    run 'cd $dir; java -cp $crashplanJar:$cliWrapperSrc $cliWrapperClass <ARG>'
+
+  $0 $okEngineCmds
+    run 'sudo $engineExec <ARG>'
+
+  $0 -b|--backup|backup
+    1) stop crashplan => start crashplan => send 'scan' command to crashplan
+    2) tail -F $logFile
+    3) check newly added log entries every ${checkCompleteIntervalMillis}ms
+    4) if all backups look complete, wait an extra ${assertCompleteMillis}ms
+    5) if they still do, or if ${backupLimitMillis}ms is reached, stop crashplan
+    6) kill tail, show the newly added log entries
+";
+
+sub main(@){
+  my $cmd = shift if @_ > 0;
+  $cmd = $defaultCmd if not defined $cmd;
+
+  if($cmd =~ /^(-g|--gui|gui)$/ and @_ == 0){
+    exec $guiExec;
+  }elsif($cmd =~ /^(-l|--log|log)$/){
+    my $date = "recent";
+    if(@_ > 0 and $_[0] =~ /^--date=(\d\d\d\d-\d\d-\d\d|all|recent)$/){
+      $date = $1;
+      shift;
+    }
+    my $backupName = undef;
+    if(@_ > 0 and $_[0] =~ /^($okBackupNames)$/){
+      $backupName = $1;
+      shift;
+    }
+    die $usage if @_ > 0;
+
+    my $exactDate = $date if $date =~ /^\d\d\d\d-\d\d-\d\d$/;
+    my $maxTimeAgoMillis = $recentLogMillis if $date =~ /^recent$/;
+
+    my @backupSets = getFilteredBackupSets($maxTimeAgoMillis, $exactDate);
+    @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
+    printBackupSets @backupSets;
+  }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
+    exec "sudo", $engineExec, $cmd;
+  }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
+    chdir $dir;
+    exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
+  }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ == 0){
+    runBackup();
+  }else{
+    die $usage;
+  }
+}
+
+sub printBackupSets(@){
+  for my $backupStatus(("skipped", "complete", "incomplete", "running", "error")){
+    print "===$backupStatus===\n";
+    for my $backupSet(@_){
+      if($$backupSet{backupStatus} eq $backupStatus){
+        print formatBackupSet($backupSet);
+      }
+    }
+  }
+  print "======\n";
+}
+
+sub runBackup(){
+  run "rsync", "-avP", "$dir/log/", $logBackupDir;
+
+  my $startMillis = time*1000.0;
+  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+  my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
+
+  run $0, "stop";
+  run $0, "start";
+  sleep 5;
+  run $0, "scan";
+  my $pid = fork;
+  if($pid == 0){
+    exec "tail", "-F", $logFile;
+  }
+
+  my $finishedMillis;
+  while(time*1000.0 < $startMillis + $backupLimitMillis){
+    my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
+    $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
+    sleep $toSleepMillis/1000.0;
+
+    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+    @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+    my @finishedSets = grep {$$_{backupStatus} =~ /^(skipped|complete)$/} @newBackupSets;
+    my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
+    my $isDone = 1;
+    for my $backupName(@backupNames){
+      if(not defined $finishedBackupNames{$backupName}){
+        $isDone = 0;
+        last;
+      }
+    }
+    $finishedMillis = undef if not $isDone;
+
+    if($isDone and not defined $finishedMillis){
+      $finishedMillis = time * 1000.0;
+      print "\n\n";
+      printBackupSets @newBackupSets;
+      my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
+      print "\n\n";
+      print "backup tentatively complete after ${elapsed}s\n";
+      print "waiting ${assertCompleteMillis}ms to make sure it stays finished\n";
+    }elsif($isDone and (time*1000.0 - $finishedMillis) > $assertCompleteMillis){
+      my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
+      print "\n\n";
+      print "backup seems complete after ${elapsed}s\n";
+      print "stopping crashplan\n";
+      last;
+    }
+  }
+
+  run "kill", "-9", $pid;
+  run $0, "stop";
+
+  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+  @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+  printBackupSets @newBackupSets;
+}
+
+sub getFilteredBackupSets($$){
+  my ($maxTimeAgoMillis, $exactDate) = @_;
+
+  my $log = parseLog();
+  filterLog($log, $maxTimeAgoMillis, $exactDate);
+  my @backupSets;
+  for my $name(sort keys %$log){
+    @backupSets = (@backupSets, parseBackupSets $log, $name);
+  }
+  return @backupSets;
+}
+
+sub parseBackupSets($$){
+  my ($log, $backupName) = @_;
+
+  my @allEntries = @{$$log{$backupName}};
+
+  my @entrySets;
+  my @entrySet;
+  for my $entry(@allEntries){
+    if($$entry{type} eq "scan-start" and @entrySet > 0){
+      push @entrySets, [@entrySet];
+      @entrySet = ();
+    }
+    push @entrySet, $entry;
+    if($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+      push @entrySets, [@entrySet];
+      @entrySet = ();
+    }
+  }
+  push @entrySets, [@entrySet] if @entrySet > 0;
+
+  my @backupSets;
+  for my $entrySet(@entrySets){
+    my ($scanStart, $scanEnd, $backupStart, $backupIncomplete, $backupComplete);
+    for my $entry(@$entrySet){
+      if($$entry{type} eq "scan-start"){
+        if(defined $scanStart){
+          die "duplicate scan-start:\n$$scanStart{line}$$entry{line}";
+        }
+        $scanStart = $entry;
+      }elsif($$entry{type} eq "scan-end"){
+        if(defined $scanEnd){
+          die "duplicate scan-end:\n$$scanEnd{line}$$entry{line}";
+        }
+        $scanEnd = $entry;
+      }elsif($$entry{type} eq "backup-start"){
+        if(not defined $backupStart or $$entry{filecount} > $$backupStart{filecount}){
+          $backupStart = $entry;
+        }
+      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "incomplete"){
+        $backupIncomplete = $entry;
+      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+        if(defined $backupComplete){
+          die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
+        }
+        $backupComplete = $entry;
+      }
+    }
+    my $backupEnd;
+    $backupEnd = $backupComplete if not defined $backupEnd and defined $backupComplete;
+    $backupEnd = $backupIncomplete if not defined $backupEnd and defined $backupIncomplete;
+
+    my @times;
+    push @times, $$scanStart{time} if defined $scanStart;
+    push @times, $$scanEnd{time} if defined $scanEnd;
+    push @times, $$backupStart{time} if defined $backupStart;
+    push @times, $$backupEnd{time} if defined $backupEnd;
+    my $minTime = undef;
+    for my $time(@times){
+      $minTime = $time if not defined $minTime or $time < $minTime;
+    }
+
+    my $backupStatus;
+    $backupStatus = "running" if defined $backupStart and not defined $backupEnd;
+    $backupStatus = "skipped" if not defined $backupStart;
+    $backupStatus = "incomplete" if defined $backupEnd and $$backupEnd{completestate} eq "incomplete";
+    $backupStatus = "complete" if defined $backupEnd and $$backupEnd{completestate} eq "complete";
+    $backupStatus = "error" if
+      not defined $scanStart
+      or not defined $scanEnd
+      or (defined $backupEnd and not defined $backupStart);
+
+    push @backupSets, {
+      backupId => "$backupName-$backupStatus-$minTime",
+      backupName => $backupName,
+      backupStatus => $backupStatus,
+      time => $minTime,
+      scanStart => $scanStart,
+      scanEnd => $scanEnd,
+      backupStart => $backupStart,
+      backupEnd => $backupEnd,
+    };
+  }
+  return @backupSets;
+}
+
+sub filterLog($$$){
+  my ($log, $maxTimeAgoMillis, $exactDate) = @_;
+  my $minTimeMillis;
+  if(defined $maxTimeAgoMillis){
+    $minTimeMillis = time*1000.0 - $maxTimeAgoMillis;
+  }
+
+  for my $name(sort keys %$log){
+    my @entries = @{$$log{$name}};
+    if(defined $minTimeMillis){
+      @entries = grep {$$_{time} >= $minTimeMillis/1000.0} @entries;
+    }
+    if(defined $exactDate){
+      @entries = grep {ymd($$_{time}) eq $exactDate} @entries;
+    }
+    $$log{$name} = [@entries];
+  }
+  return $log;
+}
+
+sub parseLog(){
+  my @lines = `cat $logFile`;
+  my $log = {};
+
+  for my $line(@lines){
+    my ($time, $backupName);
+    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\]/){
+      my ($mon, $day, $year, $hour, $min, $ampm, $name) = ($1, $2, $3, $4, $5, $6, $7);
+
+      $time = str2time "$mon/$day/$year $hour:$min$ampm";
+      $backupName = $name;
+    }else{
+      next;
+    }
+
+    my $dur = '(?:< )?\d+ (?:minute|hour|day)s?';
+    my $n = '[0-9,]+';
+    my $fs = '[0-9\.]+\s*[KMGT]?B';
+    my $speed = '.*[0-9\.]+\s*[KMGT]?bps';
+
+    my $entry;
+    if($line =~ /Scanning for files to back up$/){
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "scan-start",
+      }
+    }elsif($line =~ /Scanning for files completed in ($dur): ($n) files? \(($fs)\) found$/){
+      my ($duration, $fileCount, $size) = ($1, $2, $3);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "scan-end",
+        duration => $duration,
+        filecount => $fileCount,
+        size => $size,
+      };
+    }elsif($line =~ /Starting backup to CrashPlan Central: ($n) files? \(($fs)\) to back up$/){
+      my ($fileCount, $size) = ($1, $2);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "backup-start",
+        filecount => $fileCount,
+        size => $size,
+      };
+    }elsif($line =~ /(Stopped|Completed) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
+      my ($completestate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+      $entry = {
+        name => $backupName,
+        time => $time,
+        line => $line,
+        type => "backup-end",
+        completestate => $completestate eq "Completed" ? "complete" : "incomplete",
+        duration => $duration,
+        filecount => $fileCount,
+        size => $size,
+        encsize => $encsize,
+        speed => $speed,
+      };
+    }
+
+    if(defined $entry and defined $$entry{filecount}){
+      my $count = $$entry{filecount};
+      $count =~ s/,//g;
+      die "Malformed count: $count\n" if $count !~ /^\d+$/;
+      $$entry{filecount} = $count;
+    }
+
+    if(defined $entry){
+      $$log{$$entry{name}} = [] if not defined $$log{$$entry{name}};
+      push @{$$log{$$entry{name}}}, $entry;
+    }
+  }
+  return $log;
+}
+
+sub formatBackupSet($){
+  my ($set) = @_;
+
+  my $maxLen = 0;
+  for my $name(@backupNames){
+    $maxLen = length $name if length $name > $maxLen;
+  }
+
+  my @allLines;
+  push @allLines, $$set{scanStart}{line} if defined $$set{scanStart};
+  push @allLines, $$set{scanEnd}{line} if defined $$set{scanEnd};
+  push @allLines, $$set{backupStart}{line} if defined $$set{backupStart};
+  push @allLines, $$set{backupEnd}{line} if defined $$set{backupEnd};
+
+  if($$set{backupStatus} eq "error"){
+    my $reason = "";
+    $reason = "missing scan-start" if not defined $$set{scanStart};
+    $reason = "missing scan-end" if not defined $$set{scanEnd};
+    $reason = "missing backup-start" if not defined $$set{backupStart};
+    return "\n!!!$reason\n@allLines\n\n";
+  }
+
+  my $start = formatTime($$set{scanStart}{time});
+  my $name = padr $$set{backupName}, $maxLen;
+  my $status = "";
+  $status = "RUN!" if $$set{backupStatus} eq "running";
+  $status = "INC!" if $$set{backupStatus} eq "incomplete";
+  $status = "skip" if $$set{backupStatus} eq "skipped";
+  $status = "done" if $$set{backupStatus} eq "complete";
+  $status = padl $status, 4;
+
+  my $size;
+  $size = $$set{backupEnd}{size} if not defined $size and defined $$set{backupEnd};
+  $size = $$set{scanEnd}{size} if not defined $size and defined $$set{scanEnd};
+  $size = parseSizeMiB $size;
+  $size = sprintf "%.3f", $size;
+  $size = padl $size, 10; # <1TiB
+
+  my $encsize;
+  if(defined $$set{backupEnd}){
+    $encsize = $$set{backupEnd}{encsize};
+    $encsize = parseSizeMiB $encsize;
+    $encsize = sprintf "%.3f", $encsize;
+    $encsize = padl $encsize, 10; # <1TiB
+  }
+
+  my $filecount;
+  $filecount = $$set{backupEnd}{filecount} if not defined $filecount and defined $$set{backupEnd};
+  $filecount = $$set{scanEnd}{filecount} if not defined $filecount and defined $$set{scanEnd};
+  $filecount = padl $filecount, 6; # <1,000,000 files
+
+  my $speed;
+  if(defined $$set{backupEnd}){
+    $speed = parseSpeedMbps $$set{backupEnd}{speed};
+    $speed = sprintf "%.3f", $speed;
+    $speed = padl $speed, 7; # <1Gbps
+  }
+
+  my @format = ("$name", "$start", "$status", "${filecount}f", "${size}MiB");
+  push @format, "${encsize}MiB" if defined $encsize;
+  push @format, "${speed}mbps" if defined $speed;
+  return "@format\n";
+}
+
+sub parseSizeMiB($){
+  my ($size) = @_;
+  if($size !~ /^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/){
+    die "malformed size: $size\n";
+  }
+  my ($num, $unit) = ($1, $2);
+  my $scale = 1024; #just guessing, they could actually mean mega instead of mibi
+
+  my $bytes;
+  $bytes = $num * $scale * $scale * $scale * $scale if $unit eq "TB";
+  $bytes = $num * $scale * $scale * $scale if $unit eq "GB";
+  $bytes = $num * $scale * $scale if $unit eq "MB";
+  $bytes = $num * $scale if $unit eq "KB";
+  $bytes = $num if $unit eq "B";
+
+  return ($bytes / 1024.0 / 1024.0);
+}
+sub parseSpeedMbps($){
+  my ($size) = @_;
+  if($size !~ /^(\d+(?:\.\d+)?)\s*(bps|Kbps|Mbps|Gbps|Tbps)$/){
+    die "malformed size: $size\n";
+  }
+  my ($num, $unit) = ($1, $2);
+  my $scale = 1000;
+
+  my $bytes;
+  $bytes = $num * $scale * $scale * $scale * $scale if $unit eq "Tbps";
+  $bytes = $num * $scale * $scale * $scale if $unit eq "Gbps";
+  $bytes = $num * $scale * $scale if $unit eq "Mbps";
+  $bytes = $num * $scale if $unit eq "Kbps";
+  $bytes = $num if $unit eq "bps";
+
+  return ($bytes / 1024.0 / 1024.0);
+}
+sub padl($$){
+  my ($s, $len) = @_;
+  return ' 'x($len - length $s) . $s;
+}
+sub padr($$){
+  my ($s, $len) = @_;
+  return $s . ' 'x($len - length $s);
+}
+sub formatTime($){
+  my ($t) = @_;
+  return time2str $dateDisplayFormat, $t;
+}
+sub ymd($){
+  my ($t) = @_;
+  return time2str "%Y-%m-%d", $t;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running '@_'\n" if $? != 0;
+}
+
+&main(@ARGV);

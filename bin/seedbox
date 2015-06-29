@@ -4,6 +4,7 @@ use warnings;
 
 my $remoteTorrentDir = "watch";
 my $remoteDownloads = "files";
+my $remotePartial = "partial";
 my $localDownloads = "/media/seedbox";
 my @cleanupCmd = ("find $remoteDownloads/ -type d -execdir chmod og-w {} \\;");
 
@@ -47,6 +48,10 @@ my @mirrorOptions = qw(
   --use-pget=3
   --parallel=2
 );
+my @pgetOptions = qw(
+  -c
+  -n 3
+);
 
 my $usage = "Usage:
   $0 [--host]
@@ -58,6 +63,10 @@ my $usage = "Usage:
   $0 -g
      use lftp mirror to sync seedbox:$remoteDownloads => $localDownloads
      like: lftp SERVER -c \"mirror $remoteDownloads $localDownloads\"
+
+  $0 -p PATH_GLOB
+     fetch a single file from $remotePartial to CWD using pget
+     like: lftp SERVER -c \"glob -- pget @pgetOptions partial/PATH_GLOB\"
 
   $0 --mark-up-to-date
      fetch mtime of $remoteDownloads from seedbox and write to file $mtimeFile
@@ -99,6 +108,9 @@ sub main(@){
     ftpCommand $config;
   }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
     ftpCommand $config, "mirror @mirrorOptions $remoteDownloads $localDownloads";
+  }elsif(@_ == 2 and $_[0] =~ /^(-p)$/){
+    my $pathGlob = $_[1];
+    ftpCommand $config, "glob -- pget @pgetOptions partial/$pathGlob";
   }elsif(@_ == 1 and $_[0] =~ /^(--mark-up-to-date)$/){
     my $mtime = fetchMtime $config;
     writeMtime $mtime;

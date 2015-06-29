@@ -4,24 +4,26 @@ use warnings;
 
 sub run(@);
 
-my $dir = "$ENV{HOME}/.cache/gnuplot-ddr";
+my $gnuplotDir = "$ENV{HOME}/.cache/gnuplot-ddr";
+my $bestDir = "$ENV{HOME}/.cache/best-ddr";
+my $pixmirrorDir = "$ENV{HOME}/Desktop/DCIM-pixmirror/xddr";
 
 my @curSongs = qw(max300 legendofmax max300smmm paranoiasurvivor270 paranoiasurvivormax290 paranoiarespect maxxunlimited);
 my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
 
 my @plotArr = (
   'cursongs_recent' =>
-    ["--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles"],
+    ["--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
   'cursongs_recent_smooth' =>
-    ["--smooth", "--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles"],
+    ["--smooth", "--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
   'hard_recent' =>
-    ["--notes", "highscore", "--hard", "--recent", "--singles"],
+    ["--notes", "highscore", "--hard", "--recent", "--singles", "--monotonic"],
   'hard_recent_smooth' =>
-    ["--smooth", "--notes", "highscore", "--hard", "--recent", "--singles"],
+    ["--smooth", "--notes", "highscore", "--hard", "--recent", "--singles", "--monotonic"],
   'high' =>
-    ["--notes", "highscore,extra", "--score", "870000", "--singles"],
+    ["--notes", "highscore,extra", "--score", "870000", "--singles", "--monotonic"],
   'doubles' =>
-    ["--notes", "highscore", "--recent", "--doubles"],
+    ["--notes", "highscore", "--recent", "--doubles", "--monotonic"],
 );
 my $plots = {@plotArr};
 my @plotOrder = map {$plotArr[$_]} grep {$_%2 == 0} (0 .. $#plotArr);
@@ -48,9 +50,9 @@ sub main(@){
   }
   die $usage if @_ > 0;
 
-  system "rm", "-rf", $dir;
+  system "rm", "-rf", $gnuplotDir;
   for my $subdir(sort keys %$subdirVariants){
-    system "mkdir", "-p", "$dir/$subdir";
+    system "mkdir", "-p", "$gnuplotDir/$subdir";
     my $variants = $$subdirVariants{$subdir};
     my $num = 0;
     my @order = @plotOrder;
@@ -58,21 +60,48 @@ sub main(@){
     for my $name(@order){
       $num++;
       my $plot = $$plots{$name};
-      my $file = "$dir/$subdir/$num-gnuplot-$name.png";
+      my $file = "$gnuplotDir/$subdir/$num-gnuplot-$name.png";
       my @cmd = ("ddrname", "--gnuplot", "--file", $file, @$variants, @$plot);
       system @cmd;
       die "error running plot $name => @$plot\n" if $? != 0;
     }
   }
 
+  system "rm", "-rf", $bestDir;
+  my @bestNotHard;
+  my @bestHard;
+  my @bestDoubles;
+
+  @bestHard = (@bestHard, `ddrname --bestfiles --hard --singles`);
+  @bestHard = (@bestHard, `ddrname --bestfiles --nonstop`);
+
+  @bestNotHard = (@bestNotHard, `ddrname --bestfiles --nothard --singles`);
+
+  @bestDoubles = (@bestDoubles, `ddrname --bestfiles --doubles`);
+  @bestDoubles = (@bestDoubles, `ddrname --bestfiles --nonstopdoubles`);
+
+  chomp foreach @bestHard;
+  chomp foreach @bestNotHard;
+  chomp foreach @bestDoubles;
+
+  @bestHard = map { "$pixmirrorDir/$_" } @bestHard;
+  @bestNotHard = map { "$pixmirrorDir/$_" } @bestNotHard;
+  @bestDoubles = map { "$pixmirrorDir/$_" } @bestDoubles;
+
+  system "mkdir", "-p", "$bestDir/hard", "$bestDir/nothard", "$bestDir/doubles";
+  system "cp", "-ar", @bestHard, "$bestDir/hard";
+  system "cp", "-ar", @bestNotHard, "$bestDir/nothard";
+  system "cp", "-ar", @bestDoubles, "$bestDir/doubles";
+
   if(not $noFeh){
-    run "feh -ZF '$dir/fhd' >/dev/null 2>/dev/null &";
+    run "feh -ZF '$gnuplotDir/fhd' >/dev/null 2>/dev/null &";
   }
   if(not $noN9){
     my $n9Host = `n9`;
     chomp $n9Host;
 
-    run "rsync", "-avP", "--del", "$dir/n9/", "user\@$n9Host:~/xgnuplotddr";
+    run "rsync", "-avP", "--del", "$gnuplotDir/n9/", "user\@$n9Host:~/xgnuplotddr";
+    run "rsync", "-avP", "--del", "$bestDir/", "user\@$n9Host:~/xbestddr";
   }
 }
 

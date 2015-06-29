@@ -71,7 +71,18 @@ sub uploadIndex($){
 
 sub uploadGnuplotDdr($){
   my ($secrets) = @_;
-  lftpCommand $secrets, "-e", "mirror -R --delete $gnuplotDdrDir/; exit";
+  my $attempts = 10;
+  while($attempts > 0){
+    my $output = lftpCommand $secrets, "-e", "mirror -R --delete $gnuplotDdrDir/; exit";
+    if($output =~ m/^Total: \d+ dir.*, \d+ file.*, \d+ symlink.*$/m){
+      last;
+    }elsif($attempts <= 0){
+      die "mirror failed\n";
+    }else{
+      print "mirror failed, retrying $attempts more times\n";
+      $attempts--;
+    }
+  }
 }
 
 sub getGnuplotDdrHtml($){
@@ -102,11 +113,19 @@ sub uploadFileContents($$$){
 
 sub lftpCommand($@){
   my ($secrets, @cmd) = @_;
-  system "lftp",
+  print "running lftp command: @cmd\n";
+  open FH, "-|", "lftp",
     "-u", "$$secrets{username},$$secrets{password}",
     $$secrets{host},
     @cmd,
     ;
+  my $output = '';
+  while(my $line=<FH>){
+    print $line;
+    $output .= $line;
+  }
+  close FH;
+  return $output;
 }
 
 sub readSecrets(){

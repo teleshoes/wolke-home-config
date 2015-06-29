@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $crashplanDir = "/usr/local/crashplan";
+
+my $cliWrapperClassName = "CliWrapper";
+my $cliWrapperPackage = "com.backup42.desktop";
+my $cliWrapperPackagePath = $cliWrapperPackage;
+$cliWrapperPackagePath =~ s/\./\//g;
+my $cliWrapperSrcDir = "$crashplanDir/cliwrapper";
+
+my $cliWrapperSrcFile = getInstallPath "crashplan/$cliWrapperClassName.java";
+
+sub main(@){
+  getRoot();
+
+  print "\n\n\n";
+  print "removing init and rc files from etc\n";
+  my @rcFiles = glob "/etc/rc*/*crashplan*";
+  my @initFiles = glob "/etc/init*/*crashplan*";
+  for my $file((@rcFiles, @initFiles)){
+    run "rm", $file;
+  }
+
+  print "\n\n\n";
+  print "installing cli wrapper\n";
+  run "rm", "-r", "$cliWrapperSrcDir";
+  run "mkdir", "-p", "$cliWrapperSrcDir/$cliWrapperPackagePath";
+  run "cp", $cliWrapperSrcFile, "$cliWrapperSrcDir/$cliWrapperPackagePath";
+  run "javac",
+    "-classpath", "$crashplanDir/lib/com.backup42.desktop.jar",
+    "$cliWrapperSrcDir/$cliWrapperPackagePath/$cliWrapperClassName.java",
+    ;
+}
+
+&main(@ARGV);
