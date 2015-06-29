@@ -54,8 +54,14 @@ my $usage = "Usage:
   $0 -g|--gui
     run '$guiExec'
 
-  $0 -l|--log|log [BACKUP_NAME]
+  $0 -l|--log|log [--date=DATE] [BACKUP_NAME]
     format recent info from $logFile
+      DATE
+        YYYY-MM-DD   show only info from that date
+        all          do not filter log info
+        recent       show all info from the last ${recentLogMillis}ms
+                     this is the default if not --date arg is given
+
       BACKUP_NAME
         one of [$okBackupNames]
         if given, only show info for that backup.
@@ -84,6 +90,11 @@ sub main(@){
   if($cmd =~ /^(-g|--gui|gui)$/ and @_ == 0){
     exec $guiExec;
   }elsif($cmd =~ /^(-l|--log|log)$/){
+    my $date = "recent";
+    if(@_ > 0 and $_[0] =~ /^--date=(\d\d\d\d-\d\d-\d\d|all|recent)$/){
+      $date = $1;
+      shift;
+    }
     my $backupName = undef;
     if(@_ > 0 and $_[0] =~ /^($okBackupNames)$/){
       $backupName = $1;
@@ -91,7 +102,10 @@ sub main(@){
     }
     die $usage if @_ > 0;
 
-    my @backupSets = getFilteredBackupSets($recentLogMillis, undef);
+    my $exactDate = $date if $date =~ /^\d\d\d\d-\d\d-\d\d$/;
+    my $maxTimeAgoMillis = $recentLogMillis if $date =~ /^recent$/;
+
+    my @backupSets = getFilteredBackupSets($maxTimeAgoMillis, $exactDate);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
     printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
