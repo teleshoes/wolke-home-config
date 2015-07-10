@@ -50,6 +50,8 @@ set tabstop=2
 set softtabstop=2
 set shiftwidth=2
 
+let g:GPGUseAgent=0
+
 """keep cursor vertically centered while searching"""
 nnoremap n nzz
 nnoremap N Nzz
