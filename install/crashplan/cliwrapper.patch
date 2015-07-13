@@ -22,31 +22,31 @@
 < import com.backup42.desktop.view.MainWindow.Event.AppDeactivatedEvent;
 < import com.backup42.desktop.view.MainWindow.Event.AppShowEvent;
 < import com.backup42.desktop.view.MainWindow.Event.Listener;
-41d23
+43d25
 < import com.code42.config.ConfigItem;
-43,45d24
+45,47d26
 < import com.code42.event.IListener;
 < import com.code42.event.Listener;
 < import com.code42.event.Publisher;
-54a34
+56a36
 > import com.code42.messaging.MessageReceiverProxy;
-56d35
+58d37
 < import com.code42.os.mac.io.FileManager.FSCatalogInfo;
-63,64d41
+65,66d43
 < import com.code42.swt.util.ActionManager;
 < import com.code42.swt.util.SWTExec;
-66c43
+68c45
 < import com.code42.swt.view.AppWindowEvent.WindowReadyEvent;
 ---
 > import com.code42.swt.view.AppWindowEvent;
-76a54
+78a56
 > 
-80a59
+82a61
 > 
-83,84d61
+85,86d63
 < import org.eclipse.swt.widgets.Display;
 < import org.eclipse.swt.widgets.Shell;
-86,90c63,64
+88,92c65,66
 < public class CPDesktop
 <   extends Publisher
 <   implements SplashWindow.Event.Listener, MainWindow.Event.Listener, IModelObserver
@@ -55,27 +55,27 @@
 ---
 > public class CliWrapper {
 >   private static final com.code42.logging.Logger log = LoggerFactory.getLogger(CliWrapper.class.getName());
-92d65
+94d67
 <   private static Display display;
-94d66
+96d68
 <   private final Listener listener = new Listener(this);
-111c83
+113c85
 <         SystemOut.info(CPDesktop.class, "init", "No JVM temp directory configured!");
 ---
 >         SystemOut.info(CliWrapper.class, "init", "No JVM temp directory configured!");
-117c89
+119c91
 <         SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " does not exist!");
 ---
 >         SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " does not exist!");
-122c94
+124c96
 <         SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " is not a directory!");
 ---
 >         SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " is not a directory!");
-127c99
+129c101
 <         SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " exists but we can't write to it!");
 ---
 >         SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " exists but we can't write to it!");
-138,148c110,120
+140,150c112,122
 <       SystemOut.info(CPDesktop.class, "init", "*************************************************************");
 <       SystemOut.info(CPDesktop.class, "init", "*************************************************************");
 <       SystemOut.info(CPDesktop.class, "init", "STARTED " + getAppBaseName() + "Desktop");
@@ -99,31 +99,31 @@
 >       SystemOut.info(CliWrapper.class, "init", "User      = " + user);
 >       SystemOut.info(CliWrapper.class, "init", "swt.library.path = " + System.getProperty("swt.library.path"));
 >       SystemOut.info(CliWrapper.class, "init", "*************************************************************");
-157c129
+159c131
 <               SystemOut.info(CPDesktop.class, "init", "SWT library deleted: " + swtFile);
 ---
 >               SystemOut.info(CliWrapper.class, "init", "SWT library deleted: " + swtFile);
-166c138
+168c140
 <           SystemOut.info(CPDesktop.class, "init", "SWT library dir created: " + swtDir);
 ---
 >           SystemOut.info(CliWrapper.class, "init", "SWT library dir created: " + swtDir);
-170c142
+172c144
 <       AppTimer.begin(CPDesktop.class.getSimpleName());
 ---
 >       AppTimer.begin(CliWrapper.class.getSimpleName());
-174c146
+176c148
 <       CPDesktop startupController = new CPDesktop(args);
 ---
 >       CliWrapper startupController = new CliWrapper(args);
-179c151
+181c153
 <       String msg = "Failed to launch " + CPDesktop.class.getSimpleName() + "; " + e;
 ---
 >       String msg = "Failed to launch " + CliWrapper.class.getSimpleName() + "; " + e;
-181c153
+183c155
 <       SystemOut.log(Level.ERROR, CPDesktop.class, "init", msg);
 ---
 >       SystemOut.log(Level.ERROR, CliWrapper.class, "init", msg);
-183a156,164
+185a158,166
 > 
 >     Thread.sleep(1000);
 >     System.out.println("\n\n");
@@ -133,50 +133,46 @@
 >     System.out.println("\n\n");
 >     Thread.sleep(1000);
 >     Runtime.getRuntime().halt(0);
-188,190c169
+190,192c171
 <     SystemOut.info(CPDesktop.class, "secondaryMain", "Bring main window forward.");
 <     Display disp = MainWindow.getInstance().getShell().getDisplay();
 <     ActionManager.run(disp, new ShowMainWindow());
 ---
 >     SystemOut.info(CliWrapper.class, "secondaryMain", "Bring main window forward.");
-193c172
+195c174
 <   public CPDesktop(String[] args)
 ---
 >   public CliWrapper(String[] args)
-206a186,187
+208a188,189
 >     appModel = new AppModel(commandLineArguments);
 > 
-214d194
+216d196
 <     Display.setAppName(appName);
-226c206
-<         Integer port = (Integer)serviceUI.servicePort.getValue();
----
->         Integer port = (Integer)appModel.getConfigModel().getConfig().serviceUI.servicePort.getValue();
-229c209
+231c211
 <         OrgType orgType = orgType.get();
 ---
 >         OrgType orgType = OrgType.CONSUMER;
-253,254d232
+248,249d227
 <     appModel = new AppModel(commandLineArguments);
 <     appModel.getConfigModel().addObserver(this);
-296,299d273
+294,297d271
 <     display = Display.getDefault();
 <     
 <     CPFont.loadFonts(display, appModel.getDesktopProperties());
 <     
-317c291
+315c289
 <     SystemOut.info(CPDesktop.class, "waitForCustom", "Waiting for custom indicator to appear in " + customMark);
 ---
 >     SystemOut.info(CliWrapper.class, "waitForCustom", "Waiting for custom indicator to appear in " + customMark);
-325c299
+323c297
 <       SystemOut.info(CPDesktop.class, "waitForCustom", "Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark.exists());
 ---
 >       SystemOut.info(CliWrapper.class, "waitForCustom", "Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark.exists());
-329c303
+327c301
 <       SystemOut.info(CPDesktop.class, "waitForCustom", "InterruptedException while waiting for custom indicator to appear in " + customMark);
 ---
 >       SystemOut.info(CliWrapper.class, "waitForCustom", "InterruptedException while waiting for custom indicator to appear in " + customMark);
-373,382d346
+371,380d344
 <     try
 <     {
 <       splashWindow = new SplashWindow(display);
@@ -187,24 +183,24 @@
 <     {
 <       log.warn("Unable to show splash. " + e.getMessage(), new Object[] { e });
 <     }
-388,391d351
+386,389d349
 <     services.addListener(listener, ConnectedEvent.class);
 <     services.addListener(listener, ConnectFailedEvent.class);
 <     services.addListener(listener, StatusResponseMessage.class);
 <     
-405c365
+403c363
 <           CPDesktop.log.info("EXITING... Normally");
 ---
 >           CliWrapper.log.info("EXITING... Normally");
-410c370
+408c368
 <           synchronized (CPDesktop.MAIN_MONITOR)
 ---
 >           synchronized (CliWrapper.MAIN_MONITOR)
-413c373
+411c371
 <             CPDesktop.MAIN_MONITOR.notifyAll();
 ---
 >             CliWrapper.MAIN_MONITOR.notifyAll();
-423,443d382
+421,441d380
 <     try
 <     {
 <       while (!display.isDisposed()) {
@@ -226,43 +222,43 @@
 <       SWTExec.shutdown();
 <       System.exit(0);
 <     }
-454c393
+452c391
 <           CPDesktop.log.info("Restarting service...");
 ---
 >           CliWrapper.log.info("Restarting service...");
-462c401
+460c399
 <         CPDesktop.log.info("Connecting to service at " + new Location(host, port));
 ---
 >         CliWrapper.log.info("Connecting to service at " + new Location(host, port));
-470c409
+468c407
 <               CPDesktop.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms");
 ---
 >               CliWrapper.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms");
-481c420
-<               CPDesktop.log.warn("Unable to establish connection. " + e.getMessage(), new Object[] { e });
+479c418
+<               CPDesktop.log.warn("Unable to establish connection.", new Object[] { e });
 ---
->               CliWrapper.log.warn("Unable to establish connection. " + e.getMessage(), new Object[] { e });
-486c425
+>               CliWrapper.log.warn("Unable to establish connection.", new Object[] { e });
+484c423
 <               CPDesktop.log.info("    SUCCESS on attempt #" + i);
 ---
 >               CliWrapper.log.info("    SUCCESS on attempt #" + i);
-491c430
+489c428
 <               CPDesktop.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.");
 ---
 >               CliWrapper.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.");
-495c434
+493c432
 <               CPDesktop.log.info("    FAILED on attempt #" + i + ", done");
 ---
 >               CliWrapper.log.info("    FAILED on attempt #" + i + ", done");
-513c452
+511c450
 <           CPDesktop.log.error("Interrupted while waiting to connect!");
 ---
 >           CliWrapper.log.error("Interrupted while waiting to connect!");
-542c481
+540c479
 <     String localeConfig = (String)getConfigserviceUI.locale.getValue();
 ---
 >     String localeConfig = (String)appModel.getConfigModel().getConfig().serviceUI.locale.getValue();
-627,637d565
+625,635d563
 <     display.asyncExec(new Runnable()
 <     {
 <       public void run()
@@ -274,11 +270,11 @@
 <         new MainWindowController(mainWindow, appModel, services);
 <       }
 <     });
-661c589
+659c587
 <       SystemOut.info(CPDesktop.class, "readLoggingConfiguration", "Log file: " + logfile);
 ---
 >       SystemOut.info(CliWrapper.class, "readLoggingConfiguration", "Log file: " + logfile);
-692,699d619
+690,697d617
 <     CPFont.loadFonts(Display.getDefault(), new Properties());
 <   }
 <   
@@ -287,3 +283,8 @@
 <     if (!display.isDisposed()) {
 <       display.close();
 <     }
+705c625
+<  */
+\ No newline at end of file
+---
+>  */
