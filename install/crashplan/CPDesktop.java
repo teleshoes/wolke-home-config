@@ -35,6 +35,8 @@ import com.backup42.desktop.view.MainWindow.Event.Listener;
 import com.backup42.service.CPService;
 import com.backup42.service.CPText;
 import com.backup42.service.CpsFolders;
+import com.backup42.service.ui.UIInfoUtility;
+import com.backup42.service.ui.UIInfoUtility.UIConnectionDetailsResult;
 import com.backup42.service.ui.message.StatusResponseMessage;
 import com.backup42.service.ui.message.UpdateLicenseMessage;
 import com.code42.auth.ILicense;
@@ -202,7 +204,7 @@ public class CPDesktop
       waitForCustom();
     }
     customProps = new PropertiesUtil(new Properties());
-    customProps.load(new File(CpsFolders.getCustomParent(), "conf/custom.properties"), false);
+    customProps.load(new File(CpsFolders.getCustomParent(appBaseName), "conf/custom.properties"), false);
     
     LangUtils.registerImpl(FormBuilder.class, CPFormBuilder.class);
     LangUtils.registerImpl(GridFormBuilder.class, CPGridFormBuilder.class);
@@ -212,20 +214,20 @@ public class CPDesktop
     
     String appName = CPText.getAppName();
     Display.setAppName(appName);
+    
+    String devConfigName = commandLineArguments.getProperty("devConfigName");
     if (SystemProperties.isDevEnv())
     {
+      if (!LangUtils.hasValue(devConfigName)) {
+        throw new Exception("Unable to start, missing devConfigName property.");
+      }
       String appDataPath = SystemProperties.getOptional("c42.app.commonDataFolder");
-      String portValue = commandLineArguments.getProperty("servicePort");
-      String configName = commandLineArguments.getProperty("devConfigName");
       String skinPath = "skin";
-      if (LangUtils.hasValue(configName))
+      if (LangUtils.hasValue(devConfigName))
       {
         ServiceConfig sc = new ServiceConfig();
-        String xml = FileUtility.readTextFile("../b42_service/conf/test/" + configName + ".xml");
+        String xml = FileUtility.readTextFile("../b42_service/conf/test/" + devConfigName + ".xml");
         sc.fromXml(xml);
-        Integer port = (Integer)serviceUI.servicePort.getValue();
-        portValue = port.toString();
-        commandLineArguments.setProperty("servicePort", portValue);
         OrgType orgType = orgType.get();
         if (orgType.equals(OrgType.BUSINESS)) {
           skinPath = "skin_blue";
@@ -236,22 +238,18 @@ public class CPDesktop
       File skinFolder = new File(skinPath);
       log.info("Skin folder: {}", new Object[] { skinFolder.getAbsolutePath() });
       ClassPathHacker.addFile(skinFolder);
-      if (((LangUtils.hasValue(configName)) || (LangUtils.hasValue(portValue))) && (LangUtils.hasValue(appDataPath)))
+      if (LangUtils.hasValue(appDataPath))
       {
-        if (!LangUtils.hasValue(configName))
-        {
-          int index = portValue.indexOf("43", 2);
-          if (index > 0) {
-            configName = portValue.substring(0, index);
-          }
-        }
-        appDataPath = appDataPath + "/" + configName;
+        appDataPath = appDataPath + "/" + devConfigName;
         String absoluteAppDataPath = new File(appDataPath).getAbsolutePath();
         SystemProperties.setProperty("c42.app.commonDataFolder", absoluteAppDataPath);
       }
     }
     appModel = new AppModel(commandLineArguments);
     appModel.getConfigModel().addObserver(this);
+    
+    String servicePort = UIInfoUtility.getUIConnectionDetails().getPort();
+    appModel.getDesktopProperties().setProperty("servicePort", servicePort);
     if (customProps.getOptionalBoolean("ssoAuth.enabled", false))
     {
       boolean required = customProps.getOptionalBoolean("ssoAuth.required", false);
@@ -313,7 +311,7 @@ public class CPDesktop
   
   private void waitForCustom()
   {
-    File customMark = new File(CpsFolders.getCustomParent(), "~custom");
+    File customMark = new File(CpsFolders.getCustomParent(appBaseName), "~custom");
     SystemOut.info(CPDesktop.class, "waitForCustom", "Waiting for custom indicator to appear in " + customMark);
     try
     {
@@ -478,7 +476,7 @@ public class CPDesktop
             }
             catch (IOException e)
             {
-              CPDesktop.log.warn("Unable to establish connection. " + e.getMessage(), new Object[] { e });
+              CPDesktop.log.warn("Unable to establish connection.", new Object[] { e });
               break;
             }
             if (services.isConnected())
