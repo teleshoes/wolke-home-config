@@ -10,8 +10,6 @@ module Utils(
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
-import Prelude hiding (readFile)
-import System.IO.UTF8 (readFile)
 import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
