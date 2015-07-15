@@ -52,7 +52,7 @@ main = do
           , W.fanW
           , W.brightnessW
           , colW [ W.pingMonitorW "G" "www.google.com"
-                 , W.pingMonitorW "E" "dev.escribe.com"
+                 , W.pingMonitorW "E" "garuda.escribe.com"
                  , W.pingMonitorW "A" "ehr.dev"
                  ]
           , colW [ W.openvpnW "escribe"
