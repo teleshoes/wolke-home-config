@@ -1,0 +1,38 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@);
+
+my @ipmagicHosts = (
+  ["n9",    "user"],
+  ["n9",    "root"],
+  ["raspi", "pi"],
+  ["raspi", "root"],
+  ["nuc",   undef],
+);
+
+sub main(@){
+  die "Usage: $0\n" if @_ > 0;
+  my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
+  chomp foreach @pubkeyFiles;
+  print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
+  for my $host(@ipmagicHosts){
+    my ($ipmagic, $user) = @$host;
+    my $hostname = `ipmagic $ipmagic`;
+    chomp $hostname;
+    die "Error on ipmagic=$hostname\n" if $? != 0 or $hostname !~ /\w/;
+    my $host = $hostname;
+    $host = "$user\@$host" if defined $user;
+    run "rsync", "-avP", @pubkeyFiles, "$host:~/.ssh";
+    run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running \"@_\"\n" if $? != 0;
+}
+
+&main(@ARGV);
