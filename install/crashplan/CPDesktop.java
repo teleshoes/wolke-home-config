@@ -3,25 +3,48 @@ package com.backup42.desktop;
 import com.backup42.common.AuthorityLocation;
 import com.backup42.common.CPVersion;
 import com.backup42.common.OrgType;
+import com.backup42.common.User;
+import com.backup42.common.config.CentralConfig;
+import com.backup42.common.config.OrgTypeConfigItem;
 import com.backup42.common.config.ServiceConfig;
+import com.backup42.common.config.ServicePeerConfig;
+import com.backup42.common.config.ServiceUIConfig;
 import com.backup42.common.perm.C42PermissionPro;
+import com.backup42.desktop.actions.ShowMainWindow;
+import com.backup42.desktop.controllers.MainWindowController;
 import com.backup42.desktop.events.service.ConnectFailedEvent;
 import com.backup42.desktop.events.service.ConnectedEvent;
+import com.backup42.desktop.interfaces.IModelObserver;
 import com.backup42.desktop.layout.CPFormBuilder;
 import com.backup42.desktop.layout.CPGridFormBuilder;
 import com.backup42.desktop.layout.CPMigFormBuilder;
 import com.backup42.desktop.model.AppModel;
 import com.backup42.desktop.model.ConfigModel;
+import com.backup42.desktop.model.LicenseModel;
 import com.backup42.desktop.model.SystemModel;
+import com.backup42.desktop.model.UserListModel;
+import com.backup42.desktop.model.UserModel;
+import com.backup42.desktop.utils.CPFont;
 import com.backup42.desktop.utils.DesktopProperties;
 import com.backup42.desktop.view.MainWindow;
+import com.backup42.desktop.view.MainWindow.Event.AppActivatedEvent;
+import com.backup42.desktop.view.MainWindow.Event.AppCloseEvent;
+import com.backup42.desktop.view.MainWindow.Event.AppDeactivatedEvent;
+import com.backup42.desktop.view.MainWindow.Event.AppShowEvent;
+import com.backup42.desktop.view.MainWindow.Event.Listener;
 import com.backup42.service.CPService;
 import com.backup42.service.CPText;
 import com.backup42.service.CpsFolders;
+import com.backup42.service.ui.UIInfoUtility;
+import com.backup42.service.ui.UIInfoUtility.UIConnectionDetailsResult;
 import com.backup42.service.ui.message.StatusResponseMessage;
 import com.backup42.service.ui.message.UpdateLicenseMessage;
 import com.code42.auth.ILicense;
+import com.code42.config.ConfigItem;
 import com.code42.crypto.StringHasher;
+import com.code42.event.IListener;
+import com.code42.event.Listener;
+import com.code42.event.Publisher;
 import com.code42.i18n.LocaleUtil;
 import com.code42.i18n.Text;
 import com.code42.io.FileUtility;
@@ -31,16 +54,18 @@ import com.code42.logging.Layout42;
 import com.code42.logging.LoggerFactory;
 import com.code42.logging.SystemOut;
 import com.code42.messaging.Location;
-import com.code42.messaging.MessageReceiverProxy;
 import com.code42.os.mac.io.FileManager;
+import com.code42.os.mac.io.FileManager.FSCatalogInfo;
 import com.code42.os.posix.PosixProcessCommands;
 import com.code42.os.win.process.ProcessUtil;
 import com.code42.perm.PermissionUtils;
 import com.code42.swt.layout.FormBuilder;
 import com.code42.swt.layout.GridFormBuilder;
 import com.code42.swt.layout.MigFormBuilder;
+import com.code42.swt.util.ActionManager;
+import com.code42.swt.util.SWTExec;
 import com.code42.swt.util.SWTPathUtil;
-import com.code42.swt.view.AppWindowEvent;
+import com.code42.swt.view.AppWindowEvent.WindowReadyEvent;
 import com.code42.utils.AppUtil;
 import com.code42.utils.ArrayUtils;
 import com.code42.utils.Formatter;
@@ -51,19 +76,24 @@ import com.code42.utils.Stopwatch;
 import com.code42.utils.SystemProperties;
 import com.code42.watcher.SystemWatcher;
 import com.code42.xml.XmlTool;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Properties;
-
 import org.apache.log4j.Level;
 import org.apache.log4j.PropertyConfigurator;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
 
-public class CliWrapper {
-  private static final com.code42.logging.Logger log = LoggerFactory.getLogger(CliWrapper.class.getName());
+public class CPDesktop
+  extends Publisher
+  implements SplashWindow.Event.Listener, MainWindow.Event.Listener, IModelObserver
+{
+  private static final com.code42.logging.Logger log = LoggerFactory.getLogger(CPDesktop.class.getName());
   private static final Object MAIN_MONITOR = new Object[0];
+  private static Display display;
   private SplashWindow splashWindow;
+  private final Listener listener = new Listener(this);
   private Services services;
   private final Object[] connectMonitor = new Object[0];
   private final AppModel appModel;
@@ -80,23 +110,23 @@ public class CliWrapper {
       String tmpdirname = System.getProperty("java.io.tmpdir");
       if (tmpdirname == null)
       {
-        SystemOut.info(CliWrapper.class, "init", "No JVM temp directory configured!");
+        SystemOut.info(CPDesktop.class, "init", "No JVM temp directory configured!");
         System.exit(1);
       }
       File tmpdir = new File(tmpdirname);
       if (!tmpdir.exists())
       {
-        SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " does not exist!");
+        SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " does not exist!");
         System.exit(1);
       }
       if (!tmpdir.isDirectory())
       {
-        SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " is not a directory!");
+        SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " is not a directory!");
         System.exit(1);
       }
       if (!tmpdir.canWrite())
       {
-        SystemOut.info(CliWrapper.class, "init", "JVM temp directory " + tmpdirname + " exists but we can't write to it!");
+        SystemOut.info(CPDesktop.class, "init", "JVM temp directory " + tmpdirname + " exists but we can't write to it!");
         
         System.exit(1);
       }
@@ -107,17 +137,17 @@ public class CliWrapper {
       String os = SystemProperties.getOsDetails();
       String user = System.getProperty("user.name") + ", " + System.getProperty("user.home");
       
-      SystemOut.info(CliWrapper.class, "init", "*************************************************************");
-      SystemOut.info(CliWrapper.class, "init", "*************************************************************");
-      SystemOut.info(CliWrapper.class, "init", "STARTED " + getAppBaseName() + "Desktop");
-      SystemOut.info(CliWrapper.class, "init", "CPVERSION = " + CPVersion.asString());
-      SystemOut.info(CliWrapper.class, "init", "ARGS      = " + ArrayUtils.toString(args));
-      SystemOut.info(CliWrapper.class, "init", "LOCALE    = " + Locale.getDefault().getDisplayName(Locale.ENGLISH));
-      SystemOut.info(CliWrapper.class, "init", "JVM       = " + jvm);
-      SystemOut.info(CliWrapper.class, "init", "OS        = " + os);
-      SystemOut.info(CliWrapper.class, "init", "User      = " + user);
-      SystemOut.info(CliWrapper.class, "init", "swt.library.path = " + System.getProperty("swt.library.path"));
-      SystemOut.info(CliWrapper.class, "init", "*************************************************************");
+      SystemOut.info(CPDesktop.class, "init", "*************************************************************");
+      SystemOut.info(CPDesktop.class, "init", "*************************************************************");
+      SystemOut.info(CPDesktop.class, "init", "STARTED " + getAppBaseName() + "Desktop");
+      SystemOut.info(CPDesktop.class, "init", "CPVERSION = " + CPVersion.asString());
+      SystemOut.info(CPDesktop.class, "init", "ARGS      = " + ArrayUtils.toString(args));
+      SystemOut.info(CPDesktop.class, "init", "LOCALE    = " + Locale.getDefault().getDisplayName(Locale.ENGLISH));
+      SystemOut.info(CPDesktop.class, "init", "JVM       = " + jvm);
+      SystemOut.info(CPDesktop.class, "init", "OS        = " + os);
+      SystemOut.info(CPDesktop.class, "init", "User      = " + user);
+      SystemOut.info(CPDesktop.class, "init", "swt.library.path = " + System.getProperty("swt.library.path"));
+      SystemOut.info(CPDesktop.class, "init", "*************************************************************");
       if (swtDir.exists())
       {
         File[] swtFiles = swtDir.listFiles();
@@ -126,7 +156,7 @@ public class CliWrapper {
           {
             boolean deleted = swtFile.delete();
             if (deleted) {
-              SystemOut.info(CliWrapper.class, "init", "SWT library deleted: " + swtFile);
+              SystemOut.info(CPDesktop.class, "init", "SWT library deleted: " + swtFile);
             }
           }
         }
@@ -135,41 +165,34 @@ public class CliWrapper {
       {
         boolean swtDirCreated = swtDir.mkdir();
         if (swtDirCreated) {
-          SystemOut.info(CliWrapper.class, "init", "SWT library dir created: " + swtDir);
+          SystemOut.info(CPDesktop.class, "init", "SWT library dir created: " + swtDir);
         }
       }
       SWTPathUtil.addSwtToPath();
-      AppTimer.begin(CliWrapper.class.getSimpleName());
+      AppTimer.begin(CPDesktop.class.getSimpleName());
       System.setProperty("file.encoding", "UTF-8");
       XmlTool.useInternalDocumentBuilderFactory();
       
-      CliWrapper startupController = new CliWrapper(args);
+      CPDesktop startupController = new CPDesktop(args);
       startupController.launch();
     }
     catch (Throwable e)
     {
-      String msg = "Failed to launch " + CliWrapper.class.getSimpleName() + "; " + e;
+      String msg = "Failed to launch " + CPDesktop.class.getSimpleName() + "; " + e;
       log.error(msg, new Object[] { e });
-      SystemOut.log(Level.ERROR, CliWrapper.class, "init", msg);
+      SystemOut.log(Level.ERROR, CPDesktop.class, "init", msg);
       throw e;
     }
-
-    Thread.sleep(1000);
-    System.out.println("\n\n");
-    for(String arg : args){
-        Services.getInstance().sendCommand(arg, new MessageReceiverProxy());
-    }
-    System.out.println("\n\n");
-    Thread.sleep(1000);
-    Runtime.getRuntime().halt(0);
   }
   
   public static void secondaryMain(String[] args)
   {
-    SystemOut.info(CliWrapper.class, "secondaryMain", "Bring main window forward.");
+    SystemOut.info(CPDesktop.class, "secondaryMain", "Bring main window forward.");
+    Display disp = MainWindow.getInstance().getShell().getDisplay();
+    ActionManager.run(disp, new ShowMainWindow());
   }
   
-  public CliWrapper(String[] args)
+  public CPDesktop(String[] args)
     throws Exception
   {
     Properties commandLineArguments = AppUtil.getCommandLineProperties(args);
@@ -181,10 +204,8 @@ public class CliWrapper {
       waitForCustom();
     }
     customProps = new PropertiesUtil(new Properties());
-    customProps.load(new File(CpsFolders.getCustomParent(), "conf/custom.properties"), false);
+    customProps.load(new File(CpsFolders.getCustomParent(appBaseName), "conf/custom.properties"), false);
     
-    appModel = new AppModel(commandLineArguments);
-
     LangUtils.registerImpl(FormBuilder.class, CPFormBuilder.class);
     LangUtils.registerImpl(GridFormBuilder.class, CPGridFormBuilder.class);
     LangUtils.registerImpl(MigFormBuilder.class, CPMigFormBuilder.class);
@@ -192,21 +213,22 @@ public class CliWrapper {
     Text.getInstance().setOverride(customProps.getProperties());
     
     String appName = CPText.getAppName();
+    Display.setAppName(appName);
+    
+    String devConfigName = commandLineArguments.getProperty("devConfigName");
     if (SystemProperties.isDevEnv())
     {
+      if (!LangUtils.hasValue(devConfigName)) {
+        throw new Exception("Unable to start, missing devConfigName property.");
+      }
       String appDataPath = SystemProperties.getOptional("c42.app.commonDataFolder");
-      String portValue = commandLineArguments.getProperty("servicePort");
-      String configName = commandLineArguments.getProperty("devConfigName");
       String skinPath = "skin";
-      if (LangUtils.hasValue(configName))
+      if (LangUtils.hasValue(devConfigName))
       {
         ServiceConfig sc = new ServiceConfig();
-        String xml = FileUtility.readTextFile("../b42_service/conf/test/" + configName + ".xml");
+        String xml = FileUtility.readTextFile("../b42_service/conf/test/" + devConfigName + ".xml");
         sc.fromXml(xml);
-        Integer port = (Integer)appModel.getConfigModel().getConfig().serviceUI.servicePort.getValue();
-        portValue = port.toString();
-        commandLineArguments.setProperty("servicePort", portValue);
-        OrgType orgType = OrgType.CONSUMER;
+        OrgType orgType = orgType.get();
         if (orgType.equals(OrgType.BUSINESS)) {
           skinPath = "skin_blue";
         } else if (orgType.equals(OrgType.ENTERPRISE)) {
@@ -216,20 +238,18 @@ public class CliWrapper {
       File skinFolder = new File(skinPath);
       log.info("Skin folder: {}", new Object[] { skinFolder.getAbsolutePath() });
       ClassPathHacker.addFile(skinFolder);
-      if (((LangUtils.hasValue(configName)) || (LangUtils.hasValue(portValue))) && (LangUtils.hasValue(appDataPath)))
+      if (LangUtils.hasValue(appDataPath))
       {
-        if (!LangUtils.hasValue(configName))
-        {
-          int index = portValue.indexOf("43", 2);
-          if (index > 0) {
-            configName = portValue.substring(0, index);
-          }
-        }
-        appDataPath = appDataPath + "/" + configName;
+        appDataPath = appDataPath + "/" + devConfigName;
         String absoluteAppDataPath = new File(appDataPath).getAbsolutePath();
         SystemProperties.setProperty("c42.app.commonDataFolder", absoluteAppDataPath);
       }
     }
+    appModel = new AppModel(commandLineArguments);
+    appModel.getConfigModel().addObserver(this);
+    
+    String servicePort = UIInfoUtility.getUIConnectionDetails().getPort();
+    appModel.getDesktopProperties().setProperty("servicePort", servicePort);
     if (customProps.getOptionalBoolean("ssoAuth.enabled", false))
     {
       boolean required = customProps.getOptionalBoolean("ssoAuth.required", false);
@@ -271,6 +291,10 @@ public class CliWrapper {
     testNativeLibraries();
     XmlTool.log();
     
+    display = Display.getDefault();
+    
+    CPFont.loadFonts(display, appModel.getDesktopProperties());
+    
     StringHasher.C42.verifyMethodsExist(log);
     
     AppTimer.end("PreSplash");
@@ -287,8 +311,8 @@ public class CliWrapper {
   
   private void waitForCustom()
   {
-    File customMark = new File(CpsFolders.getCustomParent(), "~custom");
-    SystemOut.info(CliWrapper.class, "waitForCustom", "Waiting for custom indicator to appear in " + customMark);
+    File customMark = new File(CpsFolders.getCustomParent(appBaseName), "~custom");
+    SystemOut.info(CPDesktop.class, "waitForCustom", "Waiting for custom indicator to appear in " + customMark);
     try
     {
       Stopwatch sw = new Stopwatch();
@@ -296,11 +320,11 @@ public class CliWrapper {
       while ((!customMark.exists()) && (sw.getElapsed() < 10000L)) {
         Thread.sleep(250L);
       }
-      SystemOut.info(CliWrapper.class, "waitForCustom", "Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark.exists());
+      SystemOut.info(CPDesktop.class, "waitForCustom", "Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark.exists());
     }
     catch (InterruptedException e)
     {
-      SystemOut.info(CliWrapper.class, "waitForCustom", "InterruptedException while waiting for custom indicator to appear in " + customMark);
+      SystemOut.info(CPDesktop.class, "waitForCustom", "InterruptedException while waiting for custom indicator to appear in " + customMark);
     }
   }
   
@@ -344,10 +368,24 @@ public class CliWrapper {
   private void launch()
     throws Exception
   {
+    try
+    {
+      splashWindow = new SplashWindow(display);
+      splashWindow.addListeners(new IListener[] { listener });
+      splashWindow.open();
+    }
+    catch (Throwable e)
+    {
+      log.warn("Unable to show splash. " + e.getMessage(), new Object[] { e });
+    }
     SystemWatcher.setCheckDelay(1000L);
     
     DesktopProperties props = appModel.getDesktopProperties();
     services = new Services(props.getServiceHost(), props.getServicePort());
+    
+    services.addListener(listener, ConnectedEvent.class);
+    services.addListener(listener, ConnectFailedEvent.class);
+    services.addListener(listener, StatusResponseMessage.class);
     
     Stopwatch sw = new Stopwatch();
     PermissionUtils.init(C42PermissionPro.permPackages);
@@ -362,15 +400,15 @@ public class CliWrapper {
         {
           SystemOut.fine(getClass(), "run", "ShutdownHook...calling cleanup");
           
-          CliWrapper.log.info("EXITING... Normally");
+          CPDesktop.log.info("EXITING... Normally");
           services.stop();
           SystemWatcher.stop();
           SystemOut.fine(getClass(), "run", "ShutdownHook...sleeping 3 seconds");
           Thread.sleep(1000L);
-          synchronized (CliWrapper.MAIN_MONITOR)
+          synchronized (CPDesktop.MAIN_MONITOR)
           {
             SystemOut.fine(getClass(), "run", "ShutdownHook...notify main of shutdown.");
-            CliWrapper.MAIN_MONITOR.notifyAll();
+            CPDesktop.MAIN_MONITOR.notifyAll();
           }
         }
         catch (InterruptedException e) {}
@@ -380,6 +418,27 @@ public class CliWrapper {
       }
     });
     connect(false);
+    try
+    {
+      while (!display.isDisposed()) {
+        try
+        {
+          if (!display.readAndDispatch()) {
+            display.sleep();
+          }
+        }
+        catch (Throwable e)
+        {
+          log.warn(e.toString(), new Object[] { e });
+          display.sleep();
+        }
+      }
+    }
+    finally
+    {
+      SWTExec.shutdown();
+      System.exit(0);
+    }
   }
   
   private void connect(final boolean retry)
@@ -390,7 +449,7 @@ public class CliWrapper {
       {
         if (retry)
         {
-          CliWrapper.log.info("Restarting service...");
+          CPDesktop.log.info("Restarting service...");
           splashWindow.showConnectingMessage();
         }
         String host = appModel.getDesktopProperties().getServiceHost();
@@ -398,7 +457,7 @@ public class CliWrapper {
         long delay = appModel.getDesktopProperties().getConnectRetryDelay();
         long retryAttempts = appModel.getDesktopProperties().getConnectRetryAttempts();
         long attempts = retryAttempts + 1L;
-        CliWrapper.log.info("Connecting to service at " + new Location(host, port));
+        CPDesktop.log.info("Connecting to service at " + new Location(host, port));
         synchronized (connectMonitor)
         {
           connectionWait(700L);
@@ -406,7 +465,7 @@ public class CliWrapper {
           {
             if (i > 1)
             {
-              CliWrapper.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms");
+              CPDesktop.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms");
               connectionWait(delay);
             }
             try
@@ -417,21 +476,21 @@ public class CliWrapper {
             }
             catch (IOException e)
             {
-              CliWrapper.log.warn("Unable to establish connection. " + e.getMessage(), new Object[] { e });
+              CPDesktop.log.warn("Unable to establish connection.", new Object[] { e });
               break;
             }
             if (services.isConnected())
             {
-              CliWrapper.log.info("    SUCCESS on attempt #" + i);
+              CPDesktop.log.info("    SUCCESS on attempt #" + i);
               break;
             }
             if (services.isConnecting())
             {
-              CliWrapper.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.");
+              CPDesktop.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.");
               break;
             }
             if (i == attempts) {
-              CliWrapper.log.info("    FAILED on attempt #" + i + ", done");
+              CPDesktop.log.info("    FAILED on attempt #" + i + ", done");
             }
           }
           if (!services.isConnected()) {
@@ -449,7 +508,7 @@ public class CliWrapper {
         catch (InterruptedException ie)
         {
           Thread.interrupted();
-          CliWrapper.log.error("Interrupted while waiting to connect!");
+          CPDesktop.log.error("Interrupted while waiting to connect!");
         }
       }
     };
@@ -478,7 +537,7 @@ public class CliWrapper {
   public void handleModelUpdate(ConfigModel model)
   {
     String locale = appModel.getDesktopProperties().getLocale();
-    String localeConfig = (String)appModel.getConfigModel().getConfig().serviceUI.locale.getValue();
+    String localeConfig = (String)getConfigserviceUI.locale.getValue();
     if (!LangUtils.equals(locale, localeConfig)) {
       appModel.getDesktopProperties().setLocale(localeConfig);
     }
@@ -563,6 +622,17 @@ public class CliWrapper {
   
   private void createMainWindow()
   {
+    display.asyncExec(new Runnable()
+    {
+      public void run()
+      {
+        CPDesktop self = CPDesktop.this;
+        MainWindow mainWindow = new MainWindow(CPDesktop.display, appModel, services);
+        mainWindow.addListener(listener, new Class[] { MainWindow.Event.AppCloseEvent.class, MainWindow.Event.AppShowEvent.class, AppWindowEvent.WindowReadyEvent.class });
+        
+        new MainWindowController(mainWindow, appModel, services);
+      }
+    });
   }
   
   public void handleEvent(AppWindowEvent.WindowReadyEvent event)
@@ -586,7 +656,7 @@ public class CliWrapper {
     if ((!LangUtils.hasValue(patternProp)) || ("log/ui.log".equals(patternProp)))
     {
       String logfile = CpdFolders.getLogFile();
-      SystemOut.info(CliWrapper.class, "readLoggingConfiguration", "Log file: " + logfile);
+      SystemOut.info(CPDesktop.class, "readLoggingConfiguration", "Log file: " + logfile);
       logProps.setProperty("log4j.appender.FILE.File", logfile);
     }
     org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
@@ -617,6 +687,14 @@ public class CliWrapper {
     LangUtils.registerImpl(MigFormBuilder.class, CPMigFormBuilder.class);
     Text.setInstance(CPText.getTextInstance());
     new AppModel();
+    CPFont.loadFonts(Display.getDefault(), new Properties());
+  }
+  
+  public static void close()
+  {
+    if (!display.isDisposed()) {
+      display.close();
+    }
   }
 }
 

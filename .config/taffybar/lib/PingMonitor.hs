@@ -2,10 +2,9 @@ module PingMonitor (pingMonitorW) where
 import Label (labelW, mainLabel)
 import Utils (defaultDelay, fg, bg, procSuccess)
 
-import System.Environment (getEnv)
+import System.Environment (getArgs, getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (when)
-import System.Environment.UTF8 (getArgs)
 import Graphics.UI.Gtk (Widget)
 
 main = do

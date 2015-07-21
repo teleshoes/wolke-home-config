@@ -10,9 +10,13 @@ my $cliWrapperClassName = "CliWrapper";
 my $cliWrapperPackage = "com.backup42.desktop";
 my $cliWrapperPackagePath = $cliWrapperPackage;
 $cliWrapperPackagePath =~ s/\./\//g;
-my $cliWrapperSrcDir = "$crashplanDir/cliwrapper";
+my $cliWrapperDestDir = "$crashplanDir/cliwrapper";
+my $cliWrapperClassFile = "$crashplanDir/cliwrapper/$cliWrapperPackagePath/CliWrapper.class";
 
-my $cliWrapperSrcFile = getInstallPath "crashplan/$cliWrapperClassName.java";
+my $cliWrapperSrcDir = getInstallPath "crashplan";
+my $cpDesktopSrcFile = "$cliWrapperSrcDir/CPDesktop.java";
+my $cliWrapperSrcFile = "$cliWrapperSrcDir/CliWrapper.java";
+my $cliWrapperPatchFile = "$cliWrapperSrcDir/cliwrapper.patch";
 
 sub main(@){
   getRoot();
@@ -27,13 +31,21 @@ sub main(@){
 
   print "\n\n\n";
   print "installing cli wrapper\n";
-  run "rm", "-r", "$cliWrapperSrcDir";
-  run "mkdir", "-p", "$cliWrapperSrcDir/$cliWrapperPackagePath";
-  run "cp", $cliWrapperSrcFile, "$cliWrapperSrcDir/$cliWrapperPackagePath";
+  run "rm", "-f", $cliWrapperSrcFile;
+  run "cp", $cpDesktopSrcFile, $cliWrapperSrcFile;
+  run "patch", $cliWrapperSrcFile, $cliWrapperPatchFile;
+  die "$cliWrapperSrcFile does not exist\n" if not -f $cliWrapperSrcFile;
+
+  run "rm", "-rf", "$cliWrapperDestDir";
+  run "mkdir", "-p", "$cliWrapperDestDir/$cliWrapperPackagePath";
+  run "mv", $cliWrapperSrcFile, "$cliWrapperDestDir/$cliWrapperPackagePath";
+
+  die "$cliWrapperClassFile already exists!\n" if -f $cliWrapperClassFile;
   run "javac",
     "-classpath", "$crashplanDir/lib/com.backup42.desktop.jar",
-    "$cliWrapperSrcDir/$cliWrapperPackagePath/$cliWrapperClassName.java",
+    "$cliWrapperDestDir/$cliWrapperPackagePath/$cliWrapperClassName.java",
     ;
+  die "$cliWrapperClassFile does not exist!\n" if not -f $cliWrapperClassFile;
 }
 
 &main(@ARGV);
