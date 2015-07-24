@@ -4,14 +4,47 @@ use warnings;
 
 my @mvnCmd = ("mvn", "-Dcheckstyle.skip=true", "-Psdm", "-Pdev", "test");
 
+my $debugPort = 8000;
+my $mvnDebugArg = "-Dmaven.surefire.debug=" . join " ", (
+  "-Xdebug",
+  "-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=$debugPort",
+  "-Xnoagent",
+  "-Djava.compiler=NONE",
+);
+
 my $usage = "Usage:
-  $0 [ARGS]
-    run \"@mvnCmd ARGS\"
+  $0 [OPTS] [TEST_NAME]
+    run \"@mvnCmd\"
+    with optional -Dtest=TEST_NAME
+
+    OPTS
+      --debug
+        use maven surefire
+      --fast
+        append -Pfast-tests
 ";
 
 sub main(@){
+  my $debug = 0;
+  my $fast = 0;
+  my $test = undef;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--debug)$/){
+      $debug = 1;
+    }elsif($arg =~ /^(--fast)$/){
+      $fast = 1;
+    }else{
+      die $usage;
+    }
+  }
+  $test = shift if @_ == 1;
+  die $usage if @_ > 0;
+
   my @cmd = @mvnCmd;
-  @cmd = (@cmd, @_);
+  push @cmd, $mvnDebugArg if $debug;
+  push @cmd, "-Pfast-tests" if $fast;
+  push @cmd, "-Dtest=$test" if defined $test;
 
   print "@cmd\n";
   system @cmd;
