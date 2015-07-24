@@ -2,6 +2,11 @@
 use strict;
 use warnings;
 
+sub getAllTests();
+sub getTests($);
+sub getSrcFiles();
+sub readFile($);
+
 my @mvnCmd = ("mvn", "-Dcheckstyle.skip=true", "-Psdm", "-Pdev", "test");
 
 my $debugPort = 8000;
@@ -22,9 +27,19 @@ my $usage = "Usage:
         use maven surefire
       --fast
         append -Pfast-tests
+
+  $0 --print
+    grep CWD tests and print them in surefire format
+    finds *.java files underneath any 'src/test/java' dirs
+    finds any methods following \@Test annotation
+    prints SHORT_CLASS_NAME#METHOD_NAME
 ";
 
 sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(--print)$/){
+    print "$_\n" foreach getAllTests();
+    exit 0;
+  }
   my $debug = 0;
   my $fast = 0;
   my $test = undef;
@@ -51,6 +66,44 @@ sub main(@){
   my $exitCode = $?;
   system "alarm", "-s", ($exitCode == 0 ? "success" : "failure");
   exit $exitCode;
+}
+
+sub getAllTests(){
+  my @allTests;
+  for my $srcFile(getSrcFiles()){
+    @allTests = (@allTests, getTests $srcFile);
+  }
+  @allTests = sort @allTests;
+  return @allTests;
+}
+
+sub getTests($){
+  my $srcFile = shift;
+  my $name = $1 if $srcFile =~ /\/(\w+)\.java$/;
+  my $contents = readFile $srcFile;
+  my @methods = $contents =~ m/\@Test(?:[^(]|\n)*\s+(\w+)\s*\(/gsxi;
+  my @tests;
+  push @tests, $name if @methods == 0;
+  push @tests, "$name#$_" foreach @methods;
+  return @tests;
+}
+
+sub getSrcFiles(){
+  my @srcDirs = `find -iregex ".*src/test/java"\$`;
+  chomp foreach @srcDirs;
+  my @srcFiles;
+  for my $srcDir(@srcDirs){
+    @srcFiles = (@srcFiles, `find $srcDir -iname *.java`);
+  }
+  chomp foreach @srcFiles;
+  return @srcFiles;
+}
+
+sub readFile($){
+  open FH, "< $_[0]" or die "Could not read $_[0]\n";
+  my @lines = <FH>;
+  close FH;
+  return join "", @lines;
 }
 
 &main(@ARGV);
