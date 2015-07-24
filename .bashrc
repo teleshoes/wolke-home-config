@@ -147,7 +147,6 @@ function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
 function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true install "$@"; }
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
-function mtest        { maven -Psdm -Pdev test "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
