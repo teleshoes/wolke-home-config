@@ -132,7 +132,7 @@ function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
-function gs           { g s; }
+function gs           { g s "$@"; }
 function mp           { mplayer "$@"; }
 
 function sb           { seedbox "$@"; }
