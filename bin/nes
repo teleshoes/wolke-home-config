@@ -10,15 +10,65 @@ my $configFile = "$ENV{HOME}/.fceux/fceux.cfg";
 my $config = {
 };
 
+my $kbPad = {
+  DeviceType => "Keyboard",
+  DeviceNum  => 0,
+  Up         => 119,
+  Down       => 115,
+  Left       => 97,
+  Right      => 100,
+  A          => 46,
+  B          => 47,
+  Start      => 13,
+  Select     => 303,
+  TurboA     => 0,
+  TurboB     => 0,
+};
+my $sixaxisPad = {
+  DeviceType => "Joystick",
+  DeviceNum  => 0,
+  Up         => 4,
+  Down       => 6,
+  Left       => 7,
+  Right      => 5,
+  A          => 14,
+  B          => 15,
+  Start      => 3,
+  Select     => 0,
+  TurboA     => 0,
+  TurboB     => 0,
+};
+my $defaultPad = $kbPad;
+
+my $usage = "Usage:
+  $0 [--kb|--sixaxis] ROM
+     ROM is a relative file path, or a file in $romDir
+
+    --kb
+      use keyboard for gamepad
+    --sixaxis
+      use sixaxis joystick for gamepad
+";
+
 sub main(@){
+  my $gamepad = shift if @_ > 0 and $_[0] =~ /^(--kb|--sixaxis)$/;
+  die $usage if @_ != 1;
   my $rom = shift;
   $rom = "$romDir/$rom" if -f "$romDir/$rom";
   die "rom not found: $rom\n" if not -f $rom;
+
+  my $pad = $defaultPad;
+  $pad = $kbPad if defined $gamepad and $gamepad =~ /^(--kb)$/;
+  $pad = $sixaxisPad if defined $gamepad and $gamepad =~ /^(--sixaxis)$/;
 
   my $cfg = {};
   for my $key(sort keys %$config){
     $$cfg{"SDL.$key"} = $$config{$key};
   }
+  for my $key(sort keys %$pad){
+    $$cfg{"SDL.Input.GamePad.0$key"} = $$pad{$key};
+  }
+
   writeConfig $configFile, $cfg;
 
   exec "fceux", "--nogui", $rom;
