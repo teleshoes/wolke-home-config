@@ -4,12 +4,12 @@ use warnings;
 
 sub run(@);
 
-my @ipmagicHosts = (
-  ["n9",    "user"],
-  ["n9",    "root"],
-  ["raspi", "pi"],
-  ["raspi", "root"],
-  ["nuc",   undef],
+my @hostCmdEntries = (
+  ["ipmagic n9",     "user"],
+  ["ipmagic n9",     "root"],
+  ["ipmagic raspi",  "pi"],
+  ["ipmagic raspi",  "root"],
+  ["ipmagic nuc",    undef],
 );
 
 sub main(@){
@@ -17,11 +17,13 @@ sub main(@){
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
-  for my $host(@ipmagicHosts){
-    my ($ipmagic, $user) = @$host;
-    my $hostname = `ipmagic $ipmagic`;
+  for my $entry(@hostCmdEntries){
+    my ($cmd, $user) = @$entry;
+    my $hostname = `$cmd`;
     chomp $hostname;
-    die "Error on ipmagic=$hostname\n" if $? != 0 or $hostname !~ /\w/;
+    die "Error running '$cmd'\n" if $? != 0;
+    die "Malformed hostname from '$cmd': $hostname\n" if $hostname !~ /\w/;
+
     my $host = $hostname;
     $host = "$user\@$host" if defined $user;
     run "rsync", "-avP", @pubkeyFiles, "$host:~/.ssh/";
