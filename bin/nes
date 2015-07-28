@@ -2,14 +2,49 @@
 use strict;
 use warnings;
 
+sub writeConfig($$);
 my $romDir = "$ENV{HOME}/Desktop/Games/nes";
+
+my $configFile = "$ENV{HOME}/.fceux/fceux.cfg";
+
+my $config = {
+};
 
 sub main(@){
   my $rom = shift;
   $rom = "$romDir/$rom" if -f "$romDir/$rom";
   die "rom not found: $rom\n" if not -f $rom;
 
+  my $cfg = {};
+  for my $key(sort keys %$config){
+    $$cfg{"SDL.$key"} = $$config{$key};
+  }
+  writeConfig $configFile, $cfg;
+
   exec "fceux", "--nogui", $rom;
+}
+
+sub writeConfig($$){
+  my ($configFile, $cfg) = @_;
+  open FH, "< $configFile" or die "Could not read $configFile\n";
+  my @lines = <FH>;
+  close FH;
+
+  for my $line(@lines){
+    next if $line =~ /^\s*#.*/;
+    for my $key(keys %$cfg){
+      if($line =~ /^$key\s*=/){
+        $line = "$key = $$cfg{$key}\n";
+        delete $$cfg{$key};
+      }
+    }
+  }
+
+  die "missing config:\n" . (join "\n", keys %$cfg) . "\n" if keys %$cfg > 0;
+
+  open FH, "> $configFile" or die "Could not write $configFile\n";
+  print FH @lines;
+  close FH;
 }
 
 &main(@ARGV);
