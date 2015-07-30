@@ -110,6 +110,7 @@ alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 
+function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh -ZF "$@"; }
