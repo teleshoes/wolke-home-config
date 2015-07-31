@@ -84,9 +84,46 @@ sub parseTorrents($){
          $magnet = $1;
        }
 
+       my $title = $nameTD;
+       $title =~ s/<a $tag class="[^"]*icommentjs[^"]*"$tag>.*?<\/a>//xs;
+       $title =~ s/<$tag>$ws Posted $ws by $ws <$tag>.*//sx;
+       $title =~ s/<$tag >$ws in $ws <$tag>.*//sx;
+       $title =~ s/<$tag>//g;
+       $title =~ s/^$ws//;
+       $title =~ s/$ws$//;
+       $title =~ s/\&quot;/"/g;
+
+       my $verified = "?";
+       if($nameTD =~ /<a $tag title="Verified\ Torrent"$tag>/xs){
+         $verified = "verified";
+       }
+
+       my $comments = "?";
+       if($nameTD =~ /<a $tag class="[^"]*icommentjs[^"]*"$tag>(?:<$tag>)*(\d+)/xs){
+         $comments = $1;
+       }
+
+       my $postedBy = "?";
+       if($nameTD =~ /<$tag>$ws Posted $ws by $ws <$tag> .* href="\/user\/([^"\/]+)\/"/sx){
+         $postedBy = $1;
+       }
+
+       my $postedIn = "?";
+       if($nameTD =~ /<$tag> $ws in $ws <$tag> (.*)/sx){
+         $postedIn = $1;
+         $postedIn =~ s/<$tag>//g;
+         $postedIn =~ s/^$ws//;
+         $postedIn =~ s/$ws$//;
+       }
+
        push @torrents, {
          index => $index,
          magnet => $magnet,
+         title => $title,
+         verified => $verified,
+         comments => $comments,
+         postedBy => $postedBy,
+         postedIn => $postedIn,
        };
        $index++;
     }
