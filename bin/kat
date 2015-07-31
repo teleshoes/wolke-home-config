@@ -9,6 +9,7 @@ my $defaultSort="field=size&sorder=desc";
 my $usage = "Usage: $0 WORD [WORD ..]\n";
 
 sub getKatHtml($$);
+sub parseTorrents($);
 sub run(@);
 
 sub main(@){
@@ -16,6 +17,8 @@ sub main(@){
     die $usage;
   }
   my $html = getKatHtml "@_", $defaultSort;
+
+  my @torrents = parseTorrents($html);
 
 }
 
@@ -40,6 +43,43 @@ sub getKatHtml($$){
   print "="x30 . "\n";
 
   return $html;
+}
+
+sub parseTorrents($){
+  my $html = shift;
+
+  my $tag = "[^<>]*";
+  my $otag = "[^<>\\/]*";
+  my $ws = "[ \\t\\n]*";
+
+  my @trs;
+  for(my $i=0; $i<length $html; $i++){
+    my $substr = substr $html, $i, (length $html) - $i;
+    if($substr =~ /^<tr\W/){
+      my $tr = $substr;
+      $tr =~ s/(<\s*\/\s*tr\s*>).*/$1/s;
+      push @trs, $tr;
+    }
+  }
+
+  my $index = 1;
+
+  my @torrents;
+  for my $tr(@trs){
+    if($tr =~ /^               $ws
+       <tr$tag>                $ws
+         <td$otag> (.*) <\/td> $ws
+         <td$otag> (.*) <\/td> $ws
+         <td$otag> (.*) <\/td> $ws
+         <td$otag> (.*) <\/td> $ws
+         <td$otag> (.*) <\/td> $ws
+         <td$otag> (.*) <\/td> $ws
+       <\/tr>                  $ws
+       $/xs){
+       my ($nameTD, $sizeTD, $filesTD, $ageTD, $seedTD, $leechTD) =
+         ($1, $2, $3, $4, $5, $6);
+
+  return @torrents;
 }
 
 sub run(@){
