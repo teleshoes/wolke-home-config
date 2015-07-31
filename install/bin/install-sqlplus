@@ -12,10 +12,6 @@ my $version = '11.2.0.3.0';
 my $majMinVersion = $version;
 $majMinVersion =~ s/^(\d+\.\d+).*/$1/;
 
-my $gqlplusVersion = "1.16";
-my $gqlplusTar = "gqlplus-$gqlplusVersion.tar.gz";
-my $gqlplusUrl = "http://downloads.sourceforge.net/project/gqlplus/gqlplus/1.16/$gqlplusTar";
-
 my $pkgDir = "/media/stuff/Images/sqlplus";
 my $ldConf = "/etc/ld.so.conf.d/oracle.conf";
 my $libDir = "/usr/lib/oracle/$majMinVersion/client64/lib/";
@@ -24,7 +20,9 @@ sub main(@) {
     getRoot();
     run "apt-get", "install", "libaio1";
 
-    installGqlplus();
+    installFromGit "git://github.com/teleshoes/gqlplus", ''
+      . " ./configure && make && cp gqlplus /usr/bin"
+      ;
 
     my $basicDeb = getDebAlien "basic", $version;
     my $sqlplusDeb = getDebAlien "sqlplus", $version;
@@ -45,40 +43,6 @@ sub main(@) {
     close FH;
 
     run "ldconfig";
-}
-
-sub installGqlplus(){
-  chdir $pkgDir;
-  $ENV{PWD} = $pkgDir;
-
-  if(not -f "$pkgDir/$gqlplusTar"){
-    run "wget", $gqlplusUrl;
-  }
-  if(not -f "$pkgDir/$gqlplusTar"){
-    die "Error downloading gqlplus from $gqlplusUrl\n";
-  }
-  my $srcDir = "gqlplus-$gqlplusVersion";
-  run "rm", "-rf", "$pkgDir/$srcDir/";
-  run "tar", "-xf", $gqlplusTar;
-  if(not -d "$pkgDir/$srcDir"){
-    die "Error extracting $gqlplusTar\n";
-  }
-
-  chdir "$pkgDir/$srcDir";
-  $ENV{PWD} = "$pkgDir/$srcDir";
-  if(-f "gqlplus"){
-    die "gqlplus executable already exists\n";
-  }
-  run "./configure";
-  run "make";
-  if(not -f "gqlplus"){
-    die "gqlplus build failed\n";
-  }
-  run "cp", "gqlplus", "/usr/bin";
-  chdir $pkgDir;
-  $ENV{PWD} = $pkgDir;
-
-  run "rm", "-rf", "$pkgDir/$srcDir";
 }
 
 sub getDebAlien($$){
