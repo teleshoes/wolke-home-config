@@ -2,9 +2,38 @@
 use strict;
 use warnings;
 
+my $remoteHome = "/home2/teleshoes";
+my $remoteDir = "$remoteHome/rt-status";
+
 sub run(@);
 
 sub main(@){
+  my $host = `seedbox --host`;
+  chomp $host;
+
+  run "ssh", $host, "
+    rm -rf $remoteDir
+    mkdir $remoteDir
+    rtxmlrpc d.multicall main \\
+      d.get_hash=             \\
+      d.get_name=             \\
+      d.get_directory=        \\
+      d.get_completed_bytes=  \\
+      d.get_size_bytes=       \\
+      > $remoteDir/info
+    hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteDir/info | cut -c3-`
+    echo processing \$(echo \$hashes | wc -w) torrents
+    for h in \$hashes; do
+      echo \"  \$h\"
+      rtxmlrpc p.multicall \$h '' \\
+        p.get_completed_percent=  \\
+        p.get_down_rate=          \\
+        p.get_down_total=         \\
+        > $remoteDir/peers-\$h
+    done
+    echo finished
+    echo
+  ";
 }
 
 sub run(@){
