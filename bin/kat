@@ -21,9 +21,23 @@ sub main(@){
 
   my @torrents = parseTorrents($html);
 
+  my %magnets;
   for my $t(reverse @torrents){
     print formatTorrent $t;
+    $magnets{$$t{index}} = $$t{magnet} if $$t{magnet} =~ /^magnet/;
   }
+
+  print "\ndownload INDEX INDEX ...: ";
+  my $response = <STDIN>;
+  my @magnetsToDownload;
+  for my $idx($response =~ /(\d+)/g){
+    if(not defined $magnets{$idx}){
+      print STDERR "WARNING: no magnet for $idx\n";
+    }else{
+      push @magnetsToDownload, $magnets{$idx};
+    }
+  }
+  run "seedbox", @magnetsToDownload if @magnetsToDownload > 0;
 }
 
 sub getKatHtml($$){
