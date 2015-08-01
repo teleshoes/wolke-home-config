@@ -6,6 +6,7 @@ use Time::HiRes qw(time);
 my $remoteHome = "/home2/teleshoes";
 my $remoteDir = "$remoteHome/rt-status";
 
+sub parseTorrents($);
 sub run(@);
 
 sub main(@){
@@ -41,7 +42,33 @@ sub main(@){
   run "mkdir", "-p", $localDir;
   run "rsync", "-avP", "$host:$remoteDir/", $localDir;
 
+  my @torrents = parseTorrents $localDir;
+
   run "rm", "-rf", $localDir;
+}
+
+sub parseTorrents($){
+  my $localDir = shift;
+  my $infoFile = "$localDir/info";
+  my $info = `cat "$infoFile"`;
+  my @torrents;
+  while($info =~ /
+    ^\[ '([0-9A-F]{40})',\n
+    ^\s '(.*)',\n
+    ^\s '(.*)',\n
+    ^\s (\d+),\n
+    ^\s (\d+)\]\n
+    /mgx){
+    push @torrents, {
+      hash => $1,
+      name => $2,
+      dir  => $3,
+      completedBytes => $4,
+      sizeBytes => $5,
+    };
+  }
+
+  return @torrents;
 }
 
 sub run(@){
