@@ -6,6 +6,7 @@ use Time::HiRes qw(time);
 my $remoteHome = "/home2/teleshoes";
 my $remoteDir = "$remoteHome/rt-status";
 
+sub formatTorrent($);
 sub parseTorrents($);
 sub parsePeers($);
 sub run(@);
@@ -46,6 +47,28 @@ sub main(@){
   my @torrents = parseTorrents $localDir;
 
   run "rm", "-rf", $localDir;
+  for my $t(@torrents){
+    print formatTorrent $t;
+  }
+}
+
+sub formatTorrent($){
+  my $t = shift;
+  my @peerCountsFmt;
+  for my $bucket(sort keys %{$$t{peerCounts}}){
+    push @peerCountsFmt, "$bucket=$$t{peerCounts}{$bucket}";
+  }
+  my $percent = int(100 * $$t{completedBytes} / $$t{sizeBytes});
+  my $completedMiB = $$t{completedBytes} / 1024 / 1024;
+  my $sizeMiB = $$t{sizeBytes} / 1024 / 1024;
+  return sprintf "%s\n%3d%s %s\n     %9.3fMiB / %9.3fMiB\n  PEERS: %s\n",
+    "-" x 30,
+    $percent, '%',
+    $$t{name},
+    $completedMiB,
+    $sizeMiB,
+    "@peerCountsFmt",
+    ;
 }
 
 sub parseTorrents($){
