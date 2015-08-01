@@ -5,16 +5,35 @@ use Time::HiRes qw(time);
 
 my $katUrl = "kat.cr";
 my $defaultSort="field=size&sorder=desc";
+my %sortFields = (
+  size        => ['size'],
+  files_count => ['files_count', 'files'],
+  time_add    => ['time_add', 'age', 'date'],
+  seeders     => ['seeders', 'seed'],
+  leechers    => ['leechers', 'leech'],
+);
+my %sortFieldSyns = map {my $key=$_; map {$_ => $key} @{$sortFields{$key}}} keys %sortFields;
+my $sortFieldFmt = join "\n      ", map {"$_ => @{$sortFields{$_}}"} sort keys %sortFields;
+my $okSortField = join '|', sort keys %sortFieldSyns;
 
 my $usage = "Usage:
-  $0 WORD [WORD ..]
+  $0 [--sort=SORT] WORD [WORD ..]
     fetch web page at \"$katUrl/usearch/WORD WORD..\"
     parse the resulting HTML and display each torrent with an index
     prompt the user for indices to run 'seedbox <magnet_link>'
 
-    WORD
-      query word
+    WORD = query word
       first WORD cannot start with hyphen
+
+    SORT = FIELD | FIELD-ORDER
+
+    FIELD
+      one of the following fields to pass as 'field=FIELD' param
+      $sortFieldFmt
+
+    ORDER = asc | desc
+      passed as 'order=ORDER'
+      if not given, defaults to 'desc'
 ";
 
 sub getKatHtml($$);
@@ -23,11 +42,20 @@ sub parseTorrents($);
 sub run(@);
 
 sub main(@){
+  my $sort = $defaultSort;
   while(@_ > 0 and $_[0] =~ /^-/){
-    die $usage;
+    my $arg = shift;
+    if($arg =~ /^--sort=($okSortField)(?:-(asc|desc))?$/){
+      my ($field, $order) = ($1, $2);
+      $field = $sortFieldSyns{$field};
+      $order = 'desc' if not $order;
+      $sort = "field=$field&sorder=$order";
+    }else{
+      die $usage;
+    }
   }
 
-  my $html = getKatHtml "@_", $defaultSort;
+  my $html = getKatHtml "@_", $sort;
 
   my @torrents = parseTorrents($html);
 
