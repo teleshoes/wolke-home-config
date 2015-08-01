@@ -9,6 +9,7 @@ screen-cmd execPing --watchdog ddwrt --restart-dev
 brightness 80
 cec-cmd start &
 ( sudo mnt
+  sudo hdparm-tool --active /media/seedbox
   sudo hdparm-tool --log /media/videos >> hdparm-videos.log 2>>hdparm-videos.log
 ) &
 sudo wired &
