@@ -30,6 +30,7 @@ sub main(@){
       d.get_directory=           \\
       d.get_completed_bytes=     \\
       d.get_size_bytes=          \\
+      d.get_down_rate=           \\
       > $remoteDir/info
     hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteDir/info | cut -c3-`
     echo processing \$(echo \$hashes | wc -w) torrents
@@ -71,12 +72,14 @@ sub formatTorrent($){
   my $percent = int(100 * $$t{completedBytes} / $$t{sizeBytes});
   my $completedMiB = $$t{completedBytes} / 1024 / 1024;
   my $sizeMiB = $$t{sizeBytes} / 1024 / 1024;
-  return sprintf "%s\n%3d%s %s\n     %9.3fMiB / %9.3fMiB\n  PEERS: %s\n",
+  my $downRateMiBs = $$t{downRate} / 1024 / 1024;
+  return sprintf "%s\n%3d%s %s\n     %9.3fMiB / %9.3fMiB  @ %9.3fMiB/s\n  PEERS: %s\n",
     "-" x 30,
     $percent, '%',
     $$t{name},
     $completedMiB,
     $sizeMiB,
+    $downRateMiBs,
     "@peerCountsFmt",
     ;
 }
@@ -91,6 +94,7 @@ sub parseTorrents($){
     ^\s '(.*)',\n
     ^\s '(.*)',\n
     ^\s (\d+),\n
+    ^\s (\d+),\n
     ^\s (\d+)\]\n
     /mgx){
     push @torrents, {
@@ -99,6 +103,7 @@ sub parseTorrents($){
       dir  => $3,
       completedBytes => $4,
       sizeBytes => $5,
+      downRate => $6,
     };
   }
 
