@@ -16,18 +16,43 @@ sub uploadFileContents($$$);
 sub lftpCommand($@);
 sub readSecrets();
 
+my $usage = "Usage:
+  $0 [--skip-plotddr]
+     upload index.html and other files to website
+
+     1) gnuplot DDR images are painted [unless --skip-plotddr is given]
+         '$gnuplotDdrDir' is populated using `plotddr --nofeh --non9`
+     2) index.html is built and uploaded
+          HTML is assembled using `todo-parse --html`
+          and the contents of the dir '$gnuplotDdrDir'
+          and is uploaded
+     3) the gnuplot DDR images are uploaded [unless --skip-plotddr is given]
+          '$gnuplotDdrDir' is synced using lftp
+
+     --skip-plotddr
+       skip steps 1 and 3, and merely build the index.html file using
+       what already exists and todo-parse
+
+  $0 -s|--login
+     login to website with lftp
+";
+
 sub main(@){
-  my $secrets = readSecrets();
+  my $secrets;
   if(@_ == 1 and $_[0] =~ /^(-s|--login)$/){
+    $secrets = readSecrets();
     lftpCommand $secrets;
     exit 0;
   }
-  die "Usage: $0 [-s|--login]\n" if @_ != 0;
+  my $skipPlotddr = shift if @_ > 0 and $_[0] =~ /^(--skip-plotddr)$/;
+  die $usage if @_ != 0;
 
-  system "plotddr", "--nofeh", "--non9";
+  $secrets = readSecrets();
+
+  system "plotddr", "--nofeh", "--non9" unless $skipPlotddr;
 
   uploadIndex $secrets;
-  uploadGnuplotDdr $secrets;
+  uploadGnuplotDdr $secrets unless $skipPlotddr;
 }
 
 sub uploadIndex($){

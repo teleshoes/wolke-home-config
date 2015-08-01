@@ -110,6 +110,7 @@ alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 
+function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh -ZF "$@"; }
@@ -132,12 +133,13 @@ function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
-function gs           { g s; }
+function gs           { g s "$@"; }
 function mp           { mplayer "$@"; }
 
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
+function sbs          { sb-rt-status ; }
 
 function s            { "$@" & disown; }
 function sx           { "$@" & disown && exit 0; }
@@ -147,7 +149,6 @@ function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
 function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true install "$@"; }
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
-function mtest        { maven -Psdm -Pdev test "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }

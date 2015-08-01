@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getAllTests();
+sub getTests($);
+sub getSrcFiles();
+sub readFile($);
+sub bashComplete($$);
+
+my @mvnCmd = (
+  "mvn",
+  "-Dcheckstyle.skip=true",
+  "-DfailIfNoTests=false",
+  "-Psdm", "-Pdev",
+  "test",
+);
+
+my $debugPort = 8000;
+my $mvnDebugArg = "-Dmaven.surefire.debug=" . join " ", (
+  "-Xdebug",
+  "-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=$debugPort",
+  "-Xnoagent",
+  "-Djava.compiler=NONE",
+);
+
+my $usage = "Usage:
+  $0 [OPTS] [TEST_NAME]
+    run \"@mvnCmd\"
+    with optional -Dtest=TEST_NAME
+
+    OPTS
+      --debug
+        use maven surefire
+      --fast
+        append -Pfast-tests
+
+  $0 --print
+    grep CWD tests and print them in surefire format
+    finds *.java files underneath any 'src/test/java' dirs
+    finds any methods following \@Test annotation
+    prints SHORT_CLASS_NAME#METHOD_NAME
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
+";
+
+sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+  if(@_ == 1 and $_[0] =~ /^(--print)$/){
+    print "$_\n" foreach getAllTests();
+    exit 0;
+  }
+  my $debug = 0;
+  my $fast = 0;
+  my $test = undef;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--debug)$/){
+      $debug = 1;
+    }elsif($arg =~ /^(--fast)$/){
+      $fast = 1;
+    }else{
+      die $usage;
+    }
+  }
+  $test = shift if @_ == 1;
+  die $usage if @_ > 0;
+
+  my @cmd = @mvnCmd;
+  push @cmd, $mvnDebugArg if $debug;
+  push @cmd, "-Pfast-tests" if $fast;
+  push @cmd, "-Dtest=$test" if defined $test;
+
+  print "@cmd\n";
+  system @cmd;
+  my $exitCode = $?;
+  system "alarm", "-s", ($exitCode == 0 ? "success" : "failure");
+  exit $exitCode;
+}
+
+sub getAllTests(){
+  my @allTests;
+  for my $srcFile(getSrcFiles()){
+    @allTests = (@allTests, getTests $srcFile);
+  }
+  @allTests = sort @allTests;
+  return @allTests;
+}
+
+sub getTests($){
+  my $srcFile = shift;
+  my $name = $1 if $srcFile =~ /\/(\w+)\.java$/;
+  my $contents = readFile $srcFile;
+  my @methods = $contents =~ m/\@Test(?:[^(]|\n)*\s+(\w+)\s*\(/gsxi;
+  my @tests;
+  push @tests, $name if @methods == 0;
+  push @tests, "$name#$_" foreach @methods;
+  return @tests;
+}
+
+sub getSrcFiles(){
+  my @srcDirs = `find -iregex ".*src/test/java"\$`;
+  chomp foreach @srcDirs;
+  my @srcFiles;
+  for my $srcDir(@srcDirs){
+    @srcFiles = (@srcFiles, `find $srcDir -iname *.java`);
+  }
+  chomp foreach @srcFiles;
+  return @srcFiles;
+}
+
+sub readFile($){
+  open FH, "< $_[0]" or die "Could not read $_[0]\n";
+  my @lines = <FH>;
+  close FH;
+  return join "", @lines;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $cur = pop @words if not $isNewWord;
+
+  my @complete;
+
+  if(not defined $cur or $cur !~ /^-/){
+    @complete = (@complete, getAllTests());
+  }
+
+  @complete = (@complete, "--bash-complete", "--print", "--debug", "--fast");
+  return @complete;
+}
+
+&main(@ARGV);
