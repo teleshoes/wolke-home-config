@@ -7,6 +7,7 @@ my $remoteHome = "/home2/teleshoes";
 my $remoteDir = "$remoteHome/rt-status";
 
 sub parseTorrents($);
+sub parsePeers($);
 sub run(@);
 
 sub main(@){
@@ -68,7 +69,38 @@ sub parseTorrents($){
     };
   }
 
+  for my $t(@torrents){
+    my $peersInfo = `cat "$localDir/peers-$$t{hash}"`;
+    $$t{peerCounts} = parsePeers $peersInfo;
+  }
+
   return @torrents;
+}
+
+sub parsePeers($){
+  my $peersInfo = shift;
+
+  my $peerCounts = {};
+  for my $peer(split /\n/, $peersInfo){
+    if($peer =~ /^\[(\d+), (\d+), (\d+)\]$/){
+      my ($percent, $downRate, $downTotal) = ($1, $2, $3);
+      my $bucket;
+      if($percent == 100){
+        $bucket = "ALL";
+      }elsif($percent >= 50){
+        $bucket = "HALF";
+      }elsif($percent > 0){
+        $bucket = "LITTLE";
+      }elsif($percent == 0){
+        $bucket = "NONE";
+      }else{
+        $bucket = "UNKNOWN";
+      }
+      my $cur = defined $$peerCounts{$bucket} ? $$peerCounts{$bucket} : 0;
+      $$peerCounts{$bucket} = $cur + 1;
+    }
+  }
+  return $peerCounts;
 }
 
 sub run(@){
