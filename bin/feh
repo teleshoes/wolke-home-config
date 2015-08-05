@@ -6,6 +6,10 @@ use Time::HiRes qw(sleep);
 #args are given only if no other args are given on the cmdline
 my @defaultArgs = qw(-Z -F);
 
+#individually overridable with cmdline args
+my $extraArgs = {
+};
+
 sub processArgs(@);
 sub run(@);
 
@@ -26,6 +30,19 @@ sub main(@){
 sub processArgs(@){
   my @args = @_;
   @args = ("-Z", "-F") if @args == 0;
+  my %okArgs = map {$_ => 1} keys %$extraArgs;
+  for my $arg(@args){
+    my $key = $arg;
+    $key =~ s/=.*//;
+    if(defined $$extraArgs{$key}){
+      $okArgs{$key} = 0;
+    }
+  }
+  for my $arg(sort keys %$extraArgs){
+    next if not $okArgs{$arg};
+    my $val = $$extraArgs{$arg};
+    @args = (@args, $arg, $val);
+  }
   return @args;
 }
 
