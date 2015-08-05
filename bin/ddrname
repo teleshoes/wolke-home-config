@@ -295,6 +295,7 @@ my $usage = "Usage:
 
 sub fehterm($@);
 sub scoreStats($@);
+sub parsePlotOptions($);
 sub name(@);
 sub parseArgs(@);
 sub getScoresByFile();
@@ -439,26 +440,7 @@ sub scoreStats($@){
   my $cmd = shift;
   my $opts = [@_];
 
-  my $plotOptions = {};
-  if($cmd =~ /^(--gnuplot)$/){
-    while(@$opts > 0 and $$opts[0] =~ /^($okPlotOptionsRegex)$/){
-      my $opt = shift @$opts;
-      my $arg;
-      if($opt =~ /^($argOptPlotOptionsRegex)$/){
-        die "$usage\nmissing arg to $opt\n" if @$opts == 0;
-        $arg = shift @$opts;
-      }
-
-      if($opt =~ /^(--file)$/){
-        $$plotOptions{file} = $arg;
-      }elsif($opt =~ /^(--size)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
-        $$plotOptions{size} = "$1,$2";
-      }elsif($opt =~ /^(--smooth)$/){
-        $$plotOptions{smooth} = 1;
-      }
-    }
-  }
+  my $plotOptions = parsePlotOptions $opts if $cmd =~ /^(--gnuplot)$/;
 
   my $okNotes = $defaultNotes;
   if($$plotOptions{smooth}){
@@ -545,6 +527,29 @@ sub scoreStats($@){
       print $$bestScores{$bucketName}{file} . "\n";
     }
   }
+}
+
+sub parsePlotOptions($){
+  my $opts = shift;
+  my $plotOptions = {};
+  while(@$opts > 0 and $$opts[0] =~ /^($okPlotOptionsRegex)$/){
+    my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptPlotOptionsRegex)$/){
+      die "$usage\nmissing arg to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
+    }
+
+    if($opt =~ /^(--file)$/){
+      $$plotOptions{file} = $arg;
+    }elsif($opt =~ /^(--size)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
+      $$plotOptions{size} = "$1,$2";
+    }elsif($opt =~ /^(--smooth)$/){
+      $$plotOptions{smooth} = 1;
+    }
+  }
+  return ($opts, $plotOptions);
 }
 
 sub name(@){
