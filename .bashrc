@@ -113,7 +113,7 @@ alias :r='. /etc/profile; . ~/.bashrc;'
 function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
-function f            { feh -ZF "$@"; }
+function f            { feh "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }
