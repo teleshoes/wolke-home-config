@@ -122,8 +122,12 @@ my $usage = "Usage:
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
 
-  $0 --datestats [FILTER FILTER ..]
+  $0 --datestats [FORMAT_OPTION FORMAT_OPTION ..] [FILTER FILTER ..]
     format stats for each date
+
+    FORMAT_OPTION
+      --showscores
+        show all scores, one per line, instead of just a count
 
     FILTER
       see --print FILTER
@@ -365,6 +369,12 @@ sub dateStats($@){
   my $cmd = shift;
   my $opts = [@_];
 
+  my $showScores = 0;
+  if(@$opts > 0 and $$opts[0] =~ /^(--showscores)$/){
+    shift @$opts;
+    $showScores = 1;
+  }
+
   my $filters = parseFilterOptions $opts;
 
   die $usage if @$opts != 0;
@@ -424,6 +434,7 @@ sub dateStats($@){
         count=>$count,
         isDoubles=>$isDoubles ? 1 : 0,
         isHardSingles=>(not $isDoubles and $isHardSong{$song}) ? 1 : 0,
+        scores=>[sort map {$$_{score}} @scores],
       };
     }
 
@@ -439,7 +450,14 @@ sub dateStats($@){
     } @bucketSummary;
 
     for my $summary(@bucketSummary){
-      $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
+      if($showScores){
+        $fmt .= sprintf "\n  %-9s %s", $$summary{name}, "@{$$summary{scores}}";
+      }else{
+        $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
+      }
+    }
+    if($showScores){
+      $fmt .= "\n";
     }
 
     print "$fmt\n";
@@ -983,6 +1001,9 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--print|--gnuplot)/){
       @complete = ("--notes", @complete) if @words == 0;
+    }
+    if($cmd =~ /^(--datestats)/){
+      @complete = ("--showscores", @complete) if @words == 0;
     }
     @complete = (@okFilters, @complete);
     return @complete;
