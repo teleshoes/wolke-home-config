@@ -130,6 +130,8 @@ my $usage = "Usage:
         show all scores, one per line, instead of just a count
       --reverse
         print newest dates first, instead of oldest dates first
+      --short
+        dont show individual songs at all
 
     FILTER
       see --print FILTER
@@ -373,12 +375,15 @@ sub dateStats($@){
 
   my $showScores = 0;
   my $reverse = 0;
-  while(@$opts > 0 and $$opts[0] =~ /^(--showscores|--reverse)$/){
+  my $short = 0;
+  while(@$opts > 0 and $$opts[0] =~ /^(--showscores|--reverse|--short)$/){
     my $opt = shift @$opts;
     if($opt =~ /^(--showscores)$/){
       $showScores = 1;
     }elsif($opt =~ /^(--reverse)$/){
       $reverse = 1;
+    }elsif($opt =~ /^(--short)$/){
+      $short = 1;
     }
   }
 
@@ -458,15 +463,17 @@ sub dateStats($@){
         or $b cmp $a
     } @bucketSummary;
 
-    for my $summary(@bucketSummary){
+    if(not $short){
+      for my $summary(@bucketSummary){
+        if($showScores){
+          $fmt .= sprintf "\n  %-9s %s", $$summary{name}, "@{$$summary{scores}}";
+        }else{
+          $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
+       }
+     }
       if($showScores){
-        $fmt .= sprintf "\n  %-9s %s", $$summary{name}, "@{$$summary{scores}}";
-      }else{
-        $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
+        $fmt .= "\n";
       }
-    }
-    if($showScores){
-      $fmt .= "\n";
     }
 
     print "$fmt\n";
@@ -1013,8 +1020,8 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
-      shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse)$/;
-      @complete = ("--showscores", "--reverse", @complete) if @args == 0;
+      shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse|--short)$/;
+      @complete = ("--showscores", "--reverse", "--short", @complete) if @args == 0;
     }
     @complete = (@okFilters, @complete);
     return @complete;
