@@ -122,8 +122,11 @@ my $usage = "Usage:
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
 
-  $0 --datestats
+  $0 --datestats [FILTER FILTER ..]
     format stats for each date
+
+    FILTER
+      see --print FILTER
 
   $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
@@ -360,9 +363,14 @@ sub fehterm($@){
 
 sub dateStats($@){
   my $cmd = shift;
-  die $usage if @_ != 0;
+  my $opts = [@_];
+
+  my $filters = parseFilterOptions $opts;
+
+  die $usage if @$opts != 0;
 
   my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
 
   my $dateBuckets = {};
   for my $file(sort keys %$scoresByFile){
@@ -947,7 +955,7 @@ sub bashComplete($$){
     return ("--fehterm", "--datestats", "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
