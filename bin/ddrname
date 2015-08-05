@@ -128,6 +128,8 @@ my $usage = "Usage:
     FORMAT_OPTION
       --showscores
         show all scores, one per line, instead of just a count
+      --reverse
+        print newest dates first, instead of oldest dates first
 
     FILTER
       see --print FILTER
@@ -370,10 +372,13 @@ sub dateStats($@){
   my $opts = [@_];
 
   my $showScores = 0;
-  while(@$opts > 0 and $$opts[0] =~ /^(--showscores)$/){
+  my $reverse = 0;
+  while(@$opts > 0 and $$opts[0] =~ /^(--showscores|--reverse)$/){
     my $opt = shift @$opts;
     if($opt =~ /^(--showscores)$/){
       $showScores = 1;
+    }elsif($opt =~ /^(--reverse)$/){
+      $reverse = 1;
     }
   }
 
@@ -394,7 +399,10 @@ sub dateStats($@){
 
   my %isHardSong = map {$_ => 1} @hardSongs;
 
-  for my $date(sort keys %$dateBuckets){
+  my @dates = sort keys %$dateBuckets;
+  @dates = reverse @dates if $reverse;
+
+  for my $date(@dates){
     my @dateScores = @{$$dateBuckets{$date}};
     my $hardSinglesCount = 0;
     my $otherSinglesCount = 0;
@@ -1006,8 +1014,8 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
-      shift @args while @args > 0 and $args[0] =~ /^(--showscores)$/;
-      @complete = ("--showscores", @complete) if @args == 0;
+      shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse)$/;
+      @complete = ("--showscores", "--reverse", @complete) if @args == 0;
     }
     @complete = (@okFilters, @complete);
     return @complete;
