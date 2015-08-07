@@ -122,8 +122,19 @@ my $usage = "Usage:
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
 
-  $0 --datestats
+  $0 --datestats [FORMAT_OPTION FORMAT_OPTION ..] [FILTER FILTER ..]
     format stats for each date
+
+    FORMAT_OPTION
+      --showscores
+        show all scores, one per line, instead of just a count
+      --reverse
+        print newest dates first, instead of oldest dates first
+      --short
+        dont show individual songs at all
+
+    FILTER
+      see --print FILTER
 
   $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
@@ -295,6 +306,8 @@ my $usage = "Usage:
 
 sub fehterm($@);
 sub scoreStats($@);
+sub parsePlotOptions($);
+sub parseFilterOptions($);
 sub name(@);
 sub parseArgs(@);
 sub getScoresByFile();
@@ -358,9 +371,28 @@ sub fehterm($@){
 
 sub dateStats($@){
   my $cmd = shift;
-  die $usage if @_ != 0;
+  my $opts = [@_];
+
+  my $showScores = 0;
+  my $reverse = 0;
+  my $short = 0;
+  while(@$opts > 0 and $$opts[0] =~ /^(--showscores|--reverse|--short)$/){
+    my $opt = shift @$opts;
+    if($opt =~ /^(--showscores)$/){
+      $showScores = 1;
+    }elsif($opt =~ /^(--reverse)$/){
+      $reverse = 1;
+    }elsif($opt =~ /^(--short)$/){
+      $short = 1;
+    }
+  }
+
+  my $filters = parseFilterOptions $opts;
+
+  die $usage if @$opts != 0;
 
   my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
 
   my $dateBuckets = {};
   for my $file(sort keys %$scoresByFile){
@@ -372,10 +404,13 @@ sub dateStats($@){
 
   my %isHardSong = map {$_ => 1} @hardSongs;
 
-  for my $date(reverse sort keys %$dateBuckets){
+  my @dates = sort keys %$dateBuckets;
+  @dates = reverse @dates if $reverse;
+
+  for my $date(@dates){
     my @dateScores = @{$$dateBuckets{$date}};
+    my $totalCount = 0;
     my $hardSinglesCount = 0;
-    my $otherSinglesCount = 0;
     my $doublesCount = 0;
     my $total = @dateScores;
     for my $score(@dateScores){
@@ -383,9 +418,8 @@ sub dateStats($@){
         $doublesCount++;
       }elsif($isHardSong{$$score{song}}){
         $hardSinglesCount++;
-      }else{
-        $otherSinglesCount++;
       }
+      $totalCount++;
     }
 
     my $buckets = getScoreBuckets \@dateScores, qw(song game difficulty);
@@ -414,11 +448,13 @@ sub dateStats($@){
         count=>$count,
         isDoubles=>$isDoubles ? 1 : 0,
         isHardSingles=>(not $isDoubles and $isHardSong{$song}) ? 1 : 0,
+        scores=>[reverse sort map {$$_{score}} @scores],
       };
     }
 
-    printf "%s %2d-H %2d-D %2d-O",
-      $date, $hardSinglesCount, $doublesCount, $otherSinglesCount;
+    my $fmt = "";
+    $fmt .= sprintf "%s %2d-T %2d-H %2d-D",
+      $date, $totalCount, $hardSinglesCount, $doublesCount;
 
     @bucketSummary = sort {
       $$b{count} <=> $$a{count}
@@ -427,46 +463,37 @@ sub dateStats($@){
         or $b cmp $a
     } @bucketSummary;
 
-    for my $summary(@bucketSummary){
-      printf "  %2d %s", $$summary{count}, $$summary{name};
+    if(not $short){
+      for my $summary(@bucketSummary){
+        if($showScores){
+          $fmt .= sprintf "\n  %-9s %s", $$summary{name}, "@{$$summary{scores}}";
+        }else{
+          $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
+       }
+     }
+      if($showScores){
+        $fmt .= "\n";
+      }
     }
 
-    print "\n";
+    print "$fmt\n";
   }
 }
 
 sub scoreStats($@){
   my $cmd = shift;
+  my $opts = [@_];
 
-  my $plotOptions = {};
-  if($cmd =~ /^(--gnuplot)$/){
-    while(@_ > 0 and $_[0] =~ /^($okPlotOptionsRegex)$/){
-      my $opt = shift;
-      my $arg;
-      if($opt =~ /^($argOptPlotOptionsRegex)$/){
-        die "$usage\nmissing arg to $opt\n" if @_ == 0;
-        $arg = shift;
-      }
-
-      if($opt =~ /^(--file)$/){
-        $$plotOptions{file} = $arg;
-      }elsif($opt =~ /^(--size)$/){
-        die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
-        $$plotOptions{size} = "$1,$2";
-      }elsif($opt =~ /^(--smooth)$/){
-        $$plotOptions{smooth} = 1;
-      }
-    }
-  }
+  my $plotOptions = parsePlotOptions $opts if $cmd =~ /^(--gnuplot)$/;
 
   my $okNotes = $defaultNotes;
   if($$plotOptions{smooth}){
     $okNotes = {map {$_ => 0} keys %$okNotes};
   }
 
-  if($cmd =~ /^(--print|--gnuplot)/ and @_ > 0 and $_[0] =~ /^(--notes)$/){
+  if($cmd =~ /^(--print|--gnuplot)/ and @$opts > 0 and $$opts[0] =~ /^(--notes)$/){
     my $opt = shift;
-    die "$usage\nmissing arg to $opt\n" if @_ == 0;
+    die "$usage\nmissing arg to $opt\n" if @$opts == 0;
     my $arg = shift;
     my $notesCsv = $arg;
     $$okNotes{$_} = 0 foreach keys %$okNotes;
@@ -478,13 +505,54 @@ sub scoreStats($@){
     }
   }
 
+  my $filters = parseFilterOptions $opts;
+
+  if($cmd =~ /^(--print)$/){
+    my $fmt = formatScores($okNotes, $filters);
+    print $fmt;
+  }elsif($cmd =~ /^(--gnuplot)$/){
+    my $fmt = formatScores($okNotes, $filters);
+    gnuplot $plotOptions, $fmt;
+  }elsif($cmd =~ /^(--bestfiles)$/){
+    my $bestScores = getBestScores($filters);
+    for my $bucketName(sort keys %$bestScores){
+      print $$bestScores{$bucketName}{file} . "\n";
+    }
+  }
+}
+
+sub parsePlotOptions($){
+  my $opts = shift;
+  my $plotOptions = {};
+  while(@$opts > 0 and $$opts[0] =~ /^($okPlotOptionsRegex)$/){
+    my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptPlotOptionsRegex)$/){
+      die "$usage\nmissing arg to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
+    }
+
+    if($opt =~ /^(--file)$/){
+      $$plotOptions{file} = $arg;
+    }elsif($opt =~ /^(--size)$/){
+      die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
+      $$plotOptions{size} = "$1,$2";
+    }elsif($opt =~ /^(--smooth)$/){
+      $$plotOptions{smooth} = 1;
+    }
+  }
+  return ($opts, $plotOptions);
+}
+
+sub parseFilterOptions($){
+  my $opts = shift;
   my $filters = {};
-  while(@_ > 0){
-    my $opt = shift;
+  while(@$opts > 0){
+    my $opt = shift @$opts;
     my $arg;
     if($opt =~ /^($argOptFiltersRegex)$/){
-      die "$usage\nmissing arg to $opt\n" if @_ == 0;
-      $arg = shift;
+      die "$usage\nmissing arg to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
     }
 
     if($opt =~ /^(--song)$/){
@@ -531,19 +599,7 @@ sub scoreStats($@){
       die "$usage\nunknown filter: $opt\n";
     }
   }
-
-  if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($okNotes, $filters);
-    print $fmt;
-  }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($okNotes, $filters);
-    gnuplot $plotOptions, $fmt;
-  }elsif($cmd =~ /^(--bestfiles)$/){
-    my $bestScores = getBestScores($filters);
-    for my $bucketName(sort keys %$bestScores){
-      print $$bestScores{$bucketName}{file} . "\n";
-    }
-  }
+  return $filters;
 }
 
 sub name(@){
@@ -729,6 +785,7 @@ sub formatBucketCsv($$$){
 
 sub filterScores($$){
   my ($scoresByFile, $filters) = @_;
+  $scoresByFile = {%$scoresByFile};
 
   for my $file(sort keys %$scoresByFile){
     my $s = $$scoresByFile{$file};
@@ -933,7 +990,7 @@ sub bashComplete($$){
     return ("--fehterm", "--datestats", "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
@@ -960,6 +1017,11 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--print|--gnuplot)/){
       @complete = ("--notes", @complete) if @words == 0;
+    }
+    if($cmd =~ /^(--datestats)/){
+      my @args = @words;
+      shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse|--short)$/;
+      @complete = ("--showscores", "--reverse", "--short", @complete) if @args == 0;
     }
     @complete = (@okFilters, @complete);
     return @complete;

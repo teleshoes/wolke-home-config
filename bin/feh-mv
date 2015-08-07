@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub notify($);
+sub fail($);
+sub run(@);
+sub tryrun(@);
+
+sub main(@){
+  fail "Usage: $0 FILE [DIR_SUFFIX]\n" if @_ != 2;
+  my ($file, $dirSuffix) = @_;
+  fail "file \"$file\" not found\n" if not -f $file;
+  fail "invalid $dirSuffix, word characters only\n" if $dirSuffix !~ /^\w*$/;
+
+  my $dir = "fehdir$dirSuffix";
+  run "mkdir", "-p", $dir;
+  fail "file \"$dir/$file\" already exists\n" if -e "$dir/$file";
+  run "mv", "--no-clobber", $file, $dir;
+  notify "moved to $dir: $file";
+}
+
+sub notify($){
+  my $msg = shift;
+  chomp $msg;
+  tryrun "notify-send", "-t", 2000, $msg;
+}
+
+sub fail($){
+  my $msg = shift;
+  notify $msg;
+  die $msg;
+}
+
+sub run(@){
+  tryrun @_;
+  fail "Error running \"@_\"\n" if $? != 0;
+}
+sub tryrun(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

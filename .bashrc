@@ -113,7 +113,7 @@ alias :r='. /etc/profile; . ~/.bashrc;'
 function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
-function f            { feh -ZF "$@"; }
+function f            { feh "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }
@@ -139,7 +139,7 @@ function mp           { mplayer "$@"; }
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
-function sbs          { sb-rt-status ; }
+function sbs          { sb-rt-status "$@"; }
 
 function s            { "$@" & disown; }
 function sx           { "$@" & disown && exit 0; }

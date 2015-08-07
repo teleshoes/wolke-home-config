@@ -3,18 +3,55 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+#args are given only if no other args are given on the cmdline
+my @defaultArgs = qw(-Z -F);
+
+#individually overridable with cmdline args
+my $extraArgs = {
+  "--action1" => "feh-mv %F 1",
+  "--action2" => "feh-mv %F 2",
+  "--action3" => "feh-mv %F 3",
+};
+
+sub processArgs(@);
+sub run(@);
+
 sub main(@){
   my $pid = fork;
   if($pid == 0){
     sleep 0.5;
     exec "keys-to-window", "feh";
   }else{
-    my @args = @_;
-    @args = ("-Z", "-F") if @args == 0;
-    system "/usr/bin/feh", @_;
-    system "kill", $pid;
-    system "stty", "sane";
+    my @args = processArgs @_;
+
+    run "/usr/bin/feh", @args;
+    run "kill", $pid;
+    run "stty", "sane";
   }
+}
+
+sub processArgs(@){
+  my @args = @_;
+  @args = ("-Z", "-F") if @args == 0;
+  my %okArgs = map {$_ => 1} keys %$extraArgs;
+  for my $arg(@args){
+    my $key = $arg;
+    $key =~ s/=.*//;
+    if(defined $$extraArgs{$key}){
+      $okArgs{$key} = 0;
+    }
+  }
+  for my $arg(sort keys %$extraArgs){
+    next if not $okArgs{$arg};
+    my $val = $$extraArgs{$arg};
+    @args = (@args, $arg, $val);
+  }
+  return @args;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
