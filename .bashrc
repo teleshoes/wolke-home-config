@@ -60,8 +60,9 @@ fi
 
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
+  host_alias=`hostname -f | cut -f 1,2 -d '.'`
   #host abbrevs
-  case `hostname` in
+  case "$host_alias" in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n9"                ) h='@n9' ;;
@@ -70,7 +71,7 @@ if [[ -z "$DISPLAY" ]]; then
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
     ci-*.dev.*                ) h='@ci.dev' ;;
     ci-*.stage.*              ) h='@ci.stage' ;;
-    *                         ) h='@\h' ;;
+    *                         ) h="@$host_alias" ;;
   esac
 else
   #if display is set, you probably know where you are
