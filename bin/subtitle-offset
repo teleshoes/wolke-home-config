@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub offsetTime($$);
+sub carry($$$);
+
+my $usage = "Usage:
+  $0 SRT_FILE OFFSET_MILLIS
+    edits an SRT file by adding OFFSET_MILLIS milliseconds to each start/end timestamp.
+
+    SRT_FILE
+      an SRT subtitle file
+
+    OFFSET_MILLIS
+      any integer
+      can be negative to make subtitles appear sooner,
+      0 for do-nothing, and positive to make subtitles appear later
+      positive values can be prefixed with '+'
+      e.g.:
+        1000
+        -3600
+        0
+";
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($file, $offsetMillis) = @_;
+  die "SRT file not found: $file\n" if not -f $file;
+  $offsetMillis =~ s/^\+//;
+  die "invalid offset, must be integer\n" if $offsetMillis !~ /^-?\d+$/;
+  $offsetMillis = 0+$offsetMillis;
+
+  open FH, "< $file";
+  my $line;
+  while($line = <FH>){
+    if($line =~ /^(\d+:\d+:\d+,\d+) --> (\d+:\d+:\d+,\d+)$/){
+      my ($start, $end) = ($1, $2);
+      $start = offsetTime $start, $offsetMillis;
+      $end = offsetTime $end, $offsetMillis;
+      print "$start --> $end\n";
+    }else{
+      print $line;
+    }
+  }
+}
+
+sub offsetTime($$){
+  my ($time, $offsetMillis) = @_;
+  if($time !~ /^(\d+):(\d+):(\d+),(\d+)$/){
+    die "malformed time: $time\n";
+  }
+  my ($h, $m, $s, $millis) = ($1, $2, $3, $4);
+  $millis += $offsetMillis;
+
+  ($s, $millis) = carry $s, $millis, 1000;
+  ($m, $s) = carry $m, $s, 60;
+  ($h, $m) = carry $h, $m, 60;
+
+  return sprintf "%02d:%02d:%02d,%03d", $h, $m, $s, $millis;
+}
+
+sub carry($$$){
+  my ($large, $small, $max) = @_;
+
+  my $diff = int($small / $max);
+  $diff -= 1 if $small < 0 and $small % $max > 0;
+
+  $large += $diff;
+  $small = $small % $max;
+  return ($large, $small);
+}
+
+&main(@ARGV);

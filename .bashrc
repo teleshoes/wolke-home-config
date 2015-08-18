@@ -7,8 +7,9 @@ shopt -s extglob
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 export HISTTIMEFORMAT="%F %T "
 export HISTSIZE=1000000
-export HISTCONTROL=ignoredups # don't put duplicate lines in the history
-export HISTCONTROL=ignoreboth # ... and ignore same sucessive entries.
+# ignoredups: do not add duplicate history entries
+# ignoredspace: do not add history entries that start with space
+export HISTCONTROL=ignoredups:ignorespace
 export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
 
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
@@ -60,8 +61,9 @@ fi
 
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
+  host_alias=`hostname -f | cut -f 1,2 -d '.'`
   #host abbrevs
-  case `hostname` in
+  case "$host_alias" in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n9"                ) h='@n9' ;;
@@ -70,7 +72,7 @@ if [[ -z "$DISPLAY" ]]; then
     "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
     ci-*.dev.*                ) h='@ci.dev' ;;
     ci-*.stage.*              ) h='@ci.stage' ;;
-    *                         ) h='@\h' ;;
+    *                         ) h="@$host_alias" ;;
   esac
 else
   #if display is set, you probably know where you are
