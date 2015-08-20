@@ -6,6 +6,10 @@ sub offsetTime($$);
 sub carry($$$);
 
 my $usage = "Usage:
+  $0 --renumber SRT_FILE
+    edits an srt file, renumbering the subtitle indices
+    prints new file to STDOUT
+
   $0 --offset=OFFSET_MILLIS SRT_FILE
     edits an srt file by adding OFFSET_MILLIS milliseconds to each start/end timestamp.
     prints new file to STDOUT
@@ -27,7 +31,21 @@ my $usage = "Usage:
 my $timeRegex = '\d+:\d+:\d+,\d+';
 
 sub main(@){
-  if(@_ == 2 and $_[0] =~ /^--offset=([\-\+]?\d+)$/){
+  if(@_ == 2 and $_[0] =~ /^--renumber$/){
+    my $file = $_[1];
+    die "SRT file not found: $file\n" if not -f $file;
+    open FH, "< $file" or die "Could not read $file\n";
+    my $content = join '', <FH>;
+    close FH;
+    $content =~ s/%/%boing%/g;
+    $content =~ s/(^|\n)(\d+\n)($timeRegex --> $timeRegex\n)/$1%index%\n$3/g;
+    my $index = 1;
+    while($content =~ s/%index%/$index/){
+      $index++;
+    }
+    $content =~ s/%boing%/%/g;
+    print $content;
+  }elsif(@_ == 2 and $_[0] =~ /^--offset=([\-\+]?\d+)$/){
     my $offsetMillis = $1;
     my $file = $_[1];
     $offsetMillis =~ s/^\+//;
