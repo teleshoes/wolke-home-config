@@ -6,8 +6,9 @@ sub offsetTime($$);
 sub carry($$$);
 
 my $usage = "Usage:
-  $0 SRT_FILE OFFSET_MILLIS
-    edits an SRT file by adding OFFSET_MILLIS milliseconds to each start/end timestamp.
+  $0 --offset=OFFSET_MILLIS SRT_FILE
+    edits an srt file by adding OFFSET_MILLIS milliseconds to each start/end timestamp.
+    prints new file to STDOUT
 
     SRT_FILE
       an SRT subtitle file
@@ -23,25 +24,30 @@ my $usage = "Usage:
         0
 ";
 
-sub main(@){
-  die $usage if @_ != 2;
-  my ($file, $offsetMillis) = @_;
-  die "SRT file not found: $file\n" if not -f $file;
-  $offsetMillis =~ s/^\+//;
-  die "invalid offset, must be integer\n" if $offsetMillis !~ /^-?\d+$/;
-  $offsetMillis = 0+$offsetMillis;
+my $timeRegex = '\d+:\d+:\d+,\d+';
 
-  open FH, "< $file";
-  my $line;
-  while($line = <FH>){
-    if($line =~ /^(\d+:\d+:\d+,\d+) --> (\d+:\d+:\d+,\d+)$/){
-      my ($start, $end) = ($1, $2);
-      $start = offsetTime $start, $offsetMillis;
-      $end = offsetTime $end, $offsetMillis;
-      print "$start --> $end\n";
-    }else{
-      print $line;
+sub main(@){
+  if(@_ == 2 and $_[0] =~ /^--offset=([\-\+]?\d+)$/){
+    my $offsetMillis = $1;
+    my $file = $_[1];
+    $offsetMillis =~ s/^\+//;
+    $offsetMillis = 0+$offsetMillis;
+    die "SRT file not found: $file\n" if not -f $file;
+
+    open FH, "< $file";
+    my $line;
+    while($line = <FH>){
+      if($line =~ /^($timeRegex) --> ($timeRegex)$/){
+        my ($start, $end) = ($1, $2);
+        $start = offsetTime $start, $offsetMillis;
+        $end = offsetTime $end, $offsetMillis;
+        print "$start --> $end\n";
+      }else{
+        print $line;
+      }
     }
+  }else{
+    die $usage;
   }
 }
 
