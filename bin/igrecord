@@ -1,10 +1,24 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(time);
+
+my $igclientExec = "/usr/bin/igclient";
+my $delayMillis = 2000;
+
+sub igclientRecord();
+sub parseEntries(@);
+sub formatEntries(@);
+sub run(@);
 
 my $usage = "Usage:
   $0 -h|--help
     show this message
+
+  $0 IR_CODE_FILE
+    run igclient, turn receiver on, sleep for $delayMillis
+    record IR pulses and spaces received to a temp file
+    write resulsting list of pulses and spaces to IR_CODE_FILE
 ";
 
 sub main(@){
@@ -17,6 +31,73 @@ sub main(@){
       die $usage;
     }
   }
+
+  my $file = shift;
+  die $usage if @_ > 0 or not defined $file;
+
+  die "file \"$file\" already exists\n" if -f $file;
+
+  my @lines = igclientRecord();
+
+  my @entries = parseEntries @lines;
+
+  my $format = formatEntries @entries;
+
+  print "\n\nwriting to $file:\n$format";
+
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH $format;
+  close FH;
+}
+
+sub igclientRecord(){
+  my $nowMillis = int(time() * 1000);
+  my $tmpFile = "/tmp/igclient-record-$nowMillis.txt";
+
+  my $sleepFmt = sprintf "%.3f", $delayMillis/1000;
+
+  run "$igclientExec --receiver-on --sleep $sleepFmt | tee $tmpFile";
+
+  open FH, "< $tmpFile" or die "Could not read $tmpFile\n";
+  my @lines = <FH>;
+  close FH;
+
+  run "rm", $tmpFile;
+
+  return @lines;
+}
+
+sub parseEntries(@){
+  my @lines = @_;
+
+  my @entries;
+  for my $line(@lines){
+    if($line =~ /^(receiver on|received \d+ signal\(s\))/){
+      next;
+    }elsif($line =~ /^\s*(pulse|space)\s*:\s*(\d+)\s*$/){
+      my ($type, $value) = ($1, $2);
+      push @entries, {type=>$type, value=>$value};
+    }else{
+      die "malformed igclient output line: $line";
+    }
+  }
+
+  return @entries;
+}
+
+sub formatEntries(@){
+  my @entries = @_;
+  my $fmt = "";
+  for my $entry(@entries){
+    $fmt .= "$$entry{type} $$entry{value}\n";
+  }
+  return $fmt;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "Error running \"@_\"\n" if $? != 0;
 }
 
 &main(@ARGV);
