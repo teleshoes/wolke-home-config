@@ -4,6 +4,7 @@ use warnings;
 
 sub getRemoteNames();
 sub getButtons($);
+sub formatLayout($);
 sub run(@);
 
 my $igclientExec = "/usr/bin/igclient";
@@ -15,6 +16,7 @@ chomp foreach @remoteNames;
 my $okRemoteNames = join "|", @remoteNames;
 
 my %buttons = map {$_ => [getButtons $_]} @remoteNames;
+my $buttonLayoutFmt = join "\n", map {formatLayout $_} @remoteNames;
 
 my $usage = "Usage:
   $0 -h|--help
@@ -22,9 +24,10 @@ my $usage = "Usage:
 
   $0 [OPTIONS] [CMD CMD ..]
 
-  CMD:
-    <REMOTE>-<BUTTON>
-    a remote and button separated with '-'
+  CMD = <REMOTE>-<BUTTON> | <REMOTE>-<BUTTON>-<REPEAT>
+    a remote, button, and optional repeat, separated with '-'
+    e.g.:
+      tv-channel_up-10   => button \"channel_up\" on remote \"tv\" ten times
 
   REMOTE:
     one of $okRemoteNames
@@ -35,6 +38,13 @@ my $usage = "Usage:
 
     button IR codes are in:
       $dir/names/<REMOTE>/buttons/
+    button layout is in:
+      $dir/names/<REMOTE>/layout
+
+    layouts:\n$buttonLayoutFmt
+
+  REPEAT:
+    a non-negative integer indicating the number of times to run <REMOTE><BUTTON>
 
   OPTIONS:
     -c CHANNEL | --channel=CHANNEL
@@ -62,16 +72,17 @@ sub main(@){
   my @irCodeFiles;
 
   my @cmds = @_;
-  for my $cmd(@cmds){
-    if($cmd =~ /^($okRemoteNames)-(\w+)$/){
-      my ($remoteName, $button) = ($1, $2);
+  for my $cmd(@_){
+    if($cmd =~ /^($okRemoteNames)-(\w+)(?:-(\d+))?$/){
+      my ($remoteName, $button, $repeat) = ($1, $2, $3);
+      $repeat = 1 if not defined $repeat;
       my $okButtons = join "|", @{$buttons{$remoteName}};
       if($button !~ /^($okButtons)$/){
         die "$usage\nunknown button \"$button\" for remote \"$remoteName\"\n";
       }
       my $irCodeFile = "$dir/names/$remoteName/buttons/$button";
       die "missing IR code file: $irCodeFile\n" if not -f $irCodeFile;
-      push @irCodeFiles, $irCodeFile;
+      push @irCodeFiles, $irCodeFile foreach (0 .. $repeat-1);
     }else{
       die "$usage\ninvalid CMD: $cmd\n";
     }
@@ -92,6 +103,37 @@ sub getButtons($){
   my @buttons = `ls $dir/names/$name/buttons 2>/dev/null`;
   chomp foreach @buttons;
   return @buttons;
+}
+
+sub formatLayout($){
+  my $name = shift;
+  my @lines = `cat $dir/names/$name/layout 2>/dev/null`;
+  chomp foreach @lines;
+
+  my $maxLen = 0;
+  for my $line(@lines){
+    if(length $line > $maxLen){
+      $maxLen = length $line;
+    }
+  }
+  my $nameLen = length $name;
+  my $header = ""
+    . "=" x int(($maxLen+2-($nameLen+2))/2+0.5)
+    . "[$name]"
+    . "=" x int(($maxLen+2-($nameLen+2))/2)
+    ;
+
+  my $footer = "=" x ($maxLen + 2);
+  my $indent = "      ";
+
+  my $fmt = '';
+  $fmt .= "$indent$header\n";
+  for my $line(@lines){
+    my $space = " " x ($maxLen - length $line);
+    $fmt .= "$indent|$line$space|\n";
+  }
+  $fmt .= "$indent$footer\n";
+  return $fmt;
 }
 
 sub run(@){
