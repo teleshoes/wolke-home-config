@@ -10,6 +10,7 @@ sub run(@);
 my $igclientExec = "/usr/bin/igclient";
 my $dir = "$ENV{HOME}/.config/iguana";
 my $defaultChannel = "0x04";
+my $repeatSleepMillis = 100;
 
 my @remoteNames = sort `ls $dir/names 2>/dev/null`;
 chomp foreach @remoteNames;
@@ -45,6 +46,7 @@ my $usage = "Usage:
 
   REPEAT:
     a non-negative integer indicating the number of times to run <REMOTE><BUTTON>
+    sleeps ${repeatSleepMillis}ms between each
 
   SLEEP_MILLIS:
     a non-negative integer indicating the number of milliseconds to sleep
@@ -87,6 +89,8 @@ sub main(@){
       die "missing IR code file: $irCodeFile\n" if not -f $irCodeFile;
       while($repeat-- > 0){
         push @igClientCmd, "--send=$irCodeFile";
+        my $sleepFmt = sprintf "%.3f", $repeatSleepMillis/1000;
+        @igClientCmd = (@igClientCmd, "--sleep", $sleepFmt) if $repeat > 0;
       }
     }elsif($cmd =~ /^sleep-(\d+)$/){
       my $sleepMillis = $1;
