@@ -6,6 +6,7 @@ screen-cmd fetch-seedbox
 
 screen-cmd execPing --watchdog ddwrt --restart-dev
 
+sudo igstart &
 brightness 80
 cec-cmd start &
 ( sudo mnt
