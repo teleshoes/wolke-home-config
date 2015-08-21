@@ -8,6 +8,8 @@ my $delayMillis = 2000;
 
 sub igclientRecord();
 sub parseEntries(@);
+sub squashEntries(@);
+sub trimEntries(@);
 sub formatEntries(@);
 sub run(@);
 
@@ -18,6 +20,7 @@ my $usage = "Usage:
   $0 IR_CODE_FILE
     run igclient, turn receiver on, sleep for $delayMillis
     record IR pulses and spaces received to a temp file
+    combine adjacent pulses or spaces, and remove leading/trailed space
     write resulsting list of pulses and spaces to IR_CODE_FILE
 ";
 
@@ -40,6 +43,8 @@ sub main(@){
   my @lines = igclientRecord();
 
   my @entries = parseEntries @lines;
+  @entries = squashEntries @entries;
+  @entries = trimEntries @entries;
 
   my $format = formatEntries @entries;
 
@@ -80,6 +85,36 @@ sub parseEntries(@){
     }else{
       die "malformed igclient output line: $line";
     }
+  }
+
+  return @entries;
+}
+
+sub squashEntries(@){
+  my @entries = @_;
+
+  my @newEntries;
+  my $prevEntry = undef;
+  for my $entry(@entries){
+    if(defined $prevEntry and $$prevEntry{type} eq $$entry{type}){
+      $$prevEntry{value} += $$entry{value};
+    }else{
+      push @newEntries, $entry;
+      $prevEntry = $entry;
+    }
+  }
+
+  return @newEntries;
+}
+
+sub trimEntries(@){
+  my @entries = @_;
+
+  while(@entries > 0 and ${$entries[0]}{type} eq "space"){
+    shift @entries;
+  }
+  while(@entries > 0 and ${$entries[-1]}{type} eq "space"){
+    pop @entries;
   }
 
   return @entries;
