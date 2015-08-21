@@ -6,6 +6,7 @@ sub getRemoteNames();
 sub getButtons($);
 sub formatLayout($);
 sub run(@);
+sub bashComplete($$);
 
 my $igclientExec = "/usr/bin/igclient";
 my $dir = "$ENV{HOME}/.config/iguana";
@@ -57,6 +58,11 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }
+
   my $channel = $defaultChannel;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -155,6 +161,44 @@ sub run(@){
   print "@_\n";
   system @_;
   die "\ncmd \"@_\" failed\n" if $? != 0;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $cur = pop @words if not $isNewWord;
+
+  my @opts;
+  my @args;
+  while(@words > 0 and $words[0] =~ /^-/){
+    push @opts, shift @words;
+  }
+  @args = @words;
+
+  my @optCompletions = qw(--channel=0x01 --channel=0x04);
+
+  my @complete;
+  if(@args == 0){
+    @complete = (@complete, @optCompletions);
+  }
+
+  my @cmdCompletions = qw(sleep-500 sleep-1000);
+  for my $remoteName(@remoteNames){
+    my @remoteButtons = @{$buttons{$remoteName}};
+    for my $button(@remoteButtons){
+      push @cmdCompletions, "$remoteName-$button";
+    }
+  }
+
+  @complete = (@complete, @cmdCompletions);
+
+  return @complete;
 }
 
 &main(@ARGV);
