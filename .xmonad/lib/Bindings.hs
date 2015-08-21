@@ -134,6 +134,11 @@ shortcuts conf = "Shortcuts" @@ do
         "nuc vol down"  @@ mCA   xK_VolDn#! "nuc pulse-vol -6 100"
         "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
 
+    "iguana IR"     @@ do
+        "A/C power"     @@ mC    xK_F1   #! "nuc igcmd ac-power"
+        "TV power"      @@ mC    xK_F2   #! "nuc igcmd tv-power"
+        "A/C mode"      @@ mC    xK_F3   #! "nuc igcmd ac-mode"
+
     "CPU"           @@ do
         "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
         "66%"           @@ mW    xK_F2   #! "sudo intel-pstate -s max 66"
