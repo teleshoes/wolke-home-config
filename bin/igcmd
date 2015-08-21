@@ -6,11 +6,34 @@ sub getRemoteNames();
 sub getButtons($);
 sub run(@);
 
+my $igclientExec = "/usr/bin/igclient";
 my $dir = "$ENV{HOME}/.config/iguana";
+
+my @remoteNames = sort `ls $dir/names 2>/dev/null`;
+chomp foreach @remoteNames;
+my $okRemoteNames = join "|", @remoteNames;
+
+my %buttons = map {$_ => [getButtons $_]} @remoteNames;
 
 my $usage = "Usage:
   $0 -h|--help
     show this message
+
+  $0 CMD [CMD CMD ..]
+
+  CMD:
+    <REMOTE>-<BUTTON>
+    a remote and button separated with '-'
+
+  REMOTE:
+    one of $okRemoteNames
+
+  BUTTON:
+    button name for a given REMOTE
+    buttons are alphanumeric plus underscore (dashes are not allowed)
+
+    button IR codes are in:
+      $dir/names/<REMOTE>/buttons/
 ";
 
 sub main(@){
@@ -23,7 +46,28 @@ sub main(@){
       die $usage;
     }
   }
-  die $usage;
+
+  die $usage if @_ == 0;
+
+  my @irCodeFiles;
+
+  my @cmds = @_;
+  for my $cmd(@cmds){
+    if($cmd =~ /^($okRemoteNames)-(\w+)$/){
+      my ($remoteName, $button) = ($1, $2);
+      my $okButtons = join "|", @{$buttons{$remoteName}};
+      if($button !~ /^($okButtons)$/){
+        die "$usage\nunknown button \"$button\" for remote \"$remoteName\"\n";
+      }
+      my $irCodeFile = "$dir/names/$remoteName/buttons/$button";
+      die "missing IR code file: $irCodeFile\n" if not -f $irCodeFile;
+      push @irCodeFiles, $irCodeFile;
+    }else{
+      die "$usage\ninvalid CMD: $cmd\n";
+    }
+  }
+
+  run $igclientExec, map {"--send=$_"} @irCodeFiles;
 }
 
 sub getRemoteNames(){
