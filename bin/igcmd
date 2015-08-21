@@ -1,0 +1,160 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getRemoteNames();
+sub getButtons($);
+sub formatLayout($);
+sub run(@);
+
+my $igclientExec = "/usr/bin/igclient";
+my $dir = "$ENV{HOME}/.config/iguana";
+my $defaultChannel = "0x04";
+my $repeatSleepMillis = 100;
+
+my @remoteNames = sort `ls $dir/names 2>/dev/null`;
+chomp foreach @remoteNames;
+my $okRemoteNames = join "|", @remoteNames;
+
+my %buttons = map {$_ => [getButtons $_]} @remoteNames;
+my $buttonLayoutFmt = join "\n", map {formatLayout $_} @remoteNames;
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 [OPTIONS] [CMD CMD ..]
+
+  CMD = <REMOTE>-<BUTTON> | <REMOTE>-<BUTTON>-<REPEAT> | sleep-<SLEEP_MILLIS>
+    a remote, button, and optional repeat, separated with '-'
+    e.g.:
+      tv-channel_up-10   => button \"channel_up\" on remote \"tv\" ten times
+
+  REMOTE:
+    one of $okRemoteNames
+
+  BUTTON:
+    button name for a given REMOTE
+    buttons are alphanumeric plus underscore (dashes are not allowed)
+
+    button IR codes are in:
+      $dir/names/<REMOTE>/buttons/
+    button layout is in:
+      $dir/names/<REMOTE>/layout
+
+    layouts:\n$buttonLayoutFmt
+
+  REPEAT:
+    a non-negative integer indicating the number of times to run <REMOTE><BUTTON>
+    sleeps ${repeatSleepMillis}ms between each
+
+  SLEEP_MILLIS:
+    a non-negative integer indicating the number of milliseconds to sleep
+
+  OPTIONS:
+    -c CHANNEL | --channel=CHANNEL
+      override default channel {$defaultChannel}
+";
+
+sub main(@){
+  my $channel = $defaultChannel;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--channel=(.*)$/){
+      $channel = $1;
+    }elsif($arg =~ /^-c$/ and @_ > 0){
+      $channel = shift;
+    }else{
+      die $usage;
+    }
+  }
+
+  die $usage if @_ == 0;
+
+  my @igClientCmd = ($igclientExec, "--set-channels=$channel");
+
+  my @cmds = @_;
+  for my $cmd(@_){
+    if($cmd =~ /^($okRemoteNames)-(\w+)(?:-(\d+))?$/){
+      my ($remoteName, $button, $repeat) = ($1, $2, $3);
+      $repeat = 1 if not defined $repeat;
+      my $okButtons = join "|", @{$buttons{$remoteName}};
+      if($button !~ /^($okButtons)$/){
+        die "$usage\nunknown button \"$button\" for remote \"$remoteName\"\n";
+      }
+      my $irCodeFile = "$dir/names/$remoteName/buttons/$button";
+      die "missing IR code file: $irCodeFile\n" if not -f $irCodeFile;
+      while($repeat-- > 0){
+        push @igClientCmd, "--send=$irCodeFile";
+        my $sleepFmt = sprintf "%.3f", $repeatSleepMillis/1000;
+        @igClientCmd = (@igClientCmd, "--sleep", $sleepFmt) if $repeat > 0;
+      }
+    }elsif($cmd =~ /^sleep-(\d+)$/){
+      my $sleepMillis = $1;
+      my $sleepFmt = sprintf "%.3f", $sleepMillis/1000;
+      @igClientCmd = (@igClientCmd, "--sleep", $sleepFmt);
+    }else{
+      die "$usage\ninvalid CMD: $cmd\n";
+    }
+  }
+
+  run @igClientCmd;
+}
+
+sub getRemoteNames(){
+  my @names = `ls $dir/names 2>/dev/null`;
+  chomp foreach @names;
+  @names = grep {/^\w+$/} @names;
+  return @names;
+}
+
+sub getButtons($){
+  my $name = shift;
+  my @buttons = `ls $dir/names/$name/buttons 2>/dev/null`;
+  chomp foreach @buttons;
+  #ignore segmented IR codes
+  @buttons = grep {$_ !~ /^\w+#\d+$/} @buttons;
+  return @buttons;
+}
+
+sub formatLayout($){
+  my $name = shift;
+  my @lines = `cat $dir/names/$name/layout 2>/dev/null`;
+  chomp foreach @lines;
+
+  my $maxLen = 0;
+  for my $line(@lines){
+    if(length $line > $maxLen){
+      $maxLen = length $line;
+    }
+  }
+  my $nameLen = length $name;
+  my $header = ""
+    . "=" x int(($maxLen+2-($nameLen+2))/2+0.5)
+    . "[$name]"
+    . "=" x int(($maxLen+2-($nameLen+2))/2)
+    ;
+
+  my $footer = "=" x ($maxLen + 2);
+  my $indent = "      ";
+
+  my $fmt = '';
+  $fmt .= "$indent$header\n";
+  for my $line(@lines){
+    my $space = " " x ($maxLen - length $line);
+    $fmt .= "$indent|$line$space|\n";
+  }
+  $fmt .= "$indent$footer\n";
+  return $fmt;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "\ncmd \"@_\" failed\n" if $? != 0;
+}
+
+&main(@ARGV);

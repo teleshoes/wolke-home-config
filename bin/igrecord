@@ -1,0 +1,225 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $dir = "$ENV{HOME}/.config/iguana";
+my $igclientExec = "/usr/bin/igclient";
+my $delayMillis = 2000;
+
+sub recordPulseSpaceFile($$$);
+sub igclientRecord();
+sub parseEntries(@);
+sub squashEntries(@);
+sub trimEntries(@);
+sub formatEntries(@);
+sub run(@);
+sub tryrun(@);
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 [OPTIONS] IR_CODE_FILE
+    run igclient, turn receiver on, sleep for $delayMillis
+    record IR pulses and spaces received to a temp file
+    combine adjacent pulses or spaces, and remove leading/trailed space
+    write resulsting list of pulses and spaces to IR_CODE_FILE
+
+  $0 [OPTIONS] --layout=REMOTE_NAME
+    read layout file at $dir/names/<REMOTE_NAME>/layout
+    parse all BUTTON names (substrings of layout file that are alphanumeric plus underscore)
+    for each BUTTON, in order:
+      capture pulse/space entries as above,
+        with IR_CODE_FILE=\"test-<REMOTE_NAME>-<BUTTON>\"
+        and indicated options
+      read a line from STDIN
+      repeat the same button if user types 'n', otherwise continue
+
+  OPTIONS:
+    -d | --delete
+      remove IR_CODE_FILE before attempting to record
+
+    -e | --echo | -r | --repeat
+      run 'igclient --send=IR_CODE_FILE' after recording
+";
+
+sub main(@){
+  my $delete = 0;
+  my $echo = 0;
+  my $layoutRemoteName = undef;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(-d|--delete)$/){
+      $delete = 1;
+    }elsif($arg =~ /^(-e|--echo|-r|--repeat)$/){
+      $echo = 1;
+    }elsif($arg =~ /^--layout=(\w+)$/){
+      $layoutRemoteName = $1;
+    }else{
+      die $usage;
+    }
+  }
+
+
+  if(defined $layoutRemoteName and @_ == 0){
+    my $remoteName = $1;
+    my $layoutFile = "$dir/names/$layoutRemoteName/layout";
+    die "cannot find layout file: $layoutFile\n" if not -f $layoutFile;
+    open FH, "< $layoutFile" or die "Could not read $layoutFile\n";
+    my $contents = join '', <FH>;
+    close FH;
+    $contents =~ s/\n/ /g;
+    my @buttons = split /\W+/, $contents;
+    for my $button(@buttons){
+      my $continue = 1;
+      while($continue){
+        my $file = "test-$layoutRemoteName-$button";
+        recordPulseSpaceFile $file, $delete, $echo;
+        print "\n\n<$button>\n";
+        my $response = undef;
+        while(not defined $response){
+          print "proceed (press 'n' to repeat)? [Y/n] ";
+          $response = <STDIN>;
+          if($response =~ /^\s*[yY]?\s*\n$/){
+            $continue = 0;
+          }elsif($response =~ /^\s*[nN]\s*\n$/){
+            $continue = 1;
+          }else{
+            print "response not understood\n";
+            $response = undef;
+          }
+        }
+      }
+    }
+  }elsif(@_ == 1){
+    my $file = shift;
+
+    recordPulseSpaceFile $file, $delete, $echo;
+  }else{
+    die $usage;
+  }
+}
+
+sub recordPulseSpaceFile($$$){
+  my ($file, $delete, $echo) = @_;
+
+  run "rm", "-f", $file if $delete and -f $file;
+
+  die "file \"$file\" already exists\n" if -f $file;
+
+  my @lines = igclientRecord();
+
+  my @entries = parseEntries @lines;
+  @entries = squashEntries @entries;
+  @entries = trimEntries @entries;
+
+  if(@entries == 0){
+    print "no pulse/space entries recorded\n";
+    return;
+  }
+
+  my $format = formatEntries @entries;
+
+  print "\n\nwriting to $file:\n$format";
+
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH $format;
+  close FH;
+
+  print "\n";
+  run "du", "-b", $file;
+
+  if($echo){
+    print "\n";
+    tryrun $igclientExec, "--send=$file";
+  }
+}
+
+sub igclientRecord(){
+  my $nowMillis = int(time() * 1000);
+  my $tmpFile = "/tmp/igclient-record-$nowMillis.txt";
+
+  my $sleepFmt = sprintf "%.3f", $delayMillis/1000;
+
+  run "$igclientExec --receiver-on --sleep $sleepFmt | tee $tmpFile";
+
+  open FH, "< $tmpFile" or die "Could not read $tmpFile\n";
+  my @lines = <FH>;
+  close FH;
+
+  run "rm", $tmpFile;
+
+  return @lines;
+}
+
+sub parseEntries(@){
+  my @lines = @_;
+
+  my @entries;
+  for my $line(@lines){
+    if($line =~ /^(receiver on|received \d+ signal\(s\))/){
+      next;
+    }elsif($line =~ /^\s*(pulse|space)\s*:\s*(\d+)\s*$/){
+      my ($type, $value) = ($1, $2);
+      push @entries, {type=>$type, value=>$value};
+    }else{
+      die "malformed igclient output line: $line";
+    }
+  }
+
+  return @entries;
+}
+
+sub squashEntries(@){
+  my @entries = @_;
+
+  my @newEntries;
+  my $prevEntry = undef;
+  for my $entry(@entries){
+    if(defined $prevEntry and $$prevEntry{type} eq $$entry{type}){
+      $$prevEntry{value} += $$entry{value};
+    }else{
+      push @newEntries, $entry;
+      $prevEntry = $entry;
+    }
+  }
+
+  return @newEntries;
+}
+
+sub trimEntries(@){
+  my @entries = @_;
+
+  while(@entries > 0 and ${$entries[0]}{type} eq "space"){
+    shift @entries;
+  }
+  while(@entries > 0 and ${$entries[-1]}{type} eq "space"){
+    pop @entries;
+  }
+
+  return @entries;
+}
+
+sub formatEntries(@){
+  my @entries = @_;
+  my $fmt = "";
+  for my $entry(@entries){
+    $fmt .= "$$entry{type} $$entry{value}\n";
+  }
+  return $fmt;
+}
+
+sub run(@){
+  tryrun @_;
+  die "Error running \"@_\"\n" if $? != 0;
+}
+sub tryrun(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
