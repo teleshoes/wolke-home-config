@@ -30,6 +30,29 @@
   logn = log --color --decorate --name-status -M
   lognotes = log --color --decorate --name-status -M \
              --notes=review --notes=bug --notes=dd
+  logauthor = ! \
+              cd ${GIT_PREFIX:-.} && \
+              git log $@ --format='%h|%f|%ad|%cd|%an|%cn|%ae|%ce' \
+              | awk -F '|' '"{                                    \
+                h=$1;f=$2;ad=$3;cd=$4;an=$5;cn=$6;ae=$7;ce=$8;    \
+                diffcolor=35;                                     \
+                samecolor=36;                                     \
+                if (an != cn || ae != ce || ad != cd)             \
+                  printf                                          \
+                    \"\\033[%dms%s %s\\033[0m\\n\"                \
+                    \"  %s  %-20s %-40s\\n\"                      \
+                    \"  %s  %-20s %-40s\\n\"                      \
+                    ,                                             \
+                    diffcolor, h, f, ad, an, ae, cd, cn, ce;      \
+                else                                              \
+                  printf                                          \
+                    \"\\033[%dms%s %s\\033[0m\\n\"                \
+                    \"  %s  %-20s %-40s\\n\"                      \
+                    ,                                             \
+                    samecolor, h, f, ad, an, ae;                  \
+              }"'                                                 \
+              | less -SR                                          \
+              && true
 [color]
   status = true
 [push]
