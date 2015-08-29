@@ -112,8 +112,8 @@ my %difficultyAbbrevs = (
   challenge => 'cha',
 );
 
-my @roundArgs = qw(1st 2nd 3rd 4nonstop);
-my $okRoundArgs = join '|', @roundArgs;
+my @stageArgs = qw(1st 2nd 3rd 4nonstop);
+my $okStageArgs = join '|', @stageArgs;
 
 my @barArgs = qw(bar nobar);
 my $okBarArgs = join '|', @barArgs;
@@ -160,7 +160,7 @@ my $usage = "Usage:
       nobar
         add 'nobar' if SONG is a HARD_SONG and BAR is 'nobar'
       3rd
-        add '3rd' if SONG is a HARD_SONG and ROUND is '3rd'
+        add '3rd' if SONG is a HARD_SONG and STAGE is '3rd'
 
     FILTER: SONG
       --song REGEX
@@ -260,7 +260,7 @@ my $usage = "Usage:
   $0 JPG_FILE [ARG ARG ..]
 
   rename a jpeg file using a consistent format
-  \"########_###_SONG_GAME_DIFFICULTY_SCORE_EXTRA_BAR_ROUND.jpg\"
+  \"########_###_SONG_GAME_DIFFICULTY_SCORE_EXTRA_BAR_STAGE.jpg\"
   ######## is presumably a date in YYYYMMDD and ### is the camera pic index
 
      JPG_FILE
@@ -268,8 +268,8 @@ my $usage = "Usage:
        must start with '########_###' and end with '.jpg'
 
      ARG
-       one of [SONG|GAME|DIFFICULTY|SCORE|ROUND|BAR|EXTRA]
-       exactly one SONG, DIFFICULTY, SCORE, ROUND, and BAR must be given
+       one of [SONG|GAME|DIFFICULTY|SCORE|STAGE|BAR|EXTRA]
+       exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given
        exactly zero or one EXTRA args can be given
 
@@ -299,8 +299,8 @@ my $usage = "Usage:
      BAR
        one of [$okBarArgs]
 
-     ROUND
-       one of [$okRoundArgs]
+     STAGE
+       one of [$okStageArgs]
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -616,7 +616,7 @@ sub name(@){
   die "missing DIFFICULTY\n" if not defined $$info{difficulty};
   die "missing SCORE\n" if not defined $$info{score};
   die "missing BAR\n" if not defined $$info{bar};
-  die "missing ROUND\n" if not defined $$info{round};
+  die "missing STAGE\n" if not defined $$info{stage};
 
   $file =~ s/^\.\///;
 
@@ -633,7 +633,7 @@ sub name(@){
   $newFileName .= "_$$info{score}";
   $newFileName .= "_$$info{extra}" if defined $$info{extra};
   $newFileName .= "_$$info{bar}";
-  $newFileName .= "_$$info{round}";
+  $newFileName .= "_$$info{stage}";
   $newFileName .= ".jpg";
 
   my @cmd = ("mv", $file, $newFileName);
@@ -665,9 +665,9 @@ sub parseArgs(@){
     }elsif($arg =~ /^($okBarArgs)$/){
       return undef if defined $$info{bar};
       $$info{bar} = $arg;
-    }elsif($arg =~ /^($okRoundArgs)$/){
-      return undef if defined $$info{round};
-      $$info{round} = $arg;
+    }elsif($arg =~ /^($okStageArgs)$/){
+      return undef if defined $$info{stage};
+      $$info{stage} = $arg;
     }else{
       return undef;
     }
@@ -699,7 +699,7 @@ sub parseScoreFile($){
     _(\d+)
     (?:_($okExtraArgs))?
     _($okBarArgs)
-    _($okRoundArgs)
+    _($okStageArgs)
     \.jpg$/x){
     die "malformed file name: $file\n";
   }
@@ -713,7 +713,7 @@ sub parseScoreFile($){
     score      => $6,
     extra      => $7,
     bar        => $8,
-    round      => $9,
+    stage      => $9,
   };
 }
 
@@ -778,8 +778,8 @@ sub formatBucketCsv($$$){
     if($$okNotes{'nobar'} and $$s{bar} eq "nobar" and $isHardSong{$$s{song}}){
       push @notes, $$s{bar};
     }
-    if($$okNotes{'3rd'} and $$s{round} eq "3rd" and $isHardSong{$$s{song}}){
-      push @notes, $$s{round};
+    if($$okNotes{'3rd'} and $$s{stage} eq "3rd" and $isHardSong{$$s{song}}){
+      push @notes, $$s{stage};
     }
 
     my $note = join " ", @notes;
@@ -1046,7 +1046,7 @@ sub bashComplete($$){
   @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
   #@complete = (@extraArgs, @complete) if not defined $$info{extra};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
-  @complete = (@roundArgs, @complete) if not defined $$info{round};
+  @complete = (@stageArgs, @complete) if not defined $$info{stage};
 
   return @complete;
 }
