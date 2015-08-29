@@ -6,6 +6,7 @@ use Time::HiRes qw(sleep);
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
 my $gnuplotDefaultPngSize = "1920,1080";
+my $stageGapSeconds = 5 * 60;
 
 my $defaultNotes = {
   'extra' => 1,
@@ -136,6 +137,31 @@ my $usage = "Usage:
         print newest dates first, instead of oldest dates first
       --short
         dont show individual songs at all
+
+    FILTER
+      see --print FILTER
+
+  $0 --coursestats [FILTER FILTER ..]
+    show songs that appear to be part of the same course, played back-to-back
+    songs must be of increasing stage number,
+      and have mtimes at most 5min between successive stages.
+      (stages can be missing; an extra 5min is allowed for any gaps)
+    e.g.:
+      A 1st 12:00
+      B 2nd 12:03
+      C 3rd 12:07
+      D 1st 12:11
+      E 3rd 12:17
+      F 1st 12:38
+      G 2nd 12:46
+      H 3rd 12:47
+      => [A-B-C], [D-E], [F], [G-H]
+         A and B and C are a normal stage, less than 5 between each
+         C and D are not sequential stages
+         D and E are within 5min+5min, with gap for missing 2nd
+         F and G are NOT within 5min
+         G and G are within 5min
+         F and H are within 5min+5min, but 2nd is not missing
 
     FILTER
       see --print FILTER
@@ -310,6 +336,7 @@ my $usage = "Usage:
 
 sub fehterm($@);
 sub dateStats($@);
+sub courseStats($@);
 sub scoreStats($@);
 sub parsePlotOptions($);
 sub parseFilterOptions($);
@@ -341,6 +368,9 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
     my $cmd = shift;
     dateStats($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--coursestats)$/){
+    my $cmd = shift;
+    courseStats($cmd, @_);
   }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
@@ -483,6 +513,99 @@ sub dateStats($@){
     }
 
     print "$fmt\n";
+  }
+}
+
+sub courseStats($@){
+  my $cmd = shift;
+  my $opts = [@_];
+
+  my $filters = parseFilterOptions $opts;
+
+  die $usage if @$opts != 0;
+
+  my $stageNums = {
+    "1st" => 1,
+    "2nd" => 2,
+    "3rd" => 3,
+    "4nonstop" => 4,
+  };
+
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
+
+  my $mtimes = {};
+  for my $file(keys %$scoresByFile){
+    my $path = "$scoreDir/$file";
+    die "$path is not a file\n" if not -f $path;
+    my @stat = stat $path;
+    $$mtimes{$file} = $stat[9];
+  }
+
+  my @sortedScores = sort {$$mtimes{$a} <=> $$mtimes{$b}} keys %$scoresByFile;
+
+  my @courses;
+  my $curCourse = undef;
+  my $lastStageNum = undef;
+  my $lastMtime = undef;
+  for my $file(@sortedScores){
+    my $score = $$scoresByFile{$file};
+    my $mtime = $$mtimes{$file};
+    my $stage = $$score{stage};
+    my $stageNum = $$stageNums{$stage};
+    die "invalid stage '$stage'\n" if not defined $stageNum;
+
+    my $isNewCourse = 0;
+    if(defined $lastStageNum && defined $lastMtime){
+      die "mtimes out of order at $file\n" if $lastMtime > $mtime;
+      my $stageNumDiff = $stageNum - $lastStageNum;
+      my $mtimeDiff = $mtime - $lastMtime;
+
+      if($stageNumDiff <= 0){
+        $isNewCourse = 1;
+      }elsif($mtimeDiff > $stageGapSeconds*$stageNumDiff){
+        $isNewCourse = 1;
+      }
+    }
+
+    if(not defined $curCourse or $isNewCourse){
+      $curCourse = [];
+      push @courses, $curCourse;
+    }
+    push @$curCourse, $score;
+
+    $lastStageNum = $stageNum;
+    $lastMtime = $mtime;
+  }
+
+  @courses = grep {@$_ >= 2} @courses;
+
+  for my $course(@courses){
+    my $first = ${$course}[0];
+    my $fmt = "$$first{date}:";
+    for my $score(@$course){
+      my $shortName = $songAbbrevs{$$score{song}};
+      $fmt .= " $shortName";
+    }
+    $fmt .= "\n";
+    for my $score(@$course){
+      my ($song, $game, $difficulty) = (
+        $$score{song}, $$score{game}, $$score{difficulty});
+
+      my $songAbbrev = $songAbbrevs{$song};
+      my $diffAbbrev = $difficultyAbbrevs{$difficulty};
+      my $shortName = $songAbbrevs{$song};
+      my $isDoubles = 0;
+      if(defined $game and $game eq "doubles"){
+        $shortName .= "-DBL";
+        $isDoubles = 1;
+      }
+      if($difficulty ne $defaultDifficulty{$song}){
+        $shortName .= "-$diffAbbrev";
+      }
+      $fmt .= "  $$score{stage} $$score{score} $shortName\n";
+    }
+    print $fmt;
   }
 }
 
@@ -993,10 +1116,11 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--datestats", "--print", "--gnuplot", "--bestfiles", @jpgFiles);
+    return ("--fehterm", "--datestats", "--coursestats",
+      "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
