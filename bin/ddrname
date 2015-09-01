@@ -141,7 +141,7 @@ my $usage = "Usage:
     FILTER
       see --print FILTER
 
-  $0 --coursestats [FILTER FILTER ..]
+  $0 --coursestats [FORMAT_OPTION FORMAT_OPTION ..] [FILTER FILTER ..]
     show songs that appear to be part of the same course, played back-to-back
     songs must be of increasing stage number,
       and have mtimes at most 5min between successive stages.
@@ -162,6 +162,17 @@ my $usage = "Usage:
          F and G are NOT within 5min
          G and G are within 5min
          F and H are within 5min+5min, but 2nd is not missing
+
+    FORMAT_OPTION
+      --minlen LENGTH
+        show only courses where at least LENGTH scores are recorded
+        default is: 2
+        LENGTH=3
+          show only courses with 3 or more songs recorded (after filtering)
+        LENGTH=2 {default}
+          show only courses with 2 or more songs recorded (after filtering)
+        LENGTH=1 or LENGTH=0
+          show all courses,, even if only one score recorded (after filtering)
 
     FILTER
       see --print FILTER
@@ -520,6 +531,18 @@ sub courseStats($@){
   my $cmd = shift;
   my $opts = [@_];
 
+  my $minlen = 2;
+  while(@$opts > 0 and $$opts[0] =~ /^(--minlen)$/){
+    my $opt = shift @$opts;
+    if($opt =~ /^(--minlen)$/){
+      if(@$opts > 0 and $$opts[0] =~ /^\d+$/){
+        $minlen = shift @$opts;
+      }else{
+        die "malformed or missing argument to --minlen\n";
+      }
+    }
+  }
+
   my $filters = parseFilterOptions $opts;
 
   die $usage if @$opts != 0;
@@ -578,7 +601,7 @@ sub courseStats($@){
     $lastMtime = $mtime;
   }
 
-  @courses = grep {@$_ >= 2} @courses;
+  @courses = grep {@$_ >= $minlen} @courses;
 
   for my $course(@courses){
     my $first = ${$course}[0];
@@ -1152,6 +1175,16 @@ sub bashComplete($$){
       my @args = @words;
       shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse|--short)$/;
       @complete = ("--showscores", "--reverse", "--short", @complete) if @args == 0;
+    }
+    if($cmd =~ /^(--coursestats)/){
+      my @args = @words;
+      while(@args > 0 and $args[0] =~ /^(--minlen)$/){
+        my $arg = shift @args;
+        if($arg eq /^(--minlen)$/){
+          shift @args;
+        }
+      }
+      @complete = ("--minlen", @complete) if @args == 0;
     }
     @complete = (@okFilters, @complete);
     return @complete;
