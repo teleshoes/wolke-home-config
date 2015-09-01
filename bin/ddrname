@@ -392,6 +392,7 @@ sub sortScores($);
 sub getBucketName($@);
 sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
+sub getBucketBarCounts($);
 sub filterScores($$);
 sub formatScores($$);
 sub getBestScores($);
@@ -980,6 +981,23 @@ sub formatBucketCsv($$$){
   return $fmt;
 }
 
+sub getBucketBarCounts($){
+  my $buckets = shift;
+  my $bucketBarCounts = {};
+  for my $bucketName(keys %$buckets){
+    my $bucketScores = $$buckets{$bucketName};
+    my $barCount = 0;
+    my $nobarCount = 0;
+    for my $score(@$bucketScores){
+      $barCount++ if $$score{bar} eq "bar";
+      $nobarCount++ if $$score{bar} eq "nobar";
+    }
+    $$bucketBarCounts{$bucketName}{bar} = $barCount;
+    $$bucketBarCounts{$bucketName}{nobar} = $nobarCount;
+  }
+  return $bucketBarCounts;
+}
+
 sub filterScores($$){
   my ($scoresByFile, $filters) = @_;
   $scoresByFile = {%$scoresByFile};
@@ -1038,14 +1056,11 @@ sub filterScores($$){
   if($$filters{bar}){
     my $scores = [values %$origScoresByFile];
     my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    my $bucketBarCounts = getBucketBarCounts $buckets;
     for my $bucketName(sort keys %$buckets){
       my $bucketScores = $$buckets{$bucketName};
-      my $barCount = 0;
-      my $nobarCount = 0;
-      for my $score(@$bucketScores){
-        $barCount++ if $$score{bar} eq "bar";
-        $nobarCount++ if $$score{bar} eq "nobar";
-      }
+      my $barCount = $$bucketBarCounts{$bucketName}{bar};
+      my $nobarCount = $$bucketBarCounts{$bucketName}{nobar};
       for my $score(@$bucketScores){
         my $bar = $$score{bar};
         my $sameCount = $bar eq "bar" ? $barCount : $nobarCount;
