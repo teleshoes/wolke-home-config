@@ -23,6 +23,7 @@ my @okFilters = qw(
   --date --mindate
   --maxdate
   --recent --sixmos --sixmonths --6mos
+  --bar --nobar --diffbar --samebar
 );
 my $argOptFiltersRegex = join "|", qw(
   --song --score --minscore --maxscore --mindate --date --maxdate
@@ -242,6 +243,37 @@ my $usage = "Usage:
       --recent, --sixmos, --sixmonths, --6mos
         same as '--mindate N', where N is the date 180 days ago
         {overrides --date}
+
+    FILTER: BAR
+      --bar
+        include only scores where BAR=bar
+      --nobar
+        include only scores where BAR=nobar
+      --diffbar
+        include only scores where BAR is different than at least half of all
+          scores with the same SONG, GAME, and DIFFICULTY
+          (counted against all scores, before any filtering)
+      --samebar
+        include only scores where BAR is the same as at least half of all
+          scores with the same SONG, GAME, and DIFFICULTY
+          (counted against all scores, before any filtering)
+
+      e.g.:
+        TOTAL|BAR=bar|BAR=nobar|--bar |--nobar |--diffbar|--samebar
+        =====|=======|=========|======|========|=========|===========
+        2    |1      |1        |B1 N0 |B0 N1   |B1 N1    |B1 N1
+        2    |2      |0        |B2 N0 |B0 N0   |B0 N0    |B2 N0
+        3    |1      |2        |B1 N0 |B0 N2   |B1 N0    |B0 N2
+        4    |2      |2        |B2 N0 |B0 N2   |B2 N2    |B2 N2
+
+        the 3rd row, in english, says if there are 3 songs recorded
+          for the given <SONG>-<GAME>-<DIFFICULTY>,
+          and 1 has BAR=bar, and 2 have BAR=nobar, then:
+            --bar will show the one with BAR=bar
+            --nobar will show the two with BAR=nobar
+            --diffbar will show the one with BAR=bar
+            --samebar will show the two with BAR=nobar
+
 
     scores are grouped into sections by '\"<SONG>-<GAME>-<DIFFICULTY>\"'
     '<GAME>-' is omitted if GAME is not set
@@ -747,6 +779,14 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--maxdate)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
       $$filters{maxdate} = $1;
+    }elsif($opt =~ /^(--bar)$/){
+      $$filters{bar} = "bar";
+    }elsif($opt =~ /^(--nobar)$/){
+      $$filters{bar} = "nobar";
+    }elsif($opt =~ /^(--diffbar)$/){
+      $$filters{bar} = "diff";
+    }elsif($opt =~ /^(--samebar)$/){
+      $$filters{bar} = "same";
     }else{
       die "$usage\nunknown filter: $opt\n";
     }
@@ -939,6 +979,8 @@ sub filterScores($$){
   my ($scoresByFile, $filters) = @_;
   $scoresByFile = {%$scoresByFile};
 
+  my $origScoresByFile = {%$scoresByFile};
+
   for my $file(sort keys %$scoresByFile){
     my $s = $$scoresByFile{$file};
     my $ok = 1;
@@ -986,6 +1028,34 @@ sub filterScores($$){
       }
     }
     delete $$scoresByFile{$file} if not $ok;
+  }
+
+  if($$filters{bar}){
+    my $scores = [values %$origScoresByFile];
+    my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    for my $bucketName(sort keys %$buckets){
+      my $bucketScores = $$buckets{$bucketName};
+      my $barCount = 0;
+      my $nobarCount = 0;
+      for my $score(@$bucketScores){
+        $barCount++ if $$score{bar} eq "bar";
+        $nobarCount++ if $$score{bar} eq "nobar";
+      }
+      for my $score(@$bucketScores){
+        my $bar = $$score{bar};
+        my $sameCount = $bar eq "bar" ? $barCount : $nobarCount;
+        my $diffCount = $bar eq "bar" ? $nobarCount : $barCount;
+        if($$filters{bar} eq "bar" and $bar ne "bar"){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "nobar" and $bar ne "nobar"){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "same" and $sameCount < $diffCount){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "diff" and $diffCount < $sameCount){
+          delete $$scoresByFile{$$score{file}};
+        }
+      }
+    }
   }
 
   if($$filters{monotonic}){
