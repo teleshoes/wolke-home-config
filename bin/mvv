@@ -1,0 +1,100 @@
+#!/usr/bin/runhaskell
+{-# LANGUAGE OverloadedStrings, NamedFieldPuns #-}
+import KitchenSink hiding (Args)
+import Prelude ()
+
+usage :: String
+usage = multiline $ do
+  "Usage: mvv -m SOURCE DIR"
+  "   or: mvv -r SOURCE DEST"
+  ""
+  "Move SOURCE to DIR or rename SOURCE to DEST."
+  "Create all directories necessary to perform the operation."
+  "Recursively remove all directories left empty by the operation."
+  ""
+  "  -m --move                  move SOURCE into a directory named DIR"
+  "  -r --rename                rename SOURCE to to be DEST"
+  "  -h --help                  display this help and exit"
+
+data Args = Move   { src :: FilePath, dir :: FilePath }
+          | Rename { src :: FilePath, dst :: FilePath }
+          | Help
+          | NoParse
+  deriving (Show)
+
+flags, flagsRename, flagsHelp :: [String]
+flags       = concat [flagsMove, flagsRename, flagsHelp]
+flagsMove   = ["-m", "--move"]
+flagsRename = ["-r", "--rename"]
+flagsHelp   = ["-h", "--help"]
+
+parseArgs :: [String] -> Args
+parseArgs args = fromMaybe NoParse $ case args of
+  [flag, src, dst] -> flag `elem` flagsMove   ? Move  {src, dir = dst}
+                  <|> flag `elem` flagsRename ? Rename{src, dst}
+  [flag]           -> flag `elem` flagsHelp   ? Help
+  _                -> Nothing
+
+main :: IO ()
+main = do
+  args <- parseArgs <$> getArgs
+  exitEither =<< case args of
+    Move  {src, dir} -> mvvMove   src dir
+    Rename{src, dst} -> mvvRename src dst
+    Help             -> return $ Right usage
+    NoParse          -> return $ Left  usage
+
+mvvMove :: FilePath -> FilePath -> IO (Either String String)
+mvvMove src dir = mvvRename src (dir </> takeFileName src)
+
+mvvRename :: FilePath -> FilePath -> IO (Either String String)
+mvvRename src dst = runEitherT
+  . bimapEitherT (\msg -> concat ["mvv: ",chomp msg,"\n"]) id
+  . renameAbsPaths
+  =<< ((,) `onA` makeAbsolute) src dst
+  where
+    renameAbsPaths :: (FilePath, FilePath) -> EitherT String IO String
+    renameAbsPaths (src, dst)
+      -- mvv doesn't mind if you try moving a file to itself
+      | equalFilePath src dst          = success
+      -- If src is in dst or vice versa, the file must be moved to a temporary
+      -- location in order to create/delete the necessary directories.
+      | srcParts `isPrefixOf` dstParts = do
+          srctmp <- scriptIO $ freshFileName "~mvv." src
+          readProcessE "mv" [src, srctmp] ""
+          readProcessE "mkdir" ["-p", dstDir] ""
+          readProcessE "mv" [srctmp, dst] ""
+          success
+      -- The file can only be moved down to a dir of the same name if the
+      -- directories that need to be removed will be empty.
+      | dstParts `isPrefixOf` srcParts = do
+          checkDirectoriesWillBeEmpty
+          dsttmp <- scriptIO $ freshFileName "~mvv." dst
+          readProcessE "mv" [src, dsttmp] ""
+          readProcessE "rm" ["-r", dst] ""
+          readProcessE "mv" [dsttmp, dst] ""
+          success
+      | otherwise                      = do
+          readProcessE "mkdir" ["-p", dstDir] ""
+          readProcessE "mv" [src, dst] ""
+          cleanupDirectories srcDir
+          success
+      where
+        success = return ""
+
+        (srcParts, dstParts) = ((,) `on` splitOn [pathSeparator]) src dst
+        (srcDir  , dstDir  ) = ((,) `on` takeDirectory          ) src dst
+
+        checkDirectoriesWillBeEmpty = do
+          whenM (anyM ((/= 1) <$$> getFileCount) pathsToCheck) $
+            throwError $ "cannot remove non-empty directory tree " ++ escapeFilePath dst
+          success
+        pathsToCheck = ((\\) `on` initSafe . paths) srcParts dstParts
+        paths = scanl1 (\p r -> p ++ [pathSeparator] ++ r)
+        getFileCount dir = subtract 2 . length <$> scriptIO (getDirectoryContents dir)
+
+        cleanupDirectories dir = handleT (const $ return ()) $ do
+          unlessM (equalFilePath dir <$> scriptIO getWorkingDirectory) $ do
+          whenM ((== 0) <$> getFileCount dir) $ do
+            scriptIO $ removeDirectory dir
+            cleanupDirectories $ takeDirectory dir
