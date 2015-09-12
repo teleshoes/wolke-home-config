@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $TAB = "    ";
+
+my $fixes = {
+  dosnewline        => 1,
+  nonewlinelastline => 1,
+  nulchar           => 1,
+  tab               => 1,
+  trailing          => 1,
+};
+
+sub modify($);
+sub readProcLines(@);
+sub readFile($);
+sub writeFile($$);
+
+sub main(@){
+  my @files = @_;
+  if(@files == 0){
+    @files = readProcLines "find", "-type", "f";
+    chomp foreach @files;
+    @files = sort @files;
+  }
+  my @okFiles;
+  for my $file(@files){
+    if(not -f $file){
+      die "not a file: $file\n";
+    }
+    if($file =~ /(^|\/)(\.git|target|gen)($|\/)/){
+      next;
+    }
+    my $fileInfo = join '', readProcLines "file", "-i", $file;
+    if($fileInfo =~ /charset=(us-ascii|utf-8)/){
+      push @okFiles, $file;
+    }
+  }
+
+  my $len = @okFiles;
+  die "no files to modify\n" if $len == 0;
+
+  print "modifying these files:\n  " . join ("\n  ", @okFiles) . "\n";
+  print "($len files) ok? [y/N] ";
+  my $response = <STDIN>;
+  if($response !~ /^\s*y\s*\n*$/i){
+    die "user canceled\n";
+  }
+
+  my %counts = map {$_ => 0} keys %$fixes;
+  for my $file(@okFiles){
+    my $contents = readFile $file;
+    my $res = modify $contents;
+    my $newContents = $$res{contents};
+    if($contents ne $newContents){
+      writeFile $file, $newContents;
+      print "modified: $file\n";
+    }
+    for my $fix(keys %$fixes){
+      $counts{$fix}++ if $$res{$fix};
+    }
+  }
+  for my $fix(sort keys %$fixes){
+    print "$fix => $counts{$fix} files\n";
+  }
+}
+
+sub modify($){
+  my ($contents) = @_;
+  my $res = {};
+  if($$fixes{dosnewline} and $contents =~ /\r/){
+    $$res{dosnewline} = 1;
+    $contents =~ s/\r\n/\n/g;
+    $contents =~ s/\r//g;
+  }
+  if($$fixes{nonewlinelastline} and length $contents > 0 and $contents !~ /\n$/){
+    $$res{nonewlinelastline} = 1;
+    $contents .= "\n";
+  }
+  if($$fixes{nulchar} and $contents =~ /\0/){
+    $$res{nulchar} = 1;
+    $contents =~ s/\0//g;
+  }
+  if($$fixes{tab} and $contents =~ /\t/){
+    $$res{tab} = 1;
+    $contents =~ s/\t/$TAB/g;
+  }
+  if($$fixes{trailing} and $contents =~ /[ \t]+$/m){
+    $$res{trailing} = 1;
+    $contents =~ s/[ \t]+$//mg;
+  }
+  $$res{contents} = $contents;
+  return $res;
+}
+
+sub readProcLines(@){
+  my @cmd = @_;
+  open CMD, "-|", @cmd or die "Could not run \"@cmd\"\n";
+  my @lines = <CMD>;
+  close CMD;
+  return @lines;
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "Could not read $file\n";
+  my $content = join '', <FH>;
+  close FH;
+  return $content;
+}
+
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "Could not write $file\n";
+  print FH $contents;
+  close FH;
+}
+
+&main(@ARGV);
