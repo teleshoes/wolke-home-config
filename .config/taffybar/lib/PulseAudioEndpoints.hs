@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 module PulseAudioEndpoints
   ( paSinkW
   , paSourceW
@@ -6,7 +6,6 @@ module PulseAudioEndpoints
 import Control.Applicative
 import Control.Concurrent
 import Control.Monad
-import Data.Char
 import Data.Maybe
 import Data.List
 import Data.List.Split
@@ -19,134 +18,165 @@ import Clickable
 import Label
 import Utils
 
-wait = threadDelay $ 1 * 10^6
+withDelay :: IO a -> IO ()
+withDelay act = act >> threadDelay (1 * 10^6)
 
-data Endpoint = Endpoint{infoKey, listName, setCmd, moveCmd, moveObjListName, dbusName :: String}
+data Endpoint = Endpoint{infoKey, listName, setCmd, moveCmd, objListName, dbusName :: String}
+data LockState = Locked | Unlocked
+  deriving Show
 
 paSinkW, paSourceW :: Maybe DBus.Client -> ([String] -> Maybe String) -> IO Widget
 paSinkW   = paEndpointW Endpoint
-  { infoKey         = "Default Sink"
-  , listName        = "sinks"
-  , setCmd          = "set-default-sink"
-  , moveCmd         = "move-sink-input"
-  , moveObjListName = "sink-inputs"
-  , dbusName        = "user.taffybar.PulseAudioEndpoint.Sink"
+  { infoKey     = "Default Sink"
+  , listName    = "sinks"
+  , setCmd      = "set-default-sink"
+  , moveCmd     = "move-sink-input"
+  , objListName = "sink-inputs"
+  , dbusName    = "user.taffybar.PulseAudioEndpoint.Sink"
   }
 paSourceW = paEndpointW Endpoint
-  { infoKey         = "Default Source"
-  , listName        = "sources"
-  , setCmd          = "set-default-source"
-  , moveCmd         = "move-source-output"
-  , moveObjListName = "source-outputs"
-  , dbusName        = "user.taffybar.PulseAudioEndpoint.Source"
+  { infoKey     = "Default Source"
+  , listName    = "sources"
+  , setCmd      = "set-default-source"
+  , moveCmd     = "move-source-output"
+  , objListName = "source-outputs"
+  , dbusName    = "user.taffybar.PulseAudioEndpoint.Source"
   }
 
 paEndpointW :: Endpoint -> Maybe DBus.Client -> ([String] -> Maybe String) -> IO Widget
 paEndpointW ep mdbc start = do
+  -- start chooses an initial lock state
   names <- fmap snd <$> pactlList ep
-  forceVar <- newMVar $ start names
+  lockVar <- newMVar $ start names
+  -- When lock is on, reset to stored endpoint every $delay.
+  async . forever . withDelay $
+    maybe pass (pactlSet ep) =<< readMVar lockVar
+  -- Start the reader loop. The var can be read through dbus as well as by
+  -- the label.
+  readAct <- pactlReader ep lockVar
+  -- If given a dbus client, register dbus methods.
+  flip (maybe pass) mdbc $ registerDBus ep lockVar readAct
+  -- Left click toggles the lock state.
+  let toggleLock = async $ toggleLockSync ep lockVar
+  -- Right click cycles the endpoint if unlocked.
+  let cycle      = async $ cycleSync      ep lockVar
+  -- After long struggle, a widget is born.
+  clickableActions toggleLock pass cycle =<< labelW (labelFormat <$> readAct)
 
-  async . forever $ do
-    maybe pass (pactlSet ep) =<< readMVar forceVar
-    wait
+toggleLockSync :: Endpoint -> MVar (Maybe String) -> IO LockState
+toggleLockSync ep lockVar = modifyMVar lockVar $ \case
+  Nothing -> (\nm -> (Just nm, Locked  )) <$> pactlGet ep
+  Just _  -> return  (Nothing, Unlocked)
 
-  readAct <- pactlReader ep forceVar
+cycleSync :: Endpoint -> MVar (Maybe String) -> IO Bool
+cycleSync ep lockVar = withMVar lockVar $ \lk -> do
+  when (isNothing lk) $
+    pactlGet ep >>= pactlNext ep >>= pactlSet ep
+  return $ isNothing lk
 
-  flip (maybe pass) mdbc $ registerDBus ep forceVar readAct
+-- List endpoint IDs and NAMEs.
+pactlList :: Endpoint -> IO [(String, String)]
+pactlList ep = filter prop . map project . lines <$> cmd
+  where
+    cmd     = pactl ["list","short",listName ep]
+    project = (\(id:name:_) -> (id, name)) . words
+    prop    = not . regexMatch "\\.monitor$" . snd
 
-  let cycle = async $ do
-        next <- pactlNext ep =<< pactlGet ep
-        modifyMVar_ forceVar (return . (next <$))
-        pactlSet ep next
-      toggleForce = async $ modifyMVar_ forceVar $ \m -> case m of
-        Nothing -> Just <$> pactlGet ep
-        Just _  -> return Nothing
-  clickableActions cycle pass toggleForce =<< labelW readAct
+-- Read the default endpoint.
+pactlGet :: Endpoint -> IO String
+pactlGet ep = fromMaybe "" . (project <=< find prop) . lines <$> cmd
+  where
+    cmd     = pactl ["info"]
+    project = regexFirstGroup ("^" ++ infoKey ep ++ ": (.*)")
+    prop    = regexMatch      ("^" ++ infoKey ep ++ ": ")
 
+-- Read the endpoint after the default endpoint.
+pactlNext :: Endpoint -> String -> IO String
+pactlNext ep name = do
+  names <- map snd <$> pactlList ep
+  return . fromMaybe "" $ do
+    curr <- findIndex (== name) names
+    atMay names $ succ curr `mod` length names
+
+-- Set the default endpoit and move all existing streams to it.
+pactlSet :: Endpoint -> String -> IO ()
+pactlSet ep name = maybe pass (\i -> setDef i >> moveEx i) =<< findId
+  where
+    findId   = fmap fst . find ((== name) . snd) <$> pactlList ep
+    setDef i = pactl [setCmd ep,i]
+    moveEx i = objs >>= mapM_ (\o -> pactl [moveCmd ep,o,i])
+    objs     = map (head . words) . lines <$> pactl ["list","short",objListName ep]
+
+pactlReader :: Endpoint -> MVar (Maybe String) -> IO (IO (String, Maybe String))
+pactlReader ep lockVar = do
+  outVar <- newMVar ("?", Nothing)
+  async . forever . withDelay $ do
+    swapMVar outVar =<< (,) <$> pactlGet ep <*> readMVar lockVar
+  return $ readMVar outVar
+
+format :: (String, Maybe String) -> String
+format (s, lk) = case lk of
+  Nothing            -> codeOf s
+  Just l | s == l    -> ">" ++ codeOf s
+         | otherwise -> codeOf s ++ ">" ++ codeOf l
+
+labelFormat :: (String, Maybe String) -> String
+labelFormat (s, lk) = color . padL ' ' 3 $ format (s, lk)
+  where
+    color = case lk of
+      Nothing            -> fg "green"
+      Just l | s == l    -> fg "green"
+             | otherwise -> fg "red"
+
+codeOf :: String -> String
+codeOf name
+  | regexMatch "pci.*analog" name = "B"
+  | regexMatch "hdmi"        name = "H"
+  | regexMatch "usb"         name = "U"
+  | otherwise                     = "?"
+
+nameOf :: [String] -> String -> Maybe String
+nameOf names code = case code of
+  "B" -> find (regexMatch "pci.*analog") names
+  "H" -> find (regexMatch "hdmi"       ) names
+  "U" -> find (regexMatch "usb"        ) names
+  _   -> Nothing
+
+parse :: Endpoint -> String -> IO (Maybe (String, Maybe String))
+parse ep str = do
+  names <- fmap snd <$> pactlList ep
+  return $ case splitOn ">" str of
+    [s]     -> nameOf names s >>= \name  -> return (name, Nothing)
+    ["",s]  -> nameOf names s >>= \name  -> return (name, Just name)
+    [s ,l]  -> nameOf names s >>= \sname ->
+               nameOf names l >>= \lname -> return (sname, Just lname)
+    _       -> mzero
+
+registerDBus :: Endpoint -> MVar (Maybe String) -> IO (String, Maybe String) -> DBus.Client -> IO ()
+registerDBus ep lockVar readAct dbc = DBus.export dbc objPath
+    [ DBus.autoMethod ifaceName "Get"        (get        :: IO String)
+    , DBus.autoMethod ifaceName "Set"        (set        :: String -> IO Bool)
+    , DBus.autoMethod ifaceName "ToggleLock" (toggleLock :: IO String)
+    , DBus.autoMethod ifaceName "Cycle"      (cycle      :: IO Bool)
+    ]
+  where
+    objPath   = fromString . concatMap ('/':) . splitOn "." $ dbusName ep
+    ifaceName = fromString $ dbusName ep
+
+    get = format <$> readAct
+    set str = do
+      stMay <- parse ep str
+      maybe pass (\(s, lk) -> swapMVar lockVar lk >> pactlSet ep s) stMay
+      return $ isJust stMay
+    toggleLock = show <$> toggleLockSync ep lockVar
+    cycle      =          cycleSync      ep lockVar
+
+-- Utility
 async :: IO a -> IO ()
 async = void . forkIO . void
 
 pass :: IO ()
 pass = return ()
 
-pactlList :: Endpoint -> IO [(String, String)]
-pactlList ep
-  = filter (not . (".monitor" `isSuffixOf`) . snd)
-  . map ((\(ix:name:_) -> (ix,name)) . words)
-  . lines <$> readProc ["pactl","list","short",listName ep]
-
-pactlGet :: Endpoint -> IO String
-pactlGet ep
-  = fromMaybe ""
-  . fmap (dropWhile isSpace . drop 1 . snd)
-  . find ((== infoKey ep) . fst)
-  . map (break (== ':'))
-  . lines <$> readProc ["pactl","info"]
-
-pactlNext :: Endpoint -> String -> IO String
-pactlNext ep sink = do
-  names <- map snd <$> pactlList ep
-  let curr = fromMaybe 0 $ findIndex (== sink) names
-  return $ atDef "" names (succ curr `mod` length names)
-
-pactlSet :: Endpoint -> String -> IO ()
-pactlSet ep name
-  = maybe pass (\s -> do
-      readProc ["pactl",setCmd ep,s]
-      objs <- map (head . words) . lines <$> readProc ["pactl","list","short",moveObjListName ep]
-      forM_ objs $ \o -> readProc ["pactl",moveCmd ep,o,s])
-  . fmap fst . find ((== name) . snd)
-  =<< pactlList ep
-
-pactlReader :: Endpoint -> MVar (Maybe String) -> IO (IO String)
-pactlReader ep forceVar = do
-  outVar <- newMVar "?"
-  async . forever $ do
-    s     <- pactlGet ep
-    force <- readMVar forceVar
-    swapMVar outVar $ case force of
-      Nothing ->                fg "green" [codeOf s,' '     ,' '     ]
-      Just f  -> if s == f then fg "green" ['>'     ,codeOf s,' '     ]
-                           else fg "red"   [codeOf s,'>'     ,codeOf f]
-    wait
-  return $ readMVar outVar
-
-codeOf :: String -> Char
-codeOf name
-  | "usb"  `isInfixOf` name = 'U'
-  | "hdmi" `isInfixOf` name = 'H'
-  | "pci"  `isInfixOf` name = 'B'
-  | otherwise               = '?'
-
-nameOf :: [String] -> Char -> Maybe String
-nameOf names code = case code of
-  'U' -> find ("usb"  `isInfixOf`) names
-  'H' -> find ("hdmi" `isInfixOf`) names
-  'B' -> headDef Nothing $ map Just names \\ [nameOf names 'U', nameOf names 'H']
-  _   -> Nothing
-
-registerDBus :: Endpoint -> MVar (Maybe String) -> IO String -> DBus.Client -> IO ()
-registerDBus ep forceVar readAct dbc = DBus.export dbc objPath
-    [ DBus.autoMethod ifaceName "Get" (get :: IO String)
-    , DBus.autoMethod ifaceName "Set" (set :: String -> IO Bool)
-    ]
-  where
-    objPath   = fromString . concatMap ('/':) . splitOn "." $ dbusName ep
-    ifaceName = fromString $ dbusName ep
-
-    get = takeWhile (/= '<') . tailSafe . dropWhile (/= '>') <$> readAct
-
-    set str = do
-      names <- map snd <$> pactlList ep
-      let parse = case filter (not . isSpace) str of
-            [code]       -> Just (code, False)
-            ['>',code]   -> Just (code, True )
-            [_,'>',code] -> Just (code, True )
-            _            -> Nothing
-      case parse >>= \(code, force) -> (,) force <$> nameOf names code of
-        Just (force, name) -> do
-          swapMVar forceVar $ if force then Just name else Nothing
-          pactlSet ep name
-          return True
-        Nothing   -> do
-          return False
+pactl :: [String] -> IO String
+pactl = readProc . ("pactl":)
