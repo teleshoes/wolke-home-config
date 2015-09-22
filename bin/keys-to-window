@@ -16,8 +16,18 @@ sub main(@){
   $keysPid = open STDIN, "-|", "keys" or die "Could not run 'keys'\n";
   while(my $key = <STDIN>){
     chomp $key;
-    $windowId = wmClassToWindowId $wmClass if not defined $windowId;
-    sendKeyWindow $key, $windowId if defined $windowId;
+    my $success = 0;
+    my $attempts = 3;
+    while($success == 0 and $attempts > 0){
+      $success = sendKeyWindow $key, $windowId if defined $windowId;
+      if(not $success){
+        $windowId = wmClassToWindowId $wmClass;
+      }
+      $attempts--;
+    }
+    if(not $success){
+      print STDERR "\nWARNING:Could not send key '$key'\n";
+    }
   }
 }
 
