@@ -6,6 +6,7 @@ my $keysPid = undef;
 $SIG{'INT'} = sub{system "kill", $keysPid; exit 0};
 $SIG{'TERM'} = sub{system "kill", $keysPid; exit 0};
 
+sub sendKeyWindow($$);
 sub wmClassToWindowId($);
 
 sub main(@){
@@ -18,12 +19,20 @@ sub main(@){
   $keysPid = open STDIN, "-|", "keys" or die "Could not run 'keys'\n";
   while(my $key = <STDIN>){
     chomp $key;
-    my $cmd = 'key';
-    if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
-      $cmd = 'type';
-    }
-    system "xdotool", $cmd, "--window", $windowId, $key;
+    sendKeyWindow $key, $windowId;
   }
+}
+
+sub sendKeyWindow($$){
+  my ($key, $windowId) = @_;
+  my $cmd;
+  if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
+    $cmd = 'type';
+  }else{
+    $cmd = 'key';
+  }
+  system "xdotool", $cmd, "--window", $windowId, $key;
+  return $? == 0 ? 1 : 0;
 }
 
 sub wmClassToWindowId($){
