@@ -12,14 +12,12 @@ sub wmClassToWindowId($);
 sub main(@){
   my $wmClass = shift;
   my $windowId = wmClassToWindowId $wmClass;
-  if(not defined $windowId){
-    die "No window found for WM_CLASS=$wmClass using wmctrl\n";
-  }
 
   $keysPid = open STDIN, "-|", "keys" or die "Could not run 'keys'\n";
   while(my $key = <STDIN>){
     chomp $key;
-    sendKeyWindow $key, $windowId;
+    $windowId = wmClassToWindowId $wmClass if not defined $windowId;
+    sendKeyWindow $key, $windowId if defined $windowId;
   }
 }
 
@@ -42,7 +40,10 @@ sub wmClassToWindowId($){
 
   if($wmctrl =~ /(0x[0-9a-f]+)/){
     return $1;
+  }else{
+    print STDERR "WARNING: No window found for WM_CLASS=$wmClass using wmctrl\n";
   }
+
   return undef;
 }
 
