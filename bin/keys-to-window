@@ -6,24 +6,41 @@ my $keysPid = undef;
 $SIG{'INT'} = sub{system "kill", $keysPid; exit 0};
 $SIG{'TERM'} = sub{system "kill", $keysPid; exit 0};
 
+sub sendKeyWindow($$);
 sub wmClassToWindowId($);
 
 sub main(@){
   my $wmClass = shift;
   my $windowId = wmClassToWindowId $wmClass;
-  if(not defined $windowId){
-    die "No window found for WM_CLASS=$wmClass using wmctrl\n";
-  }
 
   $keysPid = open STDIN, "-|", "keys" or die "Could not run 'keys'\n";
   while(my $key = <STDIN>){
     chomp $key;
-    my $cmd = 'key';
-    if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
-      $cmd = 'type';
+    my $success = 0;
+    my $attempts = 3;
+    while($success == 0 and $attempts > 0){
+      $success = sendKeyWindow $key, $windowId if defined $windowId;
+      if(not $success){
+        $windowId = wmClassToWindowId $wmClass;
+      }
+      $attempts--;
     }
-    system "xdotool", $cmd, "--window", $windowId, $key;
+    if(not $success){
+      print STDERR "\nWARNING:Could not send key '$key'\n";
+    }
   }
+}
+
+sub sendKeyWindow($$){
+  my ($key, $windowId) = @_;
+  my $cmd;
+  if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
+    $cmd = 'type';
+  }else{
+    $cmd = 'key';
+  }
+  system "xdotool", $cmd, "--window", $windowId, $key;
+  return $? == 0 ? 1 : 0;
 }
 
 sub wmClassToWindowId($){
@@ -33,7 +50,10 @@ sub wmClassToWindowId($){
 
   if($wmctrl =~ /(0x[0-9a-f]+)/){
     return $1;
+  }else{
+    print STDERR "WARNING: No window found for WM_CLASS=$wmClass using wmctrl\n";
   }
+
   return undef;
 }
 

@@ -6,6 +6,7 @@ use Time::HiRes qw(sleep);
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
 my $gnuplotDefaultPngSize = "1920,1080";
+my $stageGapSeconds = 5 * 60;
 
 my $defaultNotes = {
   'extra' => 1,
@@ -22,6 +23,7 @@ my @okFilters = qw(
   --date --mindate
   --maxdate
   --recent --sixmos --sixmonths --6mos
+  --bar --nobar --diffbar --samebar
 );
 my $argOptFiltersRegex = join "|", qw(
   --song --score --minscore --maxscore --mindate --date --maxdate
@@ -39,6 +41,7 @@ my @songArr = (
   ['arrabbiata'               => 'arbta' => 'hard' => 'expert'],
   ['am3pchaos'                => 'am3pc' => 'hard' => 'challenge'],
   ['b4uvoltage'               => 'b4uvs' => 'hard' => 'challenge'],
+  ['bag'                      => 'bagRe' => 'hard' => 'expert'],
   ['chaos'                    => 'chaos' => 'hard' => 'expert'],
   ['healingdvision'           => 'hgDvn' => 'hard' => 'expert'],
   ['legendofmax'              => 'legmx' => 'hard' => 'expert'],
@@ -49,6 +52,8 @@ my @songArr = (
   ['paranoiarespect'          => 'prRsp' => 'hard' => 'expert'],
   ['paranoiasurvivor270'      => 'prSur' => 'hard' => 'expert'],
   ['paranoiasurvivormax290'   => 'prSrM' => 'hard' => 'expert'],
+  ['trim'                     => 'trimK' => 'hard' => 'expert'],
+  ['tripmachinephoenix'       => 'trpMP' => 'hard' => 'challenge'],
   ['xepher'                   => 'xephe' => 'hard' => 'challenge'],
 
   ['321stars'                 => '321st' => 'other' => 'expert'],
@@ -109,8 +114,8 @@ my %difficultyAbbrevs = (
   challenge => 'cha',
 );
 
-my @roundArgs = qw(1st 2nd 3rd 4nonstop);
-my $okRoundArgs = join '|', @roundArgs;
+my @stageArgs = qw(1st 2nd 3rd 4nonstop);
+my $okStageArgs = join '|', @stageArgs;
 
 my @barArgs = qw(bar nobar);
 my $okBarArgs = join '|', @barArgs;
@@ -137,6 +142,42 @@ my $usage = "Usage:
     FILTER
       see --print FILTER
 
+  $0 --coursestats [FORMAT_OPTION FORMAT_OPTION ..] [FILTER FILTER ..]
+    show songs that appear to be part of the same course, played back-to-back
+    songs must be of increasing stage number,
+      and have mtimes at most 5min between successive stages.
+      (stages can be missing; an extra 5min is allowed for any gaps)
+    e.g.:
+      A 1st 12:00
+      B 2nd 12:03
+      C 3rd 12:07
+      D 1st 12:11
+      E 3rd 12:17
+      F 1st 12:38
+      G 2nd 12:46
+      H 3rd 12:47
+      => [A-B-C], [D-E], [F], [G-H]
+         A and B and C are a normal stage, less than 5 between each
+         C and D are not sequential stages
+         D and E are within 5min+5min, with gap for missing 2nd
+         F and G are NOT within 5min
+         G and G are within 5min
+         F and H are within 5min+5min, but 2nd is not missing
+
+    FORMAT_OPTION
+      --minlen LENGTH
+        show only courses where at least LENGTH scores are recorded
+        default is: 2
+        LENGTH=3
+          show only courses with 3 or more songs recorded (after filtering)
+        LENGTH=2 {default}
+          show only courses with 2 or more songs recorded (after filtering)
+        LENGTH=1 or LENGTH=0
+          show all courses,, even if only one score recorded (after filtering)
+
+    FILTER
+      see --print FILTER
+
   $0 --print [--notes NOTES_CSV] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
@@ -157,7 +198,7 @@ my $usage = "Usage:
       nobar
         add 'nobar' if SONG is a HARD_SONG and BAR is 'nobar'
       3rd
-        add '3rd' if SONG is a HARD_SONG and ROUND is '3rd'
+        add '3rd' if SONG is a HARD_SONG and STAGE is '3rd'
 
     FILTER: SONG
       --song REGEX
@@ -202,6 +243,37 @@ my $usage = "Usage:
       --recent, --sixmos, --sixmonths, --6mos
         same as '--mindate N', where N is the date 180 days ago
         {overrides --date}
+
+    FILTER: BAR
+      --bar
+        include only scores where BAR=bar
+      --nobar
+        include only scores where BAR=nobar
+      --diffbar
+        include only scores where BAR is different than at least half of all
+          scores with the same SONG, GAME, and DIFFICULTY
+          (counted against all scores, before any filtering)
+      --samebar
+        include only scores where BAR is the same as at least half of all
+          scores with the same SONG, GAME, and DIFFICULTY
+          (counted against all scores, before any filtering)
+
+      e.g.:
+        TOTAL|BAR=bar|BAR=nobar|--bar |--nobar |--diffbar|--samebar
+        =====|=======|=========|======|========|=========|===========
+        2    |1      |1        |B1 N0 |B0 N1   |B1 N1    |B1 N1
+        2    |2      |0        |B2 N0 |B0 N0   |B0 N0    |B2 N0
+        3    |1      |2        |B1 N0 |B0 N2   |B1 N0    |B0 N2
+        4    |2      |2        |B2 N0 |B0 N2   |B2 N2    |B2 N2
+
+        the 3rd row, in english, says if there are 3 songs recorded
+          for the given <SONG>-<GAME>-<DIFFICULTY>,
+          and 1 has BAR=bar, and 2 have BAR=nobar, then:
+            --bar will show the one with BAR=bar
+            --nobar will show the two with BAR=nobar
+            --diffbar will show the one with BAR=bar
+            --samebar will show the two with BAR=nobar
+
 
     scores are grouped into sections by '\"<SONG>-<GAME>-<DIFFICULTY>\"'
     '<GAME>-' is omitted if GAME is not set
@@ -257,7 +329,7 @@ my $usage = "Usage:
   $0 JPG_FILE [ARG ARG ..]
 
   rename a jpeg file using a consistent format
-  \"########_###_SONG_GAME_DIFFICULTY_SCORE_EXTRA_BAR_ROUND.jpg\"
+  \"########_###_SONG_GAME_DIFFICULTY_SCORE_EXTRA_BAR_STAGE.jpg\"
   ######## is presumably a date in YYYYMMDD and ### is the camera pic index
 
      JPG_FILE
@@ -265,8 +337,8 @@ my $usage = "Usage:
        must start with '########_###' and end with '.jpg'
 
      ARG
-       one of [SONG|GAME|DIFFICULTY|SCORE|ROUND|BAR|EXTRA]
-       exactly one SONG, DIFFICULTY, SCORE, ROUND, and BAR must be given
+       one of [SONG|GAME|DIFFICULTY|SCORE|STAGE|BAR|EXTRA]
+       exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given
        exactly zero or one EXTRA args can be given
 
@@ -296,8 +368,8 @@ my $usage = "Usage:
      BAR
        one of [$okBarArgs]
 
-     ROUND
-       one of [$okRoundArgs]
+     STAGE
+       one of [$okStageArgs]
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -306,6 +378,8 @@ my $usage = "Usage:
 ";
 
 sub fehterm($@);
+sub dateStats($@);
+sub courseStats($@);
 sub scoreStats($@);
 sub parsePlotOptions($);
 sub parseFilterOptions($);
@@ -315,13 +389,17 @@ sub getScoresByFile();
 sub listScoreFiles();
 sub parseScoreFile($);
 sub sortScores($);
+sub getBucketName($@);
 sub getScoreBuckets($@);
 sub formatBucketCsv($$$);
+sub getBucketBarCounts($);
 sub filterScores($$);
 sub formatScores($$);
+sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
 sub bashComplete($$);
+sub warnMsg($);
 sub run(@);
 
 sub main(@){
@@ -336,6 +414,9 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
     my $cmd = shift;
     dateStats($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--coursestats)$/){
+    my $cmd = shift;
+    courseStats($cmd, @_);
   }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
@@ -481,6 +562,111 @@ sub dateStats($@){
   }
 }
 
+sub courseStats($@){
+  my $cmd = shift;
+  my $opts = [@_];
+
+  my $minlen = 2;
+  while(@$opts > 0 and $$opts[0] =~ /^(--minlen)$/){
+    my $opt = shift @$opts;
+    if($opt =~ /^(--minlen)$/){
+      if(@$opts > 0 and $$opts[0] =~ /^\d+$/){
+        $minlen = shift @$opts;
+      }else{
+        die "malformed or missing argument to --minlen\n";
+      }
+    }
+  }
+
+  my $filters = parseFilterOptions $opts;
+
+  die $usage if @$opts != 0;
+
+  my $stageNums = {
+    "1st" => 1,
+    "2nd" => 2,
+    "3rd" => 3,
+    "4nonstop" => 4,
+  };
+
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
+
+  my $mtimes = {};
+  for my $file(keys %$scoresByFile){
+    my $path = "$scoreDir/$file";
+    die "$path is not a file\n" if not -f $path;
+    my @stat = stat $path;
+    $$mtimes{$file} = $stat[9];
+  }
+
+  my @sortedScores = sort {$$mtimes{$a} <=> $$mtimes{$b}} keys %$scoresByFile;
+
+  my @courses;
+  my $curCourse = undef;
+  my $lastStageNum = undef;
+  my $lastMtime = undef;
+  for my $file(@sortedScores){
+    my $score = $$scoresByFile{$file};
+    my $mtime = $$mtimes{$file};
+    my $stage = $$score{stage};
+    my $stageNum = $$stageNums{$stage};
+    die "invalid stage '$stage'\n" if not defined $stageNum;
+
+    my $isNewCourse = 0;
+    if(defined $lastStageNum && defined $lastMtime){
+      die "mtimes out of order at $file\n" if $lastMtime > $mtime;
+      my $stageNumDiff = $stageNum - $lastStageNum;
+      my $mtimeDiff = $mtime - $lastMtime;
+
+      if($stageNumDiff <= 0){
+        $isNewCourse = 1;
+      }elsif($mtimeDiff > $stageGapSeconds*$stageNumDiff){
+        $isNewCourse = 1;
+      }
+    }
+
+    if(not defined $curCourse or $isNewCourse){
+      $curCourse = [];
+      push @courses, $curCourse;
+    }
+    push @$curCourse, $score;
+
+    $lastStageNum = $stageNum;
+    $lastMtime = $mtime;
+  }
+
+  @courses = grep {@$_ >= $minlen} @courses;
+
+  for my $course(@courses){
+    my $first = ${$course}[0];
+    my $fmt = "$$first{date}:";
+    for my $score(@$course){
+      my $shortName = $songAbbrevs{$$score{song}};
+      $fmt .= " $shortName";
+    }
+    $fmt .= "\n";
+    for my $score(@$course){
+      my ($song, $game, $difficulty) = (
+        $$score{song}, $$score{game}, $$score{difficulty});
+
+      my $songAbbrev = $songAbbrevs{$song};
+      my $diffAbbrev = $difficultyAbbrevs{$difficulty};
+      my $shortName = $songAbbrevs{$song};
+      my $isDoubles = 0;
+      if(defined $game and $game eq "doubles"){
+        $shortName .= "-DBL";
+        $isDoubles = 1;
+      }
+      if($difficulty ne $defaultDifficulty{$song}){
+        $shortName .= "-$diffAbbrev";
+      }
+      $fmt .= "  $$score{stage} $$score{score} $shortName\n";
+    }
+    print $fmt;
+  }
+}
+
 sub scoreStats($@){
   my $cmd = shift;
   my $opts = [@_];
@@ -493,9 +679,9 @@ sub scoreStats($@){
   }
 
   if($cmd =~ /^(--print|--gnuplot)/ and @$opts > 0 and $$opts[0] =~ /^(--notes)$/){
-    my $opt = shift;
+    my $opt = shift @$opts;
     die "$usage\nmissing arg to $opt\n" if @$opts == 0;
-    my $arg = shift;
+    my $arg = shift @$opts;
     my $notesCsv = $arg;
     $$okNotes{$_} = 0 foreach keys %$okNotes;
 
@@ -596,6 +782,14 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--maxdate)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d{8})$/;
       $$filters{maxdate} = $1;
+    }elsif($opt =~ /^(--bar)$/){
+      $$filters{bar} = "bar";
+    }elsif($opt =~ /^(--nobar)$/){
+      $$filters{bar} = "nobar";
+    }elsif($opt =~ /^(--diffbar)$/){
+      $$filters{bar} = "diff";
+    }elsif($opt =~ /^(--samebar)$/){
+      $$filters{bar} = "same";
     }else{
       die "$usage\nunknown filter: $opt\n";
     }
@@ -611,7 +805,38 @@ sub name(@){
   die "missing DIFFICULTY\n" if not defined $$info{difficulty};
   die "missing SCORE\n" if not defined $$info{score};
   die "missing BAR\n" if not defined $$info{bar};
-  die "missing ROUND\n" if not defined $$info{round};
+  die "missing STAGE\n" if not defined $$info{stage};
+
+  my $bucketName = getBucketName $info, qw(song game difficulty);
+
+  my $scoresByFile = getScoresByFile();
+  my $scores = [values %$scoresByFile];
+  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+
+  if(not defined $$buckets{$bucketName}){
+    warnMsg("no existing scores found for $bucketName");
+  }else{
+    my $minScore = 0;
+    my $maxScore = 0;
+    for my $score(@{$$buckets{$bucketName}}){
+      $minScore = $$score{score} if $$score{score} < $minScore;
+      $maxScore = $$score{score} if $$score{score} > $maxScore;
+    }
+    if($$info{score} < $minScore){
+      warnMsg("new LOW score $minScore => $$info{score}");
+    }elsif($$info{score} > $maxScore){
+      warnMsg("new HIGH score $maxScore => $$info{score}");
+    }
+
+    my $bucketBarCounts = getBucketBarCounts $buckets;
+    my $barCount = $$bucketBarCounts{$bucketName}{bar};
+    my $nobarCount = $$bucketBarCounts{$bucketName}{nobar};
+    if($$info{bar} eq "bar" and $barCount < $nobarCount){
+      warnMsg("$bucketName is usually 'nobar'");
+    }elsif($$info{bar} eq "nobar" and $nobarCount < $barCount){
+      warnMsg("$bucketName is usually 'bar'");
+    }
+  }
 
   $file =~ s/^\.\///;
 
@@ -628,7 +853,7 @@ sub name(@){
   $newFileName .= "_$$info{score}";
   $newFileName .= "_$$info{extra}" if defined $$info{extra};
   $newFileName .= "_$$info{bar}";
-  $newFileName .= "_$$info{round}";
+  $newFileName .= "_$$info{stage}";
   $newFileName .= ".jpg";
 
   my @cmd = ("mv", $file, $newFileName);
@@ -648,7 +873,7 @@ sub parseArgs(@){
       return undef if defined $$info{difficulty};
       $$info{difficulty} = $arg;
     }elsif($arg =~ /^(\d,?){5,6}(\d)$/){
-      print STDERR "WARN: score non-multiple-of-ten: $arg\n" if $2 != 0;
+      warnMsg("score non-multiple-of-ten: $arg") if $2 != 0;
       my $score = $arg;
       $score =~ s/,//g;
       $score = int($score);
@@ -660,9 +885,9 @@ sub parseArgs(@){
     }elsif($arg =~ /^($okBarArgs)$/){
       return undef if defined $$info{bar};
       $$info{bar} = $arg;
-    }elsif($arg =~ /^($okRoundArgs)$/){
-      return undef if defined $$info{round};
-      $$info{round} = $arg;
+    }elsif($arg =~ /^($okStageArgs)$/){
+      return undef if defined $$info{stage};
+      $$info{stage} = $arg;
     }else{
       return undef;
     }
@@ -694,7 +919,7 @@ sub parseScoreFile($){
     _(\d+)
     (?:_($okExtraArgs))?
     _($okBarArgs)
-    _($okRoundArgs)
+    _($okStageArgs)
     \.jpg$/x){
     die "malformed file name: $file\n";
   }
@@ -708,7 +933,7 @@ sub parseScoreFile($){
     score      => $6,
     extra      => $7,
     bar        => $8,
-    round      => $9,
+    stage      => $9,
   };
 }
 
@@ -729,15 +954,19 @@ sub sortScores($){
   } @$scores];
 }
 
+sub getBucketName($@){
+  my ($score, @bucketFields) = @_;
+  my @bucketFieldVals = map {$$score{$_}} @bucketFields;
+  return join "-", grep {defined $_} @bucketFieldVals;
+}
+
 sub getScoreBuckets($@){
   my ($scores, @bucketFields) = @_;
   $scores = sortScores $scores;
 
   my $buckets = {};
   for my $score(@$scores){
-    my @bucketFieldVals = map {$$score{$_}} @bucketFields;
-
-    my $bucketName = join "-", grep {defined $_} @bucketFieldVals;
+    my $bucketName = getBucketName $score, @bucketFields;
     $$buckets{$bucketName} = [] if not defined $$buckets{$bucketName};
     push @{$$buckets{$bucketName}}, $score;
   }
@@ -773,8 +1002,8 @@ sub formatBucketCsv($$$){
     if($$okNotes{'nobar'} and $$s{bar} eq "nobar" and $isHardSong{$$s{song}}){
       push @notes, $$s{bar};
     }
-    if($$okNotes{'3rd'} and $$s{round} eq "3rd" and $isHardSong{$$s{song}}){
-      push @notes, $$s{round};
+    if($$okNotes{'3rd'} and $$s{stage} eq "3rd" and $isHardSong{$$s{song}}){
+      push @notes, $$s{stage};
     }
 
     my $note = join " ", @notes;
@@ -784,9 +1013,28 @@ sub formatBucketCsv($$$){
   return $fmt;
 }
 
+sub getBucketBarCounts($){
+  my $buckets = shift;
+  my $bucketBarCounts = {};
+  for my $bucketName(keys %$buckets){
+    my $bucketScores = $$buckets{$bucketName};
+    my $barCount = 0;
+    my $nobarCount = 0;
+    for my $score(@$bucketScores){
+      $barCount++ if $$score{bar} eq "bar";
+      $nobarCount++ if $$score{bar} eq "nobar";
+    }
+    $$bucketBarCounts{$bucketName}{bar} = $barCount;
+    $$bucketBarCounts{$bucketName}{nobar} = $nobarCount;
+  }
+  return $bucketBarCounts;
+}
+
 sub filterScores($$){
   my ($scoresByFile, $filters) = @_;
   $scoresByFile = {%$scoresByFile};
+
+  my $origScoresByFile = {%$scoresByFile};
 
   for my $file(sort keys %$scoresByFile){
     my $s = $$scoresByFile{$file};
@@ -835,6 +1083,31 @@ sub filterScores($$){
       }
     }
     delete $$scoresByFile{$file} if not $ok;
+  }
+
+  if($$filters{bar}){
+    my $scores = [values %$origScoresByFile];
+    my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    my $bucketBarCounts = getBucketBarCounts $buckets;
+    for my $bucketName(sort keys %$buckets){
+      my $bucketScores = $$buckets{$bucketName};
+      my $barCount = $$bucketBarCounts{$bucketName}{bar};
+      my $nobarCount = $$bucketBarCounts{$bucketName}{nobar};
+      for my $score(@$bucketScores){
+        my $bar = $$score{bar};
+        my $sameCount = $bar eq "bar" ? $barCount : $nobarCount;
+        my $diffCount = $bar eq "bar" ? $nobarCount : $barCount;
+        if($$filters{bar} eq "bar" and $bar ne "bar"){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "nobar" and $bar ne "nobar"){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "same" and $sameCount < $diffCount){
+          delete $$scoresByFile{$$score{file}};
+        }elsif($$filters{bar} eq "diff" and $diffCount < $sameCount){
+          delete $$scoresByFile{$$score{file}};
+        }
+      }
+    }
   }
 
   if($$filters{monotonic}){
@@ -988,10 +1261,11 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--datestats", "--print", "--gnuplot", "--bestfiles", @jpgFiles);
+    return ("--fehterm", "--datestats", "--coursestats",
+      "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
@@ -1024,6 +1298,20 @@ sub bashComplete($$){
       shift @args while @args > 0 and $args[0] =~ /^(--showscores|--reverse|--short)$/;
       @complete = ("--showscores", "--reverse", "--short", @complete) if @args == 0;
     }
+    if($cmd =~ /^(--coursestats)/){
+      my @args = @words;
+      while(@args > 0 and $args[0] =~ /^(--minlen)$/){
+        my $arg = shift @args;
+        if(defined $arg and $arg =~ /^(--minlen)$/){
+          if(@args == 0){
+            return ("1", "2", "3");
+          }else{
+            shift @args;
+          }
+        }
+      }
+      @complete = ("--minlen", @complete) if @args == 0;
+    }
     @complete = (@okFilters, @complete);
     return @complete;
   }
@@ -1041,9 +1329,14 @@ sub bashComplete($$){
   @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
   #@complete = (@extraArgs, @complete) if not defined $$info{extra};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
-  @complete = (@roundArgs, @complete) if not defined $$info{round};
+  @complete = (@stageArgs, @complete) if not defined $$info{stage};
 
   return @complete;
+}
+
+sub warnMsg($){
+  my $msg = shift;
+  print STDERR "\n\nWARN: $msg\n";
 }
 
 sub run(@){

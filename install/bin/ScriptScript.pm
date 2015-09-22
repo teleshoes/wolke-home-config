@@ -13,7 +13,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames
                   run tryrun
                   shell tryshell
-                  runUser tryrunUser
+                  runUser tryrunUser wrapUserCommand
                   proc procLines
                   runScript
                   getHome getInstallPath getSrcCache

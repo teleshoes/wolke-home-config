@@ -23,7 +23,7 @@ data WStatus = Wlan | Wired | PPP |
                None | Unknown deriving(Eq)
 
 readWStatus :: IO WStatus
-readWStatus = do 
+readWStatus = do
   wstatus <- readProcess "wstatus" [] ""
   case wstatus of
     "wlan\n"       -> return Wlan
