@@ -3,7 +3,7 @@ module Utils(
   fg, bg, fgbg,
   rowW, colW, containerW,
   regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, printfReal, collectInts, padL, padR, chompAll,
+  readInt, readDouble, printfReal, collectInts, padL, padR, padCols, uncols, chompAll,
   pollingGraphMain,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
@@ -22,6 +22,7 @@ import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
 import Text.Regex.PCRE ((=~))
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.List (intercalate, transpose)
 import System.Environment (getEnv)
 import System.FilePath.Find (
   (||?), (&&?), (==?), (~~?), (/=?),
@@ -94,6 +95,21 @@ collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
 
 padL x len xs = replicate (len - length xs) x ++ xs
 padR x len xs = xs ++ replicate (len - length xs) x
+
+padCols :: [Either Char Char] -> [[String]] -> [[String]]
+padCols format cols = map (pad widths format) cols where
+  widths = map (maximum . map length) $ transpose cols
+
+  pad []     []           []         = []
+  pad []     fmts         cols       = pad [0] fmts       cols
+  pad ws     []           cols       = pad ws  [Left ' '] cols
+  pad ws     fmts         []         = pad ws  fmts       [""]
+  pad [_]    [Left ' ']   [col]      = [col]
+  pad (w:ws) (fmt:fmts)   (col:cols) = either (flip padL w) (flip padR w) fmt col
+                                     : pad ws fmts cols
+
+uncols :: String -> [Either Char Char] -> [[String]] -> String
+uncols sep format = unlines . map (intercalate sep) . padCols format
 
 chompAll = reverse . dropWhile (== '\n') . reverse
 

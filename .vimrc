@@ -36,6 +36,15 @@ set background=dark
 hi Normal ctermfg=green ctermbg=none
 hi LineNr ctermfg=blue ctermbg=darkgray
 
+"""detect filetypes"""
+au BufRead * call s:isHaskellScript()
+function s:isHaskellScript()
+  if match(getline(1), '\v#!.*run(ghc|haskell)') >= 0
+    set filetype=haskell
+  endif
+endfunction
+""""""
+
 hi TrailingWhitespace ctermbg=red guibg=red
 autocmd CursorMoved  * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
 autocmd CursorMovedI * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
@@ -49,6 +58,10 @@ set smarttab
 set tabstop=2
 set softtabstop=2
 set shiftwidth=2
+set list
+set listchars=tab:››
+
+let g:GPGUseAgent=0
 
 """keep cursor vertically centered while searching"""
 nnoremap n nzz
@@ -120,12 +133,12 @@ nmap <F4>      :Exec cd %:p:h; git gui &<CR>
 imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
 """"""
 
-"""RUN"""
-nmap <F5> :1wincmd<space>w<CR>:w<CR>:RUN<CR>
-imap <F5> <ESC>:1wincmd<space>w<CR>:w<CR>:RUN<CR>li
+"""Run"""
+nmap <F5> :1wincmd<space>w<CR>:w<CR>:Run<CR>
+imap <F5> <ESC>:1wincmd<space>w<CR>:w<CR>:Run<CR>li
 
-nmap <F6>      :w<CR>:RUN<Space>
-imap <F6> <Esc>:w<CR>:RUN<Space>li
+nmap <F6>      :w<CR>:Run<Space>
+imap <F6> <Esc>:w<CR>:Run<Space>li
 """"""
 
 """Clipboard"""
@@ -187,32 +200,43 @@ function Wc(msg, maybeQuit)
     endif
 endfunction
 
-let g:RUNwin = 1
-let g:RUNsize = 20
-command -nargs=* RUN call RUN(<f-args>)
-function RUN(...)
+let s:RunHeight = 12
+command -nargs=* Run call Run(<f-args>)
+function Run(...)
     1wincmd w
     let interpreter = strpart(getline(1),2)
     let abspath = expand("%:p")
     let arguments = join(a:000, " ")
-    let call = interpreter . " \"" . abspath . "\" " . arguments
-    let perlexp = "print qq(\n) . q(~)x64 . qq(\n) . <>;"
+    let call = interpreter . ' "' . abspath . '" ' . arguments
+
     if winnr("$") == 1
         below new
     endif
+
     2wincmd w
-    execute "resize " . g:RUNsize
-    %s/\_.*/-/g
-    execute "perldo $_=`(".call." | perl -0777 -e '".perlexp."')2>&1`;"
-    perldo s/&/&a!/g; s/!/&e!/g; s/\n/&nl!/g;
-    %s/&nl!/\r/ge | %s/&e!/!/ge | %s/&a!/&/ge
-    %s/\(\_.*\)\n\(\~\{64}\n\)\(\_.*\)\n/\3\2\1/
-    execute g:RUNwin . "wincmd w"
+    execute "resize " . s:RunHeight
+    let perlexp = 'print q(RunVimRun)x64 . <> . qq(\n);'
+    execute "%! eval \"(".call." | perl -0777 -e '".perlexp."')2>&1\""
+    let lines = getbufline(bufnr("%"),1,"$")
+    %s/\v\_.*(RunVimRun){64}//
+
+    if winnr("$") == 2
+        below vnew
+    endif
+
+    3wincmd w
+    let i = 1
+    for l in lines
+        call setline(i, l)
+        let i += 1
+    endfor
+    %s/\v(RunVimRun){64}\_.*//
+
+    1wincmd w
 endfunction
-command -nargs=* RUNP call RUNP(<f-args>)
-function RUNP(win, size, ...)
-    let g:RUNwin = a:win
-    let g:RUNsize = a:size
-    call RUN(a:000)
+command -nargs=* RunHeight call RunHeight(<f-args>)
+function RunHeight(height, ...)
+  let s:RunHeight = a:height
+  call Run(a:000)
 endfunction
 
