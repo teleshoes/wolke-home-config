@@ -36,6 +36,15 @@ set background=dark
 hi Normal ctermfg=green ctermbg=none
 hi LineNr ctermfg=blue ctermbg=darkgray
 
+"""detect filetypes"""
+au BufRead * call s:isHaskellScript()
+function s:isHaskellScript()
+  if match(getline(1), '\v#!.*run(ghc|haskell)') >= 0
+    set filetype=haskell
+  endif
+endfunction
+""""""
+
 hi TrailingWhitespace ctermbg=red guibg=red
 autocmd CursorMoved  * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
 autocmd CursorMovedI * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
