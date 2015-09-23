@@ -1,0 +1,104 @@
+#!/usr/bin/runhaskell
+{-# LANGUAGE MultiWayIf, NamedFieldPuns, OverloadedStrings #-}
+import KitchenSink hiding (Args)
+import Prelude ()
+
+usage :: String
+usage = multiline $ do
+  "Usage: mvv SOURCE (DIR/|DEST)"
+  "   or: mvv -m SOURCE DIR"
+  "   or: mvv -r SOURCE DEST"
+  ""
+  "Move SOURCE to DIR or rename SOURCE to DEST."
+  "Create all directories necessary to perform the operation."
+  "Recursively remove all directories left empty by the operation."
+  ""
+  "  -m --move                  move SOURCE into a directory named DIR"
+  "  -r --rename                rename SOURCE to to be DEST"
+  "  -h --help                  display this help and exit"
+
+data Args = Move   { src :: FilePath, dir :: FilePath }
+          | Rename { src :: FilePath, dst :: FilePath }
+          | Help
+          | NoParse
+  deriving (Show)
+
+flags, flagsRename, flagsHelp :: [String]
+flags       = concat [flagsMove, flagsRename, flagsHelp]
+flagsMove   = ["-m", "--move"]
+flagsRename = ["-r", "--rename"]
+flagsHelp   = ["-h", "--help"]
+
+parseArgs :: [String] -> Args
+parseArgs args = fromMaybe NoParse $ case args of
+  [flag, src, dst] -> flag `elem` flagsMove   ? Move  {src, dir = dst}
+                  <|> flag `elem` flagsRename ? Rename{src, dst}
+  [src, dst]       -> (not . null) (args `intersect` flags) ? NoParse
+                  <|> [pathSeparator] `isSuffixOf` dst      ? Move  {src, dir = dst}
+                  <|> otherwise                             ? Rename{src, dst}
+  [flag]           -> flag `elem` flagsHelp ? Help
+  _                -> Nothing
+
+main :: IO ()
+main = do
+  args <- parseArgs <$> getArgs
+  exitEither =<< case args of
+    Move  {src, dir} -> mvvMove   src dir
+    Rename{src, dst} -> mvvRename src dst
+    Help             -> return $ Right usage
+    NoParse          -> return $ Left  usage
+
+mvvMove :: FilePath -> FilePath -> IO (Either String String)
+mvvMove src dir = mvvRename src (dir </> takeFileName src)
+
+mvvRename :: FilePath -> FilePath -> IO (Either String String)
+mvvRename src dst = runEitherT . prefixErrors $ do
+  (srcAbs, dstAbs) <- scriptIO $ ((,) `onA` makeAbsolute') src dst
+  let (srcParts, dstParts) = ((,) `on` splitOn [pathSeparator]) srcAbs dstAbs
+      (srcDir  , dstDir  ) = ((,) `on` takeDirectory          ) srcAbs dstAbs
+
+      -- If src is in dst or vice versa, the file must be moved to a temporary
+      -- location in order to create/delete the necessary directories.
+  if| srcParts `isPrefixOf` dstParts -> do
+        srctmp <- scriptIO $ freshFileName "~mvv." src
+        mv src srctmp
+        readProcessE "mkdir" ["-p", dstDir] ""
+        mv srctmp dst
+      -- The file can only be moved down to a dir of the same name if the
+      -- directories that need to be removed will be empty.
+    | dstParts `isPrefixOf` srcParts -> do
+        checkDirectoriesWillBeEmpty srcParts dstParts
+        dsttmp <- scriptIO $ freshFileName "~mvv." dst
+        mv src dsttmp
+        readProcessE "rm" ["-r", dst] ""
+        mv dsttmp dst
+      -- Unlike mv --no-clobber, mvv will fail rather than noop on an attempt
+      -- to clobber.
+    | otherwise                      -> do
+        checkClobber
+        readProcessE "mkdir" ["-p", dstDir] ""
+        mv src dst
+        cleanupDirectories srcDir
+  return ""
+  where
+    prefixErrors = bimapEitherT (\msg -> concat ["mvv: ",chomp msg,"\n"]) id
+    mv a b = readProcessE "mv" ["--no-target-directory", "--no-clobber", a, b] ""
+    getFileCount dir = subtract 2 . length <$> scriptIO (getDirectoryContents dir)
+
+    checkDirectoriesWillBeEmpty srcParts dstParts = do
+      whenM (anyM ((/= 1) <$$> getFileCount) pathsToCheck) $
+        throwError $ "cannot remove non-empty directory tree " ++ escapeFilePath dst
+      where
+        pathsToCheck = ((\\) `on` initSafe . paths) srcParts dstParts
+        paths = scanl1 (\p r -> p ++ [pathSeparator] ++ r)
+
+    checkClobber = do
+      whenM (scriptIO $ doesFileExist dst <||> doesDirectoryExist dst) $
+        throwError $ "file or directory already exists " ++ escapeFilePath dst
+
+    cleanupDirectories :: FilePath -> EitherT String IO String
+    cleanupDirectories dir = const "" <$$> handleT (void . return) $ do
+      unlessM (equalFilePath dir <$> scriptIO getWorkingDirectory) $ do
+      whenM ((== 0) <$> getFileCount dir) $ do
+        scriptIO $ removeDirectory dir
+        void . cleanupDirectories $ takeDirectory dir
