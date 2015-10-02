@@ -26,6 +26,13 @@ if [ "$TERM" == "rxvt" ]; then
   PROMPT_COMMAND='if [ "$WINDOW_TITLE" ]; then '$p1'; else '$p2'; fi'
 fi
 
+###horrible fucking oracle variables
+if [[ -z "$ORACLE_HOME" ]] && [[ -f /etc/ld.so.conf.d/oracle.conf ]]; then
+  oralibdir=`cat /etc/ld.so.conf.d/oracle.conf`
+  export ORACLE_HOME=`dirname "$oralibdir"`
+fi
+###
+
 pathAppend ()  { for x in $@; do pathRemove $x; export PATH="$PATH:$x"; done }
 pathPrepend () { for x in $@; do pathRemove $x; export PATH="$x:$PATH"; done }
 pathRemove ()  { for x in $@; do
