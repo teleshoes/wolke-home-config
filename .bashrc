@@ -31,6 +31,9 @@ if [[ -z "$ORACLE_HOME" ]] && [[ -f /etc/ld.so.conf.d/oracle.conf ]]; then
   oralibdir=`cat /etc/ld.so.conf.d/oracle.conf`
   export ORACLE_HOME=`dirname "$oralibdir"`
 fi
+if [[ -z "$SQLPATH" ]] && [[ -n "$ORACLE_HOME" ]]; then
+  export SQLPATH=$ORACLE_HOME/lib
+fi
 ###
 
 pathAppend ()  { for x in $@; do pathRemove $x; export PATH="$PATH:$x"; done }
