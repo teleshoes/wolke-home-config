@@ -2,35 +2,54 @@
 use strict;
 use warnings;
 
+my $tunnels = {
+  oldprod     => ["garuda.escribe.com",   "garuda.escribe.com",   1521],
+  olddatadict => ["datadict.escribe.com", "datadict.escribe.com", 1521],
+};
+my $okTunnels = join "|", sort keys %$tunnels;
+
 my $user = 'ewolk';
 my $controlFile = '/tmp/prodtunnelssh.ctl';
-my $port = 1521;
-my @okServers = qw(garuda datadict);
-my %okServerHash = map {$_ => 1} @okServers;
+
+sub createTunnel($$$);
+sub run(@);
+
+my $usage = "Usage:
+  $0 off
+    ssh -S $controlFile -O exit localhost
+  $0 $okTunnels
+    ssh -M -S $controlFile -f $user\@<HOST> -L <PORT>:<DEST_HOST>:<PORT> -N
+";
 
 sub main(@){
-  my $arg = lc(shift() || '');
-
-  if(defined $okServerHash{$arg}){
-    die "Control file already exists, run $0 off" if -e $controlFile;
-    my @cmd = (
-      'ssh',
-      '-M',
-      '-S', $controlFile,
-      '-f',
-      "$user\@$arg.escribe.com",
-      '-L', "$port:$arg.escribe.com:$port",
-      "-N",
-    );
-    print join(' ', @cmd) . "\n";
-    system @cmd;
-  }elsif($arg eq 'off'){
-    my @cmd = ('ssh', '-S', $controlFile, '-O', 'exit', 'localhost');
-    print join(' ', @cmd) . "\n";
-    system @cmd;
+  if(@_ == 1 and defined $$tunnels{$_[0]}){
+    my $tunnel = $$tunnels{$_[0]};
+    my ($host, $destHost, $port) = @$tunnel;
+    createTunnel $host, $destHost, $port;
+  }elsif(@_ == 1 and $_[0] eq "off"){
+    run 'ssh', '-S', $controlFile, '-O', 'exit', 'localhost';
   }else{
-    die "Usage: $0 [" . join("|", @okServers) . "|off]\n";
+    die $usage;
   }
+}
+
+sub createTunnel($$$){
+  my ($host, $destHost, $port) = @_;
+  die "Control file already exists, run $0 off" if -e $controlFile;
+  run(
+    'ssh',
+    '-M',
+    '-S', $controlFile,
+    '-f',
+    "$user\@$host",
+    '-L', "$port:$destHost:$port",
+    "-N",
+  );
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
