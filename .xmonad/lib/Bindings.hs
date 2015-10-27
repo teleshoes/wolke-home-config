@@ -149,6 +149,10 @@ shortcuts conf = "Shortcuts" @@ do
         "medium"        @@ mW    xK_F7   #! "sudo fan 4"
         "off"           @@ mW    xK_F8   #! "sudo fan 0"
 
+    "feh"           @@ do
+        "left"          @@ mA    xK_F11  #! "xdotool search --class feh key Left"
+        "right"         @@ mA    xK_F12  #! "xdotool search --class feh key Right"
+
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co"
         "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te"
