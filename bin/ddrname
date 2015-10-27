@@ -37,6 +37,10 @@ my @okFormatOptCourses = qw(--minlen);
 my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
+my @okFormatOptSongs = qw(--notes);
+my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
+my $argOptFormatOptSongsRegex = join "|", qw(--notes);
+
 my @okPlotOptions = qw(
   --file
   --size
@@ -701,17 +705,24 @@ sub scoreStats($@){
     $okNotes = {map {$_ => 0} keys %$okNotes};
   }
 
-  if($cmd =~ /^(--print|--gnuplot)/ and @$opts > 0 and $$opts[0] =~ /^(--notes)$/){
-    my $opt = shift @$opts;
-    die "$usage\nmissing arg to $opt\n" if @$opts == 0;
-    my $arg = shift @$opts;
-    my $notesCsv = $arg;
-    $$okNotes{$_} = 0 foreach keys %$okNotes;
+  if($cmd =~ /^(--print|--gnuplot)/){
+    while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
+      my $opt = shift @$opts;
+      my $arg;
+      if($opt =~ /^($argOptFormatOptSongsRegex)$/){
+        die "malformed or missing argument to $opt\n" if @$opts == 0;
+        $arg = shift @$opts;
+      }
+      if($opt =~ /^(--notes)$/){
+        my $notesCsv = $arg;
+        $$okNotes{$_} = 0 foreach keys %$okNotes;
 
-    my @notes = split /\s*,\s*/, $notesCsv;
-    for my $note(@notes){
-      die "invalid $opt: $arg\n" if not defined $$okNotes{$note};
-      $$okNotes{$note} = 1;
+        my @notes = split /\s*,\s*/, $notesCsv;
+        for my $note(@notes){
+          die "invalid $opt: $arg\n" if not defined $$okNotes{$note};
+          $$okNotes{$note} = 1;
+        }
+      }
     }
   }
 
@@ -1300,7 +1311,7 @@ sub bashComplete($$){
       my @combinations = combine sort keys %$defaultNotes;
       my @csv = sort map {join ",", @$_} @combinations;
       return sort @csv;
-    }elsif($lastWord =~ /^($argOptFiltersRegex|$argOptPlotOptionsRegex|--notes)$/){
+    }elsif($lastWord =~ /^($argOptFiltersRegex|$argOptPlotOptionsRegex|$argOptFormatOptSongsRegex)$/){
       return ();
     }
 
@@ -1314,7 +1325,7 @@ sub bashComplete($$){
       }
     }
     if($cmd =~ /^(--print|--gnuplot)/){
-      @complete = ("--notes", @complete) if @words == 0;
+      @complete = (@okFormatOptSongs, @complete) if @words == 0;
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
