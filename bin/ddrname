@@ -31,6 +31,7 @@ my $argOptFiltersRegex = join "|", qw(
 
 my @okFormatOptDates = qw(--showscores --reverse --short);
 my $okFormatOptDatesRegex = join "|", @okFormatOptDates;
+my $argOptFormatOptDatesRegex = join "|", qw();
 
 my @okPlotOptions = qw(
   --file
@@ -470,6 +471,12 @@ sub dateStats($@){
   my $short = 0;
   while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptDatesRegex)$/){
     my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptFormatOptDatesRegex)$/){
+      die "malformed or missing argument to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
+    }
+
     if($opt =~ /^(--showscores)$/){
       $showScores = 1;
     }elsif($opt =~ /^(--reverse)$/){
@@ -1306,7 +1313,13 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
-      shift @args while @args > 0 and $args[0] =~ /^($okFormatOptDatesRegex)$/;
+      while(@args > 0 and $args[0] =~ /^($okFormatOptDatesRegex)$/){
+        my $opt = shift @args;
+        if(@args == 0 and $opt =~ /^($argOptFormatOptDatesRegex)$/){
+          return ();
+        }
+        shift @args if $opt =~ /^($argOptFormatOptDatesRegex)$/;
+      }
       @complete = (@okFormatOptDates, @complete) if @args == 0;
     }
     if($cmd =~ /^(--coursestats)/){
