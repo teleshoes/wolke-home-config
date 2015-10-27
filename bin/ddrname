@@ -33,6 +33,10 @@ my @okFormatOptDates = qw(--showscores --reverse --short);
 my $okFormatOptDatesRegex = join "|", @okFormatOptDates;
 my $argOptFormatOptDatesRegex = join "|", qw();
 
+my @okFormatOptCourses = qw(--minlen);
+my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
+my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
+
 my @okPlotOptions = qw(
   --file
   --size
@@ -584,14 +588,15 @@ sub courseStats($@){
   my $opts = [@_];
 
   my $minlen = 2;
-  while(@$opts > 0 and $$opts[0] =~ /^(--minlen)$/){
+  while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptCoursesRegex)$/){
     my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptFormatOptCoursesRegex)$/){
+      die "malformed or missing argument to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
+    }
     if($opt =~ /^(--minlen)$/){
-      if(@$opts > 0 and $$opts[0] =~ /^\d+$/){
-        $minlen = shift @$opts;
-      }else{
-        die "malformed or missing argument to --minlen\n";
-      }
+      $minlen = $arg;
     }
   }
 
@@ -1324,15 +1329,16 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--coursestats)/){
       my @args = @words;
-      while(@args > 0 and $args[0] =~ /^(--minlen)$/){
-        my $arg = shift @args;
-        if(defined $arg and $arg =~ /^(--minlen)$/){
-          if(@args == 0){
+      while(@args > 0 and $args[0] =~ /^($okFormatOptCoursesRegex)$/){
+        my $opt = shift @args;
+        if(@args == 0 and $opt =~ /^($argOptFormatOptCoursesRegex)$/){
+          if(defined $opt and $opt =~ /^(--minlen)$/){
             return ("1", "2", "3");
           }else{
-            shift @args;
+            return ();
           }
         }
+        shift @args if $opt =~ /^($argOptFormatOptCoursesRegex)$/;
       }
       @complete = ("--minlen", @complete) if @args == 0;
     }
