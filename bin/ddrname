@@ -408,12 +408,12 @@ sub getScoresByFile();
 sub listScoreFiles();
 sub parseScoreFile($);
 sub sortScores($);
-sub getBucketName($@);
-sub getScoreBuckets($@);
+sub getBucketName($$@);
+sub getScoreBuckets($$@);
 sub formatBucketCsv($$$);
 sub getBucketBarCounts($);
 sub filterScores($$);
-sub formatScores($$);
+sub formatScores($$$);
 sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
@@ -529,7 +529,7 @@ sub dateStats($@){
       $totalCount++;
     }
 
-    my $buckets = getScoreBuckets \@dateScores, qw(song game difficulty);
+    my $buckets = getScoreBuckets \@dateScores, 0, qw(song game difficulty);
     my @bucketSummary;
     for my $bucketName(sort keys %$buckets){
       my @scores = @{$$buckets{$bucketName}};
@@ -729,10 +729,10 @@ sub scoreStats($@){
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($okNotes, $filters);
+    my $fmt = formatScores($okNotes, 0, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($okNotes, $filters);
+    my $fmt = formatScores($okNotes, 0, $filters);
     gnuplot $plotOptions, $fmt;
   }elsif($cmd =~ /^(--bestfiles)$/){
     my $bestScores = getBestScores($filters);
@@ -841,11 +841,11 @@ sub name(@){
   die "missing BAR\n" if not defined $$info{bar};
   die "missing STAGE\n" if not defined $$info{stage};
 
-  my $bucketName = getBucketName $info, qw(song game difficulty);
+  my $bucketName = getBucketName $info, 0, qw(song game difficulty);
 
   my $scoresByFile = getScoresByFile();
   my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+  my $buckets = getScoreBuckets($scores, 0, qw(song game difficulty));
 
   if(not defined $$buckets{$bucketName}){
     warnMsg("no existing scores found for $bucketName");
@@ -988,19 +988,25 @@ sub sortScores($){
   } @$scores];
 }
 
-sub getBucketName($@){
-  my ($score, @bucketFields) = @_;
-  my @bucketFieldVals = map {$$score{$_}} @bucketFields;
+sub getBucketName($$@){
+  my ($score, $abbrevBucket, @bucketFields) = @_;
+  my @bucketFieldVals;
+  for my $bucketField(@bucketFields){
+    my $val = $$score{$bucketField};
+    if($abbrevBucket){
+    }
+    push @bucketFieldVals, $val;
+  }
   return join "-", grep {defined $_} @bucketFieldVals;
 }
 
-sub getScoreBuckets($@){
-  my ($scores, @bucketFields) = @_;
+sub getScoreBuckets($$@){
+  my ($scores, $abbrevBucket, @bucketFields) = @_;
   $scores = sortScores $scores;
 
   my $buckets = {};
   for my $score(@$scores){
-    my $bucketName = getBucketName $score, @bucketFields;
+    my $bucketName = getBucketName $score, $abbrevBucket, @bucketFields;
     $$buckets{$bucketName} = [] if not defined $$buckets{$bucketName};
     push @{$$buckets{$bucketName}}, $score;
   }
@@ -1121,7 +1127,7 @@ sub filterScores($$){
 
   if($$filters{bar}){
     my $scores = [values %$origScoresByFile];
-    my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    my $buckets = getScoreBuckets($scores, 0, qw(song game difficulty));
     my $bucketBarCounts = getBucketBarCounts $buckets;
     for my $bucketName(sort keys %$buckets){
       my $bucketScores = $$buckets{$bucketName};
@@ -1146,7 +1152,7 @@ sub filterScores($$){
 
   if($$filters{monotonic}){
     my $scores = [values %$scoresByFile];
-    my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+    my $buckets = getScoreBuckets($scores, 0, qw(song game difficulty));
     for my $bucketName(sort keys %$buckets){
       my $bucketScores = $$buckets{$bucketName};
       sortScores $bucketScores;
@@ -1166,14 +1172,14 @@ sub filterScores($$){
   return $scoresByFile;
 }
 
-sub formatScores($$){
-  my ($okNotes, $filters) = @_;
+sub formatScores($$$){
+  my ($okNotes, $abbrevBucket, $filters) = @_;
 
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
 
   my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+  my $buckets = getScoreBuckets($scores, $abbrevBucket, qw(song game difficulty));
 
   my $fmt = "";
   for my $bucketName(sort keys %$buckets){
@@ -1192,7 +1198,7 @@ sub getBestScores($){
   $scoresByFile = filterScores $scoresByFile, $filters;
 
   my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, qw(song game difficulty));
+  my $buckets = getScoreBuckets($scores, 0, qw(song game difficulty));
 
   my $bestScores = {};
 
