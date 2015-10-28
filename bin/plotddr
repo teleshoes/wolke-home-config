@@ -12,25 +12,47 @@ my @curSongs = qw(max300 legendofmax max300smmm paranoiasurvivor270 paranoiasurv
 my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
 
 my @plotArr = (
-  'cursongs_recent' =>
-    ["--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
-  'cursongs_recent_smooth' =>
-    ["--smooth", "--notes", "highscore", "--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
-  'hard_recent' =>
-    ["--notes", "highscore", "--hard", "--recent", "--singles", "--monotonic"],
-  'hard_recent_smooth' =>
-    ["--smooth", "--notes", "highscore", "--hard", "--recent", "--singles", "--monotonic"],
-  'high' =>
-    ["--notes", "highscore,extra", "--score", "870000", "--singles", "--monotonic"],
-  'doubles' =>
-    ["--notes", "highscore", "--recent", "--doubles", "--monotonic"],
+  'cursongs_recent' => {
+    filters => ["--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
+    formatOpts => ["--notes", "highscore"],
+    plotOpts => [],
+  },
+  'cursongs_recent_smooth' => {
+    filters => ["--song", "$curSongsRegex", "--recent", "--singles", "--monotonic"],
+    formatOpts => ["--notes", "highscore"],
+    plotOpts => ["--smooth"],
+  },
+  'hard_recent' => {
+    filters => ["--hard", "--recent", "--singles", "--monotonic"],
+    formatOpts => ["--notes", "highscore"],
+    plotOpts => [],
+  },
+  'hard_recent_smooth' => {
+    filters => ["--hard", "--recent", "--singles", "--monotonic"],
+    formatOpts => ["--notes", "highscore"],
+    plotOpts => ["--smooth"],
+  },
+  'high' => {
+    filters => ["--score", "870000", "--singles", "--monotonic"],
+    formatOpts => ["--notes", "highscore,extra"],
+    plotOpts => [],
+  },
+  'doubles' => {
+    filters => ["--recent", "--doubles", "--monotonic"],
+    formatOpts => ["--notes", "highscore"],
+    plotOpts => [],
+  },
 );
 my $plots = {@plotArr};
 my @plotOrder = map {$plotArr[$_]} grep {$_%2 == 0} (0 .. $#plotArr);
 
 my $subdirVariants = {
-  'fhd' => {extraPlotOpts => ["--size", "1920x1080"]},
-  'n9' =>  {extraPlotOpts => ["--size", "854x480"]},
+  'fhd' => {
+    extraPlotOpts => ["--size", "1920x1080"],
+  },
+  'n9' =>  {
+    extraPlotOpts => ["--size", "854x480"],
+  },
 };
 
 my $usage = "Usage: $0 [--nofeh|--non9]\n";
@@ -60,9 +82,12 @@ sub main(@){
     for my $name(@order){
       $num++;
       my $plot = $$plots{$name};
+      my @filters = @{$$plot{filters}};
+      my @formatOpts = @{$$plot{formatOpts}};
+      my @plotOpts = @{$$plot{plotOpts}};
       my $file = "$gnuplotDir/$subdir/$num-gnuplot-$name.png";
       my @extraPlotOpts = @{$$variant{extraPlotOpts}};
-      my @cmd = ("ddrname", "--gnuplot", "--file", $file, @extraPlotOpts, @$plot);
+      my @cmd = ("ddrname", "--gnuplot", "--file", $file, @extraPlotOpts, @plotOpts, @formatOpts, @filters);
       system @cmd;
       die "error running plot $name => @$plot\n" if $? != 0;
     }
