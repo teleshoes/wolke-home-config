@@ -55,8 +55,8 @@ main = do
                  , W.pingMonitorW "E" "garuda.escribe.com"
                  , W.pingMonitorW "A" "ehr.dev"
                  ]
-          , colW [ W.openvpnW "escribe"
-                 , W.openvpnW "aws"
+          , colW [ W.openvpnW "escribe" "esc"
+                 , W.openvpnW "aws" "aws"
                  ]
           , W.tpBattStatW $ barHeight cfg
           , sep
