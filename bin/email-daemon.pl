@@ -4,7 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep time);
 use POSIX ":sys_wait_h";
 
-my $cmd = "/opt/qtemail/bin/email.pl --folder=inbox";
+my $cmd = "/opt/qtemail/bin/email.pl --update --folder=inbox";
 my $delayMs = 30 * 1000;
 my $maxTimeoutMs = 60 * 1000;
 
