@@ -236,7 +236,7 @@ sub parseBackupSets($$){
       @entrySet = ();
     }
     push @entrySet, $entry;
-    if($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+    if($$entry{type} eq "backup-end" and $$entry{endstate} eq "complete"){
       push @entrySets, [@entrySet];
       @entrySet = ();
     }
@@ -261,9 +261,9 @@ sub parseBackupSets($$){
         if(not defined $backupStart or $$entry{filecount} > $$backupStart{filecount}){
           $backupStart = $entry;
         }
-      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "incomplete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq "incomplete"){
         $backupIncomplete = $entry;
-      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq "complete"){
         if(defined $backupComplete){
           die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
         }
@@ -287,8 +287,8 @@ sub parseBackupSets($$){
     my $backupStatus;
     $backupStatus = $STATUS_RUNNING if defined $backupStart and not defined $backupEnd;
     $backupStatus = $STATUS_SKIPPED if not defined $backupStart;
-    $backupStatus = $STATUS_INCOMPLETE if defined $backupEnd and $$backupEnd{completestate} eq "incomplete";
-    $backupStatus = $STATUS_COMPLETE if defined $backupEnd and $$backupEnd{completestate} eq "complete";
+    $backupStatus = $STATUS_INCOMPLETE if defined $backupEnd and $$backupEnd{endstate} eq "incomplete";
+    $backupStatus = $STATUS_COMPLETE if defined $backupEnd and $$backupEnd{endstate} eq "complete";
     $backupStatus = $STATUS_ERROR if
       not defined $scanStart
       or not defined $scanEnd
@@ -378,13 +378,13 @@ sub parseLog(){
         size => $size,
       };
     }elsif($line =~ /(Stopped|Completed) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
-      my ($completestate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+      my ($endstate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
       $entry = {
         name => $backupName,
         time => $time,
         line => $line,
         type => "backup-end",
-        completestate => $completestate eq "Completed" ? "complete" : "incomplete",
+        endstate => $endstate eq "Completed" ? "complete" : "incomplete",
         duration => $duration,
         filecount => $fileCount,
         size => $size,
