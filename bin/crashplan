@@ -97,6 +97,11 @@ my $STATUS_ERROR = "error";
 my @ALL_STATUSES = ($STATUS_SKIPPED, $STATUS_COMPLETE, $STATUS_INCOMPLETE,
   $STATUS_RUNNING, $STATUS_ERROR);
 
+my $ENDSTATE_OK = "msg-completed";
+my $ENDSTATE_NOT_OK = "msg-stopped";
+my $ENDSTATE_MSG_COMPLETED = "Completed";
+my $ENDSTATE_MSG_STOPPED = "Stopped";
+
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
@@ -261,9 +266,9 @@ sub parseBackupSets($$){
         if(not defined $backupStart or $$entry{filecount} > $$backupStart{filecount}){
           $backupStart = $entry;
         }
-      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq "incomplete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq $ENDSTATE_NOT_OK){
         $backupIncomplete = $entry;
-      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq "complete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq $ENDSTATE_OK){
         if(defined $backupComplete){
           die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
         }
@@ -287,8 +292,8 @@ sub parseBackupSets($$){
     my $backupStatus;
     $backupStatus = $STATUS_RUNNING if defined $backupStart and not defined $backupEnd;
     $backupStatus = $STATUS_SKIPPED if not defined $backupStart;
-    $backupStatus = $STATUS_INCOMPLETE if defined $backupEnd and $$backupEnd{endstate} eq "incomplete";
-    $backupStatus = $STATUS_COMPLETE if defined $backupEnd and $$backupEnd{endstate} eq "complete";
+    $backupStatus = $STATUS_INCOMPLETE if defined $backupEnd and $$backupEnd{endstate} eq $ENDSTATE_NOT_OK;
+    $backupStatus = $STATUS_COMPLETE if defined $backupEnd and $$backupEnd{endstate} eq $ENDSTATE_OK;
     $backupStatus = $STATUS_ERROR if
       not defined $scanStart
       or not defined $scanEnd
@@ -377,14 +382,14 @@ sub parseLog(){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /(Stopped|Completed) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
+    }elsif($line =~ /($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
       my ($endstate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
       $entry = {
         name => $backupName,
         time => $time,
         line => $line,
         type => "backup-end",
-        endstate => $endstate eq "Completed" ? "complete" : "incomplete",
+        endstate => $endstate eq $ENDSTATE_MSG_COMPLETED ? $ENDSTATE_OK : $ENDSTATE_NOT_OK,
         duration => $duration,
         filecount => $fileCount,
         size => $size,
