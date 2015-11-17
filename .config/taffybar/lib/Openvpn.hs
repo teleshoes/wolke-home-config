@@ -11,9 +11,9 @@ main = do
   args <- getArgs
   when (length args /= 1) (error "Usage: Openvpn CONF_NAME")
   let confName = args !! 0
-  mainLabel $ openvpnReader confName
-openvpnW confName = do
-  label <- labelW $ openvpnReader confName
+  mainLabel $ openvpnReader confName $ take 3 confName
+openvpnW confName display = do
+  label <- labelW $ openvpnReader confName display
   clickableLeft (sslCmdText "toggle" confName) label
 
 sslCmd :: String -> String -> [String]
@@ -21,7 +21,7 @@ sslCmd cmd confName = ["sudo", "sslvpn", cmd, confName]
 sslCmdText :: String -> String -> String
 sslCmdText cmd confName = intercalate " " $ sslCmd cmd confName
 
-openvpnReader confName = do
+openvpnReader confName display = do
   vpnOn <- procSuccess $ sslCmd "running" confName
   let color = if vpnOn then "green" else "red"
-  return $ fg color $ take 3 confName
+  return $ fg color $ display

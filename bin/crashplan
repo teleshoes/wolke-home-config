@@ -89,6 +89,19 @@ my $usage = "Usage:
     COMP_POINT - the cursor position in the cmdline
 ";
 
+my $STATUS_SKIPPED = "skipped";
+my $STATUS_COMPLETE = "complete";
+my $STATUS_INCOMPLETE = "incomplete";
+my $STATUS_RUNNING = "running";
+my $STATUS_ERROR = "error";
+my @ALL_STATUSES = ($STATUS_SKIPPED, $STATUS_COMPLETE, $STATUS_INCOMPLETE,
+  $STATUS_RUNNING, $STATUS_ERROR);
+
+my $ENDSTATE_OK = "msg-completed";
+my $ENDSTATE_NOT_OK = "msg-stopped";
+my $ENDSTATE_MSG_COMPLETED = "Completed";
+my $ENDSTATE_MSG_STOPPED = "Stopped";
+
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
@@ -131,15 +144,21 @@ sub main(@){
 }
 
 sub printBackupSets(@){
-  for my $backupStatus(("skipped", "complete", "incomplete", "running", "error")){
+  my %counts;
+  for my $backupStatus(@ALL_STATUSES){
+    $counts{$backupStatus} = 0;
     print "===$backupStatus===\n";
     for my $backupSet(@_){
       if($$backupSet{backupStatus} eq $backupStatus){
+        $counts{$backupStatus}++;
         print formatBackupSet($backupSet);
       }
     }
   }
   print "======\n";
+  if($counts{$STATUS_COMPLETE} == 0){
+    print "\n\n======\nWARNING: NO BACKUPS COMPLETED!!!!!!!\n======\n\n";
+  }
 }
 
 sub runBackup(){
@@ -167,7 +186,7 @@ sub runBackup(){
 
     my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
-    my @finishedSets = grep {$$_{backupStatus} =~ /^(skipped|complete)$/} @newBackupSets;
+    my @finishedSets = grep {$$_{backupStatus} =~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/} @newBackupSets;
     my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
     my $isDone = 1;
     for my $backupName(@backupNames){
@@ -228,7 +247,7 @@ sub parseBackupSets($$){
       @entrySet = ();
     }
     push @entrySet, $entry;
-    if($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+    if($$entry{type} eq "backup-end" and $$entry{endstate} eq "complete"){
       push @entrySets, [@entrySet];
       @entrySet = ();
     }
@@ -253,9 +272,9 @@ sub parseBackupSets($$){
         if(not defined $backupStart or $$entry{filecount} > $$backupStart{filecount}){
           $backupStart = $entry;
         }
-      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "incomplete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq $ENDSTATE_NOT_OK){
         $backupIncomplete = $entry;
-      }elsif($$entry{type} eq "backup-end" and $$entry{completestate} eq "complete"){
+      }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq $ENDSTATE_OK){
         if(defined $backupComplete){
           die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
         }
@@ -277,11 +296,11 @@ sub parseBackupSets($$){
     }
 
     my $backupStatus;
-    $backupStatus = "running" if defined $backupStart and not defined $backupEnd;
-    $backupStatus = "skipped" if not defined $backupStart;
-    $backupStatus = "incomplete" if defined $backupEnd and $$backupEnd{completestate} eq "incomplete";
-    $backupStatus = "complete" if defined $backupEnd and $$backupEnd{completestate} eq "complete";
-    $backupStatus = "error" if
+    $backupStatus = $STATUS_RUNNING if defined $backupStart and not defined $backupEnd;
+    $backupStatus = $STATUS_SKIPPED if not defined $backupStart;
+    $backupStatus = $STATUS_INCOMPLETE if defined $backupEnd and $$backupEnd{endstate} eq $ENDSTATE_NOT_OK;
+    $backupStatus = $STATUS_COMPLETE if defined $backupEnd and $$backupEnd{endstate} eq $ENDSTATE_OK;
+    $backupStatus = $STATUS_ERROR if
       not defined $scanStart
       or not defined $scanEnd
       or (defined $backupEnd and not defined $backupStart);
@@ -369,14 +388,14 @@ sub parseLog(){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /(Stopped|Completed) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
-      my ($completestate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+    }elsif($line =~ /($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
+      my ($endstate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
       $entry = {
         name => $backupName,
         time => $time,
         line => $line,
         type => "backup-end",
-        completestate => $completestate eq "Completed" ? "complete" : "incomplete",
+        endstate => $endstate eq $ENDSTATE_MSG_COMPLETED ? $ENDSTATE_OK : $ENDSTATE_NOT_OK,
         duration => $duration,
         filecount => $fileCount,
         size => $size,
@@ -414,7 +433,7 @@ sub formatBackupSet($){
   push @allLines, $$set{backupStart}{line} if defined $$set{backupStart};
   push @allLines, $$set{backupEnd}{line} if defined $$set{backupEnd};
 
-  if($$set{backupStatus} eq "error"){
+  if($$set{backupStatus} eq $STATUS_ERROR){
     my $reason = "";
     $reason = "missing scan-start" if not defined $$set{scanStart};
     $reason = "missing scan-end" if not defined $$set{scanEnd};
@@ -425,10 +444,10 @@ sub formatBackupSet($){
   my $start = formatTime($$set{scanStart}{time});
   my $name = padr $$set{backupName}, $maxLen;
   my $status = "";
-  $status = "RUN!" if $$set{backupStatus} eq "running";
-  $status = "INC!" if $$set{backupStatus} eq "incomplete";
-  $status = "skip" if $$set{backupStatus} eq "skipped";
-  $status = "done" if $$set{backupStatus} eq "complete";
+  $status = "RUN!" if $$set{backupStatus} eq $STATUS_RUNNING;
+  $status = "INC!" if $$set{backupStatus} eq $STATUS_INCOMPLETE;
+  $status = "skip" if $$set{backupStatus} eq $STATUS_SKIPPED;
+  $status = "done" if $$set{backupStatus} eq $STATUS_COMPLETE;
   $status = padl $status, 4;
 
   my $size;

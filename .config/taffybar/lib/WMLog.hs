@@ -25,6 +25,7 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   , activeLayout     = \x -> case x of
       "left"    -> return "[]="
       "top"     -> return "TTT"
+      "grid"    -> return "###"
       "full"    -> do
         cnt <- windowCount
         let numFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"

@@ -14,7 +14,21 @@ $majMinVersion =~ s/^(\d+\.\d+).*/$1/;
 
 my $pkgDir = "/media/stuff/Images/sqlplus";
 my $ldConf = "/etc/ld.so.conf.d/oracle.conf";
-my $libDir = "/usr/lib/oracle/$majMinVersion/client64/lib/";
+my $libDir = "/usr/lib/oracle/$majMinVersion/client64/lib";
+
+my $gloginConf = "--created by $0
+set pagesize 50000
+set linesize 200
+set timing on
+
+column CUSTOM_PROMPT_COL new_value CUSTOM_PROMPT
+set termout off
+select global_name || '> ' as CUSTOM_PROMPT_COL from global_name;
+set termout on
+
+set sqlprompt \"&CUSTOM_PROMPT\"
+";
+
 
 sub main(@) {
     getRoot();
@@ -38,8 +52,14 @@ sub main(@) {
       run "ln", "-s", $sqlplus64, $sqlplus;
     }
 
+    my $gloginFile = "$libDir/glogin.sql";
+    print "Overwriting $gloginFile\n";
+    open FH, "> $gloginFile" or die "Could not write $gloginFile\n";
+    print FH $gloginConf;
+    close FH;
+
     open FH, "> $ldConf";
-    print FH "$libDir\n";
+    print FH "$libDir/\n";
     close FH;
 
     run "ldconfig";
