@@ -71,6 +71,26 @@ class CecClient():
     self.writeCommands(commands)
     print self.read()
 
+  def getPowerStatusCmd(self, address):
+    self.writeCommands(["pow " + str(address)])
+    time.sleep(0.25)
+    out = self.read()
+    print out
+    lines = out.splitlines()
+    lines.reverse()
+
+    status = None
+    for line in lines:
+      print line
+      m = re.search('power status: (on|standby)', line)
+      if m:
+        status = m.group(1)
+        break
+    if status == None:
+      return None
+    else:
+      return status
+
   def getVolumeCmd(self, address):
     self.writeCommands(["tx 4" + str(address) + ":71"])
     time.sleep(0.25)
@@ -111,6 +131,12 @@ class CecDbus(dbus.service.Object):
     print("DBUS: command " + address + " " + command)
     self.cecClient.writeCommands([command + " " + address])
     return "ran " + command + " " + address
+
+  @dbus.service.method(DBUS_SERVICE)
+  def getpowerstatus(self, address):
+    print("DBUS: getpowerstatus " + address)
+    status = self.cecClient.getPowerStatusCmd(address)
+    return status
 
   @dbus.service.method(DBUS_SERVICE)
   def getvol(self, address):
