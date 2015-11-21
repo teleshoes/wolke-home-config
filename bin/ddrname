@@ -150,6 +150,11 @@ my $usage = "Usage:
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
 
+  $0 --orientation [FILTER FILTER ..]
+    for each song file, print \"<orientation> <filename>\",
+      where orientation is one of \"landscape\", \"portrait\", or \"unknown\"
+    uses \"$EXIFTOOL_EXEC\", falling back on \"$PIX_EXEC\"
+
   $0 --datestats [FORMAT_OPT_DATES FORMAT_OPT_DATES ..] [FILTER FILTER ..]
     format stats for each date
 
@@ -403,6 +408,7 @@ my $usage = "Usage:
 ";
 
 sub fehterm($@);
+sub orientation($@);
 sub dateStats($@);
 sub courseStats($@);
 sub scoreStats($@);
@@ -438,6 +444,9 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
     fehterm($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--orientation)$/){
+    my $cmd = shift;
+    orientation($cmd, @_);
   }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
     my $cmd = shift;
     dateStats($cmd, @_);
@@ -476,6 +485,21 @@ sub fehterm($@){
     ;
 
   run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
+}
+
+sub orientation($@){
+  my $cmd = shift;
+  my $opts = [@_];
+
+  my $filters = parseFilterOptions $opts;
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
+
+  for my $file(keys %$scoresByFile){
+    my $orientation = getImageOrientation "$scoreDir/$file";
+    $orientation = "unknown" if not defined $orientation;
+    print "$orientation $file\n";
+  }
 }
 
 sub dateStats($@){
@@ -1380,17 +1404,17 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--datestats", "--coursestats",
+    return ("--fehterm", "--orientation", "--datestats", "--coursestats",
       "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
     $lastWord = "" if not defined $lastWord;
 
-    if($cmd =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
+    if($cmd =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
       if($lastWord =~ /^(--song)$/){
         return @songArgs;
       }elsif($lastWord =~ /^($argOptFiltersRegex)$/){
