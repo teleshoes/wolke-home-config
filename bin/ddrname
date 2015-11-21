@@ -5,6 +5,10 @@ use Time::HiRes qw(sleep);
 
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
+
+my $EXIFTOOL_EXEC = "exiftool";
+my $PIX_EXEC = "pix";
+
 my $gnuplotDefaultPngSize = "1920,1080";
 my $stageGapSeconds = 5 * 60;
 
@@ -420,6 +424,7 @@ sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
 sub mtime($);
+sub getImageOrientation($);
 sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
@@ -1329,6 +1334,36 @@ sub mtime($){
   die "not a file or directory: $path\n" if not -e $path;
   my @stat = stat $path;
   return $stat[9];
+}
+
+sub getImageOrientation($){
+  my $file = shift;
+  die "not a file: $file\n" if not -f $file;
+  my ($width, $height, $orient);
+
+  my $exif = `$EXIFTOOL_EXEC $file 2>/dev/null`;
+  $width = $1 if $exif =~ /^Image Width\s*:\s*(\d+)$/m;
+  $height = $1 if $exif =~ /^Image Height\s*:\s*(\d+)$/m;
+  $orient = $1 if $exif =~ /^Orientation\s*:\s*(.*)$/m;
+
+  if(not defined $height or not defined $width){
+    my $pix = `$PIX_EXEC $file 2>/dev/null`;
+    if($pix =~ /^(\d+)x(\d+)$/){
+      ($height, $width) = ($1, $2);
+    }
+  }
+
+  if(defined $orient and $orient =~ /Rotate.*90|Rotate.*270/){
+    ($width, $height) = ($height, $width);
+  }
+
+  if(not defined $height or not defined $width){
+    return undef;
+  }elsif($height > $width){
+    return "portrait ";
+  }else{
+    return "landscape";
+  }
 }
 
 sub bashComplete($$){
