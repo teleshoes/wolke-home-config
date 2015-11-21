@@ -136,8 +136,10 @@ shortcuts conf = "Shortcuts" @@ do
 
     "iguana IR"     @@ do
         "A/C power"     @@ mC    xK_F1   #! "nuc igcmd ac-power"
-        "TV power"      @@ mC    xK_F2   #! "nuc igcmd tv-power"
         "A/C mode"      @@ mC    xK_F3   #! "nuc igcmd ac-mode"
+
+    "CEC power"     @@ do
+        "TV pwr toggle" @@ mC    xK_F2   #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
         "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"

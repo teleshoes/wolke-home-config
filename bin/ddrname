@@ -5,6 +5,10 @@ use Time::HiRes qw(sleep);
 
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
+
+my $EXIFTOOL_EXEC = "exiftool";
+my $PIX_EXEC = "pix";
+
 my $gnuplotDefaultPngSize = "1920,1080";
 my $stageGapSeconds = 5 * 60;
 
@@ -70,6 +74,7 @@ my @songArr = (
   ['belovin'                  => 'beLov' => 'other' => 'expert'],
   ['blindjustice'             => 'blnJs' => 'other' => 'expert'],
   ['candystar'                => 'canSt' => 'other' => 'expert'],
+  ['colors'                   => 'color' => 'other' => 'challenge'],
   ['dive'                     => 'diveB' => 'other' => 'expert'],
   ['doll'                     => 'dollT' => 'other' => 'challenge'],
   ['dragonblade'              => 'drgnB' => 'other' => 'expert'],
@@ -86,10 +91,12 @@ my @songArr = (
   ['mysummerlove'             => 'mySLv' => 'other' => 'expert'],
   ['no13'                     => 'no13T' => 'other' => 'expert'],
   ['orioneuro'                => 'ornEu' => 'other' => 'expert'],
+  ['orioncivilization'        => 'ornCi' => 'other' => 'expert'],
   ['paranoia'                 => 'paran' => 'other' => 'expert'],
   ['paranoiaeternalstm200'    => 'prEte' => 'other' => 'expert'],
   ['paranoiaevolution200'     => 'prEvo' => 'other' => 'expert'],
   ['paranoiamaxdirtymix190'   => 'prDrt' => 'other' => 'expert'],
+  ['putyourfaithinme'         => 'PYFIM' => 'other' => 'expert'],
   ['raspberryheart'           => 'rsphr' => 'other' => 'expert'],
   ['rememberyou'              => 'remYo' => 'other' => 'expert'],
   ['sanamollete'              => 'sanaM' => 'other' => 'expert'],
@@ -97,10 +104,12 @@ my @songArr = (
   ['tsugaru'                  => 'tsuga' => 'other' => 'expert'],
   ['tsugaruapplemix'          => 'tsuAM' => 'other' => 'challenge'],
   ['trust'                    => 'trust' => 'other' => 'expert'],
+  ['twomonthsoff'             => 'twoMO' => 'other' => 'expert'],
   ['vforextreme'              => 'v4Ext' => 'other' => 'challenge'],
   ['whynot'                   => 'whynt' => 'other' => 'expert'],
 
   ['bemanispirits'            => 'nonBS' => 'other' => 'difficult'],
+  ['classic'                  => 'nonCL' => 'other' => 'difficult'],
   ['terra'                    => 'nonTR' => 'other' => 'difficult'],
 );
 
@@ -143,6 +152,11 @@ my $usage = "Usage:
   $0 --fehterm
     -open a terminal using term and get its window id with xwininfo
     -open feh with --info set to type in the newly opened terminal with xdotool
+
+  $0 --orientation [FILTER FILTER ..]
+    for each song file, print \"<orientation> <filename>\",
+      where orientation is one of \"landscape\", \"portrait\", or \"unknown\"
+    uses \"$EXIFTOOL_EXEC\", falling back on \"$PIX_EXEC\"
 
   $0 --datestats [FORMAT_OPT_DATES FORMAT_OPT_DATES ..] [FILTER FILTER ..]
     format stats for each date
@@ -397,6 +411,7 @@ my $usage = "Usage:
 ";
 
 sub fehterm($@);
+sub orientation($@);
 sub dateStats($@);
 sub courseStats($@);
 sub scoreStats($@);
@@ -417,6 +432,8 @@ sub formatScores($$$);
 sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
+sub mtime($);
+sub getImageOrientation($);
 sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
@@ -430,6 +447,9 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
     fehterm($cmd, @_);
+  }elsif(@_ >= 1 and $_[0] =~ /^(--orientation)$/){
+    my $cmd = shift;
+    orientation($cmd, @_);
   }elsif(@_ >= 1 and $_[0] =~ /^(--datestats)$/){
     my $cmd = shift;
     dateStats($cmd, @_);
@@ -468,6 +488,21 @@ sub fehterm($@){
     ;
 
   run "/usr/bin/feh", "-g", "800x800", "--info", $infoCmd;
+}
+
+sub orientation($@){
+  my $cmd = shift;
+  my $opts = [@_];
+
+  my $filters = parseFilterOptions $opts;
+  my $scoresByFile = getScoresByFile();
+  $scoresByFile = filterScores $scoresByFile, $filters;
+
+  for my $file(keys %$scoresByFile){
+    my $orientation = getImageOrientation "$scoreDir/$file";
+    $orientation = "unknown" if not defined $orientation;
+    print "$orientation $file\n";
+  }
 }
 
 sub dateStats($@){
@@ -529,6 +564,12 @@ sub dateStats($@){
       $totalCount++;
     }
 
+    my $dateEpoch = `date +%s --date=$date`;
+    chomp $dateEpoch;
+
+    my $minMtime = undef;
+    my $maxMtime = undef;
+
     my $buckets = getScoreBuckets \@dateScores, 0, qw(song game difficulty);
     my @bucketSummary;
     for my $bucketName(sort keys %$buckets){
@@ -536,6 +577,20 @@ sub dateStats($@){
       my $first = $scores[0];
       my ($song, $game, $difficulty) = (
         $$first{song}, $$first{game}, $$first{difficulty});
+
+      for my $score(@scores){
+        my $file = $$score{file};
+        my $mtime = mtime "$scoreDir/$file";
+
+        my $dateDiff = $dateEpoch - $mtime;
+        $dateDiff *= -1 if $dateDiff < 0;
+        if($dateDiff > 1*24*60*60){
+          next;
+        }
+
+        $minMtime = $mtime if not defined $minMtime or $mtime < $minMtime;
+        $maxMtime = $mtime if not defined $maxMtime or $mtime > $maxMtime;
+      }
 
       my $songAbbrev = $songAbbrevs{$song};
       my $diffAbbrev = $difficultyAbbrevs{$difficulty};
@@ -559,9 +614,16 @@ sub dateStats($@){
       };
     }
 
+    my $elapsedMin;
+    if(defined $minMtime and defined $maxMtime){
+      $elapsedMin = ($maxMtime - $minMtime) / 60;
+    }else{
+      $elapsedMin = 0;
+    }
+
     my $fmt = "";
-    $fmt .= sprintf "%s %2d-T %2d-H %2d-D",
-      $date, $totalCount, $hardSinglesCount, $doublesCount;
+    $fmt .= sprintf "%s %2d-T %2d-H %2d-D  %3dm",
+      $date, $totalCount, $hardSinglesCount, $doublesCount, $elapsedMin;
 
     @bucketSummary = sort {
       $$b{count} <=> $$a{count}
@@ -576,8 +638,8 @@ sub dateStats($@){
           $fmt .= sprintf "\n  %-9s %s", $$summary{name}, "@{$$summary{scores}}";
         }else{
           $fmt .= sprintf "  %2d %s", $$summary{count}, $$summary{name};
-       }
-     }
+        }
+      }
       if($showScores){
         $fmt .= "\n";
       }
@@ -621,10 +683,7 @@ sub courseStats($@){
 
   my $mtimes = {};
   for my $file(keys %$scoresByFile){
-    my $path = "$scoreDir/$file";
-    die "$path is not a file\n" if not -f $path;
-    my @stat = stat $path;
-    $$mtimes{$file} = $stat[9];
+    $$mtimes{$file} = mtime "$scoreDir/$file";
   }
 
   my @sortedScores = sort {$$mtimes{$a} <=> $$mtimes{$b}} keys %$scoresByFile;
@@ -850,6 +909,17 @@ sub name(@){
   my $scoresByFile = getScoresByFile();
   my $scores = [values %$scoresByFile];
   my $buckets = getScoreBuckets($scores, 0, qw(song game difficulty));
+
+  my $orient = getImageOrientation $file;
+  my $game = $$info{game};
+  $game = "singles" if not defined $game;
+  if(not defined $orient){
+    warnMsg("unknown orientation");
+  }elsif($orient eq "landscape" and $game =~ /^(singles|nonstop)$/){
+    warnMsg("image orientation is $orient, which is unusual for game=$game");
+  }elsif($orient eq "portrait" and $game =~ /^(doubles|nonstopdoubles)$/){
+    warnMsg("image orientation is $orient, which is unusual for game=$game");
+  }
 
   if(not defined $$buckets{$bucketName}){
     warnMsg("no existing scores found for $bucketName");
@@ -1297,6 +1367,43 @@ sub combine(@){
   return @c;
 }
 
+sub mtime($){
+  my $path = shift;
+  die "not a file or directory: $path\n" if not -e $path;
+  my @stat = stat $path;
+  return $stat[9];
+}
+
+sub getImageOrientation($){
+  my $file = shift;
+  die "not a file: $file\n" if not -f $file;
+  my ($width, $height, $orient);
+
+  my $exif = `$EXIFTOOL_EXEC $file 2>/dev/null`;
+  $width = $1 if $exif =~ /^Image Width\s*:\s*(\d+)$/m;
+  $height = $1 if $exif =~ /^Image Height\s*:\s*(\d+)$/m;
+  $orient = $1 if $exif =~ /^Orientation\s*:\s*(.*)$/m;
+
+  if(not defined $height or not defined $width){
+    my $pix = `$PIX_EXEC $file 2>/dev/null`;
+    if($pix =~ /^(\d+)x(\d+)$/){
+      ($height, $width) = ($1, $2);
+    }
+  }
+
+  if(defined $orient and $orient =~ /Rotate.*90|Rotate.*270/){
+    ($width, $height) = ($height, $width);
+  }
+
+  if(not defined $height or not defined $width){
+    return undef;
+  }elsif($height > $width){
+    return "portrait";
+  }else{
+    return "landscape";
+  }
+}
+
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
   my $cmd = substr $cmdLine, 0, $pos;
@@ -1311,17 +1418,17 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--datestats", "--coursestats",
+    return ("--fehterm", "--orientation", "--datestats", "--coursestats",
       "--print", "--gnuplot", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
     $lastWord = "" if not defined $lastWord;
 
-    if($cmd =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats)$/){
+    if($cmd =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
       if($lastWord =~ /^(--song)$/){
         return @songArgs;
       }elsif($lastWord =~ /^($argOptFiltersRegex)$/){

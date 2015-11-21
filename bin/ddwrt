@@ -45,7 +45,7 @@ my $usage = "Usage:
     DEV defaults to $defaultDev
 
   $0 [ROUTER] -t|--test|--speedtest
-    perform a speedtest with netcat
+    perform a speedtest with speedtest-netcat
 
   $0 [ROUTER] --show
     run nvram show
@@ -76,7 +76,6 @@ my $okArgs = join '|', @args;
 
 sub restartDev($$);
 sub assertPresent($$;$);
-sub speedtest($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
 sub getStarted($$);
@@ -140,7 +139,7 @@ sub main(@){
   }elsif($arg =~ /^(-i|--info)$/){
     print getStarted $c, $router;
   }elsif($arg =~ /^(-t|--test|--speedtest)$/){
-    speedtest $c;
+    exec "speedtest-netcat", "root\@$$c{config}{router_ip}";
   }elsif($arg =~ /^(--show)$/){
     ddwrtShow $c;
   }elsif($arg =~ /^(^--restore$)$/){
@@ -176,45 +175,6 @@ sub assertPresent($$;$){
   }else{
     die "Missing section $section\n" if not defined $$c{$section};
   }
-}
-
-sub speedtest($){
-  my $c = shift;
-  my $ip = $$c{config}{router_ip};
-  my $port = 5000 + int(rand(1000)); #5000-5999
-  my @sendCmd = "nc -v -v -n $ip $port";
-  my @rcvCmd = "nc -l -w 60 -p $port";
-  my $timeout = 15;
-
-  print "listening on $ip:$port..\n";
-  if(fork){
-    exec "ssh", @sshOpts, "root\@$ip", "@rcvCmd >/dev/null 2>/dev/null";
-  }else{
-    my $sshDelay = 10;
-    print "waiting ${sshDelay}s for netcat to start\n";
-    sleep $sshDelay;
-  }
-
-  if(fork){
-    print "waiting $timeout seconds and killing nc\n";
-    sleep $timeout;
-    exec "ssh", @sshOpts, "root\@$ip", "killall nc";
-  }
-
-
-  print "writing to $ip:$port\n";
-  my $start = `date +%s.%N`;
-  my $out = `yes | @sendCmd 2>&1 1>/dev/null`;
-  my $stop = `date +%s.%N`;
-  die "Error reading bytes sent\n" if $out !~ /sent (\d+), rcvd (\d+)/;
-  chomp $start;
-  chomp $stop;
-  my $bytes = $1;
-  my $elapsed = $stop - $start;
-  printf("\n\n%d KiB/s  {%d bytes in %.5f seconds}\n\n",
-     int($bytes / $elapsed / 1024),
-     $bytes,
-     $elapsed);
 }
 
 sub ddwrtShow($){
