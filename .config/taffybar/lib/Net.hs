@@ -63,10 +63,11 @@ wifi = do
   let freq = regexFirstGroup "Frequency:(\\d+(\\.\\d+)?) GHz" s
   let qTop = regexFirstGroup "Link Quality=(\\d+)/\\d+" s
   let qBot = regexFirstGroup "Link Quality=\\d+/(\\d+)" s
-  let rate = regexFirstGroup "Bit Rate=(\\d+) Mb/s" s
+  let rate = regexFirstGroup "Bit Rate=(\\d+(?:\\.\\d+)) Mb/s" s
+  let r = rateFmt rate
   let q = quality qTop qBot
   let f = frequency freq
-  let top = (padtrim (width-6) rate ++ "m") ++ "|" ++ (quality qTop qBot)
+  let top = (padtrim (width-6) r ++ "m") ++ "|" ++ (quality qTop qBot)
   let bot = (padtrim width ssid)
   return $ top ++ "\n" ++ bot
 
@@ -75,6 +76,9 @@ d = read :: String -> Double
 
 padtrim len (Just s) = padL ' ' len $ take len $ s
 padtrim len Nothing = take len $ repeat '?'
+
+rateFmt (Just r) = Just $ show $ round $ d r
+rateFmt Nothing = Nothing
 
 frequency (Just f) = show $ round $ (1000.0 * (d f))
 frequency Nothing = "????"
