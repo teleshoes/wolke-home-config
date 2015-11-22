@@ -352,6 +352,12 @@ my $usage = "Usage:
     FILTER
       see --print FILTER
 
+  $0 --files [FILTER FILTER ..]
+    print the filenames, one per line without directories, of matching songs
+
+    FILTER
+      see --print FILTER
+
   $0 --bestfiles [FILTER FILTER ..]
     print the filename of the highest score for each set of scores with the same:
       [<SONG>, <GAME>, <DIFFICULTY>]
@@ -456,7 +462,7 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--coursestats)$/){
     my $cmd = shift;
     courseStats($cmd, @_);
-  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--bestfiles)$/){
+  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--files|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
   }else{
@@ -797,6 +803,10 @@ sub scoreStats($@){
   }elsif($cmd =~ /^(--gnuplot)$/){
     my $fmt = formatScores($okNotes, $abbrevBucket, $filters);
     gnuplot $plotOptions, $fmt;
+  }elsif($cmd =~ /^(--files)$/){
+    my $scoresByFile = getScoresByFile();
+    $scoresByFile = filterScores $scoresByFile, $filters;
+    print join '', map {"$_\n"} sort keys %$scoresByFile;
   }elsif($cmd =~ /^(--bestfiles)$/){
     my $bestScores = getBestScores($filters);
     for my $bucketName(sort keys %$bestScores){
@@ -1419,16 +1429,16 @@ sub bashComplete($$){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
     return ("--fehterm", "--orientation", "--datestats", "--coursestats",
-      "--print", "--gnuplot", "--bestfiles", @jpgFiles);
+      "--print", "--gnuplot", "--files", "--bestfiles", @jpgFiles);
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
+  if($words[0] =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
     $lastWord = "" if not defined $lastWord;
 
-    if($cmd =~ /^(--print|--gnuplot|--bestfiles|--datestats|--coursestats|--orientation)$/){
+    if($cmd =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
       if($lastWord =~ /^(--song)$/){
         return @songArgs;
       }elsif($lastWord =~ /^($argOptFiltersRegex)$/){
