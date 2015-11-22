@@ -1389,10 +1389,13 @@ sub getImageOrientation($){
   die "not a file: $file\n" if not -f $file;
   my ($width, $height, $orient);
 
-  my $exif = `$EXIFTOOL_EXEC $file 2>/dev/null`;
-  $width = $1 if $exif =~ /^Image Width\s*:\s*(\d+)$/m;
-  $height = $1 if $exif =~ /^Image Height\s*:\s*(\d+)$/m;
-  $orient = $1 if $exif =~ /^Orientation\s*:\s*(.*)$/m;
+  open FH, "-|", $EXIFTOOL_EXEC, "-ImageWidth", "-ImageHeight", "-Orientation", $file;
+  while(my $line = <FH>){
+    $width = $1 if $line =~ /^Image Width\s*:\s*(\d+)$/;
+    $height = $1 if $line =~ /^Image Height\s*:\s*(\d+)$/;
+    $orient = $1 if $line =~ /^Orientation\s*:\s*(.*)$/;
+  }
+  close FH;
 
   if(not defined $height or not defined $width){
     my $pix = `$PIX_EXEC $file 2>/dev/null`;
