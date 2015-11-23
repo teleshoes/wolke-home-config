@@ -2,47 +2,21 @@
 use strict;
 use warnings;
 
+my $tmpFile = "/tmp/xmonad-keybindings-prettyprint";
 my $dir = "$ENV{HOME}/.xmonad/lib";
-chdir $dir;
-my @out = split /\n/, `runghc -main-is Bindings Bindings.hs`;
-print join "\n", @out;
 
-my $height = 41;
+sub main(@){
+  chdir $dir;
 
-my @cols;
-my $col = [];
-for (my $i=0; $i<@out; $i++){
-  push @$col, $out[$i];
-  if(($i > 0 and $i % ($height-1) == 0) or $i == $#out){
-    push @cols, $col;
-    $col = [];
-  }
+  system "rm", $tmpFile;
+  system ""
+    . "runghc -main-is Bindings Bindings.hs"
+    . " | cols"
+    . " > $tmpFile"
+    ;
+
+  system "cat $tmpFile";
+  system "bigtext", $tmpFile;
 }
 
-my @maxCols;
-for my $col(@cols){
-  my $max=0;
-  for my $i(@$col){
-    chomp $i;
-    $max = length $i if length $i > $max;
-  }
-  push @maxCols, $max;
-}
-
-my $dzenOut = " \n";
-for(my $i=0; $i<$height; $i++){
-  for(my $c=0; $c<@cols; $c++){
-    my $max = $maxCols[$c];
-    my $kb = ${$cols[$c]}[$i];
-    $kb .= ' ' x ($max - length $kb);
-    $dzenOut .= "$kb | ";
-  }
-  $dzenOut .= "\n";
-}
-
-my $tmp = "/tmp/xmonad-keybindings-prettyprint";
-open FH, "> $tmp" or die "Couldnt write $tmp\n";
-print FH $dzenOut;
-close FH;
-
-system "bigtext", $tmp;
+&main(@ARGV);
