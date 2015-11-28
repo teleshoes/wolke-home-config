@@ -7,8 +7,8 @@ use Date::Format qw(time2str);
 
 sub printBackupSets(@);
 sub runBackup();
-sub getFilteredBackupSets($$);
-sub parseBackupSets($$);
+sub getFilteredBackupSets($$$);
+sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog();
 sub formatBackupSet($);
@@ -128,7 +128,7 @@ sub main(@){
     my $exactDate = $date if $date =~ /^\d\d\d\d-\d\d-\d\d$/;
     my $maxTimeAgoMillis = $recentLogMillis if $date =~ /^recent$/;
 
-    my @backupSets = getFilteredBackupSets($maxTimeAgoMillis, $exactDate);
+    my @backupSets = getFilteredBackupSets($maxTimeAgoMillis, $exactDate, 0);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
     printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
@@ -166,7 +166,7 @@ sub runBackup(){
   run "cd $logBackupDir && git add -A && git ci -m 'automatic commit'";
 
   my $startMillis = time*1000.0;
-  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
   run $0, "stop";
@@ -184,7 +184,7 @@ sub runBackup(){
     $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
     sleep $toSleepMillis/1000.0;
 
-    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
     my @finishedSets = grep {$$_{backupStatus} =~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/} @newBackupSets;
     my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
@@ -217,25 +217,25 @@ sub runBackup(){
   run "kill", "-9", $pid;
   run $0, "stop";
 
-  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef);
+  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
   printBackupSets @newBackupSets;
 }
 
-sub getFilteredBackupSets($$){
-  my ($maxTimeAgoMillis, $exactDate) = @_;
+sub getFilteredBackupSets($$$){
+  my ($maxTimeAgoMillis, $exactDate, $ignoreDuplicateFailures) = @_;
 
   my $log = parseLog();
   filterLog($log, $maxTimeAgoMillis, $exactDate);
   my @backupSets;
   for my $name(sort keys %$log){
-    @backupSets = (@backupSets, parseBackupSets $log, $name);
+    @backupSets = (@backupSets, parseBackupSets($log, $name, $ignoreDuplicateFailures));
   }
   return @backupSets;
 }
 
-sub parseBackupSets($$){
-  my ($log, $backupName) = @_;
+sub parseBackupSets($$$){
+  my ($log, $backupName, $ignoreDuplicateFailures) = @_;
 
   my @allEntries = @{$$log{$backupName}};
 
@@ -260,12 +260,16 @@ sub parseBackupSets($$){
     for my $entry(@$entrySet){
       if($$entry{type} eq "scan-start"){
         if(defined $scanStart){
-          die "duplicate scan-start:\n$$scanStart{line}$$entry{line}";
+          my $msg = "duplicate scan-start:\n$$scanStart{line}$$entry{line}";
+          die $msg unless $ignoreDuplicateFailures;
+          print STDERR $msg;
         }
         $scanStart = $entry;
       }elsif($$entry{type} eq "scan-end"){
         if(defined $scanEnd){
-          die "duplicate scan-end:\n$$scanEnd{line}$$entry{line}";
+          my $msg = "duplicate scan-end:\n$$scanEnd{line}$$entry{line}";
+          die $msg unless $ignoreDuplicateFailures;
+          print STDERR $msg;
         }
         $scanEnd = $entry;
       }elsif($$entry{type} eq "backup-start"){
@@ -276,7 +280,9 @@ sub parseBackupSets($$){
         $backupIncomplete = $entry;
       }elsif($$entry{type} eq "backup-end" and $$entry{endstate} eq $ENDSTATE_OK){
         if(defined $backupComplete){
-          die "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
+          my $msg = "duplicate backup-complete:\n$$backupComplete{line}$$entry{line}";
+          die $msg unless $ignoreDuplicateFailures;
+          print STDERR $msg;
         }
         $backupComplete = $entry;
       }
