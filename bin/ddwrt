@@ -198,8 +198,10 @@ sub ddwrtRestore($){
   my $script = "${baseFile}_script_${now}.sh";
 
   open FH, "> $script";
-  for my $nvram(getNvram($c)){
-    print FH "nvram set '$nvram'\n";
+  my $nvram = getNvram($c);
+  for my $key(sort keys %$nvram){
+    my $val = $$nvram{$key};
+    print FH "nvram set '$key=$val'\n";
   }
   print FH "nvram commit\n";
   close FH;
@@ -350,23 +352,23 @@ sub decrypt($){
 
 sub getNvram($){
   my $c = shift;
-  return (
-    getPublicKeyNvram($c),
-    getWifiNvram($c),
-    getStaticLeasesNvram($c),
-    getPortForwardingNvram($c),
-    getExtraNvram($c),
-  );
+  return {
+    %{getPublicKeyNvram($c)},
+    %{getWifiNvram($c)},
+    %{getStaticLeasesNvram($c)},
+    %{getPortForwardingNvram($c)},
+    %{getExtraNvram($c)},
+  };
 }
 
 sub getPublicKeyNvram($){
   my $ssh = `cat ~/.ssh/*.pub`;
-  return "sshd_authorized_keys=$ssh";
+  return {"sshd_authorized_keys" => "$ssh"};
 }
 
 sub getWifiNvram($){
   my $c = shift;
-  my @entries;
+  my $nvram = {};
 
   for my $section(keys %$c){
     if($section =~ /^ath\d+$/){
@@ -376,12 +378,15 @@ sub getWifiNvram($){
         if(defined $$s{$att}){
           my $val = $$s{$att};
           $val = decrypt $val if defined $encWifiAtts{$att};
-          push @entries, "${radio}_$att=$val";
+          $$nvram{"${radio}_$att"} = "$val";
+          if($radio eq "wl0" and $att =~ /^(channel|ssid)$/){
+            $$nvram{"wl_$att"} = "$val";
+          }
         }
       }
     }
   }
-  return @entries;
+  return $nvram;
 }
 
 sub getStaticLeasesNvram($){
@@ -398,9 +403,10 @@ sub getStaticLeasesNvram($){
     push @entries, "$mac=$hostname=$ipPrefix.$id=";
   }
 
-  my $leaseNum = 'static_leasenum=' . (@entries + 0);
-  my $leases = 'static_leases=' . join ' ', @entries;
-  return ($leaseNum, $leases);
+  return {
+    "static_leasenum" => (@entries + 0),
+    "static_leases" => (join ' ', @entries),
+  }
 }
 
 sub getPortForwardingNvram($){
@@ -455,20 +461,21 @@ sub getPortForwardingNvram($){
     }
   }
 
-  my $fwdNum = 'forwardspec_entries=' . (@entries + 0);
-  my $fwd = 'forward_spec=' . join ' ', @entries;
-  return ($fwdNum, $fwd);
+  return {
+    "forwardspec_entries" => (@entries + 0),
+    "forward_spec" => (join ' ', @entries),
+  }
 }
 
 sub getExtraNvram($){
   my $c = shift;
-  my @nvram;
+  my $nvram = {};
   if(defined $$c{nvram}){
     for my $key(keys %{$$c{nvram}}){
-      push @nvram, "$key=$$c{nvram}{$key}";
+      $$nvram{$key} = $$c{nvram}{$key};
     }
   }
-  return @nvram;
+  return $nvram;
 }
 
 sub bashComplete($$){
