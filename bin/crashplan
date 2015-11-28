@@ -448,6 +448,19 @@ sub formatBackupSet($){
   }
 
   my $startFmt = formatTime($$set{scanStart}{time});
+  my $elapsedFmt;
+  if(defined $$set{scanStart} and defined $$set{backupEnd}){
+    my $startSex = $$set{scanStart}{time};
+    my $endSex = $$set{backupEnd}{time};
+    my $elapsedSex = $endSex - $startSex;
+    my $h = int($elapsedSex/60/60);
+    my $m = int($elapsedSex/60) % 60;
+    my $s = int($elapsedSex) % 60;
+    $elapsedFmt = sprintf "%02dh", $h if not defined $elapsedFmt and $h > 0;
+    $elapsedFmt = sprintf "%02dm", $m if not defined $elapsedFmt and $m > 0;
+    $elapsedFmt = sprintf "%02ds", $s if not defined $elapsedFmt;
+  }
+
   my $name = padr $$set{backupName}, $maxLen;
   my $status = "";
   $status = "RUN!" if $$set{backupStatus} eq $STATUS_RUNNING;
@@ -486,6 +499,7 @@ sub formatBackupSet($){
   my @format = ($name, $startFmt, $status, "${filecount}f", "${size}MiB");
   push @format, "${encsize}MiB" if defined $encsize;
   push @format, "${speed}mbps" if defined $speed;
+  push @format, $elapsedFmt if defined $elapsedFmt;
   return "@format\n";
 }
 
