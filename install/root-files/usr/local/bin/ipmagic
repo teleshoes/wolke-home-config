@@ -23,6 +23,7 @@ sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
 sub guess($$);
+sub isEqual($$);
 
 my $ifconfigExec = '/sbin/ifconfig';
 my $iwconfigExec = '/sbin/iwconfig';
@@ -411,6 +412,8 @@ sub setHostsIP($$){
   my $hostsMarker = hostsMarker $hostname;
 
   my $oldIP = readHostsIP $hostname;
+  return if isEqual $oldIP, $ip;
+
   my $newFmt = defined $ip ? $ip : "[NONE]";
   my $oldFmt = defined $oldIP ? $oldIP : "[NONE]";
   my $action = defined $ip ? "updating" : "deleting";
@@ -436,6 +439,10 @@ sub setHostsIP($$){
 }
 sub sudoSetHostsIP($$){
   my ($hostname, $ip) = @_;
+
+  my $oldIP = readHostsIP $hostname;
+  return if isEqual $oldIP, $ip;
+
   if(defined $ip){
     system "sudo", $0, "--set-hosts", $hostname, $ip;
   }else{
@@ -593,6 +600,16 @@ sub guess($$){
     }
   }
   return undef;
+}
+
+sub isEqual($$){
+  if(not defined $_[0] and not defined $_[1]){
+    return 1;
+  }elsif(not defined $_[0] or not defined $_[1]){
+    return 0;
+  }else{
+    return $_[0] eq $_[1] ? 1 : 0;
+  }
 }
 
 &main(@ARGV);
