@@ -40,6 +40,8 @@ my $byteRegex = "[0-9a-fA-F]{2}";
 my $macRegex = join ":", ($byteRegex) x 6;
 my $ipRegex = "\\d+\\.\\d+\\.\\d+\\.\\d+";
 
+my $defaultRetries = 0;
+
 my $usage = "Usage:
     $0 -h|--help
       print this usage
@@ -108,6 +110,9 @@ my $usage = "Usage:
         -u|--user USER      ssh user
         -m|--method METHOD  method of obtaining ip
                             one of [$methods]  {default is 'any'}
+        -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
+                            (number of total attempts is 1+<RETRIES>)
+                            {default is $defaultRetries}
 ";
 
 sub main(@){
@@ -147,7 +152,7 @@ sub main(@){
   die "hostname not defined in conf\n" if not defined $config{hostname};
 
   my %opts;
-  while(@_ > 0 and $_[0] =~ /^(-v|--verbose|-u|--user|-m|--method)$/){
+  while(@_ > 0 and $_[0] =~ /^(-v|--verbose|-u|--user|-m|--method|-r|--retries)$/){
     my $arg = shift;
     if($arg =~ /^(-v|--verbose)$/){
       $opts{verbose} = 1;
@@ -155,6 +160,8 @@ sub main(@){
       $opts{user} = shift;
     }elsif(@_ > 0 and $arg =~ /^(-m|--method)$/){
       $opts{method} = shift;
+    }elsif(@_ > 0 and $arg =~ /^(-r|--retries)$/){
+      $opts{retries} = shift;
     }else{
       die $usage;
     }
@@ -164,6 +171,7 @@ sub main(@){
   $opts{user} = $config{defaultUser} if not defined $opts{user};
   $opts{user} = 'root' if not defined $opts{user};
   $opts{method} = 'any' if not defined $opts{method};
+  $opts{retries} = $defaultRetries if not defined $opts{retries};
 
   my $ipOnly = 0;
 
@@ -229,20 +237,31 @@ sub main(@){
   }
   print STDERR "WARNING: no iwconfig exec found\n" if not -x $iwconfigExec;
 
+  my $attempts = 1 + $opts{retries};
+
   my ($ip, $method);
-  if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
-    ($ip, $method) = (readTmpFile($confFile), 'tmp');
+  while(not defined $ip and $attempts > 0){
+    if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
+      ($ip, $method) = (readTmpFile($confFile), 'tmp');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
+      ($ip, $method) = (usb(\%config, \%opts), 'usb');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
+      ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
+      ($ip, $method) = (guess(\%config, \%opts), 'guess');
+    }
+    $method = undef if not defined $ip;
+
+    $attempts--;
+    if(not defined $ip and $attempts > 0){
+      my $msg = "No IP found, retrying after 1s ($attempts attempts left)\n";
+      print STDERR $msg;
+      sleep 1;
+    }
   }
-  if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
-    ($ip, $method) = (usb(\%config, \%opts), 'usb');
-  }
-  if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
-    ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
-  }
-  if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
-    ($ip, $method) = (guess(\%config, \%opts), 'guess');
-  }
-  $method = undef if not defined $ip;
 
   if($ipOnly){
     print "$ip\n" if defined $ip;
