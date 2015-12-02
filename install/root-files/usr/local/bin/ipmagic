@@ -11,8 +11,8 @@ sub ensureIpFingerprint($$);
 sub parseConfig($);
 sub hostsMarker($);
 sub getHosts($);
-sub setHosts($$$);
-sub sudoSetHosts($$$);
+sub setHosts($$);
+sub sudoSetHosts($$);
 sub maybeUpdateHosts($$);
 sub getTmpFile($);
 sub readTmpFile($);
@@ -44,10 +44,10 @@ my $usage = "Usage:
     $0 -h|--help
       print this usage
 
-    $0 --set-hosts HOSTNAME MARKER IP
+    $0 --set-hosts HOSTNAME IP
       update the hosts file line and exit
 
-    $0 --remove-hosts HOSTNAME MARKER
+    $0 --remove-hosts HOSTNAME
       remove the hosts file line and exit
 
     $0 --ifup DEV IP
@@ -112,12 +112,12 @@ sub main(@){
     my $cmd = shift;
     if($cmd =~ /^(-h|--help)$/ and @_ == 0){
       print $usage;
-    }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 3){
-      my ($hostname, $marker, $ip) = @_;
-      setHosts $hostname, $marker, $ip;
-    }elsif($cmd =~ /^(--remove-hosts)$/ and @_ == 2){
-      my ($hostname, $marker) = @_;
-      setHosts $hostname, $marker, undef;
+    }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 2){
+      my ($hostname, $ip) = @_;
+      setHosts $hostname, $ip;
+    }elsif($cmd =~ /^(--remove-hosts)$/ and @_ == 1){
+      my ($hostname) = @_;
+      setHosts $hostname, undef;
     }elsif($cmd =~ /^(--ifup)$/ and @_ == 2){
       my ($dev, $ip) = @_;
       ifup $_[1], $_[2];
@@ -389,15 +389,13 @@ sub parseConfig($){
 }
 
 sub hostsMarker($){
-  my %config = %{shift()};
-  my $hostname = $config{hostname};
+  my $hostname = shift;
   return "ipmagic:$hostname";
 }
 
 sub getHosts($){
-  my %config = %{shift()};
-  my $hostsMarker = hostsMarker \%config;
-  my $hostname = $config{hostname};
+  my $hostname = shift;
+  my $hostsMarker = hostsMarker $hostname;
   for my $line(`cat /etc/hosts`){
     if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
       return $1;
@@ -406,8 +404,9 @@ sub getHosts($){
   return undef;
 }
 
-sub setHosts($$$){
-  my ($hostname, $hostsMarker, $ip) = @_;
+sub setHosts($$){
+  my ($hostname, $ip) = @_;
+  my $hostsMarker = hostsMarker $hostname;
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
     if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
@@ -426,21 +425,20 @@ sub setHosts($$$){
   print FH @lines;
   close FH;
 }
-sub sudoSetHosts($$$){
-  my ($hostname, $hostsMarker, $ip) = @_;
+sub sudoSetHosts($$){
+  my ($hostname, $ip) = @_;
   if(defined $ip){
-    system "sudo", $0, "--set-hosts", $hostname, $hostsMarker, $ip;
+    system "sudo", $0, "--set-hosts", $hostname, $ip;
   }else{
-    system "sudo", $0, "--remove-hosts", $hostname, $hostsMarker;
+    system "sudo", $0, "--remove-hosts", $hostname;
   }
 }
 
 sub maybeUpdateHosts($$){
   my %config = %{shift()};
   my $ip = shift;
-  my $hostsMarker = hostsMarker \%config;
   my $hostname = $config{hostname};
-  my $old = getHosts \%config;
+  my $old = getHosts $hostname;
 
   my $newFmt = defined $ip ? $ip : "[NONE]";
   my $oldFmt = defined $old ? $old : "[NONE]";
@@ -448,12 +446,12 @@ sub maybeUpdateHosts($$){
   if(not defined $ip){
     if(defined $old){
       print STDERR "deleting $hostname in /etc/hosts $oldFmt=>$newFmt\n";
-      sudoSetHosts $hostname, $hostsMarker, undef;
+      sudoSetHosts $hostname, undef;
     }
   }else{
     if(not defined $old or $old ne $ip){
       print STDERR "updating $hostname in /etc/hosts $oldFmt=>$newFmt\n";
-      sudoSetHosts $hostname, $hostsMarker, $ip;
+      sudoSetHosts $hostname, $ip;
     }
   }
 }
