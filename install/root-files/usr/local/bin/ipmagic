@@ -13,7 +13,6 @@ sub hostsMarker($);
 sub readHostsIP($);
 sub setHostsIP($$);
 sub sudoSetHostsIP($$);
-sub maybeUpdateHosts($$);
 sub getTmpFile($);
 sub readTmpFile($);
 sub writeTmpFile($$);
@@ -252,7 +251,7 @@ sub main(@){
   if(not defined $ip and not quickPingable $config{hostname}){
     die "No ip found, and could not ping $config{hostname}\n";
   }else{
-    maybeUpdateHosts \%config, $ip;
+    sudoSetHostsIP $config{hostname}, $ip;
   }
 
   if($isVnc){
@@ -441,23 +440,6 @@ sub sudoSetHostsIP($$){
     system "sudo", $0, "--set-hosts", $hostname, $ip;
   }else{
     system "sudo", $0, "--remove-hosts", $hostname;
-  }
-}
-
-sub maybeUpdateHosts($$){
-  my %config = %{shift()};
-  my $ip = shift;
-  my $hostname = $config{hostname};
-  my $old = readHostsIP $hostname;
-
-  if(not defined $ip){
-    if(defined $old){
-      sudoSetHostsIP $hostname, undef;
-    }
-  }else{
-    if(not defined $old or $old ne $ip){
-      sudoSetHostsIP $hostname, $ip;
-    }
   }
 }
 
