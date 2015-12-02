@@ -410,6 +410,13 @@ sub readHostsIP($){
 sub setHostsIP($$){
   my ($hostname, $ip) = @_;
   my $hostsMarker = hostsMarker $hostname;
+
+  my $oldIP = readHostsIP $hostname;
+  my $newFmt = defined $ip ? $ip : "[NONE]";
+  my $oldFmt = defined $oldIP ? $oldIP : "[NONE]";
+  my $action = defined $ip ? "updating" : "deleting";
+  print STDERR "$action $hostname in /etc/hosts $oldFmt=>$newFmt\n";
+
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
     if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
@@ -443,17 +450,12 @@ sub maybeUpdateHosts($$){
   my $hostname = $config{hostname};
   my $old = readHostsIP $hostname;
 
-  my $newFmt = defined $ip ? $ip : "[NONE]";
-  my $oldFmt = defined $old ? $old : "[NONE]";
-
   if(not defined $ip){
     if(defined $old){
-      print STDERR "deleting $hostname in /etc/hosts $oldFmt=>$newFmt\n";
       sudoSetHostsIP $hostname, undef;
     }
   }else{
     if(not defined $old or $old ne $ip){
-      print STDERR "updating $hostname in /etc/hosts $oldFmt=>$newFmt\n";
       sudoSetHostsIP $hostname, $ip;
     }
   }
