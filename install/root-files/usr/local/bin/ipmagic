@@ -10,9 +10,9 @@ sub fingerprint($);
 sub ensureIpFingerprint($$);
 sub parseConfig($);
 sub hostsMarker($);
-sub getHosts($);
-sub setHosts($$);
-sub sudoSetHosts($$);
+sub readHostsIP($);
+sub setHostsIP($$);
+sub sudoSetHostsIP($$);
 sub maybeUpdateHosts($$);
 sub getTmpFile($);
 sub readTmpFile($);
@@ -117,10 +117,10 @@ sub main(@){
       print $usage;
     }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 2){
       my ($hostname, $ip) = @_;
-      setHosts $hostname, $ip;
+      setHostsIP $hostname, $ip;
     }elsif($cmd =~ /^(--remove-hosts)$/ and @_ == 1){
       my ($hostname) = @_;
-      setHosts $hostname, undef;
+      setHostsIP $hostname, undef;
     }elsif($cmd =~ /^(--ifup)$/ and @_ == 2){
       my ($dev, $ip) = @_;
       ifup $_[1], $_[2];
@@ -396,7 +396,7 @@ sub hostsMarker($){
   return "ipmagic:$hostname";
 }
 
-sub getHosts($){
+sub readHostsIP($){
   my $hostname = shift;
   my $hostsMarker = hostsMarker $hostname;
   for my $line(`cat /etc/hosts`){
@@ -407,7 +407,7 @@ sub getHosts($){
   return undef;
 }
 
-sub setHosts($$){
+sub setHostsIP($$){
   my ($hostname, $ip) = @_;
   my $hostsMarker = hostsMarker $hostname;
   my @lines = `cat /etc/hosts`;
@@ -428,7 +428,7 @@ sub setHosts($$){
   print FH @lines;
   close FH;
 }
-sub sudoSetHosts($$){
+sub sudoSetHostsIP($$){
   my ($hostname, $ip) = @_;
   if(defined $ip){
     system "sudo", $0, "--set-hosts", $hostname, $ip;
@@ -441,7 +441,7 @@ sub maybeUpdateHosts($$){
   my %config = %{shift()};
   my $ip = shift;
   my $hostname = $config{hostname};
-  my $old = getHosts $hostname;
+  my $old = readHostsIP $hostname;
 
   my $newFmt = defined $ip ? $ip : "[NONE]";
   my $oldFmt = defined $old ? $old : "[NONE]";
@@ -449,12 +449,12 @@ sub maybeUpdateHosts($$){
   if(not defined $ip){
     if(defined $old){
       print STDERR "deleting $hostname in /etc/hosts $oldFmt=>$newFmt\n";
-      sudoSetHosts $hostname, undef;
+      sudoSetHostsIP $hostname, undef;
     }
   }else{
     if(not defined $old or $old ne $ip){
       print STDERR "updating $hostname in /etc/hosts $oldFmt=>$newFmt\n";
-      sudoSetHosts $hostname, $ip;
+      sudoSetHostsIP $hostname, $ip;
     }
   }
 }
