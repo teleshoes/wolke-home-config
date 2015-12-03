@@ -214,9 +214,9 @@ function find() {
 
 function grep() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    grepmvn "$@"
+    grepmvn -s "$@"
   else
-    command grep "$@"
+    command grep -s "$@"
   fi
 }
 

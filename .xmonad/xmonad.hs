@@ -21,7 +21,7 @@ import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.StackSet (
-  RationalRect(..), float, sink, view)
+  RationalRect(..), float, sink, view, focusDown)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
 
 import System.Taffybar.Hooks.PagerHints (pagerHints)
@@ -92,6 +92,7 @@ myManageHook = execWriter $ do
   className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? ("Close " ++ ffName)    ~~> restartFF
+  title     =? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
   title     =? "StepMania"             ~~> doFloat
   title     =? "npviewer.bin"          ~~> doFloat -- flash
   title     =? "plugin-container"      ~~> doFloat -- flash

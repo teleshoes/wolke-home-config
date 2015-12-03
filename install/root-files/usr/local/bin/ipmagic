@@ -4,16 +4,15 @@ use warnings;
 
 sub absolutePath($);
 sub assertBool($);
-sub assertIp($);
+sub assertIP($);
 sub assertMac($);
 sub fingerprint($);
-sub ensureIpFingerprint($$);
+sub ensureFingerprint($$);
 sub parseConfig($);
 sub hostsMarker($);
-sub getHosts($);
-sub setHosts($$$);
-sub sudoSetHosts($$$);
-sub maybeUpdateHosts($$);
+sub readHostsIP($);
+sub setHostsIP($$);
+sub sudoSetHostsIP($$);
 sub getTmpFile($);
 sub readTmpFile($);
 sub writeTmpFile($$);
@@ -24,6 +23,7 @@ sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
 sub guess($$);
+sub isEqual($$);
 
 my $ifconfigExec = '/sbin/ifconfig';
 my $iwconfigExec = '/sbin/iwconfig';
@@ -40,15 +40,29 @@ my $byteRegex = "[0-9a-fA-F]{2}";
 my $macRegex = join ":", ($byteRegex) x 6;
 my $ipRegex = "\\d+\\.\\d+\\.\\d+\\.\\d+";
 
+my $defaultRetries = 2;
+
 my $usage = "Usage:
     $0 -h|--help
       print this usage
-    $0 --set-hosts HOSTNAME MARKER IP
-      update the hosts file line and exit
+
+    $0 --set-hosts HOSTNAME IP
+      remove any lines in /etc/hosts that match:
+        \"###.###.###.###\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
+      add the following to /etc/hosts: \"<IP>\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
+
+    $0 --remove-hosts HOSTNAME
+      remove any lines in /etc/hosts that match:
+        \"###.###.###.###\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
+
     $0 --ifup DEV IP
       ifup the DEV with the IP
 
     $0 CONF [OPTS]
+      generate the IP, ensure its ping-able, setup hosts file, init devices
+      if IP is found, print the hostname and exit normally
+      if IP is NOT found, fail and exit with an error code
+
     $0 CONF [OPTS] --host
       print the hostname and exit, doing nothing else
 
@@ -99,22 +113,34 @@ my $usage = "Usage:
         -v|--verbose        print every little thing that springs to our mouths
         -u|--user USER      ssh user
         -m|--method METHOD  method of obtaining ip
-                            one of [$methods]
+                            one of [$methods]  {default is 'any'}
+        -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
+                            (number of total attempts is 1+<RETRIES>)
+                            {default is $defaultRetries}
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
+  if(@_ > 0 and $_[0] =~ /^-/){
+    my $cmd = shift;
+    if($cmd =~ /^(-h|--help)$/ and @_ == 0){
+      print $usage;
+    }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 2){
+      my ($hostname, $ip) = @_;
+      setHostsIP $hostname, $ip;
+    }elsif($cmd =~ /^(--remove-hosts)$/ and @_ == 1){
+      my ($hostname) = @_;
+      setHostsIP $hostname, undef;
+    }elsif($cmd =~ /^(--ifup)$/ and @_ == 2){
+      my ($dev, $ip) = @_;
+      ifup $_[1], $_[2];
+    }else{
+      die $usage;
+    }
+
     exit 0;
-  }elsif(@_ == 4 and $_[0] =~ /^(--set-hosts)$/){
-    setHosts $_[1], $_[2], $_[3];
-    exit 0;
-  }elsif(@_ == 3 and $_[0] =~ /^(--ifup)$/){
-    ifup $_[1], $_[2];
-    exit 0;
-  }elsif(@_ == 0){
-    die $usage;
   }
+
+  die $usage if @_ == 0;
 
   my $conf = shift;
   my $confFile;
@@ -130,7 +156,7 @@ sub main(@){
   die "hostname not defined in conf\n" if not defined $config{hostname};
 
   my %opts;
-  while(@_ > 0 and $_[0] =~ /^(-v|--verbose|-u|--user|-m|--method)$/){
+  while(@_ > 0 and $_[0] =~ /^(-v|--verbose|-u|--user|-m|--method|-r|--retries)$/){
     my $arg = shift;
     if($arg =~ /^(-v|--verbose)$/){
       $opts{verbose} = 1;
@@ -138,6 +164,8 @@ sub main(@){
       $opts{user} = shift;
     }elsif(@_ > 0 and $arg =~ /^(-m|--method)$/){
       $opts{method} = shift;
+    }elsif(@_ > 0 and $arg =~ /^(-r|--retries)$/){
+      $opts{retries} = shift;
     }else{
       die $usage;
     }
@@ -147,6 +175,7 @@ sub main(@){
   $opts{user} = $config{defaultUser} if not defined $opts{user};
   $opts{user} = 'root' if not defined $opts{user};
   $opts{method} = 'any' if not defined $opts{method};
+  $opts{retries} = $defaultRetries if not defined $opts{retries};
 
   my $ipOnly = 0;
 
@@ -212,37 +241,48 @@ sub main(@){
   }
   print STDERR "WARNING: no iwconfig exec found\n" if not -x $iwconfigExec;
 
+  my $attempts = 1 + $opts{retries};
+
   my ($ip, $method);
-  if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
-    ($ip, $method) = (readTmpFile($confFile), 'tmp');
+  while(not defined $ip and $attempts > 0){
+    if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
+      ($ip, $method) = (readTmpFile($confFile), 'tmp');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
+      ($ip, $method) = (usb(\%config, \%opts), 'usb');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
+      ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
+    }
+    if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
+      ($ip, $method) = (guess(\%config, \%opts), 'guess');
+    }
+    $method = undef if not defined $ip;
+
+    $attempts--;
+    if(not defined $ip and $attempts > 0){
+      my $msg = "No IP found, retrying after 1s ($attempts attempts left)\n";
+      print STDERR $msg;
+      sleep 1;
+    }
   }
-  if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
-    ($ip, $method) = (usb(\%config, \%opts), 'usb');
-  }
-  if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
-    ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
-  }
-  if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
-    ($ip, $method) = (guess(\%config, \%opts), 'guess');
-  }
-  $method = undef if not defined $ip;
 
   if($ipOnly){
     print "$ip\n" if defined $ip;
     exit (defined $ip ? 0 : 1);
   }
 
-  if(not defined $ip and not quickPingable $config{hostname}){
-    die "No ip found, and could not ping $config{hostname}\n";
-  }else{
-    maybeUpdateHosts \%config, $ip;
+  sudoSetHostsIP $config{hostname}, $ip;
+
+  if(not defined $ip){
+    die "ERROR: no IP found\n";
   }
 
   if($isVnc){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
   }elsif($isSsh){
-    ensureIpFingerprint $config{hostname}, $ip if defined $ip;
+    ensureFingerprint $config{hostname}, $ip if defined $ip;
 
     my %sshOpts = (
       StrictHostKeyChecking => 'no',
@@ -278,7 +318,7 @@ sub assertBool($){
   }
 }
 
-sub assertIp($){
+sub assertIP($){
   my $ip = shift;
   if($ip !~ /^$ipRegex$/){
     die "'$ip' is not an ip4 address\n"
@@ -302,7 +342,7 @@ sub fingerprint($){
   }
 }
 
-sub ensureIpFingerprint($$){
+sub ensureFingerprint($$){
   my ($hostname, $ip) = @_;
   my $hnFp = fingerprint $hostname;
   my $ipFp = fingerprint $ip;
@@ -345,9 +385,9 @@ sub parseConfig($){
         die "Malformed map conf entry $key = $val\n";
       }
       my ($valLeft, $valRight) = ($1, $2);
-      assertIp $valLeft if defined $assertIpLeft{$key};
+      assertIP $valLeft if defined $assertIpLeft{$key};
       assertMac $valLeft if defined $assertMacLeft{$key};
-      assertIp $valRight if defined $assertIpRight{$key};
+      assertIP $valRight if defined $assertIpRight{$key};
       assertMac $valRight if defined $assertMacRight{$key};
 
       $key .= "Map";
@@ -355,14 +395,14 @@ sub parseConfig($){
       ${$config{$key}}{$valLeft} = $valRight;
     }elsif(defined $listKeys{$key}){
       assertBool $val if defined $assertBool{$key};
-      assertIp $val if defined $assertIp{$key};
+      assertIP $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       $key .= "List";
       $config{$key} = [] if not defined $config{$key};
       push @{$config{$key}}, $val;
     }elsif(defined $singleKeys{$key}){
       assertBool $val if defined $assertBool{$key};
-      assertIp $val if defined $assertIp{$key};
+      assertIP $val if defined $assertIp{$key};
       assertMac $val if defined $assertMac{$key};
       die "Duplicate single conf entry $key\n" if defined $config{$key};
       $config{$key} = $val;
@@ -375,15 +415,13 @@ sub parseConfig($){
 }
 
 sub hostsMarker($){
-  my %config = %{shift()};
-  my $hostname = $config{hostname};
+  my $hostname = shift;
   return "ipmagic:$hostname";
 }
 
-sub getHosts($){
-  my %config = %{shift()};
-  my $hostsMarker = hostsMarker \%config;
-  my $hostname = $config{hostname};
+sub readHostsIP($){
+  my $hostname = shift;
+  my $hostsMarker = hostsMarker $hostname;
   for my $line(`cat /etc/hosts`){
     if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
       return $1;
@@ -392,48 +430,47 @@ sub getHosts($){
   return undef;
 }
 
-sub setHosts($$$){
-  my ($hostname, $hostsMarker, $ip) = @_;
+sub setHostsIP($$){
+  my ($hostname, $ip) = @_;
+  my $hostsMarker = hostsMarker $hostname;
+
+  my $oldIP = readHostsIP $hostname;
+  return if isEqual $oldIP, $ip;
+
+  my $newFmt = defined $ip ? $ip : "[NONE]";
+  my $oldFmt = defined $oldIP ? $oldIP : "[NONE]";
+  my $action = defined $ip ? "updating" : "deleting";
+  print STDERR "$action $hostname in /etc/hosts $oldFmt=>$newFmt\n";
+
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
     if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
       $line = '';
     }
   }
-  if(defined $ip and $ip =~ /^$ipRegex$/){
-    push @lines, "$ip\t$hostname#$hostsMarker\n";
+  if(defined $ip){
+    if($ip =~ /^$ipRegex$/){
+      push @lines, "$ip\t$hostname#$hostsMarker\n";
+    }else{
+      die "malformed ip: $ip\n";
+    }
   }
 
   open FH, "> /etc/hosts" or die "Couldnt open /etc/hosts for writing\n";
   print FH @lines;
   close FH;
 }
-sub sudoSetHosts($$$){
-  my ($hostname, $hostsMarker, $ip) = @_;
-  system "sudo", $0, "--set-hosts", $hostname, $hostsMarker, $ip;
-}
+sub sudoSetHostsIP($$){
+  my ($hostname, $ip) = @_;
 
-sub maybeUpdateHosts($$){
-  my %config = %{shift()};
-  my $ip = shift;
-  my $hostsMarker = hostsMarker \%config;
-  my $hostname = $config{hostname};
-  my $old = getHosts \%config;
-  if(not defined $ip){
-    if(defined $old){
-      print STDERR "removing $hostname line from /etc/hosts\n";
-    }else{
-      return;
-    }
+  my $oldIP = readHostsIP $hostname;
+  return if isEqual $oldIP, $ip;
+
+  if(defined $ip){
+    system "sudo", $0, "--set-hosts", $hostname, $ip;
   }else{
-    if(not defined $old or $old ne $ip){
-      print STDERR "replacing $hostname line in /etc/hosts\n";
-    }else{
-      return;
-    }
+    system "sudo", $0, "--remove-hosts", $hostname;
   }
-
-  sudoSetHosts $hostname, $hostsMarker, $ip;
 }
 
 sub getTmpFile($){
@@ -585,7 +622,27 @@ sub guess($$){
       }
     }
   }
+
+  my $oldIP = readHostsIP $config{hostname};
+  if(defined $oldIP){
+    print "  guess $oldIP (old hosts IP)\n" if $opts{verbose};
+    if(quickPingable $oldIP){
+      print "  success!\n" if $opts{verbose};
+      return $oldIP;
+    }
+  }
+
   return undef;
+}
+
+sub isEqual($$){
+  if(not defined $_[0] and not defined $_[1]){
+    return 1;
+  }elsif(not defined $_[0] or not defined $_[1]){
+    return 0;
+  }else{
+    return $_[0] eq $_[1] ? 1 : 0;
+  }
 }
 
 &main(@ARGV);
