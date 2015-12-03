@@ -4,7 +4,7 @@ BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 
 screen-cmd fetch-seedbox
 
-screen-cmd execPing --watchdog ddwrt --restart-dev
+screen-cmd execPing --watchdog ddwrt buffalo --restart-dev ath0
 
 sudo igstart &
 brightness 80
