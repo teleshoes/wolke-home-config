@@ -152,6 +152,7 @@ function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
 function sbs          { sb-rt-status "$@"; }
+function sbrsync      { seedbox --rsync-revtun "$@"; }
 
 function s            { "$@" & disown; }
 function sx           { "$@" & disown && exit 0; }
