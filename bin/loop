@@ -27,6 +27,9 @@ my $usage = "Usage:
                         do not rerun 'command' after a zero exit code
   -f|--failure        run until failure
                         do not rerun 'command' after a non-zero exit code
+  -a|--alarm          run alarm command after exiting with --success|--failure
+                        run 'alarm -s success' before terminating with --success
+                        run 'alarm -s failure' before terminating with --failure
   --alarm-success     run 'alarm -s success' after each zero exit code
   --alarm-failure     run 'alarm -s failure' after each non-zero exit code
 ";
@@ -37,6 +40,7 @@ sub main(@){
   my $printDate = 0;
   my $untilSuccess = 0;
   my $untilFailure = 0;
+  my $alarmOnExit = 0;
   my $alarmSuccess = 0;
   my $alarmFailure = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -50,6 +54,8 @@ sub main(@){
       $untilSuccess = 1;
     }elsif($arg =~ /^(-f|--failure)$/){
       $untilFailure = 1;
+    }elsif($arg =~ /^(-a|--alarm)$/){
+      $alarmOnExit = 1;
     }elsif($arg =~ /^(--alarm-success)$/){
       $alarmSuccess = 1;
     }elsif($arg =~ /^(--alarm-failure)$/){
@@ -71,12 +77,12 @@ sub main(@){
 
     my $exitCode = $?;
     if($exitCode == 0){
-      if($alarmSuccess){
+      if($alarmSuccess or ($alarmOnExit and $untilSuccess)){
         system "alarm -s success";
       }
       exit $exitCode if $untilSuccess;
     }else{
-      if($alarmFailure){
+      if($alarmFailure or ($alarmOnExit and $untilFailure)){
         system "alarm -s failure";
       }
       exit $exitCode if $untilFailure;
