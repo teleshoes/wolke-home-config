@@ -5,9 +5,9 @@ use warnings;
 my $usage = "Usage:
   $0 -h|--help
      print this usage
-  $0 [-s|-f] [-d] [DELAY] COMMAND
+  $0 [-s|-f|-d] [DELAY] COMMAND
      run 'COMMAND' with shell interpolation repeatedly
-  $0 [-s|-f] [-d] [DELAY] EXEC [ARG ARG ..]
+  $0 [-s|-f|-d] [DELAY] EXEC [ARG ARG ..]
      run 'EXEC ARG ARG ..' without interpolation repeatedly
      note that normal shell interpolation still happens when running $0
   e.g.:
@@ -33,24 +33,22 @@ sub runOrDie(@){
 }
 
 sub main(@){
-  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
   my $untilSuccess = 0;
   my $untilFailure = 0;
-  if(@_ > 0 and $_[0] =~ /^(-s|-f)$/){
+  my $printDate = 0;
+  while(@_ > 0 and $_[0] =~ /^(-h|--help|-s|-f|-d)$/){
     my $arg = shift;
-    $untilSuccess = 1 if $arg eq '-s';
-    $untilFailure = 1 if $arg eq '-f';
+    $untilSuccess = 1 if $arg =~ /^(-s)$/;
+    $untilFailure = 1 if $arg =~ /^(-f)$/;
+    $printDate = 1 if $arg =~ /^(-d)$/;
+    die $usage if $arg =~ /^(-h|--help)$/;
   }
 
-  die $usage if @_ == 0;
-  my $printDate = 0;
-  $printDate = shift if $_[0] =~ /^-d$/;
- 
-  die $usage if @_ == 0;
   my $delay = 1;
-  $delay = shift if $_[0] =~ /^\d+(?:\.\d+)?$/;
+  $delay = shift if @_ > 0 and $_[0] =~ /^\d+(?:\.\d+)?$/;
 
   die $usage if @_ == 0;
+
   while(1){
     runOrDie "date" if $printDate;
     system @_;
