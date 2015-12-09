@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $odFormat = "x1";
+my $odAddressRadix = "none";
+
+my $usage = "Usage:
+  $0 -h
+    print this usage
+
+  $0 [OPTIONS] FILE [FILE FILE ..]
+    run 'od -t $odFormat -A $odAddressRadix FILE' for each file
+
+  FILE
+    path to a file
+    cannot start with '-'
+    {use './-' or full path for files that start with '-'}
+
+  OPTIONS:
+    --filename
+      prepend each line printed by od with '<FILE>:'
+      {default if more than one <FILE> is given}
+    --nofilename
+      do not prepend each line printed by od with '<FILE>:'
+      {default if exactly one <FILE> is given}
+";
+
+sub main(@){
+  my $showFilename = undef;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(--filename)$/){
+      $showFilename = 1;
+    }elsif($arg =~ /^(--nofilename)$/){
+      $showFilename = 0;
+    }else{
+      die $usage;
+    }
+  }
+
+  my @files = @_;
+  die $usage if @files == 0;
+
+  if(not defined $showFilename){
+    $showFilename = @files > 1 ? 1 : 0;
+  }
+
+  my $exitCode = 0;
+  for my $file(@files){
+    if(not -f $file){
+      print STDERR "$file is not a file\n";
+      $exitCode = 1;
+      next;
+    }
+    my @odCmd = ("od", "-t", $odFormat, "-A", $odAddressRadix, $file);
+    open ODCMD, "-|", @odCmd or die "Could not run @odCmd\n";
+    while(my $line = <ODCMD>){
+      print "$file:" if $showFilename;
+      print $line;
+    }
+    close ODCMD;
+    $exitCode = 1 if $? != 0;
+  }
+  exit $exitCode;
+}
+
+&main(@ARGV);

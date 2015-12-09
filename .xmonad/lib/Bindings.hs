@@ -140,6 +140,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "CEC power"     @@ do
         "TV pwr toggle" @@ mC    xK_F2   #! "nuc cec-cmd --tv togglestandby"
+        "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
         "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
