@@ -164,7 +164,12 @@ sub printBackupSets(@){
 
 sub runBackup(){
   run "rsync", "-avP", "$dir/log/", $logBackupDir;
-  run "cd $logBackupDir && git add -A && git ci -m 'automatic commit'";
+  my $noLogs = 0;
+  my $noLogsMessage = "\n\nWARNING: no logs backed up\n\n";
+  if(not tryrun "cd $logBackupDir && git add -A && git ci -m 'automatic commit'"){
+    $noLogs = 1;
+  }
+  print STDERR $noLogsMessage if $noLogs == 1;
 
   my $startMillis = time*1000.0;
   my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
@@ -221,6 +226,8 @@ sub runBackup(){
   my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
   printBackupSets @newBackupSets;
+
+  print STDERR $noLogsMessage if $noLogs == 1;
 }
 
 sub getFilteredBackupSets($$$){
