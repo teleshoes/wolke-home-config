@@ -12,6 +12,7 @@ sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog();
 sub formatBackupSet($);
+sub backupLogs();
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
 sub padl($$);
@@ -19,6 +20,7 @@ sub padr($$);
 sub formatTime($);
 sub ymd($);
 sub run(@);
+sub tryrun(@);
 sub bashComplete($$);
 
 my $dir = "/usr/local/crashplan";
@@ -161,9 +163,19 @@ sub printBackupSets(@){
   }
 }
 
+sub backupLogs(){
+  print "\n\n";
+  if(not tryrun "rsync", "-avP", "$dir/log/", $logBackupDir){
+    die "ERROR: Could not rsync logs\n";
+  }
+  if(not tryrun "cd $logBackupDir && git add -A && git ci -m 'automatic commit'"){
+    print STDERR "\n\nWARNING: no logs backed up\n\n";
+  }
+  print "\n\n";
+}
+
 sub runBackup(){
-  run "rsync", "-avP", "$dir/log/", $logBackupDir;
-  run "cd $logBackupDir && git add -A && git ci -m 'automatic commit'";
+  backupLogs();
 
   my $startMillis = time*1000.0;
   my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
@@ -173,8 +185,8 @@ sub runBackup(){
   run $0, "start";
   sleep 5;
   run $0, "scan";
-  my $pid = fork;
-  if($pid == 0){
+  my $logPid = fork;
+  if($logPid == 0){
     exec "tail", "-F", $logFile;
   }
 
@@ -214,11 +226,14 @@ sub runBackup(){
     }
   }
 
-  run "kill", "-9", $pid;
+  run "kill", "-9", $logPid;
   run $0, "stop";
 
   my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+
+  backupLogs();
+
   printBackupSets @newBackupSets;
 }
 
@@ -555,9 +570,13 @@ sub ymd($){
 }
 
 sub run(@){
+  my $success = tryrun @_;
+  die "Error running '@_'\n" if not $success;
+}
+sub tryrun(@){
   print "@_\n";
   system @_;
-  die "Error running '@_'\n" if $? != 0;
+  return $? == 0 ? 1 : 0;
 }
 
 sub bashComplete($$){
