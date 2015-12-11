@@ -284,7 +284,15 @@ sub rsyncRevtun($$$$@){
     die "Error fetching revtun port with cmd \"@revtunPortCmd\"\n";
   }
 
-  my $rsyncProxyCmd = "ssh @revtunRemoteOpts $sbUser\@$sbServer -W localhost:$revtunPort";
+  my $rsyncProxyCmd;
+
+  #test local ssh for 'ssh -W' netcat mode feature, if not present use netcat directly
+  my $sshUsage = `ssh 2>&1`;
+  if($sshUsage =~ /-W/){
+    $rsyncProxyCmd = "ssh @revtunRemoteOpts $sbUser\@$sbServer -W localhost:$revtunPort";
+  }else{
+    $rsyncProxyCmd = "ssh @revtunRemoteOpts $sbUser\@$sbServer nc localhost $revtunPort";
+  }
 
   my $remoteHost = "$revtunUsername\@$sbServer";
 
