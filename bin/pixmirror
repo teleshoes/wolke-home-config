@@ -179,7 +179,33 @@ sub main(@){
   print "\nconverting $toConvert images {skipped $skipped}\n";
 
   if($IS_THREADED and $threadCount > 1){
-    die "threading not implemented\n";
+    my @threadChunks;
+    my $threadChunk = undef;
+    my $size = @srcImgs/$threadCount;
+    for my $img(@srcImgs){
+      if(not defined $threadChunk){
+        $threadChunk = [];
+        push @threadChunks, $threadChunk;
+      }
+      push @$threadChunk, $img;
+      if(@threadChunks < $threadCount and @$threadChunk >= $size){
+        $threadChunk = undef;
+      }
+    }
+
+    my @threads;
+    for my $chunk(@threadChunks){
+      my $t = threads->create(sub {
+        for my $img(@$chunk){
+          handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+        }
+      });
+      push @threads, $t;
+    }
+
+    for my $t(@threads){
+      $t->join();
+    }
   }else{
     for my $img(@srcImgs){
       handleImage $img, $srcDir, $destDir, $srcInfos{$img};
