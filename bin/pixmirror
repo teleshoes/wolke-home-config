@@ -200,13 +200,16 @@ sub main(@){
     }
 
     $SIG{'INT'} = sub {
+      print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
       $abort = 1;
     };
 
     my @threads;
     for my $chunk(@threadChunks){
       my $t = threads->create(sub {
+        print STDERR "started thread#" . threads->tid() . "\n";
         $SIG{'INT'} = sub {
+          print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
           $abort = 1;
         };
         for my $img(@$chunk){
@@ -220,8 +223,10 @@ sub main(@){
     }
 
     for my $t(@threads){
+      print STDERR "joining on thread#" . $t->tid() . "\n";
       $t->join();
     }
+    print STDERR "all threads joined\n";
 
     cleanupFailures $destDir, \%status;
   }else{
