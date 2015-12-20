@@ -226,8 +226,10 @@ sub handleImage($$$$){
 
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
+  my %jheadAtts;
   if($isJpeg){
-    jhead "$destDir/$img", "-autorot";
+    my %atts = jhead "$destDir/$img", "-autorot";
+    %jheadAtts = (%jheadAtts, %atts);
     $info = getInfo "$destDir/$img";
   }
 
@@ -260,7 +262,8 @@ sub handleImage($$$$){
   runMogrify "$destDir/$img", @args;
 
   if($isJpeg){
-    jhead "$destDir/$img", "-norot";
+    my %atts = jhead "$destDir/$img", "-norot";
+    %jheadAtts = (%jheadAtts, %atts);
   }
 
   open INFO, "> $destDir/$img.info";
@@ -269,7 +272,10 @@ sub handleImage($$$$){
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
-  print " finished $destDir/$img\n";
+
+  my $fmt = "ok";
+  $fmt .= ": $img";
+  print "$fmt\n";
 }
 
 sub jhead($@){
@@ -283,6 +289,9 @@ sub jhead($@){
     next if $line =~ /^\s*$/;
     print STDERR "$line\n";
   }
+
+  my %atts;
+  return %atts;
 }
 
 sub isOrientMatch($$){
