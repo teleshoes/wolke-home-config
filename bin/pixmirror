@@ -9,6 +9,7 @@ sub statImage($);
 sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$);
+sub jhead($@);
 sub getNewPix($);
 sub isOrientMatch($$);
 sub getResizePercent($$$$);
@@ -223,7 +224,7 @@ sub handleImage($$$$){
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
   if($isJpeg){
-    system $jheadExec, "-autorot", "$destDir/$img";
+    jhead "$destDir/$img", "-autorot";
     $info = getInfo "$destDir/$img";
   }
 
@@ -255,7 +256,9 @@ sub handleImage($$$$){
 
   runMogrify "$destDir/$img", @args;
 
-  system $jheadExec, "-norot", "$destDir/$img" if $isJpeg;
+  if($isJpeg){
+    jhead "$destDir/$img", "-norot";
+  }
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -264,6 +267,11 @@ sub handleImage($$$$){
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
   print " finished $destDir/$img\n";
+}
+
+sub jhead($@){
+  my ($file, @args) = @_;
+  system $jheadExec, @args, $file;
 }
 
 sub isOrientMatch($$){
