@@ -10,6 +10,7 @@ my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 my $DEFAULT_MAX_THREADS = 4;
 
 sub cleanupFailures($$);
+sub formatStatus($$);
 sub findImages($);
 sub statImage($);
 sub getInfo($);
@@ -229,6 +230,8 @@ sub main(@){
     print STDERR "all threads joined\n";
 
     cleanupFailures $destDir, \%status;
+
+    print STDERR formatStatus(\%status, \@srcImgs);
   }else{
     for my $img(@srcImgs){
       handleImage $img, $srcDir, $destDir, $srcInfos{$img};
@@ -254,6 +257,20 @@ sub cleanupFailures($$){
         system "rm", "-f", @files;
       }
     }
+  }
+}
+
+sub formatStatus($$){
+  my ($status, $srcImgs) = @_;
+  my $totalCnt = @$srcImgs;
+  my $successCnt = grep {$$status{$_} == 1} keys %$status;
+  my $failCnt = grep {$$status{$_} == 0} keys %$status;
+  my $skipCnt = $totalCnt - $successCnt - $failCnt;
+  if($totalCnt == $successCnt and $failCnt == 0 and $skipCnt == 0){
+    return "\nSUCCESS: $totalCnt images handled\n";
+  }else{
+    return "\nFAILURE: $successCnt/$totalCnt images handled"
+      . " ($skipCnt skipped, $failCnt failed)\n";
   }
 }
 
