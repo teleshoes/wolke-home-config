@@ -274,6 +274,7 @@ sub handleImage($$$$){
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
 
   my $fmt = "ok";
+  $fmt .= " (mod)" if defined $jheadAtts{'modified'};
   $fmt .= ": $img";
   print "$fmt\n";
 }
@@ -281,9 +282,14 @@ sub handleImage($$$$){
 sub jhead($@){
   my ($file, @args) = @_;
   my $res = ipcRun $jheadExec, @args, $file;
+  my $isModified = 0;
   for my $line(split /\n/, $$res{out}){
     next if $line =~ /^\s*$/;
-    print "$line\n";
+    if($line =~ /^Modified: $file$/){
+      $isModified = 1;
+    }else{
+      print "$line\n";
+    }
   }
   for my $line(split /\n/, $$res{err}){
     next if $line =~ /^\s*$/;
@@ -291,6 +297,7 @@ sub jhead($@){
   }
 
   my %atts;
+  $atts{'modified'} = 1 if $isModified;
   return %atts;
 }
 
