@@ -275,6 +275,7 @@ sub handleImage($$$$){
 
   my $fmt = "ok";
   $fmt .= " (mod)" if defined $jheadAtts{'modified'};
+  $fmt .= " (unknown orient)" if $jheadAtts{'unknown-orient'};
   $fmt .= ": $img";
   print "$fmt\n";
 }
@@ -283,6 +284,7 @@ sub jhead($@){
   my ($file, @args) = @_;
   my $res = ipcRun $jheadExec, @args, $file;
   my $isModified = 0;
+  my $isUnknownOrientation = 0;
   for my $line(split /\n/, $$res{out}){
     next if $line =~ /^\s*$/;
     if($line =~ /^Modified: $file$/){
@@ -293,11 +295,16 @@ sub jhead($@){
   }
   for my $line(split /\n/, $$res{err}){
     next if $line =~ /^\s*$/;
-    print STDERR "$line\n";
+    if($line =~ /^Nonfatal Error : '$file' Unknown orientation tag$/){
+      $isUnknownOrientation = 1;
+    }else{
+      print STDERR "$line\n";
+    }
   }
 
   my %atts;
   $atts{'modified'} = 1 if $isModified;
+  $atts{'unknown-orient'} = 1 if $isUnknownOrientation;
   return %atts;
 }
 
