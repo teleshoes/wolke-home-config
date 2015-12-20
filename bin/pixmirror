@@ -9,6 +9,7 @@ use IPC::Run qw(run);
 my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 my $DEFAULT_MAX_THREADS = 4;
 
+sub cleanupFailures($$);
 sub findImages($);
 sub statImage($);
 sub getInfo($);
@@ -179,7 +180,9 @@ sub main(@){
   print "\nconverting $toConvert images {skipped $skipped}\n";
 
   if($IS_THREADED and $threadCount > 1){
+    my %status;
     my $abort = 0;
+    share(\%status);
     share(\$abort);
 
     my @threadChunks;
@@ -207,7 +210,9 @@ sub main(@){
           $abort = 1;
         };
         for my $img(@$chunk){
+          $status{$img} = 0;
           handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+          $status{$img} = 1;
           return if $abort;
         }
       });
@@ -217,6 +222,8 @@ sub main(@){
     for my $t(@threads){
       $t->join();
     }
+
+    cleanupFailures $destDir, \%status;
   }else{
     for my $img(@srcImgs){
       handleImage $img, $srcDir, $destDir, $srcInfos{$img};
@@ -225,6 +232,24 @@ sub main(@){
 
   print "\n\nremoving empty dirs\n";
   system "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
+}
+
+sub cleanupFailures($$){
+  my ($destDir, $status) = @_;
+
+  for my $img(keys %$status){
+    if($$status{$img} == 0){
+      print STDERR "\nFAILED: $img\n";
+      my @files = ("$destDir/$img", "$destDir/$img.info");
+      @files = grep {-f $_} @files;
+      if(@files == 0){
+        print STDERR "  no temp files to cleanup\n";
+      }else{
+        print STDERR "  cleaning up tmp files: @files\n";
+        system "rm", "-f", @files;
+      }
+    }
+  }
 }
 
 sub findImages($){
