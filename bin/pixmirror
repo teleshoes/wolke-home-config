@@ -179,6 +179,9 @@ sub main(@){
   print "\nconverting $toConvert images {skipped $skipped}\n";
 
   if($IS_THREADED and $threadCount > 1){
+    my $abort = 0;
+    share(\$abort);
+
     my @threadChunks;
     my $threadChunk = undef;
     my $size = @srcImgs/$threadCount;
@@ -193,11 +196,19 @@ sub main(@){
       }
     }
 
+    $SIG{'INT'} = sub {
+      $abort = 1;
+    };
+
     my @threads;
     for my $chunk(@threadChunks){
       my $t = threads->create(sub {
+        $SIG{'INT'} = sub {
+          $abort = 1;
+        };
         for my $img(@$chunk){
           handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+          return if $abort;
         }
       });
       push @threads, $t;
