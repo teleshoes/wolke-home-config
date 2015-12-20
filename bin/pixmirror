@@ -391,13 +391,12 @@ sub handleImage($$$$){
 sub jhead($@){
   my ($file, @args) = @_;
   my $res = ipcRun $jheadExec, @args, $file;
-  my $isModified = 0;
-  my $isUnknownOrientation = 0;
-  my $isIllegalExifSubdirLink = 0;
+
+  my %atts;
   for my $line(split /\n/, $$res{out}){
     next if $line =~ /^\s*$/;
     if($line =~ /^Modified: \Q$file\E$/){
-      $isModified = 1;
+      $atts{'modified'} = 1;
     }else{
       print "$line\n";
     }
@@ -405,18 +404,14 @@ sub jhead($@){
   for my $line(split /\n/, $$res{err}){
     next if $line =~ /^\s*$/;
     if($line =~ /^Nonfatal Error : '\Q$file\E' Unknown orientation tag$/){
-      $isUnknownOrientation = 1;
+      $atts{'unknown-orient'} = 1;
     }elsif($line =~ /^Nonfatal Error : '\Q$file\E' Illegal subdirectory link in Exif header$/){
-      $isIllegalExifSubdirLink = 1;
+      $atts{'illegal-exif-subdir-link'} = 1;
     }else{
       print STDERR "$line\n";
     }
   }
 
-  my %atts;
-  $atts{'modified'} = 1 if $isModified;
-  $atts{'unknown-orient'} = 1 if $isUnknownOrientation;
-  $atts{'illegal-exif-subdir-link'} = 1 if $isIllegalExifSubdirLink;
   return %atts;
 }
 
