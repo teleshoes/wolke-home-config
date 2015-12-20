@@ -6,6 +6,9 @@ use warnings;
 
 use IPC::Run qw(run);
 
+my $IS_THREADED = eval 'use threads; use threads::shared; 1';
+my $DEFAULT_MAX_THREADS = 4;
+
 sub findImages($);
 sub statImage($);
 sub getInfo($);
@@ -38,6 +41,7 @@ my $pad = 0;
 my $padColor = 'black';
 my $padGravity = 'center';
 my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
+my $threadCount = $DEFAULT_MAX_THREADS;
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -88,6 +92,15 @@ my $usage = "Usage:
       <GRAVITY> is one of {$okGravity}
       e.g.: $0 --size=5000x50 --pad --pad-gravity=South
                append 4950 rows of black pixels to the top of a 50x50 image
+
+    --no-threads  --nothreads      {default is --threads=$DEFAULT_MAX_THREADS}
+      synonym for --threads=1
+
+    --threads=THREAD_COUNT         {default is $DEFAULT_MAX_THREADS}
+      use up to THREAD_COUNT threads. if THREAD_COUNT is 1, do not use threads.
+      if perl was not built with threads, this is ignored.
+        (threads " . ($IS_THREADED ? "ARE" : "are NOT") . " enabled)
+      default is $DEFAULT_MAX_THREADS
 ";
 
 sub main(@){
@@ -113,6 +126,11 @@ sub main(@){
       $padColor = $1;
     }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
       $padGravity = $1;
+    }elsif($arg =~ /^(--nothreads|--no-threads)$/){
+      $threadCount = 1;
+    }elsif($arg =~ /^--threads=(\d+)$/){
+      $threadCount = $1;
+      die "invalid THREAD_COUNT=$threadCount\n" if $threadCount <= 0;
     }else{
       die $usage;
     }
@@ -159,8 +177,13 @@ sub main(@){
   my $skipped = $total - $toConvert;
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
-  for my $img(@srcImgs){
-    handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+
+  if($IS_THREADED and $threadCount > 1){
+    die "threading not implemented\n";
+  }else{
+    for my $img(@srcImgs){
+      handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+    }
   }
 
   print "\n\nremoving empty dirs\n";
