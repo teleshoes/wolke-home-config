@@ -63,12 +63,19 @@ my %resFinished = (
   NOTE => 0,
 );
 
+my $TYPE_ADD = 'add';
+my $TYPE_RESOLVE = 'resolve';
+
 sub getPrefix($$);
 sub getSeparator($);
 sub getSuffix($);
-sub getTodos($$$$$);
-sub todoFmt($$$$$);
-sub qtodoFmt($$$$$);
+sub getTodoEvents($$$$);
+sub sortTodoEvents($);
+sub flattenTodoEvents($);
+sub getFlatTodo($$$);
+sub todoFmt($);
+sub qtodoFmt($);
+sub htmlTodoFmt($);
 sub dateFmt($);
 sub dateFmtNow();
 sub col($$);
@@ -96,23 +103,34 @@ sub main(@){
     die $usage;
   }
 
-  my (%addTodos, %resolveTodos);
+  my $todoEvents = {};
 
   my $diff = `git diff $todoFile`;
-  getTodos $diff, time(), '', \%addTodos, \%resolveTodos if length $diff > 0;
+  getTodoEvents $diff, time(), '', $todoEvents if length $diff > 0;
 
   for my $entry(`git log --format=format:"%H:::%at:::%s" $todoFile`){
     if($entry =~ /^([a-f0-9]+):::(\d+):::(.*)$/){
       my ($commit, $date, $summary) = ($1, $2, $3);
       my $diff = `git diff-tree --cc $commit`;
-      getTodos $diff, $date, $summary, \%addTodos, \%resolveTodos;
+      getTodoEvents $diff, $date, $summary, $todoEvents;
     }else{
       die "malformed git log line: $entry";
     }
   }
 
-  for my $todo(keys %resolveTodos){
-    die "todo never added: $todo\n" if not defined $addTodos{$todo};
+  sortTodoEvents $todoEvents;
+
+  for my $todo(keys %$todoEvents){
+    my @events = @{$$todoEvents{$todo}};
+    my $added = 0;
+    for my $event(@events){
+      if($$event{type} eq $TYPE_ADD){
+        $added = 1;
+      }elsif($$event{type} eq $TYPE_RESOLVE){
+        die "todo resolved before added: $todo\n" if not $added;
+        $added = 0;
+      }
+    }
   }
 
   if(@todosToAdd > 0){
@@ -122,10 +140,9 @@ sub main(@){
       $todo =~ s/^\s*//;
       $todo =~ s/\s*$//;
       $todo =~ s/^-//;
-      if(not defined $addTodos{$todo}){
+      if(not defined $$todoEvents{$todo}){
         print STDERR "appending todo: '$todo'\n";
         push @todoPrefixLines, "$todo\n";
-        $addTodos{$todo} = [time(), undef];
       }
     }
     if(@todoPrefixLines > 0){
@@ -151,57 +168,59 @@ sub main(@){
 
   my $count = 0;
 
-  my @todos;
-
   if(defined $notes and -e $notesFile){
     for my $note(`cat $notesFile`){
       chomp $note;
       next if $note =~ /^\s*$/;
       $count++;
-      my $date = dateFmtNow;
-      my $todoStr = &$fmtSub(
-        $note, 'NOTE', $date, undef, $count);
-      push @todos, [$todoStr, 'NOTE', $date, undef];
+      my $addDate = time;
+      my $noteFlatTodo = {
+        todo => $note,
+        addDate => $addDate,
+        addDateFmt => dateFmt $addDate,
+        resolveDate => undef,
+        resolveDateFmt => "",
+        resolution => "NOTE",
+        count => $count,
+      };
+      $$noteFlatTodo{todoFormat} = &$fmtSub($noteFlatTodo);
+    }
+  }
+  my @flatTodos = @{flattenTodoEvents $todoEvents};
+
+  $$_{count} = $count++ foreach @flatTodos;
+
+  for my $flatTodo(@flatTodos){
+    $$flatTodo{todoFormat} = &$fmtSub($flatTodo);
+  }
+
+  @flatTodos = sort {
+    my $aAddDate = defined $$a{addDate} ? $$a{addDate} : 0;
+    my $bAddDate = defined $$b{addDate} ? $$b{addDate} : 0;
+    my $aResolveDate = defined $$a{resolveDate} ? $$a{resolveDate} : 0;
+    my $bResolveDate = defined $$b{resolveDate} ? $$b{resolveDate} : 0;
+
+    my %resSort = (NOTE => 0, NONE => 1, FIXED => 2, DISCARDED => 3);
+    return 0
+      || $resSort{$$a{resolution}} <=> $resSort{$$b{resolution}}
+      || $bResolveDate <=> $aResolveDate
+      || $bAddDate <=> $aAddDate
+  } @flatTodos;
+
+  my (@resolvedFmts, @unresolvedFmts);
+  for my $flatTodo(@flatTodos){
+    if($resFinished{$$flatTodo{resolution}}){
+      push @resolvedFmts, $$flatTodo{todoFormat};
+    }else{
+      push @unresolvedFmts, $$flatTodo{todoFormat};
     }
   }
 
-  my @todoSort = sort {
-    ${$addTodos{$b}}[0] <=> ${$addTodos{$a}}[0]
-  } keys %addTodos;
-  for my $todo(@todoSort){
-    my $dateAdded = dateFmt ${$addTodos{$todo}}[0];
-    my $resTodo = $resolveTodos{$todo};
-    my $resolution = defined $resTodo ? $$resTodo[1] : 'NONE';
-    my $dateResolved = defined $resTodo ? dateFmt $$resTodo[0] : undef;
-
-    $count++;
-
-    my $todoStr = &$fmtSub(
-      $todo, $resolution, $dateAdded, $dateResolved, $count);
-    push @todos, [$todoStr, $resolution, $dateAdded, $dateResolved];
-  }
-
-  @todos = sort {
-    my ($aFmt, $aRes, $aDateAdded, $aDateResolved) = @$a;
-    my ($bFmt, $bRes, $bDateAdded, $bDateResolved) = @$b;
-    my %resSort = (NOTE => 0, NONE => 1, FIXED => 2, DISCARDED => 3);
-    $aDateResolved = '' if not defined $aDateResolved;
-    $bDateResolved = '' if not defined $bDateResolved;
-    return 0
-      || $resSort{$aRes} <=> $resSort{$bRes}
-      || $bDateResolved cmp $aDateResolved
-      || $bDateAdded cmp $aDateAdded
-  } @todos;
-
-  my @unresolved = map {$$_[0]} grep {not $resFinished{$$_[1]}} @todos;
-  my @resolved = map {$$_[0]} grep {$resFinished{$$_[1]}} @todos;
-
-
   my $msg = '';
   $msg .= getPrefix($fmtArg, $count);
-  $msg .= join '', @unresolved unless $fmtArg =~ /^(-q|-r)$/;
+  $msg .= join '', @unresolvedFmts unless $fmtArg =~ /^(-q|-r)$/;
   $msg .= getSeparator($fmtArg) unless $fmtArg =~ /^(-q|-r|-u)$/;
-  $msg .= join '', @resolved unless $fmtArg =~ /^(-q|-u)$/;
+  $msg .= join '', @resolvedFmts unless $fmtArg =~ /^(-q|-u)$/;
   $msg .= getSuffix($fmtArg);
 
   if($fmtArg =~ /^(--ff)$/){
@@ -249,8 +268,8 @@ sub getSuffix($){
   }
 }
 
-sub getTodos($$$$$){
-  my ($diff, $date, $summary, $addTodos, $resolveTodos) = @_;
+sub getTodoEvents($$$$){
+  my ($diff, $date, $summary, $todoEvents) = @_;
   my $resolution = $summary =~ /finish|complete|fix/i ? 'FIXED' : 'DISCARDED';
 
   my %adds;
@@ -272,18 +291,84 @@ sub getTodos($$$$$){
   }
 
   for my $todo(keys %adds){
-    die "TODO ADDED TWICE: $todo\n" if defined $$addTodos{$todo};
-    $$addTodos{$todo} = [$date, undef];
+    if(not defined $$todoEvents{$todo}){
+      $$todoEvents{$todo} = [];
+    }
+    push @{$$todoEvents{$todo}}, {type=>$TYPE_ADD, date=>$date};
   }
 
   for my $todo(keys %resolves){
-    die "TODO RESOLVED TWICE: $todo\n" if defined $$resolveTodos{$todo};
-    $$resolveTodos{$todo} = [$date, $resolution];
+    if(not defined $$todoEvents{$todo}){
+      $$todoEvents{$todo} = [];
+    }
+    push @{$$todoEvents{$todo}}, {type=>$TYPE_RESOLVE, date=>$date, resolution=>$resolution};
   }
 }
 
-sub todoFmt($$$$$){
-  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+sub sortTodoEvents($){
+  my ($todoEvents) = @_;
+  for my $todo(keys %$todoEvents){
+    my @events = @{$$todoEvents{$todo}};
+    @events = sort { $$a{date} <=> $$b{date} } @events;
+    $$todoEvents{$todo} = [@events];
+  }
+}
+
+sub flattenTodoEvents($){
+  my ($todoEvents) = @_;
+
+  my $flatTodos = [];
+  for my $todo(keys %$todoEvents){
+    my @events = @{$$todoEvents{$todo}};
+    my $curAddEvent = undef;
+    my $curResolveEvent = undef;
+    for my $event(@events){
+      if($$event{type} eq $TYPE_ADD){
+        if(defined $curAddEvent){
+          push @$flatTodos, getFlatTodo $todo, $curAddEvent, $curResolveEvent;
+          $curResolveEvent = undef;
+        }
+        $curAddEvent = $event;
+      }elsif($$event{type} eq $TYPE_RESOLVE){
+        $curResolveEvent = $event;
+      }
+    }
+    if(defined $curAddEvent){
+      push @$flatTodos, getFlatTodo $todo, $curAddEvent, $curResolveEvent;
+    }
+  }
+
+  $flatTodos = [sort {$$a{addDate} <=> $$b{addDate}} @$flatTodos];
+
+  return $flatTodos;
+}
+
+sub getFlatTodo($$$){
+  my ($todo, $addEvent, $resolveEvent) = @_;
+  my $flatTodo = {};
+  $$flatTodo{todo} = $todo;
+  $$flatTodo{addDate} = defined $addEvent ? $$addEvent{date} : undef;
+  $$flatTodo{resolveDate} = defined $resolveEvent ? $$resolveEvent{date} : undef;
+  $$flatTodo{resolution} = defined $resolveEvent ? $$resolveEvent{resolution} : 'NONE';
+
+  $$flatTodo{addDateFmt} = "";
+  if(defined $$flatTodo{addDate}){
+    $$flatTodo{addDateFmt} = dateFmt $$flatTodo{addDate};
+  }
+  $$flatTodo{resolveDateFmt} = "";
+  if(defined $$flatTodo{resolveDate}){
+    $$flatTodo{resolveDateFmt} = dateFmt $$flatTodo{resolveDate};
+  }
+  return $flatTodo;
+}
+
+sub todoFmt($){
+  my ($flatTodo) = @_;
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = (
+    $$flatTodo{todo}, $$flatTodo{resolution},
+    $$flatTodo{addDateFmt}, $$flatTodo{resolveDateFmt},
+    $$flatTodo{count}
+  );
 
   my $sym = $resSym{$resolution};
   my $color = $resColor{$resolution};
@@ -292,13 +377,18 @@ sub todoFmt($$$$$){
     . "[$sym]"
     . " $dateAdded"
     . col($color, " $todo")
-    . (defined $dateResolved ? " {$dateResolved}" : '')
+    . (defined $dateResolved and $dateResolved ne "" ? " {$dateResolved}" : '')
     . "\n"
     ;
 }
 
-sub qtodoFmt($$$$$){
-  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+sub qtodoFmt($){
+  my ($flatTodo) = @_;
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = (
+    $$flatTodo{todo}, $$flatTodo{resolution},
+    $$flatTodo{addDateFmt}, $$flatTodo{resolveDateFmt},
+    $$flatTodo{count}
+  );
 
   $todo =~ s/&/\&amp;/g;
   $todo =~ s/</\&lt;/g;
@@ -317,8 +407,13 @@ sub qtodoFmt($$$$$){
     ;
 }
 
-sub htmlTodoFmt($$$$$){
-  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = @_;
+sub htmlTodoFmt($){
+  my ($flatTodo) = @_;
+  my ($todo, $resolution, $dateAdded, $dateResolved, $num) = (
+    $$flatTodo{todo}, $$flatTodo{resolution},
+    $$flatTodo{addDateFmt}, $$flatTodo{resolveDateFmt},
+    $$flatTodo{count}
+  );
   my $sym = $resSym{$resolution};
 
   $todo =~ s/&/\&amp;/g;
