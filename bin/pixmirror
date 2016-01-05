@@ -4,16 +4,25 @@
 use strict;
 use warnings;
 
+use IPC::Run qw(run);
+
+my $IS_THREADED = eval 'use threads; use threads::shared; 1';
+my $DEFAULT_MAX_THREADS = 4;
+
+sub cleanupFailures($$);
+sub formatStatus($$);
 sub findImages($);
 sub statImage($);
 sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$);
+sub jhead($@);
 sub getNewPix($);
 sub isOrientMatch($$);
 sub getResizePercent($$$$);
 sub runMogrify($@);
 sub getOrientation($$);
+sub ipcRun(@);
 
 my @exts = qw(jpg jpeg png);
 my $mogrifyExec = 'mogrify';
@@ -34,6 +43,7 @@ my $pad = 0;
 my $padColor = 'black';
 my $padGravity = 'center';
 my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
+my $threadCount = $DEFAULT_MAX_THREADS;
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -84,6 +94,15 @@ my $usage = "Usage:
       <GRAVITY> is one of {$okGravity}
       e.g.: $0 --size=5000x50 --pad --pad-gravity=South
                append 4950 rows of black pixels to the top of a 50x50 image
+
+    --no-threads  --nothreads      {default is --threads=$DEFAULT_MAX_THREADS}
+      synonym for --threads=1
+
+    --threads=THREAD_COUNT         {default is $DEFAULT_MAX_THREADS}
+      use up to THREAD_COUNT threads. if THREAD_COUNT is 1, do not use threads.
+      if perl was not built with threads, this is ignored.
+        (threads " . ($IS_THREADED ? "ARE" : "are NOT") . " enabled)
+      default is $DEFAULT_MAX_THREADS
 ";
 
 sub main(@){
@@ -109,6 +128,11 @@ sub main(@){
       $padColor = $1;
     }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
       $padGravity = $1;
+    }elsif($arg =~ /^(--nothreads|--no-threads)$/){
+      $threadCount = 1;
+    }elsif($arg =~ /^--threads=(\d+)$/){
+      $threadCount = $1;
+      die "invalid THREAD_COUNT=$threadCount\n" if $threadCount <= 0;
     }else{
       die $usage;
     }
@@ -155,12 +179,99 @@ sub main(@){
   my $skipped = $total - $toConvert;
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
-  for my $img(@srcImgs){
-    handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+
+  if($IS_THREADED and $threadCount > 1){
+    my %status;
+    my $abort = 0;
+    share(\%status);
+    share(\$abort);
+
+    my @threadChunks;
+    my $threadChunk = undef;
+    my $size = @srcImgs/$threadCount;
+    for my $img(@srcImgs){
+      if(not defined $threadChunk){
+        $threadChunk = [];
+        push @threadChunks, $threadChunk;
+      }
+      push @$threadChunk, $img;
+      if(@threadChunks < $threadCount and @$threadChunk >= $size){
+        $threadChunk = undef;
+      }
+    }
+
+    $SIG{'INT'} = sub {
+      print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
+      $abort = 1;
+    };
+
+    my @threads;
+    for my $chunk(@threadChunks){
+      my $t = threads->create(sub {
+        print STDERR "started thread#" . threads->tid() . "\n";
+        $SIG{'INT'} = sub {
+          print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
+          $abort = 1;
+        };
+        for my $img(@$chunk){
+          $status{$img} = 0;
+          handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+          $status{$img} = 1;
+          return if $abort;
+        }
+      });
+      push @threads, $t;
+    }
+
+    for my $t(@threads){
+      print STDERR "joining on thread#" . $t->tid() . "\n";
+      $t->join();
+    }
+    print STDERR "all threads joined\n";
+
+    cleanupFailures $destDir, \%status;
+
+    print STDERR formatStatus(\%status, \@srcImgs);
+  }else{
+    for my $img(@srcImgs){
+      handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+    }
   }
 
   print "\n\nremoving empty dirs\n";
   system "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
+}
+
+sub cleanupFailures($$){
+  my ($destDir, $status) = @_;
+
+  for my $img(keys %$status){
+    if($$status{$img} == 0){
+      print STDERR "\nFAILED: $img\n";
+      my @files = ("$destDir/$img", "$destDir/$img.info");
+      @files = grep {-f $_} @files;
+      if(@files == 0){
+        print STDERR "  no temp files to cleanup\n";
+      }else{
+        print STDERR "  cleaning up tmp files: @files\n";
+        system "rm", "-f", @files;
+      }
+    }
+  }
+}
+
+sub formatStatus($$){
+  my ($status, $srcImgs) = @_;
+  my $totalCnt = @$srcImgs;
+  my $successCnt = grep {$$status{$_} == 1} keys %$status;
+  my $failCnt = grep {$$status{$_} == 0} keys %$status;
+  my $skipCnt = $totalCnt - $successCnt - $failCnt;
+  if($totalCnt == $successCnt and $failCnt == 0 and $skipCnt == 0){
+    return "\nSUCCESS: $totalCnt images handled\n";
+  }else{
+    return "\nFAILURE: $successCnt/$totalCnt images handled"
+      . " ($skipCnt skipped, $failCnt failed)\n";
+  }
 }
 
 sub findImages($){
@@ -222,8 +333,10 @@ sub handleImage($$$$){
 
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
+  my %jheadAtts;
   if($isJpeg){
-    system $jheadExec, "-autorot", "$destDir/$img";
+    my %atts = jhead "$destDir/$img", "-autorot";
+    %jheadAtts = (%jheadAtts, %atts);
     $info = getInfo "$destDir/$img";
   }
 
@@ -255,7 +368,10 @@ sub handleImage($$$$){
 
   runMogrify "$destDir/$img", @args;
 
-  system $jheadExec, "-norot", "$destDir/$img" if $isJpeg;
+  if($isJpeg){
+    my %atts = jhead "$destDir/$img", "-norot";
+    %jheadAtts = (%jheadAtts, %atts);
+  }
 
   open INFO, "> $destDir/$img.info";
   print INFO $statInfo;
@@ -263,7 +379,41 @@ sub handleImage($$$$){
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
   system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
-  print " finished $destDir/$img\n";
+
+  my $jheadFmt = "";
+  $jheadFmt .= "?mod" if defined $jheadAtts{'modified'};
+  $jheadFmt .= "?orient" if $jheadAtts{'unknown-orient'};
+  $jheadFmt .= "?subdir" if $jheadAtts{'illegal-exif-subdir-link'};
+
+  my $fmt = sprintf "ok|%-20s| %s\n", $jheadFmt, $img;
+  print $fmt;
+}
+
+sub jhead($@){
+  my ($file, @args) = @_;
+  my $res = ipcRun $jheadExec, @args, $file;
+
+  my %atts;
+  for my $line(split /\n/, $$res{out}){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^Modified: \Q$file\E$/){
+      $atts{'modified'} = 1;
+    }else{
+      print "$line\n";
+    }
+  }
+  for my $line(split /\n/, $$res{err}){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^Nonfatal Error : '\Q$file\E' Unknown orientation tag$/){
+      $atts{'unknown-orient'} = 1;
+    }elsif($line =~ /^Nonfatal Error : '\Q$file\E' Illegal subdirectory link in Exif header$/){
+      $atts{'illegal-exif-subdir-link'} = 1;
+    }else{
+      print STDERR "$line\n";
+    }
+  }
+
+  return %atts;
 }
 
 sub isOrientMatch($$){
@@ -294,6 +444,13 @@ sub runMogrify($@){
 sub getOrientation($$){
   my ($x, $y) = @_;
   return $x > $y ? "landscape" : "portrait";
+}
+
+sub ipcRun(@){
+  my @cmd = @_;
+  my ($out, $err);
+  my $success = run [@cmd], '>', \$out, '2>', \$err;
+  return {out=>$out, err=>$err, success=>$success};
 }
 
 &main(@ARGV);
