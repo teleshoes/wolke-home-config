@@ -14,10 +14,10 @@ import System.Environment (getArgs)
 main = do
   isBot <- elem "--bottom" <$> getArgs
   let cfg = defaultTaffybarConfig { barHeight=38
-                                  , widgetSpacing=5
+                                  , widgetSpacing=4
                                   , barPosition=if isBot then Bottom else Top
                                   }
-      font = "Inconsolata medium 13"
+      font = "Inconsolata medium 12"
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor $ Black
@@ -25,15 +25,15 @@ main = do
 
       start = [ W.wmLogNew WMLogConfig
                 { titleLength = 30
-                , wsImageHeight = 24
+                , wsImageHeight = 16
                 , titleRows = True
                 , stackWsTitle = False
                 , wsBorderColor = RGB (0.6, 0.5, 0.2)
                 }
               ]
       end = reverse
-          [ W.monitorCpuW 50
-          , W.monitorMemW 50
+          [ W.monitorCpuW 30
+          , W.monitorMemW 30
           , W.progressBarW
           , W.netStatsW
           , sep
