@@ -47,7 +47,8 @@ loadImages h = do
   pixbufs <- mapM (loadImage h) imageNames
   return $ zip imageNames pixbufs
 
-(~~) s re = match regex s :: Bool
+(~~) :: String -> String -> Bool
+(~~) s re = match regex s
   where regex = makeRegexOpts compCaseless defaultExecOpt re :: Regex
 
 getSpecial winTitle winClass
