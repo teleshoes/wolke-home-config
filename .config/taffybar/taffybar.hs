@@ -52,7 +52,7 @@ main = do
           , W.fanW
           , W.brightnessW
           , colW [ W.pingMonitorW "G" "www.google.com"
-                 , W.pingMonitorW "A" "ehr.dev"
+                 , W.pingMonitorW "E" "ehr.dev"
                  ]
           , W.openvpnW "aws" "VPN\naws"
           , W.tpBattStatW $ barHeight cfg
