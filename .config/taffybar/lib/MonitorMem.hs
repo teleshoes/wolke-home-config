@@ -9,11 +9,12 @@ import System.Taffybar.Widgets.PollingGraph (
 main = pollingGraphMain 1 monitorMemReader
 monitorMemW = graph 1 monitorMemReader
 
-graphCfg colors = defaultGraphConfig { graphDataColors = colors
-                                     , graphDirection = RIGHT_TO_LEFT
-                                     }
 monitorMemReader = do
   mi <- parseMeminfo
   return [memoryUsedRatio mi]
+
+graphCfg colors = defaultGraphConfig { graphDataColors = colors
+                                     , graphDirection = RIGHT_TO_LEFT
+                                     }
 
 graph delay = pollingGraphNew (graphCfg [(0x26/0xff, 0x8b/0xff, 0xd2/0xff, 1)]) delay
