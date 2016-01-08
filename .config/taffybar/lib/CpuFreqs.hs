@@ -10,7 +10,7 @@ import Data.List (intercalate)
 main = mainLabel =<< cpuFreqsReader
 cpuFreqsW = labelW =<< cpuFreqsReader
 
-getFreqsChan = getFreqsChanI7z
+getFreqsChan = getFreqsChanProc
 
 cpuFreqsReader :: IO (IO String)
 cpuFreqsReader = do
