@@ -2,7 +2,7 @@ module Utils(
   defaultDelay, imageDir,
   fg, bg, fgbg,
   rowW, colW, containerW,
-  regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
+  regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts, padL, padR, padCols, uncols, chompAll,
   pollingGraphMain,
   ifM,
@@ -76,6 +76,8 @@ regexFirstGroup :: String -> String -> Maybe String
 regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
 regexAllMatches :: String -> String -> [String]
 regexAllMatches re str = getAllTextMatches $ re =~ str
+regexAllSubmatches :: String -> String -> [[String]]
+regexAllSubmatches re str = str =~ re
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
