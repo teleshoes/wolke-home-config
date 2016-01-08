@@ -20,7 +20,7 @@ import Graphics.UI.Gtk (
   toWidget, toContainer, widgetShowAll)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist)
-import Text.Regex.PCRE ((=~))
+import Text.Regex.PCRE ((=~), getAllTextMatches)
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.List (intercalate, transpose)
 import System.Environment (getEnv)
@@ -75,7 +75,7 @@ regexGroups re str = fmap (drop 1) $ listToMaybe $ str =~ re
 regexFirstGroup :: String -> String -> Maybe String
 regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
 regexAllMatches :: String -> String -> [String]
-regexAllMatches re str = concatMap (take 1) $ str =~ re
+regexAllMatches re str = getAllTextMatches $ re =~ str
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
