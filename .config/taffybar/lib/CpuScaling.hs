@@ -5,8 +5,9 @@ import Utils (
 import Label (labelW, mainLabel)
 
 import Control.Monad (void)
+import Control.Monad.Trans.Either (EitherT(..), runEitherT)
 import Control.Concurrent (forkIO)
-import Control.Error (EitherT(..), runEitherT, note)
+import Control.Error (note)
 import System.Process (system)
 import Data.Functor ((<$>))
 import Data.List (sort)
