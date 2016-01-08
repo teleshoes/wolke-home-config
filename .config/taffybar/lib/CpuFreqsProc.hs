@@ -3,8 +3,7 @@ import Control.Concurrent (Chan)
 import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Process (system)
-import Text.Regex.PCRE ((=~))
-import Utils (chompFile, actToChanDelay)
+import Utils (regexAllSubmatches, chompFile, actToChanDelay)
 
 getFreqsChanProc :: IO (Chan [Int])
 getFreqsChanProc = actToChanDelay (10^6) (fmap parseCpuInfo readCpuInfo)
@@ -23,12 +22,12 @@ splitCpus cpuinfo = filter (/="") $ map unlines $ split (lines cpuinfo) [[]]
 
 getCoreId cpu = coreId
   where coreId = fromMaybe ("-1") $ listToMaybe $ concat groupSets
-        groupSets = map tail (cpu =~ p :: [[String]])
+        groupSets = map tail (regexAllSubmatches p cpu)
         p = "core id\\s*:\\s*(\\d+)"
 
 getFreq cpu = round $ toDouble freq
   where freq = fromMaybe ("-1") $ listToMaybe $ concat groupSets
-        groupSets = map tail (cpu =~ p :: [[String]])
+        groupSets = map tail (regexAllSubmatches p cpu)
         p = "cpu MHz\\s*:\\s*(\\d+\\.\\d+)"
 
 split (ln:lns) (cpu:cpus) | ln == "" = split lns ([]:cpu:cpus)
