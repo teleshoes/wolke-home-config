@@ -55,9 +55,25 @@ sub main(@){
   run "sync";
   run "date";
   tryrun "alarm", "-s", "success";
-  run "sudo", "rename", "s/isolinux/syslinux/", "$usbStickDir/boot/isolinux";
-  run "sudo", "rename", "s/isolinux/syslinux/",
-    glob "$usbStickDir/boot/syslinux/isolinux.*";
+  my @isolinuxDirs = (
+    "$usbStickDir/boot/isolinux",
+    "$usbStickDir/isolinux",
+  );
+  my @syslinuxDirs = (
+    "$usbStickDir/boot/syslinux",
+    "$usbStickDir/syslinux",
+  );
+  run "sudo", "rename", "s/isolinux/syslinux/", @isolinuxDirs;
+  my @files = map {glob "$_/isolinux.*"} @isolinuxDirs;
+  if(@files > 0){
+    run "sudo", "rename", "s/isolinux/syslinux/", @files;
+  }else{
+    print "no isolinux files to rename\n";
+  }
+  my @okSyslinuxDirs = grep {-d $_} @syslinuxDirs;
+  if(@okSyslinuxDirs == 0){
+    die "no syslinux: @syslinuxDirs\n";
+  }
 
   print "\n#unmounting\n";
   umount $isoDir;

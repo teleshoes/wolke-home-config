@@ -4,18 +4,19 @@ import Utils (pollingGraphMain)
 import System.Information.CPU (cpuLoad)
 import System.Information.Memory (parseMeminfo, memoryUsedRatio)
 import System.Taffybar.Widgets.PollingGraph (
-  pollingGraphNew, defaultGraphConfig, graphDataColors,
+  pollingGraphNew, defaultGraphConfig, graphWidth, graphDataColors,
   graphDirection, GraphDirection(..))
 
 main = pollingGraphMain 1 monitorCpuReader
-monitorCpuW = graph 1 monitorCpuReader
+monitorCpuW width = graph 1 width monitorCpuReader
 
 monitorCpuReader = do
   (userLoad, systemLoad, totalLoad) <- cpuLoad
   return [totalLoad, systemLoad]
 
-graphCfg colors = defaultGraphConfig { graphDataColors = colors
-                                     , graphDirection = RIGHT_TO_LEFT
-                                     }
+graphCfg width colors = defaultGraphConfig { graphWidth = width
+                                           , graphDataColors = colors
+                                           , graphDirection = RIGHT_TO_LEFT
+                                           }
 
-graph delay = pollingGraphNew (graphCfg [rgba C.Green 1, rgba C.Black 0.5]) delay
+graph delay width = pollingGraphNew (graphCfg width [rgba C.Green 1, rgba C.Black 0.5]) delay

@@ -33,8 +33,8 @@ main = do
                 }
               ]
       end = reverse
-          [ W.monitorCpuW
-          , W.monitorMemW
+          [ W.monitorCpuW 30
+          , W.monitorMemW 30
           , W.progressBarW
           , W.netStatsW
           , sep

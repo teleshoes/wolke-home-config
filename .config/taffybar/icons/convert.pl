@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my @heights = (18, 20, 24, 28, 30, 36, 38, 40, 48, 64);
+my @heights = (16, 18, 20, 24, 28, 30, 36, 38, 40, 48, 64);
 
 sub run(@){
   print "@_\n";

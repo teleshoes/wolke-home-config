@@ -10,7 +10,7 @@ import Data.List (intercalate)
 main = mainLabel =<< cpuFreqsReader
 cpuFreqsW = labelW =<< cpuFreqsReader
 
-getFreqsChan = getFreqsChanI7z
+getFreqsChan = getFreqsChanProc
 
 cpuFreqsReader :: IO (IO String)
 cpuFreqsReader = do
@@ -34,6 +34,6 @@ segs xs n = if n == 0 then [] else cs xs []
         cs xs xss | length xss == n-1 = reverse (xs:xss)
                   | otherwise = cs (drop size xs) (take size xs:xss)
 
-formatRows rows xs = concatMap (++"\n") $ map (intercalate " ") $ segs xs rows
+formatRows rows xs = intercalate "\n" $ map (intercalate " ") $ segs xs rows
 
 showFreq mhz = (if mhz < 1000 then "0" else "") ++ (show $ mhz `div` 100)

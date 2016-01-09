@@ -4,8 +4,7 @@ import Control.Concurrent (
   forkIO, myThreadId, killThread, Chan)
 import System.Process (system, readProcess)
 import System.Posix.Process (getProcessID)
-import Text.Regex.PCRE ((=~))
-import Utils (systemReadLines, readProc, listToChan)
+import Utils (regexAllSubmatches, systemReadLines, readProc, listToChan)
 import System.Directory (setCurrentDirectory)
 
 getFreqsChanI7z :: IO (Chan [Int])
@@ -32,7 +31,7 @@ tailFile :: String -> IO [String]
 tailFile f = systemReadLines $ "tail -n 0 -F " ++ f ++ " 2>/dev/null"
 
 numbers s = concat groupSets
-  where groupSets = map tail (s =~ p :: [[String]])
+  where groupSets = map tail (regexAllSubmatches p s)
         p = "(\\d+(?:\\.\\d+)?)"
 
 toDouble = read :: String -> Double

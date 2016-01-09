@@ -15,7 +15,7 @@ import Data.Text.Lazy.Encoding (encodeUtf8)
 main = mainLabel klompReader
 klompW = clickable clickL clickM clickR =<< labelW klompReader
 
-rowLength = 34
+rowLength = 32
 gapOffset = 3
 sep = "…"
 raspiPrefix = "ř"

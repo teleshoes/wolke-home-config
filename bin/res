@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 [OPTS]
+    print \"<WIDTH>x<HEIGHT>\" of the primary display
+    uses xrandr
+
+  OPTS:
+    -w | --width | WIDTH | width
+      print just <WIDTH>
+    -h | --height | HEIGHT | height
+      print just <WIDTH>
+";
+
+sub main(@){
+  my $showWidth = 1;
+  my $showHeight = 1;
+  while(@_ > 0){
+    my $opt = shift;
+    if($opt =~ /^(-w|--width|WIDTH|width)$/){
+      $showWidth = 1;
+      $showHeight = 0;
+    }elsif($opt =~ /^(-h|--height|HEIGHT|height)$/){
+      $showWidth = 0;
+      $showHeight = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  my $xrandr = `xrandr`;
+  die "Error running xrandr\n" if $? != 0;
+
+  my ($width, $height);
+  if($xrandr =~ /^\s*(\d+)x(\d+).*\*/m){
+    ($width, $height) = ($1, $2);
+  }else{
+    die "Could not parse xrandr output:\n$xrandr\n";
+  }
+
+  my $fmt = "";
+  $fmt .= $width if $showWidth;
+  $fmt .= "x" if $showWidth and $showHeight;
+  $fmt .= $height  if $showHeight;
+
+  print "$fmt\n";
+}
+
+&main(@ARGV);
