@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
 import Bindings (
   workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps,
   tryWriteKeyBindingsCache, tryWriteKeyBindingsPrettyCache)

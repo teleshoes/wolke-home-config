@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, NoMonomorphismRestriction #-}
 module Bindings.Keys where
 import Graphics.X11.ExtraTypes.XF86
 import XMonad
