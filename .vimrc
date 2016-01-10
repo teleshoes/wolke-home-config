@@ -43,6 +43,9 @@ function s:isHaskellScript()
     set filetype=haskell
   endif
 endfunction
+
+" override default ftplugin for python
+au BufRead,BufNewFile *.py set shiftwidth=2 tabstop=2 softtabstop=2
 """"""
 
 hi TrailingWhitespace ctermbg=red guibg=red
