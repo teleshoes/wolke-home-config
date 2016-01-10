@@ -174,6 +174,7 @@ function migl         { gvim `~/migs/latest-script` "$@"; }
 
 function first        { ls "$@" | head -1; }
 function last         { ls "$@" | tail -1; }
+function apN          { let n=${#@}; "$2" "${@:3:$1-1}" "${!n}" "${@:$1+2:$n-$1-2}"; }
 
 # common typos
 function mkdit        { mkdir "$@"; }
