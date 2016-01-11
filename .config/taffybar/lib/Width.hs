@@ -1,5 +1,6 @@
 module Width(
-  widthBox, widthWrap, widthScreenWrapW, getScreenDPI) where
+  widthBox, widthWrap, widthScreenWrapW, widthCharWrapW,
+  screenPctToPx, charsFitInPx, getScreenDPI) where
 
 import Control.Monad (when)
 import Graphics.X11.Xlib.Display (
@@ -7,6 +8,19 @@ import Graphics.X11.Xlib.Display (
   displayHeight, displayWidth, displayHeightMM, displayWidthMM)
 import Graphics.UI.Gtk (
   Container, Widget, hBoxNew, widgetSetSizeRequest, containerAdd, toWidget, toContainer, widgetShowAll)
+
+-- ratio of font size to width
+fontSizeToWidthRatio = 2.0 -- Inconsolata medium
+
+-- font size in points to font size in pixels
+fontSizePtToPx :: Int -> Double -> Double
+fontSizePtToPx dpi fontSizePt = fontSizeIn * fromIntegral dpi
+  where fontSizeIn = fontSizePt / 72.0
+
+-- font size in points to character width in pixels
+charWidth :: Int -> Double -> Int
+charWidth dpi fontSizePt = ceiling $ fontSizePx / fontSizeToWidthRatio
+  where fontSizePx = fontSizePtToPx dpi fontSizePt
 
 widthBox :: Int -> IO Container
 widthBox widthPx = do
@@ -28,6 +42,20 @@ widthScreenWrapW screenRatio w = do
   screenWidthPx <- getScreenWidth
   let widthPx = round $ screenRatio * fromIntegral screenWidthPx
   fmap toWidget $ widthWrap widthPx w
+
+widthCharWrapW :: Int -> Double -> Int -> Widget -> IO Widget
+widthCharWrapW dpi fontSize charCount w = do
+  let widthPx = charWidth dpi fontSize * charCount
+  fmap toWidget $ widthWrap widthPx w
+
+screenPctToPx :: Double -> IO Int
+screenPctToPx pct = do
+  w <- getScreenWidth
+  return $ round $ (fromIntegral w) * pct/100.0
+
+charsFitInPx :: Int -> Double -> Int -> Int
+charsFitInPx dpi fontSizePt px = floor $ (fromIntegral px)/(fromIntegral charW)
+  where charW = charWidth dpi fontSizePt
 
 getScreenWidth :: IO Int
 getScreenWidth = do
