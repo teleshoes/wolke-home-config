@@ -12,10 +12,9 @@ import qualified Data.Vector as Vector
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding (encodeUtf8)
 
-main = mainLabel klompReader
-klompW = clickable clickL clickM clickR =<< labelW klompReader
+main = mainLabel $ klompReader 30
+klompW rowLength = clickable clickL clickM clickR =<< labelW (klompReader rowLength)
 
-rowLength = 32
 gapOffset = 3
 sep = "…"
 raspiPrefix = "ř"
@@ -41,7 +40,7 @@ getKlompInfo remoteHost = do
 
 coerceUtf8 = decodeString . utf8Encode
 
-klompReader = do
+klompReader rowLength = do
   remoteHost <- chompFile "/tmp/klomp-bar"
   running <- isRunning "klomplayer"
   klompInfo <- getKlompInfo remoteHost

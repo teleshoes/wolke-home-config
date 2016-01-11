@@ -33,6 +33,7 @@ main = do
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor $ Black
       sep = W.sepW Black 2
+      klompChars = 32
 
       start = [ W.wmLogNew WMLogConfig
                 { titleLength = titleLen profile
@@ -52,7 +53,7 @@ main = do
           , sep
           , W.fcrondynW
           , sep
-          , W.widthScreenWrapW 0.159375 =<< W.klompW
+          , W.widthScreenWrapW 0.159375 =<< W.klompW klompChars
           , W.volumeW
           , W.micW
           , W.pidginPipeW $ barHeight cfg
