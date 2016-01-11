@@ -12,7 +12,7 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 import Data.Functor ((<$>))
 import System.Environment (getArgs)
 
-profile = profileHDPlus
+profile = profileFHD
 
 profileFHD = P { height = 38
                , spacing = 5
