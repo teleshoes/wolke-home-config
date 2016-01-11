@@ -56,7 +56,7 @@ main = do
           , sep
           , W.fcrondynW
           , sep
-          , W.widthScreenWrapW 0.159375 =<< W.klompW klompChars
+          , (W.widthCharWrapW dpi (fontSizePt profile) klompChars) =<< W.klompW klompChars
           , W.volumeW
           , W.micW
           , W.pidginPipeW $ barHeight cfg
