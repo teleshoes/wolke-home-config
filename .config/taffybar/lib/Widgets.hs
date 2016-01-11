@@ -28,6 +28,7 @@ module Widgets(
   thunderbirdW,
   volumeW,
   widthScreenWrapW,
+  widthCharWrapW,
   wmLogNew)where
 
 import Brightness(brightnessW)
@@ -56,5 +57,5 @@ import Speaker(speakerW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
-import Width(widthScreenWrapW)
+import Width(widthScreenWrapW, widthCharWrapW)
 import WMLog(wmLogNew)
