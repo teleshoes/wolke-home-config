@@ -14,13 +14,13 @@ import System.Environment (getArgs)
 
 profile = profileFHD
 
-profileFHD = P { height = 38
+profileFHD = P { height = 42
                , spacing = 5
                , titleLen = 30
                , typeface = "Inconsolata medium"
-               , fontSizePt = 13.0
+               , fontSizePt = 16.0
                , graphWidth = 50
-               , workspaceImageHeight = 24
+               , workspaceImageHeight = 28
                }
 profileHDPlus = P { height = 38
                   , spacing = 4
