@@ -148,6 +148,10 @@ function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
 function gs           { g s "$@"; }
 function mp           { mplayer "$@"; }
+function mpu          {
+  if [ -z $2 ] ; then local default_quality='best' ; fi
+  livestreamer "$@" $default_quality
+}
 
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
