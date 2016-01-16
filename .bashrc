@@ -267,3 +267,7 @@ function git() {
     $realgit "$@"
   fi
 }
+
+function clean-home {
+  rm -f .viminf*.tmp .recently-used
+} ; clean-home
