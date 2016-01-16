@@ -44,8 +44,8 @@ myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
 
 workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
-testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
-                          , workspaces = workspaceNames }
+testConfig = def{ layoutHook = Layout $ layoutHook def
+                , workspaces = workspaceNames }
 
 mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
 keyOverlaps   = bwFindOverlap $ keyBinds   testConfig

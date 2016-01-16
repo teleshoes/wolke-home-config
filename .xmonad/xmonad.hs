@@ -26,11 +26,8 @@ import XMonad.Util.Types (Direction2D(U,D,L,R))
 
 import System.Taffybar.Hooks.PagerHints (pagerHints)
 
-import Control.Applicative ((<$>))
 import Control.Concurrent (threadDelay)
-import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
-import Data.Monoid (All (All))
 import System.FilePath ((</>))
 import System.Directory (getHomeDirectory)
 
@@ -47,7 +44,7 @@ tbName = "Icedove"
 
 relToHomeDir file = (</> file) <$> getHomeDirectory
 
-main = xmonad . ewmh . pagerHints $ defaultConfig
+main = xmonad . ewmh . pagerHints $ def
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
   , normalBorderColor  = "#dddddd"
