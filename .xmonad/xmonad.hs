@@ -27,7 +27,9 @@ import XMonad.Util.Types (Direction2D(U,D,L,R))
 import System.Taffybar.Hooks.PagerHints (pagerHints)
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
+import Data.Monoid (All(..))
 import System.FilePath ((</>))
 import System.Directory (getHomeDirectory)
 
