@@ -7,7 +7,7 @@ import StaticAssert (staticAssert)
 import XMonad (
   xmonad,
   (<+>), (=?), (-->),
-  XConfig(..), defaultConfig, mod1Mask,
+  XConfig(..), def, mod1Mask,
   Tall(..), Mirror(..), Full(..),
   Window(..), X(..), Event(..),
   ask, title, className, doF, doFloat, doIgnore, doShift,
