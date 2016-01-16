@@ -177,7 +177,7 @@ vmap <F12>      "rp
 nnoremap <C-S> :set spell!<CR>
 inoremap <C-S> <ESC>:set spell!<CR>li
 
-nnoremap <C-N> :call ToggleRelativeNumber()<CR>
+nnoremap <C-M> :call ToggleRelativeNumber()<CR>
 
 command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
 
