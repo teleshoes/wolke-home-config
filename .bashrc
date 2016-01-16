@@ -26,6 +26,8 @@ if [ "$TERM" == "rxvt" ]; then
   PROMPT_COMMAND='if [ "$WINDOW_TITLE" ]; then '$p1'; else '$p2'; fi'
 fi
 
+rm -f .viminf*.tmp .recently-used #clean home
+
 ###horrible fucking oracle variables
 if [[ -z "$ORACLE_HOME" ]] && [[ -f /etc/ld.so.conf.d/oracle.conf ]]; then
   oralibdir=`cat /etc/ld.so.conf.d/oracle.conf`
@@ -267,7 +269,3 @@ function git() {
     $realgit "$@"
   fi
 }
-
-function clean-home {
-  rm -f .viminf*.tmp .recently-used
-} ; clean-home
