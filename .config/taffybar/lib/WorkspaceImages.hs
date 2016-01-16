@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module WorkspaceImages (loadImages, selectImage, selectImageName) where
 import Utils (imageDir, tryMaybe)
 
