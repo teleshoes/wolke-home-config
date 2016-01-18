@@ -85,8 +85,8 @@ nmap , @:
 """"""
 
 """Quit"""
-nmap <C-X><C-C> :q!<CR>
-imap <C-X><C-C> <Esc>:q!<CR>
+nmap <C-X><C-C> :qa!<CR>
+imap <C-X><C-C> <Esc>:qa!<CR>
 
 nmap <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
