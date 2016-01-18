@@ -18,7 +18,7 @@ netStatsReader = do
   forkIO $ scanLoop chan []
   return $ readChan chan
 
-ignoredInterfacesRegex = "(lo|tun\\d+)"
+ignoredInterfacesRegex = "^(lo|tun\\d+)$"
 
 procFile = "/proc/net/dev"
 
