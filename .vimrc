@@ -146,7 +146,6 @@ imap <F6> <Esc>:w<CR>:Run<Space>li
 
 """Clipboard"""
 nmap <F7>      "+y
-imap <F7> <ESC>"+yi
 vmap <F7>      "+y
 
 nmap <F8>      "+p
