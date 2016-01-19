@@ -63,7 +63,7 @@ wifi = do
   let freq = regexFirstGroup "Frequency:(\\d+(\\.\\d+)?) GHz" s
   let qTop = regexFirstGroup "Link Quality=(\\d+)/\\d+" s
   let qBot = regexFirstGroup "Link Quality=\\d+/(\\d+)" s
-  let rate = regexFirstGroup "Bit Rate=(\\d+(?:\\.\\d+)) Mb/s" s
+  let rate = regexFirstGroup "Bit Rate=(\\d+(?:\\.\\d+)?) Mb/s" s
   let r = rateFmt rate
   let q = quality qTop qBot
   let f = frequency freq
