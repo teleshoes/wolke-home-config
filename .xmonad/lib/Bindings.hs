@@ -169,6 +169,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
+        "hangout"       @@ mCA   xK_h    #! "hangout"
         "tor"           @@ mCA   xK_v    #! "tor"
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
