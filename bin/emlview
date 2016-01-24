@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+use Cwd 'abs_path';
+
+my $tmpPrefix = "/tmp/emlview-";
+my $viewCmd = "icedove --offline";
+
+sub viewFiles(@);
+
+my $usage = "Usage:
+  $0 FILE [FILE FILE ..]
+    make symlinks ending in '.eml' to each given file
+    place symlinks in dir '$tmpPrefix-<MILLIS>/'
+    open each symlink with '$viewCmd <PATH-TO-SYMLINK>'
+";
+
+sub main(@){
+  viewFiles @_;
+}
+
+sub viewFiles(@){
+  my @files = @_;
+  my $dir = $tmpPrefix . int(time*1000);
+  system "mkdir", "-p", "$dir";
+  my $id = 0;
+  my @newFiles;
+  for my $file(@files){
+    $file = abs_path $file;
+    my $name = $file;
+    $name =~ s/^.*\/([^\/]+)$/$1/g;
+    $name = lc $name;
+    $name =~ s/\W+/_/g;
+    $name =~ s/^_//;
+    $name =~ s/_$//;
+
+    $name .= "_" . $id++;
+    my $newFile = "$dir/$name.eml";
+    system "ln", "-s", $file, $newFile;
+    push @newFiles, $newFile;
+  }
+
+  for my $file(@newFiles){
+    system "$viewCmd $file >/dev/null 2>/dev/null &";
+    sleep 1;
+  }
+}
+
+&main(@ARGV);
