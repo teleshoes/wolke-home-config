@@ -6,6 +6,8 @@ use Time::HiRes qw(sleep);
 sub ceil($);
 sub getBrightness();
 sub setBrightness($$);
+sub getBrightnessIntel();
+sub setBrightnessIntel($);
 sub getBrightnessXbacklight();
 sub setBrightnessXbacklight($);
 sub getBrightnessXrandr();
@@ -14,9 +16,10 @@ sub ensureXrandrDevs();
 
 my $lastFilePrefix = "/tmp/brightness-";
 
+my $MODE_INTEL = "intel";
 my $MODE_XBACKLIGHT = "xbacklight";
 my $MODE_XRANDR = "xrandr";
-my $okModes = join "|", ($MODE_XBACKLIGHT, $MODE_XRANDR);
+my $okModes = join "|", ($MODE_INTEL, $MODE_XBACKLIGHT, $MODE_XRANDR);
 
 my $currentMode = undef;
 
@@ -37,7 +40,10 @@ my $usage = "Usage:
   stores previous settings in $lastFilePrefix-MODE
 
 
-  MODE: --$MODE_XBACKLIGHT | --$MODE_XRANDR
+  MODE: --$MODE_INTEL | --$MODE_XBACKLIGHT | --$MODE_XRANDR
+    --$MODE_INTEL
+      use `sudo intel-brightness`
+
     --$MODE_XBACKLIGHT
       use `xbacklight`
 
@@ -55,6 +61,8 @@ my $usage = "Usage:
     if MODE isnt specified, a MODE is detected during getting brightness
     (which also happens before setting the brightness)
     the following are tried in order, until one returns a percentage:
+      $MODE_INTEL
+      =>
       $MODE_XBACKLIGHT
       =>
       $MODE_XRANDR
@@ -114,6 +122,12 @@ sub ceil($){
 sub getBrightness(){
   if(not defined $currentMode){
     my $b;
+    $b = getBrightnessIntel();
+    if(defined $b and $b =~ /^\d+$/){
+      $currentMode = $MODE_INTEL;
+      return $b;
+    }
+
     $b = getBrightnessXbacklight();
     if(defined $b and $b =~ /^\d+$/){
       $currentMode = $MODE_XBACKLIGHT;
@@ -126,6 +140,8 @@ sub getBrightness(){
       return $b;
     }
     die "could not detect a valid brightness mode\n";
+  }elsif($currentMode eq $MODE_INTEL){
+    return getBrightnessIntel();
   }elsif($currentMode eq $MODE_XBACKLIGHT){
     return getBrightnessXbacklight();
   }elsif($currentMode eq $MODE_XRANDR){
@@ -140,12 +156,28 @@ sub setBrightness($$){
   print getBrightness() . " => $target\n";
   if(not defined $currentMode){
     die "mode not defined\n";
+  }elsif($currentMode eq $MODE_INTEL){
+    setBrightnessIntel $target;
   }elsif($currentMode eq $MODE_XBACKLIGHT){
     setBrightnessXbacklight $target;
   }elsif($currentMode eq $MODE_XRANDR){
     setBrightnessXrandr $target;
   }
   system "echo $target > $lastFilePrefix-$currentMode" if not $softUpdate;
+}
+
+sub getBrightnessIntel(){
+  my $b = `sudo intel-brightness --get 2>/dev/null`;
+  chomp $b;
+  if($b =~ /^(\d+(?:\.\d+)?)$/){
+    return ceil $1;
+  }else{
+    return undef;
+  }
+}
+sub setBrightnessIntel($){
+  my ($target) = @_;
+  system "sudo", "intel-brightness", "--set", $target;
 }
 
 sub getBrightnessXbacklight(){
