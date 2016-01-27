@@ -53,11 +53,11 @@ my $usage = "Usage:
       use `xrandr`
 
     if MODE isnt specified, a MODE is detected during getting brightness
-    (which happens before setting the brightness)
-      1) mode=$MODE_XBACKLIGHT
-           if xbacklight returns a number, use it
-      2) mode=$MODE_XRANDR
-           if a number can be extracted from xrandr, use it
+    (which also happens before setting the brightness)
+    the following are tried in order, until one returns a percentage:
+      $MODE_XBACKLIGHT
+      =>
+      $MODE_XRANDR
 ";
 
 sub main(@){
@@ -113,13 +113,19 @@ sub ceil($){
 
 sub getBrightness(){
   if(not defined $currentMode){
-    my $b = getBrightnessXbacklight();
-    if($b eq "ERROR"){
-      $currentMode = $MODE_XRANDR;
-    }else{
+    my $b;
+    $b = getBrightnessXbacklight();
+    if(defined $b and $b =~ /^\d+$/){
       $currentMode = $MODE_XBACKLIGHT;
       return $b;
     }
+
+    $b = getBrightnessXrandr();
+    if(defined $b and $b =~ /^\d+$/){
+      $currentMode = $MODE_XRANDR;
+      return $b;
+    }
+    die "could not detect a valid brightness mode\n";
   }elsif($currentMode eq $MODE_XBACKLIGHT){
     return getBrightnessXbacklight();
   }elsif($currentMode eq $MODE_XRANDR){
