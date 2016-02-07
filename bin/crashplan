@@ -77,13 +77,15 @@ my $usage = "Usage:
   $0 $okEngineCmds
     run 'sudo $engineExec <ARG>'
 
-  $0 -b|--backup|backup
+  $0 -b|--backup|backup [--force]
     1) stop crashplan => start crashplan => send 'scan' command to crashplan
     2) tail -F $logFile
     3) check newly added log entries every ${checkCompleteIntervalMillis}ms
     4) if all backups look complete, wait an extra ${assertCompleteMillis}ms
     5) if they still do, or if ${backupLimitMillis}ms is reached, stop crashplan
     6) kill tail, show the newly added log entries
+
+    if --force is set, do not fail on duplicate log entries
 
   $0 --bash-complete COMP_LINE COMP_POINT
     print a list of words for bash completion, one per line
@@ -138,9 +140,14 @@ sub main(@){
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
     chdir $dir;
     exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
-  }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ == 0){
-    runBackup();
-    runBackup(0);
+  }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ <= 1){
+    my $ignoreDuplicateFailures = 0;
+    if(@_ == 1 and $_[0] =~ /^--force$/){
+      $ignoreDuplicateFailures = 1;
+    }elsif(@_ != 0){
+      die $usage;
+    }
+    runBackup($ignoreDuplicateFailures);
   }else{
     die $usage;
   }
