@@ -6,7 +6,7 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 
 sub printBackupSets(@);
-sub runBackup();
+sub runBackup($);
 sub getFilteredBackupSets($$$);
 sub parseBackupSets($$$);
 sub filterLog($$$);
@@ -140,6 +140,7 @@ sub main(@){
     exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
   }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ == 0){
     runBackup();
+    runBackup(0);
   }else{
     die $usage;
   }
@@ -174,11 +175,12 @@ sub backupLogs(){
   print "\n\n";
 }
 
-sub runBackup(){
+sub runBackup($){
+  my ($ignoreDuplicateFailures) = @_;
   backupLogs();
 
   my $startMillis = time*1000.0;
-  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
+  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
   run $0, "stop";
@@ -196,7 +198,7 @@ sub runBackup(){
     $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
     sleep $toSleepMillis/1000.0;
 
-    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
+    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
     my @finishedSets = grep {$$_{backupStatus} =~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/} @newBackupSets;
     my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
@@ -229,7 +231,7 @@ sub runBackup(){
   run "kill", "-9", $logPid;
   run $0, "stop";
 
-  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, 0);
+  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
 
   backupLogs();
