@@ -8,6 +8,8 @@ sub getOptimalHexScore();
 sub run(@);
 
 my $saveFile = "$ENV{HOME}/.hex-a-hop/save1.dat";
+my $repoDir = "$ENV{HOME}/.hex-a-hop/repo";
+my $repoFile = "hex-a-hop-save";
 
 my $usage = "Usage:
   $0 [OPTS]
@@ -25,10 +27,15 @@ my $usage = "Usage:
 
     --hide-opt
       do not print levels where CUR = OPT (this is the default)
+
+    --repo
+      update the git repo located at $repoDir
+      also forcibly sets --no-hide-opt
 ";
 
 sub main(@){
   my $hideOpt = 1;
+  my $repo = 0;
   while(@_ > 0){
     my $arg = shift;
     if(@_ == 0 and $arg =~ /^(-h|--help)$/){
@@ -41,6 +48,8 @@ sub main(@){
       $hideOpt = 0;
     }elsif($arg =~ /^(--hide-opt)$/){
       $hideOpt = 1;
+    }elsif($arg =~ /^(--repo)$/){
+      $repo = 1;
     }else{
       die "$usage\ninvalid args: " . join(" ", ($arg, @_)) . "\n";
     }
@@ -71,6 +80,8 @@ sub main(@){
     }
   }
 
+  $hideOpt = 0 if $repo;
+
   my @entries;
   for my $name(sort keys %$levels){
     my $s = $$levels{$name};
@@ -87,6 +98,28 @@ sub main(@){
   $fmt .= $_ foreach sort @entries;
 
   print $fmt;
+
+  if($repo){
+    print "\n\n";
+    die "$repoDir not a dir\n" if not -d $repoDir;
+    chdir $repoDir;
+    $ENV{PWD} = $repoDir;
+
+    my $file = "$repoDir/$repoFile";
+    open FH, "> $file" or die "Couldnt write $file: $!\n";
+    print FH $fmt;
+    close FH;
+
+    run "git add $repoFile";
+    system "git diff-index --quiet HEAD --";
+    if($? == 0){
+      run "git status";
+      print "\n\nno changes, no commit\n";
+    }else{
+      run "git diff --cached";
+      run "git commit -m 'automatic commit'"
+    }
+  }
 }
 
 sub parseOptimalHexScores(){
