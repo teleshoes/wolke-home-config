@@ -18,9 +18,13 @@ my $usage = "Usage:
   OPTS:
     --file=FILE
       use 'FILE' instead of $saveFile
+
+    --all
+      print all levels, including ones where CUR = OPT
 ";
 
 sub main(@){
+  my $hideOpt = 1;
   while(@_ > 0){
     my $arg = shift;
     if(@_ == 0 and $arg =~ /^(-h|--help)$/){
@@ -29,6 +33,8 @@ sub main(@){
     }elsif($arg =~ /^--file=(.+)$/){
       $saveFile = $1;
       die "ERROR: not a file '$saveFile'\n" if not -f $saveFile;
+    }elsif($arg =~ /^(--all)$/){
+      $hideOpt = 0;
     }else{
       die "$usage\ninvalid args: " . join(" ", ($arg, @_)) . "\n";
     }
@@ -62,7 +68,7 @@ sub main(@){
   my @entries;
   for my $name(sort keys %$levels){
     my $s = $$levels{$name};
-    next if $$s{cur} == $$s{opt};
+    next if $hideOpt and $$s{cur} == $$s{opt};
     my $entry = sprintf "%02dx%02d %-30s (%3d)   %3d  %3d | %+4d (%+4d)\n",
       $$s{col}, $$s{row}, $name, $$s{par}, $$s{opt}, $$s{cur},
       ($$s{cur}-$$s{opt}), ($$s{cur}-$$s{par});
