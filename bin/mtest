@@ -30,6 +30,9 @@ my $usage = "Usage:
     run \"@mvnCmd\"
     with optional -Dtest=TEST_NAME
 
+    if TEST_NAME is specified, behave like --slow and do not append -Pfast-tests
+    unless --fast is specified explicitly
+
     OPTS
       --debug
         use maven surefire
@@ -61,6 +64,7 @@ sub main(@){
   }
   my $debug = 0;
   my $fast = $defaultFastTests;
+  my $explicitFast = 0;
   my $test = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -68,13 +72,18 @@ sub main(@){
       $debug = 1;
     }elsif($arg =~ /^(-f|--fast|-Pfast-tests)$/){
       $fast = 1;
+      $explicitFast = 1;
     }elsif($arg =~ /^(-s|--no-fast|--nofast|--slow)$/){
       $fast = 0;
+      $explicitFast = 1;
     }else{
       die $usage;
     }
   }
+
   $test = shift if @_ == 1;
+  $fast = 0 if defined $test and not $explicitFast;
+
   die $usage if @_ > 0;
 
   my @cmd = @mvnCmd;
