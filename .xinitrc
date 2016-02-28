@@ -4,7 +4,7 @@
 sudo wauto -p &
 pulse-enable on
 sudo bluetooth off &
-sudo fan 1 &
+sudo fan auto &
 taffybar-restart --daemon --quiet
 parcellite -d &
 sudo sbox-umount &
