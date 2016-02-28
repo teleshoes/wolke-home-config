@@ -147,9 +147,9 @@ shortcuts conf = "Shortcuts" @@ do
         "0%"            @@ mW    xK_F4   #! "sudo intel-pstate -s max 0"
 
     "Fan"           @@ do
-        "low"           @@ mW    xK_F5   #! "sudo fan 1"
+        "auto"          @@ mW    xK_F5   #! "sudo fan auto"
         "fastest"       @@ mW    xK_F6   #! "sudo fan disengaged"
-        "auto"          @@ mW    xK_F7   #! "sudo fan auto"
+        "medium"        @@ mW    xK_F7   #! "sudo fan 4"
         "off"           @@ mW    xK_F8   #! "sudo fan 0"
 
     "feh"           @@ do
