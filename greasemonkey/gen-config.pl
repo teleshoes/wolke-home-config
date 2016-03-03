@@ -5,6 +5,16 @@ use warnings;
 use Time::HiRes qw(stat);
 
 my $scripts = [
+  ["verizon_password",    "http://192.168.1.1/*",                                     ""],
+  ["mohela_login",        "https://www.mohela.com/DL/secure/account/loginStep1.aspx", ""],
+  ["uas_login",           "https://www.uasecho.com/",                                 ""],
+  ["mohela_login_step_2", "https://www.mohela.com/DL/secure/account/loginStep2.aspx", ""],
+  ["ups_tracking",        "*ups.com*track*",                                          ""],
+  ["flattr_login",        "https://flattr.com/login",                                 ""],
+  ["multiverse",          "http://amultiverse.com/*",                                 "hide scenes from a multiverse header"],
+  ["boltbus",             "https://www.boltbus.com/*?*",                              "sets up boston=&gt;ny"],
+  ["chase",               "https://chaseonline.chase.com/Logon*",                     "chase logon"],
+  ["github-username",     "https://github.com/*",                                     ""],
 ];
 
 sub main(@){
