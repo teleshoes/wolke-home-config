@@ -65,19 +65,19 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $startDate, $endDate, $same, $check);
+  my ($targetCommit, $startDate, $endDate, $skipTime, $skipRebase);
   if(@_ == 2 and $_[1] =~ /^(--same)$/){
     ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
-    $same = 1;
-    $check = 0;
+    $skipTime = 1;
+    $skipRebase = 0;
   }elsif(@_ == 2 and $_[1] =~ /^(--check)$/){
     ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
-    $same = 0;
-    $check = 1;
+    $skipTime = 0;
+    $skipRebase = 1;
   }elsif(@_ == 3){
     ($targetCommit, $startDate, $endDate) = @_;
-    $same = 0;
-    $check = 0;
+    $skipTime = 0;
+    $skipRebase = 0;
   }else{
     die $usage;
   }
@@ -88,10 +88,10 @@ sub main(@){
 
   my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
-  if(not $same and not $check and $startDate !~ /^(start|end)$/){
+  if(not $skipTime and not $skipRebase and $startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
   }
-  if(not $same and not $check and $endDate !~ /^(start|end)$/){
+  if(not $skipTime and not $skipRebase and $endDate !~ /^(start|end)$/){
     $endDate = getTime $endDate;
   }
 
@@ -105,7 +105,7 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
-  if($same or $check){
+  if($skipTime or $skipRebase){
     print "using original commit dates\n";
   }else{
     $startDate = $oldest if $startDate =~ /^(start)$/;
@@ -130,7 +130,7 @@ sub main(@){
       $offsetRatio = ($t-$oldest) / ($newest-$oldest);
     }
     my $newDate;
-    if($same or $check){
+    if($skipTime or $skipRebase){
       $newDate = $t;
     }else{
       my $offset = $offsetRatio * ($endDate - $startDate);
@@ -148,7 +148,7 @@ sub main(@){
     print "\n";
   }
 
-  if(not $check){
+  if(not $skipRebase){
     print "Changing the following commits:\n";
   }else{
     print "Rebase is disabled, NOT changing the following commits:\n";
@@ -169,7 +169,7 @@ sub main(@){
   }
   print "\n";
 
-  if($check){
+  if($skipRebase){
     print "actual rebase is disabled, exiting\n";
     exit 0;
   }
