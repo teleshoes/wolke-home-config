@@ -38,6 +38,10 @@ my $usage = "Usage:
     similar to '$0 TARGET_COMMIT START_DATE END_DATE', except do not modify times.
     useful with -e
 
+  $0 [OPTS] TARGET_COMMIT --check
+    similar to '$0 TARGET_COMMIT START_DATE END_DATE', except dont rebase at all
+    useful for printing warnings without actually changing anything.
+
   OPTS
     -f             use -f in git filter-branch command
     -e             edit the dates in an editor before filtering on them
@@ -61,13 +65,19 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $startDate, $endDate, $same);
+  my ($targetCommit, $startDate, $endDate, $same, $check);
   if(@_ == 2 and $_[1] =~ /^(--same)$/){
     ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
     $same = 1;
+    $check = 0;
+  }elsif(@_ == 2 and $_[1] =~ /^(--check)$/){
+    ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
+    $same = 0;
+    $check = 1;
   }elsif(@_ == 3){
     ($targetCommit, $startDate, $endDate) = @_;
     $same = 0;
+    $check = 0;
   }else{
     die $usage;
   }
@@ -78,10 +88,10 @@ sub main(@){
 
   my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
-  if(not $same and $startDate !~ /^(start|end)$/){
+  if(not $same and not $check and $startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
   }
-  if(not $same and $endDate !~ /^(start|end)$/){
+  if(not $same and not $check and $endDate !~ /^(start|end)$/){
     $endDate = getTime $endDate;
   }
 
@@ -95,7 +105,7 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
-  if($same){
+  if($same or $check){
     print "using original commit dates\n";
   }else{
     $startDate = $oldest if $startDate =~ /^(start)$/;
@@ -120,7 +130,7 @@ sub main(@){
       $offsetRatio = ($t-$oldest) / ($newest-$oldest);
     }
     my $newDate;
-    if($same){
+    if($same or $check){
       $newDate = $t;
     }else{
       my $offset = $offsetRatio * ($endDate - $startDate);
@@ -138,7 +148,11 @@ sub main(@){
     print "\n";
   }
 
-  print "Changing the following commits:\n";
+  if(not $check){
+    print "Changing the following commits:\n";
+  }else{
+    print "Rebase is disabled, NOT changing the following commits:\n";
+  }
   for my $commitDate(@$filterCommits){
     my ($commit, $newDate) = @$commitDate;
     my $originalDate = $originalDates{$commit};
@@ -154,6 +168,11 @@ sub main(@){
     $lastDate = $newDate;
   }
   print "\n";
+
+  if($check){
+    print "actual rebase is disabled, exiting\n";
+    exit 0;
+  }
 
   print "proceed? [y/N]";
   my $response = <STDIN>;
