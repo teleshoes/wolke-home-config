@@ -1,6 +1,22 @@
 #!/usr/bin/python
 import sys, os, hashlib, StringIO, bencode
 
+def main():
+  # Open torrent file
+  torrentFile = open(sys.argv[1], "rb")
+  metainfo = bencode.bdecode(torrentFile.read())
+  info = metainfo['info']
+  pieces = StringIO.StringIO(info['pieces'])
+  # Iterate through pieces
+  for piece in piecesGenerator(info):
+    # Compare piece hash with expected hash
+    pieceHash = hashlib.sha1(piece).digest()
+    if (pieceHash != pieces.read(20)):
+      corruptionFailure()
+  # ensure we've read all pieces
+  if pieces.read():
+    corruptionFailure()
+
 def piecesGenerator(info):
   """Yield pieces from download file(s)."""
   pieceLen = info['piece length']
@@ -34,22 +50,6 @@ def corruptionFailure():
   """Display error message and exit"""
   print("download corrupted")
   exit(1)
-
-def main():
-  # Open torrent file
-  torrentFile = open(sys.argv[1], "rb")
-  metainfo = bencode.bdecode(torrentFile.read())
-  info = metainfo['info']
-  pieces = StringIO.StringIO(info['pieces'])
-  # Iterate through pieces
-  for piece in piecesGenerator(info):
-    # Compare piece hash with expected hash
-    pieceHash = hashlib.sha1(piece).digest()
-    if (pieceHash != pieces.read(20)):
-      corruptionFailure()
-  # ensure we've read all pieces
-  if pieces.read():
-    corruptionFailure()
 
 if __name__ == "__main__":
   main()
