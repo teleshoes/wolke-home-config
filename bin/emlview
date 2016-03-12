@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+use Cwd 'abs_path';
+
+my $emailDir = "$ENV{HOME}/.cache/email";
+my $tmpPrefix = "/tmp/emlview-";
+my $browser = "iceweasel";
+
+sub viewFiles(@);
+
+my $usage = "Usage:
+  $0 FILE [FILE FILE ..]
+    call mhonarc -outdir $tmpPrefix<MILLIS> FILE [FILE FILE ..]
+    and then call $browser $tmpPrefix<MILLIS>/msg*.html
+
+  $0 ACC [FOLDER] UID [UID UID ..]
+    equivalent to:
+      cd $emailDir/<ACC>/<FOLDER>/bodies/
+      $0 <UID> [<UID> <UID> ..]
+";
+
+sub main(@){
+  if(@_ > 0 and -d "$emailDir/$_[0]"){
+    my $acc = shift;
+
+    my $folder = shift if @_ > 0 and -d "$emailDir/$acc/$_[0]";
+    $folder = "inbox" if not defined $folder;
+    my $bodiesDir = "$emailDir/$acc/$folder/bodies";
+    die "$usage\ncould not find dir: $bodiesDir\n" if not -d $bodiesDir;
+
+    my @uids = @_;
+    die $usage if @uids == 0;
+    my @files;
+    for my $uid(@uids){
+      my $file = "$bodiesDir/$uid";
+      die "$usage\ninvalid UID: $uid\n" if not -f $file;
+      push @files, $file;
+    }
+    viewFiles @files;
+  }else{
+    viewFiles @_;
+  }
+}
+
+sub viewFiles(@){
+  my @files = @_;
+  my $dir = $tmpPrefix . int(time*1000);
+  system "mkdir", "-p", "$dir";
+  system "mhonarc", "-outdir", $dir, @files;
+  system "iceweasel $dir/msg*.html &";
+}
+
+&main(@ARGV);

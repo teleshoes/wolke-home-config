@@ -4,15 +4,14 @@ use warnings;
 
 sub run(@);
 
+my $browser = "firefox";
+my @preCmd = ("sudo", "modprobe", "-r", "uvcvideo");
+my @postCmd = ("pkill", "-f", "Google");
+
 my $baseUrl = "https://plus.google.com/hangouts";
 
 my %hangouts = (
   lille           => "$baseUrl/_/event/cu9g1kdmmt26o2l3c938i3s3nag",
-  standup       => "$baseUrl/_/arcbees.com/daily-scrum",
-  planning      => "$baseUrl/_/arcbees.com/sprint-planning",
-  acceptance    => "$baseUrl/_/arcbees.com/sprint-review",
-  retrospective => "$baseUrl/_/arcbees.com/sprint",
-  developer     => "$baseUrl/_/arcbees.com/simon",
 );
 my @hangoutNames = sort keys %hangouts;
 my $okHangouts = join "|", @hangoutNames;
@@ -20,34 +19,53 @@ my $hangoutFmt = join "      ", map {"$_ => $hangouts{$_}\n"} @hangoutNames;
 my $defaultHangout = "lille";
 
 my $usage = "Usage:
-  $0 [$okHangouts]
-    if no arg is given, $defaultHangout is used
-    opens browser with URL:
-      $hangoutFmt
+  $0 [HANGOUT_NAME|URL]
+    -run @preCmd
+    -open $browser with URL for given HANGOUT_NAME (or URL indicated explicitly)
+      {default is $defaultHangout =>\n        $hangouts{$defaultHangout}}
+    -run @postCmd
 
-  $0 URL
-    opens browser with given URL
+  $0 -p|-u|--print|--url [HANGOUT_NAME|URL]
+    -print URL for given HANGOUT_NAME (or URL indicated explicitly)
+      {default is $defaultHangout =>\n        $hangouts{$defaultHangout}}
+
+  HANGOUT_NAME
+    word for predefined hangout URL as below (HANGOUT_NAME => URL):
+      $hangoutFmt
 ";
 
 sub main(@){
-  my $arg = shift() || $defaultHangout;
+  my $printOnly = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-p|-u|--print|--url)$/){
+      $printOnly = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  my $hangoutArg = shift;
+  $hangoutArg = $defaultHangout if not defined $hangoutArg;
+
   die $usage if @_ > 0;
+
   my $url;
-  if($arg =~ /^($okHangouts)$/){
-    $url = $hangouts{$arg};
-  }elsif($arg =~ /^https?:\/\//){
-    $url = $arg;
+  if($hangoutArg =~ /^($okHangouts)$/){
+    $url = $hangouts{$hangoutArg};
+  }elsif($hangoutArg =~ /^https?:\/\//){
+    $url = $hangoutArg;
   }else{
     die $usage;
   }
 
-  my $pepperSrc = "/usr/lib/chromium-browser/pepper/";
-  my $pepperDest = "/usr/lib/chromium/pepper";
-  run "sudo", "ln", "-s", $pepperSrc, $pepperDest if not -e $pepperDest;
-
-  run "sudo", "modprobe", "-r", "uvcvideo";
-  run "firefox", $url;
-  run "pkill", "-f", "Google";
+  if($printOnly){
+    print "$url\n";
+  }else{
+    run @preCmd;
+    run $browser, $url;
+    run @postCmd;
+  }
 }
 
 sub run(@){

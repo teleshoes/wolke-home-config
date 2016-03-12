@@ -6,50 +6,72 @@ use Time::HiRes qw(sleep);
 sub ceil($);
 sub getBrightness();
 sub setBrightness($$);
+sub getBrightnessIntel();
+sub setBrightnessIntel($);
+sub getBrightnessXbacklight();
+sub setBrightnessXbacklight($);
 sub getBrightnessXrandr();
-sub setBrightnessXrandr($$);
+sub setBrightnessXrandr($);
 sub ensureXrandrDevs();
 
-my $lastFile = "/tmp/brightness";
-my $lastFileXrandr = "/tmp/brightness-xrandr";
+my $lastFilePrefix = "/tmp/brightness";
 
-my $disableXbacklight = 0;
-my $xbacklightFailureMessage = "No outputs have backlight property";
-my $display = ":0";
+my $MODE_INTEL = "intel";
+my $MODE_XBACKLIGHT = "xbacklight";
+my $MODE_XRANDR = "xrandr";
+my $okModes = join "|", ($MODE_INTEL, $MODE_XBACKLIGHT, $MODE_XRANDR);
+
+my $currentMode = undef;
+
 my $xrandrDevs = undef;
+
+my $display = ":0";
 
 my @brackets = (0, 10, 34, 67, 80, 100);
 
 my $usage = "Usage:
-    $0 [--xrandr]            prints brightness
-    $0 [--xrandr] up|down    jump between: @brackets
-    $0 [--xrandr] percent    set brightness to percent, record in $lastFile
-    $0 [--xrandr] last       set brightness to value read from $lastFile
-    $0 [--xrandr] system     remove $lastFile
+    $0 [MODE]            prints brightness
+    $0 [MODE] up|down    jump between: @brackets
+    $0 [MODE] PERCENT    set brightness to PERCENT, record in $lastFilePrefix-MODE
+    $0 [MODE] last       set brightness to value read from $lastFilePrefix-MODE
+    $0 [MODE] system     remove $lastFilePrefix-*
 
-  xbacklight wrapper that stores previous settings in $lastFile
+  wraps several brightness get/set methods
+  stores previous settings in $lastFilePrefix-MODE
 
-  if xbacklight prints \"$xbacklightFailureMessage\",
-      xrandr is used to control brightness instead {in software}
-      if xrandr is used, brightness is written to $lastFileXrandr
-      instead of $lastFile
 
-  --xrandr
-    force use of xrandr instead of xbacklight
+  MODE: --$MODE_INTEL | --$MODE_XBACKLIGHT | --$MODE_XRANDR
+    --$MODE_INTEL
+      use `sudo intel-brightness`
 
-  note: when brightness percentage is not an integer,
-    xbacklight -set `xbacklight -get`
-  lowers the brightness one notch
+    --$MODE_XBACKLIGHT
+      use `xbacklight`
 
-  however, brightnesses printed by $0 are rounded up, so:
-    $0 `$0`
-  should NOT change the brightness
+      NOTE: when brightness percentage is not an integer,
+        xbacklight -set `xbacklight -get`
+      lowers the brightness one notch
+
+      however, brightnesses printed by $0 are rounded up, so:
+        $0 `$0`
+      should NOT change the brightness
+
+    --$MODE_XRANDR
+      use `xrandr`
+
+    if MODE isnt specified, a MODE is detected during getting brightness
+    (which also happens before setting the brightness)
+    the following are tried in order, until one returns a percentage:
+      $MODE_INTEL
+      =>
+      $MODE_XBACKLIGHT
+      =>
+      $MODE_XRANDR
 ";
 
 sub main(@){
-  if(@_ > 0 and $_[0] =~ /^--xrandr/){
+  if(@_ > 0 and $_[0] =~ /^--($okModes)$/){
     shift;
-    $disableXbacklight = 1;
+    $currentMode = $1;
   }
 
   my $arg = shift;
@@ -60,7 +82,7 @@ sub main(@){
   }elsif($arg =~ /^(up|down)$/){
     my $b = getBrightness;
     @brackets = reverse @brackets if $arg eq 'down';
-    my ($top, $bot) = $disableXbacklight ? ($b+2, $b-2) : ($b, $b);
+    my ($top, $bot) = $currentMode ne $MODE_XBACKLIGHT ? ($b+2, $b-2) : ($b, $b);
     for my $bracket(@brackets){
       if(($arg eq 'up' and $bracket > $top) or ($arg eq 'down' and $bracket < $bot)){
         setBrightness $bracket, 0;
@@ -68,21 +90,21 @@ sub main(@){
       }
     }
   }elsif($arg =~ /^(last)$/){
-    if(-e $lastFile or -e $lastFileXrandr){
-      my $brightness = getBrightness();
-      my $last = $disableXbacklight ? `cat $lastFileXrandr` : `cat $lastFile`;
+    my $brightness = getBrightness();
+    if(-e "$lastFilePrefix-$currentMode"){
+      my $last = `cat $lastFilePrefix-$currentMode`;
       chomp $last;
       if($last =~ /^\d+$/){
         my $diff = $brightness - $last;
         $diff *= -1 if $diff < 0;
-        my $buffer = $disableXbacklight ? 2 : 0;
+        my $buffer = $currentMode ne $MODE_XBACKLIGHT ? 2 : 0;
         if($diff > $buffer){
           setBrightness $last, 1;
         }
       }
     }
   }elsif($arg =~ /^(system)$/){
-    system "rm", "-f", $lastFile, $lastFileXrandr;
+    system "rm -f $lastFilePrefix-*";
   }elsif($arg =~ /^(\d+(?:\.\d+)?)$/){
     setBrightness $arg, 0;
   }else{
@@ -98,30 +120,79 @@ sub ceil($){
 }
 
 sub getBrightness(){
-  if($disableXbacklight){
-    return getBrightnessXrandr;
-  }else{
-    my $b = `DISPLAY=$display xbacklight -get 2>&1`;
-    if($b =~ /^$xbacklightFailureMessage/){
-      print STDERR "$xbacklightFailureMessage\nusing xrandr instead\n";
-      $disableXbacklight = 1;
-      return getBrightnessXrandr();
+  if(not defined $currentMode){
+    my $b;
+    $b = getBrightnessIntel();
+    if(defined $b and $b =~ /^\d+$/){
+      $currentMode = $MODE_INTEL;
+      return $b;
     }
 
-    return ceil $b;
+    $b = getBrightnessXbacklight();
+    if(defined $b and $b =~ /^\d+$/){
+      $currentMode = $MODE_XBACKLIGHT;
+      return $b;
+    }
+
+    $b = getBrightnessXrandr();
+    if(defined $b and $b =~ /^\d+$/){
+      $currentMode = $MODE_XRANDR;
+      return $b;
+    }
+    die "could not detect a valid brightness mode\n";
+  }elsif($currentMode eq $MODE_INTEL){
+    return getBrightnessIntel();
+  }elsif($currentMode eq $MODE_XBACKLIGHT){
+    return getBrightnessXbacklight();
+  }elsif($currentMode eq $MODE_XRANDR){
+    return getBrightnessXrandr();
   }
 }
 
 sub setBrightness($$){
-  my $target = ceil $_[0];
-  my $softUpdate = $_[1];
+  my ($target, $softUpdate) = @_;
+  $target = ceil $target;
+
   print getBrightness() . " => $target\n";
-  if($disableXbacklight){
-    setBrightnessXrandr $target, $softUpdate;
-  }else{
-    system "echo $target > $lastFile" if not $softUpdate;
-    system "DISPLAY=$display xbacklight -time 0 -set $target";
+  if(not defined $currentMode){
+    die "mode not defined\n";
+  }elsif($currentMode eq $MODE_INTEL){
+    setBrightnessIntel $target;
+  }elsif($currentMode eq $MODE_XBACKLIGHT){
+    setBrightnessXbacklight $target;
+  }elsif($currentMode eq $MODE_XRANDR){
+    setBrightnessXrandr $target;
   }
+  system "echo $target > $lastFilePrefix-$currentMode" if not $softUpdate;
+}
+
+sub getBrightnessIntel(){
+  my $b = `sudo intel-brightness --get 2>/dev/null`;
+  chomp $b;
+  if($b =~ /^(\d+(?:\.\d+)?)$/){
+    return ceil $1;
+  }else{
+    return undef;
+  }
+}
+sub setBrightnessIntel($){
+  my ($target) = @_;
+  system "sudo", "intel-brightness", "--set", $target;
+}
+
+sub getBrightnessXbacklight(){
+  my $b = `DISPLAY=$display xbacklight -get 2>&1`;
+  chomp $b;
+  if($b =~ /^(\d+(\.\d+)?)$/){
+    return ceil $1;
+  }else{
+    return "ERROR";
+  }
+}
+sub setBrightnessXbacklight($){
+  my ($target) = @_;
+  $target = ceil $target;
+  system "DISPLAY=$display xbacklight -time 0 -set $target";
 }
 
 sub getBrightnessXrandr(){
@@ -136,10 +207,9 @@ sub getBrightnessXrandr(){
   my $b = $$xrandrDevs{$devs[0]};
   return ceil($b*100)
 }
-
-sub setBrightnessXrandr($$){
-  my $target = ceil $_[0];
-  my $softUpdate = $_[1];
+sub setBrightnessXrandr($){
+  my ($target) = @_;
+  $target = ceil $target;
   ensureXrandrDevs();
 
   my @devs = sort keys %$xrandrDevs;
@@ -149,12 +219,10 @@ sub setBrightnessXrandr($$){
     die "Too many xrandr devices: @devs\n";
   }
 
-  system "echo $target > $lastFileXrandr" if not $softUpdate;
   $target /= 100;
 
   system "DISPLAY=$display xrandr --output $devs[0] --brightness $target";
 }
-
 sub ensureXrandrDevs(){
   return if defined $xrandrDevs;
   $xrandrDevs = {};

@@ -4,6 +4,9 @@
 shopt -s dotglob
 shopt -s extglob
 
+# allow <C-S> in vim
+stty stop undef
+
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 export HISTTIMEFORMAT="%F %T "
 export HISTSIZE=1000000
@@ -25,6 +28,8 @@ if [ "$TERM" == "rxvt" ]; then
   p2='echo -ne "\033]0;Terminal: ${PWD/$HOME/~}\007"'
   PROMPT_COMMAND='if [ "$WINDOW_TITLE" ]; then '$p1'; else '$p2'; fi'
 fi
+
+rm -f .viminf*.tmp .recently-used #clean home
 
 ###horrible fucking oracle variables
 if [[ -z "$ORACLE_HOME" ]] && [[ -f /etc/ld.so.conf.d/oracle.conf ]]; then
@@ -147,7 +152,11 @@ function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
 function gs           { g s "$@"; }
-function mp           { mplayer "$@"; }
+function mp           { mpv "$@"; }
+function mpu          {
+  if [ -z $2 ] ; then local default_quality='best' ; fi
+  livestreamer "$@" $default_quality
+}
 
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
@@ -174,6 +183,7 @@ function migl         { gvim `~/migs/latest-script` "$@"; }
 
 function first        { ls "$@" | head -1; }
 function last         { ls "$@" | tail -1; }
+function apN          { let n=${#@}; "$2" "${@:3:$1-1}" "${!n}" "${@:$1+2:$n-$1-2}"; }
 
 # common typos
 function mkdit        { mkdir "$@"; }

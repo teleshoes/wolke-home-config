@@ -44,8 +44,8 @@ myMouseBindings = M.fromList . bwBindList . mouseBinds
 myKeyBindings   = M.fromList . bwBindList . keyBinds
 
 workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
-testConfig = defaultConfig{ layoutHook = Layout $ layoutHook defaultConfig
-                          , workspaces = workspaceNames }
+testConfig = def{ layoutHook = Layout $ layoutHook def
+                , workspaces = workspaceNames }
 
 mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
 keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
@@ -171,6 +171,8 @@ shortcuts conf = "Shortcuts" @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
+        "hangout"       @@ mCA   xK_h    #! "hangout"
+        "hex-a-hop"     @@ mCA   xK_x    #! "hex-a-hop"
         "tor"           @@ mCA   xK_v    #! "tor"
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"

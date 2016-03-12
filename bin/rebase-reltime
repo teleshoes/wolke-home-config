@@ -32,10 +32,15 @@ my $usage = "Usage:
       -\"now\" for right now
       -\"start\" for the oldest date in the commits
       -\"end\" for the newest date in the commits
+    Prints a warning to STDERR if commits are out of chronological order.
 
   $0 [OPTS] TARGET_COMMIT --same
-    same as above, except do not modify times.
+    similar to '$0 TARGET_COMMIT START_DATE END_DATE', except do not modify times.
     useful with -e
+
+  $0 [OPTS] TARGET_COMMIT --check
+    similar to '$0 TARGET_COMMIT START_DATE END_DATE', except dont rebase at all
+    useful for printing warnings without actually changing anything.
 
   OPTS
     -f             use -f in git filter-branch command
@@ -60,13 +65,19 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $startDate, $endDate, $same);
+  my ($targetCommit, $startDate, $endDate, $skipTime, $skipRebase);
   if(@_ == 2 and $_[1] =~ /^(--same)$/){
     ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
-    $same = 1;
+    $skipTime = 1;
+    $skipRebase = 0;
+  }elsif(@_ == 2 and $_[1] =~ /^(--check)$/){
+    ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
+    $skipTime = 0;
+    $skipRebase = 1;
   }elsif(@_ == 3){
     ($targetCommit, $startDate, $endDate) = @_;
-    $same = 0;
+    $skipTime = 0;
+    $skipRebase = 0;
   }else{
     die $usage;
   }
@@ -77,10 +88,10 @@ sub main(@){
 
   my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
-  if(not $same and $startDate !~ /^(start|end)$/){
+  if(not $skipTime and not $skipRebase and $startDate !~ /^(start|end)$/){
     $startDate = getTime $startDate;
   }
-  if(not $same and $endDate !~ /^(start|end)$/){
+  if(not $skipTime and not $skipRebase and $endDate !~ /^(start|end)$/){
     $endDate = getTime $endDate;
   }
 
@@ -94,7 +105,7 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
-  if($same){
+  if($skipTime or $skipRebase){
     print "using original commit dates\n";
   }else{
     $startDate = $oldest if $startDate =~ /^(start)$/;
@@ -119,7 +130,7 @@ sub main(@){
       $offsetRatio = ($t-$oldest) / ($newest-$oldest);
     }
     my $newDate;
-    if($same){
+    if($skipTime or $skipRebase){
       $newDate = $t;
     }else{
       my $offset = $offsetRatio * ($endDate - $startDate);
@@ -137,7 +148,11 @@ sub main(@){
     print "\n";
   }
 
-  print "Changing the following commits:\n";
+  if(not $skipRebase){
+    print "Changing the following commits:\n";
+  }else{
+    print "Rebase is disabled, NOT changing the following commits:\n";
+  }
   for my $commitDate(@$filterCommits){
     my ($commit, $newDate) = @$commitDate;
     my $originalDate = $originalDates{$commit};
@@ -153,6 +168,11 @@ sub main(@){
     $lastDate = $newDate;
   }
   print "\n";
+
+  if($skipRebase){
+    print "actual rebase is disabled, exiting\n";
+    exit 0;
+  }
 
   print "proceed? [y/N]";
   my $response = <STDIN>;

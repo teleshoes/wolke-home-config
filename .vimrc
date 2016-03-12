@@ -43,6 +43,9 @@ function s:isHaskellScript()
     set filetype=haskell
   endif
 endfunction
+
+" override default ftplugin for python
+au BufRead,BufNewFile *.py set shiftwidth=2 tabstop=2 softtabstop=2
 """"""
 
 hi TrailingWhitespace ctermbg=red guibg=red
@@ -82,8 +85,8 @@ nmap , @:
 """"""
 
 """Quit"""
-nmap <C-X><C-C> :q!<CR>
-imap <C-X><C-C> <Esc>:q!<CR>
+nmap <C-X><C-C> :qa!<CR>
+imap <C-X><C-C> <Esc>:qa!<CR>
 
 nmap <C-C> :q<CR>
 imap <C-C> <Esc>:q<CR>
@@ -143,7 +146,6 @@ imap <F6> <Esc>:w<CR>:Run<Space>li
 
 """Clipboard"""
 nmap <F7>      "+y
-imap <F7> <ESC>"+yi
 vmap <F7>      "+y
 
 nmap <F8>      "+p
@@ -170,6 +172,11 @@ nmap <F12>      "rp
 imap <F12> <ESC>"rpi
 vmap <F12>      "rp
 """"""
+
+nnoremap <C-S> :set spell!<CR>
+inoremap <C-S> <ESC>:set spell!<CR>li
+
+nnoremap <C-M> :call ToggleRelativeNumber()<CR>
 
 command! -bar -range=% Reverse <line1>,<line2>g/^/m<line1>-1|nohl
 
@@ -240,3 +247,19 @@ function RunHeight(height, ...)
   call Run(a:000)
 endfunction
 
+function ToggleRelativeNumber()
+  if &relativenumber
+    set norelativenumber
+    set number
+  else
+    set nonumber
+    set relativenumber
+  endif
+endfunction
+
+command -nargs=* BandCampToMusicBrainz call BandCampToMusicBrainz(<f-args>)
+function BandCampToMusicBrainz()
+  %s/\v^\s+\n//
+  %s/\v(\d+)\.\n/\1 /
+  %s/\v\s+$//
+endfunction

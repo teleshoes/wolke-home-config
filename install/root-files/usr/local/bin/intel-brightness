@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 --get
+    extract brightness as percentage from intel dev
+
+  $0 --set BRIGHTNESS
+    calculate brightness and set in intel dev
+";
+
+my $brightnessDev = undef;
+my $maxBrightnessDev = undef;
+
+sub findDevices();
+sub getDeviceValue($);
+sub setDeviceValue($$);
+sub percentToDeviceValue($);
+sub deviceValueToPercent($);
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(--get)$/){
+    findDevices();
+    my $value = getDeviceValue $brightnessDev;
+    print deviceValueToPercent($value) . "\n";
+  }elsif(@_ == 2 and $_[0] =~ /^(--set)$/ and $_[1] =~ /^\d+(\.\d+)?$/){
+    findDevices();
+    my $percent = $_[1];
+    setDeviceValue($brightnessDev, percentToDeviceValue($percent));
+  }else{
+    die $usage;
+  }
+}
+
+sub findDevices(){
+  my $findCmd = ""
+    . " find"
+    . " /sys/devices"
+    . " -type d"
+    . " -iregex '.*/drm/card[0-9]+/.*/intel_backlight'"
+    ;
+  my $dir = `$findCmd`;
+  chomp $dir;
+  if($dir !~ /^\/sys\/devices\/.*\/drm\/card\d+\/.*\/intel_backlight/){
+    die "could not find intel_backlight device dir under /sys/devices\n";
+  }
+
+  $brightnessDev = "$dir/brightness";
+  $maxBrightnessDev = "$dir/max_brightness";
+
+  die "missing device $brightnessDev\n" if not -f $brightnessDev;
+  die "missing device $maxBrightnessDev\n" if not -f $maxBrightnessDev;
+}
+
+sub getDeviceValue($){
+  my ($device) = @_;
+  my $v = `cat '$device' 2>/dev/null`;
+  chomp $v;
+  if($v =~ /^(\d+)$/){
+    return $1;
+  }else{
+    die "error reading '$device'\n";
+  }
+}
+sub setDeviceValue($$){
+  my ($device, $value) = @_;
+  $value = int($value + 0.5);
+  open FH, "> $device" or die "Could not write to $device\n$!\n";
+  print FH "$value\n";
+  close FH;
+}
+
+sub percentToDeviceValue($){
+  my ($percent) = @_;
+  my $max = getDeviceValue $maxBrightnessDev;
+  return $percent/100.0 * $max;
+}
+sub deviceValueToPercent($){
+  my ($value) = @_;
+  my $max = getDeviceValue $maxBrightnessDev;
+  return $value/$max * 100.0;
+}
+
+&main(@ARGV);
