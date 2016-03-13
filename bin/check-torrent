@@ -4,16 +4,25 @@ import sys, os, hashlib, StringIO, bencode
 def main():
   torrentPath = sys.argv[1]
   info = readTorrentInfo(torrentPath)
-  torrentPieceHashes = StringIO.StringIO(info['pieces'])
-  downloadPieces = getDownloadPieces(info)
-  print "\nhashing file pieces and comparing to torrent info\n"
-  for piece in downloadPieces:
-    pieceHash = hashlib.sha1(piece).digest()
-    if pieceHash != torrentPieceHashes.read(20):
-      fail("PIECE HASH MISMATCH")
-  # ensure we've read all pieces
-  if torrentPieceHashes.read():
+  torrentPieceHashes = extractTorrentPieceHashes(info)
+  downloadPieceHashes = getDownloadPieceHashes(info)
+  if len(torrentPieceHashes) > len(downloadPieceHashes):
     fail("MISSING PIECES")
+  if len(torrentPieceHashes) < len(downloadPieceHashes):
+    fail("TOO MANY PIECES")
+  for i in range(len(torrentPieceHashes)):
+    if torrentPieceHashes[i] != downloadPieceHashes[i]:
+      fail("PIECE HASH MISMATCH")
+  print "\nVERIFIED"
+
+def extractTorrentPieceHashes(info):
+  pieces = []
+  strIO = StringIO.StringIO(info['pieces'])
+  p = strIO.read(20)
+  while p:
+    pieces.append(p)
+    p = strIO.read(20)
+  return pieces
 
 def readTorrentInfo(torrentPath):
   f = open(torrentPath, "rb")
@@ -32,11 +41,11 @@ def getFilePaths(info):
     paths.append(path)
   return paths
 
-def readFilePieces(paths, pieceLen):
+def readFilePieceHashes(paths, pieceLen):
   piece = ""
-  pieces = []
+  pieceHashes = []
   for path in paths:
-    print "\nreading file:\n" + path
+    print "\nhashing pieces for file:\n" + path
     try:
       sfile = open(path.decode('UTF-8'), "rb")
       while True:
@@ -44,18 +53,21 @@ def readFilePieces(paths, pieceLen):
         if len(piece) != pieceLen:
           sfile.close()
           break
-        pieces.append(piece)
+        pieceHashes.append(hashPiece(piece))
         piece = ""
     except:
       fail("error reading file: " + path)
   if piece != "":
-    pieces.append(piece)
-  return pieces
+    pieceHashes.append(hashPiece(piece))
+  return pieceHashes
 
-def getDownloadPieces(info):
+def hashPiece(piece):
+  return hashlib.sha1(piece).digest()
+
+def getDownloadPieceHashes(info):
   pieceLen = info['piece length']
   paths = getFilePaths(info)
-  pieces = readFilePieces(paths, pieceLen)
+  pieces = readFilePieceHashes(paths, pieceLen)
   return pieces
 
 def fail(msg):
