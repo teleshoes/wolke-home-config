@@ -106,6 +106,7 @@ sub main(@){
     die "missing download dir: $localDownloadDir\n" if not -d $localDownloadDir;
     $ENV{PWD} = $localDownloadDir;
     chdir $localDownloadDir;
+    my @verified;
     my @corrupted;
     for my $t(@okTorrents){
       print "="x30 . "\n";
@@ -114,8 +115,24 @@ sub main(@){
       if(not -f $torrentFile){
         die "MISSING TORRENT FILE for $$t{name}:\n$torrentFile\n"
       }
-      run "check-torrent $torrentFile";
+      open CMD, "-|", "check-torrent", $torrentFile
+        or die "Could not run check-torrent\n";
+      my $line;
+      my $verified = 0;
+      while($line = <CMD>){
+        print $line;
+        print LOG $line;
+        if($line =~ /^VERIFIED$/){
+          $verified = 1;
+        }
+      }
+      close CMD;
       if($? != 0){
+        $verified = 0;
+      }
+      if($verified){
+        push @verified, $t;
+      }else{
         push @corrupted, $t;
       }
     }
