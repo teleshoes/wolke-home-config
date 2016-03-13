@@ -13,6 +13,7 @@ my $remoteDir = "$remoteHome/rt-status";
 my $remoteTorrentDir = "$remoteHome/.config/rtorrent/session/";
 
 my $skipDirRegex = "^$remoteHome/seeds";
+my $localDownloadDir = "/media/seedbox";
 
 sub formatTimeS($);
 sub formatTorrent($);
@@ -28,14 +29,21 @@ my $usage = "Usage:
     --all
       include torrents that match '$skipDirRegex', which are skipped by default
       also, use '$$rtViews{all}' in 'rtxmlrpc d.multicall' instead of '$$rtViews{default}'
+
+    --check
+      instead of printing status, use `check-torrent` to verify local download
+      download dir: `$localDownloadDir
 ";
 
 sub main(@){
   my $all = 0;
+  my $check = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(--all)$/){
       $all = 1;
+    }elsif($arg =~ /^(--check)$/){
+      $check = 1;
     }else{
       die $usage;
     }
@@ -87,8 +95,28 @@ sub main(@){
   @okTorrents = grep {$$_{dir} !~ /$skipDirRegex/} @okTorrents if not $all;
 
   print "\n\n\nshowing " . (0+@okTorrents) . " torrents\n";
-  for my $t(@okTorrents){
-    print formatTorrent $t;
+  if($check){
+    my @corrupted;
+    for my $t(@okTorrents){
+      print "="x30 . "\n";
+      print "checking $$t{name}\n$$t{hash}\n";
+      my $torrentFile = "$localDir/$$t{hash}.torrent";
+      if(not -f $torrentFile){
+        die "MISSING TORRENT FILE for $$t{name}:\n$torrentFile\n"
+      }
+      system "cd $localDownloadDir; check-torrent $torrentFile";
+      if($? != 0){
+        push @corrupted, $t;
+      }
+    }
+    print "\n\n" . (0+@corrupted) . " torrents\n";
+    for my $t(@corrupted){
+      print "CORRUPTED: $$t{name}\n";
+    }
+  }else{
+    for my $t(@okTorrents){
+      print formatTorrent $t;
+    }
   }
 
   run "rm", "-rf", $localDir;
