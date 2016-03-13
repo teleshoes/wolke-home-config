@@ -4,16 +4,30 @@ import sys, os, hashlib, StringIO, bencode
 def main():
   torrentPath = sys.argv[1]
   info = readTorrentInfo(torrentPath)
-  torrentPieceHashes = StringIO.StringIO(info['pieces'])
+  torrentPieceHashes = extractTorrentPieceHashes(info)
   downloadPieces = getDownloadPieces(info)
   print "\nhashing file pieces and comparing to torrent info\n"
+  i = 0
   for piece in downloadPieces:
     pieceHash = hashlib.sha1(piece).digest()
-    if pieceHash != torrentPieceHashes.read(20):
+    if i >= len(torrentPieceHashes):
+      fail("TOO MANY PIECES")
+    torrentPieceHash = torrentPieceHashes[i]
+    i += 1
+    if pieceHash != torrentPieceHash:
       fail("PIECE HASH MISMATCH")
   # ensure we've read all pieces
-  if torrentPieceHashes.read():
+  if i != len(torrentPieceHashes):
     fail("MISSING PIECES")
+
+def extractTorrentPieceHashes(info):
+  pieces = []
+  strIO = StringIO.StringIO(info['pieces'])
+  p = strIO.read(20)
+  while p:
+    pieces.append(p)
+    p = strIO.read(20)
+  return pieces
 
 def readTorrentInfo(torrentPath):
   f = open(torrentPath, "rb")
