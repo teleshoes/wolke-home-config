@@ -10,7 +10,7 @@ my $IO_PTY = eval{require IO::Pty};
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( getScriptNames getSubNames
-                  getInstallNames getInstallScriptNames getInstallSrcNames
+                  getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
                   shell tryshell
                   runUser tryrunUser wrapUserCommand
@@ -101,7 +101,11 @@ sub getSubNames(){
     return \@subs;
 }
 sub getInstallNames(){
-    my @installNames = (@{getInstallScriptNames()}, @{getInstallSrcNames()});
+    my @installNames = (
+      @{getInstallScriptNames()},
+      @{getInstallSrcNames()},
+      @{getInstallPipNames()},
+    );
     return \@installNames;
 }
 sub getInstallScriptNames(){
@@ -118,6 +122,13 @@ sub getInstallSrcNames(){
   my @installSrcNames = `$installSrcCmd --list`;
   chomp foreach @installSrcNames;
   return \@installSrcNames;
+}
+sub getInstallPipNames(){
+  my $installPipCmd = getInstallPath "bin/install-pip-packages";
+
+  my @installPipNames = `$installPipCmd --list`;
+  chomp foreach @installPipNames;
+  return \@installPipNames;
 }
 
 sub setOpts($) {
