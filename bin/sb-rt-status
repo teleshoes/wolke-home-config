@@ -115,6 +115,22 @@ sub main(@){
       if(not -f $torrentFile){
         die "MISSING TORRENT FILE for $$t{name}:\n$torrentFile\n"
       }
+      my $file = "$localDownloadDir/$$t{name}";
+      my $size = "size unknown";
+      if(-e $file){
+        open CMD, "-|", "du", "-hs", $file or die "Could not run du -hs on $file\n";
+        $size = <CMD>;
+        close CMD;
+        if($size =~ /^(\d+(?:\.\d+)?[A-Z]+)\s*/){
+          $size = $1;
+        }
+      }else{
+        $msg = "\n\n$file does not exist\n";
+        print $msg;
+        print LOG $msg;
+      }
+      $$t{localDownloadSize} = $size;
+
       open CMD, "-|", "check-torrent", $torrentFile
         or die "Could not run check-torrent\n";
       my $line;
@@ -138,7 +154,7 @@ sub main(@){
     }
     print "\n\n" . (0+@corrupted) . " corrupted torrents\n";
     for my $t(@corrupted){
-      print "CORRUPTED: $$t{name}\n";
+      print "CORRUPTED: $$t{name} ($$t{localDownloadSize})\n";
     }
   }else{
     for my $t(@okTorrents){
