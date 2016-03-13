@@ -17,34 +17,41 @@ def main():
   if pieces.read():
     corruptionFailure()
 
-def piecesGenerator(info):
-  """Yield pieces from download file(s)."""
-  pieceLen = info['piece length']
-  if 'files' in info: # yield pieces from a multi-file torrent
-    piece = ""
+def getFilePaths(info):
+  paths = []
+  if 'files' in info:
     for fileInfo in info['files']:
       path = os.sep.join([info['name']] + fileInfo['path'])
-      print path
-      sfile = open(path.decode('UTF-8'), "rb")
-      while True:
-        piece += sfile.read(pieceLen-len(piece))
-        if len(piece) != pieceLen:
-          sfile.close()
-          break
-        yield piece
-        piece = ""
-    if piece != "":
-      yield piece
-  else: # yield pieces from a single file torrent
+      paths.append(path)
+  else:
     path = info['name']
+    paths.append(path)
+  return paths
+
+def readFilePieces(paths, pieceLen):
+  piece = ""
+  pieces = []
+  for path in paths:
     print path
     sfile = open(path.decode('UTF-8'), "rb")
     while True:
-      piece = sfile.read(pieceLen)
-      if not piece:
+      piece += sfile.read(pieceLen-len(piece))
+      if len(piece) != pieceLen:
         sfile.close()
-        return
-      yield piece
+        break
+      pieces.append(piece)
+      piece = ""
+  if piece != "":
+    pieces.append(piece)
+  return pieces
+
+def piecesGenerator(info):
+  """Yield pieces from download file(s)."""
+  pieceLen = info['piece length']
+  paths = getFilePaths(info)
+  pieces = readFilePieces(paths, pieceLen)
+  for p in pieces:
+    yield p
 
 def corruptionFailure():
   """Display error message and exit"""
