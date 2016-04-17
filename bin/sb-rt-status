@@ -19,6 +19,7 @@ sub formatTimeS($);
 sub formatTorrent($);
 sub parseTorrents($);
 sub parsePeers($);
+sub parsePythonStr($);
 sub run(@);
 
 my $usage = "Usage:
@@ -222,13 +223,13 @@ sub parseTorrents($){
   my @torrents;
   while($info =~ /
     ^\[ '([0-9A-F]{40})',\n
-    ^\s '(.*)',\n
-    ^\s '(.*)',\n
+    ^\s (.*),\n
+    ^\s (.*),\n
     ^\s (\d+),\n
     ^\s (\d+),\n
     ^\s (\d+)\]\n
     /mgx){
-    push @torrents, {
+    my $t = {
       hash => $1,
       name => $2,
       dir  => $3,
@@ -236,6 +237,9 @@ sub parseTorrents($){
       sizeBytes => $5,
       downRate => $6,
     };
+    $$t{name} = parsePythonStr $$t{name};
+    $$t{dir} = parsePythonStr $$t{dir};
+    push @torrents, $t;
   }
 
   for my $t(@torrents){
@@ -270,6 +274,25 @@ sub parsePeers($){
     }
   }
   return $peerCounts;
+}
+
+sub parsePythonStr($){
+  my $s = shift;
+  if($s =~ /(^u?'.*'$)|(^u?".*")$/){
+    my @cmd = ("python", "-c", "print $s.encode('utf-8')");
+    my $ok = open CMD, "-|", @cmd;
+    if($ok){
+      my $res = join '', <CMD>;
+      chomp $res;
+      close CMD;
+      if($? == 0 and $res =~ /\S/){
+        return $res;
+      }
+    }
+  }
+  $s =~ s/^u?'(.*)'$/$1/;
+  $s =~ s/^u?"(.*)"$/$1/;
+  return $s;
 }
 
 sub run(@){
