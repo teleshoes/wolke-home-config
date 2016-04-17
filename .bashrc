@@ -13,7 +13,7 @@ export HISTSIZE=1000000
 # ignoredups: do not add duplicate history entries
 # ignoredspace: do not add history entries that start with space
 export HISTCONTROL=ignoredups:ignorespace
-export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 [ -x /usr/bin/lesspipe ] && eval "$(lesspipe)" #less on binary files, e.g. tars
@@ -174,8 +174,15 @@ function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true 
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
-function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
-function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
+function findesh      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
+function grepesh      { command grep "$@" \
+                            --exclude-dir=.git \
+                            --exclude-dir=target \
+                            --exclude-dir=gen \
+                            --exclude pdf.worker.js.map \
+                            --exclude Words.java \
+                            ;
+                      }
 
 function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
@@ -218,7 +225,7 @@ function mavenDebug() {
 
 function find() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    findmvn "$@"
+    findesh "$@"
   else
     command find "$@"
   fi
@@ -226,7 +233,7 @@ function find() {
 
 function grep() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    grepmvn -s "$@"
+    grepesh -s "$@"
   else
     command grep -s "$@"
   fi

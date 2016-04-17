@@ -1,54 +1,57 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-
-my $soundFont = "$ENV{HOME}/Desktop/Music/soundfonts/PC51d.sf2";
-
 use Time::HiRes qw(sleep);
 
-system "killall -9 fluidsynth vmpk";
+my $soundFont = "$ENV{HOME}/Desktop/Music/soundfonts/PC51d.sf2";
+my $config = "$ENV{HOME}/.config/vmpk.sourceforge.net/Virtual MIDI Piano Keyboard.conf";
+my $keyboardMapFile = "$ENV{HOME}/.config/vmpk.sourceforge.net/customkb.conf";
 
-if(`dpkg -s fluidsynth | grep Status` ne "Status: install ok installed\n"){
-  die "install fluidsynth and vmpk!\n";
-}
-if(`dpkg -s vmpk | grep Status` ne "Status: install ok installed\n"){
-  die "install fluidsynth and vmpk!\n";
-}
+sub main(@){
+  die "Usage: $0\n" if @_ != 0;
 
+  system "killall -9 fluidsynth vmpk";
 
-my $config = `echo -n \$HOME/` .
-  '.config/vmpk.sourceforge.net/Virtual MIDI Piano Keyboard.conf';
-
-if(not -e $config){
-  print "\n\n\n\n!!!!!NO CONFIG FILE YET: please exit vmpk normally\n\n\n\n";
-  system "vmpk";
-}
-
-my $seqId = 'vmpk';
-my $outport = "FLUID Synth ($seqId):0";
-
-my @fluidSynthArgs = (
-  "-s", "-i",
-  "$soundFont",
-  "-o", "midi.alsa_seq.id='$seqId'",
-  "-a", "pulseaudio",
-  "-z", "2048",
-  "-c2",
-);
-
-
-open FH, "< $config";
-my @lines = <FH>;
-close FH;
-for my $line(@lines){
-  if($line =~ s/^OutPort=.*/OutPort=$outport/){
-    last;
+  if(`dpkg -s fluidsynth | grep Status` ne "Status: install ok installed\n"){
+    die "install fluidsynth and vmpk!\n";
   }
-}
-open FH, "> $config";
-print FH @lines;
-close FH;
+  if(`dpkg -s vmpk | grep Status` ne "Status: install ok installed\n"){
+    die "install fluidsynth and vmpk!\n";
+  }
 
-system "fluidsynth @fluidSynthArgs &";
-system "sleep 0.3";
-system "vmpk &";
+  if(not -e $config){
+    system "alarm -s failure";
+    print "\n\n\n\n!!!!!NO CONFIG FILE YET: please exit vmpk normally\n\n\n\n";
+    system "vmpk";
+  }
+
+  my $seqId = 'vmpk';
+  my $outport = "FLUID Synth ($seqId):0";
+
+  my @fluidSynthArgs = (
+    "-s", "-i",
+    "$soundFont",
+    "-o", "midi.alsa_seq.id='$seqId'",
+    "-a", "pulseaudio",
+    "-z", "2048",
+    "-c2",
+  );
+
+
+  open FH, "< $config";
+  my @lines = <FH>;
+  close FH;
+  for my $line(@lines){
+    $line =~ s/^OutPort=.*/OutPort=$outport/;
+    $line =~ s/^MapFile=.*/MapFile=$keyboardMapFile/;
+  }
+  open FH, "> $config";
+  print FH @lines;
+  close FH;
+
+  system "fluidsynth @fluidSynthArgs &";
+  system "sleep 0.3";
+  system "vmpk &";
+}
+
+&main(@ARGV);

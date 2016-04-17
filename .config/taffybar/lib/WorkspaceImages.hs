@@ -57,6 +57,7 @@ getSpecial winTitle winClass
   | winTitle == "..." && winClass == "..." = Just "blank"
   | winTitle ~~ "email-gui.py" = Just "qtemail"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
+  | winTitle ~~ "^Google Hangouts .*- Mozilla Firefox$" = Just "googlehangouts"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " - VIM$" = Just "vim"
   | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
