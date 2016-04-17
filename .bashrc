@@ -179,6 +179,8 @@ function grepesh      { command grep "$@" \
                             --exclude-dir=.git \
                             --exclude-dir=target \
                             --exclude-dir=gen \
+                            --exclude pdf.worker.js.map \
+                            --exclude Words.java \
                             ;
                       }
 
