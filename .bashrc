@@ -175,7 +175,11 @@ function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
-function grepmvn      { command grep "$@" --exclude-dir=target --exclude-dir=gen; }
+function grepmvn      { command grep "$@" \
+                            --exclude-dir=target \
+                            --exclude-dir=gen \
+                            ;
+                      }
 
 function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
