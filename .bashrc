@@ -174,8 +174,8 @@ function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true 
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
-function findmvn      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
-function grepmvn      { command grep "$@" \
+function findesh      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
+function grepesh      { command grep "$@" \
                             --exclude-dir=target \
                             --exclude-dir=gen \
                             ;
@@ -222,7 +222,7 @@ function mavenDebug() {
 
 function find() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    findmvn "$@"
+    findesh "$@"
   else
     command find "$@"
   fi
@@ -230,7 +230,7 @@ function find() {
 
 function grep() {
   if [[ "$PWD" =~ "escribe" ]]; then
-    grepmvn -s "$@"
+    grepesh -s "$@"
   else
     command grep -s "$@"
   fi
