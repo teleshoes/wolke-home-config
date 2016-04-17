@@ -13,7 +13,7 @@ export HISTSIZE=1000000
 # ignoredups: do not add duplicate history entries
 # ignoredspace: do not add history entries that start with space
 export HISTCONTROL=ignoredups:ignorespace
-export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 [ -x /usr/bin/lesspipe ] && eval "$(lesspipe)" #less on binary files, e.g. tars
