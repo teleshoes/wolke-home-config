@@ -15,6 +15,8 @@ export HISTSIZE=1000000
 export HISTCONTROL=ignoredups:ignorespace
 export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
+export GTK_OVERLAY_SCROLLING=0
+
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 [ -x /usr/bin/lesspipe ] && eval "$(lesspipe)" #less on binary files, e.g. tars
 
