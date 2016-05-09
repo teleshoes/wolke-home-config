@@ -10,6 +10,7 @@ my $usage = "Usage:
     where <YYYY-MM-DD> is the mtime of the oldest file in the dir
 ";
 
+sub getOldestFile(@);
 sub run(@);
 sub pad2($);
 
@@ -25,18 +26,7 @@ sub main(@){
   die "max chars exceeded ($len > $maxChars) '$name'\n" if $len > $maxChars;
 
   my @files = `find $dir/ -type f`;
-  my $minMod = -1;
-  my $minFile;
-  for my $file(sort @files){
-    chomp $file;
-    my @stat = stat $file;
-    my $mod = $stat[9];
-    if($minMod < 0 or $mod < $minMod){
-      $minMod = $mod;
-      $minFile = $file;
-    }
-  }
-  die "couldnt find earliest file\n" if $minMod < 0 or not -f $minFile;
+  my ($minMod, $minFile) = getOldestFile @files;
 
   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
     localtime($minMod);
@@ -53,6 +43,24 @@ sub main(@){
   print "earliest file is $year-$mon-$mday $hour:$min:$sec\n";
   run 'touch', '-r', $minFile, $dir;
   run 'mv', $dir, $newDir;
+}
+
+sub getOldestFile(@){
+  my @files = @_;
+
+  my $minMod = -1;
+  my $minFile;
+  for my $file(sort @files){
+    chomp $file;
+    my @stat = stat $file;
+    my $mod = $stat[9];
+    if($minMod < 0 or $mod < $minMod){
+      $minMod = $mod;
+      $minFile = $file;
+    }
+  }
+  die "couldnt find earliest file\n" if $minMod < 0 or not -f $minFile;
+  return ($minMod, $minFile);
 }
 
 sub run(@){
