@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $maxChars = 89; #prefix is 11 chars
+
+my $usage = "Usage: $0 dir name\n";
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub pad2($){
+  return $_[0] < 10 ? "0$_[0]" : $_[0];
+}
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($dir, $name) = @_;
+  die $usage if not -d $dir;
+  $dir =~ s/\/$//;
+  die "dir must be in this dir\n" if $dir =~ /\//;
+  print "\n\nnaming $dir\n";
+
+  my $len = length $name;
+  die "max chars exceeded ($len > $maxChars) '$name'\n" if $len > $maxChars;
+
+  my @files = `find $dir/ -type f`;
+  @files = sort @files;
+  my $minMod = -1;
+  my $minFile;
+  for my $file(sort @files){
+    chomp $file;
+    my @stat = stat $file;
+    my $mod = $stat[9];
+    if($minMod < 0 or $mod < $minMod){
+      $minMod = $mod;
+      $minFile = $file;
+    }
+  }
+  die "couldnt find earliest file\n" if $minMod < 0 or not -f $minFile;
+
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
+    localtime($minMod);
+  $year += 1900;
+  $mon += 1;
+  $mon = pad2 $mon;
+  $mday = pad2 $mday;
+
+  $hour = pad2 $hour;
+  $min = pad2 $min;
+  $sec = pad2 $sec;
+  my $newDir = "${year}-${mon}-${mday}_${name}";
+
+  print "earliest file is $year-$mon-$mday $hour:$min:$sec\n";
+  run 'touch', '-r', $minFile, $dir;
+  run 'mv', $dir, $newDir;
+}
+
+&main(@ARGV);
