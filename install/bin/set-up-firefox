@@ -13,10 +13,9 @@ my $prefs = {
   "ui.key.menuAccessKeyFocuses" => "false",
   "full-screen-api.approval-required" => "false",
 };
-my ($ctrl, $super, $shift, $alt) = (1, 2, 4, 8);
 my $shortcutKeys = {
-  key_fullZoomEnlarge => [ $ctrl+$shift, "ArrowUp" ],
-  key_fullZoomReduce  => [ $ctrl+$shift, "ArrowDown" ],
+  key_fullZoomEnlarge => [  ["control","shift"], "VK_UP" ],
+  key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
 };
 
 sub editMozillaPrefs($$$) {
@@ -35,10 +34,30 @@ sub editMozillaPrefs($$$) {
 sub getShortcutJson(){
   my @overlays;
   for my $keyId(sort keys %$shortcutKeys){
-    my ($mods, $key) = @{$$shortcutKeys{$keyId}};
-    push @overlays, "\"$keyId\":{\"modifiers\":$mods,\"key\":\"$key\"}";
+    my ($mods, $keycode) = @{$$shortcutKeys{$keyId}};
+    my $modArrStr = "[" . (join ",", map {"\"$_\""} @$mods) . "]";
+    push @overlays, ''
+      . '{'
+        . '"_type":"overlay",'
+        . '"key":'
+        . '{'
+          . '"_type":"key",'
+          . '"id":"' . $keyId . '"'
+        . '},'
+        . '"shortcut":'
+        . '{'
+          . '"_type":"shortcut",'
+          . '"keycode":"' . $keycode . '",'
+          . '"modifiers":'
+          . '{'
+            . '"_type":"modifiers",'
+            . '"modifiers":' . $modArrStr
+          . '}'
+        . '}'
+      . '}'
+    ;
   }
-  return "{\"overlays_v2\":{" . (join ",", @overlays) . "}}";
+  return '{"overlays":[' . (join ",", @overlays) . ']}';
 }
 
 sub main(@){
