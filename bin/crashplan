@@ -202,6 +202,8 @@ sub runBackup($){
     exec "tail", "-F", $historyLogFile;
   }
 
+  my $prevSync = parseLatestSync();
+
   my $finishedMillis;
   while(time*1000.0 < $startMillis + $backupLimitMillis){
     my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
@@ -210,10 +212,13 @@ sub runBackup($){
 
     my $sync = parseLatestSync();
     if(defined $sync){
-      my $date = `date`;
-      chomp $date;
-      print "\n\n$date\nSYNC " . formatSync($sync) . "\n\n\n";
+      if(not defined $prevSync or $$prevSync{dateMillis} != $$sync{dateMillis}){
+        my $date = `date`;
+        chomp $date;
+        print "\n\n$date\nSYNC " . formatSync($sync) . "\n\n\n";
+      }
     }
+    $prevSync = $sync;
 
     my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
