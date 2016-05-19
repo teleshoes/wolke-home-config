@@ -13,6 +13,7 @@ sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog();
 sub parseLatestSync();
+sub formatSync($);
 sub formatBackupSet($);
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
@@ -206,6 +207,13 @@ sub runBackup($){
     my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
     $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
     sleep $toSleepMillis/1000.0;
+
+    my $sync = parseLatestSync();
+    if(defined $sync){
+      my $date = `date`;
+      chomp $date;
+      print "\n\n$date\nSYNC " . formatSync($sync) . "\n\n\n";
+    }
 
     my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
@@ -484,6 +492,24 @@ sub parseLatestSync(){
     }
   }
   return undef;
+}
+
+sub formatSync($){
+  my $sync = shift;
+
+  my $type = sprintf "%5s", "?" x 5;
+  if($$sync{files} =~ /^(true)$/i){
+    $type = sprintf "%5s", "FILES";
+  }elsif($$sync{files} =~ /^(false)$/i){
+    $type = sprintf "%5s", "BLOCK";
+  }
+
+  my $pct = sprintf "%7s", "???.??%";
+  if($$sync{current} > 0 and $$sync{total} > 0){
+    $pct = sprintf "%6.2f%%", (100*$$sync{current}/$$sync{total});
+  }
+
+  return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}";
 }
 
 sub formatBackupSet($){
