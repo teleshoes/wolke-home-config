@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep time);
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
+use File::Tee qw(tee);
 
 sub printBackupSets(@);
 sub backupLogs();
@@ -34,6 +35,7 @@ my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $historyLogFile = "$dir/log/history.log.0";
 my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
+my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
 my $backupLimitMillis = 4 * 60 * 60 * 1000; #4hr
@@ -189,6 +191,8 @@ sub backupLogs(){
 sub runBackup($){
   my ($ignoreDuplicateFailures) = @_;
   backupLogs();
+  tee STDOUT, '>>', $backupLogFile;
+  tee STDERR, '>>', $backupLogFile;
 
   my $startMillis = time*1000.0;
   my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
