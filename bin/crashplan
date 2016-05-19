@@ -12,6 +12,7 @@ sub getFilteredBackupSets($$$);
 sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog();
+sub parseLatestSync();
 sub formatBackupSet($);
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
@@ -30,6 +31,7 @@ my $crashplanJar = "lib/com.backup42.desktop.jar";
 my $cliWrapperSrc = "cliwrapper";
 my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $historyLogFile = "$dir/log/history.log.0";
+my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
 
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
@@ -447,6 +449,41 @@ sub parseLog(){
     }
   }
   return $log;
+}
+
+sub parseLatestSync(){
+  my @lines = `grep SyncProgressStats $serviceLogFile`;
+  for my $line(reverse @lines){
+    if($line =~ /^
+      \[
+        (\d\d)\.(\d\d)\.(\d\d)
+        \s*
+        (\d\d):(\d\d):(\d\d).(\d\d\d)
+        [^\]]*
+      \]
+      .*
+      SyncProgressStats\[
+        ([^\]]+)
+      \]
+      .*
+    $/x){
+      my ($mon, $day, $year, $hr, $min, $sec, $ms, $sync) = (
+        $1, $2, $3, $4, $5, $6, $7, $8);
+      my $files = $1 if $sync =~ /files=(true|false)/;
+      my $current = $1 if $sync =~ /current=(\d+)/;
+      my $total = $1 if $sync =~ /total=(\d+)/;
+      if(defined $files and defined $current and defined $total){
+        my $dateMillis = (1000 * str2time("$mon/$day/$year $hr:$min:$sec")) + $ms;
+        return {
+          dateMillis => $dateMillis,
+          files => $files,
+          current => $current,
+          total => $total,
+        };
+      }
+    }
+  }
+  return undef;
 }
 
 sub formatBackupSet($){
