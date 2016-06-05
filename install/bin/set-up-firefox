@@ -4,6 +4,9 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub editMozillaPrefs($$$);
+sub getShortcutJson();
+
 my $shortcutJsonRelpath =
   "jetpack/keybinder\@fail.cl/simple-storage/store.json";
 
@@ -18,6 +21,23 @@ my $shortcutKeys = {
   key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
 };
 
+sub main(@){
+  my $profileDir = glob getHome() . "/.mozilla/firefox/*.default";
+  die "Could not find profile dir" if not -d $profileDir;
+
+  my $prefsJs = "$profileDir/prefs.js";
+  die "Could not find prefs file\n" if not -f $prefsJs;
+  editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
+
+  my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
+  my $dir = $shortcutsJson;
+  $dir =~ s/\/[^\/]*$//;
+  system "mkdir", "-p", $dir;
+
+  warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
+  writeFile $shortcutsJson, getShortcutJson();
+}
+
 sub editMozillaPrefs($$$) {
   my ($name, $patchname, $config) = @_;
   editFile $name, $patchname, sub {
@@ -29,7 +49,6 @@ sub editMozillaPrefs($$$) {
     $cnts
   };
 }
-
 
 sub getShortcutJson(){
   my @overlays;
@@ -58,23 +77,6 @@ sub getShortcutJson(){
     ;
   }
   return '{"overlays":[' . (join ",", @overlays) . ']}';
-}
-
-sub main(@){
-  my $profileDir = glob getHome() . "/.mozilla/firefox/*.default";
-  die "Could not find profile dir" if not -d $profileDir;
-
-  my $prefsJs = "$profileDir/prefs.js";
-  die "Could not find prefs file\n" if not -f $prefsJs;
-  editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
-
-  my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
-  my $dir = $shortcutsJson;
-  $dir =~ s/\/[^\/]*$//;
-  system "mkdir", "-p", $dir;
-
-  warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
-  writeFile $shortcutsJson, getShortcutJson();
 }
 
 &main(@ARGV);
