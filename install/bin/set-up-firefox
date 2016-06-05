@@ -7,6 +7,7 @@ use ScriptScript;
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
+sub ensureAddonsDownloaded();
 sub editMozillaPrefs($$$);
 sub getShortcutJson();
 sub globOne($);
@@ -46,6 +47,8 @@ my $shortcutKeys = {
 sub main(@){
   my $profileDir = globOne getHome() . "/.mozilla/firefox/*.default";
   die "Could not find profile dir" if not -d $profileDir;
+
+  ensureAddonsDownloaded();
 
   my $prefsJs = "$profileDir/prefs.js";
   die "Could not find prefs file\n" if not -f $prefsJs;
@@ -95,6 +98,23 @@ sub parseInstallRdf($){
     id => $id,
     version => $version,
   };
+}
+
+sub ensureAddonsDownloaded(){
+  for my $addon(sort keys %$addons){
+    if(not defined getAddonXpiCache($addon)){
+      my $url = $$addons{$addon};
+      my $urlFileBaseName = $1 if $url =~ /([^\/]+\.xpi)$/;
+      my $dest = "/tmp/firefox-addon-tmp-" . int(time * 1000) . "-$urlFileBaseName";
+
+      run "wget", "-O", $dest, $url;
+      if(not -f $dest){
+        die "addon $addon error: '$url' did not download correctly\n";
+      }
+      putAddonXpiCache $addon, $dest;
+      run "rm", "-f", $dest;
+    }
+  }
 }
 
 sub editMozillaPrefs($$$) {
