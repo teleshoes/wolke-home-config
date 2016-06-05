@@ -4,6 +4,8 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub getAddonXpiCache($);
+sub putAddonXpiCache($$);
 sub parseInstallRdf($);
 sub editMozillaPrefs($$$);
 sub getShortcutJson();
@@ -56,6 +58,23 @@ sub main(@){
 
   warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
   writeFile $shortcutsJson, getShortcutJson();
+}
+
+sub getAddonXpiCache($){
+  my ($addon) = @_;
+  my $addonCacheDir = getHome() . "/.cache/firefox-addons";
+  return globOne "$addonCacheDir/$addon-*.xpi";
+}
+sub putAddonXpiCache($$){
+  my ($addon, $xpiFile) = @_;
+  my $addonCacheDir = getHome() . "/.cache/firefox-addons";
+  run "mkdir", "-p", $addonCacheDir;
+
+  my $addonInfo = parseInstallRdf $xpiFile;
+  my $v = $$addonInfo{version};
+  $v =~ s/[^0-9a-zA-Z_\-\.]/_/g;
+
+  run "cp", "-a", $xpiFile, "$addonCacheDir/$addon-$v.xpi";
 }
 
 sub parseInstallRdf($){
