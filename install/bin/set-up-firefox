@@ -4,6 +4,7 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub parseInstallRdf($);
 sub editMozillaPrefs($$$);
 sub getShortcutJson();
 sub globOne($);
@@ -55,6 +56,26 @@ sub main(@){
 
   warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
   writeFile $shortcutsJson, getShortcutJson();
+}
+
+sub parseInstallRdf($){
+  my ($xpiFile) = @_;
+  open CMD, "-|", "unzip", "-p", $xpiFile, "install.rdf"
+    or die "Could not extract install.rdf from $xpiFile: $!\n";
+  my $installRdf = join '', <CMD>;
+  close CMD;
+
+  my $id = $1 if $installRdf =~ /<em:id>\s*(.+?)\s*<\/em:id>/;
+  my $version = $1 if $installRdf =~ /<em:version>\s*(.+?)\s*<\/em:version>/;
+
+  if(not defined $id or not defined $version){
+    die "Could not read id/version from $xpiFile install.rdf\n"
+  }
+
+  return {
+    id => $id,
+    version => $version,
+  };
 }
 
 sub editMozillaPrefs($$$) {
