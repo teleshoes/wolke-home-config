@@ -12,6 +12,7 @@ sub parseInstallRdf($);
 sub ensureAddonsDownloaded();
 sub installAddons($);
 sub uninstallAllAddons($);
+sub enableAllAddons($);
 sub editMozillaPrefs($$$);
 sub getShortcutJson();
 sub globOne($);
@@ -20,6 +21,7 @@ sub amoUrl($);
 my $FIREFOX_PROC_NAME = 'firefox-esr';
 my $FIREFOX_EXEC_NAME = 'firefox';
 my $FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS = 5000;
+my $FF_RUN_TIMEOUT_WITH_EXTS_MILLIS = 10000;
 
 my $addons = {
   adblockplus               => amoUrl(1865),
@@ -68,6 +70,13 @@ sub main(@){
 
   print "\n\n\n##### installing addons\n";
   installAddons($profileDir);
+
+  print "\n\n\n##### creating initial extensions.json and enabling addons\n";
+  my $extJsonFile = "$profileDir/extensions.json";
+  die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+  die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
+  enableAllAddons($profileDir);
 
   print "\n\n\n##### editing prefs.js\n";
   my $prefsJs = "$profileDir/prefs.js";
@@ -173,6 +182,15 @@ sub uninstallAllAddons($){
   shell "rm", "-rf", "$profileDir/extensions/*";
   shell "rm", "-rf", "$profileDir/extensions.sqlite*";
   shell "rm", "-rf", "$profileDir/extensions.json";
+}
+
+sub enableAllAddons($){
+  my ($profileDir) = @_;
+
+  my $extJsonFile = "$profileDir/extensions.json";
+  my $contents = readFile $extJsonFile;
+  $contents =~ s/,\"userDisabled\":true,/,\"userDisabled\":false,/g;
+  writeFile $extJsonFile, $contents;
 }
 
 sub editMozillaPrefs($$$) {
