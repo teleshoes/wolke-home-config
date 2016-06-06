@@ -4,6 +4,8 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub killFirefox();
+sub brieflyRunFirefox($);
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
@@ -14,6 +16,9 @@ sub editMozillaPrefs($$$);
 sub getShortcutJson();
 sub globOne($);
 sub amoUrl($);
+
+my $FIREFOX_PROC_NAME = 'firefox-esr';
+my $FIREFOX_EXEC_NAME = 'firefox';
 
 my $addons = {
   adblockplus               => amoUrl(1865),
@@ -72,6 +77,22 @@ sub main(@){
 
   warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
   writeFile $shortcutsJson, getShortcutJson();
+}
+
+sub killFirefox(){
+  run "pkill", "-f", $FIREFOX_PROC_NAME;
+}
+
+sub brieflyRunFirefox($){
+  my ($timeoutMillis) = @_;
+  killFirefox();
+
+  shell "$FIREFOX_EXEC_NAME &";
+
+  print "waiting ${timeoutMillis}ms before killing firefox...\n";
+  sleep ($timeoutMillis/1000);
+
+  killFirefox();
 }
 
 sub getAddonXpiCache($){
