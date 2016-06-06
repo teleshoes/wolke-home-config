@@ -15,7 +15,9 @@ sub installAddons($);
 sub uninstallAllAddons($);
 sub enableAllAddons($);
 sub editMozillaPrefs($$$);
+sub getUiCustomizationPref($);
 sub getShortcutJson();
+sub formatJsonCsv(@);
 sub globOne($);
 sub amoUrl($;$);
 
@@ -97,6 +99,37 @@ my $prefs = {
   "$prefKeys{youtubehighdefinition}.enableannotationsoff"    => "true",
   "$prefKeys{youtubehighdefinition}.enablesuggestedautoplay" => "false",
 };
+$$prefs{"browser.uiCustomization.state"} = getUiCustomizationPref({
+  navBar => formatJsonCsv(qw(
+    urlbar-container zoom-controls dnsflusher_toolbar_button
+  )),
+  hamburgerMenu => formatJsonCsv(qw(
+    privatebrowsing-button preferences-button add-ons-button
+    downloads-button history-panelmenu bookmarks-menu-button
+    sessionmanager-toolbar abp-toolbarbutton textareaCacheButton
+    youtubehighdefinition-toolbarbutton noscript-tbb panic-button
+    useragentswitcher-button
+  )),
+  webdevToolbar => formatJsonCsv(
+    map {"web-developer-$_"} qw(
+      disable-toolbar cookies-toolbar css-toolbar forms-toolbar images-toolbar
+      information-toolbar miscellaneous-toolbar outline-toolbar resize-toolbar
+      tools-toolbar view-source-toolbar options-toolbar
+    ),
+    "customizableui-special-spring1",
+    map {"web-developer-$_"} qw(
+      render-mode-statusbar css-statusbar javascript-statusbar
+    )
+  ),
+  addonBar => formatJsonCsv(qw(addonbar-closebutton status-bar)),
+  personalToolbar => formatJsonCsv(qw(personal-bookmarks)),
+  tabsToolbar => formatJsonCsv(qw(tabbrowser-tabs new-tab-button alltabs-button)),
+  toolbarMenu => formatJsonCsv(qw(menubar-items)),
+  seen => formatJsonCsv(qw()),
+  dirtyAreaCache => formatJsonCsv(qw()),
+  currentVersion => 5,
+  newElementCount => 0,
+});
 
 my $shortcutKeys = {
   key_fullZoomEnlarge => [  ["control","shift"], "VK_UP" ],
@@ -271,6 +304,29 @@ sub editMozillaPrefs($$$) {
   };
 }
 
+sub getUiCustomizationPref($){
+  my ($uiState) = @_;
+  my $json = ""
+    . "{"
+    . "\"placements\":{"
+      . "\"PanelUI-contents\":[$$uiState{hamburgerMenu}],"
+      . "\"web-developer-toolbar\":[$$uiState{webdevToolbar}],"
+      . "\"addon-bar\":[$$uiState{addonBar}],"
+      . "\"PersonalToolbar\":[$$uiState{personalToolbar}],"
+      . "\"nav-bar\":[$$uiState{navBar}],"
+      . "\"TabsToolbar\":[$$uiState{tabsToolbar}],"
+      . "\"toolbar-menubar\":[$$uiState{toolbarMenu}]"
+      . "},"
+    . "\"seen\":[$$uiState{seen}],"
+    . "\"dirtyAreaCache\":[$$uiState{dirtyAreaCache}],"
+    . "\"currentVersion\":$$uiState{currentVersion},"
+    . "\"newElementCount\":$$uiState{newElementCount}"
+    . "}"
+    ;
+  $json =~ s/"/\\"/g;
+  return "\"$json\"";
+}
+
 sub getShortcutJson(){
   my @overlays;
   for my $keyId(sort keys %$shortcutKeys){
@@ -299,6 +355,11 @@ sub getShortcutJson(){
   }
   return '{"overlays":[' . (join ",", @overlays) . ']}';
 }
+
+sub formatJsonCsv(@){
+  return join ",", map {"\"$_\""} @_;
+}
+
 sub globOne($){
   my $pattern = shift;
   my @results = glob $pattern;
