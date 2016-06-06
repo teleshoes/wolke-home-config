@@ -75,25 +75,30 @@ sub main(@){
   my $profileDir = globOne getHome() . "/.mozilla/firefox/*.default";
   die "Could not find profile dir" if not -d $profileDir;
 
-  print "\n\n\n##### ensuring addons downloaded\n";
-  ensureAddonsDownloaded();
+  my $installAddons = 1;
+  $installAddons = 0 if @_ > 0 and $_[0] =~ /--skipAddons/;
 
-  killFirefox();
+  if($installAddons){
+    print "\n\n\n##### ensuring addons downloaded\n";
+    ensureAddonsDownloaded();
 
-  print "\n\n\n##### forcibly uninstalling addons\n";
-  uninstallAllAddons($profileDir);
-  brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-  uninstallAllAddons($profileDir);
+    killFirefox();
 
-  print "\n\n\n##### installing addons\n";
-  installAddons($profileDir);
+    print "\n\n\n##### forcibly uninstalling addons\n";
+    uninstallAllAddons($profileDir);
+    brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
+    uninstallAllAddons($profileDir);
 
-  print "\n\n\n##### creating initial extensions.json and enabling addons\n";
-  my $extJsonFile = "$profileDir/extensions.json";
-  die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
-  brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
-  die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
-  enableAllAddons($profileDir);
+    print "\n\n\n##### installing addons\n";
+    installAddons($profileDir);
+
+    print "\n\n\n##### creating initial extensions.json and enabling addons\n";
+    my $extJsonFile = "$profileDir/extensions.json";
+    die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
+    brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+    die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
+    enableAllAddons($profileDir);
+  }
 
   print "\n\n\n##### editing prefs.js\n";
   my $prefsJs = "$profileDir/prefs.js";
