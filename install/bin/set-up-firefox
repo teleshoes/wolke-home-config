@@ -8,6 +8,8 @@ sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
 sub ensureAddonsDownloaded();
+sub installAddons($);
+sub uninstallAllAddons($);
 sub editMozillaPrefs($$$);
 sub getShortcutJson();
 sub globOne($);
@@ -50,6 +52,12 @@ sub main(@){
 
   print "\n\n\n##### ensuring addons downloaded\n";
   ensureAddonsDownloaded();
+
+  print "\n\n\n##### forcibly uninstalling addons\n";
+  uninstallAllAddons($profileDir);
+
+  print "\n\n\n##### installing addons\n";
+  installAddons($profileDir);
 
   print "\n\n\n##### editing prefs.js\n";
   my $prefsJs = "$profileDir/prefs.js";
@@ -118,6 +126,25 @@ sub ensureAddonsDownloaded(){
       run "rm", "-f", $dest;
     }
   }
+}
+
+sub installAddons($){
+  my ($profileDir) = @_;
+  for my $addon(sort keys %$addons){
+    my $xpiFile = getAddonXpiCache $addon;
+    my $addonInfo = parseInstallRdf $xpiFile;
+    my $destDir = "$profileDir/extensions/$$addonInfo{id}";
+    if(not -d $destDir){
+      print "installing $addon\n";
+      run "mkdir", "-p", $destDir;
+      run "unzip", "-q", "-d", $destDir, $xpiFile;
+    }
+  }
+}
+
+sub uninstallAllAddons($){
+  my ($profileDir) = @_;
+  shell "rm", "-rf", "$profileDir/extensions/*";
 }
 
 sub editMozillaPrefs($$$) {
