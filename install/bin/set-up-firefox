@@ -27,6 +27,7 @@ my $FIREFOX_PROC_NAME = 'firefox-esr';
 my $FIREFOX_EXEC_NAME = 'firefox';
 my $FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS = 8000;
 my $FF_RUN_TIMEOUT_WITH_EXTS_MILLIS = 20000;
+my $GREASEMONKEY_TARGET_DIR = getHome() . "/greasemonkey";
 
 my $addons = {
   bookmarkfaviconchanger =>
@@ -183,6 +184,18 @@ sub main(@){
 
     brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
   }
+
+  print "\n\n\n##### symlinking greasemonkey script dir\n";
+  my $gmDir = "$profileDir/gm_scripts";
+  tryrun "rm", $gmDir;
+  tryrun "rmdir", $gmDir;
+  if(-d $gmDir){
+    my $gmDirBak = "$profileDir/gm_scripts-bak-" . int(time*1000);
+    print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
+    run "mv", $gmDir, $gmDirBak;
+  }
+  die "Could not remove or backup $gmDir\n" if -e $gmDir;
+  run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
 
   print "\n\n\n##### editing prefs.js\n";
   setPrefs($profileDir);
