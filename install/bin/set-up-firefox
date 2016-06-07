@@ -8,6 +8,7 @@ use Time::HiRes qw(sleep time);
 sub killFirefox();
 sub brieflyRunFirefox($);
 sub setPrefs($);
+sub writeXulStore($);
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
@@ -66,6 +67,15 @@ my %prefKeys = (
   stylish               => "extensions.stylish",
   youtubehighdefinition => "extensions.youtubehighdefinition",
 );
+
+my $xulStoreJson = ""
+  . "{\"chrome://browser/content/browser.xul\":"
+  .   "{\"toolbar-menubar\":{\"autohide\":\"true\"}"       #hide menubar
+  .   ",\"PersonalToolbar\":{\"collapsed\":\"false\"}"      #show bookmarks bar
+  .   ",\"web-developer-toolbar\":{\"collapsed\":\"true\"}" #hide webdev bar
+  .   "}"
+  . "}"
+  ;
 
 my $prefs = {
   "browser.customizemode.tip0.shown" => "true", #firstrun hint
@@ -174,6 +184,9 @@ sub main(@){
   print "\n\n\n##### editing prefs.js\n";
   setPrefs($profileDir);
 
+  print "\n\n\n##### overwriting xulstore.json\n";
+  writeXulStore($profileDir);
+
   print "\n\n\n##### editing keyboard shortcuts\n";
   my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
   my $dir = $shortcutsJson;
@@ -205,6 +218,12 @@ sub setPrefs($){
   my $prefsJs = "$profileDir/prefs.js";
   die "Could not find prefs file\n" if not -f $prefsJs;
   editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
+}
+
+sub writeXulStore($){
+  my ($profileDir) = @_;
+  my $xulStoreFile = "$profileDir/xulstore.json";
+  writeFile $xulStoreFile, $xulStoreJson;
 }
 
 sub getAddonXpiCache($){
