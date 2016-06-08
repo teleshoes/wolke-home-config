@@ -11,6 +11,9 @@
 baseUrl = 'https://www.gobuses.com/'
 loginUrl = baseUrl + 'account-home/?gm-login'
 
+newton = 3
+manhattan = 1
+
 function main(){
   q = window.location.search
   if(q == "?gm-login"){
@@ -21,6 +24,22 @@ function main(){
   if(!isLoggedIn()){
     loginPopupRefresh();
     return;
+  }
+
+  if(q == "?gm-bos-ny"){
+    from = newton
+    to = manhattan
+  }else if(q == "?gm-ny-bos"){
+    from = manhattan
+    to = newton
+  }
+  fromField = document.getElementById('fld_stationFrom')
+  toField = document.getElementById('fld_stationTo')
+  btn = document.getElementById('submitBttn')
+  if(fromField != null && toField != null && btn != null){
+    fromField.value = from;
+    toField.value = to;
+    btn.click();
   }
 }
 
