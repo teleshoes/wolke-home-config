@@ -4,15 +4,18 @@ use warnings;
 use Time::HiRes qw(sleep time);
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
+use File::Tee qw(tee);
 
 sub printBackupSets(@);
+sub backupLogs();
 sub runBackup($);
 sub getFilteredBackupSets($$$);
 sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog();
+sub parseLatestSync();
+sub formatSync($);
 sub formatBackupSet($);
-sub backupLogs();
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
 sub padl($$);
@@ -29,8 +32,10 @@ my $engineExec = "$dir/bin/CrashPlanEngine";
 my $crashplanJar = "lib/com.backup42.desktop.jar";
 my $cliWrapperSrc = "cliwrapper";
 my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
-my $logFile = "$dir/log/history.log.0";
+my $historyLogFile = "$dir/log/history.log.0";
+my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
+my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
 my $backupLimitMillis = 4 * 60 * 60 * 1000; #4hr
@@ -58,7 +63,7 @@ my $usage = "Usage:
     run '$guiExec'
 
   $0 -l|--log|log [--date=DATE] [BACKUP_NAME]
-    format recent info from $logFile
+    format recent info from $historyLogFile
       DATE
         YYYY-MM-DD   show only info from that date
         all          do not filter log info
@@ -79,7 +84,7 @@ my $usage = "Usage:
 
   $0 -b|--backup|backup [--force]
     1) stop crashplan => start crashplan => send 'scan' command to crashplan
-    2) tail -F $logFile
+    2) tail -F $historyLogFile
     3) check newly added log entries every ${checkCompleteIntervalMillis}ms
     4) if all backups look complete, wait an extra ${assertCompleteMillis}ms
     5) if they still do, or if ${backupLimitMillis}ms is reached, stop crashplan
@@ -176,15 +181,19 @@ sub backupLogs(){
   if(not tryrun "rsync", "-avP", "$dir/log/", $logBackupDir){
     die "ERROR: Could not rsync logs\n";
   }
+  tryrun "cp", $backupLogFile, $logBackupDir if -e $backupLogFile;
   if(not tryrun "cd $logBackupDir && git add -A && git ci -m 'automatic commit'"){
     print STDERR "\n\nWARNING: no logs backed up\n\n";
   }
+  tryrun "cd $logBackupDir && git gc";
   print "\n\n";
 }
 
 sub runBackup($){
   my ($ignoreDuplicateFailures) = @_;
   backupLogs();
+  tee STDOUT, '>>', $backupLogFile;
+  tee STDERR, '>>', $backupLogFile;
 
   my $startMillis = time*1000.0;
   my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
@@ -196,7 +205,13 @@ sub runBackup($){
   run $0, "scan";
   my $logPid = fork;
   if($logPid == 0){
-    exec "tail", "-F", $logFile;
+    exec "tail", "-F", $historyLogFile;
+  }
+
+  my $prevSync = parseLatestSync();
+  if(defined $prevSync and $$prevSync{current} != $$prevSync{total}){
+    print "\n\nNOTE: last sync is not finished in log:\n";
+    print "  " . formatSync($prevSync) . "\n\n\n";
   }
 
   my $finishedMillis;
@@ -204,6 +219,18 @@ sub runBackup($){
     my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
     $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
     sleep $toSleepMillis/1000.0;
+
+    my $sync = parseLatestSync();
+    if(defined $sync){
+      if(not defined $prevSync or $$prevSync{dateMillis} != $$sync{dateMillis}){
+        my $date = `date`;
+        chomp $date;
+        print "\n\n$date\nSYNC " . formatSync($sync) . "\n\n\n";
+        $prevSync = $sync;
+        next;
+      }
+    }
+    $prevSync = $sync;
 
     my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
@@ -240,6 +267,8 @@ sub runBackup($){
 
   my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
+
+  printBackupSets @newBackupSets;
 
   backupLogs();
 
@@ -370,7 +399,7 @@ sub filterLog($$$){
 }
 
 sub parseLog(){
-  my @lines = `cat $logFile`;
+  my @lines = `cat $historyLogFile`;
   my $log = {};
 
   for my $line(@lines){
@@ -447,6 +476,59 @@ sub parseLog(){
     }
   }
   return $log;
+}
+
+sub parseLatestSync(){
+  my @lines = `grep SyncProgressStats $serviceLogFile`;
+  for my $line(reverse @lines){
+    if($line =~ /^
+      \[
+        (\d\d)\.(\d\d)\.(\d\d)
+        \s*
+        (\d\d):(\d\d):(\d\d).(\d\d\d)
+        [^\]]*
+      \]
+      .*
+      SyncProgressStats\[
+        ([^\]]+)
+      \]
+      .*
+    $/x){
+      my ($mon, $day, $year, $hr, $min, $sec, $ms, $sync) = (
+        $1, $2, $3, $4, $5, $6, $7, $8);
+      my $files = $1 if $sync =~ /files=(true|false)/;
+      my $current = $1 if $sync =~ /current=(\d+)/;
+      my $total = $1 if $sync =~ /total=(\d+)/;
+      if(defined $files and defined $current and defined $total){
+        my $dateMillis = (1000 * str2time("$mon/$day/$year $hr:$min:$sec")) + $ms;
+        return {
+          dateMillis => $dateMillis,
+          files => $files,
+          current => $current,
+          total => $total,
+        };
+      }
+    }
+  }
+  return undef;
+}
+
+sub formatSync($){
+  my $sync = shift;
+
+  my $type = sprintf "%5s", "?" x 5;
+  if($$sync{files} =~ /^(true)$/i){
+    $type = sprintf "%5s", "FILES";
+  }elsif($$sync{files} =~ /^(false)$/i){
+    $type = sprintf "%5s", "BLOCK";
+  }
+
+  my $pct = sprintf "%7s", "???.??%";
+  if($$sync{current} > 0 and $$sync{total} > 0){
+    $pct = sprintf "%6.2f%%", (100*$$sync{current}/$$sync{total});
+  }
+
+  return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}";
 }
 
 sub formatBackupSet($){

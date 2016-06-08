@@ -1,0 +1,88 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $maxChars = 89; #prefix is 11 chars
+
+my $usage = "Usage:
+  $0 DIR NAME
+    rename <DIR> to <YYYY-MM-DD>_<NAME>
+    where <YYYY-MM-DD> is the mtime of the oldest file in the dir
+
+    if <NAME> starts with \"<YYYY-MM-DD>_\", the prefix is removed
+";
+
+sub getOldestFile(@);
+sub run(@);
+sub pad2($);
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($dir, $name) = @_;
+  die $usage if not -d $dir;
+  $dir =~ s/\/$//;
+  die "dir must be in this dir\n" if $dir =~ /\//;
+  print "\n\nnaming $dir\n";
+
+  my @files = `find $dir/ -type f`;
+  my ($minMod, $minFile) = getOldestFile @files;
+
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
+    localtime($minMod);
+  $year += 1900;
+  $mon += 1;
+  $mon = pad2 $mon;
+  $mday = pad2 $mday;
+
+  $hour = pad2 $hour;
+  $min = pad2 $min;
+  $sec = pad2 $sec;
+  my $date = "${year}-${mon}-${mday}";
+
+  if($name =~ s/^${date}_//){
+    print "\n\nWARNING: removing date prefix '$date'"
+      . " (same as date prefix to be appended)\n\n";
+  }
+
+  my $len = length $name;
+  die "max chars exceeded ($len > $maxChars) '$name'\n" if $len > $maxChars;
+
+  my $newDir = "${date}_${name}";
+
+  print "earliest file is $year-$mon-$mday $hour:$min:$sec\n";
+  run 'touch', '-r', $minFile, $dir;
+  if($dir ne $newDir){
+    run 'mv', $dir, $newDir;
+  }else{
+    print "\ndir name unchanged!\n";
+  }
+}
+
+sub getOldestFile(@){
+  my @files = @_;
+
+  my $minMod = -1;
+  my $minFile;
+  for my $file(sort @files){
+    chomp $file;
+    my @stat = stat $file;
+    my $mod = $stat[9];
+    if($minMod < 0 or $mod < $minMod){
+      $minMod = $mod;
+      $minFile = $file;
+    }
+  }
+  die "couldnt find earliest file\n" if $minMod < 0 or not -f $minFile;
+  return ($minMod, $minFile);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub pad2($){
+  return $_[0] < 10 ? "0$_[0]" : $_[0];
+}
+
+&main(@ARGV);

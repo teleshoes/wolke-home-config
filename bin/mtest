@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+sub checkDotMethodCall($);
 sub getAllTests();
 sub getTests($);
 sub getSrcFiles();
@@ -82,6 +83,7 @@ sub main(@){
   }
 
   $test = shift if @_ == 1;
+  $test = checkDotMethodCall($test);
   $fast = 0 if defined $test and not $explicitFast;
 
   die $usage if @_ > 0;
@@ -92,10 +94,31 @@ sub main(@){
   push @cmd, "-Dtest=$test" if defined $test;
 
   print "@cmd\n";
-  system @cmd;
+  open FH, "-|", @cmd;
+  while(my $line = <FH>){
+    if($line =~ /^Listening for transport dt_socket at address/){
+      system "alarm", "-s", "success";
+    }
+    print $line;
+  }
+  close FH;
   my $exitCode = $?;
   system "alarm", "-s", ($exitCode == 0 ? "success" : "failure");
   exit $exitCode;
+}
+
+sub checkDotMethodCall($){
+  my $test = shift;
+  if(defined $test and $test =~ /^(.+)\.(\w+)$/){
+    my ($class, $method) = ($1, $2);
+    my @allTests = getAllTests();
+    for my $t(@allTests){
+      if($t =~ /^.*$class#$method$/){
+        return $t;
+      }
+    }
+  }
+  return $test;
 }
 
 sub getAllTests(){

@@ -13,6 +13,8 @@ my $scripts = [
   ["flattr_login",        "https://flattr.com/login",                                 ""],
   ["multiverse",          "http://amultiverse.com/*",                                 "hide scenes from a multiverse header"],
   ["boltbus",             "https://www.boltbus.com/*?*",                              "sets up boston=&gt;ny"],
+  ["gobus",               "https://gobuses.com/*?gm-*",                               "boston&lt;=&gt;nyc"],
+  ["megabus",             "https://us.megabus.com/*?gm-*",                            "boston&lt;=&gt;nyc"],
   ["chase",               "https://chaseonline.chase.com/Logon*",                     "chase logon"],
   ["github-username",     "https://github.com/*",                                     ""],
 ];
