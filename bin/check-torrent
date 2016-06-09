@@ -41,26 +41,30 @@ def readTorrentInfo(torrentPath):
   f.close
   return metaInfo['info']
 
-def getFilePaths(info):
-  paths = []
+def getFileInfo(info):
+  fileInfo = []
   if 'files' in info:
-    for fileInfo in info['files']:
-      path = os.sep.join([info['name']] + fileInfo['path'])
-      paths.append(path)
+    for torrentFileInfo in info['files']:
+      path = os.sep.join([info['name']] + torrentFileInfo['path'])
+      size = torrentFileInfo['length']
+      fileInfo.append({'path': path, 'size': size})
   else:
     path = info['name']
-    paths.append(path)
-  return paths
+    size = info['length']
+    fileInfo.append({'path': path, 'size': size})
+  return fileInfo
 
-def genFilePieceHashes(paths, pieceLen):
+def genFilePieceHashes(fileInfo, pieceLen):
   piece = ""
 
-  for path in paths:
+  for f in fileInfo:
+    path = f['path']
     if not os.path.isfile(path):
       fail("file is missing: " + path)
 
   pathsInPiece = []
-  for path in paths:
+  for f in fileInfo:
+    path = f['path']
     print "\nhashing pieces for file:\n" + path
     sys.stdout.flush()
     try:
@@ -84,8 +88,8 @@ def genFilePieceHashes(paths, pieceLen):
 
 def genDownloadPieceHashes(info):
   pieceLen = info['piece length']
-  paths = getFilePaths(info)
-  return genFilePieceHashes(paths, pieceLen)
+  fileInfo = getFileInfo(info)
+  return genFilePieceHashes(fileInfo, pieceLen)
 
 def hashPiece(piece):
   return hashlib.sha1(piece).digest()
