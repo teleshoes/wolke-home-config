@@ -7,6 +7,7 @@ use Time::HiRes qw(sleep time);
 
 sub killFirefox();
 sub brieflyRunFirefox($);
+sub installAddons($);
 sub setPrefs($);
 sub writeXulStore($);
 sub getAddonXpiCache($);
@@ -160,30 +161,7 @@ sub main(@){
   $installAddons = 0 if @_ > 0 and $_[0] =~ /--skipAddons/;
 
   if($installAddons){
-    print "\n\n\n##### ensuring addons downloaded\n";
-    ensureAddonsDownloaded();
-
-    killFirefox();
-
-    print "\n\n\n##### forcibly uninstalling addons\n";
-    uninstallAllAddons($profileDir);
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-    uninstallAllAddons($profileDir);
-
-    print "\n\n\n##### installing addons\n";
-    extractXpiAddonsToProfile($profileDir);
-
-    print "\n\n\n##### creating initial extensions.json and enabling addons\n";
-    my $extJsonFile = "$profileDir/extensions.json";
-    die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-    die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
-    enableAllAddons($profileDir);
-
-    #setting prefs to prevent the firstrun pages of the addons with pref for it
-    setPrefs($profileDir);
-
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+    installAddons($profileDir);
   }
 
   print "\n\n\n##### symlinking greasemonkey script dir\n";
@@ -228,6 +206,34 @@ sub brieflyRunFirefox($){
   sleep ($timeoutMillis/1000);
 
   killFirefox();
+}
+
+sub installAddons($){
+  my ($profileDir) = @_;
+  print "\n\n\n##### ensuring addons downloaded\n";
+  ensureAddonsDownloaded();
+
+  killFirefox();
+
+  print "\n\n\n##### forcibly uninstalling addons\n";
+  uninstallAllAddons($profileDir);
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
+  uninstallAllAddons($profileDir);
+
+  print "\n\n\n##### installing addons\n";
+  extractXpiAddonsToProfile($profileDir);
+
+  print "\n\n\n##### creating initial extensions.json and enabling addons\n";
+  my $extJsonFile = "$profileDir/extensions.json";
+  die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
+  die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
+  enableAllAddons($profileDir);
+
+  #setting prefs to prevent the firstrun pages of the addons with pref for it
+  setPrefs($profileDir);
+
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
 }
 
 sub setPrefs($){
