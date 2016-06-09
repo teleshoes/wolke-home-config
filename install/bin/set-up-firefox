@@ -14,6 +14,7 @@ sub writeXulStore();
 sub setupKeyboardShortcuts();
 sub placesBackup();
 sub placesRestore();
+sub removeProfile();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
@@ -190,6 +191,9 @@ my $usage = "Usage:
 
     placesrestore
       replace current 'places.sqlite*', 'logins.json' and 'key3.db' with last 'placesbackup'
+
+    removeprofile
+      move existing profile dir to a backup, create empty profile dir
 ";
 
 sub main(@){
@@ -222,6 +226,8 @@ sub main(@){
       placesBackup();
     }elsif($cmd =~ /^(placesrestore)$/){
       placesRestore();
+    }elsif($cmd =~ /^(removeprofile)$/){
+      removeProfile();
     }else{
       die "$usage\nunknown command: $cmd\n";
     }
@@ -352,6 +358,13 @@ sub placesRestore(){
   }
 
   run "cp", "-a", "--reflink", @backupFiles, $PROFILE_DIR;
+}
+
+sub removeProfile(){
+  print "\n\n\n##### moving profile to backup and making empty profile\n";
+  my $bakDir = "$PROFILE_DIR/../profile-bak-" . int(time*1000);
+  run "mv", $PROFILE_DIR, $bakDir;
+  run "mkdir", $PROFILE_DIR;
 }
 
 sub getAddonXpiCache($){
