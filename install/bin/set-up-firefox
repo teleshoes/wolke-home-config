@@ -157,12 +157,31 @@ my $shortcutKeys = {
 };
 
 my $usage = "Usage:
-  $0 [OPTS]
-    forcibly install addons, ff prefs, and jetpack prefs
+  $0
+    same as:
+      'addons greasemonkey prefs xulstore shortcuts'
+  $0 --skipAddons
+    same as:
+      'greasemonkey prefs xulstore shortcuts'
 
-  OPTS
-    --skipAddons
-      do not uninstall, download, install or extract addons
+  $0 COMMAND [COMMAND COMMAND ..]
+    perform the indicated command(s) to set up firefox addons/prefs/etc
+
+  COMMANDS
+    prefs
+      selectively modify prefs.js file
+
+    addons
+      uninstalls all current addons and installs desired addons
+
+    greasemonkey
+      replace gm_scripts dir with a symlink to $GREASEMONKEY_TARGET_DIR
+
+    xulstore
+      overwrite xulstore.json
+
+    shortcuts
+      overwrite shortcuts jetpack json file
 ";
 
 sub main(@){
@@ -171,24 +190,30 @@ sub main(@){
   }
   print "PROFILE: $PROFILE_DIR\n";
 
-  my $installAddons = 1;
-  if(@_ == 1 and $_[0] =~ /^(--skipAddons$)/){
-    $installAddons = 0;
-  }elsif(@_ > 0){
-    die $usage;
+  my @commands;
+  if(@_ == 0){
+    @commands = qw(addons greasemonkey prefs xulstore shortcuts);
+  }elsif(@_ == 1 and $_[0] =~ /^(--skipAddons$)/){
+    @commands = qw(greasemonkey prefs xulstore shortcuts);
+  }else{
+    @commands = @_;
   }
 
-  if($installAddons){
-    installAddons();
+  for my $cmd(@commands){
+    if($cmd =~ /^(addons)$/){
+      installAddons();
+    }elsif($cmd =~ /^(greasemonkey)$/){
+      greasemonkeySymlink();
+    }elsif($cmd =~ /^(prefs)$/){
+      setPrefs();
+    }elsif($cmd =~ /^(xulstore)$/){
+      writeXulStore();
+    }elsif($cmd =~ /^(shortcuts)$/){
+      setupKeyboardShortcuts();
+    }else{
+      die "$usage\nunknown command: $cmd\n";
+    }
   }
-
-  greasemonkeySymlink();
-
-  setPrefs();
-
-  writeXulStore();
-
-  setupKeyboardShortcuts();
 }
 
 sub killFirefox(){
