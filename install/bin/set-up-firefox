@@ -12,6 +12,8 @@ sub greasemonkeySymlink();
 sub setPrefs();
 sub writeXulStore();
 sub setupKeyboardShortcuts();
+sub placesBackup();
+sub placesRestore();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
@@ -182,6 +184,12 @@ my $usage = "Usage:
 
     shortcuts
       overwrite shortcuts jetpack json file
+
+    placesbackup
+      copy 'places.sqlite*', 'logins.json' and 'key3.db' for use by 'placesrestore'
+
+    placesrestore
+      replace current 'places.sqlite*', 'logins.json' and 'key3.db' with last 'placesbackup'
 ";
 
 sub main(@){
@@ -210,6 +218,10 @@ sub main(@){
       writeXulStore();
     }elsif($cmd =~ /^(shortcuts)$/){
       setupKeyboardShortcuts();
+    }elsif($cmd =~ /^(placesbackup)$/){
+      placesBackup();
+    }elsif($cmd =~ /^(placesrestore)$/){
+      placesRestore();
     }else{
       die "$usage\nunknown command: $cmd\n";
     }
@@ -295,6 +307,51 @@ sub setupKeyboardShortcuts(){
 
   warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
   writeFile $shortcutsJson, getShortcutJson();
+}
+
+sub placesBackup(){
+  print "\n\n\n##### backing up places/logins files\n";
+  my @sqliteFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my $keyDb = "$PROFILE_DIR/key3.db";
+  my $logins = "$PROFILE_DIR/logins.json";
+
+  if(@sqliteFiles < 1 or not -f $keyDb or not -f $logins){
+    die "MISSING PLACES FILES TO BACKUP\n";
+  }
+  my @files = (@sqliteFiles, $keyDb, $logins);
+
+  my $backupDir = "$PROFILE_DIR/../places-backup/";
+  run "rm", "-rf", $backupDir;
+  run "mkdir", "-p", $backupDir;
+
+  die "backup dir does not exist: $backupDir\n" if not -d $backupDir;
+  run "cp", "-a", "--reflink", @files, $backupDir;
+}
+
+sub placesRestore(){
+  print "\n\n\n##### restoring places/logins files from backup\n";
+  my @curSqliteFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my $curKeyDb = "$PROFILE_DIR/key3.db";
+  my $curLogins = "$PROFILE_DIR/logins.json";
+
+  my @curFiles = @curSqliteFiles;
+  push @curFiles, $curKeyDb if -e $curKeyDb;
+  push @curFiles, $curLogins if -e $curLogins;
+
+  my @backupFiles = glob("$PROFILE_DIR/../places-backup/*");
+
+  if(@backupFiles == 0){
+    die "MISSING PLACES FILES TO RESTORE\n";
+  }
+
+  if(@curFiles > 0){
+    my $tmpDir = "/tmp/places-restore-bak-" . int(time*1000);
+    print "\nbacking up places-files that will be overwritten to:\n$tmpDir\n";
+    run "mkdir", "-p", $tmpDir;
+    run "mv", @curFiles, $tmpDir;
+  }
+
+  run "cp", "-a", "--reflink", @backupFiles, $PROFILE_DIR;
 }
 
 sub getAddonXpiCache($){
