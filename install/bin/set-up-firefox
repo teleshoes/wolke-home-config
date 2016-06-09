@@ -7,16 +7,16 @@ use Time::HiRes qw(sleep time);
 
 sub killFirefox();
 sub brieflyRunFirefox($);
-sub installAddons($);
-sub setPrefs($);
-sub writeXulStore($);
+sub installAddons();
+sub setPrefs();
+sub writeXulStore();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
 sub ensureAddonsDownloaded();
-sub extractXpiAddonsToProfile($);
-sub uninstallAllAddons($);
-sub enableAllAddons($);
+sub extractXpiAddonsToProfile();
+sub uninstallAllAddons();
+sub enableAllAddons();
 sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
 sub getShortcutJson();
@@ -24,6 +24,7 @@ sub formatJsonCsv(@);
 sub globOne($);
 sub amoUrl($;$);
 
+my $PROFILE_DIR = globOne getHome() . "/.mozilla/firefox/*.default";
 my $DOWNLOAD_DIR = getHome() . "/Downloads";
 my $GREASEMONKEY_TARGET_DIR = getHome() . "/greasemonkey";
 
@@ -154,22 +155,23 @@ my $shortcutKeys = {
 };
 
 sub main(@){
-  my $profileDir = globOne getHome() . "/.mozilla/firefox/*.default";
-  die "Could not find profile dir" if not -d $profileDir;
+  if(not defined $PROFILE_DIR or not -d $PROFILE_DIR){
+    die "Could not find default profile dir";
+  }
 
   my $installAddons = 1;
   $installAddons = 0 if @_ > 0 and $_[0] =~ /--skipAddons/;
 
   if($installAddons){
-    installAddons($profileDir);
+    installAddons();
   }
 
   print "\n\n\n##### symlinking greasemonkey script dir\n";
-  my $gmDir = "$profileDir/gm_scripts";
+  my $gmDir = "$PROFILE_DIR/gm_scripts";
   tryrun "rm", $gmDir;
   tryrun "rmdir", $gmDir;
   if(-d $gmDir){
-    my $gmDirBak = "$profileDir/gm_scripts-bak-" . int(time*1000);
+    my $gmDirBak = "$PROFILE_DIR/gm_scripts-bak-" . int(time*1000);
     print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
     run "mv", $gmDir, $gmDirBak;
   }
@@ -177,13 +179,13 @@ sub main(@){
   run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
 
   print "\n\n\n##### editing prefs.js\n";
-  setPrefs($profileDir);
+  setPrefs();
 
   print "\n\n\n##### overwriting xulstore.json\n";
-  writeXulStore($profileDir);
+  writeXulStore();
 
   print "\n\n\n##### editing keyboard shortcuts\n";
-  my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
+  my $shortcutsJson = "$PROFILE_DIR/$shortcutJsonRelpath";
   my $dir = $shortcutsJson;
   $dir =~ s/\/[^\/]*$//;
   system "mkdir", "-p", $dir;
@@ -208,44 +210,41 @@ sub brieflyRunFirefox($){
   killFirefox();
 }
 
-sub installAddons($){
-  my ($profileDir) = @_;
+sub installAddons(){
   print "\n\n\n##### ensuring addons downloaded\n";
   ensureAddonsDownloaded();
 
   killFirefox();
 
   print "\n\n\n##### forcibly uninstalling addons\n";
-  uninstallAllAddons($profileDir);
+  uninstallAllAddons();
   brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-  uninstallAllAddons($profileDir);
+  uninstallAllAddons();
 
   print "\n\n\n##### installing addons\n";
-  extractXpiAddonsToProfile($profileDir);
+  extractXpiAddonsToProfile();
 
   print "\n\n\n##### creating initial extensions.json and enabling addons\n";
-  my $extJsonFile = "$profileDir/extensions.json";
+  my $extJsonFile = "$PROFILE_DIR/extensions.json";
   die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
   brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
   die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
-  enableAllAddons($profileDir);
+  enableAllAddons();
 
   #setting prefs to prevent the firstrun pages of the addons with pref for it
-  setPrefs($profileDir);
+  setPrefs();
 
   brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
 }
 
-sub setPrefs($){
-  my ($profileDir) = @_;
-  my $prefsJs = "$profileDir/prefs.js";
+sub setPrefs(){
+  my $prefsJs = "$PROFILE_DIR/prefs.js";
   die "Could not find prefs file\n" if not -f $prefsJs;
   editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
 }
 
-sub writeXulStore($){
-  my ($profileDir) = @_;
-  my $xulStoreFile = "$profileDir/xulstore.json";
+sub writeXulStore(){
+  my $xulStoreFile = "$PROFILE_DIR/xulstore.json";
   writeFile $xulStoreFile, $xulStoreJson;
 }
 
@@ -316,12 +315,11 @@ sub ensureAddonsDownloaded(){
   }
 }
 
-sub extractXpiAddonsToProfile($){
-  my ($profileDir) = @_;
+sub extractXpiAddonsToProfile(){
   for my $addon(sort keys %$addons){
     my $xpiFile = getAddonXpiCache $addon;
     my $addonInfo = parseInstallRdf $xpiFile;
-    my $destDir = "$profileDir/extensions/$$addonInfo{id}";
+    my $destDir = "$PROFILE_DIR/extensions/$$addonInfo{id}";
     if(not -d $destDir){
       print "installing $addon\n";
       run "mkdir", "-p", $destDir;
@@ -330,17 +328,14 @@ sub extractXpiAddonsToProfile($){
   }
 }
 
-sub uninstallAllAddons($){
-  my ($profileDir) = @_;
-  shell "rm", "-rf", "$profileDir/extensions/*";
-  shell "rm", "-rf", "$profileDir/extensions.sqlite*";
-  shell "rm", "-rf", "$profileDir/extensions.json";
+sub uninstallAllAddons(){
+  shell "rm", "-rf", "$PROFILE_DIR/extensions/*";
+  shell "rm", "-rf", "$PROFILE_DIR/extensions.sqlite*";
+  shell "rm", "-rf", "$PROFILE_DIR/extensions.json";
 }
 
-sub enableAllAddons($){
-  my ($profileDir) = @_;
-
-  my $extJsonFile = "$profileDir/extensions.json";
+sub enableAllAddons(){
+  my $extJsonFile = "$PROFILE_DIR/extensions.json";
   my $contents = readFile $extJsonFile;
   $contents =~ s/,\"userDisabled\":true,/,\"userDisabled\":false,/g;
   writeFile $extJsonFile, $contents;
