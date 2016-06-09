@@ -8,6 +8,7 @@ use Time::HiRes qw(sleep time);
 sub killFirefox();
 sub brieflyRunFirefox($);
 sub installAddons();
+sub greasemonkeySymlink();
 sub setPrefs();
 sub writeXulStore();
 sub setupKeyboardShortcuts();
@@ -181,17 +182,7 @@ sub main(@){
     installAddons();
   }
 
-  print "\n\n\n##### symlinking greasemonkey script dir\n";
-  my $gmDir = "$PROFILE_DIR/gm_scripts";
-  tryrun "rm", $gmDir;
-  tryrun "rmdir", $gmDir;
-  if(-d $gmDir){
-    my $gmDirBak = "$PROFILE_DIR/gm_scripts-bak-" . int(time*1000);
-    print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
-    run "mv", $gmDir, $gmDirBak;
-  }
-  die "Could not remove or backup $gmDir\n" if -e $gmDir;
-  run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
+  greasemonkeySymlink();
 
   print "\n\n\n##### editing prefs.js\n";
   setPrefs();
@@ -243,6 +234,20 @@ sub installAddons(){
   setPrefs();
 
   brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+}
+
+sub greasemonkeySymlink(){
+  print "\n\n\n##### symlinking greasemonkey script dir\n";
+  my $gmDir = "$PROFILE_DIR/gm_scripts";
+  tryrun "rm", $gmDir;
+  tryrun "rmdir", $gmDir;
+  if(-d $gmDir){
+    my $gmDirBak = "$PROFILE_DIR/gm_scripts-bak-" . int(time*1000);
+    print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
+    run "mv", $gmDir, $gmDirBak;
+  }
+  die "Could not remove or backup $gmDir\n" if -e $gmDir;
+  run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
 }
 
 sub setPrefs(){
