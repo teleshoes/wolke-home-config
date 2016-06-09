@@ -28,6 +28,7 @@ sub getShortcutJson();
 sub formatJsonCsv(@);
 sub globOne($);
 sub amoUrl($;$);
+sub formatChunks($$@);
 
 my $PROFILE_DIR = globOne getHome() . "/.mozilla/firefox/*.default";
 my $DOWNLOAD_DIR = getHome() . "/Downloads";
@@ -174,7 +175,15 @@ my $usage = "Usage:
       selectively modify prefs.js file
 
     addons
-      uninstalls all current addons and installs desired addons
+      -download XPI files:" . formatChunks(5, "\n        ", sort keys %$addons) . "
+      -kill firefox
+      -uninstall all addons
+      -start firefox, kill firefox, and uninstall again
+      -extract XPI files to \"<profile>/extensions/\"
+      -start firefox, kill firefox
+      -enable addons in extensions.json
+      -set all prefs.js prefs as in --prefs
+      -start firefox, kill firefox
 
     greasemonkey
       replace gm_scripts dir with a symlink to $GREASEMONKEY_TARGET_DIR
@@ -542,6 +551,19 @@ sub amoUrl($;$){
   my ($id, $name) = @_;
   $name = $id if not defined $name;
   return "https://addons.mozilla.org/firefox/downloads/latest/$name/addon-$id-latest.xpi";
+}
+sub formatChunks($$@){
+  my ($chunkSize, $chunkPrefix, @items) = @_;
+  my @chunks;
+  my $chunk;
+  for my $item(@items){
+    if(not defined $chunk or @$chunk >= $chunkSize){
+      $chunk = [];
+      push @chunks, $chunk;
+    }
+    push @$chunk, $item;
+  }
+  return join '', map {"$chunkPrefix$_"} map {join " ", @$_} @chunks;
 }
 
 &main(@ARGV);
