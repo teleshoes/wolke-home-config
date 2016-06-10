@@ -199,10 +199,10 @@ my $usage = "Usage:
       overwrite shortcuts jetpack json file
 
     placesbackup
-      copy 'places.sqlite*', 'logins.json' and 'key3.db' for use by 'placesrestore'
+      copy 'places.sqlite*', 'permissions.sqlite*', 'logins.json' and 'key3.db' for use by 'placesrestore'
 
     placesrestore
-      replace current 'places.sqlite*', 'logins.json' and 'key3.db' with last 'placesbackup'
+      replace current 'places.sqlite*', 'permissions.sqlite*', 'logins.json' and 'key3.db' with last 'placesbackup'
 
     removeprofile
       move existing profile dir to a backup, create empty profile dir
@@ -336,13 +336,14 @@ sub setupKeyboardShortcuts(){
 sub placesBackup(){
   print "\n\n\n##### backing up places/logins files\n";
   my @placesDbFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my @permsDbFiles = glob("$PROFILE_DIR/permissions.sqlite*");
   my $keyDb = "$PROFILE_DIR/key3.db";
   my $logins = "$PROFILE_DIR/logins.json";
 
-  if(@placesDbFiles < 1 or not -f $keyDb or not -f $logins){
+  if(@placesDbFiles < 1 or @permsDbFiles < 1 or not -f $keyDb or not -f $logins){
     die "MISSING PLACES FILES TO BACKUP\n";
   }
-  my @files = (@placesDbFiles, $keyDb, $logins);
+  my @files = (@placesDbFiles, @permsDbFiles, $keyDb, $logins);
 
   my $backupDir = "$PROFILE_DIR/../places-backup/";
   run "rm", "-rf", $backupDir;
@@ -355,10 +356,11 @@ sub placesBackup(){
 sub placesRestore(){
   print "\n\n\n##### restoring places/logins files from backup\n";
   my @curPlacesDbFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my @curPermsDbFiles = glob("$PROFILE_DIR/permissions.sqlite*");
   my $curKeyDb = "$PROFILE_DIR/key3.db";
   my $curLogins = "$PROFILE_DIR/logins.json";
 
-  my @curFiles = @curPlacesDbFiles;
+  my @curFiles = (@curPlacesDbFiles, @curPermsDbFiles);
   push @curFiles, $curKeyDb if -e $curKeyDb;
   push @curFiles, $curLogins if -e $curLogins;
 
