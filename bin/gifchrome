@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Cwd 'abs_path';
+
+my $tmpHtmlFile = "/tmp/gifchrome.html";
+
+sub main(@){
+  my $html = '';
+  for my $gif(glob("*.gif"), glob("*.GIF")){
+    my $fileUrl = "file://" . abs_path($gif);
+    $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
+  }
+  $html .= "
+  <script>
+  function addText(event) {
+    var targ = event.target || event.srcElement;
+    document.getElementById(\"clicked\").value += targ.src;
+  }
+  </script>
+  <textarea id=\"clicked\"/>
+  ";
+  open FH, "> $tmpHtmlFile";
+  print FH $html;
+  close FH;
+
+  system "chromium", "--incognito", "$tmpHtmlFile";
+  system "rm", "a.html";
+}
+
+&main(@ARGV);
