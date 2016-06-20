@@ -72,15 +72,11 @@ sub main(@){
   my $host = `seedbox --host`;
   chomp $host;
 
-  my $copyTorrentsCmd;
-  if($check){
-    $copyTorrentsCmd = "cp -ar $remoteTorrentDir/*.torrent $remoteDir";
-  }else{
-    $copyTorrentsCmd = "echo not copying .torrent files";
-  }
-
+  my $copyTorrents = "no";
   my $fetchPeers = "yes";
+
   if($check){
+    $copyTorrents = "yes";
     $fetchPeers = "no";
   }
 
@@ -97,7 +93,12 @@ sub main(@){
       > $remoteDir/info
     hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteDir/info | cut -c3-`
     echo found \$(echo \$hashes | wc -w) torrents
-    $copyTorrentsCmd
+    if \\[ \"$copyTorrents\" == \"yes\" \\]; then
+      echo copying .torrent files
+      cp -ar $remoteTorrentDir/*.torrent $remoteDir
+    else
+      echo not copying .torrent files
+    fi
     if \\[ \"$fetchPeers\" == \"yes\" \\]; then
       echo fetching peers
       for h in \$hashes; do
