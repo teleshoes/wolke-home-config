@@ -20,6 +20,7 @@ my $logFile = "/tmp/rt-status-" . int(time*1000) . ".log";
 sub openLog();
 sub printLog($);
 sub closeLog();
+sub filterTorrents($$);
 sub formatTimeS($);
 sub formatTorrent($);
 sub parseTorrents($);
@@ -134,47 +135,7 @@ sub main(@){
     my @corrupted;
 
     if(@torrentFilters > 0){
-      #verify each filter hits at least one torrent
-      for my $torrentFilter(@torrentFilters){
-        my $found = 0;
-        for my $t(@okTorrents){
-          if(lc $$t{name} eq lc $torrentFilter or lc $$t{hash} eq lc $torrentFilter){
-            $found = 1;
-            last;
-          }
-        }
-        die "unknown torrent hash or torrent name: $torrentFilter\n" if not $found;
-      }
-
-      #filter torrent list
-      my @filteredTorrents;
-      my @skippedTorrents;
-      for my $t(@okTorrents){
-        my $found = 0;
-        for my $torrentFilter(@torrentFilters){
-          if(lc $$t{name} eq lc $torrentFilter or lc $$t{hash} eq lc $torrentFilter){
-            $found = 1;
-            last;
-          }
-        }
-        if($found){
-          push @filteredTorrents, $t;
-        }else{
-          push @skippedTorrents, $t;
-        }
-      }
-      @okTorrents = @filteredTorrents;
-
-      #print skipped/checking
-      printLog "="x30 . "\n" . "SKIPPING " . (0+@skippedTorrents) . " TORRENTS:\n";
-      for my $t (@skippedTorrents){
-        printLog "$$t{hash}\n  $$t{name}\n";
-      }
-
-      printLog "="x30 . "\n" . "CHECKING " . (0+@filteredTorrents) . " TORRENTS:\n";
-      for my $t (@filteredTorrents){
-        printLog "$$t{hash}\n  $$t{name}\n";
-      }
+      @okTorrents = filterTorrents [@torrentFilters], [@okTorrents];
     }
 
     for my $t(@okTorrents){
@@ -247,6 +208,54 @@ sub printLog($){
 sub closeLog(){
   print STDOUT "\nstop logging to: $logFile\n";
   close LOG;
+}
+
+sub filterTorrents($$){
+  my @filters = @{$_[0]};
+  my @torrents = @{$_[1]};
+
+  #verify each filter hits at least one torrent
+  for my $filter(@filters){
+    my $found = 0;
+    for my $t(@torrents){
+      if(lc $$t{name} eq lc $filter or lc $$t{hash} eq lc $filter){
+        $found = 1;
+        last;
+      }
+    }
+    die "unknown torrent hash or torrent name: $filter\n" if not $found;
+  }
+
+  #filter torrent list
+  my @filteredTorrents;
+  my @skippedTorrents;
+  for my $t(@torrents){
+    my $found = 0;
+    for my $filter(@filters){
+      if(lc $$t{name} eq lc $filter or lc $$t{hash} eq lc $filter){
+        $found = 1;
+        last;
+      }
+    }
+    if($found){
+      push @filteredTorrents, $t;
+    }else{
+      push @skippedTorrents, $t;
+    }
+  }
+
+  #print skipped/checking
+  printLog "="x30 . "\n" . "SKIPPING " . (0+@skippedTorrents) . " TORRENTS:\n";
+  for my $t (@skippedTorrents){
+    printLog "$$t{hash}\n  $$t{name}\n";
+  }
+
+  printLog "="x30 . "\n" . "CHECKING " . (0+@filteredTorrents) . " TORRENTS:\n";
+  for my $t (@filteredTorrents){
+    printLog "$$t{hash}\n  $$t{name}\n";
+  }
+
+  return @filteredTorrents;
 }
 
 sub formatTimeS($){
