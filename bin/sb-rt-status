@@ -15,7 +15,11 @@ my $remoteTorrentDir = "$remoteHome/.config/rtorrent/session/";
 my $skipDirRegex = "^$remoteHome/seeds";
 my $localDownloadDir = "/media/seedbox";
 
+my $logFile = "/tmp/rt-check-" . int(time*1000) . ".log";
+
+sub openLog();
 sub printLog($);
+sub closeLog();
 sub formatTimeS($);
 sub formatTorrent($);
 sub parseTorrents($);
@@ -126,9 +130,8 @@ sub main(@){
     chdir $localDownloadDir;
     my @verified;
     my @corrupted;
-    my $logFile = "/tmp/rt-check-" . int(time*1000) . ".log";
-    print "\n\nlogging output to $logFile\n";
-    open LOG, "> $logFile" or die "Could not write to log file\n";
+
+    openLog();
 
     if(@torrentFilters > 0){
       #verify each filter hits at least one torrent
@@ -214,8 +217,7 @@ sub main(@){
         push @corrupted, $t;
       }
     }
-    close LOG;
-    print "\nlog file written to $logFile\n";
+    closeLog;
     print "\n\n" . (0+@corrupted) . " corrupted torrents\n";
     @verified = sort {$$a{name} cmp $$b{name}} @verified;
     @corrupted = sort {$$a{name} cmp $$b{name}} @corrupted;
@@ -235,9 +237,18 @@ sub main(@){
   run "rm", "-rf", $localDir;
 }
 
+sub openLog(){
+  print STDOUT "\n\nlogging output to $logFile\n";
+  open LOG, "> $logFile" or die "Could not log to $logFile\n$!\n";
+}
 sub printLog($){
   print STDOUT $_[0];
   print LOG $_[0];
+}
+sub closeLog(){
+  print STDOUT "\nlog file written to $logFile\n";
+
+  close LOG;
 }
 
 sub formatTimeS($){
