@@ -75,6 +75,11 @@ sub main(@){
     $copyTorrentsCmd = "echo not copying .torrent files";
   }
 
+  my $fetchPeers = "yes";
+  if($check){
+    $fetchPeers = "no";
+  }
+
   run "ssh", $host, "
     rm -rf $remoteDir
     mkdir $remoteDir
@@ -89,14 +94,16 @@ sub main(@){
       > $remoteDir/info
     hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteDir/info | cut -c3-`
     echo processing \$(echo \$hashes | wc -w) torrents
-    for h in \$hashes; do
-      echo \"  \$h\"
-      rtxmlrpc p.multicall \$h '' \\
-        p.get_completed_percent=  \\
-        p.get_down_rate=          \\
-        p.get_down_total=         \\
-        > $remoteDir/peers-\$h
-    done
+    if \\[ \"$fetchPeers\" == \"yes\" \\]; then
+      for h in \$hashes; do
+        echo \"  \$h\"
+        rtxmlrpc p.multicall \$h '' \\
+          p.get_completed_percent=  \\
+          p.get_down_rate=          \\
+          p.get_down_total=         \\
+          > $remoteDir/peers-\$h
+      done
+    fi
     echo finished
     echo
   ";
@@ -301,8 +308,11 @@ sub parseTorrents($){
   }
 
   for my $t(@torrents){
-    my $peersInfo = `cat "$localDir/peers-$$t{hash}"`;
-    $$t{peerCounts} = parsePeers $peersInfo;
+    my $peersFile = "$localDir/peers-$$t{hash}";
+    if(-f $peersFile){
+      my $peersInfo = `cat "$localDir/peers-$$t{hash}"`;
+      $$t{peerCounts} = parsePeers $peersInfo;
+    }
   }
 
   return @torrents;
