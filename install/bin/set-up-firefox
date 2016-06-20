@@ -7,35 +7,44 @@ use Time::HiRes qw(sleep time);
 
 sub killFirefox();
 sub brieflyRunFirefox($);
-sub setPrefs($);
-sub writeXulStore($);
+sub installAddons();
+sub greasemonkeySymlink();
+sub setPrefs();
+sub writeXulStore();
+sub setupKeyboardShortcuts();
+sub placesBackup();
+sub placesRestore();
+sub removeProfile();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub parseInstallRdf($);
 sub ensureAddonsDownloaded();
-sub installAddons($);
-sub uninstallAllAddons($);
-sub enableAllAddons($);
+sub extractXpiAddonsToProfile();
+sub uninstallAllAddons();
+sub enableAllAddons();
 sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
 sub getShortcutJson();
 sub formatJsonCsv(@);
 sub globOne($);
 sub amoUrl($;$);
+sub formatChunks($$@);
+
+my $PROFILE_DIR = globOne getHome() . "/.mozilla/firefox/*.default";
+my $DOWNLOAD_DIR = getHome() . "/Downloads";
+my $GREASEMONKEY_TARGET_DIR = getHome() . "/greasemonkey";
 
 my $FIREFOX_PROC_NAME = 'firefox-esr';
 my $FIREFOX_EXEC_NAME = 'firefox';
 my $FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS = 8000;
 my $FF_RUN_TIMEOUT_WITH_EXTS_MILLIS = 20000;
-my $GREASEMONKEY_TARGET_DIR = getHome() . "/greasemonkey";
 
 my $addons = {
   bookmarkfaviconchanger =>
-    "http://download1205.mediafire.com/h7c5bhohmnqg/jkzz6cqi5mf04xa/bookmarkfaviconchanger229.xpi",
+    "https://github.com/teleshoes/firefox-addons/raw/master/bookmarkfaviconchanger-2.29.xpi",
   foxyproxy =>
     "https://addons.mozilla.org/firefox/downloads/file/400263/foxyproxy_standard-4.5.6-fx+sm+tb.xpi",
 
-  adblockplus               => amoUrl(1865),
   dnsflusher                => amoUrl(7408),
   firebug                   => amoUrl(1843),
   googleimagehelp           => amoUrl(162048, 'google-image-help'),
@@ -48,6 +57,7 @@ my $addons = {
   sessionmanager            => amoUrl(2324),
   stylish                   => amoUrl(2108),
   textareacache             => amoUrl(5761),
+  ublockorigin              => amoUrl(607454, 'ublock-origin'),
   useragentswitcher         => amoUrl(59),
   webdeveloper              => amoUrl(60),
   youtubehighdefinition     => amoUrl(328839),
@@ -56,8 +66,16 @@ my $addons = {
 my $shortcutJsonRelpath =
   "jetpack/keybinder\@fail.cl/simple-storage/store.json";
 
+my $xulStoreJson = ""
+  . "{\"chrome://browser/content/browser.xul\":"
+  .   "{\"toolbar-menubar\":{\"autohide\":\"true\"}"       #hide menubar
+  .   ",\"PersonalToolbar\":{\"collapsed\":\"false\"}"      #show bookmarks bar
+  .   ",\"web-developer-toolbar\":{\"collapsed\":\"true\"}" #hide webdev bar
+  .   "}"
+  . "}"
+  ;
+
 my %prefKeys = (
-  adblockplus           => "extensions.adblockplus",
   dnsflusher            => "extensions.dnsFlusher",
   firebug               => "extensions.firebug",
   greasemonkey          => "extensions.greasemonkey",
@@ -69,50 +87,42 @@ my %prefKeys = (
   youtubehighdefinition => "extensions.youtubehighdefinition",
 );
 
-my $xulStoreJson = ""
-  . "{\"chrome://browser/content/browser.xul\":"
-  .   "{\"toolbar-menubar\":{\"autohide\":\"true\"}"       #hide menubar
-  .   ",\"PersonalToolbar\":{\"collapsed\":\"false\"}"      #show bookmarks bar
-  .   ",\"web-developer-toolbar\":{\"collapsed\":\"true\"}" #hide webdev bar
-  .   "}"
-  . "}"
-  ;
-
 my $prefs = {
-  "browser.customizemode.tip0.shown" => "true", #firstrun hint
-  "browser.download.dir"        => "\"" . getHome() . "/Downloads\"",
-  "browser.newtabpage.enabled" => "false", #disable topsites blank page
-  "browser.reader.detectedFirstArticle" => "true", #firstrun hint
-  "browser.startup.page" => 0, #show a blank page at startup
-  "browser.urlbar.suggest.searches" => "false", #dont show suggs in urlbar
-  "browser.urlbar.userMadeSearchSuggestionsChoice" => "true", #firstrun hint
-  "browser.warnOnQuit" => "false", #closing multiple tabs warning
+  "browser.customizemode.tip0.shown"                            => "true",  #firstrun hint
+  "browser.download.dir"                                        => "\"$DOWNLOAD_DIR\"",
+  "browser.newtabpage.enabled"                                  => "false", #disable topsites blank page
+  "browser.reader.detectedFirstArticle"                         => "true",  #firstrun hint
+  "browser.startup.page"                                        => 0,       #show a blank page at startup
+  "browser.urlbar.suggest.searches"                             => "false", #dont show suggs in urlbar
+  "browser.urlbar.userMadeSearchSuggestionsChoice"              => "true",  #firstrun hint
+  "browser.tabs.warnOnClose"                                    => "false", #closing multiple tabs warning
 
-  "datareporting.healthreport.uploadEnabled" => "false", #dont upload
-  "datareporting.policy.dataSubmissionPolicyAcceptedVersion" => "2", #firstrun privacy prompt
-  "full-screen-api.approval-required" => "false", #allow fullscreen video
-  "general.warnOnAboutConfig", => "false", #firstrun hint
-  "middlemouse.contentLoadURL"  => "false", #disable URL nav on middleclick
-  "ui.key.menuAccessKeyFocuses" => "false", #disable show-menu-bar on alt-press
+  "datareporting.healthreport.uploadEnabled"                    => "false", #dont upload
+  "datareporting.policy.dataSubmissionPolicyAcceptedVersion"    => "2",     #firstrun privacy prompt
+  "datareporting.policy.dataSubmissionPolicyBypassNotification" => "true",  #firstrun privacy prompt
+  "full-screen-api.approval-required"                           => "false", #allow fullscreen video
+  "general.warnOnAboutConfig",                                  => "false", #firstrun hint
+  "middlemouse.contentLoadURL"                                  => "false", #disable URL nav on middleclick
+  "ui.key.menuAccessKeyFocuses"                                 => "false", #disable show-menu-bar on alt-press
 
-  "$prefKeys{adblockplus}.suppress_first_run_page" => "true", #firstrun relnotes
-  "$prefKeys{httpseverywhere}._observatory.enabled" => "false", #dont upload
-  "$prefKeys{httpseverywhere}._observatory.popup_shown" => "true", #firstrun privacy prompt
-  "$prefKeys{httpseverywhere}.toolbar_hint_shown" => "true", #firstrun hint
-  "$prefKeys{dnsflusher}.reload-page" => "false",
-  "$prefKeys{firebug}.showFirstRunPage" => "false", #firstrun relnotes
-  "$prefKeys{greasemonkey}.stats.optedin" => "false", #dont upload
-  "$prefKeys{greasemonkey}.stats.prompted" => "true", #firstrun privacy prompt
-  "$prefKeys{liveclick}.keepOpenOnMiddle" => "true", #dont close rss feed
-  "$prefKeys{noscript}.global"              => "true", #disable noscript completely
-  "$prefKeys{noscript}.firstRunRedirection" => "false", #firstrun relnotes
-  "$prefKeys{sessionmanager}.use_browser_crash_prompt" => "true", #single window on crash
-  "$prefKeys{sessionmanager}.update_message" => "false", #firstrun relnotes
-  "$prefKeys{stylish}.firstRun" => "3", #firstrun relnotes
-  "$prefKeys{youtubehighdefinition}.currentvideoquality"     => "\"hd1080\"",
-  "$prefKeys{youtubehighdefinition}.currentvideosize"        => "\"default\"",
-  "$prefKeys{youtubehighdefinition}.enableannotationsoff"    => "true",
-  "$prefKeys{youtubehighdefinition}.enablesuggestedautoplay" => "false",
+  "$prefKeys{httpseverywhere}._observatory.enabled"             => "false", #dont upload
+  "$prefKeys{httpseverywhere}._observatory.popup_shown"         => "true",  #firstrun privacy prompt
+  "$prefKeys{httpseverywhere}.toolbar_hint_shown"               => "true",  #firstrun hint
+  "$prefKeys{dnsflusher}.reload-page"                           => "false",
+  "$prefKeys{firebug}.showFirstRunPage"                         => "false", #firstrun relnotes
+  "$prefKeys{greasemonkey}.stats.optedin"                       => "false", #dont upload
+  "$prefKeys{greasemonkey}.stats.prompted"                      => "true",  #firstrun privacy prompt
+  "$prefKeys{liveclick}.keepOpenOnMiddle"                       => "true",  #dont close rss feed
+  "$prefKeys{noscript}.global"                                  => "true",  #disable noscript completely
+  "$prefKeys{noscript}.ABE.enabled"                             => "false", #disable ABE
+  "$prefKeys{noscript}.firstRunRedirection"                     => "false", #firstrun relnotes
+  "$prefKeys{sessionmanager}.use_browser_crash_prompt"          => "true",  #single window on crash
+  "$prefKeys{sessionmanager}.update_message"                    => "false", #firstrun relnotes
+  "$prefKeys{stylish}.firstRun"                                 => "3",     #firstrun relnotes
+  "$prefKeys{youtubehighdefinition}.currentvideoquality"        => "\"hd1080\"",
+  "$prefKeys{youtubehighdefinition}.currentvideosize"           => "\"default\"",
+  "$prefKeys{youtubehighdefinition}.enableannotationsoff"       => "true",
+  "$prefKeys{youtubehighdefinition}.enablesuggestedautoplay"    => "false",
 };
 $$prefs{"browser.uiCustomization.state"} = getUiCustomizationPref({
   navBar => formatJsonCsv(qw(
@@ -121,7 +131,7 @@ $$prefs{"browser.uiCustomization.state"} = getUiCustomizationPref({
   hamburgerMenu => formatJsonCsv(qw(
     privatebrowsing-button preferences-button add-ons-button
     downloads-button history-panelmenu bookmarks-menu-button
-    sessionmanager-toolbar abp-toolbarbutton textareaCacheButton
+    sessionmanager-toolbar ublock0-button textareaCacheButton
     youtubehighdefinition-toolbarbutton noscript-tbb panic-button
     useragentswitcher-button
   )),
@@ -151,66 +161,95 @@ my $shortcutKeys = {
   key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
 };
 
+my $usage = "Usage:
+  $0
+  $0 --safe
+    same as:
+      'greasemonkey prefs xulstore shortcuts'
+
+  $0 --full
+    same as:
+      'placesbackup removeprofile addons greasemonkey prefs xulstore shortcuts placesrestore'
+
+  $0 COMMAND [COMMAND COMMAND ..]
+    perform the indicated command(s) to set up firefox addons/prefs/etc
+
+  COMMANDS
+    prefs
+      selectively modify prefs.js file
+
+    addons
+      -download XPI files:" . formatChunks(5, "\n        ", sort keys %$addons) . "
+      -kill firefox
+      -uninstall all addons
+      -start firefox, kill firefox, and uninstall again
+      -extract XPI files to \"<profile>/extensions/\"
+      -start firefox, kill firefox
+      -enable addons in extensions.json
+      -set all prefs.js prefs as in --prefs
+      -start firefox, kill firefox
+
+    greasemonkey
+      replace gm_scripts dir with a symlink to $GREASEMONKEY_TARGET_DIR
+
+    xulstore
+      overwrite xulstore.json
+
+    shortcuts
+      overwrite shortcuts jetpack json file
+
+    placesbackup
+      copy 'places.sqlite*', 'permissions.sqlite*', 'logins.json' and 'key3.db' for use by 'placesrestore'
+
+    placesrestore
+      replace current 'places.sqlite*', 'permissions.sqlite*', 'logins.json' and 'key3.db' with last 'placesbackup'
+
+    removeprofile
+      move existing profile dir to a backup, create empty profile dir
+";
+
 sub main(@){
-  my $profileDir = globOne getHome() . "/.mozilla/firefox/*.default";
-  die "Could not find profile dir" if not -d $profileDir;
+  if(not defined $PROFILE_DIR or not -d $PROFILE_DIR){
+    die "Could not find default profile dir";
+  }
+  print "PROFILE: $PROFILE_DIR\n";
 
-  my $installAddons = 1;
-  $installAddons = 0 if @_ > 0 and $_[0] =~ /--skipAddons/;
-
-  if($installAddons){
-    print "\n\n\n##### ensuring addons downloaded\n";
-    ensureAddonsDownloaded();
-
-    killFirefox();
-
-    print "\n\n\n##### forcibly uninstalling addons\n";
-    uninstallAllAddons($profileDir);
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-    uninstallAllAddons($profileDir);
-
-    print "\n\n\n##### installing addons\n";
-    installAddons($profileDir);
-
-    print "\n\n\n##### creating initial extensions.json and enabling addons\n";
-    my $extJsonFile = "$profileDir/extensions.json";
-    die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
-    die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
-    enableAllAddons($profileDir);
-
-    #setting prefs to prevent the firstrun pages of the addons with pref for it
-    setPrefs($profileDir);
-
-    brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+  my @commands;
+  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--safe$)/)){
+    @commands = qw(greasemonkey prefs xulstore shortcuts);
+  }elsif(@_ == 1 and $_[0] =~ /^(--full$)/){
+    @commands = qw(
+      placesbackup
+      removeprofile
+      addons
+      greasemonkey prefs xulstore shortcuts
+      placesrestore
+    );
+  }else{
+    @commands = @_;
   }
 
-  print "\n\n\n##### symlinking greasemonkey script dir\n";
-  my $gmDir = "$profileDir/gm_scripts";
-  tryrun "rm", $gmDir;
-  tryrun "rmdir", $gmDir;
-  if(-d $gmDir){
-    my $gmDirBak = "$profileDir/gm_scripts-bak-" . int(time*1000);
-    print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
-    run "mv", $gmDir, $gmDirBak;
+  for my $cmd(@commands){
+    if($cmd =~ /^(addons)$/){
+      installAddons();
+    }elsif($cmd =~ /^(greasemonkey)$/){
+      greasemonkeySymlink();
+    }elsif($cmd =~ /^(prefs)$/){
+      setPrefs();
+    }elsif($cmd =~ /^(xulstore)$/){
+      writeXulStore();
+    }elsif($cmd =~ /^(shortcuts)$/){
+      setupKeyboardShortcuts();
+    }elsif($cmd =~ /^(placesbackup)$/){
+      placesBackup();
+    }elsif($cmd =~ /^(placesrestore)$/){
+      placesRestore();
+    }elsif($cmd =~ /^(removeprofile)$/){
+      removeProfile();
+    }else{
+      die "$usage\nunknown command: $cmd\n";
+    }
   }
-  die "Could not remove or backup $gmDir\n" if -e $gmDir;
-  run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
-
-  print "\n\n\n##### editing prefs.js\n";
-  setPrefs($profileDir);
-
-  print "\n\n\n##### overwriting xulstore.json\n";
-  writeXulStore($profileDir);
-
-  print "\n\n\n##### editing keyboard shortcuts\n";
-  my $shortcutsJson = "$profileDir/$shortcutJsonRelpath";
-  my $dir = $shortcutsJson;
-  $dir =~ s/\/[^\/]*$//;
-  system "mkdir", "-p", $dir;
-
-  warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
-  writeFile $shortcutsJson, getShortcutJson();
 }
 
 sub killFirefox(){
@@ -229,17 +268,123 @@ sub brieflyRunFirefox($){
   killFirefox();
 }
 
-sub setPrefs($){
-  my ($profileDir) = @_;
-  my $prefsJs = "$profileDir/prefs.js";
+sub installAddons(){
+  print "\n\n\n##### ensuring addons downloaded\n";
+  ensureAddonsDownloaded();
+
+  killFirefox();
+
+  print "\n\n\n##### forcibly uninstalling addons\n";
+  uninstallAllAddons();
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
+  uninstallAllAddons();
+
+  print "\n\n\n##### installing addons\n";
+  extractXpiAddonsToProfile();
+
+  print "\n\n\n##### creating initial extensions.json and enabling addons\n";
+  my $extJsonFile = "$PROFILE_DIR/extensions.json";
+  die "ERROR: $extJsonFile still exists\n" if -e $extJsonFile;
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
+  die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
+  enableAllAddons();
+
+  #setting prefs to prevent the firstrun pages of the addons with pref for it
+  setPrefs();
+
+  brieflyRunFirefox($FF_RUN_TIMEOUT_WITH_EXTS_MILLIS);
+}
+
+sub greasemonkeySymlink(){
+  print "\n\n\n##### symlinking greasemonkey script dir\n";
+  my $gmDir = "$PROFILE_DIR/gm_scripts";
+  tryrun "rm", $gmDir;
+  tryrun "rmdir", $gmDir;
+  if(-d $gmDir){
+    my $gmDirBak = "$PROFILE_DIR/gm_scripts-bak-" . int(time*1000);
+    print "\n\nBACKING UP $gmDir =>\n$gmDirBak\n";
+    run "mv", $gmDir, $gmDirBak;
+  }
+  die "Could not remove or backup $gmDir\n" if -e $gmDir;
+  run "ln", "-s", $GREASEMONKEY_TARGET_DIR, $gmDir;
+}
+
+sub setPrefs(){
+  print "\n\n\n##### editing prefs.js\n";
+  my $prefsJs = "$PROFILE_DIR/prefs.js";
   die "Could not find prefs file\n" if not -f $prefsJs;
   editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
 }
 
-sub writeXulStore($){
-  my ($profileDir) = @_;
-  my $xulStoreFile = "$profileDir/xulstore.json";
+sub writeXulStore(){
+  print "\n\n\n##### overwriting xulstore.json\n";
+  my $xulStoreFile = "$PROFILE_DIR/xulstore.json";
   writeFile $xulStoreFile, $xulStoreJson;
+}
+
+sub setupKeyboardShortcuts(){
+  print "\n\n\n##### editing keyboard shortcuts\n";
+  my $shortcutsJson = "$PROFILE_DIR/$shortcutJsonRelpath";
+  my $dir = $shortcutsJson;
+  $dir =~ s/\/[^\/]*$//;
+  system "mkdir", "-p", $dir;
+
+  warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
+  writeFile $shortcutsJson, getShortcutJson();
+}
+
+sub placesBackup(){
+  print "\n\n\n##### backing up places/logins files\n";
+  my @placesDbFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my @permsDbFiles = glob("$PROFILE_DIR/permissions.sqlite*");
+  my $keyDb = "$PROFILE_DIR/key3.db";
+  my $logins = "$PROFILE_DIR/logins.json";
+
+  if(@placesDbFiles < 1 or @permsDbFiles < 1 or not -f $keyDb or not -f $logins){
+    die "MISSING PLACES FILES TO BACKUP\n";
+  }
+  my @files = (@placesDbFiles, @permsDbFiles, $keyDb, $logins);
+
+  my $backupDir = "$PROFILE_DIR/../places-backup/";
+  run "rm", "-rf", $backupDir;
+  run "mkdir", "-p", $backupDir;
+
+  die "backup dir does not exist: $backupDir\n" if not -d $backupDir;
+  run "cp", "-a", "--reflink", @files, $backupDir;
+}
+
+sub placesRestore(){
+  print "\n\n\n##### restoring places/logins files from backup\n";
+  my @curPlacesDbFiles = glob("$PROFILE_DIR/places.sqlite*");
+  my @curPermsDbFiles = glob("$PROFILE_DIR/permissions.sqlite*");
+  my $curKeyDb = "$PROFILE_DIR/key3.db";
+  my $curLogins = "$PROFILE_DIR/logins.json";
+
+  my @curFiles = (@curPlacesDbFiles, @curPermsDbFiles);
+  push @curFiles, $curKeyDb if -e $curKeyDb;
+  push @curFiles, $curLogins if -e $curLogins;
+
+  my @backupFiles = glob("$PROFILE_DIR/../places-backup/*");
+
+  if(@backupFiles == 0){
+    die "MISSING PLACES FILES TO RESTORE\n";
+  }
+
+  if(@curFiles > 0){
+    my $tmpDir = "/tmp/places-restore-bak-" . int(time*1000);
+    print "\nbacking up places-files that will be overwritten to:\n$tmpDir\n";
+    run "mkdir", "-p", $tmpDir;
+    run "mv", @curFiles, $tmpDir;
+  }
+
+  run "cp", "-a", "--reflink", @backupFiles, $PROFILE_DIR;
+}
+
+sub removeProfile(){
+  print "\n\n\n##### moving profile to backup and making empty profile\n";
+  my $bakDir = "$PROFILE_DIR/../profile-bak-" . int(time*1000);
+  run "mv", $PROFILE_DIR, $bakDir;
+  run "mkdir", $PROFILE_DIR;
 }
 
 sub getAddonXpiCache($){
@@ -276,6 +421,11 @@ sub parseInstallRdf($){
       $version = $1 if $rdfTag =~ /em:version="([^"]+)"/;
     }
   }
+  if(not defined $id or not defined $version){
+    $id = $1 if $installRdf =~ /<id>\s*(.+?)\s*<\/id>/;
+    $version = $1 if $installRdf =~ /<version>\s*(.+?)\s*<\/version>/;
+  }
+
 
   if(not defined $id or not defined $version){
     die "Could not read id/version from $xpiFile install.rdf\n"
@@ -304,12 +454,11 @@ sub ensureAddonsDownloaded(){
   }
 }
 
-sub installAddons($){
-  my ($profileDir) = @_;
+sub extractXpiAddonsToProfile(){
   for my $addon(sort keys %$addons){
     my $xpiFile = getAddonXpiCache $addon;
     my $addonInfo = parseInstallRdf $xpiFile;
-    my $destDir = "$profileDir/extensions/$$addonInfo{id}";
+    my $destDir = "$PROFILE_DIR/extensions/$$addonInfo{id}";
     if(not -d $destDir){
       print "installing $addon\n";
       run "mkdir", "-p", $destDir;
@@ -318,17 +467,14 @@ sub installAddons($){
   }
 }
 
-sub uninstallAllAddons($){
-  my ($profileDir) = @_;
-  shell "rm", "-rf", "$profileDir/extensions/*";
-  shell "rm", "-rf", "$profileDir/extensions.sqlite*";
-  shell "rm", "-rf", "$profileDir/extensions.json";
+sub uninstallAllAddons(){
+  shell "rm", "-rf", "$PROFILE_DIR/extensions/*";
+  shell "rm", "-rf", "$PROFILE_DIR/extensions.sqlite*";
+  shell "rm", "-rf", "$PROFILE_DIR/extensions.json";
 }
 
-sub enableAllAddons($){
-  my ($profileDir) = @_;
-
-  my $extJsonFile = "$profileDir/extensions.json";
+sub enableAllAddons(){
+  my $extJsonFile = "$PROFILE_DIR/extensions.json";
   my $contents = readFile $extJsonFile;
   $contents =~ s/,\"userDisabled\":true,/,\"userDisabled\":false,/g;
   writeFile $extJsonFile, $contents;
@@ -419,6 +565,19 @@ sub amoUrl($;$){
   my ($id, $name) = @_;
   $name = $id if not defined $name;
   return "https://addons.mozilla.org/firefox/downloads/latest/$name/addon-$id-latest.xpi";
+}
+sub formatChunks($$@){
+  my ($chunkSize, $chunkPrefix, @items) = @_;
+  my @chunks;
+  my $chunk;
+  for my $item(@items){
+    if(not defined $chunk or @$chunk >= $chunkSize){
+      $chunk = [];
+      push @chunks, $chunk;
+    }
+    push @$chunk, $item;
+  }
+  return join '', map {"$chunkPrefix$_"} map {join " ", @$_} @chunks;
 }
 
 &main(@ARGV);

@@ -13,6 +13,8 @@ sub ftpCommand($@);
 sub rsyncRevtun($$$$@);
 sub rsyncFetch($);
 sub ssh($;\@);
+sub scpTo($$$);
+sub scpFrom($$$);
 sub readCmd($$);
 sub sshRevtun($;\@);
 sub magnetToTorrent($);
@@ -216,15 +218,16 @@ sub main(@){
 
 sub handleTorrent($$){
   my ($config, $torrent) = @_;
+  my $torrentFile;
   if($torrent =~ /\.torrent$/ and -f $torrent){
-    my $torrentFile = $torrent;
-    $torrentFile =~ s/'/'\\''/g;
-    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
-    return 1;
+    $torrentFile = $torrent;
   }elsif($torrent =~ /xt=urn:btih:/){
-    my $torrentFile = magnetToTorrent $torrent;
-    $torrentFile =~ s/'/'\\''/g;
-    ftpCommand $config, "cd $remoteTorrentDir && put '$torrentFile'";
+    $torrentFile = magnetToTorrent $torrent;
+  }
+
+  if(defined $torrentFile){
+    scpTo $config, $torrentFile, "$remoteTorrentDir/";
+    print "\ncopied to '$remoteTorrentDir'\n";
     return 1;
   }else{
     return 0;
@@ -324,6 +327,21 @@ sub ssh($;\@){
   my @sshCmd = ("ssh", "$$config{username}\@$$config{server}", @$cmd);
   print STDERR "@sshCmd\n";
   exec @sshCmd;
+}
+
+sub scpTo($$$){
+  my ($config, $srcLocalFile, $destRemoteFile) = @_;
+
+  my @scpCmd = ("scp", $srcLocalFile, "$$config{username}\@$$config{server}:$destRemoteFile");
+  print STDERR "@scpCmd\n";
+  system @scpCmd;
+}
+sub scpFrom($$$){
+  my ($config, $srcRemoteFile, $destLocalFile) = @_;
+
+  my @scpCmd = ("scp", "$$config{username}\@$$config{server}:$srcRemoteFile", $destLocalFile);
+  print STDERR "@scpCmd\n";
+  system @scpCmd;
 }
 
 sub readCmd($$){

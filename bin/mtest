@@ -14,6 +14,7 @@ my @mvnCmd = (
   "-Dcheckstyle.skip=true",
   "-DfailIfNoTests=false",
   "-Psdm", "-Pdev",
+  "--no-snapshot-updates",
   "test",
 );
 
@@ -35,7 +36,7 @@ my $usage = "Usage:
     unless --fast is specified explicitly
 
     OPTS
-      --debug
+      -d|--debug
         use maven surefire
       -s | --no-fast | --nofast | --slow
         do not append '-Pfast-tests'" . (!$defaultFastTests ? " {default}" : "") . "
@@ -69,7 +70,7 @@ sub main(@){
   my $test = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
-    if($arg =~ /^(--debug)$/){
+    if($arg =~ /^(-d|--debug)$/){
       $debug = 1;
     }elsif($arg =~ /^(-f|--fast|-Pfast-tests)$/){
       $fast = 1;
@@ -109,11 +110,12 @@ sub main(@){
 
 sub checkDotMethodCall($){
   my $test = shift;
-  if(defined $test and $test =~ /^(.+)\.(\w+)$/){
-    my ($class, $method) = ($1, $2);
+  if(defined $test and $test =~ /^(.*\.)?(.+)\.(\w+)(:\d+)?$/){
+    my ($pkg, $class, $method, $lineNumber) = ($1, $2, $3, $4);
     my @allTests = getAllTests();
     for my $t(@allTests){
       if($t =~ /^.*$class#$method$/){
+        print "\nUSING TEST: $t\n\n";
         return $t;
       }
     }
