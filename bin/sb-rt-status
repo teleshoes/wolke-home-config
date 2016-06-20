@@ -29,21 +29,21 @@ sub parsePythonStr($);
 sub run(@);
 
 my $usage = "Usage:
-  $0 [OPTS]
+  $0 [OPTS] [TORRENT TORRENT ..]
     use `rtxmlrpc` to print download+peer status of torrents on `seedbox`
+
+  TORRENT:
+    optional torrent hash or torrent name
+    if given, skip all torrents except for the listed torrents
 
   OPTS:
     --all
       include torrents that match '$skipDirRegex', which are skipped by default
       also, use '$$rtViews{all}' in 'rtxmlrpc d.multicall' instead of '$$rtViews{default}'
 
-    --check [TORRENT TORRENT ..]
+    --check
       instead of printing status, use `check-torrent` to verify local download
       download dir: `$localDownloadDir
-
-      TORRENT:
-        optional torrent hash or torrent name.
-        if given, skip all torrents except for the listed torrents
 ";
 
 sub main(@){
@@ -59,12 +59,8 @@ sub main(@){
       die $usage;
     }
   }
-  my @torrentFilters;
-  if($check){
-    @torrentFilters = @_;
-  }else{
-    die $usage if @_ > 0;
-  }
+
+  my @torrentFilters = @_;
 
   my $rtViewType = "default";
   $rtViewType = "all" if $all;
@@ -126,6 +122,10 @@ sub main(@){
   my @okTorrents = @torrents;
   @okTorrents = grep {$$_{dir} !~ /$skipDirRegex/} @okTorrents if not $all;
 
+  if(@torrentFilters > 0){
+    @okTorrents = filterTorrents [@torrentFilters], [@okTorrents];
+  }
+
   printLog "\n\n\nshowing " . (0+@okTorrents) . " torrents\n";
   if($check){
     die "missing download dir: $localDownloadDir\n" if not -d $localDownloadDir;
@@ -133,10 +133,6 @@ sub main(@){
     chdir $localDownloadDir;
     my @verified;
     my @corrupted;
-
-    if(@torrentFilters > 0){
-      @okTorrents = filterTorrents [@torrentFilters], [@okTorrents];
-    }
 
     for my $t(@okTorrents){
       printLog "="x30 . "\n" . "checking $$t{name}\n$$t{hash}\n";
@@ -250,7 +246,7 @@ sub filterTorrents($$){
     printLog "$$t{hash}\n  $$t{name}\n";
   }
 
-  printLog "="x30 . "\n" . "CHECKING " . (0+@filteredTorrents) . " TORRENTS:\n";
+  printLog "="x30 . "\n" . "HANDLING " . (0+@filteredTorrents) . " TORRENTS:\n";
   for my $t (@filteredTorrents){
     printLog "$$t{hash}\n  $$t{name}\n";
   }
