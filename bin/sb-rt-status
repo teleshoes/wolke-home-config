@@ -31,9 +31,13 @@ my $usage = "Usage:
       include torrents that match '$skipDirRegex', which are skipped by default
       also, use '$$rtViews{all}' in 'rtxmlrpc d.multicall' instead of '$$rtViews{default}'
 
-    --check
+    --check [TORRENT TORRENT ..]
       instead of printing status, use `check-torrent` to verify local download
       download dir: `$localDownloadDir
+
+      TORRENT:
+        optional torrent hash or torrent name.
+        if given, skip all torrents except for the listed torrents
 ";
 
 sub main(@){
@@ -49,7 +53,12 @@ sub main(@){
       die $usage;
     }
   }
-  die $usage if @_ > 0;
+  my @torrentsToCheck;
+  if($check){
+    @torrentsToCheck = @_;
+  }else{
+    die $usage if @_ > 0;
+  }
 
   my $rtViewType = "default";
   $rtViewType = "all" if $all;
@@ -114,6 +123,21 @@ sub main(@){
     open LOG, "> $logFile" or die "Could not write to log file\n";
     my $msg;
     for my $t(@okTorrents){
+      if(@torrentsToCheck > 0){
+        my $skip = 1;
+        for my $torrent(@torrentsToCheck){
+          if(lc $$t{name} eq lc $torrent or lc $$t{hash} eq lc $torrent){
+            $skip = 0;
+            last;
+          }
+        }
+        if($skip){
+          $msg = "="x30 . "\n" . "!SKIPPING! $$t{name}\n$$t{hash}\n";
+          print $msg;
+          print LOG $msg;
+          next;
+        }
+      }
       $msg = "="x30 . "\n" . "checking $$t{name}\n$$t{hash}\n";
       print $msg;
       print LOG $msg;
