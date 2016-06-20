@@ -12,6 +12,7 @@ my $remoteHome = "/home2/teleshoes";
 my $remoteDir = "$remoteHome/rt-status";
 my $remoteTorrentDir = "$remoteHome/.config/rtorrent/session/";
 
+my $localDir = "/tmp/rt-status-local";
 my $skipDirRegex = "^$remoteHome/seeds";
 my $localDownloadDir = "/media/seedbox";
 
@@ -23,7 +24,7 @@ sub closeLog();
 sub filterTorrents($$);
 sub formatTimeS($);
 sub formatTorrent($);
-sub parseTorrents($);
+sub parseTorrents();
 sub parsePeers($);
 sub parsePythonStr($);
 sub run(@);
@@ -110,14 +111,12 @@ sub main(@){
     echo
   ";
 
-  my $localDir = "/tmp/rt-status-local";
-
   run "mkdir", "-p", $localDir;
   run "rsync", "-avP", "--del", "$host:$remoteDir/", $localDir;
 
   openLog();
 
-  my @torrents = parseTorrents $localDir;
+  my @torrents = parseTorrents();
 
   my @okTorrents = @torrents;
   @okTorrents = grep {$$_{dir} !~ /$skipDirRegex/} @okTorrents if not $all;
@@ -291,9 +290,9 @@ sub formatTorrent($){
     ;
 }
 
-sub parseTorrents($){
-  my $localDir = shift;
+sub parseTorrents(){
   my $infoFile = "$localDir/info";
+  die "'$infoFile' does not exist\n" if not -f $infoFile;
   my $info = `cat "$infoFile"`;
   my @torrents;
   while($info =~ /
