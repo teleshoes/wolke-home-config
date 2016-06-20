@@ -53,9 +53,9 @@ sub main(@){
       die $usage;
     }
   }
-  my @torrentsToCheck;
+  my @torrentFilters;
   if($check){
-    @torrentsToCheck = @_;
+    @torrentFilters = @_;
   }else{
     die $usage if @_ > 0;
   }
@@ -121,23 +121,57 @@ sub main(@){
     my $logFile = "/tmp/rt-check-" . int(time*1000) . ".log";
     print "\n\nlogging output to $logFile\n";
     open LOG, "> $logFile" or die "Could not write to log file\n";
-    my $msg;
-    for my $t(@okTorrents){
-      if(@torrentsToCheck > 0){
-        my $skip = 1;
-        for my $torrent(@torrentsToCheck){
-          if(lc $$t{name} eq lc $torrent or lc $$t{hash} eq lc $torrent){
-            $skip = 0;
+
+    if(@torrentFilters > 0){
+      #verify each filter hits at least one torrent
+      for my $torrentFilter(@torrentFilters){
+        my $found = 0;
+        for my $t(@okTorrents){
+          if(lc $$t{name} eq lc $torrentFilter or lc $$t{hash} eq lc $torrentFilter){
+            $found = 1;
             last;
           }
         }
-        if($skip){
-          $msg = "="x30 . "\n" . "!SKIPPING! $$t{name}\n$$t{hash}\n";
-          print $msg;
-          print LOG $msg;
-          next;
+        die "unknown torrent hash or torrent name: $torrentFilter\n" if not $found;
+      }
+
+      #filter torrent list
+      my @filteredTorrents;
+      my @skippedTorrents;
+      for my $t(@okTorrents){
+        my $found = 0;
+        for my $torrentFilter(@torrentFilters){
+          if(lc $$t{name} eq lc $torrentFilter or lc $$t{hash} eq lc $torrentFilter){
+            $found = 1;
+            last;
+          }
+        }
+        if($found){
+          push @filteredTorrents, $t;
+        }else{
+          push @skippedTorrents, $t;
         }
       }
+      @okTorrents = @filteredTorrents;
+
+      #print skipped/checking
+      my $msg = "";
+
+      $msg .= "="x30 . "\n" . "SKIPPING " . (0+@skippedTorrents) . " TORRENTS:\n";
+      for my $t (@skippedTorrents){
+        $msg .= "$$t{hash}\n  $$t{name}\n";
+      }
+
+      $msg .= "="x30 . "\n" . "CHECKING " . (0+@filteredTorrents) . " TORRENTS:\n";
+      for my $t (@filteredTorrents){
+        $msg .= "$$t{hash}\n  $$t{name}\n";
+      }
+      print $msg;
+      print LOG $msg;
+    }
+
+    my $msg;
+    for my $t(@okTorrents){
       $msg = "="x30 . "\n" . "checking $$t{name}\n$$t{hash}\n";
       print $msg;
       print LOG $msg;
