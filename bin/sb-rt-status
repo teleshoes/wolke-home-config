@@ -9,12 +9,15 @@ my $rtViews = {
 };
 
 my $remoteHome = "/home2/teleshoes";
-my $remoteDir = "$remoteHome/rt-status";
-my $remoteTorrentDir = "$remoteHome/.config/rtorrent/session/";
+my $remoteStatusDir = "$remoteHome/rt-status";
+my $remoteTorrentDir = "$remoteHome/rt-torrents";
+my $remoteSessionDir = "$remoteHome/.config/rtorrent/session/";
 
-my $localDir = "/tmp/rt-status-local";
-my $skipDirRegex = "^$remoteHome/seeds";
+my $localStatusDir = "$ENV{HOME}/.cache/rt-status-cache";
+my $localTorrentDir = "$ENV{HOME}/.cache/rt-torrent-cache";
 my $localDownloadDir = "/media/seedbox";
+
+my $skipDirRegex = "^$remoteHome/seeds";
 
 my $logFile = "/tmp/rt-status-" . int(time*1000) . ".log";
 
@@ -91,8 +94,8 @@ sub main(@){
   }
 
   run "ssh", $host, "
-    rm -rf $remoteDir
-    mkdir $remoteDir
+    rm -rf $remoteStatusDir
+    mkdir $remoteStatusDir
 
     rtxmlrpc d.multicall $rtView \\
       d.get_hash=                \\
@@ -101,13 +104,26 @@ sub main(@){
       d.get_completed_bytes=     \\
       d.get_size_bytes=          \\
       d.get_down_rate=           \\
-      > $remoteDir/info
-    hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteDir/info | cut -c3-`
+      > $remoteStatusDir/info
+    hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteStatusDir/info | cut -c3-`
     echo found \$(echo \$hashes | wc -w) torrents
+
+    touch $remoteStatusDir/magnet_names
+    for h in \$hashes; do
+      magnet_name=` \\
+        grep -o '&dn=[^&]*' $remoteSessionDir/\$h.torrent \\
+        | sed s/'^&dn='// \\
+      `
+      if \\[ -n \"\$magnet_name\" \\]; then
+        echo \"\$h \$magnet_name\" >> $remoteStatusDir/magnet_names
+      fi
+    done
 
     if \\[ \"$copyTorrents\" == \"yes\" \\]; then
       echo copying .torrent files
-      cp -ar $remoteTorrentDir/*.torrent $remoteDir
+      rm -rf $remoteTorrentDir
+      mkdir $remoteTorrentDir
+      cp -ar $remoteSessionDir/*.torrent $remoteTorrentDir
     else
       echo not copying .torrent files
     fi
@@ -119,7 +135,7 @@ sub main(@){
           p.get_completed_percent=  \\
           p.get_down_rate=          \\
           p.get_down_total=         \\
-          > $remoteDir/peers-\$h
+          > $remoteStatusDir/peers-\$h
       done
     else
       echo not fetching peers
@@ -128,8 +144,13 @@ sub main(@){
     echo -ne \"finished\\n\\n\"
   ";
 
-  run "mkdir", "-p", $localDir;
-  run "rsync", "-avP", "--del", "$host:$remoteDir/", $localDir;
+  run "mkdir", "-p", $localStatusDir;
+  run "rsync", "-avP", "--del", "$host:$remoteStatusDir/", $localStatusDir;
+
+  if($copyTorrents eq "yes"){
+    run "mkdir", "-p", $localStatusDir;
+    run "rsync", "-avP", "--del", "$host:$remoteTorrentDir/", $localTorrentDir;
+  }
 
   openLog();
 
@@ -244,7 +265,7 @@ sub filterTorrents($$){
 sub checkTorrent($){
   my $t = shift;
   printLog "="x30 . "\n" . "checking $$t{name}\n$$t{hash}\n";
-  my $torrentFile = "$localDir/$$t{hash}.torrent";
+  my $torrentFile = "$localTorrentDir/$$t{hash}.torrent";
   if(not -f $torrentFile){
     die "MISSING TORRENT FILE for $$t{name}:\n$torrentFile\n"
   }
@@ -300,6 +321,10 @@ sub formatTorrent($){
       push @peerCountsFmt, "$bucket=$$t{peerCounts}{$bucket}";
     }
   }
+  my $name = $$t{name};
+  if($name =~ /$$t{hash}/ and defined $$t{magnetName}){
+    $name = "magnet: $$t{magnetName}";
+  }
   my $percent = int($$t{percent});
   my $completedMiB = $$t{completedBytes} / 1024 / 1024;
   my $sizeMiB = $$t{sizeBytes} / 1024 / 1024;
@@ -309,7 +334,7 @@ sub formatTorrent($){
   return sprintf "%s\n%3d%s %s\n     %9.3fMiB / %9.3fMiB  @ %9.3fMiB/s    ETA: %s\n  PEERS: %s\n",
     "-" x 30,
     $percent, '%',
-    $$t{name},
+    $name,
     $completedMiB,
     $sizeMiB,
     $downRateMiBs,
@@ -319,8 +344,20 @@ sub formatTorrent($){
 }
 
 sub parseTorrents(){
-  my $infoFile = "$localDir/info";
+  my $infoFile = "$localStatusDir/info";
+  my $magnetNamesFile = "$localStatusDir/magnet_names";
   die "'$infoFile' does not exist\n" if not -f $infoFile;
+  die "'$magnetNamesFile' does not exist\n" if not -f $magnetNamesFile;
+
+  my %magnetNames;
+  for my $line(`cat "$magnetNamesFile"`){
+    if($line =~ /^([0-9A-F]{40})\s*(.+)$/){
+      $magnetNames{lc $1} = $2;
+    }else{
+      die "invalid magnet name line: $line";
+    }
+  }
+
   my $info = `cat "$infoFile"`;
   my @torrents;
   while($info =~ /
@@ -338,7 +375,8 @@ sub parseTorrents(){
       completedBytes => $4,
       sizeBytes => $5,
       downRate => $6,
-      percent => sprintf "%5.2f", 100 * $4/$5,
+      percent => sprintf("%5.2f", 100 * $4/$5),
+      magnetName => $magnetNames{lc $1},
     };
     $$t{name} = parsePythonStr $$t{name};
     $$t{dir} = parsePythonStr $$t{dir};
@@ -346,9 +384,9 @@ sub parseTorrents(){
   }
 
   for my $t(@torrents){
-    my $peersFile = "$localDir/peers-$$t{hash}";
+    my $peersFile = "$localStatusDir/peers-$$t{hash}";
     if(-f $peersFile){
-      my $peersInfo = `cat "$localDir/peers-$$t{hash}"`;
+      my $peersInfo = `cat "$localStatusDir/peers-$$t{hash}"`;
       $$t{peerCounts} = parsePeers $peersInfo;
     }
   }
