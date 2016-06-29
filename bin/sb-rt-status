@@ -341,7 +341,19 @@ sub formatTorrent($){
 
 sub parseTorrents(){
   my $infoFile = "$localStatusDir/info";
+  my $magnetNamesFile = "$localStatusDir/magnet_names";
   die "'$infoFile' does not exist\n" if not -f $infoFile;
+  die "'$magnetNamesFile' does not exist\n" if not -f $magnetNamesFile;
+
+  my %magnetNames;
+  for my $line(`cat "$magnetNamesFile"`){
+    if($line =~ /^([0-9A-F]{40})\s*(.+)$/){
+      $magnetNames{lc $1} = $2;
+    }else{
+      die "invalid magnet name line: $line";
+    }
+  }
+
   my $info = `cat "$infoFile"`;
   my @torrents;
   while($info =~ /
@@ -359,7 +371,8 @@ sub parseTorrents(){
       completedBytes => $4,
       sizeBytes => $5,
       downRate => $6,
-      percent => sprintf "%5.2f", 100 * $4/$5,
+      percent => sprintf("%5.2f", 100 * $4/$5),
+      magnetName => $magnetNames{lc $1},
     };
     $$t{name} = parsePythonStr $$t{name};
     $$t{dir} = parsePythonStr $$t{dir};
