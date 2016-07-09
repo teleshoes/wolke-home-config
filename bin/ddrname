@@ -10,7 +10,10 @@ my $EXIFTOOL_EXEC = "exiftool";
 my $PIX_EXEC = "pix";
 
 my $gnuplotDefaultPngSize = "1920,1080";
-my $stageGapSeconds = 5 * 60;
+
+#songs with mtimes within 5m, and at least 30s between, are the same course
+my $minStageGapSeconds = 30;
+my $maxStageGapSeconds = 5 * 60;
 
 my @DEFAULT_BUCKET_FIELDS = qw(song game difficulty);
 
@@ -792,9 +795,12 @@ sub courseStats($@){
       my $stageNumDiff = $stageNum - $lastStageNum;
       my $mtimeDiff = $mtime - $lastMtime;
 
+      my $minMtimeDiff = $minStageGapSeconds*$stageNumDiff;
+      my $maxMtimeDiff = $maxStageGapSeconds*$stageNumDiff;
+
       if($stageNumDiff <= 0){
         $isNewCourse = 1;
-      }elsif($mtimeDiff > $stageGapSeconds*$stageNumDiff){
+      }elsif($mtimeDiff < $minMtimeDiff or $mtimeDiff > $maxMtimeDiff){
         $isNewCourse = 1;
       }
     }
