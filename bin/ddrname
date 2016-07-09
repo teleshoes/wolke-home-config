@@ -23,6 +23,7 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 my @okFilters = qw(
   --song --hard --nothard
   --singles --doubles --nonstop --nonstopdoubles
+  --sn2 --2013 --a
   --score --minscore --maxscore --monotonic --increasing --records
   --date --mindate
   --maxdate
@@ -295,6 +296,14 @@ my $usage = "Usage:
       --nonstopdoubles
         include only scores where GAME is nonstopdoubles
         {overrides --singles and --doubles}
+
+    FILTER: MACHINE
+      --sn2
+        include only scores where MACHINE is sn2
+      --2013
+        include only scores where MACHINE is 2013
+      --a
+        include only scores where MACHINE is a
 
     FILTER: SCORE
       --score N, --minscore N
@@ -935,6 +944,12 @@ sub parseFilterOptions($){
       $$filters{game} = {doubles => 0, nonstop => 1, nonstopdoubles => 0, "" => 0};
     }elsif($opt =~ /^(--nonstopdoubles)$/){
       $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 1, "" => 0};
+    }elsif($opt =~ /^(--sn2)$/){
+      $$filters{machine} = {sn2 => 1, 2013 => 0, a => 0};
+    }elsif($opt =~ /^(--2013)$/){
+      $$filters{machine} = {sn2 => 0, 2013 => 1, a => 0};
+    }elsif($opt =~ /^(--a)$/){
+      $$filters{machine} = {sn2 => 0, 2013 => 0, a => 1};
     }elsif($opt =~ /^(--score|--minscore)$/){
       die "$usage\ninvalid $opt: $arg\n" if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;
@@ -1282,6 +1297,13 @@ sub filterScores($$){
       my $game = $$s{game};
       $game = "" if not defined $game;
       if(defined $$f{$game} and not $$f{$game}){
+        $ok = 0;
+      }
+    }
+    if(defined $$filters{machine}){
+      my $f = $$filters{machine};
+      my $machine = $$s{machine};
+      if(defined $$f{$machine} and not $$f{$machine}){
         $ok = 0;
       }
     }
