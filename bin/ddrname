@@ -173,6 +173,10 @@ my %difficultyAbbrevs = (
   challenge => 'cha',
 );
 
+my @machineArgs = qw(sn2 2013 a);
+my $defaultMachineArg = "sn2";
+my $okMachineArgs = join '|', @machineArgs;
+
 my @stageArgs = qw(1st 2nd 3rd 4extra 4nonstop);
 my $okStageArgs = join '|', @stageArgs;
 
@@ -418,7 +422,7 @@ my $usage = "Usage:
   $0 JPG_FILE [ARG ARG ..]
 
     rename a jpeg file using a consistent format
-    \"########_###_SONG_GAME_DIFFICULTY_SCORE_EXTRA_BAR_STAGE.jpg\"
+    \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_EXTRA_BAR_STAGE.jpg\"
     ######## is presumably a date in YYYYMMDD and ### is the camera pic index
 
      JPG_FILE
@@ -426,9 +430,10 @@ my $usage = "Usage:
        must start with '########_###' and end with '.jpg'
 
      ARG
-       one of [SONG|GAME|DIFFICULTY|SCORE|STAGE|BAR|EXTRA]
+       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|EXTRA]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
+       exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
        exactly zero or one EXTRA args can be given  {optional}
 
      SONG
@@ -443,6 +448,9 @@ my $usage = "Usage:
 
      DIFFICULTY
        one of [$okDifficultyArgs]
+
+     MACHINE
+       one of [$okMachineArgs]  {defaults to '$defaultMachineArg'}
 
      SCORE
        an integer between 100,000 and 1,000,000
@@ -992,6 +1000,7 @@ sub name(@){
   die $usage if not defined $file or not -f $file or not defined $info;
   die "missing SONG\n" if not defined $$info{song};
   die "missing DIFFICULTY\n" if not defined $$info{difficulty};
+  die "missing MACHINE\n" if not defined $$info{machine};
   die "missing SCORE\n" if not defined $$info{score};
   die "missing BAR\n" if not defined $$info{bar};
   die "missing STAGE\n" if not defined $$info{stage};
@@ -1050,6 +1059,7 @@ sub name(@){
   $newFileName .= "_$$info{song}";
   $newFileName .= "_$$info{game}" if defined $$info{game};
   $newFileName .= "_$$info{difficulty}";
+  $newFileName .= "_$$info{machine}";
   $newFileName .= "_$$info{score}";
   $newFileName .= "_$$info{extra}" if defined $$info{extra};
   $newFileName .= "_$$info{bar}";
@@ -1072,6 +1082,9 @@ sub parseArgs(@){
     }elsif($arg =~ /^($okDifficultyArgs)$/){
       return undef if defined $$info{difficulty};
       $$info{difficulty} = $arg;
+    }elsif($arg =~ /^($okMachineArgs)$/){
+      return undef if defined $$info{machine};
+      $$info{machine} = $arg;
     }elsif($arg =~ /^(\d,?){5,6}(\d)$/){
       warnMsg("score non-multiple-of-ten: $arg") if $2 != 0;
       my $score = $arg;
@@ -1092,6 +1105,9 @@ sub parseArgs(@){
       return undef;
     }
   }
+
+  $$info{machine} = $defaultMachineArg if not defined $$info{machine};
+
   return $info;
 }
 
@@ -1118,6 +1134,7 @@ sub parseScoreFile($){
     _(?<song>$okSongArgs)
     (?:_(?<game>$okGameArgs))?
     _(?<difficulty>$okDifficultyArgs)
+    _(?<machine>$okMachineArgs)
     _(?<score>\d+)
     (?:_(?<extra>$okExtraArgs))?
     _(?<bar>$okBarArgs)
@@ -1132,6 +1149,7 @@ sub parseScoreFile($){
     song       => $+{song},
     game       => $+{game},
     difficulty => $+{difficulty},
+    machine    => $+{machine},
     score      => $+{score},
     extra      => $+{extra},
     bar        => $+{bar},
@@ -1599,6 +1617,7 @@ sub bashComplete($$){
   @complete = (@songArgs, @complete) if not defined $$info{song};
   #@complete = (@gameArgs, @complete) if not defined $$info{game};
   @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
+  #@complete = (@machineArgs, @complete) if not defined $$info{machine};
   #@complete = (@extraArgs, @complete) if not defined $$info{extra};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
   @complete = (@stageArgs, @complete) if not defined $$info{stage};
