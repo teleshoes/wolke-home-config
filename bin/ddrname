@@ -160,7 +160,8 @@ my $okOtherSongs = join '|', @otherSongs;
 my @songArgs = sort {$a cmp $b} (@hardSongs, @otherSongs);
 my $okSongArgs = join '|', @songArgs;
 
-my @gameArgs = qw(doubles nonstop nonstopdoubles);
+my @gameArgs = qw(singles doubles nonstop nonstopdoubles);
+my $singlesGameArg = "singles";
 my $okGameArgs = join '|', @gameArgs;
 
 my @difficultyArgs = qw(beginner basic difficult expert challenge);
@@ -285,7 +286,7 @@ my $usage = "Usage:
 
     FILTER: GAME
       --singles
-        include only scores where GAME is not defined
+        include only scores where GAME is singles OR not defined
         {overrides --doubles and --nonstop and --nonstopdoubles}
       --doubles
         include only scores where GAME is doubles
@@ -639,7 +640,7 @@ sub dateStats($@){
     my $doublesCount = 0;
     my $total = @dateScores;
     for my $score(@dateScores){
-      if(defined $$score{game} and $$score{game} eq "doubles"){
+      if($$score{game} eq "doubles"){
         $doublesCount++;
       }elsif($isHardSong{$$score{song}}){
         $hardSinglesCount++;
@@ -679,7 +680,7 @@ sub dateStats($@){
       my $diffAbbrev = $difficultyAbbrevs{$difficulty};
       my $shortName = $songAbbrevs{$song};
       my $isDoubles = 0;
-      if(defined $game and $game eq "doubles"){
+      if($game eq "doubles"){
         $shortName .= "-DBL";
         $isDoubles = 1;
       }
@@ -823,7 +824,7 @@ sub courseStats($@){
       my $diffAbbrev = $difficultyAbbrevs{$difficulty};
       my $shortName = $songAbbrevs{$song};
       my $isDoubles = 0;
-      if(defined $game and $game eq "doubles"){
+      if($game eq "doubles"){
         $shortName .= "-DBL";
         $isDoubles = 1;
       }
@@ -937,13 +938,13 @@ sub parseFilterOptions($){
       my $regex = "^($okOtherSongs)\$";
       $$filters{songs} = {map {$_ => $_ =~ m/$regex/ ? 1 : 0} @songArgs};
     }elsif($opt =~ /^(--singles)$/){
-      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 0, "" => 1};
+      $$filters{game} = {singles => 1, doubles => 0, nonstop => 0, nonstopdoubles => 0};
     }elsif($opt =~ /^(--doubles)$/){
-      $$filters{game} = {doubles => 1, nonstop => 0, nonstopdoubles => 0, "" => 0};
+      $$filters{game} = {singles => 0, doubles => 1, nonstop => 0, nonstopdoubles => 0};
     }elsif($opt =~ /^(--nonstop)$/){
-      $$filters{game} = {doubles => 0, nonstop => 1, nonstopdoubles => 0, "" => 0};
+      $$filters{game} = {singles => 0, doubles => 0, nonstop => 1, nonstopdoubles => 0};
     }elsif($opt =~ /^(--nonstopdoubles)$/){
-      $$filters{game} = {doubles => 0, nonstop => 0, nonstopdoubles => 1, "" => 0};
+      $$filters{game} = {singles => 0, doubles => 0, nonstop => 0, nonstopdoubles => 1};
     }elsif($opt =~ /^(--sn2)$/){
       $$filters{machine} = {sn2 => 1, 2013 => 0, a => 0};
     }elsif($opt =~ /^(--2013)$/){
@@ -1014,6 +1015,7 @@ sub name(@){
   my $info = parseArgs @_;
   die $usage if not defined $file or not -f $file or not defined $info;
   die "missing SONG\n" if not defined $$info{song};
+  die "missing GAME\n" if not defined $$info{game};
   die "missing DIFFICULTY\n" if not defined $$info{difficulty};
   die "missing MACHINE\n" if not defined $$info{machine};
   die "missing SCORE\n" if not defined $$info{score};
@@ -1028,7 +1030,6 @@ sub name(@){
 
   my $orient = getImageOrientation $file;
   my $game = $$info{game};
-  $game = "singles" if not defined $game;
   if(not defined $orient){
     warnMsg("unknown orientation");
   }elsif($orient eq "landscape" and $game =~ /^(singles|nonstop)$/){
@@ -1072,7 +1073,7 @@ sub name(@){
   my $newFileName = '';
   $newFileName .= "$prefix";
   $newFileName .= "_$$info{song}";
-  $newFileName .= "_$$info{game}" if defined $$info{game};
+  $newFileName .= "_$$info{game}" if $$info{game} ne $singlesGameArg;
   $newFileName .= "_$$info{difficulty}";
   $newFileName .= "_$$info{machine}";
   $newFileName .= "_$$info{score}";
@@ -1121,6 +1122,7 @@ sub parseArgs(@){
     }
   }
 
+  $$info{game} = $singlesGameArg if not defined $$info{game};
   $$info{machine} = $defaultMachineArg if not defined $$info{machine};
 
   return $info;
@@ -1157,7 +1159,7 @@ sub parseScoreFile($){
     \.jpg$/x){
     die "malformed file name: $file\n";
   }
-  return {
+  my $info = {
     file       => $file,
     date       => $+{date},
     index      => $+{index},
@@ -1170,16 +1172,16 @@ sub parseScoreFile($){
     bar        => $+{bar},
     stage      => $+{stage},
   };
+  $$info{game} = $singlesGameArg if not defined $$info{game} or $$info{game} eq "";
+  return $info;
 }
 
 sub sortScores($){
   my $scores = shift;
   return [sort {
-    my $aGame = defined $$a{game} ? $$a{game} : "";
-    my $bGame = defined $$b{game} ? $$b{game} : "";
     $$a{date} <=> $$b{date}
     ||
-    $aGame cmp $bGame
+    $$a{game} cmp $$b{game}
     ||
     $$a{song} cmp $$b{song}
     ||
@@ -1200,6 +1202,9 @@ sub getBucketName($$@){
       }elsif($bucketField eq "difficulty"){
         $val = $difficultyAbbrevs{$val} if defined $difficultyAbbrevs{$val};
       }
+    }
+    if($bucketField eq "game" and $val eq $singlesGameArg){
+      $val = undef;
     }
     push @bucketFieldVals, $val;
   }
@@ -1295,7 +1300,6 @@ sub filterScores($$){
     if(defined $$filters{game}){
       my $f = $$filters{game};
       my $game = $$s{game};
-      $game = "" if not defined $game;
       if(defined $$f{$game} and not $$f{$game}){
         $ok = 0;
       }
