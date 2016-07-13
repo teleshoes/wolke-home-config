@@ -536,12 +536,27 @@ sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
 sub mtime($);
+sub checkUnique(@);
 sub getImageOrientation($);
 sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
 
 sub main(@){
+  #allow abbrevs to be the same as the full song name (e.g.: chaos)
+  my @uniqSongAbbrevs = sort values %songAbbrevs;
+  @uniqSongAbbrevs = grep {not defined $songAbbrevs{$_}} @uniqSongAbbrevs;
+  checkUnique(
+    @okFilters,
+    @okFormatOptDates, @okFormatOptCourses, @okFormatOptSongs, @okPlotOptions,
+
+    @songArgs, @gameArgs, @difficultyArgs,
+    @machineArgs, @stageArgs, @barArgs, @extraArgs,
+    @uniqSongAbbrevs,
+    (sort values %gameAbbrevs),
+    (sort values %difficultyAbbrevs),
+  );
+
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
@@ -1566,6 +1581,22 @@ sub getImageOrientation($){
     return "portrait";
   }else{
     return "landscape";
+  }
+}
+
+sub checkUnique(@){
+  my %uniqCI;
+  my %uniqCS;
+  for my $s(@_){
+    if(defined $uniqCI{lc $s}){
+      if(not defined $uniqCS{$s}){
+        die "FATAL: case-insensitive duplicate allowed arg: $s\n";
+      }else{
+        die "FATAL: duplicate allowed arg: $s\n";
+      }
+    }
+    $uniqCI{lc $s} = 1;
+    $uniqCS{$s} = 1;
   }
 }
 
