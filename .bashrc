@@ -188,7 +188,7 @@ function grepesh      { command grep "$@" \
 
 function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
-function migl         { gvim `~/migs/latest-script` "$@"; }
+function migl         { vim `~/migs/latest-script` "$@"; }
 
 function first        { ls "$@" | head -1; }
 function last         { ls "$@" | tail -1; }

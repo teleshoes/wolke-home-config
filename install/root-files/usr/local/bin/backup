@@ -422,11 +422,18 @@ sub makeSnapshot($$){
   my $parentDir = "$subvolContainer/$prefix";
   run "mkdir", "-p", "$mountPoint/$parentDir";
 
-  my $snapshot = "$parentDir/${prefix}_${dateTime}_${millis}";
+  my $snapshotName = "${prefix}_${dateTime}_${millis}";
+
+  my $snapshot = "$parentDir/$snapshotName";
   my $snapshotDir = "$mountPoint/$snapshot";
 
   die "$snapshotDir already exists!\n" if -e $snapshotDir;
   run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
+
+  my $latestSymlink = "$mountPoint/$parentDir/latest";
+
+  run "rm", "-f", $latestSymlink;
+  run "ln", "-s", $snapshotName, $latestSymlink;
 
   if($snapshot ne getLastSnapshot $mountPoint, $prefix, undef){
     die "snapshot failed\n";
