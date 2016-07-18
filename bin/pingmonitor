@@ -1,0 +1,163 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub attemptPing($);
+sub msg($);
+sub ping($);
+sub resolveServer($);
+sub dns($);
+
+my $DEFAULT_SERVER = "www.yahoo.com";
+my $DNS_REFRESH_MILLIS = 5 * 60 * 1000;
+my $DEFAULT_WAIT_MILLIS = 5 * 1000;
+my $TREND_COUNT = 5;
+
+sub main(@){
+  my $host = shift;
+  $host = $DEFAULT_SERVER if not defined $host;
+  die "Usage: $0 [HOSTNAME]\n" if @_ > 0 or $host =~ /^-/;
+
+  my $server = {};
+  if($host =~ /^(\d+\.\d+\.\d+\.\d+)$/){
+    $$server{ip} = $host;
+  }else{
+    $$server{host} = $host;
+  }
+
+  {
+    my $fh = select STDOUT;
+    $| = 1;
+    select $fh;
+  }
+
+  my $trendSuccess = 0;
+  my $trendFailure = 0;
+  my $lastOk = undef;
+  my $msgPrinted;
+  while(1){
+    my $ping = attemptPing $server;
+    my $ok = $$ping{ok};
+    my $msg = $$ping{message};
+    $msgPrinted = 0;
+
+    if($trendSuccess < $TREND_COUNT and $trendFailure < $TREND_COUNT){
+      if(not defined $lastOk or $ok != $lastOk){
+        msg $msg;
+        $msgPrinted = 1;
+      }
+    }
+
+    if($ok){
+      $trendSuccess++;
+
+      if($trendSuccess >= $TREND_COUNT){
+        $trendFailure = 0;
+      }
+      if($trendSuccess == $TREND_COUNT){
+        msg $msg . "\nsucceeded $TREND_COUNT times";
+        $msgPrinted = 1;
+        system "alarm -s success";
+      }
+    }else{
+      $trendFailure++;
+
+      if($trendFailure >= $TREND_COUNT){
+        $trendSuccess = 0;
+      }
+      if($trendFailure == $TREND_COUNT){
+        msg $msg . "\nfailed $TREND_COUNT times";
+        $msgPrinted = 1;
+        system "alarm -s failure";
+      }
+    }
+
+    if(not $msgPrinted){
+      if($ok){
+        print "o";
+      }else{
+        print "x";
+      }
+    }
+    $lastOk = $ok;
+    sleep ($DEFAULT_WAIT_MILLIS/1000);
+  }
+}
+
+sub attemptPing($){
+  my $server = shift;
+
+  my $oldIp = $$server{ip};
+  resolveServer $server;
+
+  my $ok = 1;
+  my $msg = "";
+
+  my $newIp = $$server{ip};
+  if(not defined $newIp){
+    $ok = 0;
+    $msg .= "could not resolve $$server{host}\n";
+  }elsif(not defined $oldIp){
+    $msg .= "resolved $$server{host} => $newIp\n";
+  }elsif($newIp ne $oldIp){
+    $msg .= "ip changed $oldIp => $newIp\n";
+  }
+
+  if(not defined $$server{ip}){
+    $ok = 0;
+  }else{
+    my $pingOk = ping $$server{ip};
+    if($pingOk){
+      $msg .= "successful ping of $$server{ip}\n";
+    }else{
+      $ok = 0;
+      $msg .= "could not ping $$server{ip}\n";
+    }
+  }
+
+  return {ok=>$ok, message=>$msg};
+}
+
+sub msg($){
+  my $msg = shift;
+  print "\n";
+  system "date";
+  chomp $msg;
+  print "$msg\n";
+}
+
+sub ping($){
+  my $ip = shift;
+  system "ping -W 1 -c 1 $ip >/dev/null 2>/dev/null";
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub resolveServer($){
+  my $server = shift;
+  if(defined $$server{host}){
+    if(defined $$server{ip}){
+      if(time - $$server{lastResolved} > $DNS_REFRESH_MILLIS/1000){
+        $$server{ip} = undef;
+      }
+    }
+    if(not defined $$server{ip}){
+      $$server{ip} = dns $$server{host};
+      $$server{lastResolved} = time;
+    }
+  }
+}
+
+sub dns($){
+  my $name = shift;
+  my $lookup = `host -W 1 '$name'`;
+  if($lookup =~ /^\S+ has address (\d+\.\d+\.\d+\.\d+)$/m){
+    return $1;
+  }
+  return undef;
+}
+
+&main(@ARGV);
