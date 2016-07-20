@@ -1,0 +1,201 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::Unidecode;
+
+my $BASE_URL = "https://zenius-i-vanisher.com";
+my $API_URL = "$BASE_URL/v5.2";
+my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-zenius";
+my $DDRA_GAME_ID = 2979;
+my $DDRSN2_GAME_ID = 89;
+
+my %customSongNameIds = (
+  11   => "la-bamba-lh-music-creation",           #la-bamba (dupe)
+  303  => "la-bamba-mexican-folk-song",           #la-bamba (dupe)
+  852  => "raspberry-heart",                      #raspberry-heart-heart-english-version
+  1091 => "sunkiss-drop",                         #sunkiss-heart-drop
+  1104 => "l-amour-et-la-liberte-darwindjsilver", #l-amour-et-la-liberte-darwin-and-dj-silver-remix
+  1446 => "aa-djamuro",                           #aa
+  1550 => "a-renaissance",                        #a
+);
+
+sub parseSong($);
+sub fetchAllSongIds();
+sub fetchGameHtml($);
+sub fetchSongHtml($);
+sub fetchSongBanner($);
+sub ensureSongBanners($);
+sub extractNameId($);
+
+sub main(@){
+  my @songIds = fetchAllSongIds();
+  my $sepLen = 60;
+  for my $songId(@songIds){
+    my $song = parseSong $songId;
+    ensureSongBanners $song;
+  }
+}
+
+sub parseSong($){
+  my $songId = shift;
+  my $html = fetchSongHtml $songId;
+
+  my $song = {};
+
+  if($html =~ /<tr><td><strong>Song Name<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{name} = $1;
+    $$song{nameNative} = $2;
+  }
+  if($html =~ /<tr><td><strong>Song Artist<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{artist} = $1;
+    $$song{artistNative} = $2;
+  }
+  if($html =~ /<tr><td><strong>Song Genre<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{genre} = $1;
+    $$song{genreNative} = $2;
+  }
+
+  for my $key(qw(name nameNative artist artistNative genre genreNative)){
+    my $val = $$song{$key};
+    $val = '' if not defined $val;
+    $val =~ s/<[^>]*>//g;
+    $val =~ s/^\s+//;
+    $val =~ s/\s+$//;
+    $val =~ s/^\((.*)\)$/$1/;
+    $val =~ s/^none$//;
+    $val =~ s/&lt;/</g;
+    $val =~ s/&gt;/>/g;
+    $val =~ s/&apos;/'/g;
+    $val =~ s/&quot;/"/g;
+    $val =~ s/&amp;/&/g;
+    $$song{$key} = $val;
+  }
+
+  if(defined $customSongNameIds{$songId}){
+    $$song{nameId} = $customSongNameIds{$songId};
+  }else{
+    $$song{nameId} = extractNameId $$song{name};
+  }
+
+  if($$song{nameId} !~ /^[a-zA-Z0-9\-]+$/){
+    die "could not find song name for songid=$songId\n";
+  }
+
+  $$song{banners} = [];
+  my @imgs = $html =~ /<img\s+[^<>]*src=['"]\/images\/songs\/\d+\.png['"][^<>]*>/g;
+  for my $img(@imgs){
+    my $bannerId = $1 if $img =~ /src=['"]\/images\/songs\/(\d+)\.png['"]/;
+    my $bannerGame = $1 if $img =~ /alt=['"]([^'"]+)['"]/;
+    die "banner malformed in $img\n" if not defined $bannerId;
+    push @{$$song{banners}}, [$bannerId, $bannerGame];
+  }
+
+  return $song;
+}
+
+sub fetchAllSongIds(){
+  my @allSongIds;
+  for my $gameId(($DDRA_GAME_ID, $DDRSN2_GAME_ID)){
+    my $html = fetchGameHtml $gameId;
+    my @gameSongIds = $html =~ /['"]songdb\.php\?songid=(\d+)['"]/g;
+    @allSongIds = (@allSongIds, @gameSongIds);
+  }
+  my @uniqSongIds;
+  my %foundSongIds;
+  for my $songId(@allSongIds){
+    push @uniqSongIds, $songId if not defined $foundSongIds{$songId};
+    $foundSongIds{$songId} = 1;
+  }
+  return @uniqSongIds;
+}
+
+sub fetchGameHtml($){
+  my $gameId = shift;
+  my $dir = "$CACHE_DIR/games";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$gameId.html";
+  if(not -f $file){
+    system "wget $API_URL/gamedb.php?gameid=$gameId -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch gameid=$gameId\n";
+  }
+  return `cat $file`;
+}
+
+sub fetchSongHtml($){
+  my $songId = shift;
+  my $dir = "$CACHE_DIR/songs";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$songId.html";
+  if(not -f $file){
+    system "wget $API_URL/songdb.php?songid=$songId -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch songid=$songId\n";
+  }
+  return `cat $file`;
+}
+
+sub fetchSongBanner($){
+  my $bannerId = shift;
+  my $dir = "$CACHE_DIR/banners";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$bannerId.png";
+  if(not -f $file){
+    system "wget $BASE_URL/images/songs/$bannerId.png -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch bannerid=$bannerId\n";
+  }
+  return $file;
+}
+
+sub ensureSongBanners($){
+  my $song = shift;
+  for my $banner(@{$$song{banners}}){
+    my $bannerId = $$banner[0];
+    fetchSongBanner $bannerId;
+  }
+}
+
+sub extractNameId($){
+  my $name = shift;
+  my $nameId = $name;
+
+  #unicode special chars
+  utf8::decode $nameId;
+  $nameId =~ s/\x{2605}/ star /g;
+  $nameId =~ s/\x{2665}/ heart /g;
+
+  #all other unicode
+  $nameId = unidecode $nameId;
+
+  #special chars
+  $nameId =~ s/&/ and /g;
+  $nameId =~ s/(\w)'([a-zA-Z])(\s)/${1}${2}${3}/;
+
+  #A.B.B.R.E.V. => ABBREV
+  my @abbrevs = $nameId =~ /(?:^|\W)((?:[A-Z]\.)+)(?:$|\W)/g;
+  for my $abbrev(@abbrevs){
+    my $abbrevNoDots = $abbrev;
+    $abbrevNoDots =~ s/\.//g;
+    $nameId =~ s/$abbrev/$abbrevNoDots/g;
+  }
+
+  #lowercase
+  $nameId = lc $nameId;
+
+  #strip out non-word chars
+  $nameId =~ s/\W+/_/g;
+  $nameId =~ s/__+/_/g;
+  $nameId =~ s/^_//g;
+  $nameId =~ s/_$//g;
+
+  #use hyphen as sep instead of underscore
+  $nameId =~ s/_/-/g;
+
+  return $nameId;
+}
+
+&main(@ARGV);
