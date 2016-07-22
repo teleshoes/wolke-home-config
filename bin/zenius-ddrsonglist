@@ -30,6 +30,7 @@ sub fetchGameHtml($);
 sub fetchSongHtml($);
 sub fetchSongBanner($);
 sub ensureSongBanners($);
+sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
 
 sub main(@){
@@ -217,6 +218,39 @@ sub ensureSongBanners($){
     my $bannerId = $$banner[0];
     fetchSongBanner $bannerId;
   }
+}
+
+sub getAvgDDRAToSN2Ratios(){
+  my $gameInfoDDRA = parseGame $$GAME_IDS{DDRA};
+  my $gameInfoSN2 = parseGame $$GAME_IDS{SN2};
+  my $ratios = {};
+  for my $songId(fetchAllSongIds()){
+    my $gDDRA = $$gameInfoDDRA{$songId};
+    my $gSN2 = $$gameInfoSN2{$songId};
+    if(defined $gSN2 and defined $gDDRA){
+      for my $key(grep {/^diff/} keys %$gDDRA){
+        my $dDDRA = $$gDDRA{$key};
+        my $dSN2 = $$gSN2{$key};
+        if($dSN2 =~ /^\d+$/ and $dDDRA =~ /^\d+$/){
+          $$ratios{$key} = [] if not defined $$ratios{$key};
+          push @{$$ratios{$key}}, $dDDRA/$dSN2;
+        }
+      }
+    }
+  }
+
+  my $meanRatios = {};
+  for my $key(sort keys %$ratios){
+    my $total = 0;
+    my @vals = @{$$ratios{$key}};
+    for my $val(@vals){
+      $total += $val;
+    }
+    my $mean = sprintf "%5.3f", $total/@vals;
+    $$meanRatios{$key} = $mean;
+  }
+
+  return $meanRatios;
 }
 
 sub extractNameId($){
