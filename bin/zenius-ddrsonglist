@@ -23,6 +23,7 @@ my %customSongNameIds = (
   1550 => "a-renaissance",                        #a
 );
 
+sub parseGame($);
 sub parseSong($);
 sub fetchAllSongIds();
 sub fetchGameHtml($);
@@ -38,6 +39,61 @@ sub main(@){
     my $song = parseSong $songId;
     ensureSongBanners $song;
   }
+}
+
+sub parseGame($){
+  my $gameId = shift;
+  my $html = fetchGameHtml $gameId;
+
+  my $songs = {};
+
+  my @songTrs = $html =~ /^\s*<tr[^>]*>\s*<td[^>]*><a href="songdb\.php\?songid=\d+">.*<\/tr>\s*$/mg;
+  my $t = '(?:<[^<]*>)?';
+  for my $songTr(@songTrs){
+    if($songTr =~ m/
+      \s* <tr [^>]*>
+      \s*   <td>
+      \s*     <a [^>]* href="songdb\.php\?songid=(?<songId>\d+)" [^>]* >
+      \s*       (?<name>[^<]+)
+      \s*     <\/a>
+      \s*   <\/td>
+      \s*   <td[^>]*>  (?<artist>[^<]*)  <\/td>
+      \s*   (?: <td[^>]*>  (?<genre>.*)  <\/td> )?
+      \s*   <td                                   [^>]* > \s* (?<bpm>[0-9\-]+)     \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*lightblue[^"]*" [^>]* > \s* $t (?<sBeg>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*yellow[^"]*"    [^>]* > \s* $t (?<sBas>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*fuchsia[^"]*"   [^>]* > \s* $t (?<sDif>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*green[^"]*"     [^>]* > \s* $t (?<sExp>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*purple[^"]*"    [^>]* > \s* $t (?<sCha>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*yellow[^"]*"    [^>]* > \s* $t (?<dBas>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*fuchsia[^"]*"   [^>]* > \s* $t (?<dDif>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*green[^"]*"     [^>]* > \s* $t (?<dExp>\d+|-) $t \s*  <\/td>
+      \s*   <td [^>]* class="[^"]*purple[^"]*"    [^>]* > \s* $t (?<dCha>\d+|-) $t \s*  <\/td>
+      \s* <\/tr>
+    /x){
+      my $songInfo = {
+        "songId"                 => $+{songId},
+        "name"                   => $+{name},
+        "artist"                 => $+{artist},
+        "genre"                  => $+{songGenre},
+        "bpm"                    => $+{bpm},
+        "diff-singles-beginner"  => $+{sBeg},
+        "diff-singles-basic"     => $+{sBas},
+        "diff-singles-difficult" => $+{sDif},
+        "diff-singles-expert"    => $+{sExp},
+        "diff-singles-challenge" => $+{sCha},
+        "diff-doubles-basic"     => $+{dBas},
+        "diff-doubles-difficult" => $+{dDif},
+        "diff-doubles-expert"    => $+{dExp},
+        "diff-doubles-challenge" => $+{dCha},
+      };
+      $$songInfo{genre} = "" if not defined $$songInfo{genre};
+      $$songs{$$songInfo{songId}} = $songInfo;
+    }else{
+      die "malformed song <tr/>: $songTr\n";
+    }
+  }
+  return $songs;
 }
 
 sub parseSong($){
