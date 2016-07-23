@@ -13,6 +13,7 @@ my $GAME_IDS = {
   2013 => 1129,
   X    => 148,
 };
+my $ABBREV_LEN = 7;
 
 my $songNameIdOverrides = [
   #duplicate name IDs
@@ -94,6 +95,8 @@ sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
+sub abbrevNameId($$);
+sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
 sub htmlGetAllTables($);
 
@@ -107,6 +110,8 @@ sub main(@){
     ensureSongBanners $song;
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
+
+    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId};
   }
 }
 
@@ -394,6 +399,33 @@ sub extractNameId($){
   $nameId =~ s/_/-/g;
 
   return $nameId;
+}
+
+sub abbrevNameId($$){
+  my ($len, $nameId) = @_;
+
+  my @words = split /-/, $nameId;
+
+  my $abbrev = abbrevWords $len, @words;
+
+  $abbrev = substr $abbrev, 0, $len;
+
+  return $abbrev;
+}
+sub abbrevWords($@){
+  my ($len, @words) = @_;
+
+  my $abbrev = "";
+  for(my $i=0; $i<@words; $i++){
+    my $remLen = $len - length $abbrev;
+    my $remWords = @words - $i;
+    my $target = int($remLen / $remWords + 0.5);
+
+    my $word = $words[$i];
+    $abbrev .= substr $word, 0, $target;
+  }
+
+  return $abbrev;
 }
 
 sub calculateSongDifficulties($$$){
