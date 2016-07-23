@@ -95,7 +95,7 @@ sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
-sub abbrevNameId($$$);
+sub abbrevNameId($$$$);
 sub trimVowels($);
 sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
@@ -112,7 +112,7 @@ sub main(@){
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
 
-    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist};
+    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist}, $$song{genre};
 
     printf "%-40s  %${ABBREV_LEN}s  %3s %3s %3s %3s %3s    %3s %3s %3s %3s\n",
       $$song{nameId},
@@ -408,8 +408,8 @@ sub extractNameId($){
   return $nameId;
 }
 
-sub abbrevNameId($$$){
-  my ($len, $nameId, $artist) = @_;
+sub abbrevNameId($$$$){
+  my ($len, $nameId, $artist, $genre) = @_;
 
   my @words = split /-/, $nameId;
 
@@ -457,6 +457,22 @@ sub abbrevNameId($$$){
       $artistAbbrev = abbrevWords $remLen, @artistWords;
     }
     $abbrev .= $artistAbbrev;
+  }
+
+  #if abbrev is STILL too short, append a genre abbrev
+  if(length $abbrev < $len){
+    $genre = extractNameId $genre;
+    my @genreWords = split /-/, $genre;
+    @genreWords = map {ucfirst $_} @genreWords;
+    my @genreShortWords = map {trimVowels $_} @genreWords;
+
+    my $remLen = $len - length $abbrev;
+
+    my $genreAbbrev = abbrevWords $remLen, @genreShortWords;
+    if(length $genreAbbrev < $remLen){
+      $genreAbbrev = abbrevWords $remLen, @genreWords;
+    }
+    $abbrev .= $genreAbbrev;
   }
 
   $abbrev = substr $abbrev, 0, $len;
