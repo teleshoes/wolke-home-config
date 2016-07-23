@@ -94,14 +94,20 @@ sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
+sub calculateSongDifficulties($$$);
 sub htmlGetAllTables($);
 
 sub main(@){
   my @songIds = fetchAllSongIds();
   my $sepLen = 60;
+  my $ddraSn2Ratios = getAvgDDRAToSN2Ratios();
+  my $allGameInfo = parseAllGames();
+
   for my $songId(@songIds){
     my $song = parseSong $songId;
     ensureSongBanners $song;
+
+    my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
   }
 }
 
@@ -389,6 +395,40 @@ sub extractNameId($){
   $nameId =~ s/_/-/g;
 
   return $nameId;
+}
+
+sub calculateSongDifficulties($$$){
+  my ($songId, $allGameInfo, $ddraSn2Ratios) = @_;
+
+  my $gameInfo;
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{DDRA}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{2013}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{X}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{SN2}{$songId};
+
+    if(defined $gameInfo){
+      for my $difficulty(@difficulties){
+        my $val = $$gameInfo{$difficulty};
+        if($val =~ /^\d+$/){
+          $val = int(0.5 + ($val * $$ddraSn2Ratios{$difficulty}));
+        }
+        $$gameInfo{$difficulty} = $val;
+      }
+    }
+  }
+
+  if(not defined $gameInfo){
+    die "ERROR: Could not find any game for $songId\n";
+  }
+
+  return $gameInfo;
 }
 
 sub htmlGetAllTables($){
