@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Text::Unidecode;
+use HTML::TableExtract;
 
 my $BASE_URL = "https://zenius-i-vanisher.com";
 my $API_URL = "$BASE_URL/v5.2";
@@ -54,6 +55,7 @@ sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
+sub htmlGetAllTables($);
 
 sub main(@){
   my @songIds = fetchAllSongIds();
@@ -70,50 +72,62 @@ sub parseGame($){
 
   my $songs = {};
 
-  my @songTrs = $html =~ /^\s*<tr[^>]*>\s*<td[^>]*><a href="songdb\.php\?songid=\d+">.*<\/tr>\s*$/mg;
-  my $t = '(?:<[^<]*>)?';
-  for my $songTr(@songTrs){
-    if($songTr =~ m/
-      \s* <tr [^>]*>
-      \s*   <td>
-      \s*     <a [^>]* href="songdb\.php\?songid=(?<songId>\d+)" [^>]* >
-      \s*       (?<name>[^<]+)
-      \s*     <\/a>
-      \s*   <\/td>
-      \s*   <td[^>]*>  (?<artist>[^<]*)  <\/td>
-      \s*   (?: <td[^>]*>  (?<genre>.*)  <\/td> )?
-      \s*   <td                                   [^>]* > \s* (?<bpm>[0-9\-]+)     \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*lightblue[^"]*" [^>]* > \s* $t (?<sBeg>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*yellow[^"]*"    [^>]* > \s* $t (?<sBas>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*fuchsia[^"]*"   [^>]* > \s* $t (?<sDif>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*green[^"]*"     [^>]* > \s* $t (?<sExp>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*purple[^"]*"    [^>]* > \s* $t (?<sCha>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*yellow[^"]*"    [^>]* > \s* $t (?<dBas>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*fuchsia[^"]*"   [^>]* > \s* $t (?<dDif>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*green[^"]*"     [^>]* > \s* $t (?<dExp>\d+|-) $t \s*  <\/td>
-      \s*   <td [^>]* class="[^"]*purple[^"]*"    [^>]* > \s* $t (?<dCha>\d+|-) $t \s*  <\/td>
-      \s* <\/tr>
-    /x){
-      my $songInfo = {
-        "songId"                 => $+{songId},
-        "name"                   => $+{name},
-        "artist"                 => $+{artist},
-        "genre"                  => $+{songGenre},
-        "bpm"                    => $+{bpm},
-        "diff-singles-beginner"  => $+{sBeg},
-        "diff-singles-basic"     => $+{sBas},
-        "diff-singles-difficult" => $+{sDif},
-        "diff-singles-expert"    => $+{sExp},
-        "diff-singles-challenge" => $+{sCha},
-        "diff-doubles-basic"     => $+{dBas},
-        "diff-doubles-difficult" => $+{dDif},
-        "diff-doubles-expert"    => $+{dExp},
-        "diff-doubles-challenge" => $+{dCha},
-      };
-      $$songInfo{genre} = "" if not defined $$songInfo{genre};
-      $$songs{$$songInfo{songId}} = $songInfo;
+  my @songRows;
+  for my $table(htmlGetAllTables($html)){
+    for my $row(@$table){
+      if(@$row == 13 and defined $$row[0] and $$row[0] =~ /songdb\.php\?songid=\d+/){
+        push @songRows, $row;
+      }
+    }
+  }
+
+  for my $row(@songRows){
+    my $col=0;
+    my $songInfo = {
+      "nameHtml"               => $$row[$col++],
+      "artistHtml"             => $$row[$col++],
+      "genreHtml"              => $$row[$col++],
+      "bpm"                    => $$row[$col++],
+      "diff-singles-beginner"  => $$row[$col++],
+      "diff-singles-basic"     => $$row[$col++],
+      "diff-singles-difficult" => $$row[$col++],
+      "diff-singles-expert"    => $$row[$col++],
+      "diff-singles-challenge" => $$row[$col++],
+      "diff-doubles-basic"     => $$row[$col++],
+      "diff-doubles-difficult" => $$row[$col++],
+      "diff-doubles-expert"    => $$row[$col++],
+      "diff-doubles-challenge" => $$row[$col++],
+    };
+
+    if($$songInfo{nameHtml} =~ m/<a\s+href=\"songdb\.php\?songid=(\d+)\">(.+)<\/a>/s){
+      my ($songId, $name) = ($1, $2);
+      $name =~ s/<[^>]*>//g;
+      $$songInfo{name} = $name;
+      $$songInfo{songId} = $songId;
     }else{
-      die "malformed song <tr/>: $songTr\n";
+      die "invalid song row=\"@$row\"\n";
+    }
+
+    my $artist = $$songInfo{artistHtml};
+    $artist =~ s/<[^>]*>//g;
+    $$songInfo{artist} = $artist;
+
+    my $genre = $$songInfo{genreHtml};
+    $genre = "" if not defined $genre;
+    $genre =~ s/<[^>]*>//g;
+    $$songInfo{genre} = $genre;
+
+    $$songs{$$songInfo{songId}} = $songInfo;
+
+    for my $difficulty(@difficulties){
+      my $d = $$songInfo{$difficulty};
+      $d = "" if not defined $d;
+      $d =~ s/<[^>]*>//g;
+
+      if($d !~ /^(\d+|-)$/){
+        die "malformed difficulty $difficulty=\"$d\" for row=\"@$row\"\n";
+      }
+      $$songInfo{$difficulty} = $d;
     }
   }
 
@@ -327,6 +341,19 @@ sub extractNameId($){
   $nameId =~ s/_/-/g;
 
   return $nameId;
+}
+
+sub htmlGetAllTables($){
+  my $html = shift;
+
+  my $htmlTE = HTML::TableExtract->new(keep_html=>1);
+  $htmlTE->parse($html);
+
+  my @tables;
+  for my $table ($htmlTE->tables) {
+    push @tables, [$table->rows];
+  }
+  return @tables;
 }
 
 &main(@ARGV);
