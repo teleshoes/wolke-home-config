@@ -96,6 +96,7 @@ sub ensureSongBanners($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
 sub abbrevNameId($$);
+sub trimVowels($);
 sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
 sub htmlGetAllTables($);
@@ -412,11 +413,28 @@ sub abbrevNameId($$){
 
   my @words = split /-/, $nameId;
 
-  my $abbrev = abbrevWords $len, @words;
+  #remove vowels from words, except the first letter if its a vowel
+  my @shortWords = map {trimVowels $_} @words;
+
+  #try abbrev without vowels
+  my $abbrev = abbrevWords $len, @shortWords;
+
+  #if abbrev is too short, add the vowels back
+  if(length $abbrev < $len){
+    $abbrev = abbrevWords $len, @words;
+  }
 
   $abbrev = substr $abbrev, 0, $len;
 
   return $abbrev;
+}
+sub trimVowels($){
+  my ($s) = @_;
+  my $first = substr $s, 0, 1;
+  my $rest = substr $s, 1;
+  $rest =~ s/[aeiou]//g;
+
+  return $first . $rest;
 }
 sub abbrevWords($@){
   my ($len, @words) = @_;
