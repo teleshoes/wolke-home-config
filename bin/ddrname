@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+my $SONG_LIST_FILE = "$ENV{HOME}/.config/ddrname-songlist";
+
 my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
 
@@ -60,6 +62,7 @@ my $argOptPlotOptionsRegex = join "|", qw( --file --size );
 # DDRA-style 1-20 scale
 my $HARD_SONG_FEET = 14;
 
+sub readSongList();
 sub fehterm($@);
 sub orientation($@);
 sub dateStats($@);
@@ -91,118 +94,7 @@ sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
 
-my @songArr = (
-  ['321stars'                             => '321strs' => [qw(  4   5   9  11   -      4   7  11   -)]],
-  ['a-renaissance'                        => 'aRnssnc' => [qw(  4   5   8  11  12      4   7  12  13)]],
-  ['a-stupid-barber'                      => 'aStpBrb' => [qw(  3   4   8   9   -      4   8   9   -)]],
-  ['aa-djamuro'                           => 'aaDjamu' => [qw(  3   5   9  13   -      5  10  13   -)]],
-  ['am-3p-303-bass-mix'                   => 'a3p3BsM' => [qw(  4   4   9  10   -      5   8  10   -)]],
-  ['am-3p-chaos-special'                  => 'am3pChS' => [qw(  -   -   -   -  14      -   -   -  13)]],
-  ['arrabbiata'                           => 'arrabbi' => [qw(  5  11  13  15   -     12  14  16   -)]],
-  ['b4u'                                  => 'b4uNaok' => [qw(  3   5   7  10   -      5   8  10   -)]],
-  ['b4u-voltage-special'                  => 'b4VltSp' => [qw(  -   -   -   -  14      -   -   -  15)]],
-  ['bag'                                  => 'bagRvng' => [qw(  2   7  11  13  13      7  12  13  13)]],
-  ['be-lovin'                             => 'beLovin' => [qw(  4   5   9  12   -      5  10  12   -)]],
-  ['blind-justice-torn-souls-hurt-faiths' => 'bJTSHrF' => [qw(  3   5   8  12   -      5   8  12   -)]],
-  ['break-down'                           => 'breaDow' => [qw(  3   5   7  12   -      5   8  13   -)]],
-  ['burn-baby-burn'                       => 'brBbyBr' => [qw(  3   5   8  12   -      5   8  12   -)]],
-  ['can-be-real'                          => 'caBeRea' => [qw(  3   4   6  10   -      3   6  10   -)]],
-  ['candy-star'                           => 'cndyStr' => [qw(  4   6   7  11   -      5   8  11   -)]],
-  ['chaos'                                => 'chaosDS' => [qw(  6   8  12  14  16      9  12  14  15)]],
-  ['colors-for-extreme'                   => 'clFrExt' => [qw(  3   5   8   9  13      5   7  10  13)]],
-  ['come-clean'                           => 'comeCle' => [qw(  3   4   7  11   -      4   8  10   -)]],
-  ['dead-end'                             => 'deadEnd' => [qw(  4   7  10  12   -      8   9  13   -)]],
-  ['destiny-lovers'                       => 'dstnLvr' => [qw(  3   4   7  13   -      4   7  12   -)]],
-  ['dive-more-deep-and-deeper-style'      => 'dMDADpS' => [qw(  3   4   7  10   -      3   7   9   -)]],
-  ['doll'                                 => 'dollTio' => [qw(  4   5   8  12  13      5   8  12  14)]],
-  ['dragon-blade'                         => 'drgnBld' => [qw(  5   9  10  11   -      9  11  11   -)]],
-  ['drop-out'                             => 'dropOut' => [qw(  4   8  10  13   -      5   9  13   -)]],
-  ['dynamite-rave'                        => 'dynaRav' => [qw(  3   6  10  12  12      6   7  11  12)]],
-  ['dynamite-rave-air-special'            => 'dyRvArS' => [qw(  -   -   -   -   8      -   -   -   9)]],
-  ['exotic-ethnic'                        => 'extcEth' => [qw(  4   5   8  13   -      5   7  13   -)]],
-  ['fascination-eternal-love-mix'         => 'fsEtLvM' => [qw(  9  11  13  16  18     10  13  17  17)]],
-  ['flow-jammin-ragga-mix'                => 'flJmRgM' => [qw(  4   5   8  13   -      4   7  13   -)]],
-  ['freedom'                              => 'freedom' => [qw(  3   5   7  11   -      4   7  11   -)]],
-  ['give-me-up'                           => 'giMeUpM' => [qw(  3   5   7  11   -      5   7  11   -)]],
-  ['golden-sky'                           => 'gldnSky' => [qw(  3   4   6   8   -      4   5   9   -)]],
-  ['groove-2001'                          => 'grv2001' => [qw(  3   6   8  10   -      6   8  10   -)]],
-  ['hana-ranman-flowers'                  => 'hnRnmFl' => [qw(  3   5   7  11   -      4   7  11   -)]],
-  ['healing-d-vision'                     => 'heDVisi' => [qw(  6   9  12  14  18      9  13  15  18)]],
-  ['healing-vision'                       => 'hlngVsn' => [qw(  4   5   7  11   -      4   8  13   -)]],
-  ['healing-vision-angelic-mix'           => 'hlVsAnM' => [qw(  5   7  11  13   -      8  10  14   -)]],
-  ['himawari'                             => 'himawar' => [qw(  3   4   7  10   -      4   7  12   -)]],
-  ['hold-on-me'                           => 'hoOnMeT' => [qw(  3   4   7   9   -      4   7   9   -)]],
-  ['holic'                                => 'holicTq' => [qw(  4   7   9  11   -      7   8  11   -)]],
-  ['hunting-for-you'                      => 'huForYo' => [qw(  3   3   7  10   -      3   7  10   -)]],
-  ['hyper-eurobeat'                       => 'hyprErb' => [qw(  3   4   6  10   -      6   9  11   -)]],
-  ['insertion-machine-gun-kelly-mix'      => 'iMcGKlM' => [qw(  3   4   7  10   -      4   8  11   -)]],
-  ['jam-and-marmalade'                    => 'jmAndMr' => [qw(  3   4   8  11   -      5   8  10   -)]],
-  ['janejana'                             => 'janejan' => [qw(  3   4   7  10   -      6   7  11   -)]],
-  ['jerk-it-out'                          => 'jeItOut' => [qw(  4   6   9  10   -      6   9  10   -)]],
-  ['l-amour-et-la-liberte-darwindjsilver' => 'lAELLbD' => [qw(  3   4   7  11   -      4   7  12   -)]],
-  ['la-bamba-mexican-folk-song'           => 'lBmMFlS' => [qw(  3   4   8  11   -      4   8  10   -)]],
-  ['la-senorita-virtual'                  => 'lSnrVrt' => [qw(  4   8  10  12   -      9  10  12   -)]],
-  ['love-is-orange'                       => 'lvIsOrn' => [qw(  3   5   7   9  11      5   8   8  12)]],
-  ['magic-door-theme-of-space-maco'       => 'mDTOSpM' => [qw(  6   6   7  12   -      6   7  11   -)]],
-  ['mars-war-3'                           => 'maWar3G' => [qw(  3   4   8  11   -      4  10  13   -)]],
-  ['matsuri-japan'                        => 'mtsrJpn' => [qw(  6   6   7  13   -      6   8  11   -)]],
-  ['max-300'                              => 'max300O' => [qw(  5   9  12  15   -      9  12  15   -)]],
-  ['max-300-super-max-me-mix'             => 'm3SMMMx' => [qw(  6  10  13  15  16      9  12  15  17)]],
-  ['max-300-x-special'                    => 'mx30XSp' => [qw(  -   -   -   -  17      -   -   -  18)]],
-  ['maximizer'                            => 'maximiz' => [qw(  5   6   9  12   -      6   9  11   -)]],
-  ['maxx-unlimited'                       => 'mxxUnlm' => [qw(  5  10  13  16   -      7  12  15   -)]],
-  ['midnight-special'                     => 'mdngSpc' => [qw(  3   7   9  10   -      7  10  12   -)]],
-  ['mind-parasite'                        => 'mndPrst' => [qw(  3   5   9  13   -      5   8  10   -)]],
-  ['mugen'                                => 'mugenTr' => [qw(  4   4   8  11   -      4   8  11   -)]],
-  ['my-summer-love'                       => 'mySmmLv' => [qw(  3   4   9  12   -      5   8  12   -)]],
-  ['no-13'                                => 'no13TRF' => [qw(  4   5   9  13   -      5   9  12   -)]],
-  ['orion-78-ameuro-mix'                  => 'or78AmM' => [qw(  3   4   7  12   -      5   8   9   -)]],
-  ['orion-78-civilization-mix'            => 'or78CvM' => [qw(  4   9  12  13   -      9  11  13   -)]],
-  ['paranoia'                             => 'paranoi' => [qw(  4   8   9  11   -      8  13  11   -)]],
-  ['paranoia-eternal'                     => 'prnEtrn' => [qw(  4   8  10  13   -      9  11  13   -)]],
-  ['paranoia-evolution'                   => 'prnEvlt' => [qw(  5   9  10  12   -      6  10  13   -)]],
-  ['paranoia-kcet-clean-mix'              => 'prKcClM' => [qw(  4   8   9  11  15      8  10  10  15)]],
-  ['paranoia-max-dirty-mix'               => 'prMxDrM' => [qw(  5   9  10  12   -     10  12  11   -)]],
-  ['paranoia-respect'                     => 'prnRspc' => [qw(  5  11  12  16   -      8  12  15   -)]],
-  ['paranoia-survivor'                    => 'prnSrvv' => [qw(  4   9  11  15   -      9  10  15   -)]],
-  ['paranoia-survivor-max'                => 'prSrvMx' => [qw(  5   9  11  15  16      9  11  15  16)]],
-  ['peace-v'                              => 'peacVBf' => [qw(  3   3   7   9   -      3   7   9   -)]],
-  ['pink-rose'                            => 'pinkRos' => [qw(  3   4   6  10   -      4   7  10   -)]],
-  ['pluto'                                => 'plutoBH' => [qw(  6   9  12  14  16      9  13  14  17)]],
-  ['put-your-faith-in-me'                 => 'pYrFInM' => [qw(  3   5   6   9   -      6   8   8   -)]],
-  ['quick-master'                         => 'qckMstr' => [qw(  4   5   8  11   -      5   7  10   -)]],
-  ['rainbow-flyer'                        => 'rnbwFly' => [qw(  3   4   6  11   -      3   7  11   -)]],
-  ['rainbow-rainbow'                      => 'rnbwRnb' => [qw(  4   4   7  10   -      4   7  11   -)]],
-  ['raspberry-heart-english-version'      => 'rsHrEnV' => [qw(  3   5   6   9  11      5   6   9  12)]],
-  ['red-zone'                             => 'redZone' => [qw(  4   6   8  12   -      6   8  11   -)]],
-  ['remember-you'                         => 'remeYou' => [qw(  3   1   4   7   -      1   4   9   -)]],
-  ['sakura'                               => 'sakuraR' => [qw(  5   7  11  13  11      7  11  13  11)]],
-  ['sana-mollete-ne-ente'                 => 'snMlNEn' => [qw(  3   4   9  12   -      5   9  12   -)]],
-  ['seduction-vocal-remix'                => 'sdVclRm' => [qw(  3   6   9  12   -      6   8  12   -)]],
-  ['stealth'                              => 'stealth' => [qw(  3   5   8  11   -      5   8  11   -)]],
-  ['sunkiss-drop'                         => 'snksDrp' => [qw(  3   5   8  12  12      4   7  11  12)]],
-  ['sunrise-jason-nevins-remix'           => 'snJsNvR' => [qw(  2   4   5   9   -      4   6  10   -)]],
-  ['sweet-sweet-love-magic'               => 'swSwLvM' => [qw(  4   5   9  13   -      5   8  11   -)]],
-  ['sync-extreme-version'                 => 'syExtVr' => [qw(  3   5   8   9  12      6   9  10  11)]],
-  ['the-legend-of-max'                    => 'thLgOfM' => [qw(  7   8  13  15   -      8  12  16   -)]],
-  ['trim'                                 => 'trimKob' => [qw(  5   6  10  16   -      6  10  15   -)]],
-  ['trip-machine'                         => 'trpMchn' => [qw(  3   8   9  10   -      9  10  10   -)]],
-  ['trip-machine-phoenix'                 => 'trMchPh' => [qw(  3   8  11  15  15      8  12  16  16)]],
-  ['trip-machine-survivor'                => 'trMchSr' => [qw(  4   5  11  13   -      6  11  12   -)]],
-  ['trust-dancedancerevolution-mix'       => 'trDncMx' => [qw(  3   5   8  10   -      4   8  11   -)]],
-  ['try-2-luv-u'                          => 'tr2LuUS' => [qw(  3   4   6   8   -      4   6   8   -)]],
-  ['tsugaru'                              => 'tsugaru' => [qw(  3   5   9  12   -      6   9  12   -)]],
-  ['tsugaru-apple-mix'                    => 'tsAppMx' => [qw(  -   -   -   -  11      -   -   -  11)]],
-  ['two-months-off'                       => 'twMntOf' => [qw(  3   4   7  10   -      4   7  10   -)]],
-  ['v-for-extreme'                        => 'vFrExtr' => [qw(  3   5   8  12  13      5   7  11  13)]],
-  ['why-not'                              => 'whyNotD' => [qw(  4   6   9  11   -      6   7  11   -)]],
-  ['xepher'                               => 'xepherT' => [qw(  4   7  10  13  15      7  10  13  15)]],
-
-  ['bemani-spirits'                       => 'nonBmSp' => [qw(  -   -   -   -   -      -   -   -   -)]],
-  ['classic'                              => 'nonClss' => [qw(  -   -   -   -   -      -   -   -   -)]],
-  ['skip-master'                          => 'nonSkMs' => [qw(  -   -   -   -   -      -   -   -   -)]],
-  ['terra'                                => 'nonTerr' => [qw(  -   -   -   -   -      -   -   -   -)]],
-);
+my @songArr = readSongList();
 
 my %songAbbrevs = map { $$_[0] => $$_[1] } @songArr;
 my %songFeetDifficulties = map { $$_[0] => parseFeetDifficulties(@{$$_[2]}) } @songArr;
@@ -588,6 +480,26 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub readSongList(){
+  die "$usage\nERROR: Could not find $SONG_LIST_FILE\n" if not -f $SONG_LIST_FILE;
+  open FH, "< $SONG_LIST_FILE" or die "Could not read $SONG_LIST_FILE\n$!\n";
+  my @songs;
+  while(my $line = <FH>){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^([a-zA-Z0-9\-]+)\s*([a-zA-Z0-9]+)((?:\s+(?:\d+|-)){9})$/){
+      my ($song, $abbrev, $feet) = ($1, $2, $3);
+      my @feetArr = $feet =~ /\s+(\d+|-)/g;
+      if(@feetArr != 9){
+        die "$usage\nERROR: Malformed feet in line in $SONG_LIST_FILE: $line";
+      }
+      push @songs, [$song, $abbrev, [@feetArr]];
+    }else{
+      die "$usage\nERROR: Malformed line in $SONG_LIST_FILE: $line";
+    }
+  }
+  return @songs;
 }
 
 sub fehterm($@){
