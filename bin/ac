@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my $MAX_ATTEMPTS = 5;
+my $timeoutMillis = 3000;
+
+sub ensureAcOnOff($);
+sub toggleAc();
+sub isAcOn();
+
+sub run(@);
+sub runQuiet(@);
+sub runGetOut($@);
+
+sub main(@){
+  my $arg = shift;
+  $arg = "toggle" if not defined $arg;
+  die "Usage: $0 [on|off|toggle] {default is toggle}\n" if @_ > 0 or $arg !~ /^(on|off|toggle)$/;
+
+  my $attempts = 0;
+  print "checking ac on/off...\n";
+  while(1){
+    if($arg eq "toggle"){
+      if(isAcOn()){
+        print "toggling ac: on => off\n";
+        $arg = "off";
+      }else{
+        print "toggling ac: off => on\n";
+        $arg = "on";
+      }
+    }
+    my $targetIsAcOn = $arg eq "on" ? 1 : 0;
+    if(isAcOn() == $targetIsAcOn){
+      last;
+    }else{
+      die "ERROR: max attempts reached\n" if $attempts > $MAX_ATTEMPTS;
+      print "ac is not $arg, toggling ac ($attempts out of $MAX_ATTEMPTS attempt)...\n";
+      print "\n";
+      toggleAc();
+      print "\n";
+      print "waiting ${timeoutMillis}ms\n";
+      sleep ($timeoutMillis/1000.0);
+      $attempts++;
+    }
+  }
+  print "\nac is $arg\n";
+}
+
+sub ensureAcOnOff($){
+  my $targetIsAcOn = shift;
+
+  print "checking ac on/off...\n";
+  if(isAcOn() == $targetIsAcOn){
+    print "ok: ac is " . (isAcOn ? "on" : "off") . "\n";
+  }
+}
+
+sub toggleAc(){
+  run "seedbox", "-r", "igcmd", "ac-power";
+}
+
+sub isAcOn(){
+  my $res = runQuiet "is-ac-on";
+  chomp $res;
+  if($res eq "yes"){
+    print "is-ac-on: yes\n";
+    return 1;
+  }elsif($res eq "no"){
+    print "is-ac-on: no\n";
+    return 0;
+  }else{
+    die "error running is-ac-on\n";
+  }
+}
+
+sub run(@){
+  return runGetOut 0, @_;
+}
+
+sub runQuiet(@){
+  return runGetOut 1, @_;
+}
+
+sub runGetOut($@){
+  my ($quiet, @cmd) = @_;
+  print "@cmd\n" if not $quiet;
+  open FH, "-|", @cmd;
+  my $out = '';
+  while(my $line = <FH>){
+    $out .= $line;
+    print $line if not $quiet;
+  }
+  close FH;
+  return $out;
+}
+
+&main(@ARGV);

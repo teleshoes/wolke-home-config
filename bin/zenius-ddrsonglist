@@ -1,0 +1,586 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::Unidecode;
+use HTML::TableExtract;
+
+my $BASE_URL = "https://zenius-i-vanisher.com";
+my $API_URL = "$BASE_URL/v5.2";
+my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-zenius";
+my $GAME_IDS = {
+  DDRA => 2979,
+  SN2  => 89,
+  2013 => 1129,
+  X    => 148,
+};
+my $ABBREV_LEN = 7;
+
+my @NONSTOP_COURSES = qw(
+  bemani-spirits
+  classic
+  skip-master
+  terra
+);
+
+my $songNameIdOverrides = [
+  #duplicate name IDs
+  [11   => "la-bamba" =>
+           "la-bamba-lh-music-creation"],
+  [303  => "la-bamba" =>
+           "la-bamba-mexican-folk-song"],
+  [176  => "ever-snow" =>
+           "ever-snow-komatsu"],
+  [2810 => "ever-snow" =>
+           "ever-snow-terra"],
+
+  #redundant special characters
+  [852  => "raspberry-heart-heart-english-version" =>
+           "raspberry-heart-english-version"],
+  [1091 => "sunkiss-heart-drop" =>
+           "sunkiss-drop"],
+  [1105 => "stars-star-star-star-re-tuned-by-hll-ddr-edition" =>
+           "stars-re-tuned-by-hll-ddr-edition"],
+
+  #short name IDs
+  [1446 => "aa" =>
+           "aa-djamuro"],
+  [1550 => "a" =>
+           "a-renaissance"],
+
+  #long name IDs
+  [60   => "cant-stop-fallin-in-love-super-euro-version" =>
+           "cant-stop-fallin-in-love-super-euro"],
+  [240  => "let-the-beat-hit-em-classic-r-and-b-style" =>
+           "let-the-beat-hit-em-classic-r-and-b"],
+  [1104 => "l-amour-et-la-liberte-darwin-and-dj-silver-remix" =>
+           "l-amour-et-la-liberte-darwindjsilver"],
+  [1105 => "stars-star-star-star-re-tuned-by-hll-ddr-edition" =>
+           "stars-terra-retuned-by-hll-ddr-edition"],
+  [2271 => "taj-he-spitz-tommie-sunshines-brooklyn-fire-re-touch" =>
+           "taj-he-spitz-tommie-sunshine-brklyn-fire"],
+  [2454 => "paranoia-max-dirty-mix-in-roulette-x-special" =>
+           "paranoia-max-dirty-in-roulette-x-special"],
+  [2731 => "zeta-the-world-of-prime-numbers-and-the-transcendental-being" =>
+           "zeta-the-world-of-prime-numbers"],
+  [3165 => "all-my-heart-kono-koi-ni-watashi-no-subete-o-kakeru" =>
+           "all-my-heart-super-heroine"],
+  [5149 => "put-your-faith-in-me-das-twinkly-disco-remix" =>
+           "put-your-faith-in-me-das-twinkly-disco"],
+  [5503 => "marisa-wa-taihen-na-mono-wo-nusunde-ikimashita" =>
+           "marisa-wa-taihen-na-mono-wo-nusunde"],
+  [5801 => "how-to-cook-delicious-rice-and-the-effect-of-eating-rice" =>
+           "how-to-cook-delicious-rice"],
+  [6002 => "rinto-shite-saku-hana-no-gotoku-hinabita-edition" =>
+           "rinto-shite-saku-hana-no-gotoku-hinabita"],
+  [6393 => "yakyu-no-asobikata-soshite-sono-rekishi-ketteihan" =>
+           "yakyu-no-asobikata-soshite-sono-rekishi"],
+  [6607 => "party-lights-tommie-sunshines-brooklyn-fire-remix" =>
+           "party-lights-tommie-sunshine-brklyn-fire"],
+  [7314 => "mahou-no-tamago-cocona-electro-pop-edition" =>
+           "mahou-no-tamago-cocona-electro-pop"],
+  [7324 => "cirno-no-perfect-sansuu-kyoushitsu-edm-remix" =>
+           "cirno-no-perfect-sansuu-kyoushitsu-edm"],
+  [7376 => "kurokami-midareshi-shura-to-narite-rin-edition" =>
+           "kurokami-midareshi-shura-to-narite-rin"],
+];
+my %customSongNameIds = map {$$_[0] => $$_[2]} @$songNameIdOverrides;
+
+my @difficulties = qw(
+  diff-singles-beginner
+  diff-singles-basic diff-singles-difficult diff-singles-expert diff-singles-challenge
+  diff-doubles-basic diff-doubles-difficult diff-doubles-expert diff-doubles-challenge
+);
+
+sub parseGame($);
+sub parseAllGames();
+sub parseSong($);
+sub fetchGameSongIds($);
+sub fetchAllSongIds();
+sub fetchGameHtml($);
+sub fetchSongHtml($);
+sub fetchSongBanner($);
+sub ensureSongBanners($);
+sub getAvgDDRAToSN2Ratios();
+sub extractNameId($);
+sub abbrevNameId($$$$);
+sub trimVowels($);
+sub abbrevWords($@);
+sub calculateSongDifficulties($$$);
+sub formatSong($$@);
+sub htmlGetAllTables($);
+
+sub main(@){
+  my @songIds = fetchAllSongIds();
+  my $ddraSn2Ratios = getAvgDDRAToSN2Ratios();
+  my $allGameInfo = parseAllGames();
+
+  my $songList = {};
+
+  for my $songId(@songIds){
+    my $song = parseSong $songId;
+    ensureSongBanners $song;
+
+    my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
+
+    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist}, $$song{genre};
+
+    $$songList{$$song{nameId}} = {
+      abbrev          => $abbrev,
+      difficultiesArr => [map {$$songDifficulties{$_}} @difficulties],
+    };
+  }
+
+  for my $nameId(sort keys %$songList){
+    my $abbrev = $$songList{$nameId}{abbrev};
+    my @diffArr = @{$$songList{$nameId}{difficultiesArr}};
+
+    print formatSong($nameId, $abbrev, @diffArr);
+  }
+  print "\n";
+  for my $nonstopCourse(sort @NONSTOP_COURSES){
+    my $abbrev = "non" . ucfirst abbrevNameId $ABBREV_LEN-3, $nonstopCourse, "", "";
+    my @diffArr = map {"-"} (0..8);
+
+    print formatSong($nonstopCourse, $abbrev, @diffArr);
+  }
+}
+
+sub parseAllGames(){
+  my $gameInfo = {};
+  for my $gameName(sort keys %$GAME_IDS){
+    my $gameId = $$GAME_IDS{$gameName};
+    $$gameInfo{$gameName} = parseGame $gameId;
+  }
+  return $gameInfo;
+}
+
+sub parseGame($){
+  my $gameId = shift;
+  my $html = fetchGameHtml $gameId;
+
+  my $songs = {};
+
+  my @songRows;
+  for my $table(htmlGetAllTables($html)){
+    for my $row(@$table){
+      if(@$row == 13 and defined $$row[0] and $$row[0] =~ /songdb\.php\?songid=\d+/){
+        push @songRows, $row;
+      }
+    }
+  }
+
+  for my $row(@songRows){
+    my $col=0;
+    my $songInfo = {
+      "nameHtml"               => $$row[$col++],
+      "artistHtml"             => $$row[$col++],
+      "genreHtml"              => $$row[$col++],
+      "bpm"                    => $$row[$col++],
+      "diff-singles-beginner"  => $$row[$col++],
+      "diff-singles-basic"     => $$row[$col++],
+      "diff-singles-difficult" => $$row[$col++],
+      "diff-singles-expert"    => $$row[$col++],
+      "diff-singles-challenge" => $$row[$col++],
+      "diff-doubles-basic"     => $$row[$col++],
+      "diff-doubles-difficult" => $$row[$col++],
+      "diff-doubles-expert"    => $$row[$col++],
+      "diff-doubles-challenge" => $$row[$col++],
+    };
+
+    if($$songInfo{nameHtml} =~ m/<a\s+href=\"songdb\.php\?songid=(\d+)\">(.+)<\/a>/s){
+      my ($songId, $name) = ($1, $2);
+      $name =~ s/<[^>]*>//g;
+      $$songInfo{name} = $name;
+      $$songInfo{songId} = $songId;
+    }else{
+      die "invalid song row=\"@$row\"\n";
+    }
+
+    my $artist = $$songInfo{artistHtml};
+    $artist =~ s/<[^>]*>//g;
+    $$songInfo{artist} = $artist;
+
+    my $genre = $$songInfo{genreHtml};
+    $genre = "" if not defined $genre;
+    $genre =~ s/<[^>]*>//g;
+    $$songInfo{genre} = $genre;
+
+    $$songs{$$songInfo{songId}} = $songInfo;
+
+    for my $difficulty(@difficulties){
+      my $d = $$songInfo{$difficulty};
+      $d = "" if not defined $d;
+      $d =~ s/<[^>]*>//g;
+
+      if($d !~ /^(\d+|-)$/){
+        die "malformed difficulty $difficulty=\"$d\" for row=\"@$row\"\n";
+      }
+      $$songInfo{$difficulty} = $d;
+    }
+  }
+
+  my @missingSongIds;
+  for my $songId(fetchGameSongIds $gameId){
+    push @missingSongIds, $songId if not defined $$songs{$songId};
+  }
+  if(@missingSongIds > 0){
+    die "error parsing game page, missing songids: @missingSongIds\n";
+  }
+
+  return $songs;
+}
+
+sub parseSong($){
+  my $songId = shift;
+  my $html = fetchSongHtml $songId;
+
+  my $song = {};
+
+  if($html =~ /<tr><td><strong>Song Name<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{name} = $1;
+    $$song{nameNative} = $2;
+  }
+  if($html =~ /<tr><td><strong>Song Artist<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{artist} = $1;
+    $$song{artistNative} = $2;
+  }
+  if($html =~ /<tr><td><strong>Song Genre<\/strong><\/td><td>(.+)<\/td><td>(.+)<\/td><\/tr>/){
+    $$song{genre} = $1;
+    $$song{genreNative} = $2;
+  }
+
+  for my $key(qw(name nameNative artist artistNative genre genreNative)){
+    my $val = $$song{$key};
+    $val = '' if not defined $val;
+    $val =~ s/<[^>]*>//g;
+    $val =~ s/^\s+//;
+    $val =~ s/\s+$//;
+    $val =~ s/^\((.*)\)$/$1/;
+    $val =~ s/^none$//;
+    $val =~ s/&lt;/</g;
+    $val =~ s/&gt;/>/g;
+    $val =~ s/&apos;/'/g;
+    $val =~ s/&quot;/"/g;
+    $val =~ s/&amp;/&/g;
+    $$song{$key} = $val;
+  }
+
+  if(defined $customSongNameIds{$songId}){
+    $$song{nameId} = $customSongNameIds{$songId};
+  }else{
+    $$song{nameId} = extractNameId $$song{name};
+  }
+
+  if($$song{nameId} !~ /^[a-zA-Z0-9\-]+$/){
+    die "could not find song name for songid=$songId\n";
+  }
+
+  $$song{banners} = [];
+  my @imgs = $html =~ /<img\s+[^<>]*src=['"]\/images\/songs\/\d+\.png['"][^<>]*>/g;
+  for my $img(@imgs){
+    my $bannerId = $1 if $img =~ /src=['"]\/images\/songs\/(\d+)\.png['"]/;
+    my $bannerGame = $1 if $img =~ /alt=['"]([^'"]+)['"]/;
+    die "banner malformed in $img\n" if not defined $bannerId;
+    push @{$$song{banners}}, [$bannerId, $bannerGame];
+  }
+
+  return $song;
+}
+
+sub fetchGameSongIds($){
+  my $gameId = shift;
+
+  my $html = fetchGameHtml $gameId;
+  my @gameSongIds = $html =~ /['"]songdb\.php\?songid=(\d+)['"]/g;
+  return @gameSongIds;
+}
+sub fetchAllSongIds(){
+  my @allSongIds;
+  for my $gameId(sort values %$GAME_IDS){
+    @allSongIds = (@allSongIds, fetchGameSongIds $gameId);
+  }
+  my @uniqSongIds;
+  my %foundSongIds;
+  for my $songId(@allSongIds){
+    push @uniqSongIds, $songId if not defined $foundSongIds{$songId};
+    $foundSongIds{$songId} = 1;
+  }
+  return @uniqSongIds;
+}
+
+sub fetchGameHtml($){
+  my $gameId = shift;
+  my $dir = "$CACHE_DIR/games";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$gameId.html";
+  if(not -f $file){
+    system "wget $API_URL/gamedb.php?gameid=$gameId -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch gameid=$gameId\n";
+  }
+  return `cat $file`;
+}
+
+sub fetchSongHtml($){
+  my $songId = shift;
+  my $dir = "$CACHE_DIR/songs";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$songId.html";
+  if(not -f $file){
+    system "wget $API_URL/songdb.php?songid=$songId -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch songid=$songId\n";
+  }
+  return `cat $file`;
+}
+
+sub fetchSongBanner($){
+  my $bannerId = shift;
+  my $dir = "$CACHE_DIR/banners";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$bannerId.png";
+  if(not -f $file){
+    system "wget $BASE_URL/images/songs/$bannerId.png -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch bannerid=$bannerId\n";
+  }
+  return $file;
+}
+
+sub ensureSongBanners($){
+  my $song = shift;
+  for my $banner(@{$$song{banners}}){
+    my $bannerId = $$banner[0];
+    fetchSongBanner $bannerId;
+  }
+}
+
+sub getAvgDDRAToSN2Ratios(){
+  my $gameInfoDDRA = parseGame $$GAME_IDS{DDRA};
+  my $gameInfoSN2 = parseGame $$GAME_IDS{SN2};
+  my $ratios = {};
+  for my $songId(fetchAllSongIds()){
+    my $gDDRA = $$gameInfoDDRA{$songId};
+    my $gSN2 = $$gameInfoSN2{$songId};
+    if(defined $gSN2 and defined $gDDRA){
+      for my $key(grep {/^diff/} keys %$gDDRA){
+        my $dDDRA = $$gDDRA{$key};
+        my $dSN2 = $$gSN2{$key};
+        if($dSN2 =~ /^\d+$/ and $dDDRA =~ /^\d+$/){
+          $$ratios{$key} = [] if not defined $$ratios{$key};
+          push @{$$ratios{$key}}, $dDDRA/$dSN2;
+        }
+      }
+    }
+  }
+
+  my $meanRatios = {};
+  for my $key(sort keys %$ratios){
+    my $total = 0;
+    my @vals = @{$$ratios{$key}};
+    for my $val(@vals){
+      $total += $val;
+    }
+    my $mean = sprintf "%5.3f", $total/@vals;
+    $$meanRatios{$key} = $mean;
+  }
+
+  return $meanRatios;
+}
+
+sub extractNameId($){
+  my $name = shift;
+  my $nameId = $name;
+
+  #unicode special chars
+  utf8::decode $nameId;
+  $nameId =~ s/\x{2605}/ star /g;
+  $nameId =~ s/\x{2606}/ star /g;
+  $nameId =~ s/\x{2665}/ heart /g;
+
+  #all other unicode
+  $nameId = unidecode $nameId;
+
+  #special chars
+  $nameId =~ s/&/ and /g;
+  $nameId =~ s/(\w)'([a-zA-Z])(\s)/${1}${2}${3}/;
+
+  #A.C.C.R.O.N.Y.M. => ACRONYM
+  my @accrons = $nameId =~ /(?:^|\W)((?:[A-Z]\.)+)(?:$|\W)/g;
+  for my $accron(@accrons){
+    my $accronWithoutDots = $accron;
+    $accronWithoutDots =~ s/\.//g;
+    $nameId =~ s/$accron/$accronWithoutDots/g;
+  }
+
+  #lowercase
+  $nameId = lc $nameId;
+
+  #strip out non-word chars
+  $nameId =~ s/\W+/_/g;
+  $nameId =~ s/__+/_/g;
+  $nameId =~ s/^_//g;
+  $nameId =~ s/_$//g;
+
+  #use hyphen as sep instead of underscore
+  $nameId =~ s/_/-/g;
+
+  return $nameId;
+}
+
+sub abbrevNameId($$$$){
+  my ($len, $nameId, $artist, $genre) = @_;
+
+  my @words = split /-/, $nameId;
+
+  #upper-case the first letter of each word, except the first word
+  my ($firstWord, @rest) = @words;
+  @words = ($firstWord, map {ucfirst $_} @rest);
+
+  #remove vowels from words, except the first letter if its a vowel
+  my @shortWords = map {trimVowels $_} @words;
+
+  #try abbrev without vowels
+  my $abbrev = abbrevWords $len, @shortWords;
+
+  #if abbrev is too short, add the vowels back
+  if(length $abbrev < $len){
+    $abbrev = abbrevWords $len, @words;
+  }
+
+  #if the nameId ends in a number,
+  #  ensure the last digit is at the end of the abbrev,
+  #  unless the abbrev already ends in a number
+  if($nameId =~ /(\d)$/){
+    my $num = $1;
+    if($abbrev !~ /\d$/){
+      if(length $abbrev < $len){
+        $abbrev .= $num;
+      }else{
+        my $oldAbbrev = $abbrev;
+        $abbrev =~ s/.$/$num/;
+      }
+    }
+  }
+
+  #if abbrev is still too short, append an artist abbrev
+  if(length $abbrev < $len){
+    $artist = extractNameId $artist;
+    my @artistWords = split /-/, $artist;
+    @artistWords = map {ucfirst $_} @artistWords;
+    my @artistShortWords = map {trimVowels $_} @artistWords;
+
+    my $remLen = $len - length $abbrev;
+
+    my $artistAbbrev = abbrevWords $remLen, @artistShortWords;
+    if(length $artistAbbrev < $remLen){
+      $artistAbbrev = abbrevWords $remLen, @artistWords;
+    }
+    $abbrev .= $artistAbbrev;
+  }
+
+  #if abbrev is STILL too short, append a genre abbrev
+  if(length $abbrev < $len){
+    $genre = extractNameId $genre;
+    my @genreWords = split /-/, $genre;
+    @genreWords = map {ucfirst $_} @genreWords;
+    my @genreShortWords = map {trimVowels $_} @genreWords;
+
+    my $remLen = $len - length $abbrev;
+
+    my $genreAbbrev = abbrevWords $remLen, @genreShortWords;
+    if(length $genreAbbrev < $remLen){
+      $genreAbbrev = abbrevWords $remLen, @genreWords;
+    }
+    $abbrev .= $genreAbbrev;
+  }
+
+  $abbrev = substr $abbrev, 0, $len;
+
+  return $abbrev;
+}
+sub trimVowels($){
+  my ($s) = @_;
+  my $first = substr $s, 0, 1;
+  my $rest = substr $s, 1;
+  $rest =~ s/[aeiou]//g;
+
+  return $first . $rest;
+}
+sub abbrevWords($@){
+  my ($len, @words) = @_;
+
+  my $abbrev = "";
+  for(my $i=0; $i<@words; $i++){
+    my $remLen = $len - length $abbrev;
+    my $remWords = @words - $i;
+    my $target = int($remLen / $remWords + 0.5);
+
+    my $word = $words[$i];
+    $abbrev .= substr $word, 0, $target;
+  }
+
+  return $abbrev;
+}
+
+sub calculateSongDifficulties($$$){
+  my ($songId, $allGameInfo, $ddraSn2Ratios) = @_;
+
+  my $gameInfo;
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{DDRA}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{2013}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{X}{$songId};
+  }
+  if(not defined $gameInfo){
+    $gameInfo = $$allGameInfo{SN2}{$songId};
+
+    if(defined $gameInfo){
+      for my $difficulty(@difficulties){
+        my $val = $$gameInfo{$difficulty};
+        if($val =~ /^\d+$/){
+          $val = int(0.5 + ($val * $$ddraSn2Ratios{$difficulty}));
+        }
+        $$gameInfo{$difficulty} = $val;
+      }
+    }
+  }
+
+  if(not defined $gameInfo){
+    die "ERROR: Could not find any game for $songId\n";
+  }
+
+  return $gameInfo;
+}
+
+sub formatSong($$@){
+  my ($nameId, $abbrev, @difficultiesArr) = @_;
+
+  return sprintf "%-40s  %${ABBREV_LEN}s  %3s %3s %3s %3s %3s    %3s %3s %3s %3s\n",
+    $nameId,
+    $abbrev,
+    @difficultiesArr,
+    ;
+}
+
+sub htmlGetAllTables($){
+  my $html = shift;
+
+  my $htmlTE = HTML::TableExtract->new(keep_html=>1);
+  $htmlTE->parse($html);
+
+  my @tables;
+  for my $table ($htmlTE->tables) {
+    push @tables, [$table->rows];
+  }
+  return @tables;
+}
+
+&main(@ARGV);

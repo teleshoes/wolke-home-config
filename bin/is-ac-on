@@ -3,15 +3,37 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
+my $usage = "Usage:
+  $0 [OPTS]
+    run `sbcam`, pass the image produced to `kurtosis`,
+      and print 'yes' for kurtosis>10 (lit LEDs are sharp)
+      and print 'no' otherwise
+
+   OPTS
+     -v | --verbose
+       print the output of sbcam, the image file name, and the kurtosis of the image
+";
+
 sub main(@){
+  my $verbose = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
+  die $usage if @_ > 0;
+
   my $f = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
-  system "sbcam $f >/dev/null 2>/dev/null";
+  if($verbose){
+    system "sbcam $f";
+  }else{
+    system "sbcam $f >/dev/null 2>/dev/null";
+  }
   if(not -f $f){
     die "ERROR\n";
   }
   my $k = `kurtosis $f`;
+  chomp $k;
   if($k !~ /^-?\d+(\.\d+)?$/){
     die "ERROR\n";
+  }
+  if(defined $verbose){
+    print "$f => kurtosis=$k\n";
   }
   if($k > 10){
     print "yes\n";
