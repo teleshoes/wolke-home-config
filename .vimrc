@@ -263,3 +263,9 @@ function BandCampToMusicBrainz()
   %s/\v(\d+)\.\n/\1 /
   %s/\v\s+$//
 endfunction
+
+function Inc(...)
+  let result = g:i
+  let g:i += a:0 > 0 ? a:1 : 1
+  return result
+endfunction
