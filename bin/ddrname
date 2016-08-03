@@ -143,8 +143,7 @@ sub getUsage(;$){
 
   my $usage = "Usage:
   $0 --fehterm
-    -open a terminal using term and get its window id with xwininfo
-    -open feh with --info set to type in the newly opened terminal with xdotool
+    run \"fehterm 'ddrname %f '\" (opens feh and a terminal connected to it with xdotool)
 
   $0 --orientation [FILTER FILTER ..]
     for each song file, print \"<orientation> <filename>\",
@@ -487,7 +486,7 @@ sub main(@){
 
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
-    fehterm($cmd, @_);
+    exec "fehterm", "ddrname %f ";
   }elsif(@_ >= 1 and $_[0] =~ /^(--orientation)$/){
     my $cmd = shift;
     orientation($cmd, @_);
@@ -529,32 +528,6 @@ sub readSongList(){
     }
   }
   return @songs;
-}
-
-sub fehterm($@){
-  my $cmd = shift;
-  die getUsage() if @_ != 0;
-
-  my $windowTitle = "ddrname-fehterm";
-  run ("term",
-    "-t", $windowTitle,
-    "export WINDOW_TITLE=$windowTitle; bash",
-  );
-  sleep 0.5;
-
-  my $xwininfo = `xwininfo -name '$windowTitle'`;
-  if($xwininfo !~ /Window id: (0x[0-9a-f]+) "$windowTitle"/){
-    die "Could not find window id for name=$windowTitle\n";
-  }
-  my $windowId = $1;
-
-  my $infoCmd = ""
-    . "xdotool key --delay 1 --window $windowId" . (" BackSpace" x 50) . "; "
-    . "xdotool type --window $windowId 'ddrname \%f '; "
-    . "echo %f; "
-    ;
-
-  run "/usr/bin/feh", "-g", "800x800+50+50", "--info", $infoCmd;
 }
 
 sub orientation($@){
