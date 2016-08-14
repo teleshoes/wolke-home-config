@@ -85,6 +85,7 @@ my $usage = "Usage:
       ACTIONS:
         -s [CMD ARG ARG..]  ssh to host
                             if \"CMD ARG ARG..\" is specified, it is passed to ssh
+                            otherwise, if DEFAULT_SSH_COMMAND is specified, it is passed to ssh
                             otherwise, no command is passed to ssh
 
                             additional args can be set in the config file:
@@ -117,6 +118,11 @@ my $usage = "Usage:
           additional args passed to ssh in '-s' and '-b'
           specified in the config file:
             sshArgs=SSH_ARGS
+
+        DEFAULT_SSH_COMMAND
+          used when no arg is given for '-s'
+          specified in the config file:
+            defaultSSHCommand=DEFAULT_SSH_COMMAND
 
         PRE_BASH_COMMAND
           run before the argument to '-b'
@@ -233,6 +239,9 @@ sub main(@){
     shift;
     $isSsh = 1;
     @sshCmd = @_;
+    if(@sshCmd == 0 and defined $config{defaultSSHCommand}){
+      @sshCmd = ($config{defaultSSHCommand});
+    }
   }elsif(@_ > 0){
     shift if $_[0] eq '-b';
     $isSsh = 1;
@@ -385,7 +394,7 @@ sub parseConfig($){
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
     hostname vncCommand vncDefaultArgs defaultUser
-    usbLocalIp usbRemoteIp sshArgs preBashCommand ignorePreBashCommand
+    usbLocalIp usbRemoteIp sshArgs defaultSSHCommand preBashCommand ignorePreBashCommand
   );
   my %assertBool = map {$_ => 1} qw(ignorePreBashCommand);
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);
