@@ -91,6 +91,7 @@ my @difficulties = qw(
   diff-doubles-basic diff-doubles-difficult diff-doubles-expert diff-doubles-challenge
 );
 
+sub formatSongList();
 sub parseGame($);
 sub parseAllGames();
 sub parseSong($);
@@ -109,7 +110,22 @@ sub calculateSongDifficulties($$$);
 sub formatSong($$@);
 sub htmlGetAllTables($);
 
+my $usage = "Usage:
+  $0 [--songlist]
+    print song list with feet difficulties
+";
+
 sub main(@){
+  my $cmd = shift;
+  $cmd = "--songlist" if not defined $cmd;
+  if($cmd =~ /^(--songlist)$/ and @_ == 0){
+    print formatSongList();
+  }else{
+    die $usage;
+  }
+}
+
+sub formatSongList(){
   my @songIds = fetchAllSongIds();
   my $ddraSn2Ratios = getAvgDDRAToSN2Ratios();
   my $allGameInfo = parseAllGames();
@@ -130,19 +146,23 @@ sub main(@){
     };
   }
 
+  my $fmt = '';
+
   for my $nameId(sort keys %$songList){
     my $abbrev = $$songList{$nameId}{abbrev};
     my @diffArr = @{$$songList{$nameId}{difficultiesArr}};
 
-    print formatSong($nameId, $abbrev, @diffArr);
+    $fmt .= formatSong($nameId, $abbrev, @diffArr);
   }
-  print "\n";
+  $fmt .= "\n";
   for my $nonstopCourse(sort @NONSTOP_COURSES){
     my $abbrev = "non" . ucfirst abbrevNameId $ABBREV_LEN-3, $nonstopCourse, "", "";
     my @diffArr = map {"-"} (0..8);
 
-    print formatSong($nonstopCourse, $abbrev, @diffArr);
+    $fmt .= formatSong($nonstopCourse, $abbrev, @diffArr);
   }
+
+  return $fmt;
 }
 
 sub parseAllGames(){
