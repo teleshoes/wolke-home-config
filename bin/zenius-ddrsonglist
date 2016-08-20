@@ -98,6 +98,7 @@ sub ensureGameInfoCache($);
 sub readGameInfoCache($);
 sub writeGameInfoCache($$);
 sub parseGameHtml($$);
+sub getCachedSongsBySongNameId();
 sub getSongInfo($);
 sub ensureSongInfoCache($);
 sub readSongInfoCache($);
@@ -312,6 +313,26 @@ sub parseGameHtml($$){
   }
 
   return $songs;
+}
+
+sub getCachedSongsBySongNameId(){
+  my $dir = "$CACHE_DIR/song-info";
+  my @songIds;
+  for my $file(glob "$dir/*.info"){
+    if($file =~ /^$dir\/(\d+).info$/){
+      my $songId = $1;
+      push @songIds, $songId;
+    }else{
+      die "malformed file name: $file\n";
+    }
+  }
+  my $songInfoByNameId = {};
+  for my $songId(sort @songIds){
+    my $songInfo = readSongInfoCache $songId;
+    my $nameId = $$songInfo{nameId};
+    $$songInfoByNameId{$nameId} = $songInfo;
+  }
+  return $songInfoByNameId;
 }
 
 sub getSongInfo($){
