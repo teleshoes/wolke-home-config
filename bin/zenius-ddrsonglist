@@ -98,7 +98,11 @@ sub ensureGameInfoCache($);
 sub readGameInfoCache($);
 sub writeGameInfoCache($$);
 sub parseGameHtml($$);
-sub parseSong($);
+sub getSongInfo($);
+sub ensureSongInfoCache($);
+sub readSongInfoCache($);
+sub writeSongInfoCache($$);
+sub parseSongHtml($$);
 sub fetchGameSongIds($);
 sub fetchAllSongIds();
 sub fetchGameHtml($);
@@ -137,7 +141,7 @@ sub formatSongList(){
   my $songList = {};
 
   for my $songId(@songIds){
-    my $song = parseSong $songId;
+    my $song = getSongInfo $songId;
     ensureSongBanners $song;
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
@@ -229,7 +233,6 @@ sub writeGameInfoCache($$){
       $val =~ s/^[ \t\n\r]+//;
       $val =~ s/[ \t\n\r]+$//;
       $val =~ s/\n+/ /;
-      die "ERROR: $songId.$field contains a newline: $val\n" if $val =~ /\n/;
       print FH "$songId.$field=$val\n";
     }
   }
@@ -311,9 +314,72 @@ sub parseGameHtml($$){
   return $songs;
 }
 
-sub parseSong($){
+sub getSongInfo($){
   my $songId = shift;
-  my $html = fetchSongHtml $songId;
+  ensureSongInfoCache $songId;
+  return readSongInfoCache $songId;
+}
+
+sub ensureSongInfoCache($){
+  my $songId = shift;
+  my $dir = "$CACHE_DIR/song-info";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$songId.info";
+  if(not -f $file){
+    my $html = fetchSongHtml $songId;
+    my $songInfo = parseSongHtml $songId, $html;
+    writeSongInfoCache $songId, $songInfo;
+  }
+  if(not -f $file){
+    die "Could not fetch songid=$songId\n";
+  }
+}
+sub readSongInfoCache($){
+  my ($songId) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  if(not -f $file){
+    die "Could not find file $file\n" if not -f $file;
+  }
+  open FH, "< $file" or die "Could not read file $file\n$!\n";
+  my $songInfo = {};
+  $$songInfo{banners} = [];
+  while(my $line = <FH>){
+    if($line =~ /^banner\.(\d+)\s*=\s*(.+)$/){
+      my ($bannerId, $bannerGame) = ($1, $2);
+      push @{$$songInfo{banners}}, [$bannerId, $bannerGame];
+    }elsif($line =~ /^([a-zA-Z0-9_\-]+)\s*=\s*(.+)$/){
+      my ($field, $val) = ($1, $2);
+      $$songInfo{$field} = $val;
+    }
+  }
+  return $songInfo;
+}
+sub writeSongInfoCache($$){
+  my ($songId, $songInfo) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  open FH, "> $file" or die "Could not write file $file\n$!\n";
+  for my $field(sort keys %$songInfo){
+    if($field eq "banners"){
+      for my $banner(@{$$songInfo{banners}}){
+        my ($bannerId, $bannerGame) = @$banner;
+        $bannerGame = '' if not defined $bannerGame;
+        print FH "banners.$bannerId=$bannerGame\n";
+      }
+    }else{
+      my $val = $$songInfo{$field};
+      $val = '' if not defined $val;
+      $val =~ s/^[ \t\n\r]+//;
+      $val =~ s/[ \t\n\r]+$//;
+      $val =~ s/\n+/ /;
+      print FH "$field=$val\n";
+    }
+  }
+  close FH;
+}
+sub parseSongHtml($$){
+  my ($songId, $html) = @_;
 
   my $song = {};
 
