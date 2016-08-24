@@ -3,62 +3,91 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $katUrl = "kat.cr";
+my $katUrl = "dx-torrent.com";
 my $magnetCommand = "seedbox";
-my $defaultSort="field=size&sorder=desc";
+my $defaultSortField = "size";
+my $defaultSortDir = "asc";
 my %sortFields = (
   size        => ['size'],
-  files_count => ['files_count', 'files'],
   time_add    => ['time_add', 'age', 'date'],
   seeders     => ['seeders', 'seed'],
   leechers    => ['leechers', 'leech'],
 );
 my %sortFieldSyns = map {my $key=$_; map {$_ => $key} @{$sortFields{$key}}} keys %sortFields;
-my $sortFieldFmt = join "\n      ", map {"$_ => @{$sortFields{$_}}"} sort keys %sortFields;
+my @allSortFieldSyns = join "|", sort ( map {@{$_}} values %sortFields );
+my $sortFieldFmt = join "\n        ", map {"$_ => @{$sortFields{$_}}"} sort keys %sortFields;
 my $okSortField = join '|', sort keys %sortFieldSyns;
 
 my $usage = "Usage:
   $0 [--sort=SORT] WORD [WORD ..]
     fetch web page at \"$katUrl/usearch/WORD WORD..\"
     parse the resulting HTML and display each torrent with an index
+      (last torrent shown has index \"#1\")
     prompt the user for indices to run '$magnetCommand <magnet_link>'
 
     WORD = query word
       first WORD cannot start with hyphen
 
-    SORT = FIELD | FIELD-ORDER
-
-    FIELD
-      one of the following fields to pass as 'field=FIELD' param
-      $sortFieldFmt
-
-    ORDER = asc | desc
-      passed as 'order=ORDER'
-      if not given, defaults to 'desc'
+    SORT
+      one of: @allSortFieldSyns
+        $sortFieldFmt
+      torrents are sorted locally before displaying
+      you can also add \"-asc\" or \"-desc\" to sort ascending or descending
+        \"-asc\" index number #1 (at the bottom) has the highest value
+        \"-desc\" index number #1 (at the bottom) has the lowest value
+      e.g.: --sort=size-asc
+      default field is \"$defaultSortField\"
+      default dir is \"$defaultSortDir\"
 ";
 
 sub getKatHtml($$);
+sub parseAgeS($);
 sub formatTorrent($);
 sub parseTorrents($);
 sub run(@);
 
 sub main(@){
-  my $sort = $defaultSort;
+  my $sortField = $defaultSortField;
+  my $sortDir = $defaultSortDir;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--sort=($okSortField)(?:-(asc|desc))?$/){
-      my ($field, $order) = ($1, $2);
-      $field = $sortFieldSyns{$field};
-      $order = 'desc' if not $order;
-      $sort = "field=$field&sorder=$order";
+      my ($sField, $sDir) = ($1, $2);
+      $sField = $sortFieldSyns{$sField};
+      $sDir = 'desc' if not $sDir;
+      ($sortField, $sortDir) = ($sField, $sDir);
     }else{
       die $usage;
     }
   }
 
-  my $html = getKatHtml "@_", $sort;
+  my $html = getKatHtml "@_", "";
 
   my @torrents = parseTorrents($html);
+
+  @torrents = sort {
+    my ($A, $B);
+    if($sortDir eq "asc"){
+      ($A, $B) = ($b, $a);
+    }elsif($sortDir eq "desc"){
+      ($A, $B) = ($a, $b);
+    }
+
+    if($sortField eq "size"){
+      return $$A{sizeMB} <=> $$B{sizeMB};
+    }elsif($sortField eq "time_add"){
+      return parseAgeS($$A{age}) <=> parseAgeS($$B{age});
+    }elsif($sortField eq "seeders"){
+      return $$A{seeders} <=> $$B{seeders};
+    }elsif($sortField eq "leechers"){
+      return $$A{leechers} <=> $$B{leechers};
+    }
+  } @torrents;
+
+  my $index = 1;
+  for my $torrent(@torrents){
+    $$torrent{index} = $index++;
+  }
 
   if(@torrents == 0){
     print "no torrents found for query: \"@_\"\n";
@@ -85,9 +114,9 @@ sub main(@){
 }
 
 sub getKatHtml($$){
-  my ($query, $sort) = @_;
+  my ($searchQuery, $postQuery) = @_;
 
-  my $url = "$katUrl/usearch/$query?$sort";
+  my $url = "$katUrl/usearch/$searchQuery?$postQuery";
   my $tmpFile = "/tmp/kickasstorrents-" . int(time*1000);
   run "wget", $url, "--no-check-certificate", "-O", $tmpFile;
 
@@ -105,6 +134,26 @@ sub getKatHtml($$){
   print "="x30 . "\n";
 
   return $html;
+}
+
+sub parseAgeS($){
+  my $ageVal = shift;
+  my $ageSex = 0;
+  if($ageVal =~ /^\s*(\d+(?:\.\d+)?)\s*(year|month|week|day|hour)s?\s*$/){
+    my ($val, $unit) = ($1, $2);
+    if($unit eq "year"){
+      $ageSex = $val * 365 * 24 * 60 * 60;
+    }elsif($unit eq "month"){
+      $ageSex = $val * 30 * 24 * 60 * 60;
+    }elsif($unit eq "week"){
+      $ageSex = $val * 7 * 24 * 60 * 60;
+    }elsif($unit eq "day"){
+      $ageSex = $val * 24 * 60 * 60;
+    }elsif($unit eq "hour"){
+      $ageSex = $val * 60 * 60;
+    }
+  }
+  return $ageSex;
 }
 
 sub formatTorrent($){
@@ -167,6 +216,7 @@ sub parseTorrents($){
        }
 
        my $title = $nameTD;
+       $title =~ s/>\s*\d+\s*</></g; # remove index
        $title =~ s/<a $tag class="[^"]*icommentjs[^"]*"$tag>.*?<\/a>//xs;
        $title =~ s/<$tag>$ws Posted $ws by $ws <$tag>.*//sx;
        $title =~ s/<$tag >$ws in $ws <$tag>.*//sx;
@@ -174,6 +224,9 @@ sub parseTorrents($){
        $title =~ s/^$ws//;
        $title =~ s/$ws$//;
        $title =~ s/\&quot;/"/g;
+       $title =~ s/[\n\r]//g;
+       $title =~ s/^\s*//;
+       $title =~ s/\s*$//;
 
        my $verified = "?";
        if($nameTD =~ /<a $tag title="Verified\ Torrent"$tag>/xs){
@@ -226,7 +279,6 @@ sub parseTorrents($){
        $leechers = $leechers =~ /(\d+)/ ? $1 : "?";
 
        push @torrents, {
-         index => $index,
          magnet => $magnet,
          title => $title,
          verified => $verified,
@@ -239,7 +291,6 @@ sub parseTorrents($){
          seeders => $seeders,
          leechers => $leechers,
        };
-       $index++;
     }
   }
 

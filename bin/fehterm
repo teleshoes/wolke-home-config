@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+
+sub run(@);
+
+my $GEOMETRY = '800x800+50+50';
+my $INFO = '%f\n%u/%l - %wx%h'; #FILENAME\nIMGNUM/TOTALNUM - WxH
+my $DEFAULT_TERM_CMD = "mv %f %f";
+my $BACKSPACE_COUNT = 80;
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 [TERM_CMD]
+    -use `term` to open a terminal with the window title 'fehterm-<FEHTERM_ID>'
+    -find the terminal's <WINDOW_ID> using `xwininfo`
+    -open a small feh window, using the '--info' commandline option
+      to run xdotool with the terminal's <WINDOW_ID>,
+      whenever the image info is (re-)rendered in feh
+      (the '--info' command also outputs '$INFO', after running xdotool)
+    -xdotool sends $BACKSPACE_COUNT backspace keys, and then types \"<TERM_CMD>\"
+
+  $0 -n
+  $0 --no-term
+    open a small feh window, without opening a term
+
+  TERM_CMD
+    characters to type in the terminal when rendering feh info
+    the default is \"$DEFAULT_TERM_CMD\"
+
+    ***DO NOT ADD NEWLINES '\\n', OR PART OF THE COMMAND WILL BE RUN ON RENDER***
+
+    you can use feh 'FORMAT SPECIFIERS' like '%f' or '%h'
+      e.g.:
+        `$0 'rename s/.jpg/_%w-%h.jpg/ %f'`
+        =>
+        rename s/.jpg/_1920x1080.jpg/ 20150602_001.jpg
+
+  FEHTERM_ID
+    arbitrary number: milliseconds since epoch when $0 was run
+
+  WINDOW_ID
+    the X window ID of the terminal, as determined by:
+      `xwininfo -name 'fehterm-<FEHTERM_ID>'`
+
+  FILE_NAME
+    just '%f', a feh 'FORMAT SPECIFIER'
+";
+
+sub main(@){
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+  my $noTerm = 0;
+  if(@_ == 1 and $_[0] =~ /^(-n|--no-term)$/){
+    $noTerm = 1;
+  }
+  my $termCmd = shift;
+  $termCmd = $DEFAULT_TERM_CMD if not defined $termCmd;
+  die $usage if @_ != 0;
+
+  if($noTerm){
+    my @cmd = ("/usr/bin/feh", "-g", $GEOMETRY, "--info", "echo '$INFO'");
+    print "@cmd\n";
+    exec @cmd;
+  }
+
+  my $windowTitle = "fehterm-" . int(time*1000);
+
+  run ("term",
+    "-t", $windowTitle,
+    "export WINDOW_TITLE=$windowTitle; bash",
+  );
+  sleep 0.5;
+
+  my $xwininfo = `xwininfo -name '$windowTitle'`;
+  if($xwininfo !~ /Window id: (0x[0-9a-f]+) "$windowTitle"/){
+    die "Could not find window id for name=$windowTitle\n";
+  }
+  my $windowId = $1;
+
+  my $infoCmd = ""
+    . "xdotool key --delay 1 --window $windowId" .
+      (" BackSpace" x $BACKSPACE_COUNT) . "; "
+    . "xdotool type --window $windowId '$termCmd'; "
+    . "echo '$INFO'; "
+    ;
+
+  run "/usr/bin/feh", "-g", $GEOMETRY, "--info", $infoCmd;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

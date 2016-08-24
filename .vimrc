@@ -263,3 +263,29 @@ function BandCampToMusicBrainz()
   %s/\v(\d+)\.\n/\1 /
   %s/\v\s+$//
 endfunction
+
+function Inc(...)
+  let result = g:i
+  let g:i += a:0 > 0 ? a:1 : 1
+  return result
+endfunction
+
+command -range -nargs=* Num call Num(<line1>, <line2>, <f-args>)
+cabbrev num  <c-r>=(getcmdtype()==':' && getcmdpos()==1 ? 'Num'  : 'num' )<CR>
+function Num(...)
+  let startLine=a:1
+  let endLine=a:2
+  let numStart=a:0 > 2 ? a:3 : 1
+
+  if startLine == 1 && endLine == 1
+    let range = "%"
+  else
+    let range = startLine . "," . endLine
+  endif
+
+  let g:i = numStart
+  let fmt = "\\=printf('%04d', Inc())"
+  let cmd = range . "s/^/" . fmt . "/"
+
+  execute cmd
+endfunction

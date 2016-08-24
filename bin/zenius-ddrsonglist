@@ -91,9 +91,19 @@ my @difficulties = qw(
   diff-doubles-basic diff-doubles-difficult diff-doubles-expert diff-doubles-challenge
 );
 
-sub parseGame($);
-sub parseAllGames();
-sub parseSong($);
+sub formatSongList();
+sub getAllGameInfo();
+sub getGameInfo($);
+sub ensureGameInfoCache($);
+sub readGameInfoCache($);
+sub writeGameInfoCache($$);
+sub parseGameHtml($$);
+sub getCachedSongsBySongNameId();
+sub getSongInfo($);
+sub ensureSongInfoCache($);
+sub readSongInfoCache($);
+sub writeSongInfoCache($$);
+sub parseSongHtml($$);
 sub fetchGameSongIds($);
 sub fetchAllSongIds();
 sub fetchGameHtml($);
@@ -109,15 +119,45 @@ sub calculateSongDifficulties($$$);
 sub formatSong($$@);
 sub htmlGetAllTables($);
 
+my $usage = "Usage:
+  $0 [--songlist]
+    print song list with feet difficulties
+
+  $0 --banners SONG_NAME_ID
+    print banner image file paths for given song name ID (e.g.: max-300)
+";
+
 sub main(@){
+  my $cmd = shift;
+  $cmd = "--songlist" if not defined $cmd;
+  if($cmd =~ /^(--songlist)$/ and @_ == 0){
+    print formatSongList();
+  }elsif($cmd =~ /^(--banners)$/ and @_ == 1){
+    my ($songNameId) = @_;
+    my $songsByNameId = getCachedSongsBySongNameId();
+    if(not defined $$songsByNameId{$songNameId}){
+      die "song '$songNameId' is not cached\n";
+    }
+    my $songInfo = $$songsByNameId{$songNameId};
+    my @banners = @{$$songInfo{banners}};
+    for my $b(@banners){
+      my ($bannerId, $bannerGame) = @$b;
+      print "$CACHE_DIR/banners/$bannerId.png\n";
+    }
+  }else{
+    die $usage;
+  }
+}
+
+sub formatSongList(){
   my @songIds = fetchAllSongIds();
   my $ddraSn2Ratios = getAvgDDRAToSN2Ratios();
-  my $allGameInfo = parseAllGames();
+  my $allGameInfo = getAllGameInfo();
 
   my $songList = {};
 
   for my $songId(@songIds){
-    my $song = parseSong $songId;
+    my $song = getSongInfo $songId;
     ensureSongBanners $song;
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
@@ -130,33 +170,94 @@ sub main(@){
     };
   }
 
+  my $fmt = '';
+
   for my $nameId(sort keys %$songList){
     my $abbrev = $$songList{$nameId}{abbrev};
     my @diffArr = @{$$songList{$nameId}{difficultiesArr}};
 
-    print formatSong($nameId, $abbrev, @diffArr);
+    $fmt .= formatSong($nameId, $abbrev, @diffArr);
   }
-  print "\n";
+  $fmt .= "\n";
   for my $nonstopCourse(sort @NONSTOP_COURSES){
     my $abbrev = "non" . ucfirst abbrevNameId $ABBREV_LEN-3, $nonstopCourse, "", "";
     my @diffArr = map {"-"} (0..8);
 
-    print formatSong($nonstopCourse, $abbrev, @diffArr);
+    $fmt .= formatSong($nonstopCourse, $abbrev, @diffArr);
   }
+
+  return $fmt;
 }
 
-sub parseAllGames(){
-  my $gameInfo = {};
+sub getAllGameInfo(){
+  my $gameInfoByName = {};
   for my $gameName(sort keys %$GAME_IDS){
     my $gameId = $$GAME_IDS{$gameName};
-    $$gameInfo{$gameName} = parseGame $gameId;
+    $$gameInfoByName{$gameName} = getGameInfo $gameId;
   }
-  return $gameInfo;
+  return $gameInfoByName;
 }
 
-sub parseGame($){
+sub getGameInfo($){
   my $gameId = shift;
-  my $html = fetchGameHtml $gameId;
+  ensureGameInfoCache $gameId;
+  return readGameInfoCache $gameId;
+}
+
+sub ensureGameInfoCache($){
+  my $gameId = shift;
+  my $dir = "$CACHE_DIR/game-info";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$gameId.info";
+  if(not -f $file){
+    my $html = fetchGameHtml $gameId;
+    my $gameInfo = parseGameHtml $gameId, $html;
+    writeGameInfoCache $gameId, $gameInfo;
+  }
+  if(not -f $file){
+    die "Could not fetch gameid=$gameId\n";
+  }
+}
+sub readGameInfoCache($){
+  my ($gameId) = @_;
+  my $dir = "$CACHE_DIR/game-info";
+  my $file = "$dir/$gameId.info";
+  if(not -f $file){
+    die "Could not find file $file\n" if not -f $file;
+  }
+  open FH, "< $file" or die "Could not read file $file\n$!\n";
+  my $gameInfo = {};
+  while(my $line = <FH>){
+    if($line =~ /^(\d+)\.([a-zA-Z0-9_\-]+)\s*=\s*(.+)$/){
+      my ($songId, $field, $val) = ($1, $2, $3);
+      $$gameInfo{$songId} = {} if not defined $$gameInfo{$songId};
+      $$gameInfo{$songId}{$field} = $val;
+    }
+  }
+  close FH;
+  return $gameInfo;
+}
+sub writeGameInfoCache($$){
+  my ($gameId, $gameInfo) = @_;
+  my $dir = "$CACHE_DIR/game-info";
+  my $file = "$dir/$gameId.info";
+  open FH, "> $file" or die "Could not write file $file\n$!\n";
+  for my $songId(sort {$a <=> $b} keys %$gameInfo){
+    my $gameSongInfo = $$gameInfo{$songId};
+    for my $field(sort keys %$gameSongInfo){
+      my $val = $$gameSongInfo{$field};
+      $val = '' if not defined $val;
+      $val =~ s/^[ \t\n\r]+//;
+      $val =~ s/[ \t\n\r]+$//;
+      $val =~ s/\n+/ /;
+      print FH "$songId.$field=$val\n";
+    }
+  }
+  close FH;
+}
+
+sub parseGameHtml($$){
+  my ($gameId, $html) = @_;
 
   my $songs = {};
 
@@ -230,9 +331,93 @@ sub parseGame($){
   return $songs;
 }
 
-sub parseSong($){
+sub getCachedSongsBySongNameId(){
+  my $dir = "$CACHE_DIR/song-info";
+  my @songIds;
+  for my $file(glob "$dir/*.info"){
+    if($file =~ /^$dir\/(\d+).info$/){
+      my $songId = $1;
+      push @songIds, $songId;
+    }else{
+      die "malformed file name: $file\n";
+    }
+  }
+  my $songInfoByNameId = {};
+  for my $songId(sort @songIds){
+    my $songInfo = readSongInfoCache $songId;
+    my $nameId = $$songInfo{nameId};
+    $$songInfoByNameId{$nameId} = $songInfo;
+  }
+  return $songInfoByNameId;
+}
+
+sub getSongInfo($){
   my $songId = shift;
-  my $html = fetchSongHtml $songId;
+  ensureSongInfoCache $songId;
+  return readSongInfoCache $songId;
+}
+
+sub ensureSongInfoCache($){
+  my $songId = shift;
+  my $dir = "$CACHE_DIR/song-info";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$songId.info";
+  if(not -f $file){
+    my $html = fetchSongHtml $songId;
+    my $songInfo = parseSongHtml $songId, $html;
+    writeSongInfoCache $songId, $songInfo;
+  }
+  if(not -f $file){
+    die "Could not fetch songid=$songId\n";
+  }
+}
+sub readSongInfoCache($){
+  my ($songId) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  if(not -f $file){
+    die "Could not find file $file\n" if not -f $file;
+  }
+  open FH, "< $file" or die "Could not read file $file\n$!\n";
+  my $songInfo = {};
+  $$songInfo{banners} = [];
+  while(my $line = <FH>){
+    if($line =~ /^banners\.(\d+)\s*=\s*(.*)$/){
+      my ($bannerId, $bannerGame) = ($1, $2);
+      push @{$$songInfo{banners}}, [$bannerId, $bannerGame];
+    }elsif($line =~ /^([a-zA-Z0-9_\-]+)\s*=\s*(.+)$/){
+      my ($field, $val) = ($1, $2);
+      $$songInfo{$field} = $val;
+    }
+  }
+  close FH;
+  return $songInfo;
+}
+sub writeSongInfoCache($$){
+  my ($songId, $songInfo) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  open FH, "> $file" or die "Could not write file $file\n$!\n";
+  for my $field(sort keys %$songInfo){
+    if($field eq "banners"){
+      for my $banner(@{$$songInfo{banners}}){
+        my ($bannerId, $bannerGame) = @$banner;
+        $bannerGame = '' if not defined $bannerGame;
+        print FH "banners.$bannerId=$bannerGame\n";
+      }
+    }else{
+      my $val = $$songInfo{$field};
+      $val = '' if not defined $val;
+      $val =~ s/^[ \t\n\r]+//;
+      $val =~ s/[ \t\n\r]+$//;
+      $val =~ s/\n+/ /;
+      print FH "$field=$val\n";
+    }
+  }
+  close FH;
+}
+sub parseSongHtml($$){
+  my ($songId, $html) = @_;
 
   my $song = {};
 
@@ -310,10 +495,11 @@ sub fetchAllSongIds(){
 
 sub fetchGameHtml($){
   my $gameId = shift;
-  my $dir = "$CACHE_DIR/games";
+  my $dir = "$CACHE_DIR/game-html";
   system "mkdir", "-p", $dir;
   my $file = "$dir/$gameId.html";
   if(not -f $file){
+    system "rm", "-f", "$CACHE_DIR/game-info/$gameId.info";
     system "wget $API_URL/gamedb.php?gameid=$gameId -O $file";
   }
   if(not -f $file){
@@ -324,7 +510,7 @@ sub fetchGameHtml($){
 
 sub fetchSongHtml($){
   my $songId = shift;
-  my $dir = "$CACHE_DIR/songs";
+  my $dir = "$CACHE_DIR/song-html";
   system "mkdir", "-p", $dir;
   my $file = "$dir/$songId.html";
   if(not -f $file){
@@ -359,8 +545,8 @@ sub ensureSongBanners($){
 }
 
 sub getAvgDDRAToSN2Ratios(){
-  my $gameInfoDDRA = parseGame $$GAME_IDS{DDRA};
-  my $gameInfoSN2 = parseGame $$GAME_IDS{SN2};
+  my $gameInfoDDRA = getGameInfo $$GAME_IDS{DDRA};
+  my $gameInfoSN2 = getGameInfo $$GAME_IDS{SN2};
   my $ratios = {};
   for my $songId(fetchAllSongIds()){
     my $gDDRA = $$gameInfoDDRA{$songId};

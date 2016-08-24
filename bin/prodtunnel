@@ -2,12 +2,9 @@
 use strict;
 use warnings;
 
-my $tunnels = {
-  prod        => ["ehr.prod",             "ehr-db.prod",          2483],
-  oldprod     => ["garuda.escribe.com",   "garuda.escribe.com",   1521],
-  olddatadict => ["datadict.escribe.com", "datadict.escribe.com", 1521],
-};
-my $okTunnels = join "|", sort keys %$tunnels;
+my $host = "ehr.prod";
+my $destHost = "ehr-db.prod";
+my $port = "2483";
 
 my $user = 'ewolk';
 my $controlFile = '/tmp/prodtunnelssh.ctl';
@@ -16,16 +13,18 @@ sub createTunnel($$$);
 sub run(@);
 
 my $usage = "Usage:
+  $0 on
+     USER=\"$user\"
+     HOST=\"$host\"
+     DEST_HOST=\"$destHost\"
+     PORT=\"$port\"
+     ssh -M -S $controlFile -f \$USER\@\$HOST -L \$PORT:\$DEST_HOST:\$PORT -N
   $0 off
     ssh -S $controlFile -O exit localhost
-  $0 $okTunnels
-    ssh -M -S $controlFile -f $user\@<HOST> -L <PORT>:<DEST_HOST>:<PORT> -N
 ";
 
 sub main(@){
-  if(@_ == 1 and defined $$tunnels{$_[0]}){
-    my $tunnel = $$tunnels{$_[0]};
-    my ($host, $destHost, $port) = @$tunnel;
+  if(@_ == 1 and $_[0] eq "on"){
     createTunnel $host, $destHost, $port;
   }elsif(@_ == 1 and $_[0] eq "off"){
     run 'ssh', '-S', $controlFile, '-O', 'exit', 'localhost';

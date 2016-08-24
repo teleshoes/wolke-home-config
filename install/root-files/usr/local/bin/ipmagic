@@ -32,6 +32,8 @@ my $confDir = "$ENV{HOME}/.config/ipmagic";
 my @confFiles = `ls \"$confDir\" 2>/dev/null`;
 chomp foreach @confFiles;
 
+my $defaultSSHArgs = "-o StrictHostKeyChecking=no";
+
 my $defaultPreBashCommand = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
 my $methods = join "|", qw(any tmp usb wifi guess);
@@ -82,6 +84,12 @@ my $usage = "Usage:
       setup hosts file, init devices, and optionally perform an action
       ACTIONS:
         -s [CMD ARG ARG..]  ssh to host
+                            if \"CMD ARG ARG..\" is specified, it is passed to ssh
+                            otherwise, if DEFAULT_SSH_COMMAND is specified, it is passed to ssh
+                            otherwise, no command is passed to ssh
+
+                            additional args can be set in the config file:
+                            sshArgs=SSH_ARGS
 
         CMD [ARG ARG..]     ssh with bash -c \"CMD ARG ARG\"
         -b CMD [ARG ARG..]  if IGNORE_BASH_COMMAND is 'true', runs this command:
@@ -100,8 +108,26 @@ my $usage = "Usage:
                             preBashCommand=PRE_BASH_COMMAND
                             {default is $defaultPreBashCommand}
 
+                            additional args can be set in the config file:
+                            sshArgs=SSH_ARGS
+
         -vnc [VNC_ARGS]     call vncCmd
                             e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
+
+        SSH_ARGS
+          additional args passed to ssh in '-s' and '-b'
+          specified in the config file:
+            sshArgs=SSH_ARGS
+
+        DEFAULT_SSH_COMMAND
+          used when no arg is given for '-s'
+          specified in the config file:
+            defaultSSHCommand=DEFAULT_SSH_COMMAND
+
+        PRE_BASH_COMMAND
+          run before the argument to '-b'
+          specified in the config file:
+            preBashCommand=PRE_BASH_COMMAND
 
       CONF:
         ipmagic config file
@@ -213,6 +239,9 @@ sub main(@){
     shift;
     $isSsh = 1;
     @sshCmd = @_;
+    if(@sshCmd == 0 and defined $config{defaultSSHCommand}){
+      @sshCmd = ($config{defaultSSHCommand});
+    }
   }elsif(@_ > 0){
     shift if $_[0] eq '-b';
     $isSsh = 1;
@@ -288,10 +317,8 @@ sub main(@){
   }elsif($isSsh){
     ensureFingerprint $config{hostname}, $ip if defined $ip;
 
-    my %sshOpts = (
-      StrictHostKeyChecking => 'no',
-    );
-    my @sshCmdOpts = map {("-o", "$_ $sshOpts{$_}")} keys %sshOpts;
+    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
+    my @sshCmdOpts = split /\s+/, $sshArgs;
 
     my @cmd = ("ssh", @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
@@ -367,7 +394,7 @@ sub parseConfig($){
   my %listKeys = map {$_ => 1} qw(mac ipGuess);
   my %singleKeys = map {$_ => 1} qw(
     hostname vncCommand vncDefaultArgs defaultUser
-    usbLocalIp usbRemoteIp preBashCommand ignorePreBashCommand
+    usbLocalIp usbRemoteIp sshArgs defaultSSHCommand preBashCommand ignorePreBashCommand
   );
   my %assertBool = map {$_ => 1} qw(ignorePreBashCommand);
   my %assertIp = map {$_ => 1} qw(ipGuess usbLocalIp usbRemoteIp);

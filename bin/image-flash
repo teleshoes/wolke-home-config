@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my $width=150;
+my $height=150;
+my $timeoutMillis=1500;
+
+my $usage = "Usage:
+  $0 [IMG IMG IMG ...]
+    briefly show <IMG> files, all on screen at once, using feh
+    images are resized, preserving aspect ratio, to at most ${width}x$height
+    images are shown in a grid, starting at the bottom right corner of the screen,
+      moving first to the left, then up as each row is filled
+";
+
+sub main(@){
+  my $screenWidth = `res -w`;
+  my $screenHeight = `res -h`;
+  if($screenWidth !~ /^\d+$/ or $screenHeight !~ /^\d+$/){
+    die "error getting screen WxH from `res`\n";
+  }
+  my $xOffset = $screenWidth;
+  my $yOffset = $screenHeight - $width;
+  my @pids;
+  for my $img(@_){
+    $xOffset -= $width;
+    if($xOffset < 0){
+      $xOffset = $screenWidth - $width;
+      $yOffset -= $height;
+    }
+    if($yOffset < 0){
+      print STDERR "WARNING: out of room!\n";
+      last;
+    }
+    my $pid = fork;
+    if($pid == 0){
+      exec "/usr/bin/feh", "-Z", "-g", "${width}x${height}+${xOffset}+${yOffset}", $img;
+    }
+    push @pids, $pid;
+  }
+
+  sleep $timeoutMillis/1000.0;
+
+  for my $pid(@pids){
+    print "killing pid $pid\n";
+    system "kill", "-9", $pid;
+    waitpid $pid, 0;
+  }
+}
+
+&main(@ARGV);
