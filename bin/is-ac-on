@@ -3,13 +3,29 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $kurtosisThreshold = 5;
+my $KU_FLOOR = 5;     #KU below is always OFF
+my $KU_CEIL  = 9;     #KU above is always ON
+my $SD_FLOOR = 6000;  #when KU is between, SD below is OFF
+my $SD_CEIL  = 7000;  #when KU is between, SD above is ON
+my $MV_FLOOR = 65000; #when KU and SD are between, MV above is ON, below is OFF
+
+sub identifyImage($@);
 
 my $usage = "Usage:
-  $0 [OPTS]
-    run `sbcam`, pass the image produced to `kurtosis`,
-      and print 'yes' for kurtosis>10 (lit LEDs are sharp)
-      and print 'no' otherwise
+  $0 [OPTS] [IMAGE_FILE_NAME]
+    -if IMAGE_FILE_NAME is not given,
+      run `sbcam` and use the image produced
+    -pass the image to `identify` and read the following properties:
+       KU = %[kurtosis]
+       SD = %[standard-deviation]
+       MV = %[max]
+    -based on the following calculation, print either 'yes' or 'no'
+      IF KU<$KU_FLOOR
+      OR KU<$KU_CEIL and SD<$SD_FLOOR
+      OR KU<$KU_CEIL and SD<$SD_CEIL and MV<$MV_FLOOR
+        print 'no'
+      OTHERWISE
+        print 'yes'
 
    OPTS
      -v | --verbose
@@ -18,30 +34,70 @@ my $usage = "Usage:
 
 sub main(@){
   my $verbose = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
+  my $file;
+  if(@_ > 0 and -f $_[0]){
+    $file = shift;
+  }
   die $usage if @_ > 0;
 
-  my $f = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
-  if($verbose){
-    system "sbcam $f";
-  }else{
-    system "sbcam $f >/dev/null 2>/dev/null";
+  if(not defined $file){
+    $file = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
+    if($verbose){
+      system "sbcam $file";
+    }else{
+      system "sbcam $file >/dev/null 2>/dev/null";
+    }
   }
-  if(not -f $f){
-    die "ERROR\n";
+
+  if(not -f $file){
+    die "ERROR: file \"$file\" not found\n";
   }
-  my $k = `kurtosis $f`;
-  chomp $k;
-  if($k !~ /^-?\d+(\.\d+)?$/){
-    die "ERROR\n";
-  }
-  if(defined $verbose){
-    print "$f => kurtosis=$k\n";
-  }
-  if($k > $kurtosisThreshold){
-    print "yes\n";
-  }else{
+
+  my $info = identifyImage $file, qw(kurtosis standard-deviation max);
+
+  my $KU = $$info{"kurtosis"};
+  my $SD = $$info{"standard-deviation"};
+  my $MV = $$info{"max"};
+
+  print "FILE=$file\nKU=$KU\nSD=$SD\nMV=$MV\n" if $verbose;
+
+  if( 0 == 1
+    or ($KU < $KU_FLOOR)
+    or ($KU < $KU_CEIL and $SD < $SD_FLOOR)
+    or ($KU_CEIL and $SD_CEIL and $MV < $MV_FLOOR)
+  ){
     print "no\n";
+  }else{
+    print "yes\n";
   }
+}
+
+sub identifyImage($@){
+  my ($image, @props) = @_;
+
+  my $format = join("@", map {"%[$_]"} @props) . "\\n";
+  my @cmd = ("identify", "-format", $format, $image);
+
+  open FH, "-|", @cmd;
+  my $val = join '', <FH>;
+  close FH;
+  $val =~ s/\n//g;
+
+  my @vals = split /@/, $val;
+  if(@vals != @props){
+    die "Error reading `@cmd` output: $val\n";
+  }
+
+  my $valsByProp = {};
+  for(my $i=0; $i<@vals; $i++){
+    my $prop = $props[$i];
+    my $propVal = $vals[$i];
+    if($propVal !~ /^-?\d+(?:\.\d+)?$/){
+      die "non-numeric value returned by `@cmd`: $propVal\n";
+    }
+    $$valsByProp{$prop} = $propVal;
+  }
+  return $valsByProp;
 }
 
 &main(@ARGV);
