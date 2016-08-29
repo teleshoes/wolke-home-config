@@ -3,15 +3,29 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $kurtosisThreshold = 5;
+my $KU_FLOOR = 5;     #KU below is always OFF
+my $KU_CEIL  = 9;     #KU above is always ON
+my $SD_FLOOR = 6000;  #when KU is between, SD below is OFF
+my $SD_CEIL  = 7000;  #when KU is between, SD above is ON
+my $MV_FLOOR = 65000; #when KU and SD are between, MV above is ON, below is OFF
 
 sub identifyImage($@);
 
 my $usage = "Usage:
   $0 [OPTS]
-    run `sbcam`, pass the image produced to `identify` and read the kurtosis,
-      and print 'yes' for kurtosis>10 (lit LEDs are sharp)
-      and print 'no' otherwise
+    -run `sbcam`
+    -pass the image produced to `identify`
+    -read the following properties:
+       KU = %[kurtosis]
+       SD = %[standard-deviation]
+       MV = %[max]
+    -based on the following calculation, print either 'yes' or 'no'
+      IF KU<$KU_FLOOR
+      OR KU<$KU_CEIL and SD<$SD_FLOOR
+      OR KU<$KU_CEIL and SD<$SD_CEIL and MV<$MV_FLOOR
+        print 'no'
+      OTHERWISE
+        print 'yes'
 
    OPTS
      -v | --verbose
@@ -32,19 +46,22 @@ sub main(@){
     die "ERROR: file \"$file\" not found\n";
   }
 
-  my $info = identifyImage $file, qw(kurtosis);
-  my $k = $$info{kurtosis};
-  chomp $k;
-  if($k !~ /^-?\d+(\.\d+)?$/){
-    die "ERROR\n";
-  }
-  if(defined $verbose){
-    print "$file => kurtosis=$k\n";
-  }
-  if($k > $kurtosisThreshold){
-    print "yes\n";
-  }else{
+  my $info = identifyImage $file, qw(kurtosis standard-deviation max);
+
+  my $KU = $$info{"kurtosis"};
+  my $SD = $$info{"standard-deviation"};
+  my $MV = $$info{"max"};
+
+  print "FILE=$file\nKU=$KU\nSD=$SD\nMV=$MV\n" if $verbose;
+
+  if( 0 == 1
+    or ($KU < $KU_FLOOR)
+    or ($KU < $KU_CEIL and $SD < $SD_FLOOR)
+    or ($KU_CEIL and $SD_CEIL and $MV < $MV_FLOOR)
+  ){
     print "no\n";
+  }else{
+    print "yes\n";
   }
 }
 
