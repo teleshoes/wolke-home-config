@@ -5,9 +5,11 @@ use Time::HiRes qw(time);
 
 my $kurtosisThreshold = 5;
 
+sub identifyImage($@);
+
 my $usage = "Usage:
   $0 [OPTS]
-    run `sbcam`, pass the image produced to `kurtosis`,
+    run `sbcam`, pass the image produced to `identify` and read the kurtosis,
       and print 'yes' for kurtosis>10 (lit LEDs are sharp)
       and print 'no' otherwise
 
@@ -29,7 +31,9 @@ sub main(@){
   if(not -f $file){
     die "ERROR: file \"$file\" not found\n";
   }
-  my $k = `kurtosis $file`;
+
+  my $info = identifyImage $file, qw(kurtosis);
+  my $k = $$info{kurtosis};
   chomp $k;
   if($k !~ /^-?\d+(\.\d+)?$/){
     die "ERROR\n";
@@ -42,6 +46,34 @@ sub main(@){
   }else{
     print "no\n";
   }
+}
+
+sub identifyImage($@){
+  my ($image, @props) = @_;
+
+  my $format = join("@", map {"%[$_]"} @props) . "\\n";
+  my @cmd = ("identify", "-format", $format, $image);
+
+  open FH, "-|", @cmd;
+  my $val = join '', <FH>;
+  close FH;
+  $val =~ s/\n//g;
+
+  my @vals = split /@/, $val;
+  if(@vals != @props){
+    die "Error reading `@cmd` output: $val\n";
+  }
+
+  my $valsByProp = {};
+  for(my $i=0; $i<@vals; $i++){
+    my $prop = $props[$i];
+    my $propVal = $vals[$i];
+    if($propVal !~ /^-?\d+(?:\.\d+)?$/){
+      die "non-numeric value returned by `@cmd`: $propVal\n";
+    }
+    $$valsByProp{$prop} = $propVal;
+  }
+  return $valsByProp;
 }
 
 &main(@ARGV);
