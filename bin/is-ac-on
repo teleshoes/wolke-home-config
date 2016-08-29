@@ -12,10 +12,10 @@ my $MV_FLOOR = 65000; #when KU and SD are between, MV above is ON, below is OFF
 sub identifyImage($@);
 
 my $usage = "Usage:
-  $0 [OPTS]
-    -run `sbcam`
-    -pass the image produced to `identify`
-    -read the following properties:
+  $0 [OPTS] [IMAGE_FILE_NAME]
+    -if IMAGE_FILE_NAME is not given,
+      run `sbcam` and use the image produced
+    -pass the image to `identify` and read the following properties:
        KU = %[kurtosis]
        SD = %[standard-deviation]
        MV = %[max]
@@ -34,14 +34,21 @@ my $usage = "Usage:
 
 sub main(@){
   my $verbose = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
+  my $file;
+  if(@_ > 0 and -f $_[0]){
+    $file = shift;
+  }
   die $usage if @_ > 0;
 
-  my $file = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
-  if($verbose){
-    system "sbcam $file";
-  }else{
-    system "sbcam $file >/dev/null 2>/dev/null";
+  if(not defined $file){
+    $file = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
+    if($verbose){
+      system "sbcam $file";
+    }else{
+      system "sbcam $file >/dev/null 2>/dev/null";
+    }
   }
+
   if(not -f $file){
     die "ERROR: file \"$file\" not found\n";
   }
