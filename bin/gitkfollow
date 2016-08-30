@@ -1,9 +1,45 @@
-#!/bin/bash
-gitk_follow () {
-  while (( "$#" )); do
-    git log --oneline --name-status --follow $1;
-    shift;
-  done | perl -ne 'if( s{^(?:[ACDMRTUXB]|R\d+)\s+}{} ) { s{\s+}{\n}g; print; }' | sort -u
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getAllFilesFromHistory($);
+
+sub main(@){
+  my @files;
+  for my $file(@_){
+    if(not -f $file){
+      die "Usage: $0 [FILE FILE FILE ..]\ncould not find file \"$file\"\n";
+    }
+    @files = (@files, getAllFilesFromHistory $file);
+  }
+
+  my @cmd = ("gitk", "--", @files);
+  print "@cmd\n";
+  exec @cmd;
 }
 
-gitk -- $(gitk_follow $@)
+sub getAllFilesFromHistory($){
+  my ($file) = @_;
+  my @cmd = ("git", "log", "--oneline", "--name-status", "--follow", $file);
+  open FH, "-|", @cmd or die "Could not run \"@cmd\"\n$!\n";
+  my @files;
+  my %seenFiles;
+  while(my $line = <FH>){
+    my @commitFiles;
+    if($line =~ /^(?:[ACDMRTUXB]|R\d+)\t([^\t]+)(?:\t([^\t]+))?\n$/){
+      my ($fileOne, $fileTwo) = ($1, $2);
+      push @commitFiles, $fileOne if defined $fileOne;
+      push @commitFiles, $fileOne if defined $fileTwo;
+    }
+    for my $commitFile(@commitFiles){
+      if(not defined $seenFiles{$commitFile}){
+        $seenFiles{$commitFile} = 1;
+        push @files, $commitFile;
+      }
+    }
+  }
+  close FH;
+  return @files;
+}
+
+&main(@ARGV);
