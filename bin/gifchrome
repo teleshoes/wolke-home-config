@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Cwd 'abs_path';
 
-sub getHtml(@);
+sub getHtml($@);
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -11,7 +11,7 @@ sub main(@){
   my @gifs = @_;
   @gifs = (glob("*.gif"), glob "*.GIF") if @gifs == 0;
 
-  my $html = getHtml map {abs_path($_)} @gifs;
+  my $html = getHtml 1, map {abs_path($_)} @gifs;
 
   open FH, "> $tmpHtmlFile";
   print FH $html;
@@ -21,22 +21,28 @@ sub main(@){
   system "rm", $tmpHtmlFile;
 }
 
-sub getHtml(@){
-  my (@imgAbsPaths) = @_;
+sub getHtml($@){
+  my ($includeClickBox, @imgAbsPaths) = @_;
 
   my $html = '';
   for my $img(@imgAbsPaths){
     my $fileUrl = "file://$img";
-    $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
-  }
-  $html .= "
-    <script>
-    function addText(event) {
-      var targ = event.target || event.srcElement;
-      document.getElementById(\"clicked\").value += targ.src;
+    if($includeClickBox){
+      $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
+    }else{
+      $html .= "<img src=\"$fileUrl\"/>\n";
     }
-    </script>
-    <textarea id=\"clicked\"/>\n";
+  }
+  if($includeClickBox){
+    $html .= "
+      <script>
+      function addText(event) {
+        var targ = event.target || event.srcElement;
+        document.getElementById(\"clicked\").value += targ.src;
+      }
+      </script>
+      <textarea id=\"clicked\"/>\n";
+  }
   return $html;
 }
 
