@@ -3,32 +3,41 @@ use strict;
 use warnings;
 use Cwd 'abs_path';
 
+sub getHtml(@);
+
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
 sub main(@){
   my @gifs = @_;
   @gifs = (glob("*.gif"), glob "*.GIF") if @gifs == 0;
 
-  my $html = '';
-  for my $gif(@gifs){
-    my $fileUrl = "file://" . abs_path($gif);
-    $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
-  }
-  $html .= "
-  <script>
-  function addText(event) {
-    var targ = event.target || event.srcElement;
-    document.getElementById(\"clicked\").value += targ.src;
-  }
-  </script>
-  <textarea id=\"clicked\"/>
-  ";
+  my $html = getHtml map {abs_path($_)} @gifs;
+
   open FH, "> $tmpHtmlFile";
   print FH $html;
   close FH;
 
   system "chromium", "--incognito", $tmpHtmlFile;
   system "rm", $tmpHtmlFile;
+}
+
+sub getHtml(@){
+  my (@imgAbsPaths) = @_;
+
+  my $html = '';
+  for my $img(@imgAbsPaths){
+    my $fileUrl = "file://$img";
+    $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
+  }
+  $html .= "
+    <script>
+    function addText(event) {
+      var targ = event.target || event.srcElement;
+      document.getElementById(\"clicked\").value += targ.src;
+    }
+    </script>
+    <textarea id=\"clicked\"/>\n";
+  return $html;
 }
 
 &main(@ARGV);
