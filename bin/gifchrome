@@ -17,18 +17,25 @@ my $usage = "Usage:
     if no images are passed in, all *.gif and *.GIF images in the CWD are used
 
   OPTS:
+    --dir=PREFIX
+      make \"src\" in img tags \"file://<PREFIX>/<GIF_FILE>\"
+      where GIF_FILE is the absolute or relative path given
+
     --clickbox
       include a textbox at the bottom
       when an image is clicked, put the image's filename in it
 ";
 
 sub main(@){
+  my $prefixDir = undef;
   my $includeClickBox = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^--dir=(.+)$/){
+      $prefixDir = $1;
     }elsif($arg =~ /^(--clickbox)$/){
       $includeClickBox = 1;
     }else{
@@ -43,7 +50,15 @@ sub main(@){
     die "$usage\nFile not found: $gif\n" if not -f $gif;
   }
 
-  my $html = getHtml $includeClickBox, map {abs_path($_)} @gifs;
+  my @imgPaths;
+  if(defined $prefixDir){
+    $prefixDir =~ s/\/$//;
+    @imgPaths = map {"$prefixDir/$_"} @gifs;
+  }else{
+    @imgPaths = map {abs_path($_)} @gifs;
+  }
+
+  my $html = getHtml $includeClickBox, @imgPaths;
 
   open FH, "> $tmpHtmlFile";
   print FH $html;
