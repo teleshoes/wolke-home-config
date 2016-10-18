@@ -9,6 +9,9 @@ my $usage = "Usage:
   $0 -h
     print this usage
 
+  $0 [OPTIONS] [--stdin]
+    pipe STDIN to 'od -t $odFormat -A $odAddressRadix FILE'
+
   $0 [OPTIONS] FILE [FILE FILE ..]
     run 'od -t $odFormat -A $odAddressRadix FILE' for each file
 
@@ -28,19 +31,24 @@ my $usage = "Usage:
 
 sub main(@){
   my $showFilename = undef;
+  my $stdin = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(--filename)$/){
       $showFilename = 1;
     }elsif($arg =~ /^(--nofilename)$/){
       $showFilename = 0;
+    }elsif($arg =~ /^(--stdin)$/){
+      $stdin = 1;
     }else{
       die $usage;
     }
   }
 
   my @files = @_;
-  die $usage if @files == 0;
+  if(@files == 0){
+    $stdin = 1;
+  }
 
   if(not defined $showFilename){
     $showFilename = @files > 1 ? 1 : 0;
@@ -49,20 +57,30 @@ sub main(@){
   my @odBaseCmd = ("od", "-t", $odFormat, "-A", $odAddressRadix);
 
   my $exitCode = 0;
-  for my $file(@files){
-    if(not -f $file){
-      print STDERR "$file is not a file\n";
-      $exitCode = 1;
-      next;
-    }
-    my @odCmd = (@odBaseCmd, $file);
-    open ODCMD, "-|", @odCmd or die "Could not run @odCmd\n";
-    while(my $line = <ODCMD>){
-      print "$file:" if $showFilename;
-      print $line;
+  if($stdin){
+    open ODCMD, "|-", @odBaseCmd;
+    while(my $line = <STDIN>){
+      print ODCMD $line;
     }
     close ODCMD;
+
     $exitCode = 1 if $? != 0;
+  }else{
+    for my $file(@files){
+      if(not -f $file){
+        print STDERR "$file is not a file\n";
+        $exitCode = 1;
+        next;
+      }
+      my @odCmd = (@odBaseCmd, $file);
+      open ODCMD, "-|", @odCmd or die "Could not run @odCmd\n";
+      while(my $line = <ODCMD>){
+        print "$file:" if $showFilename;
+        print $line;
+      }
+      close ODCMD;
+      $exitCode = 1 if $? != 0;
+    }
   }
   exit $exitCode;
 }
