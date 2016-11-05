@@ -1,18 +1,18 @@
 12,13d11
 < import com.backup42.common.perm.C42PermissionPro.CPD;
 < import com.backup42.common.perm.C42PermissionPro.CPS;
-45d42
+47d44
 < import com.code42.backup.C42PermissionBackup.Backup;
-49d45
+51d47
 < import com.code42.event.Listener;
-58a55
+60a57
 > import com.code42.messaging.MessageReceiverProxy;
-71a69
+73a71
 > import com.code42.swt.view.AppWindowEvent;
-89,90d86
+95,96d92
 < import org.eclipse.swt.widgets.Display;
 < import org.eclipse.swt.widgets.Shell;
-92,96c88,89
+98,102c94,95
 < public class CPDesktop
 <   extends Publisher
 <   implements SplashWindow.Event.Listener, MainWindow.Event.Listener, IModelObserver
@@ -21,23 +21,27 @@
 ---
 > public class CliWrapper {
 >   private static final com.code42.logging.Logger log = LoggerFactory.getLogger(CliWrapper.class.getName());
-98d90
+104d96
 <   private static Display display;
-100d91
+106d97
 <   private final Listener listener = new Listener(this);
-173c164
+109c100
+<   private final AppModel appModel;
+---
+>   private AppModel appModel;
+180c171
 <       AppTimer.begin(CPDesktop.class.getSimpleName());
 ---
 >       AppTimer.begin(CliWrapper.class.getSimpleName());
-177c168
+184c175
 <       CPDesktop startupController = new CPDesktop(args);
 ---
 >       CliWrapper startupController = new CliWrapper(args);
-182c173
+189c180
 <       String msg = "Failed to launch " + CPDesktop.class.getSimpleName() + "; " + e;
 ---
 >       String msg = "Failed to launch " + CliWrapper.class.getSimpleName() + "; " + e;
-185a177,185
+192a184,192
 > 
 >     Thread.sleep(1000);
 >     System.out.println("\n\n");
@@ -47,34 +51,45 @@
 >     System.out.println("\n\n");
 >     Thread.sleep(1000);
 >     Runtime.getRuntime().halt(0);
-190,192c190
+197,199c197
 <     log.info("Bring main window forward.", new Object[0]);
 <     Display disp = MainWindow.getInstance().getShell().getDisplay();
 <     ActionManager.run(disp, new ShowMainWindow());
 ---
 >     System.out.println("Bring main window forward.");
-195c193
+202c200
 <   public CPDesktop(String[] args)
 ---
 >   public CliWrapper(String[] args)
-219c217
-<         OrgType orgType = orgType.get();
----
->         OrgType orgType = OrgType.CONSUMER;
-238a237,238
+217a216,217
 >     appModel = new AppModel(commandLineArguments);
 > 
-246d245
+224d223
 <     Display.setAppName(appName);
-248,249d246
+226,227d224
 <     appModel = new AppModel(commandLineArguments);
 <     appModel.getConfigModel().addObserver(this);
-296,299d292
+245a243,244
+>     appModel = new AppModel(commandLineArguments);
+> 
+276,279d274
 <     display = Display.getDefault();
 <     
 <     CPFont.loadFonts(display, appModel.getDesktopProperties());
 <     
-396,405d388
+308c303
+<     OrgType orgType = orgType.get();
+---
+>     OrgType orgType = OrgType.CONSUMER;
+310c305
+<     Path skinCustomPath = appDataPath.resolve(CPService.Custom.DST_SKIN_CUSTOM_DIR);
+---
+>     Path skinCustomPath = appDataPath.resolve(Custom.DST_SKIN_CUSTOM_DIR);
+403c398
+<       CarbonLib.FSCatalogInfo info = fm.getCatalogInfo(testFile);
+---
+>       FSCatalogInfo info = fm.getCatalogInfo(testFile);
+415,424d409
 <     try
 <     {
 <       splashWindow = new SplashWindow(display);
@@ -85,42 +100,42 @@
 <     {
 <       log.warn("Unable to show splash. " + e.getMessage(), new Object[] { e });
 <     }
-411,414d393
+430,433d414
 <     services.addListener(listener, ConnectedEvent.class);
 <     services.addListener(listener, ConnectFailedEvent.class);
 <     services.addListener(listener, StatusResponseMessage.class);
 <     
-417c396
+436c417
 <     PermissionUtils.init(new Class[] { C42PermissionBackup.Backup.class, C42PermissionBase.Admin.class, C42PermissionBase.None.class, C42PermissionPro.CPD.class, C42PermissionPro.CPS.class });
 ---
 >     PermissionUtils.init(new Class[] {});
-428c407
+447c428
 <           CPDesktop.log.debug("ShutdownHook...calling cleanup", new Object[0]);
 ---
 >           CliWrapper.log.debug("ShutdownHook...calling cleanup", new Object[0]);
-430c409
+449c430
 <           CPDesktop.log.info("EXITING... Normally", new Object[0]);
 ---
 >           CliWrapper.log.info("EXITING... Normally", new Object[0]);
-433c412
+452c433
 <           CPDesktop.log.debug("ShutdownHook...sleeping 3 seconds", new Object[0]);
 ---
 >           CliWrapper.log.debug("ShutdownHook...sleeping 3 seconds", new Object[0]);
-435c414
+454c435
 <           synchronized (CPDesktop.MAIN_MONITOR)
 ---
 >           synchronized (CliWrapper.MAIN_MONITOR)
-437,438c416,417
+456,457c437,438
 <             CPDesktop.log.debug("ShutdownHook...notify main of shutdown.", new Object[0]);
 <             CPDesktop.MAIN_MONITOR.notifyAll();
 ---
 >             CliWrapper.log.debug("ShutdownHook...notify main of shutdown.", new Object[0]);
 >             CliWrapper.MAIN_MONITOR.notifyAll();
-442c421
+461c442
 <         CPDesktop.log.debug("ShutdownHook...calling halt.", new Object[0]);
 ---
 >         CliWrapper.log.debug("ShutdownHook...calling halt.", new Object[0]);
-448,468d426
+467,487d447
 <     try
 <     {
 <       while (!display.isDisposed()) {
@@ -142,43 +157,47 @@
 <       SWTExec.shutdown();
 <       System.exit(0);
 <     }
-479c437
+498c458
 <           CPDesktop.log.info("Restarting service...", new Object[0]);
 ---
 >           CliWrapper.log.info("Restarting service...", new Object[0]);
-488c446
+507c467
 <         CPDesktop.log.info("Connecting to service at " + new Location(host, port), new Object[0]);
 ---
 >         CliWrapper.log.info("Connecting to service at " + new Location(host, port), new Object[0]);
-496c454
+515c475
 <               CPDesktop.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms", new Object[0]);
 ---
 >               CliWrapper.log.info("    FAILED on attempt #" + (i - 1) + ", retrying in " + delay + "ms", new Object[0]);
-507c465
+526c486
 <               CPDesktop.log.warn("Unable to establish connection.", new Object[] { e });
 ---
 >               CliWrapper.log.warn("Unable to establish connection.", new Object[] { e });
-512c470
+531c491
 <               CPDesktop.log.info("    SUCCESS on attempt #" + i, new Object[0]);
 ---
 >               CliWrapper.log.info("    SUCCESS on attempt #" + i, new Object[0]);
-517c475
+536c496
 <               CPDesktop.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.", new Object[0]);
 ---
 >               CliWrapper.log.warn("    FAILED on attempt #" + i + ", aborting because something is seriously wrong.", new Object[0]);
-521c479
+540c500
 <               CPDesktop.log.info("    FAILED on attempt #" + i + ", done", new Object[0]);
 ---
 >               CliWrapper.log.info("    FAILED on attempt #" + i + ", done", new Object[0]);
-539c497
+558c518
 <           CPDesktop.log.error("Interrupted while waiting to connect!", new Object[0]);
 ---
 >           CliWrapper.log.error("Interrupted while waiting to connect!", new Object[0]);
-568c526
+587c547
 <     String localeConfig = (String)getConfigserviceUI.locale.getValue();
 ---
 >     String localeConfig = (String)appModel.getConfigModel().getConfig().serviceUI.locale.getValue();
-649,659d606
+603c563
+<       Locale locale = CPText.localeToUse(locale, machineDefaultLocale);
+---
+>       locale = CPText.localeToUse(locale, machineDefaultLocale);
+671,681d630
 <     display.asyncExec(new Runnable()
 <     {
 <       public void run()
@@ -190,7 +209,7 @@
 <         new MainWindowController(mainWindow, appModel, services);
 <       }
 <     });
-704,711d650
+726,733d674
 <     CPFont.loadFonts(Display.getDefault(), new Properties());
 <   }
 <   
@@ -199,7 +218,7 @@
 <     if (!display.isDisposed()) {
 <       display.close();
 <     }
-719c658
+741c682
 <  */
 \ No newline at end of file
 ---
