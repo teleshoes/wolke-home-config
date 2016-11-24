@@ -14,7 +14,8 @@ import System.Environment (getArgs)
 
 profile = profileFHD
 
-profileFHD = P { height = 38
+profileFHD = P { name = "fhd"
+               , height = 38
                , spacing = 5
                , titleLen = 30
                , typeface = "Inconsolata medium"
@@ -22,7 +23,8 @@ profileFHD = P { height = 38
                , graphWidth = 50
                , workspaceImageHeight = 24
                }
-profileHDPlus = P { height = 38
+profileHDPlus = P { name = "hdplus"
+                  , height = 38
                   , spacing = 4
                   , titleLen = 30
                   , typeface = "Inconsolata medium"
@@ -91,7 +93,8 @@ main = do
         ++ "}"
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
 
-data Profile = P { height :: Int
+data Profile = P { name :: String
+                 , height :: Int
                  , spacing :: Int
                  , titleLen :: Int
                  , typeface :: String
