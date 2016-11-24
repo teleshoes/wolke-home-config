@@ -37,9 +37,9 @@ main = do
   dpi <- getScreenDPI
   isBot <- elem "--bottom" <$> getArgs
   klompWidthPx <- screenPctToPx 15.9375
-  let cfg = defaultTaffybarConfig { barHeight=height profile
-                                  , widgetSpacing= spacing profile
-                                  , barPosition=if isBot then Bottom else Top
+  let cfg = defaultTaffybarConfig { barHeight = height profile
+                                  , widgetSpacing = spacing profile
+                                  , barPosition = if isBot then Bottom else Top
                                   }
       font = (typeface profile) ++ " " ++ show (fontSizePt profile)
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
