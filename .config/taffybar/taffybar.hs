@@ -85,7 +85,7 @@ main = do
           ]
 
   rcParseString $ ""
-        ++ "style \"default\" {"
+        ++ "style \"taffybar-default\" {"
         ++ "  font_name = \"" ++ font ++ "\""
         ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\""
         ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\""
