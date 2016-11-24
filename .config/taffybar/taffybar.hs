@@ -89,6 +89,9 @@ main = do
     "taffybar.rc." ++ name profile
 
   writeFile taffybarProfileGtkRcFile $ ""
+        ++ "# profile: " ++ name profile ++ "\n"
+        ++ "# auto-generated at: " ++ taffybarProfileGtkRcFile ++ "\n"
+        ++ "\n"
         ++ "style \"taffybar-default\" {\n"
         ++ "  font_name = \"" ++ font ++ "\"\n"
         ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\"\n"
