@@ -85,12 +85,12 @@ main = do
           ]
 
   rcParseString $ ""
-        ++ "style \"taffybar-default\" {"
-        ++ "  font_name = \"" ++ font ++ "\""
-        ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\""
-        ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\""
-        ++ "  text[NORMAL] = \"" ++ textColor ++ "\""
-        ++ "}"
+        ++ "style \"taffybar-default\" {\n"
+        ++ "  font_name = \"" ++ font ++ "\"\n"
+        ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\"\n"
+        ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\"\n"
+        ++ "  text[NORMAL] = \"" ++ textColor ++ "\"\n"
+        ++ "}\n"
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
 
 data Profile = P { name :: String
