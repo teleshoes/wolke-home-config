@@ -11,6 +11,7 @@ import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
 
 import Data.Functor ((<$>))
 import System.Environment (getArgs)
+import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
 profile = profileFHD
 
@@ -84,13 +85,17 @@ main = do
           , W.clockW
           ]
 
-  rcParseString $ ""
+  taffybarProfileGtkRcFile <- getUserConfigFile "taffybar" $
+    "taffybar.rc." ++ name profile
+
+  writeFile taffybarProfileGtkRcFile $ ""
         ++ "style \"taffybar-default\" {\n"
         ++ "  font_name = \"" ++ font ++ "\"\n"
         ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\"\n"
         ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\"\n"
         ++ "  text[NORMAL] = \"" ++ textColor ++ "\"\n"
         ++ "}\n"
+
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
 
 data Profile = P { name :: String
