@@ -53,7 +53,6 @@ main = do
                 , wsImageHeight = workspaceImageHeight profile
                 , titleRows = True
                 , stackWsTitle = False
-                , wsBorderColor = RGB (0.6, 0.5, 0.2)
                 }
               ]
       end = reverse

@@ -12,8 +12,8 @@ import Graphics.UI.Gtk (
   postGUIAsync)
 
 import System.Taffybar.Pager (
-  PagerConfig(..), Workspace(..), defaultPagerConfig,
-  markWs, colorize, shorten, wrap, escape, pagerNew)
+  PagerConfig(..), defaultPagerConfig,
+  colorize, shorten, wrap, escape, pagerNew)
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
@@ -32,16 +32,15 @@ pagerConfig pixbufs cfg = defaultPagerConfig
         let color = if cnt > 1 then fgbg "blue" "red" else id
         return $ color $ "[" ++ numFmt ++ "]"
       otherwise -> return $ fgbg "blue" "red" "???"
-  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "#002b36" "#eee8d8"
-  , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
-  , emptyWorkspace   = wsStyle cfg Nothing $ id
-  , visibleWorkspace = wsStyle cfg Nothing $ id
-  , urgentWorkspace  = markWs $ bold . fgbg "#002b36" "red" . escapeMarkup
+  , activeWorkspace  = bold . fgbg "#002b36" "#eee8d8"
+  , hiddenWorkspace  = bold . fg "orange"
+  , emptyWorkspace   = id
+  , visibleWorkspace = id
+  , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , hideEmptyWs      = False
   , wsButtonSpacing  = 3
   , widgetSep        = ""
   , imageSelector    = selectImage pixbufs
-  , wrapWsButton     = wrapBorder $ wsBorderColor cfg
   }
 
 windowCount :: IO Int
@@ -56,19 +55,7 @@ data WMLogConfig = WMLogConfig { titleLength :: Int
                                , wsImageHeight :: Int
                                , titleRows :: Bool
                                , stackWsTitle :: Bool
-                               , wsBorderColor :: Color
                                }
-
-wsStyle cfg borderColor markupFct ws = do
-  let col = fromMaybe (wsBorderColor cfg) borderColor
-  postGUIAsync $ widgetBgColor col (wsContainer ws)
-  markWs (markupFct . escapeMarkup) ws
-
-wrapBorder color w = do
-  f <- frameNew
-  widgetBgColor color f
-  containerAdd f w
-  return $ toContainer f
 
 bold m = "<b>" ++ m ++ "</b>"
 
