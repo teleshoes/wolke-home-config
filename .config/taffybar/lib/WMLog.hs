@@ -18,7 +18,7 @@ import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 import System.Information.EWMHDesktopInfo (
-  withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
+  WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
 pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
@@ -46,7 +46,7 @@ pagerConfig pixbufs cfg = defaultPagerConfig
 windowCount :: IO Int
 windowCount = withDefaultCtx $ do
   vis <- getVisibleWorkspaces
-  let cur = if length vis > 0 then head vis else 0
+  let cur = if length vis > 0 then head vis else WSIdx 0
   wins <- getWindows
   wkspaces <- mapM getWorkspace wins
   return $ length $ filter (==cur) $ wkspaces
