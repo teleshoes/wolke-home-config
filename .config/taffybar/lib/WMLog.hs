@@ -22,7 +22,7 @@ import System.Information.EWMHDesktopInfo (
 
 pagerConfig pixbufs cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
-  , activeLayout     = \x -> case x of
+  , activeLayoutIO   = \x -> case x of
       "left"    -> return "[]="
       "top"     -> return "TTT"
       "grid"    -> return "###"
