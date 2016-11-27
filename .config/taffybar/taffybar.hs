@@ -4,7 +4,6 @@ import WMLog (WMLogConfig(..))
 import Utils (colW)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
-import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, barPosition, widgetSpacing, startWidgets, endWidgets,
   Position(Top, Bottom))
