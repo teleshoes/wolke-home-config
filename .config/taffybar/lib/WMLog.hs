@@ -1,15 +1,14 @@
 module WMLog (wmLogNew, WMLogConfig(..)) where
-import Color (Color(..), widgetBgColor)
+import Color (Color(..))
 import Sep (sepW)
-import Utils (fg, bg, fgbg)
-import WorkspaceImages (loadImages, selectImage)
+import Utils (fg, fgbg)
+import WorkspaceImages (getIcons, selectImage)
 
 import Data.Maybe (fromMaybe)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
-  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd,
-  postGUIAsync)
+  toWidget, hBoxNew, vBoxNew, containerAdd)
 
 import System.Taffybar.Pager (
   PagerConfig(..), defaultPagerConfig,
@@ -20,7 +19,7 @@ import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 import System.Information.EWMHDesktopInfo (
   WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
-pagerConfig pixbufs cfg = defaultPagerConfig
+pagerConfig icons cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
   , activeLayoutIO   = \x -> case x of
       "left"    -> return "[]="
@@ -40,7 +39,11 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   , workspaceGap     = 3
   , workspacePad     = False
   , widgetSep        = ""
-  , imageSelector    = selectImage pixbufs
+  , useImages        = True
+  , imageSize        = wsImageHeight cfg
+  , fillEmptyImages  = True
+  , preferCustomIcon = False
+  , customIcon       = selectImage icons
   }
 
 windowCount :: IO Int
@@ -73,8 +76,8 @@ box c ws = do
   return $ toWidget container
 
 wmLogNew cfg = do
-  pixbufs <- loadImages $ wsImageHeight cfg
-  pager <- pagerNew $ pagerConfig pixbufs cfg
+  icons <- getIcons $ wsImageHeight cfg
+  pager <- pagerNew $ pagerConfig icons cfg
 
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
