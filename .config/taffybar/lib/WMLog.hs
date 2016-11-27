@@ -38,7 +38,7 @@ pagerConfig pixbufs cfg = defaultPagerConfig
   , visibleWorkspace = id
   , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , hideEmptyWs      = False
-  , wsButtonSpacing  = 3
+  , workspaceGap     = 3
   , widgetSep        = ""
   , imageSelector    = selectImage pixbufs
   }
