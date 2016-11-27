@@ -44,7 +44,9 @@ main = do
       font = (typeface profile) ++ " " ++ show (fontSizePt profile)
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
-      textColor = hexColor $ Black
+      textColor = hexColor Black
+      wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
+      wsBorderColorActive = hexColor Red
       sep = W.sepW Black 2
       klompChars = charsFitInPx dpi (fontSizePt profile) klompWidthPx
 
@@ -95,6 +97,21 @@ main = do
         ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\"\n"
         ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\"\n"
         ++ "  text[NORMAL] = \"" ++ textColor ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-active\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorActive ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-visible\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorActive ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-empty\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-hidden\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-urgent\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
         ++ "}\n"
 
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}

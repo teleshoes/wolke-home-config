@@ -36,6 +36,7 @@ pagerConfig icons cfg = defaultPagerConfig
   , emptyWorkspace   = id
   , visibleWorkspace = id
   , urgentWorkspace  = bold . fgbg "#002b36" "red"
+  , workspaceBorder  = True
   , workspaceGap     = 3
   , workspacePad     = False
   , widgetSep        = ""
