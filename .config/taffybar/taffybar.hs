@@ -16,6 +16,7 @@ profile = profileFHD
 
 --                rcSuf  barHt  wImgH  space  wSepW  title  fontP  graph  music
 profileFHD    = P "fhd"     38     24      5      2     30   13.0     50   15.9375
+profileFHDBig = P "big"     42     28      5      3     30   16.0     50   19.4271
 profileHDPlus = P "hdp"     38     16      4      2     30   12.0     30   15.9375
 
 typeface = "Inconsolata medium"
