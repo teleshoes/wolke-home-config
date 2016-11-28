@@ -12,7 +12,7 @@ import Data.Functor ((<$>))
 import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
-profile = profileFHD
+profile = profileFHDBig
 
 --                rcSuf  barHt  wImgH  space  wSepW  title  fontP  graph  music
 profileFHD    = P "fhd"     38     24      5      2     30   13.0     50  15.94
