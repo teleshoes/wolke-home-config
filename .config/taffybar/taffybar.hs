@@ -18,7 +18,6 @@ profileFHD = P { name = "fhd"
                , height = 38
                , spacing = 5
                , titleLen = 30
-               , typeface = "Inconsolata medium"
                , fontSizePt = 13.0
                , graphWidth = 50
                , workspaceImageHeight = 24
@@ -27,11 +26,12 @@ profileHDPlus = P { name = "hdplus"
                   , height = 38
                   , spacing = 4
                   , titleLen = 30
-                  , typeface = "Inconsolata medium"
                   , fontSizePt = 12.0
                   , graphWidth = 30
                   , workspaceImageHeight = 16
                   }
+
+typeface = "Inconsolata medium"
 
 main = do
   dpi <- getScreenDPI
@@ -41,7 +41,7 @@ main = do
                                   , widgetSpacing = spacing profile
                                   , barPosition = if isBot then Bottom else Top
                                   }
-      font = (typeface profile) ++ " " ++ show (fontSizePt profile)
+      font = typeface ++ " " ++ show (fontSizePt profile)
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor Black
@@ -120,7 +120,6 @@ data Profile = P { name :: String
                  , height :: Int
                  , spacing :: Int
                  , titleLen :: Int
-                 , typeface :: String
                  , fontSizePt :: Double
                  , graphWidth :: Int
                  , workspaceImageHeight :: Int
