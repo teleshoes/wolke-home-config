@@ -1,52 +1,27 @@
 {-# LANGUAGE FlexibleContexts #-}
-module WorkspaceImages (loadImages, selectImage, selectImageName) where
+module WorkspaceImages (getIcons, selectImage, selectImageName) where
 import Utils (imageDir, tryMaybe)
 
-import System.Directory (getDirectoryContents)
+import System.Directory (listDirectory)
 import Data.List (isSuffixOf)
 import Data.Maybe (fromMaybe)
-import GHC.Word (Word8)
 import Data.Maybe (listToMaybe, catMaybes)
 
 import Text.Regex.PCRE (
   Regex, match, makeRegexOpts, compCaseless, defaultExecOpt)
 import System.Environment (getEnv)
-import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile, pixbufAddAlpha)
 
-getImageFile :: Int -> String -> IO String
-getImageFile h name = do
+getIcons :: Int -> IO [(String, FilePath)]
+getIcons h = do
   dir <- wsImageDir h
-  return $ dir ++ "/" ++ name ++ ".png"
-
-getImageNames :: Int -> IO [String]
-getImageNames h = do
-  dir <- wsImageDir h
-  files <- tryMaybe $ getDirectoryContents dir
-  case files of
-    Just fs -> return $ catMaybes $ map getPng fs
-    Nothing -> return []
-  where getPng f = if ".png" `isSuffixOf` f then Just $ stripPng f else Nothing
-        stripPng = reverse . drop 4 . reverse
+  files <- fmap (fromMaybe []) $ tryMaybe $ listDirectory dir
+  let pngs = filter (".png" `isSuffixOf`) files
+      names = map (reverse . drop 4 . reverse) pngs
+      filePaths = map (\name -> dir ++ "/" ++ name ++ ".png") names
+  return $ zip names filePaths
 
 wsImageDir :: Int -> IO String
 wsImageDir h = fmap (++ "/workspace-images") $ imageDir h
-
-loadImage :: Int -> String -> IO (Maybe Pixbuf)
-loadImage h name = tryMaybe $ pixbufNewFromFile =<< getImageFile h name
-
-
-addAlphaWhite = addAlpha $ Just (255, 255, 255)
-addAlphaBlack = addAlpha $ Just (0, 0, 0)
-
-addAlpha :: Maybe (Word8, Word8, Word8) -> Maybe Pixbuf -> IO (Maybe Pixbuf)
-addAlpha color Nothing = return Nothing
-addAlpha color (Just pb) = fmap Just $ pixbufAddAlpha pb color
-
-loadImages :: Int -> IO [(String, Maybe Pixbuf)]
-loadImages h = do
-  imageNames <- getImageNames h
-  pixbufs <- mapM (loadImage h) imageNames
-  return $ zip imageNames pixbufs
 
 (~~) :: String -> String -> Bool
 (~~) s re = match regex s
@@ -68,11 +43,6 @@ getSpecial winTitle winClass
                 ++ " \\| " ++ "[0-9:]+ left - Chromium$") = Just "sabnzbd"
   | otherwise = Nothing
 
-getPixbuf :: [(String, Maybe Pixbuf)] -> String -> Maybe Pixbuf
-getPixbuf pixbufs name = listToMaybe $ catMaybes $ pbs
-  where pbs = map snd $ filter ((==name).fst) pixbufs
-
-
 selectImageName :: [String] -> String -> String -> Maybe String
 selectImageName imgNames winTitle winClass = listToMaybe $ catMaybes maybeNames
   where nTitle = listToMaybe $ filter (winTitle ~~) imgNames
@@ -81,9 +51,9 @@ selectImageName imgNames winTitle winClass = listToMaybe $ catMaybes maybeNames
         nUnknown = Just "unknown"
         maybeNames = [nSpecial, nClass, nTitle, nUnknown]
 
-selectImage :: [(String, Maybe Pixbuf)] -> Maybe (String, String) -> Maybe Pixbuf
-selectImage pixbufs Nothing = getPixbuf pixbufs "blank"
-selectImage pixbufs (Just (winTitle, winClass)) = pb
-  where imageNames = map fst pixbufs
+selectImage :: [(String, FilePath)] -> String -> String -> Maybe FilePath
+selectImage icons winTitle winClass = maybeFilePath maybeName
+  where imageNames = map fst icons
         maybeName = selectImageName imageNames winTitle winClass
-        pb = getPixbuf pixbufs $ fromMaybe "blank" maybeName
+        maybeFilePath (Just name) = lookup name icons
+        maybeFilePath Nothing = Nothing

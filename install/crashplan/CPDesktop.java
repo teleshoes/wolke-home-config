@@ -35,8 +35,10 @@ import com.backup42.desktop.view.MainWindow.Event.AppDeactivatedEvent;
 import com.backup42.desktop.view.MainWindow.Event.AppShowEvent;
 import com.backup42.desktop.view.MainWindow.Event.Listener;
 import com.backup42.service.AuthorityLocationUtil;
+import com.backup42.service.CPService.Custom;
 import com.backup42.service.CPText;
 import com.backup42.service.CpsFolders;
+import com.backup42.service.CustomProperty;
 import com.backup42.service.ui.UIInfoUtility;
 import com.backup42.service.ui.UIInfoUtility.UIConnectionDetailsResult;
 import com.backup42.service.ui.message.StatusResponseMessage;
@@ -50,6 +52,7 @@ import com.code42.event.Listener;
 import com.code42.i18n.LocaleUtil;
 import com.code42.i18n.Text;
 import com.code42.io.FileUtility;
+import com.code42.jna.mac.CarbonLib.FSCatalogInfo;
 import com.code42.lang.ClassPathHacker;
 import com.code42.lang.NativeLibraryLoader;
 import com.code42.logging.C42LoggerConfig;
@@ -57,7 +60,6 @@ import com.code42.logging.Logger;
 import com.code42.logging.LoggerFactory;
 import com.code42.messaging.Location;
 import com.code42.os.mac.io.FileManager;
-import com.code42.os.mac.io.FileManager.FSCatalogInfo;
 import com.code42.os.posix.PosixProcessCommands;
 import com.code42.os.win.process.ProcessUtil;
 import com.code42.perm.C42PermissionBase.Admin;
@@ -71,7 +73,6 @@ import com.code42.swt.util.SWTExec;
 import com.code42.swt.util.SWTPathUtil;
 import com.code42.swt.view.AppWindowEvent.WindowReadyEvent;
 import com.code42.utils.AppUtil;
-import com.code42.utils.ArrayUtils;
 import com.code42.utils.Formatter;
 import com.code42.utils.LangUtils;
 import com.code42.utils.Os;
@@ -83,6 +84,11 @@ import com.code42.xml.XmlTool;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Properties;
 import org.apache.logging.log4j.Level;
@@ -103,6 +109,7 @@ public class CPDesktop
   private final AppModel appModel;
   private static String appBaseName;
   private PropertiesUtil customProps;
+  private final Locale machineDefaultLocale;
   
   public static void main(String[] args)
     throws Throwable
@@ -142,7 +149,7 @@ public class CPDesktop
       log.info("*************************************************************", new Object[0]);
       log.info("STARTED " + getAppBaseName() + "Desktop", new Object[0]);
       log.info("CPVERSION = " + CPVersion.asString(), new Object[0]);
-      log.info("ARGS      = " + ArrayUtils.toString(args), new Object[0]);
+      log.info("ARGS      = " + Arrays.toString(args), new Object[0]);
       log.info("LOCALE    = " + Locale.getDefault().getDisplayName(Locale.ENGLISH), new Object[0]);
       log.info("JVM       = " + jvm, new Object[0]);
       log.info("OS        = " + os, new Object[0]);
@@ -203,36 +210,8 @@ public class CPDesktop
     if (Boolean.valueOf(waitValue).booleanValue()) {
       waitForCustom();
     }
-    String devConfigName = commandLineArguments.getProperty("devConfigName");
-    if (SystemProperties.isDevEnv())
-    {
-      if (!LangUtils.hasValue(devConfigName)) {
-        throw new Exception("Unable to start, missing devConfigName property.");
-      }
-      String appDataPath = SystemProperties.getOptional("c42.app.commonDataFolder");
-      String skinPath = "skin";
-      if (LangUtils.hasValue(devConfigName))
-      {
-        ServiceConfig sc = new ServiceConfig();
-        String xml = FileUtility.readTextFile("../app_service/conf/test/" + devConfigName + ".xml");
-        sc.fromXml(xml);
-        OrgType orgType = orgType.get();
-        if (orgType.equals(OrgType.BUSINESS)) {
-          skinPath = "skin_blue";
-        } else if (orgType.equals(OrgType.ENTERPRISE)) {
-          skinPath = "skin_black";
-        }
-      }
-      File skinFolder = new File(skinPath);
-      log.info("Skin folder: {}", new Object[] { skinFolder.getAbsolutePath() });
-      ClassPathHacker.addFile(skinFolder);
-      if (LangUtils.hasValue(appDataPath))
-      {
-        appDataPath = appDataPath + "/" + devConfigName;
-        String absoluteAppDataPath = new File(appDataPath).getAbsolutePath();
-        SystemProperties.setProperty("c42.app.commonDataFolder", absoluteAppDataPath);
-      }
-    }
+    setupDev(commandLineArguments);
+    
     customProps = new PropertiesUtil(new Properties());
     customProps.load(new File(CpsFolders.getCustomParent(appBaseName), "conf/custom.properties"), false);
     
@@ -240,18 +219,17 @@ public class CPDesktop
     LangUtils.registerImpl(GridFormBuilder.class, CPGridFormBuilder.class);
     LangUtils.registerImpl(MigFormBuilder.class, CPMigFormBuilder.class);
     Text.setInstance(CPText.getTextInstance());
-    Text.getInstance().setOverride(customProps.getProperties());
     
     String appName = CPText.getAppName();
     Display.setAppName(appName);
     
     appModel = new AppModel(commandLineArguments);
     appModel.getConfigModel().addObserver(this);
-    if (customProps.getOptionalBoolean("ssoAuth.enabled", false))
+    if (customProps.getOptionalBoolean(CustomProperty.SSOAUTH_ENABLED.getKey(), false))
     {
-      boolean required = customProps.getOptionalBoolean("ssoAuth.required", false);
-      String provider = customProps.getOptional("ssoAuth.provider", "single sign-on");
-      
+      boolean required = customProps.getOptionalBoolean(CustomProperty.SSOAUTH_REQUIRED.getKey(), false);
+      String provider = customProps.getOptional(CustomProperty.SSOAUTH_PROVIDER.getKey(), CustomProperty.SSOAUTH_PROVIDER_DEFAULT
+        .getKey());
       appModel.setupSso(required, provider);
     }
     String liblog = loadNativeLibraries();
@@ -263,8 +241,9 @@ public class CPDesktop
     
     UIInfoUtility.UIConnectionDetailsResult connectionDetails = UIInfoUtility.getUIConnectionDetails();
     
+    machineDefaultLocale = Locale.getDefault();
     String localeString = appModel.getDesktopProperties().getLocale();
-    Locale localle = setDefaultLocale(localeString);
+    Locale locale = setDefaultLocale(localeString);
     Text.getInstance().setUseNames(DesktopProperties.getInstance().isTextShowNames());
     
     String jvm = SystemProperties.getJvmDetails();
@@ -274,11 +253,12 @@ public class CPDesktop
     readLoggingConfiguration();
     log.info("*************************************************************", new Object[0]);
     log.info("*************************************************************", new Object[0]);
-    log.info("STARTED " + getAppBaseName() + "Desktop - " + connectionDetails.getAddress() + ":" + connectionDetails.getPort(), new Object[0]);
+    log.info("STARTED " + getAppBaseName() + "Desktop - " + connectionDetails.getAddress() + ":" + connectionDetails
+      .getPort(), new Object[0]);
     log.info("CPVERSION = " + CPVersion.asString(), new Object[0]);
     log.info("BUILD     = 1", new Object[0]);
-    log.info("ARGS      = " + ArrayUtils.toString(args), new Object[0]);
-    log.info("LOCALE    = " + localle.getDisplayName(Locale.ENGLISH), new Object[0]);
+    log.info("ARGS      = " + Arrays.toString(args), new Object[0]);
+    log.info("LOCALE    = " + locale.getDisplayName(Locale.ENGLISH), new Object[0]);
     log.info("JVM       = " + jvm, new Object[0]);
     log.info("OS        = " + os, new Object[0]);
     log.info("User      = " + user, new Object[0]);
@@ -286,7 +266,7 @@ public class CPDesktop
     ClassPathHacker.logURLs(Level.INFO);
     
     appModel.getDesktopProperties().log();
-    SystemProperties.dumpProperties(log.getName(), Level.INFO);
+    SystemProperties.dumpProperties(log);
     log.info("*************************************************************", new Object[0]);
     SystemProperties.logMemory("", Level.INFO);
     
@@ -301,6 +281,43 @@ public class CPDesktop
     
     AppTimer.end("PreSplash");
     log.info("*************************************************************", new Object[0]);
+  }
+  
+  private void setupDev(Properties commandLineArguments)
+    throws Exception
+  {
+    if (!SystemProperties.isDevEnv()) {
+      return;
+    }
+    String devConfigName = commandLineArguments.getProperty("devConfigName");
+    if (!LangUtils.hasValue(devConfigName)) {
+      throw new Exception("Unable to start, missing devConfigName property.");
+    }
+    String appData = SystemProperties.getOptional("c42.app.commonDataFolder");
+    if (LangUtils.hasValue(appData))
+    {
+      appData = appData + "/" + devConfigName;
+      String absoluteAppDataPath = new File(appData).getAbsolutePath();
+      SystemProperties.setProperty("c42.app.commonDataFolder", absoluteAppDataPath);
+    }
+    ServiceConfig sc = new ServiceConfig();
+    String xml = FileUtility.readTextFile("../app_service/conf/test/" + devConfigName + ".xml");
+    sc.fromXml(xml);
+    
+    String skinPath = "skin";
+    OrgType orgType = orgType.get();
+    Path appDataPath = Paths.get(appData, new String[0]);
+    Path skinCustomPath = appDataPath.resolve(CPService.Custom.DST_SKIN_CUSTOM_DIR);
+    if (Files.exists(skinCustomPath, new LinkOption[0])) {
+      skinPath = skinCustomPath.toString();
+    } else if (orgType.equals(OrgType.BUSINESS)) {
+      skinPath = "skin_blue";
+    } else if (orgType.equals(OrgType.ENTERPRISE)) {
+      skinPath = "skin_black";
+    }
+    File skinFolder = new File(skinPath);
+    log.info("Skin folder: {}", new Object[] { skinFolder.getAbsolutePath() });
+    ClassPathHacker.addFile(skinFolder);
   }
   
   public static String getAppBaseName()
@@ -322,7 +339,8 @@ public class CPDesktop
       while ((!customMark.exists()) && (sw.getElapsed() < 10000L)) {
         Thread.sleep(250L);
       }
-      log.info("Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark.exists(), new Object[0]);
+      log.info("Waited " + Formatter.getDurationString(sw.getElapsed()) + " for custom indicator to appear in " + customMark + ", exists=" + customMark
+        .exists(), new Object[0]);
     }
     catch (InterruptedException e)
     {
@@ -342,7 +360,8 @@ public class CPDesktop
       while ((!uiInfo.exists()) && (sw.getElapsed() < 10000L)) {
         Thread.sleep(250L);
       }
-      log.info("Waited " + Formatter.getDurationString(sw.getElapsed()) + " for .ui_info to appear in " + uiInfo + ", exists=" + uiInfo.exists(), new Object[0]);
+      log.info("Waited " + Formatter.getDurationString(sw.getElapsed()) + " for .ui_info to appear in " + uiInfo + ", exists=" + uiInfo
+        .exists(), new Object[0]);
     }
     catch (InterruptedException e)
     {
@@ -381,7 +400,7 @@ public class CPDesktop
     {
       File testFile = new File(".");
       FileManager fm = FileManager.getInstance();
-      FileManager.FSCatalogInfo info = fm.getCatalogInfo(testFile);
+      CarbonLib.FSCatalogInfo info = fm.getCatalogInfo(testFile);
       log.info("info: " + info, new Object[0]);
     }
     if (SystemProperties.isOs(Os.Windows)) {
@@ -438,7 +457,7 @@ public class CPDesktop
             CPDesktop.MAIN_MONITOR.notifyAll();
           }
         }
-        catch (InterruptedException e) {}
+        catch (InterruptedException localInterruptedException) {}
         CPDesktop.log.debug("ShutdownHook...calling halt.", new Object[0]);
         
         Runtime.getRuntime().halt(0);
@@ -575,7 +594,13 @@ public class CPDesktop
   {
     if (LangUtils.hasValue(confLocale))
     {
-      Locale locale = LocaleUtil.getLocale(confLocale);
+      Locale locale;
+      if (confLocale.equals("AUTOMATIC_LOCALE")) {
+        locale = null;
+      } else {
+        locale = LocaleUtil.getLocale(confLocale);
+      }
+      Locale locale = CPText.localeToUse(locale, machineDefaultLocale);
       if (locale != null)
       {
         String msg = "Set Language Locale to " + confLocale;
@@ -586,7 +611,6 @@ public class CPDesktop
         if (AppModel.getInstance().getOrgType() != null) {
           CPText.setOrgType(AppModel.getInstance().getOrgType());
         }
-        Text.getInstance().setOverride(customProps.getProperties());
         Text.getInstance().setUseNames(DesktopProperties.getInstance().isTextShowNames());
         return locale;
       }
@@ -602,13 +626,15 @@ public class CPDesktop
     boolean authenticated = lm.isAuthenticated();
     appModel.setFirstInstall(!authenticated);
     appModel.setReauthorizeError(event.getReauthorizeError());
-    appModel.getLicenseModel().setLicense(lic, authenticated, event.getUser().getUsername(), lm.getPassword(), lm.getAuthorizeRules(), lm.isBlocked());
-    
-    appModel.getSystem().setSecurityKey(lm.getSecurityKeyType(), lm.isDataKeyExists(), lm.isSecureDataKeyExists(), lm.getSecureDataKeyQA(), lm.getCustomKey());
-    
+    appModel.getLicenseModel().setLicenseModel(lic, authenticated, event.getUser().getUsername(), lm.getPassword(), lm
+      .getAuthorizeRules(), lm.isBlocked(), lm.getLicensedFeatures());
+    appModel.getSystem().setSecurityKey(lm.getSecurityKeyType(), lm.isDataKeyExists(), lm.isSecureDataKeyExists(), lm
+      .getSecureDataKeyQA(), lm.getCustomKey());
+    appModel.getSystem().setSecureDataKeyUpdateRequired(lm.isSecureDataKeyUpdateRequired());
     appModel.getSystem().setServiceOs(event.getOs());
     appModel.getSystem().setMacRootVolumeName(event.getMacRootVolumeName());
     appModel.setOrgType(event.getOrgType());
+    appModel.setDTRServiceType(event.getDTRServiceType());
     SystemModel.getInstance().setDefaultRestorePath(event.getDefaultRestoreFolder());
     if (event.getUser() != null)
     {
@@ -628,11 +654,7 @@ public class CPDesktop
       appModel.getDesktopProperties().setLocale(event.getLocale());
       setDefaultLocale(event.getLocale());
     }
-    if (LangUtils.hasValue(event.getPassword()))
-    {
-      appModel.getConfigModel().getConfig().serviceUI.autoLogin.setValue(Boolean.valueOf(true));
-      appModel.getConfigModel().getConfig().serviceUI.autoLoginPasswordHash.setValue(event.getPassword());
-    }
+    appModel.setPassword(event.getPassword());
     appModel.getConfigModel().getConfig().servicePeer.authority.setValue(event.getAuthority());
     if (LangUtils.hasValue(event.getWebsiteHost())) {
       appModel.getConfigModel().getConfig().servicePeer.centralConfig.websiteHost.setValue(event.getWebsiteHost());
@@ -714,6 +736,6 @@ public class CPDesktop
 
 /* Location:
  * Qualified Name:     com.backup42.desktop.CPDesktop
- * Java Class Version: 7 (51.0)
+ * Java Class Version: 8 (52.0)
  * JD-Core Version:    0.7.1
  */

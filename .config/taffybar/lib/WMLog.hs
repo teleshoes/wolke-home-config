@@ -1,28 +1,27 @@
 module WMLog (wmLogNew, WMLogConfig(..)) where
-import Color (Color(..), widgetBgColor)
+import Color (Color(..))
 import Sep (sepW)
-import Utils (fg, bg, fgbg)
-import WorkspaceImages (loadImages, selectImage)
+import Utils (fg, fgbg)
+import WorkspaceImages (getIcons, selectImage)
 
 import Data.Maybe (fromMaybe)
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass, ContainerClass, escapeMarkup, widgetShowAll,
-  toContainer, toWidget, hBoxNew, vBoxNew, frameNew, containerAdd,
-  postGUIAsync)
+  toWidget, hBoxNew, vBoxNew, containerAdd)
 
 import System.Taffybar.Pager (
-  PagerConfig(..), Workspace(..), defaultPagerConfig,
-  markWs, colorize, shorten, wrap, escape, pagerNew)
+  PagerConfig(..), defaultPagerConfig,
+  colorize, shorten, wrap, escape, pagerNew)
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
 import System.Information.EWMHDesktopInfo (
-  withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
+  WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
-pagerConfig pixbufs cfg = defaultPagerConfig
+pagerConfig icons cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
-  , activeLayout     = \x -> case x of
+  , activeLayoutIO   = \x -> case x of
       "left"    -> return "[]="
       "top"     -> return "TTT"
       "grid"    -> return "###"
@@ -32,22 +31,26 @@ pagerConfig pixbufs cfg = defaultPagerConfig
         let color = if cnt > 1 then fgbg "blue" "red" else id
         return $ color $ "[" ++ numFmt ++ "]"
       otherwise -> return $ fgbg "blue" "red" "???"
-  , activeWorkspace  = wsStyle cfg (Just Red) $ bold . fgbg "#002b36" "#eee8d8"
-  , hiddenWorkspace  = wsStyle cfg Nothing $ bold . fg "orange"
-  , emptyWorkspace   = wsStyle cfg Nothing $ id
-  , visibleWorkspace = wsStyle cfg Nothing $ id
-  , urgentWorkspace  = markWs $ bold . fgbg "#002b36" "red" . escapeMarkup
-  , hideEmptyWs      = False
-  , wsButtonSpacing  = 3
+  , activeWorkspace  = bold . fgbg "#002b36" "#eee8d8"
+  , hiddenWorkspace  = bold . fg "orange"
+  , emptyWorkspace   = id
+  , visibleWorkspace = id
+  , urgentWorkspace  = bold . fgbg "#002b36" "red"
+  , workspaceBorder  = True
+  , workspaceGap     = 3
+  , workspacePad     = False
   , widgetSep        = ""
-  , imageSelector    = selectImage pixbufs
-  , wrapWsButton     = wrapBorder $ wsBorderColor cfg
+  , useImages        = True
+  , imageSize        = wsImageHeight cfg
+  , fillEmptyImages  = True
+  , preferCustomIcon = False
+  , customIcon       = selectImage icons
   }
 
 windowCount :: IO Int
 windowCount = withDefaultCtx $ do
   vis <- getVisibleWorkspaces
-  let cur = if length vis > 0 then head vis else 0
+  let cur = if length vis > 0 then head vis else WSIdx 0
   wins <- getWindows
   wkspaces <- mapM getWorkspace wins
   return $ length $ filter (==cur) $ wkspaces
@@ -56,19 +59,7 @@ data WMLogConfig = WMLogConfig { titleLength :: Int
                                , wsImageHeight :: Int
                                , titleRows :: Bool
                                , stackWsTitle :: Bool
-                               , wsBorderColor :: Color
                                }
-
-wsStyle cfg borderColor markupFct ws = do
-  let col = fromMaybe (wsBorderColor cfg) borderColor
-  postGUIAsync $ widgetBgColor col (wsContainer ws)
-  markWs (markupFct . escapeMarkup) ws
-
-wrapBorder color w = do
-  f <- frameNew
-  widgetBgColor color f
-  containerAdd f w
-  return $ toContainer f
 
 bold m = "<b>" ++ m ++ "</b>"
 
@@ -86,8 +77,8 @@ box c ws = do
   return $ toWidget container
 
 wmLogNew cfg = do
-  pixbufs <- loadImages $ wsImageHeight cfg
-  pager <- pagerNew $ pagerConfig pixbufs cfg
+  icons <- getIcons $ wsImageHeight cfg
+  pager <- pagerNew $ pagerConfig icons cfg
 
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager

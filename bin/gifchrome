@@ -1,34 +1,97 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Cwd 'abs_path';
+use Cwd qw(abs_path);
+
+sub getHtml($@);
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 [OPTS] [GIF_FILE GIF_FILE ..]
+    generate an HTML file with <img> tags for the indicated images
+    \"src\" is \"file://<ABS_PATH>\", where ABS_PATH is the absolute filepath
+    open it with `chromium --incognito`
+    if no images are passed in, all *.gif and *.GIF images in the CWD are used
+
+  OPTS:
+    --dir=PREFIX
+      make \"src\" in img tags \"file://<PREFIX>/<GIF_FILE>\"
+      where GIF_FILE is the absolute or relative path given
+
+    --clickbox
+      include a textbox at the bottom
+      when an image is clicked, put the image's filename in it
+";
+
 sub main(@){
+  my $prefixDir = undef;
+  my $includeClickBox = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--dir=(.+)$/){
+      $prefixDir = $1;
+    }elsif($arg =~ /^(--clickbox)$/){
+      $includeClickBox = 1;
+    }else{
+      die $usage;
+    }
+  }
+
   my @gifs = @_;
   @gifs = (glob("*.gif"), glob "*.GIF") if @gifs == 0;
 
-  my $html = '';
   for my $gif(@gifs){
-    my $fileUrl = "file://" . abs_path($gif);
-    $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
+    die "$usage\nFile not found: $gif\n" if not -f $gif;
   }
-  $html .= "
-  <script>
-  function addText(event) {
-    var targ = event.target || event.srcElement;
-    document.getElementById(\"clicked\").value += targ.src;
+
+  my @imgPaths;
+  if(defined $prefixDir){
+    $prefixDir =~ s/\/$//;
+    @imgPaths = map {"$prefixDir/$_"} @gifs;
+  }else{
+    @imgPaths = map {abs_path($_)} @gifs;
   }
-  </script>
-  <textarea id=\"clicked\"/>
-  ";
+
+  my $html = getHtml $includeClickBox, @imgPaths;
+
   open FH, "> $tmpHtmlFile";
   print FH $html;
   close FH;
 
-  system "chromium", "--incognito", "$tmpHtmlFile";
-  system "rm", "a.html";
+  system "chromium", "--incognito", $tmpHtmlFile;
+  system "rm", $tmpHtmlFile;
+}
+
+sub getHtml($@){
+  my ($includeClickBox, @imgAbsPaths) = @_;
+
+  my $html = '';
+  for my $img(@imgAbsPaths){
+    my $fileUrl = "file://$img";
+    if($includeClickBox){
+      $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
+    }else{
+      $html .= "<img src=\"$fileUrl\"/>\n";
+    }
+  }
+  if($includeClickBox){
+    $html .= "
+      <script>
+      function addText(event) {
+        var targ = event.target || event.srcElement;
+        document.getElementById(\"clicked\").value += targ.src;
+      }
+      </script>
+      <textarea id=\"clicked\"/>\n";
+  }
+  return $html;
 }
 
 &main(@ARGV);

@@ -1,14 +1,43 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Cwd 'abs_path';
+
+my $repos = {
+  esh => {
+    dirpattern => "workspace/escribehost",
+    gitrepo => "lillegroup/escribehost",
+    bases => [qw(esh-develop)],
+  },
+  datadict => {
+    dirpattern => "workspace/datadictionary",
+    gitrepo => "lillegroup/datadictionary",
+    bases => [qw(master)],
+  },
+};
 
 my $repo = "lillegroup/escribehost";
-my @bases = qw(esh-develop legacy-develop);
+my @bases = qw(esh-develop);
 
 sub main(@){
+  my $dir = abs_path ".";
+
+  my $repo;
+  for my $repoName(sort keys %$repos){
+    if($dir =~ /\Q$$repos{$repoName}{dirpattern}\E/){
+      $repo = $$repos{$repoName};
+      last;
+    }
+  }
+
+  if(not defined $repo){
+    die "PWD did not match any dir pattern\n";
+  }
+
   my $curBranch = `git rev-parse --abbrev-ref HEAD 2>/dev/null`;
   chomp $curBranch;
 
+  my @bases = @{$$repo{bases}};
   my $curBase = $bases[0];
   for my $base(@bases){
     system "git", "merge-base", "--is-ancestor", $base, $curBranch;
@@ -18,7 +47,7 @@ sub main(@){
     }
   }
 
-  my $url = "https://github.com/$repo/compare/$curBase...$curBranch";
+  my $url = "https://github.com/$$repo{gitrepo}/compare/$curBase...$curBranch";
   print "$url\n";
 
   system "x-www-browser", $url;

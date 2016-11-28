@@ -1,5 +1,5 @@
 module Brightness (brightnessW) where
-import PercentBarWidget (percentBarWidgetW, percentBarConfig, mainPercentBarWidget)
+import PercentBarWidget (percentBarWidgetW, mainPercentBarWidget)
 import Color as C
 import System.Environment (getEnv)
 import System.Process(system)
@@ -8,7 +8,7 @@ import Data.Maybe (fromMaybe)
 import Utils (readDouble, readProc)
 
 main = mainPercentBarWidget 1 readBrightnessBar
-brightnessW = percentBarWidgetW percentBarConfig 1 readBrightnessBar
+brightnessW = percentBarWidgetW 1 readBrightnessBar
 
 colors = map C.rgb $ [C.Black, C.Gray] ++ take 10 (cycle [C.Blue, C.Orange])
 

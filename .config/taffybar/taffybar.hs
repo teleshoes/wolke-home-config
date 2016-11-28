@@ -4,17 +4,18 @@ import WMLog (WMLogConfig(..))
 import Utils (colW)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
-import Graphics.UI.Gtk.General.RcStyle (rcParseString)
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
   barHeight, barPosition, widgetSpacing, startWidgets, endWidgets,
   Position(Top, Bottom))
 
 import Data.Functor ((<$>))
 import System.Environment (getArgs)
+import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
 profile = profileFHD
 
-profileFHD = P { height = 42
+profileFHD = P { name = "fhd"
+               , height = 42
                , spacing = 5
                , titleLen = 30
                , typeface = "Inconsolata medium"
@@ -22,7 +23,8 @@ profileFHD = P { height = 42
                , graphWidth = 50
                , workspaceImageHeight = 28
                }
-profileHDPlus = P { height = 38
+profileHDPlus = P { name = "hdplus"
+                  , height = 38
                   , spacing = 4
                   , titleLen = 30
                   , typeface = "Inconsolata medium"
@@ -35,15 +37,17 @@ main = do
   dpi <- getScreenDPI
   isBot <- elem "--bottom" <$> getArgs
   klompWidthPx <- screenPctToPx 19.4271
-  let cfg = defaultTaffybarConfig { barHeight=height profile
-                                  , widgetSpacing= spacing profile
-                                  , barPosition=if isBot then Bottom else Top
+  let cfg = defaultTaffybarConfig { barHeight = height profile
+                                  , widgetSpacing = spacing profile
+                                  , barPosition = if isBot then Bottom else Top
                                   }
 
       font = (typeface profile) ++ " " ++ show (fontSizePt profile)
       fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
-      textColor = hexColor $ Black
+      textColor = hexColor Black
+      wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
+      wsBorderColorActive = hexColor Red
       sep = W.sepW Black 3
       klompChars = charsFitInPx dpi (fontSizePt profile) klompWidthPx
 
@@ -52,7 +56,6 @@ main = do
                 , wsImageHeight = workspaceImageHeight profile
                 , titleRows = True
                 , stackWsTitle = False
-                , wsBorderColor = RGB (0.6, 0.5, 0.2)
                 }
               ]
       end = reverse
@@ -78,16 +81,39 @@ main = do
           , W.clockW
           ]
 
-  rcParseString $ ""
-        ++ "style \"default\" {"
-        ++ "  font_name = \"" ++ font ++ "\""
-        ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\""
-        ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\""
-        ++ "  text[NORMAL] = \"" ++ textColor ++ "\""
-        ++ "}"
+  taffybarProfileGtkRcFile <- getUserConfigFile "taffybar" $
+    "taffybar.rc." ++ name profile
+
+  writeFile taffybarProfileGtkRcFile $ ""
+        ++ "# profile: " ++ name profile ++ "\n"
+        ++ "# auto-generated at: " ++ taffybarProfileGtkRcFile ++ "\n"
+        ++ "\n"
+        ++ "style \"taffybar-default\" {\n"
+        ++ "  font_name = \"" ++ font ++ "\"\n"
+        ++ "  bg[NORMAL] = \"" ++ bgColor ++ "\"\n"
+        ++ "  fg[NORMAL] = \"" ++ fgColor ++ "\"\n"
+        ++ "  text[NORMAL] = \"" ++ textColor ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-active\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorActive ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-visible\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorActive ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-empty\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-hidden\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
+        ++ "}\n"
+        ++ "style \"taffybar-workspace-border-urgent\" {\n"
+        ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
+        ++ "}\n"
+
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
 
-data Profile = P { height :: Int
+data Profile = P { name :: String
+                 , height :: Int
                  , spacing :: Int
                  , titleLen :: Int
                  , typeface :: String
