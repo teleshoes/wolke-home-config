@@ -27,6 +27,9 @@ my $usage = "Usage:
     --sync
       actually copy files from and to remote
         localhost:$mirror <=> $defaultIpmagic:$main
+    --local
+      perform info/md5sum updates of $main only
+      fails if $main is not a mountpoint
 ";
 
 sub readInfoCache($$);
@@ -67,30 +70,39 @@ sub readProcStdout($$$);
 
 sub main(@){
   my $sync = 0;
+  my $localOnly = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(--sync)$/){
       $sync = 1;
+    }elsif($arg =~ /^(--local)$/){
+      $localOnly = 1;
     }else{
       die "$usage\nunknown option: $arg\n";
     }
   }
   die $usage if @_ != 0;
 
-  die "ERROR: $mirror does not exist\n" if not -d $mirror;
+  die "--sync and --local cannot both be given\n" if $sync and $localOnly;
+
+  if(not $localOnly){
+    die "ERROR: $mirror does not exist\n" if not -d $mirror;
+  }
 
   my $ipmagic;
   my $mainIpmagic;
   if(isMountPoint undef, $main){
     $ipmagic = undef;
-  }elsif(isMountPoint $defaultIpmagic, $main){
+  }elsif(not $localOnly and isMountPoint $defaultIpmagic, $main){
     $ipmagic = $defaultIpmagic;
   }else{
     die "\"$main\" not found locally or with \"ipmagic $defaultIpmagic\"\n";
   }
   $mainIpmagic = getIpmagicFile $ipmagic, $main;
 
-  if($sync){
+  die "could not find \"main\" locally\n" if $localOnly and defined $ipmagic;
+
+  if($sync and not $localOnly){
     print "Syncing exclude file\n";
     print "\n";
     print "=====\n";
@@ -107,67 +119,75 @@ sub main(@){
 
   print "generating size summary\n";
   updateSizeSummary($ipmagic, $excludes, $sizes);
-  run "rsync", "-a", "$mainIpmagic/size-summary", "$mirror/size-summary";
+  if(not $localOnly){
+    run "rsync", "-a", "$mainIpmagic/size-summary", "$mirror/size-summary";
+  }
 
   print "\n";
 
-  print "=====\n";
-  print "Excluded files that are still present:\n";
-  my $unexcluded = checkExcludes $excludes, $sizes;
-  print map {"$_\n"} @$unexcluded;
-  print "=====\n\n";
-
-  my $rsyncExcludes = getRsyncExcludes $excludes;
-
-  my @rsyncInfo = qw(rsync -L -a --ignore-existing --info=NAME --dry-run);
-
-  print "=====\n";
-  print "New INTERNAL files: (rsync -n, no excludes, $mirror/ => $main/)\n";
-  runQuiet @rsyncInfo, "$mirror/", "$mainIpmagic/";
-  print "=====\n\n";
-
-  print "=====\n";
-  print "New EXTERNAL files: (rsync -n, <EXCLUDES>, $main/ => $mirror/)\n";
-  runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
-  print "=====\n\n";
-
-  my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
-
-  print "=====\n";
-  print "MODIFIED\n";
-  runQuiet @rsyncInfoExisting, "$mirror/", "$main/";
-  print "=====\n\n";
-
-  my @rsyncReal = qw(rsync -L -avP --ignore-existing);
-
-  if($sync){
+  if(not $localOnly){
     print "=====\n";
-    print "INTERNAL => EXTERNAL\n";
-    run @rsyncReal, "$mirror/", "$mainIpmagic/";
+    print "Excluded files that are still present:\n";
+    my $unexcluded = checkExcludes $excludes, $sizes;
+    print map {"$_\n"} @$unexcluded;
+    print "=====\n\n";
+
+    my $rsyncExcludes = getRsyncExcludes $excludes;
+
+    my @rsyncInfo = qw(rsync -L -a --ignore-existing --info=NAME --dry-run);
+
+    print "=====\n";
+    print "New INTERNAL files: (rsync -n, no excludes, $mirror/ => $main/)\n";
+    runQuiet @rsyncInfo, "$mirror/", "$mainIpmagic/";
     print "=====\n\n";
 
     print "=====\n";
-    print "EXTERNAL => INTERNAL\n";
-    run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
+    print "New EXTERNAL files: (rsync -n, <EXCLUDES>, $main/ => $mirror/)\n";
+    runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
     print "=====\n\n";
 
-    print "regenerating size summary\n";
-    my $sizes = getSizes($ipmagic);
-    updateSizeSummary($ipmagic, $excludes, $sizes);
-    print "\n";
+    my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
+
+    print "=====\n";
+    print "MODIFIED\n";
+    runQuiet @rsyncInfoExisting, "$mirror/", "$main/";
+    print "=====\n\n";
+
+    my @rsyncReal = qw(rsync -L -avP --ignore-existing);
+
+    if($sync){
+      print "=====\n";
+      print "INTERNAL => EXTERNAL\n";
+      run @rsyncReal, "$mirror/", "$mainIpmagic/";
+      print "=====\n\n";
+
+      print "=====\n";
+      print "EXTERNAL => INTERNAL\n";
+      run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$mirror/";
+      print "=====\n\n";
+
+      print "regenerating size summary\n";
+      my $sizes = getSizes($ipmagic);
+      updateSizeSummary($ipmagic, $excludes, $sizes);
+      print "\n";
+    }
   }
 
   print "=====\n";
   print "Info cache\n";
   updateInfoCache $ipmagic, $main, "$main/info-cache";
-  runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$mirror/info-cache";
+  if(not $localOnly){
+    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$mirror/info-cache";
+  }
   print "=====\n\n";
 
   print "=====\n";
   print "Md5sum cache\n";
   updateMd5sumCache $ipmagic, $main, "$main/md5sum-cache", "$main/md5sum-extra";
-  runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$mirror/md5sum-cache";
-  runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$mirror/md5sum-extra";
+  if(not $localOnly){
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$mirror/md5sum-cache";
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$mirror/md5sum-extra";
+  }
   print "=====\n\n";
 
   print "=====\n";
