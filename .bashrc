@@ -5,7 +5,7 @@ shopt -s dotglob
 shopt -s extglob
 
 # allow <C-S> in vim
-stty stop undef
+stty stop undef 2>/dev/null
 
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 export HISTTIMEFORMAT="%F %T "
