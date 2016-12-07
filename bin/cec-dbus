@@ -72,6 +72,36 @@ class CecClient():
     print self.read()
 
   def getPowerStatusCmd(self, address):
+    getPowCmd = "tx 4" + str(address) + ":8f"
+    self.writeCommands([getPowCmd])
+    time.sleep(0.15)
+    self.writeCommands([getPowCmd])
+    time.sleep(0.15)
+    out = self.read()
+    print out
+    lines = out.splitlines()
+    lines.reverse()
+
+    status = None
+    for line in lines:
+      m = re.search('[0-9a-f][0-9a-f]:90:([0-9a-f][0-9a-f])', line)
+      if m:
+        status = int(m.group(1), 16)
+        break
+    if status == None:
+      return None
+    elif status == 0:
+      return "on"
+    elif status == 1:
+      return "standby"
+    elif status == 2:
+      #in transition from standby => on
+      return None
+    elif status == 3:
+      #in transition from on => standby
+      return None
+
+  def getPowerStatusCmdWithPow(self, address):
     self.writeCommands(["pow " + str(address)])
     time.sleep(0.25)
     out = self.read()

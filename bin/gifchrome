@@ -22,6 +22,9 @@ my $usage = "Usage:
       make \"src\" in img tags \"file://<PREFIX>/<GIF_FILE>\"
       where GIF_FILE is the absolute or relative path given
 
+    -n|--nobrowser
+      dont launch chromium, print HTML to console
+
     --clickbox
       include a textbox at the bottom
       when an image is clicked, put the image's filename in it
@@ -29,6 +32,7 @@ my $usage = "Usage:
 
 sub main(@){
   my $prefixDir = undef;
+  my $noBrowser = 0;
   my $includeClickBox = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -37,6 +41,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^--dir=(.+)$/){
       $prefixDir = $1;
+    }elsif($arg =~ /^(-n|--nobrowser)$/){
+      $noBrowser = 1;
     }elsif($arg =~ /^(--clickbox)$/){
       $includeClickBox = 1;
     }else{
@@ -61,12 +67,16 @@ sub main(@){
 
   my $html = getHtml $includeClickBox, @imgPaths;
 
-  open FH, "> $tmpHtmlFile";
-  print FH $html;
-  close FH;
+  if($noBrowser){
+    print $html;
+  }else{
+    open FH, "> $tmpHtmlFile";
+    print FH $html;
+    close FH;
 
-  system "chromium", "--incognito", $tmpHtmlFile;
-  system "rm", $tmpHtmlFile;
+    system "chromium", "--incognito", $tmpHtmlFile;
+    system "rm", $tmpHtmlFile;
+  }
 }
 
 sub getHtml($@){
