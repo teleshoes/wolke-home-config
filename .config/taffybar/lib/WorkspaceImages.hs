@@ -41,6 +41,7 @@ getSpecial winTitle winClass
                 ++ "^\\d+\\.\\d+ [KMG]B/s"
                 ++ " \\| " ++ "\\d+ [KMG]B"
                 ++ " \\| " ++ "[0-9:]+ left - Chromium$") = Just "sabnzbd"
+  | winClass ~~ "urxvt" = Just "terminal"
   | otherwise = Nothing
 
 selectImageName :: [String] -> String -> String -> Maybe String
