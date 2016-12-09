@@ -1,7 +1,7 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
 import WMLog (WMLogConfig(..))
-import Utils (colW)
+import Utils (colW, attemptCreateSymlink)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
 import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
@@ -84,12 +84,15 @@ main = do
           , W.clockW
           ]
 
-  taffybarProfileGtkRcFile <- getUserConfigFile "taffybar" $
-    "taffybar.rc." ++ rcSuf profile
+  let rcNameMain = "taffybar.rc"
+      rcNameProfile = rcNameMain  ++ "." ++ rcSuf profile
 
-  writeFile taffybarProfileGtkRcFile $ ""
+  rcFileMain <- getUserConfigFile "taffybar" rcNameMain
+  rcFileProfile <- getUserConfigFile "taffybar" rcNameProfile
+
+  writeFile rcFileProfile $ ""
         ++ "# profile: " ++ rcSuf profile ++ "\n"
-        ++ "# auto-generated at: " ++ taffybarProfileGtkRcFile ++ "\n"
+        ++ "# auto-generated at: " ++ rcFileProfile ++ "\n"
         ++ "\n"
         ++ "style \"taffybar-default\" {\n"
         ++ "  font_name = \"" ++ font ++ "\"\n"
@@ -112,5 +115,7 @@ main = do
         ++ "style \"taffybar-workspace-border-urgent\" {\n"
         ++ "  bg[NORMAL] = \"" ++ wsBorderColorNormal ++ "\"\n"
         ++ "}\n"
+
+  attemptCreateSymlink rcFileMain rcNameProfile
 
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
