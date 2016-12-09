@@ -1,0 +1,174 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getScreens();
+sub getMouseDevices();
+sub getCurDir($);
+sub getTargetDir($$);
+sub rotateScreen($$);
+sub rotatePointer($$);
+sub run(@);
+
+my @DIRS = qw(normal left inverted right);
+my $OK_DIRS = join "|", @DIRS;
+my $DEFAULT_DIRTYPE = "widdershins";
+my $OK_DIRTYPE_ARGS = {
+  normal      => (join "|", qw(normal up)),
+  left        => (join "|", qw(left)),
+  inverted    => (join "|", qw(inverted down)),
+  right       => (join "|", qw(right)),
+  widdershins => (join "|", qw(widdershins anticlockwise counterclockwise)),
+  deasil      => (join "|", qw(deasil clockwise)),
+};
+
+my $MOUSE_REGEX = "mouse|pointer|pointing|touchpad|trackpoint";
+my $PROP_COORDINATE_TRANSFORMATION_MATRIX = "Coordinate Transformation Matrix";
+
+my $POINTER_MATRICES = {
+  normal   => [map {$_+0} qw(+1 +0 +0 +0 +1 +0 +0 +0 +1)],
+  inverted => [map {$_+0} qw(-1 +0 +1 +0 -1 +1 +0 +0 +1)],
+  left     => [map {$_+0} qw(+0 -1 +1 +1 +0 +0 +0 +0 +1)],
+  right    => [map {$_+0} qw(+0 +1 +0 -1 +0 +1 +0 +0 +1)],
+};
+
+my $usage = "Usage:
+  $0 [DIRECTION]
+    -set the orientation of the screen to the indicated direction
+      DIRECTION can be absolute (e.g.: right) or relative (e.g.: clockwise)
+      if DIRECTION is not given, defaults to $DEFAULT_DIRTYPE
+
+    -finds pointing devices that can be rotated and rotates them to match the screen
+       pointing device names must match this (case insensitive) regular expression:
+         /$MOUSE_REGEX/i
+       pointing devices must implement this X property:
+         \"$PROP_COORDINATE_TRANSFORMATION_MATRIX\"
+
+  DIRECTION
+    $$OK_DIRTYPE_ARGS{normal}
+        absolute: top of the screen points upwards
+    $$OK_DIRTYPE_ARGS{left}
+        absolute: top of the screen points to the left
+    $$OK_DIRTYPE_ARGS{inverted}
+        absolute: top of the screen points downwards
+    $$OK_DIRTYPE_ARGS{right}
+        absolute: top of the screen points to the right
+    $$OK_DIRTYPE_ARGS{widdershins}
+        relative: -90 degrees from current orientation
+        (" . (join " -> ", @DIRS) . " -> $DIRS[0])
+    $$OK_DIRTYPE_ARGS{deasil}
+        relative: +90 degrees from current orientation
+        (" . (join " -> ", reverse @DIRS) . " -> $DIRS[-1])
+";
+
+sub main(@){
+  my $okAllDirTypeArgs = join "|", sort values %$OK_DIRTYPE_ARGS;
+  my $dirType;
+  if(@_ == 1 and $_[0] =~ /^($okAllDirTypeArgs)$/){
+    $dirType = $_[0];
+  }elsif(@_ == 0){
+    $dirType = $DEFAULT_DIRTYPE;
+  }else{
+    die $usage;
+  }
+
+  my $screens = getScreens();
+  my $curDir = getCurDir $screens;
+  my $targetDir = getTargetDir $curDir, $dirType;
+
+  for my $screen(sort keys %$screens){
+    rotateScreen $screen, $targetDir;
+  }
+
+  for my $mouse(getMouseDevices()){
+    rotatePointer $mouse, $targetDir;
+  }
+}
+
+sub getScreens(){
+  my $xrandr = `xrandr --query --verbose`;
+
+  my $screens = {};
+  my $screensFound = 0;
+  while($xrandr =~ /
+    ^   ([a-zA-Z0-9\-_]+)
+    \s+ connected
+    \s* (?:[0-9x+]+)?
+    \s* (?:\(\d+x\d+\))?
+    \s+ ($OK_DIRS) \s+
+  /mgx){
+    my ($screen, $curDir) = ($1, $2);
+    $$screens{$screen} = $curDir;
+    $screensFound++;
+  }
+  die "no screen info found in xrandr\n" if $screensFound == 0;
+
+  return $screens;
+}
+
+sub getMouseDevices(){
+  my @names = `xinput --list --name-only`;
+  chomp foreach @names;
+  @names = grep {/$MOUSE_REGEX/i} @names;
+  my @pointingDevices;
+  for my $name(@names){
+    my $props = `xinput --list-props "$name"`;
+    if($props =~ /^\s*$PROP_COORDINATE_TRANSFORMATION_MATRIX\s+\(\d+\):/){
+      push @pointingDevices, $name;
+    }
+  }
+  return @names;
+}
+
+sub getCurDir($){
+  my ($screens) = @_;
+  my $curDir = undef;
+  for my $screen(sort keys %$screens){
+    my $dir = $$screens{$screen};
+    $curDir = $dir if not defined $curDir;
+    if($curDir ne $dir){
+      die "mismatched screen directions: $dir vs $curDir\n";
+    }
+  }
+  return $curDir;
+}
+
+sub getTargetDir($$){
+  my ($curDir, $dirType) = @_;
+  for my $absDir(@DIRS){
+    if($dirType =~ /^($$OK_DIRTYPE_ARGS{$absDir})$/){
+      return $absDir;
+    }
+  }
+
+  my %dirIndices = map {$DIRS[$_] => $_} 0..$#DIRS;
+  my $curDirIndex = $dirIndices{$curDir};
+  my $targetDirIndex;
+  if($dirType =~ /^($$OK_DIRTYPE_ARGS{widdershins})$/){
+    $targetDirIndex = ($curDirIndex+1+@DIRS) % @DIRS;
+  }elsif($dirType =~ /^($$OK_DIRTYPE_ARGS{deasil})$/){
+    $targetDirIndex = ($curDirIndex-1+@DIRS) % @DIRS;
+  }else{
+    die "invalid dir arg: $dirType\n";
+  }
+  return $DIRS[$targetDirIndex];
+}
+
+sub rotateScreen($$){
+  my ($screen, $targetDir) = @_;
+  run "xrandr", "--output", $screen, "--rotate", $targetDir;
+}
+
+sub rotatePointer($$){
+  my ($device, $dir) = @_;
+  my @matrix = @{$$POINTER_MATRICES{$dir}};
+  run "xinput", "set-prop", $device, $PROP_COORDINATE_TRANSFORMATION_MATRIX, @matrix;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "error running @_\n" if $? != 0;
+}
+
+&main(@ARGV);
