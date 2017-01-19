@@ -8,6 +8,7 @@ my $user = "ewolk";
 my $defaultName = "aws";
 
 my $okCmds = join "|", qw(on off running running toggle);
+my $okNoDaemonOpts = join "|", qw(-g --foreground --nodaemon --no-daemon);
 
 sub ensureRoot();
 sub getPasswordFile();
@@ -17,24 +18,38 @@ sub isRunning($);
 sub run(@);
 
 my $usage = "Usage:
-  $0 on [CONF_NAME]
+  $0 [OPTS] on [CONF_NAME]
     start openvpn using --config CONF_NAME.conf
-  $0 off [CONF_NAME]
+  $0 [OPTS] off [CONF_NAME]
     kill openvpn with '--config CONF_NAME'
-  $0 running CONF_NAME
+  $0 [OPTS] running CONF_NAME
     check for openvpn with '--config CONF_NAME'
     exits with 0 for running and 1 for not running
-  $0 toggle [CONF_NAME]
+  $0 [OPTS] toggle [CONF_NAME]
     check '$0 running CONF_NAME' and then run:
       '$0 off CONF_NAME' or '$0 on CONF_NAME'
 
   CONF_NAME
     optional, defaults to $defaultName
     there should be a file named $dir/CONF_NAME.conf
+
+  OPTS
+    $okNoDaemonOpts
+      do not pass --daemon to openvpn
 ";
 
 sub main(@){
   ensureRoot();
+
+  my $noDaemon = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $opt = shift;
+    if($opt =~ /^(-h|--help)$/){
+      die $usage;
+    }elsif($opt =~ /^($okNoDaemonOpts)$/){
+      $noDaemon = 1;
+    }
+  }
   my $cmd = shift;
   my $name = shift;
 
@@ -55,7 +70,7 @@ sub main(@){
     run "modprobe", "tun";
     run "rm", "-f", "status";
     run "openvpn",
-      "--daemon",
+      ($noDaemon ? () : ("--daemon")),
       "--auth-user-pass", getPasswordFile(),
       "--config", "$name.conf",
       "--status", $status,
