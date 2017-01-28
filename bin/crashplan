@@ -6,6 +6,7 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use File::Tee qw(tee);
 
+sub getCrashplanPid();
 sub printBackupSets(@);
 sub backupLogs();
 sub runBackup($);
@@ -158,6 +159,15 @@ sub main(@){
   }
 }
 
+sub getCrashplanPid(){
+  my $pgrep = `pgrep -fl '^/usr/local/crashplan/jre/bin/java'`;
+  if($pgrep =~ /^(\d+) java$/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
 sub printBackupSets(@){
   my %counts;
   for my $backupStatus(@ALL_STATUSES){
@@ -203,6 +213,9 @@ sub runBackup($){
   run $0, "start";
   sleep 5;
   run $0, "scan";
+
+  my $crashplanPid = getCrashplanPid();
+
   my $logPid = fork;
   if($logPid == 0){
     exec "tail", "-F", $historyLogFile;
@@ -213,6 +226,8 @@ sub runBackup($){
     print "\n\nNOTE: last sync is not finished in log:\n";
     print "  " . formatSync($prevSync) . "\n\n\n";
   }
+
+  my $errorMsg = undef;
 
   my $finishedMillis;
   while(time*1000.0 < $startMillis + $backupLimitMillis){
@@ -245,6 +260,8 @@ sub runBackup($){
     }
     $finishedMillis = undef if not $isDone;
 
+    my $newPid = getCrashplanPid();
+
     if($isDone and not defined $finishedMillis){
       $finishedMillis = time * 1000.0;
       print "\n\n";
@@ -258,6 +275,16 @@ sub runBackup($){
       print "\n\n";
       print "backup seems complete after ${elapsed}s\n";
       print "stopping crashplan\n";
+      last;
+    }elsif(not defined $newPid or $newPid != $crashplanPid){
+      print "\n\n";
+      $errorMsg = "ERROR: crashplan stopped running on its own\n";
+      print $errorMsg;
+      last;
+    }elsif($newPid != $crashplanPid){
+      print "\n\n";
+      $errorMsg = "ERROR: crashplan restarted with a new pid ($crashplanPid => $newPid)\n";
+      print $errorMsg;
       last;
     }
   }
@@ -273,6 +300,10 @@ sub runBackup($){
   backupLogs();
 
   printBackupSets @newBackupSets;
+
+  if(defined $errorMsg){
+    print "\n\n$errorMsg\n";
+  }
 }
 
 sub getFilteredBackupSets($$$){
