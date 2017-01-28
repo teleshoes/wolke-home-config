@@ -210,11 +210,21 @@ sub runBackup($){
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
   run $0, "stop";
+  if(defined getCrashplanPid()){
+    die "crashplan is still running...\n";
+  }
+
   run $0, "start";
   sleep 5;
   run $0, "scan";
 
   my $crashplanPid = getCrashplanPid();
+  if(not defined $crashplanPid){
+    print "crashplan apparently did not start\n";
+    print "stopping again just in case...\n";
+    run $0, "stop";
+    die;
+  }
 
   my $logPid = fork;
   if($logPid == 0){
