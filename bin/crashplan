@@ -457,12 +457,13 @@ sub parseLog($){
   my $log = {};
 
   for my $line(@lines){
-    my ($time, $backupName);
-    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\]/){
-      my ($mon, $day, $year, $hour, $min, $ampm, $name) = ($1, $2, $3, $4, $5, $6, $7);
+    my ($time, $backupName, $message);
+    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\] (.+)$/){
+      my ($mon, $day, $year, $hour, $min, $ampm, $name, $msg) = ($1, $2, $3, $4, $5, $6, $7, $8);
 
       $time = str2time "$mon/$day/$year $hour:$min$ampm";
       $backupName = $name;
+      $message = $msg;
     }else{
       next;
     }
@@ -473,14 +474,22 @@ sub parseLog($){
     my $speed = '.*[0-9\.]+\s*[KMGT]?bps';
 
     my $entry;
-    if($line =~ /Scanning for files to back up$/){
+    if($message =~ /^Scanning for files to back up(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*$/){
+        die "invalid scan-start line: $line";
+      }
       $entry = {
         name => $backupName,
         time => $time,
         line => $line,
         type => "scan-start",
       }
-    }elsif($line =~ /Scanning for files completed in ($dur): ($n) files? \(($fs)\) found$/){
+    }elsif($message =~ /^Scanning for files completed(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*in ($dur): ($n) files? \(($fs)\) found$/){
+        die "invalid scan-end line: $line";
+      }
       my ($duration, $fileCount, $size) = ($1, $2, $3);
       $entry = {
         name => $backupName,
@@ -491,7 +500,11 @@ sub parseLog($){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /Starting backup to CrashPlan Central: ($n) files? \(($fs)\) to back up$/){
+    }elsif($message =~ /^Starting backup to CrashPlan Central(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*:\s*($n) files? \(($fs)\) to back up$/){
+        die "invalid backup-start line: $line";
+      }
       my ($fileCount, $size) = ($1, $2);
       $entry = {
         name => $backupName,
@@ -501,8 +514,12 @@ sub parseLog($){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
-      my ($endstate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+    }elsif($message =~ /^($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central(.*)$/){
+      my ($endstate, $details) = ($1, $2);
+      if($details !~ /in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
+        die "invalid backup-end line: $line";
+      }
+      my ($duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5);
       $entry = {
         name => $backupName,
         time => $time,
