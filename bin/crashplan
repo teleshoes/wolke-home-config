@@ -63,7 +63,7 @@ my $usage = "Usage:
   $0 -g|--gui
     run '$guiExec'
 
-  $0 -l|--log|log [--date=DATE] [BACKUP_NAME]
+  $0 -l|--log|log [--date=DATE] [--logfile=LOGFILE] [BACKUP_NAME]
     format recent info from $historyLogFile
       DATE
         YYYY-MM-DD   show only info from that date
@@ -75,6 +75,9 @@ my $usage = "Usage:
         one of [$okBackupNames]
         if given, only show info for that backup.
         otherwise, show all
+
+      LOGFILE
+        alternative filename to use instead of $historyLogFile
 
   $0 $okServiceCmds
     use custom CliWrapper to run the GUI 'CLI' commands in a REAL command line
@@ -112,7 +115,7 @@ my $ENDSTATE_NOT_OK = "msg-stopped";
 my $ENDSTATE_MSG_COMPLETED = "Completed";
 my $ENDSTATE_MSG_STOPPED = "Stopped";
 
-my $okLogArgs = join "|", qw(--date);
+my $okLogArgs = join "|", qw(--date --logfile);
 
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
@@ -126,10 +129,13 @@ sub main(@){
     exec $guiExec;
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
+    my $logfile = $historyLogFile;
     while(@_ > 0 and $_[0] =~ /^($okLogArgs)(=.+)?$/){
       my $arg = shift;
       if($arg =~ /^--date=(\d\d\d\d-\d\d-\d\d|all|recent)$/){
         $date = $1;
+      }elsif($arg =~ /^--logfile=(.+)$/){
+        $logfile = $1;
       }else{
         die $usage;
       }
@@ -144,7 +150,7 @@ sub main(@){
     my $exactDate = $date if $date =~ /^\d\d\d\d-\d\d-\d\d$/;
     my $maxTimeAgoMillis = $recentLogMillis if $date =~ /^recent$/;
 
-    my @backupSets = getFilteredBackupSets($historyLogfile, $maxTimeAgoMillis, $exactDate, 1);
+    my @backupSets = getFilteredBackupSets($logfile, $maxTimeAgoMillis, $exactDate, 1);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
     printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
