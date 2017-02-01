@@ -19,6 +19,14 @@ function getTargetUserName(url){
     return null;
   }
 }
+function handle404(url){
+  if(/[?\/]lillegroup/.exec(url)){
+    targetUserName = "ewolk";
+    newUrl = baseUrl + "/" + targetUserName;
+    window.open(newUrl, '_blank', true);
+    setTimeout(function(){ location.reload(true) }, 5000);
+  }
+}
 
 function main(){
   url = document.URL;
@@ -43,12 +51,7 @@ function main(){
       navToLoginDelay(targetUserName);
     }
   }else if(is404()){
-    if(/[?\/]lillegroup/.exec(url)){
-      targetUserName = "ewolk";
-      newUrl = baseUrl + "/" + targetUserName;
-      window.open(newUrl, '_blank', true);
-      setTimeout(function(){ location.reload(true) }, 5000);
-    }
+    handle404(url);
   }else if(isLogoutUrl){
     logout()
   }
