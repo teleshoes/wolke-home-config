@@ -18,7 +18,6 @@ my @mvnCmd = (
   "test",
 );
 
-my $defaultFastTests = 1;
 my $debugPort = 8000;
 my $mvnDebugArg = "-Dmaven.surefire.debug=" . join " ", (
   "-Xdebug",
@@ -27,21 +26,30 @@ my $mvnDebugArg = "-Dmaven.surefire.debug=" . join " ", (
   "-Djava.compiler=NONE",
 );
 
+my $profiles = {
+  slow     => [],
+  fast     => ["-Pfast-tests", "-Pskip-db-tests"],
+};
+
 my $usage = "Usage:
   $0 [OPTS] [TEST_NAME]
     run \"@mvnCmd\"
     with optional -Dtest=TEST_NAME
 
-    if TEST_NAME is specified, behave like --slow and do not append -Pfast-tests
-    unless --fast is specified explicitly
+    if no test profile is given and TEST_NAME is given, the default is '--profile=slow'
+    if no test profile is given and TEST_NAME is not given, the default is '--profile=fast'
 
     OPTS
-      -d|--debug
+      -d | --debug
         use maven surefire
-      -s | --no-fast | --nofast | --slow
-        do not append '-Pfast-tests -Pskip-db-tests'" . (!$defaultFastTests ? " {default}" : "") . "
-      -f | --fast
-        append '-Pfast-tests -Pskip-db-tests'" . ($defaultFastTests ? " {default}" : "") . "
+
+      -s | --profile=slow | --slow           (default with <TEST_NAME>)
+        -should skip NO tests
+        -appends args: @{$$profiles{slow}}
+
+      -f | --profile=fast | --fast           (default without <TEST_NAME>)
+        -should skip SLOW tests
+        -appends args: @{$$profiles{fast}}
 
   $0 --print
     grep CWD tests and print them in surefire format
@@ -65,19 +73,18 @@ sub main(@){
     exit 0;
   }
   my $debug = 0;
-  my $fast = $defaultFastTests;
-  my $explicitFast = 0;
+  my $profile = undef;
   my $test = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-d|--debug)$/){
       $debug = 1;
-    }elsif($arg =~ /^(-f|--fast)$/){
-      $fast = 1;
-      $explicitFast = 1;
-    }elsif($arg =~ /^(-s|--no-fast|--nofast|--slow)$/){
-      $fast = 0;
-      $explicitFast = 1;
+    }elsif($arg =~ /^(-e|--profile=external|--external)$/){
+      $profile = "external";
+    }elsif($arg =~ /^(-s|--profile=slow|--slow)$/){
+      $profile = "slow";
+    }elsif($arg =~ /^(-f|--profile=fast|--fast)$/){
+      $profile = "fast";
     }else{
       die $usage;
     }
@@ -85,15 +92,23 @@ sub main(@){
 
   $test = shift if @_ == 1;
   $test = checkDotMethodCall($test);
-  $fast = 0 if defined $test and not $explicitFast;
+
+  if(not defined $profile){
+    if(defined $test){
+      $profile = "slow";
+    }else{
+      $profile = "fast";
+    }
+  }
 
   die $usage if @_ > 0;
 
   my @cmd = @mvnCmd;
   push @cmd, $mvnDebugArg if $debug;
-  push @cmd, "-Pfast-tests" if $fast;
-  push @cmd, "-Pskip-db-tests" if $fast;
   push @cmd, "-Dtest=$test" if defined $test;
+  for my $arg(@{$$profiles{$profile}}){
+    push @cmd, $arg;
+  }
 
   print "@cmd\n";
   open FH, "-|", @cmd;
