@@ -10,6 +10,16 @@
 baseUrl = "https://github.com"
 okUserNames = ["teleshoes", "ewolk"]
 
+function getTargetUserName(url){
+  if(/[?\/]teleshoes/.exec(url)){
+    return "teleshoes";
+  }else if(/[?\/]ewolk/.exec(url)){
+    return "ewolk";
+  }else{
+    return null;
+  }
+}
+
 function main(){
   url = document.URL;
 
@@ -54,16 +64,6 @@ function isLandingPage(){
 
 function is404(){
   return /Page not found/.exec(document.title) ? true : false;
-}
-
-function getTargetUserName(url){
-  if(/[?\/]teleshoes/.exec(url)){
-    return "teleshoes";
-  }else if(/[?\/]ewolk/.exec(url)){
-    return "ewolk";
-  }else{
-    return null;
-  }
 }
 
 function isLogout(url){
