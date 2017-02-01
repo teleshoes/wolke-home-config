@@ -13,6 +13,8 @@ okUserNames = ["teleshoes", "ewolk"]
 function getTargetUserName(url){
   if(/[?\/]teleshoes/.exec(url)){
     return "teleshoes";
+  }else if(/[?\/]taffybar/.exec(url)){
+    return "teleshoes";
   }else if(/[?\/]ewolk/.exec(url)){
     return "ewolk";
   }else{
