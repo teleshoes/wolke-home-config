@@ -7,7 +7,6 @@ my @fehArgs = qw(--auto-rotate);
 
 sub run(@);
 
-my $GEOMETRY = '800x800+50+50';
 my $INFO = '%f\n%u/%l - %wx%h'; #FILENAME\nIMGNUM/TOTALNUM - WxH
 my $DEFAULT_TERM_CMD = "mv %f %f";
 my $BACKSPACE_COUNT = 80;
@@ -19,10 +18,15 @@ my $usage = "Usage:
   $0 [TERM_CMD]
     -use `term` to open a terminal with the window title 'fehterm-<FEHTERM_ID>'
     -find the terminal's <WINDOW_ID> using `xwininfo`
-    -open a small feh window, using the '--info' commandline option
-      to run xdotool with the terminal's <WINDOW_ID>,
-      whenever the image info is (re-)rendered in feh
-      (the '--info' command also outputs '$INFO', after running xdotool)
+    -open a small, square feh window
+      using the '--info' commandline option
+        to run xdotool with the terminal's <WINDOW_ID>,
+        whenever the image info is (re-)rendered in feh
+        (the '--info' command also outputs '$INFO', after running xdotool)
+      feh geometry is square:
+        width and height    => 90% of the display height (returned by `res -h`)
+        offset left and top => 5% of the display height (returned by `res -h`)
+        e.g: for 1920x1080 screens, use \"972x972+54+54\"
       include extra args to feh: \"@fehArgs\"
     -xdotool sends $BACKSPACE_COUNT backspace keys, and then types \"<TERM_CMD>\"
 
@@ -64,8 +68,16 @@ sub main(@){
   $termCmd = $DEFAULT_TERM_CMD if not defined $termCmd;
   die $usage if @_ != 0;
 
+  my $displayHeight = `res -h`;
+  chomp $displayHeight;
+  die "could not read display height from `res -h`\n" if $displayHeight !~ /^\d+$/;
+  die "screen too small (height=$displayHeight)\n" if $displayHeight < 100;
+  my $size = int(0.90 * $displayHeight + 0.5);
+  my $offset = int(0.05 * $displayHeight + 0.5);
+  my $geometry = "${size}x${size}+${offset}+${offset}";
+
   if($noTerm){
-    my @cmd = ("/usr/bin/feh", @fehArgs, "-g", $GEOMETRY, "--info", "echo '$INFO'");
+    my @cmd = ("/usr/bin/feh", @fehArgs, "-g", $geometry, "--info", "echo '$INFO'");
     print "@cmd\n";
     exec @cmd;
   }
@@ -91,7 +103,7 @@ sub main(@){
     . "echo '$INFO'; "
     ;
 
-  run "/usr/bin/feh", @fehArgs, "-g", $GEOMETRY, "--info", $infoCmd;
+  run "/usr/bin/feh", @fehArgs, "-g", $geometry, "--info", $infoCmd;
 }
 
 sub run(@){

@@ -1,0 +1,88 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $statusDev = "/sys/class/power_supply/BAT0/status";
+my $energyNowDev = "/sys/class/power_supply/BAT0/energy_now";
+my $energyFullDev = "/sys/class/power_supply/BAT0/energy_full";
+my $powerNowDev = "/sys/class/power_supply/BAT0/power_now";
+my $batIconDir = "/usr/share/icons/gnome/24x24/status";
+
+sub getStatus();
+sub readIntDev($);
+
+my $STATUS_CHARGING = "charging";
+my $STATUS_DISCHARGING = "discharging";
+my $STATUS_IDLE = "idle";
+
+sub main(@){
+  my $status = getStatus();
+  my $powerMicroW = readIntDev $powerNowDev;
+  my $energyNowMicroAh = readIntDev $energyNowDev;
+  my $energyFullMicroAh = readIntDev $energyFullDev;
+
+  my $color = "black";
+  if($status eq $STATUS_CHARGING){
+    $color = "green";
+  }elsif($status eq $STATUS_DISCHARGING){
+    $color = "red";
+  }elsif($status eq $STATUS_IDLE){
+    $color = "black";
+  }
+
+  my $powerW = sprintf "%02.1f", $powerMicroW/1000000.0;
+  my $energyPct = int($energyNowMicroAh/$energyFullMicroAh*100.0 + 0.5);
+  print ""
+    . "<txt>"
+      . "<span fgcolor=\"$color\" weight=\"bold\">${energyPct}%</span>"
+      . "<span rise=\"100\" size=\"xx-small\">\n${powerW}W</span>"
+    . "</txt>"
+    . "<img>" . selectIcon($status, $energyPct) . "</img>"
+    ;
+}
+
+sub getStatus(){
+  my $status = `cat $statusDev 2>/dev/null`;
+  chomp $status;
+  if($status =~ /^(charging)$/i){
+    return $STATUS_CHARGING;
+  }elsif($status =~ /^(discharging)$/i){
+    return $STATUS_DISCHARGING;
+  }else{
+    return $STATUS_IDLE;
+  }
+}
+
+sub selectIcon($$){
+  my ($status, $percent) = @_;
+  my $percentName;
+  if($percent >= 80){
+    $percentName = "full";
+  }elsif($percent >= 50){
+    $percentName = "good";
+  }elsif($percent >= 10){
+    $percentName = "low";
+  }else{
+    $percentName = "caution";
+  }
+
+  return ""
+    . "$batIconDir/"
+    . "battery-"
+    . $percentName
+    . ($status eq $STATUS_CHARGING ? "-charging" : "")
+    . ".png"
+}
+
+sub readIntDev($){
+  my ($dev) = @_;
+  my $val = `cat $dev 2>/dev/null`;
+  chomp $val;
+  if($val !~ /^\d+$/){
+    print "<txt><span fgcolor=\"red\">???</span></txt>";
+    die "could not read integer value from device=$dev\n";
+  }
+  return $val;
+}
+
+&main(@ARGV);

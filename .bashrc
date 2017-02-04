@@ -161,6 +161,23 @@ function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
   livestreamer "$@" $default_quality
 }
+function rename       {
+  pastOptArgs=0
+  ok=1
+  for arg in "$@"
+  do
+    if [[ $pastOptArgs == 1 && $arg == -* ]]; then
+      echo "NOT RUNNING RENAME, $arg MUST BE BEFORE PATTERN"
+      ok=0
+    fi
+    if [[ $arg != -* ]]; then
+      pastOptArgs=1
+    fi
+  done
+  if [[ $ok == 1 ]]; then
+    command rename "$@"
+  fi
+}
 
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }

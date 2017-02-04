@@ -10,6 +10,26 @@
 baseUrl = "https://github.com"
 okUserNames = ["teleshoes", "ewolk"]
 
+function getTargetUserName(url){
+  if(/[?\/]teleshoes/.exec(url)){
+    return "teleshoes";
+  }else if(/[?\/]taffybar/.exec(url)){
+    return "teleshoes";
+  }else if(/[?\/]ewolk/.exec(url)){
+    return "ewolk";
+  }else{
+    return null;
+  }
+}
+function handle404(url){
+  if(/[?\/]lillegroup/.exec(url)){
+    targetUserName = "ewolk";
+    newUrl = baseUrl + "/" + targetUserName;
+    window.open(newUrl, '_blank', true);
+    setTimeout(function(){ location.reload(true) }, 5000);
+  }
+}
+
 function main(){
   url = document.URL;
 
@@ -33,12 +53,7 @@ function main(){
       navToLoginDelay(targetUserName);
     }
   }else if(is404()){
-    if(/[?\/]lillegroup/.exec(url)){
-      targetUserName = "ewolk";
-      newUrl = baseUrl + "/" + targetUserName;
-      window.open(newUrl, '_blank', true);
-      setTimeout(function(){ location.reload(true) }, 5000);
-    }
+    handle404(url);
   }else if(isLogoutUrl){
     logout()
   }
@@ -54,16 +69,6 @@ function isLandingPage(){
 
 function is404(){
   return /Page not found/.exec(document.title) ? true : false;
-}
-
-function getTargetUserName(url){
-  if(/[?\/]teleshoes/.exec(url)){
-    return "teleshoes";
-  }else if(/[?\/]ewolk/.exec(url)){
-    return "ewolk";
-  }else{
-    return null;
-  }
 }
 
 function isLogout(url){

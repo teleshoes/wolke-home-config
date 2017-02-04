@@ -7,19 +7,20 @@ module Utils(
   pollingGraphMain,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
+  isSymlink, attemptCreateSymlink,
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
 import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
-import Control.Exception (SomeException, try)
+import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, void)
 import Graphics.UI.Gtk (
   Container, Widget, hBoxNew, vBoxNew, containerAdd,
   toWidget, toContainer, widgetShowAll)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, doesDirectoryExist, removeFile)
 import Text.Regex.PCRE ((=~), getAllTextMatches)
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.List (intercalate, transpose)
@@ -30,10 +31,13 @@ import System.FilePath.Find (
 import System.IO (
   stderr, hGetContents, hGetLine, hPutStrLn,
   hSetBuffering, BufferMode(LineBuffering))
+import System.IO.Error (isDoesNotExistError)
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, proc, shell,
   system)
 import ProcUtil ( readProcessWithExitCode' )
+import System.Posix.Files (
+  getSymbolicLinkStatus, isSymbolicLink, createSymbolicLink)
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 import Text.Printf (printf)
 
@@ -153,6 +157,23 @@ findName :: FilePath -> Bool -> String -> IO [FilePath]
 findName dir recurse ptrn = find rec match dir
   where rec = return recurse ||? depth ==? 0
         match = fileName ~~? ptrn &&? filePath /=? dir
+
+--return True for symlink (broken or not broken)
+isSymlink :: FilePath -> IO Bool
+isSymlink filepath = (getIsSymlink filepath) `catch` (whenDNE (return False))
+  where getIsSymlink = (fmap isSymbolicLink) . getSymbolicLinkStatus
+        whenDNE a e = if isDoesNotExistError e then a else throwIO e
+
+--if file does not exist, create new symlink
+--if file exists and is a symlink, remove it and create a new symlink
+--if file exists and is not a symlink, do nothing
+attemptCreateSymlink :: FilePath -> String -> IO ()
+attemptCreateSymlink f target = ifM isSym (rmFile >> createSym) (unlessM exists createSym)
+  where isSym = isSymlink f
+        exists = ifM (doesFileExist f) (return True) (doesDirectoryExist f)
+        rmFile = removeFile f
+        createSym = createSymbolicLink target f
+        unlessM p a = ifM p (pure ()) a
 
 chompFile :: FilePath -> IO String
 chompFile file = do

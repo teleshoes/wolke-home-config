@@ -6,13 +6,14 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use File::Tee qw(tee);
 
+sub getCrashplanPid();
 sub printBackupSets(@);
 sub backupLogs();
 sub runBackup($);
-sub getFilteredBackupSets($$$);
+sub getFilteredBackupSets($$$$);
 sub parseBackupSets($$$);
 sub filterLog($$$);
-sub parseLog();
+sub parseLog($);
 sub parseLatestSync();
 sub formatSync($);
 sub formatBackupSet($);
@@ -62,7 +63,7 @@ my $usage = "Usage:
   $0 -g|--gui
     run '$guiExec'
 
-  $0 -l|--log|log [--date=DATE] [BACKUP_NAME]
+  $0 -l|--log|log [--date=DATE] [--logfile=LOGFILE] [BACKUP_NAME]
     format recent info from $historyLogFile
       DATE
         YYYY-MM-DD   show only info from that date
@@ -74,6 +75,9 @@ my $usage = "Usage:
         one of [$okBackupNames]
         if given, only show info for that backup.
         otherwise, show all
+
+      LOGFILE
+        alternative filename to use instead of $historyLogFile
 
   $0 $okServiceCmds
     use custom CliWrapper to run the GUI 'CLI' commands in a REAL command line
@@ -111,6 +115,8 @@ my $ENDSTATE_NOT_OK = "msg-stopped";
 my $ENDSTATE_MSG_COMPLETED = "Completed";
 my $ENDSTATE_MSG_STOPPED = "Stopped";
 
+my $okLogArgs = join "|", qw(--date --logfile);
+
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
@@ -123,9 +129,16 @@ sub main(@){
     exec $guiExec;
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
-    if(@_ > 0 and $_[0] =~ /^--date=(\d\d\d\d-\d\d-\d\d|all|recent)$/){
-      $date = $1;
-      shift;
+    my $logfile = $historyLogFile;
+    while(@_ > 0 and $_[0] =~ /^($okLogArgs)(=.+)?$/){
+      my $arg = shift;
+      if($arg =~ /^--date=(\d\d\d\d-\d\d-\d\d|all|recent)$/){
+        $date = $1;
+      }elsif($arg =~ /^--logfile=(.+)$/){
+        $logfile = $1;
+      }else{
+        die $usage;
+      }
     }
     my $backupName = undef;
     if(@_ > 0 and $_[0] =~ /^($okBackupNames)$/){
@@ -137,7 +150,7 @@ sub main(@){
     my $exactDate = $date if $date =~ /^\d\d\d\d-\d\d-\d\d$/;
     my $maxTimeAgoMillis = $recentLogMillis if $date =~ /^recent$/;
 
-    my @backupSets = getFilteredBackupSets($maxTimeAgoMillis, $exactDate, 1);
+    my @backupSets = getFilteredBackupSets($logfile, $maxTimeAgoMillis, $exactDate, 1);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
     printBackupSets @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
@@ -155,6 +168,15 @@ sub main(@){
     runBackup($ignoreDuplicateFailures);
   }else{
     die $usage;
+  }
+}
+
+sub getCrashplanPid(){
+  my $pgrep = `pgrep -fl '^/usr/local/crashplan/jre/bin/java.*com.backup42.service.CPService'`;
+  if($pgrep =~ /^(\d+) java$/){
+    return $1;
+  }else{
+    return undef;
   }
 }
 
@@ -196,13 +218,26 @@ sub runBackup($){
   tee STDERR, '>>', $backupLogFile;
 
   my $startMillis = time*1000.0;
-  my @initialBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
+  my @initialBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
   run $0, "stop";
+  if(defined getCrashplanPid()){
+    die "crashplan is still running...\n";
+  }
+
   run $0, "start";
   sleep 5;
   run $0, "scan";
+
+  my $crashplanPid = getCrashplanPid();
+  if(not defined $crashplanPid){
+    print "crashplan apparently did not start\n";
+    print "stopping again just in case...\n";
+    run $0, "stop";
+    die;
+  }
+
   my $logPid = fork;
   if($logPid == 0){
     exec "tail", "-F", $historyLogFile;
@@ -213,6 +248,8 @@ sub runBackup($){
     print "\n\nNOTE: last sync is not finished in log:\n";
     print "  " . formatSync($prevSync) . "\n\n\n";
   }
+
+  my $errorMsg = undef;
 
   my $finishedMillis;
   while(time*1000.0 < $startMillis + $backupLimitMillis){
@@ -232,7 +269,7 @@ sub runBackup($){
     }
     $prevSync = $sync;
 
-    my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
+    my @newBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
     my @finishedSets = grep {$$_{backupStatus} =~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/} @newBackupSets;
     my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
@@ -244,6 +281,8 @@ sub runBackup($){
       }
     }
     $finishedMillis = undef if not $isDone;
+
+    my $newPid = getCrashplanPid();
 
     if($isDone and not defined $finishedMillis){
       $finishedMillis = time * 1000.0;
@@ -259,13 +298,23 @@ sub runBackup($){
       print "backup seems complete after ${elapsed}s\n";
       print "stopping crashplan\n";
       last;
+    }elsif(not defined $newPid or $newPid != $crashplanPid){
+      print "\n\n";
+      $errorMsg = "ERROR: crashplan stopped running on its own\n";
+      print $errorMsg;
+      last;
+    }elsif($newPid != $crashplanPid){
+      print "\n\n";
+      $errorMsg = "ERROR: crashplan restarted with a new pid ($crashplanPid => $newPid)\n";
+      print $errorMsg;
+      last;
     }
   }
 
   run "kill", "-9", $logPid;
   run $0, "stop";
 
-  my @newBackupSets = getFilteredBackupSets($recentLogMillis, undef, $ignoreDuplicateFailures);
+  my @newBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
 
   printBackupSets @newBackupSets;
@@ -273,12 +322,16 @@ sub runBackup($){
   backupLogs();
 
   printBackupSets @newBackupSets;
+
+  if(defined $errorMsg){
+    print "\n\n$errorMsg\n";
+  }
 }
 
-sub getFilteredBackupSets($$$){
-  my ($maxTimeAgoMillis, $exactDate, $ignoreDuplicateFailures) = @_;
+sub getFilteredBackupSets($$$$){
+  my ($logfile, $maxTimeAgoMillis, $exactDate, $ignoreDuplicateFailures) = @_;
 
-  my $log = parseLog();
+  my $log = parseLog($logfile);
   filterLog($log, $maxTimeAgoMillis, $exactDate);
   my @backupSets;
   for my $name(sort keys %$log){
@@ -398,35 +451,45 @@ sub filterLog($$$){
   return $log;
 }
 
-sub parseLog(){
-  my @lines = `cat $historyLogFile`;
+sub parseLog($){
+  my ($logfile) = @_;
+  my @lines = `cat $logfile`;
   my $log = {};
 
   for my $line(@lines){
-    my ($time, $backupName);
-    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\]/){
-      my ($mon, $day, $year, $hour, $min, $ampm, $name) = ($1, $2, $3, $4, $5, $6, $7);
+    my ($time, $backupName, $message);
+    if($line =~ /^I (\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d)(AM|PM) \[(\w+)\] (.+)$/){
+      my ($mon, $day, $year, $hour, $min, $ampm, $name, $msg) = ($1, $2, $3, $4, $5, $6, $7, $8);
 
       $time = str2time "$mon/$day/$year $hour:$min$ampm";
       $backupName = $name;
+      $message = $msg;
     }else{
       next;
     }
 
-    my $dur = '(?:< )?\d+ (?:minute|hour|day)s?';
+    my $dur = '(?:< )?\d+(?:\.\d+)? (?:minute|hour|day)s?';
     my $n = '[0-9,]+';
     my $fs = '[0-9\.]+\s*[KMGT]?B';
     my $speed = '.*[0-9\.]+\s*[KMGT]?bps';
 
     my $entry;
-    if($line =~ /Scanning for files to back up$/){
+    if($message =~ /^Scanning for files to back up(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*$/){
+        die "invalid scan-start line: $line";
+      }
       $entry = {
         name => $backupName,
         time => $time,
         line => $line,
         type => "scan-start",
       }
-    }elsif($line =~ /Scanning for files completed in ($dur): ($n) files? \(($fs)\) found$/){
+    }elsif($message =~ /^Scanning for files completed(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*in ($dur): ($n) files? \(($fs)\) found$/){
+        die "invalid scan-end line: $line";
+      }
       my ($duration, $fileCount, $size) = ($1, $2, $3);
       $entry = {
         name => $backupName,
@@ -437,7 +500,11 @@ sub parseLog(){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /Starting backup to CrashPlan Central: ($n) files? \(($fs)\) to back up$/){
+    }elsif($message =~ /^Starting backup to CrashPlan Central(.*)$/){
+      my ($details) = ($1);
+      if($details !~ /^\s*:\s*($n) files? \(($fs)\) to back up$/){
+        die "invalid backup-start line: $line";
+      }
       my ($fileCount, $size) = ($1, $2);
       $entry = {
         name => $backupName,
@@ -447,8 +514,28 @@ sub parseLog(){
         filecount => $fileCount,
         size => $size,
       };
-    }elsif($line =~ /($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent @ ($speed)(?: \(Effective rate: $speed\))?$/){
-      my ($endstate, $duration, $fileCount, $size, $encsize, $speed) = ($1, $2, $3, $4, $5, $6);
+    }elsif($message =~ /^($ENDSTATE_MSG_STOPPED|$ENDSTATE_MSG_COMPLETED) backup to CrashPlan Central(.*)$/){
+      my ($endstate, $details) = ($1, $2);
+      if($details =~ /^:\s*No new data to backup at this time$/){
+        next;
+      }
+      if($details !~ /in ($dur): ($n) files? \(($fs)\) backed up, ($fs) encrypted and sent(?: @ ($speed))?(?: \(Effective rate: ($speed)\))?$/){
+        die "invalid backup-end line: $line";
+      }
+      my ($duration, $fileCount, $size, $encsize, $speed, $effectiveSpeed) = ($1, $2, $3, $4, $5, $6);
+      if(not defined $speed){
+        if(defined $effectiveSpeed){
+          my $sizeMib = parseSizeMiB $size;
+          my $encsizeMib = parseSizeMiB $encsize;
+          my $effectiveSpeedMbps = parseSpeedMbps $effectiveSpeed;
+          my $encRatio = $encsizeMib/$sizeMib;
+          my $speedMbps = $encRatio * $effectiveSpeedMbps;
+
+          $speed = sprintf "%.2fMbps", $speedMbps;
+        }else{
+          $speed = "0Mbps";
+        }
+      }
       $entry = {
         name => $backupName,
         time => $time,
@@ -461,19 +548,23 @@ sub parseLog(){
         encsize => $encsize,
         speed => $speed,
       };
+    }elsif($message =~ /^Scanning for files stopped/){
+      next;
+    }elsif($message =~ /^Configured to backup/){
+      next;
+    }else{
+      die "error parsing line: $line\n";
     }
 
-    if(defined $entry and defined $$entry{filecount}){
+    if(defined $$entry{filecount}){
       my $count = $$entry{filecount};
       $count =~ s/,//g;
       die "Malformed count: $count\n" if $count !~ /^\d+$/;
       $$entry{filecount} = $count;
     }
 
-    if(defined $entry){
-      $$log{$$entry{name}} = [] if not defined $$log{$$entry{name}};
-      push @{$$log{$$entry{name}}}, $entry;
-    }
+    $$log{$$entry{name}} = [] if not defined $$log{$$entry{name}};
+    push @{$$log{$$entry{name}}}, $entry;
   }
   return $log;
 }
@@ -627,9 +718,9 @@ sub parseSizeMiB($){
   return ($bytes / 1024.0 / 1024.0);
 }
 sub parseSpeedMbps($){
-  my ($size) = @_;
-  if($size !~ /^(\d+(?:\.\d+)?)\s*(bps|Kbps|Mbps|Gbps|Tbps)$/){
-    die "malformed size: $size\n";
+  my ($speed) = @_;
+  if($speed !~ /^(\d+(?:\.\d+)?)\s*(bps|Kbps|Mbps|Gbps|Tbps)$/){
+    die "malformed speed: $speed\n";
   }
   my ($num, $unit) = ($1, $2);
   my $scale = 1000;

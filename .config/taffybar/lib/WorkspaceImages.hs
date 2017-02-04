@@ -31,6 +31,7 @@ getSpecial winTitle winClass
   | null winTitle && null winClass = Just "blank"
   | winTitle == "..." && winClass == "..." = Just "blank"
   | winTitle ~~ "email-gui.py" = Just "qtemail"
+  | winTitle ~~ "qtemail-daemon" = Just "qtemail"
   | winTitle ~~ "Tor Browser|Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle ~~ "^Google Hangouts .*- Mozilla Firefox$" = Just "googlehangouts"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
@@ -41,6 +42,7 @@ getSpecial winTitle winClass
                 ++ "^\\d+\\.\\d+ [KMG]B/s"
                 ++ " \\| " ++ "\\d+ [KMG]B"
                 ++ " \\| " ++ "[0-9:]+ left - Chromium$") = Just "sabnzbd"
+  | winClass ~~ "urxvt" = Just "terminal"
   | otherwise = Nothing
 
 selectImageName :: [String] -> String -> String -> Maybe String

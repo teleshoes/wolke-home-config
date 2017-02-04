@@ -1,131 +1,174 @@
-#! /usr/bin/runghc
-import Prelude hiding (Right, Left)
-import Control.Monad
-import Control.Applicative
-import Data.Char
-import Data.List
-import Data.Maybe
-import System.Environment
-import System.Process
-import Text.Regex.PCRE ((=~))
+#!/usr/bin/perl
+use strict;
+use warnings;
 
--- * Types and Helpers
-data Direction = Deasil | Widdershins deriving (Eq, Read, Show)
+sub getScreens();
+sub getMouseDevices();
+sub getCurDir($);
+sub getTargetDir($$);
+sub rotateScreen($$);
+sub rotatePointer($$);
+sub run(@);
 
-data Rotation = Normal | Right | Inverted | Left
-    deriving (Eq, Bounded, Enum, Read, Show)
+my @DIRS = qw(normal left inverted right);
+my $OK_DIRS = join "|", @DIRS;
+my $DEFAULT_DIRTYPE = "widdershins";
+my $OK_DIRTYPE_ARGS = {
+  normal      => (join "|", qw(normal up)),
+  left        => (join "|", qw(left)),
+  inverted    => (join "|", qw(inverted down)),
+  right       => (join "|", qw(right)),
+  widdershins => (join "|", qw(widdershins anticlockwise counterclockwise)),
+  deasil      => (join "|", qw(deasil clockwise)),
+};
 
-rotations :: [Rotation]
-rotations = [minBound .. maxBound]
+my $MOUSE_REGEX = "mouse|pointer|pointing|touchpad|trackpoint";
+my $PROP_COORDINATE_TRANSFORMATION_MATRIX = "Coordinate Transformation Matrix";
 
-readLC :: (Read a) => String -> a
-readLC (c:cs) = read $ toUpper c : map toLower cs
+my $POINTER_MATRICES = {
+  normal   => [map {$_+0} qw(+1 +0 +0 +0 +1 +0 +0 +0 +1)],
+  inverted => [map {$_+0} qw(-1 +0 +1 +0 -1 +1 +0 +0 +1)],
+  left     => [map {$_+0} qw(+0 -1 +1 +1 +0 +0 +0 +0 +1)],
+  right    => [map {$_+0} qw(+0 +1 +0 -1 +0 +1 +0 +0 +1)],
+};
 
-showLC :: (Show a) => a -> String
-showLC = map toLower . show
+my $usage = "Usage:
+  $0 [DIRECTION]
+    -set the orientation of the screen to the indicated direction
+      DIRECTION can be absolute (e.g.: right) or relative (e.g.: clockwise)
+      if DIRECTION is not given, defaults to $DEFAULT_DIRTYPE
 
-type DisplayNumber = Int
-type DisplayName = String
-type PointerNumber = String
-type PointerName = String
+    -finds pointing devices that can be rotated and rotates them to match the screen
+       pointing device names must match this (case insensitive) regular expression:
+         /$MOUSE_REGEX/i
+       pointing devices must implement this X property:
+         \"$PROP_COORDINATE_TRANSFORMATION_MATRIX\"
 
-newtype DisplayInfo = DI {diString :: String}
-newtype PointerInfo = PI {piString :: String}
+  DIRECTION
+    $$OK_DIRTYPE_ARGS{normal}
+        absolute: top of the screen points upwards
+    $$OK_DIRTYPE_ARGS{left}
+        absolute: top of the screen points to the left
+    $$OK_DIRTYPE_ARGS{inverted}
+        absolute: top of the screen points downwards
+    $$OK_DIRTYPE_ARGS{right}
+        absolute: top of the screen points to the right
+    $$OK_DIRTYPE_ARGS{widdershins}
+        relative: -90 degrees from current orientation
+        (" . (join " -> ", @DIRS) . " -> $DIRS[0])
+    $$OK_DIRTYPE_ARGS{deasil}
+        relative: +90 degrees from current orientation
+        (" . (join " -> ", reverse @DIRS) . " -> $DIRS[-1])
+";
 
--- * Rotations
-rotateAll :: DisplayNumber -> [PointerName] -> Direction -> IO ()
-rotateAll dn ptrs dir = rotateDisplay dn dir >>= forM_ ptrs . flip rotatePointer
+sub main(@){
+  my $okAllDirTypeArgs = join "|", sort values %$OK_DIRTYPE_ARGS;
+  my $dirType;
+  if(@_ == 1 and $_[0] =~ /^($okAllDirTypeArgs)$/){
+    $dirType = $_[0];
+  }elsif(@_ == 0){
+    $dirType = $DEFAULT_DIRTYPE;
+  }else{
+    die $usage;
+  }
 
-run :: String -> [String] -> IO String
-run proc args = readProcess proc args ""
+  my $screens = getScreens();
+  my $curDir = getCurDir $screens;
+  my $targetDir = getTargetDir $curDir, $dirType;
 
-rotateDisplay :: DisplayNumber -> Direction -> IO Rotation
-rotateDisplay dn dir = do
-    di <- displayInfo
-    let rot = nextRotation dn dir di
-    let disp = displayName dn di
-    run "xrandr" ["--output", disp, "--rotate", showLC rot]
-    return rot
+  for my $screen(sort keys %$screens){
+    rotateScreen $screen, $targetDir;
+  }
 
-rotatePointer :: PointerName -> Rotation -> IO ()
-rotatePointer ptr rot = do
-    pn <- idNo ptr <$> pointerInfo
-    propNo <- flip idNo <$> pointerPropInfo pn
-    let rotate args = run "xinput" (["--set-prop", pn] ++ args) >> return ()
-    rotate [propNo "Swap" , swapBit rot]
-    rotate [propNo "Inversion", invXBit rot, invYBit rot]
+  for my $mouse(getMouseDevices()){
+    rotatePointer $mouse, $targetDir;
+  }
+}
 
-displayInfo :: IO DisplayInfo
-displayInfo = DI <$> run "xrandr" ["--query", "--verbose"]
+sub getScreens(){
+  my $xrandr = `xrandr --query --verbose`;
 
-pointerInfo :: IO PointerInfo
-pointerInfo = PI <$> run "xinput" ["--list"]
+  my $screens = {};
+  my $screensFound = 0;
+  while($xrandr =~ /
+    ^   ([a-zA-Z0-9\-_]+)
+    \s+ connected
+    \s* (?:[0-9x+]+)?
+    \s* (?:\(\d+x\d+\))?
+    \s+ ($OK_DIRS) \s+
+  /mgx){
+    my ($screen, $curDir) = ($1, $2);
+    $$screens{$screen} = $curDir;
+    $screensFound++;
+  }
+  die "no screen info found in xrandr\n" if $screensFound == 0;
 
-pointerPropInfo :: PointerNumber -> IO PointerInfo
-pointerPropInfo pn = PI <$> run "xinput" ["--list-props", pn]
+  return $screens;
+}
 
--- * Regex Functions
-fullMatch :: String -> String -> (String, String, String, [String])
-fullMatch = flip (=~)
+sub getMouseDevices(){
+  my @names = `xinput --list --name-only`;
+  chomp foreach @names;
+  @names = grep {/$MOUSE_REGEX/i} @names;
+  my @pointingDevices;
+  for my $name(@names){
+    my $props = `xinput --list-props "$name"`;
+    if($props =~ /^\s*$PROP_COORDINATE_TRANSFORMATION_MATRIX\s+\(\d+\):/){
+      push @pointingDevices, $name;
+    }
+  }
+  return @names;
+}
 
-match :: String -> String -> String
-match pat = (\(_,_,_,[r]) -> r) . fullMatch pat
+sub getCurDir($){
+  my ($screens) = @_;
+  my $curDir = undef;
+  for my $screen(sort keys %$screens){
+    my $dir = $$screens{$screen};
+    $curDir = $dir if not defined $curDir;
+    if($curDir ne $dir){
+      die "mismatched screen directions: $dir vs $curDir\n";
+    }
+  }
+  return $curDir;
+}
 
-skip :: String -> String -> String
-skip pat = (\(_,_,r,_) -> r) . fullMatch pat
+sub getTargetDir($$){
+  my ($curDir, $dirType) = @_;
+  for my $absDir(@DIRS){
+    if($dirType =~ /^($$OK_DIRTYPE_ARGS{$absDir})$/){
+      return $absDir;
+    }
+  }
 
-matchNth :: String -> Int -> String -> String
-matchNth pat n = match pat . (!! n) . iterate (skip pat)
+  my %dirIndices = map {$DIRS[$_] => $_} 0..$#DIRS;
+  my $curDirIndex = $dirIndices{$curDir};
+  my $targetDirIndex;
+  if($dirType =~ /^($$OK_DIRTYPE_ARGS{widdershins})$/){
+    $targetDirIndex = ($curDirIndex+1+@DIRS) % @DIRS;
+  }elsif($dirType =~ /^($$OK_DIRTYPE_ARGS{deasil})$/){
+    $targetDirIndex = ($curDirIndex-1+@DIRS) % @DIRS;
+  }else{
+    die "invalid dir arg: $dirType\n";
+  }
+  return $DIRS[$targetDirIndex];
+}
 
--- * Rotate Display Functions
-nextRotation :: DisplayNumber -> Direction -> DisplayInfo -> Rotation
-nextRotation dn dir di = (!! 1) . dropWhile (/= current) $ rots
-  where
-    rots = cycle . (if dir == Deasil then id else reverse) $ rotations
-    current = readLC . matchNth rotrx dn . diString $ di
-    rotrx = "(" ++ (intercalate "|" . map showLC $ rotations) ++ ")" ++ " \\("
+sub rotateScreen($$){
+  my ($screen, $targetDir) = @_;
+  run "xrandr", "--output", $screen, "--rotate", $targetDir;
+}
 
-displayName :: DisplayNumber -> DisplayInfo -> DisplayName
-displayName dn = matchNth "(\\w+) connected" dn . diString
+sub rotatePointer($$){
+  my ($device, $dir) = @_;
+  my @matrix = @{$$POINTER_MATRICES{$dir}};
+  run "xinput", "set-prop", $device, $PROP_COORDINATE_TRANSFORMATION_MATRIX, @matrix;
+}
 
--- * Rotate Pointer Functions
-idNo :: String -> PointerInfo -> String
-idNo name = match (name ++ "\\s+\\D+(\\d+)") . piString
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "error running @_\n" if $? != 0;
+}
 
-rotationBit :: (Int -> Int) -> Rotation -> String
-rotationBit f = showLC . f . fromJust . (`elemIndex` rotations)
-invXBit = rotationBit (`div` 2)
-invYBit = rotationBit (signum . (`mod` 3))
-swapBit = rotationBit (`mod` 2)
-
--- * Main and Args
-main :: IO ()
-main = join $ rotateAll <$> displayArg <*> pointerArgs <*> directionArg
-
-findArgs :: (String -> Bool) -> ([String] -> b) -> b -> IO b
-findArgs p f z = return . trans . filter p =<< getArgs
-  where trans xs = case xs of {[] -> z ; _ -> f xs}
-
-displayArg :: IO DisplayNumber
-displayArg = findArgs isNat (read . head) 0
-
-directionArg :: IO Direction
-directionArg = findArgs isDeasil (const Deasil . head) Widdershins
-
-pointerArgs :: IO [PointerName]
-pointerArgs = findArgs (not . otherArg) id ["TrackPoint", "TouchPad"]
-  where otherArg a = or . map ($ a) $ [isNat, isDeasil, isWiddershins]
-
-isNat :: String -> Bool
-isNat = all isDigit
-
-isDeasil :: String -> Bool
-isDeasil = (`elem` deasil) . map toLower
-  where deasil = [ "deasil", "right", "starboard", "clockwise", "cockwise"]
-
-isWiddershins :: String -> Bool
-isWiddershins = (`elem` widdershins) . map toLower
-  where
-    widdershins = [ "widdershins", "left", "port"] ++ anti ++ counter
-    anti = ["anticlockwise", "anticockwise"]
-    counter = ["counterclockwise", "countercockwise"]
+&main(@ARGV);

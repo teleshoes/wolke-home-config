@@ -165,6 +165,8 @@ shortcuts conf = "Shortcuts" @@ do
     "Rotate Deasil/Widdershins" @@ do
                            mCA   xK_Fwd  #! "rotate deasil"
                            mCA   xK_Back #! "rotate widdershins"
+                           mCA   xK_PgDn #! "rotate deasil"
+                           mCA   xK_PgUp #! "rotate widdershins"
 
     "Applications"  @@ do
         "kodi"          @@ mCA   xK_k    #! "kodi"
