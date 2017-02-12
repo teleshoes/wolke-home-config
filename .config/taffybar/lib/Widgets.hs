@@ -24,6 +24,7 @@ module Widgets(
   screenSaverW,
   sepW,
   speakerW,
+  syncWatchW,
   tpBattStatW,
   thunderbirdW,
   volumeW,
@@ -54,6 +55,7 @@ import QtEmail(qtemailW)
 import ScreenSaver(screenSaverW)
 import Sep(sepW)
 import Speaker(speakerW)
+import SyncWatch(syncWatchW)
 import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
