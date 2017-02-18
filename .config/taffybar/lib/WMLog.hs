@@ -27,10 +27,10 @@ pagerConfig icons cfg = defaultPagerConfig
                          "grid" -> return "###"
                          "full" -> fmap formatWindowCount windowCount
   , activeWorkspace  = bold . fgbg "#002b36" "#eee8d8"
+  , visibleWorkspace = bold . fgbg "#002b36" "#eee8d8"
+  , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , hiddenWorkspace  = bold . fg "orange"
   , emptyWorkspace   = id
-  , visibleWorkspace = id
-  , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , workspaceBorder  = True
   , workspaceGap     = 3
   , workspacePad     = False
