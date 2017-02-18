@@ -21,16 +21,11 @@ import System.Information.EWMHDesktopInfo (
 
 pagerConfig icons cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
-  , activeLayoutIO   = \x -> case x of
-      "left"    -> return "[]="
-      "top"     -> return "TTT"
-      "grid"    -> return "###"
-      "full"    -> do
-        cnt <- windowCount
-        let numFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
-        let color = if cnt > 1 then fgbg "blue" "red" else id
-        return $ color $ "[" ++ numFmt ++ "]"
-      otherwise -> return $ fgbg "blue" "red" "???"
+  , activeLayoutIO   = \layout -> case layout of
+                         "left" -> return "[]="
+                         "top"  -> return "TTT"
+                         "grid" -> return "###"
+                         "full" -> fmap formatWindowCount windowCount
   , activeWorkspace  = bold . fgbg "#002b36" "#eee8d8"
   , hiddenWorkspace  = bold . fg "orange"
   , emptyWorkspace   = id
@@ -46,6 +41,11 @@ pagerConfig icons cfg = defaultPagerConfig
   , preferCustomIcon = False
   , customIcon       = selectImage icons
   }
+
+formatWindowCount :: Int -> String
+formatWindowCount cnt = wcCol $ "[" ++ wcFmt ++ "]"
+  where wcCol = if cnt > 1 then fgbg "blue" "red" else id
+        wcFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
 
 windowCount :: IO Int
 windowCount = withDefaultCtx $ do
