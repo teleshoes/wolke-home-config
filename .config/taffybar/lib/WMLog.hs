@@ -16,6 +16,7 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
+import System.Taffybar.WorkspaceHUD (hudFromPagerConfig, buildWorkspaceHUD)
 import System.Information.EWMHDesktopInfo (
   WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
@@ -78,8 +79,10 @@ box c ws = do
 
 wmLogNew cfg = do
   icons <- getIcons $ wsImageHeight cfg
-  pager <- pagerNew $ pagerConfig icons cfg
+  let pgrCfg = pagerConfig icons cfg
+  pager <- pagerNew pgrCfg
 
+  --ws <- buildWorkspaceHUD (hudFromPagerConfig pgrCfg) pager
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
