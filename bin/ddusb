@@ -1,0 +1,100 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "$0 ISO_IMAGE USB_DRIVE_DEVICE
+  runs dd if=ISO_IMAGE of=USB_DRIVE_DEVICE
+    with options for things like block size and progress
+
+  checks for the physical device using parted and prompts to continue
+
+  runs sync afterward
+
+  e.g.: $0 ~/Downloads/debian-testing.iso /dev/sdc
+";
+
+sub readParted();
+sub ensureRoot();
+
+sub main(@){
+  die $usage if @_ != 2;
+  ensureRoot();
+  my ($iso, $devPath) = @_;
+
+  die "$iso is not a file\n" if not -f $iso;
+
+  my $devsByPath = readParted();
+  my $dev = $$devsByPath{$devPath};
+  die "could not find $devPath in parted\n" if not defined $dev;
+
+  print "path: $$dev{path}\n";
+  print "model: $$dev{model}\n";
+  print "size: $$dev{size}\n";
+  print "partitions:\n$$dev{partitions}\n";
+
+  my @cmd = ("dd", "bs=4M", "status=progress", "if=$iso", "of=$devPath");
+
+  print "\n\n";
+  print "DESTROYING ALL PARTITIONS AND DATA OF THE ABOVE\n";
+  print "  running this: \"@cmd\"\n";
+  print "  in 5s! hit ctrl+c NOW\n";
+  sleep 5;
+  print "\nok, running dd\n";
+
+  print "@cmd\n";
+  system @cmd;
+
+  system "alarm", "-s", "success";
+
+  @cmd = "sync";
+  print "@cmd\n";
+  system @cmd;
+
+  system "alarm", "-s", "success";
+}
+
+sub readParted(){
+  my $devList = `parted -s -l`;
+  my @devs = split /\n\n\n/, $devList;
+
+  my $devsByPath = {};
+  for my $dev(@devs){
+    my $device = {};
+    my $sizeRe = '\d+(?:\.\d+)?[kmgtpKMGTP]?[bB]';
+    if($dev =~ /
+      ^
+      Model:                     \s+ (.+)      \n
+      Disk \s+ ([a-z0-9_\-\/]+): \s+ ($sizeRe) \n
+      Sector\s+size.*:           \s+ .*        \n
+      Partition\s+Table:         \s+ (\w+)     \n
+      Disk\s+Flags:              \s+ .*        \n
+      \n
+      (
+        Number \s+ Start \s+ End \s+ Size .*
+        (?:
+          \s+ \d+ \s+ $sizeRe \s+ $sizeRe \s+ $sizeRe .* \n
+        )*
+      )
+      $/sxi){
+      my ($model, $path, $size, $table, $partitions) = ($1, $2, $3, $4, $5);
+      $$device{model} = $model;
+      $$device{path} = $path;
+      $$device{size} = $size;
+      $$device{table} = $table;
+      $$device{partitions} = $partitions;
+    }else{
+      die "could not parse output of \"parted\"\n";
+    }
+    $$devsByPath{$$device{path}} = $device;
+  }
+  return $devsByPath;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+&main(@ARGV);

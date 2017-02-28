@@ -59,6 +59,7 @@ main = do
       end = reverse
           [ W.monitorCpuW $ graph profile
           , W.monitorMemW $ graph profile
+          , W.syncWatchW
           , W.progressBarW
           , W.netStatsW
           , sep

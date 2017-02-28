@@ -16,26 +16,22 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
+import System.Taffybar.WorkspaceHUD (hudFromPagerConfig, buildWorkspaceHUD)
 import System.Information.EWMHDesktopInfo (
   WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
 pagerConfig icons cfg = defaultPagerConfig
   { activeWindow     = fg "#93a1a1" . escapeMarkup . fmtTitle cfg
-  , activeLayoutIO   = \x -> case x of
-      "left"    -> return "[]="
-      "top"     -> return "TTT"
-      "grid"    -> return "###"
-      "full"    -> do
-        cnt <- windowCount
-        let numFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
-        let color = if cnt > 1 then fgbg "blue" "red" else id
-        return $ color $ "[" ++ numFmt ++ "]"
-      otherwise -> return $ fgbg "blue" "red" "???"
+  , activeLayoutIO   = \layout -> case layout of
+                         "left" -> return "[]="
+                         "top"  -> return "TTT"
+                         "grid" -> return "###"
+                         "full" -> fmap formatWindowCount windowCount
   , activeWorkspace  = bold . fgbg "#002b36" "#eee8d8"
+  , visibleWorkspace = bold . fgbg "#002b36" "#eee8d8"
+  , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , hiddenWorkspace  = bold . fg "orange"
   , emptyWorkspace   = id
-  , visibleWorkspace = id
-  , urgentWorkspace  = bold . fgbg "#002b36" "red"
   , workspaceBorder  = True
   , workspaceGap     = 3
   , workspacePad     = False
@@ -46,6 +42,11 @@ pagerConfig icons cfg = defaultPagerConfig
   , preferCustomIcon = False
   , customIcon       = selectImage icons
   }
+
+formatWindowCount :: Int -> String
+formatWindowCount cnt = wcCol $ "[" ++ wcFmt ++ "]"
+  where wcCol = if cnt > 1 then fgbg "blue" "red" else id
+        wcFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
 
 windowCount :: IO Int
 windowCount = withDefaultCtx $ do
@@ -78,8 +79,10 @@ box c ws = do
 
 wmLogNew cfg = do
   icons <- getIcons $ wsImageHeight cfg
-  pager <- pagerNew $ pagerConfig icons cfg
+  let pgrCfg = pagerConfig icons cfg
+  pager <- pagerNew pgrCfg
 
+  --ws <- buildWorkspaceHUD (hudFromPagerConfig pgrCfg) pager
   ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
