@@ -126,6 +126,16 @@ my $usage = "Usage:
 
   $0 --banners SONG_NAME_ID
     print banner image file paths for given song name ID (e.g.: max-300)
+
+  $0 --native
+    creates directories for all songs that have a native song name:
+      <CACHE_DIR>/native/<NATIVE_FIRST_CHAR>/<NATIVE_NAME>-<SONG_NAME_ID>/
+    places symlinks to the banner files, if any, for these songs:
+      <SONG_NATIVE_DIR>/<BANNER_ID>.png
+    e.g.:
+      $CACHE_DIR/native/ら/らいらら-rairara/
+      $CACHE_DIR/native/革/革命-kakumei/
+      $CACHE_DIR/native/革/革命-kakumei/802.png
 ";
 
 sub main(@){
@@ -144,6 +154,44 @@ sub main(@){
     for my $b(@banners){
       my ($bannerId, $bannerGame) = @$b;
       print "$CACHE_DIR/banners/$bannerId.png\n";
+    }
+  }elsif($cmd =~ /^(--native)$/){
+    my $songsByNameId = getCachedSongsBySongNameId();
+    my %nameNativeToNameId;
+    my %nameIdToNameNative;
+    my %nameIdsByNativeFirstChar;
+    for my $songNameId(sort keys %$songsByNameId){
+      my $songInfo = $$songsByNameId{$songNameId};
+      my $nameNative = $$songInfo{nameNative};
+      if(defined $nameNative and length($nameNative) > 0){
+        utf8::decode $nameNative;
+        my $nativeFirstChar = substr $nameNative, 0, 1;
+        if(not defined $nameIdsByNativeFirstChar{$nativeFirstChar}){
+          $nameIdsByNativeFirstChar{$nativeFirstChar} = [];
+        }
+        push @{$nameIdsByNativeFirstChar{$nativeFirstChar}}, $songNameId;
+        $nameNativeToNameId{$nameNative} = $songNameId;
+        $nameIdToNameNative{$songNameId} = $nameNative;
+      }
+    }
+    my $nativeCacheDir = "$CACHE_DIR/native";
+    if(-d $nativeCacheDir){
+      system "rm", "-rf", $nativeCacheDir;
+    }
+    for my $nativeFirstChar(sort keys %nameIdsByNativeFirstChar){
+      my @songNameIds = @{$nameIdsByNativeFirstChar{$nativeFirstChar}};
+      for my $songNameId(@songNameIds){
+        my $nameNative = $nameIdToNameNative{$songNameId};
+        my $nativeBannerDir = "$nativeCacheDir/$nativeFirstChar/$nameNative-$songNameId";
+        system "mkdir", "-p", $nativeBannerDir;
+        my $songInfo = $$songsByNameId{$songNameId};
+        my @banners = @{$$songInfo{banners}};
+        for my $banner(@banners){
+          my ($bannerId, $bannerGame) = @$banner;
+          my $bannerFile = "$CACHE_DIR/banners/$bannerId.png";
+          system "ln", "-s", $bannerFile, "$nativeBannerDir/$bannerId.png";
+        }
+      }
     }
   }else{
     die $usage;
