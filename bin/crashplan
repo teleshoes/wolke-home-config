@@ -271,14 +271,24 @@ sub runBackup($){
 
     my @newBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
     @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
-    my @finishedSets = grep {$$_{backupStatus} =~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/} @newBackupSets;
-    my %finishedBackupNames = map {$$_{backupName} => 1} @finishedSets;
-    my $isDone = 1;
-    for my $backupName(@backupNames){
-      if(not defined $finishedBackupNames{$backupName}){
-        $isDone = 0;
-        last;
+    my %newStatusByName = map {$$_{backupName} => $$_{backupStatus}} @newBackupSets;
+    my $allSkipped = 1;
+    my $allSkippedOrCompleted = 1;
+    for my $backupName(sort @backupNames){
+      my $backupStatus = $newStatusByName{$backupName};
+      if(not defined $backupStatus){
+        $allSkipped = 0;
+        $allSkippedOrCompleted = 0;
+      }elsif($backupStatus !~ /^($STATUS_SKIPPED|$STATUS_COMPLETE)$/){
+        $allSkipped = 0;
+        $allSkippedOrCompleted = 0;
+      }elsif($backupStatus !~ /^($STATUS_SKIPPED)$/){
+        $allSkipped = 0;
       }
+    }
+    my $isDone = 0;
+    if($allSkippedOrCompleted and not $allSkipped){
+      $isDone = 1;
     }
     $finishedMillis = undef if not $isDone;
 
