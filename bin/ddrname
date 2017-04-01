@@ -34,8 +34,7 @@ my @okFilters = qw(
   --singles --doubles --nonstop --nonstopdoubles
   --sn2 --2013 --x3 --a
   --score --minscore --maxscore --monotonic --increasing --records
-  --date --mindate
-  --maxdate
+  --date --mindate --maxdate --dailybest
   --recent --sixmos --sixmonths --6mos
   --bar --nobar --diffbar --samebar
 );
@@ -294,6 +293,8 @@ sub getUsage(;$){
       --recent, --sixmos, --sixmonths, --6mos
         same as '--mindate N', where N is the date 180 days ago
         {overrides --date}
+      --dailybest
+        include only the highest score for each DATE within each $bucketFieldDesc
 
     FILTER: BAR
       --bar
@@ -935,6 +936,8 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--maxdate)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d{8})$/;
       $$filters{maxdate} = $1;
+    }elsif($opt =~ /^(--dailybest)$/){
+      $$filters{dailybest} = 1;
     }elsif($opt =~ /^(--bar)$/){
       $$filters{bar} = "bar";
     }elsif($opt =~ /^(--nobar)$/){
@@ -1392,6 +1395,29 @@ sub filterScores($$){
         if(not defined $curMaxScore or $$score{score} > $curMaxScore){
           $curMaxScore = $$score{score};
         }else{
+          delete $$scoresByFile{$$score{file}};
+        }
+      }
+    }
+  }
+
+  if($$filters{dailybest}){
+    my $scores = [values %$scoresByFile];
+    my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
+    for my $bucketName(sort keys %$buckets){
+      my $bucketScores = $$buckets{$bucketName};
+      sortScores $bucketScores;
+      my $scoresByDate = {};
+      for my $score(@$bucketScores){
+        my $date = $$score{date};
+        $$scoresByDate{$date} = [] if not defined $$scoresByDate{$date};
+        push @{$$scoresByDate{$date}}, $score;
+      }
+      for my $date(sort keys %$scoresByDate){
+        my @scores = @{$$scoresByDate{$date}};
+        @scores = sort {$$a{score} <=> $$b{score}} @scores;
+        pop @scores;
+        for my $score(@scores){
           delete $$scoresByFile{$$score{file}};
         }
       }
