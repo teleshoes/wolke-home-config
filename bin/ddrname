@@ -30,7 +30,7 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 
 my @okFilters = qw(
   --song
-  --hard --nothard
+  --hard --nothard --feet --minfeet --maxfeet
   --singles --doubles --nonstop --nonstopdoubles
   --sn2 --2013 --x3 --a
   --score --minscore --maxscore --monotonic --increasing --records
@@ -40,7 +40,7 @@ my @okFilters = qw(
   --bar --nobar --diffbar --samebar
 );
 my $argOptFiltersRegex = join "|", qw(
-  --song --score --minscore --maxscore --mindate --date --maxdate
+  --song --feet --minfeet --maxfeet --score --minscore --maxscore --date --mindate --maxdate
 );
 
 my @okFormatOptDates = qw(--showscores --reverse --short);
@@ -236,6 +236,12 @@ sub getUsage(;$){
       --nothard
         include only scores where $bucketFieldDesc is not hard (FEET<$HARD_SONG_FEET)
         {overrides --hard}
+      --feet <EXACT_FEET>
+        include only scores where $bucketFieldDesc has FEET=EXACT_FEET
+      --minfeet <MIN_FEET>
+        include only scores where $bucketFieldDesc has FEET>=MIN_FEET
+      --maxfeet <MAX_FEET>
+        include only scores where $bucketFieldDesc has FEET<=MAX_FEET
 
       FEET are ALWAYS in the DDR-A/DDR-2013/DDR-X/etc 1-20 scale (MAX300=15)
       FEET were taken from zenius-i-vanisher, using the following games in order:
@@ -881,6 +887,16 @@ sub parseFilterOptions($){
       $$filters{minfeet} = $HARD_SONG_FEET;
     }elsif($opt =~ /^(--nothard)$/){
       $$filters{maxfeet} = $HARD_SONG_FEET-1;
+    }elsif($opt =~ /^(--feet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{minfeet} = $1;
+      $$filters{maxfeet} = $1;
+    }elsif($opt =~ /^(--minfeet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{minfeet} = $1;
+    }elsif($opt =~ /^(--maxfeet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{maxfeet} = $1;
     }elsif($opt =~ /^(--singles)$/){
       $$filters{game} = {singles => 1, doubles => 0, nonstop => 0, nonstopdoubles => 0};
     }elsif($opt =~ /^(--doubles)$/){
