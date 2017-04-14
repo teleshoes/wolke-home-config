@@ -66,6 +66,7 @@ sub main(@){
   my %filesById;
   for my $imgUrl(@imgUrls){
     next if $imgUrl =~ /birthday\w+\.jpg/;
+    next if $imgUrl =~ /avatar_\w+\.png/;
     next if defined $alreadySeenUrls{$imgUrl};
     $alreadySeenUrls{$imgUrl} = 1;
     if($imgUrl !~ /
