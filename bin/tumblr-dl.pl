@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my $URL = "http://68.media.tumblr.com";
+my $URL_REGEX = "https?://68.media.tumblr.com";
 my $SIZE_CACHE_FILE = "size-cache";
 my $HIGH_RES = 1280;
 
@@ -56,7 +56,7 @@ sub main(@){
     chomp $htmlFile;
     $html .= `cat $htmlFile`;
   }
-  my @imgUrls = $html =~ m/($URL\/[^"&]*)["&]/g;
+  my @imgUrls = $html =~ m/($URL_REGEX\/[^"&]*)["&]/g;
 
   my %alreadySeenUrls;
 
@@ -69,7 +69,7 @@ sub main(@){
     next if defined $alreadySeenUrls{$imgUrl};
     $alreadySeenUrls{$imgUrl} = 1;
     if($imgUrl !~ /
-      ^ $URL
+      ^ $URL_REGEX
       (?:   \/ [0-9a-f]+     )?
       \/  (    tumblr)
           ( _  [a-zA-Z0-9]+)
