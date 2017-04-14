@@ -153,8 +153,8 @@ shortcuts conf = "Shortcuts" @@ do
         "off"           @@ mW    xK_F8   #! "sudo fan 0"
 
     "feh"           @@ do
-        "left"          @@ mA    xK_F11  #! "xdotool search --class feh key Left"
-        "right"         @@ mA    xK_F12  #! "xdotool search --class feh key Right"
+        "left"          @@ mA    xK_F11  #! "xdotool search --class feh key --clearmodifiers Left"
+        "right"         @@ mA    xK_F12  #! "xdotool search --class feh key --clearmodifiers Right"
 
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co"
