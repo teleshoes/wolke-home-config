@@ -1,0 +1,84 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub arrayContains($$);
+
+my $CAMERA_APP_EXIF_ORDER = {
+  aospcamera => ["Make", "ThumbnailLength", "ThumbnailOffset"],
+  opencamera => ["Make", "Model", "Orientation"],
+};
+my @OK_CAMERA_APPS = sort keys %$CAMERA_APP_EXIF_ORDER;
+
+my $usage = "Usage:
+  $0 -h|--help
+    print this message
+
+  $0 JPEG_IMG_FILE [JPEG_IMG_FILE JPEG_IMG_FILE ..]
+    print one of [@OK_CAMERA_APPS] or 'unknown'
+      based on the order of the EXIF metadata tags
+      as returned by `exiftool -S <JPEG_IMG_FILE>`
+
+    if more than one JPEG_IMG_FILE is given, one file per line is printed,
+      prefixed with the filename and a space
+      e.g.: $0 a.jpg b.jpg c.jpg
+            a.jpg: $OK_CAMERA_APPS[0]
+            b.jpg: unknown
+            c.jpg: $OK_CAMERA_APPS[1]
+";
+
+sub main(@){
+  die $usage if @_ == 0 or $_[0] =~ /^(-h|--help)$/;
+  for my $arg(@_){
+    die "$usage\n$arg is not a file\n" if not -f $arg;
+  }
+
+  my $prefixFilename = @_ > 1;
+  for my $file(@_){
+    my @exifTags;
+    open FH, "-|", "exiftool", "-S", $file or die "could not run exiftool\n$!";
+    while(my $line = <FH>){
+      if($line =~ /^([a-zA-Z0-9]+):/){
+        push @exifTags, $1;
+      }
+    }
+    close FH;
+    die "error running exiftool\n$!\n" if $? != 0;
+
+    my $cameraApp = "unknown";
+    for my $app(sort keys %$CAMERA_APP_EXIF_ORDER){
+      if(arrayContains [@exifTags], $$CAMERA_APP_EXIF_ORDER{$app}){
+        $cameraApp = $app;
+        last;
+      }
+    }
+    print "$file: " if $prefixFilename;
+    print "$cameraApp\n";
+  }
+}
+
+sub arrayContains($$){
+  my ($arr, $subArr) = @_;
+  if(@$arr == 0 and @$subArr == 0){
+    return 1;
+  }
+
+  for(my $i=0; $i<@$arr; $i++){
+    my $remainingElems = @$arr - $i;
+    return 0 if $remainingElems < @$subArr;
+
+    my $found = 1;
+    for(my $j=0; $j<@$subArr; $j++){
+      if($$arr[$i+$j] ne $$subArr[$j]){
+        $found = 0;
+        last;
+      }
+    }
+    if($found){
+      return 1;
+    }
+  }
+  return 0;
+}
+
+&main(@ARGV);
