@@ -30,20 +30,22 @@ my $guisettings = {
   enablerssfeeds => "false",
 };
 
-my $disabledAddons = {
-  1 => "service.xbmc.versioncheck",
-  2 => "metadata.musicvideos.theaudiodb.com",
-};
+my @disabledAddonIds = qw(
+  service.xbmc.versioncheck
+  metadata.musicvideos.theaudiodb.com
+);
 
 sub main(@) {
     getRoot @_;
 
-    for my $id(sort keys %$disabledAddons){
-      my $addonId = $$disabledAddons{$id};
-      print "disabling $addonId in addons database\n";
+    for my $addonId(@disabledAddonIds){
+      my $intId = `sqlite3 $addonsDb "select id from addons where addonId='$addonId'"`;
+      chomp $intId;
+      die "error getting integer id for addonId=$addonId\n" if $intId !~ /^\d+$/;
+      print "disabling $addonId(id=$intId) in addons database\n";
       system "sqlite3", $addonsDb, "
-        delete from disabled where id=$id;
-        insert into disabled(id, addonID) values($id, '$addonId');
+        delete from blacklist where id=$intId;
+        insert into blacklist(id, addonID) values($intId, '$addonId');
       ";
     }
 
