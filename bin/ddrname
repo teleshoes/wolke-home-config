@@ -145,6 +145,12 @@ sub getUsage(;$){
   $0 --fehterm
     run \"fehterm 'ddrname %f '\" (opens feh and a terminal connected to it with xdotool)
 
+  $0 --banners SONG
+    use zenius-ddrsonglist to fetch banner images for SONG
+      and display them with image-flash
+    more or less equivalent to:
+      \$(image-flash \$(zenius-ddrsonglist --banners SONG))
+
   $0 --orientation [FILTER FILTER ..]
     for each song file, print \"<orientation> <filename>\",
       where orientation is one of \"landscape\", \"portrait\", or \"unknown\"
@@ -497,6 +503,9 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
     exec "fehterm", "ddrname %f ";
+  }elsif(@_ == 2 and $_[0] =~ /^(--banners)$/){
+    my $cmd = shift;
+    bannerFlash($_[0]);
   }elsif(@_ >= 1 and $_[0] =~ /^(--orientation)$/){
     my $cmd = shift;
     orientation($cmd, @_);
@@ -1660,8 +1669,12 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--orientation", "--datestats", "--coursestats",
+    return ("--fehterm", "--banners", "--orientation", "--datestats", "--coursestats",
       "--print", "--gnuplot", "--files", "--bestfiles", @jpgFiles);
+  }
+
+  if($words[0] =~ /^(--banners)$/ and @words == 1){
+    return @songArgs;
   }
 
   if($words[0] =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
