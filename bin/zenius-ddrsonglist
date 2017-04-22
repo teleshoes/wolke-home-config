@@ -116,6 +116,9 @@ sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getRemyWikiPageHtmlFile($);
 sub ensureRemyWikiPage($);
+sub ensureRemyWikiFiles($);
+sub getRemyWikiFiles($);
+sub getRemyWikiFileUrlsByFilePath($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
 sub abbrevNameId($$$$);
@@ -214,6 +217,7 @@ sub formatSongList(){
     my $song = getSongInfo $songId;
     ensureSongBanners $song;
     ensureRemyWikiPage $$song{remywiki};
+    ensureRemyWikiFiles $$song{remywiki};
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
 
@@ -632,6 +636,61 @@ sub ensureRemyWikiPage($){
       die "error fetching $url\n";
     }
   }
+}
+
+sub ensureRemyWikiFiles($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-files";
+
+  my $urlsByFile = getRemyWikiFileUrlsByFilePath $remywikiPage;
+  for my $remywikiFile(sort keys %$urlsByFile){
+    if(not -f $remywikiFile){
+      system "mkdir", "-p", $dir;
+
+      my $url = $$urlsByFile{$remywikiFile};
+      system "wget", $url, "-O", $remywikiFile;
+      if($? != 0){
+        system "rm", "-f", $remywikiFile;
+        die "error fetching $url\n";
+      }
+    }
+  }
+}
+
+sub getRemyWikiFiles($){
+  my $remywikiPage = shift;
+  my $urlsByFile = getRemyWikiFileUrlsByFilePath $remywikiPage;
+  return sort keys %$urlsByFile;
+}
+
+sub getRemyWikiFileUrlsByFilePath($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-files";
+  my $htmlFile = getRemyWikiPageHtmlFile $remywikiPage;
+  my $urlsByFile = {};
+  return $urlsByFile if not defined $htmlFile;
+
+  if(not -f $htmlFile){
+    die "missing HTML for remywiki page: $remywikiPage\n";
+  }
+  open FH, "< $htmlFile" or die "could not read $htmlFile: $!\n";
+  my $html = join '', <FH>;
+  close FH;
+
+  my @imgFileUrls = $html =~ /<img[^>]*src="\/(images\/\w+\/\w+\/[^"]*)"/g;
+  for my $imgFileUrl(@imgFileUrls){
+    if($imgFileUrl =~ /^images\/thumb\/(.*\.(?:png|PNG|jpg|JPG))\/\d+px/){
+      $imgFileUrl = "images/$1";
+    }
+
+    my $imgFileName = $imgFileUrl;
+    $imgFileName =~ s/\//_/g;
+
+    my $remywikiFile = "$dir/$imgFileName";
+    $$urlsByFile{$remywikiFile} = "https://remywiki.com/$imgFileUrl";
+  }
+
+  return $urlsByFile;
 }
 
 sub getAvgDDRAToSN2Ratios(){
