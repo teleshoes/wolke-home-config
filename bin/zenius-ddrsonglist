@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Text::Unidecode;
 use HTML::TableExtract;
+use URI::Escape qw(uri_unescape);
 binmode STDOUT, ":encoding(UTF-8)";
 
 my $BASE_URL = "https://zenius-i-vanisher.com";
@@ -113,6 +114,8 @@ sub fetchGameHtml($);
 sub fetchSongHtml($);
 sub fetchSongBanner($);
 sub ensureSongBanners($);
+sub getRemyWikiPageHtmlFile($);
+sub ensureRemyWikiPage($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
 sub abbrevNameId($$$$);
@@ -210,6 +213,7 @@ sub formatSongList(){
   for my $songId(@songIds){
     my $song = getSongInfo $songId;
     ensureSongBanners $song;
+    ensureRemyWikiPage $$song{remywiki};
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
 
@@ -596,6 +600,37 @@ sub ensureSongBanners($){
   for my $banner(@{$$song{banners}}){
     my $bannerId = $$banner[0];
     fetchSongBanner $bannerId;
+  }
+}
+
+sub getRemyWikiPageHtmlFile($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-html";
+  if(defined $remywikiPage and $remywikiPage !~ /^\s*$/){
+    my $remywikiName = $remywikiPage;
+    $remywikiName = uri_unescape $remywikiPage;
+    $remywikiName =~ s/\//_/g;
+    return "$dir/remywiki-$remywikiName.html";
+  }else{
+    return undef;
+  }
+}
+
+sub ensureRemyWikiPage($){
+  my $remywikiPage = shift;
+  my $htmlFile = getRemyWikiPageHtmlFile $remywikiPage;
+  return if not defined $htmlFile;
+
+  if(not -f $htmlFile){
+    my $dir = "$CACHE_DIR/remywiki-html";
+    system "mkdir", "-p", $dir;
+
+    my $url = "https://remywiki.com/$remywikiPage";
+    system "wget", $url, "-O", $htmlFile;
+    if($? != 0){
+      system "rm", "-f", $htmlFile;
+      die "error fetching $url\n";
+    }
   }
 }
 
