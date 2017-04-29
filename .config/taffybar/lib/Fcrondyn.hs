@@ -19,7 +19,7 @@ fcrondynReader = do
   now <- getCurrentTime
   tz <- getCurrentTimeZone
   system "sudo fcron-start >/dev/null"
-  fcrondynOut <- readProc ["sudo", "fcron-ls"]
+  fcrondynOut <- readProc ["fcron-ls"]
   return $ parseAndFormat now tz fcrondynOut
 
 cmd = "term \"fcron-tool --edit; echo; echo ENDED; read STDIN\""
