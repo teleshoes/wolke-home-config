@@ -13,6 +13,7 @@ my $card = $pulse ? "PULSE:Default" : "ALSA:hdmi:CARD=HDMI,DEV=0";
 my $addonsDb = "$kodiDir/userdata/Database/Addons27.db";
 my $guisettingsFile = "$kodiDir/userdata/guisettings.xml";
 my $cecConfigFile = globOne "$kodiDir/userdata/peripheral_data/usb*CEC_Adapter.xml";
+my $keyboardConfigFile = "$kodiDir/userdata/keymaps/keyboard.xml";
 
 my $bgDir = getHome() . "/.cache/backgrounds/fhd";
 
@@ -43,6 +44,22 @@ my @disabledAddonIds = qw(
 my $cecConfig = {
   enabled => 0,
 };
+
+my $keyConfigGlobal = [
+  ["f", undef, "toggleFullScreen"],
+];
+my $keyConfigVideo = [
+  ["left",         undef, "Seek(-10)"],
+  ["right",        undef, "Seek(10)"],
+  ["period",       undef, "Seek(-30)"],
+  ["forwardslash", undef, "Seek(30)"],
+  ["down",         undef, "Seek(-60)"],
+  ["up",           undef, "Seek(60)"],
+  ["pageup",       undef, "BigStepBack"],
+  ["pagedown",     undef, "BigStepForward"],
+];
+
+sub formatKeyEntryXml($$$);
 
 sub main(@) {
     getRoot @_;
@@ -101,6 +118,37 @@ sub main(@) {
         return $c;
       };
     }
+
+    my $keymapXml = "";
+    $keymapXml .= "<keymap>\n";
+
+    $keymapXml .= "  <global>\n";
+    $keymapXml .= "    <keyboard>\n";
+    for my $keyEntry(@$keyConfigGlobal){
+      my ($key, $mod, $action) = @$keyEntry;
+      $keymapXml .= formatKeyEntryXml $key, $mod, $action;
+    }
+    $keymapXml .= "    </keyboard>\n";
+    $keymapXml .= "  </global>\n";
+
+    $keymapXml .= "  <FullscreenVideo>\n";
+    $keymapXml .= "    <keyboard>\n";
+    for my $keyEntry(@$keyConfigVideo){
+      my ($key, $mod, $action) = @$keyEntry;
+      $keymapXml .= formatKeyEntryXml $key, $mod, $action;
+    }
+    $keymapXml .= "    </keyboard>\n";
+    $keymapXml .= "  </FullscreenVideo>\n";
+
+    $keymapXml .= "</keymap>\n";
+    writeFile $keyboardConfigFile, $keymapXml;
+    run "chown", getUsername() . ".", $keyboardConfigFile;
+}
+
+sub formatKeyEntryXml($$$){
+  my ($key, $mod, $action) = @_;
+  my $modFmt = defined $mod ? " mod=\"$mod\"" : "";
+  return "      <$key$modFmt>$action</$key>\n";
 }
 
 &main(@ARGV);
