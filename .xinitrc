@@ -15,7 +15,7 @@ sudo wired &
 execPing screen-cmd revtun-ensure &
 pulse-enable on
 sudo bluetooth off &
-sudo fan auto &
+sudo fan 1 &
 taffybar-restart --daemon --quiet
 parcellite -d &
 sudo sbox-umount &

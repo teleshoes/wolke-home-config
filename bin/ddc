@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $API_URL = "http://deepx.ucsd.edu/api/ddc/choreograph";
+my $DEST_DIR = "$ENV{HOME}/songs/dance_dance_convolution";
+
+my $defaultDifficulty = "Challenge";
+my $okDifficulties = join "|", qw(Beginner Easy Medium Hard Challenge);
+
+sub getSongName($$);
+sub run(@);
+
+my $usage = "Usage:
+  $0 SONG_FILE ARTIST TITLE [DIFFICULTY]
+    upload song file to dance dance convolution
+
+  SONG_FILE
+    an mp3, ogg, aiff, or wav file, sent directly
+    OR a flac file, converted to mp3, and sent
+  ARTIST
+    the song_artist to send up
+  TITLE
+    the song_title to send up
+  DIFFICULTY
+    one of: $okDifficulties
+    default is $defaultDifficulty
+    the diff_coarse to send up
+";
+
+sub main(@){
+  my ($songFile, $artist, $title, $difficulty);
+  if(@_ == 3 and -f $_[0]){
+    ($songFile, $artist, $title) = @_;
+    $difficulty = $defaultDifficulty;
+  }elsif(@_ == 4 and -f $_[0] and $_[3] =~ /^$okDifficulties$/){
+    ($songFile, $artist, $title, $difficulty) = @_;
+  }else{
+    die $usage;
+  }
+
+  my $songName = getSongName $artist, $title;
+
+  my $nowMillis = int(time * 1000);
+
+  my $songExt;
+  my $ddcSongFile;
+  if($songFile =~ /\.flac/){
+    $songExt = "mp3";
+    $ddcSongFile = "/tmp/ddc-$songName-$nowMillis.$songExt";
+
+    my $wavFile = "/tmp/ddc-$songName-$nowMillis.wav";
+    run "flac", "--decode", $songFile, "-o", $wavFile;
+    run "lame", "-q", 2, $wavFile, $ddcSongFile;
+    run "rm", $wavFile;
+  }elsif($songFile =~ /\.(mp3|ogg|aiff|wav)$/i){
+    $songExt = lc $1;
+    $ddcSongFile = "/tmp/ddc-$songName-$nowMillis.$songExt";
+    run "cp", "-ar", "--reflink=auto", $songFile, $ddcSongFile;
+  }else{
+    die "song file must be a flac, mp3, ogg, aiff, or wav file\n";
+  }
+
+  my $zipFile = "/tmp/ddc-$nowMillis.zip";
+
+  my @curlCmd = (
+    "curl", $API_URL,
+    "-F", "audio_file=\@$ddcSongFile",
+    "-F", "song_artist=$artist",
+    "-F", "song_title=$title",
+    "-F", "diff_coarse=$difficulty",
+    "-o", $zipFile,
+  );
+  run @curlCmd;
+  if(-f $zipFile){
+    print "\n\n\n\nzip file downloaded\n";
+  }else{
+    die "failed to download zip file\n";
+  }
+
+  my $tmpDir = "/tmp/ddc-$nowMillis";
+  run "unzip", $zipFile, "-d", $tmpDir;
+
+  my @smFiles = glob "$tmpDir/*/*/*.sm";
+  die "error unzipping $zipFile\n" if @smFiles != 1;
+  my $smFile = $smFiles[0];
+
+  my $songDir = "$DEST_DIR/$songName";
+  run "mkdir", "-p", $songDir;
+  run "mv", $smFile, "$songDir/$songName.sm";
+
+  run "cp", "-ar", "--reflink=auto", $ddcSongFile, "$songDir/$songName.$songExt";
+
+  run "rm", "-r", $tmpDir;
+  run "rm", $zipFile;
+  run "rm", $ddcSongFile;
+}
+
+sub getSongName($$){
+  my ($artist, $title) = @_;
+
+  my $prefix = "$artist $title";
+  $prefix =~ tr/[A-Z]/[a-z]/;
+  $prefix =~ s/[^a-z0-9]+/_/g;
+
+  my $count = 1;
+  while(-e "$DEST_DIR/$prefix$count"){
+    $count++;
+  }
+  return $prefix . $count;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "error running @_\n" if $? != 0;
+}
+
+&main(@ARGV);

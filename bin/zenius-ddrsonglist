@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use Text::Unidecode;
 use HTML::TableExtract;
+use URI::Escape qw(uri_unescape);
+binmode STDOUT, ":encoding(UTF-8)";
 
 my $BASE_URL = "https://zenius-i-vanisher.com";
 my $API_URL = "$BASE_URL/v5.2";
@@ -82,6 +84,8 @@ my $songNameIdOverrides = [
            "cirno-no-perfect-sansuu-kyoushitsu-edm"],
   [7376 => "kurokami-midareshi-shura-to-narite-rin-edition" =>
            "kurokami-midareshi-shura-to-narite-rin"],
+  [7500 => "far-east-nightbird-kors-k-remix-ddr-edit-ver" =>
+           "far-east-nightbird-kors-k-remix"],
 ];
 my %customSongNameIds = map {$$_[0] => $$_[2]} @$songNameIdOverrides;
 
@@ -110,6 +114,11 @@ sub fetchGameHtml($);
 sub fetchSongHtml($);
 sub fetchSongBanner($);
 sub ensureSongBanners($);
+sub getRemyWikiPageHtmlFile($);
+sub ensureRemyWikiPage($);
+sub ensureRemyWikiFiles($);
+sub getRemyWikiFiles($);
+sub getRemyWikiFileUrlsByFilePath($);
 sub getAvgDDRAToSN2Ratios();
 sub extractNameId($);
 sub abbrevNameId($$$$);
@@ -125,6 +134,16 @@ my $usage = "Usage:
 
   $0 --banners SONG_NAME_ID
     print banner image file paths for given song name ID (e.g.: max-300)
+
+  $0 --native
+    creates directories for all songs that have a native song name:
+      <CACHE_DIR>/native/<NATIVE_FIRST_CHAR>/<NATIVE_NAME>-<SONG_NAME_ID>/
+    places symlinks to the banner files, if any, for these songs:
+      <SONG_NATIVE_DIR>/<BANNER_ID>.png
+    e.g.:
+      $CACHE_DIR/native/ら/らいらら-rairara/
+      $CACHE_DIR/native/革/革命-kakumei/
+      $CACHE_DIR/native/革/革命-kakumei/802.png
 ";
 
 sub main(@){
@@ -144,6 +163,48 @@ sub main(@){
       my ($bannerId, $bannerGame) = @$b;
       print "$CACHE_DIR/banners/$bannerId.png\n";
     }
+    if(@banners == 0){
+      my @remywikiFiles = getRemyWikiFiles $$songInfo{remywiki};
+      print "$_\n" foreach @remywikiFiles;
+    }
+  }elsif($cmd =~ /^(--native)$/){
+    my $songsByNameId = getCachedSongsBySongNameId();
+    my %nameNativeToNameId;
+    my %nameIdToNameNative;
+    my %nameIdsByNativeFirstChar;
+    for my $songNameId(sort keys %$songsByNameId){
+      my $songInfo = $$songsByNameId{$songNameId};
+      my $nameNative = $$songInfo{nameNative};
+      if(defined $nameNative and length($nameNative) > 0){
+        utf8::decode $nameNative;
+        my $nativeFirstChar = substr $nameNative, 0, 1;
+        if(not defined $nameIdsByNativeFirstChar{$nativeFirstChar}){
+          $nameIdsByNativeFirstChar{$nativeFirstChar} = [];
+        }
+        push @{$nameIdsByNativeFirstChar{$nativeFirstChar}}, $songNameId;
+        $nameNativeToNameId{$nameNative} = $songNameId;
+        $nameIdToNameNative{$songNameId} = $nameNative;
+      }
+    }
+    my $nativeCacheDir = "$CACHE_DIR/native";
+    if(-d $nativeCacheDir){
+      system "rm", "-rf", $nativeCacheDir;
+    }
+    for my $nativeFirstChar(sort keys %nameIdsByNativeFirstChar){
+      my @songNameIds = @{$nameIdsByNativeFirstChar{$nativeFirstChar}};
+      for my $songNameId(@songNameIds){
+        my $nameNative = $nameIdToNameNative{$songNameId};
+        my $nativeBannerDir = "$nativeCacheDir/$nativeFirstChar/$nameNative-$songNameId";
+        system "mkdir", "-p", $nativeBannerDir;
+        my $songInfo = $$songsByNameId{$songNameId};
+        my @banners = @{$$songInfo{banners}};
+        for my $banner(@banners){
+          my ($bannerId, $bannerGame) = @$banner;
+          my $bannerFile = "$CACHE_DIR/banners/$bannerId.png";
+          system "ln", "-s", $bannerFile, "$nativeBannerDir/$bannerId.png";
+        }
+      }
+    }
   }else{
     die $usage;
   }
@@ -159,6 +220,8 @@ sub formatSongList(){
   for my $songId(@songIds){
     my $song = getSongInfo $songId;
     ensureSongBanners $song;
+    ensureRemyWikiPage $$song{remywiki};
+    ensureRemyWikiFiles $$song{remywiki};
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
 
@@ -434,7 +497,11 @@ sub parseSongHtml($$){
     $$song{genreNative} = $2;
   }
 
-  for my $key(qw(name nameNative artist artistNative genre genreNative)){
+  if($html =~ /href="https?:\/\/remywiki\.com\/([^"]+)"/){
+    $$song{remywiki} = $1;
+  }
+
+  for my $key(qw(name nameNative artist artistNative genre genreNative remywiki)){
     my $val = $$song{$key};
     $val = '' if not defined $val;
     $val =~ s/<[^>]*>//g;
@@ -542,6 +609,92 @@ sub ensureSongBanners($){
     my $bannerId = $$banner[0];
     fetchSongBanner $bannerId;
   }
+}
+
+sub getRemyWikiPageHtmlFile($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-html";
+  if(defined $remywikiPage and $remywikiPage !~ /^\s*$/){
+    my $remywikiName = $remywikiPage;
+    $remywikiName = uri_unescape $remywikiPage;
+    $remywikiName =~ s/\//_/g;
+    return "$dir/remywiki-$remywikiName.html";
+  }else{
+    return undef;
+  }
+}
+
+sub ensureRemyWikiPage($){
+  my $remywikiPage = shift;
+  my $htmlFile = getRemyWikiPageHtmlFile $remywikiPage;
+  return if not defined $htmlFile;
+
+  if(not -f $htmlFile){
+    my $dir = "$CACHE_DIR/remywiki-html";
+    system "mkdir", "-p", $dir;
+
+    my $url = "https://remywiki.com/$remywikiPage";
+    system "wget", $url, "-O", $htmlFile;
+    if($? != 0){
+      system "rm", "-f", $htmlFile;
+      die "error fetching $url\n";
+    }
+  }
+}
+
+sub ensureRemyWikiFiles($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-files";
+
+  my $urlsByFile = getRemyWikiFileUrlsByFilePath $remywikiPage;
+  for my $remywikiFile(sort keys %$urlsByFile){
+    if(not -f $remywikiFile){
+      system "mkdir", "-p", $dir;
+
+      my $url = $$urlsByFile{$remywikiFile};
+      system "wget", $url, "-O", $remywikiFile;
+      if($? != 0){
+        system "rm", "-f", $remywikiFile;
+        die "error fetching $url\n";
+      }
+    }
+  }
+}
+
+sub getRemyWikiFiles($){
+  my $remywikiPage = shift;
+  my $urlsByFile = getRemyWikiFileUrlsByFilePath $remywikiPage;
+  return sort keys %$urlsByFile;
+}
+
+sub getRemyWikiFileUrlsByFilePath($){
+  my $remywikiPage = shift;
+  my $dir = "$CACHE_DIR/remywiki-files";
+  my $htmlFile = getRemyWikiPageHtmlFile $remywikiPage;
+  my $urlsByFile = {};
+  return $urlsByFile if not defined $htmlFile;
+
+  if(not -f $htmlFile){
+    die "missing HTML for remywiki page: $remywikiPage\n";
+  }
+  open FH, "< $htmlFile" or die "could not read $htmlFile: $!\n";
+  my $html = join '', <FH>;
+  close FH;
+
+  my @imgFileUrls = $html =~ /<img[^>]*src="\/(images\/\w+\/\w+\/[^"]*)"/g;
+  for my $imgFileUrl(@imgFileUrls){
+    if($imgFileUrl =~ /^images\/thumb\/(.*\.(?:png|PNG|jpg|JPG))\/\d+px/){
+      $imgFileUrl = "images/$1";
+    }
+
+    my $imgFileName = $imgFileUrl;
+    $imgFileName =~ s/\//_/g;
+
+    my $remywikiFile = "$dir/$imgFileName";
+    $$urlsByFile{$remywikiFile} = "https://remywiki.com/$imgFileUrl";
+  }
+
+  return $urlsByFile;
 }
 
 sub getAvgDDRAToSN2Ratios(){

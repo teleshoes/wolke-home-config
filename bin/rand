@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use IO::Select;
+use List::Util qw(shuffle);
+
+my $stdinDelayMillis = 100;
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0
+    -wait ${stdinDelayMillis}ms
+    -if STDIN is available using select():
+       read all lines from STDIN and print one at random
+    -if STDIN is empty or unavailable using select():
+      print a random real number between 0 and 1 using perl's rand()
+
+  $0 ITEM [ITEM] [ITEM]
+    randomly select one of the given ITEMs and print it
+";
+
+sub canReadStdin();
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    die $usage;
+  }
+
+  my @items;
+  if(@_ > 0){
+    @items = @_;
+  }elsif(canReadStdin()){
+    @items = <STDIN>;
+  }else{
+    @items = rand();
+  }
+
+  while(@items > 1){
+    @items = shuffle @items;
+    pop @items;
+  }
+
+  my $item = $items[0];
+  chomp $item;
+  print "$item\n";
+}
+
+sub canReadStdin(){
+  my $stdin = IO::Select->new();
+  $stdin->add(\*STDIN);
+  if($stdin->can_read($stdinDelayMillis / 1000.0)){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+&main(@ARGV);

@@ -5,7 +5,7 @@ use Time::HiRes qw(sleep);
 
 my $SONG_LIST_FILE = "$ENV{HOME}/.config/ddrname-songlist";
 
-my $scoreDir = "$ENV{HOME}/Desktop/DCIM/xddr";
+my $scoreDir = "$ENV{HOME}/DCIM/xddr";
 $scoreDir = "/home/user/pixmirror/xddr" if not -d $scoreDir;
 
 my $EXIFTOOL_EXEC = "exiftool";
@@ -30,17 +30,16 @@ my $defaultNotesFormat = join ",", grep {$$defaultNotes{$_}} keys %$defaultNotes
 
 my @okFilters = qw(
   --song
-  --hard --nothard
+  --hard --nothard --feet --minfeet --maxfeet
   --singles --doubles --nonstop --nonstopdoubles
-  --sn2 --2013 --a
+  --sn2 --2013 --x3 --a
   --score --minscore --maxscore --monotonic --increasing --records
-  --date --mindate
-  --maxdate
+  --date --mindate --maxdate --dailybest
   --recent --sixmos --sixmonths --6mos
   --bar --nobar --diffbar --samebar
 );
 my $argOptFiltersRegex = join "|", qw(
-  --song --score --minscore --maxscore --mindate --date --maxdate
+  --song --feet --minfeet --maxfeet --score --minscore --maxscore --date --mindate --maxdate
 );
 
 my @okFormatOptDates = qw(--showscores --reverse --short);
@@ -88,9 +87,10 @@ sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
 sub mtime($);
+sub getImageOrientation($);
 sub parseFeetDifficulties(@);
 sub checkUnique(@);
-sub getImageOrientation($);
+sub bannerFlash($);
 sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
@@ -125,7 +125,7 @@ my %difficultyAbbrevs = (
   challenge => 'cha',
 );
 
-my @machineArgs = qw(sn2 2013 a);
+my @machineArgs = qw(sn2 2013 x3 a);
 my $defaultMachineArg = "a";
 my $okMachineArgs = join '|', @machineArgs;
 
@@ -144,6 +144,12 @@ sub getUsage(;$){
   my $usage = "Usage:
   $0 --fehterm
     run \"fehterm 'ddrname %f '\" (opens feh and a terminal connected to it with xdotool)
+
+  $0 --banners SONG
+    use zenius-ddrsonglist to fetch banner images for SONG
+      and display them with image-flash
+    more or less equivalent to:
+      \$(image-flash \$(zenius-ddrsonglist --banners SONG))
 
   $0 --orientation [FILTER FILTER ..]
     for each song file, print \"<orientation> <filename>\",
@@ -236,6 +242,12 @@ sub getUsage(;$){
       --nothard
         include only scores where $bucketFieldDesc is not hard (FEET<$HARD_SONG_FEET)
         {overrides --hard}
+      --feet <EXACT_FEET>
+        include only scores where $bucketFieldDesc has FEET=EXACT_FEET
+      --minfeet <MIN_FEET>
+        include only scores where $bucketFieldDesc has FEET>=MIN_FEET
+      --maxfeet <MAX_FEET>
+        include only scores where $bucketFieldDesc has FEET<=MAX_FEET
 
       FEET are ALWAYS in the DDR-A/DDR-2013/DDR-X/etc 1-20 scale (MAX300=15)
       FEET were taken from zenius-i-vanisher, using the following games in order:
@@ -265,6 +277,8 @@ sub getUsage(;$){
         include only scores where MACHINE is sn2
       --2013
         include only scores where MACHINE is 2013
+      --x3
+        include only scores where MACHINE is x3
       --a
         include only scores where MACHINE is a
 
@@ -286,6 +300,8 @@ sub getUsage(;$){
       --recent, --sixmos, --sixmonths, --6mos
         same as '--mindate N', where N is the date 180 days ago
         {overrides --date}
+      --dailybest
+        include only the highest score for each DATE within each $bucketFieldDesc
 
     FILTER: BAR
       --bar
@@ -487,6 +503,9 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(--fehterm)$/){
     my $cmd = shift;
     exec "fehterm", "ddrname %f ";
+  }elsif(@_ == 2 and $_[0] =~ /^(--banners)$/){
+    my $cmd = shift;
+    bannerFlash($_[0]);
   }elsif(@_ >= 1 and $_[0] =~ /^(--orientation)$/){
     my $cmd = shift;
     orientation($cmd, @_);
@@ -596,18 +615,22 @@ sub dateStats($@){
   my @dates = sort keys %$dateBuckets;
   @dates = reverse @dates if $reverse;
 
+  my @feetToPrint = (17, 16, 15);
+
   for my $date(@dates){
     my @dateScores = @{$$dateBuckets{$date}};
     my $totalCount = 0;
     my $hardSinglesCount = 0;
     my $doublesCount = 0;
     my $total = @dateScores;
+    my %feetCount = map {$_ => 0} @feetToPrint;
     for my $score(@dateScores){
       if($$score{game} eq "doubles"){
         $doublesCount++;
       }elsif($$score{feet} > $HARD_SONG_FEET){
         $hardSinglesCount++;
       }
+      $feetCount{$$score{feet}}++;
       $totalCount++;
     }
 
@@ -624,7 +647,7 @@ sub dateStats($@){
       my $first = $scores[0];
 
       my $isDoubles = $$first{game} eq "doubles" ? 1 : 0;
-      my $hardSong = $$first{feer} > $HARD_SONG_FEET ? 1 : 0;
+      my $hardSong = $$first{feet} > $HARD_SONG_FEET ? 1 : 0;
 
       for my $score(@scores){
         my $file = $$score{file};
@@ -650,16 +673,17 @@ sub dateStats($@){
       };
     }
 
-    my $elapsedMin;
+    my $elapsedHours;
     if(defined $minMtime and defined $maxMtime){
-      $elapsedMin = ($maxMtime - $minMtime) / 60;
+      $elapsedHours = ($maxMtime - $minMtime) / 60 / 60;
     }else{
-      $elapsedMin = 0;
+      $elapsedHours = 0;
     }
 
     my $fmt = "";
-    $fmt .= sprintf "%s %2d-T %2d-H %2d-D  %3dm",
-      $date, $totalCount, $hardSinglesCount, $doublesCount, $elapsedMin;
+    $fmt .= sprintf "%s %3.1fh  %2d-T %2d-H %2d-D",
+      $date, $elapsedHours, $totalCount, $hardSinglesCount, $doublesCount;
+    $fmt .= sprintf " %2d-%d", $feetCount{$_}, $_ foreach @feetToPrint;
 
     @bucketSummary = sort {
       $$b{count} <=> $$a{count}
@@ -879,6 +903,16 @@ sub parseFilterOptions($){
       $$filters{minfeet} = $HARD_SONG_FEET;
     }elsif($opt =~ /^(--nothard)$/){
       $$filters{maxfeet} = $HARD_SONG_FEET-1;
+    }elsif($opt =~ /^(--feet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{minfeet} = $1;
+      $$filters{maxfeet} = $1;
+    }elsif($opt =~ /^(--minfeet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{minfeet} = $1;
+    }elsif($opt =~ /^(--maxfeet)$/){
+      die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
+      $$filters{maxfeet} = $1;
     }elsif($opt =~ /^(--singles)$/){
       $$filters{game} = {singles => 1, doubles => 0, nonstop => 0, nonstopdoubles => 0};
     }elsif($opt =~ /^(--doubles)$/){
@@ -888,11 +922,13 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--nonstopdoubles)$/){
       $$filters{game} = {singles => 0, doubles => 0, nonstop => 0, nonstopdoubles => 1};
     }elsif($opt =~ /^(--sn2)$/){
-      $$filters{machine} = {sn2 => 1, 2013 => 0, a => 0};
+      $$filters{machine} = {sn2 => 1, 2013 => 0, x3 => 0, a => 0};
     }elsif($opt =~ /^(--2013)$/){
-      $$filters{machine} = {sn2 => 0, 2013 => 1, a => 0};
+      $$filters{machine} = {sn2 => 0, 2013 => 1, x3 => 0, a => 0};
+    }elsif($opt =~ /^(--x3)$/){
+      $$filters{machine} = {sn2 => 0, 2013 => 0, x3 => 1, a => 0};
     }elsif($opt =~ /^(--a)$/){
-      $$filters{machine} = {sn2 => 0, 2013 => 0, a => 1};
+      $$filters{machine} = {sn2 => 0, 2013 => 0, x3 => 0, a => 1};
     }elsif($opt =~ /^(--score|--minscore)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;
@@ -915,6 +951,8 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--maxdate)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d{8})$/;
       $$filters{maxdate} = $1;
+    }elsif($opt =~ /^(--dailybest)$/){
+      $$filters{dailybest} = 1;
     }elsif($opt =~ /^(--bar)$/){
       $$filters{bar} = "bar";
     }elsif($opt =~ /^(--nobar)$/){
@@ -935,8 +973,8 @@ sub nameReminder($$){
 
   $file =~ s/^\.\///;
 
-  if($file !~ /^(\d{8}_\d{3,}).*\.jpg$/){
-    die "misnamed jpg file: $file\n";
+  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.jpg$/){
+    die "\n\n!!!\nmisnamed jpg file: $file\n";
   }
   my $prefix = $1;
   $reminder =~ s/^$prefix//;
@@ -974,13 +1012,11 @@ sub name(@){
   }
   $$info{feet} = $feet;
 
-  my @banners = `zenius-ddrsonglist --banners '$$info{song}' 2>/dev/null`;
-  chomp foreach @banners;
-  run "image-flash @banners >/dev/null 2>/dev/null &" if @banners > 0;
+  bannerFlash $$info{song};
 
   my $bucketName = getBucketName $info, 0, @DEFAULT_BUCKET_FIELDS;
-
-  print "feet for $bucketName: $$info{feet}\n";
+  print "BUCKET: $bucketName\n";
+  print "FEET: $$info{feet}\n";
 
   my $scoresByFile = getScoresByFile();
   my $scores = [values %$scoresByFile];
@@ -1028,8 +1064,8 @@ sub name(@){
 
   $file =~ s/^\.\///;
 
-  if($file !~ /^(\d{8}_\d{3,}).*\.jpg$/){
-    die "misnamed jpg file: $file\n";
+  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.jpg$/){
+    die "\n\n!!!\nmisnamed jpg file: $file\n";
   }
   my $prefix = $1;
 
@@ -1378,6 +1414,29 @@ sub filterScores($$){
     }
   }
 
+  if($$filters{dailybest}){
+    my $scores = [values %$scoresByFile];
+    my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
+    for my $bucketName(sort keys %$buckets){
+      my $bucketScores = $$buckets{$bucketName};
+      sortScores $bucketScores;
+      my $scoresByDate = {};
+      for my $score(@$bucketScores){
+        my $date = $$score{date};
+        $$scoresByDate{$date} = [] if not defined $$scoresByDate{$date};
+        push @{$$scoresByDate{$date}}, $score;
+      }
+      for my $date(sort keys %$scoresByDate){
+        my @scores = @{$$scoresByDate{$date}};
+        @scores = sort {$$a{score} <=> $$b{score}} @scores;
+        pop @scores;
+        for my $score(@scores){
+          delete $$scoresByFile{$$score{file}};
+        }
+      }
+    }
+  }
+
   die "no scores found\n" if keys %$scoresByFile == 0;
 
   return $scoresByFile;
@@ -1585,6 +1644,17 @@ sub checkUnique(@){
   }
 }
 
+sub bannerFlash($){
+  my ($song) = @_;
+  my @banners = `zenius-ddrsonglist --banners '$song' 2>/dev/null`;
+  chomp foreach @banners;
+  if(@banners == 0){
+    print "no banners found for $song\n";
+  }else{
+    run "image-flash @banners >/dev/null 2>/dev/null &";
+  }
+}
+
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
   my $cmd = substr $cmdLine, 0, $pos;
@@ -1599,8 +1669,12 @@ sub bashComplete($$){
   if(@words == 0){
     my @jpgFiles = `ls *.jpg 2>/dev/null`;
     chomp foreach @jpgFiles;
-    return ("--fehterm", "--orientation", "--datestats", "--coursestats",
+    return ("--fehterm", "--banners", "--orientation", "--datestats", "--coursestats",
       "--print", "--gnuplot", "--files", "--bestfiles", @jpgFiles);
+  }
+
+  if($words[0] =~ /^(--banners)$/ and @words == 1){
+    return @songArgs;
   }
 
   if($words[0] =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){

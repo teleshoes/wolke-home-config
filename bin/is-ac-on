@@ -3,12 +3,19 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $KU_FLOOR = 5;     #KU below is always OFF
-my $KU_CEIL  = 9;     #KU above is always ON
-my $SD_FLOOR = 6000;  #when KU is between, SD below is OFF
-my $SD_CEIL  = 7000;  #when KU is between, SD above is ON
-my $MV_FLOOR = 65000; #when KU and SD are between, MV above is ON, below is OFF
+my $LCD_REGION = "100x70+140+0";
 
+my $GR_FLOOR = 10;    #GR below is always OFF
+my $GR_CEIL  = 50;    #GR above is always ON
+my $KU_FLOOR = 5;     #when GR is between, KU below is OFF
+my $KU_CEIL  = 9;     #when GR is between, KU above is ON
+my $SD_FLOOR = 6000;  #when GR and KU are between, SD below is OFF
+my $SD_CEIL  = 7000;  #when GR and KU are between, SD above is ON
+my $MV_FLOOR = 65000; #when GR and KU and SD are between, MV below is OFF
+my $MV_CEIL  = 65300; #when GR and KU and SD are between, MV above is ON
+                      #when all are between FLOOR and CEIL, default is ON
+
+sub getGreenDiff($);
 sub identifyImage($@);
 
 my $usage = "Usage:
@@ -19,57 +26,108 @@ my $usage = "Usage:
        KU = %[kurtosis]
        SD = %[standard-deviation]
        MV = %[max]
+    -calculate the green-ness of the LCD region:
+       -crop the area to $LCD_REGION using `convert`
+       -scale the image to a single pixel using `convert`
+       -read color 0-255 as \"<RED>r,<GREEN>g,<BLUE>b\" from `convert`
+       -use the green channel minus the average of the red and blue channels
+       GR = <GREEN> - ((<RED> + <BLUE)/2)
     -based on the following calculation, print either 'yes' or 'no'
-      IF KU<$KU_FLOOR
-      OR KU<$KU_CEIL and SD<$SD_FLOOR
-      OR KU<$KU_CEIL and SD<$SD_CEIL and MV<$MV_FLOOR
+      IF GR<$GR_FLOOR
+      OR GR<$GR_CEIL and KU<$KU_FLOOR
+      OR GR<$GR_CEIL and KU<$KU_CEIL and SD<$SD_FLOOR
+      OR GR<$GR_CEIL and KU<$KU_CEIL and SD<$SD_CEIL and MV<$MV_FLOOR
         print 'no'
       OTHERWISE
         print 'yes'
 
    OPTS
      -v | --verbose
-       print the output of sbcam, the image file name, and the kurtosis of the image
+       print the output of sbcam, the image file name,
+         and the relevant properties of the image
 ";
 
 sub main(@){
   my $verbose = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
-  my $file;
+  my $srcFile;
   if(@_ > 0 and -f $_[0]){
-    $file = shift;
+    $srcFile = shift;
   }
   die $usage if @_ > 0;
 
-  if(not defined $file){
-    $file = "/tmp/is-ac-on_" . int(time*1000) . ".jpg";
+  my $nowMillis = int(time*1000);
+
+  if(not defined $srcFile){
+    $srcFile = "/tmp/is-ac-on_sbcam_$nowMillis.jpg";
     if($verbose){
-      system "sbcam $file";
+      system "sbcam $srcFile";
     }else{
-      system "sbcam $file >/dev/null 2>/dev/null";
+      system "sbcam $srcFile >/dev/null 2>/dev/null";
     }
   }
 
-  if(not -f $file){
-    die "ERROR: file \"$file\" not found\n";
+  if(not -f $srcFile){
+    die "ERROR: file \"$srcFile\" not found\n";
   }
 
-  my $info = identifyImage $file, qw(kurtosis standard-deviation max);
+  my $lcdFile = "/tmp/is-ac-on_crop_$nowMillis.jpg";
+  system "convert", $srcFile, "-crop", $LCD_REGION, $lcdFile;
 
+  my $info = identifyImage $srcFile, qw(kurtosis standard-deviation max);
   my $KU = $$info{"kurtosis"};
   my $SD = $$info{"standard-deviation"};
   my $MV = $$info{"max"};
 
-  print "FILE=$file\nKU=$KU\nSD=$SD\nMV=$MV\n" if $verbose;
+  my $GR = getGreenDiff $lcdFile;
+
+  print "FILE=$srcFile\nGR=$GR\nKU=$KU\nSD=$SD\nMV=$MV\n" if $verbose;
+
+  my $GR_LOW = $GR < $GR_FLOOR;
+  my $KU_LOW = $KU < $KU_FLOOR;
+  my $SD_LOW = $SD < $SD_FLOOR;
+  my $MV_LOW = $MV < $MV_FLOOR;
+
+  my $GR_BETWEEN = $GR_FLOOR <= $GR && $GR <= $GR_CEIL;
+  my $KU_BETWEEN = $KU_FLOOR <= $KU && $KU <= $KU_CEIL;
+  my $SD_BETWEEN = $SD_FLOOR <= $SD && $SD <= $SD_CEIL;
+  my $MV_BETWEEN = $MV_FLOOR <= $MV && $MV <= $MV_CEIL;
 
   if( 0 == 1
-    or ($KU < $KU_FLOOR)
-    or ($KU < $KU_CEIL and $SD < $SD_FLOOR)
-    or ($KU_CEIL and $SD_CEIL and $MV < $MV_FLOOR)
+    or ($GR_LOW)
+    or ($GR_BETWEEN and $KU_LOW)
+    or ($GR_BETWEEN and $KU_BETWEEN and $SD_LOW)
+    or ($GR_BETWEEN and $KU_BETWEEN and $SD_BETWEEN and $MV_LOW)
   ){
     print "no\n";
   }else{
     print "yes\n";
   }
+}
+
+sub getGreenDiff($){
+  my ($image) = @_;
+  my @avgColorCmd = (
+    "convert", $image,
+    "-resize", "1x1!",
+    "-format", ""
+               . "%[fx:int(255*r+0.5)]r,"
+               . "%[fx:int(255*g+0.5)]g,"
+               . "%[fx:int(255*b+0.5)]b",
+    "info:-",
+  );
+  open FH, "-|", @avgColorCmd;
+  my $colors = <FH>;
+  close FH;
+
+  if($colors !~ /^(\d+)r,(\d+)g,(\d+)b$/){
+    die "could not parse avg color information\n";
+  }
+  my ($r, $g, $b) = ($1, $2, $3);
+
+  my $rb = ($r + $b) / 2;
+  $rb = 0.0001 if $rb == 0;
+  my $greenness = $g - $rb;
+  return $greenness;
 }
 
 sub identifyImage($@){

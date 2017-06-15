@@ -1,12 +1,44 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(time sleep);
+use POSIX ":sys_wait_h";
 
 sub ensureRoot();
 
+my $delayMillis = 5;
+my $timeoutMillis = 500;
+
 sub main(@){
   ensureRoot();
-  exec "fcrondyn", "-x", "ls";
+  my $pid = fork;
+  if($pid == 0){
+    exec "fcrondyn", "-x", "ls";
+  }elsif($pid > 0){
+    my $startMillis = time * 1000.0;
+
+    my $waitpid = 0;
+    while($waitpid == 0){
+      $waitpid = waitpid($pid, WNOHANG);
+      if($waitpid < 0){
+        die "error running waitpid on $pid\n";
+      }
+
+      my $nowMillis = time * 1000.0;
+      if($nowMillis - $startMillis > $timeoutMillis){
+        print STDERR "\n\n\n!!!!!!\n$0 FATAL TIME OUT\nkilling $pid\n\n\n";
+        system "kill", "-9", $pid;
+        waitpid $pid, WNOHANG;
+        system "kill", "-9", $pid;
+        waitpid $pid, WNOHANG;
+        die "error running fcrondyn\n";
+      }
+
+      sleep $delayMillis/1000.0 if $waitpid == 0;
+    }
+  }else{
+    die "error forking\n";
+  }
 }
 
 sub ensureRoot(){

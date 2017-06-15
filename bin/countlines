@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getDirContents($);
+sub formatDirContents($$);
+
+my $usage = "Usage:
+  $0 [DIR]
+    recursively count files by filetype in the indicated dir or '.'
+";
+
+sub main(@){
+  my $dir = @_ > 0 and -d $_[0];
+  die $usage if @_ > 0;
+  $dir = "." if not defined $dir;
+
+  my $dirContents = getDirContents ".";
+  print formatDirContents $dirContents, 0;
+}
+
+sub getDirContents($){
+  my ($dir) = @_;
+  my $files = {};
+  my $children = [];
+  for my $f(glob "$dir/*"){
+    if(-d $f){
+      push @{$children}, getDirContents $f;
+    }else{
+      my $ext = lc $1 if $f =~ /\.([a-zA-Z0-9]+)$/;
+      $ext = 'NOEXT' if not defined $ext;
+      $$files{$ext} = [] if not defined $$files{$ext};
+      push @{$$files{$ext}}, $f;
+    }
+  }
+  return {dir=>$dir, files=>$files, children=>$children};
+}
+
+sub formatDirContents($$){
+  my ($dirContents, $indentLevel) = @_;
+  my %files = %{$$dirContents{files}};
+  my @exts = keys %files;
+  my $fmt = '';
+  $fmt .= ("  "x$indentLevel) . $$dirContents{dir} . "\n";
+  for my $ext(@exts){
+    my $count = 0 + @{$$dirContents{files}{$ext}};
+    $fmt .= sprintf "%s%5s: %d\n",
+      "  "x($indentLevel+1),
+      $ext,
+      $count,
+      ;
+  }
+  for my $child(@{$$dirContents{children}}){
+    $fmt .= formatDirContents $child, $indentLevel+1;
+  }
+  return $fmt;
+}
+
+&main(@ARGV);

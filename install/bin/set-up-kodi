@@ -10,14 +10,18 @@ my $pulse = 0;
 
 my $card = $pulse ? "PULSE:Default" : "ALSA:hdmi:CARD=HDMI,DEV=0";
 
-my $addonsDb = "$kodiDir/userdata/Database/Addons16.db";
+my $addonsDb = "$kodiDir/userdata/Database/Addons27.db";
 my $guisettingsFile = "$kodiDir/userdata/guisettings.xml";
+my $cecConfigFile = globOne "$kodiDir/userdata/peripheral_data/usb*CEC_Adapter.xml";
 
 my $bgDir = getHome() . "/.cache/backgrounds/fhd";
 
-my $skin = {
-  "skin.confluence.UseCustomBackground" => "true",
-  "skin.confluence.CustomBackgroundPath" => "$bgDir/ghibli/nausicaa.jpg",
+my $skinName = "skin.confluence";
+my $skinSettingsFile = "$kodiDir/userdata/addon_data/$skinName/settings.xml";
+
+my $skinSettings = {
+  "UseCustomBackground" => "true",
+  "CustomBackgroundPath" => "$bgDir/ghibli/nausicaa.jpg",
 };
 
 my $guisettings = {
@@ -28,41 +32,54 @@ my $guisettings = {
   passthroughdevice => $pulse ? "default" : $card,
   streamsilence => "-1", #keep audio device alive
   enablerssfeeds => "false",
+  skin => "$skinName",
 };
 
-my $disabledAddons = {
-  1 => "service.xbmc.versioncheck",
-  2 => "metadata.musicvideos.theaudiodb.com",
+my @disabledAddonIds = qw(
+  service.xbmc.versioncheck
+  metadata.musicvideos.theaudiodb.com
+);
+
+my $cecConfig = {
+  enabled => 0,
 };
 
 sub main(@) {
     getRoot @_;
 
-    for my $id(sort keys %$disabledAddons){
-      my $addonId = $$disabledAddons{$id};
-      print "disabling $addonId in addons database\n";
-      system "sqlite3", $addonsDb, "
-        delete from disabled where id=$id;
-        insert into disabled(id, addonID) values($id, '$addonId');
+    for my $addonId(@disabledAddonIds){
+      my $intId = `sqlite3 $addonsDb "select id from addons where addonId='$addonId'"`;
+      chomp $intId;
+      die "error getting integer id for addonId=$addonId\n" if $intId !~ /^\d+$/;
+      print "disabling $addonId(id=$intId) in addons database\n";
+      my $sql = "
+        delete from blacklist where id=$intId or addonID='$addonId';
+        insert into blacklist(id, addonID) values($intId, '$addonId');
       ";
+      system "sqlite3", $addonsDb, $sql;
     }
 
-    editFile $guisettingsFile, sub {
+    editFile $skinSettingsFile, sub {
       my $c = shift;
-      for my $key(sort keys %$skin){
-        my $val = $$skin{$key};
+      for my $key(sort keys %$skinSettings){
+        my $val = $$skinSettings{$key};
         my $type = $val =~ /^(true|false)$/ ? "bool" : "string";
 
+        my $idAtt = "id=\"$key\"";
         my $typeAtt = "type=\"$type\"";
-        my $nameAtt = "name=\"$key\"";
 
-        my $prefix = "\\s*<setting\\s*$typeAtt\\s*$nameAtt>";
-        my $line = "        <setting $typeAtt $nameAtt>$val</setting>";
+        my $prefix = "\\s*<setting\\s*$idAtt\\s*$typeAtt>";
+        my $line = "    <setting $idAtt $typeAtt>$val</setting>";
 
         if(not replaceLine $c, $prefix, $line){
           die "could not update skin setting $key = $val\n";
         }
       }
+      return $c;
+    };
+
+    editFile $guisettingsFile, sub {
+      my $c = shift;
       for my $key(sort keys %$guisettings){
         my $val = $$guisettings{$key};
         my $prefix = "\\s*<$key( [^>]*)?";
@@ -71,8 +88,19 @@ sub main(@) {
           die "could not update gui setting $key = $val\n";
         }
       }
-      $c;
+      return $c;
     };
+
+    if(defined $cecConfigFile){
+      editFile $cecConfigFile, sub {
+        my $c = shift;
+        for my $key(sort keys %$cecConfig){
+          my $val = $$cecConfig{$key};
+          $c =~ s/^(\s*)<setting\s*id="$key".*$/$1<setting id="$key" value="$val" \/\>/m;
+        }
+        return $c;
+      };
+    }
 }
 
 &main(@ARGV);
