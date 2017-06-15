@@ -12,6 +12,7 @@ my $card = $pulse ? "PULSE:Default" : "ALSA:hdmi:CARD=HDMI,DEV=0";
 
 my $addonsDb = "$kodiDir/userdata/Database/Addons27.db";
 my $guisettingsFile = "$kodiDir/userdata/guisettings.xml";
+my $cecConfigFile = globOne "$kodiDir/userdata/peripheral_data/usb*CEC_Adapter.xml";
 
 my $bgDir = getHome() . "/.cache/backgrounds/fhd";
 
@@ -38,6 +39,9 @@ my @disabledAddonIds = qw(
   service.xbmc.versioncheck
   metadata.musicvideos.theaudiodb.com
 );
+
+my $cecConfig = {
+};
 
 sub main(@) {
     getRoot @_;
@@ -70,7 +74,7 @@ sub main(@) {
           die "could not update skin setting $key = $val\n";
         }
       }
-      $c;
+      return $c;
     };
 
     editFile $guisettingsFile, sub {
@@ -83,8 +87,19 @@ sub main(@) {
           die "could not update gui setting $key = $val\n";
         }
       }
-      $c;
+      return $c;
     };
+
+    if(defined $cecConfigFile){
+      editFile $cecConfigFile, sub {
+        my $c = shift;
+        for my $key(sort keys %$cecConfig){
+          my $val = $$cecConfig{$key};
+          $c =~ s/^(\s*)<setting\s*id="$key".*$/$1<setting id="$key" value="$val" \/\>/m;
+        }
+        return $c;
+      };
+    }
 }
 
 &main(@ARGV);
