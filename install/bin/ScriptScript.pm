@@ -20,6 +20,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   cd chownUser
                   symlinkFile
                   which
+                  globOne
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
@@ -56,6 +57,7 @@ sub which($);
 sub cd($);
 sub chownUser($);
 sub symlinkFile($$);
+sub globOne($);
 sub writeFileProto($@);
 sub writeFile($$);
 sub tryWriteFile($$);
@@ -335,6 +337,15 @@ sub hereDoc($){
   return "<< \"$delim\"\n"
     . "$s\n"
     . "$delim\n";
+}
+
+sub globOne($){
+  my @files = glob $_[0];
+  if(@files == 1){
+    return $files[0];
+  }else{
+    return undef;
+  }
 }
 
 sub writeFileProto($@) {
