@@ -5,16 +5,15 @@ use Time::HiRes qw(time);
 
 my $LCD_REGION = "100x70+140+0";
 
-my $GR_FLOOR = 10;    #GR below is always OFF
-my $GR_CEIL  = 50;    #GR above is always ON
-my $KU_FLOOR = 4;     #when GR is between, KU below is OFF
-my $KU_CEIL  = 9;     #when GR is between, KU above is ON
-my $SD_FLOOR = 6000;  #when GR and KU are between, SD below is OFF
-my $SD_CEIL  = 7000;  #when GR and KU are between, SD above is ON
-my $MV_FLOOR = 65000; #when GR and KU and SD are between, MV below is OFF
-my $MV_CEIL  = 65300; #when GR and KU and SD are between, MV above is ON
-                      #when all are between FLOOR and CEIL, default is ON
+my $THRESHOLD = 0.5;
+my $CONFIG = {
+  GR => {low=>10,    high=>50,    weight=>0.4},
+  KU => {low=>4,     high=>15,    weight=>0.2},
+  SD => {low=>6000,  high=>10000, weight=>0.2},
+  MV => {low=>50000, high=>65000, weight=>0.2},
+};
 
+sub getWeightedValue($$);
 sub getGreenDiff($);
 sub identifyImage($@);
 
@@ -33,13 +32,20 @@ my $usage = "Usage:
        -use the green channel minus the average of the red and blue channels
        GR = <GREEN> - ((<RED> + <BLUE)/2)
     -based on the following calculation, print either 'yes' or 'no'
-      IF GR<$GR_FLOOR
-      OR GR<$GR_CEIL and KU<$KU_FLOOR
-      OR GR<$GR_CEIL and KU<$KU_CEIL and SD<$SD_FLOOR
-      OR GR<$GR_CEIL and KU<$KU_CEIL and SD<$SD_CEIL and MV<$MV_FLOOR
-        print 'no'
-      OTHERWISE
-        print 'yes'
+       -scale the values between 0 and 1 as follows
+          SCALED_GR: [low=$$CONFIG{GR}{low}, high=$$CONFIG{GR}{high}]
+          SCALED_KU: [low=$$CONFIG{KU}{low}, high=$$CONFIG{KU}{high}]
+          SCALED_SD: [low=$$CONFIG{SD}{low}, high=$$CONFIG{SD}{high}]
+          SCALED_MV: [low=$$CONFIG{MV}{low}, high=$$CONFIG{MV}{high}]
+          <scaled_value> = (<value> - <low>) / (<high> - <low>)
+          (values below low are negative, above high are greater than 1)
+       -weight the scaled values as follow:
+          WEIGHTED_GR = SCALED_GR * $$CONFIG{GR}{weight}
+          WEIGHTED_KU = SCALED_KU * $$CONFIG{KU}{weight}
+          WEIGHTED_SD = SCALED_SD * $$CONFIG{SD}{weight}
+          WEIGHTED_MV = SCALED_MV * $$CONFIG{MV}{weight}
+       -sum the weighted values
+          if above $THRESHOLD, print 'yes', otherwise print 'no'
 
    OPTS
      -v | --verbose
@@ -80,28 +86,38 @@ sub main(@){
 
   my $GR = getGreenDiff $lcdFile;
 
-  print "FILE=$srcFile\nGR=$GR\nKU=$KU\nSD=$SD\nMV=$MV\n" if $verbose;
+  my $WGR = getWeightedValue $GR, $$CONFIG{GR};
+  my $WKU = getWeightedValue $KU, $$CONFIG{KU};
+  my $WSD = getWeightedValue $SD, $$CONFIG{SD};
+  my $WMV = getWeightedValue $MV, $$CONFIG{MV};
 
-  my $GR_LOW = $GR < $GR_FLOOR;
-  my $KU_LOW = $KU < $KU_FLOOR;
-  my $SD_LOW = $SD < $SD_FLOOR;
-  my $MV_LOW = $MV < $MV_FLOOR;
+  my $weightedTotal = $WGR + $WKU + $WSD + $WMV;
 
-  my $GR_BETWEEN = $GR_FLOOR <= $GR && $GR <= $GR_CEIL;
-  my $KU_BETWEEN = $KU_FLOOR <= $KU && $KU <= $KU_CEIL;
-  my $SD_BETWEEN = $SD_FLOOR <= $SD && $SD <= $SD_CEIL;
-  my $MV_BETWEEN = $MV_FLOOR <= $MV && $MV <= $MV_CEIL;
-
-  if( 0 == 1
-    or ($GR_LOW)
-    or ($GR_BETWEEN and $KU_LOW)
-    or ($GR_BETWEEN and $KU_BETWEEN and $SD_LOW)
-    or ($GR_BETWEEN and $KU_BETWEEN and $SD_BETWEEN and $MV_LOW)
-  ){
-    print "no\n";
-  }else{
-    print "yes\n";
+  if($verbose){
+    print "FILE=$srcFile\n";
+    print "GR=$GR {$WGR}\n";
+    print "KU=$KU {$WKU}\n";
+    print "SD=$SD {$WSD}\n";
+    print "MV=$MV {$WMV}\n";
+    print "TOTAL=$weightedTotal\n";
   }
+
+  if($weightedTotal > $THRESHOLD){
+    print "yes\n";
+  }else{
+    print "no\n";
+  }
+}
+
+sub getWeightedValue($$){
+  my ($val, $valConfig) = @_;
+  my $low = $$valConfig{low};
+  my $high = $$valConfig{high};
+  my $weight = $$valConfig{weight};
+
+  my $scaledVal = ($val-$low) / ($high - $low);
+
+  return $scaledVal * $weight;
 }
 
 sub getGreenDiff($){
