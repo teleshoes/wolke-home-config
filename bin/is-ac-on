@@ -1,20 +1,25 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use AI::FANN qw(:all);
 use Time::HiRes qw(time);
 
 my $LCD_REGION = "100x70+140+0";
 
-my $THRESHOLD = 0.5;
-my $CONFIG = {
-  GR => {low=>10,    high=>30,    weight=>0.4},
-  KU => {low=>4,     high=>15,    weight=>0.2},
-  SD => {low=>6000,  high=>10000, weight=>0.2},
-  MV => {low=>50000, high=>65000, weight=>0.2},
+my $SCALE = {
+  GR => {low=>10,    high=>30},
+  KU => {low=>4,     high=>15},
+  SD => {low=>6000,  high=>10000},
+  MV => {low=>50000, high=>65000},
 };
+my $NEURAL_NET_TRAINING_DIR_NO = "$ENV{HOME}/.cache/is-ac-on/no";
+my $NEURAL_NET_TRAINING_DIR_YES = "$ENV{HOME}/.cache/is-ac-on/yes";
+my $NEURAL_NET_CACHE = "$ENV{HOME}/.cache/is-ac-on/neuralnet.ann";
 
-sub isAcOn($$);
-sub getWeightedValue($$);
+sub createNeuralNet();
+sub loadNeuralNetTrainingData();
+sub analyzeImage($);
+sub getScaledValue($$);
 sub getGreenDiff($);
 sub identifyImage($@);
 
@@ -32,21 +37,26 @@ my $usage = "Usage:
        -read color 0-255 as \"<RED>r,<GREEN>g,<BLUE>b\" from `convert`
        -use the green channel minus the average of the red and blue channels
        GR = <GREEN> - ((<RED> + <BLUE)/2)
-    -based on the following calculation, print either 'yes' or 'no'
-       -scale the values between 0 and 1 as follows
-          SCALED_GR: [low=$$CONFIG{GR}{low}, high=$$CONFIG{GR}{high}]
-          SCALED_KU: [low=$$CONFIG{KU}{low}, high=$$CONFIG{KU}{high}]
-          SCALED_SD: [low=$$CONFIG{SD}{low}, high=$$CONFIG{SD}{high}]
-          SCALED_MV: [low=$$CONFIG{MV}{low}, high=$$CONFIG{MV}{high}]
-          <scaled_value> = (<value> - <low>) / (<high> - <low>)
-          (values below low are negative, above high are greater than 1)
-       -weight the scaled values as follow:
-          WEIGHTED_GR = SCALED_GR * $$CONFIG{GR}{weight}
-          WEIGHTED_KU = SCALED_KU * $$CONFIG{KU}{weight}
-          WEIGHTED_SD = SCALED_SD * $$CONFIG{SD}{weight}
-          WEIGHTED_MV = SCALED_MV * $$CONFIG{MV}{weight}
-       -sum the weighted values
-          if above $THRESHOLD, print 'yes', otherwise print 'no'
+    -scale the values between 0 and 1 as follows
+       SCALED_GR: [low=$$SCALE{GR}{low}, high=$$SCALE{GR}{high}]
+       SCALED_KU: [low=$$SCALE{KU}{low}, high=$$SCALE{KU}{high}]
+       SCALED_SD: [low=$$SCALE{SD}{low}, high=$$SCALE{SD}{high}]
+       SCALED_MV: [low=$$SCALE{MV}{low}, high=$$SCALE{MV}{high}]
+       <scaled_value> = (<value> - <low>) / (<high> - <low>)
+       (values below low are negative, above high are greater than 1)
+    -if $NEURAL_NET_CACHE exists:
+      load the neural net using AI::FANN
+    -if $NEURAL_NET_CACHE does not exist:
+      -train a neural net using FANN on the images located at:
+        \"no\"  => $NEURAL_NET_TRAINING_DIR_NO
+        \"yes\" => $NEURAL_NET_TRAINING_DIR_YES
+      -calculate the scaled values above and use as the input neurons
+      -use 1 as the output neuron for 'on' and -1 for 'off'
+      -save it to $NEURAL_NET_CACHE
+    -pass the scaled values as the input nodes to the neural network
+    -if the output neuron is non-negative, print 'yes'
+    -if the output neuron is negative, print 'no'
+
 
    OPTS
      -v | --verbose
@@ -77,17 +87,71 @@ sub main(@){
     die "ERROR: file \"$srcFile\" not found\n";
   }
 
-  my $isAcOn = isAcOn $srcFile, $verbose;
-  if($isAcOn){
-    print "yes\n";
-  }else{
+  my $input = analyzeImage $srcFile;
+  if($verbose){
+    printf "FILE=%s\n", $srcFile;
+    printf "SCALED_GR=%9.2f {%5d - %5d}\n",
+      $$input[0], $$SCALE{GR}{low}, $$SCALE{GR}{high};
+    printf "SCALED_KU=%9.2f {%5d - %5d}\n",
+      $$input[1], $$SCALE{KU}{low}, $$SCALE{KU}{high};
+    printf "SCALED_SD=%9.2f {%5d - %5d}\n",
+      $$input[2], $$SCALE{SD}{low}, $$SCALE{SD}{high};
+    printf "SCALED_MV=%9.2f {%5d - %5d}\n",
+      $$input[3], $$SCALE{MV}{low}, $$SCALE{MV}{high};
+  }
+
+  my $ann = createNeuralNet();
+
+  my $output = $ann->run($input);
+  if($verbose){
+    printf "output=$$output[0]\n";
+  }
+  if($$output[0] < 0){
     print "no\n";
+  }else{
+    print "yes\n";
   }
 }
 
 
-sub isAcOn($$){
-  my ($srcFile, $verbose) = @_;
+sub createNeuralNet(){
+  if(not -f $NEURAL_NET_CACHE){
+    my $ann = AI::FANN->new_standard(4, 3, 1);
+
+    $ann->hidden_activation_function(FANN_SIGMOID_SYMMETRIC);
+    $ann->output_activation_function(FANN_SIGMOID_SYMMETRIC);
+
+    my $data = loadNeuralNetTrainingData();
+
+    my $trainData = AI::FANN::TrainData->new(@$data);
+    $trainData->shuffle();
+
+    $ann->train_on_data($trainData, 500000, 1000, 0.001);
+
+    $ann->save($NEURAL_NET_CACHE);
+  }
+  return AI::FANN->new_from_file($NEURAL_NET_CACHE);
+}
+
+sub loadNeuralNetTrainingData(){
+  my $data = [];
+  for my $img(glob "$NEURAL_NET_TRAINING_DIR_NO/*"){
+    my $input = analyzeImage $img;
+    my $output = [-1];
+    push @$data, $input;
+    push @$data, $output;
+  }
+  for my $img(glob "$NEURAL_NET_TRAINING_DIR_YES/*"){
+    my $input = analyzeImage $img;
+    my $output = [1];
+    push @$data, $input;
+    push @$data, $output;
+  }
+  return $data;
+}
+
+sub analyzeImage($){
+  my ($srcFile) = @_;
   my $lcdFile = "/tmp/is-ac-on_crop_$NOW_MILLIS.jpg";
   system "convert", $srcFile, "-crop", $LCD_REGION, $lcdFile;
 
@@ -98,38 +162,20 @@ sub isAcOn($$){
 
   my $GR = getGreenDiff $lcdFile;
 
-  my $WGR = getWeightedValue $GR, $$CONFIG{GR};
-  my $WKU = getWeightedValue $KU, $$CONFIG{KU};
-  my $WSD = getWeightedValue $SD, $$CONFIG{SD};
-  my $WMV = getWeightedValue $MV, $$CONFIG{MV};
+  my $SGR = getScaledValue $GR, $$SCALE{GR};
+  my $SKU = getScaledValue $KU, $$SCALE{KU};
+  my $SSD = getScaledValue $SD, $$SCALE{SD};
+  my $SMV = getScaledValue $MV, $$SCALE{MV};
 
-  my $weightedTotal = $WGR + $WKU + $WSD + $WMV;
-
-  if($verbose){
-    print "FILE=$srcFile\n";
-    print "GR=$GR {$WGR}\n";
-    print "KU=$KU {$WKU}\n";
-    print "SD=$SD {$WSD}\n";
-    print "MV=$MV {$WMV}\n";
-    print "TOTAL=$weightedTotal\n";
-  }
-
-  if($weightedTotal > $THRESHOLD){
-    return 1;
-  }else{
-    return 0;
-  }
+  return [$SGR, $SKU, $SSD, $SMV];
 }
 
-sub getWeightedValue($$){
-  my ($val, $valConfig) = @_;
-  my $low = $$valConfig{low};
-  my $high = $$valConfig{high};
-  my $weight = $$valConfig{weight};
+sub getScaledValue($$){
+  my ($val, $valScale) = @_;
+  my $low = $$valScale{low};
+  my $high = $$valScale{high};
 
-  my $scaledVal = ($val-$low) / ($high - $low);
-
-  return $scaledVal * $weight;
+  return ($val-$low) / ($high - $low);
 }
 
 sub getGreenDiff($){
