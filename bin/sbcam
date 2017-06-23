@@ -4,9 +4,11 @@ use warnings;
 
 sub run(@);
 
+my $ipmagicConf = "nuc";
+
 my $usage = "Usage:
   $0 [FILENAME]
-    run `streamer` on `seedbox -r`, copy the image over
+    run `streamer` on `ipmagic $ipmagicConf` or `seedbox -r`, copy the image over
     if FILENAME is specified, move to FILENAME
     if FILENAME is NOT specified, run `feh` on the image
 ";
@@ -19,16 +21,27 @@ sub main(@){
   chomp $d;
   my $file = "sbcam-$d.jpeg";
 
-  my $sbHost = `seedbox`;
-  chomp $sbHost;
+  my @camCmd = ("streamer", "-f", "jpeg", "-o", "/tmp/$file");
 
-  run "seedbox", "-r", "bash -c '"
-    . " echo running streamer on `hostname`;"
-    . " streamer -f jpeg -o /tmp/$file;"
-    . " scp /tmp/$file $sbHost:~/$file;"
-    . "'";
+  my $ipmagicHost = `ipmagic $ipmagicConf -r 0 2>/dev/null`;
+  chomp $ipmagicHost;
 
-  run "scp", "$sbHost:~/$file", "/tmp/$file";
+  if($ipmagicHost =~ /\w/){
+    run "ipmagic", $ipmagicConf, @camCmd;
+    run "scp", "$ipmagicHost:/tmp/$file", "/tmp/$file";
+  }else{
+    my $sbHost = `seedbox`;
+    chomp $sbHost;
+
+    run "seedbox", "-r", "bash -c '"
+      . " echo running streamer on `hostname`;"
+      . " @camCmd;"
+      . " scp /tmp/$file $sbHost:~/$file;"
+      . "'";
+
+    run "scp", "$sbHost:~/$file", "/tmp/$file";
+  }
+
   if(defined $destFile){
     run "mv", "/tmp/$file", $destFile;
   }else{

@@ -3,8 +3,10 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-my $MAX_ATTEMPTS = 5;
-my $timeoutMillis = 3000;
+my $MAX_ATTEMPTS = 10;
+my $timeoutMillis = 500;
+
+my $ipmagicConf = "nuc";
 
 sub ensureAcOnOff($);
 sub toggleAc();
@@ -22,7 +24,9 @@ sub main(@){
   my $attempts = 0;
   print "checking ac on/off...\n";
   while(1){
+    my $skipCheck = 0;
     if($arg eq "toggle"){
+      $skipCheck = 1;
       if(isAcOn()){
         print "toggling ac: on => off\n";
         $arg = "off";
@@ -32,7 +36,7 @@ sub main(@){
       }
     }
     my $targetIsAcOn = $arg eq "on" ? 1 : 0;
-    if(isAcOn() == $targetIsAcOn){
+    if(not $skipCheck and isAcOn() == $targetIsAcOn){
       last;
     }else{
       die "ERROR: max attempts reached\n" if $attempts > $MAX_ATTEMPTS;
@@ -58,7 +62,13 @@ sub ensureAcOnOff($){
 }
 
 sub toggleAc(){
-  run "seedbox", "-r", "igcmd", "ac-power";
+  my $ipmagicHost = `ipmagic $ipmagicConf 2>/dev/null`;
+  chomp $ipmagicHost;
+  if($ipmagicHost =~ /\w/){
+    run "ssh", $ipmagicHost, "igcmd", "ac-power";
+  }else{
+    run "seedbox", "-r", "igcmd", "ac-power";
+  }
 }
 
 sub isAcOn(){
