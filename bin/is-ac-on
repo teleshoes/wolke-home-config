@@ -59,6 +59,15 @@ my $usage = "Usage:
     -if the output neuron is non-negative, print 'yes'
     -if the output neuron is negative, print 'no'
 
+  $0 --test
+    test the neural net using the training data
+    -for each image in $NEURAL_NET_TRAINING_DIR_NO
+      -if image would print \"yes\":
+        print \"FAIL[expected no]: <IMG>\"
+    -for each image in $NEURAL_NET_TRAINING_DIR_YES
+      -if image would print \"no\":
+        print \"FAIL[expected yes]: <IMG>\"
+
   $0 -t|--train [no|yes]
     add an image to the training data
     -take a picture with sbcam and stick it in:
@@ -75,7 +84,10 @@ my $usage = "Usage:
 my $NOW_MILLIS = int(time*1000);
 
 sub main(@){
-  if(@_ == 2 and $_[0] =~ /^(-t|--train)$/ and $_[1] =~ /^(no|yes)$/){
+  if(@_ == 1 and $_[0] =~ /^(--test)$/){
+    testNeuralNet();
+    exit;
+  }elsif(@_ == 2 and $_[0] =~ /^(-t|--train)$/ and $_[1] =~ /^(no|yes)$/){
     my $isAcOn = $_[1] eq "yes" ? 1 : 0;
     my $dir;
     if($isAcOn){
@@ -169,6 +181,32 @@ sub loadNeuralNetTrainingData(){
     push @$data, $output;
   }
   return $data;
+}
+
+sub testNeuralNet(){
+  my $ann = createNeuralNet();
+
+  my @noImages = glob "$NEURAL_NET_TRAINING_DIR_NO/*";
+  print "testing " . @noImages . " no-images\n";
+  for my $img(@noImages){
+    my $input = analyzeImage $img;
+    my $output = $ann->run($input);
+
+    if($$output[0] >= 0){
+      print "FAIL[expected no]: $img\n";
+    }
+  }
+
+  my @yesImages = glob "$NEURAL_NET_TRAINING_DIR_YES/*";
+  print "testing " . @yesImages . " yes-images\n";
+  for my $img(@yesImages){
+    my $input = analyzeImage $img;
+    my $output = $ann->run($input);
+
+    if($$output[0] < 0){
+      print "FAIL[expected yes]: $img\n";
+    }
+  }
 }
 
 sub analyzeImage($){
