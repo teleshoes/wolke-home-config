@@ -22,6 +22,7 @@ sub analyzeImage($);
 sub getScaledValue($$);
 sub getGreenDiff($);
 sub identifyImage($@);
+sub run(@);
 
 my $usage = "Usage:
   $0 [OPTS] [IMAGE_FILE_NAME]
@@ -57,6 +58,11 @@ my $usage = "Usage:
     -if the output neuron is non-negative, print 'yes'
     -if the output neuron is negative, print 'no'
 
+  $0 -t|--train [no|yes]
+    -take a picture with sbcam and stick it in:
+      \"no\"  => $NEURAL_NET_TRAINING_DIR_NO
+      \"yes\" => $NEURAL_NET_TRAINING_DIR_YES
+    -remove cached neural net at $NEURAL_NET_CACHE
 
    OPTS
      -v | --verbose
@@ -67,6 +73,20 @@ my $usage = "Usage:
 my $NOW_MILLIS = int(time*1000);
 
 sub main(@){
+  if(@_ == 2 and $_[0] =~ /^(-t|--train)$/ and $_[1] =~ /^(no|yes)$/){
+    my $isAcOn = $_[1] eq "yes" ? 1 : 0;
+    my $dir;
+    if($isAcOn){
+      $dir = $NEURAL_NET_TRAINING_DIR_YES;
+    }else{
+      $dir = $NEURAL_NET_TRAINING_DIR_NO;
+    }
+    my $trainFile = "$dir/sbcam_$NOW_MILLIS.jpg";
+    run "sbcam $trainFile";
+    run "rm", $NEURAL_NET_CACHE;
+    exit;
+  }
+
   my $verbose = shift if @_ > 0 and $_[0] =~ /^(-v|--verbose)$/;
   my $srcFile;
   if(@_ > 0 and -f $_[0]){
@@ -112,7 +132,6 @@ sub main(@){
     print "yes\n";
   }
 }
-
 
 sub createNeuralNet(){
   if(not -f $NEURAL_NET_CACHE){
@@ -230,6 +249,14 @@ sub identifyImage($@){
     $$valsByProp{$prop} = $propVal;
   }
   return $valsByProp;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  if($? != 0){
+    die "error running \"@_\"\n";
+  }
 }
 
 &main(@ARGV);
