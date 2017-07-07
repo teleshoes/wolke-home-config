@@ -133,6 +133,7 @@ shortcuts conf = "Shortcuts" @@ do
         "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
 
     "iguana IR"     @@ do
+        "A/C toggle"    @@ mC    xK_F1   #! "term ac toggle"
         "A/C power"     @@ mCS   xK_F1   #! "nuc igcmd ac-power"
         "A/C mode"      @@ mC    xK_F3   #! "nuc igcmd ac-mode"
 
