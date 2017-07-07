@@ -210,6 +210,10 @@ shortcuts conf = "Shortcuts" @@ do
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
 
+    "Klomp media keys"    @@ do
+        "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"
+        "pause/play"  @@ m_    xK_APaus#! "klomp-cmd pause"
+
     "Klomp nuc"     @@ do
         "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"
         "prev"        @@ mCAW  xK_z    #! "nuc klomp-cmd prev"
