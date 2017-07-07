@@ -82,7 +82,7 @@ xmoKeys conf = "XMonad" @@ do
 shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc] #! "off g"
     "term"              @@ m_    xK_Think#! "term"
-    "term"              @@ m_    xK_Audio#! "term"
+    "term"              @@ m_    xK_AMdia#! "term"
     "term"              @@ m_    xK_Tools#! "term"
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
