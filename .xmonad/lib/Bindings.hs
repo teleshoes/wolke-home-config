@@ -90,7 +90,7 @@ shortcuts conf = "Shortcuts" @@ do
     "ghci"              @@ mC    xK_Think#! "term ghci"
     "bgset --next"      @@ mW    xK_w    #! "bgset --next"
     "bgset --prev"      @@ mWS   xK_w    #! "bgset --prev"
-    "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Desktop/Pictures/Screenshots"
+    "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Pictures/Screenshots"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen Off Idle"   @@ mW    xK_s    #! "sleep 0.5; screenOff"
     "Screen On/Off"     @@ mCW   xK_s    #! "screenpwr"
