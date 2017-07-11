@@ -24,7 +24,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
-                  editFile editSimpleConf
+                  editFile editSimpleConf editIni
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -69,6 +69,7 @@ sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$;$);
 sub editSimpleConf($$$);
+sub editIni($$$);
 sub getRoot(@);
 sub getRootSu(@);
 sub guessBackupDir();
@@ -523,6 +524,63 @@ sub editSimpleConf($$$) {
             replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
         }
         $cnts
+    };
+}
+
+sub editIni($$$) {
+    my ($name, $patchname, $sectionConfig) = @_;
+    editFile $name, $patchname, sub {
+        my $cnts = shift;
+
+        my $curSectionName = undef;
+        my $curSectionLines = undef;
+        my @sectionNames;
+        my %sectionLines;
+
+        #parse out existing sections
+        for my $line(split /^/, $cnts){
+          if($line =~ /^\s*\[(.+)\]\s*$/){
+            $curSectionName = $1;
+            $curSectionLines = undef;
+          }
+          if(not defined $curSectionLines){
+            $curSectionName = "" if not defined $curSectionName;
+            $curSectionLines = [];
+            if(defined $sectionLines{$curSectionName}){
+              die "duplicate INI section name: \"$curSectionName\"\n";
+            }
+            $sectionLines{$curSectionName} = $curSectionLines;
+            push @sectionNames, $curSectionName;
+          }
+          push @{$curSectionLines}, $line;
+        }
+
+        #add new empty sections to the parsed sections
+        for my $cfgSectionName(sort keys %$sectionConfig){
+          if(not defined $sectionLines{$cfgSectionName}){
+            push @sectionNames, $cfgSectionName;
+            my $cfgSectionLines = [];
+            push @$cfgSectionLines, "[$cfgSectionName]\n";
+            push @$cfgSectionLines, "\n";
+            $sectionLines{$cfgSectionName} = $cfgSectionLines;
+          }
+        }
+
+        #modify the parsed sections
+        $cnts = "";
+        for my $sectionName(@sectionNames){
+          my @lines = @{$sectionLines{$sectionName}};
+          my $sectionContents = join "", @lines;
+          my $cfg = $$sectionConfig{$sectionName};
+          if(defined $cfg){
+            for my $key(sort keys %$cfg){
+              my $val = $$cfg{$key};
+              replaceOrAddLine $sectionContents, $key, "$key=$val";
+            }
+          }
+          $cnts .= $sectionContents;
+        }
+        return $cnts;
     };
 }
 
