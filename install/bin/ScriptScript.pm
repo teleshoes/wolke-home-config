@@ -17,7 +17,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   proc procLines
                   runScript
                   getHome getInstallPath getSrcCache
-                  cd chownUser
+                  cd
                   symlinkFile
                   which
                   globOne
@@ -55,7 +55,6 @@ sub getUsername();
 sub getInstallPath($);
 sub which($);
 sub cd($);
-sub chownUser($);
 sub symlinkFile($$);
 sub globOne($);
 sub writeFileProto($@);
