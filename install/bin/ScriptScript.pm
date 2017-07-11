@@ -422,9 +422,14 @@ sub replaceOrAddLine($$$) {
     my ($s, $startRegex, $lineReplacement) = @_;
     chomp $lineReplacement;
     if(not replaceLine $s, $startRegex, $lineReplacement){
-      chomp $s;
-      $s .= "\n" unless $s eq "";
-      $s .= "$lineReplacement\n";
+      if(length $s > 0 and $s !~ /\n$/){
+        $s .= "\n";
+      }
+      my $trailingEmptyLines = "";
+      if($s =~ s/\n(\n*)$/\n/){
+        $trailingEmptyLines = $1;
+      }
+      $s .= "$lineReplacement\n$trailingEmptyLines";
     }
     $_[0] = $s;
 }
