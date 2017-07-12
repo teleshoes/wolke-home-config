@@ -6,9 +6,13 @@ my $execDir = "$ENV{HOME}/Games/stepmania/latest/";
 my $exec = "$execDir/stepmania";
 my $confDir = "$ENV{HOME}/.stepmania-5.0";
 
+my $luaNoteFieldPrefs = "$execDir/Themes/_fallback/Scripts/03 notefield_prefs.lua";
+
 my $saveDir = "$confDir/Save";
 my $machineProfileDir = "$confDir/Save/MachineProfile";
 
+my $defaultSpeedMod = "250";
+my $defaultSpeedType = "maximum";  #maximum constant multiple
 my $defaultScreen = '';
 
 my $prefs = {
@@ -39,6 +43,11 @@ my $prefs = {
   'Game-dance' => {
     Announcer                 => '', #MAX2
   },
+};
+
+my $noteFieldPrefs = {
+  speed_mod => $defaultSpeedMod,
+  speed_type => "\"$defaultSpeedType\"",
 };
 
 my $fullscreenUpCmd = "
@@ -103,6 +112,7 @@ sub readConf($);
 sub writeConf($);
 sub modifyConf($$);
 sub replaceConf($$);
+sub editExistingLuaPrefs($$);
 
 my $usage = "Usage:
   $0 -h|--help
@@ -176,6 +186,9 @@ sub main(@){
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
   replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
+
+  editExistingLuaPrefs $luaNoteFieldPrefs, $noteFieldPrefs;
+
   my $fullscreen = $$prefs{Options}{Windowed} == 0;
   system "bash", "-c", $fullscreenUpCmd if $fullscreen;
   open CMD, "-|", $exec;
@@ -340,6 +353,20 @@ sub replaceConf($$){
   open FH, "> $file" or die "Couldnt open $file for writing.\n";
   print FH $content;
   close FH;
+}
+
+sub editExistingLuaPrefs($$){
+  my ($file, $prefs) = @_;
+  my @lines = readLines $file;
+  for my $key(sort keys %$prefs){
+    my $val = $$prefs{$key};
+    for my $line(@lines){
+      if($line =~ s/(\s*)($key)(\s*)=(\s*)("[^"]*"|[^,]*)(,?)$/$1$key$3=$4$val$6/){
+        last;
+      }
+    }
+  }
+  writeLines $file, @lines;
 }
 
 main(@ARGV);
