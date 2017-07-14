@@ -23,6 +23,7 @@ sub padl($$);
 sub padr($$);
 sub formatTime($);
 sub ymd($);
+sub writeStatus($);
 sub run(@);
 sub tryrun(@);
 sub bashComplete($$);
@@ -37,6 +38,7 @@ my $historyLogFile = "$dir/log/history.log.0";
 my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
 my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
+my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
 my $initialScanDelayMillis = 15 * 1000;
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
@@ -200,21 +202,28 @@ sub runBackup($){
   tee STDOUT, '>>', $backupLogFile;
   tee STDERR, '>>', $backupLogFile;
 
+  writeStatus "STARTING BACKUP";
+
   my @initialBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
+  writeStatus "STOPPING CRASHPLAN";
   run $0, "stop";
   if(defined getCrashplanPid()){
     die "crashplan is still running...\n";
   }
 
+  writeStatus "STARTING CRASHPLAN";
   run $0, "start";
+  writeStatus "WAITING TO START SCAN";
   print "sleeping " . int($initialScanDelayMillis/1000) . "s before scanning\n";
   sleep $initialScanDelayMillis/1000.0;
+  writeStatus "STARTING SCAN";
   run $0, "scan";
 
   my $crashplanPid = getCrashplanPid();
   if(not defined $crashplanPid){
+    writeStatus "ERROR: crashplan did not start";
     print "crashplan apparently did not start\n";
     print "stopping again just in case...\n";
     run $0, "stop";
@@ -284,22 +293,28 @@ sub runBackup($){
       print "\n\n";
       print "backup tentatively complete after ${elapsed}s\n";
       print "waiting ${assertCompleteMillis}ms to make sure it stays finished\n";
+      writeStatus "TENTATIVELY COMPLETE\n" . formatBackupSetList @newBackupSets;
     }elsif($isDone and (time*1000.0 - $finishedMillis) > $assertCompleteMillis){
       my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
       print "\n\n";
       print "backup seems complete after ${elapsed}s\n";
       print "stopping crashplan\n";
+      writeStatus "COMPLETE\n" . formatBackupSetList @newBackupSets;
       last;
     }elsif(not defined $newPid or $newPid != $crashplanPid){
       print "\n\n";
       $errorMsg = "ERROR: crashplan stopped running on its own\n";
       print $errorMsg;
+      writeStatus "ERROR: crashplan died\n" . formatBackupSetList @newBackupSets;
       last;
     }elsif($newPid != $crashplanPid){
       print "\n\n";
       $errorMsg = "ERROR: crashplan restarted with a new pid ($crashplanPid => $newPid)\n";
       print $errorMsg;
+      writeStatus "ERROR: crashplan restarted\n" . formatBackupSetList @newBackupSets;
       last;
+    }else{
+      writeStatus "WAITING FOR BACKUP TO END\n" . formatBackupSetList @newBackupSets;
     }
   }
 
@@ -311,9 +326,13 @@ sub runBackup($){
 
   print formatBackupSetList @newBackupSets;
 
+  writeStatus "ENDED (backing up logs)\n" . formatBackupSetList @newBackupSets;
+
   backupLogs();
 
   print formatBackupSetList @newBackupSets;
+
+  writeStatus "ENDED\n" . formatBackupSetList @newBackupSets;
 
   if(defined $errorMsg){
     print "\n\n$errorMsg\n";
@@ -762,6 +781,17 @@ sub formatTime($){
 sub ymd($){
   my ($t) = @_;
   return time2str "%Y-%m-%d", $t;
+}
+
+sub writeStatus($){
+  my $msg = shift;
+  my $date = `date`;
+  chomp $date;
+  chomp $msg;
+  $msg = "$date\n$msg\n";
+  open FH, "> $curStatusFile" or die "could not write $curStatusFile\n$!\n";
+  print FH $msg;
+  close FH;
 }
 
 sub run(@){
