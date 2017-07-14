@@ -7,7 +7,6 @@ use Date::Format qw(time2str);
 use File::Tee qw(tee);
 
 sub getCrashplanPid();
-sub printBackupSets(@);
 sub backupLogs();
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
@@ -16,6 +15,7 @@ sub filterLog($$$);
 sub parseLog($);
 sub parseLatestSync();
 sub formatSync($);
+sub formatBackupSetList(@);
 sub formatBackupSet($);
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
@@ -153,7 +153,7 @@ sub main(@){
 
     my @backupSets = getFilteredBackupSets($logfile, $maxTimeAgoMillis, $exactDate, 1);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
-    printBackupSets @backupSets;
+    print formatBackupSetList @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
     exec "sudo", $engineExec, $cmd;
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
@@ -178,24 +178,6 @@ sub getCrashplanPid(){
     return $1;
   }else{
     return undef;
-  }
-}
-
-sub printBackupSets(@){
-  my %counts;
-  for my $backupStatus(@ALL_STATUSES){
-    $counts{$backupStatus} = 0;
-    print "===$backupStatus===\n";
-    for my $backupSet(@_){
-      if($$backupSet{backupStatus} eq $backupStatus){
-        $counts{$backupStatus}++;
-        print formatBackupSet($backupSet);
-      }
-    }
-  }
-  print "======\n";
-  if($counts{$STATUS_COMPLETE} == 0){
-    print "\n\n======\nWARNING: NO BACKUPS COMPLETED!!!!!!!\n======\n\n";
   }
 }
 
@@ -297,7 +279,7 @@ sub runBackup($){
     if($isDone and not defined $finishedMillis){
       $finishedMillis = time * 1000.0;
       print "\n\n";
-      printBackupSets @newBackupSets;
+      print formatBackupSetList @newBackupSets;
       my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
       print "\n\n";
       print "backup tentatively complete after ${elapsed}s\n";
@@ -327,11 +309,11 @@ sub runBackup($){
   my @newBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
 
-  printBackupSets @newBackupSets;
+  print formatBackupSetList @newBackupSets;
 
   backupLogs();
 
-  printBackupSets @newBackupSets;
+  print formatBackupSetList @newBackupSets;
 
   if(defined $errorMsg){
     print "\n\n$errorMsg\n";
@@ -630,6 +612,27 @@ sub formatSync($){
   }
 
   return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}";
+}
+
+sub formatBackupSetList(@){
+  my @backupSets = @_;
+  my $msg = "";
+  my %counts;
+  for my $backupStatus(@ALL_STATUSES){
+    $counts{$backupStatus} = 0;
+    $msg .= "===$backupStatus===\n";
+    for my $backupSet(@backupSets){
+      if($$backupSet{backupStatus} eq $backupStatus){
+        $counts{$backupStatus}++;
+        $msg .= formatBackupSet($backupSet);
+      }
+    }
+  }
+  $msg .= "======\n";
+  if($counts{$STATUS_COMPLETE} == 0){
+    $msg .= "\n\n======\nWARNING: NO BACKUPS COMPLETED!!!!!!!\n======\n\n";
+  }
+  return $msg;
 }
 
 sub formatBackupSet($){
