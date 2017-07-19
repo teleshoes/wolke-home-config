@@ -17,14 +17,14 @@ our @EXPORT = qw( getScriptNames getSubNames
                   proc procLines
                   runScript
                   getHome getInstallPath getSrcCache
-                  cd chownUser
+                  cd
                   symlinkFile
                   which
                   globOne
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
-                  editFile editSimpleConf
+                  editFile editSimpleConf editIni
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -55,7 +55,6 @@ sub getUsername();
 sub getInstallPath($);
 sub which($);
 sub cd($);
-sub chownUser($);
 sub symlinkFile($$);
 sub globOne($);
 sub writeFileProto($@);
@@ -70,6 +69,7 @@ sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$;$);
 sub editSimpleConf($$$);
+sub editIni($$$);
 sub getRoot(@);
 sub getRootSu(@);
 sub guessBackupDir();
@@ -423,9 +423,14 @@ sub replaceOrAddLine($$$) {
     my ($s, $startRegex, $lineReplacement) = @_;
     chomp $lineReplacement;
     if(not replaceLine $s, $startRegex, $lineReplacement){
-      chomp $s;
-      $s .= "\n" unless $s eq "";
-      $s .= "$lineReplacement\n";
+      if(length $s > 0 and $s !~ /\n$/){
+        $s .= "\n";
+      }
+      my $trailingEmptyLines = "";
+      if($s =~ s/\n(\n*)$/\n/){
+        $trailingEmptyLines = $1;
+      }
+      $s .= "$lineReplacement\n$trailingEmptyLines";
     }
     $_[0] = $s;
 }
@@ -519,6 +524,63 @@ sub editSimpleConf($$$) {
             replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
         }
         $cnts
+    };
+}
+
+sub editIni($$$) {
+    my ($name, $patchname, $sectionConfig) = @_;
+    editFile $name, $patchname, sub {
+        my $cnts = shift;
+
+        my $curSectionName = undef;
+        my $curSectionLines = undef;
+        my @sectionNames;
+        my %sectionLines;
+
+        #parse out existing sections
+        for my $line(split /^/, $cnts){
+          if($line =~ /^\s*\[(.+)\]\s*$/){
+            $curSectionName = $1;
+            $curSectionLines = undef;
+          }
+          if(not defined $curSectionLines){
+            $curSectionName = "" if not defined $curSectionName;
+            $curSectionLines = [];
+            if(defined $sectionLines{$curSectionName}){
+              die "duplicate INI section name: \"$curSectionName\"\n";
+            }
+            $sectionLines{$curSectionName} = $curSectionLines;
+            push @sectionNames, $curSectionName;
+          }
+          push @{$curSectionLines}, $line;
+        }
+
+        #add new empty sections to the parsed sections
+        for my $cfgSectionName(sort keys %$sectionConfig){
+          if(not defined $sectionLines{$cfgSectionName}){
+            push @sectionNames, $cfgSectionName;
+            my $cfgSectionLines = [];
+            push @$cfgSectionLines, "[$cfgSectionName]\n";
+            push @$cfgSectionLines, "\n";
+            $sectionLines{$cfgSectionName} = $cfgSectionLines;
+          }
+        }
+
+        #modify the parsed sections
+        $cnts = "";
+        for my $sectionName(@sectionNames){
+          my @lines = @{$sectionLines{$sectionName}};
+          my $sectionContents = join "", @lines;
+          my $cfg = $$sectionConfig{$sectionName};
+          if(defined $cfg){
+            for my $key(sort keys %$cfg){
+              my $val = $$cfg{$key};
+              replaceOrAddLine $sectionContents, $key, "$key=$val";
+            }
+          }
+          $cnts .= $sectionContents;
+        }
+        return $cnts;
     };
 }
 

@@ -6,10 +6,15 @@ my $execDir = "$ENV{HOME}/Games/stepmania/latest/";
 my $exec = "$execDir/stepmania";
 my $confDir = "$ENV{HOME}/.stepmania-5.0";
 
+my $luaNoteFieldPrefs = "$execDir/Themes/_fallback/Scripts/03 notefield_prefs.lua";
+my $luaNoteSkin = "$execDir/NoteSkins/default/noteskin.lua";
+
 my $saveDir = "$confDir/Save";
 my $machineProfileDir = "$confDir/Save/MachineProfile";
 
-my $defaultScreen = '';
+my $defaultSpeedMod = "375";
+my $defaultSpeedType = "maximum";  #maximum constant multiple
+my $defaultScreen = 'ScreenSelectMusic';
 
 my $prefs = {
   'Options' => {
@@ -39,6 +44,18 @@ my $prefs = {
   'Game-dance' => {
     Announcer                 => '', #MAX2
   },
+};
+
+my $noteFieldPrefs = {
+  speed_mod => $defaultSpeedMod,
+  speed_type => "\"$defaultSpeedType\"",
+};
+
+my $noteSkinPrefs = {
+  particle_dist => 32,   #skin_parameters.explosions.particle_dist
+  particle_size => 4,    #skin_parameters.explosions.particle_size
+  num_particles => 8,    #skin_parameters.explosions.num_particles
+  warning_time  => 0,    #skin_parameters.receptors.warning_time
 };
 
 my $fullscreenUpCmd = "
@@ -95,14 +112,13 @@ my @okScreens = qw(
 my %okScreensHash = map {$_ => 1} @okScreens;
 
 sub generateKeymap($$);
-sub commentLine($$);
-sub replaceLine($$$);
 sub readLines($);
 sub writeLines($@);
 sub readConf($);
 sub writeConf($);
 sub modifyConf($$);
 sub replaceConf($$);
+sub editExistingLuaPrefs($$);
 
 my $usage = "Usage:
   $0 -h|--help
@@ -176,9 +192,26 @@ sub main(@){
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
   replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
+
+  editExistingLuaPrefs $luaNoteFieldPrefs, $noteFieldPrefs;
+  editExistingLuaPrefs $luaNoteSkin, $noteSkinPrefs;
+
   my $fullscreen = $$prefs{Options}{Windowed} == 0;
   system "bash", "-c", $fullscreenUpCmd if $fullscreen;
-  system $exec, [];
+  open CMD, "-|", $exec;
+  while(my $line = <CMD>){
+    print $line;
+    if(not $fullscreen and $line =~ /^Display:/){
+      system "xdotool",
+         "search", "--classname", '^StepMania 5$',
+         "windowunmap",
+         "windowmap",
+         "windowsize", $$prefs{Options}{DisplayWidth}, $$prefs{Options}{DisplayHeight},
+         "windowmove", 100, 100,
+         ;
+    }
+  }
+  close CMD;
   system "bash", "-c", $fullscreenDownCmd if $fullscreen;
 }
 
@@ -225,36 +258,6 @@ sub generateKeymap($$){
     }
   }
   return {'dance' => \%keymap};
-}
-
-sub commentLine($$){
-  my ($file, $regex) = @_;
-  my @lines = readLines $file;
-  my $ok = 0;
-  for my $line(@lines){
-    if($line =~ /$regex/){
-      $line =~ s/^#*/#/;
-      $ok = 1;
-    }
-  }
-  die "Could not find line in $file: $regex\n" if not $ok;
-  writeLines $file, @lines;
-}
-
-sub replaceLine($$$){
-  my ($file, $regex, $newLine) = @_;
-  my @lines = readLines $file;
-  my $ok = 0;
-  for my $line(@lines){
-    if($line =~ /$regex/){
-      $line = $newLine;
-      chomp $line;
-      $line .= "\n";
-      $ok = 1;
-    }
-  }
-  die "Could not find line in $file: $regex\n" if not $ok;
-  writeLines $file, @lines;
 }
 
 sub readLines($){
@@ -327,6 +330,20 @@ sub replaceConf($$){
   open FH, "> $file" or die "Couldnt open $file for writing.\n";
   print FH $content;
   close FH;
+}
+
+sub editExistingLuaPrefs($$){
+  my ($file, $prefs) = @_;
+  my @lines = readLines $file;
+  for my $key(sort keys %$prefs){
+    my $val = $$prefs{$key};
+    for my $line(@lines){
+      if($line =~ s/(\s*)($key)(\s*)=(\s*)("[^"]*"|[^,]*)(,?)$/$1$key$3=$4$val$6/){
+        last;
+      }
+    }
+  }
+  writeLines $file, @lines;
 }
 
 main(@ARGV);

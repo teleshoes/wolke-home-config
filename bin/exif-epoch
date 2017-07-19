@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub main(@){
+  for my $file(@_){
+    die "not a file: $file\n" if not -f $file;
+    open FH, "-|", "exif", "-m", $file;
+    my @lines = <FH>;
+    close FH;
+    die "error running exif on $file\n" if $? != 0;
+    my @dates;
+    for my $line(@lines){
+      if($line =~ /^Date and Time[^\t]*\t(.+)$/){
+        my $dt = $1;
+        if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
+          my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
+          my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
+          chomp $s;
+          if($s !~ /^\d+$/){
+            die "malformed date output: $s\n";
+          }
+          push @dates, $s;
+        }else{
+          die "malformed date line: $line";
+        }
+      }
+    }
+    if(@dates == 0){
+      die "no date time found for: $file";
+    }
+    my $date = $dates[0];
+    for my $d(@dates){
+      if($d != $date){
+        die "mismatched date tags for $file: $d != $date\n";
+      }
+    }
+    if(@_ == 1){
+      print "$date\n";
+    }else{
+      print "$date $file\n";
+    }
+  }
+}
+
+&main(@ARGV);

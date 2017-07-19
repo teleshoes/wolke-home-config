@@ -1,0 +1,115 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my @exts = qw(
+  jpg jpeg png gif mpo
+  avi m2ts mts mov mkv mpeg mpg mp4
+);
+my $okExts = "(?:" . (join "|", @exts) . ")";
+
+my $usage = "Usage:
+  $0 [FILE FILE ...]
+    rename all 'FILE's using the exif 'Date and Time' or the file's mtime
+    FILE must end in '.' followed by @exts
+";
+
+sub exifEpoch($);
+sub run(@);
+
+sub main(@){
+  for my $arg(@_){
+    die $usage if not -f $arg;
+  }
+  my @files = @_;
+  for my $file(@files){
+    if(-f $file){
+      my ($dir, $fileName, $ext);
+      if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
+        ($dir, $fileName, $ext) = ($1, $2, $3);
+      }else{
+        die "$file did not end in one of: @exts\n";
+      }
+      $dir = "" if not defined $dir;
+      my $epoch = exifEpoch $file;
+      if(not defined $epoch){
+        my $mtime = (stat $file)[9];
+        $epoch = $mtime;
+      }
+      my $dateFmt = `date --date \@$epoch +'%Y%m%d_%H%M%S'`;
+      chomp $dateFmt;
+
+      if($fileName =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_(\d+_)?(.+)$/){
+        my ($y, $m, $d, $hr, $min, $sec, $seq, $name) = ($1, $2, $3, $4, $5, $6, $7, $8);
+        my $oldDateEpoch = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
+        chomp $oldDateEpoch;
+        my $diff = $epoch - $oldDateEpoch;
+        $diff = 0-$diff if $diff < 0;
+        if($diff > 60*60*24){
+          print STDERR "WARNING: old date prefix disagrees by more than a day $file ($oldDateEpoch vs $epoch)\n";
+        }
+        $fileName = $name;
+      }
+
+      my $newFile = "${dir}${dateFmt}_${fileName}.${ext}";
+      my $count = 0;
+      while(-f $newFile and $file ne $newFile){
+        $count++;
+        $newFile = "$dir${dateFmt}_${fileName}_${count}.${ext}";
+      }
+      if($file eq $newFile){
+        print "skipping $file\n";
+      }else{
+        run "mv", "--no-clobber", $file, $newFile;
+      }
+    }
+  }
+}
+
+sub exifEpoch($){
+  my ($file) = @_;
+  if($file !~ /\.(jpg|jpeg)/i){
+    return undef;
+  }
+  open EXIF, "-|", "exif", "-m", $file;
+  my @lines = <EXIF>;
+  close EXIF;
+  die "error running exif on $file\n" if $? != 0;
+  my @dates;
+  for my $line(@lines){
+    if($line =~ /^Date and Time[^\t]*\t(.+)$/){
+      my $dt = $1;
+      if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
+        my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
+        my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
+        chomp $s;
+        if($s !~ /^\d+$/){
+          die "malformed date output: $s\n";
+        }
+        push @dates, $s;
+      }else{
+        die "malformed date line: $line";
+      }
+    }
+  }
+  if(@dates == 0){
+    die "no date time found for: $file";
+  }
+  my $date = $dates[0];
+  for my $d(@dates){
+    if($d != $date){
+      print STDERR "WARNING: mismatched date tags for $file: $d != $date\n";
+      if($d < $date){
+        $date = $d;
+      }
+    }
+  }
+  return $date;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

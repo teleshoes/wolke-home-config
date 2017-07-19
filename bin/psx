@@ -1,3 +1,60 @@
-imgDir="/media/home/wolke/Games/psx"
-img="$imgDir/Crash Bandicoot2- Cortex Strikes Back/SCUS 94154.img"
-pcsx -cdfile "$img" -load 5 -nogui
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $ISO_DIR = "$ENV{HOME}/Games/psx";
+
+my $usage = "Usage:
+  $0
+    run: pcsxr
+
+  $0 IMG_FILE
+    run: pcsxr -cdfile ISO_IMG
+
+    IMG_FILE can be a path to a file,
+      or a file relative to $ISO_DIR
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE:  the full cmdline as a string
+    COMP_POINT: the cursor position in the cmdline
+";
+
+sub main(@){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }elsif(@_ == 1 and (-f $_[0] or -f "$ISO_DIR/$_[0]")){
+    my $img = $_[0];
+    $img = "$ISO_DIR/$img" if -f "$ISO_DIR/$img";
+    exec "pcsxr", "-cdfile", $img;
+  }elsif(@_ == 0){
+    exec "pcsxr";
+  }else{
+    die $usage;
+  }
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $cur = pop @words if not $isNewWord;
+
+  if(@words == 0){
+    my @imgs = glob "$ISO_DIR/*.*";
+    s/^$ISO_DIR\/// foreach @imgs;
+    return @imgs;
+  }else{
+    return ();
+  }
+}
+
+&main(@ARGV);
+>>>>>>> master

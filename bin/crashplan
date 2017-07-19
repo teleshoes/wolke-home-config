@@ -7,7 +7,6 @@ use Date::Format qw(time2str);
 use File::Tee qw(tee);
 
 sub getCrashplanPid();
-sub printBackupSets(@);
 sub backupLogs();
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
@@ -16,6 +15,7 @@ sub filterLog($$$);
 sub parseLog($);
 sub parseLatestSync();
 sub formatSync($);
+sub formatBackupSetList(@);
 sub formatBackupSet($);
 sub parseSizeMiB($);
 sub parseSpeedMbps($);
@@ -23,6 +23,7 @@ sub padl($$);
 sub padr($$);
 sub formatTime($);
 sub ymd($);
+sub writeStatus($);
 sub run(@);
 sub tryrun(@);
 sub bashComplete($$);
@@ -37,6 +38,7 @@ my $historyLogFile = "$dir/log/history.log.0";
 my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
 my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
+my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
 my $initialScanDelayMillis = 15 * 1000;
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
@@ -153,7 +155,7 @@ sub main(@){
 
     my @backupSets = getFilteredBackupSets($logfile, $maxTimeAgoMillis, $exactDate, 1);
     @backupSets = grep {$$_{backupName} eq $backupName} @backupSets if defined $backupName;
-    printBackupSets @backupSets;
+    print formatBackupSetList @backupSets;
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
     exec "sudo", $engineExec, $cmd;
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
@@ -181,24 +183,6 @@ sub getCrashplanPid(){
   }
 }
 
-sub printBackupSets(@){
-  my %counts;
-  for my $backupStatus(@ALL_STATUSES){
-    $counts{$backupStatus} = 0;
-    print "===$backupStatus===\n";
-    for my $backupSet(@_){
-      if($$backupSet{backupStatus} eq $backupStatus){
-        $counts{$backupStatus}++;
-        print formatBackupSet($backupSet);
-      }
-    }
-  }
-  print "======\n";
-  if($counts{$STATUS_COMPLETE} == 0){
-    print "\n\n======\nWARNING: NO BACKUPS COMPLETED!!!!!!!\n======\n\n";
-  }
-}
-
 sub backupLogs(){
   print "\n\n";
   if(not tryrun "rsync", "-avP", "$dir/log/", $logBackupDir){
@@ -218,22 +202,28 @@ sub runBackup($){
   tee STDOUT, '>>', $backupLogFile;
   tee STDERR, '>>', $backupLogFile;
 
-  my $startMillis = time*1000.0;
+  writeStatus "STARTING BACKUP";
+
   my @initialBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   my %excludeBackupIds = map {$$_{backupId} => 1} @initialBackupSets;
 
+  writeStatus "STOPPING CRASHPLAN";
   run $0, "stop";
   if(defined getCrashplanPid()){
     die "crashplan is still running...\n";
   }
 
+  writeStatus "STARTING CRASHPLAN";
   run $0, "start";
+  writeStatus "WAITING TO START SCAN";
   print "sleeping " . int($initialScanDelayMillis/1000) . "s before scanning\n";
   sleep $initialScanDelayMillis/1000.0;
+  writeStatus "STARTING SCAN";
   run $0, "scan";
 
   my $crashplanPid = getCrashplanPid();
   if(not defined $crashplanPid){
+    writeStatus "ERROR: crashplan did not start";
     print "crashplan apparently did not start\n";
     print "stopping again just in case...\n";
     run $0, "stop";
@@ -254,10 +244,9 @@ sub runBackup($){
   my $errorMsg = undef;
 
   my $finishedMillis;
+  my $startMillis = time*1000.0;
   while(time*1000.0 < $startMillis + $backupLimitMillis){
-    my $toSleepMillis = $startMillis + $backupLimitMillis - time*1000.0;
-    $toSleepMillis = $checkCompleteIntervalMillis if $toSleepMillis > $checkCompleteIntervalMillis;
-    sleep $toSleepMillis/1000.0;
+    sleep $checkCompleteIntervalMillis/1000.0;
 
     my $sync = parseLatestSync();
     if(defined $sync){
@@ -299,27 +288,33 @@ sub runBackup($){
     if($isDone and not defined $finishedMillis){
       $finishedMillis = time * 1000.0;
       print "\n\n";
-      printBackupSets @newBackupSets;
+      print formatBackupSetList @newBackupSets;
       my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
       print "\n\n";
       print "backup tentatively complete after ${elapsed}s\n";
       print "waiting ${assertCompleteMillis}ms to make sure it stays finished\n";
+      writeStatus "TENTATIVELY COMPLETE\n" . formatBackupSetList @newBackupSets;
     }elsif($isDone and (time*1000.0 - $finishedMillis) > $assertCompleteMillis){
       my $elapsed = sprintf "%d", (time * 1000.0 - $startMillis) / 1000.0;
       print "\n\n";
       print "backup seems complete after ${elapsed}s\n";
       print "stopping crashplan\n";
+      writeStatus "COMPLETE\n" . formatBackupSetList @newBackupSets;
       last;
     }elsif(not defined $newPid or $newPid != $crashplanPid){
       print "\n\n";
       $errorMsg = "ERROR: crashplan stopped running on its own\n";
       print $errorMsg;
+      writeStatus "ERROR: crashplan died\n" . formatBackupSetList @newBackupSets;
       last;
     }elsif($newPid != $crashplanPid){
       print "\n\n";
       $errorMsg = "ERROR: crashplan restarted with a new pid ($crashplanPid => $newPid)\n";
       print $errorMsg;
+      writeStatus "ERROR: crashplan restarted\n" . formatBackupSetList @newBackupSets;
       last;
+    }else{
+      writeStatus "WAITING FOR BACKUP TO END\n" . formatBackupSetList @newBackupSets;
     }
   }
 
@@ -329,11 +324,15 @@ sub runBackup($){
   my @newBackupSets = getFilteredBackupSets($historyLogFile, $recentLogMillis, undef, $ignoreDuplicateFailures);
   @newBackupSets = grep {not defined $excludeBackupIds{$$_{backupId}}} @newBackupSets;
 
-  printBackupSets @newBackupSets;
+  print formatBackupSetList @newBackupSets;
+
+  writeStatus "ENDED (backing up logs)\n" . formatBackupSetList @newBackupSets;
 
   backupLogs();
 
-  printBackupSets @newBackupSets;
+  print formatBackupSetList @newBackupSets;
+
+  writeStatus "ENDED\n" . formatBackupSetList @newBackupSets;
 
   if(defined $errorMsg){
     print "\n\n$errorMsg\n";
@@ -634,6 +633,27 @@ sub formatSync($){
   return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}";
 }
 
+sub formatBackupSetList(@){
+  my @backupSets = @_;
+  my $msg = "";
+  my %counts;
+  for my $backupStatus(@ALL_STATUSES){
+    $counts{$backupStatus} = 0;
+    $msg .= "===$backupStatus===\n";
+    for my $backupSet(@backupSets){
+      if($$backupSet{backupStatus} eq $backupStatus){
+        $counts{$backupStatus}++;
+        $msg .= formatBackupSet($backupSet);
+      }
+    }
+  }
+  $msg .= "======\n";
+  if($counts{$STATUS_COMPLETE} == 0){
+    $msg .= "\n\n======\nWARNING: NO BACKUPS COMPLETED!!!!!!!\n======\n\n";
+  }
+  return $msg;
+}
+
 sub formatBackupSet($){
   my ($set) = @_;
 
@@ -761,6 +781,17 @@ sub formatTime($){
 sub ymd($){
   my ($t) = @_;
   return time2str "%Y-%m-%d", $t;
+}
+
+sub writeStatus($){
+  my $msg = shift;
+  my $date = `date`;
+  chomp $date;
+  chomp $msg;
+  $msg = "$date\n$msg\n";
+  open FH, "> $curStatusFile" or die "could not write $curStatusFile\n$!\n";
+  print FH $msg;
+  close FH;
 }
 
 sub run(@){

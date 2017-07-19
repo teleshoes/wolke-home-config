@@ -82,7 +82,7 @@ xmoKeys conf = "XMonad" @@ do
 shortcuts conf = "Shortcuts" @@ do
     "off"               @@ [m_ xK_Power, mA xK_Esc] #! "off g"
     "term"              @@ m_    xK_Think#! "term"
-    "term"              @@ m_    xK_Audio#! "term"
+    "term"              @@ m_    xK_AMdia#! "term"
     "term"              @@ m_    xK_Tools#! "term"
     "term auto-cwd"     @@ mA    xK_Tools#! "term -acd"
     "ghci"              @@ mC    xK_Tools#! "term ghci"
@@ -92,7 +92,7 @@ shortcuts conf = "Shortcuts" @@ do
     "ghci"              @@ mC    xK_Think#! "term ghci"
     "bgset --next"      @@ mW    xK_w    #! "bgset --next"
     "bgset --prev"      @@ mWS   xK_w    #! "bgset --prev"
-    "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Desktop/Pictures/Screenshots"
+    "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Pictures/Screenshots"
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen Off Idle"   @@ mW    xK_s    #! "sleep 0.5; screenOff"
     "Screen On/Off"     @@ mCW   xK_s    #! "screenpwr"
@@ -135,7 +135,8 @@ shortcuts conf = "Shortcuts" @@ do
         "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
 
     "iguana IR"     @@ do
-        "A/C power"     @@ mC    xK_F1   #! "nuc igcmd ac-power"
+        "A/C toggle"    @@ mC    xK_F1   #! "term ac toggle"
+        "A/C power"     @@ mCS   xK_F1   #! "nuc igcmd ac-power"
         "A/C mode"      @@ mC    xK_F3   #! "nuc igcmd ac-mode"
 
     "CEC power"     @@ do
@@ -210,6 +211,10 @@ shortcuts conf = "Shortcuts" @@ do
         "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
+
+    "Klomp media keys"    @@ do
+        "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"
+        "pause/play"  @@ m_    xK_APaus#! "klomp-cmd pause"
 
     "Klomp nuc"     @@ do
         "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"

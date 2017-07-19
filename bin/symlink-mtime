@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 SYMLINK [SYMLINK SYMLINK ..]
+    for each symbolic link given:
+    update the mtime of the link to match the target (source) file
+    using GNU readlink
+      a la:
+      `touch -m -h SYMLINK -r `readlink -f SYMLINK`
+";
+
+sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+
+  my @symlinks = @_;
+  for my $symlink(@symlinks){
+    if(not -l $symlink){
+      print STDERR "WARNING: not a symlink, ignoring: $symlink\n";
+    }
+    open RDL, "-|", "readlink", "-f", "-e", $symlink;
+    my $symTarget = <RDL>;
+    close RDL;
+    chomp $symTarget;
+
+    die "error running readlink -f -e on $symlink\n" if $? != 0 or not -e $symTarget;
+    my @cmd = ("touch", "-m", "-h", $symlink, "-r", $symTarget);
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+&main(@ARGV);
