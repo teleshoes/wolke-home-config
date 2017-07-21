@@ -40,7 +40,6 @@ pagerConfig icons cfg = defaultPagerConfig
   , useImages        = True
   , imageSize        = wsImageHeight cfg
   , fillEmptyImages  = True
-  , preferCustomIcon = False
   , customIcon       = selectImage icons
   }
 

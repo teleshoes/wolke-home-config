@@ -45,17 +45,17 @@ getSpecial winTitle winClass
   | winClass ~~ "urxvt" = Just "terminal"
   | otherwise = Nothing
 
-selectImageName :: [String] -> String -> String -> Maybe String
-selectImageName imgNames winTitle winClass = listToMaybe $ catMaybes maybeNames
+selectImageName :: [String] -> Bool -> String -> String -> Maybe String
+selectImageName imgNames hasIcon winTitle winClass = listToMaybe $ catMaybes maybeNames
   where nTitle = listToMaybe $ filter (winTitle ~~) imgNames
         nClass = listToMaybe $ filter (winClass ~~) imgNames
         nSpecial = getSpecial winTitle winClass
         nUnknown = Just "unknown"
-        maybeNames = [nSpecial, nClass, nTitle, nUnknown]
+        maybeNames = if hasIcon then [nSpecial] else [nSpecial, nClass, nTitle, nUnknown]
 
-selectImage :: [(String, FilePath)] -> String -> String -> Maybe FilePath
-selectImage icons winTitle winClass = maybeFilePath maybeName
+selectImage :: [(String, FilePath)] -> Bool -> String -> String -> Maybe FilePath
+selectImage icons hasIcon winTitle winClass = maybeFilePath maybeName
   where imageNames = map fst icons
-        maybeName = selectImageName imageNames winTitle winClass
+        maybeName = selectImageName imageNames hasIcon winTitle winClass
         maybeFilePath (Just name) = lookup name icons
         maybeFilePath Nothing = Nothing
