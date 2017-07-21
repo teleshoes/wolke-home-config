@@ -42,6 +42,14 @@ my $usage = "Usage:
        --off
          run `pkill ^bigtext\$` and `bigtext -k` (local or with ipmagic)
          ignore options: --once --delay --height --width
+
+       --toggle
+         check if bigtext is running with:
+           `pgrep ^bigtext\$` (local or with ipmagic)
+         if bigtext is running:
+           run `pkill ^bigtext\$` and `bigtext -k` (same as --off)
+         otherwise:
+           start bigtext normally (this option has no effect if not running)
 ";
 
 sub main(@){
@@ -52,6 +60,7 @@ sub main(@){
   my $height;
   my $width;
   my $off = 0;
+  my $toggle = 0;
 
   while(@_ > 0){
     my $arg=shift;
@@ -69,8 +78,21 @@ sub main(@){
       $width = $1;
     }elsif($arg =~ /^--off$/){
       $off = 1;
+    }elsif($arg =~ /^--toggle$/){
+      $toggle = 1;
     }else{
       die $usage;
+    }
+  }
+
+  if($toggle and not $off){
+    my @pgrepCmd = getIpmagicCommand($ipmagic, $ipmagicUser, 'pgrep', '^bigtext$');
+    open FH, "-|", @pgrepCmd
+      or die "could not run @pgrepCmd\n$!\n";
+    my @procs = <FH>;
+    close FH;
+    if(@procs > 0 and $procs[0] =~ /^\d+$/){
+      $off = 1;
     }
   }
 
