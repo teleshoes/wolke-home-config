@@ -82,8 +82,8 @@ wmLogNew cfg = do
   let pgrCfg = pagerConfig icons cfg
   pager <- pagerNew pgrCfg
 
-  --ws <- buildWorkspaceHUD (hudFromPagerConfig pgrCfg) pager
-  ws <- wspaceSwitcherNew pager
+  ws <- buildWorkspaceHUD (hudFromPagerConfig pgrCfg) pager
+  --ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
 
