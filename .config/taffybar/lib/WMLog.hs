@@ -45,6 +45,8 @@ pagerConfig icons cfg = defaultPagerConfig
   }
 
 wshudConfig pgrCfg = (hudFromPagerConfig pgrCfg)
+  { sortIcons = False
+  }
 
 formatWindowCount :: Int -> String
 formatWindowCount cnt = wcCol $ "[" ++ wcFmt ++ "]"
