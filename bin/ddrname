@@ -138,6 +138,9 @@ my $okBarArgs = join '|', @barArgs;
 my @extraArgs = qw(gfc fc pfc);
 my $okExtraArgs = join '|', @extraArgs;
 
+my @failedArgs = qw(failed);
+my $okFailedArgs = join '|', @failedArgs;
+
 sub getUsage(;$){
   my $msg = shift;
 
@@ -420,11 +423,12 @@ sub getUsage(;$){
        must start with '########_###' and end with '.jpg'
 
      ARG
-       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|EXTRA]
+       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|EXTRA|FAILED]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
        exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
        exactly zero or one EXTRA args can be given  {optional}
+       exactly zero or one FAILED args can be given  {optional}
 
      SONG
        song name from $SONG_LIST_FILE
@@ -462,6 +466,9 @@ sub getUsage(;$){
 
      STAGE
        one of [$okStageArgs]
+
+     FAILED
+       one of [$okFailedArgs]  {optional; name will start with \"reminder_failed\"}
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -1072,6 +1079,7 @@ sub name(@){
 
   my $newFileName = '';
   $newFileName .= "$prefix";
+  $newFileName .= "_reminder_failed" if defined $$info{failed};
   $newFileName .= "_$$info{song}";
   $newFileName .= "_$$info{game}" if $$info{game} ne $singlesGameArg;
   $newFileName .= "_$$info{difficulty}";
@@ -1117,6 +1125,9 @@ sub parseArgs(@){
     }elsif($arg =~ /^($okStageArgs)$/){
       return undef if defined $$info{stage};
       $$info{stage} = $arg;
+    }elsif($arg =~ /^($okFailedArgs)$/){
+      return undef if defined $$info{failed};
+      $$info{failed} = "FAILED";
     }else{
       return undef;
     }
@@ -1761,6 +1772,7 @@ sub bashComplete($$){
   #@complete = (@extraArgs, @complete) if not defined $$info{extra};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
   @complete = (@stageArgs, @complete) if not defined $$info{stage};
+  @complete = (@failedArgs, @complete) if not defined $$info{failed};
 
   @complete = ("reminder_", "reminder_closeup_", @complete) if @words == 0;
 
