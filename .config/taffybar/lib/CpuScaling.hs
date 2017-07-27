@@ -17,45 +17,25 @@ main = mainLabel cpuScalingReader
 cpuScalingW = labelW cpuScalingReader
 
 width = 2
-defaultGovernor = "performance"
 
-tmpFile = "/tmp/cpu-scaling"
 cpuDir = "/sys/devices/system/cpu"
 
 cpuScalingReader = do
   cpu <- readCpu
   case cpu of
     Left err -> return err
-    Right cur@(curGov, curMinFreq, curMaxFreq, curAvail) -> do
-      let defMin = head curAvail
-      let defMax = last curAvail
-      tmp@(tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) <-
-        readTmp (defaultGovernor, defMin, defMax)
-      let mismatchErr = getMismatchError cur tmp
-      case mismatchErr of
-        Just msg -> do
-          cpuSet tmpGov tmpMinFreq tmpMaxFreq
-          return $ "running cpu-set: " ++ msg
-        Nothing -> return $ formatScaling cur
+    Right cur -> return $ formatScaling cur
 
 cpuGovW = labelW $ do
   gov <- readGov
   case gov of
     Left err -> return err
-    Right curGov -> do
-      tmp@(tmpGov, _, _, _) <- readTmp (defaultGovernor, 0, 0)
-      if curGov /= tmpGov then do
-          cpuSetGov tmpGov
-          return $ "running cpu-set " ++ tmpGov
-      else return $ formatGov curGov
+    Right curGov -> return $ formatGov curGov
 
 withErr act msg = EitherT $ note msg <$> act
 
 allEq :: Eq a => [a] -> Bool
 allEq xs = null xs || all (== head xs) (tail xs)
-
-readTmp :: (String, Integer, Integer) -> IO (String, Integer, Integer, Integer)
-readTmp defaults = parseTmpFile defaults <$> chompFile tmpFile
 
 readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
 readCpu = runEitherT $ do
@@ -92,40 +72,6 @@ getCpuFieldIntList :: String -> IO (Maybe [Integer])
 getCpuFieldIntList f = do
   ints <- collectInts <$> fromMaybe "" <$> getCpuField f
   return $ if null ints then Nothing else Just ints
-
-getMismatchError :: (String, Integer, Integer, [Integer])
-               -> (String, Integer, Integer, Integer)
-               -> Maybe String
-getMismatchError cur tmp
-  | gov /= tmpGov = Just "mismatched governor!"
-  | minFreq /= tmpMinFreq = Just "mismatched min freq!"
-  | maxFreq /= tmpMaxFreq = Just "mismatched max freq!"
-  | 0 /= tmpFreq = Just "mismatched exact freq!"
-  | otherwise = Nothing
-  where (gov, minFreq, maxFreq, avail) = cur
-        (tmpGov, tmpMinFreq, tmpMaxFreq, tmpFreq) = tmp
-
-cpuSet :: String -> Integer -> Integer -> IO ()
-cpuSet gov minFreq maxFreq = void $ forkIO $ void $ system cmd
-  where cmd = "sudo cpu-set "
-              ++ gov ++ " " ++ show minFreq ++ " " ++ show maxFreq
-
-cpuSetGov :: String -> IO ()
-cpuSetGov gov = void $ forkIO $ void $ system cmd
-  where cmd = "sudo cpu-set " ++ gov
-
-parseTmpFile :: (String, Integer, Integer) -> String
-             -> (String, Integer, Integer, Integer)
-parseTmpFile (defGov, defMin, defMax) s = parseGroups $ fromMaybe defaults grps
-  where re = ""
-             ++ "governor=(.*)\\n?"
-             ++ "min=(\\d*)\\n?"
-             ++ "max=(\\d*)\\n?"
-             ++ "freq=(\\d*)\\n?"
-        grps = regexGroups re s
-        defaults = [defGov, show defMin, show defMax, ""]
-        parseGroups [g,min,max,freq] = (g, toInt min, toInt max, toInt freq)
-        toInt = fromMaybe 0 . readInt
 
 formatScaling :: (String, Integer, Integer, [Integer]) -> String
 formatScaling (gov, minKHz, maxKHz, avail) = color minKHz maxKHz avail text
