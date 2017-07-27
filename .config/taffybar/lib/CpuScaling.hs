@@ -59,13 +59,13 @@ readTmp defaults = parseTmpFile defaults <$> chompFile tmpFile
 
 readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
 readCpu = runEitherT $ do
-  gov <- getCpuField "governor"
+  gov <- getCpuField "scaling_governor"
          `withErr` "no governor!"
-  minFreq <- getCpuFieldInt "min_freq"
+  minFreq <- getCpuFieldInt "scaling_min_freq"
              `withErr` "no min freq!"
-  maxFreq <- getCpuFieldInt "max_freq"
+  maxFreq <- getCpuFieldInt "scaling_max_freq"
              `withErr` "no max freq!"
-  avail <- sort <$> getCpuFieldInts "available_frequencies"
+  avail <- sort <$> getCpuFieldInts "scaling_available_frequencies"
            `withErr` "no available frequencies!"
   return (gov, minFreq, maxFreq, avail)
 
@@ -77,7 +77,7 @@ readGov = runEitherT $ do
 
 getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
-  where regex = cpuDir ++ "/cpu[0-9]+/cpufreq/scaling_" ++ field
+  where regex = cpuDir ++ "/cpu[0-9]+/cpufreq/" ++ field
 
 getCpuField :: String -> IO (Maybe String)
 getCpuField field = do
