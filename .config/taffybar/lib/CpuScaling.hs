@@ -77,7 +77,7 @@ readGov = runEitherT $ do
 
 getDevices :: String -> IO [String]
 getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
-  where regex = cpuDir ++ "/cpu[0-9]+/cpufreq/" ++ field
+  where regex = cpuDir ++ "/cpufreq/policy[0-9]+/" ++ field
 
 getCpuField :: String -> IO (Maybe String)
 getCpuField field = do
