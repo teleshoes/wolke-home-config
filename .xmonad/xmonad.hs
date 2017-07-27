@@ -44,8 +44,6 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 
 ffExec = "iceweasel"
 ffName = "Iceweasel"
-tbExec = "icedove"
-tbName = "Icedove"
 
 relToHomeDir file = (</> file) <$> getHomeDirectory
 
@@ -86,7 +84,6 @@ myManageHook = execWriter $ do
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
-  className =? tbName                  ~~> doShift "8"
   title     =? "email-gui.py"          ~~> doShift "8"
   title     =? "qtemail-daemon"        ~~> doShift "9"
   className =? "feh"                   ~~> doFloat
