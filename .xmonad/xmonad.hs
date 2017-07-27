@@ -15,7 +15,9 @@ import XMonad (
   sendMessage, io, spawn, killWindow, liftX, refresh, windows)
 import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageHelpers (doFullFloat, isFullscreen)
-import XMonad.Hooks.ManageDocks (avoidStruts, docksEventHook, SetStruts(..), manageDocks)
+import XMonad.Hooks.ManageDocks (
+  SetStruts(..),
+  avoidStruts, docksEventHook, docksStartupHook, manageDocks)
 import XMonad.Layout.Grid (Grid(..))
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
@@ -54,7 +56,7 @@ main = xmonad . ewmh . pagerHints $ def
   , borderWidth        = 3
 
   , handleEventHook    = myEventHook <+> docksEventHook
-  , startupHook        = myStartupHook
+  , startupHook        = myStartupHook <+> docksStartupHook
   , layoutHook         = myLayoutHook
   , manageHook         = myManageHook <+> manageDocks
 
