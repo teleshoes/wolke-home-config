@@ -163,5 +163,5 @@ instance Functor Bindings where
     fmap f (Binds s bs) = Binds s $ fmap f bs
     fmap f (BList s bs) = BList s $ fmap (fmap f) bs
 
-instance Show (PrettyBind a) => Show (BW ((KeyMask, a), b)) where
+instance {-# OVERLAPPING #-} Show (PrettyBind a) => Show (BW ((KeyMask, a), b)) where
     show = prettyBindingsIndented
