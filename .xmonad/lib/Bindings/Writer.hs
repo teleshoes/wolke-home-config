@@ -88,7 +88,7 @@ bindingPaths = go . execWriter
             slashes = many1 alphaNum `sepBy2` string "/"
             sepBy2 p s = (:) <$> (p <* s) <*> (p `sepBy1` s)
 
-prettyBindingsFlat :: Integral a => BW ((KeyMask, KeySym), b) -> String
+prettyBindingsFlat :: BW ((KeyMask, KeySym), b) -> String
 prettyBindingsFlat = concatMap format . bindingPaths
   where
     format ((m,k),d) = concat [prettyMod m," ",prettyKey k," ",init.tail.show.tail$d,"\n"]
