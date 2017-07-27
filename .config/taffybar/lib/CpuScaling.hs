@@ -65,7 +65,7 @@ readCpu = runEitherT $ do
              `withErr` "no min freq!"
   maxFreq <- getCpuFieldInt "scaling_max_freq"
              `withErr` "no max freq!"
-  avail <- sort <$> getCpuFieldInts "scaling_available_frequencies"
+  avail <- sort <$> getCpuFieldIntList "scaling_available_frequencies"
            `withErr` "no available frequencies!"
   return (gov, minFreq, maxFreq, avail)
 
@@ -88,8 +88,8 @@ getCpuField field = do
 getCpuFieldInt :: String -> IO (Maybe Integer)
 getCpuFieldInt f = readInt <$> fromMaybe "" <$> getCpuField f
 
-getCpuFieldInts :: String -> IO (Maybe [Integer])
-getCpuFieldInts f = do
+getCpuFieldIntList :: String -> IO (Maybe [Integer])
+getCpuFieldIntList f = do
   ints <- collectInts <$> fromMaybe "" <$> getCpuField f
   return $ if null ints then Nothing else Just ints
 
