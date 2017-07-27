@@ -32,6 +32,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
 import Data.Monoid (All(..))
+import Data.Function ((&))
 import System.FilePath ((</>))
 import System.Directory (getHomeDirectory)
 
@@ -57,7 +58,7 @@ main = xmonad . ewmh . pagerHints $ def
 
   , handleEventHook    = myEventHook <+> docksEventHook
   , startupHook        = myStartupHook <+> docksStartupHook
-  , layoutHook         = myLayoutHook
+  , layoutHook         = myLayoutHook & avoidStruts
   , manageHook         = myManageHook <+> manageDocks
 
   , workspaces         = workspaceNames
@@ -70,7 +71,7 @@ myStartupHook = do
   io $ tryWriteKeyBindingsCache =<< relToHomeDir ".cache/xmonad-bindings"
   io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
-myLayoutHook = avoidStruts . smartBorders
+myLayoutHook = smartBorders
              $   named "left" (Tall 1 incr ratio)
              ||| named "top"  (Mirror $ Tall 1 incr ratio)
              ||| named "full" Full
