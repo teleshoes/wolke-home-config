@@ -209,6 +209,7 @@ shortcuts conf = "Shortcuts" @@ do
         "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
+        "bigtext"     @@ mW    xK_d    #! "klomp-bigtext --height=1042 --width=1910 -w --toggle"
 
     "Klomp media keys"    @@ do
         "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"
