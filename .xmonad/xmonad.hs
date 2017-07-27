@@ -78,6 +78,7 @@ myLayoutHook = avoidStruts . smartBorders
 myManageHook = execWriter $ do
   let a ~~> b = tell (a --> b)
   isFullscreen ~~> doFullFloat
+  className =? "Qtbigtext.py"          ~~> doUnfloat --only unfloats non-fullscreen
   title     =? "Find/Replace "         ~~> doFloat
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
   title     =? "GWT Development Mode"  ~~> doShift "G"
