@@ -9,13 +9,28 @@ my @exts = qw(
 my $okExts = "(?:" . (join "|", @exts) . ")";
 
 my $usage = "Usage:
-  $0 SRC_DIR DEST_DIR
+  $0 [OPTS] SRC_DIR DEST_DIR
+
+  OPTS
+    -n|-s
+      dryrun/simulate
+      make no changes
 ";
 
 sub getInfo($);
 sub run(@);
 
 sub main(@){
+  my $dryrun = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-n|-s)$/){
+      $dryrun = 1;
+    }else{
+      die $usage;
+    }
+  }
+
   die $usage if @_ != 2 or not -d $_[0] or not -d $_[1];
 
   my ($srcDir, $destDir) = @_;
@@ -44,20 +59,27 @@ sub main(@){
       }
       my $destFile = "$destDir/$newFileName";
       if(not -e $destFile){
-        run "cp", "-ar", "--reflink=auto", $srcFile, $destFile;
+        my @cmd = ("cp", "-ar", "--reflink=auto", $srcFile, $destFile);
+        if($dryrun){
+          print "dryrun: @cmd\n";
+        }else{
+          run @cmd;
+        }
       }else{
         print "skipping $srcFile\n";
       }
-      if(not -f $destFile){
-        die "failed to copy: $srcFile\n";
-      }
-      my $srcInfo = getInfo $srcFile;
-      my $destInfo = getInfo $destFile;
-      if($$srcInfo{size} != $$destInfo{size}){
-        die "FAILURE: mismatched filesize for $destFile\n";
-      }
-      if($$srcInfo{mtime} != $$destInfo{mtime}){
-        die "FAILURE: mismatched mtime for $destFile\n";
+      if(not $dryrun){
+        if(not -f $destFile){
+          die "failed to copy: $srcFile\n";
+        }
+        my $srcInfo = getInfo $srcFile;
+        my $destInfo = getInfo $destFile;
+        if($$srcInfo{size} != $$destInfo{size}){
+          die "FAILURE: mismatched filesize for $destFile\n";
+        }
+        if($$srcInfo{mtime} != $$destInfo{mtime}){
+          die "FAILURE: mismatched mtime for $destFile\n";
+        }
       }
     }
   }
