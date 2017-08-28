@@ -17,6 +17,7 @@ my $usage = "Usage:
       make no changes
 ";
 
+sub exifEpoch($);
 sub statInfo($);
 sub run(@);
 
@@ -48,8 +49,14 @@ sub main(@){
       }else{
         die "$srcFile did not end in one of: @exts\n";
       }
-      my $mtime = (stat $srcFile)[9];
-      my $dateFmt = `date --date \@$mtime +'%Y%m%d_%H%M%S'`;
+
+      my $epoch = exifEpoch $srcFile;
+      if(not defined $epoch){
+        my $mtime = (stat $srcFile)[9];
+        $epoch = $mtime;
+      }
+
+      my $dateFmt = `date --date \@$epoch +'%Y%m%d_%H%M%S'`;
       chomp $dateFmt;
 
       $fileName =~ s/^${dateFmt}_(?:\d+_)?(.+)$/$1/;
@@ -94,6 +101,47 @@ sub main(@){
   }else{
     print "$filesCopied files copied, $filesSkipped files skipped\n";
   }
+}
+
+sub exifEpoch($){
+  my ($file) = @_;
+  if($file !~ /\.(jpg|jpeg)/i){
+    return undef;
+  }
+  open EXIF, "-|", "exif", "-m", $file;
+  my @lines = <EXIF>;
+  close EXIF;
+  die "error running exif on $file\n" if $? != 0;
+  my @dates;
+  for my $line(@lines){
+    if($line =~ /^Date and Time[^\t]*\t(.+)$/){
+      my $dt = $1;
+      if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
+        my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
+        my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
+        chomp $s;
+        if($s !~ /^\d+$/){
+          die "malformed date output: $s\n";
+        }
+        push @dates, $s;
+      }else{
+        die "malformed date line: $line";
+      }
+    }
+  }
+  if(@dates == 0){
+    die "no date time found for: $file";
+  }
+  my $date = $dates[0];
+  for my $d(@dates){
+    if($d != $date){
+      print STDERR "WARNING: mismatched date tags for $file: $d != $date\n";
+      if($d < $date){
+        $date = $d;
+      }
+    }
+  }
+  return $date;
 }
 
 sub statInfo($){
