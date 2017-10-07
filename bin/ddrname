@@ -1448,8 +1448,6 @@ sub filterScores($$){
     }
   }
 
-  die "no scores found\n" if keys %$scoresByFile == 0;
-
   return $scoresByFile;
 }
 
@@ -1544,7 +1542,25 @@ sub gnuplot($$){
 
   my @plots = $$plotOptions{smooth} ? ($smoothPlot, $notesPlot) : ($linePlot, $notesPlot);
 
-  $script .= "plot " . join(", ", @plots) . "\n";
+  if(@segments > 0){
+    $script .= "plot " . join(", ", @plots) . "\n";
+  }else{
+    my $now = time;
+    my $nowFmt = `date --date \@$now +%Y%m%d`;
+    chomp $nowFmt;
+
+    my $yday = $now - 24*60*60;
+    my $ydayFmt = `date --date \@$yday +%Y%m%d`;
+    chomp $ydayFmt;
+
+    my $emptyPlot = ""
+      . "set yrange [900000:999000]\n"
+      . "set xrange [\"$ydayFmt\":\"$nowFmt\"]\n"
+      . "set xlabel \"no scores found\"\n"
+      . "set ylabel \"no scores found\"\n"
+      . "plot 1/0\n";
+    $script .= $emptyPlot;
+  }
 
   open FH, "> $dataFile" or die "Could not write $dataFile\n";
   print FH $data;
