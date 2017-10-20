@@ -131,6 +131,7 @@ alias time="command time"
 alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
+alias r='stty sane'
 
 function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }
