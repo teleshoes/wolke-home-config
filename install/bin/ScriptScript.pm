@@ -29,7 +29,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getUsername
                   guessBackupDir
                   readConf readConfDir
-                  installFromDir aptSrcInstall
+                  installFromDir aptSrcInstall removeSrcCache
                   installFromGit extractNameFromGitUrl
                 );
 
@@ -78,6 +78,7 @@ sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
 sub aptSrcInstall($$);
+sub removeSrcCache($);
 sub installFromGit($;$);
 sub extractNameFromGitUrl($);
 
@@ -697,6 +698,12 @@ sub aptSrcInstall($$) {
             shell "sudo dpkg -i $file";
         }
     }
+}
+
+sub removeSrcCache($) {
+    my ($name) = (@_);
+    my $srcCache = getSrcCache();
+    run "rm", "-rf", "$srcCache/$name";
 }
 
 sub installFromGit($;$) {
