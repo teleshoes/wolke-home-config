@@ -30,7 +30,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   guessBackupDir
                   readConf readConfDir
                   installFromDir aptSrcInstall removeSrcCache
-                  installFromGit extractNameFromGitUrl
+                  installFromGit removeGitSrcCache extractNameFromGitUrl
                 );
 
 sub getScriptNames();
@@ -80,6 +80,7 @@ sub installFromDir($;$$);
 sub aptSrcInstall($$);
 sub removeSrcCache($);
 sub installFromGit($;$);
+sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
 
 $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
@@ -711,6 +712,12 @@ sub installFromGit($;$) {
     my $name = extractNameFromGitUrl $gitUrl;
     my $srcCache = getSrcCache();
     installFromDir "$srcCache/$name", $gitUrl, $cmd;
+}
+
+sub removeGitSrcCache($) {
+    my ($gitUrl) = (@_);
+    my $name = extractNameFromGitUrl $gitUrl;
+    removeSrcCache $name;
 }
 
 sub extractNameFromGitUrl($){
