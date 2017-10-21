@@ -1,4 +1,4 @@
-module Label(labelW, mainLabel) where
+module Label(labelW, labelDefaultW, mainLabel) where
 import Utils (defaultDelay)
 
 import Control.Concurrent (threadDelay)
@@ -11,7 +11,9 @@ mainLabel printer = forever $ do
   print msg
   threadDelay $ round $ defaultDelay * 10^6
 
-labelW printer = do
-  w <- pollingLabelNew "---" defaultDelay printer
+labelW printer = labelDefaultW "---" printer
+
+labelDefaultW defaultStr printer = do
+  w <- pollingLabelNew defaultStr defaultDelay printer
   widgetShowAll w
   return w

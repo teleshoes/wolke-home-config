@@ -9,14 +9,33 @@ my @exts = qw(
 my $okExts = "(?:" . (join "|", @exts) . ")";
 
 my $usage = "Usage:
-  $0 SRC_DIR DEST_DIR
+  $0 [OPTS] SRC_DIR DEST_DIR
+
+  OPTS
+    -n|-s
+      dryrun/simulate
+      make no changes
 ";
 
-sub getInfo($);
+sub exifEpoch($);
+sub statInfo($);
 sub run(@);
 
 sub main(@){
+  my $dryrun = 0;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-n|-s)$/){
+      $dryrun = 1;
+    }else{
+      die $usage;
+    }
+  }
+
   die $usage if @_ != 2 or not -d $_[0] or not -d $_[1];
+
+  my $filesCopied = 0;
+  my $filesSkipped = 0;
 
   my ($srcDir, $destDir) = @_;
   $srcDir =~ s/\/$//;
@@ -30,8 +49,14 @@ sub main(@){
       }else{
         die "$srcFile did not end in one of: @exts\n";
       }
-      my $mtime = (stat $srcFile)[9];
-      my $dateFmt = `date --date \@$mtime +'%Y%m%d_%H%M%S'`;
+
+      my $epoch = exifEpoch $srcFile;
+      if(not defined $epoch){
+        my $mtime = (stat $srcFile)[9];
+        $epoch = $mtime;
+      }
+
+      my $dateFmt = `date --date \@$epoch +'%Y%m%d_%H%M%S'`;
       chomp $dateFmt;
 
       $fileName =~ s/^${dateFmt}_(?:\d+_)?(.+)$/$1/;
@@ -44,26 +69,82 @@ sub main(@){
       }
       my $destFile = "$destDir/$newFileName";
       if(not -e $destFile){
-        run "cp", "-ar", "--reflink=auto", $srcFile, $destFile;
+        $filesCopied++;
+        my @cmd = ("cp", "-ar", "--reflink=auto", $srcFile, $destFile);
+        if($dryrun){
+          print "dryrun: @cmd\n";
+        }else{
+          run @cmd;
+        }
       }else{
+        $filesSkipped++;
         print "skipping $srcFile\n";
       }
-      if(not -f $destFile){
-        die "failed to copy: $srcFile\n";
-      }
-      my $srcInfo = getInfo $srcFile;
-      my $destInfo = getInfo $destFile;
-      if($$srcInfo{size} != $$destInfo{size}){
-        die "FAILURE: mismatched filesize for $destFile\n";
-      }
-      if($$srcInfo{mtime} != $$destInfo{mtime}){
-        die "FAILURE: mismatched mtime for $destFile\n";
+      if(not $dryrun){
+        if(not -f $destFile){
+          die "failed to copy: $srcFile\n";
+        }
+        my $srcInfo = statInfo $srcFile;
+        my $destInfo = statInfo $destFile;
+        if($$srcInfo{size} != $$destInfo{size}){
+          die "FAILURE: mismatched filesize for $destFile\n";
+        }
+        if($$srcInfo{mtime} != $$destInfo{mtime}){
+          die "FAILURE: mismatched mtime for $destFile\n";
+        }
       }
     }
   }
+
+  if($dryrun){
+    print "dryrun: $filesCopied files copied, $filesSkipped files skipped\n";
+  }else{
+    print "$filesCopied files copied, $filesSkipped files skipped\n";
+  }
 }
 
-sub getInfo($){
+sub exifEpoch($){
+  my ($file) = @_;
+  if($file !~ /\.(jpg|jpeg)/i){
+    return undef;
+  }
+  open EXIF, "-|", "exif", "-m", $file;
+  my @lines = <EXIF>;
+  close EXIF;
+  die "error running exif on $file\n" if $? != 0;
+  my @dates;
+  for my $line(@lines){
+    if($line =~ /^Date and Time[^\t]*\t(.+)$/){
+      my $dt = $1;
+      if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
+        my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
+        my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
+        chomp $s;
+        if($s !~ /^\d+$/){
+          die "malformed date output: $s\n";
+        }
+        push @dates, $s;
+      }else{
+        die "malformed date line: $line";
+      }
+    }
+  }
+  if(@dates == 0){
+    die "no date time found for: $file";
+  }
+  my $date = $dates[0];
+  for my $d(@dates){
+    if($d != $date){
+      print STDERR "WARNING: mismatched date tags for $file: $d != $date\n";
+      if($d < $date){
+        $date = $d;
+      }
+    }
+  }
+  return $date;
+}
+
+sub statInfo($){
   my ($file) = @_;
   my @stat = stat $file;
   return {size=>$stat[7], mtime=>$stat[9]};

@@ -89,6 +89,7 @@ main = do
   writeFile rcFileProfile $ ""
         ++ "# profile: " ++ rcSuf profile ++ "\n"
         ++ "# auto-generated at: " ++ rcFileProfile ++ "\n"
+        ++ "# taffybar-height: " ++ (show $ barHt profile) ++ "\n"
         ++ "\n"
         ++ "style \"taffybar-default\" {\n"
         ++ "  font_name = \"" ++ font ++ "\"\n"

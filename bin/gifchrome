@@ -3,7 +3,10 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 
-sub getHtml($@);
+sub getHtml($$@);
+
+my $autoScrollPx = 25;
+my $autoScrollMillis = 25;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -25,6 +28,9 @@ my $usage = "Usage:
     -n|--nobrowser
       dont launch chromium, print HTML to console
 
+    -a|--autoscroll
+      scroll page slowly
+
     --clickbox
       include a textbox at the bottom
       when an image is clicked, put the image's filename in it
@@ -33,6 +39,7 @@ my $usage = "Usage:
 sub main(@){
   my $prefixDir = undef;
   my $noBrowser = 0;
+  my $autoScroll = 0;
   my $includeClickBox = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -43,6 +50,8 @@ sub main(@){
       $prefixDir = $1;
     }elsif($arg =~ /^(-n|--nobrowser)$/){
       $noBrowser = 1;
+    }elsif($arg =~ /^(-a|--autoscroll)$/){
+      $autoScroll = 1;
     }elsif($arg =~ /^(--clickbox)$/){
       $includeClickBox = 1;
     }else{
@@ -65,7 +74,7 @@ sub main(@){
     @imgPaths = map {abs_path($_)} @gifs;
   }
 
-  my $html = getHtml $includeClickBox, @imgPaths;
+  my $html = getHtml $autoScroll, $includeClickBox, @imgPaths;
 
   if($noBrowser){
     print $html;
@@ -79,10 +88,29 @@ sub main(@){
   }
 }
 
-sub getHtml($@){
-  my ($includeClickBox, @imgAbsPaths) = @_;
+sub getHtml($$@){
+  my ($autoScroll, $includeClickBox, @imgAbsPaths) = @_;
 
   my $html = '';
+  $html .= "<html>";
+  $html .= "<head>";
+  $html .= "
+    <script>
+    function addText(event) {
+      var targ = event.target || event.srcElement;
+      document.getElementById(\"clicked\").value += targ.src;
+    }
+    function pageScroll() {
+      window.scrollBy(0,$autoScrollPx);
+      scrolldelay = setTimeout('pageScroll()',$autoScrollMillis);
+    }
+    </script>
+  ";
+  if($autoScroll){
+    $html .= "<body onLoad=\"pageScroll()\">";
+  }else{
+    $html .= "<body>";
+  }
   for my $img(@imgAbsPaths){
     my $fileUrl = "file://$img";
     if($includeClickBox){
@@ -91,16 +119,9 @@ sub getHtml($@){
       $html .= "<img src=\"$fileUrl\"/>\n";
     }
   }
-  if($includeClickBox){
-    $html .= "
-      <script>
-      function addText(event) {
-        var targ = event.target || event.srcElement;
-        document.getElementById(\"clicked\").value += targ.src;
-      }
-      </script>
-      <textarea id=\"clicked\"/>\n";
-  }
+  $html .= "<textarea id=\"clicked\"/>\n" if $includeClickBox;
+  $html .= "</body>";
+  $html .= "</head>";
   return $html;
 }
 

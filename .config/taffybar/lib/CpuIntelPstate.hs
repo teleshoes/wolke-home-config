@@ -16,12 +16,6 @@ import Data.Maybe (fromMaybe, listToMaybe)
 main = mainLabel cpuIntelPstateReader
 cpuIntelPstateW = labelW cpuIntelPstateReader
 
-width = 2
-defaultGovernor = "performance"
-
-tmpFile = "/tmp/cpu-scaling"
-cpuDir = "/sys/devices/system/cpu"
-
 cpuIntelPstateReader = do
   min <- get "min"
   max <- get "max"

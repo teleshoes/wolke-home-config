@@ -10,10 +10,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
--- Additional Keysyms
-xF86XK_AudioMicMute         :: KeySym
-xF86XK_AudioMicMute         = 269025202
-
 -- Modifiers
 mods = "CAWS"
 masks = [controlMask, mod1Mask, mod4Mask, shiftMask]

@@ -8,6 +8,8 @@ shopt -s extglob
 stty stop undef 2>/dev/null
 
 ssh-add ~/.ssh/id_rsa 2> /dev/null
+
+export QUOTING_STYLE=literal #the fuck? fucken coreutils man
 export HISTTIMEFORMAT="%F %T "
 export HISTSIZE=1000000
 # ignoredups: do not add duplicate history entries
@@ -129,6 +131,7 @@ alias time="command time"
 alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
+alias r='stty sane'
 
 function e            { email.pl --print "$@"; }
 function vol          { pulse-vol "$@"; }

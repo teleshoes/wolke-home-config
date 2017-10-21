@@ -16,7 +16,8 @@ import System.Taffybar.Pager (
 import System.Taffybar.LayoutSwitcher (layoutSwitcherNew)
 import System.Taffybar.WindowSwitcher (windowSwitcherNew)
 import System.Taffybar.WorkspaceSwitcher (wspaceSwitcherNew)
-import System.Taffybar.WorkspaceHUD (hudFromPagerConfig, buildWorkspaceHUD)
+import System.Taffybar.WorkspaceHUD (
+  WorkspaceHUDConfig(..), hudFromPagerConfig, buildWorkspaceHUD)
 import System.Information.EWMHDesktopInfo (
   WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
@@ -39,8 +40,11 @@ pagerConfig icons cfg = defaultPagerConfig
   , useImages        = True
   , imageSize        = wsImageHeight cfg
   , fillEmptyImages  = True
-  , preferCustomIcon = False
   , customIcon       = selectImage icons
+  }
+
+wshudConfig pgrCfg = (hudFromPagerConfig pgrCfg)
+  { iconSort = return
   }
 
 formatWindowCount :: Int -> String
@@ -82,8 +86,8 @@ wmLogNew cfg = do
   let pgrCfg = pagerConfig icons cfg
   pager <- pagerNew pgrCfg
 
-  --ws <- buildWorkspaceHUD (hudFromPagerConfig pgrCfg) pager
-  ws <- wspaceSwitcherNew pager
+  ws <- buildWorkspaceHUD (wshudConfig pgrCfg) pager
+  --ws <- wspaceSwitcherNew pager
   title <- windowSwitcherNew pager
   layout <- layoutSwitcherNew pager
 

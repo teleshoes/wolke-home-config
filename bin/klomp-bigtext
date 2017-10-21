@@ -21,10 +21,10 @@ my $usage = "Usage:
 
     OPTS
        --ipmagic=CONFNAME
-         runs \"ipmagic CONFNAME bigtext\"
+         runs bigtext with ipmagic (a la `ipmagic CONFNAME bigtext`)
 
        --ipmagic-user=USERNAME
-         runs \"ipmagic CONFNAME -u USERNAME bigtext\"
+         adds -u USERNAME to ipmagic (a la `ipmagic CONFNAME -u USERNAME bigtext`)
 
        --delay=MILLIS
          time to sleep in milliseconds after subsequent klomp displays
@@ -33,11 +33,26 @@ my $usage = "Usage:
        --once
          run once and quit
 
+       -w|--window
+         include --fullScreen=false in bigtext opts
+
        --height=HEIGHT
          include --forceHeight=HEIGHT in bigtext opts
 
-       --height=WIDTH
-         include --forceHeight=WIDTH in bigtext opts
+       --width=WIDTH
+         include --forceWidth=WIDTH in bigtext opts
+
+       --off
+         run `pkill ^bigtext\$` and `bigtext -k` (local or with ipmagic)
+         ignore options: --once --delay --height --width
+
+       --toggle
+         check if bigtext is running with:
+           `pgrep ^bigtext\$` (local or with ipmagic)
+         if bigtext is running:
+           run `pkill ^bigtext\$` and `bigtext -k` (same as --off)
+         otherwise:
+           start bigtext normally (this option has no effect if not running)
 ";
 
 sub main(@){
@@ -45,8 +60,11 @@ sub main(@){
   my $ipmagicUser;
   my $delay = $defaultDelayMillis;
   my $once = 0;
+  my $window = 0;
   my $height;
   my $width;
+  my $off = 0;
+  my $toggle = 0;
 
   while(@_ > 0){
     my $arg=shift;
@@ -58,16 +76,40 @@ sub main(@){
       $delay = $1;
     }elsif($arg =~ /^--once$/){
       $once = 1;
+    }elsif($arg =~ /^(-w|--window)$/){
+      $window = 1;
     }elsif($arg =~ /^--height=(\d+)$/){
       $height = $1;
     }elsif($arg =~ /^--width=(\d+)$/){
       $width = $1;
+    }elsif($arg =~ /^--off$/){
+      $off = 1;
+    }elsif($arg =~ /^--toggle$/){
+      $toggle = 1;
     }else{
       die $usage;
     }
   }
 
+  if($toggle and not $off){
+    my @pgrepCmd = getIpmagicCommand($ipmagic, $ipmagicUser, 'pgrep', '^bigtext$');
+    open FH, "-|", @pgrepCmd
+      or die "could not run @pgrepCmd\n$!\n";
+    my @procs = <FH>;
+    close FH;
+    if(@procs > 0 and $procs[0] =~ /^\d+$/){
+      $off = 1;
+    }
+  }
+
+  if($off){
+    system getIpmagicCommand($ipmagic, $ipmagicUser, 'pkill', '^bigtext$');
+    system getIpmagicCommand($ipmagic, $ipmagicUser, 'bigtext', '-k');
+    exit;
+  }
+
   my @bigtextOpts;
+  push @bigtextOpts, "--fullScreen=false" if $window;
   push @bigtextOpts, "--forceHeight=$height" if defined $height;
   push @bigtextOpts, "--forceWidth=$width" if defined $width;
 

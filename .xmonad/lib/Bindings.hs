@@ -211,6 +211,11 @@ shortcuts conf = "Shortcuts" @@ do
         "seek -60"    @@ mWS   xK_a    #! "klomp-cmd seek -60"
         "seek 60"     @@ mWS   xK_s    #! "klomp-cmd seek 60"
         "save"        @@ mW    xK_v    #! "save-klomp"
+        "bigtext"     @@ mW    xK_d    #! "klomp-bigtext"
+                                          ++ " --width=$(( $(res -w --percent=98) ))"
+                                          ++ " --height=$(( $(res -h --percent=98) - $(taffybar-height) ))"
+                                          ++ " --window"
+                                          ++ " --toggle"
 
     "Klomp media keys"    @@ do
         "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"

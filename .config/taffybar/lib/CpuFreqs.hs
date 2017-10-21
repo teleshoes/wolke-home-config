@@ -1,5 +1,5 @@
 module CpuFreqs (cpuFreqsW) where
-import Label (labelW, mainLabel)
+import Label (labelDefaultW, mainLabel)
 
 import CpuFreqsI7z (getFreqsChanI7z)
 import CpuFreqsProc (getFreqsChanProc)
@@ -8,7 +8,7 @@ import Control.Monad (forever)
 import Data.List (intercalate)
 
 main = mainLabel =<< cpuFreqsReader
-cpuFreqsW = labelW =<< cpuFreqsReader
+cpuFreqsW = labelDefaultW "--" =<< cpuFreqsReader
 
 getFreqsChan = getFreqsChanProc
 

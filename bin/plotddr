@@ -6,7 +6,10 @@ sub run(@);
 
 my $gnuplotDir = "$ENV{HOME}/.cache/gnuplot-ddr";
 my $bestDir = "$ENV{HOME}/.cache/best-ddr";
-my $pixmirrorDir = "$ENV{HOME}/DCIM-pixmirror/xddr";
+my $scoreFilesDir = "$ENV{HOME}/DCIM/xddr";
+my $scoreFilesPixmirrorDir = "$ENV{HOME}/.cache/xddr-pixmirror";
+
+my $pixmirrorSize = "270x480";
 
 my @curSongs = qw(
   max-300 paranoia-survivor
@@ -14,6 +17,12 @@ my @curSongs = qw(
   prana-revolutionary-addict-u1-dj-mix possession revolution
 );
 my $curSongsRegex = "^(" . join("|", @curSongs) . ")\$";
+
+my $ipmagicVariantDir = "fhd";
+my $ipmagicName = "s5";
+my $ipmagicUser = "root";
+my $ipmagicPlotDir = "/sdcard/xgnuplotddr";
+my $ipmagicBestScoresDir = "/sdcard/xbestddr";
 
 my @DDRA = ("--a");
 my @RCNT = ("--recent");
@@ -62,20 +71,21 @@ my $subdirVariants = {
     extraFilters => [],
     extraPlotOpts => ["--size", "1920x1080"],
     extraFormatOpts => [],
+    reverse => 0,
   },
 };
 
-my $usage = "Usage: $0 [--nofeh|--non9]\n";
+my $usage = "Usage: $0 [--nofeh|--noipmagic]\n";
 
 sub main(@){
   my $noFeh = 0;
-  my $noN9 = 0;
+  my $noIpmagic = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--nofeh/){
       $noFeh = 1;
-    }elsif($arg =~ /^--non9/){
-      $noN9 = 1;
+    }elsif($arg =~ /^--noIpmagic/){
+      $noIpmagic = 1;
     }else{
       die $usage;
     }
@@ -88,7 +98,11 @@ sub main(@){
     my $variant = $$subdirVariants{$subdir};
     my $num = 0;
     my @order = @plotOrder;
-    @order = reverse @order if $subdir eq 'n9';
+
+    my $isReverse = $$variant{reverse};
+    $isReverse = 0 if not defined $isReverse;
+    @order = reverse @order if $$variant{reverse};
+
     for my $name(@order){
       $num++;
       my $plot = $$plots{$name};
@@ -101,9 +115,17 @@ sub main(@){
       my @cmd = ("ddrname", "--gnuplot", @plotOpts, @formatOpts, @filters);
 
       run @cmd;
-      die "error running plot $name => @$plot\n" if $? != 0;
+      die "error running plot $name\n" if $? != 0;
     }
   }
+
+  system "mkdir", "-p", $scoreFilesPixmirrorDir;
+  system "pixmirror",
+    "--size=$pixmirrorSize",
+    "--orient",
+    $scoreFilesDir,
+    $scoreFilesPixmirrorDir,
+    ;
 
   system "rm", "-rf", $bestDir;
   my @bestNotHard;
@@ -122,9 +144,9 @@ sub main(@){
   chomp foreach @bestNotHard;
   chomp foreach @bestDoubles;
 
-  @bestHard = map { "$pixmirrorDir/$_" } @bestHard;
-  @bestNotHard = map { "$pixmirrorDir/$_" } @bestNotHard;
-  @bestDoubles = map { "$pixmirrorDir/$_" } @bestDoubles;
+  @bestHard = map { "$scoreFilesPixmirrorDir/$_" } @bestHard;
+  @bestNotHard = map { "$scoreFilesPixmirrorDir/$_" } @bestNotHard;
+  @bestDoubles = map { "$scoreFilesPixmirrorDir/$_" } @bestDoubles;
 
   system "mkdir", "-p", "$bestDir/hard", "$bestDir/nothard", "$bestDir/doubles";
   system "cp", "-ar", @bestHard, "$bestDir/hard";
@@ -144,12 +166,12 @@ sub main(@){
   if(not $noFeh){
     run "feh -ZF '$gnuplotDir/fhd' >/dev/null 2>/dev/null &";
   }
-  if(not $noN9){
-    my $n9Host = `n9`;
-    chomp $n9Host;
+  if(not $noIpmagic){
+    my $ipmagicHost = `ipmagic $ipmagicName`;
+    chomp $ipmagicHost;
 
-    run "rsync", "-avP", "--del", "$gnuplotDir/n9/", "user\@$n9Host:~/xgnuplotddr";
-    run "rsync", "-avP", "--del", "$bestDir/", "user\@$n9Host:~/xbestddr";
+    run "rsync", "-avP", "--del", "$gnuplotDir/$ipmagicVariantDir/", "$ipmagicUser\@$ipmagicHost:$ipmagicPlotDir";
+    run "rsync", "-avP", "--del", "$bestDir/", "$ipmagicUser\@$ipmagicHost:$ipmagicBestScoresDir";
   }
 }
 

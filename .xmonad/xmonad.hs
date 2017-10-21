@@ -15,7 +15,9 @@ import XMonad (
   sendMessage, io, spawn, killWindow, liftX, refresh, windows)
 import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageHelpers (doFullFloat, isFullscreen)
-import XMonad.Hooks.ManageDocks (avoidStruts, SetStruts(..), manageDocks)
+import XMonad.Hooks.ManageDocks (
+  SetStruts(..),
+  avoidStruts, docksEventHook, docksStartupHook, manageDocks)
 import XMonad.Layout.Grid (Grid(..))
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
@@ -30,6 +32,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
 import Data.Monoid (All(..))
+import Data.Function ((&))
 import System.FilePath ((</>))
 import System.Directory (getHomeDirectory)
 
@@ -41,8 +44,6 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 
 ffExec = "iceweasel"
 ffName = "Iceweasel"
-tbExec = "icedove"
-tbName = "Icedove"
 
 relToHomeDir file = (</> file) <$> getHomeDirectory
 
@@ -53,9 +54,9 @@ main = xmonad . ewmh . pagerHints $ def
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
-  , handleEventHook    = myEventHook
-  , startupHook        = myStartupHook
-  , layoutHook         = myLayoutHook
+  , handleEventHook    = myEventHook <+> docksEventHook
+  , startupHook        = myStartupHook <+> docksStartupHook
+  , layoutHook         = myLayoutHook & avoidStruts
   , manageHook         = myManageHook <+> manageDocks
 
   , workspaces         = workspaceNames
@@ -68,7 +69,7 @@ myStartupHook = do
   io $ tryWriteKeyBindingsCache =<< relToHomeDir ".cache/xmonad-bindings"
   io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
-myLayoutHook = avoidStruts . smartBorders
+myLayoutHook = smartBorders
              $   named "left" (Tall 1 incr ratio)
              ||| named "top"  (Mirror $ Tall 1 incr ratio)
              ||| named "full" Full
@@ -78,11 +79,11 @@ myLayoutHook = avoidStruts . smartBorders
 myManageHook = execWriter $ do
   let a ~~> b = tell (a --> b)
   isFullscreen ~~> doFullFloat
+  className =? "Qtbigtext.py"          ~~> doUnfloat --only unfloats non-fullscreen
   title     =? "Find/Replace "         ~~> doFloat
   className =? "Eclipse"               ~~> (doShift "A" <+> doUnfloat)
   title     =? "GWT Development Mode"  ~~> doShift "G"
   className =? "Pidgin"                ~~> doShift "B"
-  className =? tbName                  ~~> doShift "8"
   title     =? "email-gui.py"          ~~> doShift "8"
   title     =? "qtemail-daemon"        ~~> doShift "9"
   className =? "feh"                   ~~> doFloat

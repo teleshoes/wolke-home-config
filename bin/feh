@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+my $keysPid = undef;
+$SIG{'INT'} = sub{system "kill", $keysPid; exit 0};
+$SIG{'TERM'} = sub{system "kill", $keysPid; exit 0};
+
 #args are given only if no other args are given on the cmdline
 my @defaultArgs = qw(-Z -F --auto-rotate);
 
@@ -28,10 +32,12 @@ sub main(@){
     sleep 0.5;
     exec "keys-to-window", "feh";
   }else{
+    $keysPid = $pid;
     my @args = processArgs @_;
 
     run "/usr/bin/feh", @args;
-    run "kill", $pid;
+    run "kill", $keysPid;
+    sleep 0.1;
     run "stty", "sane";
   }
 }
