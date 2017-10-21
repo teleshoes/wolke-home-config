@@ -4,6 +4,11 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $DEBIAN_TARGET_OVERRIDE = undef;
+#my $DEBIAN_TARGET_OVERRIDE = "testing";
+
+my $taffybarGitUrl = "git://github.com/teleshoes/taffybar.git";
+
 my @corePkgs = qw(ghc haskell-platform cabal-install xmonad);
 
 my @taffybarDeps = qw(
@@ -39,6 +44,7 @@ sub main(@) {
     getRoot @_;
 
     if(@_ == 1 and $_[0] =~ /--destroy/){
+      removeGitSrcCache $taffybarGitUrl;
       run "apt-get", "remove", @corePkgs;
       run "rm", "-rf", getHome() . "/.cabal/";
       run "rm", "-rf", getHome() . "/.ghc/";
@@ -47,17 +53,28 @@ sub main(@) {
       die "Usage: $0 [--destroy]\n";
     }
 
-    run "apt-get", "-y", "install", @corePkgs;
-    run "apt-get", "-y", "install", @taffybarDeps;
+    my @aptGetInstall = qw(apt-get install -y);
+    if(defined $DEBIAN_TARGET_OVERRIDE){
+      @aptGetInstall = (@aptGetInstall, "-t", $DEBIAN_TARGET_OVERRIDE);
+    }
 
-    run "apt-get", "-y", "install", @cabalDebPkgs;
-    run "apt-get", "-y", "install", @taffybarCabalDebDeps;
+    run (@aptGetInstall, @corePkgs);
+    run (@aptGetInstall, @taffybarDeps);
+
+    run (@aptGetInstall, @cabalDebPkgs);
+    run (@aptGetInstall, @taffybarCabalDebDeps);
+
+    my @allDebs = (@corePkgs, @taffybarDeps, @cabalDebPkgs, @taffybarCabalDebDeps);
+    if(defined $DEBIAN_TARGET_OVERRIDE){
+      run "apt-mark", "hold", @allDebs;
+    }else{
+      run "apt-mark", "unhold", @allDebs;
+    }
 
     runUser "cabal", "update";
     runUser "cabal", "install", $_ foreach @cabalPkgs;
 
-    $ENV{PATH} = "$ENV{HOME}/.cabal/bin:$ENV{PATH}";
-    installFromGit "git://github.com/teleshoes/taffybar.git";
+    installFromGit $taffybarGitUrl;
 
     editSimpleConf "/etc/environment", getUsername, {
       "_JAVA_AWT_WM_NONREPARENTING" => "1 #xmonad java reparenting bug",

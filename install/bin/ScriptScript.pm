@@ -29,7 +29,8 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getUsername
                   guessBackupDir
                   readConf readConfDir
-                  installFromDir installFromGit aptSrcInstall
+                  installFromDir aptSrcInstall removeSrcCache
+                  installFromGit removeGitSrcCache extractNameFromGitUrl
                 );
 
 sub getScriptNames();
@@ -76,8 +77,11 @@ sub guessBackupDir();
 sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
-sub installFromGit($;$);
 sub aptSrcInstall($$);
+sub removeSrcCache($);
+sub installFromGit($;$);
+sub removeGitSrcCache($);
+sub extractNameFromGitUrl($);
 
 $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
 
@@ -682,13 +686,6 @@ sub installFromDir($;$$) {
     }
 }
 
-sub installFromGit($;$) {
-    my ($gitUrl, $cmd) = (@_, undef);
-    my $repo = $1 if $gitUrl =~ /\/([^\/]*?)(\.git)?$/;
-    my $srcCache = getSrcCache();
-    installFromDir "$srcCache/$repo", $gitUrl, $cmd;
-}
-
 sub aptSrcInstall($$) {
     my ($package, $whichdeb) = @_;
     shell "sudo apt-get -y build-dep $package";
@@ -702,6 +699,36 @@ sub aptSrcInstall($$) {
             shell "sudo dpkg -i $file";
         }
     }
+}
+
+sub removeSrcCache($) {
+    my ($name) = (@_);
+    my $srcCache = getSrcCache();
+    run "rm", "-rf", "$srcCache/$name";
+}
+
+sub installFromGit($;$) {
+    my ($gitUrl, $cmd) = (@_, undef);
+    my $name = extractNameFromGitUrl $gitUrl;
+    my $srcCache = getSrcCache();
+    installFromDir "$srcCache/$name", $gitUrl, $cmd;
+}
+
+sub removeGitSrcCache($) {
+    my ($gitUrl) = (@_);
+    my $name = extractNameFromGitUrl $gitUrl;
+    removeSrcCache $name;
+}
+
+sub extractNameFromGitUrl($){
+    my ($gitUrl) = (@_);
+    my $name;
+    if($gitUrl =~ /(?:^|\/)   ([a-zA-Z0-9_\-]+)   (?:\.git)?$/x){
+      $name = $1;
+    }else{
+      die "could not parse repo name from last element of git URL:\n$gitUrl\n";
+    }
+    return $name;
 }
 
 1;
