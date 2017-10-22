@@ -13,8 +13,12 @@ my $PIX_EXEC = "pix";
 
 my $gnuplotDefaultPngSize = "1920,1080";
 
-#songs with mtimes within 5m, and at least 30s between, are the same course
+#FAIL if any course has songs with mtimes within this amount of time
 my $COURSE_MIN_STAGE_GAP_SECONDS = 30;
+
+#songs are in the same course if they have mtimes within the stage-gap of each other
+#  the stage-gap is this amount of time, multiplied by the difference between stages
+#  e.g.: a 1st-stage and a 3rd-stage within twice this time are in the same course
 my $COURSE_MAX_STAGE_GAP_SECONDS = 5 * 60;
 
 my @DEFAULT_BUCKET_FIELDS = qw(song game difficulty machine);
@@ -1441,12 +1445,15 @@ sub splitScoresIntoCourses($$){
       my $stageNumDiff = $stageNum - $lastStageNum;
       my $mtimeDiff = $mtime - $lastMtime;
 
-      my $minMtimeDiff = $COURSE_MIN_STAGE_GAP_SECONDS*$stageNumDiff;
+      if($mtimeDiff < $COURSE_MIN_STAGE_GAP_SECONDS){
+        die "stage gap too small: $file\n";
+      }
+
       my $maxMtimeDiff = $COURSE_MAX_STAGE_GAP_SECONDS*$stageNumDiff;
 
       if($stageNumDiff <= 0){
         $isNewCourse = 1;
-      }elsif($mtimeDiff > $maxMtimeDiff or $mtimeDiff < $minMtimeDiff){
+      }elsif($mtimeDiff > $maxMtimeDiff){
         $isNewCourse = 1;
       }
     }
