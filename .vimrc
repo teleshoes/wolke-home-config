@@ -1,3 +1,6 @@
+"""blinking cursor fix:
+"""autocmd VimEnter * silent !printf '\033[?12l'
+
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
