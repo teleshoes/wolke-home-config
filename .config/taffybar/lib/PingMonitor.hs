@@ -1,6 +1,6 @@
 module PingMonitor (pingMonitorW) where
 import Label (labelW, mainLabel)
-import Utils (defaultDelay, fg, bg, procSuccess)
+import Utils (defaultDelay, fg, bg, procSuccess, widgetSetClass)
 
 import System.Environment (getArgs, getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
@@ -12,7 +12,12 @@ main = do
   when (length args /= 2) (error "Usage: PingMonitor DISPLAY URL")
   let (display, url) = (args !! 0, args !! 1)
   mainLabel =<< pingMonitorReader display url
-pingMonitorW display url = labelW =<< pingMonitorReader display url
+
+pingMonitorW display url = do
+  reader <- pingMonitorReader display url
+  label <- labelW reader
+  widgetSetClass label "PingMonitor"
+  return label
 
 char = "●"
 upColor = "green"
