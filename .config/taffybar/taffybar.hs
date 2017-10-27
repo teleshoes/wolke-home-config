@@ -40,10 +40,8 @@ main = do
                                   , widgetSpacing = space profile
                                   , barPosition = if isBot then Bottom else Top
                                   }
-      font = typeface ++ " " ++ show (fontP profile)
-      fgColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
-      textColor = hexColor Black
+      textColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
       wsBorderColorActive = hexColor Red
       sep = W.sepW Black $ wSepW profile
@@ -92,5 +90,9 @@ main = do
         ++ " * auto-generated at: " ++ cssProfileFile ++ "\n"
         ++ " * taffybar-height: " ++ (show $ barHt profile) ++ "\n"
         ++ " */\n"
+        ++ "@define-color bgColor " ++ bgColor ++ ";\n"
+        ++ "@define-color textColor " ++ textColor ++ ";\n"
+        ++ "@define-color wsBorderColorNormal " ++ wsBorderColorNormal ++ ";\n"
+        ++ "@define-color wsBorderColorActive " ++ wsBorderColorActive ++ ";\n"
 
   defaultTaffybar cfg {startWidgets=start, endWidgets=end}
