@@ -1,7 +1,7 @@
 module Utils(
   defaultDelay, imageDir,
   fg, bg, fgbg,
-  rowW, colW, containerW,
+  rowW, colW, containerW, widgetSetClass,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts, padL, padR, padCols, uncols, chompAll,
   pollingGraphMain,
@@ -17,8 +17,9 @@ import Control.Concurrent (
 import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, void)
 import Graphics.UI.Gtk (
-  Container, Widget, hBoxNew, vBoxNew, containerAdd,
-  toWidget, toContainer, widgetShowAll)
+  Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
+  toWidget, toContainer, widgetShowAll, widgetGetStyleContext)
+import Graphics.UI.Gtk.General.StyleContext (styleContextAddClass)
 import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.Directory (doesFileExist, doesDirectoryExist, removeFile)
 import Text.Regex.PCRE ((=~), getAllTextMatches, AllTextMatches)
@@ -70,6 +71,11 @@ containerW widgets box = do
   mapM_ (containerAdd box) ws
   widgetShowAll box
   return $ toWidget box
+
+widgetSetClass :: WidgetClass w => w -> String -> IO ()
+widgetSetClass widget klass = do
+  context <- widgetGetStyleContext widget
+  styleContextAddClass context klass
 
 -- PARSING
 regexMatch :: String -> String -> Bool
