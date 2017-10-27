@@ -2,7 +2,7 @@
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW, mainLabel)
-import Utils (fgbg, padL, padR, isRunning, chompFile, readProc)
+import Utils (fgbg, padL, padR, isRunning, chompFile, readProc, widgetSetClass)
 
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
@@ -13,7 +13,10 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding (encodeUtf8)
 
 main = mainLabel $ klompReader 30
-klompW rowLength = clickable clickL clickM clickR =<< labelW (klompReader rowLength)
+klompW rowLength = do
+  label <- labelW (klompReader rowLength)
+  widgetSetClass label "Klomp"
+  clickable clickL clickM clickR label
 
 gapOffset = 3
 sep = "…"
