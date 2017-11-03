@@ -13,9 +13,18 @@ my $PIX_EXEC = "pix";
 
 my $gnuplotDefaultPngSize = "1920,1080";
 
-#songs with mtimes within 5m, and at least 30s between, are the same course
-my $minStageGapSeconds = 30;
-my $maxStageGapSeconds = 5 * 60;
+#FAIL if any course has songs with mtimes within this amount of time
+my $COURSE_MIN_STAGE_GAP_SECONDS = 30;
+
+#songs are in the same course if they have mtimes within the stage-gap of each other
+#  the stage-gap is this amount of time, multiplied by the difference between stages
+#  e.g.: a 1st-stage and a 3rd-stage within twice this time are in the same course
+my $COURSE_MAX_STAGE_GAP_SECONDS = 5 * 60;
+
+#courses are in the same session if they are within the course-gap of each other
+#  the course-gap is the difference between the mtime of the last song of one course,
+#  and the mtime of the first song of the next course
+my $SESSION_MAX_COURSE_GAP_SECONDS = 6 * 60 * 60;
 
 my @DEFAULT_BUCKET_FIELDS = qw(song game difficulty machine);
 my $bucketFieldDesc = join "-", map {"<" . uc($_) . ">"} @DEFAULT_BUCKET_FIELDS;
@@ -82,6 +91,9 @@ sub getScoreBuckets($$@);
 sub formatBucketCsv($$$);
 sub getBucketBarCounts($);
 sub filterScores($$);
+sub getMtimesByFile($);
+sub splitScoresIntoCourses($$);
+sub splitCoursesIntoSessions(@);
 sub formatScores($$$);
 sub getBestScores($);
 sub gnuplot($$);
@@ -160,7 +172,11 @@ sub getUsage(;$){
     uses \"$EXIFTOOL_EXEC\", falling back on \"$PIX_EXEC\"
 
   $0 --datestats [FORMAT_OPT_DATES FORMAT_OPT_DATES ..] [FILTER FILTER ..]
-    format stats for each date
+    format stats for each session
+    a session is every course within " . int($SESSION_MAX_COURSE_GAP_SECONDS/60.0) . "min of each other
+      (see --coursestats for more info on courses)
+    the gap between courses is he difference between the mtime of the last song of a course,
+      and the mtime of the first song of the next course
 
     FORMAT_OPT_DATES
       --showscores
@@ -176,8 +192,8 @@ sub getUsage(;$){
   $0 --coursestats [FORMAT_OPT_COURSES FORMAT_OPT_COURSES ..] [FILTER FILTER ..]
     show songs that appear to be part of the same course, played back-to-back
     songs must be of increasing stage number,
-      and have mtimes at most 5min between successive stages.
-      (stages can be missing; an extra 5min is allowed for any gaps)
+      and have mtimes at most ${COURSE_MAX_STAGE_GAP_SECONDS}s between successive stages.
+      (stages can be missing; an extra ${COURSE_MAX_STAGE_GAP_SECONDS}s is allowed for any gaps)
     e.g.:
       A 1st 12:00
       B 2nd 12:03
@@ -603,52 +619,30 @@ sub dateStats($@){
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
 
-  my %mtimes;
+  my @courses = splitScoresIntoCourses $scoresByFile, getMtimesByFile $scoresByFile;
 
-  for my $file(keys %$scoresByFile){
-    my $mtime = mtime "$scoreDir/$file";
-    $mtimes{$file} = $mtime;
-  }
+  my @sessions = splitCoursesIntoSessions @courses;
 
-  my $dateBuckets = {};
-  for my $file(sort keys %$scoresByFile){
-    my $score = $$scoresByFile{$file};
-    my $mtime = $mtimes{$file};
-    my $date = `date --date \@$mtime +%Y%m%d`;
-    chomp $date;
-    $$dateBuckets{$date} = [] if not defined $$dateBuckets{$date};
-    push @{$$dateBuckets{$date}}, $score;
-  }
-
-  my @dates = sort keys %$dateBuckets;
-  @dates = reverse @dates if $reverse;
+  @sessions = reverse @sessions if $reverse;
 
   my @feetToPrint = (17, 16, 15);
 
-  for my $date(@dates){
-    my @dateScores = @{$$dateBuckets{$date}};
-    my $totalCount = 0;
+  for my $session(@sessions){
+    my @sessionAllScores = @{$$session{allScores}};
+    my $totalCount = $$session{sessionScoreLen};
     my $hardSinglesCount = 0;
     my $doublesCount = 0;
-    my $total = @dateScores;
     my %feetCount = map {$_ => 0} @feetToPrint;
-    for my $score(@dateScores){
+    for my $score(@sessionAllScores){
       if($$score{game} eq "doubles"){
         $doublesCount++;
       }elsif($$score{feet} > $HARD_SONG_FEET){
         $hardSinglesCount++;
       }
       $feetCount{$$score{feet}}++;
-      $totalCount++;
     }
 
-    my $dateEpoch = `date +%s --date=$date`;
-    chomp $dateEpoch;
-
-    my $minMtime = undef;
-    my $maxMtime = undef;
-
-    my $buckets = getScoreBuckets \@dateScores, 1, @DEFAULT_BUCKET_FIELDS;
+    my $buckets = getScoreBuckets \@sessionAllScores, 1, @DEFAULT_BUCKET_FIELDS;
     my @bucketSummary;
     for my $bucketName(sort keys %$buckets){
       my @scores = @{$$buckets{$bucketName}};
@@ -656,20 +650,6 @@ sub dateStats($@){
 
       my $isDoubles = $$first{game} eq "doubles" ? 1 : 0;
       my $hardSong = $$first{feet} > $HARD_SONG_FEET ? 1 : 0;
-
-      for my $score(@scores){
-        my $file = $$score{file};
-        my $mtime = $mtimes{$file};
-
-        my $dateDiff = $dateEpoch - $mtime;
-        $dateDiff *= -1 if $dateDiff < 0;
-        if($dateDiff > 1*24*60*60){
-          next;
-        }
-
-        $minMtime = $mtime if not defined $minMtime or $mtime < $minMtime;
-        $maxMtime = $mtime if not defined $maxMtime or $mtime > $maxMtime;
-      }
 
       my $count = @scores;
       push @bucketSummary, {
@@ -681,16 +661,13 @@ sub dateStats($@){
       };
     }
 
-    my $elapsedHours;
-    if(defined $minMtime and defined $maxMtime){
-      $elapsedHours = ($maxMtime - $minMtime) / 60 / 60;
-    }else{
-      $elapsedHours = 0;
-    }
+    my $elapsedHours = ($$session{mtimeMax} - $$session{mtimeMin}) / 60.0 / 60.0;
+
+    my $dateFmt = $$session{sessionDateFmt};
 
     my $fmt = "";
     $fmt .= sprintf "%s %3.1fh  %2d-T %2d-H %2d-D",
-      $date, $elapsedHours, $totalCount, $hardSinglesCount, $doublesCount;
+      $dateFmt, $elapsedHours, $totalCount, $hardSinglesCount, $doublesCount;
     $fmt .= sprintf " %2d-%d", $feetCount{$_}, $_ foreach @feetToPrint;
 
     @bucketSummary = sort {
@@ -738,74 +715,20 @@ sub courseStats($@){
 
   die getUsage() if @$opts != 0;
 
-  my $stageNums = {
-    "1st" => 1,
-    "2nd" => 2,
-    "3rd" => 3,
-    "4extra" => 4,
-    "4nonstop" => 4,
-  };
-
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
 
-  my $mtimes = {};
-  for my $file(keys %$scoresByFile){
-    $$mtimes{$file} = mtime "$scoreDir/$file";
-  }
+  my @courses = splitScoresIntoCourses($scoresByFile, getMtimesByFile $scoresByFile);
 
-  my @sortedScores = sort {
-    $$mtimes{$a} <=> $$mtimes{$b}
-    || $a cmp $b
-  } keys %$scoresByFile;
-
-  my @courses;
-  my $curCourse = undef;
-  my $lastStageNum = undef;
-  my $lastMtime = undef;
-  for my $file(@sortedScores){
-    my $score = $$scoresByFile{$file};
-    my $mtime = $$mtimes{$file};
-    my $stage = $$score{stage};
-    my $stageNum = $$stageNums{$stage};
-    die "invalid stage '$stage'\n" if not defined $stageNum;
-
-    my $isNewCourse = 0;
-    if(defined $lastStageNum && defined $lastMtime){
-      die "mtimes out of order at $file\n" if $lastMtime > $mtime;
-      my $stageNumDiff = $stageNum - $lastStageNum;
-      my $mtimeDiff = $mtime - $lastMtime;
-
-      my $minMtimeDiff = $minStageGapSeconds*$stageNumDiff;
-      my $maxMtimeDiff = $maxStageGapSeconds*$stageNumDiff;
-
-      if($stageNumDiff <= 0){
-        $isNewCourse = 1;
-      }elsif($mtimeDiff < $minMtimeDiff or $mtimeDiff > $maxMtimeDiff){
-        $isNewCourse = 1;
-      }
-    }
-
-    if(not defined $curCourse or $isNewCourse){
-      $curCourse = [];
-      push @courses, $curCourse;
-    }
-    push @$curCourse, $score;
-
-    $lastStageNum = $stageNum;
-    $lastMtime = $mtime;
-  }
-
-  @courses = grep {@$_ >= $minlen} @courses;
+  @courses = grep {$$_{courseLen} >= $minlen} @courses;
 
   for my $course(@courses){
-    my $first = ${$course}[0];
-    my $fmt = "$$first{date}:";
-    for my $score(@$course){
+    my $fmt = "$$course{courseDateFmt}:";
+    for my $score(@{$$course{scores}}){
       $fmt .= " " . getBucketName $score, 1, @DEFAULT_BUCKET_FIELDS;
     }
     $fmt .= "\n";
-    for my $score(@$course){
+    for my $score(@{$$course{scores}}){
       my $abbrevBucketName = getBucketName $score, 1, @DEFAULT_BUCKET_FIELDS;
       $fmt .= "  $$score{stage} $$score{score} $abbrevBucketName\n";
     }
@@ -1451,6 +1374,147 @@ sub filterScores($$){
   return $scoresByFile;
 }
 
+sub getMtimesByFile($){
+  my ($scoresByFile) = @_;
+  my $mtimes = {};
+  for my $file(keys %$scoresByFile){
+    $$mtimes{$file} = mtime "$scoreDir/$file";
+  }
+  return $mtimes;
+}
+
+sub splitScoresIntoCourses($$){
+  my ($scoresByFile, $mtimes) = @_;
+
+  my @sortedScores = sort {
+    $$mtimes{$a} <=> $$mtimes{$b}
+    || $a cmp $b
+  } keys %$scoresByFile;
+
+  my $stageNums = {
+    "1st" => 1,
+    "2nd" => 2,
+    "3rd" => 3,
+    "4extra" => 4,
+    "4nonstop" => 4,
+  };
+
+  my @courses;
+  my $curCourse = undef;
+  my $lastStageNum = undef;
+  my $lastMtime = undef;
+  for my $file(@sortedScores){
+    my $score = $$scoresByFile{$file};
+    my $mtime = $$mtimes{$file};
+    my $stage = $$score{stage};
+    my $stageNum = $$stageNums{$stage};
+    die "invalid stage '$stage'\n" if not defined $stageNum;
+
+    my $isNewCourse = 0;
+    if(defined $lastStageNum && defined $lastMtime){
+      die "mtimes out of order at $file\n" if $lastMtime > $mtime;
+      my $stageNumDiff = $stageNum - $lastStageNum;
+      my $mtimeDiff = $mtime - $lastMtime;
+
+      if($mtimeDiff < $COURSE_MIN_STAGE_GAP_SECONDS){
+        die "stage gap too small: $file\n";
+      }
+
+      my $maxMtimeDiff = $COURSE_MAX_STAGE_GAP_SECONDS*$stageNumDiff;
+
+      if($stageNumDiff <= 0){
+        $isNewCourse = 1;
+      }elsif($mtimeDiff > $maxMtimeDiff){
+        $isNewCourse = 1;
+      }
+    }
+
+    if(not defined $curCourse or $isNewCourse){
+      $curCourse = {
+        scores => [],
+        mtimeMin => undef,
+        mtimeMax => undef,
+        courseLen => 0,
+        courseDateFmt => undef,
+      };
+      push @courses, $curCourse;
+    }
+
+    push @{$$curCourse{scores}}, $score;
+    $$curCourse{courseLen} = $$curCourse{courseLen} + 1;
+    if(not defined $$curCourse{courseDateFmt}){
+      my $date = `date --date \@$mtime +%Y%m%d`;
+      chomp $date;
+      $$curCourse{courseDateFmt} = $date;
+    }
+    if(not defined $$curCourse{mtimeMin} or $mtime < $$curCourse{mtimeMin}){
+      $$curCourse{mtimeMin} = $mtime;
+    }
+    if(not defined $$curCourse{mtimeMax} or $mtime > $$curCourse{mtimeMax}){
+      $$curCourse{mtimeMax} = $mtime;
+    }
+
+    $lastStageNum = $stageNum;
+    $lastMtime = $mtime;
+  }
+
+  return @courses;
+}
+
+sub splitCoursesIntoSessions(@){
+  my (@courses) = @_;
+
+  my @sessions;
+  my $curSession = undef;
+  for my $course(@courses){
+    my $isNewSession = 0;
+    if(not defined $curSession){
+      $isNewSession = 1;
+    }else{
+      my $lastCourse = ${$$curSession{courses}}[-1];
+      my $courseGap = $$course{mtimeMin} - $$lastCourse{mtimeMax};
+
+      if($courseGap > $SESSION_MAX_COURSE_GAP_SECONDS){
+        $isNewSession = 1;
+      }else{
+        $isNewSession = 0;
+      }
+    }
+
+    if($isNewSession){
+      $curSession = {
+        allScores => [],
+        courses => [],
+        mtimeMin => undef,
+        mtimeMax => undef,
+        sessionScoreLen => 0,
+        sessionCourseLen => 0,
+        sessionDateFmt => undef,
+      };
+      push @sessions, $curSession;
+    }
+
+    my $courseMtimeMin = $$course{mtimeMin};
+    my $courseMtimeMax = $$course{mtimeMax};
+
+    push @{$$curSession{courses}}, $course;
+    push @{$$curSession{allScores}}, $_ foreach @{$$course{scores}};
+    $$curSession{sessionCourseLen} = $$curSession{sessionCourseLen} + 1;
+    $$curSession{sessionScoreLen} = $$curSession{sessionScoreLen} + $$course{courseLen};
+    if(not defined $$curSession{sessionDateFmt}){
+      $$curSession{sessionDateFmt} = $$course{courseDateFmt};
+    }
+    if(not defined $$curSession{mtimeMin} or $courseMtimeMin < $$curSession{mtimeMin}){
+      $$curSession{mtimeMin} = $courseMtimeMin;
+    }
+    if(not defined $$curSession{mtimeMax} or $courseMtimeMax > $$curSession{mtimeMax}){
+      $$curSession{mtimeMax} = $courseMtimeMax;
+    }
+  }
+
+  return @sessions;
+}
+
 sub formatScores($$$){
   my ($okNotes, $abbrevBucket, $filters) = @_;
 
@@ -1788,7 +1852,7 @@ sub bashComplete($$){
   #@complete = (@extraArgs, @complete) if not defined $$info{extra};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
   @complete = (@stageArgs, @complete) if not defined $$info{stage};
-  @complete = (@failedArgs, @complete) if not defined $$info{failed};
+  #@complete = (@failedArgs, @complete) if not defined $$info{failed};
 
   @complete = ("reminder_", "reminder_closeup_", @complete) if @words == 0;
 

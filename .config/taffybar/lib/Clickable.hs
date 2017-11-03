@@ -6,12 +6,14 @@ module Clickable(
 
 import Graphics.UI.Gtk (
   Widget, WidgetClass,
-  eventBoxNew, eventBoxSetVisibleWindow, onButtonPress,
-  containerAdd, toWidget, widgetShowAll)
-import Graphics.UI.Gtk.Gdk.Events (
-  eventButton, Event, MouseButton(LeftButton, MiddleButton, RightButton))
+  eventBoxNew, eventBoxSetVisibleWindow,
+  containerAdd, toWidget, widgetShowAll,
+  on, buttonPressEvent)
+import Graphics.UI.Gtk.Gdk.EventM (
+  eventButton, EButton, EventM, MouseButton(LeftButton, MiddleButton, RightButton))
 import System.Process (system)
 import Control.Monad (forever, void)
+import Control.Monad.IO.Class (liftIO)
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Exception as E (catch, IOException)
 
@@ -23,9 +25,10 @@ maybeRun :: Cmd -> IO ()
 maybeRun Nothing = return ()
 maybeRun (Just cmd) = void $ forkIO $ void $ system cmd
 
-handleClickAction :: Act -> Act -> Act -> Event -> IO Bool
-handleClickAction lAct mAct rAct evt = do
-  case (eventButton evt) of
+handleClickAction :: Act -> Act -> Act -> EventM EButton Bool
+handleClickAction lAct mAct rAct = do
+  btn <- eventButton
+  liftIO $ case btn of
     LeftButton -> lAct
     MiddleButton -> mAct
     RightButton -> rAct
@@ -34,7 +37,7 @@ handleClickAction lAct mAct rAct evt = do
 clickableActions :: (WidgetClass w) => Act -> Act -> Act -> w -> IO Widget
 clickableActions lAct mAct rAct w = do
   ebox <- eventBoxNew
-  onButtonPress ebox $ handleClickAction lAct mAct rAct
+  on ebox buttonPressEvent $ handleClickAction lAct mAct rAct
   eventBoxSetVisibleWindow ebox False
   containerAdd ebox w
   widgetShowAll ebox
