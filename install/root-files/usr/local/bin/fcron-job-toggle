@@ -44,7 +44,7 @@ my $usage = "Usage:
   $0
     list all named jobs
 
-  $0 JOBNAME [CMD]
+  $0 [JOBNAME] CMD
     modify or remove existing JOBNAME line
       e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
             '$0 UP'     => toggle job 'UP'
@@ -100,33 +100,40 @@ sub main(@){
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
+  my ($jobName, $action);
   if(@_ == 0){
-    listNamedJobs;
-    exit 0;
-  }
-
-  die $usage if @_ > 2;
-
-  if($_[0] =~ /$jobRe/ and (@_ < 2 or $_[1] =~ /^($okCmds)/)){
-    my $jobName = $_[0];
-    my $cmd = @_ < 2 ? 'toggle' : $_[1];
-    setJobState $jobName, $cmd, 0;
-  }elsif($_[-1] =~ /$absTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
-    my $jobName = @_ < 2 ? $defJob : $_[0];
-    my $absTime = $_[-1];
-    setJobState $jobName, 'del', 1;
-    appendJobLine getDefaultJobLine($jobName, $absTime);
-  }elsif($_[-1] =~ /$relTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
-    my $jobName = @_ < 2 ? $defJob : $_[0];
-    my $relTime = $_[-1];
-    setJobState $jobName, 'del', 1;
-    appendJobLine getDefaultJobLine($jobName, $relTime);
+    $jobName = undef;
+    $action = "listNamedJobs";
+  }elsif(@_ == 1){
+    $jobName = $defJob;
+    $action = $_[0];
+  }elsif(@_ == 2 and $_[0] =~ /$jobRe/){
+    $jobName = $_[0];
+    $action = $_[1];
   }else{
     die $usage;
   }
 
-  system "fcron-tool", "--load";
-  runUser "fcron-tool", "--get";
+  my $reloadFcron = 0;
+  if($action =~ /^(listNamedJobs)$/){
+    listNamedJobs();
+  }elsif($action =~ /^($okCmds)/){
+    my $cmd = $action;
+    setJobState $jobName, $cmd, 0;
+    $reloadFcron = 1;
+  }elsif($action =~ /$absTimeRe/ or $action =~ /$relTimeRe/){
+    my $time = $action;
+    setJobState $jobName, 'del', 1;
+    appendJobLine getDefaultJobLine($jobName, $time);
+    $reloadFcron = 1;
+  }else{
+    die $usage;
+  }
+
+  if($reloadFcron){
+    system "fcron-tool", "--load";
+    runUser "fcron-tool", "--get";
+  }
 }
 
 sub getDefaultJobLine($$){
