@@ -63,8 +63,8 @@ relTime t1 t2 = showDHMS (show d,sh h,sh m,sh s)
   where sex = round $ diffUTCTime t1 t2
         s = sex `mod` 60
         m = sex `div` 60 `mod` 60
-        h = sex `div` 60 `div` 60 `mod` 60 `mod` 24
-        d = sex `div` 60 `div` 60  `div` 24
+        h = sex `div` 60 `div` 60 `mod` 24
+        d = sex `div` 60 `div` 60 `div` 24
         sh s = (if s < 10 then "0" else "") ++ show s
 
 
