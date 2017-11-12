@@ -45,38 +45,44 @@ my $usage = "Usage:
     list all named jobs
 
   $0 [JOBNAME] CMD
-    modify or remove existing JOBNAME line
-      e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
-            '$0 UP'     => toggle job 'UP'
-            '$0 x2 del' => completely remove job 'x2'
+    comment, uncomment, or delete an existing fcrontab line
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    CMD       $okCmds {default is 'toggle'}
-              on:     ensure uncommented
-              off:    ensure commented
-              toggle: toggle comment
-              del:    completed remove JOBNAME line, even if commented
+    e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
+          '$0 UP'     => toggle job 'UP'
+          '$0 x2 del' => completely remove job 'x2'
 
-  $0 [JOBNAME] HH24:MM|HH12:MMa|HH12a
-    add a new job to go off once at a certain time of day
-      e.g.: '$0 14:45'   => '" . getDefaultJobLine($defJob, '14:45') . "'
+
+  $0 [JOBNAME] TIME
+    add a new job (deleting it first if it exists)
+    with command: 'alarm-fcron JOBNAME del'
+      (ideally, this command should notify the user and then run '$0 JOBNAME del')
+
+    e.g.:   '$0 14:45'   => '" . getDefaultJobLine($defJob, '14:45') . "'
             '$0 5pm'     => '" . getDefaultJobLine($defJob, '5pm') . "'
             '$0 12:30am' => '" . getDefaultJobLine($defJob, '12:30am') . "'
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    HH24:MM   wallclock time in hours 00-23 and minutes 00-59
-    HH12:MMa  wallclock time in hours 1-12 and minutes 00-59 and AM or PM
-    HH12a     wallclock time in hours 1-12 and AM or PM
+            '$0 30s'     => '" . getDefaultJobLine($defJob, '30s') . "'
+            '$0 5'       => '" . getDefaultJobLine($defJob, '5') . "'
+            '$0 3w5d'    => '" . getDefaultJobLine($defJob, '3w5d') . "'
 
-  $0 [JOBNAME] RELTIME
-    add a new job to go off after a specified delay
-    {JOBNAME defaults to '$defJob'}
-      e.g.: '$0 30s'   => '" . getDefaultJobLine($defJob, '30s') . "'
-            '$0 5'     => '" . getDefaultJobLine($defJob, '5') . "'
-            '$0 3w5d'  => '" . getDefaultJobLine($defJob, '3w5d') . "'
+    JOBNAME
+      exactly 2 characters, first must be alpha, second must be alphanumeric
+      default='$defJob'
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    RELTIME   elapsed system time
+    CMD
+      on:        ensure uncommented
+      off:       ensure commented
+      toggle:    toggle comment
+      del:       completed remove JOBNAME line, even if commented
+
+    TIME
+      either absolute (hours and minutes) or relative
+      absolute: next wall clock time, added as 'MM HH * * *'
+        HH24:MM       00-23hr 00-59min            e.g.: 15:30  => '30 15 * * *'
+        HH12:MMa      1-12hr  00-59min  AM or PM  e.g.: 3:30pm => '30 15 * * *'
+        HH12a         1-12hr            AM or PM  e.g.: 3pm    => '0 15 * * *'
+
+      relative: elapsed system time, in fcron relative format '@ <TIME>'
               '<MINUTES>' or '<VAL-UNIT>+' or '<VAL-UNIT>+<MINUTES>'
 
               MINUTES is an integer for elapsed minutes
