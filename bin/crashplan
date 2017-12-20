@@ -8,6 +8,7 @@ use File::Tee qw(tee);
 
 sub getCrashplanPid();
 sub backupLogs();
+sub runCommandInCommandsGui($);
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
 sub parseBackupSets($$$);
@@ -32,15 +33,15 @@ my $dir = "/usr/local/crashplan";
 my $guiExec = "$dir/bin/CrashPlanDesktop";
 my $engineExec = "$dir/bin/CrashPlanEngine";
 my $crashplanJar = "lib/com.backup42.desktop.jar";
-my $cliWrapperSrc = "cliwrapper";
-my $cliWrapperClass = "com.backup42.desktop.CliWrapper";
 my $historyLogFile = "$dir/log/history.log.0";
 my $serviceLogFile = "$dir/log/service.log.0";
 my $logBackupDir = "/media/stuff/logs/crashplan";
 my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
-my $initialScanDelayMillis = 15 * 1000;
+my $initialScanDelayMillis = 5 * 1000;
+my $initialCommandDelayMillis = 10 * 1000;
+my $guiEventDelayMillis = 3 * 1000;
 my $recentLogMillis = 18 * 60 * 60 * 1000; #18hr
 my $backupLimitMillis = 4 * 60 * 60 * 1000; #4hr
 my $checkCompleteIntervalMillis = 30 * 1000;
@@ -83,8 +84,7 @@ my $usage = "Usage:
         alternative filename to use instead of $historyLogFile
 
   $0 $okServiceCmds
-    use custom CliWrapper to run the GUI 'CLI' commands in a REAL command line
-    run 'cd $dir; java -cp $crashplanJar:$cliWrapperSrc $cliWrapperClass <ARG>'
+    open up the Commands GUI and type the command using xdotool/wmctrl/windowid
 
   $0 $okEngineCmds
     run 'sudo $engineExec <ARG>'
@@ -159,8 +159,7 @@ sub main(@){
   }elsif($cmd =~ /^($okEngineCmds)$/ and @_ == 0){
     exec "sudo", $engineExec, $cmd;
   }elsif($cmd =~ /^($okServiceCmds)$/ and @_ == 0){
-    chdir $dir;
-    exec "java", "-cp", "$crashplanJar:$cliWrapperSrc", $cliWrapperClass, $cmd;
+    runCommandInCommandsGui $cmd;
   }elsif($cmd =~ /^(-b|--backup|backup)$/ and @_ <= 1){
     my $ignoreDuplicateFailures = 0;
     if(@_ == 1 and $_[0] =~ /^--force$/){
@@ -194,6 +193,39 @@ sub backupLogs(){
   }
   tryrun "cd $logBackupDir && git gc --auto";
   print "\n\n";
+}
+
+sub runCommandInCommandsGui($){
+  my $command = shift;
+
+  print "starting gui\n";
+  run $0, "-g";
+  print "sleeping " . int($initialCommandDelayMillis/1000) . "s before opening Commands GUI\n";
+  sleep $initialCommandDelayMillis/1000.0;
+
+  my $guiWindowId = `windowid --exact --class=crashplan.crashplan --name=Code42`;
+  chomp $guiWindowId;
+  die "could not get window id of gui\n" if $guiWindowId !~ /^0x/;
+
+  print "opening Commands GUI\n";
+  run "wmctrl", "-i", "-a", $guiWindowId;
+  run "xdotool", "key", "--window", $guiWindowId, "Ctrl+Shift+C";
+
+  print "sleeping " . int($guiEventDelayMillis/1000) . "s before typing a command\n";
+  sleep $guiEventDelayMillis/1000.0;
+
+  my $cmdWindowId = `windowid --exact --class=crashplan.crashplan --name='Code42 Commands'`;
+  chomp $cmdWindowId;
+  die "could not get window id of Commands GUI\n" if $cmdWindowId !~ /^0x/;
+
+  print "typing command in Commands GUI\n";
+  run "wmctrl", "-i", "-a", $cmdWindowId;
+  run "xdotool", "type", "--window", $cmdWindowId, "$command\n";
+
+  print "sleeping " . int($guiEventDelayMillis/1000) . "s before closing the GUI\n";
+  sleep $guiEventDelayMillis/1000.0;
+  run "wmctrl", "-i", "-c", $cmdWindowId;
+  run "wmctrl", "-i", "-c", $guiWindowId;
 }
 
 sub runBackup($){
