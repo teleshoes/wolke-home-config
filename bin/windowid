@@ -1,0 +1,162 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub windowMatches($$$$$);
+sub getAllWindows();
+
+my $usage = "Usage:
+  $0 [OPTS] QUERY [QUERY ..]
+    print the window id of the first window to match each QUERY
+
+  QUERY
+    NAME_OR_CLASS | --name-or-class=NAME_OR_CLASS
+      match NAME_OR_CLASS against window name or window class
+        if just NAME_OR_CLASS is given, it cannot start with '-'
+        instead, do '--name-or-class=-...'
+
+    --name=NAME | --title=NAME
+      match NAME against window name
+
+    --class=CLASS | --windowclass=CLASS
+      match CLASS against window class
+
+  OPTS
+    -r | --regex   {DEFAULT}
+      treat values in QUERY as a regular expression
+
+    -e | --exact
+      treat values in QUERY as full string, literal match
+
+    -i | --case-insensitive   {DEFAULT}
+      treat QUERY as case-insensitive
+
+    -s | --case-sensitive
+      treat QUERY as case-sensitive
+";
+
+my ($TYPE_REGEX, $TYPE_EXACT) = ("regex", "exact");
+my ($FIELD_NAME_CLASS, $FIELD_NAME, $FIELD_CLASS) = ("name_class", "name", "class");
+
+sub main(@){
+  my $type = $TYPE_REGEX;
+  my $caseSensitive = 0;
+  while(@_ > 0 and $_[0] =~ /^(-r|--regex|-e|--exact|-i|-s|--case-(in?)sensitive)$/){
+    my $opt = shift;
+    if($opt =~ /^(-r|--regex)$/){
+      $type = $TYPE_REGEX;
+    }elsif($opt =~ /^(-e|--exact)$/){
+      $type = $TYPE_EXACT;
+    }elsif($opt =~ /^(-i|--case-insensitive)$/){
+      $caseSensitive = 0;
+    }elsif($opt =~ /^(-s|--case-sensitive)$/){
+      $caseSensitive = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  die $usage if @_ == 0;
+
+  my @nameQueries;
+  my @classQueries;
+  my @nameOrClassQueries;
+  while(@_ > 0){
+    my $query = shift;
+    if($query =~ /^(?:--name|--title)=(.+)$/){
+      push @nameQueries, $1;
+    }elsif($query =~ /^(?:--class|--windowclass)=(.+)$/){
+      push @classQueries, $1;
+    }elsif($query =~ /^(?:--name-or-class)=(.+)$/){
+      push @nameOrClassQueries, $1;
+    }elsif($query !~ /^-/){
+      push @nameOrClassQueries, $query;
+    }else{
+      die $usage;
+    }
+  }
+
+  my @windows = getAllWindows();
+
+  for my $window(@windows){
+    my $matches = 1;
+    for my $query(@nameQueries){
+      next if not $matches;
+      if(not windowMatches $FIELD_NAME, $type, $caseSensitive, $query, $window){
+        $matches = 0;
+      }
+    }
+    for my $query(@classQueries){
+      next if not $matches;
+      if(not windowMatches $FIELD_CLASS, $type, $caseSensitive, $query, $window){
+        $matches = 0;
+      }
+    }
+    for my $query(@nameOrClassQueries){
+      next if not $matches;
+      if(not windowMatches $FIELD_NAME_CLASS, $type, $caseSensitive, $query, $window){
+        $matches = 0;
+      }
+    }
+    if($matches){
+      print "$$window{windowid}\n";
+      exit 0;
+    }
+  }
+  die "no matching window found\n";
+}
+
+sub windowMatches($$$$$){
+  my ($field, $type, $caseSensitive, $query, $window) = @_;
+
+  if($field eq $FIELD_NAME_CLASS){
+    if(windowMatches $FIELD_NAME, $type, $caseSensitive, $query, $window){
+      return 1;
+    }elsif(windowMatches $FIELD_CLASS, $type, $caseSensitive, $query, $window){
+      return 1;
+    }else{
+      return 0;
+    }
+  }
+
+  my $targetStr = $field eq $FIELD_NAME ? $$window{name} : $$window{class};
+
+  my $matches;
+  if($type eq $TYPE_REGEX){
+    if($caseSensitive){
+      $matches = $targetStr =~ /\Q$query\E/;
+    }else{
+      $matches = $targetStr =~ /\Q$query\E/i;
+    }
+  }elsif($type eq $TYPE_EXACT){
+    if(not $caseSensitive){
+      $targetStr = lc $targetStr;
+      $query = lc $query;
+    }
+    $matches = $targetStr eq $query;
+  }
+
+  return $matches ? 1 : 0;
+}
+
+sub getAllWindows(){
+  my $hostname = `hostname`;
+  chomp $hostname;
+  my @wmctrlLines = `wmctrl -l -x`;
+  my @windows;
+  for my $line(@wmctrlLines){
+    if($line !~ /^(0x[0-9a-f]+)\s*(\w+)\s*(\S+)\s*$hostname\s*(.+)$/){
+      die "malformed wmctrl window: $line";
+    }
+    my $window = {
+      windowid => $1,
+      desktop  => $2,
+      class    => $3,
+      name     => $4,
+    };
+    push @windows, $window;
+  }
+  return @windows;
+}
+
+&main(@ARGV);
