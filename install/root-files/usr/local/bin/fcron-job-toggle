@@ -29,8 +29,8 @@ my $minRe = "(?:[0-5][0-9])";
 my $amRe = "(?:[aApP][mM])";
 my $absTimeRe = "^(?:$h24Re:$minRe|$h12Re:$minRe$amRe|$h12Re$amRe)\$";
 
-my $valUnitRe = "(?:[0-9]+[mwdhs])";
-my $relTimeRe = "^(?:[0-9]+|$valUnitRe+|$valUnitRe+[0-9]+)\$";
+my $valUnitRe = "(?:[0-9]+[dhmsDHMS])";
+my $relTimeRe = "^(?:[0-9]+|$valUnitRe+)\$";
 
 my $usage = "Usage:
   Update $tab programmatically and safely, and reload fcrontab.
@@ -44,89 +44,105 @@ my $usage = "Usage:
   $0
     list all named jobs
 
-  $0 JOBNAME [CMD]
-    modify or remove existing JOBNAME line
-      e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
-            '$0 UP'     => toggle job 'UP'
-            '$0 x2 del' => completely remove job 'x2'
+  $0 [JOBNAME] CMD
+    comment, uncomment, or delete an existing fcrontab line ending in #JOBNAME
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    CMD       $okCmds {default is 'toggle'}
-              on:     ensure uncommented
-              off:    ensure commented
-              toggle: toggle comment
-              del:    completed remove JOBNAME line, even if commented
+    e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
+          '$0 UP'     => toggle job 'UP'
+          '$0 x2 del' => completely remove job 'x2'
 
-  $0 [JOBNAME] HH24:MM|HH12:MMa|HH12a
-    add a new job to go off once at a certain time of day
-      e.g.: '$0 14:45'   => '" . getDefaultJobLine($defJob, '14:45') . "'
+
+  $0 [JOBNAME] TIME
+    first deletes the job, as in '$0 JOBNAME del'
+    then adds a new fcrontab line: '<jobtime> <jobcmd> #JOBNAME'
+      jobtime: calculated from TIME, either relative or absolute
+      jobcmd: 'alarm-fcron JOBNAME del'
+
+    e.g.:   '$0 14:45'   => '" . getDefaultJobLine($defJob, '14:45') . "'
             '$0 5pm'     => '" . getDefaultJobLine($defJob, '5pm') . "'
             '$0 12:30am' => '" . getDefaultJobLine($defJob, '12:30am') . "'
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    HH24:MM   wallclock time in hours 00-23 and minutes 00-59
-    HH12:MMa  wallclock time in hours 1-12 and minutes 00-59 and AM or PM
-    HH12a     wallclock time in hours 1-12 and AM or PM
+            '$0 30s'     => '" . getDefaultJobLine($defJob, '30s') . "'
+            '$0 5'       => '" . getDefaultJobLine($defJob, '5') . "'
+            '$0 1m30s'   => '" . getDefaultJobLine($defJob, '1m30s') . "'
+            '$0 2d12h3m  => '" . getDefaultJobLine($defJob, '2d12h3m') . "'
 
-  $0 [JOBNAME] RELTIME
-    add a new job to go off after a specified delay
-    {JOBNAME defaults to '$defJob'}
-      e.g.: '$0 30s'   => '" . getDefaultJobLine($defJob, '30s') . "'
-            '$0 5'     => '" . getDefaultJobLine($defJob, '5') . "'
-            '$0 3w5d'  => '" . getDefaultJobLine($defJob, '3w5d') . "'
+    JOBNAME
+      exactly 2 characters, first must be alpha, second must be alphanumeric
+      default='$defJob'
 
-    JOBNAME   one letter followed by one alphanumeric char {default='$defJob'}
-    RELTIME   elapsed system time
-              '<MINUTES>' or '<VAL-UNIT>+' or '<VAL-UNIT>+<MINUTES>'
+    CMD
+      on:        ensure uncommented
+      off:       ensure commented
+      toggle:    toggle comment
+      del:       completed remove JOBNAME line, even if commented
 
-              MINUTES is an integer for elapsed minutes
-              VAL-UNIT is an integer followed by a unit:
-                m:    months  (4 weeks)
-                w:    weeks   (7 days)
-                d:    days    (24 hours)
-                h:    hours   (60 minutes)
-                s:    seconds
+    TIME
+      either absolute (hours and minutes) or relative
+      absolute: next wall clock time, added as 'MM HH * * *'
+        HH24:MM       00-23hr 00-59min            e.g.: 15:30  => '30 15 * * *'
+        HH12:MMa      1-12hr  00-59min  AM or PM  e.g.: 3:30pm => '30 15 * * *'
+        HH12a         1-12hr            AM or PM  e.g.: 3pm    => '0 15 * * *'
 
-              at least one VAL-UNIT, or MINUTES, or both must be specified
-              MINUTES, if specified, must be last, and at most once
+      relative: elapsed time, re-formatted to an fcron relative time:
+        '@ <DAYS>d<HOURS>h<SECONDS>s<MINUTES>'
 
-            e.g.:
-              5           => 5 minutes
-              10s         => 10 seconds
-              2h5s2h40s10 => 4hr, 10min and 45s
+      time is a list of numbers followed by units (e.g.: 2d4h30m20s)
+        OR just a single integer for minutes (e.g.: 30)
+      all values are added together, and reformatted as day-hr-sec-min
+
+      units are case insensitive. allowed units:
+        d:    days    (24 hours)
+        h:    hours   (60 minutes)
+        m:    minutes (60 seconds) !NOT MONTHS!
+        s:    seconds
+
+      e.g.:
+        5              =>  5m             => '@ 5'
+        10s            =>  10s            => '@ 10s'
+        1m30s          =>  1m 30s         => '@ 30s1'
+        1d6h30m20s     =>  1d 6h 30m 20s  => '@ 1d6h20s30'
+        5m1h1h1h20s    =>  3h 5m 20s      => '@ 3h20s5'
 ";
 
 sub main(@){
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
   ensureRoot();
 
+  my ($jobName, $action);
   if(@_ == 0){
-    listNamedJobs;
-    exit 0;
-  }
-
-  die $usage if @_ > 2;
-
-  if($_[0] =~ /$jobRe/ and (@_ < 2 or $_[1] =~ /^($okCmds)/)){
-    my $jobName = $_[0];
-    my $cmd = @_ < 2 ? 'toggle' : $_[1];
-    setJobState $jobName, $cmd, 0;
-  }elsif($_[-1] =~ /$absTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
-    my $jobName = @_ < 2 ? $defJob : $_[0];
-    my $absTime = $_[-1];
-    setJobState $jobName, 'del', 1;
-    appendJobLine getDefaultJobLine($jobName, $absTime);
-  }elsif($_[-1] =~ /$relTimeRe/ and (@_ < 2 or $_[0] =~ /$jobRe/)){
-    my $jobName = @_ < 2 ? $defJob : $_[0];
-    my $relTime = $_[-1];
-    setJobState $jobName, 'del', 1;
-    appendJobLine getDefaultJobLine($jobName, $relTime);
+    $jobName = undef;
+    $action = "listNamedJobs";
+  }elsif(@_ == 1){
+    $jobName = $defJob;
+    $action = $_[0];
+  }elsif(@_ == 2 and $_[0] =~ /$jobRe/){
+    $jobName = $_[0];
+    $action = $_[1];
   }else{
     die $usage;
   }
 
-  system "fcron-tool", "--load";
-  runUser "fcron-tool", "--get";
+  my $reloadFcron = 0;
+  if($action =~ /^(listNamedJobs)$/){
+    listNamedJobs();
+  }elsif($action =~ /^($okCmds)/){
+    my $cmd = $action;
+    setJobState $jobName, $cmd, 0;
+    $reloadFcron = 1;
+  }elsif($action =~ /$absTimeRe/ or $action =~ /$relTimeRe/){
+    my $time = $action;
+    setJobState $jobName, 'del', 1;
+    appendJobLine getDefaultJobLine($jobName, $time);
+    $reloadFcron = 1;
+  }else{
+    die $usage;
+  }
+
+  if($reloadFcron){
+    system "fcron-tool", "--load";
+    runUser "fcron-tool", "--get";
+  }
 }
 
 sub getDefaultJobLine($$){
@@ -152,7 +168,30 @@ sub parseJobTime($){
     }
     return "$m $h * * *";
   }elsif($time =~ /$relTimeRe/){
-    return "@ $time";
+    my $seconds = 0;
+    if($time =~ /^(\d+)$/){
+      $seconds = $time * 60;
+    }else{
+      while($time =~ s/^(\d+)([dhmsDHMS])//){
+        my ($val, $unit) = ($1, $2);
+        $seconds += $val if $unit =~ /[sS]/;
+        $seconds += $val * 60 if $unit =~ /[mM]/;
+        $seconds += $val * 60 * 60 if $unit =~ /[hH]/;
+        $seconds += $val * 60 * 60 * 24 if $unit =~ /[dD]/;
+      }
+      die "error parsing RELTIME: $time\n" if length($time) != 0;
+    }
+    my $s = int($seconds)       % 60;
+    my $m = int($seconds/60)    % 60;
+    my $h = int($seconds/60/60) % 24;
+    my $d = int($seconds/60/60/24);
+    my $fmt = "";
+    $fmt .= "${d}d" if $d > 0;
+    $fmt .= "${h}h" if $h > 0;
+    $fmt .= "${s}s" if $s > 0;
+    $fmt .= "${m}" if $m > 0;
+
+    return "@ $fmt";
   }else{
     die "malformed time: $time\n";
   }
