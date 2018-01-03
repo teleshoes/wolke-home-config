@@ -4,15 +4,17 @@ use warnings;
 
 sub run(@);
 
-my @hostCmdEntries = (
-  ["ipmagic t430s",  undef],
-  ["ipmagic w520",   undef],
-  ["ipmagic nuc",    undef],
-  ["seedbox --host", undef],
-  ["ipmagic sx",     "nemo"],
-  ["ipmagic sx",     "root"],
-  ["ipmagic raspi",  "pi"],
-  ["ipmagic raspi",  "root"],
+my $MODE_RSYNC = "rsync";
+
+my @hostIpCmdEntries = (
+  ["ipmagic t430s",        undef,  $MODE_RSYNC],
+  ["ipmagic w520",         undef,  $MODE_RSYNC],
+  ["ipmagic nuc",          undef,  $MODE_RSYNC],
+  ["seedbox --host",       undef,  $MODE_RSYNC],
+  ["ipmagic sx",           "nemo", $MODE_RSYNC],
+  ["ipmagic sx",           "root", $MODE_RSYNC],
+  ["ipmagic raspi",        "pi",   $MODE_RSYNC],
+  ["ipmagic raspi",        "root", $MODE_RSYNC],
 );
 
 sub main(@){
@@ -20,17 +22,21 @@ sub main(@){
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
-  for my $entry(@hostCmdEntries){
-    my ($cmd, $user) = @$entry;
-    print "\n\ncopying pubkeys for $cmd" . (defined $user ? " ($user)" : "") . "\n";
-    my $hostname = `$cmd`;
+  for my $entry(@hostIpCmdEntries){
+    my ($ipCmd, $user, $mode) = @$entry;
+    print "\n\ncopying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
+    my $hostname = `$ipCmd`;
     chomp $hostname;
-    die "Error running '$cmd'\n" if $? != 0;
-    die "Malformed hostname from '$cmd': $hostname\n" if $hostname !~ /\w/;
+    die "Error running '$ipCmd'\n" if $? != 0;
+    die "Malformed hostname from '$ipCmd': $hostname\n" if $hostname !~ /\w/;
 
     my $host = $hostname;
     $host = "$user\@$host" if defined $user;
-    run "rsync", "-avP", @pubkeyFiles, "$host:~/.ssh/";
+    if($mode eq $MODE_RSYNC){
+      run "rsync", "-avP", @pubkeyFiles, "$host:~/.ssh/";
+    }else{
+      die "unknown mode: $mode\n";
+    }
     run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
   }
 }
