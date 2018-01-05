@@ -6,7 +6,7 @@ import Utils (fgbg, padL, padR, isRunning, chompFile, readProc, widgetSetClass)
 
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
-import Data.Csv(decodeByName, FromNamedRecord, parseNamedRecord, (.:))
+import Data.Csv (decodeByName, FromNamedRecord, parseNamedRecord, (.:))
 import Graphics.UI.Gtk (escapeMarkup)
 import qualified Data.Vector as Vector
 import qualified Data.Text.Lazy as T
@@ -109,7 +109,7 @@ emptyKlompInfo = KlompInfo {errorMsg = "",
                             playlist = "", ended = ""}
 
 
-formatTimes ts = map fmt ts 
+formatTimes ts = map fmt ts
   where maxH = (maximum ts) `div` (60^2)
         maxHLen = length $ show $ maxH
         fmt t = (if maxH > 0 then h t ++ ":" else "") ++ m t ++ ":" ++ s t
