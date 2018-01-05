@@ -189,7 +189,6 @@ function sbs          { sb-rt-status "$@"; }
 function sbrsync      { seedbox --rsync-revtun "$@"; }
 
 function s            { "$@" & disown; }
-function sx           { "$@" & disown && exit 0; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
