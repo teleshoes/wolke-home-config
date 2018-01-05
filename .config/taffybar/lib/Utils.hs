@@ -4,7 +4,7 @@ module Utils(
   rowW, colW, containerW, widgetSetClass,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts,
-  stringWidth, padL, padR, padCols, uncols, chompAll,
+  stringWidth, trimL, trimR, padL, padR, padCols, uncols, chompAll,
   pollingGraphMain,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
@@ -125,6 +125,11 @@ isFullWidthChar ch | 0x30A0  <= c && c <= 0x30FF  = True --katakana
                    | 0x2F800 <= c && c <= 0x2FA1F = True --han duplicates, unifiable variants, corporate chars
                    | otherwise                    = False
   where c = ord ch
+
+trimL len [] = []
+trimL len (x:xs) | stringWidth (x:xs) <= len = x:xs
+                 | otherwise                 = trimL len xs
+trimR len xs = reverse $ trimL len (reverse xs)
 
 padL x len xs = replicate (len - stringWidth xs) x ++ xs
 padR x len xs = xs ++ replicate (len - stringWidth xs) x
