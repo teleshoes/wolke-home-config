@@ -219,6 +219,8 @@ shortcuts conf = "Shortcuts" @@ do
     "Klomp media keys"    @@ do
         "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"
         "pause/play"  @@ m_    xK_APaus#! "klomp-cmd pause"
+        "next"        @@ m_    xK_ANext#! "audio-key next"
+        "prev"        @@ m_    xK_APrev#! "audio-key prev"
 
     "Klomp nuc"     @@ do
         "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"
