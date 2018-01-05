@@ -142,10 +142,10 @@ shortcuts conf = "Shortcuts" @@ do
         "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
-        "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
-        "66%"           @@ mW    xK_F2   #! "sudo intel-pstate -s max 66"
-        "33%"           @@ mW    xK_F3   #! "sudo intel-pstate -s max 33"
-        "0%"            @@ mW    xK_F4   #! "sudo intel-pstate -s max 0"
+        "100%"          @@ mW    xK_F1   #! "sudo cpu-set all ondemand 0% 100%"
+        "66%"           @@ mW    xK_F2   #! "sudo cpu-set all ondemand 0% 66%"
+        "33%"           @@ mW    xK_F3   #! "sudo cpu-set all ondemand 0% 33%"
+        "0%"            @@ mW    xK_F4   #! "sudo cpu-set all ondemand 0% 0%"
 
     "Fan"           @@ do
         "auto"          @@ mW    xK_F5   #! "sudo fan auto"
