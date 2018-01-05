@@ -57,7 +57,7 @@ lastSSID = do
   return $ top ++ "\n" ++ bot
 
 wifi = do
-  wlan <- fmap chompAll $ readProcess "ifdev" ["wlan"] ""
+  wlan <- fmap chompAll $ readProcess "ifdev" ["wl", "wlan"] ""
   s <- readProcess "iwconfig" [wlan] ""
   let ssid = regexFirstGroup "ESSID:\"(.*)\"" s
   let freq = regexFirstGroup "Frequency:(\\d+(\\.\\d+)?) GHz" s
