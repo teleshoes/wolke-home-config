@@ -12,11 +12,11 @@ import Data.Functor ((<$>))
 import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
-profile = profileFHD
+profile = profileT430s
 
---                pName  barHt  wImgH  space  wSepW  title  fontP  graph  music
-profileFHD    = P "fhd"     38     24      5      2     30   13.0     50  15.94
-profileFHDBig = P "big"     42     28      5      3     30   16.0     50  19.43
+--                 pName  barHt  wImgH  space  wSepW  title  fontP  graph  music
+profileT430s = P "t430s"     38     24      5      2     30   13.0     50  15.94
+profileNuc   = P   "nuc"     42     28      5      3     30   16.0     50  19.43
 
 typeface = "Inconsolata"
 
