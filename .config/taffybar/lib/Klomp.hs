@@ -127,5 +127,5 @@ padSquish len s = padR ' ' len $ sTrim
         sepLen = stringWidth sep
         prefixLen = (len `div` 2) - (sepLen `div` 2) + gapOffset
         suffixLen = len - prefixLen - sepLen
-        prefix = trimR prefixLen $ take prefixLen s
-        suffix = trimL suffixLen $ reverse $ take suffixLen $ reverse s
+        prefix = trimR prefixLen s
+        suffix = trimL suffixLen s
