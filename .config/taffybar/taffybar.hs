@@ -70,7 +70,7 @@ main = do
           , W.micW
           , W.pidginPipeW $ barHeight cfg
           , W.qtemailW (barHeight cfg) Green Black
-          , W.cpuIntelPstateW
+          , W.cpuScalingW
           , W.cpuFreqsW
           , W.fanW
           , W.brightnessW
