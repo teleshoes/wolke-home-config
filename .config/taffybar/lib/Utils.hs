@@ -110,8 +110,9 @@ collectInts :: String -> [Integer]
 collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
 
 stringWidth :: String -> Int
-stringWidth s = (length hwcs)*1 + (length fwcs)*2
-  where (fwcs, hwcs) = partition isFullWidthChar s
+stringWidth s = hwcs*1 + fwcs*2
+  where fwcs = length $ filter isFullWidthChar s
+        hwcs = length s - fwcs --partition is much slower
 
 isFullWidthChar :: Char -> Bool
 isFullWidthChar ch = Set.member ch fullwidthCharSet
