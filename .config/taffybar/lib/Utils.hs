@@ -126,8 +126,8 @@ isFullWidthChar ch | 0x30A0  <= c && c <= 0x30FF  = True --katakana
                    | otherwise                    = False
   where c = ord ch
 
-padL x len xs = replicate (len - length xs) x ++ xs
-padR x len xs = xs ++ replicate (len - length xs) x
+padL x len xs = replicate (len - stringWidth xs) x ++ xs
+padR x len xs = xs ++ replicate (len - stringWidth xs) x
 
 padCols :: [Either Char Char] -> [[String]] -> [[String]]
 padCols format cols = map (pad widths format) cols where
