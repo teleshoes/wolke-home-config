@@ -2,7 +2,9 @@
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW, mainLabel)
-import Utils (fgbg, padL, padR, isRunning, chompFile, readProc, widgetSetClass)
+import Utils (
+  stringWidth, trimL, trimR, padL, padR,
+  fgbg, isRunning, chompFile, readProc, widgetSetClass)
 
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
@@ -120,10 +122,10 @@ formatTimes ts = map fmt ts
 padSquishEsc len s = escapeMarkup $ padSquish len s
 
 padSquish len s = padR ' ' len $ sTrim
-  where strLen = length s
-        sTrim = if strLen > len then beforeGap ++ sep ++ afterGap else s
-        sepLen = length sep
-        gapStart = (len `div` 2) - (sepLen `div` 2) + gapOffset
-        gapLength = strLen - len + sepLen
-        beforeGap = take (gapStart-1) s
-        afterGap = drop (gapStart - 1 + gapLength) s
+  where strLen = stringWidth s
+        sTrim = if strLen > len then prefix ++ sep ++ suffix else s
+        sepLen = stringWidth sep
+        prefixLen = (len `div` 2) - (sepLen `div` 2) + gapOffset
+        suffixLen = len - prefixLen - sepLen
+        prefix = trimR prefixLen $ take prefixLen s
+        suffix = trimL suffixLen $ reverse $ take suffixLen $ reverse s
