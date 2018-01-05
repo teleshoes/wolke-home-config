@@ -130,10 +130,17 @@ fullwidthCharSet = Set.fromList $ map chr $ []
   ++ [0xF900  .. 0xFAFF ] --han duplicates, unifiable variants, corporate chars
   ++ [0x2F800 .. 0x2FA1F] --han unifiable variants
 
-trimL len [] = []
-trimL len (x:xs) | stringWidth (x:xs) <= len = x:xs
-                 | otherwise                 = trimL len xs
-trimR len xs = reverse $ trimL len (reverse xs)
+--remove chars from the left until stringWidth of str is <= len
+trimL :: Int -> String -> String
+trimL len str = trimLCh fwcs suffix
+  where suffix = drop (length str - len) str
+        fwcs = length $ filter isFullWidthChar suffix
+        trimLCh _ [] = ""
+        trimLCh chrs (x:xs) | chrs <= 0         = x:xs
+                            | isFullWidthChar x = trimLCh (chrs-2) xs
+                            | otherwise         = trimLCh (chrs-1) xs
+--remove chars from the right until stringWidth of str is <= len
+trimR len = reverse . trimL len . reverse
 
 padL x len xs = replicate (len - stringWidth xs) x ++ xs
 padR x len xs = xs ++ replicate (len - stringWidth xs) x
