@@ -68,7 +68,7 @@ main = do
           , W.speakerW
           , W.volumeW
           , W.micW
-          , W.cpuIntelPstateW
+          , W.cpuScalingW
           , W.cpuFreqsW
           , W.brightnessW
           , W.screenSaverW

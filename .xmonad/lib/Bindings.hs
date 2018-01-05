@@ -144,10 +144,10 @@ shortcuts conf = "Shortcuts" @@ do
         "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
-        "100%"          @@ mW    xK_F1   #! "sudo intel-pstate -s max 100"
-        "66%"           @@ mW    xK_F2   #! "sudo intel-pstate -s max 66"
-        "33%"           @@ mW    xK_F3   #! "sudo intel-pstate -s max 33"
-        "0%"            @@ mW    xK_F4   #! "sudo intel-pstate -s max 0"
+        "100%"          @@ mW    xK_F1   #! "sudo cpu-set all ondemand 0% 100%"
+        "66%"           @@ mW    xK_F2   #! "sudo cpu-set all ondemand 0% 66%"
+        "33%"           @@ mW    xK_F3   #! "sudo cpu-set all ondemand 0% 33%"
+        "0%"            @@ mW    xK_F4   #! "sudo cpu-set all ondemand 0% 0%"
 
     "Fan"           @@ do
         "auto"          @@ mW    xK_F5   #! "sudo fan auto"
@@ -160,8 +160,8 @@ shortcuts conf = "Shortcuts" @@ do
         "right"         @@ mA    xK_F12  #! "xdotool search --class feh key --clearmodifiers Right"
 
     "alarms"        @@ do
-        "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co"
-        "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te"
+        "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"
+        "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te toggle"
 
     "Rotate Deasil/Widdershins" @@ do
                            mCA   xK_Fwd  #! "rotate deasil"
@@ -174,6 +174,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
+        "zoom"          @@ mCA   xK_z    #! "zoom-run"
         "hangout"       @@ mCA   xK_h    #! "hangout"
         "hex-a-hop"     @@ mCA   xK_x    #! "hex-a-hop"
         "tor"           @@ mCA   xK_v    #! "tor"
@@ -220,6 +221,8 @@ shortcuts conf = "Shortcuts" @@ do
     "Klomp media keys"    @@ do
         "play/pause"  @@ m_    xK_APlay#! "klomp-cmd pause"
         "pause/play"  @@ m_    xK_APaus#! "klomp-cmd pause"
+        "next"        @@ m_    xK_ANext#! "audio-key next"
+        "prev"        @@ m_    xK_APrev#! "audio-key prev"
 
     "Klomp nuc"     @@ do
         "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"
