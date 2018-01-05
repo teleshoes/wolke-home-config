@@ -3,7 +3,8 @@ module Utils(
   fg, bg, fgbg,
   rowW, colW, containerW, widgetSetClass,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, printfReal, collectInts, padL, padR, padCols, uncols, chompAll,
+  readInt, readDouble, printfReal, collectInts,
+  stringWidth, padL, padR, padCols, uncols, chompAll,
   pollingGraphMain,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
@@ -16,6 +17,8 @@ import Control.Concurrent (
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, void)
+import Data.Char (ord)
+import Data.List (partition)
 import Graphics.UI.Gtk (
   Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
   toWidget, toContainer, widgetShowAll, widgetGetStyleContext)
@@ -104,6 +107,24 @@ printfReal fmt rat = printf fmt $ (fromRational $ toRational rat :: Double)
 
 collectInts :: String -> [Integer]
 collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
+
+stringWidth :: String -> Int
+stringWidth s = (length hwcs)*1 + (length fwcs)*2
+  where (fwcs, hwcs) = partition isFullWidthChar s
+
+isFullWidthChar :: Char -> Bool
+isFullWidthChar ch | 0x30A0  <= c && c <= 0x30FF  = True --katakana
+                   | 0x1100  <= c && c <= 0x11FF  = True --hangul
+                   | 0xFF01  <= c && c <= 0xFF60  = True --roman fullwidth
+                   | 0x4E00  <= c && c <= 0x9FFF  = True --han common
+                   | 0x3400  <= c && c <= 0x4DBF  = True --han rare
+                   | 0x20000 <= c && c <= 0x2A6DF = True --han rare historic
+                   | 0x2A700 <= c && c <= 0x2B73F = True --han rare historic
+                   | 0x2B820 <= c && c <= 0x2CEAF = True --han rare historic
+                   | 0xF900  <= c && c <= 0xFAFF  = True --han duplicates, unifiable variants, corporate chars
+                   | 0x2F800 <= c && c <= 0x2FA1F = True --han duplicates, unifiable variants, corporate chars
+                   | otherwise                    = False
+  where c = ord ch
 
 padL x len xs = replicate (len - length xs) x ++ xs
 padR x len xs = xs ++ replicate (len - length xs) x
