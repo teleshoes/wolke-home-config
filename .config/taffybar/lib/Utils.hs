@@ -17,8 +17,9 @@ import Control.Concurrent (
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, void)
-import Data.Char (ord)
+import Data.Char (chr)
 import Data.List (partition)
+import qualified Data.Set as Set
 import Graphics.UI.Gtk (
   Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
   toWidget, toContainer, widgetShowAll, widgetGetStyleContext)
@@ -109,22 +110,25 @@ collectInts :: String -> [Integer]
 collectInts = catMaybes . (map readInt) . (regexAllMatches "\\d+")
 
 stringWidth :: String -> Int
-stringWidth s = (length hwcs)*1 + (length fwcs)*2
-  where (fwcs, hwcs) = partition isFullWidthChar s
+stringWidth s = hwcs*1 + fwcs*2
+  where fwcs = length $ filter isFullWidthChar s
+        hwcs = length s - fwcs --partition is much slower
 
 isFullWidthChar :: Char -> Bool
-isFullWidthChar ch | 0x30A0  <= c && c <= 0x30FF  = True --katakana
-                   | 0x1100  <= c && c <= 0x11FF  = True --hangul
-                   | 0xFF01  <= c && c <= 0xFF60  = True --roman fullwidth
-                   | 0x4E00  <= c && c <= 0x9FFF  = True --han common
-                   | 0x3400  <= c && c <= 0x4DBF  = True --han rare
-                   | 0x20000 <= c && c <= 0x2A6DF = True --han rare historic
-                   | 0x2A700 <= c && c <= 0x2B73F = True --han rare historic
-                   | 0x2B820 <= c && c <= 0x2CEAF = True --han rare historic
-                   | 0xF900  <= c && c <= 0xFAFF  = True --han duplicates, unifiable variants, corporate chars
-                   | 0x2F800 <= c && c <= 0x2FA1F = True --han duplicates, unifiable variants, corporate chars
-                   | otherwise                    = False
-  where c = ord ch
+isFullWidthChar ch = Set.member ch fullwidthCharSet
+
+fullwidthCharSet :: Set.Set Char
+fullwidthCharSet = Set.fromList $ map chr $ []
+  ++ [0x30A0  .. 0x30FF ] --katakana
+  ++ [0x1100  .. 0x11FF ] --hangul
+  ++ [0xFF01  .. 0xFF60 ] --roman fullwidth
+  ++ [0x4E00  .. 0x9FFF ] --han common
+  ++ [0x3400  .. 0x4DBF ] --han rare
+  ++ [0x20000 .. 0x2A6DF] --han rare historic
+  ++ [0x2A700 .. 0x2B73F] --han rare historic
+  ++ [0x2B820 .. 0x2CEAF] --han rare historic
+  ++ [0xF900  .. 0xFAFF ] --han duplicates, unifiable variants, corporate chars
+  ++ [0x2F800 .. 0x2FA1F] --han unifiable variants
 
 trimL len [] = []
 trimL len (x:xs) | stringWidth (x:xs) <= len = x:xs
