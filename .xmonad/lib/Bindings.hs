@@ -158,8 +158,8 @@ shortcuts conf = "Shortcuts" @@ do
         "right"         @@ mA    xK_F12  #! "xdotool search --class feh key --clearmodifiers Right"
 
     "alarms"        @@ do
-        "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co"
-        "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te"
+        "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"
+        "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te toggle"
 
     "Rotate Deasil/Widdershins" @@ do
                            mCA   xK_Fwd  #! "rotate deasil"
