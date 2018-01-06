@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my %seen;
+
+my $MIN_MILLIS = 700;
+my $MAX_MILLIS = 10000;
+
+sub arrEq($$);
+
+sub main(@){
+  while(1){
+    my @lines = `tail /tmp/audio-keys`;
+    my $nowMillis = int(time * 1000.0);
+
+    my @keys;
+    my @times;
+    for my $line(@lines){
+      if($line !~ /^(\w+) (\d+)$/){
+        die "malformed audio-keys line: $line";
+      }
+      my ($k, $t) = ($1, $2);
+
+      if($nowMillis - $t < $MIN_MILLIS){
+        @keys = ();
+        @times = ();
+        last; #too new, start over
+      }elsif($nowMillis - $t > $MAX_MILLIS){
+        next; #too old, skip this one
+      }elsif(defined $seen{$t}){
+        next; #already handled, skip this one
+      }else{
+        push @keys, $k;
+        push @times, $t;
+      }
+    }
+
+    $seen{$_} = 1 foreach @times;
+
+    if(@keys > 0){
+      print "--@keys--\n";
+    }
+
+    if(@keys == 0){
+      #do nothing
+    }elsif(arrEq \@keys, [qw(next)]){
+      system "klomp-cmd seek 20";
+    }elsif(arrEq \@keys, [qw(prev)]){
+      system "klomp-cmd seek -20";
+    }elsif(arrEq \@keys, [qw(next next)]){
+      system "klomp-cmd seek 180";
+    }elsif(arrEq \@keys, [qw(prev prev)]){
+      system "klomp-cmd seek -180";
+    }elsif(arrEq \@keys, [qw(next prev)]){
+      system "klomp-cmd next";
+    }elsif(arrEq \@keys, [qw(prev next)]){
+      system "klomp-cmd prev";
+    }
+
+    sleep 0.1;
+  }
+}
+
+sub arrEq($$){
+  my ($arr1, $arr2) = @_;
+  my $len1 = @$arr1;
+  my $len2 = @$arr2;
+  if($len1 != $len2){
+    return 0;
+  }
+  for(my $i=0; $i<$len1; $i++){
+    if($$arr1[$i] ne $$arr2[$i]){
+      return 0;
+    }
+  }
+  return 1;
+}
+
+&main(@ARGV);
