@@ -55,6 +55,9 @@ my $usage = "Usage:
   $0 [ROUTER] --dump
     run nvram backup, copy the file locally, and then run nvram_dump on it
 
+  $0 [ROUTER] --config-dump
+    print nvram settings from config in key=val format similar to $0 --dump
+
   $0 [ROUTER] --show
     run nvram show (use --dump instead)
 
@@ -78,13 +81,14 @@ my $usage = "Usage:
 ";
 my @args = qw(
   --ip -i --info -h --help -s -r --reboot --restart-dev
-  -t --test --speedtest --dump --show -e --encrypt --restore
+  -t --test --speedtest --dump --config-dump --show -e --encrypt --restore
 );
 my $okArgs = join '|', @args;
 
 sub restartDev($$);
 sub assertPresent($$;$);
 sub ddwrtFetchBackupFile($);
+sub ddwrtConfigDump($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
 sub getStarted($$);
@@ -154,6 +158,14 @@ sub main(@){
   }elsif($arg =~ /^(--dump)$/){
     my $backupFile = ddwrtFetchBackupFile $c;
     system "nvram_dump", $backupFile;
+  }elsif($arg =~ /^(--config-dump)$/){
+    my $nvram = getNvram $c;
+    for my $key(sort keys %$nvram){
+      my $val = $$nvram{$key};
+      $val =~ s/\\/\\\\/g;
+      $val =~ s/\n/\\n/g;
+      print "$key=$val\n";
+    }
   }elsif($arg =~ /^(--show)$/){
     ddwrtShow $c;
   }elsif($arg =~ /^(^--restore$)$/){
