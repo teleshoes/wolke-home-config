@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 sub run(@);
+sub bashComplete($$);
 
 my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
@@ -20,11 +21,20 @@ my @hostIpCmdEntries = (
   ["pi"            => "ipmagic raspi",        "pi",   $MODE_RSYNC],
   ["pi-root"       => "ipmagic raspi",        "root", $MODE_RSYNC],
 );
-my $okNames = join "|", map {${$_}[0]} @hostIpCmdEntries;
+my @allNames = map {${$_}[0]} @hostIpCmdEntries;
+my $okNames = join "|", @allNames;
 
 my $usage = "Usage:
   $0 [TARGET]
     copy pubkeys/authkeys to the hosts returned by the above commands
+
+  $0 -h|--help
+    print this message
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
 
   TARGET
     one of: $okNames
@@ -33,8 +43,17 @@ my $usage = "Usage:
 
 sub main(@){
   my $targetName = undef;
-  $targetName = shift if @_ == 1 and $_[0] =~ /^($okNames)$/;
-  die $usage if @_ > 0;
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^($okNames)$/){
+    $targetName = $_[0];
+  }elsif(@_ > 0){
+    die $usage;
+  }
 
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
@@ -68,4 +87,29 @@ sub run(@){
   die "Error running \"@_\"\n" if $? != 0;
 }
 
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $curWord = pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    --bash-complete
+  );
+  my $optWord = $isNewWord ? $words[-1] : $curWord;
+
+  if(defined $optWord and $optWord =~ /^-/){
+    return @opts;
+  }elsif(@words == 0){
+    return sort @allNames;
+  }
+
+  return ();
+}
 &main(@ARGV);
