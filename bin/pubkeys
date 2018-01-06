@@ -8,27 +8,41 @@ my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
 
 my @hostIpCmdEntries = (
-  ["ipmagic t430s",        undef,  $MODE_RSYNC],
-  ["ipmagic w520",         undef,  $MODE_RSYNC],
-  ["ipmagic nuc",          undef,  $MODE_RSYNC],
-  ["ipmagic nuc",          "root", $MODE_RSYNC],
-  ["seedbox --host",       undef,  $MODE_RSYNC],
-  ["ddwrt 68u --ip",       "root", $MODE_SCP],
-  ["ddwrt buffalo --ip",   "root", $MODE_SCP],
-  ["ipmagic sx",           "nemo", $MODE_RSYNC],
-  ["ipmagic sx",           "root", $MODE_RSYNC],
-  ["ipmagic raspi",        "pi",   $MODE_RSYNC],
-  ["ipmagic raspi",        "root", $MODE_RSYNC],
+  ["t430s"         => "ipmagic t430s",        undef,  $MODE_RSYNC],
+  ["w520"          => "ipmagic w520",         undef,  $MODE_RSYNC],
+  ["nuc"           => "ipmagic nuc",          undef,  $MODE_RSYNC],
+  ["nuc-root"      => "ipmagic nuc",          "root", $MODE_RSYNC],
+  ["sb"            => "seedbox --host",       undef,  $MODE_RSYNC],
+  ["ddwrt-68u"     => "ddwrt 68u --ip",       "root", $MODE_SCP],
+  ["ddwrt-buffalo" => "ddwrt buffalo --ip",   "root", $MODE_SCP],
+  ["sx"            => "ipmagic sx",           "nemo", $MODE_RSYNC],
+  ["sx-root"       => "ipmagic sx",           "root", $MODE_RSYNC],
+  ["pi"            => "ipmagic raspi",        "pi",   $MODE_RSYNC],
+  ["pi-root"       => "ipmagic raspi",        "root", $MODE_RSYNC],
 );
+my $okNames = join "|", map {${$_}[0]} @hostIpCmdEntries;
+
+my $usage = "Usage:
+  $0 [TARGET]
+    copy pubkeys/authkeys to the hosts returned by the above commands
+
+  TARGET
+    one of: $okNames
+    copy for just the named command
+";
 
 sub main(@){
-  die "Usage: $0\n" if @_ > 0;
+  my $targetName = undef;
+  $targetName = shift if @_ == 1 and $_[0] =~ /^($okNames)$/;
+  die $usage if @_ > 0;
+
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
   for my $entry(@hostIpCmdEntries){
-    my ($ipCmd, $user, $mode) = @$entry;
-    print "\n\ncopying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
+    my ($name, $ipCmd, $user, $mode) = @$entry;
+    next if defined $targetName and $name ne $targetName;
+    print "\n\n$name: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
     my $hostname = `$ipCmd`;
     chomp $hostname;
     die "Error running '$ipCmd'\n" if $? != 0;
