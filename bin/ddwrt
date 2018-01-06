@@ -52,8 +52,11 @@ my $usage = "Usage:
   $0 [ROUTER] -t|--test|--speedtest
     perform a speedtest with speedtest-netcat
 
+  $0 [ROUTER] --dump
+    run nvram backup, copy the file locally, and then run nvram_dump on it
+
   $0 [ROUTER] --show
-    run nvram show
+    run nvram show (use --dump instead)
 
   $0 [ROUTER] -e|--encrypt KEY
     pass in a wpa key or whatever for encrypting and putting into $dir/ROUTER
@@ -75,12 +78,13 @@ my $usage = "Usage:
 ";
 my @args = qw(
   --ip -i --info -h --help -s -r --reboot --restart-dev
-  -t --test --speedtest --show -e --encrypt --restore
+  -t --test --speedtest --dump --show -e --encrypt --restore
 );
 my $okArgs = join '|', @args;
 
 sub restartDev($$);
 sub assertPresent($$;$);
+sub ddwrtFetchBackupFile($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
 sub getStarted($$);
@@ -147,6 +151,9 @@ sub main(@){
     print getStarted $c, $router;
   }elsif($arg =~ /^(-t|--test|--speedtest)$/){
     exec "speedtest-netcat", "root\@$$c{config}{router_ip}";
+  }elsif($arg =~ /^(--dump)$/){
+    my $backupFile = ddwrtFetchBackupFile $c;
+    system "nvram_dump", $backupFile;
   }elsif($arg =~ /^(--show)$/){
     ddwrtShow $c;
   }elsif($arg =~ /^(^--restore$)$/){
@@ -182,6 +189,15 @@ sub assertPresent($$;$){
   }else{
     die "Missing section $section\n" if not defined $$c{$section};
   }
+}
+
+sub ddwrtFetchBackupFile($){
+  my $c = shift;
+  my $ip = $$c{config}{router_ip};
+  my $tmpFile = "nvram-backup-" . time;
+  system "ssh @sshOpts root\@$ip nvram backup $tmpFile";
+  system "scp @sshOpts root\@$ip:$tmpFile /tmp/$tmpFile";
+  return "/tmp/$tmpFile";
 }
 
 sub ddwrtShow($){
