@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub getRoot(@);
+
+my $list = "/etc/apt/sources.list.d/siduction.list";
+
+sub main(@){
+  getRoot(@_);
+
+  my $newMirror = "@_";
+  $newMirror = $1 if $newMirror =~ /(\S+)\/siduction/;
+  die "malformed mirror: $newMirror\n" if $newMirror !~ /^(http|ftp)/;
+  my $oldContent = `cat $list`;
+  my $prevOldMirror = undef;
+  my $newContent = '';
+  for my $line(split /\r?\n\r?/, $oldContent){
+    if($line =~ /^(.*)(deb|deb-src) (.*)(\/siduction\/(?:extra|fixes|user|base)) (.*)$/){
+      my ($prefix, $type, $oldMirror, $dir, $suffix) = ($1, $2, $3, $4, $5);
+      $line = "$prefix$type $newMirror$dir $suffix";
+      $prevOldMirror = $oldMirror if not defined $prevOldMirror;
+      if($prevOldMirror ne $oldMirror){
+        die "mulitple old mirrors:\n$prevOldMirror\n$oldMirror\n";
+      }
+    }
+    $newContent .= "$line\n";
+  }
+  print "old mirror $prevOldMirror\n";
+  print "new mirror $newMirror\n";
+  if($oldContent eq $newContent){
+    print "no change\n";
+    exit 0;
+  }
+  print "replace? [Y/n] ";
+  my $ok = <STDIN>;
+  if($ok =~ /n|N/){
+    print "cancelled\n";
+    exit 0;
+  }else{
+    print "overwriting $list\n";
+    print $newContent;
+    open FH, "> $list" or die "could not write $list\n$!\n";
+    print FH $newContent;
+    close FH;
+  }
+}
+
+sub getRoot(@){
+  if(`whoami` ne "root\n"){
+    print "rerunning as root\n";
+    exec "sudo", $0, @_;
+  }
+}
+
+&main(@ARGV);

@@ -5,8 +5,8 @@ use Cwd qw(abs_path);
 
 sub getHtml($$@);
 
-my $autoScrollPx = 25;
-my $autoScrollMillis = 25;
+my $autoScrollPx = 800;
+my $autoScrollMillis = 1000;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -29,7 +29,7 @@ my $usage = "Usage:
       dont launch chromium, print HTML to console
 
     -a|--autoscroll
-      scroll page slowly
+      scroll page slowly when you click on an image, click again to toggle
 
     --clickbox
       include a textbox at the bottom
@@ -96,30 +96,44 @@ sub getHtml($$@){
   $html .= "<head>";
   $html .= "
     <script>
+    var scrollEnabled = false;
     function addText(event) {
       var targ = event.target || event.srcElement;
-      document.getElementById(\"clicked\").value += targ.src;
+      document.getElementById(\"clicked\").value += targ.src + \"\\n\";
+    }
+    function toggleScroll(){
+      scrollEnabled = !scrollEnabled;
+      if(scrollEnabled){
+        pageScroll();
+      }
     }
     function pageScroll() {
-      window.scrollBy(0,$autoScrollPx);
-      scrolldelay = setTimeout('pageScroll()',$autoScrollMillis);
+      if(scrollEnabled){
+        window.scrollBy({
+          behavior: 'smooth',
+          top: $autoScrollPx
+        });
+        scrolldelay = setTimeout('pageScroll()',$autoScrollMillis);
+      }else{
+        window.scrollBy({
+          behavior: 'instant',
+          top: 0
+        });
+      }
     }
     </script>
   ";
-  if($autoScroll){
-    $html .= "<body onLoad=\"pageScroll()\">";
-  }else{
-    $html .= "<body>";
-  }
+  my $onclick = "";
+  $onclick .= "addText(event); " if $includeClickBox;
+  $onclick .= "toggleScroll(); " if $autoScroll;
+  $html .= "<body>";
   for my $img(@imgAbsPaths){
     my $fileUrl = "file://$img";
-    if($includeClickBox){
-      $html .= "<img src=\"$fileUrl\" onclick=\"addText(event)\"/>\n";
-    }else{
-      $html .= "<img src=\"$fileUrl\"/>\n";
-    }
+    $html .= "<img src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
   }
-  $html .= "<textarea id=\"clicked\"/>\n" if $includeClickBox;
+  if($includeClickBox){
+    $html .= "<textarea id=\"clicked\" rows=\"5\" cols=\"80\"></textarea>\n";
+  }
   $html .= "</body>";
   $html .= "</head>";
   return $html;

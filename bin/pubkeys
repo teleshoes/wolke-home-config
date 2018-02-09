@@ -3,31 +3,65 @@ use strict;
 use warnings;
 
 sub run(@);
+sub bashComplete($$);
 
 my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
 
 my @hostIpCmdEntries = (
-  ["ipmagic t430s",        undef,  $MODE_RSYNC],
-  ["ipmagic w520",         undef,  $MODE_RSYNC],
-  ["ipmagic nuc",          undef,  $MODE_RSYNC],
-  ["seedbox --host",       undef,  $MODE_RSYNC],
-  ["ddwrt 68u --ip",       "root", $MODE_SCP],
-  ["ddwrt buffalo --ip",   "root", $MODE_SCP],
-  ["ipmagic sx",           "nemo", $MODE_RSYNC],
-  ["ipmagic sx",           "root", $MODE_RSYNC],
-  ["ipmagic raspi",        "pi",   $MODE_RSYNC],
-  ["ipmagic raspi",        "root", $MODE_RSYNC],
+  ["t430s"         => "ipmagic t430s",        undef,  $MODE_RSYNC],
+  ["w520"          => "ipmagic w520",         undef,  $MODE_RSYNC],
+  ["nuc"           => "ipmagic nuc",          undef,  $MODE_RSYNC],
+  ["nuc-root"      => "ipmagic nuc",          "root", $MODE_RSYNC],
+  ["sb"            => "seedbox --host",       undef,  $MODE_RSYNC],
+  ["ddwrt-68u"     => "ddwrt 68u --ip",       "root", $MODE_SCP],
+  ["ddwrt-buffalo" => "ddwrt buffalo --ip",   "root", $MODE_SCP],
+  ["sx"            => "ipmagic sx",           "nemo", $MODE_RSYNC],
+  ["sx-root"       => "ipmagic sx",           "root", $MODE_RSYNC],
+  ["pi"            => "ipmagic raspi",        "pi",   $MODE_RSYNC],
+  ["pi-root"       => "ipmagic raspi",        "root", $MODE_RSYNC],
 );
+my @allNames = map {${$_}[0]} @hostIpCmdEntries;
+my $okNames = join "|", @allNames;
+
+my $usage = "Usage:
+  $0 [TARGET]
+    copy pubkeys/authkeys to the hosts returned by the above commands
+
+  $0 -h|--help
+    print this message
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
+
+  TARGET
+    one of: $okNames
+    copy for just the named command
+";
 
 sub main(@){
-  die "Usage: $0\n" if @_ > 0;
+  my $targetName = undef;
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^($okNames)$/){
+    $targetName = $_[0];
+  }elsif(@_ > 0){
+    die $usage;
+  }
+
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
   for my $entry(@hostIpCmdEntries){
-    my ($ipCmd, $user, $mode) = @$entry;
-    print "\n\ncopying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
+    my ($name, $ipCmd, $user, $mode) = @$entry;
+    next if defined $targetName and $name ne $targetName;
+    print "\n\n$name: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
     my $hostname = `$ipCmd`;
     chomp $hostname;
     die "Error running '$ipCmd'\n" if $? != 0;
@@ -53,4 +87,29 @@ sub run(@){
   die "Error running \"@_\"\n" if $? != 0;
 }
 
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $curWord = pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    --bash-complete
+  );
+  my $optWord = $isNewWord ? $words[-1] : $curWord;
+
+  if(defined $optWord and $optWord =~ /^-/){
+    return @opts;
+  }elsif(@words == 0){
+    return sort @allNames;
+  }
+
+  return ();
+}
 &main(@ARGV);

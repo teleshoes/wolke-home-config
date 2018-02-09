@@ -19,7 +19,7 @@ my @sshOpts = map {("-o", $_)} (
 );
 
 my %wifiAtts = map {$_ => 1} qw(
-  ssid mode
+  ssid mode relayd_gw_auto relayd_gw_ipaddr
   net_mode channel channelbw nbw nctrlsb
   security_mode akm crypto wpa_psk
   closed turbo_qam itxbf txbf txbf_bfe_cap txbf_bfr_cap wmf_bss_enable
@@ -52,8 +52,14 @@ my $usage = "Usage:
   $0 [ROUTER] -t|--test|--speedtest
     perform a speedtest with speedtest-netcat
 
+  $0 [ROUTER] --dump
+    run nvram backup, copy the file locally, and then run nvram_dump on it
+
+  $0 [ROUTER] --config-dump
+    print nvram settings from config in key=val format similar to $0 --dump
+
   $0 [ROUTER] --show
-    run nvram show
+    run nvram show (use --dump instead)
 
   $0 [ROUTER] -e|--encrypt KEY
     pass in a wpa key or whatever for encrypting and putting into $dir/ROUTER
@@ -75,12 +81,14 @@ my $usage = "Usage:
 ";
 my @args = qw(
   --ip -i --info -h --help -s -r --reboot --restart-dev
-  -t --test --speedtest --show -e --encrypt --restore
+  -t --test --speedtest --dump --config-dump --show -e --encrypt --restore
 );
 my $okArgs = join '|', @args;
 
 sub restartDev($$);
 sub assertPresent($$;$);
+sub ddwrtFetchBackupFile($);
+sub ddwrtConfigDump($);
 sub ddwrtShow($);
 sub ddwrtRestore($);
 sub getStarted($$);
@@ -147,6 +155,17 @@ sub main(@){
     print getStarted $c, $router;
   }elsif($arg =~ /^(-t|--test|--speedtest)$/){
     exec "speedtest-netcat", "root\@$$c{config}{router_ip}";
+  }elsif($arg =~ /^(--dump)$/){
+    my $backupFile = ddwrtFetchBackupFile $c;
+    system "nvram_dump", $backupFile;
+  }elsif($arg =~ /^(--config-dump)$/){
+    my $nvram = getNvram $c;
+    for my $key(sort keys %$nvram){
+      my $val = $$nvram{$key};
+      $val =~ s/\\/\\\\/g;
+      $val =~ s/\n/\\n/g;
+      print "$key=$val\n";
+    }
   }elsif($arg =~ /^(--show)$/){
     ddwrtShow $c;
   }elsif($arg =~ /^(^--restore$)$/){
@@ -184,6 +203,15 @@ sub assertPresent($$;$){
   }
 }
 
+sub ddwrtFetchBackupFile($){
+  my $c = shift;
+  my $ip = $$c{config}{router_ip};
+  my $tmpFile = "nvram-backup-" . time;
+  system "ssh @sshOpts root\@$ip nvram backup $tmpFile";
+  system "scp @sshOpts root\@$ip:$tmpFile /tmp/$tmpFile";
+  return "/tmp/$tmpFile";
+}
+
 sub ddwrtShow($){
   my $c = shift;
   my $ip = $$c{config}{router_ip};
@@ -212,7 +240,7 @@ sub ddwrtRestore($){
   }
   print FH "nvram commit\n";
   close FH;
-  system "scp", $script, "root\@$ip:$script";
+  system "scp", @sshOpts, $script, "root\@$ip:$script";
 
   my $old = `ssh @sshOpts root\@$ip nvram show | sort`;
   open FH, "> $oldF";
