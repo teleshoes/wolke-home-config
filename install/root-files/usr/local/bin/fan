@@ -2,44 +2,86 @@
 use strict;
 use warnings;
 
+sub parseConfigFile($);
 sub setLevel($);
-sub writeTmpFile($);
 
 my $fanDev = "/proc/acpi/ibm/fan";
 
+my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
+
 my $usage = "Usage:
   $0
-     print fan information
+     print fan information from $fanDev
   $0 get
-     print fan information
-  $0 level
-     set fan level
-     level is 0-7, auto, disengaged, full-speed
-     note that disengaged and full-speed are synonyms
+     print fan information from $fanDev
+  $0 LEVEL
+     set fan level to <LEVEL> (or synonym) using $fanDev
+
+  <LEVEL>
+    argument for $fanDev or a synonym
+
+    valid arguments:
+      0 1 2 3 4 5 6 7 auto disengaged full-speed
+      NOTE:
+        0 means FULLY DISABLED and is quite dangerous
+        disengaged and full-speed do the same thing, and are faster than 7
+        auto is based on CPU load and is done by the kernel module or firmware
+
+    synonyms are defined at $configFile:
+    e.g.:  default=5
+           fast=disengaged
+           medium=4
+           slow=3
+           morning=5
+           evening=1
 ";
 
 sub main(@){
-  my $level = shift;
-  $level = 'get' if not defined $level;
-  $level = 'disengaged' if $level eq 'full-speed';
-  die $usage if @_ > 0 or $level !~ /^(get|[0-7]|auto|disengaged|full-speed)$/;
-
-  my $info = `cat $fanDev`;
-
-  if($level eq 'get'){
+  if(@_ == 0){
+    my $info = `cat $fanDev`;
     print $info;
-  }else{
-    my $cur;
-    if($info =~ /level:\s*(.*)\n/){
-      $cur = $1;
+  }elsif(@_ == 1){
+    my $level = $_[0];
+    my $confSynonyms = parseConfigFile $configFile;
+    if(defined $$confSynonyms{$level}){
+      $level = $$confSynonyms{$level};
     }
-    if($cur eq $level){
-      print "fan already set to $level\n";
-    }else{
-      print "$cur => $level\n";
-      setLevel $level;
+    if($level =~ /^([0-7]|auto|disengaged|full-speed)$/){
+      my $info = `cat $fanDev`;
+      my $cur;
+      if($info =~ /level:\s*(.*)\n/){
+        $cur = $1;
+      }
+      if($cur eq $level){
+        print "fan already set to $level\n";
+      }else{
+        print "$cur => $level\n";
+        setLevel $level;
+      }
+    }
+  }else{
+    die $usage;
+  }
+}
+
+sub parseConfigFile($){
+  my ($configFile) = @_;
+  my $conf = {};
+  if(-f $configFile){
+    open FH, "< $configFile" or die "could not read config file: $configFile\n";
+    my @lines = <FH>;
+    close FH;
+    for my $line(@lines){
+      next if $line =~ /^\s*(#|$)/;
+      if($line =~ /^\s*(\w+)\s*=\s*(\w+)\s*$/){
+        my ($key, $val) = ($1, $2);
+        $$conf{$key} = $val;
+      }else{
+        die "malformed config file line: $line";
+      }
     }
   }
+  return $conf;
 }
 
 sub setLevel($){
