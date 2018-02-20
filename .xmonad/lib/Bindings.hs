@@ -148,10 +148,10 @@ shortcuts conf = "Shortcuts" @@ do
         "0%"            @@ mW    xK_F4   #! "sudo cpu-set all ondemand 0% 0%"
 
     "Fan"           @@ do
-        "auto"          @@ mW    xK_F5   #! "sudo fan auto"
-        "fastest"       @@ mW    xK_F6   #! "sudo fan disengaged"
-        "medium"        @@ mW    xK_F7   #! "sudo fan 4"
-        "off"           @@ mW    xK_F8   #! "sudo fan 0"
+        "default"       @@ mW    xK_F5   #! "sudo fan default"
+        "fast"          @@ mW    xK_F6   #! "sudo fan fast"
+        "medium"        @@ mW    xK_F7   #! "sudo fan medium"
+        "slow"          @@ mW    xK_F8   #! "sudo fan slow"
 
     "feh"           @@ do
         "left"          @@ mA    xK_F11  #! "xdotool search --class feh key --clearmodifiers Left"
