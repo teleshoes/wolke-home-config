@@ -21,7 +21,7 @@ cpuScalingPstateReader = do
   max <- get "max"
   return $ format min max
 
-get dev = fmap toPct $ readProc ["sudo", "intel-pstate", "-g", dev]
+get dev = fmap toPct $ readProc ["sudo", "cpu-set-pstate", "-g", dev]
 
 format :: Integer -> Integer -> String
 format min max = color $ fmt max ++ "\n" ++ fmt min
