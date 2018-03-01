@@ -6,49 +6,96 @@ my $devDir = "/sys/devices/system/cpu/intel_pstate";
 my $devices = {
   min => "$devDir/min_perf_pct",
   max => "$devDir/max_perf_pct",
-  turbo => "$devDir/no_turbo",
+  noturbo => "$devDir/no_turbo",
 };
+my $okDevices = join "|", sort keys %$devices;
+
+sub readDev($);
+sub writeDev($$);
+sub isTurboFmt();
 
 my $usage = "Usage:
-  $0 -g min|max
-    Read value of
-      $$devices{min} or
-      $$devices{max}
-  $0 -s min|max 0-100
-    Write value to
-      $$devices{min} or
-      $$devices{max}
-  $0 -g turbo
-    Read $$devices{turbo}
+  $0
+    same as:
+      MIN=`$0 -g min`
+      MAX=`$0 -g max`
+      TURBO=`$0 --get-turbo`
+      echo \"\$MIN%-\$MAX% (turbo=\$TURBO)\"
+  $0 MIN_PCT MAX_PCT
+    same as:
+      $0 -s min MIN_PCT
+      $0 -s min MAX_PCT
+
+  $0 --get-turbo
+    Read $$devices{noturbo}
     if 0, print \"on\"
     otherwise, print \"off\"
-  $0 -s turbo on|off
-    Write $$devices{turbo}
-    If off, set to 1
-    otherwise, set to 0
+  $0 --set-turbo-on
+    same as: $0 -s noturbo 0
+  $0 --set-turbo-off
+    same as: $0 -s noturbo 1
+
+  $0 -g min|max
+    Read non-negative integer value of
+      $$devices{min} or
+      $$devices{max} or
+      $$devices{noturbo} or
+  $0 -s min|max VALUE
+    Write non-negative integer VALUE to
+      $$devices{min} or
+      $$devices{max} or
+      $$devices{noturbo}
 ";
 
 sub main(@){
-  my ($cmd, $dev, $val) = (@_, undef, undef);
-  $cmd = '' if not defined $cmd;
-  $dev = '' if not defined $dev;
-  die $usage if @_ > 3 or not defined $$devices{$dev};
-  if($cmd eq '-g' and not defined $val){
-    my $val = `cat $$devices{$dev}`;
-    chomp $val;
-    $val = $val eq "0\n" ? "on" : "off" if $dev eq 'turbo';
-    print "$val\n";
-  }elsif($cmd eq '-s' and defined $val){
-    $val = $val eq "off" ? 1 : 0 if $dev eq 'turbo';
-    my $before = `$0 -g $dev`;
-    system "echo $val > $$devices{$dev}";
-    my $after = `$0 -g $dev`;
-    chomp $before;
-    chomp $after;
-    print "$before => $after\n";
+  if(@_ == 0){
+    printf "%d%%-%d%% (turbo=%s)\n", readDev "min", readDev "max", isTurboFmt();
+  }elsif(@_ == 2 and $_[0] =~ /^\d+$/ and $_[1] =~ /^\d+$/){
+    my ($oldMin, $oldMax) = (readDev "min", readDev "max");
+    writeDev "min", $_[0];
+    writeDev "max", $_[1];
+    my ($newMin, $newMax) = (readDev "min", readDev "max");
+    printf "%d%%-%d%% => %d%%-%d%%\n", $oldMin, $oldMax, $newMin, $newMax;
+  }elsif(@_ == 1 and $_[0] =~ /^--get-turbo$/){
+    printf "%s\n", isTurboFmt();
+  }elsif(@_ == 1 and $_[0] =~ /^--set-turbo-on$/){
+    writeDev "noturbo", 0;
+  }elsif(@_ == 1 and $_[0] =~ /^--set-turbo-off$/){
+    writeDev "noturbo", 1;
+  }elsif(@_ == 2 and $_[0] eq "-g" and $_[1] =~ /^($okDevices)$/){
+    printf "%s\n", readDev $_[1];
+  }elsif(@_ == 3 and $_[0] eq "-s" and $_[1] =~ /^($okDevices)$/ and $_[2] =~ /^\d+$/){
+    my $old = readDev $_[1];
+    writeDev $_[1], $_[2];
+    my $new = readDev $_[1];
+    print "$old => $new\n";
   }else{
     die $usage;
   }
+}
+
+sub readDev($){
+  my ($devName) = @_;
+  my $dev = $$devices{$devName};
+  die "malformed device name: $devName\n" if not defined $$devices{$devName};
+  die "device \"$dev\" does not exist\n" if not -e $dev;
+  my $val = `cat $dev`;
+  chomp $val;
+  die "malformed device value: $dev=$val\n" if $val !~ /^\d+$/;
+  return $val;
+}
+
+sub writeDev($$){
+  my ($devName, $value) = @_;
+  my $dev = $$devices{$devName};
+  die "malformed device name: $devName\n" if not defined $$devices{$devName};
+  die "device \"$dev\" does not exist\n" if not -e $dev;
+  system "echo $value > $dev";
+}
+
+sub isTurboFmt(){
+  my $noTurbo = readDev "noturbo";
+  return $noTurbo eq 0 ? "on" : "off";
 }
 
 &main(@ARGV);
