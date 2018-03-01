@@ -2,19 +2,31 @@
 use strict;
 use warnings;
 
-my $devDir = "/sys/devices/system/cpu/intel_pstate";
-my $devices = {
-  min => "$devDir/min_perf_pct",
-  max => "$devDir/max_perf_pct",
-  noturbo => "$devDir/no_turbo",
-};
-my $okDevices = join "|", sort keys %$devices;
+my $baseDir = "/sys/devices/system/cpu";
 
+my $minPctDev = "$baseDir/intel_pstate/min_perf_pct";
+my $maxPctDev = "$baseDir/intel_pstate/max_perf_pct";
+my $noTurboDev = "$baseDir/intel_pstate/no_turbo";
+
+my $cpuinfoMinFreqDev = "$baseDir/cpufreq/policy0/cpuinfo_min_freq";
+my $cpuinfoMaxFreqDev = "$baseDir/cpufreq/policy0/cpuinfo_max_freq";
+
+sub getMinMaxScaledPercent($$$);
+sub setMinMaxScaledPercent($$$$);
+sub getMinMaxPstates();
 sub readDev($);
 sub writeDev($$);
 sub isTurboFmt();
 
 my $usage = "Usage:
+  read/write from:
+    $minPctDev
+    $maxPctDev
+    $noTurboDev
+  values for percentages are scaled based on:
+    $cpuinfoMinFreqDev
+    $cpuinfoMaxFreqDev
+
   $0
     same as:
       MIN=`$0 -g min`
@@ -24,38 +36,50 @@ my $usage = "Usage:
   $0 MIN_PCT MAX_PCT
     same as:
       $0 -s min MIN_PCT
-      $0 -s min MAX_PCT
+      $0 -s max MAX_PCT
 
   $0 --get-turbo
-    Read $$devices{noturbo}
+    Read $noTurboDev
     if 0, print \"on\"
     otherwise, print \"off\"
   $0 --set-turbo-on
-    same as: $0 -s noturbo 0
+    write 0 to $noTurboDev
   $0 --set-turbo-off
-    same as: $0 -s noturbo 1
+    write 1 to $noTurboDev
 
-  $0 -g $okDevices
-    Read non-negative integer value of
-      $$devices{min} or
-      $$devices{max} or
-      $$devices{noturbo} or
-  $0 -s $okDevices VALUE
-    Write non-negative integer VALUE to
-    (if VALUE ends in %, % is removed)
-      $$devices{min} or
-      $$devices{max} or
-      $$devices{noturbo}
+  $0 -g min|max
+    Read PERCENT from
+      min = $minPctDev
+      max = $maxPctDev
+    Read MAX_PSTATE from $cpuinfoMinFreqDev
+    Read MIN_PSTATE from $cpuinfoMaxFreqDev
+    Scale VALUE from PERCENT:
+      (PERCENT/100.0 * MAX_PSTATE - MIN_PSTATE) / MAX_PSTATE * 100.0
+    Print VALUE, rounded to the nearest non-negative integer
+  $0 -s min|max PERCENT
+    Read MAX_PSTATE from $cpuinfoMinFreqDev
+    Read MIN_PSTATE from $cpuinfoMaxFreqDev
+    Scale VALUE from PERCENT:
+      (PERCENT/100.0 * MAX_PSTATE + MIN_PSTATE) / MAX_PSTATE * 100.0
+    Write VALUE, rounded to the nearest non-negative integer, to:
+      min = $minPctDev
+      max = $maxPctDev
 ";
 
 sub main(@){
   if(@_ == 0){
-    printf "%d%%-%d%% (turbo=%s)\n", readDev "min", readDev "max", isTurboFmt();
+    my ($minPstate, $maxPstate) = getMinMaxPstates();
+    my $min = getMinMaxScaledPercent $minPctDev, $minPstate, $maxPstate;
+    my $max = getMinMaxScaledPercent $maxPctDev, $minPstate, $maxPstate;
+    printf "%d%%-%d%% (turbo=%s)\n", $min, $max, isTurboFmt();
   }elsif(@_ == 2 and $_[0] =~ /^\d+%?$/ and $_[1] =~ /^\d+%?$/){
-    my ($oldMin, $oldMax) = (readDev "min", readDev "max");
-    writeDev "min", $_[0];
-    writeDev "max", $_[1];
-    my ($newMin, $newMax) = (readDev "min", readDev "max");
+    my ($minPstate, $maxPstate) = getMinMaxPstates();
+    my $oldMin = getMinMaxScaledPercent $minPctDev, $minPstate, $maxPstate;
+    my $oldMax = getMinMaxScaledPercent $maxPctDev, $minPstate, $maxPstate;
+    setMinMaxScaledPercent $minPctDev, $minPstate, $maxPstate, $_[0];
+    setMinMaxScaledPercent $maxPctDev, $minPstate, $maxPstate, $_[1];
+    my $newMin = getMinMaxScaledPercent $minPctDev, $minPstate, $maxPstate;
+    my $newMax = getMinMaxScaledPercent $maxPctDev, $minPstate, $maxPstate;
     printf "%d%%-%d%% => %d%%-%d%%\n", $oldMin, $oldMax, $newMin, $newMax;
   }elsif(@_ == 1 and $_[0] =~ /^--get-turbo$/){
     printf "%s\n", isTurboFmt();
@@ -63,22 +87,54 @@ sub main(@){
     writeDev "noturbo", 0;
   }elsif(@_ == 1 and $_[0] =~ /^--set-turbo-off$/){
     writeDev "noturbo", 1;
-  }elsif(@_ == 2 and $_[0] eq "-g" and $_[1] =~ /^($okDevices)$/){
-    printf "%s\n", readDev $_[1];
-  }elsif(@_ == 3 and $_[0] eq "-s" and $_[1] =~ /^($okDevices)$/ and $_[2] =~ /^\d+%?$/){
-    my $old = readDev $_[1];
-    writeDev $_[1], $_[2];
-    my $new = readDev $_[1];
+  }elsif(@_ == 2 and $_[0] eq "-g" and $_[1] =~ /^(min|max)$/){
+    my $dev = $_[1] eq "min" ? $minPctDev : $maxPctDev;
+    my ($minPstate, $maxPstate) = getMinMaxPstates();
+
+    my $scaledPercent = getMinMaxScaledPercent $dev, $minPstate, $maxPstate;
+    print "$scaledPercent\n";
+  }elsif(@_ == 3 and $_[0] eq "-s" and $_[1] =~ /^(min|max)$/ and $_[2] =~ /^\d+%?$/){
+    my $dev = $_[1] eq "min" ? $minPctDev : $maxPctDev;
+    my ($minPstate, $maxPstate) = getMinMaxPstates();
+    my $scaledPercent = $_[2];
+
+    my $old = getMinMaxScaledPercent $dev, $minPstate, $maxPstate;
+    setMinMaxScaledPercent $dev, $minPstate, $maxPstate, $scaledPercent;
+    my $new = getMinMaxScaledPercent $dev, $minPstate, $maxPstate;
     print "$old => $new\n";
   }else{
     die $usage;
   }
 }
 
+sub getMinMaxScaledPercent($$$){
+  my ($dev, $minPstate, $maxPstate) = @_;
+  my $unscaledPercent = readDev $dev;
+  my $scaledPercent =
+    ($unscaledPercent/100.0*$maxPstate - $minPstate)/($maxPstate - $minPstate)*100.0;
+  $scaledPercent = 0 if $scaledPercent < 0;
+  $scaledPercent = sprintf "%d", $scaledPercent;
+  return $scaledPercent;
+}
+
+sub setMinMaxScaledPercent($$$$){
+  my ($dev, $minPstate, $maxPstate, $scaledPercent) = @_;
+  $scaledPercent =~ s/%$//;
+  my $unscaledPercent =
+    ($scaledPercent/100.0*($maxPstate - $minPstate) + $minPstate)/$maxPstate*100.0;
+  $unscaledPercent = 0 if $unscaledPercent < 0;
+  $unscaledPercent = sprintf "%d", $unscaledPercent;
+  writeDev $dev, $unscaledPercent;
+}
+
+sub getMinMaxPstates(){
+  my $minPstate = readDev $cpuinfoMinFreqDev;
+  my $maxPstate = readDev $cpuinfoMaxFreqDev;
+  return ($minPstate, $maxPstate);
+}
+
 sub readDev($){
-  my ($devName) = @_;
-  my $dev = $$devices{$devName};
-  die "malformed device name: $devName\n" if not defined $$devices{$devName};
+  my ($dev) = @_;
   die "device \"$dev\" does not exist\n" if not -e $dev;
   my $val = `cat $dev`;
   chomp $val;
@@ -87,16 +143,14 @@ sub readDev($){
 }
 
 sub writeDev($$){
-  my ($devName, $value) = @_;
+  my ($dev, $value) = @_;
   $value =~ s/%$//;
-  my $dev = $$devices{$devName};
-  die "malformed device name: $devName\n" if not defined $$devices{$devName};
   die "device \"$dev\" does not exist\n" if not -e $dev;
   system "echo $value > $dev";
 }
 
 sub isTurboFmt(){
-  my $noTurbo = readDev "noturbo";
+  my $noTurbo = readDev $noTurboDev;
   return $noTurbo eq 0 ? "on" : "off";
 }
 
