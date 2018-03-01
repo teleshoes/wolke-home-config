@@ -1,4 +1,4 @@
-module CpuScaling(cpuScalingW, cpuGovW) where
+module CpuScalingCpufreq(cpuScalingCpufreqW, cpuGovW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
@@ -13,14 +13,14 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
-main = mainLabel cpuScalingReader
-cpuScalingW = labelW cpuScalingReader
+main = mainLabel cpuScalingCpuFreqReader
+cpuScalingCpufreqW = labelW cpuScalingCpufreqReader
 
 width = 2
 
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScalingReader = do
+cpuScalingCpufreqReader = do
   cpu <- readCpu
   case cpu of
     Left err -> return err
