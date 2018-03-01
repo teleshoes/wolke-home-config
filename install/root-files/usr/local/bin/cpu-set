@@ -7,6 +7,7 @@ my ($MODE_PSTATE, $MODE_CPUFREQ) = ("PSTATE", "CPUFREQ");
 my $PSTATE_DEV = "/sys/devices/system/cpu/intel_pstate/max_perf_pct";
 my $CPUFREQ_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
 
+my $CPUFREQ_CPUINFO_MIN_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq";
 my $CPUFREQ_CPUINFO_MAX_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
 my $CPUFREQ_SCALING_MAX_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
 
@@ -48,11 +49,15 @@ sub main(@){
     if($mode eq $MODE_PSTATE){
       exec "cpu-set-pstate", "-g", "max";
     }elsif($mode eq $MODE_CPUFREQ){
-      my $scalingMax = `cat $CPUFREQ_SCALING_MAX_DEV`;
+      my $cpuinfoMin = `cat $CPUFREQ_CPUINFO_MIN_DEV`;
       my $cpuinfoMax = `cat $CPUFREQ_CPUINFO_MAX_DEV`;
-      chomp $scalingMax;
+      my $scalingMax = `cat $CPUFREQ_SCALING_MAX_DEV`;
+      chomp $cpuinfoMin;
       chomp $cpuinfoMax;
-      printf "%d%%\n", $scalingMax/$cpuinfoMax*100.0;
+      chomp $scalingMax;
+      my $cur = $scalingMax - $cpuinfoMin;
+      my $max = $cpuinfoMax - $cpuinfoMin;
+      printf "%d%%\n", $cur/$max*100.0;
     }
   }elsif(@_ == 1 and $_[0] =~ /^(\d+)%?$/){
     my $pct = $1;
