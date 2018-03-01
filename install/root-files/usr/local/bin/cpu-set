@@ -7,10 +7,6 @@ my ($MODE_PSTATE, $MODE_CPUFREQ) = ("PSTATE", "CPUFREQ");
 my $PSTATE_DEV = "/sys/devices/system/cpu/intel_pstate/max_perf_pct";
 my $CPUFREQ_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
 
-my $CPUFREQ_CPUINFO_MIN_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq";
-my $CPUFREQ_CPUINFO_MAX_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
-my $CPUFREQ_SCALING_MAX_DEV = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
-
 my $usage = "Usage:
   $0 -h|--help
     print this message
@@ -22,7 +18,7 @@ my $usage = "Usage:
     if $PSTATE_DEV exists:
       cpu-set-pstate -g max
     if $CPUFREQ_DEV exists:
-      cat $CPUFREQ_DEV
+      cpu-set-cpufreq --get-max-pct
     otherwise fail
 
   $0 PCT
@@ -30,7 +26,7 @@ my $usage = "Usage:
     if $PSTATE_DEV exists:
       cpu-set-pstate 0% <PCT>%
     if $CPUFREQ_DEV exists:
-      cpu-set-cpufreq all ondemand 0% <PCT>%
+      cpu-set-cpufreq --ondemand 0% <PCT>%
 ";
 
 sub main(@){
@@ -49,22 +45,14 @@ sub main(@){
     if($mode eq $MODE_PSTATE){
       exec "cpu-set-pstate", "-g", "max";
     }elsif($mode eq $MODE_CPUFREQ){
-      my $cpuinfoMin = `cat $CPUFREQ_CPUINFO_MIN_DEV`;
-      my $cpuinfoMax = `cat $CPUFREQ_CPUINFO_MAX_DEV`;
-      my $scalingMax = `cat $CPUFREQ_SCALING_MAX_DEV`;
-      chomp $cpuinfoMin;
-      chomp $cpuinfoMax;
-      chomp $scalingMax;
-      my $cur = $scalingMax - $cpuinfoMin;
-      my $max = $cpuinfoMax - $cpuinfoMin;
-      printf "%d%%\n", $cur/$max*100.0;
+      exec "cpu-set-cpufreq", "--get-max-pct";
     }
   }elsif(@_ == 1 and $_[0] =~ /^(\d+)%?$/){
     my $pct = $1;
     if($mode eq $MODE_PSTATE){
       exec "cpu-set-pstate", "0%", "$pct%";
     }elsif($mode eq $MODE_CPUFREQ){
-      exec "cpu-set-cpufreq", "all", "ondemand", "0%", "$pct%";
+      exec "cpu-set-cpufreq", "--ondemand", "0%", "$pct%";
     }
   }
 }
