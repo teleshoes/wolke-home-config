@@ -54,11 +54,14 @@ sub main(@){
   }
 }
 
-#takes a list of freqs in kHz and a freq in kHz, MHz or GHz
-# OR min for smallest
-# OR max for largest
-# OR maxnt for largest or second largest if largest is only a smidgen more
-#   smidgen is a technical term for less than 10 MHz
+#takes a target value and a list of freqs in kHz
+#target value must be:
+#  a freq in kHz, MHz or GHz
+#  OR min for smallest
+#  OR max for largest
+#  OR maxnt for largest or second largest if largest is only a smidgen more
+#    smidgen is a technical term for less than 10 MHz
+#  OR a percent (e.g.: '80%'), which will f
 #returns a freq in kHz if its in the list, or undefined
 sub parseFreq($@){
   my $freq = shift;
@@ -76,15 +79,30 @@ sub parseFreq($@){
     }else{
       return $last;
     }
+  }elsif($freq =~ /^(\d+)%$/){
+    my $pct = $1;
+    my $maxIndex = $#availFreqs;
+    my $targetIndex = int((($pct/100.0) * $maxIndex) + 0.5);
+    if($targetIndex > $maxIndex){
+      $targetIndex = $maxIndex;
+    }elsif($targetIndex < 0){
+      $targetIndex = 0;
+    }
+    return $availFreqs[$targetIndex];
+  }elsif($freq =~ /^\d+(\.\d+)?$/){
+    my %ok = map {$_ => 1} @availFreqs;
+    if($ok{int($freq * 1)}){
+      return int($freq * 1); #was kHz
+    }elsif($ok{int($freq * 1000)}){
+      return int($freq * 1000); #was MHz
+    }elsif($ok{int($freq * 1000 * 1000)}){
+      return int($freq * 1000 * 1000); #was GHz
+    }else{
+      return undef;
+    }
+  }else{
+    return undef;
   }
-  my %ok = map {$_ => 1} @availFreqs;
-  return $freq if $ok{$freq}; #was kHz
-  $freq *= 1000;
-  return $freq if $ok{$freq}; #was MHz
-  $freq *= 1000;
-  return $freq if $ok{$freq}; #was GHz
-
-  return undef;
 }
 
 sub getArgs(@){
@@ -151,7 +169,7 @@ sub getArgs(@){
     $dev = shift() || '';
     $val = shift() || '';
   }
-  
+
   die usage() if not $dev or not $val or @_>0;
   return (\@cpus, $dev, $val, $gov, $min, $max, $freq);
 }
@@ -223,7 +241,7 @@ sub usage(){
   [CPU CPU CPU .... | all] ondemand [min-freq] [max-freq]
   [CPU CPU CPU .... | all] userspace [set-freq]
   [CPU CPU CPU .... | all] userspace [set-freq] [min-freq] [max-freq]
-  
+
   [CPU]: optional {all is default}, selects the base directories to act on
    e.g.:
    root  =>  [{BASEDIR}]
@@ -241,7 +259,7 @@ sub usage(){
     root ondemand/sampling_rate         => {BASEDIR}/cpu/cpufreq/sampling_rate
     root cpufreq/ondemand/sampling_rate => {BASEDIR}/cpu/cpufreq/sampling_rate
    {BASEDIR} is '$BASEDIR'
-  
+
   [governor]: one of the available governors
      all cpus installed have at least the following governors available:
      [$govs]
