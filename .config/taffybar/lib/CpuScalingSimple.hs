@@ -14,8 +14,8 @@ get = fmap toPct $ readProc ["sudo", "cpu-set", "-g"]
 format :: Integer -> String
 format pct = color $ fmt pct
   where color | pct < 0 || pct > 100 = bg "white" . fg "black"
-              | pct < 33 = bg "red" . fg "black"
-              | pct < 66 = bg "orange" . fg "black"
+              | pct < 25 = bg "red" . fg "black"
+              | pct < 50 = bg "orange" . fg "black"
               | pct < 100 = bg "green" . fg "black"
               | pct == 100 = bg "blue"
         fmt x | x < 0 || x > 100 = "??"
