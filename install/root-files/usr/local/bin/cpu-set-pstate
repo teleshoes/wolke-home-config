@@ -35,13 +35,14 @@ my $usage = "Usage:
   $0 --set-turbo-off
     same as: $0 -s noturbo 1
 
-  $0 -g min|max
+  $0 -g $okDevices
     Read non-negative integer value of
       $$devices{min} or
       $$devices{max} or
       $$devices{noturbo} or
-  $0 -s min|max VALUE
+  $0 -s $okDevices VALUE
     Write non-negative integer VALUE to
+    (if VALUE ends in %, % is removed)
       $$devices{min} or
       $$devices{max} or
       $$devices{noturbo}
@@ -50,7 +51,7 @@ my $usage = "Usage:
 sub main(@){
   if(@_ == 0){
     printf "%d%%-%d%% (turbo=%s)\n", readDev "min", readDev "max", isTurboFmt();
-  }elsif(@_ == 2 and $_[0] =~ /^\d+$/ and $_[1] =~ /^\d+$/){
+  }elsif(@_ == 2 and $_[0] =~ /^\d+%?$/ and $_[1] =~ /^\d+%?$/){
     my ($oldMin, $oldMax) = (readDev "min", readDev "max");
     writeDev "min", $_[0];
     writeDev "max", $_[1];
@@ -64,7 +65,7 @@ sub main(@){
     writeDev "noturbo", 1;
   }elsif(@_ == 2 and $_[0] eq "-g" and $_[1] =~ /^($okDevices)$/){
     printf "%s\n", readDev $_[1];
-  }elsif(@_ == 3 and $_[0] eq "-s" and $_[1] =~ /^($okDevices)$/ and $_[2] =~ /^\d+$/){
+  }elsif(@_ == 3 and $_[0] eq "-s" and $_[1] =~ /^($okDevices)$/ and $_[2] =~ /^\d+%?$/){
     my $old = readDev $_[1];
     writeDev $_[1], $_[2];
     my $new = readDev $_[1];
@@ -87,6 +88,7 @@ sub readDev($){
 
 sub writeDev($$){
   my ($devName, $value) = @_;
+  $value =~ s/%$//;
   my $dev = $$devices{$devName};
   die "malformed device name: $devName\n" if not defined $$devices{$devName};
   die "device \"$dev\" does not exist\n" if not -e $dev;
