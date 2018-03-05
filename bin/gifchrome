@@ -3,10 +3,10 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 
-sub getHtml($$@);
+sub getHtml($$$$@);
 
-my $autoScrollPx = 800;
-my $autoScrollMillis = 1000;
+my $DEFAULT_AUTOSCROLL_DELAY_MILLIS = 1000;
+my $DEFAULT_AUTOSCROLL_BY_PX = 800;
 my $USE_SINGLE_COLUMN_BUTTON = 1;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
@@ -32,6 +32,14 @@ my $usage = "Usage:
     -a|--autoscroll
       scroll page slowly when you click on an image, click again to toggle
 
+    --autoscroll-delay=DELAY_MILLIS
+      if --autoscroll is given, scroll page every <DELAY_MILLIS> millis
+      (default is $DEFAULT_AUTOSCROLL_DELAY_MILLIS)
+
+    --autoscroll-px=PX
+      if --autoscroll is given, scroll page by <PX> px
+      (default is $DEFAULT_AUTOSCROLL_BY_PX)
+
     --clickbox
       include a textbox at the bottom
       when an image is clicked, put the image's filename in it
@@ -42,6 +50,8 @@ sub main(@){
   my $noBrowser = 0;
   my $autoScroll = 0;
   my $includeClickBox = 0;
+  my $autoScrollDelayMillis = $DEFAULT_AUTOSCROLL_DELAY_MILLIS;
+  my $autoScrollByPx = $DEFAULT_AUTOSCROLL_BY_PX;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -53,6 +63,12 @@ sub main(@){
       $noBrowser = 1;
     }elsif($arg =~ /^(-a|--autoscroll)$/){
       $autoScroll = 1;
+    }elsif($arg =~ /^--autoscroll-delay=(\d+)$/){
+      $autoScrollDelayMillis = $1;
+      die "invalid autoscroll delay: $1\n" if $1 <= 0;
+    }elsif($arg =~ /^--autoscroll-px=(\d+)$/){
+      $autoScrollByPx = $1;
+      die "invalid autoscroll scroll-by px: $1\n" if $1 <= 0;
     }elsif($arg =~ /^(--clickbox)$/){
       $includeClickBox = 1;
     }else{
@@ -75,7 +91,8 @@ sub main(@){
     @imgPaths = map {abs_path($_)} @gifs;
   }
 
-  my $html = getHtml $autoScroll, $includeClickBox, @imgPaths;
+  my $html = getHtml $autoScroll, $autoScrollDelayMillis, $autoScrollByPx,
+    $includeClickBox, @imgPaths;
 
   if($noBrowser){
     print $html;
@@ -89,8 +106,9 @@ sub main(@){
   }
 }
 
-sub getHtml($$@){
-  my ($autoScroll, $includeClickBox, @imgAbsPaths) = @_;
+sub getHtml($$$$@){
+  my ($autoScroll, $autoScrollDelayMillis, $autoScrollByPx,
+   $includeClickBox, @imgAbsPaths) = @_;
 
   my $html = '';
   $html .= "<html>";
@@ -127,9 +145,9 @@ sub getHtml($$@){
       if(scrollEnabled){
         window.scrollBy({
           behavior: 'smooth',
-          top: $autoScrollPx
+          top: $autoScrollByPx
         });
-        scrolldelay = setTimeout('pageScroll()',$autoScrollMillis);
+        scrolldelay = setTimeout('pageScroll()',$autoScrollDelayMillis);
       }else{
         window.scrollBy({
           behavior: 'instant',
