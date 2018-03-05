@@ -142,10 +142,10 @@ shortcuts conf = "Shortcuts" @@ do
         "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
-        "100%"          @@ mW    xK_F1   #! "sudo cpu-set all ondemand 0% 100%"
-        "66%"           @@ mW    xK_F2   #! "sudo cpu-set all ondemand 0% 66%"
-        "33%"           @@ mW    xK_F3   #! "sudo cpu-set all ondemand 0% 33%"
-        "0%"            @@ mW    xK_F4   #! "sudo cpu-set all ondemand 0% 0%"
+        "100%"          @@ mW    xK_F1   #! "sudo cpu-set 100%"
+        "66%"           @@ mW    xK_F2   #! "sudo cpu-set 66%"
+        "33%"           @@ mW    xK_F3   #! "sudo cpu-set 33%"
+        "0%"            @@ mW    xK_F4   #! "sudo cpu-set 0%"
 
     "Fan"           @@ do
         "default"       @@ mW    xK_F5   #! "sudo fan default"
