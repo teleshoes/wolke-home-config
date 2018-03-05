@@ -71,8 +71,14 @@ getScreenDPI = do
   let hMM = fromIntegral $ displayHeightMM d s
   let wMM = fromIntegral $ displayWidthMM d s
 
-  let hDPI = round $ hPx / (hMM/25.4)
-  let wDPI = round $ wPx / (wMM/25.4)
-  when (hDPI /= wDPI) (error "horizontal/vertical DPI mismatch")
+  let hDPI = hPx / (hMM/25.4)
+  let wDPI = wPx / (wMM/25.4)
+  let avgDPI = (hDPI + wDPI) / 2
 
-  return hDPI
+  let diff = hDPI - wDPI
+  when (abs diff > 1) $ error $ ""
+                                ++ "horizontal/vertical DPI mismatch:\n"
+                                ++ "  hor=" ++ show hDPI ++ "\n"
+                                ++ "  ver=" ++ show wDPI ++ "\n"
+
+  return $ round avgDPI
