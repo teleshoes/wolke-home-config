@@ -3,6 +3,7 @@ module WorkspaceImages (getIcons, selectImage, selectImageName) where
 import Utils (imageDir, tryMaybe)
 
 import System.Directory (listDirectory)
+import Data.Char (toLower)
 import Data.List (isSuffixOf)
 import Data.Maybe (fromMaybe)
 import Data.Maybe (listToMaybe, catMaybes)
@@ -16,7 +17,7 @@ getIcons h = do
   dir <- wsImageDir h
   files <- fmap (fromMaybe []) $ tryMaybe $ listDirectory dir
   let pngs = filter (".png" `isSuffixOf`) files
-      names = map (reverse . drop 4 . reverse) pngs
+      names = map (map toLower . reverse . drop 4 . reverse) pngs
       filePaths = map (\name -> dir ++ "/" ++ name ++ ".png") names
   return $ zip names filePaths
 
@@ -47,11 +48,13 @@ getSpecial winTitle winClass
 
 selectImageName :: [String] -> Bool -> String -> String -> Maybe String
 selectImageName imgNames hasIcon winTitle winClass = listToMaybe $ catMaybes maybeNames
-  where nTitle = listToMaybe $ filter (winTitle ~~) imgNames
-        nClass = listToMaybe $ filter (winClass ~~) imgNames
+  where nTitle = listToMaybe $ filter (lcTitle `contains`) imgNames
+        nClass = listToMaybe $ filter (lcClass `contains`) imgNames
         nSpecial = getSpecial winTitle winClass
         nUnknown = Just "unknown"
         maybeNames = if hasIcon then [nSpecial] else [nSpecial, nClass, nTitle, nUnknown]
+        lcTitle = map toLower winTitle
+        lcClass = map toLower winClass
 
 selectImage :: [(String, FilePath)] -> Bool -> String -> String -> Maybe FilePath
 selectImage icons hasIcon winTitle winClass = maybeFilePath maybeName
