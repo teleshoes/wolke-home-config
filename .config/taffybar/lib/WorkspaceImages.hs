@@ -37,12 +37,6 @@ getSpecial winTitle winClass
   | winTitle ~~ "^Google Hangouts .*- Mozilla Firefox$" = Just "googlehangouts"
   | winTitle ~~ "^eScribe .*- Mozilla Firefox$" = Just "escribe"
   | winTitle ~~ " - VIM$" = Just "vim"
-  | winTitle ~~ " \\| Review Board - Mozille Firefox$" = Just "reviewboard"
-  | winTitle ~~ "^SABnzbd \\d+\\.\\d+\\.\\d+.* - Chromium$" = Just "sabnzbd"
-  | winTitle ~~ (""
-                ++ "^\\d+\\.\\d+ [KMG]B/s"
-                ++ " \\| " ++ "\\d+ [KMG]B"
-                ++ " \\| " ++ "[0-9:]+ left - Chromium$") = Just "sabnzbd"
   | winClass ~~ "urxvt" = Just "terminal"
   | otherwise = Nothing
 
