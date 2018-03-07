@@ -3,11 +3,10 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 
-sub getHtml($$$$@);
+sub getHtml($@);
 
 my $DEFAULT_AUTOSCROLL_DELAY_MILLIS = 1000;
 my $DEFAULT_AUTOSCROLL_BY_PX = 800;
-my $USE_SINGLE_COLUMN_BUTTON = 1;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -48,10 +47,13 @@ my $usage = "Usage:
 sub main(@){
   my $prefixDir = undef;
   my $noBrowser = 0;
-  my $autoScroll = 0;
-  my $includeClickBox = 0;
-  my $autoScrollDelayMillis = $DEFAULT_AUTOSCROLL_DELAY_MILLIS;
-  my $autoScrollByPx = $DEFAULT_AUTOSCROLL_BY_PX;
+  my $config = {
+    singleColButton => 1,
+    autoScroll => 0,
+    autoScrollDelayMillis => $DEFAULT_AUTOSCROLL_DELAY_MILLIS,
+    autoScrollByPx => $DEFAULT_AUTOSCROLL_BY_PX,
+    includeClickBox => 0,
+  };
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -62,15 +64,15 @@ sub main(@){
     }elsif($arg =~ /^(-n|--nobrowser)$/){
       $noBrowser = 1;
     }elsif($arg =~ /^(-a|--autoscroll)$/){
-      $autoScroll = 1;
+      $$config{autoScroll} = 1;
     }elsif($arg =~ /^--autoscroll-delay=(\d+)$/){
-      $autoScrollDelayMillis = $1;
       die "invalid autoscroll delay: $1\n" if $1 <= 0;
+      $$config{autoScrollDelayMillis} = $1;
     }elsif($arg =~ /^--autoscroll-px=(\d+)$/){
-      $autoScrollByPx = $1;
       die "invalid autoscroll scroll-by px: $1\n" if $1 <= 0;
+      $$config{autoScrollByPx} = $1;
     }elsif($arg =~ /^(--clickbox)$/){
-      $includeClickBox = 1;
+      $$config{includeClickBox} = 1;
     }else{
       die $usage;
     }
@@ -91,8 +93,7 @@ sub main(@){
     @imgPaths = map {abs_path($_)} @gifs;
   }
 
-  my $html = getHtml $autoScroll, $autoScrollDelayMillis, $autoScrollByPx,
-    $includeClickBox, @imgPaths;
+  my $html = getHtml $config, @imgPaths;
 
   if($noBrowser){
     print $html;
@@ -106,9 +107,8 @@ sub main(@){
   }
 }
 
-sub getHtml($$$$@){
-  my ($autoScroll, $autoScrollDelayMillis, $autoScrollByPx,
-   $includeClickBox, @imgAbsPaths) = @_;
+sub getHtml($@){
+  my ($config, @imgAbsPaths) = @_;
 
   my $html = '';
   $html .= "<html>";
@@ -145,9 +145,11 @@ sub getHtml($$$$@){
       if(scrollEnabled){
         window.scrollBy({
           behavior: 'smooth',
-          top: $autoScrollByPx
+          top: $$config{autoScrollByPx}
         });
-        scrolldelay = setTimeout('pageScroll()',$autoScrollDelayMillis);
+        scrolldelay = setTimeout(
+          'pageScroll()',
+          $$config{autoScrollDelayMillis});
       }else{
         window.scrollBy({
           behavior: 'instant',
@@ -158,8 +160,8 @@ sub getHtml($$$$@){
     </script>
   ";
   my $onclick = "";
-  $onclick .= "addText(event); " if $includeClickBox;
-  $onclick .= "toggleScroll(); " if $autoScroll;
+  $onclick .= "addText(event); " if $$config{includeClickBox};
+  $onclick .= "toggleScroll(); " if $$config{autoScroll};
   $html .= "<body>";
   $html .= ""
            . "<button"
@@ -167,13 +169,13 @@ sub getHtml($$$$@){
            . " style='height: 100px; width:100%'"
            . ">"
            . "SINGLE COL"
-           . "</button>\n" if $USE_SINGLE_COLUMN_BUTTON;
+           . "</button>\n" if $$config{singleColButton};
   $html .= "<div id='container'>";
   for my $img(@imgAbsPaths){
     my $fileUrl = "file://$img";
     $html .= "<img src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
   }
-  if($includeClickBox){
+  if($$config{includeClickBox}){
     $html .= "<textarea id=\"clicked\" rows=\"5\" cols=\"80\"></textarea>\n";
   }
   $html .= "</body>";
