@@ -28,6 +28,15 @@ my $usage = "Usage:
     -n|--nobrowser
       dont launch chromium, print HTML to console
 
+    --max-width=PX
+      set CSS property of <img> tag \"max-width:<PX>px\"
+    --min-width=PX
+      set CSS property of <img> tag \"min-width:<PX>px\"
+    --max-height=PX
+      set CSS property of <img> tag \"max-height:<PX>px\"
+    --min-height=PX
+      set CSS property of <img> tag \"min-height:<PX>px\"
+
     -a|--autoscroll
       scroll page slowly when you click on an image, click again to toggle
 
@@ -49,6 +58,10 @@ sub main(@){
   my $noBrowser = 0;
   my $config = {
     singleColButton => 1,
+    maxWidth => undef,
+    minWidth => undef,
+    maxHeight => undef,
+    minHeight => undef,
     autoScroll => 0,
     autoScrollDelayMillis => $DEFAULT_AUTOSCROLL_DELAY_MILLIS,
     autoScrollByPx => $DEFAULT_AUTOSCROLL_BY_PX,
@@ -63,6 +76,14 @@ sub main(@){
       $prefixDir = $1;
     }elsif($arg =~ /^(-n|--nobrowser)$/){
       $noBrowser = 1;
+    }elsif($arg =~ /^--max-width=(\d+)$/){
+      $$config{maxWidth} = $1;
+    }elsif($arg =~ /^--min-width=(\d+)$/){
+      $$config{minWidth} = $1;
+    }elsif($arg =~ /^--max-height=(\d+)$/){
+      $$config{maxHeight} = $1;
+    }elsif($arg =~ /^--min-height=(\d+)$/){
+      $$config{minHeight} = $1;
     }elsif($arg =~ /^(-a|--autoscroll)$/){
       $$config{autoScroll} = 1;
     }elsif($arg =~ /^--autoscroll-delay=(\d+)$/){
@@ -171,9 +192,14 @@ sub getHtml($@){
            . "SINGLE COL"
            . "</button>\n" if $$config{singleColButton};
   $html .= "<div id='container'>";
+  my $css = "";
+  $css .= "max-width: $$config{maxWidth}px; " if defined $$config{maxWidth};
+  $css .= "min-width: $$config{minWidth}px; " if defined $$config{minWidth};
+  $css .= "max-height: $$config{maxHeight}px; " if defined $$config{maxHeight};
+  $css .= "min-height: $$config{minHeight}px; " if defined $$config{minHeight};
   for my $img(@imgAbsPaths){
     my $fileUrl = "file://$img";
-    $html .= "<img src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
+    $html .= "<img style=\"$css\" src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
   }
   if($$config{includeClickBox}){
     $html .= "<textarea id=\"clicked\" rows=\"5\" cols=\"80\"></textarea>\n";
