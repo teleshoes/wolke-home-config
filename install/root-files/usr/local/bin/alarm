@@ -57,7 +57,9 @@ my $usage = "Usage:
       -g | --guess
         If alarm does not match, use 'default' instead of failing
       -v N | --vol N | --volume N
-        Attempt to unmute and set system volume to N using pulse-vol
+        Pass '-volume N' and '-softvol' to mplayer (e.g.: -v 50, -v 300)
+      --unmute
+        Attempt to unmute and set system volume to 100% using pulse-vol
       -b|--background
         Run in background (useless without --noterm)
       -t|--noterm
@@ -78,13 +80,14 @@ sub main(@){
     exit 0;
   }
 
-  my ($help, $norerun, $once, $guess, $vol, $background, $noterm, $sound);
+  my ($help, $norerun, $once, $guess, $vol, $unmute, $background, $noterm, $sound);
   my $ok = GetOptionsFromArray(\@_,
     "h|help"            => \$help,
     "n|norerun"         => \$norerun,
     "o|once"            => \$once,
     "g|guess"           => \$guess,
     "v|vol|volume=i"    => \$vol,
+    "unmute"            => \$unmute,
     "b|background"      => \$background,
     "t|noterm"          => \$noterm,
     "s|sound"           => \$sound,
@@ -119,14 +122,15 @@ sub main(@){
   my $absFile = -l $file ? abs_path $file : $file;
   die "Missing alarm file $file\n" if not -f $absFile;
 
-  if(defined $vol){
+  if($unmute){
     system "pulse-vol", "unmute";
-    system "pulse-vol", $vol;
+    system "pulse-vol", 100;
   }
 
   my @cmd;
   @cmd = (@cmd, "term") unless $noterm;
   @cmd = (@cmd, "mplayer", $file);
+  @cmd = (@cmd, "-volume", $vol, "-softvol") if defined $vol;
   @cmd = (@cmd, "-loop", "0") unless $once;
 
   if(not $background){
@@ -185,6 +189,7 @@ sub bashComplete($$){
     -o --once
     -g --guess
     -v --vol --volume
+    --unmute
     -b --background
     -s --sound
   );
