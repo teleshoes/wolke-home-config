@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+sub bashComplete($$);
+
 my $alertDir = "soothing";
 
 my $usage = "Usage:
@@ -11,10 +13,18 @@ my $usage = "Usage:
   $0 ALERT_DIR_SOUND_NAME
     run: alarm -s $alertDir/ALERT_DIR_SOUND_NAME
     (alert dir is '$alertDir/')
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
   }elsif(@_ == 1){
@@ -22,6 +32,41 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $curWord = pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    --bash-complete
+  );
+  my $optWord = $isNewWord ? $words[-1] : $curWord;
+
+  if(defined $optWord and $optWord =~ /^-/){
+    return @opts;
+  }else{
+    my @alarmSounds = `alarm --print-sounds`;
+    chomp foreach @alarmSounds;
+    my @alertSounds;
+    for my $sound(@alarmSounds){
+      if($sound =~ /^$alertDir\/(.+)$/){
+        push @alertSounds, $1;
+      }
+    }
+    s/\.wav$// foreach @alertSounds;
+    return @alertSounds;
+  }
+
+  return ();
 }
 
 &main(@ARGV);
