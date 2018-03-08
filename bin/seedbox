@@ -22,10 +22,12 @@ sub fetchMtime($);
 sub readMtime();
 sub writeMtime($);
 sub readSecrets();
+sub decrypt($);
 
 my $secretsFile = "$ENV{HOME}/.secrets";
 my $mtimeFile = "$ENV{HOME}/.cache/seedbox-mtime";
 my @configKeys = qw(server port home username password revtun.username revtun.portfile);
+my %encryptedConfigKeys = map {$_ => 1 } qw(password);
 
 my @revtunLocalOpts = ("-t",
   "-o", "LogLevel=ERROR",
@@ -414,10 +416,24 @@ sub readSecrets(){
       $$cfg{$1} = $2;
     }
   }
+  for my $key(sort keys %$cfg){
+    if(defined $encryptedConfigKeys{$key}){
+      $$cfg{$key} = decrypt $$cfg{$key};
+    }
+  }
   for my $key(sort @configKeys){
     die "Missing config '$key' in $secretsFile\n" if not defined $$cfg{$key};
   }
   return $cfg;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  return join '', @contents;
 }
 
 &main(@ARGV);
