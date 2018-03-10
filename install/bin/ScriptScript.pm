@@ -15,6 +15,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   shell tryshell
                   runANSI tryrunANSI
                   runUser tryrunUser wrapUserCommand
+                  runAptGet tryrunAptGet
                   proc procLines
                   runScript
                   getHome getInstallPath getSrcCache
@@ -281,6 +282,15 @@ sub runANSI   (@) { runProto {esc => \&shell_quote, fatal => 1, ansi => 1}, @_ }
 sub tryrunANSI(@) { runProto {esc => \&shell_quote, fatal => 0, ansi => 1}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
+
+sub runAptGet(@){
+  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
+  runANSI @cmd;
+}
+sub tryrunAptGet(@){
+  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
+  tryrunANSI @cmd;
+}
 
 sub wrapUserCommand(@) {
     return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
@@ -714,12 +724,12 @@ sub installFromDir($;$$) {
 
 sub aptSrcInstall($$) {
     my ($package, $whichdeb) = @_;
-    shell "sudo apt-get -y build-dep $package";
+    runAptGet "-y", "build-dep", $package;
     my $srcCache = getSrcCache();
     my $pkgSrcDir = "$srcCache/.src-cache/$package";
     shell "mkdir -p $pkgSrcDir" unless -d $pkgSrcDir;
     cd $pkgSrcDir;
-    shell "apt-get -b source $package";
+    runAptGet "-b", "source", $package;
     for my $file (split "\n", `ls -1`) {
         if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
             shell "sudo dpkg -i $file";
