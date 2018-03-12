@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $dir = "$ENV{HOME}/Code/sx/backup/backup-sms/by-contact";
+my $debtRegex = "\\b(owe|debt|debts|pay|paid)\\b";
+
+my $usage = "Usage:
+  $0 SMS_FILE REGEX
+    search SMS_FILE for lines matching (case-insensitive) regex \"REGEX\"
+
+  $0 --debt SMS_FILE
+    same as $0 SMS_FILE '$debtRegex'
+
+  SMS_FILE
+    path to a text file, or a file in
+      $dir/
+
+  REGEX
+    perl regular expression
+";
+
+sub main(@){
+  my ($file, $regex);
+  if(@_ == 2 and $_[0] =~ /^(--debt)$/){
+    ($file, $regex) = ($_[1], $debtRegex);
+  }elsif(@_ == 2){
+    ($file, $regex) = ($_[0], $_[1]);
+  }else{
+    die $usage;
+  }
+  $file = "$dir/$file" if not -f $file and -f "$dir/$file";
+  die "$usage\n$file is not a file\n" if not -f $file;
+
+  open FH, "< $file" or die "could not read file $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  for my $line(@lines){
+    if($line =~ /$regex/i){
+      print $line;
+    }
+  }
+}
+
+&main(@ARGV);
