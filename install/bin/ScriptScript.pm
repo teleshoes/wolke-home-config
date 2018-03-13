@@ -16,7 +16,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   runANSI tryrunANSI
                   runUser tryrunUser wrapUserCommand
                   runAptGet tryrunAptGet
-                  proc procLines
+                  proc procLines procUser
                   runScript
                   getHome getInstallPath getSrcCache
                   cd
@@ -54,6 +54,7 @@ sub tryrunUser(@);
 sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
+sub procUser(@);
 sub readProcessLines(@);
 sub runScript($@);
 sub getUsername();
@@ -308,6 +309,10 @@ sub procLines(@) {
     chomp foreach @lines;
     return @lines;
 }
+sub procUser(@) {
+    return proc(wrapUserCommand(@_));
+}
+
 sub readProcessLines(@){
     my @cmd = @_;
     open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
