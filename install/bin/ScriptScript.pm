@@ -54,6 +54,7 @@ sub tryrunUser(@);
 sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
+sub readProcessLines(@);
 sub runScript($@);
 sub getUsername();
 sub getInstallPath($);
@@ -297,15 +298,26 @@ sub wrapUserCommand(@) {
 }
 
 sub proc(@) {
-    my $out = `@_`;
+    my @lines = readProcessLines @_;
+    my $out = join '', @lines;
     chomp $out;
     return $out;
 }
 sub procLines(@) {
-    my @lines = `@_`;
+    my @lines = readProcessLines @_;
     chomp foreach @lines;
     return @lines;
 }
+sub readProcessLines(@){
+    my @cmd = @_;
+    open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
+    my @lines = <PROC_FH>;
+    close PROC_FH;
+    die "error running cmd: @cmd\n" if $? != 0;
+    chomp foreach @lines;
+    return @lines;
+}
+
 
 sub runScript($@){
   my $scriptName = shift;
