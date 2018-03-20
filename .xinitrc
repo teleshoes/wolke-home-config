@@ -11,4 +11,6 @@ sudo sbox-umount &
 ( sleep 2; pulse-vol mic mute ) &
 term -t qtemail-daemon -r email-daemon.pl
 
+/usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
+
 exec xmonad
