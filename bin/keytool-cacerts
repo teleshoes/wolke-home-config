@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub ensureRoot();
+sub run(@);
+
+my $usage = "Usage: $0 HOSTNAME\n";
+
+my $CACERTS = "/usr/lib/jvm/default-java/jre/lib/security/cacerts";
+my $CACERTS_PASS = "changeit";
+
+sub main(@){
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+  die $usage if @_ != 1;
+  ensureRoot();
+  my ($hostname) = @_;
+
+  my $opensslCommand = "openssl s_client -connect $hostname:443 </dev/null";
+  print "$opensslCommand\n";
+  my $sslConnect = `$opensslCommand`;
+  if($sslConnect !~ /(-----BEGIN CERTIFICATE-----\n.*-----END CERTIFICATE-----\n)/si){
+    die "could not read certificate from openssl\n";
+  }
+  my $cert = $1;
+
+  my $pemFile = "/tmp/keytool-$hostname.pem";
+  $pemFile =~ s/[^a-zA-Z0-9_\-]/_/g;
+  $pemFile =~ s/__+/_/g;
+
+  open FH, "> $pemFile" or die "could not write $pemFile\n$!\n";
+  print FH $cert;
+  close FH;
+
+  print "\n\n";
+  run "keytool",
+    "-keystore", "$CACERTS",
+    "-storepass", $CACERTS_PASS,
+    "-alias", $hostname,
+    "-delete",
+    ;
+
+  print "\n\n";
+  run "keytool",
+    "-keystore", "$CACERTS",
+    "-storepass", $CACERTS_PASS,
+    "-alias", $hostname,
+    "-file", $pemFile,
+    "-noprompt",
+    "-import",
+    ;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
