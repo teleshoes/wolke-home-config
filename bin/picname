@@ -9,39 +9,77 @@ my @exts = qw(
 my $okExts = "(?:" . (join "|", @exts) . ")";
 
 my $usage = "Usage:
-  $0 [FILE FILE ...]
-    rename all 'FILE's using the exif 'Date and Time' or the file's mtime
+  $0 -h|--help
+    show this message
+
+  $0 [OPTS] FILE [FILE FILE ...]
+    rename all 'FILE's using the exif 'Date and Time' for JPEGs,
+      or the file's mtime for non-JPEGs
     FILE must end in '.' followed by @exts
+
+  OPTS
+    --exif-mtime   {default}
+      use exif for JPEG and mtime for non-JPEG to get timestamp
+      (this is the default)
+    --exif
+      use only exif to get timestamp
+    --mtime
+      use only mtime to get timestamp
+    --filename
+      use picname file name to get modified timestamp
+      fails if file is not named in the expected format
 ";
 
-my $shiftHours = 0;
-
-sub renameFile($);
+sub handleFile($$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
 sub run(@);
 
+my $MODE_EXIF_MTIME = "exif-mtime";
+my $MODE_EXIF = "exif";
+my $MODE_MTIME = "mtime";
+my $MODE_FILENAME = "filename";
+
+my $shiftHours = 0;
+
 sub main(@){
+  my $mode = $MODE_EXIF_MTIME;
+  if(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--exif-mtime)$/ and @_ > 0){
+      $mode = $MODE_EXIF_MTIME;
+    }elsif($arg =~ /^(--exif)$/){
+      $mode = $MODE_EXIF;
+    }elsif($arg =~ /^(--mtime)$/){
+      $mode = $MODE_MTIME;
+    }elsif($arg =~ /^(--filename)$/){
+      $mode = $MODE_FILENAME;
+    }
+  }
   for my $arg(@_){
     die $usage if not -f $arg;
   }
   my @files = @_;
+  die $usage if @files == 0;
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = renameFile $file;
+      my $isOk = handleFile $mode, $file;
       push @errors, $file if not $isOk;
     }
   }
   if(@errors > 0){
     my $errorsFmt = join "", map {" $_\n"} @errors;
-    die "\n\nERROR RENAMING FILES:\n$errorsFmt";
+    die "\n\nERROR HANDLING FILES:\n$errorsFmt";
   }
 }
 
-sub renameFile($){
-  my ($file) = @_;
+sub handleFile($$$){
+  my ($mode, $file) = @_;
   my ($dir, $fileName, $ext);
   if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
     ($dir, $fileName, $ext) = ($1, $2, $3);
@@ -50,10 +88,18 @@ sub renameFile($){
   }
   $dir = "" if not defined $dir;
   my $epoch;
-  if($file !~ /\.(jpg|jpeg)/i){
-    $epoch = mtimeEpoch $file;
-  }else{
+  if($mode eq $MODE_EXIF_MTIME){
+    if($file =~ /\.(jpg|jpeg)/i){
+      $epoch = exifEpoch $file;
+    }else{
+      $epoch = mtimeEpoch $file;
+    }
+  }elsif($mode eq $MODE_EXIF){
     $epoch = exifEpoch $file;
+  }elsif($mode eq $MODE_MTIME){
+    $epoch = mtimeEpoch $file;
+  }elsif($mode eq $MODE_FILENAME){
+    $epoch = filenameEpoch $file;
   }
 
   if(not defined $epoch){
