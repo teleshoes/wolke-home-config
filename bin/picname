@@ -39,13 +39,17 @@ my $usage = "Usage:
       use picname file name to get timestamp
       fails if file is not named in the expected format
 
+    -n | -s | --no-act | --simulate
+      print the commands, but dont actually run 'touch' or 'mv'
+      commands are prefixed by '#' to make it clear they werent run
+
     --shift-hours=HOURS
       add HOURS*60*60 to the timestamp, regardless of method chosen
       HOURS must be an integer (positive, negative, or zero)
       e.g.: --shift-hours=-4  subtracts 4*60*60 seconds
 ";
 
-sub handleFile($$$$);
+sub handleFile($$$$$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
@@ -63,6 +67,7 @@ my $MODE_FILENAME = "filename";
 sub main(@){
   my $action = $ACTION_RENAME;
   my $mode = $MODE_EXIF_MTIME;
+  my $simulate = 0;
   my $shiftHours = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
@@ -83,6 +88,8 @@ sub main(@){
       $mode = $MODE_MTIME;
     }elsif($arg =~ /^(--filename)$/){
       $mode = $MODE_FILENAME;
+    }elsif($arg =~ /^(-n|-s|--no-act|--simulate)$/){
+      $simulate = 1;
     }elsif($arg =~ /^--shift-hours=(-?\d+)$/){
       $shiftHours = $1;
     }
@@ -95,7 +102,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $action, $mode, $shiftHours, $file;
+      my $isOk = handleFile $action, $mode, $shiftHours, $simulate, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -105,8 +112,8 @@ sub main(@){
   }
 }
 
-sub handleFile($$$$){
-  my ($action, $mode, $shiftHours, $file) = @_;
+sub handleFile($$$$$){
+  my ($action, $mode, $shiftHours, $simulate, $file) = @_;
   my ($dir, $fileName, $ext);
   if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
     ($dir, $fileName, $ext) = ($1, $2, $3);
@@ -168,11 +175,12 @@ sub handleFile($$$$){
       print "skipping rename $file\n";
       return 1;
     }else{
-      run "mv", "--no-clobber", $file, $newFile;
-      if($? == 0){
-        return 1;
+      my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
+      if($simulate){
+        print "#@mvCmd\n";
       }else{
-        return 0;
+        run @mvCmd;
+        return $? == 0 ? 1 : 0;
       }
     }
   }elsif($action eq $ACTION_TOUCH){
@@ -180,11 +188,12 @@ sub handleFile($$$$){
     if($epoch == $epochMtime){
       print "skipping touch $file\n";
     }else{
-      run "touch", $file, "--date", "\@$epoch";
-      if($? == 0){
-        return 1;
+      my @touchCmd = ("touch", $file, "--date", "\@$epoch");
+      if($simulate){
+        print "#@touchCmd\n";
       }else{
-        return 0;
+        run @touchCmd;
+        return $? == 0 ? 1 : 0;
       }
     }
   }elsif($action eq $ACTION_PRINT){
