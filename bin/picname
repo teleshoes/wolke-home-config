@@ -18,6 +18,12 @@ my $usage = "Usage:
     FILE must end in '.' followed by @exts
 
   OPTS
+    --rename       {default}
+      rename files using mv
+      new name is: YYYYMMDD_HHMMSS_<FILE>
+    --print
+      do not perform any action, instead just print information
+
     --exif-mtime   {default}
       use exif for JPEG and mtime for non-JPEG to get timestamp
       (this is the default)
@@ -35,11 +41,14 @@ my $usage = "Usage:
       e.g.: --shift-hours=-4  subtracts 4*60*60 seconds
 ";
 
-sub handleFile($$$);
+sub handleFile($$$$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
 sub run(@);
+
+my $ACTION_RENAME = "rename";
+my $ACTION_PRINT = "print";
 
 my $MODE_EXIF_MTIME = "exif-mtime";
 my $MODE_EXIF = "exif";
@@ -47,6 +56,7 @@ my $MODE_MTIME = "mtime";
 my $MODE_FILENAME = "filename";
 
 sub main(@){
+  my $action = $ACTION_RENAME;
   my $mode = $MODE_EXIF_MTIME;
   my $shiftHours = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -54,6 +64,10 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(--rename)$/ and @_ > 0){
+      $action = $ACTION_RENAME;
+    }elsif($arg =~ /^(--print)$/ and @_ > 0){
+      $action = $ACTION_PRINT;
     }elsif($arg =~ /^(--exif-mtime)$/ and @_ > 0){
       $mode = $MODE_EXIF_MTIME;
     }elsif($arg =~ /^(--exif)$/){
@@ -74,7 +88,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $mode, $shiftHours, $file;
+      my $isOk = handleFile $action, $mode, $shiftHours, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -84,8 +98,8 @@ sub main(@){
   }
 }
 
-sub handleFile($$$){
-  my ($mode, $shiftHours, $file) = @_;
+sub handleFile($$$$){
+  my ($action, $mode, $shiftHours, $file) = @_;
   my ($dir, $fileName, $ext);
   if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
     ($dir, $fileName, $ext) = ($1, $2, $3);
@@ -106,6 +120,8 @@ sub handleFile($$$){
     $epoch = mtimeEpoch $file;
   }elsif($mode eq $MODE_FILENAME){
     $epoch = filenameEpoch $file;
+  }else{
+    die "unknown mode: $mode\n";
   }
 
   if(not defined $epoch){
@@ -139,16 +155,33 @@ sub handleFile($$$){
     $count++;
     $newFile = "$dir${dateFmt}_${fileName}_${count}.${ext}";
   }
-  if($file eq $newFile){
-    print "skipping $file\n";
-    return 1;
-  }else{
-    run "mv", "--no-clobber", $file, $newFile;
-    if($? == 0){
+
+  if($action eq $ACTION_RENAME){
+    if($file eq $newFile){
+      print "skipping rename $file\n";
       return 1;
     }else{
-      return 0;
+      run "mv", "--no-clobber", $file, $newFile;
+      if($? == 0){
+        return 1;
+      }else{
+        return 0;
+      }
     }
+  }elsif($action eq $ACTION_PRINT){
+    my $epochMtime = mtimeEpoch $file;
+    my $isSameFilename = $file eq $newFile;
+    my $isSameMtime = $epoch == $epochMtime;
+    printf "%d %s (%s) %s %s\n",
+      $epoch,
+      $file,
+      $newFile,
+      $isSameFilename ? "(same file)" : "(diff file)",
+      $isSameMtime ? "(same mtime)" : "(diff mtime)",
+      ;
+    return 1;
+  }else{
+    die "unknown action: $action\n";
   }
 }
 
