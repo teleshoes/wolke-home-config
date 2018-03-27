@@ -26,10 +26,16 @@ sub main(@){
     die $usage if not -f $arg;
   }
   my @files = @_;
+  my @errors;
   for my $file(@files){
     if(-f $file){
-      renameFile $file;
+      my $isOk = renameFile $file;
+      push @errors, $file if not $isOk;
     }
+  }
+  if(@errors > 0){
+    my $errorsFmt = join "", map {" $_\n"} @errors;
+    die "\n\nERROR RENAMING FILES:\n$errorsFmt";
   }
 }
 
@@ -50,8 +56,8 @@ sub renameFile($){
   }
 
   if(not defined $epoch){
-    my $mtime = (stat $file)[9];
-    $epoch = $mtime;
+    print "cannot process $file\n";
+    return 0;
   }
 
   $epoch += $shiftHours * 60 * 60;
@@ -79,8 +85,14 @@ sub renameFile($){
   }
   if($file eq $newFile){
     print "skipping $file\n";
+    return 1;
   }else{
     run "mv", "--no-clobber", $file, $newFile;
+    if($? == 0){
+      return 1;
+    }else{
+      return 0;
+    }
   }
 }
 
@@ -99,16 +111,19 @@ sub exifEpoch($){
         my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
         chomp $s;
         if($s !~ /^\d+$/){
-          die "malformed date output: $s\n";
+          print STDERR "ERROR: malformed date output $s\n";
+          return undef;
         }
         push @dates, $s;
       }else{
-        die "malformed date line: $line";
+        print STDERR "ERROR: malformed date line: $line\n";
+        return undef;
       }
     }
   }
   if(@dates == 0){
-    die "no date time found for: $file";
+    print STDERR "ERROR: no EXIF date time found for: $file\n";
+    return undef;
   }
   my $date = $dates[0];
   for my $d(@dates){
