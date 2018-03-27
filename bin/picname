@@ -28,9 +28,14 @@ my $usage = "Usage:
     --filename
       use picname file name to get modified timestamp
       fails if file is not named in the expected format
+
+    --shift-hours=HOURS
+      add HOURS*60*60 to the timestamp, regardless of method chosen
+      HOURS must be an integer (positive, negative, or zero)
+      e.g.: --shift-hours=-4  subtracts 4*60*60 seconds
 ";
 
-sub handleFile($$);
+sub handleFile($$$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
@@ -41,10 +46,9 @@ my $MODE_EXIF = "exif";
 my $MODE_MTIME = "mtime";
 my $MODE_FILENAME = "filename";
 
-my $shiftHours = 0;
-
 sub main(@){
   my $mode = $MODE_EXIF_MTIME;
+  my $shiftHours = 0;
   if(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -58,6 +62,8 @@ sub main(@){
       $mode = $MODE_MTIME;
     }elsif($arg =~ /^(--filename)$/){
       $mode = $MODE_FILENAME;
+    }elsif($arg =~ /^--shift-hours=(-?\d+)$/){
+      $shiftHours = $1;
     }
   }
   for my $arg(@_){
@@ -68,7 +74,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $mode, $file;
+      my $isOk = handleFile $mode, $shiftHours, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -79,7 +85,7 @@ sub main(@){
 }
 
 sub handleFile($$$){
-  my ($mode, $file) = @_;
+  my ($mode, $shiftHours, $file) = @_;
   my ($dir, $fileName, $ext);
   if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
     ($dir, $fileName, $ext) = ($1, $2, $3);
