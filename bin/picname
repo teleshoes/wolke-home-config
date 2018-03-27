@@ -18,6 +18,7 @@ my $shiftHours = 0;
 
 sub renameFile($);
 sub exifEpoch($);
+sub mtimeEpoch($);
 sub run(@);
 
 sub main(@){
@@ -41,7 +42,13 @@ sub renameFile($){
     die "$file did not end in one of: @exts\n";
   }
   $dir = "" if not defined $dir;
-  my $epoch = exifEpoch $file;
+  my $epoch;
+  if($file !~ /\.(jpg|jpeg)/i){
+    $epoch = mtimeEpoch $file;
+  }else{
+    $epoch = exifEpoch $file;
+  }
+
   if(not defined $epoch){
     my $mtime = (stat $file)[9];
     $epoch = $mtime;
@@ -79,9 +86,6 @@ sub renameFile($){
 
 sub exifEpoch($){
   my ($file) = @_;
-  if($file !~ /\.(jpg|jpeg)/i){
-    return undef;
-  }
   open EXIF, "-|", "exif", "-m", $file;
   my @lines = <EXIF>;
   close EXIF;
@@ -116,6 +120,12 @@ sub exifEpoch($){
     }
   }
   return $date;
+}
+
+sub mtimeEpoch($){
+  my ($file) = @_;
+  my $mtime = (stat $file)[9];
+  return $mtime;
 }
 
 sub run(@){
