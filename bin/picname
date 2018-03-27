@@ -19,6 +19,7 @@ my $shiftHours = 0;
 sub renameFile($);
 sub exifEpoch($);
 sub mtimeEpoch($);
+sub filenameEpoch($);
 sub run(@);
 
 sub main(@){
@@ -65,16 +66,19 @@ sub renameFile($){
   my $dateFmt = `date --date \@$epoch +'%Y%m%d_%H%M%S'`;
   chomp $dateFmt;
 
-  if($fileName =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_(\d+_)?(.+)$/){
-    my ($y, $m, $d, $hr, $min, $sec, $seq, $name) = ($1, $2, $3, $4, $5, $6, $7, $8);
-    my $oldDateEpoch = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
-    chomp $oldDateEpoch;
-    my $diff = $epoch - $oldDateEpoch;
+  if($fileName =~ /^\d\d\d\d\d\d\d\d_\d\d\d\d\d\d(?:_\d+)?_(.+)/){
+    my ($unprefixedFileName) = ($1);
+
+    my $oldFileNameEpoch = filenameEpoch $file;
+    my $diff = $epoch - $oldFileNameEpoch;
     $diff = 0-$diff if $diff < 0;
     if($diff > 60*60*24){
-      print STDERR "WARNING: old date prefix disagrees by more than a day $file ($oldDateEpoch vs $epoch)\n";
+      print STDERR ""
+        . "WARNING: old date prefix disagrees by more than a day"
+        . " for $file ($oldFileNameEpoch vs $epoch)\n";
     }
-    $fileName = $name;
+
+    $fileName = $unprefixedFileName;
   }
 
   my $newFile = "${dir}${dateFmt}_${fileName}.${ext}";
@@ -139,8 +143,28 @@ sub exifEpoch($){
 
 sub mtimeEpoch($){
   my ($file) = @_;
-  my $mtime = (stat $file)[9];
-  return $mtime;
+  my $mtimeEpoch = (stat $file)[9];
+  return $mtimeEpoch;
+}
+
+sub filenameEpoch($){
+  my ($file) = @_;
+  my $filename = $file;
+  $filename =~ s/.*\///;
+  if($filename =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)[_\.]/){
+    my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
+    my $dateFmt = "$y$m$d $hr:$min:$sec";
+    my $epoch = `date +%s --date='$dateFmt'`;
+    chomp $epoch;
+    if($epoch =~ /^\d+$/){
+      return $epoch;
+    }else{
+      print STDERR "ERROR: could not read datetime fmt '$dateFmt' using `date`\n";
+    }
+  }else{
+    print STDERR "ERROR: filename must start with YYYYMMDD_HHMMSS, then . or _\n";
+  }
+  return undef;
 }
 
 sub run(@){
