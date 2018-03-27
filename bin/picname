@@ -13,7 +13,7 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS] FILE [FILE FILE ...]
-    rename or print info about files, using exif data, mtime, or filename
+    rename, touch, or print info about files, using exif data, mtime, or filename
       -default action is to rename
       -default timestamp mode is to use exif for JPEG, and mtime otherwise
     FILE must end in '.' followed by @exts
@@ -22,6 +22,9 @@ my $usage = "Usage:
     --rename       {default}
       rename files using mv
       new name is: YYYYMMDD_HHMMSS_<FILE>
+    --touch
+      use touch to set the mtime
+      (uses the same method to get timestamp as --rename)
     --print
       do not perform any action, instead just print information
 
@@ -49,6 +52,7 @@ sub filenameEpoch($);
 sub run(@);
 
 my $ACTION_RENAME = "rename";
+my $ACTION_TOUCH = "touch";
 my $ACTION_PRINT = "print";
 
 my $MODE_EXIF_MTIME = "exif-mtime";
@@ -67,6 +71,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--rename)$/ and @_ > 0){
       $action = $ACTION_RENAME;
+    }elsif($arg =~ /^(--touch)$/ and @_ > 0){
+      $action = $ACTION_TOUCH;
     }elsif($arg =~ /^(--print)$/ and @_ > 0){
       $action = $ACTION_PRINT;
     }elsif($arg =~ /^(--exif-mtime)$/ and @_ > 0){
@@ -163,6 +169,18 @@ sub handleFile($$$$){
       return 1;
     }else{
       run "mv", "--no-clobber", $file, $newFile;
+      if($? == 0){
+        return 1;
+      }else{
+        return 0;
+      }
+    }
+  }elsif($action eq $ACTION_TOUCH){
+    my $epochMtime = mtimeEpoch $file;
+    if($epoch == $epochMtime){
+      print "skipping touch $file\n";
+    }else{
+      run "touch", $file, "--date", "\@$epoch";
       if($? == 0){
         return 1;
       }else{
