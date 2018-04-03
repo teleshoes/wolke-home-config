@@ -10,7 +10,7 @@ sub main(@) {
     my $msg = ""
       . "====\n"
       . "DO NOT RUN THIS IN ANY DISPLAY MANAGER!\n"
-      . "(including nodm)\n"
+      . "(including sddm)\n"
       . "====\n"
       ;
     print "\n\n\n$msg\nproceed? [Y/n] ";
@@ -20,19 +20,25 @@ sub main(@) {
       exit 1;
     }
 
-    my @dms = qw(nodm mdm gdm kdm lightdm slim wdm xdm sddm);
+    my @dms = qw(gdm kdm lightdm mdm nodm sddm slim wdm xdm);
     my @extras = qw(.*liblightdm-gobject.* .*lightdm-gtk-greeter.*);
     tryrun qw(pkill -f), $_ foreach @dms;
     runAptGet qw(-y purge), @dms, @extras;
 
-    runAptGet qw(-y install), "nodm";
+    runAptGet qw(-y install), "sddm";
 
-    editSimpleConf "/etc/default/nodm", undef, {
-      NODM_ENABLED => 'true',
-      NODM_USER => getUsername,
-      NODM_XSESSION => "\"/bin/bash -l -c $ENV{HOME}/.xinitrc\"",
-      NODM_FIRST_VT => 7,
-    };
+    writeFile "/usr/share/xsessions/startx.desktop", ""
+      . "[Desktop Entry]\n"
+      . "Name=startx\n"
+      . "Exec=/usr/bin/startx\n"
+      . "Type=XSession\n"
+      ;
+
+    writeFile "/etc/sddm.conf", ""
+      . "[Autologin]\n"
+      . "User=" . getUsername() . "\n"
+      . "Session=startx\n"
+      ;
 }
 
 main @ARGV;
