@@ -5,7 +5,7 @@ BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 screen-cmd fetch-seedbox
 
 sudo igstart &
-brightness 80
+screensaver
 cec-cmd start &
 ( sudo mnt
   sudo hdparm-tool --active /media/seedbox
