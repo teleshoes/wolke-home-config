@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $cmds = {
+  shutdown  => [qw(systemctl poweroff)],
+  reboot    => [qw(systemctl reboot)],
+  sleep     => [qw(pm-suspend)],
+  hibernate => [qw(pm-hibernate)],
+};
+
+my $usage = "Usage:
+  $0 -s
+    @{$$cmds{shutdown}}
+  $0 -r
+    @{$$cmds{reboot}}
+  $0 -l
+    @{$$cmds{sleep}}
+  $0 -h
+    @{$$cmds{hibernate}}
+";
+
+sub main(@){
+  die "Must run $0 as root\n" if `whoami` ne "root\n";
+  die $usage if @_ != 1;
+  my $arg = $_[0];
+
+  my @cmd;
+  if($arg =~ /^(-s)$/){
+    @cmd = @{$$cmds{shutdown}};
+  }elsif($arg =~ /^(-r)$/){
+    @cmd = @{$$cmds{reboot}};
+  }elsif($arg =~ /^(-l)$/){
+    @cmd = @{$$cmds{sleep}};
+  }elsif($arg =~ /^(-h)$/){
+    @cmd = @{$$cmds{hibernate}};
+  }else{
+    die $usage;
+  }
+
+  print "@cmd\n";
+  exec @cmd;
+}
+
+&main(@ARGV);

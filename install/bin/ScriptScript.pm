@@ -13,8 +13,10 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
                   shell tryshell
+                  runANSI tryrunANSI
                   runUser tryrunUser wrapUserCommand
-                  proc procLines
+                  runAptGet tryrunAptGet
+                  proc procLines procUser
                   runScript
                   getHome getInstallPath getSrcCache
                   cd
@@ -38,6 +40,7 @@ sub getSubNames();
 sub setOpts($);
 sub deathWithDishonor(;$);
 sub withOpenHandle($$$);
+sub parseAnsiSequences($);
 sub assertDef($@);
 sub runProto($@);
 sub runProtoIPC($@);
@@ -51,6 +54,8 @@ sub tryrunUser(@);
 sub wrapUserCommand(@);
 sub proc(@);
 sub procLines(@);
+sub procUser(@);
+sub readProcessLines(@);
 sub runScript($@);
 sub getUsername();
 sub getInstallPath($);
@@ -164,6 +169,26 @@ sub withOpenHandle($$$){
   }
 }
 
+sub parseAnsiSequences($){
+  my ($str) = @_;
+  #re-encode text modes
+  $str =~ s/
+    \^\[            #escape char
+    \[              #bracket char
+    ([0-9;]*)       #list of semi-colon separated integers
+    m               #m
+    /\e\[$1m/gx;
+  #strip out all other sequences
+  $str =~ s/
+    \^\[            #escape char
+    \[              #bracket char
+    [?(]?           #optional question mark or parens
+    [0-9;]*         #list of semi-colon separated integers
+    [a-zA-Z]        #control character
+    //gx;
+  return $str;
+}
+
 sub assertDef($@){
   my $h = shift;
   foreach my $key(@_){
@@ -178,7 +203,7 @@ sub runProto($@){
 }
 sub runProtoIPC($@) {
     my $cfg = shift;
-    assertDef $cfg, qw(esc fatal);
+    assertDef $cfg, qw(esc fatal ansi);
 
     my @cmd = &{$$cfg{esc}}(@_);
 
@@ -210,6 +235,7 @@ sub runProtoIPC($@) {
                 close $fh;
             }
             $out = "# $out" if $opts->{prependComment};
+            $out = parseAnsiSequences $out if $$cfg{ansi};
             chomp $out;
             print "$out\n" if defined $opts->{verbose};
         }
@@ -222,7 +248,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
     my $cfg = shift;
-    assertDef $cfg, qw(esc fatal);
+    assertDef $cfg, qw(esc fatal ansi);
 
     my $cmd = join ' ', &{$$cfg{esc}}(@_);
 
@@ -238,6 +264,7 @@ sub runProtoNoIPC($@) {
             while(my $line = <$fh>) {
                 chomp $line;
                 $line = "# $line" if $opts->{prependComment};
+                $line = parseAnsiSequences $line if $$cfg{ansi};
                 print "$line\n";
             }
         }
@@ -249,27 +276,53 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {esc => \&shell_quote, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0}, @_ }
-sub shell     (@) { runProto {esc => \&id         , fatal => 1}, @_ }
-sub tryshell  (@) { runProto {esc => \&id         , fatal => 0}, @_ }
+sub run       (@) { runProto {esc => \&shell_quote, fatal => 1, ansi => 0}, @_ }
+sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0, ansi => 0}, @_ }
+sub shell     (@) { runProto {esc => \&id         , fatal => 1, ansi => 0}, @_ }
+sub tryshell  (@) { runProto {esc => \&id         , fatal => 0, ansi => 0}, @_ }
+sub runANSI   (@) { runProto {esc => \&shell_quote, fatal => 1, ansi => 1}, @_ }
+sub tryrunANSI(@) { runProto {esc => \&shell_quote, fatal => 0, ansi => 1}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
+
+sub runAptGet(@){
+  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
+  runANSI @cmd;
+}
+sub tryrunAptGet(@){
+  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
+  tryrunANSI @cmd;
+}
 
 sub wrapUserCommand(@) {
     return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
 }
 
 sub proc(@) {
-    my $out = `@_`;
+    my @lines = readProcessLines @_;
+    my $out = join '', @lines;
     chomp $out;
     return $out;
 }
 sub procLines(@) {
-    my @lines = `@_`;
+    my @lines = readProcessLines @_;
     chomp foreach @lines;
     return @lines;
 }
+sub procUser(@) {
+    return proc(wrapUserCommand(@_));
+}
+
+sub readProcessLines(@){
+    my @cmd = @_;
+    open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
+    my @lines = <PROC_FH>;
+    close PROC_FH;
+    die "error running cmd: @cmd\n" if $? != 0;
+    chomp foreach @lines;
+    return @lines;
+}
+
 
 sub runScript($@){
   my $scriptName = shift;
@@ -688,12 +741,12 @@ sub installFromDir($;$$) {
 
 sub aptSrcInstall($$) {
     my ($package, $whichdeb) = @_;
-    shell "sudo apt-get -y build-dep $package";
+    runAptGet "-y", "build-dep", $package;
     my $srcCache = getSrcCache();
     my $pkgSrcDir = "$srcCache/.src-cache/$package";
     shell "mkdir -p $pkgSrcDir" unless -d $pkgSrcDir;
     cd $pkgSrcDir;
-    shell "apt-get -b source $package";
+    runAptGet "-b", "source", $package;
     for my $file (split "\n", `ls -1`) {
         if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
             shell "sudo dpkg -i $file";

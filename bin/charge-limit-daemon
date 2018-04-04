@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+
+my $DEV_AC = "/sys/class/power_supply/AC/online";
+my $DEV_POWER = "/sys/class/power_supply/BAT0/power_now";
+
+my $MAX_POWER_MW = 35 * 1000 * 1000;
+
+my $DELAY_MILLIS = 5000;
+my $INHIBIT_MILLIS = 500;
+
+sub readDev($);
+sub isChargingTooMuch();
+
+sub main(@){
+  my $wasOk = 0;
+  while(1){
+    if(isChargingTooMuch()){
+      print "\n";
+      system "date";
+      print "charging too much, inhibiting charge for ${INHIBIT_MILLIS}ms\n";
+      system "sudo", "tpacpi-bat", "-s", "IC", 0, 1;
+      sleep $INHIBIT_MILLIS/1000.0;
+      system "sudo", "tpacpi-bat", "-s", "IC", 0, 0;
+      $wasOk = 0;
+    }elsif(not $wasOk){
+      print "\n";
+      system "date";
+      print "not charging too much\n";
+      $wasOk = 1;
+    }
+    sleep $DELAY_MILLIS/1000.0;
+  }
+}
+
+sub readDev($){
+  my ($dev) = @_;
+  open FH, "< $dev" or die "could not read $dev\n$!\n";
+  my $value = <FH>;
+  close FH;
+  chomp $value;
+  if($value !~ /^\d+$/){
+    die "non-integer value returned from $dev\n";
+  }
+  return $value;
+}
+
+sub isChargingTooMuch(){
+  my $isTooMuch = 0;
+  my $isOnline = readDev $DEV_AC;
+  if($isOnline == 1){
+    my $power = readDev $DEV_POWER;
+    if($power > $MAX_POWER_MW){
+      $isTooMuch = 1;
+    }
+  }
+
+  return $isTooMuch;
+}
+
+&main(@ARGV);

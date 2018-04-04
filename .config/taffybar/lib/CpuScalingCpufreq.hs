@@ -1,4 +1,4 @@
-module CpuScaling(cpuScalingW, cpuGovW) where
+module CpuScalingCpufreq(cpuScalingCpufreqW, cpuScalingCpufreqGovW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
@@ -13,20 +13,20 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
-main = mainLabel cpuScalingReader
-cpuScalingW = labelW cpuScalingReader
+main = mainLabel cpuScalingCpufreqReader
+cpuScalingCpufreqW = labelW cpuScalingCpufreqReader
 
 width = 2
 
 cpuDir = "/sys/devices/system/cpu"
 
-cpuScalingReader = do
+cpuScalingCpufreqReader = do
   cpu <- readCpu
   case cpu of
     Left err -> return err
     Right cur -> return $ formatScaling cur
 
-cpuGovW = labelW $ do
+cpuScalingCpufreqGovW = labelW $ do
   gov <- readGov
   case gov of
     Left err -> return err
@@ -51,7 +51,7 @@ readCpu = runEitherT $ do
 
 readGov :: IO (Either String String)
 readGov = runEitherT $ do
-  gov <- getCpuField "governor"
+  gov <- getCpuField "scaling_governor"
          `withErr` "no governor!"
   return gov
 

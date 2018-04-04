@@ -144,20 +144,20 @@ shortcuts conf = "Shortcuts" @@ do
         "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
-        "100%"          @@ mW    xK_F1   #! "sudo cpu-set all ondemand 0% 100%"
-        "66%"           @@ mW    xK_F2   #! "sudo cpu-set all ondemand 0% 66%"
-        "33%"           @@ mW    xK_F3   #! "sudo cpu-set all ondemand 0% 33%"
-        "0%"            @@ mW    xK_F4   #! "sudo cpu-set all ondemand 0% 0%"
+        "100%"          @@ mW    xK_F1   #! "sudo cpu-set 100%"
+        "66%"           @@ mW    xK_F2   #! "sudo cpu-set 66%"
+        "33%"           @@ mW    xK_F3   #! "sudo cpu-set 33%"
+        "0%"            @@ mW    xK_F4   #! "sudo cpu-set 0%"
 
     "Fan"           @@ do
-        "auto"          @@ mW    xK_F5   #! "sudo fan auto"
-        "fastest"       @@ mW    xK_F6   #! "sudo fan disengaged"
-        "medium"        @@ mW    xK_F7   #! "sudo fan 4"
-        "off"           @@ mW    xK_F8   #! "sudo fan 0"
+        "default"       @@ mW    xK_F5   #! "sudo fan default"
+        "fast"          @@ mW    xK_F6   #! "sudo fan fast"
+        "medium"        @@ mW    xK_F7   #! "sudo fan medium"
+        "slow"          @@ mW    xK_F8   #! "sudo fan slow"
 
     "feh"           @@ do
-        "left"          @@ mA    xK_F11  #! "xdotool search --class feh key --clearmodifiers Left"
-        "right"         @@ mA    xK_F12  #! "xdotool search --class feh key --clearmodifiers Right"
+        "left"          @@ mA    xK_F11  #! "xdotool search --class feh keyup F11 key --clearmodifiers Left"
+        "right"         @@ mA    xK_F12  #! "xdotool search --class feh keyup F12 key --clearmodifiers Right"
 
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"

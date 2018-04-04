@@ -1,0 +1,301 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $BASEDIR='/sys/devices/system/cpu';
+
+sub setGovernor($$);
+sub setMinMaxFreq($$$);
+sub getAvgMinMaxFreqPct($$);
+sub freqPctToKHz($$);
+sub freqKHzToPct($$);
+sub getAllCpus();
+sub getSharedAvailFreqsKHz($);
+sub getSharedAvailGovernors($);
+sub getCommonElems(@);
+sub parseFreq($$);
+sub sortUniq(@);
+sub readDev($$);
+sub readDevList($$);
+sub writeDev($$$);
+
+my $usage = "Usage:
+  $0 [OPTS] --ondemand MIN_FREQ MAX_FREQ
+    same as:
+    $0 [OPTS] --governor ondemand
+    $0 [OPTS] --min MIN_FREQ
+    $0 [OPTS] --max MAX_FREQ
+
+  $0 [OPTS] --gov|--governor GOVERNOR
+    set governor to GOVERNOR for selected cpus (or all)
+    (e.g: performance, powersave, ondemand, userspace)
+  $0 [OPTS] --min FREQ
+    set scaling_min_freq to FREQ for selected cpus (or all)
+  $0 [OPTS] --max FREQ
+    set scaling_max_freq to FREQ for selected cpus (or all)
+
+  $0 [OPTS] --get-min-pct
+    read scaling_min_freq for selected cpus (or all),
+      calculate the percentage based on avail freqs,
+      and take the average
+  $0 [OPTS] --get-max-pct
+    read scaling_max_freq for selected cpus (or all),
+      calculate the percentage based on avail freqs,
+      and take the average
+
+  OPTS
+    -c CPU_NUM,CPU_NUM,CPU_NUM,...
+      comma-separated list of cpu indexes to include (default is to include all)
+      e.g.: -c 0,2,4
+            -c 3
+
+  FREQ
+    either 'min', 'max' 'maxnt', or a percentage, or a freq in KHz, MHz, or GHz
+      <NUMBER>   => frequency in KHz, MHz, or GHz
+      <NUMBER>%  => percent of the index of the available frequencies
+      min        => smallest frequency available
+      max        => largest frequency available
+      maxnt      => the second-largest frequency available, if its within 10MHz
+                    otherwise, the largest frequency available
+    e.g.:
+      assuming avail frequencies in KHz are:
+        (1200000,1400000,1600000,1800000,2000000,2200000,2400000,2600000,2601000)
+      1.4     => 1400000
+      1400    => 1400000
+      1400000 => 1400000
+      min     => 1200000
+      max     => 2601000
+      maxnt   => 2600000
+      100%    => 2601000
+      50%     => 2000000
+      30%     => 1600000
+      0%      => 1200000
+";
+
+my $okCommands = join "|",
+  qw(--ondemand --gov --governor --min --max --get-min-pct --get-max-pct);
+
+sub main(@){
+  my $cmd;
+  my $cpus = [];
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $opt = shift;
+    if(@_ > 0 and $opt =~ /^(-c)$/){
+      my $cpuArg = shift;
+      die "malformed cpu arg: $cpuArg\n" if $cpuArg !~ /^(\d+,)*\d+$/;
+      $cpus = [@$cpus, split /,/, $cpuArg];
+    }elsif($opt =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($opt =~ /^($okCommands)$/){
+      $cmd = $opt;
+    }else{
+      die "$usage\nERROR: unknown option: $opt\n";
+    }
+  }
+
+  $cpus = [@$cpus == 0 ? getAllCpus() : sortUniq @$cpus];
+
+  if($cmd =~ /^(--ondemand)$/ and @_ == 2){
+    my ($minFreq, $maxFreq) = @_;
+    setGovernor "ondemand", $cpus;
+    setMinMaxFreq $minFreq, "scaling_min_freq", $cpus;
+    setMinMaxFreq $maxFreq, "scaling_max_freq", $cpus;
+  }elsif($cmd =~ /^(--gov|--governor)$/ and @_ == 1){
+    my $gov = $_[0];
+    setGovernor $gov, $cpus;
+  }elsif($cmd =~ /^(--min)$/ and @_ == 1){
+    my $freq = $_[0];
+    setMinMaxFreq $freq, "scaling_min_freq", $cpus;
+  }elsif($cmd =~ /^(--max)$/ and @_ == 1){
+    my $freq = $_[0];
+    setMinMaxFreq $freq, "scaling_max_freq", $cpus;
+  }elsif($cmd =~ /^(--get-min-pct)$/){
+    my $pct = getAvgMinMaxFreqPct "scaling_min_freq", $cpus;
+    print "$pct\n";
+  }elsif($cmd =~ /^(--get-max-pct)$/){
+    my $pct = getAvgMinMaxFreqPct "scaling_max_freq", $cpus;
+    print "$pct\n";
+  }else{
+    die $usage;
+  }
+}
+
+sub setGovernor($$){
+  my ($gov, $cpus) = @_;
+  my $availGovs = getSharedAvailGovernors $cpus;
+  my %okGovs = map {$_ => 1} @$availGovs;
+  die "unknown governor: $gov\n" if not defined $okGovs{$gov};
+  for my $cpu(@$cpus){
+    writeDev $cpu, "scaling_governor", $gov;
+  }
+}
+
+sub setMinMaxFreq($$$){
+  my ($freq, $scalingMinMaxFreqDev, $cpus) = @_;
+  my $availFreqsKHz = getSharedAvailFreqsKHz $cpus;
+  my $freqKHz = parseFreq $freq, $availFreqsKHz;
+  die "malformed freq: $freq\n" if not defined $freqKHz;
+  for my $cpu(@$cpus){
+    writeDev $cpu, $scalingMinMaxFreqDev, $freqKHz;
+  }
+}
+
+#convert KHz to percentage of (max-min) freq, take mean across all cpus
+sub getAvgMinMaxFreqPct($$){
+  my ($scalingMinMaxFreqDev, $cpus) = @_;
+  my $availFreqsKHz = getSharedAvailFreqsKHz $cpus;
+  my $totalPcts = 0;
+  for my $cpu(@$cpus){
+    my $freqKHz = readDev $cpu, $scalingMinMaxFreqDev;
+    my $pct = freqKHzToPct $freqKHz, $availFreqsKHz;
+    $totalPcts += $pct;
+  }
+  return sprintf "%d", $totalPcts/@$cpus;
+}
+
+#return closest avail freq to pct*(max-min)+min
+sub freqPctToKHz($$){
+  my ($freqPct, $availFreqsKHz) = @_;
+  my $min = $$availFreqsKHz[0];
+  my $max = $$availFreqsKHz[-1];
+  $freqPct =~ s/%$//;
+  my $targetFreqKHz = $freqPct/100.0*($max-$min) + $min;
+
+  my $closestFreqKHz;
+  my $smallestDelta;
+  for my $freqKHz(@$availFreqsKHz){
+    my $delta = $targetFreqKHz - $freqKHz;
+    $delta = 0-$delta if $delta < 0;
+    if(not defined $smallestDelta or $delta < $smallestDelta){
+      $smallestDelta = $delta;
+      $closestFreqKHz = $freqKHz;
+    }
+  }
+
+  return $closestFreqKHz;
+}
+
+#return percentage between min and max frequency
+sub freqKHzToPct($$){
+  my ($freqKHz, $availFreqsKHz) = @_;
+  my $min = $$availFreqsKHz[0];
+  my $max = $$availFreqsKHz[-1];
+  die "invalid avail freqs\n" if not defined $min or not defined $max or not $min < $max;
+
+  return ($freqKHz-$min)/($max-$min)*100.0;
+}
+
+#returns the number from all dirs named cpu# in the base dir
+sub getAllCpus(){
+  my @cpus;
+  for my $cpudir(glob "$BASEDIR/cpu*"){
+    push @cpus, $1 if $cpudir =~ /(\d+)$/;
+  }
+  return @cpus;
+}
+
+#gets all frequencies available to ALL the specified cpus, in KHz
+sub getSharedAvailFreqsKHz($){
+  my ($cpus) = @_;
+  my @elemLists = map {readDevList $_, "scaling_available_frequencies"} @$cpus;
+  my $elems = getCommonElems @elemLists;
+  $elems = [sort @$elems];
+  return $elems;
+}
+
+#gets all governors available to ALL the specified cpus
+sub getSharedAvailGovernors($){
+  my ($cpus) = @_;
+  my @elemLists = map {readDevList $_, "scaling_available_governors"} @$cpus;
+  my $elems = getCommonElems @elemLists;
+  $elems = [sort @$elems];
+  return $elems;
+}
+
+#return a list containing all the elems in every list passed in
+sub getCommonElems(@){
+  my @lists = @_;
+  my @common;
+  @common = (@{$lists[0]}) if @lists > 0;
+  for my $list(@lists){
+    my %elems = map {$_ => 1} @$list;
+    @common = grep {defined $elems{$_}} @common;
+  }
+  return [@common];
+}
+
+#takes a target value and a list of freqs in kHz
+#target value must be:
+#  a freq in kHz, MHz or GHz
+#  OR min for smallest
+#  OR max for largest
+#  OR maxnt for largest or second largest if largest is only a smidgen more
+#    smidgen is a technical term for less than 10 MHz
+#  OR a percent (e.g.: '80%') of the indices of the list of freqs
+#returns a freq in kHz if its in the list, or undefined
+sub parseFreq($$){
+  my ($freq, $availFreqsKHz) = @_;
+  if($freq eq 'min'){
+    return $$availFreqsKHz[0];
+  }elsif($freq eq 'max'){
+    return $$availFreqsKHz[-1];
+  }elsif($freq eq 'maxnt'){
+    my $last = $$availFreqsKHz[-1];
+    my $penu = $$availFreqsKHz[-2];
+    #if penultimate is within 10MHz of last, use penultimate
+    if($last - $penu <= 10000){
+      return $penu;
+    }else{
+      return $last;
+    }
+  }elsif($freq =~ /^\d+%$/){
+    my $freqKHz = freqPctToKHz $freq, $availFreqsKHz;
+    return $freqKHz;
+  }elsif($freq =~ /^\d+(\.\d+)?$/){
+    my %okFreqsKHz = map {$_ => 1} @$availFreqsKHz;
+    if($okFreqsKHz{int($freq * 1)}){
+      return int($freq * 1); #was kHz
+    }elsif($okFreqsKHz{int($freq * 1000)}){
+      return int($freq * 1000); #was MHz
+    }elsif($okFreqsKHz{int($freq * 1000 * 1000)}){
+      return int($freq * 1000 * 1000); #was GHz
+    }else{
+      return undef;
+    }
+  }else{
+    return undef;
+  }
+}
+
+sub sortUniq(@){
+  my %okElems = map {$_ => 1} @_;
+  return sort keys %okElems;
+}
+
+sub readDev($$){
+  my ($cpu, $dev) = @_;
+  my $devPath = "$BASEDIR/cpu$cpu/cpufreq/$dev";
+  open FH, "< $devPath" or die "Could not open $devPath for reading\n$!\n";
+  my $val = <FH>;
+  close FH;
+  chomp $val;
+  return $val;
+}
+
+sub readDevList($$){
+  my ($cpu, $dev) = @_;
+  my $val = readDev $cpu, $dev;
+  my @values = split / /, $val;
+  return [@values];
+}
+
+sub writeDev($$$){
+  my ($cpu, $dev, $val) = @_;
+  my $devPath = "$BASEDIR/cpu$cpu/cpufreq/$dev";
+  open FH, "> $devPath" or die "Could not open $devPath for writing\n$!\n";
+  print FH "$val\n";
+  close FH;
+}
+
+&main(@ARGV);

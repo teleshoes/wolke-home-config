@@ -1,0 +1,89 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub bashComplete($$);
+
+my $dir = "$ENV{HOME}/Code/sx/backup/backup-sms/by-contact";
+my $debtRegex = "\\b(owe|debt|debts|pay|paid)\\b";
+
+my $usage = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 SMS_FILE REGEX
+    search SMS_FILE for lines matching (case-insensitive) regex \"REGEX\"
+
+  $0 --debt SMS_FILE
+    same as $0 SMS_FILE '$debtRegex'
+
+  $0 --bash-complete COMP_LINE COMP_POINT
+    print a list of words for bash completion, one per line
+    COMP_LINE  - the full cmdline as a string
+    COMP_POINT - the cursor position in the cmdline
+
+  SMS_FILE
+    path to a text file, or a file in
+      $dir/
+
+  REGEX
+    perl regular expression
+";
+
+sub main(@){
+  my ($file, $regex);
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 2 and $_[0] =~ /^(--debt)$/){
+    ($file, $regex) = ($_[1], $debtRegex);
+  }elsif(@_ == 2){
+    ($file, $regex) = ($_[0], $_[1]);
+  }else{
+    die $usage;
+  }
+  $file = "$dir/$file" if not -f $file and -f "$dir/$file";
+  die "$usage\n$file is not a file\n" if not -f $file;
+
+  open FH, "< $file" or die "could not read file $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  for my $line(@lines){
+    if($line =~ /$regex/i){
+      print $line;
+    }
+  }
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  my $curWord = pop @words if not $isNewWord;
+
+  my @opts = qw(
+    -h --help
+    --bash-complete
+    --debt
+  );
+
+  if(@words == 0 and defined $curWord and $curWord =~ /^-/){
+    return @opts;
+  }elsif(@words == 0 or (@words == 1 and $words[0] =~ /^(--debt)$/)){
+    my @smsFiles = glob "$dir/*.sms";
+    s/^.*\/([^\/]*)$/$1/ foreach @smsFiles;
+    return sort @smsFiles;
+  }
+
+  return ();
+}
+&main(@ARGV);

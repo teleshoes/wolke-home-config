@@ -130,13 +130,13 @@ vmap <F3> :w<Del><CR>lv
 """"""
 
 """meld"""
-nmap <F2>      :Exec cd %:p:h; meld %:p &<CR>
-imap <F2> <Esc>:Exec cd %:p:h; meld %:p &<CR>
+nmap <F2>      :Exec cd %:p:h; meld %:p >/dev/null 2>/dev/null &<CR>
+imap <F2> <Esc>:Exec cd %:p:h; meld %:p >/dev/null 2>/dev/null &<CR>
 """"""
 
 """git"""
-nmap <F4>      :Exec cd %:p:h; git gui &<CR>
-imap <F4> <Esc>:Exec cd %:p:h; git gui &<CR>
+nmap <F4>      :Exec cd %:p:h; git gui >/dev/null 2>/dev/null &<CR>
+imap <F4> <Esc>:Exec cd %:p:h; git gui >/dev/null 2>/dev/null &<CR>
 """"""
 
 """Run"""

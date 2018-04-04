@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $gpgSymCmd = getHome() . "/bin/gpg-sym";
+my $secretsFile = getHome() . "/.secrets";
+my $installerGlob = "/media/stuff/Images/installers/CrashPlan*.tgz";
+my @initFiles = (
+  glob("/etc/init.d/*crashplan*"),
+  glob("/etc/rc*.d/*crashplan*"),
+);
+
+sub main(@) {
+    getRoot();
+    my $installer = globOne $installerGlob;
+
+    print "\n\nopen firefox and download and install crashplan\n";
+    if(defined $installer){
+      print "  maybe use this if its not too old:\n  $installer\n";
+    }else{
+      print "  hmm, no local file at:\n  $installerGlob\n";
+    }
+    print "\n\npress enter to continue\n";
+    <STDIN>;
+
+    my $contents = "";
+    $contents = `cat $secretsFile` if defined $secretsFile and -f $secretsFile;
+    if($contents =~ /^\s*crashplan\s*=\s*(.+)$/m and -x $gpgSymCmd){
+      my $val = $1;
+      my $gpgSym = procUser $gpgSymCmd, $val;
+      print "crashplan:\n$gpgSym\n";
+    }else{
+      print "no crashplan secret found, hope its in your car\n";
+    }
+
+    print "\n\ndeleting init files\n";
+    if(@initFiles > 0){
+      run "rm", @initFiles;
+    }else{
+      print "no init files to delete\n";
+    }
+}
+
+&main(@ARGV);

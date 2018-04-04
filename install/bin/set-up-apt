@@ -20,8 +20,10 @@ sub main(@) {
     my $now = `date +%Y-%m-%dT%H%M%S`; chomp $now;
     my $backup = "$sources.$now";
 
-    my $willSync = scalar (procLines "rsync -rlptDvn $repos/ $sources") != 4;
-    if ($willSync) {
+    my @rsyncLines = procLines "rsync", "-n", "-rlptDv", "$repos/", "$sources";
+    my $cnt = @rsyncLines;
+    @rsyncLines = map {"$_\n"} @rsyncLines;
+    if (@rsyncLines != 4) {
         print "### Updating repo lists.\n";
         run "mv", $sources, $backup;
         run "mkdir", $sources;
@@ -31,7 +33,7 @@ sub main(@) {
     }
 
     print "### Updating repos.\n";
-    run qw(apt-get update);
+    runAptGet "update";
 }
 
 sub addKeys(){
@@ -42,7 +44,7 @@ sub addKeys(){
         runUser "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
         #runUser "gpg", "--keyserver", "keyserver.ubuntu.com", "--recv-key", $gpgKey;
 
-        my $key = proc(wrapUserCommand("gpg -a --export \"$gpgKey\""));
+        my $key = procUser "gpg", "-a", "--export", "\"$gpgKey\"";
         open CMD, "|-", "sudo apt-key add -" or die "failed to add key\n";
         print CMD $key;
         close CMD;

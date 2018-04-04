@@ -1,4 +1,4 @@
-module CpuIntelPstate(cpuIntelPstateW) where
+module CpuScalingPstate(cpuScalingPstateW) where
 import Utils (
   fg, bg, padL, regexGroups,
   readInt, collectInts, chompFile, readProc)
@@ -13,15 +13,15 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 
-main = mainLabel cpuIntelPstateReader
-cpuIntelPstateW = labelW cpuIntelPstateReader
+main = mainLabel cpuScalingPstateReader
+cpuScalingPstateW = labelW cpuScalingPstateReader
 
-cpuIntelPstateReader = do
+cpuScalingPstateReader = do
   min <- get "min"
   max <- get "max"
   return $ format min max
 
-get dev = fmap toPct $ readProc ["sudo", "intel-pstate", "-g", dev]
+get dev = fmap toPct $ readProc ["sudo", "cpu-set-pstate", "-g", dev]
 
 format :: Integer -> Integer -> String
 format min max = color $ fmt max ++ "\n" ++ fmt min

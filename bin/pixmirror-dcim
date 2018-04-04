@@ -1,0 +1,94 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $TARGET_SIZE = '1920x1080';
+my $SRC_DIR = "$ENV{HOME}/DCIM";
+my $DEST_DIR = "$ENV{HOME}/DCIM-pixmirror";
+
+my @exts = qw(jpg jpeg png);
+my $okExts = join "|", @exts;
+
+sub status();
+sub dirInfo($);
+sub gib($);
+sub run(@);
+
+my $usage = "Usage:
+  $0
+    run pixmirror with size=$TARGET_SIZE
+      $SRC_DIR => $DEST_DIR
+
+  $0 -s|--status
+    print size/filecount info for $DEST_DIR vs $SRC_DIR
+
+  $0 -h|--help
+    print this message
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-s|--status)$/){
+    status();
+  }elsif(@_ == 0){
+    status();
+    run "pixmirror", "--size=$TARGET_SIZE", "--orient", $SRC_DIR, $DEST_DIR;
+  }else{
+    die $usage;
+  }
+}
+
+sub status(){
+  my ($srcFileCount, $srcSizeB) = dirInfo $SRC_DIR;
+  my ($destFileCount, $destSizeB) = dirInfo $DEST_DIR;
+
+  if($srcFileCount == 0 or $srcSizeB == 0){
+    print "NO SRC FILES\n";
+    return;
+  }
+
+  my $projectedSizeB;
+  if($destFileCount == 0){
+    $projectedSizeB = $srcSizeB;
+  }else{
+    $projectedSizeB = $destSizeB * $srcFileCount / $destFileCount;
+  }
+
+  printf "PROEJCTED SIZE (DEST/SRC): %5.2fGiB / %5.2fGiB  (%06.2f%%)\n",
+    gib($projectedSizeB), gib($srcSizeB), 100.0 * $projectedSizeB / $srcSizeB;
+  printf "CURRENT SIZE (DEST/SRC):   %5.2fGiB / %5.2fGiB  (%06.2f%%)\n",
+    gib($destSizeB), gib($srcSizeB), 100.0 * $destSizeB / $srcSizeB;
+  printf "FILE COUNT (DEST/SRC):     %8d / %8d  (%06.2f%%)\n",
+    $destFileCount, $srcFileCount, 100.0 * $destFileCount / $srcFileCount;
+}
+
+sub dirInfo($){
+  my ($dir) = @_;
+  my @files = `find "$dir" \\( -type f -or -type l \\)`;
+  @files = grep {/\.($okExts)$/} @files;
+  chomp foreach @files;
+
+  my $fileCount = @files;
+  my $sizeB = 0;
+  for my $file(@files){
+    my @stat = stat $file;
+    my $size = $stat[7];
+    $sizeB += $size;
+  }
+
+  return ($fileCount, $sizeB);
+}
+
+sub gib($){
+  my $sizeB = $_[0];
+  return $sizeB / 1024.0 / 1024.0 / 1024.0;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
