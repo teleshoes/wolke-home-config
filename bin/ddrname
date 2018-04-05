@@ -1020,39 +1020,47 @@ sub name(@){
 sub parseArgs(@){
   my $info = {};
   for my $arg(@_){
+    my $infoAtt;
+    my $value = $arg;
     if($arg =~ /^($okSongArgs)$/){
-      return undef if defined $$info{song};
-      $$info{song} = $arg;
+      $infoAtt = "song";
     }elsif($arg =~ /^($okGameArgs)$/){
-      return undef if defined $$info{game};
-      $$info{game} = $arg;
+      $infoAtt = "game";
     }elsif($arg =~ /^($okDifficultyArgs)$/){
-      return undef if defined $$info{difficulty};
-      $$info{difficulty} = $arg;
+      $infoAtt = "difficulty";
     }elsif($arg =~ /^($okMachineArgs)$/){
-      return undef if defined $$info{machine};
-      $$info{machine} = $arg;
+      $infoAtt = "machine";
     }elsif($arg =~ /^(\d,?){5,6}(\d)$/){
       warnMsg("score non-multiple-of-ten: $arg") if $2 != 0;
       my $score = $arg;
       $score =~ s/,//g;
       $score = int($score);
-      return undef if defined $$info{score} or $score > 1000000;
-      $$info{score} = $score;
+      $value = $score;
+      if($value > 1000000){
+        $infoAtt = undef;
+      }else{
+        $infoAtt = "score";
+      }
     }elsif($arg =~ /^($okExtraArgs)$/){
-      return undef if defined $$info{extra};
-      $$info{extra} = $arg;
+      $infoAtt = "extra";
     }elsif($arg =~ /^($okBarArgs)$/){
-      return undef if defined $$info{bar};
-      $$info{bar} = $arg;
+      $infoAtt = "bar";
     }elsif($arg =~ /^($okStageArgs)$/){
-      return undef if defined $$info{stage};
-      $$info{stage} = $arg;
+      $infoAtt = "stage";
     }elsif($arg =~ /^($okFailedArgs)$/){
-      return undef if defined $$info{failed};
-      $$info{failed} = "FAILED";
+      $infoAtt = "failed";
+      $value = "FAILED";
     }else{
+      $infoAtt = undef;
+    }
+
+    my $invalidArg = not defined $infoAtt;
+    my $prevValue = defined $infoAtt ? $$info{$infoAtt} : undef;
+
+    if($invalidArg or defined $prevValue){
       return undef;
+    }else{
+      $$info{$infoAtt} = $value;
     }
   }
 
