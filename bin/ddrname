@@ -30,7 +30,7 @@ my @DEFAULT_BUCKET_FIELDS = qw(song game difficulty machine);
 my $bucketFieldDesc = join "-", map {"<" . uc($_) . ">"} @DEFAULT_BUCKET_FIELDS;
 
 my $defaultNotes = {
-  'extra' => 1,
+  'fc' => 1,
   'special' => 0,
   'highscore' => 0,
   'nobar' => 0,
@@ -148,8 +148,8 @@ my $okStageArgs = join '|', @stageArgs;
 my @barArgs = qw(bar nobar);
 my $okBarArgs = join '|', @barArgs;
 
-my @extraArgs = qw(gfc fc pfc);
-my $okExtraArgs = join '|', @extraArgs;
+my @fcArgs = qw(gfc fc pfc);
+my $okFCArgs = join '|', @fcArgs;
 
 my @specialArgs = qw(unlock);
 my $okSpecialArgs = join '|', @specialArgs;
@@ -243,8 +243,8 @@ sub getUsage(;$){
         default is '$defaultNotesFormat'.
         use empty string for none
 
-        extra
-          add EXTRA if EXTRA is set for the song
+        fc
+          add FC if FC is set for the song
         special
           add SPECIAL if SPECIAL is set for the song
         highscore
@@ -366,7 +366,7 @@ sub getUsage(;$){
       one per line, formatted '<date>,<score>,<notes>'
     sections are separated by two newlines
     <notes> are space-separated list of:
-      EXTRA   if one of [$okExtraArgs] is present in the filename
+      FC      if one of [$okFCArgs] is present in the filename
       SPECIAL if one of [$okSpecialArgs] is present in the filename
       nobar   if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
       3rd     if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
@@ -438,7 +438,7 @@ sub getUsage(;$){
   $0 JPG_FILE [ARG ARG ..]
 
     rename a jpeg file using a consistent format
-    \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_EXTRA_SPECIAL_BAR_STAGE.jpg\"
+    \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_FC_SPECIAL_BAR_STAGE.jpg\"
     ######## is presumably a date in YYYYMMDD and ### is the camera pic index
 
      JPG_FILE
@@ -446,11 +446,11 @@ sub getUsage(;$){
        must start with '########_###' and end with '.jpg'
 
      ARG
-       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|EXTRA|SPECIAL|FAILED]
+       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
        exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
-       exactly zero or one EXTRA args can be given  {optional}
+       exactly zero or one FC args can be given  {optional}
        exactly zero or one SPECIAL args can be given  {optional}
        exactly zero or one FAILED args can be given  {optional}
 
@@ -482,8 +482,8 @@ sub getUsage(;$){
        must be a multiple of 10
        commas, if present, are stripped out
 
-     EXTRA
-       one of [$okExtraArgs]  {optional}
+     FC
+       one of [$okFCArgs]  {optional}
 
      SPECIAL
        one of [$okSpecialArgs]  {optional}
@@ -524,7 +524,7 @@ sub main(@){
     @okFormatOptDates, @okFormatOptCourses, @okFormatOptSongs, @okPlotOptions,
 
     @songArgs, @gameArgs, @difficultyArgs,
-    @machineArgs, @stageArgs, @barArgs, @extraArgs, @specialArgs,
+    @machineArgs, @stageArgs, @barArgs, @fcArgs, @specialArgs,
     @uniqSongAbbrevs,
     (sort values %gameAbbrevs),
     (sort values %difficultyAbbrevs),
@@ -1019,7 +1019,7 @@ sub name(@){
   $newFileName .= "_$$info{difficulty}";
   $newFileName .= "_$$info{machine}";
   $newFileName .= "_$$info{score}";
-  $newFileName .= "_$$info{extra}" if defined $$info{extra};
+  $newFileName .= "_$$info{fc}" if defined $$info{fc};
   $newFileName .= "_$$info{special}" if defined $$info{special};
   $newFileName .= "_$$info{bar}";
   $newFileName .= "_$$info{stage}";
@@ -1053,8 +1053,8 @@ sub parseArgs(@){
       }else{
         $infoAtt = "score";
       }
-    }elsif($arg =~ /^($okExtraArgs)$/){
-      $infoAtt = "extra";
+    }elsif($arg =~ /^($okFCArgs)$/){
+      $infoAtt = "fc";
     }elsif($arg =~ /^($okSpecialArgs)$/){
       $infoAtt = "special";
     }elsif($arg =~ /^($okBarArgs)$/){
@@ -1108,7 +1108,7 @@ sub parseScoreFile($){
     _(?<difficulty>$okDifficultyArgs)
     _(?<machine>$okMachineArgs)
     _(?<score>\d+)
-    (?:_(?<extra>$okExtraArgs))?
+    (?:_(?<fc>$okFCArgs))?
     (?:_(?<special>$okSpecialArgs))?
     _(?<bar>$okBarArgs)
     _(?<stage>$okStageArgs)
@@ -1124,7 +1124,7 @@ sub parseScoreFile($){
     difficulty => $+{difficulty},
     machine    => $+{machine},
     score      => $+{score},
-    extra      => $+{extra},
+    fc         => $+{fc},
     special    => $+{special},
     bar        => $+{bar},
     stage      => $+{stage},
@@ -1217,8 +1217,8 @@ sub formatBucketCsv($$$){
   my $fmt = "";
   for my $s(@$bucketScores){
     my @notes;
-    if($$okNotes{'extra'} and defined $$s{extra}){
-      push @notes, $$s{extra};
+    if($$okNotes{'fc'} and defined $$s{fc}){
+      push @notes, $$s{fc};
     }
     if($$okNotes{'special'} and defined $$s{special}){
       push @notes, $$s{special};
@@ -1876,7 +1876,7 @@ sub bashComplete($$){
   #@complete = (@gameArgs, @complete) if not defined $$info{game};
   @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
   #@complete = (@machineArgs, @complete) if not defined $$info{machine};
-  #@complete = (@extraArgs, @complete) if not defined $$info{extra};
+  #@complete = (@fcArgs, @complete) if not defined $$info{fc};
   #@complete = (@specialArgs, @complete) if not defined $$info{special};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
   @complete = (@stageArgs, @complete) if not defined $$info{stage};
