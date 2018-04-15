@@ -14,6 +14,8 @@ my $usage = "Usage:
       feh --geometry=<GEOMETRY> FEH_ARG FEH_ARG ...
 
   OPTS
+    --double
+      double the width calculated by --page-width-pct
     --width-percent=WIDTH_PERCENT  {default is ${DEFAULT_WIDTH_PERCENT}%}
       set width to <WIDTH_PERCENT>% of <RES_X>
       (must be non-negative rational number)
@@ -23,7 +25,7 @@ my $usage = "Usage:
       (must be non-negative rational number)
 ";
 
-my $okNoParamArgs = join "|", qw();
+my $okNoParamArgs = join "|", qw(double);
 my $okParamArgs = join "|", qw(width-percent offset-percent);
 
 sub main(@){
@@ -31,6 +33,7 @@ sub main(@){
 
   my $widthPercent = $DEFAULT_WIDTH_PERCENT;
   my $offsetPercent = $DEFAULT_OFFSET_PERCENT;
+  my $isDouble = 0;
   while(@_ > 0){
     my ($arg, $val);
     if($_[0] =~ /^--($okNoParamArgs)$/){
@@ -43,6 +46,7 @@ sub main(@){
       last;
     }
 
+    $isDouble = 1 if $arg =~ /^(double)$/;
     $widthPercent = $val if $arg =~ /^(width-percent)$/;
     $offsetPercent = $val if $arg =~ /^(offset-percent)$/;
   }
@@ -66,9 +70,11 @@ sub main(@){
     die "invalid offset-percent: $offsetPercent\n";
   }
 
+  my $numPages = $isDouble ? 2 : 1;
+
   my $offsetX = 0;
   my $offsetY = int($resY * $offsetPercent / 100.0);
-  my $width = int($resX * $widthPercent / 100.0) - $offsetX;
+  my $width = int($resX * $widthPercent / 100.0) * $numPages - $offsetX;
   my $height = $resY - $offsetY;
 
   my $geometry = "${width}x${height}+${offsetX}+${offsetY}";
