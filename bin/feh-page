@@ -25,10 +25,16 @@ my $usage = "Usage:
       set vertical offset to <OFFSET_PERCENT>% of <RES_Y>
         and set height to <RES_Y> minus the vertical offset
       (must be non-negative rational number)
+    --res-x=RES_X
+      use RES_X instead of calculating with `res`
+      (must be positive integer)
+    --res-y=RES_Y
+      use RES_Y instead of calculating with `res`
+      (must be positive integer)
 ";
 
 my $okNoParamArgs = join "|", qw(double rotate);
-my $okParamArgs = join "|", qw(width-percent offset-percent);
+my $okParamArgs = join "|", qw(width-percent offset-percent res-x res-y);
 
 sub main(@){
   die $usage if @_ == 1 and $_[0] =~ /^-h|--help/;
@@ -37,6 +43,7 @@ sub main(@){
   my $offsetPercent = $DEFAULT_OFFSET_PERCENT;
   my $isDouble = 0;
   my $isRotate = 0;
+  my ($resX, $resY);
   while(@_ > 0){
     my ($arg, $val);
     if($_[0] =~ /^--($okNoParamArgs)$/){
@@ -53,14 +60,15 @@ sub main(@){
     $isRotate = 1 if $arg =~ /^(rotate)$/;
     $widthPercent = $val if $arg =~ /^(width-percent)$/;
     $offsetPercent = $val if $arg =~ /^(offset-percent)$/;
+    $resX = $val if $arg =~ /^(res-x)$/;
+    $resY = $val if $arg =~ /^(res-y)$/;
   }
   my @FEH_ARGS = @_;
 
-  my ($resX, $resY);
   my $res = `res`;
   if($res =~ /^(\d+)x(\d+)$/){
-    $resX = $1;
-    $resY = $2;
+    $resX = $1 if not defined $resX;
+    $resY = $2 if not defined $resY;
   }else{
     die "could not read resolution using `res`\n";
   }
@@ -72,6 +80,10 @@ sub main(@){
     die "invalid width-percent: $widthPercent\n";
   }elsif($offsetPercent !~ /^(\d+|\d*\.\d+)$/){
     die "invalid offset-percent: $offsetPercent\n";
+  }elsif($resX !~ /^\d+$/ or $resX eq 0){
+    die "invalid res-x: $resX\n";
+  }elsif($resY !~ /^\d+$/ or $resY eq 0){
+    die "invalid res-y: $resY\n";
   }
 
   my $numPages = $isDouble ? 2 : 1;
