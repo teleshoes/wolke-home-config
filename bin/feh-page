@@ -1,15 +1,80 @@
-#!/bin/bash
-PAGE_WIDTH_PCT="43.00"
-OFFSET_PCT="3.54"
-NUM_PAGES_WIDE="1"
-RES_W=`res -w`
-RES_H=`res -h`
+#!/usr/bin/perl
+use strict;
+use warnings;
 
-width=`echo "$RES_W * $PAGE_WIDTH_PCT / 100 * $NUM_PAGES_WIDE" | bc`
-offset=`echo "$RES_H * $OFFSET_PCT / 100" | bc`
-height=`echo "$RES_H - $offset" | bc`
-geometry="${width}x${height}+0+${offset}"
+my $DEFAULT_WIDTH_PERCENT=43.0;
+my $DEFAULT_OFFSET_PERCENT=3.54;
 
-echo "GEOMETRY: $geometry"
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
 
-feh -g ${width}x${height}+0+${offset} $1
+  $0 [OPTS] [FEH_ARG FEH_ARG ...]
+    build a geometry argument to feh and run:
+      feh --geometry=<GEOMETRY> FEH_ARG FEH_ARG ...
+
+  OPTS
+    --width-percent=WIDTH_PERCENT  {default is ${DEFAULT_WIDTH_PERCENT}%}
+      set width to <WIDTH_PERCENT>% of <RES_X>
+      (must be non-negative rational number)
+    --offset-percent=OFFSET_PERCENT
+      set vertical offset to <OFFSET_PERCENT>% of <RES_Y>
+        and set height to <RES_Y> minus the vertical offset
+      (must be non-negative rational number)
+";
+
+my $okNoParamArgs = join "|", qw();
+my $okParamArgs = join "|", qw(width-percent offset-percent);
+
+sub main(@){
+  die $usage if @_ == 1 and $_[0] =~ /^-h|--help/;
+
+  my $widthPercent = $DEFAULT_WIDTH_PERCENT;
+  my $offsetPercent = $DEFAULT_OFFSET_PERCENT;
+  while(@_ > 0){
+    my ($arg, $val);
+    if($_[0] =~ /^--($okNoParamArgs)$/){
+      ($arg, $val) = ($1, undef);
+      shift;
+    }elsif($_[0] =~ /^--($okParamArgs)=(.+)$/){
+      ($arg, $val) = ($1, $2);
+      shift;
+    }else{
+      last;
+    }
+
+    $widthPercent = $val if $arg =~ /^(width-percent)$/;
+    $offsetPercent = $val if $arg =~ /^(offset-percent)$/;
+  }
+  my @FEH_ARGS = @_;
+
+  my ($resX, $resY);
+  my $res = `res`;
+  if($res =~ /^(\d+)x(\d+)$/){
+    $resX = $1;
+    $resY = $2;
+  }else{
+    die "could not read resolution using `res`\n";
+  }
+
+  $widthPercent =~ s/\s*%\s*$//g;
+  $offsetPercent =~ s/\s*%\s*$//g;
+
+  if($widthPercent !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid width-percent: $widthPercent\n";
+  }elsif($offsetPercent !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid offset-percent: $offsetPercent\n";
+  }
+
+  my $offsetX = 0;
+  my $offsetY = int($resY * $offsetPercent / 100.0);
+  my $width = int($resX * $widthPercent / 100.0) - $offsetX;
+  my $height = $resY - $offsetY;
+
+  my $geometry = "${width}x${height}+${offsetX}+${offsetY}";
+
+  print "GEOMETRY: $geometry\n";
+  exec "feh", "--geometry=$geometry", @FEH_ARGS;
+}
+
+&main(@ARGV);
