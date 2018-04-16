@@ -96,6 +96,7 @@ my @difficulties = qw(
 );
 
 sub formatSongList();
+sub searchSongs($$$);
 sub getAllGameInfo();
 sub getGameInfo($);
 sub ensureGameInfoCache($);
@@ -135,6 +136,13 @@ my $usage = "Usage:
   $0 --banners SONG_NAME_ID
     print banner image file paths for given song name ID (e.g.: max-300)
 
+  $0 --search NAME_QUERY [ARTIST_QUERY]
+    print song info for songs that match both <NAME_QUERY> and <ARTIST_QUERY>
+      NAME_QUERY matches against 'nameNative' if available, otherwise 'name'
+      ARTIST_QUERY matches against 'artistNative' if available, otherwise 'artist'
+
+      NAME_QUERY and ARTIST_QUERY are case-insensitive regular expressions
+
   $0 --native
     creates directories for all songs that have a native song name:
       <CACHE_DIR>/native/<NATIVE_FIRST_CHAR>/<NATIVE_NAME>-<SONG_NAME_ID>/
@@ -166,6 +174,29 @@ sub main(@){
     if(@banners == 0){
       my @remywikiFiles = getRemyWikiFiles $$songInfo{remywiki};
       print "$_\n" foreach @remywikiFiles;
+    }
+  }elsif($cmd =~ /^(--search)$/ and (@_ == 1 or @_ == 2)){
+    my ($nameSearch, $artistSearch) = @_;
+    $artistSearch = "" if not defined $artistSearch;
+    my $songsByNameId = getCachedSongsBySongNameId();
+    my @nameIds = searchSongs $songsByNameId, $nameSearch, $artistSearch;
+    for my $nameId(sort @nameIds){
+      my $song = $$songsByNameId{$nameId};
+      my $nameNative = $$song{nameNative};
+      if(defined $nameNative and length $nameNative > 0){
+        utf8::decode $nameNative;
+      }else{
+        $nameNative = "";
+      }
+
+      my $artistNative = $$song{artistNative};
+      if(defined $artistNative and length $artistNative > 0){
+        utf8::decode $artistNative;
+      }else{
+        $artistNative = "";
+      }
+      utf8::decode $artistNative;
+      print "$nameId === $$song{name} === $nameNative === $$song{artist} === $artistNative\n";
     }
   }elsif($cmd =~ /^(--native)$/){
     my $songsByNameId = getCachedSongsBySongNameId();
@@ -250,6 +281,39 @@ sub formatSongList(){
   }
 
   return $fmt;
+}
+
+sub searchSongs($$$){
+  my ($songsByNameId, $nameRegex, $artistRegex) = @_;
+  my @okNameIds;
+  $nameRegex = '^.*$' if length $nameRegex == 0;
+  $artistRegex = '^.*$' if length $artistRegex == 0;
+  for my $nameId(sort keys %$songsByNameId){
+    my $song = $$songsByNameId{$nameId};
+
+    my $name;
+    my $nameNative = $$song{nameNative};
+    if(defined $nameNative and length($nameNative) > 0){
+      $name = $nameNative;
+    }else{
+      $name = $$song{name};
+    }
+    utf8::decode $name;
+
+    my $artist;
+    my $artistNative = $$song{artistNative};
+    if(defined $artistNative and length($artistNative) > 0){
+      $artist = $artistNative;
+    }else{
+      $artist = $$song{artist};
+    }
+    utf8::decode $artist;
+
+    if($name =~ /$nameRegex/i and $artist =~ /$artistRegex/i){
+      push @okNameIds, $nameId;
+    }
+  }
+  return @okNameIds;
 }
 
 sub getAllGameInfo(){
