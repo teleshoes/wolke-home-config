@@ -129,6 +129,7 @@ sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
 sub formatSong($$@);
 sub htmlGetAllTables($);
+sub getJapaneseChars();
 
 my $usage = "Usage:
   $0 [--songlist]
@@ -159,6 +160,11 @@ my $usage = "Usage:
            '{dash}'   matches '-'
            '{bang}'   matches '!'
            '{tilde}'  matches '~'
+
+        -japanese character names match hiragana or katakana, or small forms:
+         e.g.:
+           '{no}'     matches 'の'U+306E or 'ノ'U+30CE
+           '{ya}'     matches 'や'U+3084 or 'ヤ'U+30E4 or 'ゃ'U+3083 or 'ャ'U+30E3
 
   $0 --native
     creates directories for all songs that have a native song name:
@@ -356,6 +362,18 @@ sub searchQueryToRegex($){
     "{bang}"   => ["!"],
     "{tilde}"  => ["~"],
   };
+
+  for my $charArr(@{getJapaneseChars()}){
+    my ($unicodeHex, $romajiCharName, $symbol, $scriptName) = @$charArr;
+    my $srcRegex = $romajiCharName;
+    $srcRegex =~ s/^small_//;
+    $srcRegex = "{$srcRegex}";
+    my $replacement = chr(hex($unicodeHex));
+    if(not defined $$substitutions{$srcRegex}){
+      $$substitutions{$srcRegex} = [];
+    }
+    push @{$$substitutions{$srcRegex}}, $replacement;
+  }
 
   for my $srcRegex(sort keys %$substitutions){
     my @replacements = @{$$substitutions{$srcRegex}};
@@ -1037,6 +1055,103 @@ sub htmlGetAllTables($){
     push @tables, [$table->rows];
   }
   return @tables;
+}
+
+# return a list of [UNICODE_HEX, ROMAJI_CHAR_NAME, SYMBOL, SCRIPT_NAME]
+sub getJapaneseChars(){
+  return [
+    ["3041", "small_a" , "ぁ", "hiragana"], ["30A1", "small_a" , "ァ", "katakana"],
+    ["3042", "a"       , "あ", "hiragana"], ["30A2", "a"       , "ア", "katakana"],
+    ["3043", "small_i" , "ぃ", "hiragana"], ["30A3", "small_i" , "ィ", "katakana"],
+    ["3044", "i"       , "い", "hiragana"], ["30A4", "i"       , "イ", "katakana"],
+    ["3045", "small_u" , "ぅ", "hiragana"], ["30A5", "small_u" , "ゥ", "katakana"],
+    ["3046", "u"       , "う", "hiragana"], ["30A6", "u"       , "ウ", "katakana"],
+    ["3047", "small_e" , "ぇ", "hiragana"], ["30A7", "small_e" , "ェ", "katakana"],
+    ["3048", "e"       , "え", "hiragana"], ["30A8", "e"       , "エ", "katakana"],
+    ["3049", "small_o" , "ぉ", "hiragana"], ["30A9", "small_o" , "ォ", "katakana"],
+    ["304A", "o"       , "お", "hiragana"], ["30AA", "o"       , "オ", "katakana"],
+    ["304B", "ka"      , "か", "hiragana"], ["30AB", "ka"      , "カ", "katakana"],
+    ["304C", "ga"      , "が", "hiragana"], ["30AC", "ga"      , "ガ", "katakana"],
+    ["304D", "ki"      , "き", "hiragana"], ["30AD", "ki"      , "キ", "katakana"],
+    ["304E", "gi"      , "ぎ", "hiragana"], ["30AE", "gi"      , "ギ", "katakana"],
+    ["304F", "ku"      , "く", "hiragana"], ["30AF", "ku"      , "ク", "katakana"],
+    ["3050", "gu"      , "ぐ", "hiragana"], ["30B0", "gu"      , "グ", "katakana"],
+    ["3051", "ke"      , "け", "hiragana"], ["30B1", "ke"      , "ケ", "katakana"],
+    ["3052", "ge"      , "げ", "hiragana"], ["30B2", "ge"      , "ゲ", "katakana"],
+    ["3053", "ko"      , "こ", "hiragana"], ["30B3", "ko"      , "コ", "katakana"],
+    ["3054", "go"      , "ご", "hiragana"], ["30B4", "go"      , "ゴ", "katakana"],
+    ["3055", "sa"      , "さ", "hiragana"], ["30B5", "sa"      , "サ", "katakana"],
+    ["3056", "za"      , "ざ", "hiragana"], ["30B6", "za"      , "ザ", "katakana"],
+    ["3057", "si"      , "し", "hiragana"], ["30B7", "si"      , "シ", "katakana"],
+    ["3058", "zi"      , "じ", "hiragana"], ["30B8", "zi"      , "ジ", "katakana"],
+    ["3059", "su"      , "す", "hiragana"], ["30B9", "su"      , "ス", "katakana"],
+    ["305A", "zu"      , "ず", "hiragana"], ["30BA", "zu"      , "ズ", "katakana"],
+    ["305B", "se"      , "せ", "hiragana"], ["30BB", "se"      , "セ", "katakana"],
+    ["305C", "ze"      , "ぜ", "hiragana"], ["30BC", "ze"      , "ゼ", "katakana"],
+    ["305D", "so"      , "そ", "hiragana"], ["30BD", "so"      , "ソ", "katakana"],
+    ["305E", "zo"      , "ぞ", "hiragana"], ["30BE", "zo"      , "ゾ", "katakana"],
+    ["305F", "ta"      , "た", "hiragana"], ["30BF", "ta"      , "タ", "katakana"],
+    ["3060", "da"      , "だ", "hiragana"], ["30C0", "da"      , "ダ", "katakana"],
+    ["3061", "ti"      , "ち", "hiragana"], ["30C1", "ti"      , "チ", "katakana"],
+    ["3062", "di"      , "ぢ", "hiragana"], ["30C2", "di"      , "ヂ", "katakana"],
+    ["3063", "small_tu", "っ", "hiragana"], ["30C3", "small_tu", "ッ", "katakana"],
+    ["3064", "tu"      , "つ", "hiragana"], ["30C4", "tu"      , "ツ", "katakana"],
+    ["3065", "du"      , "づ", "hiragana"], ["30C5", "du"      , "ヅ", "katakana"],
+    ["3066", "te"      , "て", "hiragana"], ["30C6", "te"      , "テ", "katakana"],
+    ["3067", "de"      , "で", "hiragana"], ["30C7", "de"      , "デ", "katakana"],
+    ["3068", "to"      , "と", "hiragana"], ["30C8", "to"      , "ト", "katakana"],
+    ["3069", "do"      , "ど", "hiragana"], ["30C9", "do"      , "ド", "katakana"],
+    ["306A", "na"      , "な", "hiragana"], ["30CA", "na"      , "ナ", "katakana"],
+    ["306B", "ni"      , "に", "hiragana"], ["30CB", "ni"      , "ニ", "katakana"],
+    ["306C", "nu"      , "ぬ", "hiragana"], ["30CC", "nu"      , "ヌ", "katakana"],
+    ["306D", "ne"      , "ね", "hiragana"], ["30CD", "ne"      , "ネ", "katakana"],
+    ["306E", "no"      , "の", "hiragana"], ["30CE", "no"      , "ノ", "katakana"],
+    ["306F", "ha"      , "は", "hiragana"], ["30CF", "ha"      , "ハ", "katakana"],
+    ["3070", "ba"      , "ば", "hiragana"], ["30D0", "ba"      , "バ", "katakana"],
+    ["3071", "pa"      , "ぱ", "hiragana"], ["30D1", "pa"      , "パ", "katakana"],
+    ["3072", "hi"      , "ひ", "hiragana"], ["30D2", "hi"      , "ヒ", "katakana"],
+    ["3073", "bi"      , "び", "hiragana"], ["30D3", "bi"      , "ビ", "katakana"],
+    ["3074", "pi"      , "ぴ", "hiragana"], ["30D4", "pi"      , "ピ", "katakana"],
+    ["3075", "hu"      , "ふ", "hiragana"], ["30D5", "hu"      , "フ", "katakana"],
+    ["3076", "bu"      , "ぶ", "hiragana"], ["30D6", "bu"      , "ブ", "katakana"],
+    ["3077", "pu"      , "ぷ", "hiragana"], ["30D7", "pu"      , "プ", "katakana"],
+    ["3078", "he"      , "へ", "hiragana"], ["30D8", "he"      , "ヘ", "katakana"],
+    ["3079", "be"      , "べ", "hiragana"], ["30D9", "be"      , "ベ", "katakana"],
+    ["307A", "pe"      , "ぺ", "hiragana"], ["30DA", "pe"      , "ペ", "katakana"],
+    ["307B", "ho"      , "ほ", "hiragana"], ["30DB", "ho"      , "ホ", "katakana"],
+    ["307C", "bo"      , "ぼ", "hiragana"], ["30DC", "bo"      , "ボ", "katakana"],
+    ["307D", "po"      , "ぽ", "hiragana"], ["30DD", "po"      , "ポ", "katakana"],
+    ["307E", "ma"      , "ま", "hiragana"], ["30DE", "ma"      , "マ", "katakana"],
+    ["307F", "mi"      , "み", "hiragana"], ["30DF", "mi"      , "ミ", "katakana"],
+    ["3080", "mu"      , "む", "hiragana"], ["30E0", "mu"      , "ム", "katakana"],
+    ["3081", "me"      , "め", "hiragana"], ["30E1", "me"      , "メ", "katakana"],
+    ["3082", "mo"      , "も", "hiragana"], ["30E2", "mo"      , "モ", "katakana"],
+    ["3083", "small_ya", "ゃ", "hiragana"], ["30E3", "small_ya", "ャ", "katakana"],
+    ["3084", "ya"      , "や", "hiragana"], ["30E4", "ya"      , "ヤ", "katakana"],
+    ["3085", "small_yu", "ゅ", "hiragana"], ["30E5", "small_yu", "ュ", "katakana"],
+    ["3086", "yu"      , "ゆ", "hiragana"], ["30E6", "yu"      , "ユ", "katakana"],
+    ["3087", "small_yo", "ょ", "hiragana"], ["30E7", "small_yo", "ョ", "katakana"],
+    ["3088", "yo"      , "よ", "hiragana"], ["30E8", "yo"      , "ヨ", "katakana"],
+    ["3089", "ra"      , "ら", "hiragana"], ["30E9", "ra"      , "ラ", "katakana"],
+    ["308A", "ri"      , "り", "hiragana"], ["30EA", "ri"      , "リ", "katakana"],
+    ["308B", "ru"      , "る", "hiragana"], ["30EB", "ru"      , "ル", "katakana"],
+    ["308C", "re"      , "れ", "hiragana"], ["30EC", "re"      , "レ", "katakana"],
+    ["308D", "ro"      , "ろ", "hiragana"], ["30ED", "ro"      , "ロ", "katakana"],
+    ["308E", "small_wa", "ゎ", "hiragana"], ["30EE", "small_wa", "ヮ", "katakana"],
+    ["308F", "wa"      , "わ", "hiragana"], ["30EF", "wa"      , "ワ", "katakana"],
+    ["3090", "wi"      , "ゐ", "hiragana"], ["30F0", "wi"      , "ヰ", "katakana"],
+    ["3091", "we"      , "ゑ", "hiragana"], ["30F1", "we"      , "ヱ", "katakana"],
+    ["3092", "wo"      , "を", "hiragana"], ["30F2", "wo"      , "ヲ", "katakana"],
+    ["3093", "n"       , "ん", "hiragana"], ["30F3", "n"       , "ン", "katakana"],
+    ["3094", "vu"      , "ゔ", "hiragana"], ["30F4", "vu"      , "ヴ", "katakana"],
+                                            ["30F5", "small_ka", "ヵ", "katakana"],
+                                            ["30F6", "small_ke", "ヶ", "katakana"],
+                                            ["30F7", "va"      , "ヷ", "katakana"],
+                                            ["30F8", "vi"      , "ヸ", "katakana"],
+                                            ["30F9", "ve"      , "ヹ", "katakana"],
+                                            ["30FA", "vo"      , "ヺ", "katakana"],
+                                            ["30FB", "dot"     , "・", "katakana"],
+  ];
 }
 
 &main(@ARGV);
