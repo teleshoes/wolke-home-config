@@ -97,6 +97,7 @@ my @difficulties = qw(
 
 sub formatSongList();
 sub searchSongs($$$);
+sub searchQueryToRegex($);
 sub getAllGameInfo();
 sub getGameInfo($);
 sub ensureGameInfoCache($);
@@ -142,6 +143,22 @@ my $usage = "Usage:
       ARTIST_QUERY matches against 'artistNative' if available, otherwise 'artist'
 
       NAME_QUERY and ARTIST_QUERY are case-insensitive regular expressions
+      with additional substitutions
+        -common full-width symbols and similar-looking pronunciation marks:
+           '-'        matches '-' or '－'U+FF0D or 'ー'U+30FC or '–'U+2013 or '—'0x2014
+           '!'        matches '!' or '！'U+FF01
+           '~'        matches '~' or '～'U+FF5E
+
+        -other common symbols:
+           '{star}'   matches '★'U+2605 or '☆'U+2606
+           '{heart}'  matches '♥'U+2665
+
+        -literals to escape chars and explicitly avoid substitutions:
+           '{lbrace}' matches '{'
+           '{rbrace}' matches '}'
+           '{dash}'   matches '-'
+           '{bang}'   matches '!'
+           '{tilde}'  matches '~'
 
   $0 --native
     creates directories for all songs that have a native song name:
@@ -284,8 +301,10 @@ sub formatSongList(){
 }
 
 sub searchSongs($$$){
-  my ($songsByNameId, $nameRegex, $artistRegex) = @_;
+  my ($songsByNameId, $nameQuery, $artistQuery) = @_;
   my @okNameIds;
+  my $nameRegex = searchQueryToRegex $nameQuery;
+  my $artistRegex = searchQueryToRegex $artistQuery;
   $nameRegex = '^.*$' if length $nameRegex == 0;
   $artistRegex = '^.*$' if length $artistRegex == 0;
   for my $nameId(sort keys %$songsByNameId){
@@ -314,6 +333,40 @@ sub searchSongs($$$){
     }
   }
   return @okNameIds;
+}
+
+sub searchQueryToRegex($){
+  my ($query) = @_;
+  my $regex = $query;
+
+  my $substitutions = {
+    #common full-width symbols
+    "-"        => ["-", "\x{FF0D}", "\x{30FC}", "\x{2013}", "\x{2014}"],
+    "!"        => ["!", "\x{FF01}"],
+    "~"        => ["~", "\x{FF5E}"],
+
+    #other common symbols
+    "{star}"   => ["\x{2605}", "\x{2606}"],
+    "{heart}"  => ["\x{2665}"],
+
+    #literals
+    "{lbrace}" => ["{"],
+    "{rbrace}" => ["}"],
+    "{dash}"   => ["-"],
+    "{bang}"   => ["!"],
+    "{tilde}"  => ["~"],
+  };
+
+  for my $srcRegex(sort keys %$substitutions){
+    my @replacements = @{$$substitutions{$srcRegex}};
+    my $replacementRegex = join "|", @replacements;
+    $replacementRegex = "(?:$replacementRegex)";
+    $regex =~ s/$srcRegex/$replacementRegex/g;
+  }
+
+  utf8::decode $regex;
+
+  return $regex;
 }
 
 sub getAllGameInfo(){
