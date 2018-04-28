@@ -101,12 +101,14 @@ sub searchQueryToRegex($);
 sub getAllGameInfo();
 sub getGameInfo($);
 sub ensureGameInfoCache($);
+sub refetchGameInfoCache($);
 sub readGameInfoCache($);
 sub writeGameInfoCache($$);
 sub parseGameHtml($$);
 sub getCachedSongsBySongNameId();
 sub getSongInfo($);
 sub ensureSongInfoCache($);
+sub songInfoCacheExists($);
 sub readSongInfoCache($);
 sub writeSongInfoCache($$);
 sub parseSongHtml($$);
@@ -134,6 +136,24 @@ sub getJapaneseChars();
 my $usage = "Usage:
   $0 [--songlist]
     print song list with feet difficulties
+
+  $0 --refetch-game GAME_NAME
+    -find <GAME_ID>
+      <GAME_NAME> => <GAME_ID>
+      " . (join "\n      ",
+             map {sprintf "%-11s => %s", $_, $$GAME_IDS{$_}}
+             sort keys %$GAME_IDS) . "
+    -delete $CACHE_DIR/game-info/<GAME_ID>
+    -delete $CACHE_DIR/game-html/<GAME_ID>
+    -ensure game info cached for <GAME_ID>
+      (game info cache should need to be fetched)
+    -ensure song info cached for all songs in <GAME_ID>
+      (only 'new' songs should need to be fetched)
+    -ensure banners cached for all songs in <GAME_ID>
+    -ensure remywiki HTML cached for all songs in <GAME_ID>
+    -ensure remywiki files cached for all songs in <GAME_ID>
+    -print summary of 'new' songs
+      (songs that were not cached at the start and are now)
 
   $0 --banners SONG_NAME_ID
     print banner image file paths for given song name ID (e.g.: max-300)
@@ -172,6 +192,33 @@ sub main(@){
   $cmd = "--songlist" if not defined $cmd;
   if($cmd =~ /^(--songlist)$/ and @_ == 0){
     print formatSongList();
+  }elsif($cmd =~ /^(--refetch-game)$/ and @_ == 1){
+    my ($gameName) = @_;
+    my $gameId = $$GAME_IDS{uc $gameName};
+    die "unknown game name: $gameName\n" if not defined $gameId;
+    refetchGameInfoCache $gameId;
+    my @gameSongIds = fetchGameSongIds $gameId;
+    my @newSongIds;
+    for my $songId(@gameSongIds){
+      push @newSongIds, $songId if not songInfoCacheExists $songId;
+    }
+    my $newSongCount = @newSongIds;
+    my $newSongFmt = "$newSongCount new song" . ($newSongCount == 1 ? "" : "s");
+
+    print "\n\n\n===$newSongFmt===\n";
+    for my $songId(@gameSongIds){
+      ensureSongInfoCache $songId;
+      my $song = readSongInfoCache $songId;
+      ensureSongBanners $song;
+      ensureRemyWikiPage $$song{remywiki};
+      ensureRemyWikiFiles $$song{remywiki};
+    }
+
+    print "\n\n\n===$newSongFmt===\n";
+    for my $songId(@newSongIds){
+      my $songInfo = readSongInfoCache $songId;
+      print "  $songId => $$songInfo{nameId}\n";
+    }
   }elsif($cmd =~ /^(--banners)$/ and @_ == 1){
     my ($songNameId) = @_;
     my $songsByNameId = getCachedSongsBySongNameId();
@@ -370,6 +417,14 @@ sub ensureGameInfoCache($){
     die "Could not fetch gameid=$gameId\n";
   }
 }
+sub refetchGameInfoCache($){
+  my $gameId = shift;
+  my $infoFile = "$CACHE_DIR/game-info/$gameId.info";
+  my $htmlFile = "$CACHE_DIR/game-html/$gameId.html";
+  system "rm", "-f", $infoFile, $htmlFile;
+
+  ensureGameInfoCache($gameId);
+}
 sub readGameInfoCache($){
   my ($gameId) = @_;
   my $dir = "$CACHE_DIR/game-info";
@@ -521,6 +576,16 @@ sub ensureSongInfoCache($){
   }
   if(not -f $file){
     die "Could not fetch songid=$songId\n";
+  }
+}
+sub songInfoCacheExists($){
+  my ($songId) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  if(-f $file){
+    return 1;
+  }else{
+    return 0;
   }
 }
 sub readSongInfoCache($){
