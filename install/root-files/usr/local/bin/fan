@@ -6,11 +6,14 @@ sub formatFanInfo($);
 sub parseLevelOrSyn($);
 sub parseConfigFile($);
 sub readFan();
+sub readFanLevelStateFile();
+sub writeFanLevelStateFile($);
 sub setLevel($);
 
 my $fanDev = "/proc/acpi/ibm/fan";
 
 my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
+my $stateFile = "/tmp/fanspeed-level";
 
 my $usage = "Usage:
   $0
@@ -23,6 +26,12 @@ my $usage = "Usage:
   $0 --set=LEVEL_OR_SYN
      calculate <LEVEL> from <LEVEL_OR_SYN>
      set fan level to <LEVEL> using $fanDev
+     write <LEVEL> (not synonym) to $stateFile
+
+  $0 --reapply
+     set fan level to the <LEVEL> in $stateFile if it exists
+  $0 --clear
+     remove $stateFile (further calls to --reapply without --set will do nothing)
 
   <LEVEL_OR_SYN> = <LEVEL> | <SYNONYM>
     argument for $fanDev or a synonym, one of either <LEVEL> or <SYNONYM>
@@ -53,6 +62,18 @@ my $okLevelsRe = "(?:" . join("|", @okLevels) . ")";
 sub main(@){
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
     print formatFanInfo(readFan());
+  }elsif(@_ == 1 and $_[0] =~ /^(--reapply)$/){
+    my $stateLevel = readFanLevelStateFile();
+    my $fanInfo = readFan();
+    my $curLevel = $$fanInfo{level};
+    if(defined $stateLevel and $stateLevel ne $curLevel){
+      my $now = `date`;
+      chomp $now;
+      print "$now  FAN LEVEL CHANGED: REAPPLYING $curLevel => $stateLevel\n";
+      setLevel $stateLevel;
+    }
+  }elsif(@_ == 1 and $_[0] =~ /^(--clear)$/){
+    writeFanLevelStateFile undef;
   }elsif(@_ == 1){
     my $levelOrSyn = $_[0];
     $levelOrSyn = $1 if $_[0] =~ /^--set=(.+)$/;
@@ -67,6 +88,7 @@ sub main(@){
       print "fan already set to $level\n";
     }else{
       print "$curLevel => $level\n";
+      writeFanLevelStateFile($level);
       setLevel $level;
     }
   }else{
@@ -127,6 +149,29 @@ sub readFan(){
     die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
   }
   return {speed => $speed, level => $level};
+}
+
+sub readFanLevelStateFile(){
+  my $level;
+  if(-f $stateFile){
+    $level = `cat $stateFile`;
+    chomp $level;
+  }
+  if(defined $level and $level =~ /^$okLevelsRe$/){
+    return $level;
+  }else{
+    return undef;
+  }
+}
+sub writeFanLevelStateFile($){
+  my ($level) = @_;
+  if(defined $level){
+    open FH, "> $stateFile" or die "Could not write to $stateFile\n$!\n";
+    print FH "$_[0]\n";
+    close FH;
+  }else{
+    system "rm", "-f", $stateFile;
+  }
 }
 
 sub setLevel($){
