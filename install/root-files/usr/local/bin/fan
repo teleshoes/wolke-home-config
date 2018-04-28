@@ -2,7 +2,10 @@
 use strict;
 use warnings;
 
+sub formatFanInfo($);
+sub parseLevelOrSyn($);
 sub parseConfigFile($);
+sub readFan();
 sub setLevel($);
 
 my $fanDev = "/proc/acpi/ibm/fan";
@@ -11,23 +14,30 @@ my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
 
 my $usage = "Usage:
   $0
+  $0 --get
      print fan information from $fanDev
-  $0 get
-     print fan information from $fanDev
-  $0 LEVEL
-     set fan level to <LEVEL> (or synonym) using $fanDev
+     formatted as: \"SPEED,LEVEL\"
+     where SPEED is an integer and LEVEL is one of the allowed values for <LEVEL>
 
-  <LEVEL>
-    argument for $fanDev or a synonym
+  $0 LEVEL_OR_SYN
+     calculate <LEVEL> from <LEVEL_OR_SYN>
+     set fan level to <LEVEL> using $fanDev
 
-    valid arguments:
-      0 1 2 3 4 5 6 7 auto disengaged full-speed
+  <LEVEL_OR_SYN> = <LEVEL> | <SYNONYM>
+    argument for $fanDev or a synonym, one of either <LEVEL> or <SYNONYM>
+
+  <LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
+    valid arguments for $fanDev (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
       NOTE:
         0 means FULLY DISABLED and is quite dangerous
         disengaged and full-speed do the same thing, and are faster than 7
-        auto is based on CPU load and is done by the kernel module or firmware
+        auto varies based on CPU load and is done by the kernel module or firmware
 
-    synonyms are defined at $configFile:
+  <SYNONYM>
+    synonyms are defined in $configFile
+      -one per line: \"SYN_NAME=SYN_VALUE\"
+      -NAME is one or more letters or numbers
+      -VALUE is one of the arguments above for $fanDev
     e.g.:  default=5
            fast=disengaged
            medium=4
@@ -36,31 +46,47 @@ my $usage = "Usage:
            evening=1
 ";
 
+my @okLevels = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
+my $okLevelsRe = "(?:" . join("|", @okLevels) . ")";
+
 sub main(@){
-  if(@_ == 0){
-    my $info = `cat $fanDev`;
-    print $info;
+  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
+    print formatFanInfo(readFan());
   }elsif(@_ == 1){
-    my $level = $_[0];
-    my $confSynonyms = parseConfigFile $configFile;
-    if(defined $$confSynonyms{$level}){
-      $level = $$confSynonyms{$level};
+    my $level = parseLevelOrSyn $_[0];
+    if(not defined $level or $level !~ /^$okLevelsRe$/){
+      die "$usage\ninvalid level: $level\n";
     }
-    if($level =~ /^([0-7]|auto|disengaged|full-speed)$/){
-      my $info = `cat $fanDev`;
-      my $cur;
-      if($info =~ /level:\s*(.*)\n/){
-        $cur = $1;
-      }
-      if($cur eq $level){
-        print "fan already set to $level\n";
-      }else{
-        print "$cur => $level\n";
-        setLevel $level;
-      }
+
+    my $fanInfo = readFan();
+    my $curLevel = $$fanInfo{level};
+    if($curLevel eq $level){
+      print "fan already set to $level\n";
+    }else{
+      print "$curLevel => $level\n";
+      setLevel $level;
     }
   }else{
     die $usage;
+  }
+}
+
+sub formatFanInfo($){
+  my ($fanInfo) = @_;
+  return "$$fanInfo{speed},$$fanInfo{level}\n";
+}
+
+sub parseLevelOrSyn($){
+  my ($levelOrSyn) = @_;
+  if($levelOrSyn =~ /^$okLevelsRe$/){
+    return $levelOrSyn;
+  }else{
+    my $confSynonyms = parseConfigFile $configFile;
+    if(defined $$confSynonyms{$levelOrSyn}){
+      return $$confSynonyms{$levelOrSyn};
+    }else{
+      return undef;
+    }
   }
 }
 
@@ -73,7 +99,7 @@ sub parseConfigFile($){
     close FH;
     for my $line(@lines){
       next if $line =~ /^\s*(#|$)/;
-      if($line =~ /^\s*(\w+)\s*=\s*(\w+)\s*$/){
+      if($line =~ /^\s*(\w+)\s*=\s*($okLevelsRe)\s*$/){
         my ($key, $val) = ($1, $2);
         $$conf{$key} = $val;
       }else{
@@ -82,6 +108,22 @@ sub parseConfigFile($){
     }
   }
   return $conf;
+}
+
+sub readFan(){
+  my $devInfo = `cat $fanDev`;
+  my ($speed, $level);
+  if($devInfo =~ /^speed:\s*(\d+)$/m){
+    $speed = $1;
+  }else{
+    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+  }
+  if($devInfo =~ /^level:\s*(\w+)$/m){
+    $level = $1;
+  }else{
+    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+  }
+  return {speed => $speed, level => $level};
 }
 
 sub setLevel($){
