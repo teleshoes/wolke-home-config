@@ -3,6 +3,7 @@ import Label (labelW, mainLabel)
 import Utils (fg, bg, padL, regexGroups,
   readInt, readDouble, chompFile, readProc)
 import Data.Maybe (fromMaybe)
+import System.Process (system)
 
 main = mainLabel fanReader
 fanW = labelW fanReader
@@ -13,6 +14,7 @@ fanCmd = ["fan", "--get"]
 tempCmd = ["acpi", "-V"]
 
 fanReader = do
+  system "sudo fan --reapply"
   fanInfo <- readProc fanCmd
   tempInfo <- readProc tempCmd
   let temp = parseCpuTemp tempInfo
