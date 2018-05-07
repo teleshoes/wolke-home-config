@@ -8,6 +8,8 @@ sub decrypt($);
 sub encrypt($);
 sub gpg($$);
 
+my @gpgCmds = qw(gpg gpg2);
+
 my $passFile = "$ENV{HOME}/.gpg";
 my $pass = `cat $passFile 2>/dev/null`;
 my @opts = (
@@ -57,10 +59,19 @@ sub main(@){
 }
 
 sub gpg($$){
-  my $cmd = shift;
+  my $action = shift;
   my $msg = shift;
   $msg =~ s/'/'\\''/g;
-  my $out = `echo '$msg' | gpg @opts $cmd`;
+  my $gpgCmd;
+  for my $cmd(@gpgCmds){
+    system "which $cmd >/dev/null 2>/dev/null";
+    if($? == 0){
+      $gpgCmd = $cmd;
+    }
+  }
+  die "could not find gpg command among \"@gpgCmds\"\n" if not defined $gpgCmd;
+
+  my $out = `echo '$msg' | $gpgCmd @opts $action`;
   die "gpg failed!\n" if $? != 0;
   chomp $out;
   return $out;
