@@ -24,7 +24,7 @@ exec = "email-gui.py"
 process = exec
 workspace = 8
 
-runCmd = exec
+runCmd = "daemon " ++ exec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
 clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
