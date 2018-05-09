@@ -17,6 +17,7 @@ import Data.List.Split
 import Data.String
 import Data.Tuple
 import qualified DBus.Client as DBus
+import qualified DBus.Internal.Types as DBusTypes
 import Graphics.UI.Gtk (Widget, escapeMarkup)
 import Safe
 import System.Taffybar.Widget.Generic.PollingLabel
@@ -214,14 +215,17 @@ registerDBus stvar dbc = do
   env@Env{ep = EP{dbusName}} <- ask
   let run = flip runReaderT env
   let objPath = fromString . concatMap ('/':) . splitOn "." $ dbusName
-  let iface = fromString dbusName
-  liftIO $ DBus.export dbc objPath
-    [ DBus.autoMethod iface "ToggleLock" (run toggleLock :: IO Bool)
-    , DBus.autoMethod iface "Cycle"      (run cycle      :: IO (Bool, String))
-    , DBus.autoMethod iface "Get"        (run get        :: IO String)
-    , DBus.autoMethod iface "Set"        (run . set      :: String -> IO Bool)
-    , DBus.autoMethod iface "List"       (run list       :: IO String)
-    ]
+  let ifaceName = DBusTypes.interfaceName_ dbusName
+  let methods = [ DBus.autoMethod "ToggleLock" (run toggleLock :: IO Bool)
+                , DBus.autoMethod "Cycle"      (run cycle      :: IO (Bool, String))
+                , DBus.autoMethod "Get"        (run get        :: IO String)
+                , DBus.autoMethod "Set"        (run . set      :: String -> IO Bool)
+                , DBus.autoMethod "List"       (run list       :: IO String)
+                ]
+  let iface = DBus.defaultInterface { DBus.interfaceName = ifaceName
+                                    , DBus.interfaceMethods = methods
+                                    }
+  liftIO $ DBus.export dbc objPath iface
   where
     toggleLock = toggleLockSync stvar
     cycle = maybe (False, "") ((,) True) <$> cycleSync stvar
