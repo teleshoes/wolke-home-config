@@ -71,6 +71,7 @@ getOverrideIconName winTitle winClass
   | winTitle `contains` "Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle `ffPage` "Google Hangouts"         = Just "googlehangouts"
   | winTitle `ffPage` "escribe"                 = Just "escribe"
+  | dotClass == "Pidgin.Pidgin"                 = Just "pidgin"
   | dotClass == "urxvt.URxvt"                   = Just "terminal"
   | otherwise = Nothing
   where ffPage s pageName = s `startsWith` pageName && s `endsWith` "MozillaFirefox"
