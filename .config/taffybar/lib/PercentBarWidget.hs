@@ -2,7 +2,7 @@ module PercentBarWidget (
   percentBarWidgetW, percentBarConfig, mainPercentBarWidget
 ) where
 import Graphics.UI.Gtk (realize, on)
-import System.Taffybar.Widgets.VerticalBar (
+import System.Taffybar.Widget.Generic.VerticalBar (
   VerticalBarHandle,
   verticalBarNew, verticalBarSetPercent,
   BarConfig(..), defaultBarConfigIO)

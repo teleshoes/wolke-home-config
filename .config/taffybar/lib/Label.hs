@@ -4,7 +4,7 @@ import Utils (defaultDelay)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Graphics.UI.Gtk (widgetShowAll)
-import System.Taffybar.Widgets.PollingLabel (pollingLabelNew)
+import System.Taffybar.Widget.Generic.PollingLabel (pollingLabelNew)
 
 mainLabel printer = forever $ do
   msg <- printer

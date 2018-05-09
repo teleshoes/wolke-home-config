@@ -17,10 +17,9 @@ import Data.List.Split
 import Data.String
 import Data.Tuple
 import qualified DBus.Client as DBus
-import Graphics.UI.Gtk (Widget)
+import Graphics.UI.Gtk (Widget, escapeMarkup)
 import Safe
-import System.Taffybar.Pager (escape)
-import System.Taffybar.Widgets.PollingLabel
+import System.Taffybar.Widget.Generic.PollingLabel
 
 import Clickable
 import Utils
@@ -195,7 +194,7 @@ format St{isLocked, wantedEP} defEP infoList = concat
   cond ? str = if cond then str else ""
 
 labelFormat :: St -> EPName -> [EPInfo] -> String
-labelFormat st@St{isLocked, wantedEP} defEP = color . escape . pad . format st defEP
+labelFormat st@St{isLocked, wantedEP} defEP = color . escapeMarkup . pad . format st defEP
   where
     color = if defEP == wantedEP then fg "green" else fg "red"
     pad   = if isLocked then padL ' ' 4 else padR ' ' 4 . padL ' ' 3
