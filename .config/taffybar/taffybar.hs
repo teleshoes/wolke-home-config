@@ -1,10 +1,10 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
-import WMLog (WMLogConfig(..))
 import Utils (colW, attemptCreateSymlink)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
-import System.Taffybar (defaultTaffybar, defaultTaffybarConfig,
+import Control.Monad.Trans (liftIO)
+import System.Taffybar.SimpleConfig (simpleTaffybar, defaultSimpleTaffyConfig,
   barHeight, barPosition, widgetSpacing, startWidgets, endWidgets,
   Position(Top, Bottom))
 
@@ -36,10 +36,10 @@ main = do
   dpi <- getScreenDPI
   isBot <- elem "--bottom" <$> getArgs
   klompWidthPx <- screenPctToPx $ music profile
-  let cfg = defaultTaffybarConfig { barHeight = barHt profile
-                                  , widgetSpacing = space profile
-                                  , barPosition = if isBot then Bottom else Top
-                                  }
+  let cfg = defaultSimpleTaffyConfig { barHeight = barHt profile
+                                     , widgetSpacing = space profile
+                                     , barPosition = if isBot then Bottom else Top
+                                     }
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
@@ -47,14 +47,13 @@ main = do
       sep = W.sepW Black $ wSepW profile
       klompChars = charsFitInPx dpi (fontP profile) klompWidthPx
 
-      start = [ W.wmLogNew WMLogConfig
-                { titleLength = title profile
-                , wsImageHeight = wImgH profile
-                , titleRows = True
-                , stackWsTitle = False
-                }
+
+      start = [ W.workspaceSwitcherW $ wImgH profile
+              , W.windowTitleW (title profile) True
+              , liftIO $ sep
+              , W.layoutWindowsW
               ]
-      end = reverse
+      end = map liftIO $ reverse
           [ W.monitorCpuW $ graph profile
           , W.monitorMemW $ graph profile
           , W.syncWatchW
@@ -98,4 +97,4 @@ main = do
         ++ "  font: " ++ (show $ fontP profile) ++ "pt " ++ show typeface ++ ";\n"
         ++ "}\n"
 
-  defaultTaffybar cfg {startWidgets=start, endWidgets=end}
+  simpleTaffybar cfg {startWidgets=start, endWidgets=end}
