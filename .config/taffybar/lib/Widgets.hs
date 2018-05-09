@@ -10,6 +10,7 @@ module Widgets(
   fanW,
   fcrondynW,
   klompW,
+  layoutWindowsW,
   micW,
   monitorCpuW,
   monitorMemW,
@@ -31,7 +32,8 @@ module Widgets(
   volumeW,
   widthScreenWrapW,
   widthCharWrapW,
-  wmLogNew)where
+  windowTitleW,
+  workspaceSwitcherW)where
 
 import Brightness(brightnessW)
 import Clock(clockW)
@@ -43,6 +45,7 @@ import Ekiga(ekigaW)
 import Fan(fanW)
 import Fcrondyn(fcrondynW)
 import Klomp(klompW)
+import LayoutWindows(layoutWindowsW)
 import Mic(micW)
 import MonitorCpu(monitorCpuW)
 import MonitorMem(monitorMemW)
@@ -62,4 +65,5 @@ import TPBattStat(tpBattStatW)
 import Thunderbird(thunderbirdW)
 import Volume(volumeW)
 import Width(widthScreenWrapW, widthCharWrapW)
-import WMLog(wmLogNew)
+import WindowTitle(windowTitleW)
+import WorkspaceSwitcher(workspaceSwitcherW)
