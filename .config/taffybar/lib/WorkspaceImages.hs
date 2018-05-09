@@ -60,24 +60,21 @@ loadNamedIconFileMap h = do
 wsImageDir :: Int -> IO String
 wsImageDir h = fmap (++ "/workspace-images") $ imageDir h
 
-contains = flip isInfixOf
-startsWith = flip isPrefixOf
-endsWith = flip isSuffixOf
-
 getOverrideIconName :: String -> String -> Maybe IconName
 getOverrideIconName winTitle winClass
   | null winTitle && null winClass              = Just "blank"
   | winTitle == "..." && winClass == "..."      = Just "blank"
   | winTitle `endsWith` " - VIM"                = Just "vim"
-  | winClass `contains` "urxvt"                 = Just "terminal"
   | winTitle `contains` "email-gui.py"          = Just "qtemail"
   | winTitle `contains` "qtemail-daemon"        = Just "qtemail"
   | winTitle `contains` "Tor Browser"           = Just "torbrowserbundle"
   | winTitle `contains` "Vidalia Control Panel" = Just "torbrowserbundle"
   | winTitle `ffPage` "Google Hangouts"         = Just "googlehangouts"
   | winTitle `ffPage` "escribe"                 = Just "escribe"
+  | dotClass == "urxvt.URxvt"                   = Just "terminal"
   | otherwise = Nothing
   where ffPage s pageName = s `startsWith` pageName && s `endsWith` "MozillaFirefox"
+        dotClass = classJoinDot winClass
 
 getTitleClassIconName :: NamedIconFileMap -> String -> String -> Maybe IconName
 getTitleClassIconName namedIconFileMap winTitle winClass = listToMaybe iconNames
@@ -91,3 +88,14 @@ searchNamedIconFileMap namedIconFileMap query = listToMaybe matchingIconNames
   where iconNames = map fst namedIconFileMap :: [IconName]
         lcQuery = map toLower query
         matchingIconNames = filter (lcQuery `contains`) iconNames
+
+contains = flip isInfixOf :: String -> String -> Bool
+startsWith = flip isPrefixOf :: String -> String -> Bool
+endsWith = flip isSuffixOf :: String -> String -> Bool
+
+--remove trailing NUL chars and replace all other NUL chars with '.'
+--  (window classes are two NUL-terminated strings concatenated together)
+--  e.g.: "Navigator\0Firefox\0" => "Navigator.Firefox"
+--        "\0\0\0a.b.c.\0\0\0    => "...a.b.c."
+classJoinDot :: String -> String
+classJoinDot = replace "\0" "." . reverse . dropWhile (=='\0') . reverse
