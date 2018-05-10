@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
 my $successCmd = "alarm -s success";
 my $failureCmd = "alarm -s failure";
@@ -9,38 +10,64 @@ my $execName = "taffybar-linux-x86_64";
 
 my $taffybarUserExec = "$ENV{HOME}/.cache/taffybar/$execName";
 
+my $NAME = basename $0;
+
 my $usage = "Usage:
-  $0
+  $NAME -h|--help
+    show this message
+
+  $NAME [OPTS]
     kill taffybar exec and run `taffybar` (recompiles and runs)
     run '$successCmd' on success
     run '$failureCmd' on failure
     open a terminal with compilation errors on failure
 
-  $0 --exec [ARG ARG ARG ..]
+  $NAME [OPTS] --exec [ARG ARG ARG ..]
     kill taffybar exec and run:
       `$taffybarUserExec ARG ARG ARG ..` (no recompile)
 
-  $0 -d|--daemon
-    re-run as `daemon $0`
+  OPTS
+    -d|--daemon
+      re-run this script + args with `daemon`, removing `-d` and `--daemon`
+        `$NAME --daemon ARG ARG ARG ..`
+          =>
+        `daemon -- $NAME ARG ARG ARG ..`
 
-  $0 --exec-daemon
-    re-run as `daemon $0 --exec`
+    -q|--quiet
+      never run '$successCmd' or '$failureCmd'
 ";
 
 sub main(@){
-  my ($isUserExec, @userExecArgs);
-  if(@_ == 1 and $_[0] =~ /^(-d|--daemon)$/){
-    exec "daemon $0";
-  }elsif(@_ > 0 and $_[0] =~ /^(--exec)$/){
-    $isUserExec = 1;
-    @userExecArgs = @_;
-    shift @userExecArgs;
-  }elsif(@_ == 0){
-    $isUserExec = 0;
-    @userExecArgs = ();
-  }else{
-    die $usage;
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
   }
+
+  for my $arg(@_){
+    if($arg =~ /^(-d|--daemon)$/){
+      my @args = grep {$_ !~ /^(-d|--daemon)/} @_;
+      exec "daemon", "--", $0, @args;
+    }
+  }
+
+  my $isQuiet = 0;
+  my $isUserExec = 0;
+  my @userExecArgs;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $isQuiet= 1;
+    }elsif($arg =~ /^(--exec)$/){
+      $isUserExec = 1;
+      @userExecArgs = @_;
+      @_ = ();
+      last;
+    }else{
+      die "$usage\nunknown arg: $arg\n";
+    }
+  }
+  die $usage if @_ != 0;
 
   system "killall $execName 2>/dev/null";
 
@@ -58,9 +85,9 @@ sub main(@){
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
       $ok = 0;
-      system $failureCmd;
+      system $failureCmd unless $isQuiet;
     }elsif($line =~ /^Launching custom binary/ and $ok){
-      system $successCmd;
+      system $successCmd unless $isQuiet;
     }
     print $line;
   }
