@@ -1,9 +1,9 @@
 module MonitorCpu(monitorCpuW) where
 import Color as C
 import Utils (pollingGraphMain)
-import System.Information.CPU (cpuLoad)
-import System.Information.Memory (parseMeminfo, memoryUsedRatio)
-import System.Taffybar.Widgets.PollingGraph (
+import System.Taffybar.Information.CPU (cpuLoad)
+import System.Taffybar.Information.Memory (parseMeminfo, memoryUsedRatio)
+import System.Taffybar.Widget.Generic.PollingGraph (
   pollingGraphNew, defaultGraphConfig, graphWidth, graphDataColors,
   graphDirection, GraphDirection(..))
 

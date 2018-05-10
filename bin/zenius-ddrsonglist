@@ -96,15 +96,19 @@ my @difficulties = qw(
 );
 
 sub formatSongList();
+sub searchSongs($$$);
+sub searchQueryToRegex($);
 sub getAllGameInfo();
 sub getGameInfo($);
 sub ensureGameInfoCache($);
+sub refetchGameInfoCache($);
 sub readGameInfoCache($);
 sub writeGameInfoCache($$);
 sub parseGameHtml($$);
 sub getCachedSongsBySongNameId();
 sub getSongInfo($);
 sub ensureSongInfoCache($);
+sub songInfoCacheExists($);
 sub readSongInfoCache($);
 sub writeSongInfoCache($$);
 sub parseSongHtml($$);
@@ -127,23 +131,60 @@ sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
 sub formatSong($$@);
 sub htmlGetAllTables($);
+sub getJapaneseChars();
 
 my $usage = "Usage:
   $0 [--songlist]
     print song list with feet difficulties
 
+  $0 --refetch-game GAME_NAME
+    -find <GAME_ID>
+      <GAME_NAME> => <GAME_ID>
+      " . (join "\n      ",
+             map {sprintf "%-11s => %s", $_, $$GAME_IDS{$_}}
+             sort keys %$GAME_IDS) . "
+    -delete $CACHE_DIR/game-info/<GAME_ID>
+    -delete $CACHE_DIR/game-html/<GAME_ID>
+    -ensure game info cached for <GAME_ID>
+      (game info cache should need to be fetched)
+    -ensure song info cached for all songs in <GAME_ID>
+      (only 'new' songs should need to be fetched)
+    -ensure banners cached for all songs in <GAME_ID>
+    -ensure remywiki HTML cached for all songs in <GAME_ID>
+    -ensure remywiki files cached for all songs in <GAME_ID>
+    -print summary of 'new' songs
+      (songs that were not cached at the start and are now)
+
   $0 --banners SONG_NAME_ID
     print banner image file paths for given song name ID (e.g.: max-300)
 
-  $0 --native
-    creates directories for all songs that have a native song name:
-      <CACHE_DIR>/native/<NATIVE_FIRST_CHAR>/<NATIVE_NAME>-<SONG_NAME_ID>/
-    places symlinks to the banner files, if any, for these songs:
-      <SONG_NATIVE_DIR>/<BANNER_ID>.png
-    e.g.:
-      $CACHE_DIR/native/ら/らいらら-rairara/
-      $CACHE_DIR/native/革/革命-kakumei/
-      $CACHE_DIR/native/革/革命-kakumei/802.png
+  $0 --search NAME_QUERY [ARTIST_QUERY]
+    print song info for songs that match both <NAME_QUERY> and <ARTIST_QUERY>
+      NAME_QUERY matches against 'nameNative' if available, otherwise 'name'
+      ARTIST_QUERY matches against 'artistNative' if available, otherwise 'artist'
+
+      NAME_QUERY and ARTIST_QUERY are case-insensitive regular expressions
+      with additional substitutions
+        -common full-width symbols and similar-looking pronunciation marks:
+           '-'        matches '-' or '－'U+FF0D or 'ー'U+30FC or '–'U+2013 or '—'0x2014
+           '!'        matches '!' or '！'U+FF01
+           '~'        matches '~' or '～'U+FF5E
+
+        -other common symbols:
+           '{star}'   matches '★'U+2605 or '☆'U+2606
+           '{heart}'  matches '♥'U+2665
+
+        -literals to escape chars and explicitly avoid substitutions:
+           '{lbrace}' matches '{'
+           '{rbrace}' matches '}'
+           '{dash}'   matches '-'
+           '{bang}'   matches '!'
+           '{tilde}'  matches '~'
+
+        -japanese character names match hiragana or katakana, or small forms:
+         e.g.:
+           '{no}'     matches 'の'U+306E or 'ノ'U+30CE
+           '{ya}'     matches 'や'U+3084 or 'ヤ'U+30E4 or 'ゃ'U+3083 or 'ャ'U+30E3
 ";
 
 sub main(@){
@@ -151,6 +192,33 @@ sub main(@){
   $cmd = "--songlist" if not defined $cmd;
   if($cmd =~ /^(--songlist)$/ and @_ == 0){
     print formatSongList();
+  }elsif($cmd =~ /^(--refetch-game)$/ and @_ == 1){
+    my ($gameName) = @_;
+    my $gameId = $$GAME_IDS{uc $gameName};
+    die "unknown game name: $gameName\n" if not defined $gameId;
+    refetchGameInfoCache $gameId;
+    my @gameSongIds = fetchGameSongIds $gameId;
+    my @newSongIds;
+    for my $songId(@gameSongIds){
+      push @newSongIds, $songId if not songInfoCacheExists $songId;
+    }
+    my $newSongCount = @newSongIds;
+    my $newSongFmt = "$newSongCount new song" . ($newSongCount == 1 ? "" : "s");
+
+    print "\n\n\n===$newSongFmt===\n";
+    for my $songId(@gameSongIds){
+      ensureSongInfoCache $songId;
+      my $song = readSongInfoCache $songId;
+      ensureSongBanners $song;
+      ensureRemyWikiPage $$song{remywiki};
+      ensureRemyWikiFiles $$song{remywiki};
+    }
+
+    print "\n\n\n===$newSongFmt===\n";
+    for my $songId(@newSongIds){
+      my $songInfo = readSongInfoCache $songId;
+      print "  $songId => $$songInfo{nameId}\n";
+    }
   }elsif($cmd =~ /^(--banners)$/ and @_ == 1){
     my ($songNameId) = @_;
     my $songsByNameId = getCachedSongsBySongNameId();
@@ -167,43 +235,30 @@ sub main(@){
       my @remywikiFiles = getRemyWikiFiles $$songInfo{remywiki};
       print "$_\n" foreach @remywikiFiles;
     }
-  }elsif($cmd =~ /^(--native)$/){
+  }elsif($cmd =~ /^(--search)$/ and (@_ == 1 or @_ == 2)){
+    my ($nameSearch, $artistSearch) = @_;
+    $artistSearch = "" if not defined $artistSearch;
     my $songsByNameId = getCachedSongsBySongNameId();
-    my %nameNativeToNameId;
-    my %nameIdToNameNative;
-    my %nameIdsByNativeFirstChar;
-    for my $songNameId(sort keys %$songsByNameId){
-      my $songInfo = $$songsByNameId{$songNameId};
-      my $nameNative = $$songInfo{nameNative};
-      if(defined $nameNative and length($nameNative) > 0){
-        utf8::decode $nameNative;
-        my $nativeFirstChar = substr $nameNative, 0, 1;
-        if(not defined $nameIdsByNativeFirstChar{$nativeFirstChar}){
-          $nameIdsByNativeFirstChar{$nativeFirstChar} = [];
-        }
-        push @{$nameIdsByNativeFirstChar{$nativeFirstChar}}, $songNameId;
-        $nameNativeToNameId{$nameNative} = $songNameId;
-        $nameIdToNameNative{$songNameId} = $nameNative;
-      }
-    }
-    my $nativeCacheDir = "$CACHE_DIR/native";
-    if(-d $nativeCacheDir){
-      system "rm", "-rf", $nativeCacheDir;
-    }
-    for my $nativeFirstChar(sort keys %nameIdsByNativeFirstChar){
-      my @songNameIds = @{$nameIdsByNativeFirstChar{$nativeFirstChar}};
-      for my $songNameId(@songNameIds){
-        my $nameNative = $nameIdToNameNative{$songNameId};
-        my $nativeBannerDir = "$nativeCacheDir/$nativeFirstChar/$nameNative-$songNameId";
-        system "mkdir", "-p", $nativeBannerDir;
-        my $songInfo = $$songsByNameId{$songNameId};
-        my @banners = @{$$songInfo{banners}};
-        for my $banner(@banners){
-          my ($bannerId, $bannerGame) = @$banner;
-          my $bannerFile = "$CACHE_DIR/banners/$bannerId.png";
-          system "ln", "-s", $bannerFile, "$nativeBannerDir/$bannerId.png";
-        }
-      }
+    my @nameIds = searchSongs $songsByNameId, $nameSearch, $artistSearch;
+    for my $nameId(sort @nameIds){
+      my $song = $$songsByNameId{$nameId};
+      my $fmtSrcStr = ""
+        . "\n"
+        . "%s\n"
+        . "  nameNative:   %s\n"
+        . "  name:         %s\n"
+        . "  artistNative: %s\n"
+        . "  artist:       %s\n"
+        ;
+      my $fmt = sprintf $fmtSrcStr,
+        $nameId,
+        defined $$song{nameNative} ? $$song{nameNative} : "",
+        defined $$song{name} ? $$song{name} : "",
+        defined $$song{artistNative} ? $$song{artistNative} : "",
+        defined $$song{artist} ? $$song{artist} : "",
+        ;
+      utf8::decode $fmt;
+      print $fmt;
     }
   }else{
     die $usage;
@@ -252,6 +307,87 @@ sub formatSongList(){
   return $fmt;
 }
 
+sub searchSongs($$$){
+  my ($songsByNameId, $nameQuery, $artistQuery) = @_;
+  my @okNameIds;
+  my $nameRegex = searchQueryToRegex $nameQuery;
+  my $artistRegex = searchQueryToRegex $artistQuery;
+  $nameRegex = '^.*$' if length $nameRegex == 0;
+  $artistRegex = '^.*$' if length $artistRegex == 0;
+  for my $nameId(sort keys %$songsByNameId){
+    my $song = $$songsByNameId{$nameId};
+
+    my $name;
+    my $nameNative = $$song{nameNative};
+    if(defined $nameNative and length($nameNative) > 0){
+      $name = $nameNative;
+    }else{
+      $name = $$song{name};
+    }
+    utf8::decode $name;
+
+    my $artist;
+    my $artistNative = $$song{artistNative};
+    if(defined $artistNative and length($artistNative) > 0){
+      $artist = $artistNative;
+    }else{
+      $artist = $$song{artist};
+    }
+    utf8::decode $artist;
+
+    if($name =~ /$nameRegex/i and $artist =~ /$artistRegex/i){
+      push @okNameIds, $nameId;
+    }
+  }
+  return @okNameIds;
+}
+
+sub searchQueryToRegex($){
+  my ($query) = @_;
+  my $regex = $query;
+
+  my $substitutions = {
+    #common full-width symbols
+    "-"        => ["-", "\x{FF0D}", "\x{30FC}", "\x{2013}", "\x{2014}"],
+    "!"        => ["!", "\x{FF01}"],
+    "~"        => ["~", "\x{FF5E}"],
+
+    #other common symbols
+    "{star}"   => ["\x{2605}", "\x{2606}"],
+    "{heart}"  => ["\x{2665}"],
+
+    #literals
+    "{lbrace}" => ["{"],
+    "{rbrace}" => ["}"],
+    "{dash}"   => ["-"],
+    "{bang}"   => ["!"],
+    "{tilde}"  => ["~"],
+  };
+
+  for my $charArr(@{getJapaneseChars()}){
+    my ($unicodeHex, $charName, $symbol, $scriptName) = @$charArr;
+    my $srcRegex = $charName;
+    $srcRegex =~ s/^small_//;
+    $srcRegex = "{$srcRegex}";
+    my $replacement = chr(hex($unicodeHex));
+    if(not defined $$substitutions{$srcRegex}){
+      $$substitutions{$srcRegex} = [];
+    }
+    push @{$$substitutions{$srcRegex}}, $replacement;
+  }
+
+  for my $srcRegex(sort keys %$substitutions){
+    my @replacements = @{$$substitutions{$srcRegex}};
+    my $replacementRegex = join "|", @replacements;
+    $replacementRegex = "(?:$replacementRegex)";
+    $regex =~ s/$srcRegex/$replacementRegex/g;
+  }
+
+  utf8::decode $regex;
+
+  return $regex;
+}
+
 sub getAllGameInfo(){
   my $gameInfoByName = {};
   for my $gameName(sort keys %$GAME_IDS){
@@ -280,6 +416,14 @@ sub ensureGameInfoCache($){
   if(not -f $file){
     die "Could not fetch gameid=$gameId\n";
   }
+}
+sub refetchGameInfoCache($){
+  my $gameId = shift;
+  my $infoFile = "$CACHE_DIR/game-info/$gameId.info";
+  my $htmlFile = "$CACHE_DIR/game-html/$gameId.html";
+  system "rm", "-f", $infoFile, $htmlFile;
+
+  ensureGameInfoCache($gameId);
 }
 sub readGameInfoCache($){
   my ($gameId) = @_;
@@ -432,6 +576,16 @@ sub ensureSongInfoCache($){
   }
   if(not -f $file){
     die "Could not fetch songid=$songId\n";
+  }
+}
+sub songInfoCacheExists($){
+  my ($songId) = @_;
+  my $dir = "$CACHE_DIR/song-info";
+  my $file = "$dir/$songId.info";
+  if(-f $file){
+    return 1;
+  }else{
+    return 0;
   }
 }
 sub readSongInfoCache($){
@@ -920,6 +1074,103 @@ sub htmlGetAllTables($){
     push @tables, [$table->rows];
   }
   return @tables;
+}
+
+# return a list of [UNICODE_HEX, CHAR_NAME, SYMBOL, SCRIPT_NAME]
+sub getJapaneseChars(){
+  return [
+    ["3041", "small_a" , "ぁ", "hiragana"], ["30A1", "small_a" , "ァ", "katakana"],
+    ["3042", "a"       , "あ", "hiragana"], ["30A2", "a"       , "ア", "katakana"],
+    ["3043", "small_i" , "ぃ", "hiragana"], ["30A3", "small_i" , "ィ", "katakana"],
+    ["3044", "i"       , "い", "hiragana"], ["30A4", "i"       , "イ", "katakana"],
+    ["3045", "small_u" , "ぅ", "hiragana"], ["30A5", "small_u" , "ゥ", "katakana"],
+    ["3046", "u"       , "う", "hiragana"], ["30A6", "u"       , "ウ", "katakana"],
+    ["3047", "small_e" , "ぇ", "hiragana"], ["30A7", "small_e" , "ェ", "katakana"],
+    ["3048", "e"       , "え", "hiragana"], ["30A8", "e"       , "エ", "katakana"],
+    ["3049", "small_o" , "ぉ", "hiragana"], ["30A9", "small_o" , "ォ", "katakana"],
+    ["304A", "o"       , "お", "hiragana"], ["30AA", "o"       , "オ", "katakana"],
+    ["304B", "ka"      , "か", "hiragana"], ["30AB", "ka"      , "カ", "katakana"],
+    ["304C", "ga"      , "が", "hiragana"], ["30AC", "ga"      , "ガ", "katakana"],
+    ["304D", "ki"      , "き", "hiragana"], ["30AD", "ki"      , "キ", "katakana"],
+    ["304E", "gi"      , "ぎ", "hiragana"], ["30AE", "gi"      , "ギ", "katakana"],
+    ["304F", "ku"      , "く", "hiragana"], ["30AF", "ku"      , "ク", "katakana"],
+    ["3050", "gu"      , "ぐ", "hiragana"], ["30B0", "gu"      , "グ", "katakana"],
+    ["3051", "ke"      , "け", "hiragana"], ["30B1", "ke"      , "ケ", "katakana"],
+    ["3052", "ge"      , "げ", "hiragana"], ["30B2", "ge"      , "ゲ", "katakana"],
+    ["3053", "ko"      , "こ", "hiragana"], ["30B3", "ko"      , "コ", "katakana"],
+    ["3054", "go"      , "ご", "hiragana"], ["30B4", "go"      , "ゴ", "katakana"],
+    ["3055", "sa"      , "さ", "hiragana"], ["30B5", "sa"      , "サ", "katakana"],
+    ["3056", "za"      , "ざ", "hiragana"], ["30B6", "za"      , "ザ", "katakana"],
+    ["3057", "si"      , "し", "hiragana"], ["30B7", "si"      , "シ", "katakana"],
+    ["3058", "zi"      , "じ", "hiragana"], ["30B8", "zi"      , "ジ", "katakana"],
+    ["3059", "su"      , "す", "hiragana"], ["30B9", "su"      , "ス", "katakana"],
+    ["305A", "zu"      , "ず", "hiragana"], ["30BA", "zu"      , "ズ", "katakana"],
+    ["305B", "se"      , "せ", "hiragana"], ["30BB", "se"      , "セ", "katakana"],
+    ["305C", "ze"      , "ぜ", "hiragana"], ["30BC", "ze"      , "ゼ", "katakana"],
+    ["305D", "so"      , "そ", "hiragana"], ["30BD", "so"      , "ソ", "katakana"],
+    ["305E", "zo"      , "ぞ", "hiragana"], ["30BE", "zo"      , "ゾ", "katakana"],
+    ["305F", "ta"      , "た", "hiragana"], ["30BF", "ta"      , "タ", "katakana"],
+    ["3060", "da"      , "だ", "hiragana"], ["30C0", "da"      , "ダ", "katakana"],
+    ["3061", "ti"      , "ち", "hiragana"], ["30C1", "ti"      , "チ", "katakana"],
+    ["3062", "di"      , "ぢ", "hiragana"], ["30C2", "di"      , "ヂ", "katakana"],
+    ["3063", "small_tu", "っ", "hiragana"], ["30C3", "small_tu", "ッ", "katakana"],
+    ["3064", "tu"      , "つ", "hiragana"], ["30C4", "tu"      , "ツ", "katakana"],
+    ["3065", "du"      , "づ", "hiragana"], ["30C5", "du"      , "ヅ", "katakana"],
+    ["3066", "te"      , "て", "hiragana"], ["30C6", "te"      , "テ", "katakana"],
+    ["3067", "de"      , "で", "hiragana"], ["30C7", "de"      , "デ", "katakana"],
+    ["3068", "to"      , "と", "hiragana"], ["30C8", "to"      , "ト", "katakana"],
+    ["3069", "do"      , "ど", "hiragana"], ["30C9", "do"      , "ド", "katakana"],
+    ["306A", "na"      , "な", "hiragana"], ["30CA", "na"      , "ナ", "katakana"],
+    ["306B", "ni"      , "に", "hiragana"], ["30CB", "ni"      , "ニ", "katakana"],
+    ["306C", "nu"      , "ぬ", "hiragana"], ["30CC", "nu"      , "ヌ", "katakana"],
+    ["306D", "ne"      , "ね", "hiragana"], ["30CD", "ne"      , "ネ", "katakana"],
+    ["306E", "no"      , "の", "hiragana"], ["30CE", "no"      , "ノ", "katakana"],
+    ["306F", "ha"      , "は", "hiragana"], ["30CF", "ha"      , "ハ", "katakana"],
+    ["3070", "ba"      , "ば", "hiragana"], ["30D0", "ba"      , "バ", "katakana"],
+    ["3071", "pa"      , "ぱ", "hiragana"], ["30D1", "pa"      , "パ", "katakana"],
+    ["3072", "hi"      , "ひ", "hiragana"], ["30D2", "hi"      , "ヒ", "katakana"],
+    ["3073", "bi"      , "び", "hiragana"], ["30D3", "bi"      , "ビ", "katakana"],
+    ["3074", "pi"      , "ぴ", "hiragana"], ["30D4", "pi"      , "ピ", "katakana"],
+    ["3075", "hu"      , "ふ", "hiragana"], ["30D5", "hu"      , "フ", "katakana"],
+    ["3076", "bu"      , "ぶ", "hiragana"], ["30D6", "bu"      , "ブ", "katakana"],
+    ["3077", "pu"      , "ぷ", "hiragana"], ["30D7", "pu"      , "プ", "katakana"],
+    ["3078", "he"      , "へ", "hiragana"], ["30D8", "he"      , "ヘ", "katakana"],
+    ["3079", "be"      , "べ", "hiragana"], ["30D9", "be"      , "ベ", "katakana"],
+    ["307A", "pe"      , "ぺ", "hiragana"], ["30DA", "pe"      , "ペ", "katakana"],
+    ["307B", "ho"      , "ほ", "hiragana"], ["30DB", "ho"      , "ホ", "katakana"],
+    ["307C", "bo"      , "ぼ", "hiragana"], ["30DC", "bo"      , "ボ", "katakana"],
+    ["307D", "po"      , "ぽ", "hiragana"], ["30DD", "po"      , "ポ", "katakana"],
+    ["307E", "ma"      , "ま", "hiragana"], ["30DE", "ma"      , "マ", "katakana"],
+    ["307F", "mi"      , "み", "hiragana"], ["30DF", "mi"      , "ミ", "katakana"],
+    ["3080", "mu"      , "む", "hiragana"], ["30E0", "mu"      , "ム", "katakana"],
+    ["3081", "me"      , "め", "hiragana"], ["30E1", "me"      , "メ", "katakana"],
+    ["3082", "mo"      , "も", "hiragana"], ["30E2", "mo"      , "モ", "katakana"],
+    ["3083", "small_ya", "ゃ", "hiragana"], ["30E3", "small_ya", "ャ", "katakana"],
+    ["3084", "ya"      , "や", "hiragana"], ["30E4", "ya"      , "ヤ", "katakana"],
+    ["3085", "small_yu", "ゅ", "hiragana"], ["30E5", "small_yu", "ュ", "katakana"],
+    ["3086", "yu"      , "ゆ", "hiragana"], ["30E6", "yu"      , "ユ", "katakana"],
+    ["3087", "small_yo", "ょ", "hiragana"], ["30E7", "small_yo", "ョ", "katakana"],
+    ["3088", "yo"      , "よ", "hiragana"], ["30E8", "yo"      , "ヨ", "katakana"],
+    ["3089", "ra"      , "ら", "hiragana"], ["30E9", "ra"      , "ラ", "katakana"],
+    ["308A", "ri"      , "り", "hiragana"], ["30EA", "ri"      , "リ", "katakana"],
+    ["308B", "ru"      , "る", "hiragana"], ["30EB", "ru"      , "ル", "katakana"],
+    ["308C", "re"      , "れ", "hiragana"], ["30EC", "re"      , "レ", "katakana"],
+    ["308D", "ro"      , "ろ", "hiragana"], ["30ED", "ro"      , "ロ", "katakana"],
+    ["308E", "small_wa", "ゎ", "hiragana"], ["30EE", "small_wa", "ヮ", "katakana"],
+    ["308F", "wa"      , "わ", "hiragana"], ["30EF", "wa"      , "ワ", "katakana"],
+    ["3090", "wi"      , "ゐ", "hiragana"], ["30F0", "wi"      , "ヰ", "katakana"],
+    ["3091", "we"      , "ゑ", "hiragana"], ["30F1", "we"      , "ヱ", "katakana"],
+    ["3092", "wo"      , "を", "hiragana"], ["30F2", "wo"      , "ヲ", "katakana"],
+    ["3093", "n"       , "ん", "hiragana"], ["30F3", "n"       , "ン", "katakana"],
+    ["3094", "vu"      , "ゔ", "hiragana"], ["30F4", "vu"      , "ヴ", "katakana"],
+                                            ["30F5", "small_ka", "ヵ", "katakana"],
+                                            ["30F6", "small_ke", "ヶ", "katakana"],
+                                            ["30F7", "va"      , "ヷ", "katakana"],
+                                            ["30F8", "vi"      , "ヸ", "katakana"],
+                                            ["30F9", "ve"      , "ヹ", "katakana"],
+                                            ["30FA", "vo"      , "ヺ", "katakana"],
+                                            ["30FB", "dot"     , "・", "katakana"],
+  ];
 }
 
 &main(@ARGV);

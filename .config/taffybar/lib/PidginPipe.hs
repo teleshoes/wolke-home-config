@@ -14,7 +14,7 @@ exec = "pidgin"
 process = exec
 workspace = 2
 
-runCmd = exec
+runCmd = "daemon " ++ exec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
 clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)

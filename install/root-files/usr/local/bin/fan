@@ -2,32 +2,56 @@
 use strict;
 use warnings;
 
+sub formatFanInfo($);
+sub parseLevelOrSyn($);
 sub parseConfigFile($);
+sub readFan();
+sub readFanLevelStateFile();
+sub writeFanLevelStateFile($);
 sub setLevel($);
 
 my $fanDev = "/proc/acpi/ibm/fan";
 
 my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
+my $stateFile = "/tmp/fanspeed-level";
 
 my $usage = "Usage:
+  $0 -h
+  $0 --help
+    show this message
+
   $0
+  $0 --get
      print fan information from $fanDev
-  $0 get
-     print fan information from $fanDev
-  $0 LEVEL
-     set fan level to <LEVEL> (or synonym) using $fanDev
+     formatted as: \"SPEED,LEVEL\"
+     where SPEED is an integer and LEVEL is one of the allowed values for <LEVEL>
 
-  <LEVEL>
-    argument for $fanDev or a synonym
+  $0 LEVEL_OR_SYN
+  $0 --set=LEVEL_OR_SYN
+     calculate <LEVEL> from <LEVEL_OR_SYN>
+     set fan level to <LEVEL> using $fanDev
+     write <LEVEL> (not synonym) to $stateFile
 
-    valid arguments:
-      0 1 2 3 4 5 6 7 auto disengaged full-speed
+  $0 --reapply
+     set fan level to the <LEVEL> in $stateFile if it exists
+  $0 --clear
+     remove $stateFile (further calls to --reapply without --set will do nothing)
+
+  <LEVEL_OR_SYN> = <LEVEL> | <SYNONYM>
+    argument for $fanDev or a synonym, one of either <LEVEL> or <SYNONYM>
+
+  <LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
+    valid arguments for $fanDev (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
       NOTE:
         0 means FULLY DISABLED and is quite dangerous
         disengaged and full-speed do the same thing, and are faster than 7
-        auto is based on CPU load and is done by the kernel module or firmware
+        auto varies based on CPU load and is done by the kernel module or firmware
 
-    synonyms are defined at $configFile:
+  <SYNONYM>
+    synonyms are defined in $configFile
+      -one per line: \"SYN_NAME=SYN_VALUE\"
+      -NAME is one or more letters or numbers
+      -VALUE is one of the arguments above for $fanDev
     e.g.:  default=5
            fast=disengaged
            medium=4
@@ -36,31 +60,65 @@ my $usage = "Usage:
            evening=1
 ";
 
+my @okLevels = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
+my $okLevelsRe = "(?:" . join("|", @okLevels) . ")";
+
 sub main(@){
-  if(@_ == 0){
-    my $info = `cat $fanDev`;
-    print $info;
-  }elsif(@_ == 1){
-    my $level = $_[0];
-    my $confSynonyms = parseConfigFile $configFile;
-    if(defined $$confSynonyms{$level}){
-      $level = $$confSynonyms{$level};
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
+    print formatFanInfo(readFan());
+  }elsif(@_ == 1 and $_[0] =~ /^(--reapply)$/){
+    my $stateLevel = readFanLevelStateFile();
+    my $fanInfo = readFan();
+    my $curLevel = $$fanInfo{level};
+    if(defined $stateLevel and $stateLevel ne $curLevel){
+      my $now = `date`;
+      chomp $now;
+      print "$now  FAN LEVEL CHANGED: REAPPLYING $curLevel => $stateLevel\n";
+      setLevel $stateLevel;
     }
-    if($level =~ /^([0-7]|auto|disengaged|full-speed)$/){
-      my $info = `cat $fanDev`;
-      my $cur;
-      if($info =~ /level:\s*(.*)\n/){
-        $cur = $1;
-      }
-      if($cur eq $level){
-        print "fan already set to $level\n";
-      }else{
-        print "$cur => $level\n";
-        setLevel $level;
-      }
+  }elsif(@_ == 1 and $_[0] =~ /^(--clear)$/){
+    writeFanLevelStateFile undef;
+  }elsif(@_ == 1){
+    my $levelOrSyn = $_[0];
+    $levelOrSyn = $1 if $_[0] =~ /^--set=(.+)$/;
+    my $level = parseLevelOrSyn $levelOrSyn;
+    if(not defined $level or $level !~ /^$okLevelsRe$/){
+      die "$usage\ninvalid level: $level\n";
+    }
+
+    my $fanInfo = readFan();
+    my $curLevel = $$fanInfo{level};
+    if($curLevel eq $level){
+      print "fan already set to $level\n";
+    }else{
+      print "$curLevel => $level\n";
+      writeFanLevelStateFile($level);
+      setLevel $level;
     }
   }else{
     die $usage;
+  }
+}
+
+sub formatFanInfo($){
+  my ($fanInfo) = @_;
+  return "$$fanInfo{speed},$$fanInfo{level}\n";
+}
+
+sub parseLevelOrSyn($){
+  my ($levelOrSyn) = @_;
+  if($levelOrSyn =~ /^$okLevelsRe$/){
+    return $levelOrSyn;
+  }else{
+    my $confSynonyms = parseConfigFile $configFile;
+    if(defined $$confSynonyms{$levelOrSyn}){
+      return $$confSynonyms{$levelOrSyn};
+    }else{
+      return undef;
+    }
   }
 }
 
@@ -73,7 +131,7 @@ sub parseConfigFile($){
     close FH;
     for my $line(@lines){
       next if $line =~ /^\s*(#|$)/;
-      if($line =~ /^\s*(\w+)\s*=\s*(\w+)\s*$/){
+      if($line =~ /^\s*(\w+)\s*=\s*($okLevelsRe)\s*$/){
         my ($key, $val) = ($1, $2);
         $$conf{$key} = $val;
       }else{
@@ -82,6 +140,45 @@ sub parseConfigFile($){
     }
   }
   return $conf;
+}
+
+sub readFan(){
+  my $devInfo = `cat $fanDev`;
+  my ($speed, $level);
+  if($devInfo =~ /^speed:\s*(\d+)$/m){
+    $speed = $1;
+  }else{
+    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+  }
+  if($devInfo =~ /^level:\s*(\w+)$/m){
+    $level = $1;
+  }else{
+    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+  }
+  return {speed => $speed, level => $level};
+}
+
+sub readFanLevelStateFile(){
+  my $level;
+  if(-f $stateFile){
+    $level = `cat $stateFile`;
+    chomp $level;
+  }
+  if(defined $level and $level =~ /^$okLevelsRe$/){
+    return $level;
+  }else{
+    return undef;
+  }
+}
+sub writeFanLevelStateFile($){
+  my ($level) = @_;
+  if(defined $level){
+    open FH, "> $stateFile" or die "Could not write to $stateFile\n$!\n";
+    print FH "$_[0]\n";
+    close FH;
+  }else{
+    system "rm", "-f", $stateFile;
+  }
 }
 
 sub setLevel($){

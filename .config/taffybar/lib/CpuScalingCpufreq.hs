@@ -5,7 +5,7 @@ import Utils (
 import Label (labelW, mainLabel)
 
 import Control.Monad (void)
-import Control.Monad.Trans.Either (EitherT(..), runEitherT)
+import Control.Monad.Except (ExceptT(..), runExceptT)
 import Control.Concurrent (forkIO)
 import Control.Error (note)
 import System.Process (system)
@@ -32,13 +32,13 @@ cpuScalingCpufreqGovW = labelW $ do
     Left err -> return err
     Right curGov -> return $ formatGov curGov
 
-withErr act msg = EitherT $ note msg <$> act
+withErr act msg = ExceptT $ note msg <$> act
 
 allEq :: Eq a => [a] -> Bool
 allEq xs = null xs || all (== head xs) (tail xs)
 
 readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
-readCpu = runEitherT $ do
+readCpu = runExceptT $ do
   gov <- getCpuField "scaling_governor"
          `withErr` "no governor!"
   minFreq <- getCpuFieldInt "scaling_min_freq"
@@ -50,7 +50,7 @@ readCpu = runEitherT $ do
   return (gov, minFreq, maxFreq, avail)
 
 readGov :: IO (Either String String)
-readGov = runEitherT $ do
+readGov = runExceptT $ do
   gov <- getCpuField "scaling_governor"
          `withErr` "no governor!"
   return gov

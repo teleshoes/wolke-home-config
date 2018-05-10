@@ -5,64 +5,61 @@ use warnings;
 my $successCmd = "alarm -s success";
 my $failureCmd = "alarm -s failure";
 
+my $execName = "taffybar-linux-x86_64";
+
+my $taffybarUserExec = "$ENV{HOME}/.cache/taffybar/$execName";
+
 my $usage = "Usage:
-  $0 [-d|--daemon] [-q|--quiet]
-    restart taffybar
+  $0
+    kill taffybar exec and run `taffybar` (recompiles and runs)
     run '$successCmd' on success
     run '$failureCmd' on failure
     open a terminal with compilation errors on failure
 
-  -d|--daemon
-    close stdin/stderr, ignore sig kills, run in background
+  $0 --exec [ARG ARG ARG ..]
+    kill taffybar exec and run:
+      `$taffybarUserExec ARG ARG ARG ..` (no recompile)
 
-  -q|--quiet
-    do not run '$successCmd' or '$failureCmd'
+  $0 -d|--daemon
+    re-run as `daemon $0`
 
-  -b|--bottom
-    pass '--bottom' to taffybar
+  $0 --exec-daemon
+    re-run as `daemon $0 --exec`
 ";
 
 sub main(@){
-  my $daemon = 0;
-  my $quiet = 0;
-  my $bottom = 0;
-  while(@_ > 0 and $_[0] =~ /^-/){
-    my $arg = shift;
-    if($arg =~ /^(-d|--daemon)$/){
-      $daemon = 1;
-    }elsif($arg =~ /^(-q|--quiet)$/){
-      $quiet = 1;
-    }elsif($arg =~ /^(-b|--bottom)$/){
-      $bottom = 1;
-    }else{
-      die $usage;
-    }
-  }
-  die $usage if @_ != 0;
-
-  if($daemon){
-    my @cmd = ($0);
-    push @cmd, "-q" if $quiet;
-    push @cmd, "-b" if $bottom;
-    exec "nohup @cmd >/dev/null 2>/dev/null &";
+  my ($isUserExec, @userExecArgs);
+  if(@_ == 1 and $_[0] =~ /^(-d|--daemon)$/){
+    exec "daemon $0";
+  }elsif(@_ > 0 and $_[0] =~ /^(--exec)$/){
+    $isUserExec = 1;
+    @userExecArgs = @_[1,];
+  }elsif(@_ == 0){
+    $isUserExec = 0;
+    @userExecArgs = ();
+  }else{
+    die $usage;
   }
 
-  my $bottomArg = $bottom ? "--bottom" : "";
+  system "killall $execName 2>/dev/null";
+
+  if($isUserExec){
+    exec $taffybarUserExec, @userExecArgs;
+  }
 
   my $log = "/tmp/taffybar-log-" . time;
   system "rm", "/tmp/taffybar-log-latest";
   system "ln", "-s", $log, "/tmp/taffybar-log-latest";
 
-  system "killall taffybar-linux-x86_64 2>/dev/null";
   my $ok = 1;
-  open TB, "-|", "unbuffer taffybar $bottomArg 2>&1 | tee $log";
+  open TB, "-|", "unbuffer taffybar 2>&1 | tee $log";
   my $line;
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
       $ok = 0;
-      system $failureCmd if not $quiet;
+      system $failureCmd;
     }elsif($line =~ /^Launching custom binary/ and $ok){
-      system $successCmd if $ok and not $quiet;
+      system $successCmd;
     }
     print $line;
   }
