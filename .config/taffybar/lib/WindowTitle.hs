@@ -2,25 +2,21 @@ module WindowTitle (windowTitleW) where
 import Utils (fg)
 import Label (labelW)
 
-import Graphics.UI.Gtk (escapeMarkup)
+import Graphics.UI.Gtk (escapeMarkup, widgetShowAll)
 import Control.Monad.Trans (liftIO, lift)
 import System.Taffybar.Context (runX11)
 import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindowTitle, withDefaultCtx)
 import System.Taffybar.Widget.Windows (
   WindowsConfig(..), defaultWindowsConfig, windowsNew)
 
-windowTitleW len useRows = liftIO $ labelW $ getFormattedTitlePrinter len useRows
+windowTitleW len useRows = wrapWidgetShowAll $ windowsNew $ defaultWindowsConfig
+  { getActiveLabel = fmap (markupTitleText len useRows) $ runX11 getActiveWindowTitle
+  }
 
---windowTitleW len useRows = windowsNew $ windowsConfig len useRows
---windowsConfig len useRows = defaultWindowsConfig
---  { getActiveLabel = fmap (markupTitleText len useRows) $ runX11 getActiveWindowTitle
---  }
-
-getFormattedTitlePrinter :: Int -> Bool -> IO String
-getFormattedTitlePrinter len useRows = fmap (markupTitleText len useRows) getTitlePrinter
-
-getTitlePrinter :: IO String
-getTitlePrinter = withDefaultCtx getActiveWindowTitle
+wrapWidgetShowAll getWidget = do
+  w <- getWidget
+  liftIO $ widgetShowAll w
+  return w
 
 markupTitleText :: Int -> Bool -> String -> String
 markupTitleText len useRows = fg "#93a1a1" . escapeMarkup . formatTitleText len useRows
