@@ -26,7 +26,7 @@ import XMonad.StackSet (
   RationalRect(..), float, sink, view, focusDown)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
 
-import System.Taffybar.Hooks.PagerHints (pagerHints)
+import System.Taffybar.Support.PagerHints (pagerHints)
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
