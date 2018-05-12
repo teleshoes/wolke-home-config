@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use IPC::Open3 qw(open3);
+use Time::HiRes qw(time);
+
+my $logBaseDir = "$ENV{HOME}/.cache/logs";
+
+my $EXEC = basename $0;
+
+my $PRINT_TO_STDOUT = 1;
+
+my $usage = "Usage:
+  $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+    -quit screen session 'NAME'
+      screen -S NAME -X quit
+    -start a screen session named 'NAME' that runs `$EXEC --run`
+      screen -S NAME -d -m \\
+        $EXEC NAME --run DELAY_MILLIS TIMEOUT_MILLIS \\
+          CMD [ARG ARG ..]
+
+  $0 NAME --run DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+    -start logging to LOG_FILE
+    -run 'CMD [ARG ARG ..]' every DELAY_MILLIS, append STDOUT/STDERR to LOG_FILE
+    -if CMD takes longer than TIMEOUT_MILLIS, kill it
+
+      LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
+      START_MILLIS = time in milliseconds at initial start
+
+  $EXEC NAME
+    -attach to screen session 'NAME'
+      screen -d r -S email-daemon
+
+  $EXEC NAME --exit|--quit|--kill
+    -quit screen session 'NAME'
+      screen -S NAME -X quit
+
+  NAME
+    screen session name, must be letters, numbers, underscores, or hyphens only
+
+  DELAY_MILLIS
+    milliseconds to wait between commands, positive integer only
+    (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
+
+  TIMEOUT_MILLIS
+    milliseconds to wait before killing command, positive integer only
+    (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
+";
+
+sub checkRunArgs($$$@);
+sub runCommandForever($$$@);
+sub cmdTimeout($$@);
+
+sub main(@){
+  if(@_ > 4 and $_[1] =~ /^--start$/){
+    my ($name, $startArg, $delayMillis, $timeoutMillis, @cmd) = @_;
+    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    system "screen -S $name -X quit >/dev/null";
+    system "screen", "-S", $name, "-d", "-m",
+      $0, $name, "--run", $delayMillis, $timeoutMillis, @cmd;
+  }elsif(@_ > 4 and $_[1] =~ /^--run$/){
+    my ($name, $runArg, $delayMillis, $timeoutMillis, @cmd) = @_;
+    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    runCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
+  }else{
+    die $usage;
+  }
+}
+
+sub checkRunArgs($$$@){
+  my ($name, $delayMillis, $timeoutMillis, @cmd) = @_;
+  if($name !~ /^[a-zA-Z0-9_\-]+$/){
+    die "$usage\ninvalid name: $name\n";
+  }elsif($delayMillis !~ /^\d+$/ or $delayMillis <= 0){
+    die "$usage\ninvalid delayMillis: $delayMillis\n"
+  }elsif($timeoutMillis !~ /^\d+$/ or $timeoutMillis <= 0){
+    die "$usage\ninvalid timeoutMillis: $timeoutMillis\n"
+  }elsif(@cmd == 0){
+    die "$usage\nmissing CMD\n";
+  }
+}
+
+sub runCommandForever($$$@){
+  my ($name, $delayMillis, $timeoutMillis, @cmd) = @_;
+  my $nowMillis = int(time * 1000.0);
+  my $logFileName = "$name-$nowMillis.log";
+
+  my $logDir = "$logBaseDir/$name";
+  system "mkdir", "-p", $logDir;
+  my $logFile = "$logDir/$logFileName";
+  system "touch", $logFile;
+
+  system "rm", "-f", "$logDir/latest";
+  system "ln", "-s", $logFileName, "$logDir/latest";
+
+  $SIG{ALRM} = sub {die "timeout"};
+
+  my $logFH;
+  if($PRINT_TO_STDOUT){
+    open $logFH, "|-", "tee -a $logFile" or die "Could not tee logFH to $logFile\n";
+  }else{
+    open $logFH, ">>", $logFile or die "Could not append to $logFile\n";
+  }
+
+  print $logFH `date`;
+  print $logFH "started $name daemon\n";
+  print $logFH "\n\n\n";
+  while(1){
+    print $logFH `date`;
+
+    cmdTimeout $logFH, $timeoutMillis, @cmd;
+
+    print $logFH "\n\n\n";
+    sleep $delayMillis/1000.0;
+  }
+}
+
+sub cmdTimeout($$@){
+  my ($logFH, $timeoutMillis, @cmd) = @_;
+
+  my $logFileno = fileno $logFH;
+  my $pid = open3(undef, ">&$logFileno", ">&$logFileno", @cmd);
+  eval {
+    alarm $timeoutMillis/1000.0;
+    waitpid $pid, 0;
+    alarm 0;
+  };
+  if($@ =~ /timeout/){
+    print $logFH "TIMEOUT $pid after ${timeoutMillis}ms\n";
+    system "kill", "-9", "$pid";
+    waitpid $pid, 0;
+  }
+}
+
+&main(@ARGV);
