@@ -12,6 +12,9 @@ my $EXEC = basename $0;
 my $PRINT_TO_STDOUT = 1;
 
 my $usage = "Usage:
+  $EXEC -h|--help
+    show this message
+
   $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
     -quit screen session 'NAME'
       screen -S NAME -X quit
@@ -22,6 +25,7 @@ my $usage = "Usage:
 
   $0 NAME --run DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
     -start logging to LOG_FILE
+    -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
     -run 'CMD [ARG ARG ..]' every DELAY_MILLIS, append STDOUT/STDERR to LOG_FILE
     -if CMD takes longer than TIMEOUT_MILLIS, kill it
 
@@ -29,12 +33,17 @@ my $usage = "Usage:
       START_MILLIS = time in milliseconds at initial start
 
   $EXEC NAME
+  $EXEC NAME --attach
     -attach to screen session 'NAME'
-      screen -d r -S email-daemon
+      screen -S NAME -d r
 
   $EXEC NAME --exit|--quit|--kill
     -quit screen session 'NAME'
       screen -S NAME -X quit
+
+  $EXEC NAME --tail
+    -tail the 'latest' log file symlink for NAME
+      tail -F $logBaseDir/NAME/latest
 
   NAME
     screen session name, must be letters, numbers, underscores, or hyphens only
@@ -53,7 +62,10 @@ sub runCommandForever($$$@);
 sub cmdTimeout($$@);
 
 sub main(@){
-  if(@_ > 4 and $_[1] =~ /^--start$/){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ > 4 and $_[1] =~ /^--start$/){
     my ($name, $startArg, $delayMillis, $timeoutMillis, @cmd) = @_;
     checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
     system "screen -S $name -X quit >/dev/null";
@@ -63,6 +75,18 @@ sub main(@){
     my ($name, $runArg, $delayMillis, $timeoutMillis, @cmd) = @_;
     checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
     runCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
+  }elsif(@_ == 2 and $_[1] =~ /^(--tail)$/){
+    my ($name) = @_;
+    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    exec "tail", "-F", "$logBaseDir/$name/latest";
+  }elsif(@_ == 2 and $_[1] =~ /^(--exit|--quit|--kill)$/){
+    my ($name) = @_;
+    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    system "screen", "-S", $name, "-X", "quit";
+  }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(--attach)$/)){
+    my ($name) = @_;
+    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    system "screen", "-S", $name, "-d", "-r"
   }else{
     die $usage;
   }
