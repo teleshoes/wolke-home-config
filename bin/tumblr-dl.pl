@@ -22,6 +22,9 @@ my $usage = "Usage:
     find tumblr-ish URLS and attempt to download
     either them or high-res (${HIGH_RES}px) versions of them
 
+    if file 'xskip' exists, parse each line to find a prefix 'tumblr_<POST>'
+    skip symlinking (but not download or order#) for each matching post
+
   OPTS
     -u|--urls
       just print the parsed URLs in order and exit
@@ -58,6 +61,13 @@ sub main(@){
   }
   my @imgUrls = $html =~ m/($URL_REGEX\/[^"&]*)["&]/g;
 
+  my @xskipPostsArr = `cat xskip 2>/dev/null`;
+  @xskipPostsArr = grep {$_ =~ /^tumblr(_[a-zA-Z0-9]+)_/} @xskipPostsArr;
+  @xskipPostsArr = map {$_ =~ /^tumblr(_[a-zA-Z0-9]+)_/; $1} @xskipPostsArr;
+  my %xskipPosts = map {$_ => 1} @xskipPostsArr;
+
+  my %xskipFileIds;
+
   my %alreadySeenUrls;
 
   my %fileIdOrder;
@@ -91,6 +101,9 @@ sub main(@){
       fileId        => $fileId,
       res           => $res,
     };
+    if(defined $xskipPosts{$post}){
+      $xskipFileIds{$fileId} = 1;
+    }
     $filesById{$fileId} = [] if not defined $filesById{$fileId};
     push @{$filesById{$fileId}}, $file;
     if(not defined $fileIdOrder{$fileId}){
@@ -98,6 +111,8 @@ sub main(@){
       $fileIdOrder{$fileId} = $order;
     }
   }
+
+  my @keys = sort keys %xskipFileIds;
 
   my @fileIds = sort keys %filesById;
   @fileIds = reverse @fileIds if $reverse;
@@ -178,7 +193,7 @@ sub main(@){
     $target = $highResFileName if -f $highResFileName;
     $target = $fileName if -f $fileName;
 
-    if(defined $target){
+    if(defined $target and not defined $xskipFileIds{$fileId}){
       my $suffix = $1 if $target =~ /(\.\w+)$/;
       $suffix = "" if not defined $suffix;
 
