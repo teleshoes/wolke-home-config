@@ -4,7 +4,7 @@ use warnings;
 use AI::FANN qw(:all);
 use Time::HiRes qw(time);
 
-my $LCD_REGION = "100x70+150+0";
+my $LCD_SIZE = "100x70";
 
 my $SCALE = {
   GR => {low=>10,    high=>30},
@@ -38,12 +38,15 @@ my $usage = "Usage:
        KU = %[kurtosis]
        SD = %[standard-deviation]
        MV = %[max]
-    -calculate the green-ness of the LCD region:
-       -crop the area to $LCD_REGION using `convert`
-       -scale the image to a single pixel using `convert`
-       -read color 0-255 as \"<RED>r,<GREEN>g,<BLUE>b\" from `convert`
-       -use the green channel minus the average of the red and blue channels
-       GR = <GREEN> - ((<RED> + <BLUE)/2)
+    -find the greenest LCD-sized square and check its greenness:
+       -split the image into $LCD_SIZE squares using `convert`
+       -for each square:
+         -scale the image to a single pixel using `convert`
+         -read color 0-255 as \"<RED>r,<GREEN>g,<BLUE>b\" from `convert`
+         -use the green channel minus the average of the red and blue channels
+          SQUARE_GR = <GREEN> - ((<RED> + <BLUE)/2)
+       -take the maximum of the green-ness values read, and subtract the mean
+        GR = max(SQUARE_GR) - mean_avg(SQUARE_GR)
     -scale the values between 0 and 1 as follows
        SCALED_GR: [low=$$SCALE{GR}{low}, high=$$SCALE{GR}{high}]
        SCALED_KU: [low=$$SCALE{KU}{low}, high=$$SCALE{KU}{high}]
@@ -250,15 +253,30 @@ sub cacheImageData($$){
 
 sub analyzeImage($){
   my ($srcFile) = @_;
-  my $lcdFile = "/tmp/is-ac-on_crop_$NOW_MILLIS.jpg";
-  system "convert", $srcFile, "-crop", $LCD_REGION, $lcdFile;
 
   my $info = identifyImage $srcFile, qw(kurtosis standard-deviation max);
   my $KU = $$info{"kurtosis"};
   my $SD = $$info{"standard-deviation"};
   my $MV = $$info{"max"};
 
-  my $GR = getGreenDiff $lcdFile;
+  my $imgSquareDir = "/tmp/is-ac-on_crop_$NOW_MILLIS";
+  system "mkdir", "-p", $imgSquareDir;
+  system "convert", $srcFile, "-crop", $LCD_SIZE, "$imgSquareDir/out.jpg";
+
+  my @squares = glob "$imgSquareDir/out-*.jpg";
+  die "convert -crop failed for $srcFile\n" if @squares == 0;
+
+  my $maxGreen = undef;
+  my $sumGreen = 0;
+  for my $square(@squares){
+    my $greenDiff = getGreenDiff $square;
+    $maxGreen = $greenDiff if not defined $maxGreen or $greenDiff > $maxGreen;
+    $sumGreen += $greenDiff;
+  }
+  my $avgGreen = $sumGreen / @squares;
+  my $GR = $maxGreen - $avgGreen;
+
+  system "rm", "-r", $imgSquareDir;
 
   my $SGR = getScaledValue $GR, $$SCALE{GR};
   my $SKU = getScaledValue $KU, $$SCALE{KU};
