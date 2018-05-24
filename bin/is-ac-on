@@ -17,9 +17,12 @@ my $DESIRED_ERROR = "0.001";
 my $NEURAL_NET_TRAINING_DIR_NO = "$ENV{HOME}/.cache/is-ac-on/no";
 my $NEURAL_NET_TRAINING_DIR_YES = "$ENV{HOME}/.cache/is-ac-on/yes";
 my $NEURAL_NET_CACHE = "$ENV{HOME}/.cache/is-ac-on/neuralnet.ann";
+my $IMAGE_DATA_CACHE_FILE = "$ENV{HOME}/.cache/is-ac-on/image-data-cache";
 
 sub createNeuralNet();
 sub loadNeuralNetTrainingData();
+sub readCacheOrAnalyzeImage($);
+sub cacheImageData($$);
 sub analyzeImage($);
 sub getScaledValue($$);
 sub getGreenDiff($);
@@ -173,13 +176,13 @@ sub createNeuralNet(){
 sub loadNeuralNetTrainingData(){
   my $data = [];
   for my $img(glob "$NEURAL_NET_TRAINING_DIR_NO/*"){
-    my $input = analyzeImage $img;
+    my $input = readCacheOrAnalyzeImage $img;
     my $output = [-1];
     push @$data, $input;
     push @$data, $output;
   }
   for my $img(glob "$NEURAL_NET_TRAINING_DIR_YES/*"){
-    my $input = analyzeImage $img;
+    my $input = readCacheOrAnalyzeImage $img;
     my $output = [1];
     push @$data, $input;
     push @$data, $output;
@@ -211,6 +214,38 @@ sub testNeuralNet(){
       print "FAIL[expected yes]: $img\n";
     }
   }
+}
+
+sub readCacheOrAnalyzeImage($){
+  my ($srcFile) = @_;
+
+  my $cachedImgData = undef;
+  for my $line(`cat $IMAGE_DATA_CACHE_FILE 2>/dev/null`){
+    if($line =~ /^(.+),(.+),(.+),(.+),$srcFile$/){
+      my ($SGR, $SKU, $SSD, $SMV) = ($1, $2, $3, $4);
+      $cachedImgData = [$SGR, $SKU, $SSD, $SMV];
+      last;
+    }
+  }
+
+  my $imgData;
+  if(defined $cachedImgData){
+    $imgData = $cachedImgData;
+  }else{
+    $imgData = analyzeImage $srcFile;
+    cacheImageData $srcFile, $imgData;
+  }
+
+  return $imgData;
+}
+
+sub cacheImageData($$){
+  my ($srcFile, $imgData) = @_;
+  my ($SGR, $SKU, $SSD, $SMV) = @$imgData;
+
+  open FH, ">> $IMAGE_DATA_CACHE_FILE";
+  print FH "$SGR,$SKU,$SSD,$SMV,$srcFile\n";
+  close FH;
 }
 
 sub analyzeImage($){
