@@ -12,16 +12,25 @@ my $usage = "Usage:
       followed by whitespace to align the mtime
 
   OPTS
-    -f  format mtime YYYY-mm-dd_HH_MM_SS in local time
+    -f
+      format mtime YYYY-mm-dd_HH_MM_SS in local time
+    -m | --ms | --millis | --milliseconds
+      use milliseconds from Time::HiRes->stat
+      if -f, use format: HH_MM_SS.FFF
 ";
 
 sub main(@){
   my $format = 0;
+  my $useMillis = 0;
   while(@_ > 0 and $_[0] =~ /^-/ and not -e $_[0]){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
     }elsif($opt =~ /^(-f)$/){
       $format = 1;
+    }elsif($opt =~ /^(-m|--ms|--millis|--milliseconds)$/){
+      $useMillis = 1;
     }else{
       die $usage;
     }
@@ -35,17 +44,34 @@ sub main(@){
 
   for my $file(@_){
     print STDERR "$file does not exist\n" if not -e $file;
-    my @stat = stat $file;
-    my $mtime = $stat[9];
-    if($format){
-      $mtime = `date --date \@$mtime +%Y-%m-%d_%H-%M-%S`;
-      chomp $mtime;
+    my @stat;
+    if($useMillis){
+      require Time::HiRes;
+      @stat = Time::HiRes::stat $file;
+    }else{
+      @stat = stat $file;
     }
+
+    my $mtime = $stat[9];
+    my $mtimeFmt;
+    if($format){
+      $mtimeFmt = `date --date \@$mtime +%Y-%m-%d_%H-%M-%S`;
+      chomp $mtimeFmt;
+      if($useMillis){
+        my $fracS = $mtime - int($mtime);
+        $mtimeFmt .= sprintf ".%03d", $fracS * 1000.0;
+      }
+    }elsif($useMillis){
+      $mtimeFmt = int($mtime * 1000.0);
+    }else{
+      $mtimeFmt = int($mtime);
+    }
+
     if(@_ > 1){
       my $len = $maxFileLen + 2;
-      printf "\%-${len}s \%s\n", $file, $mtime;
+      printf "\%-${len}s \%s\n", $file, $mtimeFmt;
     }else{
-      print "$mtime\n";
+      print "$mtimeFmt\n";
     }
   }
 }
