@@ -38,6 +38,7 @@ xK_Caps  = xK_Caps_Lock
 xK_Del   = xK_Delete
 xK_Esc   = xK_Escape
 xK_Ins   = xK_Insert
+xK_ScrLk = xK_Scroll_Lock
 xK_PgDn  = xK_Next
 xK_PgUp  = xK_Prior
 xK_Enter = xK_Return
