@@ -154,8 +154,8 @@ shortcuts conf = "Shortcuts" @@ do
         "slow"          @@ mW    xK_F8   #! "sudo fan slow"
 
     "feh"           @@ do
-        "left"          @@ mA    xK_F11  #! "xdotool search --class feh keyup F11 key --clearmodifiers Left"
-        "right"         @@ mA    xK_F12  #! "xdotool search --class feh keyup F12 key --clearmodifiers Right"
+        "left"          @@ mA    xK_F11  #! "feh-left"
+        "right"         @@ mA    xK_F12  #! "feh-right"
 
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"
