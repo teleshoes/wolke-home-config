@@ -154,6 +154,8 @@ shortcuts conf = "Shortcuts" @@ do
         "slow"          @@ mW    xK_F8   #! "sudo fan slow"
 
     "feh"           @@ do
+        "left"          @@ m_    xK_ScrLk#! "feh-left"
+        "right"         @@ m_    xK_Pause#! "feh-right"
         "left"          @@ mA    xK_F11  #! "feh-left"
         "right"         @@ mA    xK_F12  #! "feh-right"
 
