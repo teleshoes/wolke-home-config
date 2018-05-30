@@ -62,6 +62,17 @@ my $usage = "Usage:
   OPTS
     --client=CLIENT   (default is $defaultClient)
       one of: $okClients
+    --geometry=GEOMETRY    (default is --geometry=res)
+      one of 'res', 'none', or <WIDTH>x<HEIGHT>
+        if <GEOMETRY> is 'res':
+          fetch <WIDTH>x<HEIGHT> with `res` command
+          and pass '-geometry <WIDTH>x<HEIGHT>' to server
+        if <GEOMETRY> is <WIDTH>x<HEIGHT>:
+          pass '-geometry <WIDTH>x<HEIGHT>' to server
+        if <GEOMETRY> is 'none':
+          do not pass '-geometry' to server
+    --no-geometry
+      synonym for --geometry=none (do not pass '-geometry GEOMETRY' to server)
 ";
 
 sub main(@){
@@ -73,10 +84,13 @@ sub main(@){
   }
 
   my $client = $defaultClient;
+  my $geometry = "res";
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--client=($okClients)$/){
       $client = $1;
+    }elsif($arg =~ /^--geometry=(res|none|\d+x\d+)$/){
+      $geometry = $1;
     }
   }
 
@@ -84,10 +98,22 @@ sub main(@){
 
   die $usage if not defined $host or @_ > 0;
 
+  if($geometry eq "res"){
+    $geometry = `res`;
+    chomp $geometry;
+  }
+
+  if($geometry !~ /^(none|\d+x\d+)$/){
+    die "invalid geometry: $geometry\n";
+  }
+
   system @sshExit;
   system "ssh", $host, "pkill x11vnc";
 
   @server = (@server, '-display', guessDisplay $host);
+  if($geometry =~ /^(\d+x\d+)$/){
+    @server = (@server, "-geometry", $geometry);
+  }
 
   system @sshBind, $host, "@server";
   exit $? if $? != 0;
