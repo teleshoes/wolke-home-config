@@ -5,31 +5,37 @@ use Time::HiRes qw(sleep);
 
 sub guessDisplay($);
 
-my $localhost = "127.0.0.1";
-
 my $defaultDisplay = ":0";
-
-my $sshControlFile = '/tmp/vncSSH.ctl';
+my $localhost = "127.0.0.1";
 my $port = '5900';
-my $delay = 5000;
+my $delayMillis = 2500;
+my $sshControlFile = '/tmp/vncSSH.ctl';
 
 my @server = (
   "x11vnc",
     "-safer", "-localhost", "-nopw", "-once",
     "-noncache",
 );
-my @client = (
-  "vncviewer",
+
+my %clients = (
+  xtigervncviewer => [
+    "$localhost:0",
+  ],
+  xtightvncviewer => [
     "$localhost:0",
     "-quality", "0",
     "-compresslevel", "5",
-);
-my @x2vncClient = (
-  "x2vnc",
+  ],
+  x2vnc => [
     "-hotkey", "a-F9",
     "-edgewidth", "0",
     "$localhost:0",
+  ],
 );
+
+my $defaultClient = "xtigervncviewer";
+my $okClients = join "|", sort keys %clients;
+
 my @sshBind = (
   "ssh", "-f",
     "-S", $sshControlFile,
@@ -43,33 +49,53 @@ my @sshExit = (
 );
 
 my $usage = "Usage:
-  $0 HOST [--x2vnc]
+  $0 [OPTS] HOST
     start x11vnc on the HOST, setup an ssh tunnel and then connect to it
     if --x2vnc is given, client is x2vnc. otherwise, client is vncviewer
 
+  $0 -h | --help
+    show this message
+
   $0 off
     disconnect ssh tunnel
+
+  OPTS
+    --client=CLIENT   (default is $defaultClient)
+      one of: $okClients
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] eq 'off'){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] eq 'off'){
     exec @sshExit;
-  }else{
-    my $host = shift if @_ > 0;
-    my $x2vnc = shift if @_ > 0 and $_[0] eq "--x2vnc";
-    die $usage if not defined $host or @_ > 0;
-
-    system @sshExit;
-
-    @server = (@server, '-display', guessDisplay $host);
-
-    system @sshBind, $host, "@server";
-    exit $? if $? != 0;
-
-    sleep $delay/1000;
-
-    system (defined $x2vnc ? @x2vncClient : @client);
   }
+
+  my $client = $defaultClient;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--client=($okClients)$/){
+      $client = $1;
+    }
+  }
+
+  my $host = shift if @_ > 0;
+
+  die $usage if not defined $host or @_ > 0;
+
+  system @sshExit;
+  system "ssh", $host, "pkill x11vnc";
+
+  @server = (@server, '-display', guessDisplay $host);
+
+  system @sshBind, $host, "@server";
+  exit $? if $? != 0;
+
+  sleep($delayMillis/1000.0);
+
+  my @clientArgs = @{$clients{$client}};
+  system $client, @clientArgs;
 }
 
 sub guessDisplay($){
