@@ -11,6 +11,10 @@ my $usage = "Usage:
     --set=<WIDTH>x<HEIGHT> | --set <WIDTH>x<HEIGHT>
       set xrandr mode by calling:
         xrandr --output <FIRST_MONITOR> --mode <WIDTH>x<HEIGHT>
+    --clone
+      position the first monitor the same as the last monitor
+        (swap order if --alt)
+        xrandr --output <FIRST_MONITOR> --same-as <LAST_MONITOR>
     -w | --width | WIDTH | width
       print just <WIDTH>
     -h | --height | HEIGHT | height
@@ -30,6 +34,7 @@ sub main(@){
   my $showWidth = 1;
   my $showHeight = 1;
   my $percent = 100;
+  my $cloneMonitors = 0;
   my $setMode = undef;
   while(@_ > 0){
     my $opt = shift;
@@ -41,6 +46,8 @@ sub main(@){
       $showHeight = 1;
     }elsif($opt =~ /^--percent=(\d+(?:\.\d+)?)$/){
       $percent = $1;
+    }elsif($opt =~ /^(--clone)$/){
+      $cloneMonitors = 1;
     }elsif($opt =~ /^--set=(\d+x\d+)$/){
       $setMode = $1;
     }elsif($opt =~ /^(--set)$/ and @_ > 0 and $_[0] =~ /^(\d+x\d+)$/){
@@ -53,10 +60,20 @@ sub main(@){
 
   my @monitors = getMonitors();
   my $primaryMonitor = $monitors[0];
+  my $secondaryMonitor = $monitors[-1];
 
   if(defined $setMode){
     my $name = $$primaryMonitor{name};
     my @cmd = ("xrandr", "--output", $name, "--mode", $setMode);
+    print "@cmd\n";
+    system @cmd;
+  }
+
+  if($cloneMonitors){
+    my @cmd = ("xrandr",
+      "--output", $$primaryMonitor{name},
+      "--same-as", $$secondaryMonitor{name},
+    );
     print "@cmd\n";
     system @cmd;
   }
