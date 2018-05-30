@@ -1,0 +1,108 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $SHOW_BASE_DIR = "$ENV{HOME}/Music/shows/music";
+my $PLAY_DIR = "$ENV{HOME}/play";
+my $SHOW_FILE = "$ENV{HOME}/show";
+
+my @EXTS = qw(
+  flac ogg wav mp3 m4a wma
+  mkv avi m2ts mts mov mpeg mpg mp4
+);
+my $OK_EXTS = join "|", @EXTS;
+
+my @DEFAULT_MPV_OPTS = qw(--no-video);
+
+my $usage = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 SONG_NUM
+  $0 SONG_NUM POS
+  $0 SONG_NUM -ss POS
+    find the first song <FILE> matching <SONG_NUM> in one of:
+      \$PWD/
+      $PLAY_DIR/
+      $SHOW_BASE_DIR/`cat $SHOW_FILE`
+    play song <FILE> with mpv
+    `mpv OPTS <FILE>` or `mpv OPTS <FILE> -ss <POS>`
+
+    POS
+      -any string, will be passed to mpv like `-ss <POS>`
+
+    FILE
+      -must start with any number of zeros,
+        followed by <SONG_NUM> (case-insensitive),
+        followed by an underscore
+      -must end with a dot followed by one of these exts (case insensitive):
+        @EXTS
+
+    SONG_NUM
+      -any number of digits, optionally followed by a single letter
+      -leading zeros are removed
+      -trailing underscores are removed
+
+    OPTS
+      default options to mpv: @DEFAULT_MPV_OPTS
+";
+
+sub main(@){
+  my ($songNum, $pos);
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }if(@_ == 1){
+    ($songNum, $pos) = ($_[0], undef);
+  }elsif(@_ == 2){
+    ($songNum, $pos) = ($_[0], $_[1]);
+  }elsif(@_ == 3 and $_[1] =~ /^(-ss)$/){
+    ($songNum, $pos) = ($_[0], $_[2]);
+  }else{
+    die $usage;
+  }
+
+  if($songNum !~ /^(\d+[a-z]?)$/){
+    die "invalid song number: $songNum\n";
+  }
+  $songNum =~ s/^0+//;
+  $songNum =~ s/_+$//;
+
+  my $showDir;
+  my $show = `cat $SHOW_FILE 2>/dev/null`;
+  chomp $show;
+
+  if($show =~ /^([a-zA-Z0-9_\-]+)$/){
+    $showDir = "$SHOW_BASE_DIR/$1";
+  }elsif($show ne ""){
+    die "invalid $SHOW_FILE (must be letters/numbers/dashes/underscore): $show\n";
+  }else{
+    $showDir = undef;
+  }
+
+  my @dirs = (".", $PLAY_DIR, $showDir);
+
+  my @files;
+  for my $dir(@dirs){
+    @files = (@files, glob("$dir/*.*"));
+  }
+
+  my $songFile;
+  for my $file(@files){
+    if($file =~ /(^|\/)0*${songNum}_.*\.(?:$OK_EXTS)$/i){
+      $songFile = $file;
+      last;
+    }
+  }
+
+  my $dirFmt = join ", ", map {"\"$_\""} @dirs;
+  if(not defined $songFile){
+    die "no song with SONG_NUM=\"$songNum\" found in $dirFmt\n";
+  }
+
+  my @cmd = ("mpv", @DEFAULT_MPV_OPTS, $songFile);
+  @cmd = (@cmd, "-ss", $pos) if defined $pos;
+  exec @cmd;
+}
+
+&main(@ARGV);
