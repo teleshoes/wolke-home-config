@@ -4,8 +4,8 @@ use warnings;
 
 my $usage = "Usage:
   $0 [OPTS]
-    print \"<WIDTH>x<HEIGHT>\" of the primary display
-    uses xrandr
+    print \"<WIDTH>x<HEIGHT>\" of the first monitor returned by:
+      xrandr --listmonitors
 
   OPTS:
     -w | --width | WIDTH | width
@@ -13,12 +13,15 @@ my $usage = "Usage:
     -h | --height | HEIGHT | height
       print just <WIDTH>
     --percent=PERCENT
+      print modified <WIDTH>x<HEIGHT>
       multiply the <WIDTH> and/or <HEIGHT> by PERCENT,
         divide by 100,
-        and round to the nearest pixel before printing
+        and round to the nearest pixel
       <PERCENT> can be any non-negative rational number
       e.g.: `$0 -p 50` prints \"960x540\" on 1920x1080 screen
 ";
+
+sub getMonitors();
 
 sub main(@){
   my $showWidth = 1;
@@ -39,18 +42,10 @@ sub main(@){
     }
   }
 
-  my $xrandr = `xrandr`;
-  die "Error running xrandr\n" if $? != 0;
+  my @monitors = getMonitors();
+  my $primaryMonitor = $monitors[0];
 
-  my ($width, $height);
-  if($xrandr =~ /^\s*(\d+)x(\d+).*\*/m){
-    ($width, $height) = ($1, $2);
-  }elsif($xrandr =~ /current\s+(\d+)\s*x\s*(\d+),/){
-    ($width, $height) = ($1, $2);
-  }else{
-    die "Could not parse xrandr output:\n$xrandr\n";
-  }
-
+  my ($width, $height) = ($$primaryMonitor{width}, $$primaryMonitor{height});
   $width = int($width * $percent / 100 + 0.5);
   $height = int($height * $percent / 100 + 0.5);
 
@@ -60,6 +55,21 @@ sub main(@){
   $fmt .= $height  if $showHeight;
 
   print "$fmt\n";
+}
+
+sub getMonitors(){
+  my @xrandrOutput = `xrandr --listmonitors`;
+  die "Error running xrandr\n" if $? != 0;
+
+  my @monitors;
+  for my $line(@xrandrOutput){
+    if($line =~ /^\s*(\d+): [+*]*([a-zA-Z0-9_\-]+)\s+(\d+)\/\d+x(\d+)\/\d+\+\d+\+\d+\s+/){
+      my ($num, $name, $width, $height) = ($1, $2, $3, $4);
+      push @monitors, {name => $name, width => $width, height => $height};
+    }
+  }
+  die "ERROR: could not parse xrandr output\n" if @monitors == 0;
+  return @monitors;
 }
 
 &main(@ARGV);
