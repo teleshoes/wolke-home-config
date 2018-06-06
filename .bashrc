@@ -133,7 +133,7 @@ alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 alias r='stty sane'
 
-function e            { email.pl --print "$@"; }
+function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
