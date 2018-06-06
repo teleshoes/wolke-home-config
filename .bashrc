@@ -134,6 +134,7 @@ alias :r='. /etc/profile; . ~/.bashrc;'
 alias r='stty sane'
 
 function e            { email.pl --print "$@"; }
+function eu           { email.pl --update "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh "$@"; }
