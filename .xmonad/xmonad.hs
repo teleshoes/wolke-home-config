@@ -106,6 +106,8 @@ myManageHook = execWriter $ do
   title     =? "npviewer.bin"          ~~> doFloat -- flash
   title     =? "plugin-container"      ~~> doFloat -- flash
   title     =? "xfce4-notifyd"         ~~> doIgnore
+  title     ^? "term-window"           ~~> doFloat
+  title     ^? "xmonad-float"          ~~> doFloat
   title     ^? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
 
 restartFF = do
