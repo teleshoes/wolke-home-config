@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module WorkspaceImages (getIcon, loadNamedIconFileMap) where
 import Utils (imageDir, tryMaybe)
 
@@ -17,6 +16,7 @@ import Data.List.Utils (replace)
 import Data.Maybe (fromMaybe)
 import Data.Maybe (listToMaybe, catMaybes)
 
+import           System.Taffybar.Information.EWMHDesktopInfo
 import System.Environment (getEnv)
 
 type NamedIconFileMap = [(String, FilePath)]
@@ -46,7 +46,11 @@ applyUntilJust (act:acts) = do
     Nothing  -> applyUntilJust acts
 
 getEwmhIconData :: WindowData -> WorkspacesIO (Maybe EWMHIconData)
-getEwmhIconData windowData = liftX11Def Nothing (getWindowIconsData $ windowId windowData)
+getEwmhIconData windowData = do 
+  icon <- liftX11Def Nothing (getWindowIconsData $ windowId windowData)
+  case icon of
+    Just (_, 0) -> return Nothing -- empty size EWMH icon
+    _           -> return icon
 
 loadNamedIconFileMap :: Int -> IO NamedIconFileMap
 loadNamedIconFileMap h = do

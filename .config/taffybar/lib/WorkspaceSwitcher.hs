@@ -20,7 +20,6 @@ workspacesConfig namedIconFileMap wsImageHeight = defaultWorkspacesConfig
   , widgetGap        = 3
   , maxIcons         = Just 1
   , minIcons         = 1
-  , windowIconSize   = wsImageHeight
   , iconSort         = return -- unsorted leaves active first
   , getIconInfo      = getIcon namedIconFileMap
   }
