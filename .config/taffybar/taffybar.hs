@@ -49,7 +49,7 @@ main = do
 
 
       start = [ W.workspaceSwitcherW $ wImgH profile
-              , W.windowTitleW (title profile) True
+              , W.windowTitleW (title profile) 2
               , liftIO $ sep
               , W.layoutWindowsW
               ]
