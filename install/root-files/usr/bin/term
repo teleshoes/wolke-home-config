@@ -14,12 +14,13 @@ sub extractActiveCwd();
 sub wrapToken($);
 
 my %args = (
-  title   => [qw(-t --title -T -title)],
-  cwd     => [qw(--working-directory -cd)],
-  autoCwd => [qw(--auto-working-directory -acd)],
-  wait    => [qw(--wait -wait)],
-  read    => [qw(-r --read -read)],
-  echo    => [qw(-e --echo -echo)],
+  title    => [qw(-t --title -T -title)],
+  geometry => [qw(-g -G -geometry --geometry)],
+  cwd      => [qw(--working-directory -cd)],
+  autoCwd  => [qw(--auto-working-directory -acd)],
+  wait     => [qw(--wait -wait)],
+  read     => [qw(-r --read -read)],
+  echo     => [qw(-e --echo -echo)],
 );
 my %okArgs = map {$_ => join "|", @{$args{$_}}} keys %args;
 
@@ -54,6 +55,9 @@ my $usage = "Usage:
   OPTS
     $okArgs{title} TITLE
       sets the window title on terminals that support it
+    $okArgs{geometry} GEOMETRY_CHAR
+      sets the character-geometry and offset on terminals that support it
+      GEOMETRY_CHAR is <WIDTH_CH>x<HEIGHT_CH>+<OFFSET_X>+<OFFSET_Y>
     $okArgs{cwd} PATH
       sets the current working directory on terminals that support it
     $okArgs{autoCwd}
@@ -80,6 +84,8 @@ sub main(@){
     my $arg = shift;
     if($arg =~ /^($okArgs{title})$/ and @_ >= 1){
       $termArgs{title} = wrapToken(shift());
+    }elsif($arg =~ /^($okArgs{geometry})$/ and @_ >= 1){
+      $termArgs{geometry} = wrapToken(shift());
     }elsif($arg =~ /^($okArgs{cwd})$/ and @_ >= 1){
       $termArgs{cwd} = wrapToken(shift());
     }elsif($arg =~ /^($okArgs{autoCwd})$/){
@@ -134,6 +140,7 @@ sub urxvt($$){
 
   @cmd = ("-e", @cmd) if @cmd > 0;
   @cmd = ('-title', $args{title}, @cmd) if defined $args{title};
+  @cmd = ('-geometry', $args{geometry}, @cmd) if defined $args{geometry};
   @cmd = ('-cd', $args{cwd}, @cmd) if defined $args{cwd};
   @cmd = ('urxvt', @cmd);
 
@@ -178,6 +185,7 @@ sub gnomeTerminal($$){
 
   @cmd = ("-x", @cmd) if @cmd > 0;
   @cmd = ('--title', $args{title}, @cmd) if defined $args{title};
+  @cmd = ('--geometry', $args{geometry}, @cmd) if defined $args{geometry};
   @cmd = ('--working-directory', $args{cwd}, @cmd) if defined $args{cwd};
   @cmd = ('gnome-terminal', '--disable-factory', @cmd);
 
@@ -190,6 +198,7 @@ sub terminator($$){
 
   @cmd = ("-e", @cmd) if @cmd > 0;
   @cmd = ('-T', $args{title}, @cmd) if defined $args{title};
+  @cmd = ("--geometry=$args{geometry}", @cmd) if defined $args{geometry};
   @cmd = ("--working-directory=$args{cwd}", @cmd) if defined $args{cwd};
   @cmd = ('terminator', @cmd);
 
@@ -202,6 +211,7 @@ sub xterm($$){
 
   @cmd = ("-e", @cmd) if @cmd > 0;
   @cmd = ('-title', $args{title}, @cmd) if defined $args{title};
+  @cmd = ('-geometry', $args{geometry}, @cmd) if defined $args{geometry};
   @cmd = ('xterm', @cmd);
 
   return @cmd;
