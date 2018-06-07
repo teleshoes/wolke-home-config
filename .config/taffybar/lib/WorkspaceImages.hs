@@ -1,34 +1,36 @@
-module WorkspaceImages (getIcon, loadNamedIconFileMap) where
+module WorkspaceImages (getIcon, loadNamedIconFileMap, loadPlaceholderPixbuf) where
 import Utils (imageDir, tryMaybe)
 
+import GI.GdkPixbuf.Objects.Pixbuf (
+  Pixbuf, pixbufFill, pixbufNew, pixbufNewFromFile, pixbufScaleSimple)
+import GI.GdkPixbuf.Enums (Colorspace(..), InterpType(..))
+import System.Taffybar.Context (TaffyIO)
 import System.Taffybar.Widget.Workspaces (
-  WorkspacesIO, IconInfo(..), WindowData(..),
-  defaultGetIconInfo, liftX11Def)
-import System.Taffybar.Information.EWMHDesktopInfo (
-  EWMHIconData, getWindowIconsData)
-
+  WorkspacesIO, WindowData(..),
+  getWindowIconPixbufFromEWMH, liftX11Def)
 import System.Directory (listDirectory)
+import Control.Exception (try, SomeException)
 import Control.Monad.Trans (liftIO)
 import Data.Char (toLower)
+import Data.Int (Int32)
 import Data.Text (stripSuffix)
 import Data.List (dropWhile, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.List.Utils (replace)
 import Data.Maybe (fromMaybe)
 import Data.Maybe (listToMaybe, catMaybes)
 
-import           System.Taffybar.Information.EWMHDesktopInfo
 import System.Environment (getEnv)
 
 type NamedIconFileMap = [(String, FilePath)]
 type IconName = String
 
-getIcon :: NamedIconFileMap -> WindowData -> WorkspacesIO IconInfo
-getIcon namedIconFileMap windowData = do
-  icon <- applyUntilJust [getOverrideIcon, getEwmhIcon, getTitleClassIcon]
-  return $ fromMaybe IINone icon
-  where getOverrideIcon = return $ fmap IIFilePath $ nameToFile $ overrideIconName
-        getEwmhIcon = fmap (fmap IIEWMH) $ getEwmhIconData windowData
-        getTitleClassIcon = return $ fmap IIFilePath $ nameToFile $ titleClassIconName
+getIcon :: NamedIconFileMap -> Int -> Maybe Pixbuf -> Int32 -> WindowData -> TaffyIO (Maybe Pixbuf)
+getIcon namedIconFileMap wsImageHeight placeholderPixbuf whoknows windowData = applyUntilJust getIconsOrder
+  where getIconsOrder = [getOverrideIcon, getEwmhIcon, getTitleClassIcon, getPlaceholderIcon]
+        getOverrideIcon = liftIO $ loadFilePixbuf $ nameToFile $ overrideIconName
+        getEwmhIcon = loadEWMHPixbuf wsImageHeight windowData
+        getTitleClassIcon = liftIO $ loadFilePixbuf $ nameToFile $ titleClassIconName
+        getPlaceholderIcon = return placeholderPixbuf
 
         overrideIconName = getOverrideIconName winTitle winClass
         titleClassIconName = getTitleClassIconName namedIconFileMap winTitle winClass
@@ -37,6 +39,38 @@ getIcon namedIconFileMap windowData = do
         nameToFile Nothing = Nothing
         (winTitle, winClass) = (windowTitle windowData, windowClass windowData)
 
+loadEWMHPixbuf :: Int -> WindowData -> TaffyIO (Maybe Pixbuf)
+loadEWMHPixbuf wsImageHeight windowData = scale =<< getEWMHPixbuf
+  where size = fromIntegral wsImageHeight :: Int32
+        scale Nothing = return Nothing
+        scale (Just pixbuf) = pixbufScaleSimple pixbuf size size InterpTypeBilinear
+        getEWMHPixbuf = getWindowIconPixbufFromEWMH size windowData
+
+loadFilePixbuf :: Maybe FilePath -> IO (Maybe Pixbuf)
+loadFilePixbuf (Just file) = maybeApply $ pixbufNewFromFile file
+loadFilePixbuf Nothing = return Nothing
+
+loadPlaceholderPixbuf :: Int -> IO (Maybe Pixbuf)
+loadPlaceholderPixbuf wsImageHeight = clearPixbuf =<< pixbufNewEmpty size size
+  where size = fromIntegral wsImageHeight :: Int32
+        pixbufNewEmpty w h = pixbufNew ColorspaceRgb True 8 w h
+        clearPixbuf Nothing = return Nothing
+        clearPixbuf (Just pixbuf) = do
+          pixbufFill pixbuf 0x0000000
+          return $ Just pixbuf
+
+maybeApply :: (IO a) -> IO (Maybe a)
+maybeApply act = do
+  result <- tryAnything act
+  case result of
+    Left ex  -> do
+      print $ show ex
+      return Nothing
+    Right val -> return $ Just val
+
+tryAnything :: (IO a) -> IO (Either SomeException a)
+tryAnything = try
+
 applyUntilJust :: Monad m => [m (Maybe a)] -> m (Maybe a)
 applyUntilJust [] = return Nothing
 applyUntilJust (act:acts) = do
@@ -44,13 +78,6 @@ applyUntilJust (act:acts) = do
   case res of
     Just val -> return $ Just val
     Nothing  -> applyUntilJust acts
-
-getEwmhIconData :: WindowData -> WorkspacesIO (Maybe EWMHIconData)
-getEwmhIconData windowData = do 
-  icon <- liftX11Def Nothing (getWindowIconsData $ windowId windowData)
-  case icon of
-    Just (_, 0) -> return Nothing -- empty size EWMH icon
-    _           -> return icon
 
 loadNamedIconFileMap :: Int -> IO NamedIconFileMap
 loadNamedIconFileMap h = do

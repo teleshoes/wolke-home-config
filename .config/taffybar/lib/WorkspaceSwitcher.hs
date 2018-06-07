@@ -1,27 +1,27 @@
 module WorkspaceSwitcher (workspaceSwitcherW) where
 import Utils (fg, fgbg)
-import WorkspaceImages (getIcon, loadNamedIconFileMap)
+import WorkspaceImages (getIcon, loadNamedIconFileMap, loadPlaceholderPixbuf)
 
 import Control.Monad.Trans (liftIO)
 import Graphics.UI.Gtk (Widget)
 
 import System.Taffybar.Widget.Workspaces (
   WorkspacesConfig(..), WorkspacesIO, Workspace(..), WorkspaceState(..),
-  defaultWorkspacesConfig, workspacesNew,
-  defaultGetIconInfo)
+  defaultWorkspacesConfig, workspacesNew)
 
 workspaceSwitcherW wsImageHeight = do
   namedIconFileMap <- liftIO $ loadNamedIconFileMap $ wsImageHeight
-  w <- workspacesNew $ workspacesConfig namedIconFileMap wsImageHeight
+  placeholderPixbuf <- liftIO $ loadPlaceholderPixbuf wsImageHeight
+  w <- workspacesNew $ workspacesConfig namedIconFileMap wsImageHeight placeholderPixbuf
   return w
 
-workspacesConfig namedIconFileMap wsImageHeight = defaultWorkspacesConfig
+workspacesConfig namedIconFileMap wsImageHeight placeholderPixbuf = defaultWorkspacesConfig
   { labelSetter      = formatLabelIO
-  , widgetGap        = 3
-  , maxIcons         = Just 1
-  , minIcons         = 1
-  , iconSort         = return -- unsorted leaves active first
-  , getIconInfo      = getIcon namedIconFileMap
+  , widgetGap           = 3
+  , maxIcons            = Just 1
+  , minIcons            = 1
+  , iconSort            = return -- unsorted leaves active first
+  , getWindowIconPixbuf = getIcon namedIconFileMap wsImageHeight placeholderPixbuf
   }
 
 formatLabelIO :: Workspace -> WorkspacesIO String
