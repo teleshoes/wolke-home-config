@@ -102,11 +102,11 @@ myManageHook = execWriter $ do
   className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? ("Close " ++ ffName)    ~~> restartFF
-  title     =? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
   title     =? "StepMania"             ~~> doFloat
   title     =? "npviewer.bin"          ~~> doFloat -- flash
   title     =? "plugin-container"      ~~> doFloat -- flash
   title     =? "xfce4-notifyd"         ~~> doIgnore
+  title     ^? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
 
 restartFF = do
   w <- ask
