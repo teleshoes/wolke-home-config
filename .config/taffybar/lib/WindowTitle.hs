@@ -12,7 +12,7 @@ windowTitleW len lineCount = windowsNew $ defaultWindowsConfig
 
 formatTitle :: Int -> Int -> String -> String
 formatTitle len lineCount title = intercalate "\n" $ map (padTrim len) $ lines
-  where lines = take lineCount $ chunksOf len title
+  where lines = take lineCount $ chunksOf len title ++ repeat ""
 
 padTrim :: Int -> String -> String
 padTrim n x = take n $ x ++ repeat ' '
