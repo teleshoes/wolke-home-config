@@ -16,22 +16,9 @@ workspaceSwitcherW wsImageHeight = do
   return w
 
 workspacesConfig namedIconFileMap wsImageHeight placeholderPixbuf = defaultWorkspacesConfig
-  { labelSetter      = formatLabelIO
-  , widgetGap           = 3
+  { widgetGap           = 3
   , maxIcons            = Just 1
   , minIcons            = 1
   , iconSort            = return -- unsorted leaves active first
   , getWindowIconPixbuf = getIcon namedIconFileMap wsImageHeight placeholderPixbuf
   }
-
-formatLabelIO :: Workspace -> WorkspacesIO String
-formatLabelIO ws = return $ formatLabel (workspaceName ws) (workspaceState ws)
-
-formatLabel wsName wsState = case wsState of
-  Active  -> bold $ fgbg "#002b36" "#eee8d8" $ wsName
-  Visible -> bold $ fgbg "#002b36" "#eee8d8" $ wsName
-  Hidden  -> bold $ fg "orange" $ wsName
-  Urgent  -> bold $ fgbg "#002b36" "red" $ wsName
-  Empty   -> wsName
-
-bold m = "<b>" ++ m ++ "</b>"
