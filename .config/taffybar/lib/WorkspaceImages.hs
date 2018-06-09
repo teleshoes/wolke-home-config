@@ -1,19 +1,17 @@
-module WorkspaceImages (getIcon, loadNamedIconFileMap, loadPlaceholderPixbuf) where
+module WorkspaceImages (getIcon, loadIconInitialState) where
 import Utils (imageDir, tryMaybe)
 
-import GI.GdkPixbuf.Objects.Pixbuf (
-  Pixbuf, pixbufFill, pixbufNew, pixbufNewFromFile, pixbufScaleSimple)
-import GI.GdkPixbuf.Enums (Colorspace(..), InterpType(..))
-import System.Taffybar.Context (TaffyIO)
+import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufNewFromFile)
+
 import System.Taffybar.Widget.Workspaces (
-  WorkspacesIO, WindowData(..),
-  getWindowIconPixbufFromEWMH, liftX11Def)
+  WindowData(..), WindowIconPixbufGetter,
+  constantScaleWindowIconPixbufGetter, getWindowIconPixbufFromClass,
+  getWindowIconPixbufFromDesktopEntry, getWindowIconPixbufFromEWMH)
+import System.Taffybar.Util ((<|||>))
 import System.Directory (listDirectory)
-import Control.Exception (try, SomeException)
 import Control.Monad.Trans (liftIO)
 import Data.Char (toLower)
 import Data.Int (Int32)
-import Data.Text (stripSuffix)
 import Data.List (dropWhile, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.List.Utils (replace)
 import Data.Maybe (fromMaybe)
@@ -21,75 +19,51 @@ import Data.Maybe (listToMaybe, catMaybes)
 
 import System.Environment (getEnv)
 
-type NamedIconFileMap = [(String, FilePath)]
+data IconInitialState = IconInitialState { namedIconFileMap :: [(IconName, FilePath)]
+                                         , wsImageHeight :: Int
+                                         } deriving Show
 type IconName = String
 
-getIcon :: NamedIconFileMap -> Int -> Maybe Pixbuf -> Int32 -> WindowData -> TaffyIO (Maybe Pixbuf)
-getIcon namedIconFileMap wsImageHeight placeholderPixbuf whoknows windowData = applyUntilJust getIconsOrder
-  where getIconsOrder = [getOverrideIcon, getEwmhIcon, getTitleClassIcon, getPlaceholderIcon]
-        getOverrideIcon = liftIO $ loadFilePixbuf $ nameToFile $ overrideIconName
-        getEwmhIcon = loadEWMHPixbuf wsImageHeight windowData
-        getTitleClassIcon = liftIO $ loadFilePixbuf $ nameToFile $ titleClassIconName
-        getPlaceholderIcon = return placeholderPixbuf
+wsImageDir :: Int -> IO String
+wsImageDir height = fmap (++ "/workspace-images") $ imageDir height
 
-        overrideIconName = getOverrideIconName winTitle winClass
-        titleClassIconName = getTitleClassIconName namedIconFileMap winTitle winClass
+getIcon :: IconInitialState -> WindowIconPixbufGetter
+getIcon state =
+  scale (getWindowIconPixbufOverride state) <|||>
+  scale (getWindowIconPixbufFromEWMH) <|||>
+  scale (getWindowIconPixbufTitleClass state) <|||>
+  scale (getWindowIconPixbufFromDesktopEntry) <|||>
+  scale (getWindowIconPixbufFromClass) <|||>
+  error "could not apply icon"
+  where scale = constantScaleWindowIconPixbufGetter size
+        size = fromIntegral $ wsImageHeight state :: Int32
 
-        nameToFile (Just iconName) = lookup iconName namedIconFileMap
-        nameToFile Nothing = Nothing
-        (winTitle, winClass) = (windowTitle windowData, windowClass windowData)
-
-loadEWMHPixbuf :: Int -> WindowData -> TaffyIO (Maybe Pixbuf)
-loadEWMHPixbuf wsImageHeight windowData = scale =<< getEWMHPixbuf
-  where size = fromIntegral wsImageHeight :: Int32
-        scale Nothing = return Nothing
-        scale (Just pixbuf) = pixbufScaleSimple pixbuf size size InterpTypeBilinear
-        getEWMHPixbuf = getWindowIconPixbufFromEWMH size windowData
-
-loadFilePixbuf :: Maybe FilePath -> IO (Maybe Pixbuf)
-loadFilePixbuf (Just file) = maybeApply $ pixbufNewFromFile file
-loadFilePixbuf Nothing = return Nothing
-
-loadPlaceholderPixbuf :: Int -> IO (Maybe Pixbuf)
-loadPlaceholderPixbuf wsImageHeight = clearPixbuf =<< pixbufNewEmpty size size
-  where size = fromIntegral wsImageHeight :: Int32
-        pixbufNewEmpty w h = pixbufNew ColorspaceRgb True 8 w h
-        clearPixbuf Nothing = return Nothing
-        clearPixbuf (Just pixbuf) = do
-          pixbufFill pixbuf 0x0000000
-          return $ Just pixbuf
-
-maybeApply :: (IO a) -> IO (Maybe a)
-maybeApply act = do
-  result <- tryAnything act
-  case result of
-    Left ex  -> do
-      print $ show ex
-      return Nothing
-    Right val -> return $ Just val
-
-tryAnything :: (IO a) -> IO (Either SomeException a)
-tryAnything = try
-
-applyUntilJust :: Monad m => [m (Maybe a)] -> m (Maybe a)
-applyUntilJust [] = return Nothing
-applyUntilJust (act:acts) = do
-  res <- act
-  case res of
-    Just val -> return $ Just val
-    Nothing  -> applyUntilJust acts
-
-loadNamedIconFileMap :: Int -> IO NamedIconFileMap
-loadNamedIconFileMap h = do
-  dir <- wsImageDir h
+loadIconInitialState :: Int -> IO IconInitialState
+loadIconInitialState height = do
+  dir <- wsImageDir height
   files <- fmap (fromMaybe []) $ tryMaybe $ listDirectory dir
   let pngs = filter (".png" `isSuffixOf`) files
       names = map (map toLower . reverse . drop 4 . reverse) pngs
       filePaths = map (\name -> dir ++ "/" ++ name ++ ".png") names
-  return $ zip names filePaths
+  return $ IconInitialState { namedIconFileMap = zip names filePaths
+                            , wsImageHeight = height
+                            }
 
-wsImageDir :: Int -> IO String
-wsImageDir h = fmap (++ "/workspace-images") $ imageDir h
+getWindowIconPixbufOverride :: IconInitialState -> WindowIconPixbufGetter
+getWindowIconPixbufOverride state _ windowData = liftIO $ loadFilePixbuf fileName
+  where (winTitle, winClass) = (windowTitle windowData, windowClass windowData)
+        overrideIconName = getOverrideIconName winTitle winClass
+        fileName = iconNameToFile state overrideIconName
+
+getWindowIconPixbufTitleClass :: IconInitialState -> WindowIconPixbufGetter
+getWindowIconPixbufTitleClass state _ windowData = liftIO $ loadFilePixbuf fileName
+  where (winTitle, winClass) = (windowTitle windowData, windowClass windowData)
+        titleClassIconName = getTitleClassIconName state winTitle winClass
+        fileName = iconNameToFile state titleClassIconName
+
+loadFilePixbuf :: Maybe FilePath -> IO (Maybe Pixbuf)
+loadFilePixbuf Nothing = return Nothing
+loadFilePixbuf (Just file) = tryMaybe $ pixbufNewFromFile file
 
 getOverrideIconName :: String -> String -> Maybe IconName
 getOverrideIconName winTitle winClass
@@ -109,17 +83,22 @@ getOverrideIconName winTitle winClass
   where ffPage s pageName = s `startsWith` pageName && s `endsWith` "MozillaFirefox"
         dotClass = classJoinDot winClass
 
-getTitleClassIconName :: NamedIconFileMap -> String -> String -> Maybe IconName
-getTitleClassIconName namedIconFileMap winTitle winClass = listToMaybe iconNames
-  where titleIconName = searchNamedIconFileMap namedIconFileMap winTitle
-        classIconName = searchNamedIconFileMap namedIconFileMap winClass
+getTitleClassIconName :: IconInitialState -> String -> String -> Maybe IconName
+getTitleClassIconName state winTitle winClass = listToMaybe iconNames
+  where titleIconName = searchNamedIconFileMap state winTitle
+        classIconName = searchNamedIconFileMap state winClass
         unknownIconName = Just "unknown"
         iconNames = catMaybes [titleIconName, classIconName, unknownIconName]
 
-searchNamedIconFileMap :: NamedIconFileMap -> String -> Maybe IconName
-searchNamedIconFileMap namedIconFileMap query = listToMaybe matchingIconNames
-  where iconNames = map fst namedIconFileMap :: [IconName]
+iconNameToFile :: IconInitialState -> Maybe String -> Maybe FilePath
+iconNameToFile state (Just iconName) = lookup iconName $ namedIconFileMap state
+iconNameToFile _ Nothing = Nothing
+
+searchNamedIconFileMap :: IconInitialState -> String -> Maybe IconName
+searchNamedIconFileMap state query = listToMaybe matchingIconNames
+  where iconNames = map fst fileMap :: [IconName]
         lcQuery = map toLower query
+        fileMap = namedIconFileMap state
         matchingIconNames = filter (lcQuery `contains`) iconNames
 
 contains = flip isInfixOf :: String -> String -> Bool

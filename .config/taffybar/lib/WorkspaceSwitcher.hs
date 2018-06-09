@@ -1,6 +1,6 @@
 module WorkspaceSwitcher (workspaceSwitcherW) where
 import Utils (fg, fgbg)
-import WorkspaceImages (getIcon, loadNamedIconFileMap, loadPlaceholderPixbuf)
+import WorkspaceImages (getIcon, loadIconInitialState)
 
 import Control.Monad.Trans (liftIO)
 import Graphics.UI.Gtk (Widget)
@@ -10,15 +10,14 @@ import System.Taffybar.Widget.Workspaces (
   defaultWorkspacesConfig, workspacesNew)
 
 workspaceSwitcherW wsImageHeight = do
-  namedIconFileMap <- liftIO $ loadNamedIconFileMap $ wsImageHeight
-  placeholderPixbuf <- liftIO $ loadPlaceholderPixbuf wsImageHeight
-  w <- workspacesNew $ workspacesConfig namedIconFileMap wsImageHeight placeholderPixbuf
+  iconInitialState <- liftIO $ loadIconInitialState $ wsImageHeight
+  w <- workspacesNew $ workspacesConfig iconInitialState
   return w
 
-workspacesConfig namedIconFileMap wsImageHeight placeholderPixbuf = defaultWorkspacesConfig
+workspacesConfig iconInitialState = defaultWorkspacesConfig
   { widgetGap           = 3
   , maxIcons            = Just 1
   , minIcons            = 1
   , iconSort            = return -- unsorted leaves active first
-  , getWindowIconPixbuf = getIcon namedIconFileMap wsImageHeight placeholderPixbuf
+  , getWindowIconPixbuf = getIcon iconInitialState
   }
