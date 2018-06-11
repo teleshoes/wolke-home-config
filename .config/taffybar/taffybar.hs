@@ -1,6 +1,6 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
-import Utils (attemptCreateSymlink, colW,
+import Utils (attemptCreateSymlink, chompFile, colW,
   getHomeFile, maybeJoin, readInt, regexFirstGroup, tryMaybe)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
@@ -10,13 +10,14 @@ import System.Taffybar.SimpleConfig (simpleTaffybar, defaultSimpleTaffyConfig,
   Position(Top, Bottom))
 
 import Data.Functor ((<$>))
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
 typeface = "Inconsolata"
 
 getResconfigFile = getHomeFile "resconfig-screen"
+getMachineTypeFile = getHomeFile "machine-type"
 
 data Profile = P { pName :: String --profile name
                  , barHt :: Int    --bar height in pixels
@@ -62,7 +63,9 @@ scale (factorVal, factorLow, factorHigh) low high = low + factor*(high-low)
 
 main = do
   resconfig <- readResconfigScreen
+  machineType <- readMachineType
   let profile = calculateProfile resconfig
+  putStrLn $ "machine type: " ++ machineType
   print resconfig
   print profile
   dpi <- getScreenDPI
@@ -79,39 +82,47 @@ main = do
       sep = W.sepW Black $ wSepW profile
       klompChars = charsFitInPx dpi (fontP profile) klompWidthPx
 
+      all = Just
+      main w = if machineType == "main" then Just w else Nothing
+      tv w = if machineType == "tv" then Just w else Nothing
+      lap w = if machineType /= "tv" then Just w else Nothing
 
-      start = [ W.workspaceSwitcherW $ wImgH profile
-              , W.windowTitleW (title profile) 2
-              , liftIO $ sep
-              , W.layoutWindowsW
+      start = catMaybes
+              [ all $ W.workspaceSwitcherW $ wImgH profile
+              , all $ W.windowTitleW (title profile) 2
+              , all $ liftIO $ sep
+              , all $ W.layoutWindowsW
               ]
-      end = map liftIO $ reverse
-          [ W.monitorCpuW $ graph profile
-          , W.monitorMemW $ graph profile
-          , W.syncWatchW
-          , W.progressBarW
-          , W.netStatsW
-          , sep
-          , W.netW
-          , sep
-          , W.fcrondynW
-          , sep
-          , (W.widthCharWrapW dpi (fontP profile) klompChars) =<< W.klompW klompChars
-          , W.volumeW
-          , W.micW
-          , W.pidginPipeW $ barHeight cfg
-          , W.qtemailW (barHeight cfg) Green Black
-          , W.cpuScalingSimpleW
-          , W.cpuFreqsW
-          , W.fanW
-          , W.brightnessW
-          , colW [ W.pingMonitorW "G" "www.google.com"
-                 , W.pingMonitorW "E" "ehr.dev"
-                 ]
-          , W.openvpnW "aws" "VPN\naws"
-          , W.tpBattStatW $ barHeight cfg
-          , sep
-          , W.clockW
+      end = map liftIO $ catMaybes $ reverse
+          [ all  $ W.monitorCpuW $ graph profile
+          , all  $ W.monitorMemW $ graph profile
+          , all  $ W.syncWatchW
+          , all  $ W.progressBarW
+          , all  $ W.netStatsW
+          , all  $ sep
+          , all  $ W.netW
+          , lap  $ sep
+          , lap  $ W.fcrondynW
+          , all  $ sep
+          , all  $ (W.widthCharWrapW dpi (fontP profile) klompChars) =<< W.klompW klompChars
+          , tv   $ sep
+          , tv   $ W.speakerW
+          , all  $ W.volumeW
+          , all  $ W.micW
+          , main $ W.pidginPipeW $ barHeight cfg
+          , main $ W.qtemailW (barHeight cfg) Green Black
+          , all  $ W.cpuScalingSimpleW
+          , all  $ W.cpuFreqsW
+          , lap  $ W.fanW
+          , all  $ W.brightnessW
+          , tv   $ W.screenSaverW
+          , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "www.google.com"
+                                    , main $ W.pingMonitorW "E" "ehr.dev"
+                                    ]
+          , main $ W.openvpnW "aws" "VPN\naws"
+          , lap  $ W.tpBattStatW $ barHeight cfg
+          , all  $ sep
+          , all  $ W.clockW
           ]
 
   cssProfileFile <- getUserConfigFile "taffybar" "taffybar-profile.css"
@@ -148,3 +159,8 @@ readResconfigScreen = fmap (fromMaybe defaultResconfig) $ tryMaybe $ do
         getStr field str = regexFirstGroup (field ++ "\\s*=\\s*(.*)") str
         getInt :: String -> String -> Maybe Int
         getInt field str = fmap fromIntegral $ maybeJoin readInt $ getStr field str
+
+readMachineType :: IO String
+readMachineType = fmap (fromMaybe "main") $ tryMaybe $ do
+  machineTypeFile <- getMachineTypeFile
+  chompFile machineTypeFile
