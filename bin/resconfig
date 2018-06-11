@@ -3,7 +3,9 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-sub handleConfigFile($$$);
+sub readResconfigScreen();
+sub handleAllConfigs($);
+sub handleConfig($);
 sub allDigits(@);
 sub scaleInt($$$);
 sub readProcLines(@);
@@ -11,9 +13,12 @@ sub readFileLines($);
 sub writeFileLines($@);
 sub usage();
 
-sub configs($$$$$){
-  my ($widthPx, $heightPx, $widthMM, $heightMM, $distanceMM) = @_;
-  my $scaleFHDtoWQHD = ($widthPx - 1920) / (2560 - 1920);
+my $RESCONFIG_SCREEN_FILE = "$ENV{HOME}/resconfig-screen";
+my @RESCONFIG_KEYS = qw(name width_px height_px width_mm height_mm distance_mm);
+
+sub configs($){
+  my ($resconfigScreen) = @_;
+  my $scaleFHDtoWQHD = ($$resconfigScreen{width_px} - 1920) / (2560 - 1920);
 
   return (
     { name => "xresources-urxvt",
@@ -53,33 +58,67 @@ sub configs($$$$$){
 }
 
 sub main(@){
-  die usage() if @_ != 5 or not allDigits @_;
-  my ($widthPx, $heightPx, $widthMM, $heightMM, $distanceMM) = @_;
-  my @configs = configs $widthPx, $heightPx, $widthMM, $heightMM, $distanceMM;
+  if(@_ == 0){
+    my $resconfigScreen = readResconfigScreen();
+    handleAllConfigs $resconfigScreen;
+  }elsif(@_ == 6 and $_[0] =~ /^([a-z0-9_\-]+)$/i and allDigits(@_[1,5])){
+    my $resconfigScreen = {
+      name         => $1,
+      widthPx      => $2,
+      heightPx     => $3,
+      widthMM      => $4,
+      heightMM     => $5,
+      distanceMM   => $6,
+    };
 
-  for my $config(@configs){
-    handleConfigFile $$config{destFile}, $$config{template}, $$config{vars};
+    handleAllConfigs $resconfigScreen;
+  }else{
+    die usage();
   }
 }
 
-sub handleConfigFile($$$){
-  my ($destFile, $template, $vars) = @_;
-  if(not -f $template){
-    die "could not find source file: $template\n";
+sub readResconfigScreen(){
+  open FH, "< $RESCONFIG_SCREEN_FILE"
+    or die "could not read $RESCONFIG_SCREEN_FILE\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  my $resconfigScreen = {};
+  my $okKeys = join "|", @RESCONFIG_KEYS;
+  for my $line(@lines){
+    if($line =~ /^\s*($okKeys)\s*=\s*(.+)$/){
+      my ($key, $val) = ($1, $2);
+      $$resconfigScreen{$key} = $val;
+    }
   }
-  my @templateLines = readFileLines $template;
+  return $resconfigScreen;
+}
 
-  my @allVarNames = sort keys %$vars;
+sub handleAllConfigs($){
+  my ($resconfigScreen) = @_;
+  my @configs = configs $resconfigScreen;
+  for my $config(@configs){
+    handleConfig $config;
+  }
+}
+
+sub handleConfig($){
+  my ($config) = @_;
+  if(not -f $$config{template}){
+    die "could not find source file: $$config{template}\n";
+  }
+  my @templateLines = readFileLines $$config{template};
+
+  my @allVarNames = sort keys %{$$config{vars}};
 
   my %usedVarNames;
   my @destLines;
   for my $line(@templateLines){
     for my $varName(@allVarNames){
-      my $value = $$vars{$varName};
+      my $value = $$config{vars}{$varName};
       if(not defined $varName or length $varName == 0){
-        die "var name is empty ($template)\n";
+        die "var name is empty ($$config{name})\n";
       }elsif($varName eq "hash"){
-        die "var name cannot be 'hash' ($template)\n";
+        die "var name cannot be 'hash' ($$config{name})\n";
       }elsif($varName !~ /^\w+$/){
         die "var name must be alphanumeric w/ underscores ($varName)\n";
       }
@@ -93,7 +132,7 @@ sub handleConfigFile($$$){
 
   for my $varName(@allVarNames){
     if(not defined $usedVarNames{$varName}){
-      die "unused var '$varName' in $template\n";
+      die "var '$varName' not used in $$config{template}\n";
     }
   }
 
@@ -102,21 +141,21 @@ sub handleConfigFile($$$){
   my $tmpFile = "/tmp/size-configs-tmp-$nowMillis";
   writeFileLines $tmpFile, @destLines;
 
-  if(not -f $destFile){
-    system "touch", $destFile;
+  if(not -f $$config{destFile}){
+    system "touch", $$config{destFile};
   }
 
-  die "error writing $destFile\n" if not -f $destFile;
+  die "error writing $$config{destFile}\n" if not -f $$config{destFile};
 
-  my @diffLines = readProcLines "diff", $destFile, $tmpFile;
+  my @diffLines = readProcLines "diff", $$config{destFile}, $tmpFile;
   my $diffStatus = $? >> 8;
   if($diffStatus == 1 and @diffLines > 0){
-    print "\n\n\n===$destFile===\n" . join '', @diffLines;
-    system "rm", $destFile;
-    system "cp", "-ar", $tmpFile, $destFile;
-    die "error writing $destFile\n" if not -f $destFile;
+    print "\n\n\n===$$config{destFile}===\n" . join '', @diffLines;
+    system "rm", $$config{destFile};
+    system "cp", "-ar", $tmpFile, $$config{destFile};
+    die "error writing $$config{destFile}\n" if not -f $$config{destFile};
   }elsif($diffStatus == 0 and @diffLines == 0){
-    print "skipping $destFile...\n";
+    print "skipping $$config{destFile}...\n";
   }else{
     die "error running diff: exit code == $diffStatus\n";
   }
@@ -158,10 +197,16 @@ sub scaleInt($$$){
 
 sub usage(){
   return "Usage:
-    $0 WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
-      update config files from templates, using variables
-      vars are written #{VAR_NAME}
-      '#' literals can be written #{hash}
+    $0
+      -read resconfig-data
+        WIDTH_PX, HEIGHT_PX, WIDTH_MM, HEIGHT_MM, and DISTANCE_MM
+        from $RESCONFIG_SCREEN_FILE
+      -calculate config-variables from resconfig-data
+      -update config files using config-variables
+      -replace variables in templates
+        format for variables is:
+          #{VAR_NAME}
+          '#' literals can be written #{hash}
         e.g.: (assume var1=6 and var2=99)
           abc-#{var1}-def-#{var2}              =>  abc-6-def-99
           abc-#{hash}{var1}-def-#{var2}        =>  abc-#{var1}-def-99
@@ -170,7 +215,10 @@ sub usage(){
           ###{var1}                            =>  ##50
           ###{hash}{var1}                      =>  ###{var1}
           #{hash}#{hash}#{hash}{var1}          =>  ###{var1}
+      -replace config files with variable-substituted templates
 
+      NAME
+        screen name, must be letters/numbers/dashes/underscores
       WIDTH_PX
         horizontal screen resolution in pixels
       HEIGHT_PX
@@ -181,6 +229,10 @@ sub usage(){
         vertical screen size, in millimeters
       DISTANCE_MM
         expected viewing distance in millimeters
+
+    $0 WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
+      update config-files using indicated vars,
+        instead of reading $RESCONFIG_SCREEN_FILE
   ";
 }
 
