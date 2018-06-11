@@ -1,5 +1,5 @@
 module Utils(
-  defaultDelay, imageDir,
+  defaultDelay, getHome, getHomeFile, imageDir,
   fg, bg, fgbg,
   rowW, colW, containerW, widgetSetClass,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
@@ -50,9 +50,10 @@ import Text.Printf (printf)
 defaultDelay :: Double
 defaultDelay = 1
 
-imageDir h = do
-  home <- getEnv "HOME"
-  return $ home ++ "/.config/taffybar/icons/" ++ show h
+getHome = getEnv "HOME"
+getHomeFile file = fmap (++ "/" ++ file) getHome
+
+imageDir h = getHomeFile $ ".config/taffybar/icons/" ++ show h
 
 -- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"

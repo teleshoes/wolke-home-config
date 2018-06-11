@@ -5,7 +5,7 @@ import Image (imageW)
 import Label (labelW, mainLabel)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  imageDir, fg, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  imageDir, fg, getHome, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
@@ -45,7 +45,7 @@ getImage h = do
   return $ dir ++ "/" ++ img
 
 unreadCountsMarkup color = do
-  home <- getEnv "HOME"
+  home <- getHome
   let cmd = ["find", home ++ "/" ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"

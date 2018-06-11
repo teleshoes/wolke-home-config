@@ -5,7 +5,7 @@ import Image (imageW)
 import Label (labelW, mainLabel)
 import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  ifM, imageDir, fg, isRunning, chompFile)
+  ifM, imageDir, fg, getHomeFile, isRunning, chompFile)
 
 import System.Environment (getEnv)
 
@@ -38,6 +38,6 @@ getImage h = do
   return $ dir ++ "/" ++ img
 
 statusShortMarkup color = do
-  home <- getEnv "HOME"
-  statusShort <- chompFile $ home ++ "/.cache/email/status-short"
+  statusShortFile <- getHomeFile ".cache/email/status-short"
+  statusShort <- chompFile statusShortFile
   return $ fg color statusShort
