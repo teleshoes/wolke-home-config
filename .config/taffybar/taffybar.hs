@@ -12,7 +12,7 @@ import Data.Functor ((<$>))
 import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
-profile = profileT430s
+profile = profileWQHD
 
 --                 pName  barHt  wImgH  space  wSepW  title  fontP  graph  music
 profileWQHD  = P  "wqhd"     50     28      5      3     30   17.0     80  15.94
