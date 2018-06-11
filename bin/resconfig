@@ -1,0 +1,187 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub handleConfigFile($$$);
+sub allDigits(@);
+sub scaleInt($$$);
+sub readProcLines(@);
+sub readFileLines($);
+sub writeFileLines($@);
+sub usage();
+
+sub configs($$$$$){
+  my ($widthPx, $heightPx, $widthMM, $heightMM, $distanceMM) = @_;
+  my $scaleFHDtoWQHD = ($widthPx - 1920) / (2560 - 1920);
+
+  return (
+    { name => "xresources-urxvt",
+      destFile => "$ENV{HOME}/.xresources-urxvt",
+      template => "$ENV{HOME}/.xresources-urxvt.resconfig",
+      vars => {
+        fontSize => scaleInt($scaleFHDtoWQHD, 20, 26),
+      },
+    },
+
+    { name => "gtk2rc",
+      destFile => "$ENV{HOME}/.gtkrc-2.0",
+      template => "$ENV{HOME}/.gtkrc-2.0.resconfig",
+      vars => {
+        fontSize => scaleInt($scaleFHDtoWQHD, 12, 18),
+      },
+    },
+
+    { name => "gtk3-css",
+      destFile => "$ENV{HOME}/.config/gtk-3.0/gtk.css",
+      template => "$ENV{HOME}/.config/gtk-3.0/gtk.css.resconfig",
+      vars => {
+        sliderWidth => scaleInt($scaleFHDtoWQHD, 15, 25),
+        verticalSliderWidth => scaleInt($scaleFHDtoWQHD, 10, 20),
+        horizontalSliderHeight => scaleInt($scaleFHDtoWQHD, 10, 20),
+      },
+    },
+
+    { name => "gtk3-settings",
+      destFile => "$ENV{HOME}/.config/gtk-3.0/settings.ini",
+      template => "$ENV{HOME}/.config/gtk-3.0/settings.ini.resconfig",
+      vars => {
+        fontSize => scaleInt($scaleFHDtoWQHD, 12, 16),
+      },
+    },
+  );
+}
+
+sub main(@){
+  die usage() if @_ != 5 or not allDigits @_;
+  my ($widthPx, $heightPx, $widthMM, $heightMM, $distanceMM) = @_;
+  my @configs = configs $widthPx, $heightPx, $widthMM, $heightMM, $distanceMM;
+
+  for my $config(@configs){
+    handleConfigFile $$config{destFile}, $$config{template}, $$config{vars};
+  }
+}
+
+sub handleConfigFile($$$){
+  my ($destFile, $template, $vars) = @_;
+  if(not -f $template){
+    die "could not find source file: $template\n";
+  }
+  my @templateLines = readFileLines $template;
+
+  my @allVarNames = sort keys %$vars;
+
+  my %usedVarNames;
+  my @destLines;
+  for my $line(@templateLines){
+    for my $varName(@allVarNames){
+      my $value = $$vars{$varName};
+      if(not defined $varName or length $varName == 0){
+        die "var name is empty ($template)\n";
+      }elsif($varName eq "hash"){
+        die "var name cannot be 'hash' ($template)\n";
+      }elsif($varName !~ /^\w+$/){
+        die "var name must be alphanumeric w/ underscores ($varName)\n";
+      }
+      if($line =~ s/#\{$varName\}/$value/g){
+        $usedVarNames{$varName} = 1;
+      }
+    }
+    $line =~ s/#\{hash\}/#/g;
+    push @destLines, $line;
+  }
+
+  for my $varName(@allVarNames){
+    if(not defined $usedVarNames{$varName}){
+      die "unused var '$varName' in $template\n";
+    }
+  }
+
+
+  my $nowMillis = int(time * 1000.0);
+  my $tmpFile = "/tmp/size-configs-tmp-$nowMillis";
+  writeFileLines $tmpFile, @destLines;
+
+  if(not -f $destFile){
+    system "touch", $destFile;
+  }
+
+  die "error writing $destFile\n" if not -f $destFile;
+
+  my @diffLines = readProcLines "diff", $destFile, $tmpFile;
+  my $diffStatus = $? >> 8;
+  if($diffStatus == 1 and @diffLines > 0){
+    print "\n\n\n===$destFile===\n" . join '', @diffLines;
+    system "rm", $destFile;
+    system "cp", "-ar", $tmpFile, $destFile;
+    die "error writing $destFile\n" if not -f $destFile;
+  }elsif($diffStatus == 0 and @diffLines == 0){
+    print "skipping $destFile...\n";
+  }else{
+    die "error running diff: exit code == $diffStatus\n";
+  }
+}
+
+sub readProcLines(@){
+  open CMD, "-|", @_ or die "could not run '@_'\n$!\n";
+  my @lines = <CMD>;
+  close CMD;
+  return @lines;
+}
+
+sub readFileLines($){
+  my ($file) = @_;
+  open FH, "< $file" or die "could not read file $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+
+sub writeFileLines($@){
+  my ($file, @lines) = @_;
+  open FH, "> $file" or die "could not write file $file\n$!\n";
+  print FH @lines;
+  close FH;
+}
+
+sub allDigits(@){
+  for my $arg(@_){
+    return 0 if not defined $arg or $arg !~ /^\d+$/;
+  }
+  return 1;
+}
+
+sub scaleInt($$$){
+  my ($scalingFactor, $lowVal, $highVal) = @_;
+  return int($lowVal + $scalingFactor*($highVal-$lowVal) + 0.5);
+}
+
+sub usage(){
+  return "Usage:
+    $0 WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
+      update config files from templates, using variables
+      vars are written #{VAR_NAME}
+      '#' literals can be written #{hash}
+        e.g.: (assume var1=6 and var2=99)
+          abc-#{var1}-def-#{var2}              =>  abc-6-def-99
+          abc-#{hash}{var1}-def-#{var2}        =>  abc-#{var1}-def-99
+          abc-#{hash}{hash}{var1}-def-#{var2}  =>  abc-#{hash}{var1}-def-99
+          emptyVarName#{}                      =>  emptyVarName#{}
+          ###{var1}                            =>  ##50
+          ###{hash}{var1}                      =>  ###{var1}
+          #{hash}#{hash}#{hash}{var1}          =>  ###{var1}
+
+      WIDTH_PX
+        horizontal screen resolution in pixels
+      HEIGHT_PX
+        vertical screen resolution in pixels
+      WIDTH_MM
+        horizontal screen size, in millimeters
+      HEIGHT_MM
+        vertical screen size, in millimeters
+      DISTANCE_MM
+        expected viewing distance in millimeters
+  ";
+}
+
+&main(@ARGV);
