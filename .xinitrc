@@ -1,3 +1,4 @@
+resconfig
 ~/.xconfig
 ( sleep 10; xconfig ) &
 
