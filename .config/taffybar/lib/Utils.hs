@@ -1,5 +1,6 @@
 module Utils(
   defaultDelay, getHome, getHomeFile, imageDir,
+  maybeJoin,
   fg, bg, fgbg,
   rowW, colW, containerW, widgetSetClass,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
@@ -16,7 +17,7 @@ import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
-import Control.Monad (forever, void)
+import Control.Monad (forever, join, void)
 import Data.Char (chr)
 import Data.List (partition)
 import qualified Data.Set as Set
@@ -54,6 +55,10 @@ getHome = getEnv "HOME"
 getHomeFile file = fmap (++ "/" ++ file) getHome
 
 imageDir h = getHomeFile $ ".config/taffybar/icons/" ++ show h
+
+-- FUNCTIONS
+maybeJoin :: (a -> Maybe b) -> Maybe a -> Maybe b
+maybeJoin f m = join $ fmap f m
 
 -- MARKUP
 fg color m = "<span foreground=\"" ++ color ++ "\">" ++ m ++ "</span>"
