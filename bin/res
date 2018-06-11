@@ -4,26 +4,41 @@ use warnings;
 
 my $usage = "Usage:
   $0 [OPTS]
-    print \"<WIDTH>x<HEIGHT>\" of the primary display
-    uses xrandr
+    print \"<WIDTH>x<HEIGHT>\" of the first monitor returned by:
+      xrandr --listmonitors
 
   OPTS:
+    --set=<WIDTH>x<HEIGHT> | --set <WIDTH>x<HEIGHT>
+      set xrandr mode by calling:
+        xrandr --output <FIRST_MONITOR> --mode <WIDTH>x<HEIGHT>
+    --clone
+      position the first monitor the same as the last monitor
+        (swap order if --alt)
+        xrandr --output <FIRST_MONITOR> --same-as <LAST_MONITOR>
     -w | --width | WIDTH | width
       print just <WIDTH>
     -h | --height | HEIGHT | height
       print just <WIDTH>
+    --alt
+      use the last monitor in `xrandr --listmonitors` instead of the first
     --percent=PERCENT
+      print modified <WIDTH>x<HEIGHT>
       multiply the <WIDTH> and/or <HEIGHT> by PERCENT,
         divide by 100,
-        and round to the nearest pixel before printing
+        and round to the nearest pixel
       <PERCENT> can be any non-negative rational number
       e.g.: `$0 -p 50` prints \"960x540\" on 1920x1080 screen
 ";
 
+sub getMonitors();
+
 sub main(@){
+  my $altMonitor = 0;
   my $showWidth = 1;
   my $showHeight = 1;
   my $percent = 100;
+  my $cloneMonitors = 0;
+  my $setMode = undef;
   while(@_ > 0){
     my $opt = shift;
     if($opt =~ /^(-w|--width|WIDTH|width)$/){
@@ -34,23 +49,25 @@ sub main(@){
       $showHeight = 1;
     }elsif($opt =~ /^--percent=(\d+(?:\.\d+)?)$/){
       $percent = $1;
+    }elsif($opt =~ /^(--alt|--hdmi)$/){
+      $altMonitor = 1;
+    }elsif($opt =~ /^(--clone)$/){
+      $cloneMonitors = 1;
+    }elsif($opt =~ /^--set=(\d+x\d+)$/){
+      $setMode = $1;
+    }elsif($opt =~ /^(--set)$/ and @_ > 0 and $_[0] =~ /^(\d+x\d+)$/){
+      $setMode = $1;
+      shift;
     }else{
       die $usage;
     }
   }
 
-  my $xrandr = `xrandr`;
-  die "Error running xrandr\n" if $? != 0;
+  my @monitors = getMonitors();
+  my $primaryMonitor = $altMonitor ? $monitors[-1] : $monitors[0];
+  my $secondaryMonitor = $altMonitor ? $monitors[0] : $monitors[-1];
 
-  my ($width, $height);
-  if($xrandr =~ /^\s*(\d+)x(\d+).*\*/m){
-    ($width, $height) = ($1, $2);
-  }elsif($xrandr =~ /current\s+(\d+)\s*x\s*(\d+),/){
-    ($width, $height) = ($1, $2);
-  }else{
-    die "Could not parse xrandr output:\n$xrandr\n";
-  }
-
+  my ($width, $height) = ($$primaryMonitor{width}, $$primaryMonitor{height});
   $width = int($width * $percent / 100 + 0.5);
   $height = int($height * $percent / 100 + 0.5);
 
@@ -60,6 +77,38 @@ sub main(@){
   $fmt .= $height  if $showHeight;
 
   print "$fmt\n";
+
+  if(defined $setMode){
+    my $name = $$primaryMonitor{name};
+    my @cmd = ("xrandr", "--output", $name, "--mode", $setMode);
+    print "@cmd\n";
+    system @cmd;
+  }
+
+  if($cloneMonitors){
+    my @cmd = ("xrandr",
+      "--output", $$primaryMonitor{name},
+      "--same-as", $$secondaryMonitor{name},
+    );
+    print "@cmd\n";
+    system @cmd;
+  }
+
+}
+
+sub getMonitors(){
+  my @xrandrOutput = `xrandr --listmonitors`;
+  die "Error running xrandr\n" if $? != 0;
+
+  my @monitors;
+  for my $line(@xrandrOutput){
+    if($line =~ /^\s*(\d+): [+*]*([a-zA-Z0-9_\-]+)\s+(\d+)\/\d+x(\d+)\/\d+\+\d+\+\d+\s+/){
+      my ($num, $name, $width, $height) = ($1, $2, $3, $4);
+      push @monitors, {name => $name, width => $width, height => $height};
+    }
+  }
+  die "ERROR: could not parse xrandr output\n" if @monitors == 0;
+  return @monitors;
 }
 
 &main(@ARGV);

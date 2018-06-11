@@ -1,0 +1,140 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+
+my $timeoutMillis = 1 * 1000;
+
+sub resizeWin($$$$$);
+sub getWindowId($);
+sub parseGeometryExpressions($$$$);
+sub parseExpr($$$);
+
+my $usage = "Usage:
+  $0 GEOMETRY [ARG ARG ...]
+    run 'term -t term-window-MILLIS ARG ARG ARG'
+    set the geometry of the window with title term-window-MILLIS to GEOMETRY
+      GEOMETRY = WIDTHxHEIGHT+LEFT+TOP   e.g.: 1920x540+0+540
+
+  $0 WIDTH_EXPR HEIGHT_EXPR LEFT_EXPR TOP_EXPR [ARG ARG ...]
+    calculate geometry by evaluating simple linear expressions
+    e.g.: (assuming res == 1920x1080)
+          $0 100W 50H 0 50H
+            => $0 1920x540+0+540
+          $0 500 500 0 50+10H
+            => 500x500+0+158
+
+    EXPR = <EXPR>+<EXPR>
+         | <EXPR>-<EXPR>
+         | <N><H>
+         | <N><W>
+         | <N>
+    H = vertical resolution / 100.0
+    W = horizontal resolution / 100.0
+    N = a non-negative rational number
+
+  $0 --left [ARG ARG ...]
+    same as $0 13W-5 96H-5 87W 0
+
+  $0 --right [ARG ARG ...]
+    same as $0 13W-5 96H-5 87W 4H
+";
+
+sub main(@){
+  my ($geometry, @termArgs);
+  if(@_ > 0 and $_[0] =~ /^\d+x\d+\+\d+\+\d+$/){
+    ($geometry, @termArgs) = @_;
+  }elsif(@_ >= 4){
+    my ($wExpr, $hExpr, $topExpr, $leftExpr, @termArgs) = @_;
+    $geometry = parseGeometryExpressions($wExpr, $hExpr, $leftExpr, $topExpr);
+  }elsif(@_ > 0 and $_[0] =~ /^--left$/){
+    $geometry = parseGeometryExpressions("13W-5", "96H-5", "0", "4H");
+  }elsif(@_ > 0 and $_[0] =~ /^--right$/){
+    $geometry = parseGeometryExpressions("13W-5", "96H-5", "87W", "4H");
+  }else{
+    die $usage;
+  }
+
+  my ($w, $h, $left, $top);
+  if($geometry =~ /^(\d+)x(\d+)\+(\d+)\+(\d+)$/){
+    ($w, $h, $left, $top) = ($1, $2, $3, $4);
+  }else{
+    die "$usage\ninvalid geometry WxH+T+B: $geometry\n";
+  }
+
+  my $title = "term-window-" . int(time*1000);
+  system "term", "-t", $title, @termArgs;
+
+  my $start = time;
+  my $windowId = getWindowId($title);
+  while(not defined $windowId){
+    if(time - $start > $timeoutMillis / 1000.0){
+      die "could not get window ID after $timeoutMillis\n";
+    }
+    sleep 0.1;
+    $windowId = getWindowId($title);
+  }
+
+  resizeWin $windowId, $left, $top, $w, $h;
+}
+
+sub resizeWin($$$$$){
+  my ($windowId, $left, $top, $width, $height) = @_;
+  print "$windowId = ${width}x${height}+${left}+${top}\n";
+  system "wmctrl", "-i", "-r", $windowId, "-e", "0,$left,$top,$width,$height";
+}
+
+sub getWindowId($){
+  my ($title) = @_;
+  my $windowId = `windowid --exact --title=$title 2>/dev/null`;
+  chomp $windowId;
+  if($windowId =~ /^0x[0-9a-f]+$/){
+    return $windowId;
+  }else{
+    return undef;
+  }
+}
+
+sub parseGeometryExpressions($$$$){
+  my ($wExpr, $hExpr, $leftExpr, $topExpr) = @_;
+  my $res = `res`;
+  my ($resW, $resH);
+  if($res =~ /^(\d+)x(\d+)$/){
+    ($resW, $resH) = ($1, $2);
+  }
+
+  return sprintf "%dx%d+%d+%d",
+    parseExpr($resW, $resH, $wExpr),
+    parseExpr($resW, $resH, $hExpr),
+    parseExpr($resW, $resH, $leftExpr),
+    parseExpr($resW, $resH, $topExpr),
+    ;
+}
+
+sub parseExpr($$$){
+  my ($resW, $resH, $expr) = @_;
+  if($expr =~ /^([^\-+]*)([\-+])(.*)$/){
+    my ($expr1, $op, $expr2) = ($1, $2, $3);
+    my $val1 = parseExpr $resW, $resH, $expr1;
+    my $val2 = parseExpr $resW, $resH, $expr2;
+    if($op eq "+"){
+      return $val1 + $val2;
+    }elsif($op eq "-"){
+      return $val1 - $val2;
+    }
+  }elsif($expr =~ /^\s*(\d+|\d*\.\d+)(W|H)?\s*$/i){
+    my ($coef, $var) = ($1, $2);
+    if(not defined $var){
+      $var = 1;
+    }elsif(uc $var eq "W"){
+      $var = $resW / 100.0;
+    }elsif(uc $var eq "H"){
+      $var = $resH / 100.0;
+    }
+    return $coef * $var;
+  }else{
+    die "malformed expr: $expr\n";
+  }
+}
+
+&main(@ARGV);

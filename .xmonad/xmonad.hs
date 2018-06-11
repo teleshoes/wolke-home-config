@@ -8,6 +8,7 @@ import XMonad (
   xmonad,
   (<+>), (=?), (-->),
   XConfig(..), def, mod1Mask,
+  Query,
   Tall(..), Mirror(..), Full(..),
   Window(..), X(..), Event(..),
   ask, title, className, doF, doFloat, doIgnore, doShift,
@@ -31,6 +32,7 @@ import System.Taffybar.Support.PagerHints (pagerHints)
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
+import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Monoid (All(..))
 import Data.Function ((&))
 import System.FilePath ((</>))
@@ -76,6 +78,13 @@ myLayoutHook = smartBorders
              ||| named "grid" Grid
   where incr = 3/100 ; ratio = 55/100
 
+(~?) :: Query String -> String -> Query Bool
+q ~? s = fmap (isInfixOf s) q
+(^?) :: Query String -> String -> Query Bool
+q ^? s = fmap (isPrefixOf s) q
+($?) :: Query String -> String -> Query Bool
+q $? s = fmap (isSuffixOf s) q
+
 myManageHook = execWriter $ do
   let a ~~> b = tell (a --> b)
   isFullscreen ~~> doFullFloat
@@ -93,11 +102,13 @@ myManageHook = execWriter $ do
   className =? "Transmission-gtk"      ~~> doUnfloat
   title     =? "Torrent Options"       ~~> doShiftView "9"
   title     =? ("Close " ++ ffName)    ~~> restartFF
-  title     =? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
   title     =? "StepMania"             ~~> doFloat
   title     =? "npviewer.bin"          ~~> doFloat -- flash
   title     =? "plugin-container"      ~~> doFloat -- flash
   title     =? "xfce4-notifyd"         ~~> doIgnore
+  title     ^? "term-window"           ~~> doFloat
+  title     ^? "xmonad-float"          ~~> doFloat
+  title     ^? "xmonad-float-unfocus"  ~~> (doFloat <+> doF focusDown)
 
 restartFF = do
   w <- ask

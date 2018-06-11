@@ -1,0 +1,265 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub readResconfigScreen();
+sub handleAllConfigs($);
+sub handleConfig($);
+sub allDigits(@);
+sub scaleInt($$$);
+sub readProcLines(@);
+sub readFileLines($);
+sub writeFileLines($@);
+sub usage();
+
+my $RESCONFIG_SCREEN_FILE = "$ENV{HOME}/resconfig-screen";
+my @RESCONFIG_KEYS = qw(name width_px height_px width_mm height_mm distance_mm);
+
+sub configs($){
+  my ($resconfigScreen) = @_;
+  my $scalePx = ($$resconfigScreen{width_px} - 1920) / (2560 - 1920);
+  my $scaleMM = ($$resconfigScreen{width_mm} - 310) / (2253 - 310);
+
+  return (
+    { name => "xresources-urxvt",
+      destFile => "$ENV{HOME}/.xresources-urxvt",
+      template => "$ENV{HOME}/.xresources-urxvt.resconfig",
+      vars => {
+        fontSize => 20 + scaleInt($scalePx, 0, 6) + scaleInt($scaleMM, 0, 4),
+      },
+    },
+
+    { name => "gtk2rc",
+      destFile => "$ENV{HOME}/.gtkrc-2.0",
+      template => "$ENV{HOME}/.gtkrc-2.0.resconfig",
+      vars => {
+        fontSize => 12 + scaleInt($scalePx, 0, 6) + scaleInt($scaleMM, 0, 6),
+      },
+    },
+
+    { name => "gtk3-css",
+      destFile => "$ENV{HOME}/.config/gtk-3.0/gtk.css",
+      template => "$ENV{HOME}/.config/gtk-3.0/gtk.css.resconfig",
+      vars => {
+        sliderWidth => scaleInt($scalePx, 15, 25),
+        verticalSliderWidth => scaleInt($scalePx, 10, 20),
+        horizontalSliderHeight => scaleInt($scalePx, 10, 20),
+      },
+    },
+
+    { name => "gtk3-settings",
+      destFile => "$ENV{HOME}/.config/gtk-3.0/settings.ini",
+      template => "$ENV{HOME}/.config/gtk-3.0/settings.ini.resconfig",
+      vars => {
+        fontSize => scaleInt($scalePx, 12, 16),
+      },
+    },
+  );
+}
+
+sub main(@){
+  if(@_ == 0){
+    my $resconfigScreen = readResconfigScreen();
+    handleAllConfigs $resconfigScreen;
+  }elsif(@_ == 6 and $_[0] =~ /^([a-z0-9_\-]+)$/i and allDigits(@_[1,5])){
+    my $resconfigScreen = {
+      name         => $1,
+      widthPx      => $2,
+      heightPx     => $3,
+      widthMM      => $4,
+      heightMM     => $5,
+      distanceMM   => $6,
+    };
+
+    handleAllConfigs $resconfigScreen;
+  }elsif(@_ == 1 and $_[0] =~ /^(--name|name)$/i){
+    print ${readResconfigScreen()}{name} . "\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--width-px|width_px)$/i){
+    print ${readResconfigScreen()}{width_px} . "\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--height-px|height_px)$/i){
+    print ${readResconfigScreen()}{height_px} . "\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--width-mm|width_mm)$/i){
+    print ${readResconfigScreen()}{width_mm} . "\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--height-mm|height_mm)$/i){
+    print ${readResconfigScreen()}{height_mm} . "\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--distance-mm|distance_mm)$/i){
+    print ${readResconfigScreen()}{distance_mm} . "\n";
+  }else{
+    die usage();
+  }
+}
+
+sub readResconfigScreen(){
+  open FH, "< $RESCONFIG_SCREEN_FILE"
+    or die "could not read $RESCONFIG_SCREEN_FILE\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  my $resconfigScreen = {};
+  my $okKeys = join "|", @RESCONFIG_KEYS;
+  for my $line(@lines){
+    if($line =~ /^\s*($okKeys)\s*=\s*(.+)$/){
+      my ($key, $val) = ($1, $2);
+      $$resconfigScreen{$key} = $val;
+    }
+  }
+  return $resconfigScreen;
+}
+
+sub handleAllConfigs($){
+  my ($resconfigScreen) = @_;
+  my @configs = configs $resconfigScreen;
+  for my $config(@configs){
+    handleConfig $config;
+  }
+}
+
+sub handleConfig($){
+  my ($config) = @_;
+  if(not -f $$config{template}){
+    die "could not find source file: $$config{template}\n";
+  }
+  my @templateLines = readFileLines $$config{template};
+
+  my @allVarNames = sort keys %{$$config{vars}};
+
+  my %usedVarNames;
+  my @destLines;
+  for my $line(@templateLines){
+    for my $varName(@allVarNames){
+      my $value = $$config{vars}{$varName};
+      if(not defined $varName or length $varName == 0){
+        die "var name is empty ($$config{name})\n";
+      }elsif($varName eq "hash"){
+        die "var name cannot be 'hash' ($$config{name})\n";
+      }elsif($varName !~ /^\w+$/){
+        die "var name must be alphanumeric w/ underscores ($varName)\n";
+      }
+      if($line =~ s/#\{$varName\}/$value/g){
+        $usedVarNames{$varName} = 1;
+      }
+    }
+    $line =~ s/#\{hash\}/#/g;
+    push @destLines, $line;
+  }
+
+  for my $varName(@allVarNames){
+    if(not defined $usedVarNames{$varName}){
+      die "var '$varName' not used in $$config{template}\n";
+    }
+  }
+
+
+  my $nowMillis = int(time * 1000.0);
+  my $tmpFile = "/tmp/size-configs-tmp-$nowMillis";
+  writeFileLines $tmpFile, @destLines;
+
+  if(not -f $$config{destFile}){
+    system "touch", $$config{destFile};
+  }
+
+  die "error writing $$config{destFile}\n" if not -f $$config{destFile};
+
+  my @diffLines = readProcLines "diff", $$config{destFile}, $tmpFile;
+  my $diffStatus = $? >> 8;
+  if($diffStatus == 1 and @diffLines > 0){
+    print "\n\n\n===$$config{destFile}===\n" . join '', @diffLines;
+    system "rm", $$config{destFile};
+    system "cp", "-ar", $tmpFile, $$config{destFile};
+    die "error writing $$config{destFile}\n" if not -f $$config{destFile};
+  }elsif($diffStatus == 0 and @diffLines == 0){
+    print "skipping $$config{destFile}...\n";
+  }else{
+    die "error running diff: exit code == $diffStatus\n";
+  }
+}
+
+sub readProcLines(@){
+  open CMD, "-|", @_ or die "could not run '@_'\n$!\n";
+  my @lines = <CMD>;
+  close CMD;
+  return @lines;
+}
+
+sub readFileLines($){
+  my ($file) = @_;
+  open FH, "< $file" or die "could not read file $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+
+sub writeFileLines($@){
+  my ($file, @lines) = @_;
+  open FH, "> $file" or die "could not write file $file\n$!\n";
+  print FH @lines;
+  close FH;
+}
+
+sub allDigits(@){
+  for my $arg(@_){
+    return 0 if not defined $arg or $arg !~ /^\d+$/;
+  }
+  return 1;
+}
+
+sub scaleInt($$$){
+  my ($scalingFactor, $lowVal, $highVal) = @_;
+  return int($lowVal + $scalingFactor*($highVal-$lowVal) + 0.5);
+}
+
+sub usage(){
+  return "Usage:
+    $0
+      -read resconfig-data
+        WIDTH_PX, HEIGHT_PX, WIDTH_MM, HEIGHT_MM, and DISTANCE_MM
+        from $RESCONFIG_SCREEN_FILE
+      -calculate config-variables from resconfig-data
+      -update config files using config-variables
+      -replace variables in templates
+        format for variables is:
+          #{VAR_NAME}
+          '#' literals can be written #{hash}
+        e.g.: (assume var1=6 and var2=99)
+          abc-#{var1}-def-#{var2}              =>  abc-6-def-99
+          abc-#{hash}{var1}-def-#{var2}        =>  abc-#{var1}-def-99
+          abc-#{hash}{hash}{var1}-def-#{var2}  =>  abc-#{hash}{var1}-def-99
+          emptyVarName#{}                      =>  emptyVarName#{}
+          ###{var1}                            =>  ##50
+          ###{hash}{var1}                      =>  ###{var1}
+          #{hash}#{hash}#{hash}{var1}          =>  ###{var1}
+      -replace config files with variable-substituted templates
+
+      NAME
+        screen name, must be letters/numbers/dashes/underscores
+      WIDTH_PX
+        horizontal screen resolution in pixels
+      HEIGHT_PX
+        vertical screen resolution in pixels
+      WIDTH_MM
+        horizontal screen size, in millimeters
+      HEIGHT_MM
+        vertical screen size, in millimeters
+      DISTANCE_MM
+        expected viewing distance in millimeters
+
+    $0 WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
+      update config-files using indicated vars,
+        instead of reading $RESCONFIG_SCREEN_FILE
+
+    $0 --name | NAME
+      print \"name\" from $RESCONFIG_SCREEN_FILE
+    $0 --width-px | WIDTH_PX
+      print \"width_px\" from $RESCONFIG_SCREEN_FILE
+    $0 --height-px | HEIGHT_PX
+      print \"height_px\" from $RESCONFIG_SCREEN_FILE
+    $0 --width-mm | WIDTH_MM
+      print \"width_mm\" from $RESCONFIG_SCREEN_FILE
+    $0 --height-mm | HEIGHT_MM
+      print \"height_mm\" from $RESCONFIG_SCREEN_FILE
+    $0 --distance-mm | DISTANCE_MM
+      print \"distance_mm\" from $RESCONFIG_SCREEN_FILE
+  ";
+}
+
+&main(@ARGV);

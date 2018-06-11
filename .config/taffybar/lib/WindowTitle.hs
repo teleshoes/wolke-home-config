@@ -1,30 +1,18 @@
 module WindowTitle (windowTitleW) where
-import Utils (fg)
-import Label (labelW)
-
-import Graphics.UI.Gtk (escapeMarkup, widgetShowAll)
-import Control.Monad.Trans (liftIO, lift)
+import Data.List (intercalate)
+import Data.List.Split (chunksOf)
 import System.Taffybar.Context (runX11)
-import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindowTitle, withDefaultCtx)
+import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindowTitle)
 import System.Taffybar.Widget.Windows (
   WindowsConfig(..), defaultWindowsConfig, windowsNew)
 
-windowTitleW len useRows = wrapWidgetShowAll $ windowsNew $ defaultWindowsConfig
-  { getActiveLabel = fmap (markupTitleText len useRows) $ runX11 getActiveWindowTitle
+windowTitleW len lineCount = windowsNew $ defaultWindowsConfig
+  { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWindowTitle
   }
 
-wrapWidgetShowAll getWidget = do
-  w <- getWidget
-  liftIO $ widgetShowAll w
-  return w
-
-markupTitleText :: Int -> Bool -> String -> String
-markupTitleText len useRows = fg "#93a1a1" . escapeMarkup . formatTitleText len useRows
-
-formatTitleText :: Int -> Bool -> String -> String
-formatTitleText len useRows t = if useRows then rows else padTrim len t
-  where rows = (padTrim len top) ++ "\n" ++ (padTrim len bot)
-        (top, bot) = splitAt len t
+formatTitle :: Int -> Int -> String -> String
+formatTitle len lineCount title = intercalate "\n" $ map (padTrim len) $ lines
+  where lines = take lineCount $ chunksOf len title ++ repeat ""
 
 padTrim :: Int -> String -> String
 padTrim n x = take n $ x ++ repeat ' '

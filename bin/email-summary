@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub main(@){
+  my @accs = `email.pl --accounts`;
+  for my $accLine(@accs){
+    if($accLine =~ /^(\w+):(\d+):([^:]*):(\d+)s:(\d+)s:(\d+)\/(\d+):(.*)$/){
+      my ($accName, $timestamp, $relTime, $updateInterval, $refreshInterval,
+        $unreadCount, $totalCount, $error) = ($1, $2, $3, $4, $5, $6, $7, $8);
+      printf "%-3s%5d%18s %s\n", $accName, $unreadCount, $relTime, $error;
+    }
+  }
+
+  print "============================\n";
+
+  my @meUids = `email-search.pl --filter --unread L me`;
+  chomp foreach @meUids;
+
+  if(@meUids > 0){
+    print "\n-----ME-----\n";
+    system "email.pl", "--print-uid-short", "L", @meUids;
+    print "------------\n";
+  }
+
+  system "email.pl", "--summary", "L", "G";
+
+  if(@meUids > 0){
+    system "email.pl", "--print-uid-bodies", "L", @meUids;
+  }
+}
+
+&main(@ARGV);

@@ -5,7 +5,7 @@ import Image (imageW)
 import System.Environment (getEnv)
 import Control.Monad (forever)
 import Data.Char (toLower)
-import Utils (ifM, imageDir, chompAll, isRunning, chompFile)
+import Utils (getHomeFile, ifM, imageDir, chompAll, isRunning, chompFile)
 
 main = mainLabel $ getImage 0
 pidginPipeW h = clickableAsync clickL clickM clickR =<< imageW (getImage h)
@@ -22,8 +22,7 @@ clickM = return Nothing
 clickR = return $ Just $ "pkill " ++ process
 
 getImage h = do
-  home <- getEnv "HOME"
-  let pipeFile = home ++ "/.purple/plugins/pipe"
+  pipeFile <- getHomeFile ".purple/plugins/pipe"
 
   pipe <- chompFile pipeFile
   let status = if null pipe then "off" else map toLower pipe

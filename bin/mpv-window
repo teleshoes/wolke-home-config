@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+
+my $TOP_OFFSET_PERCENT = 3.54;
+my $TERM_HEIGHT_PERCENT = 5.00;
+
+my $timeoutMillis = 5 * 1000;
+
+sub resizeWin($$$$$);
+sub getWindowId($);
+
+sub main(@){
+  my $termWindowId = $ENV{WINDOWID};
+  die "missing env variable 'WINDOWID'\n" if $termWindowId !~ /^\d+$/;
+
+  my $res = `res`;
+  my ($resX, $resY);
+  if($res =~ /^(\d+)x(\d+)$/){
+    ($resX, $resY) = ($1, $2);
+  }else{
+    die "could not read resolution\n";
+  }
+
+  my $title = "mpv-window-" . int(time*1000);
+  my @cmd = ("mpv", "--title", $title, @_);
+
+  my $screenSession = "screen-$title";
+  system "screen", "-S", $screenSession, "-d", "-m", @cmd;
+
+  my $start = time;
+  my $vidWindowId = getWindowId($title);
+  while(not defined $vidWindowId){
+    if(time - $start > $timeoutMillis / 1000.0){
+      die "could not get window ID after $timeoutMillis\n";
+    }
+    sleep 0.2;
+    $vidWindowId = getWindowId($title);
+  }
+
+  my $topOffset = int($TOP_OFFSET_PERCENT / 100.0 * $resY);
+  my $termHeight = int($TERM_HEIGHT_PERCENT / 100.0 * $resY);
+
+  resizeWin $termWindowId, 0, $topOffset, $resX, $termHeight;
+  resizeWin $vidWindowId, 0, $topOffset + $termHeight, $resX, $resY - $topOffset - $termHeight;
+
+  system "screen", "-S", $screenSession, "-d", "-r";
+
+  system "wmctrl", "-i", "-r", $termWindowId, "-b", "remove,fullscreen"; #unfloat
+}
+
+sub resizeWin($$$$$){
+  my ($windowId, $left, $top, $width, $height) = @_;
+  print "$windowId = ${width}x${height}+${left}+${top}\n";
+  system "wmctrl", "-i", "-r", $windowId, "-b", "add,fullscreen"; #float
+  system "wmctrl", "-i", "-r", $windowId, "-e", "0,$left,$top,$width,$height";
+}
+
+sub getWindowId($){
+  my ($title) = @_;
+  my $windowId = `windowid --exact --title=$title 2>/dev/null`;
+  chomp $windowId;
+  if($windowId =~ /^0x[0-9a-f]+$/){
+    return $windowId;
+  }else{
+    return undef;
+  }
+}
+
+&main(@ARGV);
