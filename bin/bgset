@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep);
 use Cwd 'abs_path';
 
+sub getSubdirByHeight($);
 sub findFile($$);
 sub getRandomBackground($$@);
 sub setBackground($;$);
@@ -26,10 +27,16 @@ my @exts = qw(jpg jpeg png gif bmp);
 my $okExts = join "|", @exts;
 
 my $backgroundDir = "$ENV{HOME}/.cache/backgrounds";
-my $backgroundSubdir = "fhd";
 my $historyPrevFile = "$backgroundDir/history-prev";
 my $historyNextFile = "$backgroundDir/history-next";
 my $historyCurFile = "$backgroundDir/history-cur";
+
+my %subdirsByHeight = (
+  900 => "hdplus",
+  1080 => "fhd",
+  1440 => "wqhd",
+);
+my $resHeightGuess = 1080;
 
 my $usage = "Usage:
   $0 -h|--help
@@ -101,10 +108,21 @@ my $usage = "Usage:
     --dir=BACKGROUND_DIR               {default is $backgroundDir}
       set the default root dir for selecting images
 
-    --subdir=BACKGROUND_SUBDIR         {default is $backgroundSubdir}
+    --subdir=BACKGROUND_SUBDIR         {default is selected using `res`}
       set the dir within BACKGROUND_DIR used for selecting images
       {use --subdir=. to include all images in BACKGROUND_DIR}
 
+      default is set according to vertical resolution
+      vertical resolution is read with `res -h` if possible,
+        and ${resHeightGuess}px is used otherwise
+      the value below closest to the vertical resolution is chosen:\n"
+        . join("",
+            map(
+              {"        ${_}px => $subdirsByHeight{$_}\n"}
+              sort keys %subdirsByHeight
+            )
+          )
+        . "
     --delay=DELAY                      {default is $delay}
       change delay to DELAY fractional seconds
       DELAY must be greater than 0
@@ -137,6 +155,7 @@ sub main(@){
   my $once = 0;
   my $wait = 0;
   my $excludePattern = undef;
+  my $backgroundSubdir = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-q|--quiet)$/){
@@ -168,8 +187,17 @@ sub main(@){
   }
 
   my $target = shift;
-  $target = "$backgroundDir/$backgroundSubdir/" if not defined $target;
   die $usage if @_ > 0;
+
+  if(not defined $backgroundSubdir){
+    my $resH = `res -h`;
+    chomp $resH;
+    if($resH !~ /^\d+$/){
+      $resH = $resHeightGuess;
+    }
+    $backgroundSubdir = getSubdirByHeight $resH;
+  }
+  $target = "$backgroundDir/$backgroundSubdir/" if not defined $target;
 
   my $curFile = undef;
   while(1){
@@ -201,6 +229,24 @@ sub main(@){
     print STDERR "could not find $target, waiting\n" if $verbose;
     sleep $delay if $wait
   }
+}
+
+sub getSubdirByHeight($){
+  my ($heightPx) = @_;
+  my $closestSubdir = undef;
+  my $smallestDiff = undef;
+  for my $targetHeightPx(sort keys %subdirsByHeight){
+    my $subdir = $subdirsByHeight{$targetHeightPx};
+    $closestSubdir = $subdir if not defined $closestSubdir;
+    next if not -d "$backgroundDir/$subdir";
+    my $diff = $targetHeightPx - $heightPx;
+    $diff = 0 - $diff if $diff < 0;
+    if(not defined $smallestDiff or $diff < $smallestDiff){
+      $smallestDiff = $diff;
+      $closestSubdir = $subdir;
+    }
+  }
+  return $closestSubdir;
 }
 
 sub findFile($$){
@@ -370,6 +416,7 @@ sub bashComplete($$){
     --back back --prev prev
   );
 
+  my $backgroundSubdir = undef;
   for my $word(@words){
     if($word =~ /^--dir=(.*)$/){
       $backgroundDir = $1;
@@ -377,6 +424,8 @@ sub bashComplete($$){
       $backgroundSubdir = $1;
     }
   }
+
+  $backgroundSubdir = getSubdirByHeight $resHeightGuess;
 
   my $optWord = $isNewWord ? $words[-1] : $curWord;
 
