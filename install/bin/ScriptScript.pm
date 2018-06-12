@@ -2,7 +2,7 @@ package ScriptScript;
 use warnings;
 use strict;
 use String::ShellQuote;
-use File::Basename qw(dirname);
+use File::Basename qw(basename dirname);
 use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
 require Exporter;
@@ -349,7 +349,8 @@ sub getMachineType() {
     my $machineType = tryReadFile(getHome() . "/machine-type");
     $machineType = "" if not defined $machineType;
     chomp $machineType;
-    if($machineType =~ /^(\w+)$/){
+    my %machineTypes = map {basename($_) => 1} glob(getHome() . "/machine-types/*");
+    if(defined $machineTypes{$machineType}){
         return $machineType;
     }else{
         return undef;
