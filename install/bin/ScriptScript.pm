@@ -21,6 +21,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   proc procLines procUser
                   runScript
                   getHome getInstallPath getSrcCache
+                  getMachineType
                   cd
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
@@ -342,6 +343,17 @@ sub getUsername() {
         deathWithDishonor "ERROR: USER or SUDO_USER must be set and not root";
     }
     $user
+}
+
+sub getMachineType() {
+    my $machineType = tryReadFile getHome() . "machine-type";
+    $machineType = "" if not defined $machineType;
+    chomp $machineType;
+    if($machineType =~ /^(\w+)$/){
+        return $machineType;
+    }else{
+        return undef;
+    }
 }
 
 sub getHome() {
