@@ -1,3 +1,4 @@
+resconfig
 xconfig
 BG_DIR="/media/home/wolke/.cache/backgrounds/fhd/"
 ( sleep 10; xconfig; killall bgset; bgset --exclude="porn/" "$BG_DIR" ) &
