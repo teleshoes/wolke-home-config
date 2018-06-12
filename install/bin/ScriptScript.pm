@@ -2,6 +2,8 @@ package ScriptScript;
 use warnings;
 use strict;
 use String::ShellQuote;
+use File::Basename qw(dirname);
+use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
 require Exporter;
 my $IPC_RUN = eval{require IPC::Run};
@@ -20,7 +22,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   runScript
                   getHome getInstallPath getSrcCache
                   cd
-                  symlinkFile
+                  symlinkFile symlinkFileRel
                   which
                   globOne
                   writeFile tryWriteFile writeFileSudo
@@ -384,6 +386,11 @@ sub symlinkFile($$) {
     deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
     run "ln", "-s", $srcPath, $destFile;
     deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
+}
+sub symlinkFileRel($$) {
+    my ($srcPath, $destFile) = @_;
+    $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile);
+    symlinkFile $srcPath, $destFile;
 }
 
 sub hereDoc($){
