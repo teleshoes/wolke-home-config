@@ -375,8 +375,11 @@ sub symlinkFile($$) {
     my ($srcPath, $destFile) = @_;
     if(-l $destFile){
         my $oldPath = readlink $destFile;
-        run "rm", $destFile;
-        if($oldPath ne $srcPath){
+        if($oldPath eq $srcPath){
+            print "  symlink unchanged $srcPath => $destFile\n";
+            return;
+        }else{
+            run "rm", $destFile;
             print "  symlink $destFile: $oldPath => $srcPath\n";
         }
     }elsif(-d $destFile){
