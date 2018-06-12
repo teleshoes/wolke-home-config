@@ -22,7 +22,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   runScript
                   getHome getInstallPath getSrcCache
                   cd
-                  symlinkFile symlinkFileRel
+                  symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
                   globOne
                   writeFile tryWriteFile writeFileSudo
@@ -63,7 +63,11 @@ sub getUsername();
 sub getInstallPath($);
 sub which($);
 sub cd($);
+sub symlinkFileProto($$;$$);
 sub symlinkFile($$);
+sub symlinkFileSudo($$);
+sub symlinkFileRel($$);
+sub symlinkFileRelSudo($$);
 sub globOne($);
 sub writeFileProto($@);
 sub writeFile($$);
@@ -371,29 +375,39 @@ sub cd($) {
     chdir $path or deathWithDishonor;
 }
 
-sub symlinkFile($$) {
-    my ($srcPath, $destFile) = @_;
+sub symlinkFileProto($$;$$) {
+    my ($srcPath, $destFile, $convertToRelPath, $useSudo) = @_;
+    $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile) if $convertToRelPath;
+    my @sudo = $useSudo ? ("sudo") : ();
+
     if(-l $destFile){
         my $oldPath = readlink $destFile;
         if($oldPath eq $srcPath){
             print "  symlink unchanged $srcPath => $destFile\n";
             return;
         }else{
-            run "rm", $destFile;
+            run @sudo, "rm", $destFile;
             print "  symlink $destFile: $oldPath => $srcPath\n";
         }
     }elsif(-d $destFile){
-        run "rmdir", $destFile;
+        run @sudo, "rmdir", $destFile;
         print "  dir=>symlink: $destFile\n";
     }
     deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
-    run "ln", "-s", $srcPath, $destFile;
+    run @sudo, "ln", "-s", $srcPath, $destFile;
     deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
 }
+sub symlinkFile($$) {
+    symlinkFileProto($_[0], $_[1], 0, 0);
+}
 sub symlinkFileRel($$) {
-    my ($srcPath, $destFile) = @_;
-    $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile);
-    symlinkFile $srcPath, $destFile;
+    symlinkFileProto($_[0], $_[1], 1, 0);
+}
+sub symlinkFileSudo($$) {
+    symlinkFileProto($_[0], $_[1], 0, 1);
+}
+sub symlinkFileRelSudo($$) {
+    symlinkFileProto($_[0], $_[1], 1, 1);
 }
 
 sub hereDoc($){
