@@ -346,7 +346,7 @@ sub getUsername() {
 }
 
 sub getMachineType() {
-    my $machineType = tryReadFile getHome() . "machine-type";
+    my $machineType = tryReadFile(getHome() . "/machine-type");
     $machineType = "" if not defined $machineType;
     chomp $machineType;
     if($machineType =~ /^(\w+)$/){
