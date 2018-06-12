@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+use File::Basename qw(basename);
+
+my $MACHINE_TYPES_DIR = getHome() . "/machine-types";
+my $RESCONFIG_SCREENS_DIR = getHome() . "/resconfig-screens";
+
+my @machineTypes = map {basename($_)} glob "$MACHINE_TYPES_DIR/*";
+my @resconfigScreens = map {basename($_)} glob "$RESCONFIG_SCREENS_DIR/*";
+
+my $usage = "Usage:
+  $0 MACHINE_TYPE RESCONFIG_SCREEN
+    configure machine-specific files
+
+    MACHINE_TYPE
+      one of: @machineTypes
+
+    RESCONFIG_SCREENS
+      one of: @resconfigScreens
+";
+
+sub setupMachine($$);
+
+sub main(@){
+  my %okMachineTypes = map {$_ => 1} @machineTypes;
+  my %okResconfigScreens = map {$_ => 1} @resconfigScreens;
+
+  if(@_ == 2 and defined $okMachineTypes{$_[0]} and defined $okResconfigScreens{$_[1]}){
+    setupMachine $_[0], $_[1];
+  }else{
+    die $usage;
+  }
+}
+
+sub setupMachine($$){
+  my ($machineType, $resconfigScreen) = @_;
+  my $home = getHome();
+  symlinkFileRel "$MACHINE_TYPES_DIR/$machineType", "$home/machine-type";
+  symlinkFileRel "$RESCONFIG_SCREENS_DIR/$resconfigScreen", "$home/resconfig-screen";
+
+  symlinkFile "config-$machineType", "$home/.klomp/config";
+}
+
+&main(@ARGV);

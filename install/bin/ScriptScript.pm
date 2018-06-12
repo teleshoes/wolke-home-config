@@ -2,6 +2,8 @@ package ScriptScript;
 use warnings;
 use strict;
 use String::ShellQuote;
+use File::Basename qw(dirname);
+use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
 require Exporter;
 my $IPC_RUN = eval{require IPC::Run};
@@ -20,7 +22,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   runScript
                   getHome getInstallPath getSrcCache
                   cd
-                  symlinkFile
+                  symlinkFile symlinkFileRel
                   which
                   globOne
                   writeFile tryWriteFile writeFileSudo
@@ -370,19 +372,28 @@ sub cd($) {
 }
 
 sub symlinkFile($$) {
-    my ($file, $target) = @_;
-    if(-l $file){
-        my $link = readlink $file;
-        run "sudo", "rm", $file;
-        if($link ne $target){
-            print "  $file: $link => $target\n";
+    my ($srcPath, $destFile) = @_;
+    if(-l $destFile){
+        my $oldPath = readlink $destFile;
+        if($oldPath eq $srcPath){
+            print "  symlink unchanged $srcPath => $destFile\n";
+            return;
+        }else{
+            run "rm", $destFile;
+            print "  symlink $destFile: $oldPath => $srcPath\n";
         }
-    }elsif(-d $file){
-        run "sudo", "rmdir", $file;
-        print "  $file => $target\n";
+    }elsif(-d $destFile){
+        run "rmdir", $destFile;
+        print "  dir=>symlink: $destFile\n";
     }
-    deathWithDishonor "Could not symlink $file => $target\n" if -e $file;
-    run "sudo", "ln", "-s", $target, $file;
+    deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
+    run "ln", "-s", $srcPath, $destFile;
+    deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
+}
+sub symlinkFileRel($$) {
+    my ($srcPath, $destFile) = @_;
+    $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile);
+    symlinkFile $srcPath, $destFile;
 }
 
 sub hereDoc($){
