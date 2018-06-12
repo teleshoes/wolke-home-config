@@ -370,19 +370,20 @@ sub cd($) {
 }
 
 sub symlinkFile($$) {
-    my ($file, $target) = @_;
-    if(-l $file){
-        my $link = readlink $file;
-        run "sudo", "rm", $file;
-        if($link ne $target){
-            print "  $file: $link => $target\n";
+    my ($srcPath, $destFile) = @_;
+    if(-l $destFile){
+        my $oldPath = readlink $destFile;
+        run "rm", $destFile;
+        if($oldPath ne $srcPath){
+            print "  symlink $destFile: $oldPath => $srcPath\n";
         }
-    }elsif(-d $file){
-        run "sudo", "rmdir", $file;
-        print "  $file => $target\n";
+    }elsif(-d $destFile){
+        run "rmdir", $destFile;
+        print "  dir=>symlink: $destFile\n";
     }
-    deathWithDishonor "Could not symlink $file => $target\n" if -e $file;
-    run "sudo", "ln", "-s", $target, $file;
+    deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
+    run "ln", "-s", $srcPath, $destFile;
+    deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
 }
 
 sub hereDoc($){
