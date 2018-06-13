@@ -6,6 +6,7 @@ module Utils(
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts,
   stringWidth, trimL, trimR, padL, padR, padCols, uncols, chompAll,
+  fmtSimpleRecord,
   pollingGraphMain,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
@@ -24,8 +25,10 @@ import Control.Monad (forever, join, void)
 
 import Data.Char (chr)
 import Data.List (intercalate, partition, transpose)
-import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.List.Split (keepDelimsL, oneOf, split)
+import Data.List.Utils (replace)
 import qualified Data.Set as Set
+import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 
 import Graphics.UI.Gtk (
   Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
@@ -172,6 +175,28 @@ uncols :: String -> [Either Char Char] -> [[String]] -> String
 uncols sep format = unlines . map (intercalate sep) . padCols format
 
 chompAll = reverse . dropWhile (== '\n') . reverse
+
+fmtSimpleRecord :: Show r => r -> String -> String
+fmtSimpleRecord r linePrefix = concatMap (++ "\n") $ fstLineFmt:moreLinesFmt
+  where (fstLine:moreLines) = split (keepDelimsL $ oneOf ",}") $ show r
+        fstLineFmt = ( id
+                     . padFieldName
+                     . replace "{" "{ "
+                     ) fstLine
+        moreLinesFmt = map ( id
+                           . (linePrefix ++)
+                           . padFieldName
+                           . padForRecordCtor
+                           ) moreLines
+        maxFieldNameLen = maximum $ map (length.fieldName) (fstLine:moreLines)
+        recordCtor = fromMaybe "" $ regexFirstGroup "^\\s*(\\w+)\\s*{" fstLine
+        recordCtorPadLen = 1 + length recordCtor
+        fieldName line = fromMaybe "" $ regexFirstGroup "[{,]\\s*(\\w+)\\s*=" line
+        fieldNamePadLen line = maxFieldNameLen - (length $ fieldName line)
+        padFieldName line = addSpacerBefore "=" (fieldNamePadLen line) line
+        padForRecordCtor line = spacer recordCtorPadLen ++ line
+        addSpacerBefore spot len str = replace spot (spacer len ++ spot) str
+        spacer count = take count $ cycle " "
 
 -- IO
 pollingGraphMain delay reader = forever $ do
