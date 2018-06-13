@@ -130,6 +130,10 @@ main = do
 
   cssProfileFile <- getUserConfigFile "taffybar" "taffybar-profile.css"
 
+  let iconHackPad = fromIntegral $ barHt profile - wImgH profile - 4
+      iconHackPadTop = round $ iconHackPad / 2
+      iconHackPadBot = iconHackPadTop - 2 --margin-bottom is 2px
+
   writeFile cssProfileFile $ ""
         ++ "/* Taffybar Profile CSS\n"
         ++ " *\n"
@@ -151,6 +155,11 @@ main = do
         ++ "@define-color wsBorderColorActive " ++ wsBorderColorActive ++ ";\n"
         ++ "label {\n"
         ++ "  font: " ++ (show $ fontP profile) ++ "pt " ++ show typeface ++ ";\n"
+        ++ "}\n"
+        ++ "/** workspace icon padding hack */\n"
+        ++ ".contents {\n"
+        ++ "  padding-top: " ++ show iconHackPadTop ++ "px;\n"
+        ++ "  padding-bottom: " ++ show iconHackPadBot ++ "px;\n"
         ++ "}\n"
 
   simpleTaffybar cfg {startWidgets=start, endWidgets=end}
