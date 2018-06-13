@@ -11,6 +11,7 @@ import System.Taffybar.SimpleConfig (simpleTaffybar, defaultSimpleTaffyConfig,
 
 import Data.Functor ((<$>))
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Time
 import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
@@ -62,8 +63,10 @@ scale (factorVal, factorLow, factorHigh) low high = low + factor*(high-low)
         [fVal, fLow, fHigh] = map fromIntegral [factorVal, factorLow, factorHigh]
 
 main = do
+  now <- getCurrentTime
   resconfig <- readResconfigScreen
   machineType <- readMachineType
+
   let profile = calculateProfile resconfig
   putStrLn $ "machine type: " ++ machineType
   print resconfig
@@ -128,9 +131,13 @@ main = do
   cssProfileFile <- getUserConfigFile "taffybar" "taffybar-profile.css"
 
   writeFile cssProfileFile $ ""
-        ++ "/* profile: " ++ pName profile ++ "\n"
-        ++ " * auto-generated at: " ++ cssProfileFile ++ "\n"
-        ++ " * taffybar-height: " ++ (show $ barHt profile) ++ "\n"
+        ++ "/* Taffybar Profile CSS\n"
+        ++ " *\n"
+        ++ " * auto-generated at:\n"
+        ++ " *   " ++ show now ++ "\n"
+        ++ " * in file:\n"
+        ++ " *   " ++ cssProfileFile ++ "\n"
+        ++ " *\n"
         ++ " * profile:\n"
         ++ " *   " ++ fmtSimpleRecord profile " *   "
         ++ " * resconfig-screen:\n"
