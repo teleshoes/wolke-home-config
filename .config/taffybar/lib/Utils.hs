@@ -13,24 +13,28 @@ module Utils(
   systemReadLines, readProc, chompProc, procSuccess,
   procToChan, actToChanDelay, listToChan
 ) where
+
+import ProcUtil ( readProcessWithExitCode' )
+
 import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, join, void)
+
 import Data.Char (chr)
-import Data.List (partition)
+import Data.List (intercalate, partition, transpose)
+import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import qualified Data.Set as Set
+
 import Graphics.UI.Gtk (
   Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
   toWidget, toContainer, widgetShowAll, widgetGetStyleContext)
 import Graphics.UI.Gtk.General.StyleContext (styleContextAddClass)
-import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
+
 import System.Directory (doesFileExist, doesDirectoryExist, removeFile)
-import Text.Regex.PCRE ((=~), getAllTextMatches, AllTextMatches)
-import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
-import Data.List (intercalate, transpose)
 import System.Environment (getEnv)
+import System.Exit(ExitCode(ExitFailure), ExitCode(ExitSuccess))
 import System.FilePath.Find (
   (||?), (&&?), (==?), (~~?), (/=?),
   find, filePath, fileName, depth)
@@ -38,14 +42,15 @@ import System.IO (
   stderr, hGetContents, hGetLine, hPutStrLn,
   hSetBuffering, BufferMode(LineBuffering))
 import System.IO.Error (isDoesNotExistError)
+import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
+import System.Posix.Files (
+  getSymbolicLinkStatus, isSymbolicLink, createSymbolicLink)
 import System.Process (
   StdStream(CreatePipe), std_out, createProcess, proc, shell,
   system)
-import ProcUtil ( readProcessWithExitCode' )
-import System.Posix.Files (
-  getSymbolicLinkStatus, isSymbolicLink, createSymbolicLink)
-import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
+
 import Text.Printf (printf)
+import Text.Regex.PCRE ((=~), getAllTextMatches, AllTextMatches)
 
 -- CONSTANTS
 defaultDelay :: Double
