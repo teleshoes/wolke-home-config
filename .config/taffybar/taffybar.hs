@@ -1,7 +1,7 @@
 import qualified Widgets as W
 import Color (Color(..), hexColor)
 import Utils (attemptCreateSymlink, chompFile, colW,
-  getHomeFile, maybeJoin, readInt, regexFirstGroup, tryMaybe)
+  fmtSimpleRecord, getHomeFile, maybeJoin, readInt, regexFirstGroup, tryMaybe)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
 import Control.Monad.Trans (liftIO)
@@ -131,6 +131,12 @@ main = do
         ++ "/* profile: " ++ pName profile ++ "\n"
         ++ " * auto-generated at: " ++ cssProfileFile ++ "\n"
         ++ " * taffybar-height: " ++ (show $ barHt profile) ++ "\n"
+        ++ " * profile:\n"
+        ++ " *   " ++ fmtSimpleRecord profile " *   "
+        ++ " * resconfig-screen:\n"
+        ++ " *   " ++ fmtSimpleRecord resconfig " *   "
+        ++ " * machine-type:\n"
+        ++ " *   " ++ machineType ++ "\n"
         ++ " */\n"
         ++ "@define-color bgColor " ++ bgColor ++ ";\n"
         ++ "@define-color textColor " ++ textColor ++ ";\n"
