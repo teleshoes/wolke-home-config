@@ -5,6 +5,7 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
 sub addKeys();
+sub fetchKeyFileFromLocalKeyring($);
 
 sub main(@) {
     getRoot @_;
@@ -36,15 +37,40 @@ sub main(@) {
 sub addKeys(){
     my %gpgKeys = readConfDir getInstallPath("gpgkeys");
     for my $repo(keys %gpgKeys){
-        my $gpgKey = ${$gpgKeys{$repo}}[0];
-        print "\n### installing gpg key $repo => $gpgKey\n";
-        runUser "gpg", "--keyserver", "pgpkeys.mit.edu", "--recv-key", $gpgKey;
-        #runUser "gpg", "--keyserver", "keyserver.ubuntu.com", "--recv-key", $gpgKey;
+        my $gpgKeyId = ${$gpgKeys{$repo}}[0];
+        print "\n### installing gpg key $repo => $gpgKeyId\n";
 
-        my $key = procUser "gpg", "-a", "--export", "\"$gpgKey\"";
-        open CMD, "|-", "sudo apt-key add -" or die "failed to add key\n";
-        print CMD $key;
-        close CMD;
+        my $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
+        if(not defined $keyFile){
+            my $keyServer = "pgpkeys.mit.edu";
+            #my $keyServer = "keyserver.ubuntu.com";
+
+            print "gpg key $gpgKeyId missing, fetching from keyserver $keyServer\n";
+            runUser "gpg", "--keyserver", $keyServer, "--recv-key", $gpgKeyId;
+            $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
+        }
+
+        if(defined $keyFile){
+            print "adding $gpgKeyId to apt:\n";
+            run "sudo", "apt-key", "add", $keyFile;
+            run "rm", $keyFile;
+        }else{
+            die "error fetching key $gpgKeyId for $repo\n";
+        }
+    }
+}
+
+sub fetchKeyFileFromLocalKeyring($){
+    my ($gpgKeyId) = @_;
+    my $tmpFile = "/tmp/gpg-key-$gpgKeyId.gpg";
+    run "rm", "-f", $tmpFile;
+    runUser "gpg", "--armor", "--output", $tmpFile, "--export", $gpgKeyId;
+    my $contents = tryReadFile $tmpFile;
+    if($contents =~ /BEGIN PGP PUBLIC KEY BLOCK/){
+        return $tmpFile;
+    }else{
+        run "rm", $tmpFile;
+        return undef;
     }
 }
 
