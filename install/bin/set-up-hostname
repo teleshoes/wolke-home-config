@@ -4,14 +4,36 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-my $HOSTNAME = "wolke-t430s";
+sub getHostname($$){
+  my ($machineType, $username) = @_;
+  my $hostnameByMachineType = {
+    main => "$username-main",
+    aux  => "$username-aux",
+    tv   => "$username-nuc",
+  };
+  my $hostname = $$hostnameByMachineType{$machineType};
+  if(not defined $hostname){
+    $hostname = $$hostnameByMachineType{main};
+  }
+
+  return $hostname
+}
 
 sub main(@) {
     getRoot @_;
 
-    open FH, "> /etc/hostname";
-    print FH "$HOSTNAME\n";
-    close FH;
+    my $machineType = getMachineType();
+    my $username = getUsername();
+
+    my $hostname = getHostname($machineType, $username);
+    print "\n\n";
+    print "setting hostname = $hostname\n";
+
+    print "\n\n";
+    writeFile "/etc/hostname", "$hostname\n";
+
+    print "\n\n";
+    run "hostname", "-b", $hostname;
 }
 
 &main(@ARGV);
