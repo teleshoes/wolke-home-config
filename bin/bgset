@@ -15,6 +15,7 @@ sub back();
 sub forward();
 sub shiftHistory($);
 sub resetHistoryPosition();
+sub getFileFromHistoryEntry($);
 sub readHistoryFile($);
 sub writeHistoryFile($@);
 sub setHistoryCurFile($);
@@ -85,7 +86,7 @@ my $usage = "Usage:
     Set the file indicated in the removed line
       and write the line to $historyCurFile
 
-    If there is no such line, run `$0 --once`
+    If there is no such line, run `$0 --once --exclude-current`
 
   $0 --bash-complete COMP_LINE COMP_POINT
     print a list of words for bash completion, one per line
@@ -136,6 +137,11 @@ my $usage = "Usage:
       do not include paths that match PATTERN
       PATTERN is a perl regex that does not contain any kind of bracket
       i.e.: '[', ']', '(', ')', '{', '}'
+
+    --exclude-current
+      exclude contents of history cur file when selecting the FIRST random image
+      (note that the last image set while running forever is ALWAYS excluded)
+      history-cur-file: $historyCurFile
 ";
 
 sub main(@){
@@ -160,6 +166,7 @@ sub main(@){
   my $printOnly = 0;
   my $once = 0;
   my $wait = 0;
+  my $excludeCurrent = 0;
   my $excludePattern = undef;
   my $backgroundSubdir = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -181,6 +188,8 @@ sub main(@){
     }elsif($arg =~ /^--delay=(\d+(?:\.\d+)?)$/){
       $delay = $1;
       die $usage if $delay <= 0;
+    }elsif($arg =~ /^(--exclude-current)$/){
+      $excludeCurrent = 1;
     }elsif($arg =~ /^--exclude=(.*)$/){
       if(defined $excludePattern){
         die "can only specify one exclude regex (use | for perl regex)\n";
@@ -208,6 +217,12 @@ sub main(@){
   $target = "$backgroundDir/$backgroundSubdir/" if not defined $target;
 
   my $curFile = undef;
+  if($excludeCurrent){
+    my @cur = readHistoryFile $historyCurFile;
+    my $curEntry = $cur[0] if @cur > 0;
+    $curFile = getFileFromHistoryEntry $curEntry;
+  }
+
   while(1){
     if(-f $target){
       if($printOnly){
@@ -219,7 +234,7 @@ sub main(@){
       exit 0;
     }elsif(-d $target){
       if($printOnly){
-        my @files = filterFiles $excludePattern, [], getFiles($target);
+        my @files = filterFiles $excludePattern, [$curFile], getFiles($target);
         for my $file(@files){
           $file = abs_path $file;
           print "$file\n";
@@ -347,20 +362,22 @@ sub getFiles($){
 
 sub back(){
   my $item = shiftHistory 'prev';
-  if(defined $item and $item =~ /^([^|]*)\|(.*)$/){
-    setBackground $2, 0;
+  my $file = getFileFromHistoryEntry $item;
+  if(defined $file){
+    setBackground $file, 0;
   }
 }
 sub forward(){
   my $item = shiftHistory 'next';
-  if(defined $item and $item =~ /^([^|]*)\|(.*)$/){
-    setBackground $2, 0;
+  my $file = getFileFromHistoryEntry $item;
+  if(defined $file){
+    setBackground $file, 0;
   }else{
-    exec $0, "--once";
+    exec $0, "--once", "--exclude-current";
   }
 }
 sub shiftHistory($){
-  my $direction = shift;
+  my ($direction) = @_;
   my @cur = readHistoryFile $historyCurFile;
   my @prev = readHistoryFile $historyPrevFile;
   my @next = readHistoryFile $historyNextFile;
@@ -393,6 +410,14 @@ sub resetHistoryPosition(){
   writeHistoryFile $historyCurFile, ();
   writeHistoryFile $historyPrevFile, (@prev, @cur, @next);
   writeHistoryFile $historyNextFile, ();
+}
+sub getFileFromHistoryEntry($){
+  my ($line) = @_;
+  if(defined $line and $line =~ /^([^|]*)\|(.*)$/){
+    return $2;
+  }else{
+    return undef;
+  }
 }
 
 sub readHistoryFile($){
