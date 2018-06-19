@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 use Cwd 'abs_path';
+my $JAPANESE_LIB = eval {require Lingua::JA::Romanize::Japanese};
+my $UNIDECODE_LIB = eval {require Text::Unidecode};
 
 sub getSubdirByHeight($);
 sub findFile($$);
@@ -20,6 +22,9 @@ sub readHistoryFile($);
 sub writeHistoryFile($@);
 sub setHistoryCurFile($);
 sub setHistoryCurLine($);
+sub transliterate($);
+sub transliterateJapanese($);
+sub transliterateAscii($);
 
 my $setExec = "Esetroot";
 my $delay = 300;
@@ -54,6 +59,10 @@ my $usage = "Usage:
       \"BACKGROUND_DIR/BACKGROUND_SUBDIR\", set that file as the X root image.
       -the file suffix can be omitted if one of: $okExts
       -if more than one file matches TARGET, use the first lexicograhically
+      -if no file matches TARGET, transliterate the files using:
+         Lingua::JA::Romanize::Japanese and Text::Unidecode
+         if they are available, and try to match again
+
 
     -if not set, TARGET defaults to \"BACKGROUND_DIR/BACKGROUND_SUBDIR\"
     -\"$setExec\" is used to set the X root image
@@ -298,6 +307,11 @@ sub findFile($$){
     if($file =~ /^(.*\/)?$name(\.($okExts))?$/i){
       return $file;
     }
+    my $transFile = transliterate $file;
+    if($transFile =~ /^(.*\/)?$name(\.($okExts))?$/i){
+      return $file;
+    }
+
   }
   return undef;
 }
@@ -454,6 +468,75 @@ sub setHistoryCurLine($){
   writeHistoryFile $historyCurFile, ($line);
 }
 
+sub transliterate($){
+  my ($str) = @_;
+  $str = transliterateJapanese $str;
+  $str = transliterateAscii $str;
+  return $str;
+}
+
+sub transliterateJapanese($){
+  my ($str) = @_;
+  return $str if not $JAPANESE_LIB or length $str == 0;
+
+  BEGIN{
+    if(eval {require Lingua::JA::Romanize::Japanese}){
+      require Lingua::JA::Romanize::Japanese;
+      Lingua::JA::Romanize::Japanese->import;
+    }
+  }
+
+  utf8::decode($str);
+  my @parts;
+  my $theRest;
+  while($str =~/
+      (.*?)
+      ((?:\p{Hiragana}|\p{Katakana}|\p{Han})+)
+      (?=(.*$))
+    /gsxi){
+    my $nonjap = $1;
+    my $jap = $2;
+    $theRest = $3;
+    my $conv = Lingua::JA::Romanize::Japanese->new();
+    my $romaji = $conv->chars($jap);
+
+    push @parts, $nonjap;
+    if(not $? and defined $romaji){
+      $romaji =~ s/\s+//g;
+      push @parts, $romaji;
+    }else{
+      push @parts, $jap;
+    }
+  }
+
+  if(@parts > 0){
+    push @parts, $theRest;
+    $str = join '', @parts;
+  }
+
+  utf8::encode($str);
+
+  return $str;
+}
+
+sub transliterateAscii($){
+  my ($str) = @_;
+  return $str if not $UNIDECODE_LIB or length $str == 0;
+
+  BEGIN{
+    if(eval {require Text::Unidecode}){
+      require Text::Unidecode;
+      Text::Unidecode->import;
+    }
+  }
+
+  utf8::decode($str);
+  $str = unidecode $str;
+  utf8::encode($str);
+
+  return $str;
+}
+
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
   my $cmd = substr $cmdLine, 0, $pos;
@@ -500,6 +583,7 @@ sub bashComplete($$){
       my $name = $file;
       $name =~ s/.*\///;
       $name =~ s/\.($okExts)?//i;
+      $name = transliterate $name;
       $name = lc $name;
       $names{$name} = 1;
     }
