@@ -17,6 +17,8 @@ if [ $MACHINE_TYPE = "main" ]; then
   term -t qtemail-daemon -r email-daemon.pl
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
+elif [ $MACHINE_TYPE = "bed" ]; then
+  sudo wauto -p &
 elif [ $MACHINE_TYPE = "tv" ]; then
   screensaver
   killall bgset
