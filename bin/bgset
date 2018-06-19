@@ -6,9 +6,10 @@ use Cwd 'abs_path';
 
 sub getSubdirByHeight($);
 sub findFile($$);
-sub getRandomBackground($$@);
+sub getRandomBackground($$$);
 sub setBackground($;$);
 sub remove($@);
+sub filterFiles($$@);
 sub getFiles($);
 sub back();
 sub forward();
@@ -97,6 +98,10 @@ my $usage = "Usage:
         and suppress output from $setExec
       otherwise, print each file selected and do not suppress output
 
+    --print
+      instead of setting backgrounds,
+        print absolute path to indicated backgrounds and exit
+
     -o|--once
       set background once and exit
 
@@ -152,6 +157,7 @@ sub main(@){
   }
 
   my $verbose = 1;
+  my $printOnly = 0;
   my $once = 0;
   my $wait = 0;
   my $excludePattern = undef;
@@ -162,6 +168,8 @@ sub main(@){
       $verbose = 0;
     }elsif($arg =~ /^(-v|--verbose)$/){
       $verbose = 1;
+    }elsif($arg =~ /^(--print)$/){
+      $printOnly = 1;
     }elsif($arg =~ /^(-o|--once)$/){
       $once = 1;
     }elsif($arg =~ /^(-w|--wait)$/){
@@ -202,24 +210,43 @@ sub main(@){
   my $curFile = undef;
   while(1){
     if(-f $target){
-      setBackground $target;
-      exit 0 if not $wait;
+      if($printOnly){
+        my $file = abs_path $target;
+        print "$file\n";
+      }else{
+        setBackground $target;
+      }
+      exit 0;
     }elsif(-d $target){
-      while(1){
-        my $file = getRandomBackground $target, $excludePattern, $curFile;
-        if(defined $file and -f $file){
-          setBackground $file;
-          $curFile = $file;
+      if($printOnly){
+        my @files = filterFiles $excludePattern, [], getFiles($target);
+        for my $file(@files){
+          $file = abs_path $file;
+          print "$file\n";
         }
-        if($once){
-          exit 0;
+        exit 0;
+      }else{
+        while(1){
+          my $file = getRandomBackground $target, $excludePattern, [$curFile];
+          if(defined $file and -f $file){
+            setBackground $file;
+            $curFile = $file;
+          }
+          if($once){
+            exit 0;
+          }
+          sleep $delay;
         }
-        sleep $delay;
       }
     }else{
       my $file = findFile "$backgroundDir/$backgroundSubdir/", $target;
       if(defined $file and -f $file){
-        setBackground $file;
+        if($printOnly){
+          $file = abs_path $file;
+          print "$file\n";
+        }else{
+          setBackground $file;
+        }
         exit 0;
       }elsif(not $wait){
         die "could not find $target\n";
@@ -260,20 +287,17 @@ sub findFile($$){
   return undef;
 }
 
-sub getRandomBackground($$@){
-  my ($dir, $excludePattern, @excludeList) = @_;
+sub getRandomBackground($$$){
+  my ($dir, $excludePattern, $excludeList) = @_;
 
   return undef if not -d $dir;
-  my @files = getFiles($dir);
-  if(defined $excludePattern){
-    @files = grep {$_ !~ /$excludePattern/i} @files;
-  }
-  for my $file(@excludeList){
-    @files = remove $file, @files if defined $file;
-  }
+
+  my @files = filterFiles $excludePattern, $excludeList, getFiles($dir);
   if(@files > 0){
     my $i = rand @files;
     return $files[$i];
+  }else{
+    return undef;
   }
 }
 
@@ -297,6 +321,19 @@ sub remove($@){
     push @newArr, $e unless $elem eq $e;
   }
   return @newArr;
+}
+
+sub filterFiles($$@){
+  my ($excludePattern, $excludeList, @files) = @_;
+  if(defined $excludePattern){
+    @files = grep {$_ !~ /$excludePattern/i} @files;
+  }
+  if(defined $excludeList){
+    for my $file(@$excludeList){
+      @files = remove $file, @files if defined $file;
+    }
+  }
+  return @files;
 }
 
 sub getFiles($){
