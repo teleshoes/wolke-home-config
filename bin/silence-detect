@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $defaultThresholdDecibels = -50;
+my $defaultIntervalMillis = 1000;
+
+my $usage = "Usage:
+  $0 [OPTS] SOUND_FILE
+    use ffmpeg to find periods of continuous silence that are
+      no louder than ${defaultThresholdDecibels}dB,
+      and at least as long as ${defaultIntervalMillis}s
+    output one period of silence per line, formatted:
+      SILENCE_START_SECONDS  SILENCE_END_SECONDS  SILENCE_INTERVAL_SECONDS
+
+  --threshold DECIBELS   {default = $defaultThresholdDecibels}
+    use DECIBELS for threshold
+
+  --interval MILLIS
+    use MILLIS for interval
+
+  --ends-only
+    only print silence end
+";
+
+sub main(@){
+  my $threshold = $defaultThresholdDecibels;
+  my $interval = $defaultIntervalMillis;
+  my $endsOnly = 0;
+  while(@_ > 0 and $_[0] =~ /^--(threshold|interval|ends-only)$/){
+    my $arg = shift @_;
+    if($arg =~ /^(--threshold)$/ and @_ > 0 and $_[0] =~ /^-?\d+$/){
+      $threshold = shift @_;
+    }elsif($arg =~ /^(--interval)$/ and @_ > 0 and $_[0] =~ /^(\d+)$/){
+      $interval = shift @_;
+    }elsif($arg =~ /^(--ends-only)$/){
+      $endsOnly = 1;
+    }else{
+      die $usage;
+    }
+  }
+
+  my $file = shift @_;
+  die $usage if @_ > 0 or not defined $file or not -f $file;
+
+  my $intervalS = $interval / 1000.0;
+  my $cmd = ""
+    . "ffmpeg"
+    . " -i \'$file\'"
+    . " -af \"silencedetect=noise=${threshold}dB:d=${intervalS}\""
+    . " -f null -"
+    ;
+
+  open CMD, "$cmd 2>&1 |" or die "could not run '$cmd'\n$!\n";
+  my $silenceStart;
+  my $numRE = "\\d+|\\d*\\.\\d+";
+  while(my $line = <CMD>){
+    if($line =~ /silence_start: ($numRE)\s*$/){
+      die "duplicate silence start: $line" if defined $silenceStart;
+      $silenceStart = $1;
+    }elsif($line =~ /silence_end: ($numRE)\s*\|\s*silence_duration: ($numRE)\s*$/){
+      die "duplicate silence end: $line" if not defined $silenceStart;
+      my ($silenceEnd, $silenceDur) = ($1, $2);
+      if($endsOnly){
+        print "$silenceEnd\n";
+      }else{
+        printf "%-9s %-9s %-9s\n", $silenceStart, $silenceEnd, $silenceDur;
+      }
+      $silenceStart = undef;
+    }
+  }
+  close CMD;
+}
+
+&main(@ARGV);
