@@ -27,7 +27,7 @@ my $usage = "Usage:
     -start logging to LOG_FILE
     -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
     -run 'CMD [ARG ARG ..]' every DELAY_MILLIS, append STDOUT/STDERR to LOG_FILE
-    -if CMD takes longer than TIMEOUT_MILLIS, kill it
+    -if CMD takes longer than TIMEOUT_MILLIS, kill it (never kill it if TIMEOUT_MILLIS is 0)
 
       LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
       START_MILLIS = time in milliseconds at initial start
@@ -53,8 +53,11 @@ my $usage = "Usage:
     (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
 
   TIMEOUT_MILLIS
-    milliseconds to wait before killing command, positive integer only
+    positive integers or '0' for never
+    milliseconds to wait before killing command
     (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
+    if TIMEOUT_MILLIS==0, never timeout,
+      and maximum delay between commands is infinite
 ";
 
 sub checkRunArgs($$$@);
@@ -98,7 +101,7 @@ sub checkRunArgs($$$@){
     die "$usage\ninvalid name: $name\n";
   }elsif($delayMillis !~ /^\d+$/ or $delayMillis <= 0){
     die "$usage\ninvalid delayMillis: $delayMillis\n"
-  }elsif($timeoutMillis !~ /^\d+$/ or $timeoutMillis <= 0){
+  }elsif($timeoutMillis !~ /^\d+$/ or $timeoutMillis < 0){
     die "$usage\ninvalid timeoutMillis: $timeoutMillis\n"
   }elsif(@cmd == 0){
     die "$usage\nmissing CMD\n";
@@ -118,7 +121,9 @@ sub runCommandForever($$$@){
   system "rm", "-f", "$logDir/latest";
   system "ln", "-s", $logFileName, "$logDir/latest";
 
-  $SIG{ALRM} = sub {die "timeout"};
+  if($timeoutMillis > 0){
+    $SIG{ALRM} = sub {die "timeout"};
+  }
 
   my $logFH;
   if($PRINT_TO_STDOUT){
@@ -145,15 +150,17 @@ sub cmdTimeout($$@){
 
   my $logFileno = fileno $logFH;
   my $pid = open3(undef, ">&$logFileno", ">&$logFileno", @cmd);
-  eval {
-    alarm $timeoutMillis/1000.0;
-    waitpid $pid, 0;
-    alarm 0;
-  };
-  if($@ =~ /timeout/){
-    print $logFH "TIMEOUT $pid after ${timeoutMillis}ms\n";
-    system "kill", "-9", "$pid";
-    waitpid $pid, 0;
+  if($timeoutMillis > 0){
+    eval {
+      alarm $timeoutMillis/1000.0;
+      waitpid $pid, 0;
+      alarm 0;
+    };
+    if($@ =~ /timeout/){
+      print $logFH "TIMEOUT $pid after ${timeoutMillis}ms\n";
+      system "kill", "-9", "$pid";
+      waitpid $pid, 0;
+    }
   }
 }
 
