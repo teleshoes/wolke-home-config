@@ -32,7 +32,8 @@ my $usage = "Usage:
   $0 NAME --run DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
     -start logging to LOG_FILE
     -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
-    -run 'CMD [ARG ARG ..]' every DELAY_MILLIS, append STDOUT/STDERR to LOG_FILE
+    -run 'CMD [ARG ARG ..]' every DELAY_MILLIS (if DELAY_MILLIS == 0, exit after first run)
+    -append STDOUT/STDERR to LOG_FILE
     -if CMD takes longer than TIMEOUT_MILLIS, kill it (never kill it if TIMEOUT_MILLIS is 0)
 
       LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
@@ -55,15 +56,16 @@ my $usage = "Usage:
     screen session name, must be letters, numbers, underscores, or hyphens only
 
   DELAY_MILLIS
-    milliseconds to wait between commands, positive integer only
-    (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
+    positive integer for milliseconds to wait between commands,
+      or '0' for run only once
+    if delay and timeout are non-zero, the maximum delay between commands is:
+      DELAY_MILLIS + TIMEOUT_MILLIS
 
   TIMEOUT_MILLIS
-    positive integers or '0' for never
-    milliseconds to wait before killing command
-    (maximum delay between commands is DELAY_MILLIS + TIMEOUT_MILLIS)
-    if TIMEOUT_MILLIS==0, never timeout,
-      and maximum delay between commands is infinite
+    positive integer for milliseconds to wait before killing command,
+      or '0' for never kill command
+    if delay and timeout are non-zero, the maximum delay between commands is:
+      DELAY_MILLIS + TIMEOUT_MILLIS
 ";
 
 sub parseScreenDaemonConf();
@@ -143,7 +145,7 @@ sub checkRunArgs($$$@){
   my ($name, $delayMillis, $timeoutMillis, @cmd) = @_;
   if($name !~ /^[a-zA-Z0-9_\-]+$/){
     die "$usage\ninvalid name: $name\n";
-  }elsif($delayMillis !~ /^\d+$/ or $delayMillis <= 0){
+  }elsif($delayMillis !~ /^\d+$/ or $delayMillis < 0){
     die "$usage\ninvalid delayMillis: $delayMillis\n"
   }elsif($timeoutMillis !~ /^\d+$/ or $timeoutMillis < 0){
     die "$usage\ninvalid timeoutMillis: $timeoutMillis\n"
@@ -185,7 +187,11 @@ sub runCommandForever($$$@){
     cmdTimeout $logFH, $timeoutMillis, @cmd;
 
     print $logFH "\n\n\n";
-    sleep $delayMillis/1000.0;
+    if($delayMillis > 0){
+      sleep $delayMillis/1000.0;
+    }else{
+      last;
+    }
   }
 }
 
