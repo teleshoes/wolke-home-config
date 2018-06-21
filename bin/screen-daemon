@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use IPC::Open3 qw(open3);
 use Time::HiRes qw(alarm time);
 
+my $screenDaemonConf = "$ENV{HOME}/.config/screen-daemon.conf";
 my $logBaseDir = "$ENV{HOME}/.cache/logs";
 
 my $EXEC = basename $0;
@@ -14,6 +15,11 @@ my $PRINT_TO_STDOUT = 1;
 my $usage = "Usage:
   $EXEC -h|--help
     show this message
+
+  $EXEC NAME --start
+    read $screenDaemonConf and find a line of the form:
+      NAME DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+    invoke $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
 
   $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
     -quit screen session 'NAME'
@@ -60,14 +66,31 @@ my $usage = "Usage:
       and maximum delay between commands is infinite
 ";
 
+sub parseScreenDaemonConf();
 sub checkRunArgs($$$@);
 sub runCommandForever($$$@);
 sub cmdTimeout($$@);
+sub shellParse($);
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 2 and $_[1] =~ /^--start$/){
+    my ($name, $startArg) = @_;
+    my $conf = ${parseScreenDaemonConf()}{$name};
+    if(not defined $conf){
+      die "no entry in $screenDaemonConf found for $name\n";
+    }
+    my $delayMillis = $$conf{delayMillis};
+    my $timeoutMillis = $$conf{timeoutMillis};
+    my @cmd = shellParse $$conf{cmdStr};
+    print "$name --start $delayMillis $timeoutMillis @cmd\n";
+
+    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    system "screen -S $name -X quit >/dev/null";
+    system "screen", "-S", $name, "-d", "-m",
+      $0, $name, "--run", $delayMillis, $timeoutMillis, @cmd;
   }elsif(@_ > 4 and $_[1] =~ /^--start$/){
     my ($name, $startArg, $delayMillis, $timeoutMillis, @cmd) = @_;
     checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
@@ -93,6 +116,27 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub parseScreenDaemonConf(){
+  my $confs = {};
+  return $confs if not -f $screenDaemonConf;
+  for my $line(`cat $screenDaemonConf`){
+    chomp $line;
+    next if $line =~ /^\s*(#.*)?$/; #skip empty or comment-only lines
+    if($line =~ /^([a-zA-Z0-9_\-]+)\s+(\d+)\s+(\d+)\s+(.+)$/){
+      my ($name, $delayMillis, $timeoutMillis, $cmdStr) = ($1, $2, $3, $4);
+      $$confs{$name} = {
+        name => $name,
+        delayMillis => $delayMillis,
+        timeoutMillis => $timeoutMillis,
+        cmdStr => $cmdStr,
+      };
+    }else{
+      die "malformed conf line: $line\n";
+    }
+  }
+  return $confs;
 }
 
 sub checkRunArgs($$$@){
@@ -162,6 +206,13 @@ sub cmdTimeout($$@){
       waitpid $pid, 0;
     }
   }
+}
+
+sub shellParse($){
+  my ($str) = @_;
+  my @words = `for x in $str; do echo \$x; done`;
+  chomp foreach @words;
+  return @words;
 }
 
 &main(@ARGV);
