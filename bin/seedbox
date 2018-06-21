@@ -29,6 +29,7 @@ my $secretsFile = "$ENV{HOME}/.secrets";
 my $mtimeFile = "$ENV{HOME}/.cache/seedbox-mtime";
 my @configKeys = qw(server port home username password revtun.username revtun.portfile);
 my %encryptedConfigKeys = map {$_ => 1 } qw(password);
+my %optionalKeys = map {$_ => 1} qw(password);
 
 my @revtunLocalOpts = ("-t",
   "-o", "LogLevel=ERROR",
@@ -255,9 +256,16 @@ sub handleTorrent($$){
 sub ftpCommand($@){
   my ($config, @cmds) = @_;
   my $url = "ftp://$$config{server}:$$config{port}";
-  my @lftpCmd = ("lftp", "-u", "$$config{username},$$config{password}", $url);
-
-  my @fakeCmd = ("lftp", "-u", "$$config{username},PASSWORD", $url);
+  my ($auth, $fakeAuth);
+  if(defined $$config{password}){
+    $auth = "$$config{username},$$config{password}";
+    $fakeAuth = "$$config{username},PASSWORD";
+  }else{
+    $auth = "$$config{username}";
+    $fakeAuth = "$$config{username}";
+  }
+  my @lftpCmd = ("lftp", "-u", $auth, $url);
+  my @fakeCmd = ("lftp", "-u", $fakeAuth, $url);
   print "running:\n";
   print "  @fakeCmd\n";
   print "  $_\n" foreach @ftpInitCmds;
@@ -438,7 +446,9 @@ sub readSecrets(){
     }
   }
   for my $key(sort @configKeys){
-    die "Missing config '$key' in $secretsFile\n" if not defined $$cfg{$key};
+    if(not defined $$cfg{$key} and not defined $optionalKeys{$key}){
+      die "Missing config '$key' in $secretsFile\n";
+    }
   }
   return $cfg;
 }
