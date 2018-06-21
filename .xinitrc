@@ -32,7 +32,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   ) &
   sudo wired &
   screen-daemon sb-daemon --start
-  execPing screen-cmd revtun-ensure &
+  screen-daemon revtun-ensure --start
 fi
 
 exec xmonad
