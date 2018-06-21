@@ -2,64 +2,58 @@
 use strict;
 use warnings;
 
-my $logDir = "$ENV{HOME}/.seedbox";
-my $latestLogFile = "$logDir/fetch-seedbox-latest.log";
+my $MAX_ATTEMPTS = 5;
 
-my $delay = 10*60;
+sub seedboxIsUpToDate();
 
 my $usage = "Usage:
   $0
-     run 'seedbox -g' every ${delay}s
-     keep a log at $logDir, and update $latestLogFile to show it
+     fetch files from seedbox until:
+       `seedbox --is-out-of-date` returns \"up-to-date\"
+     runs a maximum of $MAX_ATTEMPTS times,
+       and will not run at all if mtimes already match
 
-  $0 -g|--get|-l|--log|-i|--info
-     run 'tail -F $latestLogFile'
+     while `seedbox --is-up-to-date` == modified:
+       -run: seedbox --cleanup
+       -run: seedbox --mark-up-to-date
+       -run: seedbox -g
+       -exit if attempts == $MAX_ATTEMPTS
 ";
 
 sub main(@){
-  my $log = shift if @_ == 1 and $_[0] =~ /^(-g|--get|-l|--log|-i|--info)$/;
   die $usage if @_ > 0;
 
-  if($log){
-    die "no log file at $latestLogFile\n" if not -e $latestLogFile;
-    exec "tail", "-F", $latestLogFile;
+  if(seedboxIsUpToDate()){
+    print "skipping, 'seedbox --is-up-to-date' is up-to-date\n";
+    exit 0;
+  }
+
+  my $attempt = 1;
+  while($attempt <= $MAX_ATTEMPTS and not seedboxIsUpToDate()){
+    print "\n\nrunning seedbox -g (attempt $attempt/$MAX_ATTEMPTS)\n";
+    $attempt++;
+    system "seedbox", "--cleanup";
+    system "seedbox", "--mark-up-to-date";
+    system "unbuffer", "seedbox", "-g";
+  }
+
+  if(seedboxIsUpToDate()){
+    print "finished, 'seedbox --is-up-to-date' is up-to-date\n";
+    exit 0;
   }else{
-    system "mkdir", "-p", $logDir;
+    print "ERROR: seedbox is out of date immediately after syncing\n";
+    exit 1;
+  }
+}
 
-    my $date = `date +%Y-%m-%d_%s`;
-    chomp $date;
-    my $logFile = "$logDir/fetch-seedbox-$date.log";
-
-    system "rm", "-f", $latestLogFile;
-    system "ln", "-s", $logFile, $latestLogFile;
-
-    while(1){
-      system "date | tee -a $logFile";
-      my $upToDate = `seedbox --is-up-to-date`;
-      if($upToDate =~ /modified/){
-        my $attempts = 5;
-        while($upToDate =~ /modified/ and $attempts > 0){
-          $attempts--;
-          system "seedbox --cleanup 2>&1 | tee -a $logFile";
-          system "seedbox --mark-up-to-date";
-          system "unbuffer seedbox -g 2>&1 | tee -a $logFile";
-          $upToDate = `seedbox --is-up-to-date`;
-          if($upToDate =~ /modified/){
-            if($attempts <= 0){
-              print "skipping (no attempts left), still out of date\n";
-            }else{
-              print "rerunning (${attempts}x left), still out of date\n";
-            }
-          }else{
-            print "finished, 'seedbox --is-up-to-date' is up-to-date\n"
-          }
-        }
-      }else{
-        print "skipping, 'seedbox --is-up-to-date' is up-to-date\n"
-      }
-      system "echo | tee -a $logFile";
-      sleep $delay;
-    }
+sub seedboxIsUpToDate(){
+  my $upToDate = `seedbox --is-up-to-date`;
+  if($upToDate =~ /up-to-date/){
+    return 1;
+  }elsif($upToDate =~ /modified/){
+    return 0;
+  }else{
+    die "malformed response to: seedbox --is-up-to-date\n";
   }
 }
 
