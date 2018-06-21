@@ -133,6 +133,13 @@ alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 alias r='stty sane'
 
+IPMAGIC_DIR="$HOME/.config/ipmagic"
+IPMAGIC_CONF_FILES=$(ls $IPMAGIC_DIR/*.conf 2>/dev/null)
+IPMAGIC_NAMES=$(basename -a $IPMAGIC_CONF_FILES 2>/dev/null | sed s/.conf//g)
+
+for ipmagicName in $IPMAGIC_NAMES
+do alias ipm$ipmagicName="ipmagic $ipmagicName"; done
+
 function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
 function vol          { pulse-vol "$@"; }
