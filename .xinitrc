@@ -31,7 +31,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     sudo hdparm-tool --log /media/videos >> hdparm-videos.log 2>>hdparm-videos.log
   ) &
   sudo wired &
-  execPing screen-cmd fetch-seedbox &
+  screen-daemon sb-daemon --start
   execPing screen-cmd revtun-ensure &
 fi
 
