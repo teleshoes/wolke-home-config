@@ -21,6 +21,7 @@ sub magnetToTorrent($);
 sub fetchMtime($);
 sub readMtime();
 sub writeMtime($);
+sub clearMtime();
 sub readSecrets();
 sub decrypt($);
 
@@ -75,6 +76,9 @@ my $usage = "Usage:
 
   $0 --mark-up-to-date
      fetch mtime of $remoteDownloads from seedbox and write to file $mtimeFile
+
+  $0 --mark-out-of-date
+     simply remove $mtimeFile, if it exists
 
   $0 --is-up-to-date
      compare mtime of $remoteDownloads on seedbox and contents of file $mtimeFile
@@ -150,6 +154,9 @@ sub main(@){
     my $mtime = fetchMtime $config;
     writeMtime $mtime;
     print "stored mtime $mtime\n";
+  }elsif(@_ == 1 and $_[0] =~ /^(--mark-out-of-date)$/){
+    clearMtime();
+    print "cleared mtime\n";
   }elsif(@_ == 1 and $_[0] =~ /^(--is-up-to-date)$/){
     my $mtime = fetchMtime $config;
     my $prevMtime = readMtime();
@@ -405,6 +412,9 @@ sub writeMtime($){
   open FH, "> $mtimeFile" or die "Could not write $mtimeFile\n";
   print FH "$mtime\n";
   close FH;
+}
+sub clearMtime(){
+  system "rm", "-f", $mtimeFile;
 }
 
 sub readSecrets(){
