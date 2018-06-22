@@ -23,6 +23,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   screensaver
   killall bgset
   bgset --exclude="porn/" &
+  sudo fcron-start
 
   sudo igstart &
   cec-cmd start &
