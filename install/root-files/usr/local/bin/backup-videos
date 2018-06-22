@@ -4,8 +4,12 @@ use warnings;
 
 sub backup($$);
 sub isMountpoint($);
+sub ensureRoot();
 
 sub main(@){
+  die "Usage: $0\n" if @_ > 0;
+  ensureRoot();
+
   backup "/media/videos", "/media/BACKUP_VIDEOS";
   print "\n\n";
   backup "/media/huge_videos", "/media/BACKUP_HUGE_VIDEOS";
@@ -16,7 +20,7 @@ sub backup($$){
   die "$src is not a mountpoint\n" if not isMountpoint $src;
   die "$dest is not a mountpoint\n" if not isMountpoint $dest;
 
-  my @cmd = ("sudo", "rsync", "-avP", "--del", "$src/", "$dest/");
+  my @cmd = ("rsync", "-avP", "--del", "$src/", "$dest/");
   print "@cmd\n";
   system @cmd;
 }
@@ -24,6 +28,13 @@ sub backup($$){
 sub isMountpoint($){
   system "mountpoint '$_[0]' >/dev/null 2>/dev/null";
   return $? == 0;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
 }
 
 &main(@ARGV);
