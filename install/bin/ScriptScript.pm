@@ -29,7 +29,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
-                  editFile editSimpleConf editIni
+                  editFile editSimpleConf editIni editFileLines
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -532,8 +532,8 @@ sub replaceOrAddLine($$$) {
 
 sub editFile($$;$) {
     my ($name, $patchname, $edit);
-    ($name, $edit) = @_             if @_ == 2;
-    ($name, $patchname, $edit) = @_ if @_ == 3;
+    ($name, $patchname, $edit) = ($_[0], undef, $_[1]) if @_ == 2;
+    ($name, $patchname, $edit) = ($_[0], $_[1], $_[2]) if @_ == 3;
 
     my @patchcmd = ("patch", "-fr", "-", "$name");
     my $patchfile = "$name.$patchname.patch" if defined $patchname;
@@ -609,6 +609,22 @@ sub editFile($$;$) {
             shell $cmd;
         }
     }
+}
+
+sub editFileLines($$;$) {
+  my ($name, $patchname, $editLine);
+  ($name, $patchname, $editLine) = ($_[0], undef, $_[1]) if @_ == 2;
+  ($name, $patchname, $editLine) = ($_[0], $_[1], $_[2]) if @_ == 3;
+  my $editFile = sub {
+    my $cnts = shift;
+    my @lines = split /(?<=\n)/, $cnts;
+    for my $line(@lines){
+      $line = &$editLine($line);
+    }
+    return join '', @lines;
+  };
+
+  editFile $name, $patchname, $editFile;
 }
 
 sub editSimpleConf($$$) {
