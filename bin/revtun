@@ -4,7 +4,6 @@ use warnings;
 
 my $portMin=30000;
 my $portMax=39999;
-my $sshCmd = "autossh";
 my $localPort = 22;
 my $localHost = "127.0.0.1";
 my $secretsFile = "$ENV{HOME}/.secrets";
@@ -90,6 +89,13 @@ sub main(@){
     }
   }
 
+  my $sshCmd = `which autossh 2>/dev/null`;
+  chomp $sshCmd;
+  if($sshCmd !~ /autossh/){
+    print "  using 'ssh' instead of 'autossh'\n";
+  }
+  $sshCmd = "ssh" if $sshCmd !~ /ssh/;
+
   my @opts = map {("-o", $_)} @sshOpts;
   @opts = (@sshArgs, @opts);
 
@@ -105,9 +111,9 @@ sub main(@){
   }
 
   if($local){
-    run "$sshCmd", "-L", "$localPort:$localHost:$port", $host, @opts;
+    run $sshCmd, "-L", "$localPort:$localHost:$port", $host, @opts;
   }else{
-    run "$sshCmd", "-R", "$port:$localHost:$localPort", $host, @opts;
+    run $sshCmd, "-R", "$port:$localHost:$localPort", $host, @opts;
   }
 }
 
