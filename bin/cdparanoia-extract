@@ -1,0 +1,65 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $usage = "Usage:
+  $0 [CDROM_DEV]
+";
+
+sub main(@){
+  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+  die $usage if @_ > 1;
+
+  my $cdromDev = $_[0] if @_ == 1;
+  if(defined $cdromDev and not -b $cdromDev){
+    die "not a block device: $cdromDev\n";
+  }
+
+  my @cmd;
+  @cmd = ("unbuffer", "cdparanoia");
+  @cmd = (@cmd, "-d", $cdromDev) if defined $cdromDev;
+  @cmd = (@cmd, "-B");
+
+  my $devFmt = defined $cdromDev ? $cdromDev : "default";
+  $devFmt =~ s/^\/dev//;
+  $devFmt =~ s/\W+/_/g;
+  $devFmt =~ s/^_+//g;
+  $devFmt =~ s/_+$//g;
+
+  my $nowMillis = int(time*1000.0 + 0.5);
+  my $logFile = "/tmp/cdparanoia-$devFmt-$nowMillis";
+
+  my $cdparanoiaPid = fork();
+  if(not $cdparanoiaPid){
+    print "LOGGING TO: $logFile\n";
+    exec "@cmd 2>&1 | tee $logFile";
+  }
+
+  my $logPid = fork();
+  if(not $logPid){
+    open LOG, "-|", "tail -F $logFile 2>&1";
+    while(my $line = <LOG>){
+      if($line =~ /^outputting to/){
+        system "alarm", "-s", "ff7-menuselect";
+      }elsif($line =~ /error/){
+        system "alarm", "-s", "ff7-cancel";
+      }
+    }
+    exit 0;
+  }
+
+  waitpid $cdparanoiaPid, 0;
+  my $exitCode = $? >> 8;
+
+  kill $logPid;
+  waitpid $logPid, 0;
+
+  if($exitCode == 0){
+    system "alarm", "-s", "success";
+  }else{
+    system "alarm", "-s", "failure";
+  }
+}
+
+&main(@ARGV);
