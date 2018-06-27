@@ -33,12 +33,14 @@ sub main(@){
   my $cdparanoiaPid = fork();
   if(not $cdparanoiaPid){
     print "LOGGING TO: $logFile\n";
-    exec "@cmd 2>&1 | tee $logFile";
+    print "RUNNING: @cmd\n";
+    exec "bash -c 'set -o pipefail; @cmd 2>&1 | tee $logFile'";
   }
 
-  my $logPid = fork();
-  if(not $logPid){
-    open LOG, "-|", "tail -F $logFile 2>&1";
+  my $logPid = open LOG, "-|", "tail -F $logFile 2>&1";
+
+  my $logReaderPid = fork();
+  if(not $logReaderPid){
     while(my $line = <LOG>){
       if($line =~ /^outputting to/){
         system "alarm", "-s", "ff7-menuselect";
@@ -46,14 +48,19 @@ sub main(@){
         system "alarm", "-s", "ff7-cancel";
       }
     }
+    close LOG;
     exit 0;
   }
+  print "LOG pid: $logPid\n";
+  print "LOG reader pid: $logReaderPid\n";
+  print "CDP pid: $cdparanoiaPid\n";
 
   waitpid $cdparanoiaPid, 0;
   my $exitCode = $? >> 8;
 
-  kill $logPid;
+  system "kill", "-9", $logPid;
   waitpid $logPid, 0;
+  waitpid $logReaderPid, 0;
 
   if($exitCode == 0){
     system "alarm", "-s", "success";
