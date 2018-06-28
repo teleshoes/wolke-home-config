@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use IPC::Open3 qw(open3);
+use POSIX qw(strftime);
 use Time::HiRes qw(alarm time);
 
 my $screenDaemonConf = "$ENV{HOME}/.config/screen-daemon.conf";
@@ -72,6 +73,7 @@ sub parseScreenDaemonConf();
 sub checkRunArgs($$$@);
 sub runCommandForever($$$@);
 sub cmdTimeout($$@);
+sub logMsg($$);
 sub shellParse($);
 
 sub main(@){
@@ -178,13 +180,14 @@ sub runCommandForever($$$@){
     open $logFH, ">>", $logFile or die "Could not append to $logFile\n";
   }
 
-  print $logFH `date`;
-  print $logFH "started $name daemon\n";
-  print $logFH "\n\n\n";
+  logMsg($logFH, "started $name daemon");
   while(1){
-    print $logFH `date`;
+    logMsg($logFH, "running command: @cmd");
+    logMsg($logFH, "command start");
 
     cmdTimeout $logFH, $timeoutMillis, @cmd;
+
+    logMsg($logFH, "command end");
 
     print $logFH "\n\n\n";
     if($delayMillis > 0){
@@ -207,11 +210,24 @@ sub cmdTimeout($$@){
       alarm 0;
     };
     if($@ =~ /timeout/){
-      print $logFH "TIMEOUT $pid after ${timeoutMillis}ms\n";
+      print $logFH "TIMEOUT pid=$pid after ${timeoutMillis}ms\n";
       system "kill", "-9", "$pid";
       waitpid $pid, 0;
     }
   }
+}
+
+sub logMsg($$){
+  my ($logFH, $msg) = @_;
+
+  my $now = time;
+  my @localtime = localtime($now);
+  my $millis = sprintf "%03d", int($now * 1000 + 0.5) % 1000;
+  my $dateFmt = strftime("%Y-%m-%d %H:%M:%S.$millis %z", @localtime);
+
+  chomp $msg;
+
+  print $logFH "%%%|$EXEC|$dateFmt|$msg\n";
 }
 
 sub shellParse($){
