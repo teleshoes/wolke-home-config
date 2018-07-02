@@ -1,8 +1,10 @@
 module WorkspaceImages (getIcon, loadIconInitialState) where
 import Utils (imageDir, tryMaybe)
 
-import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufNewFromFile)
+import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufGetHeight, pixbufNewFromFile)
+import GI.Gtk.Enums (Orientation(..))
 
+import StatusNotifier.Tray (scalePixbufToSize)
 import System.Taffybar.Widget.Workspaces (
   WindowData(..), WindowIconPixbufGetter,
   constantScaleWindowIconPixbufGetter, getWindowIconPixbufFromClass,
@@ -35,7 +37,7 @@ getIcon state =
   scale (getWindowIconPixbufFromDesktopEntry) <|||>
   scale (getWindowIconPixbufFromClass) <|||>
   error "could not apply icon"
-  where scale = constantScaleWindowIconPixbufGetter size
+  where scale = scalePixbuf size
         size = fromIntegral $ wsImageHeight state :: Int32
 
 loadIconInitialState :: Int -> IO IconInitialState
@@ -48,6 +50,20 @@ loadIconInitialState height = do
   return $ IconInitialState { namedIconFileMap = zip names filePaths
                             , wsImageHeight = height
                             }
+
+scalePixbuf :: Int32 -> WindowIconPixbufGetter -> WindowIconPixbufGetter
+scalePixbuf size getter getterArgSize getterArgWindowData = do
+  maybePixbuf <- getter getterArgSize getterArgWindowData
+  case maybePixbuf of
+    Just pixbuf -> liftIO $ fmap Just $ ensurePixbufScaled size pixbuf
+    Nothing     -> return Nothing
+
+ensurePixbufScaled :: Int32 -> Pixbuf -> IO Pixbuf
+ensurePixbufScaled size pixbuf = do
+  h <- pixbufGetHeight pixbuf
+  if h == size
+  then return pixbuf
+  else scalePixbufToSize size OrientationHorizontal pixbuf
 
 getWindowIconPixbufOverride :: IconInitialState -> WindowIconPixbufGetter
 getWindowIconPixbufOverride state _ windowData = liftIO $ loadFilePixbuf fileName
