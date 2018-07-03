@@ -8,7 +8,11 @@ my @DIR_EXCLUDES = qw( .system aolsystemmsg );
 my $DEFAULT_LINES_PER_FILE = 5;
 my $DEFAULT_RECENT_FILE_COUNT = 5;
 
+my @IGNORE_LINE_REGEXS = (
+);
+
 sub getFileLines($$);
+sub anyMatches($@);
 sub mtime($);
 
 my $usage = "Usage:
@@ -94,12 +98,24 @@ sub getFileLines($$){
     if(@$okLines >= $linesPerFile){
       last;
     }
-    push @$okLines, $line;
+    if(not anyMatches($line, @IGNORE_LINE_REGEXS)){
+      push @$okLines, $line;
+    }
   }
 
   $okLines = [reverse @$okLines];
 
   return $okLines;
+}
+
+sub anyMatches($@){
+  my ($str, @regexs) = @_;
+  for my $regex(@regexs){
+    if($str =~ /$regex/){
+      return 1;
+    }
+  }
+  return 0;
 }
 
 sub mtime($){
