@@ -2,30 +2,31 @@
 use strict;
 use warnings;
 
-my @dirExcludes = qw( .system aolsystemmsg );
+my $LOG_DIR = "$ENV{HOME}/.purple/logs";
+my @DIR_EXCLUDES = qw( .system aolsystemmsg );
 
-my $logDir = "$ENV{HOME}/.purple/logs";
-my $linesPerFile = 5;
-my $defaultRecentFileCount = 5;
+my $DEFAULT_LINES_PER_FILE = 5;
+my $DEFAULT_RECENT_FILE_COUNT = 5;
 
 sub mtime($);
 
 my $usage = "Usage:
   $0 [COUNT]
-    print the COUNT most recent log files in $logDir
-      default COUNT is $defaultRecentFileCount
+    print the COUNT most recent log files in $LOG_DIR
+      default COUNT is $DEFAULT_RECENT_FILE_COUNT
 ";
 
 sub main(@){
-  my $recentFileCount = $defaultRecentFileCount;
+  my $recentFileCount = $DEFAULT_RECENT_FILE_COUNT;
+  my $linesPerFile = $DEFAULT_LINES_PER_FILE;
   if(@_ == 1 and $_[0] =~ /^\d+$/){
     $recentFileCount = $_[0];
   }elsif(@_ > 0){
     die $usage;
   }
 
-  my @files = `find $logDir -type f`;
-  for my $dir(@dirExcludes){
+  my @files = `find $LOG_DIR -type f`;
+  for my $dir(@DIR_EXCLUDES){
     @files = grep {$_ !~ /\/\Q$dir\E\//} @files;
   }
   chomp foreach @files;
@@ -59,7 +60,7 @@ sub main(@){
     $lines =~ s/^[ \t\n]*//;
 
     my ($protocol, $from, $to, $fileName);
-    if($file =~ /^$logDir\/([^\/]+)\/([^\/]+)\/([^\/]+)\/([^\/]+)$/){
+    if($file =~ /^$LOG_DIR\/([^\/]+)\/([^\/]+)\/([^\/]+)\/([^\/]+)$/){
       ($protocol, $from, $to, $fileName) = ($1, $2, $3, $4);
     }
     $fmt .= "$to  ($fileName $protocol $from)\n";
