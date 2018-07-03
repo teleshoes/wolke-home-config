@@ -6,11 +6,24 @@ my @dirExcludes = qw( .system aolsystemmsg );
 
 my $logDir = "$ENV{HOME}/.purple/logs";
 my $linesPerFile = 5;
-my $recentFiles = 5;
+my $defaultRecentFileCount = 5;
 
 sub mtime($);
 
+my $usage = "Usage:
+  $0 [COUNT]
+    print the COUNT most recent log files in $logDir
+      default COUNT is $defaultRecentFileCount
+";
+
 sub main(@){
+  my $recentFileCount = $defaultRecentFileCount;
+  if(@_ == 1 and $_[0] =~ /^\d+$/){
+    $recentFileCount = $_[0];
+  }elsif(@_ > 0){
+    die $usage;
+  }
+
   my @files = `find $logDir -type f`;
   for my $dir(@dirExcludes){
     @files = grep {$_ !~ /\/\Q$dir\E\//} @files;
@@ -35,7 +48,7 @@ sub main(@){
   }
   @files = sort {$mtimes{$a} <=> $mtimes{$b}} @files;
 
-  shift @files while @files > $recentFiles;
+  shift @files while @files > $recentFileCount;
 
   my $sep = "========================\n";
 
