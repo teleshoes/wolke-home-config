@@ -57,35 +57,37 @@ sub main(@){
   }
   chomp foreach @files;
 
-  my %latest;
-  for my $file(@files){
-    if($file !~ /^(.*)\/[^\/]+$/){
-      die "malformed file: $file\n";
-    }
-    my $dir = $1;
-    if(not defined $latest{$dir} or $file gt $latest{$dir}){
-      $latest{$dir} = $file;
-    }
-  }
-  @files = values %latest;
-
   my %mtimes;
   for my $file(@files){
     $mtimes{$file} = mtime $file;
   }
+
   @files = sort {$mtimes{$a} <=> $mtimes{$b}} @files;
 
   my @okFiles;
   my %okFileLines;
+  my %dirsHandled;
   for my $file(reverse @files){
     if(@okFiles >= $recentFileCount){
       last;
     }
+
+    if($file !~ /^(.*)\/[^\/]+$/){
+      die "malformed file: $file\n";
+    }
+    my $dir = $1;
+
+    if(defined $dirsHandled{$dir}){
+      next; #only include one most recent for each user
+    }
+
     my $lines = getFileLines $file, $linesPerFile;
 
     if(@$lines > 0){
+      #dont include files without non-ignored lines
       push @okFiles, $file;
       $okFileLines{$file} = $lines;
+      $dirsHandled{$dir} = 1;
     }
   }
 
