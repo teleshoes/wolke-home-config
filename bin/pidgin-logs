@@ -8,6 +8,7 @@ my @DIR_EXCLUDES = qw( .system aolsystemmsg );
 my $DEFAULT_LINES_PER_FILE = 5;
 my $DEFAULT_RECENT_FILE_COUNT = 5;
 
+sub getFileLines($$);
 sub mtime($);
 
 my $usage = "Usage:
@@ -49,26 +50,56 @@ sub main(@){
   }
   @files = sort {$mtimes{$a} <=> $mtimes{$b}} @files;
 
-  shift @files while @files > $recentFileCount;
+  my @okFiles;
+  my %okFileLines;
+  for my $file(reverse @files){
+    if(@okFiles >= $recentFileCount){
+      last;
+    }
+    my $lines = getFileLines $file, $linesPerFile;
+
+    if(@$lines > 0){
+      push @okFiles, $file;
+      $okFileLines{$file} = $lines;
+    }
+  }
+
+  @okFiles = reverse @okFiles;
 
   my $sep = "========================\n";
 
   my $fmt = $sep;
 
-  for my $file(@files){
-    my $lines = `tail -$linesPerFile "$file"`;
-    $lines =~ s/^[ \t\n]*//;
+  for my $file(@okFiles){
+    my $lines = $okFileLines{$file};
 
     my ($protocol, $from, $to, $fileName);
     if($file =~ /^$LOG_DIR\/([^\/]+)\/([^\/]+)\/([^\/]+)\/([^\/]+)$/){
       ($protocol, $from, $to, $fileName) = ($1, $2, $3, $4);
     }
     $fmt .= "$to  ($fileName $protocol $from)\n";
-    $fmt .= $lines;
+    $fmt .= $_ foreach @$lines;
     $fmt .= $sep;
   }
 
   print $fmt;
+}
+
+sub getFileLines($$){
+  my ($file, $linesPerFile) = @_;
+  my $okLines = [];
+
+  my @lines = `cat "$file"`;
+  for my $line(reverse @lines){
+    if(@$okLines >= $linesPerFile){
+      last;
+    }
+    push @$okLines, $line;
+  }
+
+  $okLines = [reverse @$okLines];
+
+  return $okLines;
 }
 
 sub mtime($){
