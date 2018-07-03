@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@);
+sub writeFile($$);
+sub ensureRoot();
+
+sub main(@){
+  ensureRoot();
+
+  run qw(modprobe -r iwlmvm iwldvm iwlwifi);
+  run qw(sleep 3);
+
+  writeFile("/sys/bus/pci/devices/0000:02:00.0/remove", 1);
+  run qw(sleep 3);
+
+  writeFile("/sys/bus/pci/rescan", 1);
+  run qw(sleep 3);
+
+  run qw(modprobe iwlmvm iwldvm iwlwifi);
+  run qw(sleep 3);
+
+  run qw(wauto);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  print "echo $contents > $file\n";
+  open FH, "> $file" or die "could not write to $file\n$!\n";
+  print FH $contents;
+  close FH;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+&main(@ARGV);
