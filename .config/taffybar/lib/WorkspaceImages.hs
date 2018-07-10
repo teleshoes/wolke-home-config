@@ -36,6 +36,7 @@ getIcon state =
   scale (getWindowIconPixbufTitleClass state) <|||>
   scale (getWindowIconPixbufFromDesktopEntry) <|||>
   scale (getWindowIconPixbufFromClass) <|||>
+  scale (getWindowIconPixbufUnknown state) <|||>
   error "could not apply icon"
   where scale = scalePixbuf size
         size = fromIntegral $ wsImageHeight state :: Int32
@@ -77,6 +78,12 @@ getWindowIconPixbufTitleClass state _ windowData = liftIO $ loadFilePixbuf fileN
         titleClassIconName = getTitleClassIconName state winTitle winClass
         fileName = iconNameToFile state titleClassIconName
 
+getWindowIconPixbufUnknown :: IconInitialState -> WindowIconPixbufGetter
+getWindowIconPixbufUnknown state _ _ = liftIO $ loadFilePixbuf fileName
+  where fileName = iconNameToFile state $ Just "unknown"
+
+getWindowIconPixbufNothing _ _ = return Nothing
+
 loadFilePixbuf :: Maybe FilePath -> IO (Maybe Pixbuf)
 loadFilePixbuf Nothing = return Nothing
 loadFilePixbuf (Just file) = tryMaybe $ pixbufNewFromFile file
@@ -103,8 +110,7 @@ getTitleClassIconName :: IconInitialState -> String -> String -> Maybe IconName
 getTitleClassIconName state winTitle winClass = listToMaybe iconNames
   where titleIconName = searchNamedIconFileMap state winTitle
         classIconName = searchNamedIconFileMap state winClass
-        unknownIconName = Just "unknown"
-        iconNames = catMaybes [titleIconName, classIconName, unknownIconName]
+        iconNames = catMaybes [titleIconName, classIconName]
 
 iconNameToFile :: IconInitialState -> Maybe String -> Maybe FilePath
 iconNameToFile state (Just iconName) = lookup iconName $ namedIconFileMap state
