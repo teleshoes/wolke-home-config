@@ -3,7 +3,6 @@ import Utils (fg, fgbg)
 import WorkspaceImages (getIcon, loadIconInitialState)
 
 import Control.Monad.Trans (liftIO)
-import Graphics.UI.Gtk (Widget)
 
 import System.Taffybar.Widget.Workspaces (
   WorkspacesConfig(..), WorkspacesIO, Workspace(..), WorkspaceState(..),

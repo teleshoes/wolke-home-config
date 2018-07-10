@@ -1,27 +1,36 @@
 module Thunderbird(thunderbirdW) where
-import Color (Color(..), hexColor, widgetBgColorWrap)
 import Clickable (clickable)
 import Image (imageW)
 import Label (labelW, mainLabel)
-import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  imageDir, fg, getHome, regexGroups, chompAll, padL, isRunning, readProc, chompFile)
+  eboxStyleWrapW, imageDir, fg, getHome, regexGroups, chompAll, padL,
+  isRunning, readProc, chompFile)
+
+import GI.Gtk.Enums (
+  Orientation(OrientationHorizontal))
+import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
+import GI.Gtk.Objects.Container (containerAdd)
+import GI.Gtk.Objects.Widget (Widget, toWidget)
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 
 import qualified Data.Map as M (fromList, lookup, member)
 
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
 
-main = mainLabel $ unreadCountsMarkup $ hexColor White
-thunderbirdW h fgColor bgColor = do
+main = mainLabel $ unreadCountsMarkup
+thunderbirdW h = do
   img <- imageW (getImage h)
-  label <- labelW $ unreadCountsMarkup $ hexColor fgColor
+  label <- labelW $ unreadCountsMarkup
 
-  box <- hBoxNew False 0
+  box <- boxNew OrientationHorizontal 0
+  boxSetHomogeneous box False
+
   containerAdd box img
   containerAdd box label
 
-  widgetBgColorWrap bgColor =<< clickable clickL clickM clickR box
+  box <- clickable clickL clickM clickR box
+  eboxStyleWrapW box "Email"
 
 
 exec = "icedove"
@@ -44,7 +53,7 @@ getImage h = do
   let img = if tbRunning then "thunderbird-on.png" else "thunderbird-off.png"
   return $ dir ++ "/" ++ img
 
-unreadCountsMarkup color = do
+unreadCountsMarkup = do
   home <- getHome
   let cmd = ["find", home ++ "/" ++ dir ++ "/", "-iname", "*.default"]
   profileDir <- fmap chompAll $ readProc cmd
@@ -52,7 +61,7 @@ unreadCountsMarkup color = do
 
   unreadCounts <- chompFile ucFile
   let markup = formatUnreadCounts $ parseUnreadCounts unreadCounts
-  return $ fg color markup
+  return markup
 
 
 parseUnreadCounts :: String -> [(String, Integer)]

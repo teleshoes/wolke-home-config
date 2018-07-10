@@ -4,20 +4,22 @@ import Clickable (clickable)
 import Label (labelW, mainLabel)
 import Utils (
   stringWidth, trimL, trimR, padL, padR,
-  fgbg, isRunning, chompFile, readProc, widgetSetClass)
+  fgbg, isRunning, chompFile, readProc)
 
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
 import Data.Csv (decodeByName, FromNamedRecord, parseNamedRecord, (.:))
-import Graphics.UI.Gtk (escapeMarkup)
+import GI.GLib.Functions (markupEscapeText)
 import qualified Data.Vector as Vector
 import qualified Data.Text.Lazy as T
+import Data.Text (pack, unpack)
 import Data.Text.Lazy.Encoding (encodeUtf8)
 
 main = mainLabel $ klompReader 30
 klompW rowLength = do
   label <- labelW (klompReader rowLength)
-  widgetSetClass label "Klomp"
+  widgetSetClassGI label $ pack "Klomp"
   clickable clickL clickM clickR label
 
 gapOffset = 3
@@ -71,12 +73,20 @@ klompReader rowLength = do
       botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
       rowLen = if isPrefixed then rowLength - 1 else rowLength
 
-  let top = padSquishEsc rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
-      bot = padSquishEsc rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
+  let topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
+      botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
+
+  top <- escapeMarkup topText
+  bot <- escapeMarkup botText
 
   return $ topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
 
-prefixFmt = fgbg "green" "black" . padSquishEsc 1
+escapeMarkup :: String -> IO String
+escapeMarkup text = do
+  markup <- markupEscapeText (pack text) (fromIntegral $ length text)
+  return $ unpack markup
+
+prefixFmt = fgbg "green" "black" . padSquish 1
 
 infoColumns = ["title", "artist", "album", "number",
                "pos", "len", "percent", "playlist", "ended"]
@@ -118,8 +128,6 @@ formatTimes ts = map fmt ts
         h t = padL '0' maxHLen $ show $ t `div` 60^2
         m t = padL '0' 2 $ show $ (t `mod` 60^2) `div` 60
         s t = padL '0' 2 $ show $ t `mod` 60
-
-padSquishEsc len s = escapeMarkup $ padSquish len s
 
 padSquish len s = padR ' ' len $ sTrim
   where strLen = stringWidth s

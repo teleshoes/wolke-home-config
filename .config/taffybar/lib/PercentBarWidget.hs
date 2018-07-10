@@ -1,7 +1,7 @@
 module PercentBarWidget (
   percentBarWidgetW, percentBarConfig, mainPercentBarWidget
 ) where
-import Graphics.UI.Gtk (realize, on)
+import GI.Gtk.Objects.Widget (onWidgetRealize)
 import System.Taffybar.Widget.Generic.VerticalBar (
   VerticalBarHandle,
   verticalBarNew, verticalBarSetPercent,
@@ -34,7 +34,7 @@ percentBarWidgetW interval barReader = do
   let fgColorReader = colorReader fgColorMVar (0, 0, 0)
   (w, vbh) <- verticalBarNew $ percentBarConfig bgColorReader fgColorReader
 
-  on w realize $ do
+  onWidgetRealize w $ do
     void $ forkIO $ forever $ do
       (p, colors) <- barReader
       checkLen "too many colors" colors 100

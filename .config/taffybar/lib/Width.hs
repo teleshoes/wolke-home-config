@@ -6,8 +6,14 @@ import Control.Monad (when)
 import Graphics.X11.Xlib.Display (
   openDisplay, defaultScreen,
   displayHeight, displayWidth, displayHeightMM, displayWidthMM)
-import Graphics.UI.Gtk (
-  Container, Widget, hBoxNew, widgetSetSizeRequest, containerAdd, toWidget, toContainer, widgetShowAll)
+
+import GI.Gtk.Enums (
+  Orientation(OrientationHorizontal))
+import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
+import GI.Gtk.Objects.Container (
+  Container, containerAdd, toContainer)
+import GI.Gtk.Objects.Widget (
+  Widget, toWidget, widgetSetSizeRequest, widgetShowAll)
 
 -- ratio of font size to width
 fontSizeToWidthRatio = 2.0 -- Inconsolata medium
@@ -24,16 +30,18 @@ charWidth dpi fontSizePt = ceiling $ fontSizePx / fontSizeToWidthRatio
 
 widthBox :: Int -> IO Container
 widthBox widthPx = do
-  wbox <- hBoxNew False 0
-  widgetSetSizeRequest wbox widthPx (-1)
+  wbox <- boxNew OrientationHorizontal 0
+  boxSetHomogeneous wbox False
+
+  widgetSetSizeRequest wbox (fromIntegral widthPx) (-1)
   widgetShowAll wbox
-  return $ toContainer wbox
+  toContainer wbox
 
 widthWrap :: Int -> Widget -> IO Container
 widthWrap widthPx w = do
   wbox <- widthBox widthPx
   containerAdd wbox w
-  widgetSetSizeRequest w widthPx (-1)
+  widgetSetSizeRequest w (fromIntegral widthPx) (-1)
   widgetShowAll wbox
   return wbox
 
@@ -41,12 +49,14 @@ widthScreenWrapW :: Double -> Widget -> IO Widget
 widthScreenWrapW screenRatio w = do
   screenWidthPx <- getScreenWidth
   let widthPx = round $ screenRatio * fromIntegral screenWidthPx
-  fmap toWidget $ widthWrap widthPx w
+  box <- widthWrap widthPx w
+  toWidget box
 
 widthCharWrapW :: Int -> Double -> Int -> Widget -> IO Widget
 widthCharWrapW dpi fontSize charCount w = do
   let widthPx = charWidth dpi fontSize * charCount
-  fmap toWidget $ widthWrap widthPx w
+  box <- widthWrap widthPx w
+  toWidget box
 
 screenPctToPx :: Double -> IO Int
 screenPctToPx pct = do

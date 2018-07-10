@@ -1,26 +1,26 @@
 module LayoutWindows (layoutWindowsW) where
 import Utils (fgbg)
 
+import Data.Text (Text, pack, unpack)
 import Control.Monad.Trans (liftIO)
 
 import System.Taffybar.Widget.Layout (
   LayoutConfig(..), defaultLayoutConfig, layoutNew)
 import System.Taffybar.Information.EWMHDesktopInfo (
   WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
-import System.Taffybar.Compat.GtkLibs (fromGIWidget)
 
 layoutWindowsW = layoutNew layoutConfig
 
 layoutConfig = defaultLayoutConfig
-  { formatLayout = \layout -> liftIO $ case layout of
-                       "left" -> return "[]="
-                       "top"  -> return "TTT"
-                       "grid" -> return "###"
+  { formatLayout = \layout -> liftIO $ case unpack layout of
+                       "left" -> return $ pack "[]="
+                       "top"  -> return $ pack "TTT"
+                       "grid" -> return $ pack "###"
                        "full" -> fmap formatWindowCount windowCount
   }
 
-formatWindowCount :: Int -> String
-formatWindowCount cnt = wcCol $ "[" ++ wcFmt ++ "]"
+formatWindowCount :: Int -> Text
+formatWindowCount cnt = pack $ wcCol $ "[" ++ wcFmt ++ "]"
   where wcCol = if cnt > 1 then fgbg "blue" "red" else id
         wcFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
 

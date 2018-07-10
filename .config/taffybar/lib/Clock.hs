@@ -1,5 +1,5 @@
 module Clock(clockW) where
-import Graphics.UI.Gtk (Widget)
+import GI.Gtk.Objects.Widget (Widget)
 import System.Taffybar.Widget.SimpleClock (textClockNew)
 import Utils (defaultDelay)
 

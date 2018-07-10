@@ -2,7 +2,7 @@ module Utils(
   defaultDelay, getHome, getHomeFile, imageDir,
   maybeJoin,
   fg, bg, fgbg,
-  rowW, colW, containerW, widgetSetClass,
+  rowW, colW, containerW, eboxStyleWrapW,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts,
   stringWidth, trimL, trimR, padL, padR, padCols, uncols, chompAll,
@@ -29,11 +29,16 @@ import Data.List.Split (keepDelimsL, oneOf, split)
 import Data.List.Utils (replace)
 import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.Text (pack)
 
-import Graphics.UI.Gtk (
-  Container, Widget, WidgetClass, hBoxNew, vBoxNew, containerAdd,
-  toWidget, toContainer, widgetShowAll, widgetGetStyleContext)
-import Graphics.UI.Gtk.General.StyleContext (styleContextAddClass)
+import GI.Gtk.Objects.Widget (
+  Widget, toWidget, widgetShowAll)
+import GI.Gtk.Enums (
+  Orientation(OrientationHorizontal, OrientationVertical))
+import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
+import GI.Gtk.Objects.Container (Container, containerAdd, toContainer)
+import GI.Gtk.Objects.EventBox (eventBoxNew)
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 
 import System.Directory (doesFileExist, doesDirectoryExist, removeFile)
 import System.Environment (getEnv)
@@ -77,23 +82,38 @@ fgbg fg bg m = "<span"
                ++ ">" ++ m ++ "</span>"
 
 -- WIDGETS
+hboxW :: IO Container
+hboxW = boxW False OrientationHorizontal
+
+vboxW :: IO Container
+vboxW = boxW False OrientationVertical
+
+boxW :: Bool -> Orientation -> IO Container
+boxW isHomogenous orientation = do
+  box <- boxNew orientation 0
+  boxSetHomogeneous box isHomogenous
+  toContainer box
+
 rowW :: [IO Widget] -> IO Widget
-rowW widgets = containerW widgets =<< toContainer `fmap` hBoxNew False 0
+rowW widgets = containerW widgets =<< hboxW
 
 colW :: [IO Widget] -> IO Widget
-colW widgets = containerW widgets =<< toContainer `fmap` vBoxNew False 0
+colW widgets = containerW widgets =<< vboxW
 
 containerW :: [IO Widget] -> Container -> IO Widget
 containerW widgets box = do
   ws <- sequence widgets
   mapM_ (containerAdd box) ws
   widgetShowAll box
-  return $ toWidget box
+  toWidget box
 
-widgetSetClass :: WidgetClass w => w -> String -> IO ()
-widgetSetClass widget klass = do
-  context <- widgetGetStyleContext widget
-  styleContextAddClass context klass
+eboxStyleWrapW w klass = do
+  ebox <- eventBoxNew
+  eboxWidget <- toWidget ebox
+  widgetSetClassGI eboxWidget $ pack klass
+  containerAdd ebox w
+  widgetShowAll ebox
+  return $ eboxWidget
 
 -- PARSING
 regexMatch :: String -> String -> Bool

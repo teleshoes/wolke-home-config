@@ -3,22 +3,32 @@ module JsonWidget(jsonWidgetNew) where
 import Clickable (clickableLeftAsync)
 
 import Data.Maybe (listToMaybe)
+import Data.Text (pack)
 import Control.Monad (forever, void)
 import Control.Concurrent (forkIO, MVar, newMVar, readMVar, takeMVar, putMVar)
 import Control.Exception (try, SomeException)
 import System.Process (system)
 import System.IO (stderr, hPutStrLn)
 
-import Graphics.UI.Gtk (
-  Widget, Container,
-  castToLabel, castToContainer, castToImage, toWidget,
-  containerAdd, containerRemove, containerForeach,
-  hBoxNew, labelNew, imageNew,
-  labelSetMarkup, imageSetFromFile,
-  widgetShowAll, postGUISync)
+import Data.GI.Gtk.Threading (postGUISync)
+import Data.GI.Base.ManagedPtr (
+  unsafeCastTo)
+import GI.Gtk.Enums (
+  Orientation(OrientationHorizontal))
+import GI.Gtk.Objects.Widget (
+  IsWidget, Widget, toWidget, widgetShowAll)
+import GI.Gtk.Objects.Container (
+  Container,
+  containerAdd, containerRemove, containerForeach, toContainer)
+import GI.Gtk.Objects.Box (
+  boxNew, boxSetHomogeneous)
+import GI.Gtk.Objects.Label (
+  Label(Label), labelNew, labelSetMarkup, toLabel)
+import GI.Gtk.Objects.Image (
+  Image(Image), imageNew, imageSetFromFile, toImage)
 import Text.JSON (JSObject, Result(Ok, Error), decode, fromJSObject)
 
-data GuiMarkupF a = Click a | Label a | Image a
+data GuiMarkupF a = GMClick a | GMLabel a | GMImage a
   deriving (Show, Read, Eq, Ord, Functor)
 type GuiMarkup = GuiMarkupF String
 
@@ -32,9 +42,9 @@ data GuiState = GuiState
 
 parseJsonPair :: (String, String) -> GuiMarkup
 parseJsonPair (name, value) = case name of
-  "click" -> Click value
-  "label" -> Label value
-  "image" -> Image value
+  "click" -> GMClick value
+  "label" -> GMLabel value
+  "image" -> GMImage value
 
 parseJson :: String -> Either String [GuiMarkup]
 parseJson str = case res of
@@ -66,11 +76,12 @@ guiError error guiStateMVar = do
   hPutStrLn stderr error
   let p = panel guiState
   clearContainer p
-  errorLabel <- fmap toWidget $ labelNew $ Just error
+  errorLabel <- labelNew $ Just $ pack error
+  errorLabelWidget <- toWidget errorLabel
   containerAdd p errorLabel
   widgetShowAll p
   putMVar guiStateMVar guiState { guiMarkups = []
-                                , widgets = [errorLabel]
+                                , widgets = [errorLabelWidget]
                                 , clickCommand = Nothing
                                 }
 
@@ -79,16 +90,16 @@ parseClickCommand gms = (cmd, widgetGuiMarkups)
   where clickGuiMarkup = listToMaybe $ filter isClickCmd gms
         cmd = case clickGuiMarkup of
           Nothing -> Nothing
-          Just (Click cmd) -> Just cmd
+          Just (GMClick cmd) -> Just cmd
         widgetGuiMarkups = filter (not . isClickCmd) gms
         isClickCmd x = case x of
-          (Click cmd) -> True
+          (GMClick cmd) -> True
           otherwise   -> False
 
 buildWidget :: GuiMarkup -> IO Widget
 buildWidget gm = case gm of
-  (Label text) -> fmap toWidget $ labelNew (Nothing :: Maybe String)
-  (Image img) -> fmap toWidget imageNew
+  (GMLabel text) -> toWidget =<< labelNew Nothing
+  (GMImage img) -> toWidget =<< imageNew
 
 sameWidgetStructure :: [GuiMarkup] -> [GuiMarkup] -> Bool
 sameWidgetStructure xs ys = (map void xs) == (map void ys)
@@ -114,8 +125,12 @@ buildWidgets gms guiStateMVar = do
 
 updateWidget :: (Widget, GuiMarkup) -> IO ()
 updateWidget (w,gm) = case gm of
-  (Label text) -> labelSetMarkup (castToLabel w) text
-  (Image image) -> imageSetFromFile (castToImage w) image
+  (GMLabel text) -> do
+    lblW <- unsafeCastTo Label w
+    labelSetMarkup lblW $ pack text
+  (GMImage image) -> do
+    imgW <- unsafeCastTo Image w
+    imageSetFromFile imgW $ Just image
 
 updateWidgets guiStateMVar = do
   guiState <- readMVar guiStateMVar
@@ -138,11 +153,13 @@ getClickCommand guiStateMVar = do
 
 jsonWidgetNew :: (IO String) -> IO Widget
 jsonWidgetNew markupReader = do
-  p <- hBoxNew False 0
-  guiStateMVar <- newMVar $ GuiState { guiMarkups=[]
-                                     , widgets=[]
-                                     , panel=castToContainer p
-                                     , clickCommand=Nothing
+  p <- boxNew OrientationHorizontal 0
+  boxSetHomogeneous p False
+  containerPanel <- toContainer p
+  guiStateMVar <- newMVar $ GuiState { guiMarkups = []
+                                     , widgets = []
+                                     , panel = containerPanel
+                                     , clickCommand = Nothing
                                      }
   forkIO $ updateGuiStateLoop markupReader guiStateMVar
   clickableLeftAsync (getClickCommand guiStateMVar) p

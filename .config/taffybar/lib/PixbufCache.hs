@@ -2,7 +2,7 @@ module PixbufCache (pixbufCacheNew, loadPixbuf) where
 import Utils (tryMaybe)
 import qualified Data.Map as M (Map, empty, insert, lookup)
 import Control.Concurrent.MVar (MVar, newMVar, readMVar, takeMVar, putMVar)
-import Graphics.UI.Gtk.Gdk.Pixbuf (Pixbuf, pixbufNewFromFile)
+import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufNewFromFile)
 
 type PixbufCache = MVar (M.Map String Pixbuf)
 

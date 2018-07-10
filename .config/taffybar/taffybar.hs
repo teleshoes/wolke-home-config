@@ -82,7 +82,7 @@ main = do
       textColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
       wsBorderColorActive = hexColor Red
-      sep = W.sepW Black $ wSepW profile
+      sep = W.sepW $ wSepW profile
       klompChars = charsFitInPx dpi (fontP profile) klompWidthPx
 
       all = Just
@@ -91,13 +91,15 @@ main = do
       lap w = if machineType /= "tv" then Just w else Nothing
 
       start = catMaybes
-              [ all $ W.workspaceSwitcherW $ wImgH profile
+              [ Nothing
+              , all $ W.workspaceSwitcherW $ wImgH profile
               , all $ W.windowTitleW (title profile) 2
               , all $ liftIO $ sep
               , all $ W.layoutWindowsW
               ]
       end = map liftIO $ catMaybes $ reverse
-          [ all  $ W.monitorCpuW $ graph profile
+          [ Nothing
+          , all  $ W.monitorCpuW $ graph profile
           , all  $ W.monitorMemW $ graph profile
           , all  $ W.syncWatchW
           , all  $ W.progressBarW
@@ -113,7 +115,7 @@ main = do
           , all  $ W.volumeW
           , all  $ W.micW
           , main $ W.pidginPipeW $ barHeight cfg
-          , main $ W.qtemailW (barHeight cfg) Green Black
+          , main $ W.qtemailW (barHeight cfg)
           , all  $ W.cpuScalingSimpleW
           , all  $ W.cpuFreqsW
           , lap  $ W.fanW

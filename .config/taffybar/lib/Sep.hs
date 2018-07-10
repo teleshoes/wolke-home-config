@@ -1,7 +1,12 @@
 module Sep(sepW) where
-import Color (Color, widgetBgColorWrap)
 import Width (widthBox)
-import Graphics.UI.Gtk (Widget)
 
-sepW :: Color -> Int -> IO Widget
-sepW color width = widgetBgColorWrap color =<< widthBox width
+import Data.Text (pack)
+import GI.Gtk.Objects.Widget (Widget, toWidget)
+import System.Taffybar.Widget.Util (widgetSetClassGI)
+
+sepW :: Int -> IO Widget
+sepW width = do
+  box <- widthBox width
+  w <- toWidget box
+  widgetSetClassGI w $ pack "Sep"

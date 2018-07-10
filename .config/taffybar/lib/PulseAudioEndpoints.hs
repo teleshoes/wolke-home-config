@@ -18,7 +18,7 @@ import Data.String
 import Data.Tuple
 import qualified DBus.Client as DBus
 import qualified DBus.Internal.Types as DBusTypes
-import Graphics.UI.Gtk (Widget, escapeMarkup)
+import GI.Gtk.Objects.Widget (Widget)
 import Safe
 import System.Taffybar.Widget.Generic.PollingLabel
 
@@ -102,7 +102,7 @@ paEndpointW ep mdbc codeMap initLock = flip runReaderT Env{..} $ do
   -- After long struggle, a widget is born.
   let toggleLock = async $ toggleLockSync stvar -- left click action
       cycle      = async $ cycleSync stvar      -- right click action
-  liftIO $ pollingLabelNew "----" 0 nextLabel
+  liftIO $ pollingLabelNew (T.pack "----") 0 (fmap T.pack nextLabel)
        >>= clickableActions toggleLock pass cycle
 
 hookLabel :: Maybe EPCode -> PAM (StVar, IO String)
@@ -195,7 +195,7 @@ format St{isLocked, wantedEP} defEP infoList = concat
   cond ? str = if cond then str else ""
 
 labelFormat :: St -> EPName -> [EPInfo] -> String
-labelFormat st@St{isLocked, wantedEP} defEP = color . escapeMarkup . pad . format st defEP
+labelFormat st@St{isLocked, wantedEP} defEP = color . pad . format st defEP
   where
     color = if defEP == wantedEP then fg "green" else fg "red"
     pad   = if isLocked then padL ' ' 4 else padR ' ' 4 . padL ' ' 3

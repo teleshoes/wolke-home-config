@@ -1,24 +1,34 @@
 module QtEmail(qtemailW) where
-import Color (Color(..), hexColor, widgetBgColorWrap)
 import Clickable (clickableAsync)
 import Image (imageW)
 import Label (labelW, mainLabel)
-import Graphics.UI.Gtk (containerAdd, hBoxNew)
 import Utils (
-  ifM, imageDir, fg, getHomeFile, isRunning, chompFile)
+  eboxStyleWrapW, ifM, imageDir, fg, getHomeFile, isRunning, chompFile)
 
+import GI.Gtk.Enums (
+  Orientation(OrientationHorizontal))
+import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
+import GI.Gtk.Objects.Container (containerAdd)
+import GI.Gtk.Objects.Widget (Widget, toWidget)
+import System.Taffybar.Widget.Util (widgetSetClassGI)
+
+import Data.Text (pack)
 import System.Environment (getEnv)
 
-main = mainLabel $ statusShortMarkup $ hexColor White
-qtemailW h fgColor bgColor = do
-  img <- imageW (getImage h)
-  label <- labelW $ statusShortMarkup $ hexColor fgColor
+main = mainLabel statusShortMarkup
 
-  box <- hBoxNew False 0
+qtemailW h = do
+  img <- imageW (getImage h)
+  label <- labelW statusShortMarkup
+
+  box <- boxNew OrientationHorizontal 0
+  boxSetHomogeneous box False
+
   containerAdd box img
   containerAdd box label
 
-  widgetBgColorWrap bgColor =<< clickableAsync clickL clickM clickR box
+  box <- clickableAsync clickL clickM clickR box
+  eboxStyleWrapW box "Email"
 
 exec = "email-gui.py"
 process = exec
@@ -37,7 +47,7 @@ getImage h = do
   let img = if running then "qtemail-on.png" else "qtemail-off.png"
   return $ dir ++ "/" ++ img
 
-statusShortMarkup color = do
+statusShortMarkup = do
   statusShortFile <- getHomeFile ".cache/email/status-short"
   statusShort <- chompFile statusShortFile
-  return $ fg color statusShort
+  return statusShort

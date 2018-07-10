@@ -1,11 +1,13 @@
 module PingMonitor (pingMonitorW) where
 import Label (labelW, mainLabel)
-import Utils (defaultDelay, fg, bg, procSuccess, widgetSetClass)
+import Utils (defaultDelay, fg, bg, procSuccess)
 
+import Data.Text (pack)
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 import System.Environment (getArgs, getEnv)
 import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (when)
-import Graphics.UI.Gtk (Widget)
+import GI.Gtk.Objects.Widget (Widget)
 
 main = do
   args <- getArgs
@@ -16,7 +18,7 @@ main = do
 pingMonitorW display url = do
   reader <- pingMonitorReader display url
   label <- labelW reader
-  widgetSetClass label "PingMonitor"
+  widgetSetClassGI label $ pack "PingMonitor"
   return label
 
 char = "●"
