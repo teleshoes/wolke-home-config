@@ -3,23 +3,31 @@ use strict;
 use warnings;
 
 my $dir = "$ENV{HOME}/openvpn";
+
+my $GPG_SYM_EXEC = "$ENV{HOME}/bin/gpg-sym";
+
 my $status = "status";
-my $user = "ewolk";
 my $defaultName = "aws";
 
-my $okCmds = join "|", qw(on off running running toggle);
+my $okCmds = join "|", qw(on off running toggle);
 my $okNoDaemonOpts = join "|", qw(-g --foreground --nodaemon --no-daemon);
 
+my $secretsFile = "$ENV{HOME}/.secrets";
+my @secretKeys = qw(user password yubi);
+my %encryptedSecretKeys = map {$_ => 1 } qw(password);
+
 sub ensureRoot();
-sub getPasswordFile();
+sub getPasswordFile($$$);
 sub getYubiExec();
 sub symlinkPem($);
+sub readSecrets();
+sub decrypt($);
 sub isRunning($);
 sub run(@);
 
 my $usage = "Usage:
   $0 [OPTS] on [CONF_NAME]
-    start openvpn using --config CONF_NAME.conf
+    start openvpn using --config CONF_NAME.conf (default is $defaultName)
   $0 [OPTS] off [CONF_NAME]
     kill openvpn with '--config CONF_NAME'
   $0 [OPTS] running CONF_NAME
@@ -60,6 +68,16 @@ sub main(@){
   $name =~ s/\.conf$//;
   die "$dir/$name.conf not found\n" if not -f "$name.conf";
 
+  my $cfg = ${readSecrets()}{$name};
+  die "no 'vpn.$name' config found in $secretsFile\n" if not defined $cfg;
+
+  my $user = $$cfg{user};
+  die "missing 'user' from vpn.$name.* in $secretsFile\n" if not defined $user;
+  my $password = $$cfg{password};
+  $password = '' if not defined $password;
+  my $yubi = $$cfg{yubi};
+  $yubi = 0 if not defined $yubi;
+
   my $procPattern = "^openvpn.*--config $name\\.conf ";
 
   if($cmd eq 'on'){
@@ -71,7 +89,7 @@ sub main(@){
     run "rm", "-f", "status";
     run "openvpn",
       ($noDaemon ? () : ("--daemon")),
-      "--auth-user-pass", getPasswordFile(),
+      "--auth-user-pass", getPasswordFile($user, $password, $yubi),
       "--config", "$name.conf",
       "--status", $status,
       "--reneg-sec", 0,
@@ -105,15 +123,20 @@ sub getYubiExec(){
   return $exec;
 }
 
-sub getPasswordFile(){
-  my $yubiExec = getYubiExec;
-  my $pass = `$yubiExec`;
-  chomp $pass;
+sub getPasswordFile($$$){
+  my ($user, $password, $yubi) = @_;
+
+  if($yubi){
+    my $yubiExec = getYubiExec;
+    my $yubiPass = `$yubiExec`;
+    chomp $yubiPass;
+    $password .= $yubiPass;
+  }
 
   my $file = "/tmp/openvpn-auth-" . time;
   open FH, "> $file" or die "Cant write to $file\n";
   print FH "$user\n";
-  print FH "$pass\n";
+  print FH "$password\n";
   close FH;
   return $file;
 }
@@ -135,6 +158,30 @@ sub symlinkPem($){
   run "ln", "-s", $defaultPem, $pem if not -e $pem and -e $defaultPem;
 
   die "could not select $pem\n" if not -e $pem;
+}
+
+sub readSecrets(){
+  my @lines = `cat $secretsFile 2>/dev/null`;
+  my $cfg = {};
+  my $okSecretKeys = join "|", @secretKeys;
+  for my $line(@lines){
+    if($line =~ /^vpn\.(\w+)\.($okSecretKeys)\s*=\s*(.+)$/){
+      my ($confName, $key, $val) = ($1, $2, $3);
+      $val = decrypt $val if defined $encryptedSecretKeys{$key};
+
+      $$cfg{$confName} = {} if not defined $$cfg{$confName};
+      $$cfg{$confName}{$key} = $val;
+    }
+  }
+  return $cfg;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  my $value = `$GPG_SYM_EXEC '$s' 2>/dev/null`;
+  die "ERROR: $GPG_SYM_EXEC failed\n" if $? != 0;
+  chomp $value;
+  return $value;
 }
 
 sub isRunning($){
