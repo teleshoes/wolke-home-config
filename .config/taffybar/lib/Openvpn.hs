@@ -14,14 +14,14 @@ main = do
   mainLabel $ openvpnReader confName $ take 3 confName
 openvpnW confName display = do
   label <- labelW $ openvpnReader confName display
-  clickableLeft (sslCmdText "toggle" confName) label
+  clickableLeft (vpnCmdText "toggle" confName) label
 
-sslCmd :: String -> String -> [String]
-sslCmd cmd confName = ["sudo", "sslvpn", cmd, confName]
-sslCmdText :: String -> String -> String
-sslCmdText cmd confName = intercalate " " $ sslCmd cmd confName
+vpnCmd :: String -> String -> [String]
+vpnCmd cmd confName = ["sudo", "vpn", cmd, confName]
+vpnCmdText :: String -> String -> String
+vpnCmdText cmd confName = intercalate " " $ vpnCmd cmd confName
 
 openvpnReader confName display = do
-  vpnOn <- procSuccess $ sslCmd "running" confName
+  vpnOn <- procSuccess $ vpnCmd "running" confName
   let color = if vpnOn then "green" else "red"
   return $ fg color $ display

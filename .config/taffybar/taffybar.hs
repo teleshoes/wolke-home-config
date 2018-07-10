@@ -122,7 +122,7 @@ main = do
           , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "www.google.com"
                                     , main $ W.pingMonitorW "E" "ehr.dev"
                                     ]
-          , main $ W.openvpnW "aws" "VPN\naws"
+          , main $ W.openvpnW "lg" "VPN\nlg "
           , lap  $ W.tpBattStatW $ barHeight cfg
           , all  $ sep
           , all  $ W.clockW
