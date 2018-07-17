@@ -10,6 +10,7 @@ my $ipmagicConf = "nuc";
 
 my $igChannel = 4;
 
+sub setAcState($);
 sub ensureAcOnOff($);
 sub toggleAc();
 sub isAcOn();
@@ -18,31 +19,52 @@ sub run(@);
 sub runQuiet(@);
 sub runGetOut($@);
 
-sub main(@){
-  my $arg = shift;
-  $arg = "toggle" if not defined $arg;
-  die "Usage: $0 [on|off|toggle] {default is toggle}\n" if @_ > 0 or $arg !~ /^(on|off|toggle)$/;
+my $usage = "Usage:
+  $0 on|off|toggle
+    use `igcmd` over ssh to set the state until `is-ac-on` shows the desired state
+      -runs `igcmd` over ssh with `ipmagic $ipmagicConf` or `seedbox -r`
+      -up to $MAX_ATTEMPTS attempts are made
+      -waits ${timeoutMillis}ms between attempts
 
+  $0
+    same as '$0 toggle'
+";
+
+sub main(@){
+  my $stateArg = undef;
+  if(@_ == 0){
+    $stateArg = "toggle";
+  }elsif($_[0] =~ /^(on|off|toggle)$/){
+    $stateArg = $_[0];
+  }else{
+    die $usage;
+  }
+
+  setAcState $stateArg;
+}
+
+sub setAcState($){
+  my ($stateArg) = @_;
   my $attempts = 0;
   print "checking ac on/off...\n";
   while(1){
     my $skipCheck = 0;
-    if($arg eq "toggle"){
+    if($stateArg eq "toggle"){
       $skipCheck = 1;
       if(isAcOn()){
         print "toggling ac: on => off\n";
-        $arg = "off";
+        $stateArg = "off";
       }else{
         print "toggling ac: off => on\n";
-        $arg = "on";
+        $stateArg = "on";
       }
     }
-    my $targetIsAcOn = $arg eq "on" ? 1 : 0;
+    my $targetIsAcOn = $stateArg eq "on" ? 1 : 0;
     if(not $skipCheck and isAcOn() == $targetIsAcOn){
       last;
     }else{
       die "ERROR: max attempts reached\n" if $attempts > $MAX_ATTEMPTS;
-      print "ac is not $arg, toggling ac ($attempts out of $MAX_ATTEMPTS attempt)...\n";
+      print "ac is not $stateArg, toggling ac ($attempts out of $MAX_ATTEMPTS attempt)...\n";
       print "\n";
       toggleAc();
       print "\n";
@@ -51,7 +73,7 @@ sub main(@){
       $attempts++;
     }
   }
-  print "\nac is $arg\n";
+  print "\nac is $stateArg\n";
 }
 
 sub ensureAcOnOff($){
