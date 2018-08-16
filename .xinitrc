@@ -1,14 +1,14 @@
 resconfig
 xconfig
 
-pulse-enable on
 sudo bluetooth off &
 sudo fan default &
 taffybar-restart --daemon --quiet
 parcellite -d &
 sudo sbox-umount &
-( sleep 2; pulse-vol mic mute ) &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
+
+( pulse-enable on ; pulse-vol mic mute ) &
 
 MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 
