@@ -3,45 +3,81 @@ use strict;
 use warnings;
 
 my $file = "/tmp/klomp-bar-ipmagic";
-my $default = 'local';
 
 my $usage = "Usage:
-  $0 -h|--help   print this message
-  $0 -g|--get    print current klomp-bar
-  $0             set klomp-bar=$default
-  $0 ARG         set klomp-bar=ARG
+  $0 -h|--help
+    print this message
+
+  $0 --get
+    if $file exists:
+      print contents
+    otherwise:
+      do not print anything
+
+  $0 --set IPMAGIC_NAME
+    write ARG to $file
+
+  $0 --remove
+    remove $file
+
+  $0 --toggle IPMAGIC_NAME
+    if $file exists:
+      same as `$0 --remove`
+    otherwise:
+      same as `$0 --set ARG`
 ";
+
+sub get();
+sub set($);
+sub remove();
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+  }elsif(@_ == 1 and $_[0] =~ /^(--get)$/){
+    my $ipmagicName = get();
+    if(defined $ipmagicName){
+      print "$ipmagicName\n";
+    }
+  }elsif(@_ == 2 and $_[0] =~ /^(--set)$/){
+    set $_[1];
+  }elsif(@_ == 1 and $_[0] =~ /^(--remove)$/){
+      remove();
+  }elsif(@_ == 2 and $_[0] =~ /^(--toggle)$/){
+    if(defined get()){
+      remove();
+    }else{
+      set $_[1];
+    }
+  }else{
+    die $usage;
+  }
+}
 
 sub get(){
   if(not -e $file){
-    return $default;
+    return undef;
   }else{
-    my $s = `cat $file`;
-    chomp $s;
-    return $s;
+    open FH, "< $file" or die "could not read $file\n$!\n";
+    my @lines = <FH>;
+    close FH;
+    my $ipmagicName = join "", @lines;
+    chomp $ipmagicName;
+    die "invalid ipmagic name: $ipmagicName\n" if $ipmagicName !~ /^[a-zA-Z0-9_\-]+$/;
+    return $ipmagicName;
   }
 }
 
 sub set($){
-  my $s = shift;
-  if($s eq 'local'){
-    system "rm", $file;
-  }else{
-    system "echo $s > $file";
-  }
+  my ($ipmagicName) = @_;
+  open FH, "> $file" or die "could not write $file\n$!\n";
+  print FH $ipmagicName;
+  close FH;
 }
 
-sub main(@){
-  my $cur = get;
-  my $arg = shift();
-  $arg = $default if not defined $arg;
-  die $usage if $arg =~ /^-h|--help$/ or @_ > 0;
-
-  if($arg =~ /^-g|--get$/){
-    print get() . "\n";
-  }elsif($arg ne get){
-    set $arg;
-  }
+sub remove(){
+  system "rm", $file;
 }
+
 
 &main(@ARGV);
