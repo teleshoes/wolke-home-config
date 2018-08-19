@@ -238,16 +238,16 @@ shortcuts conf = "Shortcuts" @@ do
         "seek +60"    @@ mCAWS xK_s    #! "nuc klomp-cmd seek +60"
         "stop"        @@ mCAW  xK_c    #! "nuc klomp-cmd stop"
 
-    "Klomp N9"      @@ do
-        "pause"       @@ mCW   (xK ' ')#! "n9 -b udo klomp-cmd pause"
-        "prev"        @@ mCW   xK_z    #! "n9 -b udo klomp-cmd prev"
-        "next"        @@ mCW   xK_x    #! "n9 -b udo klomp-cmd next"
-        "books pl"    @@ mCW   xK_b    #! "n9 -b udo klomp-cmd playlist books"
-        "seek -10"    @@ mCWS  xK_z    #! "n9 -b udo klomp-cmd seek -10"
-        "seek +10"     @@ mCWS  xK_x    #! "n9 -b udo klomp-cmd seek +10"
-        "seek -60"    @@ mCWS  xK_a    #! "n9 -b udo klomp-cmd seek -60"
-        "seek +60"     @@ mCWS  xK_s    #! "n9 -b udo klomp-cmd seek +60"
-        "bar n9/loc"  @@ mCW   xK_c    #! "klomp-bar --toggle n9"
+    "Klomp sx"      @@ do
+        "pause"       @@ mCW   (xK ' ')#! "ipmagic sx klomp-cmd pause"
+        "prev"        @@ mCW   xK_z    #! "ipmagic sx klomp-cmd prev"
+        "next"        @@ mCW   xK_x    #! "ipmagic sx klomp-cmd next"
+        "books pl"    @@ mCW   xK_b    #! "ipmagic sx klomp-cmd playlist books"
+        "seek -10"    @@ mCWS  xK_z    #! "ipmagic sx klomp-cmd seek -10"
+        "seek +10"    @@ mCWS  xK_x    #! "ipmagic sx klomp-cmd seek +10"
+        "seek -60"    @@ mCWS  xK_a    #! "ipmagic sx klomp-cmd seek -60"
+        "seek +60"    @@ mCWS  xK_s    #! "ipmagic sx klomp-cmd seek +60"
+        "bar sx/loc"  @@ mCW   xK_c    #! "klomp-bar --toggle sx"
 
 
 windowKeys conf = "Windows" @@ do
