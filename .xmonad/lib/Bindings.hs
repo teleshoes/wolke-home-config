@@ -136,8 +136,8 @@ shortcuts conf = "Shortcuts" @@ do
 
     "iguana IR"     @@ do
         "A/C toggle"    @@ mC    xK_F1   #! "term ac toggle"
-        "A/C power"     @@ mCS   xK_F1   #! "nuc igcmd ac-power"
-        "A/C mode"      @@ mC    xK_F3   #! "nuc igcmd ac-mode"
+        "A/C power"     @@ mCS   xK_F1   #! "ac ac-power"
+        "A/C mode"      @@ mC    xK_F3   #! "ac ac-mode"
 
     "CEC power"     @@ do
         "TV pwr toggle" @@ mC    xK_F2   #! "nuc cec-cmd --tv togglestandby"
