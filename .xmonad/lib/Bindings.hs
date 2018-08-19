@@ -175,7 +175,7 @@ shortcuts conf = "Shortcuts" @@ do
         "kodi"          @@ mCA   xK_k    #! "kodi"
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
-        "Chrome"        @@ mCA   xK_c    #! "chromium --incognito"
+        "Chrome Incog"  @@ mCA   xK_c    #! "chromium --incognito"
         "youtube-tv"    @@ mCA   xK_y    #! "yt-tv"
         "zoom"          @@ mCA   xK_z    #! "zoom-run"
         "hangout"       @@ mCA   xK_h    #! "hangout"
