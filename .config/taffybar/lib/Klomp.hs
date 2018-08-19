@@ -24,7 +24,7 @@ klompW rowLength = do
 
 gapOffset = 3
 sep = "…"
-n9Prefix = "ň"
+sxPrefix = "ŝ"
 raspiPrefix = "ř"
 nucPrefix = "₪"
 
@@ -60,7 +60,7 @@ klompReader rowLength = do
       endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
   let topPrefix = case ipmagicName of
-                    Just "n9" -> n9Prefix
+                    Just "sx" -> sxPrefix
                     Just "raspi" -> raspiPrefix
                     Just "nuc" -> nucPrefix
                     _ -> if running then "" else "x"
