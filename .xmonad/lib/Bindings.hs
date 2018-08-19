@@ -248,12 +248,6 @@ shortcuts conf = "Shortcuts" @@ do
         "seek -60"    @@ mCWS  xK_a    #! "n9 -b udo klomp-cmd seek -60"
         "seek +60"     @@ mCWS  xK_s    #! "n9 -b udo klomp-cmd seek +60"
         "bar n9/loc"  @@ mCW   xK_c    #! "klomp-bar --toggle n9"
-        "vol 10"      @@ mCW   xK_5    #! "n9 -b udo klomp-cmd volume 10 1"
-        "vol 25"      @@ mCW   xK_6    #! "n9 -b udo klomp-cmd volume 25 1"
-        "vol 75"      @@ mCW   xK_7    #! "n9 -b udo klomp-cmd volume 75 1"
-        "vol 100"     @@ mCW   xK_8    #! "n9 -b udo klomp-cmd volume 100 1"
-        "vol -"       @@ mCW   xK_9    #! "n9 -b udo klomp-cmd volume -1 0"
-        "vol +"       @@ mCW   xK_0    #! "n9 -b udo klomp-cmd volume +1 0"
 
 
 windowKeys conf = "Windows" @@ do
