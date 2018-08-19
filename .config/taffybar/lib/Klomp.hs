@@ -24,33 +24,31 @@ klompW rowLength = do
 
 gapOffset = 3
 sep = "…"
-raspiPrefix = "ř"
 n9Prefix = "ň"
+raspiPrefix = "ř"
 nucPrefix = "₪"
 
 clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
-getKlompInfo remoteHost = do
-  let ipMagic = case remoteHost of
-                  "n9" -> ["n9u"]
-                  "raspi" -> ["pi"]
-                  "nuc" -> ["nuc"]
-                  _ -> []
-  str <- readProc $ ipMagic ++ klompInfoCmd
+getKlompInfo ipmagicName = do
+  str <- readProc $ cmd ipmagicName
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
     Left msg -> emptyKlompInfo {errorMsg = msg}
     Right (hdr, csv) -> if Vector.length csv /= 1
                         then emptyKlompInfo {errorMsg = "rowcount != 1"}
                         else Vector.head csv
+  where cmd (Just ipmagicName) = ["ipmagic", ipmagicName] ++ klompInfoCmd
+        cmd Nothing = klompInfoCmd
 
 coerceUtf8 = decodeString . utf8Encode
 
 klompReader rowLength = do
-  remoteHost <- chompFile "/tmp/klomp-bar"
+  klompBarIpmagic <- chompFile "/tmp/klomp-bar-ipmagic"
+  let ipmagicName = if klompBarIpmagic == "" then Nothing else Just klompBarIpmagic
   running <- isRunning "klomplayer"
-  klompInfo <- getKlompInfo remoteHost
+  klompInfo <- getKlompInfo ipmagicName
   let errFmt = errorMsg klompInfo
       titFmt = T.unpack $ title klompInfo
       artFmt = T.unpack $ artist klompInfo
@@ -61,10 +59,10 @@ klompReader rowLength = do
       plsFmt = T.unpack $ playlist klompInfo
       endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let topPrefix = case remoteHost of
-                    "n9" -> n9Prefix
-                    "raspi" -> raspiPrefix
-                    "nuc" -> nucPrefix
+  let topPrefix = case ipmagicName of
+                    Just "n9" -> n9Prefix
+                    Just "raspi" -> raspiPrefix
+                    Just "nuc" -> nucPrefix
                     _ -> if running then "" else "x"
       botPrefix = take 1 plsFmt
 
