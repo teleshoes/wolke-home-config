@@ -30,16 +30,24 @@ qtemailW h = do
   box <- clickableAsync clickL clickM clickR box
   eboxStyleWrapW box "Email"
 
-exec = "email-gui.py"
-process = exec
+emailExec = "email-gui.py"
+process = emailExec
 workspace = 8
 
-runCmd = "daemon " ++ exec
+binRe = "/(\\S+/)?bin/"
+daemonExecRe = "(" ++ binRe ++ ")?" ++ "daemon"
+pythonExecRe = "(" ++ binRe ++ ")?" ++ "python"
+emailExecRe = "(" ++ binRe ++ ")?" ++ emailExec
+
+runCmd = "daemon " ++ emailExec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
 clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
-clickR = return $ Just $ "pkill " ++ process
+clickR = return $ Just $ ""
+  ++ "   pkill -9 -f '^" ++ daemonExecRe ++ " " ++ emailExecRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ pythonExecRe ++ " " ++ emailExecRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ emailExecRe ++ "$'"
 
 getImage h = do
   running <- isRunning process
