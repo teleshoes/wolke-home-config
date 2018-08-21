@@ -75,6 +75,10 @@ hostname=`hostname -f | cut -f 1,2 -d '.'`
 if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
   case "$hostname" in
+    "wolke-main"              ) h='@main' ;;
+    "wolke-aux"               ) h='@aux' ;;
+    "wolke-bed"               ) h='@bed' ;;
+    "wolke-nuc"               ) h='@nuc' ;;
     "wolke-sx"                ) h='@sx' ;;
     "raspberrypi"             ) h='@raspi' ;;
     *                         ) h="@$hostname" ;;
