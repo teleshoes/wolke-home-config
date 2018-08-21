@@ -135,7 +135,7 @@ alias r='stty sane'
 
 IPMAGIC_DIR="$HOME/.config/ipmagic"
 IPMAGIC_CONF_FILES=$(ls $IPMAGIC_DIR/*.conf 2>/dev/null)
-IPMAGIC_NAMES=$(basename -a $IPMAGIC_CONF_FILES 2>/dev/null | sed s/.conf//g)
+IPMAGIC_NAMES=$(basename --suffix=.conf -a $IPMAGIC_CONF_FILES 2>/dev/null)
 
 alias ipm=ipmagic
 for ipmagicName in $IPMAGIC_NAMES
