@@ -68,19 +68,20 @@ pathAppend          \
   /usr/games        \
 ;
 
+hostname=`hostname -f | cut -f 1,2 -d '.'`
 
-#command prompt
+########################################
+# command prompt
 if [[ -z "$DISPLAY" ]]; then
-  host_alias=`hostname -f | cut -f 1,2 -d '.'`
   #host abbrevs
-  case "$host_alias" in
+  case "$hostname" in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
     "wolke-n900"              ) h='@n900' ;;
     "wolke-s5"                ) h='@s5' ;;
     "wolke-sx"                ) h='@sx' ;;
     "raspberrypi"             ) h='@raspi' ;;
-    *                         ) h="@$host_alias" ;;
+    *                         ) h="@$hostname" ;;
   esac
 else
   #if display is set, you probably know where you are
@@ -100,6 +101,8 @@ if [ -n "PS1" ]; then
   PS1="$c1$u$h$cEnd:$c2\w$cEnd\$ "
 fi
 
+########################################
+# aliases
 for cmd in wconnect wauto tether resolv \
            mnt optimus xorg-conf bluetooth fan intel-pstate flasher \
            tpacpi-bat sbox-umount
