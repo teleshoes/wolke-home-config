@@ -68,15 +68,6 @@ pathAppend          \
   /usr/games        \
 ;
 
-meego_gnu=/opt/gnu-utils
-if [ -d $meego_gnu ]; then
-  pathPrepend              \
-    /usr/libexec/git-core  \
-    $meego_gnu/bin         \
-    $meego_gnu/usr/bin     \
-    $meego_gnu/usr/sbin    \
-  ;
-fi
 
 #command prompt
 if [[ -z "$DISPLAY" ]]; then
