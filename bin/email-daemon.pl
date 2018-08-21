@@ -11,6 +11,7 @@ my $maxTimeoutMs = 60 * 1000;
 sub testPing();
 
 sub main(@){
+  print "\c[];qtemail-daemon\a";
   #sleep $delayMs / 1000.0;
   while(1){
     if(testPing){
