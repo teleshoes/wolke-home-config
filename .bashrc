@@ -68,6 +68,11 @@ pathAppend          \
   /usr/games        \
 ;
 
+#make a wild guess at the DISPLAY you might want
+if [[ -z "$DISPLAY" ]]; then
+  export DISPLAY=`display-guess`
+fi
+
 hostname=`hostname -f | cut -f 1,2 -d '.'`
 
 ########################################
@@ -86,11 +91,6 @@ if [[ -z "$DISPLAY" ]]; then
 else
   #if display is set, you probably know where you are
   h=""
-fi
-
-#make a wild guess at the DISPLAY you might want
-if [[ -z "$DISPLAY" ]]; then
-  export DISPLAY=`display-guess`
 fi
 
 u="\u"
