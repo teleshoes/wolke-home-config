@@ -76,7 +76,6 @@ if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
   case "$hostname" in
     "wolke-w520"              ) h='@w520' ;;
-    "wolk-desktop"            ) h='@desk' ;;
     "wolke-n900"              ) h='@n900' ;;
     "wolke-s5"                ) h='@s5' ;;
     "wolke-sx"                ) h='@sx' ;;
