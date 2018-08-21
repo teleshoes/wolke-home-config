@@ -137,6 +137,7 @@ IPMAGIC_DIR="$HOME/.config/ipmagic"
 IPMAGIC_CONF_FILES=$(ls $IPMAGIC_DIR/*.conf 2>/dev/null)
 IPMAGIC_NAMES=$(basename -a $IPMAGIC_CONF_FILES 2>/dev/null | sed s/.conf//g)
 
+alias ipm=ipmagic
 for ipmagicName in $IPMAGIC_NAMES
 do alias ipm$ipmagicName="ipmagic $ipmagicName"; done
 
