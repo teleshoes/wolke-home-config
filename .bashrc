@@ -80,9 +80,6 @@ if [[ -z "$DISPLAY" ]]; then
     "wolke-n900"              ) h='@n900' ;;
     "wolke-s5"                ) h='@s5' ;;
     "raspberrypi"             ) h='@raspi' ;;
-    "Benjamins-MacBook-Pro"   ) h='@bensmac' ;;
-    ci-*.dev.*                ) h='@ci.dev' ;;
-    ci-*.stage.*              ) h='@ci.stage' ;;
     *                         ) h="@$host_alias" ;;
   esac
 else
@@ -96,7 +93,6 @@ if [[ -z "$DISPLAY" ]]; then
 fi
 
 u="\u"
-if [ "$USER" == "BenjaminAguayza" ]; then u=ben; fi
 colon=":"
 c1='\[\033[01;32m\]'
 c2='\[\033[01;34m\]'
