@@ -76,9 +76,9 @@ if [[ -z "$DISPLAY" ]]; then
   case "$host_alias" in
     "wolke-w520"              ) h='@w520' ;;
     "wolk-desktop"            ) h='@desk' ;;
-    "wolke-n9"                ) h='@n9' ;;
     "wolke-n900"              ) h='@n900' ;;
     "wolke-s5"                ) h='@s5' ;;
+    "wolke-sx"                ) h='@sx' ;;
     "raspberrypi"             ) h='@raspi' ;;
     *                         ) h="@$host_alias" ;;
   esac
