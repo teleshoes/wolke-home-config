@@ -5,12 +5,19 @@ use List::Util qw(min max);
 
 my $numLen = 3;
 
+sub addFilesToLib($);
+sub removeFilesFromLib($);
+sub ensureLibFilesInPlaylist($);
+sub syncKlomp($);
 sub copyNum($$);
 sub removeNum($$);
-sub getSrcNums($);
-sub getCurrentNums($);
+sub getAllNums($);
+sub getLibNums($);
+sub getPlaylistNums($);
+sub getHistoryNums($);
+sub getKlompInfoNums($$$);
 sub getFiles($$);
-sub getAlbumHistoryNums($);
+sub getCurPlaylist($);
 sub setPlaylist($$);
 sub getRemoteCmd($);
 sub elem($@);
@@ -18,33 +25,35 @@ sub run(@);
 
 my $serials = [
   {
-    ipmagic     => "sx",
-    ipmagicUser => "nemo",
-    playlist    => "books",
-    album       => "PodCastle",
-    srcLib      => "books",
-    destLib     => "b",
-    srcRelPath  => "PodCastle",
-    destRelPath => "podcastle",
-    maxSize     => 15,
-    chunkSize   => 5,
+    ipmagic       => "sx",
+    ipmagicUser   => "nemo",
+    playlist      => "books",
+    album         => "PodCastle",
+    srcLib        => "books",
+    destLib       => "b",
+    srcRelPath    => "PodCastle",
+    destRelPath   => "podcastle",
+    minFutureSize => 5,
+    maxLibInHist  => 15,
   },
   {
-    ipmagic     => "sx",
-    ipmagicUser => "nemo",
-    playlist    => "books",
-    album       => "Escape Pod",
-    srcLib      => "books",
-    destLib     => "b",
-    srcRelPath  => "Escape Pod",
-    destRelPath => "escapepod",
-    maxSize     => 15,
-    chunkSize   => 5,
+    ipmagic       => "sx",
+    ipmagicUser   => "nemo",
+    playlist      => "books",
+    album         => "Escape Pod",
+    srcLib        => "books",
+    destLib       => "b",
+    srcRelPath    => "Escape Pod",
+    destRelPath   => "escapepod",
+    minFutureSize => 5,
+    maxLibInHist  => 15,
   },
 ];
 
 sub main(@){
   for my $serial(@$serials){
+    print "\n\n==============PROCESSING serial $$serial{album}\n";
+
     if(defined $$serial{ipmagic}){
       run "ipmagic", $$serial{ipmagic}, "-s", "hostname";
       if($? != 0){
@@ -53,119 +62,147 @@ sub main(@){
       }
     }
 
-    my $origPlaylist = setPlaylist $serial, $$serial{playlist};
+    print "\nset playlist to $$serial{playlist}\n";
+    my $origPlaylist = getCurPlaylist $serial;
+    setPlaylist $serial, $$serial{playlist};
 
-    my @srcNums = getSrcNums $serial;
-    my @curNums = getCurrentNums $serial;
-    my @histNums = getAlbumHistoryNums $serial;
-    my $maxHistNum = undef;
-    for my $histNum(@histNums){
-      $maxHistNum = $histNum if not defined $maxHistNum or $histNum > $maxHistNum;
-    }
+    print "\nadding files\n";
+    my $filesAdded = addFilesToLib $serial;
 
-    my $maxCur = max @curNums;
-    my @remSrcNums = grep {not defined $maxCur or $_ > $maxCur} @srcNums;
+    print "\nremoving files\n";
+    my $filesRemoved = removeFilesFromLib $serial;
 
-    my @curChunkNums = @curNums[0 .. $$serial{chunkSize} - 1];
-    my @nextChunkNums = @remSrcNums[0 .. $$serial{chunkSize} - 1];
-    @curChunkNums = grep {defined $_} @curChunkNums;
-    @nextChunkNums = grep {defined $_} @nextChunkNums;
-
-    my @notInHist;
-    for my $num(@curNums){
-      if(not elem $num, @histNums){
-        push @notInHist, $num;
-      }
-    }
-
-    my $copyNextChunk = 1;
-    my $deleteCurChunk = 1;
-
-    my $skipCopyMsg = "\n";
-    my $skipDeleteMsg = "\n";
-
-    if(@nextChunkNums < $$serial{chunkSize}){
-      $skipCopyMsg .= "not enough left to copy\n";
-      $copyNextChunk = 0;
-      $deleteCurChunk = 0;
-    }
-    if(@curChunkNums < $$serial{chunkSize}){
-      $skipCopyMsg .= "not enough present to replace\n";
-      $copyNextChunk = 0;
-      $deleteCurChunk = 0;
-    }
-    for my $num(@curChunkNums){
-      if(not elem $num, @histNums){
-        $skipCopyMsg .= "$num is not in history\n";
-        if(defined $maxHistNum and $maxHistNum gt $num){
-          $skipCopyMsg .= "\n\n";
-          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
-          $skipCopyMsg .= "POSSIBLE SKIP: $maxHistNum is in history\n";
-          $skipCopyMsg .= "!!!!!!!!!!!!!!!!!!!\n"x3;
-        }
-        $copyNextChunk = 0;
-        $deleteCurChunk = 0;
-        last;
-      }
-    }
-
-    if(@notInHist >= $$serial{chunkSize}){
-      $copyNextChunk = 0;
-      $skipCopyMsg .= "at least one full chunk not in hist: @notInHist\n\n";
-    }
-
-    my $finalCount = @curNums;
-    $finalCount += @nextChunkNums if $copyNextChunk;
-    if($finalCount <= $$serial{maxSize}){
-      $deleteCurChunk = 0;
-      $skipDeleteMsg .= "already underneath the maximum\n\n";
-    }
-
-    if($copyNextChunk or $deleteCurChunk){
-      print "\n$$serial{album}:\n";
-      if($copyNextChunk){
-        print "copying chunk @nextChunkNums\n\n";
-        for my $num(@nextChunkNums){
-          copyNum $serial, $num;
-        }
-      }else{
-        print "skipping copy next chunk\n$skipCopyMsg\n\n";
-      }
-      if($deleteCurChunk){
-        print "deleting chunk @curChunkNums\n\n";
-        for my $num(@curChunkNums){
-          removeNum $serial, $num;
-        }
-      }else{
-        print "skipping delete cur chunk\n$skipDeleteMsg\n\n";
-      }
-      run "klomp-db", "-m", "--force=$$serial{chunkSize}", $$serial{destLib};
-      run "klomp-db", "-u", $$serial{destLib};
-
-      if(defined $$serial{ipmagic}){
-        my $host = `ipmagic $$serial{ipmagic}`;
-        chomp $host;
-        if(defined $$serial{ipmagicUser}){
-          $host = "$$serial{ipmagicUser}\@$host";
-        }
-        run "klomp-sync", $host, "--nopresync", $$serial{destLib};
-        my @remoteCmd = getRemoteCmd $serial;
-        if($copyNextChunk){
-          for my $num(@nextChunkNums){
-            my $queryLib = "\@$$serial{destLib}";
-            my $queryAlbum = "\@l^\"$$serial{album}\"\$";
-            my $queryNumber = "\@n^\"$num\"\$";
-            my $query = "$queryLib $queryAlbum $queryNumber";
-            run @remoteCmd, "klomp", "--append", "'$query'";
-          }
-        }
-      }
+    print "\nklomp-sync\n";
+    if($filesAdded or $filesRemoved){
+      syncKlomp $serial;
     }else{
-      print "\n$$serial{album}: skipping, $skipCopyMsg\n";
+      print "  skip klomp-sync, no files added/removed\n";
     }
 
+    print "\nadd to playlist\n";
+    ensureLibFilesInPlaylist $serial;
+
+    print "\nreset playlist to $origPlaylist\n";
     setPlaylist $serial, $origPlaylist;
   }
+}
+
+sub addFilesToLib($){
+  my ($serial) = @_;
+
+  my @allNums = getAllNums $serial;
+  my @libNums = getLibNums $serial;
+  my @historyNums = getHistoryNums $serial;
+  my @playlistNums = getPlaylistNums $serial;
+
+  my @libNumsNotInHistory = grep {not elem $_, @historyNums} @libNums;
+
+  my $maxHistoryNum = max @historyNums;
+  my $minPlaylistNum = min @playlistNums;
+
+  my @numsAvailToAdd =
+    grep {not elem($_, @historyNums) and not elem($_, @libNums)}
+    grep {not defined $maxHistoryNum or $_ > $maxHistoryNum}
+    grep {not defined $minPlaylistNum or $_ > $minPlaylistNum}
+    @allNums;
+
+  my @numsToAdd;
+  while(@libNumsNotInHistory + @numsToAdd < $$serial{minFutureSize}){
+    if(@numsAvailToAdd == 0){
+      print STDERR "  WARNING: not enough files available to add to lib\n";
+      last;
+    }
+    my $nextNum = shift @numsAvailToAdd;
+    push @numsToAdd, $nextNum;
+  }
+
+  if(@historyNums == 0){
+    print "  skipping add files (out of date, no files in history)\n";
+    return 0;
+  }
+
+  if(@numsToAdd > 0){
+    print "  ADDING " . @numsToAdd . " files to lib\n";
+    for my $num(@numsToAdd){
+      copyNum $serial, $num;
+    }
+    run "klomp-db", "-u", $$serial{destLib};
+    return 1;
+  }else{
+    print "  skipping add files\n";
+    return 0;
+  }
+}
+
+sub removeFilesFromLib($){
+  my ($serial) = @_;
+
+  my @libNums = getLibNums $serial;
+  my @historyNums = getHistoryNums $serial;
+
+  my @libNumsInHistory = grep {elem $_, @historyNums} @libNums;
+
+  my @numsAvailToRemove = @libNumsInHistory;
+
+  my @numsToRemove;
+  while(@libNumsInHistory - @numsToRemove > $$serial{maxLibInHist}){
+    my $nextNum = shift @numsAvailToRemove;
+    push @numsToRemove, $nextNum;
+  }
+
+  if(@numsToRemove > 0){
+    print "  REMOVING " . @numsToRemove . " files from lib\n";
+    for my $num(@numsToRemove){
+      removeNum $serial, $num;
+    }
+    my $forceRemoveCount = @numsToRemove;
+    run "klomp-db", "-m", "--force=$forceRemoveCount", $$serial{destLib};
+    return 1;
+  }else{
+    print "  skipping remove files\n";
+    return 0;
+  }
+}
+
+sub ensureLibFilesInPlaylist($){
+  my ($serial) = @_;
+
+  my @libNums = getLibNums $serial;
+  my @historyNums = getHistoryNums $serial;
+  my @playlistNums = getPlaylistNums $serial;
+
+  my @numsToAddToPlaylist =
+    grep {not elem($_, @playlistNums) and not elem($_, @historyNums)} @libNums;
+
+  if(@historyNums == 0){
+    print "  skipping adding files to playlist (out of date, no files in history)\n";
+    return 0;
+  }
+
+  if(@numsToAddToPlaylist > 0){
+    print "  APPENDING " . @numsToAddToPlaylist . " files to playlist\n";
+    my @remoteCmd = getRemoteCmd $serial;
+    for my $num(@numsToAddToPlaylist){
+      my $queryLib = "\@$$serial{destLib}";
+      my $queryAlbum = "\@l^\"$$serial{album}\"\$";
+      my $queryNumber = "\@n^\"$num\"\$";
+      my $query = "$queryLib $queryAlbum $queryNumber";
+      run @remoteCmd, "klomp", "--append", "'$query'";
+    }
+  }else{
+    print "  skipping append playlist\n";
+  }
+}
+
+sub syncKlomp($){
+  my ($serial) = @_;
+
+  my $host = `ipmagic $$serial{ipmagic}`;
+  chomp $host;
+  if(defined $$serial{ipmagicUser}){
+    $host = "$$serial{ipmagicUser}\@$host";
+  }
+  run "klomp-sync", $host, "--nopresync", $$serial{destLib};
 }
 
 sub copyNum($$){
@@ -209,13 +246,13 @@ sub removeNum($$){
   run "rm", $destFiles{$num};
 }
 
-sub getSrcNums($){
+sub getAllNums($){
   my ($serial) = @_;
   my %files = getFiles $$serial{srcLib}, $$serial{srcRelPath};
   return sort keys %files;
 }
 
-sub getCurrentNums($){
+sub getLibNums($){
   my ($serial) = @_;
   my %files = getFiles $$serial{destLib}, $$serial{destRelPath};
   return sort keys %files;
@@ -237,12 +274,23 @@ sub getFiles($$){
   return %numFiles;
 }
 
-sub getAlbumHistoryNums($){
+sub getPlaylistNums($){
   my ($serial) = @_;
+  return getKlompInfoNums $serial, "0", "10000";
+}
+
+sub getHistoryNums($){
+  my ($serial) = @_;
+  return getKlompInfoNums $serial, "-10000", "-1";
+}
+
+sub getKlompInfoNums($$$){
+  my ($serial, $minIndex, $maxIndex) = @_;
+
   my @remoteCmd = getRemoteCmd $serial;
 
   my @nums;
-  my @historyLines = `@remoteCmd klomp-info album number [-50,-1]`;
+  my @historyLines = `@remoteCmd klomp-info album number [$minIndex,$maxIndex]`;
   for my $line(@historyLines){
     if($line =~ /^$$serial{album} (\d+)$/){
       push @nums, $1;
@@ -253,18 +301,25 @@ sub getAlbumHistoryNums($){
   return sort @nums;
 }
 
+sub getCurPlaylist($){
+  my ($serial) = @_;
+
+  my @remoteCmd = getRemoteCmd $serial;
+
+  my $curPlaylist = `@remoteCmd klomp-cmd playlist`;
+  chomp $curPlaylist;
+
+  return $curPlaylist;
+}
+
 sub setPlaylist($$){
   my ($serial, $playlist) = @_;
   my @remoteCmd = getRemoteCmd $serial;
-
-  my $origPlaylist = `@remoteCmd klomp-cmd playlist`;
-  chomp $origPlaylist;
 
   run "@remoteCmd klomp-cmd playlist-main";
   if($playlist ne "main"){
     run "@remoteCmd klomp-cmd playlist $playlist";
   }
-  return $origPlaylist;
 }
 
 sub getRemoteCmd($){
