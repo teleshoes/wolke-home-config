@@ -3,7 +3,7 @@ module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW, mainLabel)
 import Utils (
-  stringWidth, trimL, trimR, padL, padR,
+  regexMatch, stringWidth, trimL, trimR, padL, padR,
   fgbg, isRunning, chompFile, readProc)
 
 import System.Taffybar.Widget.Util (widgetSetClassGI)
@@ -35,12 +35,15 @@ clickR = Just "klomp-cmd stop"
 getKlompInfo ipmagicName = do
   str <- readProc $ cmd ipmagicName
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
-    Left msg -> emptyKlompInfo {errorMsg = msg}
+    Left msg -> emptyKlompInfo {errorMsg = formatErr str msg}
     Right (hdr, csv) -> if Vector.length csv /= 1
                         then emptyKlompInfo {errorMsg = "rowcount != 1"}
                         else Vector.head csv
   where cmd (Just ipmagicName) = ["ipmagic", ipmagicName] ++ klompInfoCmd
         cmd Nothing = klompInfoCmd
+        formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
+                                         then "(no song info found)"
+                                         else parseError
 
 coerceUtf8 = decodeString . utf8Encode
 
