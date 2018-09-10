@@ -33,6 +33,12 @@ my $usage = "Usage:
     -read screen sessions from `screen -list`
     -if a screen session named NAME exists, print \"on\". otherwise print \"off\"
 
+  $EXEC NAME --toggle
+    -if `$EXEC NAME --status` is \"off\"
+      -run `$EXEC NAME --start
+    -if `$EXEC NAME --status` is \"on\"
+      -run `$EXEC NAME --stop
+
   $EXEC NAME --start
     read $screenDaemonConf and find a line of the form:
       NAME DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
@@ -116,6 +122,16 @@ sub main(@){
     my %okScreenNames = map {$_ => 1} @screenNames;
     my $status = defined $okScreenNames{$name} ? "on" : "off";
     print "$status\n";
+  }elsif(@_ == 2 and $_[1] =~ /^--toggle$/){
+    my ($name, $toggleArg) = @_;
+    my $status = `$0 $name --status`;
+    if($status =~ /off/){
+      print "starting\n";
+      exec $0, $name, "--start";
+    }elsif($status =~ /on/){
+      print "stopping\n";
+      exec $0, $name, "--stop";
+    }
   }elsif(@_ == 2 and $_[1] =~ /^--start$/){
     my ($name, $startArg) = @_;
     my $conf = ${parseScreenDaemonConf()}{$name};
