@@ -41,23 +41,23 @@ my $usage = "Usage:
 
   $EXEC NAME --start
     read $screenDaemonConf and find a line of the form:
-      NAME DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
-    invoke $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+      NAME DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
+    invoke $EXEC NAME --start DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
 
-  $EXEC NAME --start DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+  $EXEC NAME --start DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
     -quit screen session 'NAME'
       screen -S NAME -X quit
     -start a screen session named 'NAME' that runs `$EXEC --run`
       screen -S NAME -d -m \\
-        $EXEC NAME --run DELAY_MILLIS TIMEOUT_MILLIS \\
+        $EXEC NAME --run DELAY_INTERVAL TIMEOUT_INTERVAL \\
           CMD [ARG ARG ..]
 
-  $0 NAME --run DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
+  $0 NAME --run DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
     -start logging to LOG_FILE
     -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
-    -run 'CMD [ARG ARG ..]' every DELAY_MILLIS (if DELAY_MILLIS == 0, exit after first run)
+    -run 'CMD [ARG ARG ..]' every DELAY_INTERVAL (if DELAY_INTERVAL == 0, exit after first run)
     -append STDOUT/STDERR to LOG_FILE
-    -if CMD takes longer than TIMEOUT_MILLIS, kill it (never kill it if TIMEOUT_MILLIS is 0)
+    -if CMD takes longer than TIMEOUT_INTERVAl, kill it (never kill it if TIMEOUT_INTERVAL is 0)
 
       LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
       START_MILLIS = time in milliseconds at initial start
@@ -78,21 +78,33 @@ my $usage = "Usage:
   NAME
     screen session name, must be letters, numbers, underscores, or hyphens only
 
-  DELAY_MILLIS
-    positive integer for milliseconds to wait between commands,
+  DELAY_INTERVAL = 0 | <POSITIVE_INT><TIME_UNIT>
+    time to wait between commands (e.g.: 30s, 5m, 1500ms),
       or '0' for run only once
     if delay and timeout are non-zero, the maximum delay between commands is:
-      DELAY_MILLIS + TIMEOUT_MILLIS
+      DELAY_INTERVAL + TIMEOUT_INTERVAL
 
-  TIMEOUT_MILLIS
-    positive integer for milliseconds to wait before killing command,
+  TIMEOUT_INTERVAL = 0 | <POSITIVE_INT><TIME_UNIT>
+    time to wait before killing command (e.g.: 30s, 5m, 1500ms),
       or '0' for never kill command
     if delay and timeout are non-zero, the maximum delay between commands is:
-      DELAY_MILLIS + TIMEOUT_MILLIS
+      DELAY_INTERVAL + TIMEOUT_INTERVAL
+
+  POSITIVE_INT
+    a positive (non-zero, non-negative) integer
+
+  TIME_UNIT
+    ms  => milliseconds
+    s   => seconds
+    m   => minutes
+    min => minutes
+    h   => hours
+    d   => days (24 hours)
 ";
 
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
+sub getIntervalMillis($);
 sub checkRunArgs($$$@);
 sub runCommandForever($$$@);
 sub cmdTimeout($$@);
@@ -138,24 +150,27 @@ sub main(@){
     if(not defined $conf){
       die "no entry in $screenDaemonConf found for $name\n";
     }
-    my $delayMillis = $$conf{delayMillis};
-    my $timeoutMillis = $$conf{timeoutMillis};
+    my $delayInterval = $$conf{delayInterval};
+    my $timeoutInterval = $$conf{timeoutInterval};
     my @cmd = shellParse $$conf{cmdStr};
-    print "$name --start $delayMillis $timeoutMillis @cmd\n";
+    print "$name --start $delayInterval $timeoutInterval @cmd\n";
 
-    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
     system "screen -S $name -X quit >/dev/null";
     system "screen", "-S", $name, "-d", "-m",
-      $0, $name, "--run", $delayMillis, $timeoutMillis, @cmd;
+      $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
   }elsif(@_ > 4 and $_[1] =~ /^--start$/){
-    my ($name, $startArg, $delayMillis, $timeoutMillis, @cmd) = @_;
-    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    my ($name, $startArg, $delayInterval, $timeoutInterval, @cmd) = @_;
+    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
     system "screen -S $name -X quit >/dev/null";
     system "screen", "-S", $name, "-d", "-m",
-      $0, $name, "--run", $delayMillis, $timeoutMillis, @cmd;
+      $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
   }elsif(@_ > 4 and $_[1] =~ /^--run$/){
-    my ($name, $runArg, $delayMillis, $timeoutMillis, @cmd) = @_;
-    checkRunArgs $name, $delayMillis, $timeoutMillis, @cmd;
+    my ($name, $runArg, $delayInterval, $timeoutInterval, @cmd) = @_;
+    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+
+    my $delayMillis = getIntervalMillis $delayInterval;
+    my $timeoutMillis = getIntervalMillis $timeoutInterval;
     runCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
   }elsif(@_ == 2 and $_[1] =~ /^(--tail)$/){
     my ($name) = @_;
@@ -180,12 +195,18 @@ sub parseScreenDaemonConf(){
   for my $line(`cat $screenDaemonConf`){
     chomp $line;
     next if $line =~ /^\s*(#.*)?$/; #skip empty or comment-only lines
-    if($line =~ /^([a-zA-Z0-9_\-]+)\s+(\d+)\s+(\d+)\s+(.+)$/){
-      my ($name, $delayMillis, $timeoutMillis, $cmdStr) = ($1, $2, $3, $4);
+    if($line =~ /^([a-zA-Z0-9_\-]+)\s+(\d+\w*)\s+(\d+\w*)\s+(.+)$/){
+      my ($name, $delayInterval, $timeoutInterval, $cmdStr) = ($1, $2, $3, $4);
+      if(not defined getIntervalMillis($delayInterval)){
+        die "invalid delay interval: $delayInterval\n";
+      }
+      if(not defined getIntervalMillis($timeoutInterval)){
+        die "invalid delay interval: $timeoutInterval\n";
+      }
       $$confs{$name} = {
         name => $name,
-        delayMillis => $delayMillis,
-        timeoutMillis => $timeoutMillis,
+        delayInterval => $delayInterval,
+        timeoutInterval => $timeoutInterval,
         cmdStr => $cmdStr,
       };
     }else{
@@ -206,14 +227,42 @@ sub getRunningScreenNames(){
   return @names;
 }
 
+sub getIntervalMillis($){
+  my ($interval) = @_;
+  if($interval =~ /^0$/){
+    return 0;
+  }elsif($interval =~ /^(\d+)(\w+)$/){
+    my ($val, $unit) = ($1, $2);
+    if($val == 0){
+      return undef;
+    }
+
+    if($unit eq "ms"){
+      return int($val + 0.5);
+    }elsif($unit eq "s"){
+      return int($val*1000.0 + 0.5);
+    }elsif($unit eq "m" or $unit eq "min"){
+      return int($val*1000.0*60.0 + 0.5);
+    }elsif($unit eq "h"){
+      return int($val*1000.0*60.0*60.0 + 0.5);
+    }elsif($unit eq "d"){
+      return int($val*1000.0*60.0*60.0*24.0 + 0.5);
+    }else{
+      return undef;
+    }
+  }else{
+    return undef;
+  }
+}
+
 sub checkRunArgs($$$@){
-  my ($name, $delayMillis, $timeoutMillis, @cmd) = @_;
+  my ($name, $delayInterval, $timeoutInterval, @cmd) = @_;
   if($name !~ /^[a-zA-Z0-9_\-]+$/){
     die "$usage\ninvalid name: $name\n";
-  }elsif($delayMillis !~ /^\d+$/ or $delayMillis < 0){
-    die "$usage\ninvalid delayMillis: $delayMillis\n"
-  }elsif($timeoutMillis !~ /^\d+$/ or $timeoutMillis < 0){
-    die "$usage\ninvalid timeoutMillis: $timeoutMillis\n"
+  }elsif(not defined getIntervalMillis($delayInterval)){
+    die "$usage\ninvalid delayInterval: $delayInterval\n"
+  }elsif(not defined getIntervalMillis($delayInterval)){
+    die "$usage\ninvalid timeoutInterval: $timeoutInterval\n"
   }elsif(@cmd == 0){
     die "$usage\nmissing CMD\n";
   }
