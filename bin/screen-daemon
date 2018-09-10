@@ -18,6 +18,21 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
+  $EXEC --list
+    -read entries from config file $screenDaemonConf
+    -read screen sessions from `screen -list`
+    -for each entry in the config:
+      -print \"NAME on\" if a screen session named NAME exists
+      -print \"NAME off\" otherwise
+
+  $EXEC --list-names
+    -read entries from config file $screenDaemonConf
+    -print \"NAME\" for each entry in the config
+
+  $EXEC NAME --status
+    -read screen sessions from `screen -list`
+    -if a screen session named NAME exists, print \"on\". otherwise print \"off\"
+
   $EXEC NAME --start
     read $screenDaemonConf and find a line of the form:
       NAME DELAY_MILLIS TIMEOUT_MILLIS CMD [ARG ARG ..]
@@ -71,6 +86,7 @@ my $usage = "Usage:
 ";
 
 sub parseScreenDaemonConf();
+sub getRunningScreenNames();
 sub checkRunArgs($$$@);
 sub runCommandForever($$$@);
 sub cmdTimeout($$@);
@@ -81,6 +97,25 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^--list$/){
+    my @configNames = sort keys %{parseScreenDaemonConf()};
+    my @screenNames = getRunningScreenNames();
+    my %okScreenNames = map {$_ => 1} @screenNames;
+    for my $name(@configNames){
+      my $status = defined $okScreenNames{$name} ? "on" : "off";
+      print "$name $status\n";
+    }
+  }elsif(@_ == 1 and $_[0] =~ /^--list-names$/){
+    my @configNames = sort keys %{parseScreenDaemonConf()};
+    for my $name(@configNames){
+      print "$name\n";
+    }
+  }elsif(@_ == 2 and $_[1] =~ /^--status$/){
+    my ($name, $statusArg) = @_;
+    my @screenNames = getRunningScreenNames();
+    my %okScreenNames = map {$_ => 1} @screenNames;
+    my $status = defined $okScreenNames{$name} ? "on" : "off";
+    print "$status\n";
   }elsif(@_ == 2 and $_[1] =~ /^--start$/){
     my ($name, $startArg) = @_;
     my $conf = ${parseScreenDaemonConf()}{$name};
@@ -142,6 +177,17 @@ sub parseScreenDaemonConf(){
     }
   }
   return $confs;
+}
+
+sub getRunningScreenNames(){
+  my @screenLines = `screen -list`;
+  my @names;
+  for my $line(@screenLines){
+    if($line =~ /^\t\d+\.(\w+)\t/){
+      push @names, $1;
+    }
+  }
+  return @names;
 }
 
 sub checkRunArgs($$$@){
