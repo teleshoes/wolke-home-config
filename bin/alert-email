@@ -10,6 +10,10 @@ my $usage = "Usage:
     play alert sounds for emails
 ";
 
+sub filterMatches($$@);
+sub searchMatches($$@);
+sub isEmailSearchMatch(@);
+
 sub main(@){
   my ($accName) = @_;
   die $usage if not defined $accName;
@@ -18,12 +22,41 @@ sub main(@){
     system "alert", "jumpdown";
   }elsif($accName =~ "L"){
     system "alert", "jumpup";
-    my $meFilter = "me";
-    my $me = `email-search.pl --filter --match --new-unread L me`;
-    if($me =~ /yes/){
+    if(filterMatches "L", "me"){
       sleep ($SOUND_DELAY_MILLIS / 1000.0);
       system "alarm", "-s", "--volume", "80", "ff7-menuselect";
     }
+  }
+}
+
+sub filterMatches($$@){
+  my ($accName, $filterName, @args) = @_;
+  return isEmailSearchMatch(
+    "email-search.pl",
+    "--filter", "--match", "--new-unread", @args,
+    $accName, $filterName,
+    );
+}
+sub searchMatches($$@){
+  my ($accName, $query, @args) = @_;
+  return isEmailSearchMatch(
+    "email-search.pl",
+    "--search", "--match", "--new-unread", @args,
+    $accName, $query,
+    );
+}
+
+sub isEmailSearchMatch(@){
+  my @cmd = @_;
+  open CMD, "-|", @cmd or die "could not run @_\n$!\n";
+  my $out = join '', <CMD>;
+  close CMD;
+  if($out =~ /^yes$/){
+    return 1;
+  }elsif($out =~ /^no$/){
+    return 0;
+  }else{
+    die "malformed output of @_:\n$out\n";
   }
 }
 
