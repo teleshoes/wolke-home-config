@@ -25,6 +25,7 @@ sub padr($$);
 sub formatTime($);
 sub ymd($);
 sub writeStatus($);
+sub sleepMillis($$);
 sub run(@);
 sub tryrun(@);
 sub bashComplete($$);
@@ -208,8 +209,7 @@ sub runCommandInCommandsGui($){
 
   print "starting gui\n";
   run $0, "-g";
-  print "sleeping " . int($delayBeforeGUIOpenCmdWindowMillis/1000) . "s before opening cmd window\n";
-  sleep $delayBeforeGUIOpenCmdWindowMillis/1000.0;
+  sleepMillis $delayBeforeGUIOpenCmdWindowMillis, "before opening cmd window";
 
   my $guiWindowId = `windowid --exact --class=crashplan.crashplan --name=Code42`;
   chomp $guiWindowId;
@@ -219,8 +219,7 @@ sub runCommandInCommandsGui($){
   run "wmctrl", "-i", "-a", $guiWindowId;
   run "xdotool", "key", "--window", $guiWindowId, "Ctrl+Shift+C";
 
-  print "sleeping " . int($delayBeforeGUIKeyboardCmdMillis/1000) . "s before typing a command\n";
-  sleep $delayBeforeGUIKeyboardCmdMillis/1000.0;
+  sleepMillis $delayBeforeGUIKeyboardCmdMillis, "before typing keyboard command";
 
   my $cmdWindowId = `windowid --exact --class=crashplan.crashplan --name='Code42 Commands'`;
   chomp $cmdWindowId;
@@ -230,8 +229,7 @@ sub runCommandInCommandsGui($){
   run "wmctrl", "-i", "-a", $cmdWindowId;
   run "xdotool", "type", "--window", $cmdWindowId, "$command\n";
 
-  print "sleeping " . int($delayBeforeGUICloseMillis/1000) . "s before closing the GUI\n";
-  sleep $delayBeforeGUICloseMillis/1000.0;
+  sleepMillis $delayBeforeGUICloseMillis, "before closing the GUI";
   run "wmctrl", "-i", "-c", $cmdWindowId;
   run "wmctrl", "-i", "-c", $guiWindowId;
 }
@@ -259,9 +257,10 @@ sub runBackup($){
 
   writeStatus "STARTING CRASHPLAN";
   run $0, "start";
+
   writeStatus "WAITING TO START SCAN";
-  print "sleeping " . int($delayBeforeGUIStartMillis/1000) . "s before starting gui to scan\n";
-  sleep $delayBeforeGUIStartMillis/1000.0;
+  sleepMillis $delayBeforeGUIStartMillis, "before starting GUI to perform scan";
+
   writeStatus "STARTING SCAN";
   run $0, "scan";
 
@@ -838,6 +837,13 @@ sub writeStatus($){
   open FH, "> $curStatusFile" or die "could not write $curStatusFile\n$!\n";
   print FH $msg;
   close FH;
+}
+
+sub sleepMillis($$){
+  my ($millis, $actionMsg) = @_;
+  my $fracS = ($millis/1000.0);
+  printf "sleeping %.1fs %s\n", $fracS, $actionMsg;
+  Time::HiRes::sleep $fracS;
 }
 
 sub run(@){
