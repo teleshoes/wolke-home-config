@@ -199,6 +199,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "raspi"         @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
+        "outlet wait"   @@ mCS   xK_PgDn #! "term 'pi outlet --wait'"
 
     "N9"            @@ do
         "lock"          @@ mC    xK_F12  #! "n9 -b lock"
