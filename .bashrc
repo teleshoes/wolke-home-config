@@ -124,7 +124,9 @@ IPMAGIC_NAMES=$(basename --suffix=.conf -a $IPMAGIC_CONF_FILES 2>/dev/null)
 
 alias ipm=ipmagic
 for ipmagicName in $IPMAGIC_NAMES
-do alias ipm$ipmagicName="ipmagic $ipmagicName"; done
+do
+  alias ipm$ipmagicName="ipmagic $ipmagicName";
+done
 
 function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
