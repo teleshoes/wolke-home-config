@@ -83,12 +83,12 @@ if [[ -z "$DISPLAY" ]]; then
     "raspberrypi"             ) h='@raspi' ;;
     *                         ) h="@$hostname" ;;
   esac
-else
-  #if display is set, you probably know where you are
-  h=""
 
   #set DISPLAY using who (probably ":0")
   export DISPLAY=`display-guess`
+else
+  #if display was set, you probably know where you are
+  h=""
 fi
 
 u="\u"
