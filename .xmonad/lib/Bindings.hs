@@ -178,7 +178,6 @@ shortcuts conf = "Shortcuts" @@ do
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome Incog"  @@ mCA   xK_c    #! "chromium --incognito"
         "Chrome"        @@ mCAS  xK_c    #! "chromium"
-        "youtube-tv"    @@ mCA   xK_y    #! "yt-tv"
         "zoom"          @@ mCA   xK_z    #! "zoom-run"
         "hangout"       @@ mCA   xK_h    #! "hangout"
         "hex-a-hop"     @@ mCA   xK_x    #! "hex-a-hop"
