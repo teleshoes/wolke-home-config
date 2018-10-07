@@ -102,6 +102,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "Network"       @@ do
         "wauto"         @@ mW    xK_1    #! "sudo wauto"
+        "wifi-fix"      @@ mWS   xK_1    #! "term wifi-fix"
         "off"           @@ mW    xK_2    #! "sudo wconnect -d; " ++
                                             "sudo tether off; " ++
                                             "sudo wired off"
