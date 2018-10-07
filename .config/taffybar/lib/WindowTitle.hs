@@ -1,15 +1,28 @@
 module WindowTitle (windowTitleW) where
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Data.List (intercalate)
 import Data.List.Split (chunksOf)
 import Data.Text (Text, pack)
+import GI.Gtk.Enums (PolicyType(..))
+import GI.Gtk.Objects.Adjustment (noAdjustment)
+import GI.Gtk.Objects.Container (containerAdd)
+import GI.Gtk.Objects.ScrolledWindow (scrolledWindowNew, scrolledWindowSetPolicy)
+import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
 import System.Taffybar.Context (runX11)
 import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindow, getWindowTitle)
 import System.Taffybar.Widget.Windows (
   WindowsConfig(..), defaultWindowsConfig, windowsNew)
 
-windowTitleW len lineCount = windowsNew $ defaultWindowsConfig
-  { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
-  }
+windowTitleW len lineCount = wrapFixedHeightPanel =<< windowsNew config
+  where config = defaultWindowsConfig { getActiveLabel = getFmtWinTitle }
+        getFmtWinTitle = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
+
+wrapFixedHeightPanel childW = do
+  scroll <- scrolledWindowNew noAdjustment noAdjustment
+  containerAdd scroll childW
+  scrolledWindowSetPolicy scroll PolicyTypeNever PolicyTypeExternal
+  widgetShowAll scroll
+  toWidget scroll
 
 getActiveWinTitle = do
   w <- getActiveWindow
