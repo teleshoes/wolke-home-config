@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub run(@);
+
+my $usage = "Usage:
+  $0 ORIENTATION IMAGE_FILENAME [IMAGE_FILENAME ..]
+    exiftool -Orientation=<ORIENTATION> <IMAGE_FILENAME> -o <IMAGE_FILENAME>.rot
+    touch <IMAGE_FILENAME>.rot -r <IMAGE_FILENAME>
+";
+
+sub main(@){
+  my ($orientation, @files) = @_;
+  $orientation = "" if not defined $orientation;
+
+  die $usage if $orientation !~ /^\d$/;
+  die $usage if @files == 0;
+
+  for my $file(@files){
+    die "could not find file: '$file'\n" if not -f $file;
+    die "$file.rot already exists\n" if -e "$file.rot";
+
+    run "exiftool", "-Orientation=$orientation", "-n", $file, "-o", "$file.rot";
+
+    die "$file.rot does not exist after exiftool\n" if not -f "$file.rot";
+    run "touch", "$file.rot", "-r", $file;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+&main(@ARGV);
