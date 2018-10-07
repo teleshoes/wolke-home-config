@@ -127,13 +127,13 @@ shortcuts conf = "Shortcuts" @@ do
         "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
         "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
-        "nuc cec start" @@ mCS   xK_equal#! "nuc cec-cmd start"
-        "nuc cec mute"  @@ mCS   xK_minus#! "nuc cec-cmd --av mute"
-        "nuc cec volup" @@ mC    xK_equal#! "nuc cec-cmd --av vol +1"
-        "nuc cec voldn" @@ mC    xK_minus#! "nuc cec-cmd --av vol -1"
-        "nuc vol up"    @@ mCA   xK_VolUp#! "nuc pulse-vol +6 100"
-        "nuc vol down"  @@ mCA   xK_VolDn#! "nuc pulse-vol -6 100"
-        "nuc spkr cyc"  @@ mCAW  xK_VolUp#! "nuc speaker cycle; nuc klomp-cmd restart"
+        "tv cec start"  @@ mCS   xK_equal#! "ipmagic tv cec-cmd start"
+        "tv cec mute"   @@ mCS   xK_minus#! "ipmagic tv cec-cmd --av mute"
+        "tv cec volup"  @@ mC    xK_equal#! "ipmagic tv cec-cmd --av vol +1"
+        "tv cec voldn"  @@ mC    xK_minus#! "ipmagic tv cec-cmd --av vol -1"
+        "tv vol up"     @@ mCA   xK_VolUp#! "ipmagic tv pulse-vol +6 100"
+        "tv vol down"   @@ mCA   xK_VolDn#! "ipmagic tv pulse-vol -6 100"
+        "tv spkr cyc"   @@ mCAW  xK_VolUp#! "ipmagic tv speaker cycle; ipmagic tv klomp-cmd restart"
 
     "iguana IR"     @@ do
         "A/C toggle"    @@ mC    xK_F1   #! "term ac toggle"
@@ -141,8 +141,8 @@ shortcuts conf = "Shortcuts" @@ do
         "A/C mode"      @@ mC    xK_F3   #! "ac ac-mode"
 
     "CEC power"     @@ do
-        "TV pwr toggle" @@ mC    xK_F2   #! "nuc cec-cmd --tv togglestandby"
-        "TV pwr toggle" @@ mCA   xK_Ins  #! "nuc cec-cmd --tv togglestandby"
+        "TV pwr toggle" @@ mC    xK_F2   #! "ipmagic tv cec-cmd --tv togglestandby"
+        "TV pwr toggle" @@ mCA   xK_Ins  #! "ipmagic tv cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
         "100%"          @@ mW    xK_F1   #! "sudo cpu-set 100%"
@@ -192,11 +192,11 @@ shortcuts conf = "Shortcuts" @@ do
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
-    "nuc"           @@ do
-        "vnc"           @@ mC    xK_F9   #! "nuc -vnc"
-        "vnc"           @@ mCS   xK_F9   #! "nuc -vnc --x2vnc"
-        "bgset --next"  @@ mCAW  xK_w    #! "nuc bgset --next"
-        "bgset --prev"  @@ mCAWS xK_w    #! "nuc bgset --prev"
+    "tv"           @@ do
+        "vnc"           @@ mC    xK_F9   #! "ipmagic tv -vnc"
+        "vnc"           @@ mCS   xK_F9   #! "ipmagic tv -vnc --x2vnc"
+        "bgset --next"  @@ mCAW  xK_w    #! "ipmagic tv bgset --next"
+        "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "raspi"         @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
@@ -230,16 +230,16 @@ shortcuts conf = "Shortcuts" @@ do
         "next"        @@ m_    xK_ANext#! "audio-key next"
         "prev"        @@ m_    xK_APrev#! "audio-key prev"
 
-    "Klomp nuc"     @@ do
-        "pause"       @@ mCAW  (xK ' ')#! "nuc klomp-cmd pause"
-        "prev"        @@ mCAW  xK_z    #! "nuc klomp-cmd prev"
-        "next"        @@ mCAW  xK_x    #! "nuc klomp-cmd next"
-        "books pl"    @@ mCAW  xK_b    #! "nuc klomp-cmd playlist books"
-        "seek -10"    @@ mCAWS xK_z    #! "nuc klomp-cmd seek -10"
-        "seek +10"    @@ mCAWS xK_x    #! "nuc klomp-cmd seek +10"
-        "seek -60"    @@ mCAWS xK_a    #! "nuc klomp-cmd seek -60"
-        "seek +60"    @@ mCAWS xK_s    #! "nuc klomp-cmd seek +60"
-        "stop"        @@ mCAW  xK_c    #! "nuc klomp-cmd stop"
+    "Klomp tv"     @@ do
+        "pause"       @@ mCAW  (xK ' ')#! "ipmagic tv klomp-cmd pause"
+        "prev"        @@ mCAW  xK_z    #! "ipmagic tv klomp-cmd prev"
+        "next"        @@ mCAW  xK_x    #! "ipmagic tv klomp-cmd next"
+        "books pl"    @@ mCAW  xK_b    #! "ipmagic tv klomp-cmd playlist books"
+        "seek -10"    @@ mCAWS xK_z    #! "ipmagic tv klomp-cmd seek -10"
+        "seek +10"    @@ mCAWS xK_x    #! "ipmagic tv klomp-cmd seek +10"
+        "seek -60"    @@ mCAWS xK_a    #! "ipmagic tv klomp-cmd seek -60"
+        "seek +60"    @@ mCAWS xK_s    #! "ipmagic tv klomp-cmd seek +60"
+        "stop"        @@ mCAW  xK_c    #! "ipmagic tv klomp-cmd stop"
 
     "Klomp sx"      @@ do
         "pause"       @@ mCW   (xK ' ')#! "ipmagic sx klomp-cmd pause"
