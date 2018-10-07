@@ -202,12 +202,6 @@ shortcuts conf = "Shortcuts" @@ do
         "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
         "outlet wait"   @@ mCS   xK_PgDn #! "term 'pi outlet --wait'"
 
-    "N9"            @@ do
-        "lock"          @@ mC    xK_F12  #! "n9 -b lock"
-        "dontgosleep"   @@ mCS   xK_F12  #! "n9 -s dontgosleep"
-        "vnc landscape" @@ mC    xK_F11  #! "n9 -vnc"
-        "vnc portrait"  @@ mC    xK_F10  #! "n9 -vnc -rotate 0"
-
     "Klomp"         @@ do
         "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
         "prev"        @@ mW    xK_z    #! "klomp-cmd prev"
