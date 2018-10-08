@@ -131,6 +131,7 @@ done
 
 function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
+function ds           { zenius-ddrsonglist --search "$@"; }
 function ddr-search   { zenius-ddrsonglist --search "$@"; }
 function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
