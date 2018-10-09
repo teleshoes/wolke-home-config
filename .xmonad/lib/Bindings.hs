@@ -198,8 +198,8 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "raspi"         @@ do
-        "pi outlet"     @@ mC    xK_PgDn #! "pi outlet"
-        "outlet wait"   @@ mCS   xK_PgDn #! "term 'pi outlet --wait'"
+        "outlet"        @@ mC    xK_PgDn #! "ipmagic raspi outlet"
+        "outlet wait"   @@ mCS   xK_PgDn #! "term 'ipmagic raspi outlet --wait'"
 
     "Klomp"         @@ do
         "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
