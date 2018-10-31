@@ -25,6 +25,8 @@ sub enableAllAddons();
 sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
 sub getShortcutJson();
+sub parseJsonKeyVals($);
+sub formatJsonKeyVals($);
 sub formatJsonCsv(@);
 sub amoUrl($;$);
 sub formatChunks($$@);
@@ -156,6 +158,9 @@ my $shortcutKeys = {
   key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
 };
 
+my $browserExtensionDataPrefs = {
+};
+
 my $usage = "Usage:
   $0
   $0 --safe
@@ -171,7 +176,7 @@ my $usage = "Usage:
 
   COMMANDS
     prefs
-      selectively modify prefs.js file
+      selectively modify prefs.js and browser-extension-data files
 
     addons
       -download XPI files:" . formatChunks(5, "\n        ", sort keys %$addons) . "
@@ -181,7 +186,7 @@ my $usage = "Usage:
       -extract XPI files to \"<profile>/extensions/\"
       -start firefox, kill firefox
       -enable addons in extensions.json
-      -set all prefs.js prefs as in --prefs
+      -set all prefs.js/browser-extension-data prefs as in --prefs
       -start firefox, kill firefox
 
     greasemonkey
@@ -309,6 +314,22 @@ sub setPrefs(){
   my $prefsJs = "$PROFILE_DIR/prefs.js";
   die "Could not find prefs file\n" if not -f $prefsJs;
   editMozillaPrefs $prefsJs, "set-up-firefox", $prefs;
+
+  for my $extension(sort keys %$browserExtensionDataPrefs){
+    my $dir = "$PROFILE_DIR/browser-extension-data/$extension";
+    my $storageJSFile = "$dir/storage.js";
+    my $extensionPrefs = $$browserExtensionDataPrefs{$extension};
+    run "mkdir", "-p", $dir;
+
+    my $json = readFile $storageJSFile;
+    my $jsonKeyVals = parseJsonKeyVals $json;
+    for my $prefKey(sort keys %$extensionPrefs){
+      my $val = $$extensionPrefs{$prefKey};
+      $$jsonKeyVals{$prefKey} = $val;
+    }
+    $json = formatJsonKeyVals $jsonKeyVals;
+    writeFile $storageJSFile, $json;
+  }
 }
 
 sub writeXulStore(){
@@ -541,6 +562,24 @@ sub getShortcutJson(){
     ;
   }
   return '{"overlays":[' . (join ",", @overlays) . ']}';
+}
+
+sub parseJsonKeyVals($){
+  my ($json) = @_;
+  my $ws = "[ \\t\\r\\n]";
+  $json =~ s/^$ws*{$ws*(.+)$ws*}$ws*$/$1/s;
+  my $jsonKeyVals = {};
+  while($json =~ s/^$ws*"([^"]+)"$ws*:$ws*([^\[\{] [^,]* | \{[^\}]*\} | \[[^\]]*\])$ws*(?:,|$)//sx){
+    $$jsonKeyVals{$1} = $2;
+  }
+  return $jsonKeyVals;
+}
+
+sub formatJsonKeyVals($){
+  my ($jsonKeyVals) = @_;
+  my @keyVals = map {"\"$_\":$$jsonKeyVals{$_}"} sort keys %$jsonKeyVals;
+  my $json = "{" . join(",", @keyVals) . "}";
+  return $json;
 }
 
 sub formatJsonCsv(@){
