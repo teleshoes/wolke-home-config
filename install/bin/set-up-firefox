@@ -26,6 +26,7 @@ sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
 sub getShortcutJson();
 sub parseJsonKeyVals($);
+sub modifyJsonKeyVals($$);
 sub formatJsonKeyVals($);
 sub formatJsonCsv(@);
 sub amoUrl($;$);
@@ -323,10 +324,7 @@ sub setPrefs(){
 
     my $json = readFile $storageJSFile;
     my $jsonKeyVals = parseJsonKeyVals $json;
-    for my $prefKey(sort keys %$extensionPrefs){
-      my $val = $$extensionPrefs{$prefKey};
-      $$jsonKeyVals{$prefKey} = $val;
-    }
+    modifyJsonKeyVals $jsonKeyVals, $extensionPrefs;
     $json = formatJsonKeyVals $jsonKeyVals;
     writeFile $storageJSFile, $json;
   }
@@ -568,16 +566,42 @@ sub parseJsonKeyVals($){
   my ($json) = @_;
   my $ws = "[ \\t\\r\\n]";
   $json =~ s/^$ws*{$ws*(.+)$ws*}$ws*$/$1/s;
-  my $jsonKeyVals = {};
+  my $jsonKeyVals = [];
   while($json =~ s/^$ws*"([^"]+)"$ws*:$ws*([^\[\{] [^,]* | \{[^\}]*\} | \[[^\]]*\])$ws*(?:,|$)//sx){
-    $$jsonKeyVals{$1} = $2;
+    push @$jsonKeyVals, $1;
+    push @$jsonKeyVals, $2;
+  }
+  return $jsonKeyVals;
+}
+
+sub modifyJsonKeyVals($$){
+  my ($jsonKeyVals, $changes) = @_;
+  for my $key(sort keys %$changes){
+    my $val = $$changes{$key};
+    my $found = 0;
+    for(my $i=0; $i<@$jsonKeyVals; $i+=2){
+      if($$jsonKeyVals[$i] eq $key){
+        $$jsonKeyVals[$i+1] = $val;
+        $found = 1;
+        last;
+      }
+    }
+    if(not $found){
+      push @$jsonKeyVals, $key;
+      push @$jsonKeyVals, $val;
+    }
   }
   return $jsonKeyVals;
 }
 
 sub formatJsonKeyVals($){
   my ($jsonKeyVals) = @_;
-  my @keyVals = map {"\"$_\":$$jsonKeyVals{$_}"} sort keys %$jsonKeyVals;
+  my @keyVals;
+  for(my $i=0; $i<@$jsonKeyVals; $i+=2){
+    my $key = $$jsonKeyVals[$i];
+    my $val = $$jsonKeyVals[$i+1];
+    push @keyVals, "\"$key\":$val";
+  }
   my $json = "{" . join(",", @keyVals) . "}";
   return $json;
 }
