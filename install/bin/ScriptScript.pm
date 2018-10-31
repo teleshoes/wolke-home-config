@@ -22,6 +22,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   runScript
                   getHome getInstallPath getSrcCache
                   getMachineType
+                  getResconfigScale
                   cd
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
@@ -355,6 +356,17 @@ sub getMachineType() {
     }else{
         return undef;
     }
+}
+
+sub getResconfigScale(){
+  my $defaultWidthPx = 1920;
+  my $resconfigWidthPx = `resconfig --width-px 2>/dev/null`;
+  chomp $resconfigWidthPx;
+  if($resconfigWidthPx =~ /^\d+$/){
+    return $resconfigWidthPx / $defaultWidthPx;
+  }else{
+    return 1.0;
+  }
 }
 
 sub getHome() {
