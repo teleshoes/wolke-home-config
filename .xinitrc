@@ -15,10 +15,13 @@ MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 if [ $MACHINE_TYPE = "main" ]; then
   sudo wauto -p &
   term -t qtemail-daemon -r email-daemon.pl
+  brightness 100 &
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
+  brightness 100 &
 elif [ $MACHINE_TYPE = "bed" ]; then
   sudo wauto -p &
+  brightness 100 &
 elif [ $MACHINE_TYPE = "tv" ]; then
   screensaver
   killall bgset
