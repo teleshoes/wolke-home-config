@@ -68,7 +68,7 @@ pathAppend          \
   /usr/games        \
 ;
 
-hostname=`hostname -f | cut -f 1,2 -d '.'`
+hostname=`hostname | cut -f 1,2 -d '.'`
 
 ########################################
 # command prompt
