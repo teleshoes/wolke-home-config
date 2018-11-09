@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $USER_GID = 1000;
+my $FUSE_GID = 1005;
+
+my $TEMP_GID = 8379;
+
+sub main(@){
+  getRoot();
+
+  my $username = getUsername();
+  my $curUserGID = getGID($username);
+  my $curFuseGID = getGID("fuse");
+
+  die "cannot get gid of \"$username\"\n" if not defined $curUserGID;
+  die "cannot get gid of \"fuse\"\n" if not defined $curFuseGID;
+
+  if($curUserGID == $USER_GID and $curFuseGID == $FUSE_GID){
+    print "OK: $username GID=$curUserGID, fuse GID=$curFuseGID\n";
+  }elsif($curUserGID == $FUSE_GID and $curFuseGID == $USER_GID){
+    print "$username and fuse GIDs are swapped, fixing...\n";
+    run "groupmod", "fuse", "-g", $TEMP_GID;
+    run "groupmod", $username, "-g", $USER_GID;
+    run "groupmod", "fuse", "-g", $FUSE_GID;
+  }
+}
+
+sub getGID($){
+  my ($username) = @_;
+  my $info = `getent group $username`;
+  if($info =~ /^$username:x:(\d+):/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+&main(@ARGV);
