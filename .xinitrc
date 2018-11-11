@@ -30,10 +30,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   sudo igstart &
   cec-cmd start &
-  ( sudo mnt
-    sudo hdparm-tool --active /media/seedbox
-    sudo hdparm-tool --log /media/videos >> hdparm-videos.log 2>>hdparm-videos.log
-  ) &
+  sudo mnt &
   sudo wired &
   screen-daemon sb-daemon --start
   screen-daemon revtun-ensure --start
