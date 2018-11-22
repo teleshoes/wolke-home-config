@@ -83,6 +83,7 @@ my @okFileFormatVars = qw(
   stage
   game
   feet
+  quality
 );
 my $okFileFormatVarsRegex = join "|", @okFileFormatVars;
 
@@ -105,6 +106,7 @@ sub parseArgs(@);
 sub getScoresByFile();
 sub listScoreFiles();
 sub parseScoreFile($);
+sub getQualityPoints($);
 sub sortScores($);
 sub getBucketName($$@);
 sub getScoreBuckets($$@);
@@ -1200,7 +1202,57 @@ sub parseScoreFile($){
   }
   $$info{feet} = $feet;
 
+  $$info{quality} = getQualityPoints($info);
+
   return $info;
+}
+
+sub getQualityPoints($){
+  my $info = shift;
+
+  my $scoreGrade;
+  $scoreGrade = 1.00 if $$info{score} >= 995000 and not defined $scoreGrade;
+  $scoreGrade = 0.95 if $$info{score} >= 990000 and not defined $scoreGrade;
+  $scoreGrade = 0.80 if $$info{score} >= 950000 and not defined $scoreGrade;
+  $scoreGrade = 0.60 if $$info{score} >= 900000 and not defined $scoreGrade;
+  $scoreGrade = 0.30 if $$info{score} >= 800000 and not defined $scoreGrade;
+  $scoreGrade = 0.10 if $$info{score} >= 700000 and not defined $scoreGrade;
+  $scoreGrade = 0.05 if not defined $scoreGrade;
+
+  my $feetGrade;
+  $feetGrade = 1.50 if $$info{feet} >= 19 and not defined $feetGrade;
+  $feetGrade = 1.07 if $$info{feet} >= 18 and not defined $feetGrade;
+  $feetGrade = 0.90 if $$info{feet} >= 17 and not defined $feetGrade;
+  $feetGrade = 0.70 if $$info{feet} >= 16 and not defined $feetGrade;
+  $feetGrade = 0.40 if $$info{feet} >= 15 and not defined $feetGrade;
+  $feetGrade = 0.30 if $$info{feet} >= 14 and not defined $feetGrade;
+  $feetGrade = 0.20 if $$info{feet} >= 13 and not defined $feetGrade;
+  $feetGrade = 0.15 if $$info{feet} >= 12 and not defined $feetGrade;
+  $feetGrade = 0.05 if not defined $feetGrade;
+
+  my $quality = 470*$scoreGrade + 530*$feetGrade;
+
+  my $fc = $$info{fc};
+  $fc = "" if not defined $fc;
+  if($fc eq "mfc"){
+    $quality += 500;
+  }elsif($fc eq "pfc"){
+    $quality += 150;
+  }elsif($fc eq "fc"){
+    $quality += 80;
+  }elsif($fc eq "gfc"){
+    $quality += 50;
+  }
+
+  if($$info{bar} eq "nobar"){
+    $quality += 100 * $feetGrade;
+  }
+
+  if($$info{stage} =~ /4extra/){
+    $quality += 100 * $feetGrade;
+  }
+
+  return int($quality);
 }
 
 sub sortScores($){
