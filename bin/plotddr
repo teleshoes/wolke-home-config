@@ -152,6 +152,25 @@ sub main(@){
   system "cp", "-ar", @bestHard, "$bestDir/hard";
   system "cp", "-ar", @bestNotHard, "$bestDir/nothard";
   system "cp", "-ar", @bestDoubles, "$bestDir/doubles";
+
+  my @qualityRows = `ddrname --bestfiles --format '%{quality} %{file}' --a`;
+  my %qualityByFile;
+  for my $row(@qualityRows){
+    if($row =~ /^([0-9\.]+)\s+(.+)$/){
+      my ($quality, $file) = ($1, $2);
+      $qualityByFile{$file} = $quality
+    }
+  }
+  my @bestQuality = sort {$qualityByFile{$b} <=> $qualityByFile{$a}} keys %qualityByFile;
+  @bestQuality = @bestQuality[0 .. 20];
+
+  system "mkdir", "-p", "$bestDir/quality";
+  my $rank = 1;
+  for my $file(@bestQuality){
+    my $newFileName = sprintf "%02d_%s", $rank, $file;
+    system "cp", "-ar", "$scoreFilesPixmirrorDir/$file", "$bestDir/quality/$newFileName";
+    $rank++;
+  }
   for my $dir(glob "$bestDir/*"){
     for my $file(glob "$dir/*.jpg"){
       my $newFile = $file;
