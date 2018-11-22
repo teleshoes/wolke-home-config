@@ -68,6 +68,24 @@ my @okPlotOptions = qw(--file --size --smooth);
 my $okPlotOptionsRegex = join "|", @okPlotOptions;
 my $argOptPlotOptionsRegex = join "|", qw( --file --size );
 
+my @okFileFormatVars = qw(
+  file
+  date
+  index
+  song
+  game
+  difficulty
+  machine
+  score
+  fc
+  special
+  bar
+  stage
+  game
+  feet
+);
+my $okFileFormatVarsRegex = join "|", @okFileFormatVars;
+
 # DDRA-style 1-20 scale
 my $HARD_SONG_FEET = 14;
 
@@ -78,6 +96,7 @@ sub orientation($@);
 sub dateStats($@);
 sub courseStats($@);
 sub scoreStats($@);
+sub formatFileInfo($$);
 sub parsePlotOptions($);
 sub parseFilterOptions($);
 sub name(@);
@@ -240,7 +259,7 @@ sub getUsage(;$){
     FORMAT_OPT_SONGS
       --notes NOTES_CSV
         comma-separated list of notes to add.
-        default is '$defaultNotesFormat'.
+        default is: '$defaultNotesFormat'.
         use empty string for none
 
         fc
@@ -405,18 +424,29 @@ sub getUsage(;$){
     FILTER
       see --print FILTER
 
-  $0 --files [FILTER FILTER ..]
+  $0 --files [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
     print the filenames, one per line without directories, of matching songs
 
     FILTER
       see --print FILTER
 
-  $0 --bestfiles [FILTER FILTER ..]
+    FILE_FORMAT_PATTERN
+      printing format for each score file
+      variables are formatted: %{VAR_NAME}
+      default is: %{file}
+
+      VAR_NAME
+        one of: @okFileFormatVars
+
+  $0 --bestfiles [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
     print the filename of the highest score for each set of scores with the same:
       $bucketFieldDesc
 
     FILTER
       see --print FILTER
+
+    FILE_FORMAT_PATTERN
+      see --files FILE_FORMAT_PATTERN
 
   $0 JPG_FILE REMINDER
 
@@ -783,6 +813,14 @@ sub scoreStats($@){
     }
   }
 
+  my $fileFormatPattern = "%{file}";
+  if($cmd =~ /^(--files|--bestfiles)$/){
+    if(@$opts > 1 and $$opts[0] =~ /^--format$/){
+      shift @$opts;
+      $fileFormatPattern = shift @$opts;
+    }
+  }
+
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
@@ -794,13 +832,33 @@ sub scoreStats($@){
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
     $scoresByFile = filterScores $scoresByFile, $filters;
-    print join '', map {"$_\n"} sort keys %$scoresByFile;
+    my @files = sort keys %$scoresByFile;
+    for my $file(@files){
+      my $fileInfo = $$scoresByFile{$file};
+      my $fileFmt = formatFileInfo($fileInfo, $fileFormatPattern);
+      print "$fileFmt\n";
+    }
   }elsif($cmd =~ /^(--bestfiles)$/){
     my $bestScores = getBestScores($filters);
     for my $bucketName(sort keys %$bestScores){
-      print $$bestScores{$bucketName}{file} . "\n";
+      my $fileInfo = $$bestScores{$bucketName};
+      my $fileFmt = formatFileInfo($fileInfo, $fileFormatPattern);
+      print "$fileFmt\n";
     }
   }
+}
+
+sub formatFileInfo($$){
+  my ($fileInfo, $fileFormatPattern) = @_;
+
+  my @okVars = sort keys %$fileInfo;
+
+  my $fileFmt = $fileFormatPattern;
+  for my $varName(@okFileFormatVars){
+    $fileFmt =~ s/\%\{$varName\}/$$fileInfo{$varName}/g;
+  }
+
+  return $fileFmt;
 }
 
 sub parsePlotOptions($){
@@ -1833,6 +1891,9 @@ sub bashComplete($$){
     }
     if($cmd =~ /^(--print|--gnuplot)/){
       @complete = (@okFormatOptSongs, @complete) if @words == 0;
+    }
+    if($cmd =~ /^(--files|--bestfiles)$/){
+      @complete = ("--format", @complete) if @words == 0;
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
