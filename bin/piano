@@ -1,57 +1,68 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Time::HiRes qw(sleep);
 
-my $soundFont = "$ENV{HOME}/Music/soundfonts/PC51d.sf2";
-my $config = "$ENV{HOME}/.config/vmpk.sourceforge.net/Virtual MIDI Piano Keyboard.conf";
+sub readFileLines($);
+sub writeFileLines($@);
+sub run(@);
+
+my $config = "$ENV{HOME}/.config/vmpk.sourceforge.net/VMPK-Virtual MIDI Piano Keyboard.conf";
 my $keyboardMapFile = "$ENV{HOME}/.config/vmpk.sourceforge.net/customkb.conf";
 
 sub main(@){
   die "Usage: $0\n" if @_ != 0;
 
-  system "killall -9 fluidsynth vmpk";
+  my $vmpk = `which vmpk`;
+  chomp $vmpk;
 
-  if(`dpkg -s fluidsynth | grep Status` !~ "Status:.*ok installed\n"){
-    die "install fluidsynth!\n";
-  }
-  if(`dpkg -s vmpk | grep Status` !~ "Status:.*ok installed\n"){
-    die "install vmpk!\n";
+  if($vmpk !~ /vmpk/){
+    die "could not find vmpk\n";
   }
 
   if(not -e $config){
-    system "alarm -s failure";
-    print "\n\n\n\n!!!!!NO CONFIG FILE YET: please exit vmpk normally\n\n\n\n";
-    system "vmpk";
+    my $delaySex = 2;
+    print "WARNING: no config file found, starting vmpk for ${delaySex}s and quitting..\n";
+    run "$vmpk &";
+    run "sleep", $delaySex;
+
+    #alt+f4 first, instead of just kill
+    #because vmpk doesnt finish writing config on SIGINT or SIGQUIT for some reason
+    my $windowId = `windowid -e 'Virtual MIDI Piano Keyboard'`;
+    run "xdotool", "key", "--window", $windowId, "Alt+F4";
+
+    system "killall", $vmpk;
   }
 
-  my $seqId = 'vmpk';
-  my $outport = "FLUID Synth ($seqId):0";
+  if(not -e $config){
+    die "$config doesnt exist\n";
+  }
 
-  my @fluidSynthArgs = (
-    "-s", "-i",
-    "$soundFont",
-    "-o", "midi.alsa_seq.id='$seqId'",
-    "-a", "pulseaudio",
-    "-z", "2048",
-    "-c2",
-  );
-
-
-  open FH, "< $config";
-  my @lines = <FH>;
-  close FH;
+  my @lines = readFileLines $config;
   for my $line(@lines){
-    $line =~ s/^OutPort=.*/OutPort=$outport/;
     $line =~ s/^MapFile=.*/MapFile=$keyboardMapFile/;
   }
-  open FH, "> $config";
+  writeFileLines $config, @lines;
+
+  print "vmpk\n";
+  exec "vmpk";
+}
+
+sub readFileLines($){
+  my ($file) = @_;
+  open FH, "< $file" or die "could not read $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+sub writeFileLines($@){
+  my ($file, @lines) = @_;
+  open FH, "> $file" or die "could not write $file\n$!\n";
   print FH @lines;
   close FH;
-
-  system "fluidsynth @fluidSynthArgs &";
-  system "sleep 0.3";
-  system "vmpk &";
+}
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
