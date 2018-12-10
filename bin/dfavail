@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub padl($$);
+sub dfAvail(@);
+sub readProcLines(@);
+
+my $usage = "Usage:
+  $0 [FILE FILE FILE ..]
+    get available size in units of powers of 1024 and in bytes using df
+    print one per line
+    if exactly one file is given, format is:
+      \"<SIZE_HUMAN_READBLE><UNIT> (SIZE_BYTES)\"
+    if two or more files are given, format is (with column alignment):
+      \"<FILE>   <SIZE_HUMAN_READBLE><UNIT>   (SIZE_BYTES)\"
+";
+
+sub main(@){
+  my %dfBytes;
+  my %dfHuman;
+  my $maxLenFile = 0;
+  my $maxLenDfBytes = 0;
+  my $maxLenDfHuman = 0;
+  for my $file(@_){
+    if(not -e $file){
+      die "ERROR: '$file' not found\n$usage\n";
+    }
+    $dfBytes{$file} = dfAvail "-B", 1, $file;
+    $dfHuman{$file} = dfAvail "-h", $file;
+    $maxLenFile = length $file if length $file > $maxLenFile;
+    $maxLenDfBytes = length $dfBytes{$file} if length $dfBytes{$file} > $maxLenDfBytes;
+    $maxLenDfHuman = length $dfHuman{$file} if length $dfHuman{$file} > $maxLenDfHuman;
+  }
+
+  for my $file(@_){
+    my $msg = "";
+    $msg .= padl($maxLenFile+1, $file) if @_ > 1;
+    $msg .= padl($maxLenDfHuman+1, $dfHuman{$file});
+    $msg .= "(" . padl($maxLenDfBytes, $dfBytes{$file}) . ")";
+    print "$msg\n";
+  }
+}
+
+sub padl($$){
+  return sprintf "%-$_[0]s", $_[1];
+}
+
+sub dfAvail(@){
+  my @lines = readProcLines "df", "--output=avail", @_;
+  @lines = grep {$_ !~ /^\s*Avail\s*$/} @lines;
+  if(@lines != 1){
+    die "malformed output of df: @lines\n";
+  }
+  my $output = $lines[0];
+  $output =~ s/[\n\r]//g;
+  $output =~ s/^\s*//;
+  $output =~ s/\s*$//;
+  return $output;
+}
+
+sub readProcLines(@){
+  open CMD, "-|", @_ or die "could not run \"@_\"\n$!\n";
+  my @lines = <CMD>;
+  close CMD;
+  return @lines;
+}
+
+&main(@ARGV);
