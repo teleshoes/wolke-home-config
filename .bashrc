@@ -139,7 +139,6 @@ function f            { feh "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }
-function dfa          { df --output=avail "$@" | grep -v '^\s*Avail$'; }
 function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo; }
 function gvim         { term vim "$@"; }
 function cx           { chmod +x "$@"; }
