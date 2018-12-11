@@ -80,15 +80,37 @@ sub main(@){
   if(not defined $arg){
     print getBrightness() . "\n";
   }elsif($arg =~ /^(up|down)$/){
-    my $b = getBrightness;
-    @brackets = reverse @brackets if $arg eq 'down';
-    my ($top, $bot) = $currentMode ne $MODE_XBACKLIGHT ? ($b+2, $b-2) : ($b, $b);
-    for my $bracket(@brackets){
-      if(($arg eq 'up' and $bracket > $top) or ($arg eq 'down' and $bracket < $bot)){
-        setBrightness $bracket, 0;
-        last;
+    my $cur = getBrightness;
+
+    @brackets = sort {$a <=> $b} @brackets;
+
+    my $nearestBracketIndex;
+    my $smallestDiff;
+    for(my $i=0; $i<@brackets; $i++){
+      my $diff = $brackets[$i] - $cur;
+      $diff = 0 - $diff if $diff < 0;
+      if(not defined $smallestDiff or $diff < $smallestDiff){
+        $smallestDiff = $diff;
+        $nearestBracketIndex = $i;
       }
     }
+
+    my $val = $brackets[$nearestBracketIndex];
+    my $valIsCloseToCur = $smallestDiff < 3;
+
+    my $targetBracketIndex;
+    if($arg eq "up" and ($valIsCloseToCur or $val < $cur)){
+      $targetBracketIndex = $nearestBracketIndex + 1;
+    }elsif($arg eq "down" and ($valIsCloseToCur or $val > $cur)){
+      $targetBracketIndex = $nearestBracketIndex - 1;
+    }else{
+      $targetBracketIndex = $nearestBracketIndex;
+    }
+
+    $targetBracketIndex = 0 if $targetBracketIndex < 0;
+    $targetBracketIndex = @brackets - 1 if $targetBracketIndex > @brackets - 1;
+
+    setBrightness $brackets[$targetBracketIndex], 0;
   }elsif($arg =~ /^(last)$/){
     my $brightness = getBrightness();
     if(-e "$lastFilePrefix-$currentMode"){
