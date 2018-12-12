@@ -4,31 +4,45 @@ use warnings;
 
 my $defaultMeetingId = "362104616";
 
+my $usage = "Usage:
+  $0 [MEETING_ID]
+    if zoom is running: kill it
+    otherwise: run zoom with zoommtg:// URL to join meeting
+";
+
+sub run(@);
+
 sub main(@){
   my $meetingId = $defaultMeetingId;
-  if(@_ == 1 and $_[0] =~ /^\d+$/){
-    $meetingId = $_[0];
-  }elsif(@_ > 0){
-    die "Usage: $0  or $0 MEETING_ID\n";
+  if(@_ > 0 and $_[0] =~ /^(\d+)$/){
+    $meetingId = $1;
+    shift;
   }
+
+  if(@_ > 0){
+    die $usage;
+  }
+
   my $pgrep = `pgrep --exact zoom`;
   my @pids = $pgrep =~ /\d+/g;
-  for my $pid(@pids){
-    print "--$pid--\n";
-  }
 
   if(@pids == 0){
     my $url = "zoommtg://zoom.us/join?action=join&confno=$meetingId";
     print "$url\n";
-    system "zoom '$url' &";
-    system "pulse-vol mic mute";
-    system "sleep 3";
-    system "pulse-vol mic mute";
+    run "zoom '$url' &";
+    run "pulse-vol mic mute";
+    run "sleep 3";
+    run "pulse-vol mic mute";
   }else{
     for my $pid(@pids){
-      system "kill", "-9", $pid;
+      run "kill", "-9", $pid;
     }
   }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
