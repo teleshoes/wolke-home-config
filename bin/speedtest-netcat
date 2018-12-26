@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(sleep);
+
+my $DEFAULT_TIMEOUT_MILLIS = 15 * 1000;
 
 my $usage = "Usage:
   $0 -h|--help
@@ -23,6 +26,9 @@ my $usage = "Usage:
     optional username, may contain only word characters [0-9a-zA-Z_]+
 
   OPTS
+    --timeout=TIMEOUT_MILLIS
+      positive integer, number of milliseconds to wait before ending speedtest
+      default: $DEFAULT_TIMEOUT_MILLIS
 ";
 
 my @sshOpts = map {("-o", $_)} (
@@ -30,16 +36,19 @@ my @sshOpts = map {("-o", $_)} (
   "UserKnownHostsFile=/dev/null",
 );
 
-sub speedtest($$);
+sub speedtest($$$);
 sub resolveHostArgToIpAddress($);
 sub isIp($);
 
 sub main(@){
+  my $timeoutMillis = $DEFAULT_TIMEOUT_MILLIS;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($opt =~ /^--timeout=(\d+)$/){
+      $timeoutMillis = $1;
     }else{
       die "$usage\nunknown option: $opt\n";
     }
@@ -57,15 +66,14 @@ sub main(@){
   my $ipAddr = resolveHostArgToIpAddress $host;
   die "Could not parse '$arg'\n" if not defined $ipAddr;
 
-  speedtest $ipAddr, $user;
+  speedtest $ipAddr, $user, $timeoutMillis;
 }
 
-sub speedtest($$){
-  my ($ip, $user) = @_;
+sub speedtest($$$){
+  my ($ip, $user, $timeoutMillis) = @_;
   my $port = 5000 + int(rand(1000)); #5000-5999
   my @sendCmd = "nc -v -v -n $ip $port";
   my @rcvCmd = "nc -l -w 60 -p $port";
-  my $timeout = 15;
 
   my $sshHost = defined $user ? "$user\@$ip" : "$ip";
 
@@ -81,8 +89,8 @@ sub speedtest($$){
   }
 
   if(fork){
-    print "waiting $timeout seconds and killing nc\n";
-    sleep $timeout;
+    printf "waiting %3.1fs seconds and killing nc\n", $timeoutMillis/1000.0;
+    sleep $timeoutMillis/1000.0;
     my @cmd = ("ssh", @sshOpts, $sshHost, "killall nc");
     print "@cmd\n";
     exec @cmd;
