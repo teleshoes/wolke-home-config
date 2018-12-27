@@ -5,8 +5,32 @@ use Time::HiRes qw(sleep);
 
 sub run(@);
 
+my $usage = "Usage:
+  $0 -h|--help
+    print this message
+
+  $0 FILE
+    -run `kodi`
+    -run `keys-to-window kodi`
+    -run `kodi-cmd open FILE`
+
+
+  $0 [ARG ARG ..]
+    -run `kodi ARG ARG ..`
+    -run `keys-to-window kodi`
+";
+
 sub main(@){
-  my @kodiArgs = @_;
+  die $usage if @_ == 1 and $_[0] =~ /^(-h|--help)$/;
+
+  my @kodiCmds;
+  my @kodiArgs;
+  if(@_ == 1 and -f $_[0]){
+    push @kodiCmds, ["open", $_[0]];
+    @kodiArgs = ();
+  }else{
+    @kodiArgs = @_;
+  }
 
   my $keysPid = fork;
   if($keysPid == 0){
@@ -15,8 +39,18 @@ sub main(@){
     exit 0;
   }
 
+  my $cmdPid = fork;
+  if($cmdPid == 0){
+    sleep 1;
+    for my $cmd(@kodiCmds){
+      run "kodi-cmd", @$cmd;
+    }
+    exit 0;
+  }
+
   run "/usr/bin/kodi", @kodiArgs;
   run "kill", $keysPid;
+  run "kill", $cmdPid;
   run "stty", "sane";
 }
 
