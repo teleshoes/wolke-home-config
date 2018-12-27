@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $ipmagicName = "nuc";
+my $port = "8080";
+
+sub run(@);
+
+my $cmdJson = {
+  open  => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.Open\",\"params\":{\"item\":{\"file\":\"%s\"}}}",
+  pause => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.PlayPause\",\"params\":{\"playerid\":1}}",
+  stop  => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.Stop\",\"params\":{\"playerid\":1}}",
+};
+
+my $usage = "Usage:
+  send JSON content to `ipmagic $ipmagicName` at port $port using curl
+
+  $0 -h | --help
+    print this message
+
+  $0 open FILE
+    send json:
+      $$cmdJson{open}
+    with %s replaced with FILE
+
+  $0 play|pause
+    send json:
+      $$cmdJson{pause}
+
+  $0 stop
+    send json:
+      $$cmdJson{stop}
+";
+
+sub main(@){
+  my $host = `ipmagic $ipmagicName`;
+  chomp $host;
+  my $url = "http://$host:$port/jsonrpc";
+
+  die $usage if @_ == 0 or $_[0] =~ /^(-h|--help)$/;
+  my $cmd = shift;
+  my $json;
+  if($cmd =~ /^-*(open)$/ and @_ == 1){
+    my $file = shift;
+    $json = sprintf $$cmdJson{open}, $file;
+  }elsif($cmd =~ /^-*(play|pause)$/){
+    $json = $$cmdJson{pause};
+  }elsif($cmd =~ /^-*(stop)$/){
+    $json = $$cmdJson{stop};
+  }else{
+    die $usage;
+  }
+
+  my @curlCmd = ("curl",
+    "--data-binary", $json,
+    "-H", "content-type: application/json;",
+    $url,
+  );
+  run @curlCmd;
+  print "\n";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
