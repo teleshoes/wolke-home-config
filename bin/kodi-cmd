@@ -9,6 +9,7 @@ sub run(@);
 
 my $cmdJson = {
   open  => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.Open\",\"params\":{\"item\":{\"file\":\"%s\"}}}",
+  seek  => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.Seek\",\"params\":{\"playerid\":1,\"value\":%s}}",
   pause => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.PlayPause\",\"params\":{\"playerid\":1}}",
   stop  => "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"Player.Stop\",\"params\":{\"playerid\":1}}",
 };
@@ -23,6 +24,16 @@ my $usage = "Usage:
     send json:
       $$cmdJson{open}
     with %s replaced with FILE
+
+  $0 seek POSITION
+    send json:
+      $$cmdJson{open}
+    with %s replaced with formatted POSITION as below:
+      POSITION
+        SECONDS        => {\"hours\": <HH>, \"minutes\": <MM>, \"seconds\": <SS>}
+        <MM>:<SS>      => {\"hours\": 0, \"minutes\": <MM>, \"seconds\": <SS>}
+        <HH>:<MM>:<SS> => {\"hours\": <HH>, \"minutes\": <MM>, \"seconds\": <SS>}
+        <PERCENT>%     => <PERCENT>
 
   $0 play|pause
     send json:
@@ -44,6 +55,23 @@ sub main(@){
   if($cmd =~ /^-*(open)$/ and @_ == 1){
     my $file = shift;
     $json = sprintf $$cmdJson{open}, $file;
+  }elsif($cmd =~ /^-*(seek)$/ and @_ == 1){
+    my $pos = shift;
+    my $posFmt;
+    if($pos =~ /^(\d+)$/){
+      my $sex = $1;
+      my $s = int($sex) % 60;
+      my $m = int($sex / 60.0) % 60;
+      my $h = int($sex / 60.0 / 60.0) % 60;
+      $posFmt = "{\"hours\": $h, \"minutes\": $m, \"seconds\": $s}";
+    }elsif($pos =~ /^(\d+):(\d+)$/){
+      $posFmt = "{\"hours\": 0, \"minutes\": $1, \"seconds\": $2}";
+    }elsif($pos =~ /^(\d+):(\d+):(\d+)$/){
+      $posFmt = "{\"hours\": $1, \"minutes\": $2, \"seconds\": $3}";
+    }elsif($pos =~ /^(\d+)%$/){
+      $posFmt = $1; #percent is the default in Player.Seek
+    }
+    $json = sprintf $$cmdJson{seek}, $posFmt;
   }elsif($cmd =~ /^-*(play|pause)$/){
     $json = $$cmdJson{pause};
   }elsif($cmd =~ /^-*(stop)$/){
