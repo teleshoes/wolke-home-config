@@ -51,13 +51,14 @@ my $usage = "Usage:
       resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
 
     The original filesize and modified timestamp are recorded for each file
-      in a file with the same path as the original, appended with \".info\".
-      If copies already exist on the target, they are not replaced unless the
+      under a dir called pixmirror-info/, with the same relative path
+      as the original, appended with \".info\".
+    If copies already exist on the target, they are not replaced unless the
       mtime or filesize of the original has changed, even if new arguments
       are given.
 
     If the image is being downscaled to less than
-      $downscaleSharpenPercentThreshold\%, run '-unsharp $unsharpArg'
+      $downscaleSharpenPercentThreshold\%, pixmirror runs '-unsharp $unsharpArg'
       after resizing to slightly sharpen the image.
 
     Mirrored images are auto-rotated from EXIF metadata using '$jheadExec'
@@ -165,10 +166,10 @@ sub main(@){
   my @destImgs = findImages $destDir;
   my %okImgs;
   for my $img(@destImgs){
-    if(not checkInfo($srcInfos{$img}, "$destDir/$img.info")){
-      print "removing $destDir/$img and $destDir/$img.info\n";
+    if(not checkInfo($srcInfos{$img}, "$destDir/pixmirror-info/$img.info")){
+      print "removing $destDir/$img and $destDir/pixmirror-info/$img.info\n";
       system "rm", "$destDir/$img";
-      system "rm", "$destDir/$img.info";
+      system "rm", "$destDir/pixmirror-info/$img.info";
     }else{
       $okImgs{$img} = 1;
     }
@@ -248,7 +249,7 @@ sub cleanupFailures($$){
   for my $img(keys %$status){
     if($$status{$img} == 0){
       print STDERR "\nFAILED: $img\n";
-      my @files = ("$destDir/$img", "$destDir/$img.info");
+      my @files = ("$destDir/$img", "$destDir/pixmirror-info/$img.info");
       @files = grep {-f $_} @files;
       if(@files == 0){
         print STDERR "  no temp files to cleanup\n";
@@ -373,12 +374,17 @@ sub handleImage($$$$){
     %jheadAtts = (%jheadAtts, %atts);
   }
 
-  open INFO, "> $destDir/$img.info";
+  #ensure parent dir
+  my $infoDir = "$destDir/pixmirror-info/$img";
+  $infoDir =~ s/[^\/]*$//;
+  system "mkdir", "-p", $infoDir;
+
+  open INFO, "> $destDir/pixmirror-info/$img.info";
   print INFO $statInfo;
   close INFO;
 
   system "touch", "$destDir/$img", "--reference=$srcDir/$img";
-  system "touch", "$destDir/$img.info", "--reference=$srcDir/$img";
+  system "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
 
   my $jheadFmt = "";
   $jheadFmt .= "?mod" if defined $jheadAtts{'modified'};
