@@ -2,33 +2,80 @@
 use strict;
 use warnings;
 
-my $maxChars = 89; #prefix is 11 chars
+my $MAX_NAME_LEN = 89; #prefix is 11 chars, so filepath is 100 chars
 
 my $usage = "Usage:
+  $0 -h | --help
+    print this message
+
   $0 DIR NAME
     rename <DIR> to <YYYY-MM-DD>_<NAME>
     where <YYYY-MM-DD> is the mtime of the oldest file in the dir
 
     if <NAME> starts with \"<YYYY-MM-DD>_\", the prefix is removed
+      (prevents double-prefixing)
+
+    set the newly renamed dir's mtime to the oldest file in the dir
 ";
 
+sub nameDir($$);
+sub formatDateYYYYMMDD($);
+sub formatTimeHHMMSS($);
 sub getOldestFile(@);
 sub run(@);
 sub pad2($);
 
 sub main(@){
-  die $usage if @_ != 2;
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 2 and -d $_[0]){
+    my ($dir, $name) = @_;
+    $dir =~ s/\/$//;
+
+    nameDir $dir, $name;
+  }else{
+    die $usage;
+  }
+
+}
+
+sub nameDir($$){
   my ($dir, $name) = @_;
-  die $usage if not -d $dir;
-  $dir =~ s/\/$//;
-  die "dir must be in this dir\n" if $dir =~ /\//;
+  die "dir must be in the current directory\n" if $dir =~ /\//;
+
   print "\n\nnaming $dir\n";
 
   my @files = `find $dir/ -type f`;
-  my ($minMod, $minFile) = getOldestFile @files;
+  my ($minMtime, $minFile) = getOldestFile @files;
+
+  my $date = formatDateYYYYMMDD $minMtime;
+  my $time = formatTimeHHMMSS $minMtime;
+
+  if($name =~ s/^${date}_//){
+    print "\n\nWARNING: removing date prefix '$date'"
+      . " (same as date prefix to be appended)\n\n";
+  }
+
+  my $len = length $name;
+  die "max chars exceeded ($len > $MAX_NAME_LEN) '$name'\n" if $len > $MAX_NAME_LEN;
+
+  my $newDir = "${date}_${name}";
+
+  print "earliest file is $date $time\n";
+  run 'touch', '-r', $minFile, $dir;
+  if($dir ne $newDir){
+    run 'mv', $dir, $newDir;
+  }else{
+    print "\ndir name unchanged!\n";
+  }
+}
+
+sub formatDateYYYYMMDD($){
+  my ($timeEpochSex) = @_;
 
   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
-    localtime($minMod);
+    localtime($timeEpochSex);
   $year += 1900;
   $mon += 1;
   $mon = pad2 $mon;
@@ -38,42 +85,35 @@ sub main(@){
   $min = pad2 $min;
   $sec = pad2 $sec;
   my $date = "${year}-${mon}-${mday}";
+}
+sub formatTimeHHMMSS($){
+  my ($timeEpochSex) = @_;
 
-  if($name =~ s/^${date}_//){
-    print "\n\nWARNING: removing date prefix '$date'"
-      . " (same as date prefix to be appended)\n\n";
-  }
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
+    localtime($timeEpochSex);
+  $hour = pad2 $hour;
+  $min = pad2 $min;
+  $sec = pad2 $sec;
 
-  my $len = length $name;
-  die "max chars exceeded ($len > $maxChars) '$name'\n" if $len > $maxChars;
-
-  my $newDir = "${date}_${name}";
-
-  print "earliest file is $year-$mon-$mday $hour:$min:$sec\n";
-  run 'touch', '-r', $minFile, $dir;
-  if($dir ne $newDir){
-    run 'mv', $dir, $newDir;
-  }else{
-    print "\ndir name unchanged!\n";
-  }
+  return "$hour:$min:$sec";
 }
 
 sub getOldestFile(@){
   my @files = @_;
 
-  my $minMod = -1;
+  my $minMtime = -1;
   my $minFile;
   for my $file(sort @files){
     chomp $file;
     my @stat = stat $file;
-    my $mod = $stat[9];
-    if($minMod < 0 or $mod < $minMod){
-      $minMod = $mod;
+    my $mtime = $stat[9];
+    if($minMtime < 0 or $mtime < $minMtime){
+      $minMtime = $mtime;
       $minFile = $file;
     }
   }
-  die "couldnt find earliest file\n" if $minMod < 0 or not -f $minFile;
-  return ($minMod, $minFile);
+  die "couldnt find earliest file\n" if $minMtime < 0 or not -f $minFile;
+  return ($minMtime, $minFile);
 }
 
 sub run(@){
