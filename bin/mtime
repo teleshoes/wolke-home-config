@@ -17,11 +17,17 @@ my $usage = "Usage:
     -m | --ms | --millis | --milliseconds
       use milliseconds from Time::HiRes->stat
       if -f, use format: HH_MM_SS.FFF
+    -p | --prefix
+      always prefix line with 'FILE' and whitespace
+    -n | --no-prefix
+      never prefix line with 'FILE' and whitespace
 ";
 
 sub main(@){
   my $format = 0;
   my $useMillis = 0;
+  my $alwaysPrefix = 0;
+  my $neverPrefix = 0;
   while(@_ > 0 and $_[0] =~ /^-/ and not -e $_[0]){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
@@ -31,6 +37,10 @@ sub main(@){
       $format = 1;
     }elsif($opt =~ /^(-m|--ms|--millis|--milliseconds)$/){
       $useMillis = 1;
+    }elsif($opt =~ /^(-p|--prefix)$/){
+      $alwaysPrefix = 1;
+    }elsif($opt =~ /^(-n|--no-prefix)$/){
+      $neverPrefix = 1;
     }else{
       die $usage;
     }
@@ -40,6 +50,17 @@ sub main(@){
   for my $file(@_){
     my $len = length $file;
     $maxFileLen = $len if $len > $maxFileLen;
+  }
+
+  my $usePrefix;
+  if($alwaysPrefix){
+    $usePrefix = 1;
+  }elsif($neverPrefix){
+    $usePrefix = 0;
+  }elsif(@_ > 1){
+    $usePrefix = 1;
+  }else{
+    $usePrefix = 0;
   }
 
   for my $file(@_){
@@ -67,7 +88,7 @@ sub main(@){
       $mtimeFmt = int($mtime);
     }
 
-    if(@_ > 1){
+    if($usePrefix){
       my $len = $maxFileLen + 2;
       printf "\%-${len}s \%s\n", $file, $mtimeFmt;
     }else{
