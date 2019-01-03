@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename 'dirname';
+
+my $SKILL_NAME = "command";
+my $SKILL_NAME_LC = lc $SKILL_NAME;
+my $SKILL_NAME_CC = uc(substr $SKILL_NAME, 0, 1) . lc(substr $SKILL_NAME, 1);
+
+my $SKILL_DIR = "$ENV{HOME}/Code/mycroft-core/skills/$SKILL_NAME_LC.mycroftai";
+
+my $COMMANDS = {
+};
+
+sub getIntentName($);
+sub getDialogName($);
+sub getScriptHandler($);
+sub getScriptPrefix();
+sub getScriptSuffix();
+sub run(@);
+
+sub main(@){
+  my %files;
+
+  my $script = "";
+  $script .= getScriptPrefix();
+  for my $cmdName(sort keys %$COMMANDS){
+    $script .= getScriptHandler $cmdName;
+
+    my $intentName = getIntentName $cmdName;
+    my @triggers = @{$$COMMANDS{$cmdName}{triggers}};
+    $files{"$SKILL_DIR/vocab/en-us/$intentName.intent"} = join "", map {"$_\n"} @triggers;
+
+    my $dialogName = getDialogName $cmdName;
+    my $response = $$COMMANDS{$cmdName}{response};
+    $files{"$SKILL_DIR/dialog/en-us/$dialogName.dialog"} = "$response\n";
+  }
+  $script .= getScriptSuffix();
+  $files{"$SKILL_DIR/__init__.py"} = $script;
+
+  run "rm", "-rf", $SKILL_DIR;
+  for my $file(sort keys %files){
+    my $dir = dirname $file;
+    run "mkdir", "-p", $dir;
+    open FH, "> $file" or die "could not write $file\n$!\n";
+    print FH $files{$file};
+    close FH;
+  }
+}
+
+sub getIntentName($){
+  my ($cmdName) = @_;
+  return lc $cmdName;
+}
+
+sub getDialogName($){
+  my ($cmdName) = @_;
+  my $dialogName = $$COMMANDS{$cmdName}{response};
+  $dialogName = lc $dialogName;
+  $dialogName =~ s/[^a-z0-9]+/\./g;
+  $dialogName =~ s/^\.+//g;
+  $dialogName =~ s/\.+$//g;
+  return $dialogName;
+}
+
+sub getScriptHandler($){
+  my ($cmdName) = @_;
+  my @cmd = @{$$COMMANDS{$cmdName}{cmd}};
+  my $cmdFmt = "[" . join(", ", map {"\"$_\""} @cmd) . "]";
+
+  my $cmdNameLC = lc $cmdName;
+
+  my $intentName = getIntentName($cmdName);
+  my $dialogName = getDialogName($cmdName);
+
+  return ""
+    . "    \@intent_file_handler(\"$intentName.intent\")\n"
+    . "    def handle_$cmdNameLC(self, message):\n"
+    . "        self.speak_dialog(\"$dialogName\")\n"
+    . "        subprocess.call($cmdFmt)\n"
+    . "\n"
+    ;
+}
+
+sub getScriptPrefix(){
+  return "# Copyright 2019 Elliot Wolk
+#
+# Licensed under the Apache License, Version 2.0 (the \"License\");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an \"AS IS\" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from mycroft.skills.core import MycroftSkill, intent_file_handler
+import subprocess
+
+class ${SKILL_NAME_CC}Skill(MycroftSkill):
+
+    def __init__(self):
+        super(${SKILL_NAME_CC}Skill, self).__init__(name=\"${SKILL_NAME_CC}Skill\")
+
+"
+}
+
+sub getScriptSuffix(){
+  return "def create_skill():
+    return ${SKILL_NAME_CC}Skill()
+";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
