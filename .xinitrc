@@ -26,7 +26,11 @@ elif [ $MACHINE_TYPE = "bed" ]; then
   ( pulse-enable on ; pulse-vol mic mute ) &
 elif [ $MACHINE_TYPE = "tv" ]; then
   sudo wired &
-  ( pulse-enable on ; pulse-vol mic mute ) &
+
+  (
+    pulse-enable on ;
+    pulse-vol mic mute ;
+  ) &
 
   sudo mnt &
 
