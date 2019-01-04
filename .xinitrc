@@ -36,6 +36,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
     speaker -s hdmi ;
     pulse-vol mic mute ;
+    screen-daemon silence-daemon --start ;
   ) &
 
   sudo mnt &
@@ -51,7 +52,6 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   screen-daemon sb-daemon --start
   screen-daemon revtun-ensure --start
-  screen-daemon silence-daemon --start
 fi
 
 exec xmonad
