@@ -29,6 +29,11 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   (
     pulse-enable on ;
+    sleep 1 ;
+    pulse-enable on ;
+    sleep 5 ;
+    pulse-enable on ;
+
     pulse-vol mic mute ;
   ) &
 
