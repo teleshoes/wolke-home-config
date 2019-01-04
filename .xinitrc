@@ -12,28 +12,33 @@ MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 
 if [ $MACHINE_TYPE = "main" ]; then
   sudo wauto -p &
-  ( pulse-enable on ; pulse-vol mic mute ) &
-  term -t qtemail-daemon -r email-daemon.pl
   brightness 100 &
+  ( pulse-enable on ; pulse-vol mic mute ) &
+
+  term -t qtemail-daemon -r email-daemon.pl
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
-  ( pulse-enable on ; pulse-vol mic mute ) &
   brightness 100 &
+  ( pulse-enable on ; pulse-vol mic mute ) &
 elif [ $MACHINE_TYPE = "bed" ]; then
   sudo wauto -p &
-  ( pulse-enable on ; pulse-vol mic mute ) &
   brightness 100 &
-elif [ $MACHINE_TYPE = "tv" ]; then
   ( pulse-enable on ; pulse-vol mic mute ) &
+elif [ $MACHINE_TYPE = "tv" ]; then
+  sudo wired &
+  ( pulse-enable on ; pulse-vol mic mute ) &
+
+  sudo mnt &
+
   screensaver
   killall bgset
   bgset --exclude="porn/" &
+
   sudo fcron-start
 
   sudo igstart &
   cec-cmd start &
-  sudo mnt &
-  sudo wired &
+
   screen-daemon sb-daemon --start
   screen-daemon revtun-ensure --start
   screen-daemon silence-daemon --start
