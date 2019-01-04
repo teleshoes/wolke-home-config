@@ -39,7 +39,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     screen-daemon silence-daemon --start ;
   ) &
 
-  sudo mnt &
+  ( sudo mnt ; sleep 5 ; sudo mnt ) &
 
   screensaver
   killall bgset
