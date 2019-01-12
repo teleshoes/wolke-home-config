@@ -35,7 +35,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     pulse-enable on ;
     sleep 1 ;
 
-    speaker -s hdmi ;
+    speaker -s hdmi surround ;
     pulse-vol mic mute ;
     screen-daemon silence-daemon --start ;
   ) &
