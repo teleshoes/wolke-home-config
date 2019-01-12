@@ -790,7 +790,7 @@ sub installFromDir($;$$) {
     }else{
       my @ls = split "\n", `ls -1`;
       if(grep {/\.cabal$/} @ls) {
-          runUser "cabal", "install";
+          runUser "cabal", "install", "-j";
       } elsif(system("make -n all >/dev/null 2>&1") == 0) {
           runUser "make", "-j", "all";
           shell "sudo make install";
