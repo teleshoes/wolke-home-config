@@ -14,7 +14,7 @@ getDefaultSink :: IO String
 getDefaultSink = readProc ["speaker", "--default"]
 
 format s | regexMatch "hdmi" s        = pad "hdmi"
-format s | regexMatch "pci.*analog" s = fg "green" $ pad "pci"
+format s | regexMatch "pch" s         = fg "green" $ pad "pch"
 format s | regexMatch "usb" s         = fg "yellow" $ pad "usb"
 format _                              = fg "red" $ pad "unknown"
 
