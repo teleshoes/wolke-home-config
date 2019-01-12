@@ -3,26 +3,99 @@ use strict;
 use warnings;
 
 my $usage = "Usage:
-  $0 [-g|--get|get]
-    Print all speaker card names, prefixing the default with \"*\"
+  $0 -h|--help
+    print this message
 
-  $0 -d|--default|default
-    Print just the default speaker card name {with no prefix}
+  $0
+  $0 -g|--get
+    Print info about all sound cards.
+      formatted one per line:
+        \"card<CARD_INDEX>: [<DEFAULT_STATUS>] CARD_NAME_FMT PROFILE_NAME\"
 
-  $0 -s|--set|set CARD_PATTERN
-    Set as default the lowest-indexed speaker that matches CARD_PATTERN
-    CARD_PATTERN is a case insensitive regex that cannot contain ( or )
-    {does nothing if already set as default}
+  $0 -d|--default
+    Print info about the card of the current default sink.
+      same as `--get` except ignoring non-default sinks
 
-  $0 -c|--cycle|cycle
-    Set as default the lowest-indexed speaker with index larger than this one,
-    or the lowest-indexed speaker if none are larger than this one.
+  $0 --list-profiles [CARD_REGEX]
+    List the profiles for a given card or the current default.
+      1) select the card of the current default sink,
+         or lowest-indexed card that matches CARD_REGEX if given
+      2) sort profiles of that card by type/length/name
+      3) print profiles
+
+    profiles are sorted by:
+      TYPE     output+input => output => input => other
+      LENGTH   shortest first
+      NAME     case-sensitive asciibetical sort
+
+      e.g.:
+        (A)
+          output:analog-stereo+input:analog-stereo
+          output:analog-stereo
+          input:analog-stereo
+          off
+
+        (B)
+          output:hdmi-stereo
+          output:hdmi-surround
+          output:hdmi-surround71
+          output:hdmi-stereo-extra1
+          output:hdmi-stereo-extra2
+          output:hdmi-stereo-extra3
+          output:hdmi-surround-extra2
+          output:hdmi-surround-extra3
+          output:hdmi-surround71-extra2
+          output:hdmi-surround71-extra3
+          off
+
+  $0 -p|--profile PROFILE_REGEX [CARD_REGEX]
+    Set profile for a given card (or the default).
+      1) select the card of the current default sink,
+         or lowest-indexed card that matches CARD_REGEX if given
+      2) sort profiles of that card by type/length/name
+      3) select the first such profile that matches PROFILE_REGEX
+      4) set the selected profile for the selected card
+
+  $0 -s|--set CARD_REGEX [PROFILE_REGEX]
+    Set the default sink, optionally setting the profile first.
+      1) find the lowest-indexed card that matches CARD_REGEX
+      2) optionally: set profile for that card,
+         as in `--profile PROFILE_REGEX CARD_REGEX`
+      3) find the corresponding sink, and set as default if not already set
+
+  $0 -c|--cycle
+    Set the default sink to the next sound card in the cycle.
+      1) find the next card by index
+         select the lowest-indexed card with index higher than current default,
+         or the lowest-indexed card if no cards are larger than current default
+      2) find the corresponding sink, and set as default if not already set
+
+  CARD_REGEX      case-insensitive regex, cannot contain parens or curly braces
+  PROFILE_REGEX   case-insensitive regex, cannot contain parens or curly braces
+  CARD_INDEX      integer index of card
+  CARD_NAME_FMT   card name, with letters/numbers/underscores only
+  DEFAULT_STATUS  if card is current default sink: \"*\", otherwise: \" \"
+  PROFILE_NAME    card profile name
 ";
 
+sub findCardIndex($$);
+sub findProfile($$$);
+sub sortProfiles(@);
+sub getCurCardIndex($);
+sub getNextCardIndex($);
+sub formatCardSummary($);
+
+sub getCardSummaries();
+sub getCards();
 sub getSinks();
-sub formatSinks($);
-sub cycle();
-sub setDefault($);
+sub extractDefaultCardIndexFromSinks($);
+sub extractNameFromCard($);
+
+sub ensurePulse();
+sub setDefaultSinkByCardIndex($$);
+sub setDefaultSinkBySinkIndex($);
+sub setCardProfile($$);
+sub checkSafeRegex($);
 
 my $pacmd = "pacmd";
 my $pactl = "pactl";
@@ -30,102 +103,392 @@ my $pulseVol = "pulse-vol";
 my $klompCmd = "klomp-cmd";
 
 sub main(@){
-  system "pulse-enable", "-q", "get";
-  die "pulse not enabled according to pulse-enable\n" if $? != 0;
-
-  my $cmd = shift;
-  $cmd = '-g' if not defined $cmd;
-
-  if(@_ == 0 and $cmd =~ /^(-g|--get|get)$/){
-    print formatSinks(0);
-  }elsif(@_ == 0 and $cmd =~ /^(-d|--default|default)$/){
-    print formatSinks(1);
-  }elsif(@_ == 1 and $cmd =~ /^(-s|--set|set)$/){
-    my $cardPtrn = shift;
-    die "CARD_PATTERN cannot contain ( or )\n" if $cardPtrn =~ /[()]/;
-    my $old = formatSinks(1);
-    for my $sink(getSinks()){
-      if($$sink{name} =~ /$cardPtrn/){
-        setDefault $$sink{index};
-        last;
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-g|--get)$/)){
+    my $cardSummaries = getCardSummaries();
+    for my $cardIndex(sort keys %$cardSummaries){
+      my $cardSummary = $$cardSummaries{$cardIndex};
+      print formatCardSummary($cardSummary) . "\n";
+    }
+  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-d|--default)$/)){
+    my $cardSummaries = getCardSummaries();
+    for my $cardIndex(sort keys %$cardSummaries){
+      my $cardSummary = $$cardSummaries{$cardIndex};
+      if($$cardSummary{isDefault}){
+        print formatCardSummary($cardSummary) . "\n";
       }
     }
-    my $new = formatSinks(1);
-    print "$old=>\n$new\n" if $old ne $new;
-  }elsif(@_ == 0 and $cmd =~ /^(-c|--cycle|cycle)$/){
-    my $old = formatSinks(1);
-    cycle();
-    my $new = formatSinks(1);
-    print "$old=>\n$new\n" if $old ne $new;
+  }elsif(@_ == 1 and $_[0] =~ /^(-c|--cycle)$/){
+    my $cardSummaries = getCardSummaries();
+    my $nextCardIndex = getNextCardIndex($cardSummaries);
+    if(defined $nextCardIndex){
+      setDefaultSinkByCardIndex $cardSummaries, $nextCardIndex;
+    }
+  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^(-s|--set)$/){
+    my $cardRegex = $_[1];
+    my $profileRegex = $_[2] if @_ > 2;
+    checkSafeRegex $cardRegex;
+    checkSafeRegex $profileRegex;
+
+    my $cardSummaries = getCardSummaries();
+    my $targetCardIndex = findCardIndex $cardSummaries, $cardRegex;
+    if(defined $targetCardIndex){
+      if(defined $profileRegex){
+        print "\nsetting card profile\n";
+        my $cardSummary = $$cardSummaries{$targetCardIndex};
+        my $targetProfile = findProfile $cardSummaries, $targetCardIndex, $profileRegex;
+        if(defined $targetProfile){
+          setCardProfile $cardSummary, $targetProfile;
+
+          #refresh sink information after setting profile
+          $cardSummaries = getCardSummaries();
+        }else{
+          print "WARNING: could not find profile matching /$profileRegex/\n";
+        }
+      }
+
+      print "\nsetting default sink by card\n";
+      setDefaultSinkByCardIndex $cardSummaries, $targetCardIndex;
+    }else{
+      die "ERROR: could not find card matching /$cardRegex/\n";
+    }
+  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--list-profiles)$/){
+    my $cardRegex = $_[1] if @_ > 1;
+
+    my $cardSummaries = getCardSummaries();
+    my $targetCardIndex;
+    if(defined $cardRegex){
+      $targetCardIndex = findCardIndex $cardSummaries, $cardRegex;
+      if(not defined $targetCardIndex){
+        die "ERROR: could not find card matching /$cardRegex/\n";
+      }
+    }else{
+      $targetCardIndex = getCurCardIndex $cardSummaries;
+      if(not defined $targetCardIndex){
+        die "ERROR: could not find current default card\n";
+      }
+    }
+
+    my $cardSummary = $$cardSummaries{$targetCardIndex};
+    my @profiles = @{$$cardSummary{profiles}};
+    @profiles = sortProfiles @profiles;
+    print join "", map {"$_\n"} @profiles;
+  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^(-p|--profile)$/){
+    my $profileRegex = $_[1];
+    my $cardRegex = $_[2] if @_ > 2;
+    checkSafeRegex $profileRegex;
+    checkSafeRegex $cardRegex;
+
+    my $cardSummaries = getCardSummaries();
+    my $targetCardIndex;
+    if(defined $cardRegex){
+      $targetCardIndex = findCardIndex $cardSummaries, $cardRegex;
+      if(not defined $targetCardIndex){
+        die "ERROR: could not find card matching /$cardRegex/\n";
+      }
+    }else{
+      $targetCardIndex = getCurCardIndex $cardSummaries;
+      if(not defined $targetCardIndex){
+        die "ERROR: could not find current default card\n";
+      }
+    }
+
+    my $cardSummary = $$cardSummaries{$targetCardIndex};
+    my $targetProfile = findProfile $cardSummaries, $targetCardIndex, $profileRegex;
+    if(defined $targetProfile){
+      setCardProfile $cardSummary, $targetProfile;
+    }else{
+      die "ERROR: could not find profile matching /$profileRegex/\n";
+    }
   }else{
     die $usage;
   }
 }
 
+sub findCardIndex($$){
+  my ($cardSummaries, $cardRegex) = @_;
+  my $targetCardIndex;
+  for my $cardIndex(sort keys %$cardSummaries){
+    my $cardNameFmt = $$cardSummaries{$cardIndex}{nameFmt};
+    if($cardNameFmt =~ /$cardRegex/){
+      return $cardIndex;
+    }
+  }
+  return undef;
+}
+
+sub findProfile($$$){
+  my ($cardSummaries, $cardIndex, $profileRegex) = @_;
+  my $cardSummary = $$cardSummaries{$cardIndex};
+
+  my @profiles = @{$$cardSummary{profiles}};
+  @profiles = sortProfiles @profiles;
+
+  for my $profile(@profiles){
+    if($profile =~ /$profileRegex/){
+      return $profile;
+    }
+  }
+  return undef;
+}
+
+sub sortProfiles(@){
+  my @profiles = @_;
+  #sort profiles by:
+  # 1) input/output type (output+input, then output, then input, then other)
+  # 2) length, shortest first
+  # 3) asciibetically
+  return sort {
+    my $aInput = $a =~ /input:/ ? 1 : 0;
+    my $bInput = $b =~ /input:/ ? 1 : 0;
+    my $aOutput = $a =~ /output:/ ? 1 : 0;
+    my $bOutput = $b =~ /output:/ ? 1 : 0;
+    my $aOutIn = $aOutput && $aInput ? 1 : 0;
+    my $bOutIn = $bOutput && $bInput ? 1 : 0;
+    my $aLen = length $a;
+    my $bLen = length $b;
+
+    return 0
+      || $bOutIn <=> $aOutIn
+      || $bOutput <=> $aOutput
+      || $bInput <=> $aInput
+      || $aLen <=> $bLen
+      || $a cmp $b
+      ;
+  } @profiles;
+}
+
+sub getCurCardIndex($){
+  my $cardSummaries = getCardSummaries();
+  for my $cardIndex(sort keys %$cardSummaries){
+    if($$cardSummaries{$cardIndex}{isDefault}){
+      return $cardIndex;
+    }
+  }
+  return undef;
+}
+
+sub getNextCardIndex($){
+  my ($cardSummaries) = @_;
+  my $firstCardIndex = undef;
+  my $curCardIndex = getCurCardIndex $cardSummaries;
+  my $nextCardIndex;
+  for my $cardIndex(sort keys %$cardSummaries){
+    $firstCardIndex = $cardIndex if not defined $firstCardIndex;
+    if(not defined $curCardIndex or $cardIndex > $curCardIndex){
+      $nextCardIndex = $cardIndex;
+      last;
+    }
+  }
+  if(not defined $nextCardIndex){
+    $nextCardIndex = $firstCardIndex;
+  }
+  return $nextCardIndex;
+}
+
+sub formatCardSummary($){
+  my ($cardSummary) = @_;
+  if(not defined $cardSummary){
+    return "";
+  }
+  my %c = %$cardSummary;
+  return "card$c{index}: $c{isDefaultFmt} $c{nameFmt} $c{activeProfile}";
+}
+
+#####
+#####
+#####
+
+sub getCardSummaries(){
+  my $cardSummaries = {};
+
+  my $cards = getCards();
+  my $sinks = getSinks();
+  my $defaultCardIndex = extractDefaultCardIndexFromSinks($sinks);
+  $defaultCardIndex = -1 if not defined $defaultCardIndex;
+
+  for my $cardIndex(sort keys %$cards){
+    my $card = $$cards{$cardIndex};
+    my $cardName = extractNameFromCard $card;
+    my $cardNameFmt = lc $cardName;
+    $cardNameFmt =~ s/[^a-z0-9]+/_/g;
+    $cardNameFmt =~ s/^_+//;
+    $cardNameFmt =~ s/_+$//;
+
+    my $sinkIndex = extractSinkIndexByCardIndex($sinks, $cardIndex);
+
+    my $isDefault = $cardIndex == $defaultCardIndex ? 1 : 0;
+    my $isDefaultFmt = $isDefault ? "[*]" : "[ ]";
+
+    my @profiles;
+    if($$cards{$cardIndex}{profiles}){
+      @profiles = sort keys %{$$cards{$cardIndex}{profiles}};
+    }
+    my $activeProfile = $$cards{$cardIndex}{"active profile"};
+    $activeProfile = "" if not defined $activeProfile;
+
+    $$cardSummaries{$cardIndex} = {
+      index => $cardIndex,
+      sinkIndex => $sinkIndex,
+      name => $cardName,
+      nameFmt => $cardNameFmt,
+      isDefault => $isDefault,
+      isDefaultFmt => $isDefaultFmt,
+      profiles => [@profiles],
+      activeProfile => $activeProfile,
+    };
+  }
+
+  return $cardSummaries;
+}
+
+sub getCards(){
+  my @lines = `$pacmd list-cards`;
+  my $cards;
+  my $curIndex = undef;
+  my $curField = undef;
+
+  for my $line(@lines){
+    if($line =~ /^    index: (\d+)$/){
+      $curIndex = $1;
+    }elsif($line =~ /^\t(properties|profiles|sinks|sources|ports):$/){
+      $curField = $1;
+      $$cards{$curIndex}{$curField} = {};
+    }elsif($line =~ /^\t(name|driver|owner module|active profile): (.+)$/){
+      my ($key, $val) = ($1, $2);
+      if($key eq "active profile"){
+        $val = $1 if $val =~ /^<(.+)>$/;
+      }
+      $$cards{$curIndex}{$key} = $val;
+    }elsif(defined $curField and $line =~ /^\t\t(\S+): (.+)$/){
+      $$cards{$curIndex}{$curField}{$1} = $2;
+    }elsif(defined $curField and $line =~ /^\t\t(\S+) = (.+)$/){
+      $$cards{$curIndex}{$curField}{$1} = $2;
+    }
+  }
+
+  return $cards;
+}
+
 sub getSinks(){
-  my $default = `$pacmd list-sinks | grep '  \\* index: [0-9]\\+'`;
-  $default =~ s/\D*//g;
-  $default = -1 if $default eq '';
-  my @sinks;
-  for my $sink(`$pactl list short sinks`){
-    my @cols = split "\t", $sink;
-    next if @cols != 5;
-    my %sink;
-    $sink{default} = $cols[0] == $default;
-    $sink{index} = $cols[0];
-    $sink{name} = $cols[1];
-    $sink{module} = $cols[2];
-    $sink{sample} = $cols[3];
-    $sink{state} = $cols[4];
-    push @sinks, \%sink;
-  }
-  @sinks = sort {$$a{index} <=> $$b{index}} @sinks;
-  return @sinks;
-}
-
-sub formatSinks($){
-  my $defaultOnly = shift;
-  my $out = '';
-  for my $s(getSinks){
-    if($defaultOnly){
-      next if not $$s{default};
-    }else{
-      $out .= $$s{default} ? "* " : "  ";
-    }
-    $out .= "$$s{name}\n";
-  }
-  return $out;
-}
-
-sub cycle(){
-  my @sinks = getSinks();
-  return if @sinks == 0;
-
-  my $curIndex = -1;
-  for my $s(getSinks){
-    if($$s{default}){
-      $curIndex = $$s{index};
-      last;
+  my $sinks = {};
+  my @sinkLines = `$pacmd list-sinks`;
+  my $curSinkIndex = undef;
+  for my $line(@sinkLines){
+    if($line =~ /^(    |  \* )index: (\d+)$/){
+      my ($prefix, $sinkIndex) = ($1, $2);
+      my $isDefault = $prefix =~ /\*/ ? 1 : 0;
+      $curSinkIndex = $sinkIndex;
+      $$sinks{$curSinkIndex} = {};
+      $$sinks{$curSinkIndex}{isDefault} = $isDefault;
+    }elsif($line =~ /^\tcard: (\d+) <.+>$/ and defined $curSinkIndex){
+      my $cardIndex = $1;
+      $$sinks{$curSinkIndex}{cardIndex} = $cardIndex;
     }
   }
-
-  my @indices = sort map {$$_{index}} @sinks;
-
-  my $target = $indices[0];
-  for my $i(@indices){
-    if($i > $curIndex){
-      $target = $i;
-      last;
-    }
-  }
-  setDefault $target;
+  return $sinks;
 }
 
-sub setDefault($){
-  my $index = shift;
+
+sub extractDefaultCardIndexFromSinks($){
+  my ($sinks) = @_;
+  for my $sinkIndex(sort keys %$sinks){
+    if($$sinks{$sinkIndex}{isDefault}){
+      return $$sinks{$sinkIndex}{cardIndex};
+    }
+  }
+  return undef;
+}
+sub extractNameFromCard($){
+  my ($card) = @_;
+  my @propRegexes = (
+    qr/^alsa\.card_name$/,
+    qr/alsa\.card_name/,
+    qr/card_name/,
+    qr/name/,
+  );
+
+  my $properties = $$card{properties};
+  if(defined $properties){
+    for my $propRegex(@propRegexes){
+      for my $propKey(sort keys %$properties){
+        if($propKey =~ /$propRegex/){
+          return $$properties{$propKey};
+        }
+      }
+    }
+  }
+
+  return undef;
+}
+sub extractSinkIndexByCardIndex($$){
+  my ($sinks, $cardIndex) = @_;
+  for my $sinkIndex(sort keys %$sinks){
+    if($$sinks{$sinkIndex}{cardIndex} eq $cardIndex){
+      return $sinkIndex;
+    }
+  }
+  return undef;
+}
+
+#####
+#####
+#####
+
+sub ensurePulse(){
+  system "pulse-enable", "-q", "get";
+  die "pulse not enabled according to pulse-enable\n" if $? != 0;
+}
+
+sub setDefaultSinkByCardIndex($$){
+  my ($cardSummaries, $cardIndex) = @_;
+
+  my $sinkIndex = $$cardSummaries{$cardIndex}{sinkIndex};
+  if(not defined $sinkIndex){
+    die "ERROR: card$cardIndex does not appear to have a sink\n";
+  }
+
+  my $curCardIndex = getCurCardIndex($cardSummaries);
+  my $oldFmt = formatCardSummary($$cardSummaries{$curCardIndex});
+  my $newFmt = formatCardSummary($$cardSummaries{$cardIndex});
+
+  if(defined $curCardIndex and $cardIndex eq $curCardIndex){
+    print "no change to default card:\n$newFmt\n";
+  }else{
+    print "$oldFmt\n =>\n$newFmt\n";
+    setDefaultSinkBySinkIndex $sinkIndex;
+  }
+}
+
+sub setDefaultSinkBySinkIndex($){
+  my ($sinkIndex) = @_;
   system "$pulseVol update-volume";
-  system "$pacmd set-default-sink $index > /dev/null 2>/dev/null";
+  system "$pacmd set-default-sink $sinkIndex > /dev/null 2>/dev/null";
   system "$klompCmd restart";
+}
+
+sub setCardProfile($$){
+  my ($cardSummary, $profile) = @_;
+  my $cardIndex = $$cardSummary{index};
+  my $activeProfile = $$cardSummary{activeProfile};
+  if($profile eq $activeProfile){
+    print "no change to profile:\n$profile\n";
+  }else{
+    print "$activeProfile\n =>\n$profile\n";
+    system $pacmd, "set-card-profile", $cardIndex, $profile;
+  }
+}
+
+sub checkSafeRegex($){
+  my ($regex) = @_;
+  if(defined $regex and $regex =~ /[(){}]/){
+    die ""
+      . "ERROR: regex contains unsafe chars (parens or curly braces):\n"
+      . "  /$regex/"
+      ;
+  }
 }
 
 &main(@ARGV);
