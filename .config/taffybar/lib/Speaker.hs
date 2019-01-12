@@ -13,10 +13,10 @@ speakerReader = fmap format getDefaultSink
 getDefaultSink :: IO String
 getDefaultSink = readProc ["speaker", "--default"]
 
-format s | regexMatch "hdmi" s        = pad "hdmi"
-format s | regexMatch "pch" s         = fg "green" $ pad "pch"
-format s | regexMatch "usb" s         = fg "yellow" $ pad "usb"
-format _                              = fg "red" $ pad "unknown"
+format s | regexMatch "hdmi" s =               pad "hdmi"
+format s | regexMatch "pch"  s = fg "green"  $ pad "pch"
+format s | regexMatch "usb"  s = fg "yellow" $ pad "usb"
+format _                       = fg "red"    $ pad "unknown"
 
 pad = padL ' ' 4
 
