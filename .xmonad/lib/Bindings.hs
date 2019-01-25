@@ -109,6 +109,12 @@ shortcuts conf = "Shortcuts" @@ do
         "tether"        @@ mW    xK_3    #! "sudo tether on"
         "wired"         @@ mW    xK_4    #! "sudo wired on"
 
+    "Resolution"    @@ do
+        "alt1"          @@ mCW   xK_F1   #! "res --set `resconfig --res-alt1`"
+        "alt2"          @@ mCW   xK_F2   #! "res --set `resconfig --res-alt2`"
+        "alt3"          @@ mCW   xK_F3   #! "res --set `resconfig --res-alt3`"
+        "alt4"          @@ mCW   xK_F4   #! "res --set `resconfig --res-alt4`"
+
     "Brightness"    @@ do
         "Up"            @@ mC    xK_Home #! "brightness up"
         "Down"          @@ mC    xK_End  #! "brightness down"
