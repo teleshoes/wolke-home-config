@@ -159,6 +159,12 @@ instance Monoid (Bindings a) where
     mappend l             (BList "" rs) = BList "" (l : rs)
     mappend l             r             = BList "" [l,r]
 
+instance Semigroup (Bindings a) where
+    (BList "" ls) <> (BList "" rs) = BList "" (ls ++ rs)
+    (BList "" ls) <> r             = BList "" (ls ++ [r])
+    l             <> (BList "" rs) = BList "" (l : rs)
+    l             <> r             = BList "" [l,r]
+
 instance Functor Bindings where
     fmap f (Binds s bs) = Binds s $ fmap f bs
     fmap f (BList s bs) = BList s $ fmap (fmap f) bs
