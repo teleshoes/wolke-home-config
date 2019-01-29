@@ -15,6 +15,7 @@ sub parseBackupSets($$$);
 sub filterLog($$$);
 sub parseLog($);
 sub parseLatestSync();
+sub isSyncComplete($);
 sub formatSync($);
 sub formatBackupSetList(@);
 sub formatBackupSet($);
@@ -281,7 +282,7 @@ sub runBackup($){
   }
 
   my $prevSync = parseLatestSync();
-  if(defined $prevSync and $$prevSync{current} != $$prevSync{total}){
+  if(not isSyncComplete($prevSync)){
     print "\n\nNOTE: last sync is not finished in log:\n";
     print "  " . formatSync($prevSync) . "\n\n\n";
   }
@@ -378,7 +379,7 @@ sub runBackup($){
   writeStatus "ENDED\n" . formatBackupSetList @newBackupSets;
 
   my $lastSync = parseLatestSync();
-  if(defined $lastSync and $$lastSync{current} != $$lastSync{total}){
+  if(not isSyncComplete($lastSync)){
     print "NOTE: last sync is not finished in log:\n";
     print "  " . formatSync($lastSync) . "\n";
   }
@@ -670,6 +671,17 @@ sub parseLatestSync(){
     }
   }
   return undef;
+}
+
+sub isSyncComplete($){
+  my ($sync) = @_;
+  return 0 if not defined $sync;
+
+  if($$sync{current} == $$sync{total}){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub formatSync($){
