@@ -3,12 +3,16 @@ use strict;
 use warnings;
 
 my $PURPLE_DIR = "$ENV{HOME}/.purple";
+my $BLIST_FILE = "$PURPLE_DIR/blist.xml";
 
+sub createAliasSymlinks();
+sub parseBlistMatrixRooms();
 sub readLines($);
 sub run(@);
 
 sub main(@){
   archiveUselessLogs();
+  createAliasSymlinks();
 }
 
 sub archiveUselessLogs(){
@@ -50,6 +54,81 @@ sub archiveUselessLogs(){
       }
     }
   }
+}
+
+sub createAliasSymlinks(){
+  my $rooms = parseBlistMatrixRooms();
+
+  my %symlinksToCreate;
+  for my $room(@$rooms){
+    my $roomDirName = $$room{roomId} . ".chat";
+    $roomDirName =~ s/\!/%21/g;
+    $roomDirName =~ s/:/%3a/g;
+
+    my $aliasId = lc $$room{alias};
+    $aliasId =~ s/[^a-z0-9]/_/g;
+    $aliasId =~ s/^_+//;
+    $aliasId =~ s/_+$//;
+    $aliasId =~ s/__+/_/g;
+
+    my $accountDir = "$PURPLE_DIR/logs/matrix/$$room{account}";
+
+    my $symlinkName = "${aliasId}-alias";
+    $symlinksToCreate{"$accountDir/$symlinkName"} = $roomDirName;
+  }
+
+  my @existingAliasSymlinks = grep {-l $_} glob "$PURPLE_DIR/logs/matrix/*/*-alias";
+  for my $symlink(@existingAliasSymlinks){
+    if(-l $symlink and not defined $symlinksToCreate{$symlink}){
+      print "REMOVING OLD SYMLINK: $symlink (was " . readlink($symlink) . ")\n";
+      run "rm", $symlink;
+    }
+  }
+
+  for my $symlink(sort keys %symlinksToCreate){
+    my $target = $symlinksToCreate{$symlink};
+    if(-l $symlink){
+      if(readlink($symlink) eq $target){
+        next;
+      }else{
+        print "UPDATING SYMLINK: $symlink (was " . readlink($symlink) . ")\n";
+        run "rm", $symlink;
+        run "ln", "-s", $target, $symlink;
+      }
+    }elsif(-e $symlink){
+      die "COULD NOT CREATE SYMLINK: $symlink => $target\n";
+    }else{
+      run "ln", "-s", $target, $symlink;
+    }
+  }
+}
+
+sub parseBlistMatrixRooms(){
+  my $blistXml = `cat $BLIST_FILE 2>/dev/null`;
+
+  my $rooms = [];
+  while($blistXml =~ /
+    < \s* chat \s+
+      proto \s* = \s* ['"]prpl-matrix['"] \s*
+      account \s* = \s* ['"] (?<ACCOUNT>\w+) ['"] \s*
+    >
+      (?: \s*\n\s* )*
+      < \s* alias \s* >
+          (?<ALIAS> [^<]+ )
+      < \s* \/ \s* alias \s* >
+      (?: \s*\n\s* )*
+      < \s* component \s+ name \s* = \s* ['"]room_id['"] \s* >
+          (?<ROOMID> [^<]+ )
+      < \s* \/ \s* component \s* >
+  /gsxi){
+    my $room = {
+      roomId  => $+{ROOMID},
+      account => $+{ACCOUNT},
+      alias   => $+{ALIAS},
+    };
+    push @$rooms, $room;
+  }
+  return $rooms;
 }
 
 sub readLines($){
