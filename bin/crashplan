@@ -639,9 +639,14 @@ sub parseLog($){
 }
 
 sub parseLatestSync(){
-  my @lines = `grep SyncProgressStats $serviceLogFile`;
+  my @lines = `cat $serviceLogFile`;
+  my $manifestValid = 0;
   for my $line(reverse @lines){
-    if($line =~ /^
+    if($line =~ /SYNC::.*MARKING MANIFEST AS VALIDATED/){
+      $manifestValid = 1;
+    }elsif($line =~ /SYNC::.*manifest is valid/){
+      $manifestValid = 1;
+    }elsif($line =~ /^
       \[
         (\d\d)\.(\d\d)\.(\d\d)
         \s*
@@ -666,6 +671,7 @@ sub parseLatestSync(){
           files => $files,
           current => $current,
           total => $total,
+          manifestValid => $manifestValid,
         };
       }
     }
@@ -699,7 +705,12 @@ sub formatSync($){
     $pct = sprintf "%6.2f%%", (100*$$sync{current}/$$sync{total});
   }
 
-  return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}";
+  my $valid;
+  if($$sync{manifestValid}){
+    $valid = " (MARKED VALID)";
+  }
+
+  return "$type $pct   ms=$$sync{dateMillis}  $$sync{current}/$$sync{total}$valid";
 }
 
 sub formatBackupSetList(@){
