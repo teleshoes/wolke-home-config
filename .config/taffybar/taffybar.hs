@@ -144,8 +144,8 @@ main = do
   cssProfileFile <- getUserConfigFile "taffybar" "taffybar-profile.css"
 
   let iconHackPad = fromIntegral $ barHt profile - wImgH profile - 4
-      iconHackPadTop = round $ iconHackPad / 2
-      iconHackPadBot = iconHackPadTop - 2 --margin-bottom is 2px
+      iconHackPadTop = maximum [0, round $ iconHackPad / 2]
+      iconHackPadBot = maximum [0, iconHackPadTop - 2] --margin-bottom is 2px
 
   writeFile cssProfileFile $ ""
         ++ "/* Taffybar Profile CSS\n"
