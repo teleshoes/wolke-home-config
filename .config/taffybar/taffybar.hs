@@ -50,7 +50,7 @@ calculateProfile resconfig = P
   , wSepW = int $ 2 + (scaleLAP_WALL 0 1) + (scaleFHD_WQHD 0 1)
   , title = int $ atLeast 5 $ atMost 30 $ scaleHD_FHD 20 30
   , fontP = dbl $ atLeast minFont $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
-  , graph = int $ scaleFHD_WQHD 50 80
+  , graph = int $ atLeast 10 $ scaleFHD_WQHD 50 80
   , music = dbl $ scale14IN_60IN 15.94 19.43
   , appSq = int $ barHeight
   }
