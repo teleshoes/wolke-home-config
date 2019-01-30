@@ -1,5 +1,5 @@
 module WorkspaceImages (getIcon, loadIconInitialState) where
-import Utils (imageDir, tryMaybe)
+import Utils (imageDir, availableImageDirSizes, tryMaybe)
 
 import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufGetHeight, pixbufNewFromFile)
 import GI.Gtk.Enums (Orientation(..))
@@ -25,9 +25,16 @@ data IconInitialState = IconInitialState { namedIconFileMap :: [(IconName, FileP
                                          , wsImageHeight :: Int
                                          } deriving Show
 type IconName = String
+defaultImageSize = 24
+
+selectImageSize :: Int -> IO Int
+selectImageSize height = do
+  avail <- availableImageDirSizes
+  let okSizes = filter (<=height) avail
+  return $ if length okSizes == 0 then defaultImageSize else maximum okSizes
 
 wsImageDir :: Int -> IO String
-wsImageDir height = fmap (++ "/workspace-images") $ imageDir height
+wsImageDir imageSize = fmap (++ "/workspace-images") $ imageDir imageSize
 
 getIcon :: IconInitialState -> WindowIconPixbufGetter
 getIcon state =
@@ -43,13 +50,14 @@ getIcon state =
 
 loadIconInitialState :: Int -> IO IconInitialState
 loadIconInitialState height = do
-  dir <- wsImageDir height
+  imageSize <- selectImageSize height
+  dir <- wsImageDir imageSize
   files <- fmap (fromMaybe []) $ tryMaybe $ listDirectory dir
   let pngs = filter (".png" `isSuffixOf`) files
       names = map (map toLower . reverse . drop 4 . reverse) pngs
       filePaths = map (\name -> dir ++ "/" ++ name ++ ".png") names
   return $ IconInitialState { namedIconFileMap = zip names filePaths
-                            , wsImageHeight = height
+                            , wsImageHeight = imageSize
                             }
 
 scalePixbuf :: Int32 -> WindowIconPixbufGetter -> WindowIconPixbufGetter
