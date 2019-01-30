@@ -52,7 +52,7 @@ calculateProfile resconfig = P
   , fontP = dbl $ atLeast minFont $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
   , graph = int $ atLeast 10 $ scaleFHD_WQHD 50 80
   , music = dbl $ ifTiny 5 $ scale14IN_60IN 15.94 19.43
-  , appSq = int $ barHeight
+  , appSq = int $ ifTiny (barHeight/2) barHeight
   }
   where scaleFHD_WQHD = scale (widthPx resconfig, 1920, 2560)
         scaleHD_FHD = scale (widthPx resconfig, 1280, 1920)
