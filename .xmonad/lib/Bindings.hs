@@ -110,10 +110,10 @@ shortcuts conf = "Shortcuts" @@ do
         "wired"         @@ mW    xK_4    #! "sudo wired on"
 
     "Resolution"    @@ do
-        "alt1"          @@ mCW   xK_F1   #! "res --set `resconfig --res-alt1`"
-        "alt2"          @@ mCW   xK_F2   #! "res --set `resconfig --res-alt2`"
-        "alt3"          @@ mCW   xK_F3   #! "res --set `resconfig --res-alt3`"
-        "alt4"          @@ mCW   xK_F4   #! "res --set `resconfig --res-alt4`"
+        "alt1"          @@ mCW   xK_F1   #! "resconfig --set-res 1"
+        "alt2"          @@ mCW   xK_F2   #! "resconfig --set-res 2"
+        "alt3"          @@ mCW   xK_F3   #! "resconfig --set-res 3"
+        "alt4"          @@ mCW   xK_F4   #! "resconfig --set-res 4"
 
     "Brightness"    @@ do
         "Up"            @@ mC    xK_Home #! "brightness up"
