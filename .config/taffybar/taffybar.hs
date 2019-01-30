@@ -45,7 +45,7 @@ data Resconfig = R { name       :: String --screen/monitor name
 calculateProfile resconfig = P
   { pName = name resconfig
   , barHt = int $ barHeight
-  , wImgH = int $ scaleFHD_WQHD 24 28
+  , wImgH = int $ atMost (barHeight-12) $ scaleFHD_WQHD 24 28
   , space = int $ 5
   , wSepW = int $ 2 + (scaleLAP_WALL 0 1) + (scaleFHD_WQHD 0 1)
   , title = int $ 30
@@ -60,6 +60,7 @@ calculateProfile resconfig = P
         isBig = widthPx resconfig > 1920 || distanceMM resconfig > 1000
         barHeight = atLeast minBarHeight $ scaleFHD_WQHD 38 50 + scaleLAP_WALL 0 10
         atLeast = max
+        atMost = min
         int = round :: RealFrac n => n -> Int
         dbl = id :: Double -> Double
 
