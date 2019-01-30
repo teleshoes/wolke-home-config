@@ -17,6 +17,7 @@ import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
 typeface = "Inconsolata"
 minFont = 4.0
+minBarHeight = 20
 
 getResconfigFile = getHomeFile "resconfig-screen"
 getMachineTypeFile = getHomeFile "machine-type"
@@ -57,7 +58,7 @@ calculateProfile resconfig = P
         scaleLAP_WALL = scale (distanceMM resconfig, 500, 1700)
         scale14IN_60IN = scale (widthMM resconfig, 310, 2253)
         isBig = widthPx resconfig > 1920 || distanceMM resconfig > 1000
-        barHeight = scaleFHD_WQHD 38 50 + scaleLAP_WALL 0 10
+        barHeight = atLeast minBarHeight $ scaleFHD_WQHD 38 50 + scaleLAP_WALL 0 10
         atLeast = max
         int = round :: RealFrac n => n -> Int
         dbl = id :: Double -> Double
