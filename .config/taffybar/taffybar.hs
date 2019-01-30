@@ -48,13 +48,14 @@ calculateProfile resconfig = P
   , wImgH = int $ atMost (barHeight-12) $ scaleFHD_WQHD 24 28
   , space = int $ 5
   , wSepW = int $ 2 + (scaleLAP_WALL 0 1) + (scaleFHD_WQHD 0 1)
-  , title = int $ 30
+  , title = int $ atLeast 5 $ atMost 30 $ scaleHD_FHD 20 30
   , fontP = dbl $ atLeast minFont $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
   , graph = int $ scaleFHD_WQHD 50 80
   , music = dbl $ scale14IN_60IN 15.94 19.43
   , appSq = int $ barHeight
   }
   where scaleFHD_WQHD = scale (widthPx resconfig, 1920, 2560)
+        scaleHD_FHD = scale (widthPx resconfig, 1280, 1920)
         scaleLAP_WALL = scale (distanceMM resconfig, 500, 1700)
         scale14IN_60IN = scale (widthMM resconfig, 310, 2253)
         isBig = widthPx resconfig > 1920 || distanceMM resconfig > 1000
