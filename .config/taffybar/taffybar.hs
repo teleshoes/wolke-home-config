@@ -115,8 +115,8 @@ main = do
           , tv   $ W.speakerW
           , all  $ W.volumeW
           , all  $ W.micW
-          , main $ W.pidginPipeW $ barHeight cfg
-          , main $ W.qtemailW (barHeight cfg)
+          , main $ W.pidginPipeW $ barHt profile
+          , main $ W.qtemailW $ barHt profile
           , all  $ W.cpuScalingSimpleW
           , all  $ W.cpuFreqsW
           , lap  $ W.fanW
@@ -126,7 +126,7 @@ main = do
                                     , main $ W.pingMonitorW "E" "ehr.dev"
                                     ]
           , main $ W.openvpnW "lg" "VPN\nlg "
-          , lap  $ W.tpBattStatW $ barHeight cfg
+          , lap  $ W.tpBattStatW $ barHt profile
           , all  $ sep
           , all  $ W.clockW
           ]
