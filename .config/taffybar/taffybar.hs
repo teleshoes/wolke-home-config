@@ -29,6 +29,7 @@ data Profile = P { pName :: String --profile name
                  , fontP :: Double --font point size
                  , graph :: Int    --width of graphs in pixels
                  , music :: Double --percent of the screen width to use for song info
+                 , appSq :: Int    --app launcher square height
                  } deriving Show
 
 data Resconfig = R { name       :: String --screen/monitor name
@@ -49,6 +50,7 @@ calculateProfile resconfig = P
   , fontP = dbl $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
   , graph = int $ scaleFHD_WQHD 50 80
   , music = dbl $ scale14IN_60IN 15.94 19.43
+  , appSq = int $ barHeight
   }
   where scaleFHD_WQHD = scale (widthPx resconfig, 1920, 2560)
         scaleLAP_WALL = scale (distanceMM resconfig, 500, 1700)
@@ -115,8 +117,8 @@ main = do
           , tv   $ W.speakerW
           , all  $ W.volumeW
           , all  $ W.micW
-          , main $ W.pidginPipeW $ barHt profile
-          , main $ W.qtemailW $ barHt profile
+          , main $ W.pidginPipeW $ appSq profile
+          , main $ W.qtemailW $ appSq profile
           , all  $ W.cpuScalingSimpleW
           , all  $ W.cpuFreqsW
           , lap  $ W.fanW
