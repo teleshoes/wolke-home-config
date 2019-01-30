@@ -16,6 +16,7 @@ import System.Environment (getArgs)
 import System.Environment.XDG.BaseDir ( getUserConfigFile )
 
 typeface = "Inconsolata"
+minFont = 4.0
 
 getResconfigFile = getHomeFile "resconfig-screen"
 getMachineTypeFile = getHomeFile "machine-type"
@@ -47,7 +48,7 @@ calculateProfile resconfig = P
   , space = int $ 5
   , wSepW = int $ 2 + (scaleLAP_WALL 0 1) + (scaleFHD_WQHD 0 1)
   , title = int $ 30
-  , fontP = dbl $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
+  , fontP = dbl $ atLeast minFont $ scaleFHD_WQHD 13.0 17.0 + scaleLAP_WALL 0 3.0
   , graph = int $ scaleFHD_WQHD 50 80
   , music = dbl $ scale14IN_60IN 15.94 19.43
   , appSq = int $ barHeight
@@ -57,6 +58,7 @@ calculateProfile resconfig = P
         scale14IN_60IN = scale (widthMM resconfig, 310, 2253)
         isBig = widthPx resconfig > 1920 || distanceMM resconfig > 1000
         barHeight = scaleFHD_WQHD 38 50 + scaleLAP_WALL 0 10
+        atLeast = max
         int = round :: RealFrac n => n -> Int
         dbl = id :: Double -> Double
 
