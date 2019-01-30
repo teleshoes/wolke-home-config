@@ -1,5 +1,5 @@
 module Utils(
-  defaultDelay, getHome, getHomeFile, imageDir,
+  defaultDelay, getHome, getHomeFile, imageDir, availableImageDirSizes,
   maybeJoin,
   fg, bg, fgbg,
   rowW, colW, containerW, eboxStyleWrapW,
@@ -24,7 +24,7 @@ import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad (forever, join, void)
 
 import Data.Char (chr)
-import Data.List (intercalate, partition, transpose)
+import Data.List (intercalate, partition, sort, transpose)
 import Data.List.Split (keepDelimsL, oneOf, split)
 import Data.List.Utils (replace)
 import qualified Data.Set as Set
@@ -67,7 +67,15 @@ defaultDelay = 1
 getHome = getEnv "HOME"
 getHomeFile file = fmap (++ "/" ++ file) getHome
 
-imageDir h = getHomeFile $ ".config/taffybar/icons/" ++ show h
+imageBaseDir = getHomeFile ".config/taffybar/icons/"
+
+imageDir h = fmap (\dir -> dir ++ show h) imageBaseDir
+
+availableImageDirSizes :: IO [Int]
+availableImageDirSizes = do
+  dir <- imageBaseDir
+  lsDir <- readProc ["ls", dir]
+  return $ sort $ map fromIntegral $ collectInts lsDir
 
 -- FUNCTIONS
 maybeJoin :: (a -> Maybe b) -> Maybe a -> Maybe b
