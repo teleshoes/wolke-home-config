@@ -11,7 +11,6 @@ sub scaleInt($$$);
 sub readProcLines(@);
 sub readFileLines($);
 sub writeFileLines($@);
-sub usage();
 
 my $RESCONFIG_SCREEN_FILE = "$ENV{HOME}/resconfig-screen";
 my @RESCONFIG_KEYS_REQUIRED = qw(name width_px height_px width_mm height_mm distance_mm);
@@ -59,6 +58,73 @@ sub configs($){
     },
   );
 }
+
+my $usage ="Usage:
+    $0
+      -read resconfig-data
+        WIDTH_PX, HEIGHT_PX, WIDTH_MM, HEIGHT_MM, and DISTANCE_MM
+        from $RESCONFIG_SCREEN_FILE
+      -calculate config-variables from resconfig-data
+      -update config files using config-variables
+      -replace variables in templates
+        format for variables is:
+          #{VAR_NAME}
+          '#' literals can be written #{hash}
+        e.g.: (assume var1=6 and var2=99)
+          abc-#{var1}-def-#{var2}              =>  abc-6-def-99
+          abc-#{hash}{var1}-def-#{var2}        =>  abc-#{var1}-def-99
+          abc-#{hash}{hash}{var1}-def-#{var2}  =>  abc-#{hash}{var1}-def-99
+          emptyVarName#{}                      =>  emptyVarName#{}
+          ###{var1}                            =>  ##50
+          ###{hash}{var1}                      =>  ###{var1}
+          #{hash}#{hash}#{hash}{var1}          =>  ###{var1}
+      -replace config files with variable-substituted templates
+
+      NAME
+        screen name, must be letters/numbers/dashes/underscores
+      WIDTH_PX
+        horizontal screen resolution in pixels
+      HEIGHT_PX
+        vertical screen resolution in pixels
+      WIDTH_MM
+        horizontal screen size, in millimeters
+      HEIGHT_MM
+        vertical screen size, in millimeters
+      DISTANCE_MM
+        expected viewing distance in millimeters
+
+    $0 NAME WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
+      update config-files using indicated vars,
+        instead of reading $RESCONFIG_SCREEN_FILE
+
+    $0 WIDTH_PX HEIGHT_PX
+      read values from $RESCONFIG_SCREEN_FILE,
+        BUT replace WIDTH_PX and HEIGHT_PX with indicated values
+
+    $0 <WIDTH_PX>x<HEIGHT_PX>
+      same as: $0 WIDTH_PX HEIGHT_PX
+
+    $0 --name | NAME | name
+      print \"name\" from $RESCONFIG_SCREEN_FILE
+    $0 --width-px | WIDTH_PX | width_px
+      print \"width_px\" from $RESCONFIG_SCREEN_FILE
+    $0 --height-px | HEIGHT_PX | height_px
+      print \"height_px\" from $RESCONFIG_SCREEN_FILE
+    $0 --width-mm | WIDTH_MM | width_mm
+      print \"width_mm\" from $RESCONFIG_SCREEN_FILE
+    $0 --height-mm | HEIGHT_MM | height_mm
+      print \"height_mm\" from $RESCONFIG_SCREEN_FILE
+    $0 --distance-mm | DISTANCE_MM | distance_mm
+      print \"distance_mm\" from $RESCONFIG_SCREEN_FILE
+    $0 --res-alt1 | RES_ALT1 | res_alt1
+      print \"res_alt1\" from $RESCONFIG_SCREEN_FILE
+    $0 --res-alt2 | RES_ALT2 | res_alt2
+      print \"res_alt2\" from $RESCONFIG_SCREEN_FILE
+    $0 --res-alt3 | RES_ALT3 | res_alt3
+      print \"res_alt3\" from $RESCONFIG_SCREEN_FILE
+    $0 --res-alt4 | RES_ALT4 | res_alt4
+      print \"res_alt4\" from $RESCONFIG_SCREEN_FILE
+";
 
 sub main(@){
   if(@_ == 0){
@@ -110,7 +176,7 @@ sub main(@){
   }elsif(@_ == 1 and $_[0] =~ /^(--res-alt4|res_alt4)$/i){
     print ${readResconfigScreen()}{res_alt4} . "\n";
   }else{
-    die usage();
+    die $usage;
   }
 }
 
@@ -235,75 +301,6 @@ sub allDigits(@){
 sub scaleInt($$$){
   my ($scalingFactor, $lowVal, $highVal) = @_;
   return int($lowVal + $scalingFactor*($highVal-$lowVal) + 0.5);
-}
-
-sub usage(){
-  return "Usage:
-    $0
-      -read resconfig-data
-        WIDTH_PX, HEIGHT_PX, WIDTH_MM, HEIGHT_MM, and DISTANCE_MM
-        from $RESCONFIG_SCREEN_FILE
-      -calculate config-variables from resconfig-data
-      -update config files using config-variables
-      -replace variables in templates
-        format for variables is:
-          #{VAR_NAME}
-          '#' literals can be written #{hash}
-        e.g.: (assume var1=6 and var2=99)
-          abc-#{var1}-def-#{var2}              =>  abc-6-def-99
-          abc-#{hash}{var1}-def-#{var2}        =>  abc-#{var1}-def-99
-          abc-#{hash}{hash}{var1}-def-#{var2}  =>  abc-#{hash}{var1}-def-99
-          emptyVarName#{}                      =>  emptyVarName#{}
-          ###{var1}                            =>  ##50
-          ###{hash}{var1}                      =>  ###{var1}
-          #{hash}#{hash}#{hash}{var1}          =>  ###{var1}
-      -replace config files with variable-substituted templates
-
-      NAME
-        screen name, must be letters/numbers/dashes/underscores
-      WIDTH_PX
-        horizontal screen resolution in pixels
-      HEIGHT_PX
-        vertical screen resolution in pixels
-      WIDTH_MM
-        horizontal screen size, in millimeters
-      HEIGHT_MM
-        vertical screen size, in millimeters
-      DISTANCE_MM
-        expected viewing distance in millimeters
-
-    $0 NAME WIDTH_PX HEIGHT_PX WIDTH_MM HEIGHT_MM DISTANCE_MM
-      update config-files using indicated vars,
-        instead of reading $RESCONFIG_SCREEN_FILE
-
-    $0 WIDTH_PX HEIGHT_PX
-      read values from $RESCONFIG_SCREEN_FILE,
-        BUT replace WIDTH_PX and HEIGHT_PX with indicated values
-
-    $0 <WIDTH_PX>x<HEIGHT_PX>
-      same as: $0 WIDTH_PX HEIGHT_PX
-
-    $0 --name | NAME | name
-      print \"name\" from $RESCONFIG_SCREEN_FILE
-    $0 --width-px | WIDTH_PX | width_px
-      print \"width_px\" from $RESCONFIG_SCREEN_FILE
-    $0 --height-px | HEIGHT_PX | height_px
-      print \"height_px\" from $RESCONFIG_SCREEN_FILE
-    $0 --width-mm | WIDTH_MM | width_mm
-      print \"width_mm\" from $RESCONFIG_SCREEN_FILE
-    $0 --height-mm | HEIGHT_MM | height_mm
-      print \"height_mm\" from $RESCONFIG_SCREEN_FILE
-    $0 --distance-mm | DISTANCE_MM | distance_mm
-      print \"distance_mm\" from $RESCONFIG_SCREEN_FILE
-    $0 --res-alt1 | RES_ALT1 | res_alt1
-      print \"res_alt1\" from $RESCONFIG_SCREEN_FILE
-    $0 --res-alt2 | RES_ALT2 | res_alt2
-      print \"res_alt2\" from $RESCONFIG_SCREEN_FILE
-    $0 --res-alt3 | RES_ALT3 | res_alt3
-      print \"res_alt3\" from $RESCONFIG_SCREEN_FILE
-    $0 --res-alt4 | RES_ALT4 | res_alt4
-      print \"res_alt4\" from $RESCONFIG_SCREEN_FILE
-  ";
 }
 
 &main(@ARGV);
