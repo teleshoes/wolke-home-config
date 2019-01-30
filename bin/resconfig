@@ -4,6 +4,8 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
+sub setResolution($$);
+sub updateResconfigScreenRes($$);
 sub readResconfigScreen();
 sub handleAllConfigs($);
 sub handleConfig($);
@@ -105,6 +107,13 @@ my $usage ="Usage:
       read values from $RESCONFIG_SCREEN_FILE,
         BUT replace WIDTH_PX and HEIGHT_PX with indicated values
 
+    $EXEC_RESCONFIG --set-res <WIDTH_PX> <HEIGHT_PX>
+    $EXEC_RESCONFIG --set-res <WIDTH_PX>x<HEIGHT_PX>
+      -update WIDTH_PX and HEIGHT_PX in $RESCONFIG_SCREEN_FILE
+
+    $EXEC_RESCONFIG --set-res ALT_NUM
+      same as: $EXEC_RESCONFIG --set `$EXEC_RESCONFIG --res-alt<ALT_NUM>
+
     $EXEC_RESCONFIG --name | NAME | name
       print \"name\" from $RESCONFIG_SCREEN_FILE
     $EXEC_RESCONFIG --width-px | WIDTH_PX | width_px
@@ -156,6 +165,20 @@ sub main(@){
     $$resconfigScreen{height_px} = $height_px;
 
     handleAllConfigs $resconfigScreen;
+  }elsif(@_ == 3 and $_[0] =~ /^(--set-res)$/i and allDigits(@_[1,2])){
+    my ($width_px, $height_px) = ($_[1], $_[2]);
+    setResolution($width_px, $height_px);
+  }elsif(@_ == 2 and $_[0] =~ /^(--set-res)$/i and $_[1] =~ /^(\d+)x(\d+)$/){
+    my ($width_px, $height_px) = ($1, $2);
+    setResolution($width_px, $height_px);
+  }elsif(@_ == 2 and $_[0] =~ /^(--set-res)$/i and $_[1] =~ /^(1|2|3|4)$/){
+    my $altNum = $_[1];
+    my $resconfigScreen = readResconfigScreen();
+    my $altRes = $$resconfigScreen{"res_alt$altNum"};
+    if(defined $altRes and $altRes =~ /^(\d+)x(\d+)$/){
+      my ($width_px, $height_px) = ($1, $2);
+      setResolution($width_px, $height_px);
+    }
   }elsif(@_ == 1 and $_[0] =~ /^(--name|name)$/i){
     print ${readResconfigScreen()}{name} . "\n";
   }elsif(@_ == 1 and $_[0] =~ /^(--width-px|width_px)$/i){
@@ -179,6 +202,31 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub setResolution($$){
+  my ($width_px, $height_px) = @_;
+  updateResconfigScreenRes($width_px, $height_px);
+}
+
+sub updateResconfigScreenRes($$){
+  my ($width_px, $height_px) = @_;
+  open FH, "< $RESCONFIG_SCREEN_FILE"
+    or die "could not read $RESCONFIG_SCREEN_FILE\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  for my $line(@lines){
+  }
+
+  open FH, "> $RESCONFIG_SCREEN_FILE"
+    or die "could not write $RESCONFIG_SCREEN_FILE\n$!\n";
+  for my $line(@lines){
+    $line =~ s/(^\s*)width_px(\s*)=(\s*)\d+([\s\r\n]*$)/$1width_px$2=$3$width_px$4/;
+    $line =~ s/(^\s*)height_px(\s*)=(\s*)\d+([\s\r\n]*$)/$1height_px$2=$3$height_px$4/;
+    print FH $line;
+  }
+  close FH;
 }
 
 sub readResconfigScreen(){
