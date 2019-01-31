@@ -231,22 +231,34 @@ sub setResolution($$){
 
 sub updateResconfigScreenRes($$){
   my ($width_px, $height_px) = @_;
+
   open FH, "< $RESCONFIG_SCREEN_FILE"
     or die "could not read $RESCONFIG_SCREEN_FILE\n$!\n";
   my @lines = <FH>;
   close FH;
 
-  for my $line(@lines){
-  }
-
+  my ($oldW, $oldH);
   open FH, "> $RESCONFIG_SCREEN_FILE"
     or die "could not write $RESCONFIG_SCREEN_FILE\n$!\n";
   for my $line(@lines){
-    $line =~ s/(^\s*)width_px(\s*)=(\s*)\d+([\s\r\n]*$)/$1width_px$2=$3$width_px$4/;
-    $line =~ s/(^\s*)height_px(\s*)=(\s*)\d+([\s\r\n]*$)/$1height_px$2=$3$height_px$4/;
+    if($line =~ /(^\s*)(width_px|height_px)(\s*)=(\s*)(\d+)([\s\r\n]*$)/){
+      my ($ws1, $key, $ws2, $ws3, $oldVal, $ws4) = ($1, $2, $3, $4, $5, $6);
+      my $newVal;
+      if($key eq "width_px"){
+        ($oldW, $newVal) = ($oldVal, $width_px);
+      }elsif($key eq "height_px"){
+        ($oldH, $newVal) = ($oldVal, $height_px);
+      }
+      $line = "$ws1$key$ws2=$ws3$newVal$ws4";
+    }
     print FH $line;
   }
   close FH;
+  if(not defined $oldW or not defined $oldH){
+    die "error updating $RESCONFIG_SCREEN_FILE\n";
+  }
+
+  print "UPDATED $RESCONFIG_SCREEN_FILE: ${oldW}x${oldH} => ${width_px}x${height_px}\n"
 }
 
 sub readResconfigScreen(){
