@@ -1,4 +1,5 @@
-resconfig
+resconfig --reset-res
+resconfig --apply
 xconfig
 
 sudo bluetooth off &
