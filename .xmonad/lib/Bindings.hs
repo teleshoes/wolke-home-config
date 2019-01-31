@@ -190,7 +190,6 @@ shortcuts conf = "Shortcuts" @@ do
         "tor"           @@ mCA   xK_v    #! "tor"
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
-        "Transmission"  @@ mCA   xK_t    #! "transmission-gtk"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "FBreader"      @@ mCA   xK_r    #! "fbreader"
         "stepmania"     @@ mCA   xK_s    #! "stepmania"
