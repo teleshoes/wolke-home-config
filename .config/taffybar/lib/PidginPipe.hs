@@ -16,10 +16,12 @@ workspace = 2
 
 runCmd = "daemon " ++ exec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
+killCmd = "pkill " ++ process ++ " ; sleep 0.1 ; pidgin-matrix-log-cleanup"
+rerunCmd = killCmd ++ "; " ++ runCmd
 
 clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
-clickM = return Nothing
-clickR = return $ Just $ "pkill " ++ process ++ " ; sleep 0.1 ; pidgin-matrix-log-cleanup"
+clickM = return $ Just rerunCmd
+clickR = return $ Just killCmd
 
 getImage h = do
   pipeFile <- getHomeFile ".purple/plugins/pipe"
