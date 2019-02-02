@@ -19,7 +19,7 @@ wsCmd = "wmctrl -s " ++ show (workspace-1)
 
 clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
-clickR = return $ Just $ "pkill " ++ process ++ " ; sleep 0.5 ; pidgin-matrix-log-cleanup"
+clickR = return $ Just $ "pkill " ++ process ++ " ; sleep 0.1 ; pidgin-matrix-log-cleanup"
 
 getImage h = do
   pipeFile <- getHomeFile ".purple/plugins/pipe"
