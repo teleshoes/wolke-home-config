@@ -2,10 +2,17 @@
 use strict;
 use warnings;
 
+my $MAX_CHECKS = 5;
+my $CHECK_LIMIT_SECONDS = 10;
+
 my $DISPLAY_MANAGER = "sddm";
 my @CMD_START = ("systemctl", "start", $DISPLAY_MANAGER);
 my @CMD_STOP = ("systemctl", "stop", $DISPLAY_MANAGER);
 
+my $CHECK_FILE = "/tmp/display-manager-tool-check";
+
+sub readCheckFile();
+sub writeCheckFile($);
 sub getRoot(@);
 
 my $usage = "
@@ -16,6 +23,11 @@ my $usage = "
   $0 --stop
     stop display manager:
       @CMD_STOP
+
+  $0 --check
+    stop display manager, if called $MAX_CHECKS times,
+      with $CHECK_LIMIT_SECONDS seconds or less between each call
+    uses $CHECK_FILE for count and timestamp
 ";
 
 sub main(@){
@@ -24,9 +36,65 @@ sub main(@){
     exec @CMD_START;
   }elsif(@_ == 1 and $_[0] =~ /^(--stop)$/){
     exec @CMD_STOP;
+  }elsif(@_ == 1 and $_[0] =~ /^(--check)$/){
+    #read check info
+    my $checkInfo = readCheckFile();
+
+    #reset check info if too old
+    if(defined $$checkInfo{timestamp}){
+      my $elapsed = time - $$checkInfo{timestamp};
+      if($elapsed >= $CHECK_LIMIT_SECONDS){
+        clearCheckFile();
+        $checkInfo = readCheckFile();
+      }
+    }
+
+    #update check info
+    $$checkInfo{count}++;
+    $$checkInfo{timestamp} = time;
+    writeCheckFile $checkInfo;
+
+    #use check info
+    if($$checkInfo{count} >= $MAX_CHECKS){
+      clearCheckFile();
+      exec @CMD_STOP;
+    }
   }else{
     die $usage;
   }
+}
+
+sub readCheckFile(){
+  my $count = 0;
+  my $timestamp = undef;
+  if(-f $CHECK_FILE){
+    open FH, "< $CHECK_FILE" or die "could not read $CHECK_FILE\n$!\n";
+    my @lines = <FH>;
+    close FH;
+    for my $line (@lines){
+      if($line =~ /^\s*count\s*=\s*(\d+)\s*$/){
+        $count = $1;
+      }elsif($line =~ /^\s*timestamp\s*=\s*(\d+)\s*$/){
+        $timestamp = $1;
+      }
+    }
+  }
+  return {
+    count => $count,
+    timestamp => $timestamp,
+  };
+}
+
+sub writeCheckFile($){
+  my ($checkInfo) = @_;
+  open FH, "> $CHECK_FILE" or die "could not write $CHECK_FILE\n$!\n";
+  print FH "count=$$checkInfo{count}\n";
+  print FH "timestamp=$$checkInfo{timestamp}\n";
+  close FH;
+}
+
+sub clearCheckFile($){
+  system "rm", "-f", $CHECK_FILE;
 }
 
 sub getRoot(@){
