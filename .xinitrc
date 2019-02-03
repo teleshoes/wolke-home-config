@@ -2,6 +2,8 @@ resconfig --reset-res
 resconfig --apply
 xconfig
 
+sudo display-manager-tool --check
+
 sudo bluetooth off &
 sudo fan default &
 taffybar-restart --daemon --quiet
