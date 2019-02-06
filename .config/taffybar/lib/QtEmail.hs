@@ -30,8 +30,8 @@ qtemailW h = do
   box <- clickableAsync clickL clickM clickR box
   eboxStyleWrapW box "Email"
 
-emailExec = "email-gui.py"
-process = emailExec
+emailExec = "qtemail-gui-wrapper"
+process = "email-gui.py"
 workspace = 8
 
 binRe = "/(\\S+/)?bin/"
