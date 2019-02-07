@@ -18,6 +18,8 @@ my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
 sub ensureSaveCached($$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
+sub readCachedSaves($);
+sub sha1($);
 sub mtime($);
 sub run(@);
 
@@ -30,6 +32,7 @@ my $usage = "Usage:
   $EXEC
   $EXEC --backup|--save
     take files from $SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
+      skips storing the tarball if an identical one already exists
 ";
 
 sub main(@){
@@ -51,22 +54,27 @@ sub ensureSaveCached($$){
 
   my $currentSaveTar = fetchCurrentSaveTar($saveDir);
   my $currentSaveMtime = fetchCurrentSaveMtime($saveDir);
+  my $currentSaveSha1 = sha1 $currentSaveTar;
 
   run "mkdir", "-p", $cacheDir if not -d $cacheDir;
   if(not -d $cacheDir){
     die "ERROR: cache dir does not exist: $cacheDir\n";
   }
 
-  my $millis = int(time * 1000.0 + 0.5);
-
-  my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
-  chomp $datetimeFmt;
-  my $saveFileCache = "$cacheDir/${datetimeFmt}_${millis}.tar.xz";
-  run "xz --compress --stdout $currentSaveTar > $saveFileCache";
-  if(not -f $saveFileCache){
-    die "ERROR: could not create file $saveFileCache\n";
+  my $saves = readCachedSaves($cacheDir);
+  if(defined $$saves{$currentSaveSha1}){
+    my $file = $$saves{$currentSaveSha1}{file};
+    print "save already cached: $file\n";
+  }else{
+    my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
+    chomp $datetimeFmt;
+    my $saveFileCache = "$cacheDir/${datetimeFmt}_${currentSaveSha1}.tar.xz";
+    run "xz --compress --stdout $currentSaveTar > $saveFileCache";
+    if(not -f $saveFileCache){
+      die "ERROR: could not create file $saveFileCache\n";
+    }
+    run "touch", $saveFileCache, "--date", "\@$currentSaveMtime";
   }
-  run "touch", $saveFileCache, "--date", "\@$currentSaveMtime";
 
   run "rm", $currentSaveTar;
 }
@@ -100,6 +108,39 @@ sub fetchCurrentSaveMtime($){
     }
   }
   return $maxMtime;
+}
+
+sub readCachedSaves($){
+  my ($cacheDir) = @_;
+  my @cacheSaves = glob "$cacheDir/*.tar.xz";
+  my $saves = {};
+  for my $file(@cacheSaves){
+    if($file =~ /^$cacheDir\/(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)_([0-9a-f]{40})\.tar\.xz$/){
+      my ($date, $time, $sha1) = ($1, $2, $3);
+      $$saves{$sha1} = {
+        file => $file,
+        date => $date,
+        time => $time,
+        sha1 => $sha1,
+      };
+    }
+  }
+  return $saves;
+}
+
+sub sha1($){
+  my ($file) = @_;
+  if(not -f $file){
+    die "ERROR: could not read $file\n";
+  }
+  open FH, "-|", "sha1sum", $file;
+  my $sha1sum = <FH>;
+  close FH;
+  if($sha1sum =~ /^([0-9a-f]{40})\s+$file$/){
+    return $1;
+  }else{
+    die "ERROR: could not sha1sum $file\n";
+  }
 }
 
 sub mtime($){
