@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(time);
+
+my $STEAM_DIR_BASE = "$ENV{HOME}/.steam/steam";
+my $SAVE_DIR_PATTERN = ""
+  . "steamapps/compatdata/"
+  . "*/" #app ID, should be: 701160
+  . "pfx/drive_c/users/steamuser/"
+  . "AppData/LocalLow/noio/KingdomTwoCrowns/Release"
+;
+
+my $SAVE_DIR = glob("$STEAM_DIR_BASE/$SAVE_DIR_PATTERN");
+my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
+
+sub ensureSaveCached($$);
+sub fetchCurrentSaveTar($);
+sub fetchCurrentSaveMtime($);
+sub mtime($);
+sub run(@);
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC
+  $EXEC --backup|--save
+    take files from $SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--backup|--save)$/)){
+    ensureSaveCached($SAVE_DIR, $CACHE_DIR);
+  }else{
+    die $usage;
+  }
+}
+
+sub ensureSaveCached($$){
+  my ($saveDir, $cacheDir) = @_;
+  if(not defined $saveDir or not -d $saveDir){
+    die "ERROR: save dir does not exist: $saveDir\n";
+  }
+
+  my $currentSaveTar = fetchCurrentSaveTar($saveDir);
+  my $currentSaveMtime = fetchCurrentSaveMtime($saveDir);
+
+  run "mkdir", "-p", $cacheDir if not -d $cacheDir;
+  if(not -d $cacheDir){
+    die "ERROR: cache dir does not exist: $cacheDir\n";
+  }
+
+  my $millis = int(time * 1000.0 + 0.5);
+
+  my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
+  chomp $datetimeFmt;
+  my $saveFileCache = "$cacheDir/${datetimeFmt}_${millis}.tar.xz";
+  run "xz --compress --stdout $currentSaveTar > $saveFileCache";
+  if(not -f $saveFileCache){
+    die "ERROR: could not create file $saveFileCache\n";
+  }
+  run "touch", $saveFileCache, "--date", "\@$currentSaveMtime";
+
+  run "rm", $currentSaveTar;
+}
+
+sub fetchCurrentSaveTar($){
+  my ($saveDir) = @_;
+  die "ERROR: could not find dir $saveDir\n" if not -d $saveDir;
+
+  my $millis = int(time * 1000.0 + 0.5);
+  my $oldPWD = $ENV{PWD};
+  chdir $saveDir;
+  $ENV{PWD} = $saveDir;
+
+  my $tmpTar = "/tmp/kingdom-save-$millis.tar";
+  run "tar", "-cf", $tmpTar, glob "*";
+
+  chdir $oldPWD;
+  $ENV{PWD} = $oldPWD;
+
+  return $tmpTar;
+}
+
+sub fetchCurrentSaveMtime($){
+  my ($saveDir) = @_;
+  my @files = glob "$saveDir/*";
+  my $maxMtime = undef;
+  for my $file(@files){
+    my $mtime = mtime $file;
+    if(not defined $maxMtime or $mtime > $maxMtime){
+      $maxMtime = $mtime;
+    }
+  }
+  return $maxMtime;
+}
+
+sub mtime($){
+  return (stat $_[0])[9];
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
