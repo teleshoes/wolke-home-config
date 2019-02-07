@@ -15,6 +15,8 @@ my $SAVE_DIR_PATTERN = ""
 my $SAVE_DIR = glob("$STEAM_DIR_BASE/$SAVE_DIR_PATTERN");
 my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
 
+sub extractTarToSaveDir($$);
+sub removeCurrentSave($);
 sub ensureSaveCached($$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
@@ -33,6 +35,17 @@ my $usage = "Usage:
   $EXEC --backup|--save
     take files from $SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
       skips storing the tarball if an identical one already exists
+
+  $EXEC --restore TAR_BALL
+    takes a (compressed or uncompressed) tar ball
+      and extracts it to the save dir, after backing up the contents
+    -backup like in $EXEC --backup
+    -MOVE files from
+      $SAVE_DIR/
+      to
+      /tmp/kingdom-save-backup-<MILLIS>
+    -extract <TAR_BALL> to
+      $SAVE_DIR
 ";
 
 sub main(@){
@@ -41,9 +54,32 @@ sub main(@){
     exit 0;
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--backup|--save)$/)){
     ensureSaveCached($SAVE_DIR, $CACHE_DIR);
+  }elsif(@_ == 2 and $_[0] =~ /^(--restore)$/ and -f $_[1]){
+    my $tarFile = $_[1];
+    print "\nCACHING CURRENT SAVE:\n";
+    ensureSaveCached($SAVE_DIR, $CACHE_DIR);
+
+    print "\nREMOVING CURRENT SAVE:\n";
+    removeCurrentSave($SAVE_DIR);
+
+    print "\nEXTRACTING NEW SAVE:\n";
+    extractTarToSaveDir($tarFile, $SAVE_DIR);
   }else{
     die $usage;
   }
+}
+
+sub extractTarToSaveDir($$){
+  my ($tarFile, $saveDir) = @_;
+  run "tar", "-xf", $tarFile, "-C", $SAVE_DIR;
+}
+
+sub removeCurrentSave($){
+  my ($saveDir) = @_;
+  my $millis = int(time * 1000.0 + 0.5);
+  my $tmpDir = "/tmp/kingdom-save-backup-$millis";
+  run "mkdir", "-p", $tmpDir;
+  run "mv", glob("$saveDir/*"), "$tmpDir/";
 }
 
 sub ensureSaveCached($$){
