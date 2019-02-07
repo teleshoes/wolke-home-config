@@ -30,27 +30,27 @@ qtemailW h = do
   box <- clickableAsync clickL clickM clickR box
   eboxStyleWrapW box "Email"
 
-emailExec = "qtemail-gui-wrapper"
-process = "email-gui.py"
+emailGuiExec = "qtemail-gui-wrapper"
+emailGuiProc = "email-gui.py"
 workspace = 8
 
 binRe = "/(\\S+/)?bin/"
-daemonExecRe = "(" ++ binRe ++ ")?" ++ "daemon"
-pythonExecRe = "(" ++ binRe ++ ")?" ++ "python"
-emailExecRe = "(" ++ binRe ++ ")?" ++ emailExec
+daemonProcRe = "(" ++ binRe ++ ")?" ++ "daemon"
+pythonProcRe = "(" ++ binRe ++ ")?" ++ "python[0-9\\.]*"
+emailGuiProcRe = "(" ++ binRe ++ ")?" ++ emailGuiProc
 
-runCmd = "daemon " ++ emailExec
+runCmd = "daemon " ++ emailGuiExec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
-clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
+clickL = ifM (isRunning emailGuiProc) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
 clickR = return $ Just $ ""
-  ++ "   pkill -9 -f '^" ++ daemonExecRe ++ " " ++ emailExecRe ++ "$'"
-  ++ " ; pkill -9 -f '^" ++ pythonExecRe ++ " " ++ emailExecRe ++ "$'"
-  ++ " ; pkill -9 -f '^" ++ emailExecRe ++ "$'"
+  ++ "   pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "'"
+  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "'"
+  ++ " ; pkill -9 -f '^" ++ emailGuiProcRe ++ "$'"
 
 getImage h = do
-  running <- isRunning process
+  running <- isRunning emailGuiProc
   dir <- imageDir h
   let img = if running then "qtemail-on.png" else "qtemail-off.png"
   return $ dir ++ "/" ++ img
