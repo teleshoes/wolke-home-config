@@ -10,6 +10,7 @@ sub ensureSaveCached($$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
 sub readCachedSaves($);
+sub getCachedSaveByIndex($$);
 sub sha1($);
 sub mtime($);
 sub run(@);
@@ -47,6 +48,15 @@ my $usage = "Usage:
       /tmp/kingdom-save-backup-<MILLIS>
     -extract <TAR_BALL> to
       $SAVE_DIR_PATTERN
+
+  $EXEC --restore INDEX
+    same as `$EXEC --restore <TAR_BALL>`,
+      after finding <TAR_BALL> in $CACHE_DIR based on <INDEX>:
+        0   => most recent save
+        1   => second-most recent save
+        2   => third-most recent save
+        ...
+    NOTE: <TAR_BALL> is selected based on <INDEX> BEFORE backing up current
 ";
 
 sub main(@){
@@ -55,8 +65,14 @@ sub main(@){
     exit 0;
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--backup|--save)$/)){
     ensureSaveCached($SAVE_DIR, $CACHE_DIR);
-  }elsif(@_ == 2 and $_[0] =~ /^(--restore)$/ and -f $_[1]){
-    my $tarFile = $_[1];
+  }elsif(@_ == 2 and $_[0] =~ /^(--restore)$/){
+    my $tarFile;
+    if(-f $_[1]){
+      $tarFile = $_[1];
+    }elsif($_[1] =~ /^\d+$/){
+      $tarFile = ${getCachedSaveByIndex($_[1], $CACHE_DIR)}{file};
+    }
+
     print "\nCACHING CURRENT SAVE:\n";
     ensureSaveCached($SAVE_DIR, $CACHE_DIR);
 
@@ -164,6 +180,21 @@ sub readCachedSaves($){
     }
   }
   return $saves;
+}
+
+sub getCachedSaveByIndex($$){
+  my ($index, $cacheDir) = @_;
+  my %mtimesBySha1;
+  my @saves = values %{readCachedSaves $cacheDir};
+  for my $save(@saves){
+    $mtimesBySha1{$$save{sha1}} = mtime $$save{file};
+  }
+  @saves = reverse sort {$mtimesBySha1{$$a{sha1}} <=> $mtimesBySha1{$$b{sha1}}} @saves;
+  if($index >= @saves){
+    my $cnt = @saves;
+    die "ERROR: save index '$index' is too large (there are $cnt saves)\n";
+  }
+  return $saves[$index];
 }
 
 sub sha1($){
