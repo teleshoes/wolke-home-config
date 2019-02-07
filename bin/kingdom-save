@@ -4,15 +4,17 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
-my $STEAM_DIR_BASE = "$ENV{HOME}/.steam/steam";
+sub globOne($);
+
 my $SAVE_DIR_PATTERN = ""
+  . "$ENV{HOME}/.steam/steam/"
   . "steamapps/compatdata/"
   . "*/" #app ID, should be: 701160
   . "pfx/drive_c/users/steamuser/"
   . "AppData/LocalLow/noio/KingdomTwoCrowns/Release"
 ;
 
-my $SAVE_DIR = glob("$STEAM_DIR_BASE/$SAVE_DIR_PATTERN");
+my $SAVE_DIR = globOne($SAVE_DIR_PATTERN);
 my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
 
 sub extractTarToSaveDir($$);
@@ -125,7 +127,7 @@ sub fetchCurrentSaveTar($){
   $ENV{PWD} = $saveDir;
 
   my $tmpTar = "/tmp/kingdom-save-$millis.tar";
-  run "tar", "-cf", $tmpTar, glob "*";
+  run "tar", "-cf", $tmpTar, glob("*");
 
   chdir $oldPWD;
   $ENV{PWD} = $oldPWD;
@@ -135,7 +137,7 @@ sub fetchCurrentSaveTar($){
 
 sub fetchCurrentSaveMtime($){
   my ($saveDir) = @_;
-  my @files = glob "$saveDir/*";
+  my @files = glob("$saveDir/*");
   my $maxMtime = undef;
   for my $file(@files){
     my $mtime = mtime $file;
@@ -148,7 +150,7 @@ sub fetchCurrentSaveMtime($){
 
 sub readCachedSaves($){
   my ($cacheDir) = @_;
-  my @cacheSaves = glob "$cacheDir/*.tar.xz";
+  my @cacheSaves = glob("$cacheDir/*.tar.xz");
   my $saves = {};
   for my $file(@cacheSaves){
     if($file =~ /^$cacheDir\/(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)_([0-9a-f]{40})\.tar\.xz$/){
@@ -186,6 +188,18 @@ sub mtime($){
 sub run(@){
   print "@_\n";
   system @_;
+}
+
+sub globOne($){
+  my ($ptrn) = @_;
+  my @files = glob($ptrn);
+  if(@files == 0){
+    return undef;
+  }elsif(@files > 1){
+    die "glob pattern matched more than one file: $ptrn\n";
+  }else{
+    return $files[0];
+  }
 }
 
 &main(@ARGV);
