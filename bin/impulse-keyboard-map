@@ -1,0 +1,109 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $MAP = {
+  "LatW" => "LatM",
+  "LatA" => "LatA",
+  "LatS" => "LatW",
+  "LatD" => "LatV",
+  "ESC"  => "LatU",
+  "LatN" => "LatN",
+
+  #fill in swapped keys
+  "LatU" => "ESC" ,
+  "LatM" => "LatS",
+  "LatV" => "LatD",
+};
+
+my $xkbFile = "$ENV{HOME}/.config/impulse-keyboard/original.xkb";
+
+sub getAliases();
+sub getCodes();
+sub getDevId();
+sub run(@);
+
+sub main(@){
+  my $devId = getDevId();
+  if(defined $devId and $devId =~ /^\d+$/){
+    print "device ID: $devId\n";
+  }else{
+    die "ERROR: could not get device ID with xinput\n";
+  }
+
+  my $aliases = getAliases();
+  my $codes = getCodes();
+
+  my $nameMap = {};
+  for my $key(sort keys %$MAP){
+    my $val = $$MAP{$key};
+    $key = $$aliases{$key} if defined $$aliases{$key};
+    $val = $$aliases{$val} if defined $$aliases{$val};
+    $$nameMap{$key} = $val;
+  }
+
+  my $newCodes = {};
+  for my $key(sort keys %$nameMap){
+    my $val = $$nameMap{$key};
+    my $code = $$codes{$val};
+    $$newCodes{$key} = $code;
+  }
+
+  my @lines = `cat $xkbFile`;
+  for my $line(@lines){
+    if($line =~ /^(\s*)<(\w+)>(\s*)=(\s*)(\d+)(\s*);$/){
+      my ($ws1, $name, $ws2, $ws3, $code, $ws4) = ($1, $2, $3, $4, $5, $6);
+      if(defined $$newCodes{$name}){
+        $line = "$ws1<$name>$ws2=$ws3$$newCodes{$name}$ws4;\n";
+      }
+    }
+  }
+
+  my $nowMillis = int(time * 1000.0 + 0.5);
+  my $tmpXkbFile = "/tmp/impulse-keyboard-$nowMillis.xkb";
+  open FH, "> $tmpXkbFile";
+  print FH @lines;
+  close FH;
+
+  run "xkbcomp", "-i", $devId, $tmpXkbFile, $ENV{DISPLAY};
+}
+
+sub getAliases(){
+  my @lines = `cat $xkbFile`;
+  my $aliases = {};
+  for my $line(@lines){
+    if($line =~ /alias <(\w+)> = <(\w+)>;/){
+      $$aliases{$1} = $2;
+    }
+  }
+  return $aliases;
+}
+
+sub getCodes(){
+  my @lines = `cat $xkbFile`;
+  my $codes = {};
+  for my $line(@lines){
+    if($line =~ /^\s+<(\w+)> = (\d+);$/){
+      $$codes{$1} = $2;
+    }
+  }
+  return $codes;
+}
+
+sub getDevId(){
+  my @lines = `xinput -list`;
+  for my $line(@lines){
+    if($line =~ /iMpulse v\d+\.\d+ \w+ Keyboard\s+id=(\d+)\s+/){
+      return $1;
+    }
+  }
+  return undef;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
