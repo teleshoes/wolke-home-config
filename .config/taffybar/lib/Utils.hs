@@ -1,6 +1,6 @@
 module Utils(
   defaultDelay, getHome, getHomeFile,
-  getExactImageDir, selectClosestImageSize,
+  getExactImageDir, selectClosestImageDir, selectClosestImageSize,
   availableImageDirSizes,
   maybeJoin,
   fg, bg, fgbg,
@@ -23,7 +23,7 @@ import Control.Concurrent (
   forkIO, threadDelay,
   Chan, writeChan, writeList2Chan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
-import Control.Monad (forever, join, void)
+import Control.Monad ((<=<), forever, join, void)
 
 import Data.Char (chr)
 import Data.List (intercalate, partition, sort, transpose)
@@ -78,6 +78,9 @@ getExactImageDir :: Int -> IO String
 getExactImageDir imgSize = do
   baseDir <- imageBaseDir
   return $ baseDir ++ show imgSize
+
+selectClosestImageDir :: Int -> IO String
+selectClosestImageDir = getExactImageDir <=< selectClosestImageSize
 
 selectClosestImageSize :: Int -> IO Int
 selectClosestImageSize desiredHeight = do
