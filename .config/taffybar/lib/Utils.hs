@@ -1,6 +1,6 @@
 module Utils(
   defaultDelay, getHome, getHomeFile,
-  getExactImageDir,
+  getExactImageDir, selectClosestImageSize,
   availableImageDirSizes,
   maybeJoin,
   fg, bg, fgbg,
@@ -69,9 +69,21 @@ defaultDelay = 1
 getHome = getEnv "HOME"
 getHomeFile file = fmap (++ "/" ++ file) getHome
 
+defaultImageSize = 24
+
+imageBaseDir :: IO String
 imageBaseDir = getHomeFile ".config/taffybar/icons/"
 
-getExactImageDir h = fmap (\dir -> dir ++ show h) imageBaseDir
+getExactImageDir :: Int -> IO String
+getExactImageDir imgSize = do
+  baseDir <- imageBaseDir
+  return $ baseDir ++ show imgSize
+
+selectClosestImageSize :: Int -> IO Int
+selectClosestImageSize desiredHeight = do
+  avail <- availableImageDirSizes
+  let okSizes = filter (<=desiredHeight) avail
+  return $ if length okSizes == 0 then defaultImageSize else maximum okSizes
 
 availableImageDirSizes :: IO [Int]
 availableImageDirSizes = do

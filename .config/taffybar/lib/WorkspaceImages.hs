@@ -1,5 +1,5 @@
 module WorkspaceImages (getIcon, loadIconInitialState) where
-import Utils (getExactImageDir, availableImageDirSizes, tryMaybe)
+import Utils (getExactImageDir, selectClosestImageSize, tryMaybe)
 
 import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufGetHeight, pixbufNewFromFile)
 import GI.Gtk.Enums (Orientation(..))
@@ -25,16 +25,9 @@ data IconInitialState = IconInitialState { namedIconFileMap :: [(IconName, FileP
                                          , wsImageHeight :: Int
                                          } deriving Show
 type IconName = String
-defaultImageSize = 24
 
-selectImageSize :: Int -> IO Int
-selectImageSize height = do
-  avail <- availableImageDirSizes
-  let okSizes = filter (<=height) avail
-  return $ if length okSizes == 0 then defaultImageSize else maximum okSizes
-
-wsImageDir :: Int -> IO String
-wsImageDir imageSize = fmap (++ "/workspace-images") $ getExactImageDir imageSize
+wsImageDir :: String -> String
+wsImageDir imgDir = imgDir ++ "/workspace-images"
 
 getIcon :: IconInitialState -> WindowIconPixbufGetter
 getIcon state =
@@ -49,15 +42,16 @@ getIcon state =
         size = fromIntegral $ wsImageHeight state :: Int32
 
 loadIconInitialState :: Int -> IO IconInitialState
-loadIconInitialState height = do
-  imageSize <- selectImageSize height
-  dir <- wsImageDir imageSize
+loadIconInitialState desiredHeight = do
+  imgSize <- selectClosestImageSize desiredHeight
+  imgDir <- getExactImageDir imgSize
+  let dir = wsImageDir imgDir
   files <- fmap (fromMaybe []) $ tryMaybe $ listDirectory dir
   let pngs = filter (".png" `isSuffixOf`) files
       names = map (map toLower . reverse . drop 4 . reverse) pngs
       filePaths = map (\name -> dir ++ "/" ++ name ++ ".png") names
   return $ IconInitialState { namedIconFileMap = zip names filePaths
-                            , wsImageHeight = imageSize
+                            , wsImageHeight = imgSize
                             }
 
 scalePixbuf :: Int32 -> WindowIconPixbufGetter -> WindowIconPixbufGetter
