@@ -1,5 +1,7 @@
 module Utils(
-  defaultDelay, getHome, getHomeFile, imageDir, availableImageDirSizes,
+  defaultDelay, getHome, getHomeFile,
+  getExactImageDir,
+  availableImageDirSizes,
   maybeJoin,
   fg, bg, fgbg,
   rowW, colW, containerW, eboxStyleWrapW,
@@ -69,7 +71,7 @@ getHomeFile file = fmap (++ "/" ++ file) getHome
 
 imageBaseDir = getHomeFile ".config/taffybar/icons/"
 
-imageDir h = fmap (\dir -> dir ++ show h) imageBaseDir
+getExactImageDir h = fmap (\dir -> dir ++ show h) imageBaseDir
 
 availableImageDirSizes :: IO [Int]
 availableImageDirSizes = do

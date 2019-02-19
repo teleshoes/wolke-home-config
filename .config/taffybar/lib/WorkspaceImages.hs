@@ -1,5 +1,5 @@
 module WorkspaceImages (getIcon, loadIconInitialState) where
-import Utils (imageDir, availableImageDirSizes, tryMaybe)
+import Utils (getExactImageDir, availableImageDirSizes, tryMaybe)
 
 import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufGetHeight, pixbufNewFromFile)
 import GI.Gtk.Enums (Orientation(..))
@@ -34,7 +34,7 @@ selectImageSize height = do
   return $ if length okSizes == 0 then defaultImageSize else maximum okSizes
 
 wsImageDir :: Int -> IO String
-wsImageDir imageSize = fmap (++ "/workspace-images") $ imageDir imageSize
+wsImageDir imageSize = fmap (++ "/workspace-images") $ getExactImageDir imageSize
 
 getIcon :: IconInitialState -> WindowIconPixbufGetter
 getIcon state =

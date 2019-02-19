@@ -5,7 +5,7 @@ import Image (imageW)
 import System.Environment (getEnv)
 import Control.Monad (forever)
 import Data.Char (toLower)
-import Utils (getHomeFile, ifM, imageDir, chompAll, isRunning, chompFile)
+import Utils (getHomeFile, ifM, getExactImageDir, chompAll, isRunning, chompFile)
 
 main = mainLabel $ getImage 0
 pidginPipeW h = clickableAsync clickL clickM clickR =<< imageW (getImage h)
@@ -31,7 +31,7 @@ getImage h = do
 
   pidginRunning <- if status == "off" then return False else isRunning exec
 
-  dir <- imageDir h
+  dir <- getExactImageDir h
   let img = if pidginRunning then imgName status else imgName "off"
   return $ dir ++ "/pidgin/" ++ img ++ ".png"
 
