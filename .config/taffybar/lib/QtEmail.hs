@@ -3,7 +3,7 @@ import Clickable (clickableAsync)
 import Image (imageW)
 import Label (labelW, mainLabel)
 import Utils (
-  eboxStyleWrapW, ifM, getExactImageDir, fg, getHomeFile, isRunning, chompFile)
+  eboxStyleWrapW, ifM, selectClosestImageDir, fg, getHomeFile, isRunning, chompFile)
 
 import GI.Gtk.Enums (
   Orientation(OrientationHorizontal))
@@ -51,7 +51,7 @@ clickR = return $ Just $ ""
 
 getImage h = do
   running <- isRunning emailGuiProc
-  dir <- getExactImageDir h
+  dir <- selectClosestImageDir h
   let img = if running then "qtemail-on.png" else "qtemail-off.png"
   return $ dir ++ "/" ++ img
 

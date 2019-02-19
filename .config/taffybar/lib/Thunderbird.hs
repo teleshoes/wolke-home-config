@@ -3,7 +3,7 @@ import Clickable (clickable)
 import Image (imageW)
 import Label (labelW, mainLabel)
 import Utils (
-  eboxStyleWrapW, getExactImageDir, fg, getHome, regexGroups, chompAll, padL,
+  eboxStyleWrapW, selectClosestImageDir, fg, getHome, regexGroups, chompAll, padL,
   isRunning, readProc, chompFile)
 
 import GI.Gtk.Enums (
@@ -49,7 +49,7 @@ accounts = M.fromList [ ("Gmail", "G")
 
 getImage h = do
   tbRunning <- isRunning process
-  dir <- getExactImageDir h
+  dir <- selectClosestImageDir h
   let img = if tbRunning then "thunderbird-on.png" else "thunderbird-off.png"
   return $ dir ++ "/" ++ img
 
