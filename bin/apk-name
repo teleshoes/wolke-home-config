@@ -1,0 +1,63 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 APP_SHORT_NAME APK_FILE
+    rename APK_FILE using aapt badging info
+
+    new file format is:
+    <APP_SHORT_NAME>_<APP_NAME>_<APP_VERSION_NAME>.apk
+    e.g.: chrome_com.android.chrome_67.0.3396.87.apk
+";
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($appShortName, $apkFile) = @_;
+  if($appShortName !~ /^[a-zA-Z0-9]+$/){
+    die "$usage\nERROR: APP_SHORT_NAME can only contain letters or numbers\n"
+  }
+  if(not -f $apkFile or $apkFile !~ /\.apk/i){
+    die "$usage\nERROR: $apkFile must exist and end in .apk\n";
+  }
+
+  my @aaptLines = `aapt dump badging "$apkFile"`;
+  my %info;
+  for my $line(@aaptLines){
+    $info{name} = $1    if $line =~ /^package:.*\sname=['"]([^'"]+)['"]/;
+    $info{version} = $1 if $line =~ /^package:.*\sversionName=['"]([^'"]+)['"]/;
+  }
+
+  die "ERROR: could not find app name with aapt\n" if not defined $info{name};
+  die "ERROR: could not find app version with aapt\n" if not defined $info{version};
+
+  if($info{name} !~ /^[a-zA-Z0-9_\-\.]+$/){
+    die "ERROR: app name can container only letters/numbers/underscores/hyphens/periods\n";
+  }
+  if($info{version} !~ /^[a-zA-Z0-9_\-\.]+$/){
+    die "ERROR: app version can container only letters/numbers/underscores/hyphens/periods\n";
+  }
+
+  my $newApkFileName = "${appShortName}_$info{name}_$info{version}.apk";
+
+  my $newApkFile = $apkFile;
+  if($newApkFile !~ s/(^|.*\/)([^\/]+\.apk)$/$1$newApkFileName/i){
+    die "ERROR: could not generate new apk file path\n";
+  }
+
+  if($apkFile eq $newApkFile){
+    print "apk filename already matches\n";
+    exit 0;
+  }
+
+  if(-e $newApkFile){
+    die "ERROR: $newApkFile already exists\n";
+  }
+
+  my @cmd = ("mv", $apkFile, $newApkFile);
+  print "@cmd\n";
+  system @cmd;
+  die "ERROR: error running @cmd\n" if $? != 0;
+}
+
+&main(@ARGV);
