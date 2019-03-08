@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(sleep);
 use Text::ParseWords qw(quotewords);
 
 my %synonyms = (
@@ -11,6 +12,7 @@ my %synonyms = (
 my @synonymNames = sort keys %synonyms;
 
 my $cacheFile = "$ENV{HOME}/.cache/xmonad-bindings";
+my $DELAY_MILLIS = 200;
 
 sub pseBindings();
 sub parseBindingName($);
@@ -21,7 +23,7 @@ my $usage = "Usage:
    $0 -h|--help
      Show this message
 
-   $0 <BINDING_NAME>
+   $0 [OPTS] BINDING_NAME
      Read bindings from $cacheFile,
        run key binding for <BINDING_NAME> using xdotool
      BINDING_NAME can also be a synonym, one of: @synonymNames
@@ -47,6 +49,10 @@ my $usage = "Usage:
            e.g.:  \"Windows\", \"Current\", \"Toggle Border\"
                   => windows.current.toggle_border
 
+   OPTS
+     -d | --delay
+       sleep for $DELAY_MILLIS millis before running xdotool
+
    $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
      COMP_LINE  - the full cmdline as a string
@@ -61,7 +67,23 @@ sub main(@){
     generateKeyBindings();
   }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
-  }elsif(@_ == 1){
+  }else{
+    my $useDelay = 0;
+    while(@_ > 1 and $_[0] =~ /^-/){
+      my $arg = shift;
+      if($arg =~ /^(-d|--delay)$/){
+        $useDelay = 1;
+      }else{
+        die "$usage\nunknown option: $arg\n";
+      }
+    }
+
+    die $usage if @_ != 1;
+
+    if($useDelay){
+      sleep ($DELAY_MILLIS / 1000.0);
+    }
+
     my $bindingName = shift;
     my @bindings = parseBindings();
     $bindingName = $synonyms{$bindingName} if defined $synonyms{$bindingName};
@@ -73,8 +95,6 @@ sub main(@){
       }
     }
     die "Missing binding: $bindingName\n";
-  }else{
-    die $usage;
   }
 }
 
@@ -139,9 +159,15 @@ sub bashComplete($$){
   shift @words;
   pop @words if not $isNewWord;
 
+  my @okOpts = qw(-d --delay);
+
+  while(@words > 0 and $words[0] =~ /^-/){
+    shift @words;
+  }
+
   if(@words == 0){
     my @bindingNames = map {$$_[2]} parseBindings();
-    return (@synonymNames, @bindingNames, "--gen", "--bash-complete");
+    return (@synonymNames, @bindingNames, @okOpts, "--gen", "--bash-complete");
   }
 
   return ();
