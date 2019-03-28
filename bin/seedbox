@@ -247,9 +247,14 @@ sub handleTorrent($$){
   }
 
   if(defined $torrentFile){
-    scpTo $config, $torrentFile, "$remoteTorrentDir/";
-    print "\ncopied to '$remoteTorrentDir'\n";
-    return 1;
+    my $statusOk = scpTo $config, $torrentFile, "$remoteTorrentDir/";
+    if($statusOk){
+      print "\ncopied to '$remoteTorrentDir'\n";
+      return 1;
+    }else{
+      print STDERR "\nWARN: scp failed for: $torrent\n";
+      return 0;
+    }
   }else{
     print STDERR "\nWARN: could not make torrent file from: $torrent\n";
     return 0;
@@ -364,6 +369,12 @@ sub scpTo($$$){
   my @scpCmd = ("scp", $srcLocalFile, "$$config{username}\@$$config{server}:$destRemoteFile");
   print STDERR "@scpCmd\n";
   system @scpCmd;
+
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 sub scpFrom($$$){
   my ($config, $srcRemoteFile, $destLocalFile) = @_;
