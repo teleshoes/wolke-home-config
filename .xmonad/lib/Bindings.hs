@@ -207,6 +207,9 @@ shortcuts conf = "Shortcuts" @@ do
         "outlet"        @@ mC    xK_PgDn #! "ipmagic raspi outlet"
         "outlet wait"   @@ mCS   xK_PgDn #! "term 'ipmagic raspi outlet --wait'"
 
+    "sx"            @@ do
+        "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
+
     "Klomp"         @@ do
         "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
         "prev"        @@ mW    xK_z    #! "klomp-cmd prev"
