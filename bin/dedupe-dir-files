@@ -1,0 +1,142 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Cwd 'abs_path';
+use Digest::SHA;
+
+my $usage = "Usage:
+  $0 -h|--help
+    print this message
+
+  $0 --remove-dupes DIR
+    -list all normal files in DIR
+      (non-directory, non-special, non-symlink file only, not recursively)
+    -group all files with the same filesize in bytes
+      (for speed, to avoid unnecessary checksums)
+    -for size-groups with more than one file, generate SHA-256 checksums
+    -group all files with the same SHA-256 checksum
+    -select one canonical file in each checksum-group
+       (earliest mod time, using asciibetically-first filename to tie-break)
+    -for the rest of the files in each checksum group:
+      1) delete the dupe file
+      2) replace dupe file with a symlink to the canonical file
+      3) set the mod time of the symlink (touch -h) to the dupe file's mod time
+
+  $0 DIR
+  $0 -n|-s|--no-act|--dry-run DIR
+    print the rm/ln/touch commands that --remove-dupes would run
+";
+
+sub checksumFile($);
+
+sub main(@){
+  my $dryRun = 1;
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $opt = shift @_;
+    if($opt =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($opt =~ /^(--remove-dupes)$/){
+      $dryRun = 0;
+    }elsif($opt =~ /^(-n|-s|--no-act|--dry-run)$/){
+      $dryRun = 1;
+    }else{
+      die "$usage\nunknown option: $opt\n";
+    }
+  }
+
+  my $dir = shift @_;
+  die $usage if @_ > 0 or not defined $dir;
+  die "$usage\n$dir is not a directory\n" if not -d $dir;
+
+  my $dirAbsPath = abs_path $dir;
+  die "ERROR: $dirAbsPath is not a dir\n" if not -d $dirAbsPath;
+
+  chdir $dirAbsPath or die "could not change dir to $dirAbsPath\n";
+  $ENV{PWD} = $dirAbsPath;
+
+  #check `pwd` command just in case chdir failed somehow
+  my $pwd = `pwd`;
+  chomp $pwd;
+  if($pwd ne $dirAbsPath){
+    die "DIR MISMATCH:\n$pwd\n$dirAbsPath\n";
+  }
+
+  my @files = grep {-f $_ and not -l $_} glob "*";
+  print "$dirAbsPath: " . @files . " files\n";
+
+  my %fsizes;
+  my %mtimes;
+  for my $file(@files){
+    my @stat = stat $file;
+    $fsizes{$file} = $stat[7];
+    $mtimes{$file} = $stat[9];
+  }
+
+  my %sizeGroups;
+  for my $file(@files){
+    my $fsize = $fsizes{$file};
+    if(not defined $sizeGroups{$fsize}){
+      $sizeGroups{$fsize} = [];
+    }
+    push @{$sizeGroups{$fsize}}, $file;
+  }
+
+  my %checksumGroups;
+  for my $fsize(sort keys %sizeGroups){
+    my @groupFiles = @{$sizeGroups{$fsize}};
+    if(@groupFiles > 1){
+      for my $file(@groupFiles){
+        my $checksum = checksumFile $file;
+        if(not defined $checksumGroups{$checksum}){
+          $checksumGroups{$checksum} = [];
+        }
+        push @{$checksumGroups{$checksum}}, $file;
+      }
+    }
+  }
+
+  for my $checksum(sort keys %checksumGroups){
+    my @groupFiles = @{$checksumGroups{$checksum}};
+    if(@groupFiles > 1){
+      my @dupeFiles = @groupFiles;
+      @dupeFiles = sort {$mtimes{$a} <=> $mtimes{$b} || $a cmp $b} @dupeFiles;
+      my $canonicalFile = shift @dupeFiles;
+
+      print "DUPES OF $canonicalFile - " . @dupeFiles . "\n";
+      for my $file(@dupeFiles){
+        my @cmdRm = ("rm", "-f", $file);
+        my @cmdSym = ("ln", "-s", $canonicalFile, $file);
+        my @cmdTouch = ("touch", "-h", "--date", "\@$mtimes{$file}", $file);
+
+        print "  @cmdRm\n";
+        if(not $dryRun){
+          system @cmdRm;
+          die "error running rm\n$!\n  #@cmdRm\n  #@cmdSym\n  #@cmdTouch\n" if $? != 0;
+        }
+
+        print "  @cmdSym\n";
+        if(not $dryRun){
+          system @cmdSym;
+          die "error running ln\n$!\n  #@cmdRm\n  #@cmdSym\n  #@cmdTouch\n" if $? != 0;
+        }
+
+        print "  @cmdTouch\n";
+        if(not $dryRun){
+          system @cmdTouch;
+          die "error running touch\n$!\n  #@cmdRm\n  #@cmdSym\n  #@cmdTouch\n" if $? != 0;
+        }
+      }
+    }
+  }
+}
+
+sub checksumFile($){
+  my ($file) = @_;
+  my $d = Digest::SHA->new(256);
+  $d->addfile($file);
+  my $sha256 = $d->hexdigest();
+  return $sha256;
+}
+
+&main(@ARGV);
