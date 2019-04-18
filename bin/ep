@@ -14,9 +14,13 @@ my $usage = "Usage:
 
   $0 -p|--playlist DIR
     make a playlist from DIR and start at the next file in it
+
+  $0 FILE
+    play FILE
 ";
 
 sub playNextFileInDir($$);
+sub resumeFile($);
 sub mpvPos($@);
 sub histEntryDone($);
 sub parseHistory();
@@ -39,6 +43,9 @@ sub main(@){
     my $dir = abs_path($_[1]);
     die "not a dir: $dir\n" if not -d $dir;
     playNextFileInDir 1, $dir;
+  }elsif(@_ == 1 and -f $_[0]){
+    my $file = abs_path($_[0]);
+    resumeFile $file;
   }else{
     die $usage;
   }
@@ -95,6 +102,22 @@ sub playNextFileInDir($$){
   }
 
   system "rm", $playlistFile;
+}
+
+sub resumeFile($){
+  my ($file) = @_;
+
+  my $startPos = 0;
+
+  my $hist = readHistEntries();
+  for my $entry(@$hist){
+    my $path = $$entry{path};
+    if($file eq $path){
+      $startPos = $$entry{pos};
+    }
+  }
+
+  mpvPos $startPos, $file;
 }
 
 sub mpvPos($@){
