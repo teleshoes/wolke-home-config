@@ -18,6 +18,8 @@ my $usage = "Usage:
       write 'seek SEEK_POS' once to TMPFILE, before writing any get_property commands
 ";
 
+my $MAX_IPC_FAILS = 3;
+
 sub isRunning($);
 sub nowMillis();
 
@@ -58,6 +60,7 @@ sub main(@){
   if($pid == 0){
     exec @mpvCmd;
   }else{
+    my $ipcFailCount = 0;
     open FH, "> $posFile" or die "could not write $posFile\n$!\n";
     while(isRunning $pid){
       sleep 1;
@@ -77,8 +80,12 @@ sub main(@){
           $path =~ s/\\u$hex/$c/g;
         }
         print FH "$pos - $path\n";
+        $ipcFailCount = 0;
       }else{
-        last;
+        $ipcFailCount++;
+        if($ipcFailCount >= $MAX_IPC_FAILS){
+          last;
+        }
       }
     }
     close FH;
