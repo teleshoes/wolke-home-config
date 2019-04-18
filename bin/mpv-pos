@@ -1,0 +1,87 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 --pos-file=POS_FILE [MPV_ARG MPV_ARG ..]
+    -fork and run \"mpv --input-ipc-server=TMPFILE MPV_ARG MPV_ARG\"
+    -write get_property commands to TMPFILE with socat every 1s
+    -read the result and write it to POS_FILE formatted like this:
+       POSITION_SECONDS - FILE_PATH
+";
+
+sub isRunning($);
+sub nowMillis();
+
+sub main(@){
+  my $posFile;
+  my @mpvArgs;
+  if(@_ > 0 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ > 0 and $_[0] =~ /^--pos-file=(.+)$/){
+    $posFile = $1;
+    shift @_;
+    my @mpvArgs = @_;
+  }else{
+    die $usage;
+  }
+
+  my $nowMillis = nowMillis();
+  my $tmpFileSocket = "/tmp/mpv-pos-$nowMillis";
+  print "writing commands to $tmpFileSocket\n";
+  my @mpvCmd = ("mpv", "--input-ipc-server=$tmpFileSocket", @_);
+
+  my $getPosCmdJson = "{\"command\": [\"get_property\", \"playback-time\"]}";
+  my $getPathCmdJson = "{\"command\": [\"get_property\", \"path\"]}";
+
+  my $pid = fork();
+  if($pid == 0){
+    exec @mpvCmd;
+  }else{
+    open FH, "> $posFile" or die "could not write $posFile\n$!\n";
+    while(isRunning $pid){
+      sleep 1;
+      my $cmdRes = `/bin/echo -ne '$getPosCmdJson\\n$getPathCmdJson\\n' | socat - $tmpFileSocket`;
+      if($cmdRes =~ /^
+        \{"data":(\d+|\d*\.\d+),"error":"success"\}\n
+        \{"data":"(.*)","error":"success"\}\n
+      $/x){
+        my ($pos, $path) = ($1, $2);
+        while($path =~ /\\u([0-9a-f]{4})/){
+          my $hex = $1;
+          my $c = chr hex($hex);
+          $path =~ s/\\u$hex/$c/g;
+        }
+        print FH "$pos - $path\n";
+      }else{
+        last;
+      }
+    }
+    close FH;
+    system "kill", "-9", $pid;
+    waitpid $pid, 0;
+    system "rm", $tmpFileSocket;
+    exit 0;
+  }
+}
+
+sub isRunning($){
+  my ($pid) = @_;
+  system "kill", "-0", $pid;
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
