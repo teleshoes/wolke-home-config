@@ -8,6 +8,12 @@ my $DURATION_MIN_GUESS = 60.0;
 
 my $HIST_FILE = "$ENV{HOME}/.cache/ep/hist";
 
+my $usage = "Usage:
+  $0 DIR
+    play next file in DIR
+";
+
+sub playNextFileInDir($$);
 sub mpvPos($@);
 sub histEntryDone($);
 sub parseHistory();
@@ -22,9 +28,17 @@ sub nowMillis();
 sub run(@);
 
 sub main(@){
-  my $dir = $_[0];
-  $dir = abs_path($dir);
-  die "Usage: $0 DIR\n" if not -d $dir;
+  if(@_ == 1 and -d $_[0]){
+    my $dir = abs_path($_[0]);
+    die "not a dir: $dir\n" if not -d $dir;
+    playNextFileInDir 0, $dir;
+  }else{
+    die $usage;
+  }
+}
+
+sub playNextFileInDir($$){
+  my ($usePlaylist, $dir) = @_;
 
   my @findCmd = ("find", $dir, "-maxdepth", 2, "-type", "f");
   open FH, "-|", @findCmd or die "could not run @findCmd\n$!\n";
@@ -62,8 +76,6 @@ sub main(@){
   open FH, "> $playlistFile" or die "could not write $playlistFile\n$!\n";
   print FH "$_\n" foreach @files;
   close FH;
-
-  my $usePlaylist = 0;
 
   if($usePlaylist){
     mpvPos
