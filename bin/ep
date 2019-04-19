@@ -31,6 +31,7 @@ sub filesize($);
 sub duration($);
 sub durationGuess($);
 sub durationOrGuess($);
+sub formatDateTime($);
 sub nowMillis();
 sub run(@);
 
@@ -88,6 +89,23 @@ sub playNextFileInDir($$){
 
   if(not defined $nextFile or not defined $nextFileIndex or not defined $nextFilePos){
     die "could not find next file for $dir\n";
+  }
+
+  my @summaryIndexes = ($nextFileIndex-3 .. $nextFileIndex+1);
+  for my $i(@summaryIndexes){
+    if($i >= 0 and $i <= $#files){
+      my $file = $files[$i];
+      my $entry = $fileHist{$file};
+      my $percent = 0;
+      if(defined $entry and $$entry{dur} > 0){
+        $percent = $$entry{pos} / $$entry{dur} * 100.0;
+      }
+      my $relPath = $file;
+      $relPath =~ s/^\Q$dir\E\/*//;
+      my $marker = $i == $nextFileIndex ? " =>" : "   ";
+      my $dateFmt = defined $entry ? formatDateTime($$entry{date}) : "never";
+      printf "%s %3d%%  %-17s  %s\n", $marker, $percent, $dateFmt, $relPath;
+    }
   }
 
   my $playlistFile = "/tmp/ep-playlist-" . nowMillis();
@@ -249,6 +267,14 @@ sub durationOrGuess($){
   my $dur = duration $_[0];
   $dur = durationGuess $_[0] if not defined $dur;
   return $dur;
+}
+
+sub formatDateTime($){
+  my ($timeMillis) = @_;
+  my $timeSex = int($timeMillis / 1000.0 + 0.5);
+  my $fmt = `date --date=\@$timeSex +'%Y%m%d %H:%M:%S'`;
+  chomp $fmt;
+  return $fmt;
 }
 
 sub nowMillis(){
