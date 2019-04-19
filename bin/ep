@@ -20,10 +20,17 @@ my $usage = "Usage:
 ";
 
 sub playNextFileInDir($$);
+sub getFilesForDir($);
+sub selectNextFileIndex($$);
+sub formatFileSummary($$$$);
 sub resumeFile($);
+sub mpvPosWithPlaylist($$$);
 sub mpvPos($@);
+sub formatHistEntryPercent($);
+sub formatHistEntryDateTime($);
 sub histEntryDone($);
 sub parseHistory();
+sub readHistForFiles($);
 sub readHistEntries();
 sub appendHist($);
 sub mtime($);
@@ -31,7 +38,6 @@ sub filesize($);
 sub duration($);
 sub durationGuess($);
 sub durationOrGuess($);
-sub formatDateTime($);
 sub nowMillis();
 sub run(@);
 
@@ -55,75 +61,82 @@ sub main(@){
 sub playNextFileInDir($$){
   my ($usePlaylist, $dir) = @_;
 
+  my $files = getFilesForDir $dir;
+  my $fileHist = readHistForFiles $files;
+
+  my $nextFileIndex = selectNextFileIndex $files, $fileHist;
+
+  if(not defined $nextFileIndex){
+    die "could not find next file for $dir\n";
+  }
+
+  my $nextFile = $$files[$nextFileIndex];
+  my $nextFilePos = defined $$fileHist{$nextFile} ? $$fileHist{$nextFile}{pos} : 0;
+
+  my $fileSummaryFmt = formatFileSummary $dir, $files, $fileHist, $nextFileIndex;
+
+  print "\n";
+  print "====================\n";
+  print $fileSummaryFmt;
+  print "====================\n\n";
+
+  if($usePlaylist){
+    mpvPosWithPlaylist $files, $nextFileIndex, $nextFilePos;
+  }else{
+    mpvPos $nextFilePos, $nextFile;
+  }
+}
+
+sub getFilesForDir($){
+  my ($dir) = @_;
   my @findCmd = ("find", $dir, "-maxdepth", 2, "-type", "f");
   open FH, "-|", @findCmd or die "could not run @findCmd\n$!\n";
   my @files = <FH>;
   close FH;
   chomp foreach @files;
 
-  my %fileHist;
+  return [@files];
+}
 
-  my $hist = readHistEntries();
-  my %okPaths = map {$_ => 1} @files;
-  for my $entry(@$hist){
-    my $path = $$entry{path};
-    if(defined $okPaths{$path}){
-      $fileHist{$path} = $entry;
-    }
-  }
+sub selectNextFileIndex($$){
+  my ($files, $fileHist) = @_;
 
-  my $nextFile = undef;
   my $nextFileIndex = undef;
-  my $nextFilePos = undef;
-  for(my $i=$#files; $i>=0; $i--){
-    my $file = $files[$i];
-    my $entry = $fileHist{$file};
+  for(my $i=$#$files; $i>=0; $i--){
+    my $file = $$files[$i];
+    my $entry = $$fileHist{$file};
     if(histEntryDone $entry){
       last;
     }else{
-      $nextFile = $file;
       $nextFileIndex = $i;
-      $nextFilePos = defined $entry ? $$entry{pos} : 0;
     }
   }
 
-  if(not defined $nextFile or not defined $nextFileIndex or not defined $nextFilePos){
-    die "could not find next file for $dir\n";
-  }
+  return $nextFileIndex;
+}
 
-  my @summaryIndexes = ($nextFileIndex-3 .. $nextFileIndex+1);
-  for my $i(@summaryIndexes){
-    if($i >= 0 and $i <= $#files){
-      my $file = $files[$i];
-      my $entry = $fileHist{$file};
-      my $percent = 0;
-      if(defined $entry and $$entry{dur} > 0){
-        $percent = $$entry{pos} / $$entry{dur} * 100.0;
-      }
+sub formatFileSummary($$$$){
+  my ($dir, $files, $fileHist, $nextFileIndex) = @_;
+
+  my $fmt = "";
+  for my $i($nextFileIndex-3 .. $nextFileIndex+1){
+    if($i >= 0 and $i <= $#$files){
+      my $file = $$files[$i];
+      my $histEntry = $$fileHist{$file};
+
       my $relPath = $file;
       $relPath =~ s/^\Q$dir\E\/*//;
-      my $marker = $i == $nextFileIndex ? " =>" : "   ";
-      my $dateFmt = defined $entry ? formatDateTime($$entry{date}) : "never";
-      printf "%s %3d%%  %-17s  %s\n", $marker, $percent, $dateFmt, $relPath;
+
+      $fmt .= sprintf "%s %3d%%  %-17s  %s\n",
+                $i == $nextFileIndex ? " =>" : "   ",
+                formatHistEntryPercent($histEntry),
+                formatHistEntryDateTime($histEntry),
+                $relPath,
+                ;
     }
   }
 
-  my $playlistFile = "/tmp/ep-playlist-" . nowMillis();
-  open FH, "> $playlistFile" or die "could not write $playlistFile\n$!\n";
-  print FH "$_\n" foreach @files;
-  close FH;
-
-  if($usePlaylist){
-    mpvPos
-      $nextFilePos,
-      "--playlist=$playlistFile",
-      "--playlist-start=$nextFileIndex",
-      ;
-  }else{
-    mpvPos $nextFilePos, $nextFile;
-  }
-
-  system "rm", $playlistFile;
+  return $fmt;
 }
 
 sub resumeFile($){
@@ -140,6 +153,23 @@ sub resumeFile($){
   }
 
   mpvPos $startPos, $file;
+}
+
+sub mpvPosWithPlaylist($$$){
+  my ($files, $nextFileIndex, $nextFilePos) = @_;
+
+  my $playlistFile = "/tmp/ep-playlist-" . nowMillis();
+  open FH, "> $playlistFile" or die "could not write $playlistFile\n$!\n";
+  print FH "$_\n" foreach @$files;
+  close FH;
+
+  mpvPos
+    $nextFilePos,
+    "--playlist=$playlistFile",
+    "--playlist-start=$nextFileIndex",
+    ;
+
+  system "rm", $playlistFile;
 }
 
 sub mpvPos($@){
@@ -167,6 +197,30 @@ sub mpvPos($@){
   }
 }
 
+sub formatHistEntryPercent($){
+  my ($histEntry) = @_;
+  my $pos = defined $histEntry ? $$histEntry{pos} : undef;
+  my $dur = defined $histEntry ? $$histEntry{dur} : undef;
+  if(defined $pos and defined $dur and $dur >= 0){
+    return 100.0 * $pos / $dur;
+  }else{
+    return 0.0;
+  }
+}
+
+sub formatHistEntryDateTime($){
+  my ($histEntry) = @_;
+  my $dateMillis = defined $histEntry ? $$histEntry{date} : undef;
+  if(not defined $dateMillis){
+    return "never";
+  }else{
+    my $dateSex = int($dateMillis / 1000.0 + 0.5);
+    my $fmt = `date --date=\@$dateSex +'%Y%m%d %H:%M:%S'`;
+    chomp $fmt;
+    return $fmt;
+  }
+}
+
 sub histEntryDone($){
   my ($histEntry) = @_;
   return 0 if not defined $histEntry;
@@ -177,6 +231,23 @@ sub histEntryDone($){
   }else{
     return 0;
   }
+}
+
+sub readHistForFiles($){
+  my ($files) = @_;
+
+  my $allHist = readHistEntries();
+  my %okPaths = map {$_ => 1} @$files;
+
+  my $fileHist = {};
+  for my $entry(@$allHist){
+    my $path = $$entry{path};
+    if(defined $okPaths{$path}){
+      $$fileHist{$path} = $entry;
+    }
+  }
+
+  return $fileHist;
 }
 
 sub readHistEntries(){
@@ -267,14 +338,6 @@ sub durationOrGuess($){
   my $dur = duration $_[0];
   $dur = durationGuess $_[0] if not defined $dur;
   return $dur;
-}
-
-sub formatDateTime($){
-  my ($timeMillis) = @_;
-  my $timeSex = int($timeMillis / 1000.0 + 0.5);
-  my $fmt = `date --date=\@$timeSex +'%Y%m%d %H:%M:%S'`;
-  chomp $fmt;
-  return $fmt;
 }
 
 sub nowMillis(){
