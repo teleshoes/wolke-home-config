@@ -52,13 +52,13 @@ my @ftpInitCmds = (
 my @mirrorOptions = qw(
   --continue
   --verbose
-  --use-pget=3
-  --parallel=2
 );
 my @pgetOptions = qw(
   -c
-  -n 3
 );
+
+my $DEFAULT_PGET_SEGMENTS = 3;
+my $DEFAULT_PARALLEL_FILES = 2;
 
 my $usage = "Usage:
   $0 [--host]
@@ -67,13 +67,34 @@ my $usage = "Usage:
   $0 -f
      read from stdin and send the commands to lftp
 
-  $0 -g
+  $0 -g [PARALLEL_FILE_COUNT [PGET_SEGMENT_COUNT]]
      use lftp mirror to sync seedbox:$remoteDownloads => $localDownloads
      like: lftp SERVER -c \"mirror $remoteDownloads $localDownloads\"
 
-  $0 -p PATH_GLOB
+     PARALLEL_FILE_COUNT
+       number of files to download simultaneously
+         -pass \"--parallel=PARALLEL_FILE_COUNT\" to `mirror` command
+         -must be an integer >= 0
+         -'0' means do not pass \"--parallel\" to `mirror`
+         -default is $DEFAULT_PARALLEL_FILES
+
+     PGET_SEGMENT_COUNT
+       number of segments to download simultaneously per file
+         -pass \"--use-pget=PGET_SEGMENT_COUNT\" to `mirror` command
+         -must be an integer >= 0
+         -'0' means do not pass \"--use-pget\" to `mirror`
+         -default is $DEFAULT_PGET_SEGMENTS
+
+  $0 -p PATH_GLOB [PGET_SEGMENT_COUNT]
      fetch a single file from $remotePartial to CWD using pget
      like: lftp SERVER -c \"glob -- pget @pgetOptions partial/PATH_GLOB\"
+
+     PGET_SEGMENT_COUNT
+       number of segments to download simultaneously per file
+         -pass \"-n PGET_SEGMENT_COUNT\" to `pget` command
+         -must be an integer >= 0
+         -'0' means do not pass \"-n\" to `pget`
+         -default is $DEFAULT_PGET_SEGMENTS
 
   $0 --mark-up-to-date
      fetch mtime of $remoteDownloads from seedbox and write to file $mtimeFile
@@ -146,10 +167,42 @@ sub main(@){
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-f)$/){
     ftpCommand $config;
-  }elsif(@_ == 1 and $_[0] =~ /^(-g)$/){
+  }elsif(@_ >= 1 and $_[0] =~ /^(-g)$/){
+    my ($cmd, @args) = @_;
+
+    my ($parallelFiles, $pgetSegments);
+    if(@args == 0){
+      ($parallelFiles, $pgetSegments) = ($DEFAULT_PARALLEL_FILES, $DEFAULT_PGET_SEGMENTS);
+    }elsif(@args == 1 and $args[0] =~ /^\d+$/){
+      ($parallelFiles, $pgetSegments) = ($args[0], $DEFAULT_PGET_SEGMENTS);
+    }elsif(@args == 2 and $args[0] =~ /^\d+$/ and $args[1] =~ /^\d+$/){
+      ($parallelFiles, $pgetSegments) = ($args[0], $args[1]);
+    }else{
+      die "$usage\ninvalid arguments to $cmd: @args\n";
+    }
+
+    if($parallelFiles > 0){
+      @mirrorOptions = (@mirrorOptions, "--parallel=$parallelFiles");
+    }
+    if($pgetSegments > 0){
+      @mirrorOptions = (@mirrorOptions, "--use-pget=$pgetSegments");
+    }
     ftpCommand $config, "mirror @mirrorOptions $remoteDownloads $localDownloads";
-  }elsif(@_ == 2 and $_[0] =~ /^(-p)$/){
-    my $pathGlob = $_[1];
+  }elsif(@_ >= 2 and $_[0] =~ /^(-p)$/){
+    my ($cmd, $pathGlob, @args) = @_;
+
+    my $pgetSegments;
+    if(@args == 0){
+      $pgetSegments = $DEFAULT_PGET_SEGMENTS;
+    }elsif(@args == 1 and $args[0] =~ /^\d+$/){
+      $pgetSegments = $args[0];
+    }else{
+      die "$usage\ninvalid arguments to $cmd: @args\n";
+    }
+
+    if($pgetSegments > 0){
+      @pgetOptions = (@pgetOptions, "-n", $pgetSegments);
+    }
     ftpCommand $config, "glob -- pget @pgetOptions partial/$pathGlob";
   }elsif(@_ == 1 and $_[0] =~ /^(--mark-up-to-date)$/){
     my $mtime = fetchMtime $config;
