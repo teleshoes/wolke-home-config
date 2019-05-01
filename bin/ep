@@ -30,8 +30,8 @@ sub getFilesForDir($);
 sub selectNextFileIndex($$);
 sub formatFileSummary($$$$);
 sub resumeFile($$);
-sub mpvPosWithPlaylist($$$$);
-sub mpvPos($$);
+sub mpvPosWithPlaylist($$$$$);
+sub mpvPos($$$);
 sub formatHistEntryPercent($);
 sub formatHistEntryDateTime($);
 sub histEntryDone($);
@@ -89,10 +89,13 @@ sub playNextFileInDir($$$){
   print $fileSummaryFmt;
   print "====================\n\n";
 
+  my $initText = $fileSummaryFmt;
+  $initText =~ s/\n/\\n/g;
+
   if($usePlaylist){
-    mpvPosWithPlaylist $files, $nextFileIndex, $nextFilePos, $mpvArgs;
+    mpvPosWithPlaylist $files, $nextFileIndex, $nextFilePos, $initText, $mpvArgs;
   }else{
-    mpvPos $nextFilePos, [$nextFile, @$mpvArgs];
+    mpvPos $nextFilePos, $initText, [$nextFile, @$mpvArgs];
   }
 }
 
@@ -165,18 +168,21 @@ sub resumeFile($$){
     }
   }
 
-  mpvPos $startPos, [$file, @$mpvArgs];
+  my $initText = $file;
+  $initText =~ s/"/\\"/g;
+
+  mpvPos $startPos, $initText, [$file, @$mpvArgs];
 }
 
-sub mpvPosWithPlaylist($$$$){
-  my ($files, $nextFileIndex, $nextFilePos, $mpvArgs) = @_;
+sub mpvPosWithPlaylist($$$$$){
+  my ($files, $nextFileIndex, $nextFilePos, $initText, $mpvArgs) = @_;
 
   my $playlistFile = "/tmp/ep-playlist-" . nowMillis();
   open FH, "> $playlistFile" or die "could not write $playlistFile\n$!\n";
   print FH "$_\n" foreach @$files;
   close FH;
 
-  mpvPos $nextFilePos, [
+  mpvPos $nextFilePos, $initText, [
     "--playlist=$playlistFile",
     "--playlist-start=$nextFileIndex",
     @$mpvArgs,
@@ -185,8 +191,8 @@ sub mpvPosWithPlaylist($$$$){
   system "rm", $playlistFile;
 }
 
-sub mpvPos($$){
-  my ($seekPos, $mpvArgs) = @_;
+sub mpvPos($$$){
+  my ($seekPos, $initText, $mpvArgs) = @_;
 
   $seekPos = $seekPos - ($seekPos * 0.02) - 2;
   $seekPos = 0 if $seekPos < 0;
@@ -194,6 +200,7 @@ sub mpvPos($$){
   my $posFile = "/tmp/ep-pos-file-" . nowMillis();
   system "mpv-pos",
     "--seek=$seekPos",
+    "--show-text=$initText",
     "--pos-file=$posFile",
     @$mpvArgs,
     ;
