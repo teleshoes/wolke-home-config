@@ -8,14 +8,14 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTIONS] --pos-file=POS_FILE [MPV_ARG MPV_ARG ..]
-    -fork and run \"mpv --input-ipc-server=TMPFILE MPV_ARG MPV_ARG\"
-    -write get_property commands to TMPFILE with socat every 1s
+    -fork and run \"mpv --input-ipc-server=IPC_FILE MPV_ARG MPV_ARG\"
+    -write get_property commands to IPC_FILE with socat every 1s
     -read the result and write it to POS_FILE formatted like this:
        POSITION_SECONDS - FILE_PATH
 
   OPTIONS
     --seek=SEEK_POS
-      write 'seek SEEK_POS' once to TMPFILE, before writing any get_property commands
+      write 'seek SEEK_POS' once to IPC_FILE, before writing any get_property commands
 ";
 
 my $MAX_IPC_FAILS = 3;
@@ -49,9 +49,9 @@ sub main(@){
   }
 
   my $nowMillis = nowMillis();
-  my $tmpFileSocket = "/tmp/mpv-pos-$nowMillis";
-  print "writing commands to $tmpFileSocket\n";
-  my @mpvCmd = ("mpv", "--input-ipc-server=$tmpFileSocket", @_);
+  my $ipcFile = "/tmp/mpv-pos-ipc-$nowMillis";
+  print "writing commands to $ipcFile\n";
+  my @mpvCmd = ("mpv", "--input-ipc-server=$ipcFile", @_);
 
   my $getPosCmdJson = "{\"command\": [\"get_property\", \"playback-time\"]}";
   my $getPathCmdJson = "{\"command\": [\"get_property\", \"path\"]}";
@@ -65,10 +65,10 @@ sub main(@){
     while(isRunning $pid){
       sleep 1;
       if(defined $seekPos){
-        system "echo seek $seekPos | socat - $tmpFileSocket";
+        system "echo seek $seekPos | socat - $ipcFile";
         $seekPos = undef;
       }
-      my $cmdRes = `/bin/echo -ne '$getPosCmdJson\\n$getPathCmdJson\\n' | socat - $tmpFileSocket`;
+      my $cmdRes = `/bin/echo -ne '$getPosCmdJson\\n$getPathCmdJson\\n' | socat - $ipcFile`;
       if($cmdRes =~ /^
         \{"data":(\d+|\d*\.\d+),"error":"success"\}\n
         \{"data":"(.*)","error":"success"\}\n
@@ -91,7 +91,7 @@ sub main(@){
     close FH;
     system "kill -9 $pid 2>/dev/null";
     waitpid $pid, 0;
-    system "rm", $tmpFileSocket;
+    system "rm", $ipcFile;
     exit 0;
   }
 }
