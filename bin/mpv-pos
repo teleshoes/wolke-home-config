@@ -7,15 +7,16 @@ my $usage = "Usage:
   $0 -h|--help
     show this message
 
-  $0 [OPTIONS] --pos-file=POS_FILE [MPV_ARG MPV_ARG ..]
+  $0 [CMD_OPT CMD_OPT ..] --pos-file=POS_FILE [MPV_ARG MPV_ARG ..]
     -fork and run \"mpv --input-ipc-server=IPC_FILE MPV_ARG MPV_ARG\"
     -write get_property commands to IPC_FILE with socat every 1s
     -read the result and write it to POS_FILE formatted like this:
        POSITION_SECONDS - FILE_PATH
 
-  OPTIONS
-    --seek=SEEK_POS
-      write 'seek SEEK_POS' once to IPC_FILE, before writing any get_property commands
+  CMD_OPT
+    --cmd=COMMAND
+      write COMMAND once to IPC_FILE at startup, before the first get_property command
+      if multiple CMD_OPTS are specified, they will be run in order given
 ";
 
 my $MAX_IPC_FAILS = 3;
@@ -26,12 +27,12 @@ sub nowMillis();
 sub main(@){
   my $posFile;
   my @mpvArgs;
-  my $seekPos;
+  my @initCmds;
 
-  while(@_ > 0 and $_[0] =~ /^(--seek=.+)$/){
+  while(@_ > 0 and $_[0] =~ /^(--cmd|--seek|--show-text)=.+$/){
     my $opt = shift;
-    if($opt =~ /^--seek=(.+)$/){
-      $seekPos = $1;
+    if($opt =~ /^--cmd=(.+)$/){
+      push @initCmds, $1;
     }else{
       die "$usage\nunknown opt: $opt\n";
     }
@@ -61,12 +62,18 @@ sub main(@){
     exec @mpvCmd;
   }else{
     my $ipcFailCount = 0;
+    my $initCmdsRun = 0;
     open FH, "> $posFile" or die "could not write $posFile\n$!\n";
     while(isRunning $pid){
       sleep 1;
-      if(defined $seekPos){
-        system "echo seek $seekPos | socat - $ipcFile";
-        $seekPos = undef;
+      if(not $initCmdsRun){
+        for my $cmd(@initCmds){
+          open CMD, "|-", "socat - $ipcFile"
+            or die "could not run initial commands\n";
+          print CMD "$cmd\n";
+          close CMD;
+        }
+        $initCmdsRun = 1;
       }
       my $cmdRes = `/bin/echo -ne '$getPosCmdJson\\n$getPathCmdJson\\n' | socat - $ipcFile`;
       if($cmdRes =~ /^
