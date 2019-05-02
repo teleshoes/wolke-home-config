@@ -18,6 +18,9 @@ my $GAME_IDS = {
 my $ABBREV_LEN = 7;
 
 my @GAME_ORDER_FOR_DIFF_CALC = qw(DDRA 2013 X SN2);
+my $GAME_DIFFICULTY_SCALING_BASE = {
+  SN2 => "DDRA",   #scale SN2 difficulties to be similar to DDRA difficulties
+};
 
 my @NONSTOP_COURSES = qw(
   bemani-spirits
@@ -271,8 +274,14 @@ sub main(@){
 
 sub formatSongList(){
   my @songIds = fetchAllSongIds();
-  my $ddraSn2Ratios = getAvgDifficultyRatiosBetweenGames("DDRA", "SN2");
   my $allGameInfo = getAllGameInfo();
+
+  my $diffScalingRatios = {};
+  for my $targetGame(sort keys %$GAME_DIFFICULTY_SCALING_BASE){
+    my $baseGame = $$GAME_DIFFICULTY_SCALING_BASE{$targetGame};
+    my $avgDiffRatios = getAvgDifficultyRatiosBetweenGames($baseGame, $targetGame);
+    $$diffScalingRatios{$targetGame} = $avgDiffRatios;
+  }
 
   my $songList = {};
 
@@ -282,7 +291,7 @@ sub formatSongList(){
     ensureRemyWikiPage $$song{remywiki};
     ensureRemyWikiFiles $$song{remywiki};
 
-    my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $ddraSn2Ratios;
+    my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $diffScalingRatios;
 
     my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist}, $$song{genre};
 
@@ -1032,18 +1041,19 @@ sub abbrevWords($@){
 }
 
 sub calculateSongDifficulties($$$){
-  my ($songId, $allGameInfo, $ddraSn2Ratios) = @_;
+  my ($songId, $allGameInfo, $diffScalingRatios) = @_;
 
   my $gameInfo;
   for my $game(@GAME_ORDER_FOR_DIFF_CALC){
     if(defined $$allGameInfo{$game}{$songId}){
       $gameInfo = $$allGameInfo{$game}{$songId};
 
-      if($game eq "SN2"){
+      if(defined $$diffScalingRatios{$game}){
         for my $difficulty(@difficulties){
+          my $scalingRatio = $$diffScalingRatios{$game}{$difficulty};
           my $val = $$gameInfo{$difficulty};
           if($val =~ /^\d+$/){
-            $val = int(0.5 + ($val * $$ddraSn2Ratios{$difficulty}));
+            $val = int(0.5 + ($val * $scalingRatio));
           }
           $$gameInfo{$difficulty} = $val;
         }
