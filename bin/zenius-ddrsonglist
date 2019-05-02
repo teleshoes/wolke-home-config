@@ -125,7 +125,7 @@ sub ensureRemyWikiPage($);
 sub ensureRemyWikiFiles($);
 sub getRemyWikiFiles($);
 sub getRemyWikiFileUrlsByFilePath($);
-sub getAvgDDRAToSN2Ratios();
+sub getAvgDifficultyRatiosBetweenGames($$);
 sub extractNameId($);
 sub abbrevNameId($$$$);
 sub trimVowels($);
@@ -271,7 +271,7 @@ sub main(@){
 
 sub formatSongList(){
   my @songIds = fetchAllSongIds();
-  my $ddraSn2Ratios = getAvgDDRAToSN2Ratios();
+  my $ddraSn2Ratios = getAvgDifficultyRatiosBetweenGames("DDRA", "SN2");
   my $allGameInfo = getAllGameInfo();
 
   my $songList = {};
@@ -861,34 +861,36 @@ sub getRemyWikiFileUrlsByFilePath($){
   return $urlsByFile;
 }
 
-sub getAvgDDRAToSN2Ratios(){
-  my $gameInfoDDRA = getGameInfo $$GAME_IDS{DDRA};
-  my $gameInfoSN2 = getGameInfo $$GAME_IDS{SN2};
+sub getAvgDifficultyRatiosBetweenGames($$){
+  my ($baseGame, $targetGame) = @_;
+  my $gameInfoBase = getGameInfo $$GAME_IDS{$baseGame};
+  my $gameInfoTarget = getGameInfo $$GAME_IDS{$targetGame};
   my $ratios = {};
   for my $songId(fetchAllSongIds()){
-    my $gDDRA = $$gameInfoDDRA{$songId};
-    my $gSN2 = $$gameInfoSN2{$songId};
-    if(defined $gSN2 and defined $gDDRA){
-      for my $key(grep {/^diff/} keys %$gDDRA){
-        my $dDDRA = $$gDDRA{$key};
-        my $dSN2 = $$gSN2{$key};
-        if($dSN2 =~ /^\d+$/ and $dDDRA =~ /^\d+$/){
-          $$ratios{$key} = [] if not defined $$ratios{$key};
-          push @{$$ratios{$key}}, $dDDRA/$dSN2;
+    my $gBase = $$gameInfoBase{$songId};
+    my $gTarget = $$gameInfoTarget{$songId};
+    if(defined $gBase and defined $gTarget){
+      my @diffNames = grep {/^diff/} sort keys %$gBase;
+      for my $diffName(@diffNames){
+        my $dBase = $$gBase{$diffName};
+        my $dTarget = $$gTarget{$diffName};
+        if($dTarget =~ /^\d+$/ and $dTarget =~ /^\d+$/){
+          $$ratios{$diffName} = [] if not defined $$ratios{$diffName};
+          push @{$$ratios{$diffName}}, $dBase/$dTarget;
         }
       }
     }
   }
 
   my $meanRatios = {};
-  for my $key(sort keys %$ratios){
+  for my $diffName(sort keys %$ratios){
     my $total = 0;
-    my @vals = @{$$ratios{$key}};
+    my @vals = @{$$ratios{$diffName}};
     for my $val(@vals){
       $total += $val;
     }
     my $mean = sprintf "%5.3f", $total/@vals;
-    $$meanRatios{$key} = $mean;
+    $$meanRatios{$diffName} = $mean;
   }
 
   return $meanRatios;
