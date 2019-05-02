@@ -17,6 +17,8 @@ my $GAME_IDS = {
 };
 my $ABBREV_LEN = 7;
 
+my @GAME_ORDER_FOR_DIFF_CALC = qw(DDRA 2013 X SN2);
+
 my @NONSTOP_COURSES = qw(
   bemani-spirits
   classic
@@ -1031,27 +1033,21 @@ sub calculateSongDifficulties($$$){
   my ($songId, $allGameInfo, $ddraSn2Ratios) = @_;
 
   my $gameInfo;
-  if(not defined $gameInfo){
-    $gameInfo = $$allGameInfo{DDRA}{$songId};
-  }
-  if(not defined $gameInfo){
-    $gameInfo = $$allGameInfo{2013}{$songId};
-  }
-  if(not defined $gameInfo){
-    $gameInfo = $$allGameInfo{X}{$songId};
-  }
-  if(not defined $gameInfo){
-    $gameInfo = $$allGameInfo{SN2}{$songId};
+  for my $game(@GAME_ORDER_FOR_DIFF_CALC){
+    if(defined $$allGameInfo{$game}{$songId}){
+      $gameInfo = $$allGameInfo{$game}{$songId};
 
-    if(defined $gameInfo){
-      for my $difficulty(@difficulties){
-        my $val = $$gameInfo{$difficulty};
-        if($val =~ /^\d+$/){
-          $val = int(0.5 + ($val * $$ddraSn2Ratios{$difficulty}));
+      if($game eq "SN2"){
+        for my $difficulty(@difficulties){
+          my $val = $$gameInfo{$difficulty};
+          if($val =~ /^\d+$/){
+            $val = int(0.5 + ($val * $$ddraSn2Ratios{$difficulty}));
+          }
+          $$gameInfo{$difficulty} = $val;
         }
-        $$gameInfo{$difficulty} = $val;
       }
     }
+    last if defined $gameInfo;
   }
 
   if(not defined $gameInfo){
