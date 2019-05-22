@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  $EXEC [-h|--help]
+    show this message
+
+  $EXEC FILE [FILE FILE ..]
+    plays FILEs after checking that they all exist,
+      adding key bindings to help sort them into folders
+    -add INPUT bindings for keys 0-9 to exit with exit codes 100-109, respectively
+    -play each file in mpv, one at a time
+    -if mpv exits with exit code between 100 -109, move video to a dir in the CWD called:
+      ./$EXEC-<EXIT_CODE>/
+    -use --no-clobber to prevent overwriting files with the same name
+";
+
+my $inputConf = "
+0 quit 100
+1 quit 101
+2 quit 102
+3 quit 103
+4 quit 104
+5 quit 105
+6 quit 106
+6 quit 106
+7 quit 107
+8 quit 108
+9 quit 109
+
+UP    seek +60
+DOWN  seek -60
+PGUP  seek -600
+PGDWN seek +600
+";
+
+sub main(@){
+  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-h|--help)$/)){
+    print $usage;
+    exit 0;
+  }
+  my @files = @_;
+  for my $file(@files){
+    die "could not find file: $file\n" if not -f $file;
+  }
+
+  my $nowMillis = int(time * 1000.0 + 0.5);
+  my $inputConfFile = "/tmp/$EXEC-input-$nowMillis.conf";
+  open FH, "> $inputConfFile" or die "could not write $inputConfFile\n$!\n";
+  print FH $inputConf;
+  close FH;
+
+  for my $file(@files){
+    print "\n\n===== $file\n";
+    system "mpv", "--input-conf=$inputConfFile", $file;
+    my $exitCode = $? >> 8;
+    if(100 <= $exitCode && $exitCode <= 109){
+      my $dir = "./$EXEC-$exitCode/";
+      system "mkdir", "-p", $dir;
+      system "mv", "--no-clobber", $file, "$dir/";
+      if($? != 0){
+        die "error moving $file\n";
+      }
+    }
+  }
+
+  system "rm", $inputConfFile;
+}
+
+&main(@ARGV);
