@@ -19,9 +19,18 @@ my $usage = "Usage:
       -if it exists, prepend bindings from $MPV_INPUT_CONF
         (new bindings take precedence)
       -keys 0-9 to exit with exit codes 100-109, respectively
+      -key p to exit with 110
+      -key n to exit with 111
+      -key ENTER to exit with 111
     -play each file in mpv, one at a time
     -if mpv exits with exit code between 100-109, move video to a dir in the CWD called:
       ./$EXEC-<EXIT_CODE>/
+      and go to next file
+    -if mpv exits with exit code 110, go back to the previous file
+       -if the file was moved to $EXEC-<EXIT_CODE>/, use the new path for the file
+       -if the file does not exist at all, continue going backward until one does exist
+       -if there are no existing previous files, re-open the same file
+    -if mpv exits with exit code 111 (or any other exit code), go to the next file
     -use --no-clobber to prevent overwriting files with the same name
 ";
 
@@ -37,6 +46,11 @@ my $inputConf = "
 7 quit 107
 8 quit 108
 9 quit 109
+
+p quit 110
+n quit 111
+
+ENTER quit 111
 ";
 
 sub main(@){
@@ -81,6 +95,19 @@ sub main(@){
       }else{
         $files[$i] = $newFilePath;
       }
+      $i++;
+    }elsif($exitCode == 110){
+      my $prevIndex = $i - 1;
+      while(0 <= $prevIndex and $prevIndex < @files and not -e $files[$prevIndex]){
+        $prevIndex--;
+      }
+
+      if(0 <= $prevIndex and $prevIndex < @files and -e $files[$prevIndex]){
+        $i = $prevIndex;
+      }else{
+        $i = $i;
+      }
+    }elsif($exitCode == 111){
       $i++;
     }else{
       $i++;
