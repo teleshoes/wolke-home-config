@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Time::HiRes qw(time);
+use Time::HiRes qw(sleep time);
 use File::Basename qw(basename);
 
 my $EXEC = basename $0;
@@ -23,13 +23,16 @@ my $usage = "Usage:
       -key n to exit with 111
       -key ENTER to exit with 111
       -key q to exit with 112
+      -key r to exit with 113
     -play each file in mpv, one at a time, looping back to the start after the last one
     -if mpv exits with exit code 112, quit $EXEC
     -if mpv exits with exit code between 100-109, move video to a dir in the CWD called:
       ./$EXEC-<EXIT_CODE>/
       and go to next file
+    -if mpv exits with exit code 113, use `bash read` and `xdotool type` to prompt for a new filename
+      move the file (ensuring file does not already exist), and go to next file
     -if mpv exits with exit code 110, go back to the previous file
-       -if the file was moved to $EXEC-<EXIT_CODE>/, use the new path for the file
+       -if the file was moved to with exit codes 100-109 or 113, use the new path for the file
        -if the file does not exist at all, continue going backward until one does exist
        -if there are no existing previous files, re-open the same file
     -if mpv exits with exit code 111 (or any other exit code), go to the next file
@@ -52,6 +55,8 @@ my $inputConf = "
 p quit 110
 n quit 111
 q quit 112
+
+r quit 113
 
 ENTER quit 111
 ";
@@ -102,6 +107,29 @@ sub main(@){
         $files[$i] = $newFilePath;
       }
       $i++;
+    }elsif($exitCode == 113){
+      my $oldFileName = $files[$i];
+      print "RENAMING FILE: $oldFileName\n";
+      if(not fork){
+        sleep 0.2;
+        system "xdotool", "type", $oldFileName;
+        exit 0;
+      }
+      my $newFilePath = `bash -c 'read -r -e -p "new file name: " newfn; echo "\$newfn"'`;
+      chomp $newFilePath;
+      if($oldFileName eq $newFilePath){
+        print "file unchanged\n";
+      }elsif(-e $newFilePath){
+        die "ERROR: $newFilePath already exists\n";
+      }else{
+        print "moving:\n$oldFileName\n=>\n$newFilePath\n";
+        system "mv", "--no-clobber", $oldFileName, $newFilePath;
+        if($? != 0){
+          die "error moving $file\n";
+        }else{
+          $files[$i] = $newFilePath;
+        }
+      }
     }elsif($exitCode == 110){
       my $prevIndex = $i - 1;
       while(0 <= $prevIndex and $prevIndex < @files and not -e $files[$prevIndex]){
