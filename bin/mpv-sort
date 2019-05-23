@@ -6,6 +6,8 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my $MPV_INPUT_CONF = "$ENV{HOME}/.config/mpv/input.conf";
+
 my $usage = "Usage:
   $EXEC [-h|--help]
     show this message
@@ -14,6 +16,7 @@ my $usage = "Usage:
     plays FILEs after checking that they all exist,
       adding key bindings to help sort them into folders
     -add INPUT bindings for keys 0-9 to exit with exit codes 100-109, respectively
+      (prepends $MPV_INPUT_CONF if it exists; new bindings take precedence)
     -play each file in mpv, one at a time
     -if mpv exits with exit code between 100 -109, move video to a dir in the CWD called:
       ./$EXEC-<EXIT_CODE>/
@@ -32,11 +35,6 @@ my $inputConf = "
 7 quit 107
 8 quit 108
 9 quit 109
-
-UP    seek +60
-DOWN  seek -60
-PGUP  seek -600
-PGDWN seek +600
 ";
 
 sub main(@){
@@ -47,6 +45,11 @@ sub main(@){
   my @files = @_;
   for my $file(@files){
     die "could not find file: $file\n" if not -f $file;
+  }
+  if(-f $MPV_INPUT_CONF){
+    open FH, "< $MPV_INPUT_CONF" or die "could not read $MPV_INPUT_CONF\n$!\n";
+    $inputConf = join('', <FH>) . "\n$inputConf";
+    close FH;
   }
 
   my $nowMillis = int(time * 1000.0 + 0.5);
