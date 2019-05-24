@@ -148,8 +148,9 @@ sub handleFile($$$$$){
   my $dateFmt = `date --date \@$epoch +'%Y%m%d_%H%M%S'`;
   chomp $dateFmt;
 
-  if($fileName =~ /^\d\d\d\d\d\d\d\d_\d\d\d\d\d\d(?:_\d+)?_(.+)/){
-    my ($unprefixedFileName) = ($1);
+  my $typePrefix = "";
+  if($fileName =~ /^(VID_)?\d\d\d\d\d\d\d\d_\d\d\d\d\d\d(?:_\d+)?_(.+)/){
+    my ($vidPrefix, $unprefixedFileName) = ($1, $2);
 
     my $oldFileNameEpoch = filenameEpoch $file;
     my $diff = $epoch - $oldFileNameEpoch;
@@ -159,11 +160,12 @@ sub handleFile($$$$$){
         . "WARNING: old date prefix disagrees by more than a day"
         . " for $file ($oldFileNameEpoch vs $epoch)\n";
     }
+    $typePrefix = "VID_" if defined $vidPrefix and $vidPrefix =~ /VID_/;
 
     $fileName = $unprefixedFileName;
   }
 
-  my $newFile = "${dir}${dateFmt}_${fileName}.${ext}";
+  my $newFile = "${typePrefix}${dir}${dateFmt}_${fileName}.${ext}";
   my $count = 0;
   while(-f $newFile and $file ne $newFile){
     $count++;
@@ -264,7 +266,7 @@ sub filenameEpoch($){
   my ($file) = @_;
   my $filename = $file;
   $filename =~ s/.*\///;
-  if($filename =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)[_\.]/){
+  if($filename =~ /^(?:VID_)?(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)[_\.]/){
     my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
     my $dateFmt = "$y$m$d $hr:$min:$sec";
     my $epoch = `date +%s --date='$dateFmt'`;
