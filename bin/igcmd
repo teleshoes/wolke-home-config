@@ -5,6 +5,7 @@ use warnings;
 sub getRemoteNames();
 sub getButtons($);
 sub getDefaultChannel($);
+sub getDefaultDevice($);
 sub formatChannelHexSum($);
 sub formatLayout($);
 sub run(@);
@@ -69,6 +70,13 @@ my $usage = "Usage:
           e.g.: 0x07 = ch1 + ch2 + ch3
                 0x0b = ch1 + ch2 + ch4
                 0x0B = ch1 + ch2 + ch4
+
+    -d DEVICE | --device=DEVICE
+      override the default device ($dir/names/<REMOVE>/device-default)
+      DEVICE
+        -iguana internal device index (e.g.: 0) as returned by `igclient --all-devices`
+        -custom named id (flashed to device with `igclient --set-id NAME`),
+        -can NOT be usb bus index (the output of `igdaemon --devices` is useless)
 ";
 
 sub main(@){
@@ -78,6 +86,7 @@ sub main(@){
   }
 
   my $channelOverride = undef;
+  my $deviceOverride = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -87,6 +96,10 @@ sub main(@){
       $channelOverride = $1;
     }elsif($arg =~ /^-c$/ and @_ > 0){
       $channelOverride = shift;
+    }elsif($arg =~ /^--device=(.*)$/){
+      $deviceOverride = $1;
+    }elsif($arg =~ /^-d$/ and @_ > 0){
+      $deviceOverride = shift;
     }else{
       die $usage;
     }
@@ -109,7 +122,15 @@ sub main(@){
       }
       $channel = formatChannelHexSum $channel;
 
+      my $device;
+      if(defined $deviceOverride){
+        $device = $deviceOverride;
+      }else{
+        $device = getDefaultDevice $remoteName;
+      }
+
       push @igClientCmd, "--set-channels=$channel";
+      push @igClientCmd, "--device=$device";
 
       $repeat = 1 if not defined $repeat;
       my $okButtons = join "|", @{$buttons{$remoteName}};
@@ -169,6 +190,20 @@ sub getDefaultChannel($){
     $channel = $1;
   }
   return $channel;
+}
+
+sub getDefaultDevice($){
+  my $name = shift;
+  my $file = "$dir/names/$name/device-default";
+  if(not -f $file){
+    die "could not find $file\n";
+  }
+  open FH, "< $file" or die "could not read $file\n$!\n";
+  my $out = join '', <FH>;
+  close FH;
+  chomp $out;
+
+  return $out;
 }
 
 sub formatChannelHexSum($){
