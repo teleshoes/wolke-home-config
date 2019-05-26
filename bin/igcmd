@@ -4,13 +4,14 @@ use warnings;
 
 sub getRemoteNames();
 sub getButtons($);
+sub getDefaultChannel($);
+sub formatChannelHexSum($);
 sub formatLayout($);
 sub run(@);
 sub bashComplete($$);
 
 my $igclientExec = "/usr/bin/igclient";
 my $dir = "$ENV{HOME}/.config/iguana";
-my $defaultChannel = "0x04";
 my $repeatSleepMillis = 100;
 
 my @remoteNames = sort `ls $dir/names 2>/dev/null`;
@@ -42,6 +43,8 @@ my $usage = "Usage:
       $dir/names/<REMOTE>/buttons/
     button layout is in:
       $dir/names/<REMOTE>/layout
+    remote default channel is in:
+      $dir/names/<REMOTE>/channel-default
 
     layouts:\n$buttonLayoutFmt
 
@@ -53,8 +56,19 @@ my $usage = "Usage:
     a non-negative integer indicating the number of milliseconds to sleep
 
   OPTIONS:
-    -c CHANNEL | --channel=CHANNEL
-      override default channel {$defaultChannel}
+    -c CHANNEL | --channel=CHANNEL | -c CHANNEL_HEX_SUM | --channel=CHANNEL_HEX_SUM
+      override the default channel ($dir/names/<REMOTE>/channel-default)
+        CHANNEL
+          a single digit, one of: 1 2 3 4
+        CHANNEL_HEX_SUM
+          the sum of the channels desired as a hex digit
+            0x01 = channel 1
+            0x02 = channel 2
+            0x04 = channel 3
+            0x08 = channel 4
+          e.g.: 0x07 = ch1 + ch2 + ch3
+                0x0b = ch1 + ch2 + ch4
+                0x0B = ch1 + ch2 + ch4
 ";
 
 sub main(@){
@@ -63,16 +77,16 @@ sub main(@){
     exit 0;
   }
 
-  my $channel = $defaultChannel;
+  my $channelOverride = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
     }elsif($arg =~ /^--channel=(.*)$/){
-      $channel = $1;
+      $channelOverride = $1;
     }elsif($arg =~ /^-c$/ and @_ > 0){
-      $channel = shift;
+      $channelOverride = shift;
     }else{
       die $usage;
     }
@@ -80,12 +94,23 @@ sub main(@){
 
   die $usage if @_ == 0;
 
-  my @igClientCmd = ($igclientExec, "--set-channels=$channel");
+  my @igClientCmd = ($igclientExec);
 
   my @cmds = @_;
   for my $cmd(@_){
     if($cmd =~ /^($okRemoteNames)-(\w+)(?:-(\d+))?$/){
       my ($remoteName, $button, $repeat) = ($1, $2, $3);
+
+      my $channel;
+      if(defined $channelOverride){
+        $channel = $channelOverride;
+      }else{
+        $channel = getDefaultChannel $remoteName;
+      }
+      $channel = formatChannelHexSum $channel;
+
+      push @igClientCmd, "--set-channels=$channel";
+
       $repeat = 1 if not defined $repeat;
       my $okButtons = join "|", @{$buttons{$remoteName}};
       if($button !~ /^($okButtons)$/){
@@ -124,6 +149,43 @@ sub getButtons($){
   #ignore segmented IR codes
   @buttons = grep {$_ !~ /^\w+#\d+$/} @buttons;
   return @buttons;
+}
+
+sub getDefaultChannel($){
+  my $name = shift;
+  my $file = "$dir/names/$name/channel-default";
+  if(not -f $file){
+    die "could not find $file\n";
+  }
+  open FH, "< $file" or die "could not read $file\n$!\n";
+  my $out = join '', <FH>;
+  close FH;
+  chomp $out;
+
+  my $channel;
+  if($out !~ /^(1|2|3|4|0x0[0-f])$/){
+    die "invalid default channel for $name: $out\n";
+  }else{
+    $channel = $1;
+  }
+  return $channel;
+}
+
+sub formatChannelHexSum($){
+  my $channel = shift;
+  if($channel =~ /^0x0[0-f]$/){
+    return $channel;
+  }elsif($channel == 1){
+    return 0x01;
+  }elsif($channel == 2){
+    return 0x02;
+  }elsif($channel == 3){
+    return 0x04;
+  }elsif($channel == 4){
+    return 0x08;
+  }else{
+    die "invalid channel: $channel\n";
+  }
 }
 
 sub formatLayout($){
