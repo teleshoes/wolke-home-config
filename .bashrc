@@ -188,6 +188,8 @@ function sbs          { sb-rt-status "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
+function sm           { sheetmusic "$@"; }
+
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
