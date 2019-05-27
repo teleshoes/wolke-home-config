@@ -11,6 +11,7 @@ our $keyDelay = 0.1;
 sub readKeys();
 sub readKeyBytes();
 sub arrContainsAt($$$);
+sub isRunning($);
 
 my $seqByte = 0x1b;
 
@@ -50,14 +51,18 @@ my $usage = "Usage:
   $0 -h | --help
     print this message
 
-  $0
+  $0 [--check-pid=PID]
     read keystrokes with Term::ReadKey and print them to STDOUT
+    quit if process PIDs is not alive (checked with `kill -0 PID`)
 ";
 
 sub main(@){
+  my $checkPid = undef;
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^--check-pid=(\d+)$/){
+    $checkPid = $1;
   }elsif(@_ > 0){
     die $usage;
   }
@@ -67,6 +72,10 @@ sub main(@){
   while(1){
     for my $key(@{readKeys()}){
       print "$key\n";
+    }
+    if(not isRunning $checkPid){
+      ReadMode 0;
+      exit 0;
     }
   }
 }
@@ -137,6 +146,17 @@ sub arrContainsAt($$$){
     }
   }
   return 1;
+}
+
+sub isRunning($){
+  my ($pid) = @_;
+  waitpid $pid, 1;
+  system "kill -0 $pid 2>/dev/null";
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 &main(@ARGV);
