@@ -2,9 +2,30 @@
 use strict;
 use warnings;
 
+my $SHOWS_DIR = "$ENV{HOME}/Music/sheet_music/shows";
+
+sub getAllEntries();
+sub getShowNames();
+sub getShowEntrs();
+sub dirPathToName($);
+sub bashComplete($$);
+
+my $typeSyns = {
+  double    => "double",
+  d         => "double",
+  dbl       => "double",
+
+  single    => "single",
+  sgl       => "single",
+  s         => "single",
+};
+
 my $usage = "Usage:
    $0 -h|--help
      Show this message
+
+   $0 NAME [TYPE]
+     open sheetmusic for NAME with type TYPE
 
    $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -17,9 +38,99 @@ sub main(@){
     die $usage;
   }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
+  }elsif(@_ == 1 or @_ == 2){
+    my ($name, $typeArg) = @_;
+    if(defined $typeArg){
+      if(not defined $$typeSyns{$typeArg}){
+        die "invalid type arg: $typeArg\n";
+      }
+      $typeArg = $$typeSyns{$typeArg};
+    }
+
+    my $entries = getAllEntries();
+    if(defined $$entries{$name}){
+      my $types = $$entries{$name}{types};
+      die "no types found for $name\n" if @$types == 0;
+      my $firstType = $$types[0];
+
+      my $typeName;
+      if(defined $typeArg){
+        $typeName = $typeArg;
+      }else{
+        $typeName = $$firstType{typeName};
+      }
+
+      my $files = $$firstType{files};
+      for my $type(@$types){
+        if($typeName eq $$type{typeName}){
+          $files = $$type{files};
+          last;
+        }
+      }
+
+      if($typeName =~ /^(double)$/){
+        system "feh-page", "--double", @$files;
+      }elsif($typeName =~ /^(single)$/){
+        system "feh-page", @$files;
+      }
+      system "stty", "sane";
+    }else{
+      die "could not find sheet music for $name\n";
+    }
   }else{
     die $usage;
   }
+}
+
+sub getAllEntries(){
+  my $entries = {};
+  my $showEntries = getShowEntries();
+  $entries = {%$entries, %$showEntries};
+  return $entries;
+}
+
+sub getShowNames(){
+  return map {dirPathToName $_} glob "$SHOWS_DIR/sheet_double/*/";
+}
+
+sub getShowEntries(){
+  my $entries = {};
+  my @names = getShowNames();
+  for my $name(@names){
+    my $entry = {
+      name => $name,
+      types => [
+        { typeName => "double",
+          files => [glob "$SHOWS_DIR/sheet_double/$name/*.jpg"],
+        },
+        { typeName => "single",
+          files => [glob "$SHOWS_DIR/sheet_single/$name/*.jpg"],
+        },
+      ]
+    };
+    $$entries{"$name"} = $entry;
+    $$entries{"show-$name"} = $entry;
+  }
+  return $entries;
+}
+sub dirPathToName($){
+  my ($dirPath) = @_;
+  die "could not find dir: $dirPath\n" if not -d $dirPath;
+
+  my $name = $dirPath;
+  $name = "" if not defined $name;
+  $name =~ s/^.*\/([^\/]+)\/?$/$1/;
+  if($name =~ /\/|\r|\n|\0/){
+    die "could not process dir path: $dirPath\n"
+  }elsif($name =~ /\s|"|'/){
+    die "name cannot have spaces or quotes: \"$name\"\n"
+  }elsif($name =~ /^$/){
+    die "name cannot be empty: \"$name\n";
+  }elsif($name !~ /^[a-zA-Z0-9_\-]+$/){
+    die "name can contain only letters/numbers/underscores/hyphens: \"$name\"\n"
+  }
+
+  return $name;
 }
 
 sub bashComplete($$){
@@ -37,8 +148,14 @@ sub bashComplete($$){
     shift @words;
   }
 
+  my @names;
+  my $entries = getAllEntries();
+  for my $key(sort keys %$entries){
+    push @names, $key;
+  }
+
   if(@words == 0){
-    return ("-h", "--help", "--bash-complete");
+    return ("-h", "--help", "--bash-complete", @names);
   }
 
   return ();
