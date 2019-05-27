@@ -3,11 +3,15 @@ use strict;
 use warnings;
 
 my $SHOWS_DIR = "$ENV{HOME}/Music/sheet_music/shows";
+my @OTHER_DIRS = (
+);
 
 sub getAllEntries();
 sub getShowNames();
 sub getShowEntrs();
+sub getDirEntries($);
 sub dirPathToName($);
+sub readProcLines(@);
 sub bashComplete($$);
 
 my $typeSyns = {
@@ -18,6 +22,11 @@ my $typeSyns = {
   single    => "single",
   sgl       => "single",
   s         => "single",
+
+  image     => "image",
+  png       => "image",
+  feh       => "image",
+  f         => "image",
 };
 
 my $usage = "Usage:
@@ -72,6 +81,8 @@ sub main(@){
         system "feh-page", "--double", @$files;
       }elsif($typeName =~ /^(single)$/){
         system "feh-page", @$files;
+      }elsif($typeName =~ /^(image)$/){
+        system "feh-page", "--double", @$files;
       }
       system "stty", "sane";
     }else{
@@ -84,6 +95,10 @@ sub main(@){
 
 sub getAllEntries(){
   my $entries = {};
+  for my $dir(@OTHER_DIRS){
+    my $dirEntries = getDirEntries $dir;
+    $entries = {%$entries, %$dirEntries};
+  }
   my $showEntries = getShowEntries();
   $entries = {%$entries, %$showEntries};
   return $entries;
@@ -113,6 +128,36 @@ sub getShowEntries(){
   }
   return $entries;
 }
+sub getDirEntries($){
+  my ($dir) = @_;
+  my $parentDirName = dirPathToName $dir;
+
+  my $entries = {};
+  for my $subDir(glob "$dir/*/"){
+    my $name = dirPathToName $subDir;
+    my @files = readProcLines "find", $subDir, "-type", "f";
+    chomp foreach @files;
+    @files = sort @files;
+
+    my @types;
+    my @imgs = grep {/\.(jpg|jpeg|png|gif|tiff|bmp)$/} @files;
+    if(@imgs > 0){
+      push @types, {
+        typeName => "image",
+        files => [@imgs],
+      };
+    }
+    my $entry = {
+      name => $name,
+      types => [@types],
+    };
+
+    $$entries{$name} = $entry;
+    $$entries{"$parentDirName-$name"} = $entry;
+  }
+  return $entries;
+}
+
 sub dirPathToName($){
   my ($dirPath) = @_;
   die "could not find dir: $dirPath\n" if not -d $dirPath;
@@ -131,6 +176,13 @@ sub dirPathToName($){
   }
 
   return $name;
+}
+
+sub readProcLines(@){
+  open CMD, "-|", @_ or die "could not run \"@_\"\n$!\n";
+  my @lines = <CMD>;
+  close CMD;
+  return @lines;
 }
 
 sub bashComplete($$){
