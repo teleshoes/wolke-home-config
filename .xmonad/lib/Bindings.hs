@@ -89,6 +89,11 @@ shortcuts conf = "Shortcuts" @@ do
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
     "term auto-cwd"     @@ mA    xK_Think#! "term -acd"
+    "term top"          @@ mW    xK_Up   #! "term-window --top"
+    "term bottom"       @@ mW    xK_Down #! "term-window --bottom"
+    "term left"         @@ mW    xK_Left #! "term-window --left"
+    "term right"        @@ mW    xK_Right#! "term-window --right"
+
     "ghci"              @@ mC    xK_Think#! "term ghci"
     "bgset --next"      @@ mW    xK_w    #! "bgset --next"
     "bgset --prev"      @@ mWS   xK_w    #! "bgset --prev"
