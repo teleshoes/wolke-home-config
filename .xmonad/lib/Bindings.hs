@@ -85,7 +85,7 @@ shortcuts conf = "Shortcuts" @@ do
     "term"              @@ m_    xK_AMdia#! "term"
     "term"              @@ m_    xK_Tools#! "term"
     "term auto-cwd"     @@ mA    xK_Tools#! "term -acd"
-    "ghci"              @@ mC    xK_Tools#! "term ghci"
+    "term ghci"         @@ mC    xK_Tools#! "term ghci"
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
     "term auto-cwd"     @@ mA    xK_Think#! "term -acd"
