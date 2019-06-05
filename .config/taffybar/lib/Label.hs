@@ -1,4 +1,4 @@
-module Label(labelW, labelDefaultW, mainLabel) where
+module Label(labelW, labelDelayW, mainLabel) where
 import Utils (defaultDelay)
 
 import Data.Text (Text, pack)
@@ -14,8 +14,7 @@ mainLabel printer = forever $ do
   threadDelay $ round $ defaultDelay * 10^6
 
 labelW :: (IO String) -> IO Widget
-labelW printer = labelDefaultW "---" printer
+labelW printer = labelDelayW defaultDelay printer
 
-labelDefaultW defaultStr printer = do
-  w <- pollingLabelNew (pack defaultStr) defaultDelay $ fmap pack printer
-  return w
+labelDelayW :: Double -> (IO String) -> IO Widget
+labelDelayW delay printer = pollingLabelNew (pack "---") delay $ fmap pack printer

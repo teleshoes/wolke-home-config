@@ -23,10 +23,9 @@ import Safe
 import System.Taffybar.Widget.Generic.PollingLabel
 
 import Clickable
+import Label (labelDelayW)
 import Utils
 import qualified WrappedMVar as W
-
-import qualified Data.Text as T
 
 data Endpoint = EP
   { infoKey    :: String
@@ -102,7 +101,7 @@ paEndpointW ep mdbc codeMap initLock = flip runReaderT Env{..} $ do
   -- After long struggle, a widget is born.
   let toggleLock = async $ toggleLockSync stvar -- left click action
       cycle      = async $ cycleSync stvar      -- right click action
-  liftIO $ pollingLabelNew (T.pack "----") 0 (fmap T.pack nextLabel)
+  liftIO $ labelDelayW 0 nextLabel
        >>= clickableActions toggleLock pass cycle
 
 hookLabel :: Maybe EPCode -> PAM (StVar, IO String)
