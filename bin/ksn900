@@ -2,20 +2,43 @@
 use strict;
 use warnings;
 
+sub klompSyncLocal($$$$);
 sub runOrDie(@);
 
 sub main(@){
-  runOrDie "sudo", "mnt", "-l", "n900";
-
-  runOrDie "sudo", "klomp-sync", "--local",
-    "$ENV{HOME}/Code/n900/klomp/local-klomp-lib";
-  runOrDie "sudo", "chown", "29999.29999", "-R", "/media/n900";
-
-  runOrDie "sudo", "mnt", "-u", "n900";
+  klompSyncLocal(
+    "n900",
+    "/media/n900",
+    "$ENV{HOME}/Code/n900/klomp/local-klomp-lib",
+    "29999.29999",
+  );
 
   my $host = `ipmagic n900`;
   chomp $host;
   runOrDie "scp", "$ENV{HOME}/.klompdb", "user\@$host:~";
+}
+
+#1) optionally mount an sdcard or hard drive
+#2) klomp-sync to locally mounted storage using a klomp-lib in the filesystem
+#3) optionally chown the entire destination klomp library dir
+#4) run `sync` to wait for the data to be written fully to disk
+#5) optionally umount the sdcard or hard drive
+sub klompSyncLocal($$$$){
+  my ($mntName, $targetDir, $localKlompLib, $chownUserGroup) = @_;
+  if(defined $mntName){
+    runOrDie "sudo", "mnt", "-l", $mntName;
+  }
+
+  runOrDie "sudo", "klomp-sync", "--local", $localKlompLib;
+  if(defined $chownUserGroup){
+    runOrDie "sudo", "chown", $chownUserGroup, "-R", $targetDir;
+  }
+
+  runOrDie "sync";
+
+  if(defined $mntName){
+    runOrDie "sudo", "mnt", "-u", $mntName;
+  }
 }
 
 sub runOrDie(@){
