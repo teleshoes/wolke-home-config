@@ -5,10 +5,10 @@ use Time::HiRes qw(time);
 
 my $dir = "$ENV{HOME}/.config/iguana";
 my $igclientExec = "/usr/bin/igclient";
-my $delayMillis = 2000;
+my $defaultDelayMillis = 2000;
 
-sub recordPulseSpaceFile($$$);
-sub igclientRecord();
+sub recordPulseSpaceFile($$$$);
+sub igclientRecord($);
 sub parseEntries(@);
 sub squashEntries(@);
 sub trimEntries(@);
@@ -21,7 +21,7 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTIONS] IR_CODE_FILE
-    run igclient, turn receiver on, sleep for $delayMillis
+    run igclient, turn receiver on, sleep for $defaultDelayMillis
     record IR pulses and spaces received to a temp file
     combine adjacent pulses or spaces, and remove leading/trailed space
     write resulsting list of pulses and spaces to IR_CODE_FILE
@@ -42,12 +42,16 @@ my $usage = "Usage:
 
     -e | --echo | -r | --repeat
       run 'igclient --send=IR_CODE_FILE' after recording
+
+    --delay=DELAY_MILLIS
+      sleep for DELAY_MILLIS instead of default ($defaultDelayMillis)
 ";
 
 sub main(@){
   my $delete = 0;
   my $echo = 0;
   my $layoutRemoteName = undef;
+  my $delayMillis = $defaultDelayMillis;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -59,6 +63,8 @@ sub main(@){
       $echo = 1;
     }elsif($arg =~ /^--layout=(\w+)$/){
       $layoutRemoteName = $1;
+    }elsif($arg =~ /^--delay=(\d+)$/){
+      $delayMillis = $1;
     }else{
       die $usage;
     }
@@ -78,7 +84,7 @@ sub main(@){
       my $continue = 1;
       while($continue){
         my $file = "test-$layoutRemoteName-$button";
-        recordPulseSpaceFile $file, $delete, $echo;
+        recordPulseSpaceFile $file, $delete, $echo, $delayMillis;
         print "\n\n<$button>\n";
         my $response = undef;
         while(not defined $response){
@@ -98,20 +104,20 @@ sub main(@){
   }elsif(@_ == 1){
     my $file = shift;
 
-    recordPulseSpaceFile $file, $delete, $echo;
+    recordPulseSpaceFile $file, $delete, $echo, $delayMillis;
   }else{
     die $usage;
   }
 }
 
-sub recordPulseSpaceFile($$$){
-  my ($file, $delete, $echo) = @_;
+sub recordPulseSpaceFile($$$$){
+  my ($file, $delete, $echo, $delayMillis) = @_;
 
   run "rm", "-f", $file if $delete and -f $file;
 
   die "file \"$file\" already exists\n" if -f $file;
 
-  my @lines = igclientRecord();
+  my @lines = igclientRecord($delayMillis);
 
   my @entries = parseEntries @lines;
   @entries = squashEntries @entries;
@@ -139,7 +145,8 @@ sub recordPulseSpaceFile($$$){
   }
 }
 
-sub igclientRecord(){
+sub igclientRecord($){
+  my ($delayMillis) = @_;
   my $nowMillis = int(time() * 1000);
   my $tmpFile = "/tmp/igclient-record-$nowMillis.txt";
 
