@@ -2,19 +2,20 @@
 use strict;
 use warnings;
 
-sub klompSyncLocal($$$$);
+sub klompSyncLocal($$$$$);
 sub runOrDie(@);
 
 my $usage = "Usage:
   $0 -h|--help
     show this message
 
-  $0 IPMAGIC_NAME
+  $0 IPMAGIC_NAME [LIB LIB LIB]
     perform klomp-sync remotely or locally for the intended device
+    with optional LIBREGEX=\"LIB|LIB|LIB..\"
 
     IPMAGIC_NAME = n900
       run klomp-sync locally on /media/n900
-        e.g.: klomp-sync --local n900-local-klomp-lib
+        e.g.: klomp-sync --local n900-local-klomp-lib \"1|2|3\"
 ";
 
 sub main(@){
@@ -29,10 +30,12 @@ sub main(@){
   }else{
     die $usage;
   }
-  die $usage if @_ > 0;
+
+  my $libRegex = join "|", @_;
 
   if($ipmagicName eq "n900"){
     klompSyncLocal(
+      $libRegex,
       "n900",
       "/media/n900",
       "$ENV{HOME}/Code/n900/klomp/local-klomp-lib",
@@ -52,13 +55,13 @@ sub main(@){
 #3) optionally chown the entire destination klomp library dir
 #4) run `sync` to wait for the data to be written fully to disk
 #5) optionally umount the sdcard or hard drive
-sub klompSyncLocal($$$$){
-  my ($mntName, $targetDir, $localKlompLib, $chownUserGroup) = @_;
+sub klompSyncLocal($$$$$){
+  my ($libRegex, $mntName, $targetDir, $localKlompLib, $chownUserGroup) = @_;
   if(defined $mntName){
     runOrDie "sudo", "mnt", "-l", $mntName;
   }
 
-  runOrDie "sudo", "klomp-sync", "--local", $localKlompLib;
+  runOrDie "sudo", "klomp-sync", "--local", $localKlompLib, $libRegex;
   if(defined $chownUserGroup){
     runOrDie "sudo", "chown", $chownUserGroup, "-R", $targetDir;
   }
