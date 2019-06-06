@@ -190,6 +190,8 @@ function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
 function sm           { sheetmusic "$@"; }
 
+function ig           { igcmd "$@"; }
+
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
