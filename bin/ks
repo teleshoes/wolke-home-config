@@ -9,9 +9,12 @@ my $usage = "Usage:
   $0 -h|--help
     show this message
 
-  $0
-    run klomp-sync locally on /media/n900
-      e.g.: klomp-sync --local n900-local-klomp-lib
+  $0 IPMAGIC_NAME
+    perform klomp-sync remotely or locally for the intended device
+
+    IPMAGIC_NAME = n900
+      run klomp-sync locally on /media/n900
+        e.g.: klomp-sync --local n900-local-klomp-lib
 ";
 
 sub main(@){
@@ -20,16 +23,28 @@ sub main(@){
     exit 0;
   }
 
-  klompSyncLocal(
-    "n900",
-    "/media/n900",
-    "$ENV{HOME}/Code/n900/klomp/local-klomp-lib",
-    "29999.29999",
-  );
+  my $ipmagicName;
+  if(@_ > 0){
+    $ipmagicName = shift;
+  }else{
+    die $usage;
+  }
+  die $usage if @_ > 0;
 
-  my $host = `ipmagic n900`;
-  chomp $host;
-  runOrDie "scp", "$ENV{HOME}/.klompdb", "user\@$host:~";
+  if($ipmagicName eq "n900"){
+    klompSyncLocal(
+      "n900",
+      "/media/n900",
+      "$ENV{HOME}/Code/n900/klomp/local-klomp-lib",
+      "29999.29999",
+    );
+
+    my $host = `ipmagic n900`;
+    chomp $host;
+    runOrDie "scp", "$ENV{HOME}/.klompdb", "user\@$host:~";
+  }else{
+    die "$usage\n\nERROR: unknown ipmagic name \"$ipmagicName\"\n";
+  }
 }
 
 #1) optionally mount an sdcard or hard drive
