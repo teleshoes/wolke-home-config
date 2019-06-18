@@ -45,14 +45,19 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   ( set -x ;
     date ;
-    echo mount attempt 1/2 ;
+    echo mount attempt 1/3 ;
     sudo mnt ;
     sleep 5 ;
 
     date ;
-    echo mount attempt 2/2 ;
+    echo mount attempt 2/3 ;
     sudo mnt ;
     sleep 5 ;
+
+    date ;
+    echo mount attempt 3/3 ;
+    sudo mnt ;
+    echo done ;
 
     date ;
   ) 2>&1 > /tmp/mnt-log &
