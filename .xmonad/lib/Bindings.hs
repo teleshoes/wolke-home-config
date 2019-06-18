@@ -142,6 +142,8 @@ shortcuts conf = "Shortcuts" @@ do
         "tv cec start"  @@ mCS   xK_Mute #! "ipmagic tv cec-cmd start"
         "tv cec volup"  @@ mC    xK_equal#! "ipmagic tv cec-cmd --av vol +1"
         "tv cec voldn"  @@ mC    xK_minus#! "ipmagic tv cec-cmd --av vol -1"
+        "igcmd volup"   @@ mCS   xK_equal#! "ipmagic pi igcmd av-vol_up"
+        "igcmd voldn"   @@ mCS   xK_minus#! "ipmagic pi igcmd av-vol_down"
         "tv vol up"     @@ mCA   xK_VolUp#! "ipmagic tv pulse-vol +6 100"
         "tv vol down"   @@ mCA   xK_VolDn#! "ipmagic tv pulse-vol -6 100"
         "tv spkr cyc"   @@ mCAW  xK_VolUp#! "ipmagic tv speaker --cycle; ipmagic tv klomp-cmd restart"
