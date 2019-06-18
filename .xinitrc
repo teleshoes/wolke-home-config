@@ -43,7 +43,19 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     screen-daemon silence-daemon --start ;
   ) &
 
-  ( sudo mnt ; sleep 5 ; sudo mnt ) &
+  ( set -x ;
+    date ;
+    echo mount attempt 1/2 ;
+    sudo mnt ;
+    sleep 5 ;
+
+    date ;
+    echo mount attempt 2/2 ;
+    sudo mnt ;
+    sleep 5 ;
+
+    date ;
+  ) 2>&1 > /tmp/mnt-log &
 
   screensaver
   killall bgset
