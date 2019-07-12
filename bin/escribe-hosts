@@ -86,11 +86,16 @@ sub main(@){
   my %hostIps;
   my @hostOrder;
 
+  my @unknownHosts;
+
   for(my $i=0; $i < @$hosts; $i+=2){
     my $host = $$hosts[$i];
     my @syns = @{$$hosts[$i+1]};
     my $ip = dig $host, $nameserver;
-    die "Unknown server: $host\n" if not defined $ip;
+    if(not defined $ip){
+      print STDERR "WARNING: unknown server: $host\n";
+      push @unknownHosts, $ip;
+    }
     for my $hostname($host, @syns){
       $hostIps{$hostname} = $ip;
       push @hostOrder, $hostname;
@@ -131,6 +136,11 @@ sub main(@){
   for my $host(@$cacertsHosts){
     print "\n\n\nrunning: keytool-cacerts $host\n";
     system "keytool-cacerts", $host;
+  }
+
+  if(@unknownHosts > 0){
+    print "\n\n\nWARNING: the following hosts were not found\n";
+    print "$_\n" foreach @unknownHosts;
   }
 }
 
