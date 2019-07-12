@@ -10,6 +10,7 @@ my $marker = "###escribe-hosts###";
 sub dig($$);
 sub getHosts();
 sub getSSHConfig();
+sub canPing($);
 
 my $nameserver = '10.128.1.10';
 
@@ -77,6 +78,10 @@ my $sshHostIdentityFiles = {
 sub main(@){
   die "Cannot run $0 as root\n" if `whoami` eq "root\n";
   die "Usage: $0\n" if @_ != 0;
+
+  if(not canPing $nameserver){
+    die "ERROR: cant ping nameserver $nameserver\n";
+  }
 
   my %hostIps;
   my @hostOrder;
@@ -173,6 +178,16 @@ sub getSSHConfig(){
     }
   }
   return @okLines;
+}
+
+sub canPing($){
+  my ($host) = @_;
+  system "ping $host -c 1 -w 1 >/dev/null 2>/dev/null";
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 &main(@ARGV);
