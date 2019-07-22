@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub nowMillis();
+my $DELAY_MILLIS = 100;
+
+my $usage = "Usage:
+  $0 -h|--help
+    print this message
+
+  $0 [OPTS] FILE [REGEX_GOOD [REGEX_BAD]]
+    -run `tail -F <FILE>`, and read output line-by-line
+    -if <FILE> is '-', read output from STDIN
+    -for each line:
+      -if <REGEX_GOOD> is given and matches the line:
+        `alarm -s success`
+      -if <REGEX_GOOD> is NOT given:
+        `alarm -s success`
+      -if <REGEX_BAD> is given and matches the line:
+        `alarm -s failure`
+
+  OPTS:
+    -d | --delay
+      ignore all lines for the first ${DELAY_MILLIS}ms
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }
+
+  my $delay = 0;
+  while(@_ > 0 and $_[0] =~ /^(-d|--delay)$/){
+    my $arg = shift @_;
+    if($arg =~ /^(-d|--delay)$/){
+      $delay = 1;
+    }
+  }
+
+  die $usage if @_ < 1 or @_ > 3;
+
+  my ($file, $regexGood, $regexBad) = @_;
+
+  my $fh;
+  if($file =~ /^(-)$/){
+    $fh = \*STDIN;
+  }else{
+    open $fh, "-|", "tail", "-F", $file;
+  }
+
+  my $startMillis = nowMillis();
+
+  my $line;
+  while($line = <$fh>){
+    if($delay and nowMillis() - $startMillis < $DELAY_MILLIS){
+      next;
+    }
+    if(not defined $regexGood or $line =~ /$regexGood/){
+      system "alarm", "-s", "success";
+    }
+    if(defined $regexBad and $line =~ /$regexBad/){
+      system "alarm", "-s", "failure";
+    }
+  }
+
+  close $fh;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
