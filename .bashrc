@@ -191,6 +191,12 @@ function sb-daemon    { screen-daemon sb-daemon "$@"; }
 function sm           { sheetmusic "$@"; }
 
 function ig           { igcmd "$@"; }
+function acfan_up     { igcmd ac-fan_up "$@"; }
+function acfan_down   { igcmd ac-fan_down "$@"; }
+function acpower      { igcmd ac-power "$@"; }
+function ac2fan_up    { igcmd ac2-fan_up "$@"; }
+function ac2fan_down  { igcmd ac2-fan_down "$@"; }
+function ac2power     { igcmd ac2-power "$@"; }
 
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
