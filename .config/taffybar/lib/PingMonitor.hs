@@ -27,7 +27,7 @@ downColor = "red"
 toggleColorTrue = "white"
 toggleColorFalse = "gray"
 
-isPingable :: String -> Double -> IO Bool
+isPingable :: String -> Int -> IO Bool
 isPingable url timeout = procSuccess ["ping", url, "-c", "1", "-w", show timeout]
 
 pingMonitorReader :: String -> String -> IO (IO String)
@@ -35,10 +35,10 @@ pingMonitorReader display url = do
   chan <- newChan
   writeChan chan $ "?" ++ display
   let toggle = cycle [True, False]
-  forkIO $ mapM_ (ping chan display url defaultDelay) toggle
+  forkIO $ mapM_ (ping chan display url (round defaultDelay)) toggle
   return $ readChan chan
 
-ping :: Chan String -> String -> String -> Double -> Bool -> IO ()
+ping :: Chan String -> String -> String -> Int -> Bool -> IO ()
 ping chan display url timeout toggle = do
   isUp <- isPingable url timeout
   let wait = if isUp then 3 else 1
