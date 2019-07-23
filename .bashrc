@@ -210,6 +210,7 @@ function grepesh      { command grep "$@" \
                             --exclude Words.java \
                             ;
                       }
+function rebase       { rebase-reltime -e "$@" --same; }
 
 function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
