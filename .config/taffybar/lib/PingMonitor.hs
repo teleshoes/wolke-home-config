@@ -5,7 +5,7 @@ import Utils (defaultDelay, fg, bg, procSuccess)
 import Data.Text (pack)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import System.Environment (getArgs, getEnv)
-import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
+import Control.Concurrent (Chan, forkIO, threadDelay, readChan, writeChan, newChan)
 import Control.Monad (when)
 import GI.Gtk.Objects.Widget (Widget)
 
@@ -27,6 +27,7 @@ downColor = "red"
 toggleColorTrue = "white"
 toggleColorFalse = "gray"
 
+isPingable :: String -> Double -> IO Bool
 isPingable url timeout = procSuccess ["ping", url, "-c", "1", "-w", show timeout]
 
 pingMonitorReader :: String -> String -> IO (IO String)
@@ -37,6 +38,7 @@ pingMonitorReader display url = do
   forkIO $ mapM_ (ping chan display url defaultDelay) toggle
   return $ readChan chan
 
+ping :: Chan String -> String -> String -> Double -> Bool -> IO ()
 ping chan display url timeout toggle = do
   isUp <- isPingable url timeout
   let wait = if isUp then 3 else 1
