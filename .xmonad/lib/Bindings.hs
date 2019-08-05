@@ -111,8 +111,6 @@ shortcuts conf = "Shortcuts" @@ do
         "off"           @@ mW    xK_2    #! "sudo wconnect -d; " ++
                                             "sudo tether off; " ++
                                             "sudo wired off"
-        "tether"        @@ mW    xK_3    #! "sudo tether on"
-        "wired"         @@ mW    xK_4    #! "sudo wired on"
 
     "Resolution"    @@ do
         "alt1"          @@ mCW   xK_F1   #! "resconfig --set-res 1"
