@@ -106,9 +106,9 @@ shortcuts conf = "Shortcuts" @@ do
     "htop"              @@ mCA   (xK ' ')#! "term htop"
 
     "Network"       @@ do
-        "wauto"         @@ mW    xK_1    #! "sudo wauto"
-        "wifi-fix"      @@ mWS   xK_1    #! "term wifi-fix"
-        "off"           @@ mW    xK_2    #! "sudo wconnect -d; " ++
+        "wauto"         @@ mW    xK_grave#! "sudo wauto"
+        "wifi-fix"      @@ mWS   xK_grave#! "term wifi-fix"
+        "off"           @@ mCW   xK_grave#! "sudo wconnect -d; " ++
                                             "sudo tether off; " ++
                                             "sudo wired off"
 
