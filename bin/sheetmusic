@@ -7,12 +7,16 @@ my @OTHER_DIRS = (
   "$ENV{HOME}/Music/sheet_music/trumpet",
 );
 
+my $LAST_USED_FILE = "$ENV{HOME}/.cache/last-used-sheetmusic";
+
 sub getAllEntries();
 sub getShowNames();
 sub getShowEntrs();
 sub getDirEntries($);
 sub dirPathToName($);
 sub readProcLines(@);
+sub readLastUsedFile();
+sub writeLastUsedFile($$);
 sub bashComplete($$);
 
 my $typeSyns = {
@@ -49,6 +53,11 @@ my $usage = "Usage:
 
    $0 NAME [TYPE]
      open sheetmusic for NAME with type TYPE
+     (also, write NAME and TYPE to $LAST_USED_FILE)
+
+   $0
+     if $LAST_USED_FILE exists, read NAME and TYPE from it
+     run like: $0 NAME TYPE
 
    $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -69,6 +78,11 @@ sub main(@){
     $name = $_[0];
   }elsif(@_ == 2){
     ($name, $typeArg) = ($_[0], $_[1]);
+  }elsif(@_ == 0){
+    ($name, $typeArg) = readLastUsedFile();
+    if(not defined $name){
+      die "$usage\nERROR: could not read NAME from $LAST_USED_FILE\n";
+    }
   }else{
     die $usage;
   }
@@ -232,6 +246,34 @@ sub readProcLines(@){
   my @lines = <CMD>;
   close CMD;
   return @lines;
+}
+
+sub readLastUsedFile(){
+  if(-f $LAST_USED_FILE){
+    open FH, "< $LAST_USED_FILE" or die "could not read $LAST_USED_FILE\n$!\n";
+    my $contents = join '', <FH>;
+    close FH;
+    if($contents =~ /^(\w+),(\w*)$/){
+      my ($name, $typeArg) = ($1, $2);
+      if(defined $name and $name eq ""){
+        $name = undef;
+      }
+      if(defined $typeArg and $typeArg eq ""){
+        $typeArg = undef;
+      }
+      return ($name, $typeArg);
+    }
+  }
+  return (undef, undef);
+}
+sub writeLastUsedFile($$){
+  my ($name, $typeArg) = @_;
+  $name = "" if not defined $name;
+  $typeArg = "" if not defined $typeArg;
+
+  open FH, "> $LAST_USED_FILE";
+  print FH "$name,$typeArg\n";
+  close FH;
 }
 
 sub bashComplete($$){
