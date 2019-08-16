@@ -61,53 +61,62 @@ sub main(@){
     die $usage;
   }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
-  }elsif(@_ == 1 or @_ == 2){
-    my ($name, $typeArg) = @_;
-    if(defined $typeArg){
-      if(not defined $$typeSyns{$typeArg}){
-        die "invalid type arg: $typeArg\n";
-      }
-      $typeArg = $$typeSyns{$typeArg};
-    }
+    exit 0;
+  }
 
-    my $entries = getAllEntries();
-    if(defined $$entries{$name}){
-      my $types = $$entries{$name}{types};
-      die "no types found for $name\n" if @$types == 0;
-      my $firstType = $$types[0];
-
-      my $typeName;
-      if(defined $typeArg){
-        $typeName = $typeArg;
-      }else{
-        $typeName = $$firstType{typeName};
-      }
-
-      my $files = $$firstType{files};
-      for my $type(@$types){
-        if($typeName eq $$type{typeName}){
-          $files = $$type{files};
-          last;
-        }
-      }
-
-      if($typeName =~ /^(double)$/){
-        system "feh-page", "--double", @$files;
-      }elsif($typeName =~ /^(single)$/){
-        system "feh-page", @$files;
-      }elsif($typeName =~ /^(jpeg|image)$/){
-        system "feh-page", "--double", @$files;
-      }elsif($typeName =~ /^(pdf)$/){
-        system "evince", @$files;
-      }elsif($typeName =~ /^(musescore)$/){
-        system "musescore", @$files;
-      }
-      system "stty", "sane";
-    }else{
-      die "could not find sheet music for $name\n";
-    }
+  my ($name, $typeArg);
+  if(@_ == 1){
+    $name = $_[0];
+  }elsif(@_ == 2){
+    ($name, $typeArg) = ($_[0], $_[1]);
   }else{
     die $usage;
+  }
+
+  if(defined $typeArg){
+    if(not defined $$typeSyns{$typeArg}){
+      die "invalid type arg: $typeArg\n";
+    }
+    $typeArg = $$typeSyns{$typeArg};
+  }
+
+  my $entries = getAllEntries();
+  if(defined $$entries{$name}){
+    my $types = $$entries{$name}{types};
+    die "no types found for $name\n" if @$types == 0;
+    my $firstType = $$types[0];
+
+    my $typeName;
+    if(defined $typeArg){
+      $typeName = $typeArg;
+    }else{
+      $typeName = $$firstType{typeName};
+    }
+
+    my $files = $$firstType{files};
+    for my $type(@$types){
+      if($typeName eq $$type{typeName}){
+        $files = $$type{files};
+        last;
+      }
+    }
+
+    writeLastUsedFile $name, $typeArg;
+
+    if($typeName =~ /^(double)$/){
+      system "feh-page", "--double", @$files;
+    }elsif($typeName =~ /^(single)$/){
+      system "feh-page", @$files;
+    }elsif($typeName =~ /^(jpeg|image)$/){
+      system "feh-page", "--double", @$files;
+    }elsif($typeName =~ /^(pdf)$/){
+      system "evince", @$files;
+    }elsif($typeName =~ /^(musescore)$/){
+      system "musescore", @$files;
+    }
+    system "stty", "sane";
+  }else{
+    die "could not find sheet music for $name\n";
   }
 }
 
