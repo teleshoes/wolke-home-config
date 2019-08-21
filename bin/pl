@@ -20,7 +20,7 @@ my $usage = "Usage:
 
   $0 SONG_NUM
   $0 SONG_NUM POS
-  $0 SONG_NUM -ss POS
+  $0 SONG_NUM LOOP_POS_START LOOP_POS_END
     find the first song <FILE> matching <SONG_NUM> in one of:
       \$PWD/
       $PLAY_DIR/
@@ -30,6 +30,13 @@ my $usage = "Usage:
 
     POS
       -any string, will be passed to mpv like `-ss <POS>`
+
+    LOOP_POS_START
+      any string, will be passed to mpv like `--ab-loop-a=<LOOP_POS_START>`
+      also, will be passed to mpv like `-ss <LOOP_POS_START>`
+
+    LOOP_POS_END
+      any string, will be passed to mpv like `--ab-loop-b=<LOOP_POS_END>`
 
     FILE
       -must start with any number of zeros,
@@ -48,7 +55,7 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  my ($songNum, $pos);
+  my ($songNum, $pos, $loopStart, $loopEnd);
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
@@ -58,6 +65,8 @@ sub main(@){
     ($songNum, $pos) = ($_[0], $_[1]);
   }elsif(@_ == 3 and $_[1] =~ /^(-ss)$/){
     ($songNum, $pos) = ($_[0], $_[2]);
+  }elsif(@_ == 3){
+    ($songNum, $loopStart, $loopEnd) = ($_[0], $_[1], $_[2]);
   }else{
     die $usage;
   }
@@ -102,6 +111,10 @@ sub main(@){
 
   my @cmd = ("mpv", @DEFAULT_MPV_OPTS, $songFile);
   @cmd = (@cmd, "-ss", $pos) if defined $pos;
+  @cmd = (@cmd, "--ab-loop-a", $loopStart) if defined $loopStart;
+  @cmd = (@cmd, "-ss", $loopStart) if defined $loopStart;
+  @cmd = (@cmd, "--ab-loop-b", $loopEnd) if defined $loopEnd;
+
   exec @cmd;
 }
 
