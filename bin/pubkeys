@@ -56,6 +56,8 @@ sub main(@){
     die $usage;
   }
 
+  my (@entryNamesSuccess, @entryNamesFailure);
+
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
@@ -67,9 +69,11 @@ sub main(@){
     chomp $hostname;
     if($? != 0){
       print STDERR "WARNING: error running '$ipCmd'\n";
+      push @entryNamesFailure, $name;
       next;
     }elsif($hostname !~ /\w/){
       print STDERR "WARNING: malformed hostname from '$ipCmd': $hostname\n";
+      push @entryNamesFailure, $name;
       next;
     }
 
@@ -84,7 +88,17 @@ sub main(@){
     }
     run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
     run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
+
+    push @entryNamesSuccess, $name;
   }
+
+  print "\n\n\n"
+    . (@entryNamesSuccess+0) . " successful entries\n"
+    . (@entryNamesFailure+0) . " failed entries\n"
+    ;
+  print "\n";
+  print "SUCCESS: @entryNamesSuccess\n" if @entryNamesSuccess > 0;
+  print "FAILURE: @entryNamesFailure\n" if @entryNamesFailure > 0;
 }
 
 sub run(@){
