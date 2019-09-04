@@ -10,6 +10,7 @@ sub ensureSaveCached($$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
 sub readCachedSaves($);
+sub getSortedCachedSaves($);
 sub getCachedSaveByIndex($$);
 sub sha1($);
 sub mtime($);
@@ -54,6 +55,10 @@ my $usage = "Usage:
     -extract <TAR_BALL> to
       $SAVE_DIR_LINUX
 
+  $EXEC --list
+    print all cached saves, oldest to newest, formatted like:
+    INDEX: YYYY-MM-DD HH:MM:SS.SSS
+
   $EXEC --restore INDEX
     same as `$EXEC --restore <TAR_BALL>`,
       after finding <TAR_BALL> in $CACHE_DIR based on <INDEX>:
@@ -86,6 +91,16 @@ sub main(@){
 
     print "\nEXTRACTING NEW SAVE:\n";
     extractTarToSaveDir($tarFile, $SAVE_DIR);
+  }elsif(@_ == 1 and $_[0] =~ /^(--list)$/){
+    my @sortedCachedSaves = getSortedCachedSaves($CACHE_DIR);
+    my $index = $#sortedCachedSaves;
+    for my $save(reverse @sortedCachedSaves){
+      my $mtime = mtime $$save{file};
+      my $mtimeFmt = `date --date \@$mtime +'%Y-%m-%d %H:%M:%S'`;
+      chomp $mtimeFmt;
+      print "$index: $mtimeFmt   $$save{file}\n";
+      $index--;
+    }
   }else{
     die $usage;
   }
@@ -187,14 +202,20 @@ sub readCachedSaves($){
   return $saves;
 }
 
-sub getCachedSaveByIndex($$){
-  my ($index, $cacheDir) = @_;
+sub getSortedCachedSaves($){
+  my ($cacheDir) = @_;
   my %mtimesBySha1;
   my @saves = values %{readCachedSaves $cacheDir};
   for my $save(@saves){
     $mtimesBySha1{$$save{sha1}} = mtime $$save{file};
   }
   @saves = reverse sort {$mtimesBySha1{$$a{sha1}} <=> $mtimesBySha1{$$b{sha1}}} @saves;
+  return @saves;
+}
+
+sub getCachedSaveByIndex($$){
+  my ($index, $cacheDir) = @_;
+  my @saves = getSortedCachedSaves($cacheDir);
   if($index >= @saves){
     my $cnt = @saves;
     die "ERROR: save index '$index' is too large (there are $cnt saves)\n";
