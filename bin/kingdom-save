@@ -14,6 +14,7 @@ sub fetchCurrentSaveMtime($);
 sub readCachedSaves($);
 sub getSortedCachedSaves($);
 sub getCachedSaveByIndex($$);
+sub notifySend($);
 sub sha1($);
 sub mtime($);
 sub nowMillis();
@@ -23,6 +24,7 @@ sub readFile($);
 sub globOne($);
 
 my $DEFAULT_LIST_LIMIT = 20;
+my $NOTIFY_SEND_MILLIS = 1500;
 
 my $SAVE_DIR_LINUX = "$ENV{HOME}/.config/unity3d/noio/KingdomTwoCrowns/Release";
 
@@ -203,7 +205,9 @@ sub ensureSaveCached($$){
   my ($saveDir, $cacheDir) = @_;
   if(not defined $saveDir or not -d $saveDir){
     $saveDir = "";
-    die "ERROR: save dir does not exist: $saveDir\n";
+    my $msg = "ERROR: save dir does not exist: $saveDir";
+    notifySend $msg;
+    die "$msg\n";
   }
 
   my $currentSaveTar = fetchCurrentSaveTar($saveDir);
@@ -212,22 +216,35 @@ sub ensureSaveCached($$){
 
   run "mkdir", "-p", $cacheDir if not -d $cacheDir;
   if(not -d $cacheDir){
-    die "ERROR: cache dir does not exist: $cacheDir\n";
+    my $msg = "ERROR: cache dir does not exist: $cacheDir";
+    notifySend $msg;
+    die "$msg\n";
   }
 
   my $saves = readCachedSaves($cacheDir);
   if(defined $$saves{$currentSaveSha1}){
     my $file = $$saves{$currentSaveSha1}{file};
-    print "save already cached: $file\n";
+    my $msg = "save already cached: $file\n";
+    notifySend $msg;
+    print "$msg\n";
   }else{
     my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
     chomp $datetimeFmt;
     my $saveFileCache = "$cacheDir/${datetimeFmt}_${currentSaveSha1}.tar.xz";
     run "xz --compress --stdout $currentSaveTar > $saveFileCache";
     if(not -f $saveFileCache){
-      die "ERROR: could not create file $saveFileCache\n";
+      my $msg = "ERROR: could not create file $saveFileCache";
+      notifySend $msg;
+      die "$msg\n";
     }
+    my $saveInfo = parseSaveInfo $saveFileCache;
+
     run "touch", $saveFileCache, "--date", "\@$currentSaveMtime";
+
+    my $mtimeFmt = `date --date \@$currentSaveMtime +%Y-%m-%d %H:%M:%S`;
+    my $msg = "SAVED: $mtimeFmt  $$saveInfo{daysFmt}  $$saveInfo{land}";
+    notifySend $msg;
+    print "$msg\n";
   }
 
   run "rm", $currentSaveTar;
@@ -307,6 +324,10 @@ sub getCachedSaveByIndex($$){
     die "ERROR: save index '$index' is too large (there are $cnt saves)\n";
   }
   return $saves[$index];
+}
+
+sub notifySend($){
+  system "notify-send", "-t", $NOTIFY_SEND_MILLIS, @_;
 }
 
 sub sha1($){
