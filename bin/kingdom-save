@@ -71,8 +71,8 @@ my $usage = "Usage:
         ...
     NOTE: <TAR_BALL> is selected based on <INDEX> BEFORE backing up current
 
-  $EXEC --list
-    print the most recent $DEFAULT_LIST_LIMIT cached saves,
+  $EXEC --list [LIST_LIMIT]
+    print the most recent LIST_LIMIT cached saves (default is $DEFAULT_LIST_LIMIT)
     oldest to newest, formatted like:
       <INDEX> <MTIME> <DAYS>D <LAND> <SHA1SUM>
         INDEX:   the index to pass to --restore, 0 is most recent backup
@@ -101,11 +101,18 @@ sub main(@){
 
     print "\nEXTRACTING NEW SAVE:\n";
     extractTarToSaveDir($tarFile, $SAVE_DIR);
-  }elsif(@_ == 1 and $_[0] =~ /^(--list)$/){
-    print "listing last $DEFAULT_LIST_LIMIT saves in: $CACHE_DIR\n";
+  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--list)$/){
+    my $listLimit = $DEFAULT_LIST_LIMIT;
+    if(@_ == 2){
+      $listLimit = $_[1];
+      if($listLimit !~ /^\d+$/ or $listLimit == 0){
+        die "$usage\nERROR: LIST_LIMIT must be a positive integer: $listLimit\n";
+      }
+    }
+    print "listing last $listLimit saves in: $CACHE_DIR\n";
     my @saves = getSortedCachedSaves($CACHE_DIR);
 
-    my $limit = @saves < $DEFAULT_LIST_LIMIT ? @saves : $DEFAULT_LIST_LIMIT;
+    my $limit = @saves < $listLimit ? @saves : $listLimit;
     @saves = @saves[0 .. $limit-1];
 
     my $index = $#saves;
