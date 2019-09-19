@@ -73,6 +73,7 @@ my $usage = "Usage:
 
   $0 -l|--log|log [--date=DATE] [--logfile=LOGFILE] [BACKUP_NAME]
     format recent info from $historyLogFile
+      (or $historyLogFile.0)
       DATE
         YYYY-MM-DD   show only info from that date
         all          do not filter log info
@@ -96,6 +97,7 @@ my $usage = "Usage:
   $0 -b|--backup|backup [--force]
     1) stop crashplan => start crashplan => send 'scan' command to crashplan
     2) tail -F $historyLogFile
+       (or $historyLogFile.0)
     3) check newly added log entries every ${checkCompleteIntervalMillis}ms
     4) if all backups look complete, wait an extra ${assertCompleteMillis}ms
     5) if they still do, or if ${backupLimitMillis}ms is reached, stop crashplan
@@ -277,7 +279,9 @@ sub runBackup($){
 
   my $logPid = fork;
   if($logPid == 0){
-    exec "tail", "-F", $historyLogFile;
+    my $tailLogFile = $historyLogFile;
+    $tailLogFile = "$tailLogFile.0" if not -f $tailLogFile and -f "$tailLogFile.0";
+    exec "tail", "-F", $tailLogFile;
   }
 
   my $prevSync = parseLatestSync();
@@ -387,7 +391,9 @@ sub runBackup($){
   }
 
   print "###\n";
-  run "tail -10 $historyLogFile";
+  my $tailLogFile = $historyLogFile;
+  $tailLogFile = "$tailLogFile.0" if not -f $tailLogFile and -f "$tailLogFile.0";
+  run "tail -10 $tailLogFile";
   print "###\n";
 
   if(defined $errorMsg){
@@ -399,6 +405,8 @@ sub runBackup($){
 
 sub getFilteredBackupSets($$$$){
   my ($logfile, $maxTimeAgoMillis, $exactDate, $ignoreDuplicateFailures) = @_;
+
+  $logfile = "$logfile.0" if not -f $logfile and -f "$logfile.0";
 
   my $log = parseLog($logfile);
   filterLog($log, $maxTimeAgoMillis, $exactDate);
@@ -641,7 +649,10 @@ sub parseLog($){
 }
 
 sub parseLatestSync(){
-  my @lines = `cat $serviceLogFile`;
+  my $logFile = $serviceLogFile;
+  $logFile = "$logFile.0" if not -f $logFile and -f "$logFile.0";
+
+  my @lines = `cat $logFile`;
   my $manifestValid = 0;
   for my $line(reverse @lines){
     if($line =~ /SYNC::.*MARKING MANIFEST AS VALIDATED/){
