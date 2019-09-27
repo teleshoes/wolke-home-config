@@ -214,14 +214,19 @@ sub getPulseEnvVars(){
 }
 
 sub pulseExec(@){
+  my @command = @_;
+
   my $user = `whoami`;
   chomp $user;
-  my $pulseUser = `ps --no-heading -o user -C pulseaudio 2>/dev/null | head -1`;
-  chomp $pulseUser;
 
-  if($user eq 'root' and $pulseUser ne 'root' and length($pulseUser) > 0){
-    print "rerunning as pulse user $pulseUser\n";
-    exec "su", $pulseUser, "-c", "@_";
+  if($user eq 'root'){
+    my $pulseUser = `ps --no-heading -o user -C pulseaudio 2>/dev/null | head -1`;
+    chomp $pulseUser;
+
+    if($pulseUser ne 'root' and length($pulseUser) > 0){
+      print "rerunning as pulse user $pulseUser\n";
+      exec "su", $pulseUser, "-c", "@command";
+    }
   }
 }
 
