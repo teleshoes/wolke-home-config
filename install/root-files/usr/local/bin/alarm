@@ -8,6 +8,7 @@ my @exts = qw(mp3 flac ogg m4a wma wav);
 
 sub selectAlarmFile($);
 sub listFiles($);
+sub getPulseEnvVars();
 sub pulseExec(@);
 sub bashComplete($$);
 
@@ -151,6 +152,13 @@ sub main(@){
     die "ERROR: no exec found to play alarm\n";
   }
 
+  #copy certain environment variables from pulseaudio process
+  my %pulseEnvVars = getPulseEnvVars();
+  for my $key(sort keys %pulseEnvVars){
+    my $val = $pulseEnvVars{$key};
+    $ENV{$key} = $val;
+  }
+
   if(not $background){
     exec @cmd;
   }else{
@@ -181,6 +189,28 @@ sub listFiles($){
     chomp $file;
   }
   return sort @files;
+}
+
+sub getPulseEnvVars(){
+  my $pulseCmd = `ps e --no-heading -o cmd -C pulseaudio 2>/dev/null`;
+  my %pulseEnvVars;
+
+  #only get these environment variables
+  my %okEnvVars = map {$_ => 1} qw(
+    XDG_RUNTIME_DIR
+  );
+
+  my @pulseCmdWords = split / /, $pulseCmd;
+  for my $word(@pulseCmdWords){
+    if($word =~ /^(\w+)=(.+)$/){
+      my ($key, $val) = ($1, $2);
+      if(defined $okEnvVars{$key}){
+        $pulseEnvVars{$key} = $val;
+      }
+    }
+  }
+
+  return %pulseEnvVars;
 }
 
 sub pulseExec(@){
