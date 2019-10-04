@@ -20,6 +20,7 @@ sub getLastSnapshot($$$);
 sub cleanupSnapshots($$$);
 sub deleteSnapshots($@);
 sub getBtrfsMountDev($$);
+sub isMountPoint($);
 sub monitorPvLog();
 sub latestPvLogFile();
 sub guessPrefixes($);
@@ -416,8 +417,9 @@ sub makeSnapshot($$){
   my $dateTime = `date +$dateTimeFormat`;
   chomp $dateTime;
 
-  $mountPoint =~ s/\/$//;
+  $mountPoint =~ s/\/+$//;
   die "not a dir: $mountPoint\n" if not -d $mountPoint;
+  die "not a mountpoint: $mountPoint\n" if not isMountPoint($mountPoint);
 
   my $parentDir = "$subvolContainer/$prefix";
   run "mkdir", "-p", "$mountPoint/$parentDir";
@@ -664,6 +666,21 @@ sub getBtrfsMountDev($$){
     }
   }
   return undef;
+}
+
+sub isMountPoint($){
+  my ($dir) = @_;
+  open CMD, "-|", "mountpoint", $dir
+    or die "could not run mountpoint\n$!\n";
+  my $out = <CMD>;
+  close CMD;
+  if($out =~ /is a mountpoint$/){
+    return 1;
+  }elsif($out =~ /is not a mountpoint$/){
+    return 0;
+  }else{
+    die "malformed output of 'mountpoint' command: $out\n";
+  }
 }
 
 sub guessPrefixes($){
