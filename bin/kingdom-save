@@ -269,18 +269,23 @@ sub ensureSaveCached($$){
   }else{
     my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
     chomp $datetimeFmt;
-    my $saveFileCache = "$cacheDir/${datetimeFmt}_${currentSaveSha1}.tar.xz";
-    run "xz --compress --stdout $currentSaveTar > $saveFileCache";
-    if(not -f $saveFileCache){
-      my $msg = "ERROR: could not create file $saveFileCache";
+    my $cacheFileName = "${datetimeFmt}_${currentSaveSha1}.tar.xz";
+
+    my $saveFileCachePath = "$cacheDir/$cacheFileName";
+    run "xz --compress --stdout $currentSaveTar > $saveFileCachePath";
+    if(not -f $saveFileCachePath){
+      my $msg = "ERROR: could not create file $saveFileCachePath";
       notifySend $msg;
       die "$msg\n";
     }
-    my $saveInfo = parseSaveInfo $saveFileCache;
+    my $saveInfo = parseSaveInfo $saveFileCachePath;
 
-    run "touch", $saveFileCache, "--date", "\@$currentSaveMtime";
+    run "touch", $saveFileCachePath, "--date", "\@$currentSaveMtime";
 
-    my $mtimeFmt = `date --date \@$currentSaveMtime +%Y-%m-%d %H:%M:%S`;
+    run "rm", "-f", "$cacheDir/latest.tar.xz";
+    run "ln", "-s", $cacheFileName, "$cacheDir/latest.tar.xz";
+
+    my $mtimeFmt = `date --date \@$currentSaveMtime '+%Y-%m-%d %H:%M:%S'`;
     my $msg = "SAVED: $mtimeFmt  $$saveInfo{daysFmt}  $$saveInfo{land}";
     notifySend $msg;
     print "$msg\n";
