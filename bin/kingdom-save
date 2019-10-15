@@ -138,6 +138,7 @@ sub parseSaveInfo($){
   my $info = {
     land => "?",
     days => "?",
+    islands => {},
   };
 
   my $globalFile = globOne "$workDir/global-*";
@@ -179,6 +180,36 @@ sub parseSaveInfo($){
     if(defined $cur and defined $$cur{playTimeDays}){
       $$info{days} = $$cur{playTimeDays};
     }
+  }
+
+  my @islandFiles = glob "$workDir/island-*";
+  for my $islandFile(@islandFiles){
+    my $islandName = $islandFile;
+    $islandName =~ s/.*\///;
+    $$info{islands}{$islandName} = {};
+
+    my $json = `gzip --force --decompress --stdout $islandFile`;
+    if($? != 0){
+      die "ERROR: could not gzip decompress $islandFile\n";
+    }
+    my %objNameAbbrevs = (
+      Archer  => "A",
+      Peasant => "P",
+      Worker  => "W",
+      Farmer  => "F",
+      Pikeman => "K",
+    );
+    my @countFmts;
+    for my $objName(sort keys %objNameAbbrevs){
+      my $objAbbrev = $objNameAbbrevs{$objName};
+      my @ids = $json =~ /"uniqueID"\s*:\s*"($objName \w+ \[\w+\]--\d+)"/g;
+      my %uniqIds = map {$_ => 1} @ids;
+      @ids = sort keys %uniqIds;
+      my $count = @ids;
+      $$info{islands}{$islandName}{"count$objName"} = $count;
+      push @countFmts, "$objAbbrev$count";
+    }
+    $$info{islands}{$islandName}{"countFmt"} = "@countFmts";
   }
 
   if(defined $$info{days} and $$info{days} =~ /^-?(\d+|\d*\.\d+)$/){
