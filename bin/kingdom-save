@@ -71,6 +71,17 @@ my $usage = "Usage:
         ...etc
     NOTE: <TAR_BALL> is selected based on <INDEX> BEFORE backing up current
 
+  $EXEC --info TAR_BALL
+    print detailed info about a save
+
+  $EXEC --info INDEX
+    same as `$EXEC --restore <TAR_BALL`
+    after finding <TAR_BALL> in $CACHE_DIR based on <INDEX>
+        0   => most recent save
+        1   => second-most recent save
+        2   => third-most recent save
+        ...etc
+
   $EXEC --list [LIST_LIMIT]
     print the most recent LIST_LIMIT cached saves (default is $DEFAULT_LIST_LIMIT)
     oldest to newest, formatted like:
@@ -101,6 +112,20 @@ sub main(@){
 
     print "\nEXTRACTING NEW SAVE:\n";
     extractTarToSaveDir($tarFile, $SAVE_DIR);
+  }elsif(@_ == 2 and $_[0] =~ /^(--info)$/){
+    my $tarFile;
+    if($_[1] =~ /^\d+$/){
+      $tarFile = ${getCachedSaveByIndex($_[1], $CACHE_DIR)}{file};
+    }elsif(-f $_[1]){
+      $tarFile = $_[1];
+    }
+    my $saveInfo = parseSaveInfo $tarFile;
+    print "DAYS:  $$saveInfo{daysFmt}\n";
+    print "LAND:  $$saveInfo{land}\n";
+    for my $islandName(sort keys %{$$saveInfo{islands}}){
+      my $islandInfo = $$saveInfo{islands}{$islandName};
+      print "$islandName: $$islandInfo{countFmt}\n";
+    }
   }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--list)$/){
     my $listLimit = $DEFAULT_LIST_LIMIT;
     if(@_ == 2){
