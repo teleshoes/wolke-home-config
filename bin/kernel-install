@@ -6,6 +6,10 @@ my @suffixes = qw(-siduction -amd64);
 my $okSuffixes = join "|", @suffixes;
 my $suffix = join "", @suffixes;
 
+my $ACPI_CALL_REPO_URL = "https://github.com/teleshoes/acpi_call.git";
+my $THINKPAD_ACPI_REPO_URL = "https://github.com/teleshoes/thinkpad_acpi.git";
+
+sub gitClone($$);
 sub cd($);
 sub run(@);
 
@@ -22,14 +26,26 @@ sub main(@){
   ;
 
   print "\n\n\ninstalling acpi_call\n";
-  cd "$ENV{HOME}/Code/acpi_call";
+  my $acpiCallRepoDir = "$ENV{HOME}/.src-cache/acpi_call";
+  gitClone $ACPI_CALL_REPO_URL, $acpiCallRepoDir;
+  cd $acpiCallRepoDir;
   run "make", "clean";
   run "make", "KVER=$v$suffix";
   run "sudo", "make", "install", "KVER=$v$suffix";
 
   print "\n\n\ninstalling thinkpad_acpi\n";
-  cd "$ENV{HOME}/Code/thinkpad_acpi";
+  my $thinkpadACPIRepoDir = "$ENV{HOME}/.src-cache/thinkpad_acpi";
+  gitClone $THINKPAD_ACPI_REPO_URL, $thinkpadACPIRepoDir;
+  cd $thinkpadACPIRepoDir;
   run "./install.pl", "$v$suffix";
+}
+
+sub gitClone($$){
+  my ($repoURL, $repoDir) = @_;
+  if(not -d $repoDir){
+    run "mkdir", "-p", $repoDir;
+    run "git", "clone", $repoURL, $repoDir;
+  }
 }
 
 sub cd($){
