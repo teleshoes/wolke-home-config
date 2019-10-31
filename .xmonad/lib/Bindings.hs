@@ -198,7 +198,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "FBreader"      @@ mCA   xK_r    #! "fbreader"
-        "stepmania"     @@ mCA   xK_s    #! "stepmania"
+        "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
