@@ -173,6 +173,9 @@ shortcuts conf = "Shortcuts" @@ do
         "left"          @@ mA    xK_F11  #! "feh-left"
         "right"         @@ mA    xK_F12  #! "feh-right"
 
+    "games"         @@ do
+        "kingdom-save"  @@ mAW   xK_F7   #! "kingdom-save"
+
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"
         "tea!"          @@ mW    xK_t    #! "fcron-job-toggle te toggle"
