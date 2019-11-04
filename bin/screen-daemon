@@ -66,6 +66,11 @@ my $usage = "Usage:
       LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
       START_MILLIS = time in milliseconds at initial start
 
+  $EXEC NAME --ensure
+    -if `$EXEC NAME --status` is \"off\"
+      -run `$EXEC NAME --start
+    -otherwise, do nothing
+
   $EXEC NAME --attach
     -attach to screen session 'NAME'
       screen -S NAME -d r
@@ -141,6 +146,15 @@ sub main(@){
     my ($name) = @_;
     die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
     exec $0, $name, "--attach";
+  }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(--ensure)$/)){
+    my ($name, $toggleArg) = @_;
+    my $status = `$0 $name --status`;
+    if($status =~ /off/){
+      print "starting\n";
+      exec $0, $name, "--start";
+    }else{
+      print "already running\n";
+    }
   }elsif(@_ == 2 and $_[1] =~ /^--toggle$/){
     my ($name, $toggleArg) = @_;
     my $status = `$0 $name --status`;
