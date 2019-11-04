@@ -18,7 +18,7 @@ if [ $MACHINE_TYPE = "main" ]; then
   brightness 100 &
   ( pulse-enable on ; pulse-vol mic mute ) &
 
-  term -t qtemail-daemon -r email-daemon.pl
+  screen-daemon email --start
   mnt --other &
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
