@@ -41,7 +41,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
     speaker -s hdmi surround ;
     pulse-vol mic mute ;
-    screen-daemon silence-daemon --start ;
+    screen-daemon silence --start ;
   ) &
 
   ( set -x ;
@@ -72,7 +72,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   sudo igstart &
   cec-cmd start &
 
-  screen-daemon sb-daemon --start
+  screen-daemon sb --start
   screen-daemon revtun-ensure --start
 fi
 
