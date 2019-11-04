@@ -185,6 +185,7 @@ function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
 function sbrsync      { seedbox --rsync-revtun "$@"; }
 function sbs          { sb-rt-status "$@"; }
+function sd           { screen-daemon "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
