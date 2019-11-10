@@ -74,6 +74,12 @@ my $usage = "Usage:
     $EXEC CONF [OPTS] --ip
       setup method, print the IP, and exit {dont set up hosts}
 
+    $EXEC CONF -k|--key-remove|--keygen-remove|--ssh-keygen-remove
+      remove keys from known_hosts for HOSTNAME and IP
+      roughly equivalent to:
+        ssh-keygen -R `$EXEC CONF --host`
+        ssh-keygen -R `$EXEC CONF --ip`
+
     $EXEC CONF [OPTS] -t|--tmp [IP]
       write IP to a tmp file, or if IP is not given, remove tmp file.
       the tmp file is read first while setting up the hosts file,
@@ -220,6 +226,19 @@ sub main(@){
   }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(-t|--tmp)$/){
     my $ip = $_[1] if @_ == 2;
     writeTmpFile $confFile, $ip;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-k|--key-remove|--keygen-remove|--ssh-keygen-remove)$/){
+    print "removing key for $config{hostname}\n";
+    system "ssh-keygen", "-R", $config{hostname};
+    print "fetching IP for $config{hostname}\n";
+    my $ip = `$0 $conf --ip`;
+    chomp $ip;
+    if($ip =~ /^$ipRegex$/){
+      print "removing key for $ip\n";
+      system "ssh-keygen", "-R", $ip;
+    }else{
+      die "failed to fetch IP\n";
+    }
     exit 0;
   }
 
