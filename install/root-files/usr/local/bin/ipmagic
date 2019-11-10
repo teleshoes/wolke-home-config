@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
 sub absolutePath($);
 sub assertBool($);
@@ -44,34 +45,36 @@ my $ipRegex = "\\d+\\.\\d+\\.\\d+\\.\\d+";
 
 my $defaultRetries = 2;
 
+my $EXEC = basename $0;
+
 my $usage = "Usage:
-    $0 -h|--help
+    $EXEC -h|--help
       print this usage
 
-    $0 --set-hosts HOSTNAME IP
+    $EXEC --set-hosts HOSTNAME IP
       remove any lines in /etc/hosts that match:
         \"###.###.###.###\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
       add the following to /etc/hosts: \"<IP>\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
 
-    $0 --remove-hosts HOSTNAME
+    $EXEC --remove-hosts HOSTNAME
       remove any lines in /etc/hosts that match:
         \"###.###.###.###\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
 
-    $0 --ifup DEV IP
+    $EXEC --ifup DEV IP
       ifup the DEV with the IP
 
-    $0 CONF [OPTS]
+    $EXEC CONF [OPTS]
       generate the IP, ensure its ping-able, setup hosts file, init devices
       if IP is found, print the hostname and exit normally
       if IP is NOT found, fail and exit with an error code
 
-    $0 CONF [OPTS] --host
+    $EXEC CONF [OPTS] --host
       print the hostname and exit, doing nothing else
 
-    $0 CONF [OPTS] --ip
+    $EXEC CONF [OPTS] --ip
       setup method, print the IP, and exit {dont set up hosts}
 
-    $0 CONF [OPTS] -t|--tmp [IP]
+    $EXEC CONF [OPTS] -t|--tmp [IP]
       write IP to a tmp file, or if IP is not given, remove tmp file.
       the tmp file is read first while setting up the hosts file,
         and overrides all other methods of finding an ip
@@ -80,7 +83,7 @@ my $usage = "Usage:
           with forward slashes \"/\" replaced with underscores \"_\"
           e.g.: /tmp/ipmagic_home_user_raspberrypi.conf.tmp
 
-    $0 CONF [OPTS] [ACTION]
+    $EXEC CONF [OPTS] [ACTION]
       setup hosts file, init devices, and optionally perform an action
       ACTIONS:
         -s [CMD ARG ARG..]  ssh to host
@@ -112,7 +115,7 @@ my $usage = "Usage:
                             sshArgs=SSH_ARGS
 
         -vnc [VNC_ARGS]     call vncCmd
-                            e.g.: for n9-vnc: `$0 -vnc rotate90 -- -quality 0`
+                            e.g.: for n9-vnc: `$EXEC -vnc rotate90 -- -quality 0`
 
         SSH_ARGS
           additional args passed to ssh in '-s' and '-b'
@@ -180,7 +183,7 @@ sub main(@){
     $confFile = absolutePath $conf;
   }
 
-  die "Could not read $confFile {$0 -h for usage}\n" if not -f $confFile;
+  die "Could not read $confFile {$EXEC -h for usage}\n" if not -f $confFile;
   my %config = %{parseConfig $confFile};
 
   die "hostname not defined in conf\n" if not defined $config{hostname};
