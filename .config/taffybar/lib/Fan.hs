@@ -33,21 +33,26 @@ parseFanInfo fanInfo = (speed, level)
         speed = fromMaybe (-1) $ readInt $ grps!!0
         level = grps!!1
 
-formatInfo temp speed level = col $ (pad tmp) ++ "\n" ++ (pad spd)
-  where col = color level
-        pad = padL '0' width . take width
-        spd = take 2 $ if speed == 65535 then "FF" else show $ speed`div`100
-        tmp = take 2 $ if temp >= 100 then "!!" else show temp
+formatInfo temp speed level = tempFmt ++ "\n" ++ speedFmt
+  where tempFmt = colorTemp temp $ padNum width tempText
+        speedFmt = colorFan level $ padNum width speedText
+        speedText = if speed >= 10000 then "??" else show $ speed`div`100
+        tempText = if temp >= 100 then "!!" else show temp
+        padNum width text = padL '0' width $ take width text
 
-color level = case level of
-                "auto"       -> fg "#268bd2"
-                "disengaged" -> fg "white"
-                "0"          -> bg "red" . fg "#002b36"
-                "1"          -> bg "orange" . fg "#002b36"
-                "2"          -> bg "orange" . fg "#002b36"
-                "3"          -> bg "orange" . fg "#002b36"
-                "4"          -> bg "orange" . fg "#002b36"
-                "5"          -> bg "orange" . fg "#002b36"
-                "6"          -> bg "orange" . fg "#002b36"
-                "7"          -> bg "black" . fg "white"
-                _            -> bg "yellow" . fg "red"
+colorTemp temp | temp > 80 = bg "red" . fg "#002b36"
+               | temp > 60 = bg "orange" . fg "#002b36"
+               | otherwise = fg "white"
+
+colorFan level = case level of
+                   "auto"       -> fg "#268bd2"
+                   "disengaged" -> fg "white"
+                   "0"          -> bg "red" . fg "#002b36"
+                   "1"          -> bg "orange" . fg "#002b36"
+                   "2"          -> bg "orange" . fg "#002b36"
+                   "3"          -> bg "orange" . fg "#002b36"
+                   "4"          -> bg "orange" . fg "#002b36"
+                   "5"          -> bg "orange" . fg "#002b36"
+                   "6"          -> bg "orange" . fg "#002b36"
+                   "7"          -> bg "black" . fg "white"
+                   _            -> bg "yellow" . fg "red"
