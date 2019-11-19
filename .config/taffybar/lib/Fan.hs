@@ -37,7 +37,7 @@ formatInfo temp speed level = col $ (pad tmp) ++ "\n" ++ (pad spd)
   where col = color level
         pad = padL '0' width . take width
         spd = take 2 $ if speed == 65535 then "FF" else show $ speed`div`100
-        tmp = take 2 $ show temp
+        tmp = take 2 $ if temp >= 100 then "!!" else show temp
 
 color level = case level of
                 "auto"       -> fg "#268bd2"
