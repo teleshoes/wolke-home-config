@@ -19,6 +19,7 @@ if [ $MACHINE_TYPE = "main" ]; then
   ( pulse-enable on ; pulse-vol mic mute ) &
 
   screen-daemon email --start
+  screen-daemon fan --start
   mnt --other &
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
