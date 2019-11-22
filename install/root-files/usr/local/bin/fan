@@ -5,6 +5,7 @@ use warnings;
 sub formatFanInfo($);
 sub parseLevelOrSyn($);
 sub parseConfigFile($);
+sub readTemp();
 sub readFan();
 sub readFanLevelStateFile();
 sub writeFanLevelStateFile($);
@@ -25,6 +26,10 @@ my $usage = "Usage:
      print fan information from $fanDev
      formatted as: \"SPEED,LEVEL\"
      where SPEED is an integer and LEVEL is one of the allowed values for <LEVEL>
+
+  $0 --temp
+     use `acpi -V` to get first CPU temperature in degrees celsius,
+       and print as an integer
 
   $0 LEVEL_OR_SYN
   $0 --set=LEVEL_OR_SYN
@@ -69,6 +74,9 @@ sub main(@){
     exit 0;
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
     print formatFanInfo(readFan());
+  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--temp)$/)){
+    my $temp = readTemp();
+    printf "%d\n", $temp;
   }elsif(@_ == 1 and $_[0] =~ /^(--reapply)$/){
     my $stateLevel = readFanLevelStateFile();
     my $fanInfo = readFan();
@@ -140,6 +148,15 @@ sub parseConfigFile($){
     }
   }
   return $conf;
+}
+
+sub readTemp(){
+  my $acpi = `acpi -V`;
+  if($acpi =~ /, (-?\d+|-?\d*\.\d+) degrees C/){
+    return $1;
+  }else{
+    return undef;
+  }
 }
 
 sub readFan(){
