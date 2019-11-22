@@ -1,7 +1,10 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use List::Util qw(max);
 
+sub parseFanTempRange($);
+sub getTargetFanLevelFromTempRanges($$@);
 sub formatFanInfo($);
 sub parseLevelOrSyn($);
 sub parseConfigFile($);
@@ -15,6 +18,8 @@ my $fanDev = "/proc/acpi/ibm/fan";
 
 my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
 my $stateFile = "/tmp/fanspeed-level";
+
+my $MONITOR_INTERVAL_MILLIS = 10000;
 
 my $usage = "Usage:
   $0 -h
@@ -41,6 +46,38 @@ my $usage = "Usage:
      set fan level to the <LEVEL> in $stateFile if it exists
   $0 --clear
      remove $stateFile (further calls to --reapply without --set will do nothing)
+
+  $0 --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
+    -checks the temperature every ${MONITOR_INTERVAL_MILLIS}ms:
+      -if the current temp AND fan level matches one of the <FAN_TEMP_RANGE>s:
+        do nothing
+      -if the current temp matches at least none of the <FAN_TEMP_RANGE>s:
+        apply the highest fan level among those <FAN_TEMP_RANGE>s
+      -otherwise:
+        apply the highest fan level of any <FAN_TEMP_RANGE>
+
+    <OPTS>
+       -o | --once
+         run exactly once instead of re-running every ${MONITOR_INTERVAL_MILLIS}ms
+       -v | --verbose
+         print status even when no level change occurs
+
+    <FAN_TEMP_RANGE> = <FAN_LEVEL>:<LOW_TEMP>-<HIGH_TEMP>
+      a sequence of 3 non-negative integers, separated with non-alphanumeric characters
+      e.g.:   3:60-80    or   7-80,100
+      NOTE:
+        <FAN_LEVEL> must be greater than 0
+        <FAN_TEMP_RANGE>s can overlap temperatures
+          (and should, to avoid constant changing)
+
+     e.g.: $0 --monitor 1:0-60 2:60-70 3:65-80 7:80-100
+        temp  fan  => action
+        78    3    => do nothing
+        72    2    => 3
+        66    2    => do nothing
+        66    3    => do nothing
+        64    3    => 2
+        106   6    => 7
 
   <LEVEL_OR_SYN> = <LEVEL> | <SYNONYM>
     argument for $fanDev or a synonym, one of either <LEVEL> or <SYNONYM>
@@ -89,6 +126,46 @@ sub main(@){
     }
   }elsif(@_ == 1 and $_[0] =~ /^(--clear)$/){
     writeFanLevelStateFile undef;
+  }elsif(@_ >= 1 and $_[0] =~ /^(--monitor)$/){
+    my ($monitorCmd, @args) = @_;
+    my $once = 0;
+    my $verbose = 0;
+    while(@args > 0 and $args[0] =~ /^-/){
+      my $opt = shift @args;
+      if($opt =~ /^(-o|--once)$/){
+        $once = 1;
+      }elsif($opt =~ /^(-v|--verbose)$/){
+        $verbose = 1;
+      }else{
+        die "ERROR: invalid --monitor OPT: $opt\n";
+      }
+    }
+    my @fanTempRangeFmts = @args;
+    die "ERROR: no FAN_TEMP_RANGE given\n" if @fanTempRangeFmts == 0;
+
+    my @fanTempRanges = map {parseFanTempRange $_} @fanTempRangeFmts;
+    while(1){
+      my $curLevel = ${readFan()}{level};
+      my $curTemp = readTemp();
+      my $newLevel = getTargetFanLevelFromTempRanges($curLevel, $curTemp, @fanTempRanges);
+      if(defined $newLevel and $newLevel != $curLevel){
+        print "\n";
+        system "date";
+        print "$curLevel => $newLevel  (temp: ${curTemp}C)\n";
+        writeFanLevelStateFile($newLevel);
+      }else{
+        if($verbose){
+          print "\n";
+          system "date";
+          print "no change (temp: ${curTemp}C, level: $curLevel)\n";
+        }
+      }
+      if($once){
+        last;
+      }else{
+        sleep $MONITOR_INTERVAL_MILLIS/1000.0;
+      }
+    }
   }elsif(@_ == 1){
     my $levelOrSyn = $_[0];
     $levelOrSyn = $1 if $_[0] =~ /^--set=(.+)$/;
@@ -108,6 +185,43 @@ sub main(@){
     }
   }else{
     die $usage;
+  }
+}
+
+sub parseFanTempRange($){
+  my ($fanTempRangeFmt) = @_;
+  if($fanTempRangeFmt =~ /^(\d+)\W+(\d+)\W+(\d+)$/){
+    my ($fanLevel, $lowTemp, $highTemp) = ($1, $2, $3);
+    die "ERROR: low temp > high temp \"$fanTempRangeFmt\"\n" if $lowTemp > $highTemp;
+    die "ERROR: fan level must be > 0 in FAN_TEMP_RANGE\n" if $fanLevel <= 0;
+    return {level => $1, lowTemp => $lowTemp, highTemp => $highTemp};
+  }else{
+    die "ERROR: malformed fan temp range: $fanTempRangeFmt\n";
+  }
+}
+
+sub getTargetFanLevelFromTempRanges($$@){
+  my ($curLevel, $curTemp, @fanTempRanges) = @_;
+  my @levelsForMatchingTemps;
+  my $matchingTempAndLevel = 0;
+  for my $fanTempRange(@fanTempRanges){
+    my ($level, $low, $high) =
+      ($$fanTempRange{level}, $$fanTempRange{lowTemp}, $$fanTempRange{highTemp});
+    if($low <= $curTemp && $curTemp <= $high){
+      if($curLevel == $level){
+        $matchingTempAndLevel = 1;
+        return undef; #no action
+      }else{
+        push @levelsForMatchingTemps, $level;
+      }
+    }
+  }
+  if($matchingTempAndLevel){
+    return undef;
+  }elsif(@levelsForMatchingTemps > 0){
+    return max(@levelsForMatchingTemps);
+  }else{
+    return max(map {$$_{level}} @fanTempRanges);
   }
 }
 
