@@ -48,19 +48,21 @@ my $usage = "Usage:
     show this message
 
   $EXEC
-  $EXEC --backup|--save
-    take files from $SAVE_DIR_LINUX/* and make an xz'd tarball in $CACHE_DIR
+  $EXEC --backup|--save [SAVE_DIR]
+    take files from $SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
       skips storing the tarball if an identical one already exists
+    SAVE_DIR
+      use SAVE_DIR instead of $SAVE_DIR
 
   $EXEC --restore TAR_BALL
     takes a (compressed or uncompressed) tar ball
       and extracts it to the save dir, after backing up the contents
     -MOVE files from
-      $SAVE_DIR_LINUX/
+      $SAVE_DIR/
       to
       /tmp/kingdom-save-backup-<MILLIS>
     -extract <TAR_BALL> to
-      $SAVE_DIR_LINUX
+      $SAVE_DIR
 
   $EXEC --restore INDEX
     same as `$EXEC --restore <TAR_BALL>`,
@@ -97,8 +99,19 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
-  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--backup|--save)$/)){
-    ensureSaveCached($SAVE_DIR, $CACHE_DIR);
+  }elsif(@_ == 0 or (@_ >= 1 and $_[0] =~ /^(--backup|--save)$/)){
+    my $saveDir;
+    if(@_ == 0 or @_ == 1){
+      $saveDir = $SAVE_DIR;
+    }elsif(@_ == 2){
+      $saveDir = $_[1];
+    }else{
+      die "$usage\nERROR: invalid args to backup command\n";
+    }
+    if(not -d $saveDir){
+      die "save dir \"$saveDir\" does not exist\n";
+    }
+    ensureSaveCached($saveDir, $CACHE_DIR);
   }elsif(@_ == 2 and $_[0] =~ /^(--restore)$/){
     my $tarFile;
     if($_[1] =~ /^\d+$/){
