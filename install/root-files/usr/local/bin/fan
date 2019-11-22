@@ -148,18 +148,19 @@ sub main(@){
       my $curLevel = ${readFan()}{level};
       my $curTemp = readTemp();
       my $newLevel = getTargetFanLevelFromTempRanges($curLevel, $curTemp, @fanTempRanges);
+      my $changed = 0;
       if(defined $newLevel and $newLevel != $curLevel){
-        print "\n";
-        system "date";
-        print "$curLevel => $newLevel  (temp: ${curTemp}C)\n";
+        $changed = 1;
         writeFanLevelStateFile($newLevel);
-      }else{
-        if($verbose){
-          print "\n";
-          system "date";
-          print "no change (temp: ${curTemp}C, level: $curLevel)\n";
-        }
       }
+      if($changed or $verbose){
+        my $date = `date`;
+        chomp $date;
+        $newLevel = $curLevel if not $changed;
+        my $changeFmt = $changed ? "" : " (NO CHANGE)";
+        print "$date   $curLevel => $newLevel  (${curTemp}C)$changeFmt\n";
+      }
+
       if($once){
         last;
       }else{
