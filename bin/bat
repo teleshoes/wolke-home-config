@@ -12,14 +12,37 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
+  $0 -n | --normal
+    print a one-line battery summary with:
+      -battery charge percent (energy now / energy at full)
+      -health percent (energy at full / energy at full by design)
+      -charging status (+ for charging, - for discharging, ? otherwise)
+      -charging/discharging rate in watts
+    e.g.: 85%  (health: 92%)  +12.1W
+          100%  (health: 41%)  ?0.0W
+
   $0
-    print charge percent, charging/discharging rate in watts, and the time
+  $0 -t | --tall
+    print a narrow battery summary,
+      8 chars wide at most,
+      3 lines tall with no newline at the end
+    one line each for:
+      charge percent                      e.g.: 85%
+      charging/discharging rate in watts  e.g.: -14.3W
+      the time, in HH:MM:SS               e.g.: 14:22:45
 ";
 
 sub main(@){
+  my $format = "tall";
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-n|--normal)$/){
+    shift @_;
+    $format = "normal";
+  }elsif(@_ == 1 and $_[0] =~ /^(-t|--tall)$/){
+    shift @_;
+    $format = "tall";
   }
   die $usage if @_ > 0;
 
@@ -27,6 +50,7 @@ sub main(@){
 
   my $powerW = $$info{power_now}/1000000.0;
   my $chargePercent = 100.0 * $$info{energy_now} / $$info{energy_full};
+  my $healthPercent = 100.0 * $$info{energy_full} / $$info{energy_full_design};
 
   my $statusFmt;
   if($$info{status} =~ /(discharg)/i){
@@ -40,11 +64,21 @@ sub main(@){
   my $time = `date +%H:%M:%S`;
   chomp $time;
 
-  printf "\n%d%%\n%s%.1fW\n%s",
-    $chargePercent,
-    $statusFmt,
-    $powerW,
-    $time;
+  if($format eq "normal"){
+    printf "%d%%   (health: %d%%)  %s%.1fW\n",
+      $chargePercent,
+      $healthPercent,
+      $statusFmt,
+      $powerW;
+  }elsif($format eq "tall"){
+    printf "\n%d%%\n%s%.1fW\n%s",
+      $chargePercent,
+      $statusFmt,
+      $powerW,
+      $time;
+  }else{
+    die "ERROR: unknown format: $format\n";
+  }
 }
 
 sub getBatInfo(){
