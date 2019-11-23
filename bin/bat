@@ -3,38 +3,49 @@ use strict;
 use warnings;
 
 my $DIR = "/sys/class/power_supply/BAT0";
+my @ATTS = qw(energy_now energy_full energy_full_design power_now status);
+
+sub getBatInfo();
+sub readDev($);
 
 sub main(@){
-  my $energy_now = `cat $DIR/energy_now`;
-  chomp $energy_now;
-  my $energy_full = `cat $DIR/energy_full`;
-  chomp $energy_full;
-  my $power_now = `cat $DIR/power_now`;
-  chomp $power_now;
-  my $status = `cat $DIR/status`;
-  chomp $status;
+  my $info = getBatInfo;
 
-  my $powerW = $power_now/1000000.0;
+  my $powerW = $$info{power_now}/1000000.0;
+  my $chargePercent = 100.0 * $$info{energy_now} / $$info{energy_full};
 
-  my $powerStatus;
-  if($status =~ /(discharg)/i){
-    $powerStatus = "-";
-  }elsif($status =~ /(charg)/i){
-    $powerStatus = "+";
+  my $statusFmt;
+  if($$info{status} =~ /(discharg)/i){
+    $statusFmt = "-";
+  }elsif($$info{status} =~ /(charg)/i){
+    $statusFmt = "+";
   }else{
-    $powerStatus = "?";
+    $statusFmt = "?";
   }
-
-  my $percent = 100.0 * $energy_now / $energy_full;
 
   my $time = `date +%H:%M:%S`;
   chomp $time;
 
   printf "\n%d%%\n%s%.1fW\n%s",
-    $percent,
-    $powerStatus,
+    $chargePercent,
+    $statusFmt,
     $powerW,
     $time;
+}
+
+sub getBatInfo(){
+  my $info = {};
+  for my $att(@ATTS){
+    $$info{$att} = readDev "$DIR/$att";
+  }
+  return $info;
+}
+
+sub readDev($){
+  my ($dev) = @_;
+  my $val = `cat $dev`;
+  chomp $val;
+  return $val;
 }
 
 &main(@ARGV);
