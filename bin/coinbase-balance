@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Digest::SHA qw(hmac_sha256_hex);
+
+my $API_KEY_NAME = "accreadonly";
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $API_URL = "https://api.coinbase.com";
+
+sub getBTCToUSDExchangeRate();
+sub getSignature($$$$$);
+sub readSecrets();
+sub decrypt($);
+
+sub main(@){
+  my $conf = readSecrets();
+  my ($key, $secret);
+  $key = $$conf{"$API_KEY_NAME.key"};
+  $secret = $$conf{"$API_KEY_NAME.secret"};
+
+  if(not defined $key){
+    die "could not find secret 'coinbase.api.$API_KEY_NAME.key\n";
+  }
+  if(not defined $secret){
+    die "could not find secret 'coinbase.api.$API_KEY_NAME.secret\n";
+  }
+
+  my $timestamp = time;
+  my $path = "/v2/accounts";
+  my $method = "GET";
+  my $body = "";
+  my $sig = getSignature($secret, $timestamp, $method, $path, $body);
+
+  my @cmd = ("curl",
+    "$API_URL$path",
+    "--silent",
+    "--header", "CB-ACCESS-KEY: $key",
+    "--header", "CB-ACCESS-SIGN: $sig",
+    "--header", "CB-ACCESS-TIMESTAMP: $timestamp",
+  );
+  getBTCToUSDExchangeRate();
+  open CMD, "-|", @cmd or die "error running curl\n";
+  my $out = join '', <CMD>;
+  close CMD;
+  my $btcBalance;
+  if($out =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
+    $btcBalance = $1;
+  }
+  my $exRate = getBTCToUSDExchangeRate();
+  my $usdBalance = $btcBalance*$exRate;
+
+  printf ""
+    . "%.2fUSD  (%.8fBTC)\n"
+    . "  (1 BTC = %.2f USD)\n",
+    $usdBalance,
+    $btcBalance,
+    $exRate;
+}
+
+sub getBTCToUSDExchangeRate(){
+  my $out = `curl --silent https://api.coinbase.com/v2/exchange-rates?currency=BTC`;
+  if($out =~ /"currency":"BTC","rates":\{[^}]*"USD":"(\d*\.\d*)"/){
+    return $1;
+  }
+  die "could not get exchanged rate\n";
+}
+
+sub getSignature($$$$$){
+  my ($secret, $timestamp, $method, $path, $body) = @_;
+  my $prehash = $timestamp . $method . $path . $body;
+  return hmac_sha256_hex($prehash, $secret);
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $cfg = {};
+  for my $line(@lines){
+    if($line =~ /^coinbase\.api\.(.+\.(?:key|secret))=(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$cfg){
+    $$cfg{$key} = decrypt $$cfg{$key};
+  }
+  return $cfg;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
+}
+
+&main(@ARGV);
