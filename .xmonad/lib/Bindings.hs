@@ -211,9 +211,8 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --next"  @@ mCAW  xK_w    #! "ipmagic tv bgset --next"
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
-    "raspi"         @@ do
-        "outlet"        @@ mC    xK_PgDn #! "ipmagic raspi outlet"
-        "outlet wait"   @@ mCS   xK_PgDn #! "term 'ipmagic raspi outlet --wait'"
+    "wemo"         @@ do
+        "outlet"        @@ mC    xK_PgDn #! "ipmagic tv wemo switch wemo1 toggle"
 
     "sx"            @@ do
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
