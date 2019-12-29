@@ -3,19 +3,55 @@ use strict;
 use warnings;
 
 sub run(@);
+sub formatOrientations();
+
+my %EXIF_ORIENT = (
+  1 => "                    rotate   0 degrees",
+  2 => "mirror left/right + rotate   0 degrees",
+  3 => "                    rotate 180 degrees",
+  4 => "mirror left/right + rotate 180 degrees",
+  5 => "                    rotate  90 degrees (90 counter-clockwise)",
+  6 => "mirror left/right + rotate  90 degrees (90 counter-clockwise)",
+  7 => "                    rotate 270 degrees (90 clockwise)",
+  8 => "mirror left/right + rotate 270 degrees (90 clockwise)",
+);
+
+my @ALIAS_ORIENT_ARR = (
+  none      => 1,
+
+  clockwise => 7,
+  270       => 7,
+
+  counter   => 5,
+  90        => 5,
+
+  flip      => 3,
+  upside    => 3,
+);
+my %ALIAS_ORIENT = @ALIAS_ORIENT_ARR;
 
 my $usage = "Usage:
   $0 ORIENTATION IMAGE_FILENAME [IMAGE_FILENAME ..]
     exiftool -Orientation=<ORIENTATION> <IMAGE_FILENAME> -o <IMAGE_FILENAME>.rot
     touch <IMAGE_FILENAME>.rot -r <IMAGE_FILENAME>
+
+  ORIENTATION" . "\n" . join('', map {"    $_\n"} formatOrientations()) . "
 ";
 
 sub main(@){
   my ($orientation, @files) = @_;
   $orientation = "" if not defined $orientation;
 
-  die $usage if $orientation !~ /^\d$/;
+  if(not defined $EXIF_ORIENT{$orientation} and defined $ALIAS_ORIENT{$orientation}){
+    $orientation = $ALIAS_ORIENT{$orientation};
+  }
+
+  die $usage if not defined $EXIF_ORIENT{$orientation};
   die $usage if @files == 0;
+
+  if($orientation =~ /2|4|6|8/){
+    print "\n!!!\nWARNING: $orientation is a mirrored orientation\n!!!\n\n";
+  }
 
   for my $file(@files){
     die "could not find file: '$file'\n" if not -f $file;
@@ -28,8 +64,34 @@ sub main(@){
   }
 }
 
+sub formatOrientations(){
+  my @ALIAS_ORIENT_NAMES = map {$ALIAS_ORIENT_ARR[$_]}
+    grep {$_ % 2 == 0} (0..$#ALIAS_ORIENT_ARR);
+
+  my @fmtLines;
+  @fmtLines = (@fmtLines,
+    map {
+      my $exif = $_;
+      my $desc = $EXIF_ORIENT{$exif};
+      sprintf "%-10s =>   %s", $exif, $EXIF_ORIENT{$exif};
+    } sort keys %EXIF_ORIENT
+  );
+  push @fmtLines, "";
+  @fmtLines = (@fmtLines,
+    map {
+      my $alias = $_;
+      my $exif = $ALIAS_ORIENT{$alias};
+      my $desc = $EXIF_ORIENT{$exif};
+      sprintf "%-10s => %s %s", $alias, $exif, $EXIF_ORIENT{$exif};
+    } @ALIAS_ORIENT_NAMES
+  );
+
+  return @fmtLines;
+}
+
 sub run(@){
   print "@_\n";
   system @_;
 }
+
 &main(@ARGV);
