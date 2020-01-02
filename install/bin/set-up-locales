@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $LOCALE_GEN_FILE = "/etc/locale.gen";
+
+my @locales = (
+  "en_US.UTF-8",
+);
+my %okLocales = map {lc $_ => 1} @locales;
+
+sub main(@) {
+  getRoot();
+  my $anyChanges = 0;
+
+  my @lines = `cat $LOCALE_GEN_FILE`;
+  for my $line(@lines){
+    if($line =~ /^(#\s*)?([a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+) ([a-zA-Z0-9\-_]+)$/){
+      my $oldLine = $line;
+      my ($comment, $locale, $charset) = ($1, $2, $3);
+      my $wasEnabled = not defined $comment or $comment =~ /#/ ? 0 : 1;
+      my $willBeEnabled = defined $okLocales{lc $locale} ? 1 : 0;
+
+
+      if($willBeEnabled){
+        $line = "$locale $charset\n";
+      }else{
+        $line = "# $locale $charset\n";
+      }
+
+      if($wasEnabled != $willBeEnabled){
+        $anyChanges = 1;
+        printf "%s: %s => %s\n",
+          $locale,
+          $wasEnabled ? "ON" : "OFF",
+          $willBeEnabled ? "ON" : "OFF",
+      }
+    }
+  }
+
+  if($anyChanges){
+    print "\n\nCHANGES, WRITING $LOCALE_GEN_FILE\n";
+    open FH, "> $LOCALE_GEN_FILE" or die "could not write $LOCALE_GEN_FILE\n$!\n";
+    print FH $_ foreach @lines;
+    close FH;
+    print "\n\nRUNNING locale-gen\n";
+    system "locale-gen";
+  }else{
+    print "\n\nNO CHANGES\n";
+  }
+}
+
+&main(@ARGV);
