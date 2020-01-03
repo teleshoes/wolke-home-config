@@ -1,0 +1,174 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $UPNP_SERVICE = "urn:Belkin:service:basicevent:1";
+my $SOAP_ACTION_GET = "$UPNP_SERVICE#GetBinaryState";
+my $SOAP_ACTION_SET = "$UPNP_SERVICE#SetBinaryState";
+my $WEMO_CONTROL_PATH = "/upnp/control/basicevent1";
+
+my $GSSDP_DISCOVERY_TIMEOUT_S = 2;
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  UPnP controller for Belkin wemo switch outlets
+  wrapper around curl (for --get and --set)
+
+  $EXEC -h|--help
+    show this message
+
+  $EXEC DEVICE -g|--get|get|--status|status
+    -parse <DEVICE> into <HOST> and <PORT>
+    -use curl to post to UPnP <HOST>:<PORT>$WEMO_CONTROL_PATH
+      with SOAPAction $SOAP_ACTION_GET
+    -print value of BinaryState attribute returned
+
+  $EXEC DEVICE -s|--set|set VALUE
+    -parse <DEVICE> into <HOST> and <PORT>
+    -use curl to post to UPnP <HOST>:<PORT>/upnp/control/basicevent1
+      with SOAPAction $SOAP_ACTION_SET
+      and attribute BinaryState
+    -print OK: <VALUE> if successful
+
+  $EXEC DEVICE --on|on
+    -same as $EXEC --set 1
+
+  $EXEC DEVICE --off|off
+    -same as $EXEC --set 0
+
+  $EXEC DEVICE -t|--toggle|toggle
+    -get status with: '$EXEC <DEVICE> get'
+    -if 0, do '$EXEC <DEVICE> --set 1'
+    -if 1, do '$EXEC <DEVICE> --set 0'
+
+  DEVICE
+    string formatted as <HOST>:<PORT>
+";
+
+sub get($$);
+sub set($$$);
+sub curlPostUPnP($$$$$);
+sub parseDeviceHostPort($);
+sub formatXmlGet();
+sub formatXmlSet($);
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(-g|--get|get|--status|status)$/)){
+    my ($device) = ($_[0]);
+    my ($host, $port) = parseDeviceHostPort $_[0];
+
+    print get($host, $port) . "\n";
+  }elsif(@_ == 3 and $_[1] =~ /^(-s|--set|set)$/){
+    my ($device, $value) = ($_[0], $_[2]);
+    my ($host, $port) = parseDeviceHostPort $device;
+
+    set($host, $port, $value);
+    print "OK: $value\n";
+  }elsif(@_ == 2 and $_[1] =~ /^(--on|on)$/){
+    my ($device) = ($_[0]);
+    my ($host, $port) = parseDeviceHostPort $device;
+    my $value = 1;
+
+    set($host, $port, $value);
+    print "OK: $value\n";
+  }elsif(@_ == 2 and $_[1] =~ /^(--off|off)$/){
+    my ($device) = ($_[0]);
+    my ($host, $port) = parseDeviceHostPort $device;
+    my $value = 0;
+
+    set($host, $port, $value);
+    print "OK: $value\n";
+  }elsif(@_ == 2 and $_[1] =~ /^(-t|--toggle|toggle)$/){
+    my ($device) = ($_[0]);
+    my ($host, $port) = parseDeviceHostPort $device;
+
+    my $value = get($host, $port) == 1 ? 0 : 1;
+    set($host, $port, $value);
+    print "OK: $value\n";
+  }else{
+    die $usage;
+  }
+}
+
+sub get($$){
+  my ($host, $port) = @_;
+
+  my $xml = formatXmlGet();
+  my $response = curlPostUPnP($host, $port, $WEMO_CONTROL_PATH, $SOAP_ACTION_GET, $xml);
+  if($response =~ /<BinaryState>(0|1)<\/BinaryState>/){
+    return $1;
+  }else{
+    die "ERROR: invalid response: $response\n";
+  }
+}
+
+sub set($$$){
+  my ($host, $port, $value) = @_;
+  if($value !~ /^(0|1)$/){
+    die "ERROR: invalid set() value (must be 0 or 1): $value\n";
+  }
+
+  my $xml = formatXmlSet($value);
+  my $response = curlPostUPnP($host, $port, $WEMO_CONTROL_PATH, $SOAP_ACTION_SET, $xml);
+}
+
+sub curlPostUPnP($$$$$){
+  my ($host, $port, $path, $action, $xml) = @_;
+  my @cmd = ("curl",
+    "$host:$port$path",
+    "--silent",
+    "-X", "POST",
+    "-H", "Content-Type: text/xml; charset=\"utf-8\"",
+    "-H", "Connection: close",
+    "-H", "SOAPAction: \"$action\"",
+    "--data", $xml,
+  );
+  open CMD, "-|", @cmd or die "ERROR: failure running @cmd\n$!\n";
+  my $result = join '', <CMD>;
+  close CMD;
+  return $result;
+}
+
+sub parseDeviceHostPort($){
+  my ($device) = @_;
+  if($device =~ /^(.*):(\d+)$/){
+    return ($1, $2);
+  }else{
+    die "malformed device: $device\n";
+  }
+}
+
+sub formatXmlGet(){
+  return ""
+    . "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    . "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\""
+    . "            s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n"
+    . "  <s:Body>\n"
+    . "    <u:GetBinaryState xmlns:u=\"urn:Belkin:service:basicevent:1\">\n"
+    . "    </u:GetBinaryState>\n"
+    . "  </s:Body>\n"
+    . "</s:Envelope>\n"
+  ;
+}
+
+sub formatXmlSet($){
+  my ($value) = @_;
+  return ""
+    . "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+    . "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\""
+    . "            s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n"
+    . "  <s:Body>\n"
+    . "    <u:SetBinaryState xmlns:u=\"urn:Belkin:service:basicevent:1\">\n"
+    . "      <BinaryState>$value</BinaryState>\n"
+    . "    </u:SetBinaryState>\n"
+    . "  </s:Body>\n"
+    . "</s:Envelope>\n"
+  ;
+}
+
+&main(@ARGV);
