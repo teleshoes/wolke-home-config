@@ -212,7 +212,7 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "wemo"         @@ do
-        "outlet"        @@ mC    xK_PgDn #! "ipmagic tv wemo switch wemo1 toggle"
+        "wemo-lights"   @@ mC    xK_PgDn #! "wemo-switch wemo1 --toggle"
 
     "sx"            @@ do
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
