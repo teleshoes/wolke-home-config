@@ -14,10 +14,15 @@ my $EXEC = basename $0;
 
 my $usage = "Usage:
   UPnP controller for Belkin wemo switch outlets
-  wrapper around curl (for --get and --set)
+  wrapper around curl (for --get and --set) and gssdp-discover (for --list)
 
   $EXEC -h|--help
     show this message
+
+  $EXEC --list|--list
+    -perform a UPnP SSDP search for 2s using:
+      gssdp-discover -n 2 -t $UPNP_SERVICE
+    -print \"<HOST>.<PORT>\", one per line, for each device found
 
   $EXEC DEVICE -g|--get|get|--status|status
     -parse <DEVICE> into <HOST> and <PORT>
@@ -47,6 +52,7 @@ my $usage = "Usage:
     string formatted as <HOST>:<PORT>
 ";
 
+sub list();
 sub get($$);
 sub set($$$);
 sub curlPostUPnP($$$$$);
@@ -58,6 +64,8 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(--list|list)$/){
+    list();
   }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(-g|--get|get|--status|status)$/)){
     my ($device) = ($_[0]);
     my ($host, $port) = parseDeviceHostPort $_[0];
@@ -93,6 +101,17 @@ sub main(@){
   }else{
     die $usage;
   }
+}
+
+sub list(){
+  my @cmd = ("gssdp-discover", "-n", $GSSDP_DISCOVERY_TIMEOUT_S, "-t", $UPNP_SERVICE);
+  open CMD, "-|", @cmd or die "ERROR: failure running @cmd\n$!\n";
+  while(my $line = <CMD>){
+    if($line =~ /^\s*Location:\s*(.+):(\d+)(?:\/.*)?$/){
+      print "$1:$2\n";
+    }
+  }
+  close CMD;
 }
 
 sub get($$){
