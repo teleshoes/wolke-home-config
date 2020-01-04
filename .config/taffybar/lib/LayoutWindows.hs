@@ -7,7 +7,7 @@ import Control.Monad.Trans (liftIO)
 import System.Taffybar.Widget.Layout (
   LayoutConfig(..), defaultLayoutConfig, layoutNew)
 import System.Taffybar.Information.EWMHDesktopInfo (
-  WorkspaceIdx(WSIdx), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
+  WorkspaceId(WorkspaceId), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
 
 layoutWindowsW = layoutNew layoutConfig
 
@@ -27,7 +27,7 @@ formatWindowCount cnt = pack $ wcCol $ "[" ++ wcFmt ++ "]"
 windowCount :: IO Int
 windowCount = withDefaultCtx $ do
   vis <- getVisibleWorkspaces
-  let cur = if length vis > 0 then head vis else WSIdx 0
+  let cur = if length vis > 0 then head vis else WorkspaceId 0
   wins <- getWindows
   wkspaces <- mapM getWorkspace wins
   return $ length $ filter (==cur) $ wkspaces
