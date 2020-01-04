@@ -17,4 +17,4 @@ labelW :: (IO String) -> IO Widget
 labelW printer = labelDelayW defaultDelay printer
 
 labelDelayW :: Double -> (IO String) -> IO Widget
-labelDelayW delay printer = pollingLabelNew (pack "---") delay $ fmap pack printer
+labelDelayW delay printer = pollingLabelNew delay $ fmap pack printer
