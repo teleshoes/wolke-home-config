@@ -7,8 +7,10 @@ module Clickable(
 import GI.Gdk.Structs.EventButton (
   EventButton,
   getEventButtonButton)
+import Data.GI.Base.BasicTypes (GObject)
+import Data.GI.Base.Overloading (IsDescendantOf)
 import GI.Gtk.Objects.Widget (
-  IsWidget, Widget,
+  Widget,
   onWidgetButtonPressEvent, toWidget, widgetShowAll)
 import GI.Gtk.Objects.Container (
   containerAdd)
@@ -37,7 +39,7 @@ handleClickAction lAct mAct rAct btn = do
     3 -> rAct
   return False
 
-clickableActions :: (IsWidget w) => Act -> Act -> Act -> w -> IO Widget
+clickableActions :: (GObject w, IsDescendantOf Widget w) => Act -> Act -> Act -> w -> IO Widget
 clickableActions lAct mAct rAct w = do
   ebox <- eventBoxNew
   onWidgetButtonPressEvent ebox $ handleClickAction lAct mAct rAct
@@ -47,34 +49,34 @@ clickableActions lAct mAct rAct w = do
   w <- toWidget ebox
   return w
 
-clickableAsync :: (IsWidget w) => CmdA -> CmdA -> CmdA -> w -> IO Widget
+clickableAsync :: (GObject w, IsDescendantOf Widget w) => CmdA -> CmdA -> CmdA -> w -> IO Widget
 clickableAsync lCmdA mCmdA rCmdA w = clickableActions l m r w
   where (l,m,r) = (maybeRun =<< lCmdA, maybeRun =<< mCmdA, maybeRun =<< rCmdA)
 
-clickableLeftAsync :: (IsWidget w) => CmdA -> w -> IO Widget
+clickableLeftAsync :: (GObject w, IsDescendantOf Widget w) => CmdA -> w -> IO Widget
 clickableLeftAsync cmdA w = clickableAsync l m r w
   where (l,m,r) = (cmdA, return Nothing, return Nothing)
 
-clickableMiddleAsync :: (IsWidget w) => CmdA -> w -> IO Widget
+clickableMiddleAsync :: (GObject w, IsDescendantOf Widget w) => CmdA -> w -> IO Widget
 clickableMiddleAsync cmdA w = clickableAsync l m r w
   where (l,m,r) = (return Nothing, cmdA, return Nothing)
 
-clickableRightAsync :: (IsWidget w) => CmdA -> w -> IO Widget
+clickableRightAsync :: (GObject w, IsDescendantOf Widget w) => CmdA -> w -> IO Widget
 clickableRightAsync cmdA w = clickableAsync l m r w
   where (l,m,r) = (return Nothing, return Nothing, cmdA)
 
-clickable :: (IsWidget w) => Cmd -> Cmd -> Cmd -> w -> IO Widget
+clickable :: (GObject w, IsDescendantOf Widget w) => Cmd -> Cmd -> Cmd -> w -> IO Widget
 clickable lCmd mCmd rCmd w = clickableAsync l m r w
   where (l,m,r) = (return lCmd, return mCmd, return rCmd)
 
-clickableLeft :: (IsWidget w) => String -> w -> IO Widget
+clickableLeft :: (GObject w, IsDescendantOf Widget w) => String -> w -> IO Widget
 clickableLeft cmd w = clickableAsync l m r w
   where (l,m,r) = (return $ Just cmd, return Nothing, return Nothing)
 
-clickableMiddle :: (IsWidget w) => String -> w -> IO Widget
+clickableMiddle :: (GObject w, IsDescendantOf Widget w) => String -> w -> IO Widget
 clickableMiddle cmd w = clickableAsync l m r w
   where (l,m,r) = (return Nothing, return $ Just cmd, return Nothing)
 
-clickableRight :: (IsWidget w) => String -> w -> IO Widget
+clickableRight :: (GObject w, IsDescendantOf Widget w) => String -> w -> IO Widget
 clickableRight cmd w = clickableAsync l m r w
   where (l,m,r) = (return Nothing, return Nothing, return $ Just cmd)
