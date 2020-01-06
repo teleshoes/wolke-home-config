@@ -11,13 +11,19 @@ sub klompInfo(@);
 sub offset($$$);
 sub run(@);
 
-my $extraCmd = "sh -c 'xscreensaver-command -deactivate 2>/dev/null'";
+my $extraCmdsByExec = {
+  "xscreensaver-command" => ["xscreensaver-command", "-deactivate"],
+};
+my $extraCmdsFmt = join('',
+  map {"\n      $_ => $$extraCmdsByExec{$_}"} sort keys %$extraCmdsByExec
+);
+
 my $defaultDelayMillis = 1000;
 
 my $usage = "Usage:
   $0 [OPTS]
-    run bigtext with info from klomp-info
-    also runs \"$extraCmd\"
+    -run bigtext with info from klomp-info
+    -if any of the following execs exist, run each associated cmd:$extraCmdsFmt
 
     OPTS
        --ipmagic=CONFNAME
@@ -119,13 +125,25 @@ sub main(@){
       @bigtextOpts,
       "--stdin");
 
+  my @extraCmds;
+  for my $exec(sort keys %$extraCmdsByExec){
+    my @whichCmd = getIpmagicCommand($ipmagic, $ipmagicUser, "which $exec");
+    my $res = `@whichCmd 2>/dev/null`;
+    chomp $res;
+    if($res =~ /\/$exec$/){
+      push @extraCmds, $$extraCmdsByExec{$exec};
+    }
+  }
+
   print "@bigtextCmd\n";
   open FH, "|-", @bigtextCmd;
 
   while(1){
     my $now = time;
 
-    run getIpmagicCommand($ipmagic, $ipmagicUser, $extraCmd);
+    for my $extraCmd(@extraCmds){
+      run getIpmagicCommand($ipmagic, $ipmagicUser, @$extraCmd);
+    }
     print FH formatKlompInfoLine($ipmagic, $ipmagicUser);
     last if $once;
 
