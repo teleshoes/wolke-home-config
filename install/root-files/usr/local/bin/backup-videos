@@ -2,34 +2,53 @@
 use strict;
 use warnings;
 
-sub backup($$);
-sub isMountpoint($);
+my $IPMAGIC_NAME = undef;
+my $USER = undef;
+
+sub backup($$;$$);
+sub isMountpoint($;$);
 sub ensureRoot();
 
 sub main(@){
   die "Usage: $0\n" if @_ > 0;
   ensureRoot();
 
-
-  backup "/media/videos", "/media/BACKUP_VIDEOS";
-  print "\n\n";
-  backup "/media/videos_series", "/media/BACKUP_VIDEOS_SERIES";
-  backup "/media/videos_movies", "/media/BACKUP_VIDEOS_MOVIES";
+  backup "/media/videos", "/media/BACKUP_VIDEOS", $IPMAGIC_NAME, $USER;
+  backup "/media/videos_series", "/media/BACKUP_VIDEOS_SERIES", $IPMAGIC_NAME, $USER;
+  backup "/media/videos_movies", "/media/BACKUP_VIDEOS_MOVIES", $IPMAGIC_NAME, $USER;
 }
 
-sub backup($$){
-  my ($src, $dest) = @_;
-  die "$src is not a mountpoint\n" if not isMountpoint $src;
-  die "$dest is not a mountpoint\n" if not isMountpoint $dest;
+sub backup($$;$$){
+  my ($src, $dest, $ipmagicName, $user) = @_;
+  print "\n\nbacking up $src\n";
 
-  my @cmd = ("rsync", "-avP", "--del", "$src/", "$dest/");
+  die "$src is not a mountpoint\n" if not isMountpoint $src;
+  die "$dest is not a mountpoint\n" if not isMountpoint $dest, $ipmagicName;
+
+  my @cmd;
+  if(defined $ipmagicName){
+    my $host = `ipmagic $ipmagicName --host`;
+    chomp $host;
+
+    @cmd = ("rsync", "-avP", "--del", "$src/", "$user\@$host:$dest/");
+  }else{
+    @cmd = ("rsync", "-avP", "--del", "$src/", "$dest/");
+  }
+
   print "@cmd\n";
   system @cmd;
 }
 
-sub isMountpoint($){
-  system "mountpoint '$_[0]' >/dev/null 2>/dev/null";
-  return $? == 0;
+sub isMountpoint($;$){
+  my ($dir, $ipmagicName) = @_;
+  my $cmd = "mountpoint '$dir'";
+  $cmd = "ipmagic $ipmagicName $cmd" if defined $ipmagicName;
+  my $out = `$cmd 2>&1`;
+  if($out =~ /^$dir is a mountpoint$/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub ensureRoot(){
