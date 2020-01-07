@@ -191,6 +191,15 @@ function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
 function sm           { sheetmusic "$@"; }
 
+function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
+                          command igcmd "$@";
+                        elif [[ "$1" == "--bash-complete" ]]; then
+                          command igcmd "$@";
+                        else
+                          echo "RUNNING ON raspi"
+                          ipmagic raspi -b "command igcmd $@"
+                        fi
+                      }
 function ig           { igcmd "$@"; }
 function acfan_up     { igcmd ac-fan_up "$@"; }
 function acfan_down   { igcmd ac-fan_down "$@"; }
