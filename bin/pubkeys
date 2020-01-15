@@ -26,7 +26,7 @@ my @allNames = map {${$_}[0]} @hostIpCmdEntries;
 my $okNames = join "|", @allNames;
 
 my $usage = "Usage:
-  $0 [TARGET]
+  $0 [TARGET [MODE]]
     copy pubkeys/authkeys to the hosts returned by the above commands
 
   $0 -h|--help
@@ -40,10 +40,14 @@ my $usage = "Usage:
   TARGET
     one of: $okNames
     copy for just the named command
+
+  MODE
+    one of: $MODE_RSYNC | $MODE_SCP
 ";
 
 sub main(@){
   my $targetName = undef;
+  my $modeOverride = undef;
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
@@ -52,6 +56,9 @@ sub main(@){
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^($okNames)$/){
     $targetName = $_[0];
+  }elsif(@_ == 2 and $_[0] =~ /^($okNames)$/ and $_[1] =~ /^($MODE_RSYNC|$MODE_SCP)$/){
+    $targetName = $_[0];
+    $modeOverride = $_[1];
   }elsif(@_ > 0){
     die $usage;
   }
@@ -76,6 +83,8 @@ sub main(@){
       push @entryNamesFailure, $name;
       next;
     }
+
+    $mode = $modeOverride if defined $modeOverride;
 
     my $host = $hostname;
     $host = "$user\@$host" if defined $user;
