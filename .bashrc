@@ -208,6 +208,8 @@ function ac2fan_up    { igcmd ac2-fan_up "$@"; }
 function ac2fan_down  { igcmd ac2-fan_down "$@"; }
 function ac2power     { igcmd ac2-power "$@"; }
 
+function tvg          { tv-gpio "$@" ; }
+
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
