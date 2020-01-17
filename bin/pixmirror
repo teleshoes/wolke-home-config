@@ -211,31 +211,37 @@ sub main(@){
     my @threads;
     for my $chunk(@threadChunks){
       my $t = threads->create(sub {
-        print STDERR "started thread#" . threads->tid() . "\n";
+        my $threadNum = threads->tid();
+        print STDERR "     thread#$threadNum: STARTED\n";
         $SIG{'INT'} = sub {
           print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
           $abort = 1;
         };
+
         for my $img(@$chunk){
           $status{$img} = 0;
           handleImage $img, $srcDir, $destDir, $srcInfos{$img};
           $status{$img} = 1;
-          return if $abort;
+
+          if($abort){
+            print STDERR "     thread#$threadNum: ERROR (aborting)\n";
+            return;
+          }
 
           {
             lock($count);
             $count++;
           }
         }
+        print STDERR "     thread#$threadNum: FINISHED\n";
       });
       push @threads, $t;
     }
 
     for my $t(@threads){
-      print STDERR "joining on thread#" . $t->tid() . "\n";
       $t->join();
     }
-    print STDERR "all threads joined\n";
+    print STDERR "\n\nall threads joined\n";
 
     cleanupFailures $destDir, \%status;
 
