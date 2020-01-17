@@ -183,8 +183,10 @@ sub main(@){
 
   if($IS_THREADED and $threadCount > 1){
     my %status;
+    my $count = 0;
     my $abort = 0;
     share(\%status);
+    share(\$count);
     share(\$abort);
 
     my @threadChunks;
@@ -219,6 +221,11 @@ sub main(@){
           handleImage $img, $srcDir, $destDir, $srcInfos{$img};
           $status{$img} = 1;
           return if $abort;
+
+          {
+            lock($count);
+            $count++;
+          }
         }
       });
       push @threads, $t;
@@ -234,8 +241,10 @@ sub main(@){
 
     print STDERR formatStatus(\%status, \@srcImgs);
   }else{
+    my $count = 0;
     for my $img(@srcImgs){
       handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+      $count++;
     }
   }
 
