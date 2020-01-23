@@ -9,6 +9,8 @@ my $WRAP_TYPE_CHAR = "char"; #split lines at exact char counts
 my $WRAP_TYPE_WORD = "word"; #attempt to split lines at spaces
 
 my $DEFAULT_COLS = 4;
+my $DEFAULT_MAX_COL_WIDTH = 60;
+my $DEFAULT_WRAP_TYPE = $WRAP_TYPE_WORD;
 
 my $EXEC = basename $0;
 
@@ -21,6 +23,7 @@ my $usage = "Usage:
       -read lines from STDIN, or from <FILE> (see -f)
       -if WRAP_TYPE is not none, split individual lines,
         so that each line is at most <MAX_COL_WIDTH> chars
+        (default is $DEFAULT_MAX_COL_WIDTH, see -m)
       -group lines into <COLS> similarly-sized lists
         (default is $DEFAULT_COLS, see -c)
       -while one list is shorter than another,
@@ -39,6 +42,10 @@ my $usage = "Usage:
     -c COLS | --cols=COLS | --columns=COLS
       split lines into COLUMNS vertical columns
       (default = $DEFAULT_COLS)
+
+    -m MAX_COL_WIDTH | --max-col-width=MAX_COL_WIDTH
+      each column is at most MAX_COL_WIDTH chars (ignored if --wrap-type=none)
+      (default = $DEFAULT_MAX_COL_WIDTH)
 ";
 
 sub formatColumns($$@);
@@ -50,12 +57,13 @@ sub splitIntoBuckets($@);
 sub main(@){
   my $file = undef;
   my $cols = $DEFAULT_COLS;
+  my $maxColWidth = $DEFAULT_MAX_COL_WIDTH;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift @_;
     my $arg = undef;
     if($opt =~ /^--\w+=(.+)$/){
       $arg = $1;
-    }elsif($opt =~ /^(-f|-c)$/){
+    }elsif($opt =~ /^(-f|-c|-m)$/){
       die "$usage\nmissing arg to $opt\n" if @_ == 0;
       $arg = shift @_;
     }
@@ -67,6 +75,8 @@ sub main(@){
       $file = $arg;
     }elsif($opt =~ /^(-c|--cols=.+|--columns=.+)$/){
       $cols = $arg;
+    }elsif($opt =~ /^(-m|--max-col-width=.+)$/){
+      $maxColWidth = $arg;
     }else{
       die "$usage\nunknown opt: $opt\n";
     }
@@ -78,6 +88,8 @@ sub main(@){
     die "$usage\nfile does not exist: $file\n";
   }elsif($cols !~ /^\d+$/ or $cols <= 0){
     die "$usage\ninvalid COLS: $cols\n";
+  }elsif($maxColWidth !~ /^\d+$/ or $maxColWidth <= 0){
+    die "$usage\ninvalid MAX_COL_WIDTH: $maxColWidth\n";
   }
 
   my @lines;
@@ -89,7 +101,6 @@ sub main(@){
     @lines = <STDIN>;
   }
 
-  my $maxColWidth = 60;
   my $wrapType = "word";
   print $_ foreach formatColumns($cols, $maxColWidth, $wrapType, @lines);
 }
