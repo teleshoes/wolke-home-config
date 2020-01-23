@@ -3,46 +3,126 @@ use strict;
 use warnings;
 use utf8;
 
+sub formatColumns($$@);
+sub padLine($$$);
+sub padList($$@);
+sub splitLongLines($@);
+sub splitIntoBuckets($@);
+
 sub main(@){
   my @lines = <STDIN>;
-  chomp foreach @lines;
+  my $cols = 4;
+  my $colWidth = undef;
+  print $_ foreach formatColumns($cols, $colWidth, @lines);
+}
 
-  my $height = @lines/4 + 3;
+sub formatColumns($$@){
+  my ($cols, $colWidth, @lines) = @_;
+  for my $line(@lines){
+    $line =~ s/[\r\n]//g;
+    utf8::decode $line;
+  }
 
-  my @cols;
-  my $col = [];
-  for (my $i=0; $i<@lines; $i++){
-    push @$col, $lines[$i];
-    if(($i > 0 and $i % ($height+1) == 0) or $i == $#lines){
-      push @cols, $col;
-      $col = [];
+  if(defined $colWidth){
+    @lines = splitLongLines($colWidth, @lines);
+  }
+
+  my @columns = splitIntoBuckets($cols, @lines);
+
+  my $maxHeight = 0;
+  for my $column(@columns){
+    $maxHeight = @$column if @$column > $maxHeight;
+  }
+  for my $column(@columns){
+    $column = [padList($maxHeight, "", @$column)];
+  }
+
+  for my $column(@columns){
+    my $maxWidth = 0;
+    for my $line(@$column){
+      my $len = length $line;
+      $maxWidth = $len if $len > $maxWidth;
+    }
+    for my $line(@$column){
+      $line = padLine($maxWidth, " ", $line);
     }
   }
 
-  my @maxCols;
-  for my $col(@cols){
-    my $max=0;
-    for my $i(@$col){
-      chomp $i;
-      $max = length $i if length $i > $max;
+  my @fmtLines;
+  for(my $i=0; $i<$maxHeight; $i++){
+    my $line = join "|", map{$$_[$i]} @columns;
+    push @fmtLines, "$line\n";
+  }
+  return @fmtLines;
+}
+
+sub padLine($$$){
+  my ($minWidth, $padStr, $line) = @_;
+  while(length $line < $minWidth){
+    $line .= $padStr;
+  }
+  return $line;
+}
+
+sub padList($$@){
+  my ($minLength, $padItem, @items) = @_;
+  while(@items < $minLength){
+    push @items, $padItem;
+  }
+  return @items;
+}
+
+sub splitLongLines($@){
+  my ($maxWidth, @lines) = @_;
+  my @shortLines;
+  for my $line(@lines){
+    my @subLines;
+    while(length $line > $maxWidth){
+      my $targetIndex = $maxWidth;
+      my $prefix = substr $line, 0, $targetIndex;
+      push @subLines, $prefix;
+      $line = substr $line, $targetIndex;
     }
-    push @maxCols, $max;
+    if(length $line > 0){
+      push @subLines, $line;
+    }elsif(@subLines == 0){
+      #include at least one line, even empty, per each original line
+      push @subLines, $line;
+    }
+    @shortLines = (@shortLines, @subLines);
+  }
+  return @shortLines;
+}
+
+sub splitIntoBuckets($@){
+  my ($bucketCount, @items) = @_;
+  my @buckets;
+  my $targetBucketSize = int(@items / $bucketCount);
+
+  #the first numExtra buckets get one more item
+  my $numExtra = @items % $bucketCount;
+
+  for(my $b=0; $b<$bucketCount; $b++){
+    my $bucket = [];
+    my $itemCount = $targetBucketSize;
+    if($b < $numExtra){
+      $itemCount++;
+    }
+    while($itemCount > 0){
+      if(@items == 0){
+        die "ERROR: bucket calculation is broken, ran out of items\n";
+      }
+      push @$bucket, shift @items;
+      $itemCount--;
+    }
+    push @buckets, $bucket;
   }
 
-  my $out = "";
-  for(my $i=0; $i<$height; $i++){
-    for(my $c=0; $c<@cols; $c++){
-      my $max = $maxCols[$c];
-      my $s = ${$cols[$c]}[$i];
-      $s = '' if not defined $s;
-      utf8::decode $s;
-      $s .= ' ' x ($max - length $s);
-      $out .= "$s | ";
-    }
-    $out .= "\n";
+  if(@items != 0){
+    die "ERROR: bucket calculation is broken, too many items\n";
   }
 
-  print $out;
+  return @buckets;
 }
 
 &main(@ARGV);
