@@ -3,28 +3,32 @@ use strict;
 use warnings;
 use utf8;
 
+my $WRAP_TYPE_NONE = "none"; #never split lines, ignore MAX_COL_WIDTH
+my $WRAP_TYPE_CHAR = "char"; #split lines at exact char counts
+
 sub formatColumns($$@);
 sub padLine($$$);
 sub padList($$@);
-sub splitLongLines($@);
+sub splitLongLines($$@);
 sub splitIntoBuckets($@);
 
 sub main(@){
   my @lines = <STDIN>;
   my $cols = 4;
-  my $colWidth = undef;
-  print $_ foreach formatColumns($cols, $colWidth, @lines);
+  my $maxColWidth = 60;
+  my $wrapType = "char";
+  print $_ foreach formatColumns($cols, $maxColWidth, $wrapType, @lines);
 }
 
 sub formatColumns($$@){
-  my ($cols, $colWidth, @lines) = @_;
+  my ($cols, $maxColWidth, $wrapType, @lines) = @_;
   for my $line(@lines){
     $line =~ s/[\r\n]//g;
     utf8::decode $line;
   }
 
-  if(defined $colWidth){
-    @lines = splitLongLines($colWidth, @lines);
+  if($wrapType ne $WRAP_TYPE_NONE){
+    @lines = splitLongLines($maxColWidth, $wrapType, @lines);
   }
 
   my @columns = splitIntoBuckets($cols, @lines);
@@ -72,13 +76,20 @@ sub padList($$@){
   return @items;
 }
 
-sub splitLongLines($@){
-  my ($maxWidth, @lines) = @_;
+sub splitLongLines($$@){
+  my ($maxWidth, $wrapType, @lines) = @_;
   my @shortLines;
   for my $line(@lines){
     my @subLines;
     while(length $line > $maxWidth){
-      my $targetIndex = $maxWidth;
+      my $targetIndex;
+      if($wrapType eq $WRAP_TYPE_NONE){
+        die "ERROR: splitting lines, but wrap-type=$WRAP_TYPE_NONE\n";
+      }elsif($wrapType eq $WRAP_TYPE_CHAR){
+        $targetIndex = $maxWidth;
+      }else{
+        die "ERROR: unknown wrap-type: $wrapType\n";
+      }
       my $prefix = substr $line, 0, $targetIndex;
       push @subLines, $prefix;
       $line = substr $line, $targetIndex;
