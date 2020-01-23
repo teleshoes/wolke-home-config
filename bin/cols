@@ -5,6 +5,7 @@ use utf8;
 
 my $WRAP_TYPE_NONE = "none"; #never split lines, ignore MAX_COL_WIDTH
 my $WRAP_TYPE_CHAR = "char"; #split lines at exact char counts
+my $WRAP_TYPE_WORD = "word"; #attempt to split lines at spaces
 
 sub formatColumns($$@);
 sub padLine($$$);
@@ -16,7 +17,7 @@ sub main(@){
   my @lines = <STDIN>;
   my $cols = 4;
   my $maxColWidth = 60;
-  my $wrapType = "char";
+  my $wrapType = "word";
   print $_ foreach formatColumns($cols, $maxColWidth, $wrapType, @lines);
 }
 
@@ -87,6 +88,14 @@ sub splitLongLines($$@){
         die "ERROR: splitting lines, but wrap-type=$WRAP_TYPE_NONE\n";
       }elsif($wrapType eq $WRAP_TYPE_CHAR){
         $targetIndex = $maxWidth;
+      }elsif($wrapType eq $WRAP_TYPE_WORD){
+        $targetIndex = $maxWidth;
+        while($targetIndex > 0 and substr($line, $targetIndex, 1) =~ /\w/){
+          $targetIndex -= 1;
+        }
+        if($targetIndex <= 0){
+          $targetIndex = $maxWidth
+        }
       }else{
         die "ERROR: unknown wrap-type: $wrapType\n";
       }
