@@ -14,9 +14,9 @@ my $usage = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC
+  $EXEC [OPTS]
     Split text into multiple, narrow vertical columns.
-      -read lines from STDIN, or from <FILE>
+      -read lines from STDIN, or from <FILE> (see -f)
       -if WRAP_TYPE is not none, split individual lines,
         so that each line is at most <MAX_COL_WIDTH> chars
       -group lines into <COLS> similarly-sized lists
@@ -28,6 +28,10 @@ my $usage = "Usage:
         until all items are the same length for each list
       -on each line of output, render one item from each list,
         with '|' between each item
+
+  OPTS
+    -f FILE | --file=FILE
+      read from file FILE instead of STDIN
 ";
 
 sub formatColumns($$@);
@@ -37,12 +41,22 @@ sub splitLongLines($$@);
 sub splitIntoBuckets($@);
 
 sub main(@){
+  my $file = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift @_;
+    my $arg = undef;
+    if($opt =~ /^--\w+=(.+)$/){
+      $arg = $1;
+    }elsif($opt =~ /^(-f)$/){
+      die "$usage\nmissing arg to $opt\n" if @_ == 0;
+      $arg = shift @_;
+    }
 
     if($opt =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($opt =~ /^(-f|--file=.+)$/){
+      $file = $arg;
     }else{
       die "$usage\nunknown opt: $opt\n";
     }
@@ -50,7 +64,19 @@ sub main(@){
 
   die $usage if @_ > 0;
 
-  my @lines = <STDIN>;
+  if(defined $file and not -f $file){
+    die "$usage\nfile does not exist: $file\n";
+  }
+
+  my @lines;
+  if(defined $file){
+    open FH, "<", $file or die "could not read $file\n$!\n";
+    @lines = <FH>;
+    close FH;
+  }else{
+    @lines = <STDIN>;
+  }
+
   my $cols = 4;
   my $maxColWidth = 60;
   my $wrapType = "word";
