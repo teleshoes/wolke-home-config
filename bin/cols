@@ -21,7 +21,7 @@ my $usage = "Usage:
   $EXEC [OPTS]
     Split text into multiple, narrow vertical columns.
       -read lines from STDIN, or from <FILE> (see -f)
-      -if WRAP_TYPE is not none, split individual lines,
+      -if WRAP_TYPE is not none (see -t), split individual lines,
         so that each line is at most <MAX_COL_WIDTH> chars
         (default is $DEFAULT_MAX_COL_WIDTH, see -m)
       -group lines into <COLS> similarly-sized lists
@@ -46,6 +46,14 @@ my $usage = "Usage:
     -m MAX_COL_WIDTH | --max-col-width=MAX_COL_WIDTH
       each column is at most MAX_COL_WIDTH chars (ignored if --wrap-type=none)
       (default = $DEFAULT_MAX_COL_WIDTH)
+
+    -t WRAP_TYPE | --wrap-type=WRAP_TYPE | --wrap=WRAP_TYPE
+      specify method to use to split each line into MAX_COL_WIDTH chars
+      WRAP_TYPE
+        none: lines are never split, and MAX_COL_WIDTH is ignored
+        char: split lines at exact char counts
+        word: split long lines at spaces/non-word-chars if possible
+      (default = $DEFAULT_WRAP_TYPE)
 ";
 
 sub formatColumns($$@);
@@ -58,12 +66,13 @@ sub main(@){
   my $file = undef;
   my $cols = $DEFAULT_COLS;
   my $maxColWidth = $DEFAULT_MAX_COL_WIDTH;
+  my $wrapType = $DEFAULT_WRAP_TYPE;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift @_;
     my $arg = undef;
     if($opt =~ /^--\w+=(.+)$/){
       $arg = $1;
-    }elsif($opt =~ /^(-f|-c|-m)$/){
+    }elsif($opt =~ /^(-f|-c|-m|-t)$/){
       die "$usage\nmissing arg to $opt\n" if @_ == 0;
       $arg = shift @_;
     }
@@ -77,6 +86,8 @@ sub main(@){
       $cols = $arg;
     }elsif($opt =~ /^(-m|--max-col-width=.+)$/){
       $maxColWidth = $arg;
+    }elsif($opt =~ /^(-t|--wrap-type=.+|--wrap=.+)$/){
+      $wrapType = $arg;
     }else{
       die "$usage\nunknown opt: $opt\n";
     }
@@ -90,6 +101,8 @@ sub main(@){
     die "$usage\ninvalid COLS: $cols\n";
   }elsif($maxColWidth !~ /^\d+$/ or $maxColWidth <= 0){
     die "$usage\ninvalid MAX_COL_WIDTH: $maxColWidth\n";
+  }elsif($wrapType !~ /^($WRAP_TYPE_NONE|$WRAP_TYPE_CHAR|$WRAP_TYPE_WORD)$/){
+    die "$usage\ninvalid WRAP_TYPE: $wrapType\n";
   }
 
   my @lines;
@@ -101,7 +114,6 @@ sub main(@){
     @lines = <STDIN>;
   }
 
-  my $wrapType = "word";
   print $_ foreach formatColumns($cols, $maxColWidth, $wrapType, @lines);
 }
 
