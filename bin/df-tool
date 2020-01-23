@@ -14,6 +14,10 @@ my $usage = "Usage:
       \"<SIZE_HUMAN_READBLE><UNIT> (SIZE_BYTES)\"
     if two or more files are given, format is (with column alignment):
       \"<FILE>   <SIZE_HUMAN_READBLE><UNIT>   (SIZE_BYTES)\"
+
+  $0
+    get all mountpoints and pass to $0
+    roughly the same as: $0 `lsblk -n -o MOUNTPOINT`
 ";
 
 sub main(@){
@@ -22,7 +26,16 @@ sub main(@){
   my $maxLenFile = 0;
   my $maxLenDfBytes = 0;
   my $maxLenDfHuman = 0;
-  for my $file(@_){
+  my @files = @_;
+  if(@files == 0){
+    my @lsblkMountpoints = `lsblk -n -o MOUNTPOINT 2>/dev/null`;
+    for my $dir(sort @lsblkMountpoints){
+      if($dir =~ /^(.+)$/){
+        push @files, $1;
+      }
+    }
+  }
+  for my $file(@files){
     if(not -e $file){
       die "ERROR: '$file' not found\n$usage\n";
     }
@@ -33,9 +46,9 @@ sub main(@){
     $maxLenDfHuman = length $dfHuman{$file} if length $dfHuman{$file} > $maxLenDfHuman;
   }
 
-  for my $file(@_){
+  for my $file(@files){
     my $msg = "";
-    $msg .= padl($maxLenFile+1, $file) if @_ > 1;
+    $msg .= padl($maxLenFile+1, $file) if @files > 1;
     $msg .= padl($maxLenDfHuman+1, $dfHuman{$file});
     $msg .= "(" . padl($maxLenDfBytes, $dfBytes{$file}) . ")";
     print "$msg\n";
