@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 sub padl($$);
-sub dfAvail(@);
+sub dfField($@);
 sub readProcLines(@);
 
 my $usage = "Usage:
@@ -39,8 +39,8 @@ sub main(@){
     if(not -e $file){
       die "ERROR: '$file' not found\n$usage\n";
     }
-    $dfBytes{$file} = dfAvail "-B", 1, $file;
-    $dfHuman{$file} = dfAvail "-h", $file;
+    $dfBytes{$file} = dfField "avail", "-B", 1, $file;
+    $dfHuman{$file} = dfField "avail", "-h", $file;
     $maxLenFile = length $file if length $file > $maxLenFile;
     $maxLenDfBytes = length $dfBytes{$file} if length $dfBytes{$file} > $maxLenDfBytes;
     $maxLenDfHuman = length $dfHuman{$file} if length $dfHuman{$file} > $maxLenDfHuman;
@@ -59,9 +59,10 @@ sub padl($$){
   return sprintf "%-$_[0]s", $_[1];
 }
 
-sub dfAvail(@){
-  my @lines = readProcLines "df", "--output=avail", @_;
-  @lines = grep {$_ !~ /^\s*Avail\s*$/} @lines;
+sub dfField($@){
+  my ($field, @args) = @_;
+  my @lines = readProcLines "df", "--output=$field", @args;
+  @lines = grep {$_ !~ /^\s*$field\s*$/i} @lines;
   if(@lines != 1){
     die "malformed output of df: @lines\n";
   }
