@@ -208,6 +208,9 @@ function ac2fan_up    { igcmd ac2-fan_up "$@"; }
 function ac2fan_down  { igcmd ac2-fan_down "$@"; }
 function ac2power     { igcmd ac2-power "$@"; }
 
+function dfavail      { df-tool avail "$@"; }
+function dfused       { df-tool used "$@"; }
+
 function tvg          { tv-gpio "$@" ; }
 
 function s            { "$@" & disown; }
