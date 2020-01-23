@@ -8,16 +8,24 @@ sub readProcLines(@);
 
 my $usage = "Usage:
   $0 [FILE FILE FILE ..]
-    get available size in units of powers of 1024 and in bytes using df
+  $0 TYPE [FILE FILE FILE ..]
+    get TYPE size in units of powers of 1024 and in bytes using df
+      (default TYPE is avail)
     print one per line
     if exactly one file is given, format is:
       \"<SIZE_HUMAN_READBLE><UNIT> (SIZE_BYTES)\"
     if two or more files are given, format is (with column alignment):
       \"<FILE>   <SIZE_HUMAN_READBLE><UNIT>   (SIZE_BYTES)\"
 
+    TYPE
+      df field to print (default is avail)
+      avail | available | -a | --avail | --available
+        available size (df --output=avail)
+
   $0
+  $0 TYPE
     get all mountpoints and pass to $0
-    roughly the same as: $0 `lsblk -n -o MOUNTPOINT`
+    roughly the same as: $0 TYPE `lsblk -n -o MOUNTPOINT`
 ";
 
 sub main(@){
@@ -26,6 +34,13 @@ sub main(@){
   my $maxLenFile = 0;
   my $maxLenDfBytes = 0;
   my $maxLenDfHuman = 0;
+
+  my $type = "avail";
+  if(@_ > 0 and $_[0] =~ /^(avail|available|-a|--avail|--available)$/){
+    shift @_;
+    $type = "avail";
+  }
+
   my @files = @_;
   if(@files == 0){
     my @lsblkMountpoints = `lsblk -n -o MOUNTPOINT 2>/dev/null`;
@@ -39,8 +54,8 @@ sub main(@){
     if(not -e $file){
       die "ERROR: '$file' not found\n$usage\n";
     }
-    $dfBytes{$file} = dfField "avail", "-B", 1, $file;
-    $dfHuman{$file} = dfField "avail", "-h", $file;
+    $dfBytes{$file} = dfField $type, "-B", 1, $file;
+    $dfHuman{$file} = dfField $type, "-h", $file;
     $maxLenFile = length $file if length $file > $maxLenFile;
     $maxLenDfBytes = length $dfBytes{$file} if length $dfBytes{$file} > $maxLenDfBytes;
     $maxLenDfHuman = length $dfHuman{$file} if length $dfHuman{$file} > $maxLenDfHuman;
