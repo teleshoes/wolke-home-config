@@ -174,18 +174,20 @@ sub parseDeviceHostPort($){
     return ($1, $2);
   }elsif($device =~ /^([a-zA-Z0-9_\-]+)$/){
     my $name = $1;
-    my $devices = readWemoDevicesConfFile();
-    if (not defined $$devices{$name}){
-      die "ERROR: could not find device name '$name' in $WEMO_DEVICES_CONF_FILE\n";
+    my $confDevices = readWemoDevicesConfFile();
+    for my $confDev(@$confDevices){
+      if($name eq $$confDev{name}){
+        return ($$confDev{host}, $$confDev{port});
+      }
     }
-    return ($$devices{$name}{host}, $$devices{$name}{port});
+    die "ERROR: could not find device name '$name' in $WEMO_DEVICES_CONF_FILE\n";
   }else{
     die "malformed device: $device\n";
   }
 }
 
 sub readWemoDevicesConfFile(){
-  my $devices = {};
+  my $devices = [];
   if(-f $WEMO_DEVICES_CONF_FILE){
     open FH, "< $WEMO_DEVICES_CONF_FILE"
       or die "ERROR: could not read $WEMO_DEVICES_CONF_FILE\n$!\n";
@@ -194,7 +196,7 @@ sub readWemoDevicesConfFile(){
     for my $line(@lines){
       if($line =~ /^\s*([a-zA-Z0-9_\-]+)\s*=\s*(.+):(\d+)\s*$/){
         my ($name, $host, $port) = ($1, $2, $3);
-        $$devices{$name} = {host=>$host, port=>$port};
+        push @$devices, {name=>$name, host=>$host, port=>$port};
       }
     }
   }
