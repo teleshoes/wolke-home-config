@@ -26,6 +26,10 @@ my $usage = "Usage:
       gssdp-discover -n 2 -t $UPNP_SERVICE
     -print \"<HOST>.<PORT>\", one per line, for each device found
 
+  $EXEC
+    -read first <DEVICE> in $WEMO_DEVICES_CONF_FILE
+    -same as: '$EXEC <DEVICE> --toggle'
+
   $EXEC DEVICE -g|--get|get|--status|status
     -parse <DEVICE> into <HOST> and <PORT>
     -use curl to post to UPnP <HOST>:<PORT>$WEMO_CONTROL_PATH
@@ -82,6 +86,15 @@ sub main(@){
     my ($host, $port) = parseDeviceHostPort $_[0];
 
     print get($host, $port) . "\n";
+  }elsif(@_ == 0){
+    my $confDevices = readWemoDevicesConfFile();
+    if(@$confDevices == 0){
+      die "ERROR: no devices found in $WEMO_DEVICES_CONF_FILE\n";
+    }
+    my ($host, $port) = ($$confDevices[0]{host}, $$confDevices[0]{port});
+    my $value = get($host, $port) == 1 ? 0 : 1;
+    set($host, $port, $value);
+    print "OK: $value\n";
   }elsif(@_ == 3 and $_[1] =~ /^(-s|--set|set)$/){
     my ($device, $value) = ($_[0], $_[2]);
     my ($host, $port) = parseDeviceHostPort $device;
