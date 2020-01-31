@@ -1,0 +1,204 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use IPC::Open3 qw(open3);
+use POSIX qw(strftime);
+use Time::HiRes qw(alarm time);
+
+my $logBaseDir = "$ENV{HOME}/.cache/logs";
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  runs commands, logs them to $logBaseDir, and adds a watchdog to kill them
+
+  $EXEC -h|--help
+    show this message
+
+  $0 [OPTS] CMD [ARG ARG ..]
+    -caculate <DAEMON_NAME> from <CMD>
+      take basename of <CMD>
+      replace all chars that are not letters, numbers,
+        underscores, or dashes with underscores
+    -start logging to LOG_FILE
+    -create symlink to LOG_FILE at $logBaseDir/<DAEMON_NAME>/latest
+    -run 'CMD [ARG ARG ..]' every DELAY_INTERVAL (if DELAY_INTERVAL == 0, exit after first run)
+    -append STDOUT/STDERR to LOG_FILE
+
+      LOG_FILE = $logBaseDir/<DAEMON_NAME>/<DAEMON_NAME>-<START_MILLIS>.log
+      START_MILLIS = time in milliseconds at initial start
+
+  OPTS
+    --name=DAEMON_NAME
+      override <DAEMON_NAME> calculated from <CMD>
+    --timeout=TIMEOUT_INTERVAL
+      if CMD takes longer than TIMEOUT_INTERVAl,
+        kill it (never kill it if TIMEOUT_INTERVAL is 0)
+    --logfile-name=FILE_NAME
+      use existing LOG_FILE = $logBaseDir/<NAME>/<FILE_NAME>
+    -v | --verbose
+      print command STDOUT/STDERR to console in addition to log file
+
+  TIMEOUT_INTERVAL = 0 | <POSITIVE_INT><TIME_UNIT>
+    time to wait before killing command (e.g.: 30s, 5m, 1500ms),
+      or '0' for never kill command
+    if delay and timeout are non-zero, the maximum delay between commands is:
+      DELAY_INTERVAL + TIMEOUT_INTERVAL
+
+  POSITIVE_INT
+    a positive (non-zero, non-negative) integer
+
+  TIME_UNIT
+    ms  => milliseconds
+    s   => seconds
+    m   => minutes
+    min => minutes
+    h   => hours
+    d   => days (24 hours)
+";
+
+sub getIntervalMillis($);
+sub runCommand($$$$@);
+sub cmdTimeout($$@);
+sub logMsg($$);
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }
+
+  my $daemonName = undef;
+  my $timeoutMillis = 0;
+  my $logFileName = undef;
+  my $verbose = 0;
+  while(@_ > 1 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^--name=([a-zA-Z0-9_\-]+)$/){
+      $daemonName = $1;
+    }elsif($arg =~ /^--timeout=(.+)$/){
+      my $timeoutArg = $1;
+      $timeoutMillis = getIntervalMillis $timeoutArg;
+      if(not defined $timeoutMillis){
+        die "ERROR: malformed argument to --timeout: $timeoutArg\n";
+      }
+    }elsif($arg =~ /^--logfile-name=(.+)$/){
+      $logFileName = $1;
+    }elsif($arg =~ /^(-v|--verbose)$/){
+      $verbose = 1;
+    }else{
+      die "ERROR: unknown arg: $arg\n";
+    }
+  }
+  die $usage if @_ == 0;
+  my @cmd = @_;
+
+  $daemonName = basename $cmd[0];
+  $daemonName =~ s/^[a-zA-Z0-9_\-]+$/_/g;
+
+  if(not defined $logFileName){
+    my $nowMillis = int(time * 1000.0);
+    $logFileName = "$daemonName-$nowMillis.log";
+  }
+
+  runCommand $daemonName, $timeoutMillis, $logFileName, $verbose, @cmd;
+}
+
+sub getIntervalMillis($){
+  my ($interval) = @_;
+  if($interval =~ /^0$/){
+    return 0;
+  }elsif($interval =~ /^(\d+)(\w+)$/){
+    my ($val, $unit) = ($1, $2);
+    if($val == 0){
+      return undef;
+    }
+
+    if($unit eq "ms"){
+      return int($val + 0.5);
+    }elsif($unit eq "s"){
+      return int($val*1000.0 + 0.5);
+    }elsif($unit eq "m" or $unit eq "min"){
+      return int($val*1000.0*60.0 + 0.5);
+    }elsif($unit eq "h"){
+      return int($val*1000.0*60.0*60.0 + 0.5);
+    }elsif($unit eq "d"){
+      return int($val*1000.0*60.0*60.0*24.0 + 0.5);
+    }else{
+      return undef;
+    }
+  }else{
+    return undef;
+  }
+}
+
+sub runCommand($$$$@){
+  my ($daemonName, $timeoutMillis, $logFileName, $verbose, @cmd) = @_;
+
+  my $logDir = "$logBaseDir/$daemonName";
+  system "mkdir", "-p", $logDir;
+  my $logFile = "$logDir/$logFileName";
+  system "touch", $logFile;
+
+  system "rm", "-f", "$logDir/latest";
+  system "ln", "-s", $logFileName, "$logDir/latest";
+
+  if($timeoutMillis > 0){
+    $SIG{ALRM} = sub {die "timeout"};
+  }
+
+  my $logFH;
+  if($verbose){
+    open $logFH, "|-", "tee -a $logFile" or die "Could not tee logFH to $logFile\n";
+  }else{
+    open $logFH, ">>", $logFile or die "Could not append to $logFile\n";
+  }
+
+  logMsg($logFH, "running command: @cmd");
+  logMsg($logFH, "command start");
+
+  cmdTimeout $logFH, $timeoutMillis, @cmd;
+
+  logMsg($logFH, "command end");
+
+  print $logFH "\n\n\n";
+  $logFH->flush();
+  $logFH->close();
+}
+
+sub cmdTimeout($$@){
+  my ($logFH, $timeoutMillis, @cmd) = @_;
+
+  my $logFileno = fileno $logFH;
+  my $pid = open3(undef, ">&$logFileno", ">&$logFileno", @cmd);
+  if($timeoutMillis > 0){
+    eval {
+      alarm $timeoutMillis/1000.0;
+      waitpid $pid, 0;
+      alarm 0;
+    };
+    if($@ =~ /timeout/){
+      print $logFH "TIMEOUT pid=$pid after ${timeoutMillis}ms\n";
+      system "kill", "-9", "$pid";
+      waitpid $pid, 0;
+    }
+  }else{
+    waitpid $pid, 0;
+  }
+}
+
+sub logMsg($$){
+  my ($logFH, $msg) = @_;
+
+  my $now = time;
+  my @localtime = localtime($now);
+  my $millis = sprintf "%03d", int($now * 1000 + 0.5) % 1000;
+  my $dateFmt = strftime("%Y-%m-%d %H:%M:%S.$millis %z", @localtime);
+
+  chomp $msg;
+
+  print $logFH "%%%|$EXEC|$dateFmt|$msg\n";
+}
+
+&main(@ARGV);
