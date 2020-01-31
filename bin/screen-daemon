@@ -2,10 +2,8 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
-use IPC::Open3 qw(open3);
 use IO::Handle;
-use POSIX qw(strftime);
-use Time::HiRes qw(alarm time sleep);
+use Time::HiRes qw(time sleep);
 
 my $screenDaemonConf = "$ENV{HOME}/.config/screen-daemon.conf";
 my $logBaseDir = "$ENV{HOME}/.cache/logs";
@@ -58,11 +56,13 @@ my $usage = "Usage:
           CMD [ARG ARG ..]
 
   $0 NAME --run DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
-    -start logging to LOG_FILE
-    -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
-    -run 'CMD [ARG ARG ..]' every DELAY_INTERVAL (if DELAY_INTERVAL == 0, exit after first run)
-    -append STDOUT/STDERR to LOG_FILE
-    -if CMD takes longer than TIMEOUT_INTERVAl, kill it (never kill it if TIMEOUT_INTERVAL is 0)
+    -generate <LOG_FILE>
+    -invoke `daemon-run` with CMD, TIMEOUT_INTERVAL, NAME, and LOG_FILE
+      -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
+      -run 'CMD [ARG ARG ..]', appending STDOUT/STDERR to LOG_FILE
+      -if CMD takes longer than TIMEOUT_INTERVAl, kill it (never kill it if TIMEOUT_INTERVAL is 0)
+    -wait DELAY_INTERVAL and re-run `daemon-run`, forever
+      (if DELAY_INTERVAL == 0, exit after first run)
 
       LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
       START_MILLIS = time in milliseconds at initial start
@@ -120,7 +120,7 @@ sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
 sub checkRunArgs($$$@);
-sub runCommandForever($$$@);
+sub daemonRunCommandForever($$$@);
 sub cmdTimeout($$@);
 sub logMsg($$);
 sub shellParse($);
@@ -203,7 +203,7 @@ sub main(@){
 
     my $delayMillis = getIntervalMillis $delayInterval;
     my $timeoutMillis = getIntervalMillis $timeoutInterval;
-    runCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
+    daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
   }elsif(@_ == 2 and $_[1] =~ /^(--tail)$/){
     my ($name) = @_;
     die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
@@ -300,41 +300,19 @@ sub checkRunArgs($$$@){
   }
 }
 
-sub runCommandForever($$$@){
+sub daemonRunCommandForever($$$@){
   my ($name, $delayMillis, $timeoutMillis, @cmd) = @_;
   my $nowMillis = int(time * 1000.0);
   my $logFileName = "$name-$nowMillis.log";
 
-  my $logDir = "$logBaseDir/$name";
-  system "mkdir", "-p", $logDir;
-  my $logFile = "$logDir/$logFileName";
-  system "touch", $logFile;
-
-  system "rm", "-f", "$logDir/latest";
-  system "ln", "-s", $logFileName, "$logDir/latest";
-
-  if($timeoutMillis > 0){
-    $SIG{ALRM} = sub {die "timeout"};
-  }
-
-  my $logFH;
-  if($PRINT_TO_STDOUT){
-    open $logFH, "|-", "tee -a $logFile" or die "Could not tee logFH to $logFile\n";
-  }else{
-    open $logFH, ">>", $logFile or die "Could not append to $logFile\n";
-  }
-
-  logMsg($logFH, "started $name daemon");
   while(1){
-    logMsg($logFH, "running command: @cmd");
-    logMsg($logFH, "command start");
+    system "daemon-run",
+      "--name=$name",
+      "--timeout=${timeoutMillis}ms",
+      "--logfile-name=$logFileName",
+      "--verbose",
+      @cmd;
 
-    cmdTimeout $logFH, $timeoutMillis, @cmd;
-
-    logMsg($logFH, "command end");
-
-    print $logFH "\n\n\n";
-    $logFH->flush();
 
     if($delayMillis > 0){
       sleep $delayMillis/1000.0;
@@ -342,40 +320,6 @@ sub runCommandForever($$$@){
       last;
     }
   }
-}
-
-sub cmdTimeout($$@){
-  my ($logFH, $timeoutMillis, @cmd) = @_;
-
-  my $logFileno = fileno $logFH;
-  my $pid = open3(undef, ">&$logFileno", ">&$logFileno", @cmd);
-  if($timeoutMillis > 0){
-    eval {
-      alarm $timeoutMillis/1000.0;
-      waitpid $pid, 0;
-      alarm 0;
-    };
-    if($@ =~ /timeout/){
-      print $logFH "TIMEOUT pid=$pid after ${timeoutMillis}ms\n";
-      system "kill", "-9", "$pid";
-      waitpid $pid, 0;
-    }
-  }else{
-    waitpid $pid, 0;
-  }
-}
-
-sub logMsg($$){
-  my ($logFH, $msg) = @_;
-
-  my $now = time;
-  my @localtime = localtime($now);
-  my $millis = sprintf "%03d", int($now * 1000 + 0.5) % 1000;
-  my $dateFmt = strftime("%Y-%m-%d %H:%M:%S.$millis %z", @localtime);
-
-  chomp $msg;
-
-  print $logFH "%%%|$EXEC|$dateFmt|$msg\n";
 }
 
 sub shellParse($){
