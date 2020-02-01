@@ -7,7 +7,7 @@ sudo display-manager-tool --check
 sudo bluetooth off &
 sudo fan default &
 taffybar-restart --daemon --quiet
-parcellite -d &
+parcellite-start
 sudo sbox-umount &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
 
