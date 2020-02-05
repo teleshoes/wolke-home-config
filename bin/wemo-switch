@@ -21,10 +21,13 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC --list|--list
+  $EXEC --list|--list [DEVICE_NAME]
     -perform a UPnP SSDP search for 2s using:
       gssdp-discover -n 2 -t $UPNP_SERVICE
     -print \"<HOST>.<PORT>\", one per line, for each device found
+
+    DEVICE_NAME
+      pass '-i <DEVICE_NAME>' to gssdp-discover if present
 
   $EXEC
     -read first <DEVICE> in $WEMO_DEVICES_CONF_FILE
@@ -66,7 +69,7 @@ my $usage = "Usage:
             and is NOT the wemo 'friendly' device name
 ";
 
-sub list();
+sub list($);
 sub get($$);
 sub set($$$);
 sub curlPostUPnP($$$$$);
@@ -80,7 +83,9 @@ sub main(@){
     print $usage;
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(--list|list)$/){
-    list();
+    list(undef);
+  }elsif(@_ == 2 and $_[0] =~ /^(--list|list)$/){
+    list($_[1]);
   }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(-g|--get|get|--status|status)$/)){
     my ($device) = ($_[0]);
     my ($host, $port) = parseDeviceHostPort $_[0];
@@ -127,8 +132,10 @@ sub main(@){
   }
 }
 
-sub list(){
+sub list($){
+  my ($dev) = @_;
   my @cmd = ("gssdp-discover", "-n", $GSSDP_DISCOVERY_TIMEOUT_S, "-t", $UPNP_SERVICE);
+  @cmd = (@cmd, "-i", $dev) if defined $dev;
   open CMD, "-|", @cmd or die "ERROR: failure running @cmd\n$!\n";
   while(my $line = <CMD>){
     if($line =~ /^\s*Location:\s*(.+):(\d+)(?:\/.*)?$/){
