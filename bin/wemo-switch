@@ -176,8 +176,15 @@ sub set($$$){
 
   my $xml = formatXmlSet($value);
   my $response = curlPostUPnP($host, $port, $WEMO_CONTROL_PATH, $SOAP_ACTION_SET, $xml);
-  if($response !~ /SetBinaryStateResponse/
-     or $response !~ /<BinaryState>$value<\/BinaryState>/){
+  my $isValidResponse = 0;
+  if($response =~ /SetBinaryStateResponse/){
+    my $respVal = $1 if $response =~ /<BinaryState>(\d+)/;
+    $respVal = "" if not defined $respVal;
+    if($value eq $respVal){
+      $isValidResponse = 1;
+    }
+  }
+  if(not $isValidResponse){
     die "ERROR: invalid response from set:\n$response\n";
   }
 }
