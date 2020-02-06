@@ -57,16 +57,19 @@ my $usage = "Usage:
     -if 0, do '$EXEC <DEVICE> --set 1'
     -if 1, do '$EXEC <DEVICE> --set 0'
 
-  DEVICE = HOST_AND_PORT | NAME
+  DEVICE = HOST_AND_PORT | DEV_NAME
     HOST_AND_PORT
       a string formatted as <HOST>:<PORT>
       e.g.: 192.168.1.4:49153
-    NAME
-      the name of a device in $WEMO_DEVICES_CONF_FILE
-        each line of that file can contain a device, formatted:
-        <NAME>=<HOST>:<PORT>
+    DEV_NAME
+      the name (or part of the name) of a device in:
+        $WEMO_DEVICES_CONF_FILE
+        -each line of that file can contain a device, formatted:
+          <NAME>=<HOST>:<PORT>
+        -if exactly one <NAME> in that file contains <DEV_NAME>,
+          then that <HOST>:<PORT> is used for <HOST_AND_POR>
       NOTE: this is user-defined in the conf file,
-            and is NOT the wemo 'friendly' device name
+            and is NOT (necessarily) the wemo 'friendly' device name
 ";
 
 sub list($);
@@ -200,12 +203,20 @@ sub parseDeviceHostPort($){
   }elsif($device =~ /^([a-zA-Z0-9_\-]+)$/){
     my $name = $1;
     my $confDevices = readWemoDevicesConfFile();
+    my @matchedDevices;
     for my $confDev(@$confDevices){
-      if($name eq $$confDev{name}){
-        return ($$confDev{host}, $$confDev{port});
+      if($$confDev{name} =~ /\Q$name\E/){
+        push @matchedDevices, $confDev;
       }
     }
-    die "ERROR: could not find device name '$name' in $WEMO_DEVICES_CONF_FILE\n";
+    if(@matchedDevices == 1){
+      my $confDev = $matchedDevices[0];
+      return ($$confDev{host}, $$confDev{port});
+    }elsif(@matchedDevices > 1){
+      die "ERROR: too many devices match '$name' in $WEMO_DEVICES_CONF_FILE\n";
+    }else{
+      die "ERROR: could not find device name '$name' in $WEMO_DEVICES_CONF_FILE\n";
+    }
   }else{
     die "malformed device: $device\n";
   }
