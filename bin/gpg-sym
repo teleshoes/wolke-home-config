@@ -7,6 +7,7 @@ sub encrypt($);
 sub decrypt($);
 sub toArmor($);
 sub fromArmor($);
+sub readFile($);
 
 my @gpgCmds = qw(gpg gpg2);
 
@@ -25,8 +26,17 @@ my $footer = "-----END PGP MESSAGE-----";
 my $usage = "Usage:
   $0 -h|--help
     Show this message
-  $0 MESSAGE [MESSAGE MESSAGE ..]
-    encrypts message symetrically using $passFile
+
+  $0 FILE
+    if FILE is a file, read MESSAGE from FILE
+      roughly the same as: $0 `cat FILE`
+
+  $0 -
+    read MESSAGE from STDIN
+      roughly the same as: $0 `read a; echo \$a`
+
+  $0 MESSAGE
+    encrypts/decrypts message symetrically using $passFile
       $0 `$0 X` == 'X'
 
     the encrypted message is a single line, consisting of an armor block
@@ -48,14 +58,23 @@ my $usage = "Usage:
 
 sub main(@){
   die $usage if @_ == 0 or $_[0] =~ /^(-h|--help)$/;
-  for my $msg(@_){
-    if($msg =~ /^!h!.*!f!$/){
-      print decrypt(toArmor($msg));
-    }else{
-      print fromArmor(encrypt($msg));
-    }
-    print "\n";
+  my $msg;
+  if(@_ == 1 and -f $_[0]){
+    $msg = readFile $_[0];
+  }elsif(@_ == 1 and $_[0] =~ /^-$/){
+    $msg = <STDIN>;
+  }elsif(@_ == 1){
+    $msg = $_[0];
+  }else{
+    die $usage;
   }
+
+  if($msg =~ /^!h!.*!f!$/){
+    print decrypt(toArmor($msg));
+  }else{
+    print fromArmor(encrypt($msg));
+  }
+  print "\n";
 }
 
 sub gpg($$){
@@ -107,6 +126,13 @@ sub fromArmor($){
   $s =~ s/\t/!t!/g;
   $s =~ s/\n/!n!/g;
   return $s;
+}
+
+sub readFile($){
+  open FH, "< $_[0]" or die "could not read $_[0]\n$!\n";
+  my $contents = join '', <FH>;
+  close FH;
+  return $contents;
 }
 
 &main(@ARGV);
