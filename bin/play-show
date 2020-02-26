@@ -53,11 +53,23 @@ my $usage = "Usage:
 
     OPTS
       default options to mpv: @DEFAULT_MPV_OPTS
+
+   $0 --bash-complete COMP_LINE COMP_POINT
+     print a list of words for bash completion, one per line
+     COMP_LINE  - the full cmdline as a string
+     COMP_POINT - the cursor position in the cmdline
 ";
 
 sub main(@){
-  my ($showNameArg, $songNum, $pos, $loopStart, $loopEnd);
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+    print map {"$_\n"} bashComplete($_[1], $_[2]);
+    exit 0;
+  }
 
+  my ($showNameArg);
   if(@_ >= 1 and $_[0] =~ /^[a-zA-Z]\w*$/){
     my %okShowDirs = map {$_ => 1} getShowDirs();
     if(defined $okShowDirs{$_[0]}){
@@ -65,10 +77,8 @@ sub main(@){
     }
   }
 
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-    exit 0;
-  }if(@_ == 1){
+  my ($songNum, $pos, $loopStart, $loopEnd);
+  if(@_ == 1){
     ($songNum, $pos) = ($_[0], undef);
   }elsif(@_ == 2){
     ($songNum, $pos) = ($_[0], $_[1]);
@@ -134,6 +144,30 @@ sub getShowDirs(){
   chomp foreach @dirs;
   @dirs = grep {-d "$SHOW_BASE_DIR/$_/"} @dirs;
   return @dirs;
+}
+
+sub bashComplete($$){
+  my ($cmdLine, $pos) = @_;
+  my $cmd = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmd =~ /\s$/;
+  $cmd =~ s/^\s+//;
+  $cmd =~ s/\s+$//;
+
+  my @words = split /\s+/, $cmd;
+  shift @words;
+  pop @words if not $isNewWord;
+
+  while(@words > 0 and $words[0] =~ /^-/){
+    shift @words;
+  }
+
+  my @showNames = getShowDirs();
+
+  if(@words == 0){
+    return ("-h", "--help", "--bash-complete", @showNames);
+  }
+
+  return ();
 }
 
 &main(@ARGV);
