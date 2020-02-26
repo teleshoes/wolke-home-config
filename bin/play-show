@@ -18,10 +18,11 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 SONG_NUM
-  $0 SONG_NUM POS
-  $0 SONG_NUM LOOP_POS_START LOOP_POS_END
+  $0 [SHOW_NAME] SONG_NUM
+  $0 [SHOW_NAME] SONG_NUM POS
+  $0 [SHOW_NAME] SONG_NUM LOOP_POS_START LOOP_POS_END
     find the first song <FILE> matching <SONG_NUM> in one of:
+      $SHOW_BASE_DIR/<SHOW_NAME>
       \$PWD/
       $PLAY_DIR/
       $SHOW_BASE_DIR/`cat $SHOW_FILE`
@@ -55,7 +56,15 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  my ($songNum, $pos, $loopStart, $loopEnd);
+  my ($showNameArg, $songNum, $pos, $loopStart, $loopEnd);
+
+  if(@_ >= 1 and $_[0] =~ /^[a-zA-Z]\w*$/){
+    my %okShowDirs = map {$_ => 1} getShowDirs();
+    if(defined $okShowDirs{$_[0]}){
+      $showNameArg = shift @_;
+    }
+  }
+
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
@@ -77,19 +86,21 @@ sub main(@){
   $songNum =~ s/^0+//;
   $songNum =~ s/_+$//;
 
-  my $showDir;
+  my $showNameArgDir = defined $showNameArg ? "$SHOW_BASE_DIR/$showNameArg" : undef;
+
+  my $showFileDir;
   my $show = `cat $SHOW_FILE 2>/dev/null`;
   chomp $show;
 
   if($show =~ /^([a-zA-Z0-9_\-]+)$/){
-    $showDir = "$SHOW_BASE_DIR/$1";
+    $showFileDir = "$SHOW_BASE_DIR/$1";
   }elsif($show ne ""){
     die "invalid $SHOW_FILE (must be letters/numbers/dashes/underscore): $show\n";
   }else{
-    $showDir = undef;
+    $showFileDir = undef;
   }
 
-  my @dirs = (".", $PLAY_DIR, $showDir);
+  my @dirs = grep {defined $_} ($showNameArgDir, ".", $PLAY_DIR, $showFileDir);
 
   my @files;
   for my $dir(@dirs){
@@ -116,6 +127,13 @@ sub main(@){
   @cmd = (@cmd, "--ab-loop-b", $loopEnd) if defined $loopEnd;
 
   exec @cmd;
+}
+
+sub getShowDirs(){
+  my @dirs = `cd $SHOW_BASE_DIR/ && ls`;
+  chomp foreach @dirs;
+  @dirs = grep {-d "$SHOW_BASE_DIR/$_/"} @dirs;
+  return @dirs;
 }
 
 &main(@ARGV);
