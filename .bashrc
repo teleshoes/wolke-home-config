@@ -191,6 +191,8 @@ function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
 function sm           { sheetmusic "$@"; }
 
+function pl           { play-show "$@"; }
+
 function ws           { wemo-switch "$@"; }
 
 function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
