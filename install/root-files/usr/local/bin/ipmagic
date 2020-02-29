@@ -153,6 +153,7 @@ my $usage = "Usage:
         -u|--user USER      ssh user
         -m|--method METHOD  method of obtaining IP
                             one of [$methods]  {default is 'any'}
+        -n|--no-guess-ping  do not check guess IP, assume success
         -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
                             (number of total attempts is 1+<RETRIES>)
                             {default is $defaultRetries}
@@ -196,6 +197,7 @@ sub main(@){
 
   my $optRegex = join "|", qw(
     -v --verbose -u --user -m --method -r --retries
+    -n --no-guess-ping
   );
 
   my %opts;
@@ -208,6 +210,8 @@ sub main(@){
     }elsif(@_ > 0 and $arg =~ /^(-m|--method)$/){
       $opts{method} = shift;
       die "ERROR: invalid method=$opts{method}\n" if $opts{method} !~ /^($methods)$/;
+    }elsif($arg =~ /^(-n|--no-guess-ping)$/){
+      $opts{no_guess_ping} = 1;
     }elsif(@_ > 0 and $arg =~ /^(-r|--retries)$/){
       $opts{retries} = shift;
     }else{
@@ -674,7 +678,10 @@ sub guess($$){
     print "Trying guesses\n" if $opts{verbose};
     for my $ip(@{$config{ipGuessList}}){
       print "  guess $ip\n" if $opts{verbose};
-      if(quickPingable $ip){
+      if($opts{no_guess_ping}){
+        print "  success (skipped ping)\n" if $opts{verbose};
+        return $ip;
+      }elsif(quickPingable $ip){
         print "  success!\n" if $opts{verbose};
         return $ip;
       }
@@ -684,7 +691,10 @@ sub guess($$){
   my $oldIP = readHostsIP $config{hostname};
   if(defined $oldIP){
     print "  guess $oldIP (old hosts IP)\n" if $opts{verbose};
-    if(quickPingable $oldIP){
+    if($opts{no_guess_ping}){
+      print "  success (skipped ping)\n" if $opts{verbose};
+      return $oldIP;
+    }elsif(quickPingable $oldIP){
       print "  success!\n" if $opts{verbose};
       return $oldIP;
     }
