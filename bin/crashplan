@@ -27,6 +27,7 @@ sub formatTime($);
 sub ymd($);
 sub writeStatus($);
 sub sleepMillis($;$);
+sub readSecret($);
 sub run(@);
 sub tryrun(@);
 sub bashComplete($$);
@@ -42,7 +43,8 @@ my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
 my $delayBeforeGUIStartMillis = int(5 * 1000);
-my $delayBeforeGUIOpenCmdWindowMillis = int(60 * 1000);
+my $delayBeforeGUITypePasswordMillis = int(60 * 1000);
+my $delayBeforeGUIOpenCmdWindowMillis = int(10 * 1000);
 my $delayBeforeGUIKeyboardCmdMillis = int(20 * 1000);
 my $delayBeforeGUICloseMillis = int(5 * 1000);
 
@@ -211,11 +213,19 @@ sub runCommandInCommandsGui($){
 
   print "starting gui\n";
   run $0, "-g";
-  sleepMillis $delayBeforeGUIOpenCmdWindowMillis, "before opening cmd window";
+  sleepMillis $delayBeforeGUITypePasswordMillis, "before typing password";
 
   my $guiWindowId = `windowid --exact --class=crashplan.crashplan --name=Code42`;
   chomp $guiWindowId;
   die "could not get window id of gui\n" if $guiWindowId !~ /^0x/;
+
+  my $password = readSecret("crashplan.password");
+
+  print "typing password\n";
+  run "wmctrl", "-i", "-a", $guiWindowId;
+  run "xdotool", "type", "--window", $guiWindowId, "$password\n";
+
+  sleepMillis $delayBeforeGUIOpenCmdWindowMillis, "before opening cmd window";
 
   print "opening cmd window (Ctrl+Shift+C)\n";
   run "wmctrl", "-i", "-a", $guiWindowId;
@@ -898,6 +908,22 @@ sub sleepMillis($;$){
     }
   }
   Time::HiRes::sleep $fracS;
+}
+
+sub readSecret($){
+  my ($key) = @_;
+  my @lines = `cat $ENV{HOME}/.secrets 2>/dev/null`;
+  for my $line(@lines){
+    if($line =~ /^\s*$key\s*=\s*(.+)$/){
+      my $val = $1;
+      if($val =~ /^!h!.*!f!$/){
+        $val = `gpg-sym '$val'`;
+        chomp $val;
+      }
+      return $val;
+    }
+  }
+  die "could not read secret $key\n";
 }
 
 sub run(@){
