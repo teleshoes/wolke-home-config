@@ -12,7 +12,7 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 SRC DEST
+  $0 [OPTS] SRC DEST
     copy files (recursively) from <SRC> to a backup-dir <DEST>,
       skipping files with the same mtime/filesize and similar filenames
 
@@ -20,14 +20,21 @@ my $usage = "Usage:
     -compare mtime+filesize exactly
     -ignore case and certain prefixes/suffixes for filename
     -copy files to <DEST>/backup_<YYYYMMDD>_<HHMMSS>_<MILLIS>/<FILENAME>
+
+   OPTS:
+     -s | -n | --simulate | --no-act
+       print a message instead of copying files
 ";
 
 sub main(@){
+  my $simulate = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($opt =~ /^(-s|-n|--simulate|--no-act)$/){
+      $simulate = 1;
     }else{
       die "$usage\nERROR: unknown opt \"$opt\"\n";
     }
@@ -46,7 +53,12 @@ sub main(@){
 
   my @filesToBackup = getFilesToBackup $src, $dest;
   for my $file(@filesToBackup){
-    system "rsync", "-avP", $file, "$backupDir/";
+    my @rsyncCmd = ("rsync", "-avP", $file, "$backupDir/");
+    if($simulate){
+      print "[simulate]: @rsyncCmd\n";
+    }else{
+      system @rsyncCmd;
+    }
   }
 }
 
