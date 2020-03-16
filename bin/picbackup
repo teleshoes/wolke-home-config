@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-sub getFilesToBackup($$);
 sub fileNameMatch($$);
 sub getFilesByKey($);
 sub findFiles($);
@@ -51,7 +50,32 @@ sub main(@){
   my $nowMillis = nowMillis();
   my $backupDir = "$dest/backup_${datetimeFmt}_$nowMillis";
 
-  my @filesToBackup = getFilesToBackup $src, $dest;
+
+  ### get files to backup
+  my @filesToBackup;
+
+  my $srcFilesByKey = getFilesByKey $src;
+  my $destFilesByKey = getFilesByKey $dest;
+
+  for my $key(sort keys %$srcFilesByKey){
+    my @srcFiles = @{$$srcFilesByKey{$key}};
+    my @destFiles = @{$$destFilesByKey{$key}} if defined $$destFilesByKey{$key};
+
+    for my $srcFile(@srcFiles){
+      my @matchingDestFiles = grep {fileNameMatch($srcFile, $_)} @destFiles;
+      my $mtimeFsizeMatched = @destFiles > 0;
+      my $filenameMatched = @matchingDestFiles > 0;
+
+      if($mtimeFsizeMatched and $filenameMatched){
+        # at least one file in DEST has the same mtime and fsize, and a similar filename
+      }else{
+        push @filesToBackup, $srcFile;
+      }
+    }
+  }
+
+
+  ### backup files
   for my $file(@filesToBackup){
     my @rsyncCmd = ("rsync", "-avP", $file, "$backupDir/");
     if($simulate){
@@ -61,33 +85,6 @@ sub main(@){
       system @rsyncCmd;
     }
   }
-}
-
-sub getFilesToBackup($$){
-  my ($src, $dest) = @_;
-
-  my $srcFilesByKey = getFilesByKey $src;
-  my $destFilesByKey = getFilesByKey $dest;
-
-  my @filesToBackup;
-  for my $key(sort keys %$srcFilesByKey){
-    my @srcFiles = @{$$srcFilesByKey{$key}};
-    my @destFiles = @{$$destFilesByKey{$key}} if defined $$destFilesByKey{$key};
-    for my $srcFile(@srcFiles){
-      my $missingFile = 1;
-      for my $destFile(@destFiles){
-        if(fileNameMatch $srcFile, $destFile){
-          $missingFile = 0;
-          last;
-        }
-      }
-      if($missingFile){
-        push @filesToBackup, $srcFile;
-      }
-    }
-  }
-
-  return @filesToBackup;
 }
 
 sub fileNameMatch($$){
