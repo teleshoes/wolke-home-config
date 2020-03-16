@@ -1,0 +1,133 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+sub getFilesToBackup($$);
+sub fileNameMatch($$);
+sub getFilesByKey($);
+sub findFiles($);
+
+my $usage = "Usage:
+  $0 SRC DEST
+    copy files (recursively) from <SRC> to a backup-dir <DEST>,
+      skipping files with the same mtime/filesize and similar filenames
+
+    -recursively find all files in <SRC>
+    -compare mtime+filesize exactly
+    -ignore case and certain prefixes/suffixes for filename
+    -copy files to <DEST>/backup_<YYYYMMDD>_<HHMMSS>_<MILLIS>/<FILENAME>
+";
+
+sub main(@){
+  die $usage if @_ != 2;
+  my ($src, $dest) = @_;
+  die "src dir not found: $src\n" if not -d $src;
+  die "dest dir not found: $dest\n" if not -d $dest;
+
+  my $datetimeFmt = `date +'%Y%m%d_%H%M%S'`;
+  chomp $datetimeFmt;
+  my $nowMillis = nowMillis();
+  my $backupDir = "$dest/backup_${datetimeFmt}_$nowMillis";
+
+  my @filesToBackup = getFilesToBackup $src, $dest;
+  for my $file(@filesToBackup){
+    system "rsync", "-avP", $file, "$backupDir/";
+  }
+}
+
+sub getFilesToBackup($$){
+  my ($src, $dest) = @_;
+
+  my $srcFilesByKey = getFilesByKey $src;
+  my $destFilesByKey = getFilesByKey $dest;
+
+  my @filesToBackup;
+  for my $key(sort keys %$srcFilesByKey){
+    my @srcFiles = @{$$srcFilesByKey{$key}};
+    my @destFiles = @{$$destFilesByKey{$key}} if defined $$destFilesByKey{$key};
+    for my $srcFile(@srcFiles){
+      my $missingFile = 1;
+      for my $destFile(@destFiles){
+        if(fileNameMatch $srcFile, $destFile){
+          $missingFile = 0;
+          last;
+        }
+      }
+      if($missingFile){
+        push @filesToBackup, $srcFile;
+      }
+    }
+  }
+
+  return @filesToBackup;
+}
+
+sub fileNameMatch($$){
+  my ($file1, $file2) = @_;
+  $file1 =~ s/^.*\///;
+  $file2 =~ s/^.*\///;
+  $file1 = lc $file1;
+  $file2 = lc $file2;
+
+  my $ext1 = $1 if $file1 =~ s/\.(\w+)$//;
+  my $ext2 = $1 if $file2 =~ s/\.(\w+)$//;
+  $ext1 = "" if not defined $ext1;
+  $ext2 = "" if not defined $ext2;
+  if($ext1 ne $ext2){
+    return 0;
+  }
+
+  $file1 =~ s/[^a-zA-Z0-9_\- ]/_/g;
+  $file2 =~ s/[^a-zA-Z0-9_\- ]/_/g;
+
+  $file1 =~ s/^_+//;
+  $file2 =~ s/^_+//;
+
+  $file1 =~ s/_+$//;
+  $file2 =~ s/_+$//;
+
+  if(length $file1 == 0 or length $file2 == 0){
+    return 0;
+  }
+
+  if($file1 =~ /^(vid_|img_)?(\d{8}_)?(\d{6}_)?${file2}(_\w+)?$/){
+    return 1;
+  }elsif($file2 =~ /^(vid_|img_)?(\d{8}_)?(\d{6}_)?${file1}(_\w+)?$/){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub getFilesByKey($){
+  my ($dir) = @_;
+
+  my @files = findFiles $dir;
+
+  my $filesByKey = {};
+  for my $file(@files){
+    my @stat = stat $file;
+    my ($size, $mtime) = ($stat[7], $stat[9]);
+    my $key = "$size-$mtime";
+    $$filesByKey{$key} = [] if not defined $$filesByKey{$key};
+    push @{$$filesByKey{$key}}, $file;
+  }
+  return $filesByKey;
+}
+
+sub findFiles($){
+  my ($dir) = @_;
+  open CMD, "-|", "find", $dir, "-type", "f"
+    or die "find failed on $dir\n";
+  my @files = <CMD>;
+  close CMD;
+  chomp foreach @files;
+  return @files;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
