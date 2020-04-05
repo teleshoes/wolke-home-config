@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  $0 -h | --help
+    print this message
+
+  $0 -g | --get | g | get
+    -run `sudo tpacpi-bat -g IC 1`
+      -if value starts with \"no\":
+        -print \"normal\"
+      -if value starts with \"yes\":
+        -print \"CHARGE INHIBITED\"
+      -otherwise:
+        -print \"UNKNOWN\"
+
+  $0 -t | --toggle | t | toggle
+    -run `sudo tpacpi-bat -g IC 1`
+      -if value is \"no\":
+        -run `sudo tpacpi-bat -s IC 1 1`
+      -if value starts with \"yes\":
+        -run `sudo tpacpi-bat -s IC 1 0`
+      -otherwise:
+        -do nothing
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(-g|--get|g|get)$/){
+    my $val = `sudo tpacpi-bat -g IC 1`;
+    if($val =~ /^no/){
+      print "normal\n";
+    }elsif($val =~ /^yes/){
+      print "CHARGE INHIBITED\n";
+    }else{
+      print "UNKNOWN\n";
+    }
+  }elsif(@_ == 1 and $_[0] =~ /^(-t|--toggle|t|toggle)$/){
+    my $val = `sudo tpacpi-bat -g IC 1`;
+    if($val =~ /^no/){
+      print "setting inhibit-charge => YES\n";
+      system "sudo tpacpi-bat -s IC 1 1";
+    }elsif($val =~ /^yes/){
+      print "setting inhibit-charge => NO\n";
+      system "sudo tpacpi-bat -s IC 1 0";
+    }else{
+      print "ERROR: unknown state, doing nothing\n";
+    }
+  }else{
+    die $usage;
+  }
+}
+
+&main(@ARGV);
