@@ -193,6 +193,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Chrome Incog"  @@ mCA   xK_c    #! "chromium --incognito"
         "Chrome"        @@ mCAS  xK_c    #! "chromium"
         "steam"         @@ mCA   xK_t    #! "term steam"
+        "jitsi-meet"    @@ mCA   xK_j    #! "jitsi-meet"
         "zoom"          @@ mCA   xK_z    #! "zoom-run"
         "hangout"       @@ mCA   xK_h    #! "hangout"
         "hex-a-hop"     @@ mCA   xK_x    #! "hex-a-hop"
