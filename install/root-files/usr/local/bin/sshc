@@ -26,6 +26,10 @@ my $usage = "Usage:
     -if CONTROL_PATH exists and is NOT active:
       -run: rm <CONTROL_PATH>
 
+  $EXEC --close-all
+    -for all <CONTROL_PATH>s in $CONTROL_PATH_DIR/*
+      -run: ssh -O exit -o ControlPath=<CONTROL_PATH> <DEST>
+
   $EXEC --rsync RSYNC_ARGS
     -find the first arg in <RSYNC_ARGS> that contains a ':'
     -treat everything before the first colon in that arg as <REMOTE>
@@ -65,6 +69,10 @@ sub main(@){
   }elsif(@_ == 2 and $_[0] =~ /^(--close)$/){
     my $dest = $_[1];
     ensureSSHClosed($dest);
+  }elsif(@_ == 1 and $_[0] =~ /^(--close-all)$/){
+    my @controlPaths = glob "$CONTROL_PATH_DIR/*";
+    my @dests = map {$_ =~ s/^.*\///; $_} @controlPaths;
+    ensureSSHClosed($_) foreach @dests;
   }elsif(@_ > 0 and $_[0] =~ /^(--rsync)$/){
     shift @_;
 
