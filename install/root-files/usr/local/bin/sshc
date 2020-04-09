@@ -21,8 +21,10 @@ my $usage = "Usage:
       -run: ssh -n -N -F -o ControlMaster=yes -o ControlPath=<CONTROL_PATH> <DEST>
 
   $EXEC --close DEST
-    -if CONTROL_PATH exists:
+    -if CONTROL_PATH exists and is active (using `ssh -O check`):
       -run: ssh -O exit -o ControlPath=<CONTROL_PATH> <DEST>
+    -if CONTROL_PATH exists and is NOT active:
+      -run: rm <CONTROL_PATH>
 
   $EXEC --rsync RSYNC_ARGS
     -find the first arg in <RSYNC_ARGS> that contains a ':'
@@ -123,14 +125,21 @@ sub ensureSSHClosed($){
   my ($dest) = @_;
   my $controlPath = "$CONTROL_PATH_DIR/$dest";
   if(-e $controlPath){
-    my @cmd = ("ssh",
-      "-O", "exit",
-      "-o", "ControlPath=$controlPath",
-      $dest,
-    );
-    system @cmd;
+    system "ssh -o ControlPath=$controlPath -O check thisArgIsIgnoredSSHBug";
+    if($? != 0){
+      print "WARNING: control path \"$controlPath\" was not active, removing file\n";
+      system "rm", $controlPath;
+    }else{
+      my @cmd = ("ssh",
+        "-O", "exit",
+        "-o", "ControlPath=$controlPath",
+        $dest,
+      );
+      system @cmd;
+    }
+
     if(-f $controlPath){
-      die "ERROR: @cmd failed\n";
+      die "ERROR: control path \"$controlPath\" still exists\n";
     }
   }
 }
