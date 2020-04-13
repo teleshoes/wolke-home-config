@@ -27,7 +27,7 @@ sub decrypt($);
 
 my $secretsFile = "$ENV{HOME}/.secrets";
 my $mtimeFile = "$ENV{HOME}/.cache/seedbox-mtime";
-my @configKeys = qw(server ftp.port home username password revtun.username revtun.portfile);
+my @configKeys = qw(server ftp.protocol ftp.port home username password revtun.username revtun.portfile);
 my %encryptedConfigKeys = map {$_ => 1 } qw(password);
 my %optionalKeys = map {$_ => 1} qw(password);
 
@@ -44,10 +44,17 @@ my @revtunRemoteOpts = ("-t",
   "-o", "StrictHostKeyChecking=no",
 );
 
-my @ftpInitCmds = (
+my @initCmdsFTP = (
   "set ftp:ssl-force true",
   "set ftp:ssl-protect-data true",
   "set ssl:verify-certificate no",
+);
+my @initCmdsFTPS = (
+  "set ftp:ssl-force true",
+  "set ftp:ssl-protect-data true",
+  "set ssl:verify-certificate no",
+);
+my @initCmdsSFTP = (
 );
 my @mirrorOptions = qw(
   --continue
@@ -316,9 +323,9 @@ sub handleTorrent($$){
 
 sub ftpCommand($@){
   my ($config, @cmds) = @_;
-  my $url = "ftp://$$config{server}:$$config{port}";
+  my $ftp = $$config{'ftp.protocol'};
   my $port = $$config{'ftp.port'};
-  my $url = "ftp://$$config{server}:$port";
+  my $url = "$ftp://$$config{server}:$port";
   my ($auth, $fakeAuth);
   if(defined $$config{password}){
     $auth = "$$config{username},$$config{password}";
@@ -329,9 +336,21 @@ sub ftpCommand($@){
   }
   my @lftpCmd = ("lftp", "-u", $auth, $url);
   my @fakeCmd = ("lftp", "-u", $fakeAuth, $url);
+
+  my @initCmds;
+  if($ftp eq "ftp"){
+    @initCmds = @initCmdsFTP;
+  }elsif($ftp eq "ftps"){
+    @initCmds = @initCmdsFTPS;
+  }elsif($ftp eq "sftp"){
+    @initCmds = @initCmdsSFTP;
+  }else{
+    die "ERROR: unknown ftp protocol: $ftp\n";
+  }
+
   print "running:\n";
   print "  @fakeCmd\n";
-  print "  $_\n" foreach @ftpInitCmds;
+  print "  $_\n" foreach @initCmds;
   print "  $_\n" foreach @cmds;
   print "\n";
 
@@ -339,7 +358,7 @@ sub ftpCommand($@){
   my $fh = select FH;
   $| = 1;
   select $fh;
-  print FH "$_\n" foreach @ftpInitCmds;
+  print FH "$_\n" foreach @initCmds;
 
   if(@cmds == 0){
     print "waiting for ftp commands via STDIN\n";
