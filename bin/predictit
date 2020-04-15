@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $API_URL = "https://www.predictit.org/api/marketdata/markets";
+
+my $MARKETS = {
+};
+
+sub parseMarketJson($);
+
+sub main(@){
+  for my $marketLabel(sort keys %$MARKETS){
+    my $marketId = $$MARKETS{$marketLabel}{id};
+    my $json = `wget -O - $API_URL/$marketId 2>/dev/null`;
+    my $market = parseMarketJson $json;
+    my $marketName = $$market{name};
+    my $fmt = "$marketLabel:";
+    for my $contractLabel(sort keys %{$$MARKETS{$marketLabel}{contracts}}){
+      my $contractName = $$MARKETS{$marketLabel}{contracts}{$contractLabel};
+      my $lastTradePrice = $$market{contracts}{$contractName};
+      if(not defined $lastTradePrice){
+        die "ERROR: contract not found \"$marketName\" - \"$contractName\"\n";
+      }
+      $fmt .= sprintf " %s(%.2f)", $contractLabel, $lastTradePrice;
+    }
+    print "$fmt\n";
+  }
+}
+
+sub parseMarketJson($){
+  my ($json) = @_;
+  my $market = {};
+  my $contractCount = 0;
+  if($json =~ /^
+    { [^{]* "name":      \s* "([^"]+)",
+      [^{]* "contracts": \s* \[ ([^\[]*) \]
+    /sxi
+  ){
+    my ($name, $contractsJson) = ($1, $2);
+    $$market{name} = $name;
+    $$market{contracts} = {};
+    my @contracts = $contractsJson =~ /(\{[^{]*\})/gsxi;
+    for my $contract(@contracts){
+      if($contract =~ /^
+        { [^{]* "name":           \s* "([^"]+)",
+          [^{]* "lastTradePrice": \s* (\d+|\d*\.\d+),
+        /sxi
+      ){
+        my ($contractName, $lastTradePrice) = ($1, $2);
+        $$market{contracts}{$contractName} = $lastTradePrice;
+        $contractCount++;
+      }
+    }
+  }
+
+  if(not defined $$market{name}){
+    die "ERROR: could not parse market json:\n$json\n";
+  }elsif($contractCount == 0){
+    die "ERROR: could not parse contracts for $$market{name}\n";
+  }
+
+  return $market;
+}
+
+&main(@ARGV);
