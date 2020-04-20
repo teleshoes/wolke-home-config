@@ -233,7 +233,7 @@ sub runProtoIPC($@) {
         $h = eval {$h->start};
         return if not defined $h;
     }
-    my $progFile = "/tmp/progress-bar-" . time . ".txt";
+    my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
 
     while($h->pumpable){
         eval { $h->pump_nb }; #eval because pumpable doesnt really work
