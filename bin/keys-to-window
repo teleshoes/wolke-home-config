@@ -13,6 +13,13 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
+  $EXEC --main
+    send typed keys using `xdotool` and `keys`
+      -read <KEY>s from stdin using `keys --check-pid=<CURRENT_PID>`
+      -for each <KEY>:
+        -select <XDOTOOL_CMD> based on <KEY> (either 'type' or 'key')
+        -send <KEY> to X with `xdotool <XDOTOOL_CMD> <KEY>`
+
   $EXEC WM_CLASS
     send typed keys to a window using `wmctrl` and `xdotool` and `keys`
       -identify <WINDOW_ID> with the indicated <WM_CLASS> using `wmctrl`
@@ -25,6 +32,7 @@ my $usage = "Usage:
           -re-send <KEY> using `xdotool`
 ";
 
+sub sendKeyMain($);
 sub sendKeyWindow($$);
 sub getCmdKeyOrType($);
 sub wmClassToWindowId($);
@@ -35,13 +43,18 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(--main)$/){
+    $wmClass = undef;
   }elsif(@_ == 1){
     $wmClass = $_[0];
   }else{
     die $usage;
   }
 
-  my $windowId = wmClassToWindowId $wmClass;
+  my $windowId = undef;
+  if(defined $wmClass){
+    $windowId = wmClassToWindowId $wmClass;
+  }
 
   $keysPid = open STDIN, "-|", "keys", "--check-pid=$$" or die "Could not run 'keys'\n";
   while(my $key = <STDIN>){
@@ -49,13 +62,15 @@ sub main(@){
     my $success = 0;
     my $attempts = 3;
     while($success == 0 and $attempts > 0){
-      if(defined $windowId){
+      if(not defined $wmClass){
+        $success = sendKeyMain $key;
+      }elsif(defined $wmClass and defined $windowId){
         $success = sendKeyWindow $key, $windowId;
       }else{
         $success = 0;
       }
 
-      if(not $success){
+      if(not $success and defined $wmClass){
         $windowId = wmClassToWindowId $wmClass;
       }
       $attempts--;
@@ -67,6 +82,10 @@ sub main(@){
   }
 }
 
+sub sendKeyMain($){
+  my ($key) = @_;
+  return tryrun "xdotool", getCmdKeyOrType($key), $key;
+}
 sub sendKeyWindow($$){
   my ($key, $windowId) = @_;
   return tryrun "xdotool", getCmdKeyOrType($key), "--window", $windowId, $key;
