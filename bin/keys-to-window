@@ -26,7 +26,9 @@ my $usage = "Usage:
 ";
 
 sub sendKeyWindow($$);
+sub getCmdKeyOrType($);
 sub wmClassToWindowId($);
+sub tryrun(@);
 
 sub main(@){
   my $wmClass;
@@ -61,14 +63,16 @@ sub main(@){
 
 sub sendKeyWindow($$){
   my ($key, $windowId) = @_;
-  my $cmd;
+  return tryrun "xdotool", getCmdKeyOrType($key), "--window", $windowId, $key;
+}
+
+sub getCmdKeyOrType($){
+  my ($key) = @_;
   if($key =~ /^[a-zA-Z0-9 `~!@#\$%^&*()\-_=+\[{\]}\\|'";:\/?.>,<]$/){
-    $cmd = 'type';
+    return 'type';
   }else{
-    $cmd = 'key';
+    return 'key';
   }
-  system "xdotool", $cmd, "--window", $windowId, $key;
-  return $? == 0 ? 1 : 0;
 }
 
 sub wmClassToWindowId($){
@@ -83,6 +87,15 @@ sub wmClassToWindowId($){
   }
 
   return undef;
+}
+
+sub tryrun(@){
+  system @_;
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 &main(@ARGV);
