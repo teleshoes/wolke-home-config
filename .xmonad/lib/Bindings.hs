@@ -216,6 +216,7 @@ shortcuts conf = "Shortcuts" @@ do
         "wemo-lights"   @@ mC    xK_PgDn #! "wemo-switch wemo1 --toggle"
 
     "sx"            @@ do
+        "vnc"           @@ mC    xK_F11  #! "vnc-sx"
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
 
     "Klomp"         @@ do
