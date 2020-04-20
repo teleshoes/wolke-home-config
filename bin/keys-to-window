@@ -49,12 +49,18 @@ sub main(@){
     my $success = 0;
     my $attempts = 3;
     while($success == 0 and $attempts > 0){
-      $success = sendKeyWindow $key, $windowId if defined $windowId;
+      if(defined $windowId){
+        $success = sendKeyWindow $key, $windowId;
+      }else{
+        $success = 0;
+      }
+
       if(not $success){
         $windowId = wmClassToWindowId $wmClass;
       }
       $attempts--;
     }
+
     if(not $success){
       print STDERR "\nWARNING:Could not send key '$key'\n";
     }
@@ -77,10 +83,10 @@ sub getCmdKeyOrType($){
 
 sub wmClassToWindowId($){
   my $wmClass = shift;
-  my $wmctrl = `wmctrl -r $wmClass -x -v -b add,wmctrl_wants_you 2>&1`;
-  $wmctrl = `wmctrl -r $wmClass -x -v -b remove,wmctrl_wants_you 2>&1`;
+  my $addOutput = `wmctrl -r $wmClass -x -v -b add,wmctrl_wants_you 2>&1`;
+  my $removeOutput = `wmctrl -r $wmClass -x -v -b remove,wmctrl_wants_you 2>&1`;
 
-  if($wmctrl =~ /(0x[0-9a-f]+)/){
+  if($removeOutput =~ /(0x[0-9a-f]+)/){
     return $1;
   }else{
     print STDERR "WARNING: No window found for WM_CLASS=$wmClass using wmctrl\n";
