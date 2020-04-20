@@ -227,11 +227,12 @@ function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true 
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
 function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
-function findesh      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\)\($\|/.*\)'; }
+function findesh      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\|compile-sql\)\($\|/.*\)'; }
 function grepesh      { command grep "$@" \
                             --exclude-dir=.git \
                             --exclude-dir=target \
                             --exclude-dir=gen \
+                            --exclude-dir=compile-sql \
                             --exclude pdf.worker.js.map \
                             --exclude Words.java \
                             ;
