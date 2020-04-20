@@ -5,6 +5,7 @@ use String::ShellQuote;
 use File::Basename qw(basename dirname);
 use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
+use Time::HiRes qw(time);
 require Exporter;
 my $IPC_RUN = eval{require IPC::Run};
 my $IO_PTY = eval{require IO::Pty};
@@ -37,6 +38,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   readConf readConfDir
                   installFromDir aptSrcInstall removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
+                  nowMillis
                 );
 
 sub getScriptNames();
@@ -848,6 +850,10 @@ sub extractNameFromGitUrl($){
       die "could not parse repo name from last element of git URL:\n$gitUrl\n";
     }
     return $name;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
 }
 
 1;
