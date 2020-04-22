@@ -18,4 +18,10 @@ put official-buffalo-image.enc
 # plug in router after running put, will say sent XXXXX bytes in however long
 
 # plug in router
-# on success, red light blinks every 1s for a few min, then router boots right up
+# on success, red light blinks every 0.2s for about 1 min,
+#   then blinks every 0.5s for about 2 min,
+#   then shuts off completely for about 10s,
+#   then wifi lights come up (router is fully booting)
+# you can then hold reset key for ~6s until it reboots
+
+# then follow instructions in ddwrt ROUTER_NAME --info
