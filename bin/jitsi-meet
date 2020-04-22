@@ -2,8 +2,29 @@
 use strict;
 use warnings;
 
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_APP = "jitsi";
+my @CONFIG_KEYS = qw(dailystandup);
+my @REQUIRED_KEYS = qw(dailystandup);
+
 sub main(@){
-  exec "chromium", "https://meet.jit.si/daily-standup#config.startWithVideoMuted=true";
+  my $secrets = readSecrets();
+  exec "chromium", "https://meet.jit.si/$$secrets{dailystandup}#config.startWithVideoMuted=true";
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $cfg = {};
+  my $okConfigKeys = join "|", @CONFIG_KEYS;
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_APP\.($okConfigKeys)\s*=\s*(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort @REQUIRED_KEYS){
+    die "Missing config '$key' in $SECRETS_FILE\n" if not defined $$cfg{$key};
+  }
+  return $cfg;
 }
 
 &main(@ARGV);
