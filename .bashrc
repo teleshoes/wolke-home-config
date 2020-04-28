@@ -191,7 +191,7 @@ function sd           { screen-daemon "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
-function k            { keys-to-window; }
+function k            { pkill -9 keys ; keys-to-window; }
 
 function sm           { sheetmusic "$@"; }
 
