@@ -128,6 +128,7 @@ for ipmagicName in $IPMAGIC_NAMES
 do
   alias ipm$ipmagicName="ipmagic $ipmagicName";
   alias $ipmagicName="ipmagic $ipmagicName";
+  alias ${ipmagicName}s="ipmagic $ipmagicName -s";
 done
 
 function e            { email-summary "$@" 2>&1 | less -S; }
