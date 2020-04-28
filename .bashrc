@@ -190,6 +190,8 @@ function sd           { screen-daemon "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
+function k            { keys-to-window; }
+
 function sm           { sheetmusic "$@"; }
 
 function pl           { play-show "$@"; }
