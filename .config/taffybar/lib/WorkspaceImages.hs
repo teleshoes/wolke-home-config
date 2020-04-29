@@ -95,6 +95,7 @@ getOverrideIconName winTitle winClass
   | null winTitle && null winClass              = Just "blank"
   | winTitle == "..." && winClass == "..."      = Just "blank"
   | winTitle `endsWith` " - VIM"                = Just "vim"
+  | winTitle `contains` "| Jitsi Meet -"        = Just "jitsi"
   | winTitle `contains` "email-gui.py"          = Just "qtemail"
   | winTitle `contains` "qtemail-daemon"        = Just "qtemail"
   | winTitle `contains` "Tor Browser"           = Just "torbrowserbundle"
