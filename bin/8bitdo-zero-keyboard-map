@@ -1,0 +1,186 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $XINPUT_DEVICE_NAME = "8Bitdo Zero GamePad Keyboard";
+my $XKB_FILE = "$ENV{HOME}/.config/keyboards/8bitdo-orig.xkb";
+
+# change this to change key-mappings
+my $CFG = {
+  UP     => "LatW",
+  DOWN   => "LatS",
+  LEFT   => "LatA",
+  RIGHT  => "LatD",
+
+  A      => "LatA",
+  B      => "LatB",
+  Y      => "LatY",
+  X      => "LatX",
+
+  L      => "LatL",
+  R      => "LatR",
+
+  START  => "RTRN",
+  SELECT => "ESC",
+};
+
+# these are the keys mapped by default
+my $DEFAULT_BTNS = {
+  UP     => "LatC",
+  DOWN   => "LatD",
+  LEFT   => "LatE",
+  RIGHT  => "LatF",
+
+  A      => "LatG",
+  B      => "LatJ",
+  Y      => "LatI",
+  X      => "LatH",
+
+  L      => "LatK",
+  R      => "LatM",
+
+  START  => "LatO",
+  SELECT => "LatN",
+};
+
+# these are the keys to redefine (names => codes)
+my $MAP = {
+  #TARGET-KEYS   => #SOURCE-KEYS
+  #(do this..)   => (..when pressing this)
+
+  $$CFG{UP},     => $$DEFAULT_BTNS{UP},
+  $$CFG{DOWN},   => $$DEFAULT_BTNS{DOWN},
+  $$CFG{LEFT},   => $$DEFAULT_BTNS{LEFT},
+  $$CFG{RIGHT},  => $$DEFAULT_BTNS{RIGHT},
+
+  $$CFG{A},      => $$DEFAULT_BTNS{A},
+  $$CFG{B},      => $$DEFAULT_BTNS{B},
+  $$CFG{Y},      => $$DEFAULT_BTNS{Y},
+  $$CFG{X},      => $$DEFAULT_BTNS{X},
+
+  $$CFG{L},      => $$DEFAULT_BTNS{L},
+  $$CFG{R},      => $$DEFAULT_BTNS{R},
+
+  $$CFG{START},  => $$DEFAULT_BTNS{START},
+  $$CFG{SELECT}, => $$DEFAULT_BTNS{SELECT},
+};
+
+# add a bogus new-target-key entry for each original-source-key, to remove double-mappings
+# skips original-source-keys that are ACTUAL new-target-keys
+for my $defaultKey(sort values %$DEFAULT_BTNS){
+  if(not defined $$MAP{$defaultKey}){
+    $$MAP{$defaultKey} = "FK01";
+  }
+}
+
+sub constructTmpXkbFile();
+sub getAliases();
+sub getCodes();
+sub getDevId();
+sub run(@);
+
+my $usage = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0
+    set custom keyboard map for 8Bitdo Zero (keyboard mode)
+
+  $0 reset
+    load original keyboard map for 8Bitdo Zero (keyboard mode)
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(--reset)$/){
+    my $devId = getDevId();
+    print "device ID: $devId\n";
+    run "xkbcomp", "-i", $devId, $XKB_FILE, $ENV{DISPLAY};
+  }elsif(@_ == 0){
+    my $devId = getDevId();
+    print "device ID: $devId\n";
+
+    my $tmpXkbFile = constructTmpXkbFile();
+    run "xkbcomp", "-i", $devId, $tmpXkbFile, $ENV{DISPLAY};
+  }
+}
+
+sub constructTmpXkbFile(){
+  my $aliases = getAliases();
+  my $codes = getCodes();
+
+  my $nameMap = {};
+  for my $key(sort keys %$MAP){
+    my $val = $$MAP{$key};
+    $key = $$aliases{$key} if defined $$aliases{$key};
+    $val = $$aliases{$val} if defined $$aliases{$val};
+    $$nameMap{$key} = $val;
+  }
+
+  my $newCodes = {};
+  for my $key(sort keys %$nameMap){
+    my $val = $$nameMap{$key};
+    my $code = $$codes{$val};
+    $$newCodes{$key} = $code;
+  }
+
+  my @lines = `cat $XKB_FILE`;
+  for my $line(@lines){
+    if($line =~ /^(\s*)<(\w+)>(\s*)=(\s*)(\d+)(\s*);$/){
+      my ($ws1, $name, $ws2, $ws3, $code, $ws4) = ($1, $2, $3, $4, $5, $6);
+      if(defined $$newCodes{$name}){
+        $line = "$ws1<$name>$ws2=$ws3$$newCodes{$name}$ws4;\n";
+      }
+    }
+  }
+
+  my $nowMillis = int(time * 1000.0 + 0.5);
+  my $tmpXkbFile = "/tmp/8bitdo-keyboard-$nowMillis.xkb";
+  open FH, "> $tmpXkbFile";
+  print FH @lines;
+  close FH;
+
+  return $tmpXkbFile;
+}
+
+sub getAliases(){
+  my @lines = `cat $XKB_FILE`;
+  my $aliases = {};
+  for my $line(@lines){
+    if($line =~ /alias <(\w+)> = <(\w+)>;/){
+      $$aliases{$1} = $2;
+    }
+  }
+  return $aliases;
+}
+
+sub getCodes(){
+  my @lines = `cat $XKB_FILE`;
+  my $codes = {};
+  for my $line(@lines){
+    if($line =~ /^\s+<(\w+)> = (\d+);$/){
+      $$codes{$1} = $2;
+    }
+  }
+  return $codes;
+}
+
+sub getDevId(){
+  my @lines = `xinput -list`;
+  for my $line(@lines){
+    if($line =~ /$XINPUT_DEVICE_NAME\s+id=(\d+)\s+/){
+      return $1;
+    }
+  }
+  die "ERROR: could not get device ID with xinput for \"$XINPUT_DEVICE_NAME\"\n";
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
