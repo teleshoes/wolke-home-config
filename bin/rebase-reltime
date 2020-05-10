@@ -21,28 +21,20 @@ my $dateDisplayFormat = "%Y-%m-%d %H:%M:%S";
 my $dateDisplayFormatRegex = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}";
 
 my $usage = "Usage:
-  $0 [OPTS] TARGET_COMMIT START_DATE END_DATE
+  $0 [OPTS] TARGET_COMMIT
     rebase HEAD onto git commit TARGET_COMMIT
-    make earliest commit START_DATE and latest commit END_DATE,
+    if --range=START_DATE-END_DATE is specified:
+      make earliest commit START_DATE and latest commit END_DATE,
       and make each intermediate commit fall between them
-    START_DATE and END_DATE can be:
-      -unix timestamp {seconds since epoch}
-      -relative past time of the form: \"X UNITs ago\"
-       UNIT can be days, hours, minutes, or seconds
-      -\"now\" for right now
-      -\"start\" for the oldest date in the commits
-      -\"end\" for the newest date in the commits
     Prints a warning to STDERR if commits are out of chronological order.
-
-  $0 [OPTS] TARGET_COMMIT --same
-    similar to '$0 TARGET_COMMIT START_DATE END_DATE', except do not modify times.
-    useful with -e
 
   OPTS
     -f
       pass -f to git filter-branch command
     -s | -n | --simulate | --no-act | --check
       do not run `git filter-branch`
+    --range=START_DATE-END_DATE
+      set commit date/times without user interaction to values in the range
     -e | --edit  (default)
       allow user to edit datetimes interactively (using `editor`),
       immediately before running `git filter-branch`
@@ -50,19 +42,33 @@ my $usage = "Usage:
       do NOT show an editor
     --timezone=TZ
       use TZ for timezone instead of `date +%z`
+
+  START_DATE
+  END_DATE
+    -unix timestamp {seconds since epoch}
+    -relative past time of the form: \"X UNITs ago\"
+     UNIT can be days, hours, minutes, or seconds
+    -\"now\" for right now
+    -\"start\" for the oldest date in the commits
+    -\"end\" for the newest date in the commits
 ";
 
 sub main(@){
   my $skipRebase = 0;
   my $force = 0;
+  my $rangeStart = undef;
+  my $rangeEnd = undef;
   my $edit = 1;
   my $timezone = undef;
+
   while (@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--check)$/){
       $skipRebase = 1;
+    }elsif($arg =~ /^--range=(.+)-(.+)$/){
+      ($rangeStart, $rangeEnd) = ($1, $2);
     }elsif($arg =~ /^(-e|--edit)$/){
       $edit = 1;
     }elsif($arg =~ /^(--no-edit)$/){
@@ -74,11 +80,9 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $rangeStart, $rangeEnd);
-  if(@_ == 2 and $_[1] =~ /^(--same)$/){
+  my $targetCommit;
+  if(@_ == 1){
     $targetCommit = $_[0];
-  }elsif(@_ == 3){
-    ($targetCommit, $rangeStart, $rangeEnd) = @_;
   }else{
     die $usage;
   }
