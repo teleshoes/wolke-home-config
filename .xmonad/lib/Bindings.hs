@@ -84,7 +84,9 @@ shortcuts conf = "Shortcuts" @@ do
     "term"              @@ m_    xK_Think#! "term"
     "term"              @@ m_    xK_AMdia#! "term"
     "term"              @@ m_    xK_Tools#! "term"
+    "term"              @@ mA    xK_space#! "term"
     "term auto-cwd"     @@ mA    xK_Tools#! "term -acd"
+    "term auto-cwd"     @@ mAW   xK_space#! "term -acd"
     "term ghci"         @@ mC    xK_Tools#! "term ghci"
     "term"              @@ m_    xK_Rfrsh#! "term"
     "term"              @@ mA    xK_F2   #! "term"
@@ -95,6 +97,7 @@ shortcuts conf = "Shortcuts" @@ do
     "term right"        @@ mW    xK_Right#! "term-window --right"
 
     "ghci"              @@ mC    xK_Think#! "term ghci"
+    "ghci"              @@ mA    xK_F3   #! "term ghci"
     "bgset --next"      @@ mW    xK_w    #! "bgset --next"
     "bgset --prev"      @@ mWS   xK_w    #! "bgset --prev"
     "screenshot"        @@ m_    xK_Print#! "scrot-bag ~/Pictures/Screenshots"
