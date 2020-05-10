@@ -272,7 +272,6 @@ windowKeys conf = "Windows" @@ do
         "To Master"     @@ mAS   xK_Enter## swapMaster
         "Down/Up"   @@  do mAS   xK_j    ## swapDown
                            mAS   xK_k    ## swapUp
-        "To Master"     @@ mA    (xK ' ')## swapMaster
     "Move Focus"    @@  do
         "To Master"     @@ mA    xK_Enter## focusMaster
         "Down/Up"   @@  do mA    xK_j    ## focusDown
