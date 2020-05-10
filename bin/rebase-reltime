@@ -38,13 +38,11 @@ my $usage = "Usage:
     similar to '$0 TARGET_COMMIT START_DATE END_DATE', except do not modify times.
     useful with -e
 
-  $0 [OPTS] TARGET_COMMIT --check
-    similar to '$0 TARGET_COMMIT START_DATE END_DATE', except dont rebase at all
-    useful for printing warnings without actually changing anything.
-
   OPTS
     -f
       pass -f to git filter-branch command
+    -s | -n | --simulate | --no-act | --check
+      do not run `git filter-branch`
     -e | --edit  (default)
       allow user to edit datetimes interactively (using `editor`),
       immediately before running `git filter-branch`
@@ -55,6 +53,7 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  my $skipRebase = 0;
   my $force = 0;
   my $edit = 1;
   my $timezone = undef;
@@ -62,6 +61,8 @@ sub main(@){
     my $arg = shift;
     if($arg =~ /^(-f)$/){
       $force = 1;
+    }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--check)$/){
+      $skipRebase = 1;
     }elsif($arg =~ /^(-e|--edit)$/){
       $edit = 1;
     }elsif($arg =~ /^(--no-edit)$/){
@@ -73,19 +74,13 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $startDate, $endDate, $skipTime, $skipRebase);
+  my ($targetCommit, $startDate, $endDate, $skipTime);
   if(@_ == 2 and $_[1] =~ /^(--same)$/){
     ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
     $skipTime = 1;
-    $skipRebase = 0;
-  }elsif(@_ == 2 and $_[1] =~ /^(--check)$/){
-    ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
-    $skipTime = 0;
-    $skipRebase = 1;
   }elsif(@_ == 3){
     ($targetCommit, $startDate, $endDate) = @_;
     $skipTime = 0;
-    $skipRebase = 0;
   }else{
     die $usage;
   }
