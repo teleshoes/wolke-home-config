@@ -74,13 +74,11 @@ sub main(@){
     }
   }
 
-  my ($targetCommit, $startDate, $endDate, $skipTime);
+  my ($targetCommit, $rangeStart, $rangeEnd);
   if(@_ == 2 and $_[1] =~ /^(--same)$/){
-    ($targetCommit, $startDate, $endDate) = (shift, undef, undef);
-    $skipTime = 1;
+    $targetCommit = $_[0];
   }elsif(@_ == 3){
-    ($targetCommit, $startDate, $endDate) = @_;
-    $skipTime = 0;
+    ($targetCommit, $rangeStart, $rangeEnd) = @_;
   }else{
     die $usage;
   }
@@ -91,12 +89,6 @@ sub main(@){
 
   my @commits = `git rev-list $targetCommitHash..HEAD`;
   chomp foreach @commits;
-  if(not $skipTime and not $skipRebase and $startDate !~ /^(start|end)$/){
-    $startDate = getTime $startDate;
-  }
-  if(not $skipTime and not $skipRebase and $endDate !~ /^(start|end)$/){
-    $endDate = getTime $endDate;
-  }
 
   my ($oldest, $newest);
   for my $c(@commits){
@@ -108,37 +100,56 @@ sub main(@){
   }
   die "no commits\n" if not defined $oldest or not defined $newest;
 
-  if($skipTime or $skipRebase){
-    print "using original commit dates\n";
-  }else{
-    $startDate = $oldest if $startDate =~ /^(start)$/;
-    $startDate = $newest if $startDate =~ /^(end)$/;
-    $endDate = $oldest if $endDate =~ /^(start)$/;
-    $endDate = $newest if $endDate =~ /^(end)$/;
-
-    printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
-    printf "new range: %s => %s\n", formatTime($startDate), formatTime($endDate);
-    print "\n";
+  my $rangeStartTime;
+  if(defined $rangeStart){
+    if($rangeStart =~ /^(start)$/){
+      $rangeStartTime = $oldest;
+    }elsif($rangeStart =~ /^(end)$/){
+      $rangeStartTime = $newest;
+    }else{
+      $rangeStartTime = getTime $rangeStart;
+    }
   }
+
+  my $rangeEndTime;
+  if(defined $rangeEnd){
+    if($rangeEnd =~ /^(start)$/){
+      $rangeEndTime = $oldest;
+    }elsif($rangeEnd =~ /^(end)$/){
+      $rangeEndTime = $newest;
+    }else{
+      $rangeEndTime = getTime $rangeEnd;
+    }
+  }
+
+  printf "old range: %s => %s\n", formatTime($oldest), formatTime($newest);
+  if(not defined $rangeStartTime or not defined $rangeEndTime){
+    print "(not scaling to a new range)\n";
+  }else{
+    printf "new range: %s => %s\n", formatTime($rangeStartTime), formatTime($rangeEndTime);
+  }
+  print "\n";
 
   my $filterCommits = [];
   my %originalDates;
   for my $c(@commits){
     my $t = `git show -s --format=%at $c`;
     chomp $t;
-    my $offsetRatio;
-    if($newest == $oldest){
-      $offsetRatio = 0;
-    }else{
-      $offsetRatio = ($t-$oldest) / ($newest-$oldest);
-    }
+
     my $newDate;
-    if($skipTime or $skipRebase){
-      $newDate = $t;
+    if(defined $rangeStartTime and defined $rangeEndTime){
+      my $offsetRatio;
+      if($newest == $oldest){
+        $offsetRatio = 0;
+      }else{
+        $offsetRatio = ($t-$oldest) / ($newest-$oldest);
+      }
+      my $offset = $offsetRatio * ($rangeEndTime - $rangeStartTime);
+      $newDate = $rangeStartTime + $offset;
     }else{
-      my $offset = $offsetRatio * ($endDate - $startDate);
-      $newDate = $startDate + $offset;
+      $newDate = $t;
     }
+
     $originalDates{$c} = $t;
     push @$filterCommits, [$c, $newDate];
   }
