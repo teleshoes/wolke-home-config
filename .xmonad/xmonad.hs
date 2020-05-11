@@ -72,11 +72,13 @@ myStartupHook = do
   io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
 myLayoutHook = smartBorders
-             $   named "left" (Tall 1 incr ratio)
-             ||| named "top"  (Mirror $ Tall 1 incr ratio)
-             ||| named "full" Full
-             ||| named "grid" Grid
-  where incr = 3/100 ; ratio = 55/100
+             $   namedLayout "left" (Tall 1 incr ratio)
+             ||| namedLayout "top"  (Mirror $ Tall 1 incr ratio)
+             ||| namedLayout "full" (Full)
+             ||| namedLayout "grid" (Grid)
+  where incr = 3/100
+        ratio = 55/100
+        namedLayout = named
 
 (~?) :: Query String -> String -> Query Bool
 q ~? s = fmap (isInfixOf s) q
