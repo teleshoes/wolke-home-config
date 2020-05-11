@@ -55,7 +55,7 @@ hi TrailingWhitespace ctermbg=red guibg=red
 autocmd CursorMoved  * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
 autocmd CursorMovedI * match TrailingWhitespace /\%(\s\+\&\s*\%#\@!\)$/
 
-set mouse=a
+set mouse=nicr
 
 set hlsearch
 set expandtab
