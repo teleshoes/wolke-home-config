@@ -73,12 +73,13 @@ myStartupHook = do
   io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
 myLayoutHook = smartBorders
-             $   namedLayoutWs "left" (Tall 1 incr ratio)           (Nothing)
+             $   namedLayoutWs "left" (Tall 1 incr ratio)           (Just (["B"], Tall 1 incr ratioWide))
              ||| namedLayoutWs "top"  (Mirror $ Tall 1 incr ratio)  (Nothing)
              ||| namedLayoutWs "full" (Full)                        (Nothing)
              ||| namedLayoutWs "grid" (Grid)                        (Nothing)
   where incr = 3/100
         ratio = 55/100
+        ratioWide = 80/100
         namedLayoutWs name layoutNormal Nothing =
           onWorkspaces [] (named name layoutNormal) (named name layoutNormal)
         namedLayoutWs name layoutNormal (Just (wsNames,wsLayout)) =
