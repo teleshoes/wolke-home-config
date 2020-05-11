@@ -18,6 +18,7 @@ if [ $MACHINE_TYPE = "main" ]; then
   brightness 100 &
   ( pulse-enable on ; pulse-vol mic mute ) &
 
+  screen-daemon lenovo_fix --start
   screen-daemon email --start
   sudo fan auto &
   mnt --other &
