@@ -286,7 +286,7 @@ windowKeys conf = "Windows" @@ do
                            mA    xK_u    #^ windows . popout
     "Attach/Detach" @@  do mAW   xK_Enter#  killAllOtherCopies
                            mAWS  xK_Enter## copyToAll
-    "Move Floating"     @@ frobWin mC    keysMoveWindow
+    "Move Floating"     @@ frobWin mCW   keysMoveWindow
     "Resize Floating"   @@ frobWin mCA   $ flip keysResizeWindow (0,0)
   where
     popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
