@@ -38,13 +38,24 @@ else
   echo "ERROR: could not find any touchpad with libinput or synaptics driver"
 fi
 
+trackpoint=""
+for dev in "TPPS/2 IBM TrackPoint"; do
+  libinputDriver=$(xinput list-props "$dev" 2>/dev/null | grep 'libinput Accel Speed')
+  if [ -n "$libinputDriver" ] && [ "$dev" = "TPPS/2 IBM TrackPoint" ]; then
+    xinput set-int-prop "$dev" "Evdev Wheel Emulation" 8 1
+    xinput set-int-prop "$dev" "Evdev Wheel Emulation Button" 8 2
+    xinput set-int-prop "$dev" "Evdev Wheel Emulation Axes" 8 6 7 4 5
+    xinput set-int-prop "$dev" "Evdev Wheel Emulation Timeout" 8 200
+    trackpoint="$dev - libinput"
+    break
+  fi
+done
 
-#synaptics trackpad
-#http://www.thinkwiki.org/wiki/How_to_configure_the_TrackPoint
-xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation" 8 1
-xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Button" 8 2
-xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Axes" 8 6 7 4 5
-xinput set-int-prop "TPPS/2 IBM TrackPoint" "Evdev Wheel Emulation Timeout" 8 200
+if [ -n "$trackpoint" ]; then
+  echo "configured trackpoint: $trackpoint"
+else
+  echo "ERROR: could not find any trackpoint"
+fi
 
 xset s off
 xset s noblank
