@@ -11,6 +11,8 @@ parcellite-start
 sudo sbox-umount &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
 
+mnt --other &
+
 MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 
 if [ $MACHINE_TYPE = "main" ]; then
@@ -21,7 +23,6 @@ if [ $MACHINE_TYPE = "main" ]; then
   screen-daemon lenovo_fix --start
   screen-daemon email --start
   sudo fan auto &
-  mnt --other &
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
