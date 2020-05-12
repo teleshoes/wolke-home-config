@@ -176,6 +176,8 @@ shortcuts conf = "Shortcuts" @@ do
         "right"         @@ m_    xK_Pause#! "feh-right"
         "left"          @@ mA    xK_F11  #! "feh-left"
         "right"         @@ mA    xK_F12  #! "feh-right"
+        "left"          @@ mC    xK_Left #! "feh-left"
+        "right"         @@ mC    xK_Right#! "feh-right"
 
     "games"         @@ do
         "kingdom-save"  @@ mAW   xK_F7   #! "kingdom-save"
