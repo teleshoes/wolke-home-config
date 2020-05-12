@@ -124,8 +124,8 @@ shortcuts conf = "Shortcuts" @@ do
     "Brightness"    @@ do
         "Up"            @@ mC    xK_Home #! "brightness up"
         "Down"          @@ mC    xK_End  #! "brightness down"
-        "{system up}"   @@ m_    xK_BriUp#! "brightness system"
-        "{system down}" @@ m_    xK_BriDn#! "brightness system"
+        "Up"            @@ m_    xK_BriUp#! "brightness up"
+        "Down"          @@ m_    xK_BriDn#! "brightness down"
 
     "Sound"         @@ do
         let [up,down] = map (++ "100/150/300") ["+","-"]
