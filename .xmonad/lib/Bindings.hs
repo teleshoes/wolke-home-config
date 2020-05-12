@@ -138,6 +138,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Toggle mute"   @@ m_    xK_Mute #! "pulse-vol speaker toggle"
         "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
         "Mute Mic"      @@ m_    xK_Mic  #! "pulse-vol microphone toggle"
+        "Mute Mic"      @@ m_    xK_Power#! "pulse-vol microphone toggle"
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
         "tv cec mute"   @@ mC    xK_Mute #! "ipmagic tv cec-cmd --av mute"
         "tv cec start"  @@ mCS   xK_Mute #! "ipmagic tv cec-cmd start"
