@@ -221,6 +221,8 @@ function dfused       { df-tool used "$@"; }
 
 function tvg          { tv-gpio "$@" ; }
 
+function so           { screenOff ; }
+
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
