@@ -27,6 +27,8 @@ elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
   ( pulse-enable on ; pulse-vol mic mute ) &
+  killall bgset
+  bgset --exclude="porn/" &
 elif [ $MACHINE_TYPE = "bed" ]; then
   sudo wauto -p &
   brightness 100 &
