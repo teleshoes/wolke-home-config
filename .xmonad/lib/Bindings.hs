@@ -131,16 +131,20 @@ shortcuts conf = "Shortcuts" @@ do
         let [up,down] = map (++ "100/150/300") ["+","-"]
         up          @@  do m_    xK_VolUp#! "pulse-vol +6 100"
                            mA    xK_VolUp#! "pulse-vol +6 150"
+                           mW    xK_F3   #! "pulse-vol +6 150"
                            mC    xK_VolUp#! "pulse-vol +6 300"
         down        @@  do m_    xK_VolDn#! "pulse-vol -6 100"
                            mA    xK_VolDn#! "pulse-vol -6 150"
+                           mW    xK_F2   #! "pulse-vol -6 150"
                            mC    xK_VolDn#! "pulse-vol -6 300"
 
-        "Toggle mute"   @@ m_    xK_Mute #! "pulse-vol speaker toggle"
+        "Toggle mute"@@ do m_    xK_Mute #! "pulse-vol speaker toggle"
+                           mW    xK_F1   #! "pulse-vol speaker toggle"
         "Force mute"    @@ mA    xK_Mute #! "pulse-vol 0; pulse-vol speaker mute"
 
         "Mute Mic"   @@ do m_    xK_Mic  #! "pulse-vol microphone toggle"
                            m_    xK_Power#! "pulse-vol microphone toggle"
+                           mW    xK_F4   #! "pulse-vol microphone toggle"
 
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
         "tv cec mute"   @@ mC    xK_Mute #! "ipmagic tv cec-cmd --av mute"
