@@ -22,16 +22,17 @@ if [ $MACHINE_TYPE = "main" ]; then
 
   screen-daemon lenovo_fix --start
   screen-daemon email --start
-  sudo fan auto &
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
+  sudo fan 1 &
   ( pulse-enable on ; pulse-vol mic mute ) &
   killall bgset
   bgset --exclude="porn/" &
 elif [ $MACHINE_TYPE = "bed" ]; then
   sudo wauto -p &
   brightness 100 &
+  sudo fan 1 &
   ( pulse-enable on ; pulse-vol mic mute ) &
 elif [ $MACHINE_TYPE = "tv" ]; then
   sudo wired &
