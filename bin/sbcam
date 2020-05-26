@@ -9,9 +9,12 @@ sub run(@);
 my $ipmagicConf = "pi";
 my $ipmagicUser = "pi";
 
+my @ipmagicCmd = ("ipmagic", $ipmagicConf);
+@ipmagicCmd = (@ipmagicCmd, "-u", $ipmagicUser) if defined $ipmagicUser;
+
 my $usage = "Usage:
   $0 [FILENAME]
-    run `streamer` on `ipmagic $ipmagicConf -u $ipmagicUser` or `seedbox -r`,
+    run `streamer` on `@ipmagicCmd` or `seedbox -r`,
       copy the image over
     if FILENAME is specified, move to FILENAME
     if FILENAME is NOT specified, run `feh` on the image
@@ -29,10 +32,11 @@ sub main(@){
 
   my $ipmagicHost = `ipmagic $ipmagicConf -r 0 2>/dev/null`;
   chomp $ipmagicHost;
+  $ipmagicHost = "$ipmagicUser\@$ipmagicHost" if defined $ipmagicUser;
 
   if($ipmagicHost =~ /\w/){
-    run "ipmagic", $ipmagicConf, "-u", $ipmagicUser, @camCmd;
-    run "scp", "$ipmagicUser\@$ipmagicHost:/tmp/$file", "/tmp/$file";
+    run (@ipmagicCmd, @camCmd);
+    run "scp", "$ipmagicHost:/tmp/$file", "/tmp/$file";
   }else{
     my $sbHost = `seedbox`;
     chomp $sbHost;
