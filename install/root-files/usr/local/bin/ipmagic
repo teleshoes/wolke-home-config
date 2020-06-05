@@ -193,7 +193,9 @@ sub main(@){
     $confFile = absolutePath $conf;
   }
 
-  die "Could not read $confFile {$EXEC -h for usage}\n" if not -f $confFile;
+  die "$usage\nERROR: Could not parse conf $conf\n" if not defined $confFile;
+  die "$usage\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
+
   my %config = %{parseConfig $confFile};
 
   die "hostname not defined in conf\n" if not defined $config{hostname};
@@ -359,12 +361,18 @@ sub main(@){
 sub absolutePath($){
   my $relPath = shift;
   $relPath =~ s/"/""/g;
-  my $absPath = `readlink -m "$relPath"`;
-  chomp $absPath;
 
-  if($absPath =~ /^\s*$/){
+  my $absPath;
+
+  $absPath = `readlink -m "$relPath"`;
+  chomp $absPath;
+  $absPath = undef if $absPath =~ /^\s*$/;
+
+  if(not defined $absPath){
+    # this readlink probably doesnt support -m
     $absPath = `readlink -f "$relPath"`;
     chomp $absPath;
+    $absPath = undef if $absPath =~ /^\s*$/;
   }
 
   return $absPath;
