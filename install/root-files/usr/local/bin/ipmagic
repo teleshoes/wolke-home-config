@@ -25,9 +25,10 @@ sub usb($$);
 sub wifi($$);
 sub guess($$);
 sub isEqual($$);
+sub whichExec($$);
 
-my $ifconfigExec = '/sbin/ifconfig';
-my $iwconfigExec = '/sbin/iwconfig';
+my $ifconfigExec = whichExec("ifconfig", ["/sbin/ifconfig"]);
+my $iwconfigExec = whichExec("iwconfig", ["/sbin/iwconfig"]);
 
 my $confDir = "$ENV{HOME}/.config/ipmagic";
 my @confFiles = `ls \"$confDir\" 2>/dev/null`;
@@ -297,17 +298,8 @@ sub main(@){
     @sshCmd = ($c);
   }
 
-  if(not -x $ifconfigExec){
-    $ifconfigExec = `which ifconfig 2>/dev/null`;
-    chomp $ifconfigExec;
-  }
-  print STDERR "WARNING: no ifconfig exec found\n" if not -x $ifconfigExec;
-
-  if(not -x $iwconfigExec){
-    $iwconfigExec = `which iwconfig 2>/dev/null`;
-    chomp $iwconfigExec;
-  }
-  print STDERR "WARNING: no iwconfig exec found\n" if not -x $iwconfigExec;
+  print STDERR "WARNING: no ifconfig exec found\n" if not defined $ifconfigExec;
+  print STDERR "WARNING: no iwconfig exec found\n" if not defined $iwconfigExec;
 
   my $attempts = 1 + $opts{retries};
 
@@ -714,6 +706,24 @@ sub isEqual($$){
     return 0;
   }else{
     return $_[0] eq $_[1] ? 1 : 0;
+  }
+}
+
+sub whichExec($$){
+  my ($execName, $execPathGuesses) = @_;
+
+  for my $exec(@$execPathGuesses){
+    if(-x $exec){
+      return $exec;
+    }
+  }
+
+  my $exec = `which $execName 2>/dev/null`;
+  chomp $exec;
+  if(-x $exec){
+    return $exec;
+  }else{
+    return undef;
   }
 }
 
