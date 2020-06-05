@@ -25,10 +25,11 @@ sub usb($$);
 sub wifi($$);
 sub guess($$);
 sub isEqual($$);
+sub iwParseDevInfo();
 sub whichExec($$);
 
 my $ifconfigExec = whichExec("ifconfig", ["/sbin/ifconfig"]);
-my $iwconfigExec = whichExec("iwconfig", ["/sbin/iwconfig"]);
+my $iwExec = whichExec("iw", ["/sbin/iw"]);
 
 my $confDir = "$ENV{HOME}/.config/ipmagic";
 my @confFiles = `ls \"$confDir\" 2>/dev/null`;
@@ -299,7 +300,7 @@ sub main(@){
   }
 
   print STDERR "WARNING: no ifconfig exec found\n" if not defined $ifconfigExec;
-  print STDERR "WARNING: no iwconfig exec found\n" if not defined $iwconfigExec;
+  print STDERR "WARNING: no iw exec found\n" if not defined $iwExec;
 
   my $attempts = 1 + $opts{retries};
 
@@ -637,9 +638,15 @@ sub wifi($$){
   my %macIpMap = %{$config{macIpMap}} if defined $config{macIpMap};
   my %ssidIpMap = %{$config{ssidIpMap}} if defined $config{ssidIpMap};
 
-  my $iwconfig = `$iwconfigExec 2>/dev/null`;
-  my $mac = lc ($iwconfig =~ /Access Point: ([a-z0-9:]+)/i ? $1 : '<none>');
-  my $ssid = lc ($iwconfig =~ /ESSID:"(.*)"/ ? $1 : '<none>');
+  my $iwDevs = iwParseDevInfo();
+  my $mac = "<none>";
+  my $ssid = "<none>";
+  if(@$iwDevs > 0){
+    my $iwDev = $$iwDevs[0];
+    $mac = lc $$iwDev{addr} if defined $$iwDev{addr};
+    $ssid = lc $$iwDev{ssid} if defined $$iwDev{ssid};
+  }
+
   print "Trying wifi  {mac: $mac   ssid: $ssid}\n" if $opts{verbose};
 
   if($mac eq '<none>'){
@@ -707,6 +714,29 @@ sub isEqual($$){
   }else{
     return $_[0] eq $_[1] ? 1 : 0;
   }
+}
+
+sub iwParseDevInfo(){
+  my $devs = [];
+  if(defined $iwExec){
+    my @lines = `$iwExec dev`;
+    my $curDev = undef;
+    for my $line(@lines){
+      if($line =~ /^\s*Interface\s*(wl\w+)$/){
+        my ($devName) = $1;
+
+        $curDev = {};
+        push @$devs, $curDev;
+
+        $$curDev{devName} = $devName;
+      }elsif($line =~ /^\s*(ssid|addr|type|channel)\s*(.+)$/ and defined $curDev){
+        my ($att, $val) = ($1, $2);
+        $$curDev{$att} = $val;
+      }
+    }
+  }
+
+  return $devs;
 }
 
 sub whichExec($$){
