@@ -135,7 +135,6 @@ function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
 function ds           { zenius-ddrsonglist --search "$@"; }
 function ddr-search   { zenius-ddrsonglist --search "$@"; }
-function vol          { pulse-vol "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh "$@"; }
 function snapshot     { backup --snapshot "$@"; }
@@ -164,6 +163,17 @@ function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
   livestreamer "$@" $default_quality
 }
+
+function vol {
+  # use pulse-vol unless theres a command named `vol`
+  VOL_CMD=$(which vol)
+  if [ -n "$VOL_CMD" ]; then
+    $VOL_CMD "$@"
+  else
+    pulse-vol "$@"
+  fi
+}
+
 function rename       {
   pastOptArgs=0
   ok=1
