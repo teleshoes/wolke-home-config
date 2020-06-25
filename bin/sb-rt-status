@@ -20,6 +20,8 @@ my $skipSeedsRegex = "/seeds/";
 
 my $logFile = "/tmp/rt-status-" . int(time*1000) . ".log";
 
+my $FORMAT_DETAIL = "detail";
+
 my $PEERS_ALL = "ALL";
 my $PEERS_HALF = "HALF";
 my $PEERS_LITTLE = "LITTLE";
@@ -33,7 +35,7 @@ sub closeLog();
 sub filterTorrents($$);
 sub checkTorrent($);
 sub formatTimeS($);
-sub formatTorrent($);
+sub formatTorrent($$);
 sub parseTorrents();
 sub parsePeers($);
 sub parsePythonStr($);
@@ -83,6 +85,7 @@ sub main(@){
   my $skipSeeds = 1;
   my $check = 0;
   my $quick = 0;
+  my $format = $FORMAT_DETAIL;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -228,7 +231,7 @@ sub main(@){
       $$b{percent} <=> $$a{percent} || $$a{name} cmp $$b{name}
     } @okTorrents;
     for my $t(@okTorrents){
-      printLog formatTorrent $t;
+      printLog formatTorrent $t, $format;
     }
   }
 
@@ -347,8 +350,8 @@ sub formatTimeS($){
   return sprintf "%12s", "$d$h$m$s";
 }
 
-sub formatTorrent($){
-  my $t = shift;
+sub formatTorrent($$){
+  my ($t, $format) = @_;
   my @peerCountsFmt;
   if(defined $$t{peerCounts}){
     for my $bucket(@PEERS_BUCKET_ORDER){
@@ -367,17 +370,22 @@ sub formatTorrent($){
   my $sizeMiB = $$t{sizeBytes} / 1024 / 1024;
   my $downRateMiBs = $$t{downRate} / 1024 / 1024;
   my $etaS = $downRateMiBs == 0 ? 0 : ($sizeMiB-$completedMiB)/$downRateMiBs;
-  my $eta = formatTimeS $etaS;
-  return sprintf "%s\n%3d%s %s\n     %9.3fMiB / %9.3fMiB  @ %9.3fMiB/s    ETA: %s\n  PEERS: %s\n",
-    "-" x 30,
-    $percent, '%',
-    $name,
-    $completedMiB,
-    $sizeMiB,
-    $downRateMiBs,
-    $eta,
-    "@peerCountsFmt",
+  my $etaFormat = formatTimeS $etaS;
+
+  if($format eq $FORMAT_DETAIL){
+    return sprintf "%s\n%3d%% %s\n     %9.3fMiB / %9.3fMiB  @ %9.3fMiB/s    ETA: %s\n  PEERS: %s\n",
+      "-" x 30,
+      $percent,
+      $name,
+      $completedMiB,
+      $sizeMiB,
+      $downRateMiBs,
+      $etaFormat,
+      "@peerCountsFmt",
     ;
+  }else{
+    die "ERROR: unknown format: $format\n";
+  }
 }
 
 sub parseTorrents(){
