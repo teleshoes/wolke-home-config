@@ -50,9 +50,13 @@ my $usage = "Usage:
     if given, skip all torrents except for the listed torrents
 
   OPTS:
-    --all
-      include torrents that match '$skipSeedsRegex', which are skipped by default
-      also, use '$$rtViews{all}' in 'rtxmlrpc d.multicall' instead of '$$rtViews{default}'
+    --rtview-all
+      use '$$rtViews{all}' in 'rtxmlrpc d.multicall'
+      default is '$$rtViews{default}')
+
+    --no-skip-seeds
+      include torrents that match the regex '$skipSeedsRegex'
+      (excluded by default)
 
     --check
       instead of printing status, use `check-torrent` to verify local download
@@ -68,7 +72,8 @@ sub main(@){
     die "invalid `seedbox --home`: $remoteHome\n";
   }
 
-  my $all = 0;
+  my $rtView = $$rtViews{default};
+  my $skipSeeds = 1;
   my $check = 0;
   my $quick = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -76,8 +81,10 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
-    }elsif($arg =~ /^(--all)$/){
-      $all = 1;
+    }elsif($arg =~ /^(--rtview-all)$/){
+      $rtView = $$rtViews{all};
+    }elsif($arg =~ /^(--no-skip-seeds)$/){
+      $skipSeeds = 0;
     }elsif($arg =~ /^(--check)$/){
       $check = 1;
       $quick = 1;
@@ -89,11 +96,6 @@ sub main(@){
   }
 
   my @torrentFilters = @_;
-
-  my $rtViewType = "default";
-  $rtViewType = "all" if $all;
-
-  my $rtView = $$rtViews{$rtViewType};
 
   my $copyTorrents = "no";
   my $fetchPeers = "yes";
@@ -169,7 +171,7 @@ sub main(@){
   my @torrents = parseTorrents();
 
   my @okTorrents = @torrents;
-  @okTorrents = grep {$$_{dir} !~ /$skipSeedsRegex/} @okTorrents if $all;
+  @okTorrents = grep {$$_{dir} !~ /$skipSeedsRegex/} @okTorrents if $skipSeeds;
 
   if(@torrentFilters > 0){
     @okTorrents = filterTorrents [@torrentFilters], [@okTorrents];
