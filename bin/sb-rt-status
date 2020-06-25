@@ -20,6 +20,13 @@ my $skipSeedsRegex = "/seeds/";
 
 my $logFile = "/tmp/rt-status-" . int(time*1000) . ".log";
 
+my $PEERS_ALL = "ALL";
+my $PEERS_HALF = "HALF";
+my $PEERS_LITTLE = "LITTLE";
+my $PEERS_NONE = "NONE";
+my $PEERS_UNKNOWN = "UNKNOWN";
+my @PEERS_BUCKET_ORDER = ($PEERS_ALL, $PEERS_HALF, $PEERS_LITTLE, $PEERS_NONE, $PEERS_UNKNOWN);
+
 sub openLog();
 sub printLog($);
 sub closeLog();
@@ -344,8 +351,11 @@ sub formatTorrent($){
   my $t = shift;
   my @peerCountsFmt;
   if(defined $$t{peerCounts}){
-    for my $bucket(sort keys %{$$t{peerCounts}}){
-      push @peerCountsFmt, "$bucket=$$t{peerCounts}{$bucket}";
+    for my $bucket(@PEERS_BUCKET_ORDER){
+      my $bucketCount = $$t{peerCounts}{$bucket};
+      if(defined $bucketCount){
+        push @peerCountsFmt, "$bucket=$bucketCount";
+      }
     }
   }
   my $name = $$t{name};
@@ -430,15 +440,15 @@ sub parsePeers($){
       my ($percent, $downRate, $downTotal) = ($1, $2, $3);
       my $bucket;
       if($percent == 100){
-        $bucket = "ALL";
+        $bucket = $PEERS_ALL;
       }elsif($percent >= 50){
-        $bucket = "HALF";
+        $bucket = $PEERS_HALF;
       }elsif($percent > 0){
-        $bucket = "LITTLE";
+        $bucket = $PEERS_LITTLE;
       }elsif($percent == 0){
-        $bucket = "NONE";
+        $bucket = $PEERS_NONE;
       }else{
-        $bucket = "UNKNOWN";
+        $bucket = $PEERS_UNKNOWN;
       }
       my $cur = defined $$peerCounts{$bucket} ? $$peerCounts{$bucket} : 0;
       $$peerCounts{$bucket} = $cur + 1;
