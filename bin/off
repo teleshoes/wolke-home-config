@@ -1,7 +1,13 @@
 #!/usr/bin/env python
-import gtk
 import sys
 import os
+
+IS_GTK = False
+try:
+  import gtk
+  IS_GTK = True
+except ImportError:
+  IS_GTK = False
 
 gui = None
 
@@ -43,8 +49,12 @@ def runRootCommand(cmdString):
 
 def showGui():
   global gui
-  if gui == None: gui = ActionGui(filter((lambda a: a.showInGui), getActions()))
-  gui.show()
+  if IS_GTK:
+    if gui == None:
+      gui = ActionGui(filter((lambda a: a.showInGui), getActions()))
+    gui.show()
+  else:
+    print "ERROR: cannot start gui without module gtk"
 def hideGui():
   global gui
   if gui != None: gui.hide()
@@ -98,11 +108,15 @@ class Action():
     for c in self.cmds:
       c()
 
-
-class ActionButton(gtk.Button):
-  def __init__(self, actionGui, action):
-    gtk.Button.__init__(self, action.labelText)
-    self.connect("clicked", lambda widget: actionGui.runAction(action))
+if IS_GTK:
+  class ActionButton(gtk.Button):
+    def __init__(self, actionGui, action):
+      gtk.Button.__init__(self, action.labelText)
+      self.connect("clicked", lambda widget: actionGui.runAction(action))
+else:
+  class ActionButton():
+    def __init__(self, actionGui, action):
+      pass
 
 class ActionGui():
   def __init__(self, actions):
