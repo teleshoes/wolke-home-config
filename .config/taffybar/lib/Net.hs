@@ -16,7 +16,15 @@ lastSSIDFile = "/tmp/last-ssid"
 
 width = 10
 
-wscanCmd = "term 'echo LAST:; wscan -l; loop 1 \"echo; echo; date; wscan\"'"
+wscanCmd = "term '"
+           ++ "echo LAST:; "
+           ++ "wscan -l; "
+           ++ "loop 1 \""
+              ++ "echo; "
+              ++ "echo ====== WSCAN; "
+              ++ "wscan; "
+              ++ "echo ====== \\$(date); "
+           ++ "\"'"
 
 data WStatus = Wlan | Wired | PPP |
                Wconnect | Wauto | Tethering |
