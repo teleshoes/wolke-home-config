@@ -73,9 +73,17 @@ mouseBinds conf = "Mouse Bindings" @@ do
 keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
     [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
 
+restartXmonad = do
+  spawn $ "notify-send -t 1000 xmonad recompile"
+  okRecompile <- recompile True
+  let status = if okRecompile then "success" else "failure"
+  spawn $ "notify-send -t 1000 xmonad " ++ status
+  spawn $ "alarm -s " ++ status
+  if okRecompile then restart "xmonad" True else return ()
+
 xmoKeys conf = "XMonad" @@ do
     "Restart Taffybar"  @@ mCA   xK_Home #! "taffybar-restart"
-    "Recompile Xmonad"  @@ mCA   xK_End  #! "xmonad-restart"
+    "Recompile Xmonad"  @@ mCA   xK_End  #  restartXmonad
     "Edit Keys"         @@ mCA   xK_Del  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
 
