@@ -6,6 +6,10 @@ use ScriptScript;
 
 my $DEBIAN_TARGET_OVERRIDE = undef; #e.g.: "testing"
 
+my $INSTALL_TYPE_GIT = "git";
+my $INSTALL_TYPE_DEBIAN = "debian";
+my $TAFFYBAR_INSTALL_TYPE = $INSTALL_TYPE_GIT;
+
 my $taffybarGitUrl = "git://github.com/teleshoes/taffybar.git";
 
 my @corePkgs = qw(ghc haskell-platform cabal-install haskell-stack xmonad);
@@ -85,15 +89,22 @@ sub main(@) {
     runUser "cabal", "v1-update";
     runUser "cabal", "v1-install", "-j", @cabalPkgs;
 
+    my $notInstallTypes = join " OR ", grep {$_ ne $TAFFYBAR_INSTALL_TYPE} (
+      $INSTALL_TYPE_GIT, $INSTALL_TYPE_DEBIAN
+    );
+
     print "\n\n\n";
     print "=====\n=====\n====\n";
-    print "INSTALLING TAFFYBAR FROM GITHUB (NOT DEBIAN)\n";
-
-    #run @aptGetInstall, "taffybar";
-    installFromGit $taffybarGitUrl;
-
+    print "INSTALLING TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
+    if($INSTALL_TYPE_GIT eq $TAFFYBAR_INSTALL_TYPE){
+      installFromGit $taffybarGitUrl;
+    }elsif($INSTALL_TYPE_DEBIAN eq $TAFFYBAR_INSTALL_TYPE){
+      run @aptGetInstall, "taffybar";
+    }else{
+      die "ERROR: no installation method for taffybar found\n";
+    }
     print "\n\n\n";
-    print "INSTALLED TAFFYBAR FROM GITHUB (NOT DEBIAN)\n";
+    print "INSTALLED TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
     print "=====\n=====\n====\n";
 
     editSimpleConf "/etc/environment", getUsername, {
