@@ -645,7 +645,7 @@ sub editSimpleConf($$$) {
     my ($name, $patchname, $config) = @_;
     editFile $name, $patchname, sub {
         my $cnts = shift;
-        for my $key(keys %$config){
+        for my $key(sort keys %$config){
             replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
         }
         $cnts
