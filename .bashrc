@@ -158,6 +158,7 @@ function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
 function gs           { git s "$@"; }
+function gss          { git ss "$@"; }
 function mp           { mpv "$@"; }
 function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
