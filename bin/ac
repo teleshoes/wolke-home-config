@@ -28,6 +28,17 @@ my $usage = "Usage:
       -up to $MAX_ATTEMPTS attempts are made
       -waits ${timeoutMillis}ms between attempts
 
+  $0 TOGGLE_DELAY_TIME
+    run: '$0 toggle'
+    sleep for DELAY_TIME
+    run: '$0 toggle'
+
+    TOGGLE_DELAY_TIME
+      <INT>              -  integer time in minutes  e.g.: 60
+      <INT>h | <INT>hr   -  integer time in hours    e.g.: 1h
+      <INT>m | <INT>min  -  integer time in minutes  e.g.: 60m
+      <INT>s | <INT>sec  -  integer time in seconds  e.g.: 3600s
+
   $0
     same as '$0 toggle'
 
@@ -44,10 +55,23 @@ my $usage = "Usage:
 sub main(@){
   my $stateArg = undef;
   my $button = undef;
+  my $toggleDelayS = undef;
   if(@_ == 0){
     $stateArg = "toggle";
   }elsif($_[0] =~ /^(on|off|toggle)$/){
     $stateArg = $_[0];
+  }elsif($_[0] =~ /^(\d+)((?:h|m|s|hr|min|sec)?)$/){
+    my ($val, $unit) = ($1, $2);
+    $unit = "m" if not defined $unit or $unit =~ /^\s*$/;;
+    if($unit =~ /^(h|hr)$/){
+      $toggleDelayS = $val*3600;
+    }elsif($unit =~ /^(m|min)$/){
+      $toggleDelayS = $val*60;
+    }elsif($unit =~ /^(s|sec)$/){
+      $toggleDelayS = $val;
+    }else{
+      die "ERROR: invalid unit \"$unit\"\n";
+    }
   }elsif($_[0] =~ /^(ac-\w+)$/){
     $button = $1;
   }else{
@@ -58,6 +82,12 @@ sub main(@){
     setAcState $stateArg;
   }elsif(defined $button){
     igcmd $button;
+  }elsif(defined $toggleDelayS){
+    print "toggle, then sleep ${toggleDelayS} seconds, then toggle\n\n";
+    setAcState "toggle";
+    print "\n\nSLEEPING ${toggleDelayS}s\n";
+    sleep $toggleDelayS;
+    setAcState "toggle";
   }
 }
 
