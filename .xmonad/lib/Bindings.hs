@@ -167,7 +167,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "iguana IR"     @@ do
         "A/C power"     @@ mC    xK_F1   #! "ac ac-power"
-        "A/C toggle"    @@ mCS   xK_F1   #! "term ac toggle"
+        "A/C 1h-toggle" @@ mCS   xK_F1   #! "term ac 60min"
         "A/C mode"      @@ mC    xK_F3   #! "ac ac-mode"
 
     "CEC power"     @@ do
