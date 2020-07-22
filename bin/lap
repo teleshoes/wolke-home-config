@@ -58,6 +58,7 @@ my $usage = "Usage:
     -for each LAP_GROUP, remove dates within $MIN_LAP_LEN_1MIN of each other:
       -repeatedly remove the earliest date, if that date is within $MIN_LAP_LEN_1MIN of any other date
       -repeatedly remove the latest date that is within $MIN_LAP_LEN_1MIN of any other date until none remain
+      -remove the first lap, if its much shorter or longer than the rest (30% relative error vs the mean)
     -format each LAP_GROUP, one per line
 
   OPTS
@@ -220,6 +221,34 @@ sub parseLaps($){
       $prev = $m;
     }
     $group = $newGroup;
+
+    #remove the first lap if its weird (>30% error vs the mean of the other laps)
+    my $lapCount = @$group - 1;
+    if($lapCount >= 2){
+      my @laps;
+      my $prev;
+      for my $m(@$group){
+        push @laps, $m-$prev if defined $prev;
+        $prev = $m;
+      }
+      my ($firstLap, @otherLaps) = @laps;
+      my $avg = 0;
+      $avg = sum(@otherLaps) / @otherLaps;
+      my $firstLapError = abs($firstLap-$avg) / $avg;
+
+      #remove the first lap if error > 30%
+      if($firstLapError > 0.3){
+        shift @$group;
+      }
+
+      #warn about any other laps if error > 30%
+      for my $lap(@otherLaps){
+        my $lapError = abs($lap-$avg) / $avg;
+        if($lapError > 0.3){
+          print STDERR "WARNING: lap variation >30% for $$group[0]\n";
+        }
+      }
+    }
   }
 
   return $groups;
