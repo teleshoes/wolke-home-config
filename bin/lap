@@ -4,27 +4,61 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
+sub addLap();
 sub floor($);
 sub round($);
 sub nowMillis();
 
 my $EXEC = basename $0;
+my $DIR = "$ENV{HOME}/.cache/lap";
+
+my $CMD_APPEND = "append";
+
 
 my $usage = "Usage:
   $EXEC -h | --help
     show this message
+
+  $EXEC
+  $EXEC -a | --append | -p | --put
+    append the date to $DIR/<YYYYMMDD>,
+    formatted \"<MILLIS> #<DATE-FMT>\"
 ";
 
 sub main(@){
+  my $cmd = $CMD_APPEND;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(-a|--append|-p|--put)$/){
+      $cmd = $CMD_APPEND;
     }else{
       die "$usage\nERROR: unknown arg: $arg\n";
     }
   }
+  if($cmd eq $CMD_APPEND){
+    addLap();
+  }else{
+    die "$usage\nERROR: unknown command: $cmd\n";
+  }
+}
+
+sub addLap(){
+  my $nowMillis = nowMillis();
+  my $nowEpoch = round($nowMillis / 1000.0);
+
+  my $nowYYYYMMDD = `date --date=\@$nowEpoch +%Y%m%d`;
+  chomp $nowYYYYMMDD;
+
+  my $nowFmt = `date --date=\@$nowEpoch`;
+  chomp $nowFmt;
+
+  my $destFile = "$DIR/$nowYYYYMMDD";
+  open FH, ">> $destFile" or die "ERROR: could not append to $destFile\n$!\n";
+  print FH "$nowMillis #$nowFmt\n";
+  close FH;
 }
 
 sub floor($){
