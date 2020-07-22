@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
 sub addLap();
+sub readLaps();
 sub floor($);
 sub round($);
 sub nowMillis();
@@ -12,6 +13,7 @@ sub nowMillis();
 my $EXEC = basename $0;
 my $DIR = "$ENV{HOME}/.cache/lap";
 
+my $CMD_READ = "read";
 my $CMD_APPEND = "append";
 
 
@@ -23,6 +25,11 @@ my $usage = "Usage:
   $EXEC -a | --append | -p | --put
     append the date to $DIR/<YYYYMMDD>,
     formatted \"<MILLIS> #<DATE-FMT>\"
+
+  $EXEC -g | --get | -r | --read
+    -read all dates in $DIR/*
+    -parse into millisecond timestamps
+    -print timestamps
 ";
 
 sub main(@){
@@ -34,12 +41,20 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-a|--append|-p|--put)$/){
       $cmd = $CMD_APPEND;
+    }elsif($arg =~ /^(-g|--get|-r|--read)$/){
+      $cmd = $CMD_READ;
     }else{
       die "$usage\nERROR: unknown arg: $arg\n";
     }
   }
+
   if($cmd eq $CMD_APPEND){
     addLap();
+  }elsif($cmd eq $CMD_READ){
+    my $millis = readLaps();
+    for my $m(@$millis){
+      print "$m\n";
+    }
   }else{
     die "$usage\nERROR: unknown command: $cmd\n";
   }
@@ -59,6 +74,31 @@ sub addLap(){
   open FH, ">> $destFile" or die "ERROR: could not append to $destFile\n$!\n";
   print FH "$nowMillis #$nowFmt\n";
   close FH;
+}
+
+sub readLaps(){
+  die "ERROR: $DIR is not a dir\n" if not -d $DIR;
+  my @files = glob "$DIR/*";
+  die "ERROR: no files in $DIR/\n" if @files == 0;
+  my @dates = `cat @files`;
+  my $millis = [];
+  for my $d(@dates){
+    chomp $d;
+    if($d =~ /^(\d{10})\s*(#.*)?$/){
+      push @$millis, int($1 * 1000);
+    }elsif($d =~ /^(\d{13})\s*(#.*)?$/){
+      push @$millis, int($1);
+    }else{
+      my $epoch = `date --date="$d" +%s`;
+      chomp $epoch;
+      if($epoch =~ /^\d{10}$/){
+        push @$millis, int($epoch * 1000);
+      }else{
+        die "ERROR: could not parse date: $d\n";
+      }
+    }
+  }
+  return $millis;
 }
 
 sub floor($){
