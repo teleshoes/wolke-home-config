@@ -7,7 +7,9 @@ use Time::HiRes qw(time);
 sub addLap();
 sub readLaps();
 sub parseLaps($);
+sub formatGroup($$);
 sub timeUnitToMillis($);
+sub millisToHHMMSS($);
 sub floor($);
 sub round($);
 sub nowMillis();
@@ -20,6 +22,7 @@ my $MAX_LAP_LEN_4HR = "4hr";
 my $CMD_READ = "read";
 my $CMD_APPEND = "append";
 
+my $FORMAT_LAPS = '%START_TIME [%NUM_LAPS]: %LAP_DURS';
 
 my $usage = "Usage:
   $EXEC -h | --help
@@ -44,11 +47,25 @@ my $usage = "Usage:
     --all
       print all groups, each followed by a newline (this is the default)
 
+    -l | --format-laps   (THIS IS THE DEFAULT)
+      same as: --format='$FORMAT_LAPS'
+      e.g.: 2018-05-07_15:06:31 [3]: 8:05 8:07 8:56
+
+    --format=FORMAT_SPECIFIER
+      FORMAT_SPECIFIER is any string, with the following replacements:
+        %%              => '%'
+        %n              => newline
+        %START_TIME     => first lap start time, in YYYY-MM-DD HH:MM:SS fmt
+        %NUM_LAPS       => number of laps (number of timestamps minus 1)
+        %LAP_DURS       => distance between each pair of adjacent timestamps,
+                           separated by a space, in M:SS, MM:SS, or H:MM:SS format
+                           e.g.: \"5:32 0:20 3:23:50\"
 ";
 
 sub main(@){
   my $cmd = $CMD_APPEND;
   my $lastGroupOnly = 0;
+  my $formatSpec = $FORMAT_LAPS;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -62,6 +79,10 @@ sub main(@){
       $lastGroupOnly = 1;
     }elsif($arg =~ /^(--all)$/){
       $lastGroupOnly = 0;
+    }elsif($arg =~ /^--format=(.+)$/){
+      $formatSpec = $1;
+    }elsif($arg =~ /^(-l|--format-laps)$/){
+      $formatSpec = $FORMAT_LAPS;
     }else{
       die "$usage\nERROR: unknown arg: $arg\n";
     }
@@ -76,7 +97,7 @@ sub main(@){
       $groups = [$$groups[-1]];
     }
     for my $group(@$groups){
-      my $fmt = "@$group";
+      my $fmt = formatGroup $formatSpec, $group;
       print "$fmt\n";
     }
   }else{
@@ -147,6 +168,51 @@ sub parseLaps($){
 
   return $groups;
 }
+
+sub formatGroup($$){
+  my ($fmtSpec, $group) = @_;
+  my @lapDurMillis;
+  my $prev;
+  for my $m(@$group){
+    if(defined $prev){
+      push @lapDurMillis, $m - $prev;
+    }
+    $prev = $m;
+  }
+  my ($numLaps, $lapDurs);
+  if(@lapDurMillis > 0){
+    $numLaps = @lapDurMillis;
+    $lapDurs = join " ", map {millisToHHMMSS $_} @lapDurMillis;
+  }else{
+    $numLaps = 0;
+    $lapDurs = "0:00";
+  }
+
+  my $startTimeMillis = $$group[0];
+  my $startTimeEpoch = round($startTimeMillis / 1000.0);
+  my $startTime = `date --date=\@$startTimeEpoch +%Y-%m-%d_%H:%M:%S`;
+  chomp $startTime;
+
+  my $fmt = "$fmtSpec";
+  $fmt =~ s/</<LESSTHAN>/g;
+  $fmt =~ s/%%/<BOING>/g;
+  $fmt =~ s/%n/<NEWLINE>/g;
+
+  $fmt =~ s/%START_TIME/$startTime/g;
+  $fmt =~ s/%NUM_LAPS/$numLaps/g;
+  $fmt =~ s/%LAP_DURS/$lapDurs/g;
+
+  if($fmt =~ /%/){
+    die "ERROR: unknown replacement variable in format: $fmtSpec\n";
+  }
+
+  $fmt =~ s/<NEWLINE>/\n/g;
+  $fmt =~ s/<BOING>/%/g;
+  $fmt =~ s/<LESSTHAN>/</g;
+
+  return $fmt;
+}
+
 sub timeUnitToMillis($){
   my ($s) = @_;
   if($s =~ /^(\d+)(\w+)$/){
@@ -164,6 +230,18 @@ sub timeUnitToMillis($){
   die "ERROR: could not parse time unit $s\n";
 }
 
+sub millisToHHMMSS($){
+  my ($millis) = @_;
+  my $sex = round($millis / 1000.0) % 60;
+  my $min = round($millis / 1000.0) / 60 % 60;
+  my $hrs = round(round($millis / 1000.0) / 60 / 60);
+
+  if($hrs > 0){
+    return sprintf "%d:%02d:%02d", $hrs, $min, $sex;
+  }else{
+    return sprintf "%d:%02d", $min, $sex;
+  }
+}
 
 sub floor($){
   return int($_[0]);
