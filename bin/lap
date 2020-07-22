@@ -21,6 +21,7 @@ my $EXEC = basename $0;
 my $DIR = "$ENV{HOME}/.cache/lap";
 
 my $MAX_LAP_LEN_4HR = "4hr";
+my $MIN_LAP_LEN_1MIN = "1min";
 
 my $CMD_READ = "read";
 my $CMD_APPEND = "append";
@@ -54,6 +55,9 @@ my $usage = "Usage:
     -split into max $MAX_LAP_LEN_4HR <LAP_GROUP>s:
        -each date in each group is within $MAX_LAP_LEN_4HR of the next-latest date in the group
        -each date in each group is at least $MAX_LAP_LEN_4HR after or before every date in every other group
+    -for each LAP_GROUP, remove dates within $MIN_LAP_LEN_1MIN of each other:
+      -repeatedly remove the earliest date, if that date is within $MIN_LAP_LEN_1MIN of any other date
+      -repeatedly remove the latest date that is within $MIN_LAP_LEN_1MIN of any other date until none remain
     -format each LAP_GROUP, one per line
 
   OPTS
@@ -180,6 +184,7 @@ sub readLaps(){
 sub parseLaps($){
   my ($millis) = @_;
   my $maxLapMillis = timeUnitToMillis $MAX_LAP_LEN_4HR;
+  my $minLapMillis = timeUnitToMillis $MIN_LAP_LEN_1MIN;
 
   $millis = [sort(uniq(@$millis))];
 
@@ -197,6 +202,24 @@ sub parseLaps($){
     }
     push @$curGroup, $m;
     $prev = $m;
+  }
+
+  for my $group(@$groups){
+    #remove the EARLIEST fake dates (likely double-presses) for the first lap
+    while(@$group >= 2 and $$group[1]-$$group[0] < $minLapMillis){
+      shift @$group;
+    }
+
+    #remove the LATEST fake dates (double-presses) for each remaining lap
+    my $newGroup = [];
+    $prev = undef;
+    for my $m(@$group){
+      if(not defined $prev or $m-$prev >= $minLapMillis){
+        push @$newGroup, $m;
+      }
+      $prev = $m;
+    }
+    $group = $newGroup;
   }
 
   return $groups;
