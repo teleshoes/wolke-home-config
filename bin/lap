@@ -10,6 +10,7 @@ sub parseLaps($);
 sub formatGroup($$);
 sub timeUnitToMillis($);
 sub millisToHHMMSS($);
+sub sum(@);
 sub floor($);
 sub round($);
 sub nowMillis();
@@ -61,6 +62,12 @@ my $usage = "Usage:
         %LAP_DURS       => distance between each pair of adjacent timestamps,
                            separated by a space, in M:SS, MM:SS, or H:MM:SS format
                            e.g.: \"5:32 0:20 3:23:50\"
+        %AVG_LAP_DUR    => mean distance between each pair of adjacent timestamps,
+                           in M:SS, MM:SS, or H:MM:SS format
+        %LAST_LAP_DUR   => distance between last pair of adjacent timestamps,
+                           in M:SS, MM:SS, or H:MM:SS format
+        %CUR_LAP_DUR    => distance between last timestamp and current system time,
+                           in M:SS, MM:SS, or H:MM:SS format
 ";
 
 sub main(@){
@@ -180,14 +187,21 @@ sub formatGroup($$){
     }
     $prev = $m;
   }
-  my ($numLaps, $lapDurs);
+
+  my ($numLaps, $lapDurs, $avgLapDur, $lastLapDur);
   if(@lapDurMillis > 0){
     $numLaps = @lapDurMillis;
     $lapDurs = join " ", map {millisToHHMMSS $_} @lapDurMillis;
+    $avgLapDur = millisToHHMMSS(sum(@lapDurMillis)/@lapDurMillis);
+    $lastLapDur = millisToHHMMSS $lapDurMillis[-1];
   }else{
     $numLaps = 0;
     $lapDurs = "0:00";
+    $avgLapDur = "0:00";
+    $lastLapDur = "0:00";
   }
+
+  my $curLapDur = millisToHHMMSS(nowMillis() - $$group[-1]);
 
   my $startTimeMillis = $$group[0];
   my $startTimeEpoch = round($startTimeMillis / 1000.0);
@@ -203,6 +217,9 @@ sub formatGroup($$){
   $fmt =~ s/%START_TIME/$startTime/g;
   $fmt =~ s/%NUM_LAPS/$numLaps/g;
   $fmt =~ s/%LAP_DURS/$lapDurs/g;
+  $fmt =~ s/%AVG_LAP_DUR/$avgLapDur/g;
+  $fmt =~ s/%LAST_LAP_DUR/$lastLapDur/g;
+  $fmt =~ s/%CUR_LAP_DUR/$curLapDur/g;
 
   if($fmt =~ /%/){
     die "ERROR: unknown replacement variable in format: $fmtSpec\n";
@@ -243,6 +260,14 @@ sub millisToHHMMSS($){
   }else{
     return sprintf "%d:%02d", $min, $sex;
   }
+}
+
+sub sum(@){
+  my $sum = 0;
+  for my $num(@_){
+    $sum += $num;
+  }
+  return $sum;
 }
 
 sub floor($){
