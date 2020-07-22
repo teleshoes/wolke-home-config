@@ -30,17 +30,25 @@ my $usage = "Usage:
     append the date to $DIR/<YYYYMMDD>,
     formatted \"<MILLIS> #<DATE-FMT>\"
 
-  $EXEC -g | --get | -r | --read
+  $EXEC [OPTS] -g | --get | -r | --read
     -read all dates in $DIR/*
     -parse into millisecond timestamps
     -split into max $MAX_LAP_LEN_4HR <LAP_GROUP>s:
        -each date in each group is within $MAX_LAP_LEN_4HR of the next-latest date in the group
        -each date in each group is at least $MAX_LAP_LEN_4HR after or before every date in every other group
     -format each LAP_GROUP, one per line
+
+  OPTS
+    -c | --cur | --last
+      print only the last group, followed by a newline
+    --all
+      print all groups, each followed by a newline (this is the default)
+
 ";
 
 sub main(@){
   my $cmd = $CMD_APPEND;
+  my $lastGroupOnly = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -50,6 +58,10 @@ sub main(@){
       $cmd = $CMD_APPEND;
     }elsif($arg =~ /^(-g|--get|-r|--read)$/){
       $cmd = $CMD_READ;
+    }elsif($arg =~ /^(-c|--cur|--last)$/){
+      $lastGroupOnly = 1;
+    }elsif($arg =~ /^(--all)$/){
+      $lastGroupOnly = 0;
     }else{
       die "$usage\nERROR: unknown arg: $arg\n";
     }
@@ -59,6 +71,9 @@ sub main(@){
     addLap();
   }elsif($cmd eq $CMD_READ){
     my $groups = parseLaps(readLaps());
+    if($lastGroupOnly){
+      $groups = [$$groups[-1]];
+    }
     for my $group(@$groups){
       my $fmt = "@$group";
       print "$fmt\n";
