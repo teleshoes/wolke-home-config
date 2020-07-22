@@ -6,12 +6,16 @@ use Time::HiRes qw(time);
 
 sub addLap();
 sub readLaps();
+sub parseLaps($);
+sub timeUnitToMillis($);
 sub floor($);
 sub round($);
 sub nowMillis();
 
 my $EXEC = basename $0;
 my $DIR = "$ENV{HOME}/.cache/lap";
+
+my $MAX_LAP_LEN_4HR = "4hr";
 
 my $CMD_READ = "read";
 my $CMD_APPEND = "append";
@@ -29,7 +33,10 @@ my $usage = "Usage:
   $EXEC -g | --get | -r | --read
     -read all dates in $DIR/*
     -parse into millisecond timestamps
-    -print timestamps
+    -split into max $MAX_LAP_LEN_4HR <LAP_GROUP>s:
+       -each date in each group is within $MAX_LAP_LEN_4HR of the next-latest date in the group
+       -each date in each group is at least $MAX_LAP_LEN_4HR after or before every date in every other group
+    -format each LAP_GROUP, one per line
 ";
 
 sub main(@){
@@ -51,9 +58,10 @@ sub main(@){
   if($cmd eq $CMD_APPEND){
     addLap();
   }elsif($cmd eq $CMD_READ){
-    my $millis = readLaps();
-    for my $m(@$millis){
-      print "$m\n";
+    my $groups = parseLaps(readLaps());
+    for my $group(@$groups){
+      my $fmt = "@$group";
+      print "$fmt\n";
     }
   }else{
     die "$usage\nERROR: unknown command: $cmd\n";
@@ -100,6 +108,46 @@ sub readLaps(){
   }
   return $millis;
 }
+
+sub parseLaps($){
+  my ($millis) = @_;
+  my $maxLapMillis = timeUnitToMillis $MAX_LAP_LEN_4HR;
+
+  my $groups = [];
+  my $curGroup = undef;
+  my $prev;
+  #split out laps into groups with at least MAX_LAP_LEN_4HR between them
+  for my $m(@$millis){
+    if(defined $prev and $m-$prev > $maxLapMillis){
+      $curGroup = undef;
+    }
+    if(not defined $curGroup){
+      $curGroup = [];
+      push @$groups, $curGroup;
+    }
+    push @$curGroup, $m;
+    $prev = $m;
+  }
+
+  return $groups;
+}
+sub timeUnitToMillis($){
+  my ($s) = @_;
+  if($s =~ /^(\d+)(\w+)$/){
+    my ($val, $unit) = ($1, $2);
+    if($unit =~ /^(ms|millis|millisecond|milliseconds)$/){
+      return int($val);
+    }elsif($unit =~ /^(s|sec|secs|sex|second|seconds)$/){
+      return int($val * 1000);
+    }elsif($unit =~ /^(m|min|mins|minute|minutes)$/){
+      return int($val * 1000 * 60);
+    }elsif($unit =~ /^(h|hr|hrs|hour|hours)$/){
+      return int($val * 1000 * 60 * 60);
+    }
+  }
+  die "ERROR: could not parse time unit $s\n";
+}
+
 
 sub floor($){
   return int($_[0]);
