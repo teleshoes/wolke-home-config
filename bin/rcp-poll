@@ -1,0 +1,155 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $BASE_URL = 'https://www.realclearpolitics.com/';
+
+my %rcpPollPages = (
+);
+
+sub formatPoll($@);
+sub parsePollTable($);
+sub formatSpread($);
+sub stripHTML($);
+sub fetchHTML($);
+
+sub main(@){
+  for my $rcpPollName(sort keys %rcpPollPages){
+    my $url = $BASE_URL . $rcpPollPages{$rcpPollName};
+    my $html = fetchHTML $url;
+    my @polls = parsePollTable $html;
+
+    my $rcpAvg;
+    my @rcpInAvg;
+    for my $poll(@polls){
+      if($$poll{type} eq "rcpAvg"){
+        $rcpAvg = $poll;
+      }elsif($$poll{type} eq "isInRcpAvg"){
+        push @rcpInAvg, $poll;
+      }
+    }
+    die "ERROR: no rcp avg for $rcpPollName\n" if not defined $rcpAvg;
+
+    my $fmt = formatPoll $rcpAvg, @rcpInAvg;
+    print "$rcpPollName: $fmt\n";
+  }
+}
+
+sub formatPoll($@){
+  my ($rcpAvg, @rcpInAvg) = @_;
+  my $rcpAvgSpread = formatSpread($$rcpAvg{opt1} - $$rcpAvg{opt2});
+
+  my @spreads = map {formatSpread($$_{opt1} - $$_{opt2})} @rcpInAvg;
+
+  my $spreadsFmt = "@spreads";
+  if(length $spreadsFmt > 40){
+    $spreadsFmt = substr($spreadsFmt, 0, 37) . "...";
+  }
+
+  return "$rcpAvgSpread {$$rcpAvg{opt1Name}-$$rcpAvg{opt2Name}} $spreadsFmt";
+}
+
+sub parsePollTable($){
+  my ($html) = @_;
+  my $atts = "(?:\\s+[^<>]*)?";
+  my $content = "(?:[^<]*|<div$atts>|</div>|<span$atts>|</span>|<a$atts>|</a>)*";
+  my $td = "<td$atts>$content<\/td>";
+  my $tr = "<tr$atts>(?:\\s*$td\\s*)*<\/tr>";
+
+  my ($opt1Name, $opt2Name);
+  if($html =~ /
+    \s*<tr$atts>
+    \s*<th$atts>$content<\/th>
+    \s*<th$atts>$content<\/th>
+    \s*<th$atts>$content<\/th>
+    \s*<th$atts>$content<\/th>
+    \s*<th$atts>(?<opt1Header>$content)<\/th>
+    \s*<th$atts>(?<opt2Header>$content)<\/th>
+    \s*<th$atts>$content<\/th>
+    \s*<\/tr>
+    /x){
+    $opt1Name = $+{opt1Header};
+    $opt2Name = $+{opt2Header};
+  }
+
+  my @trs = $html =~ /$tr/g;
+
+  my @rawPolls;
+  for my $tr(@trs){
+    if($tr =~ /^
+      \s*<tr(?<atts>$atts)>
+      \s*<td$atts>(?<poll>$content)<\/td>
+      \s*<td$atts>(?<date>$content)<\/td>
+      \s*<td$atts>(?<sample>$content)<\/td>
+      \s*<td$atts>(?<moe>$content)<\/td>
+      \s*<td$atts>(?<opt1>$content)<\/td>
+      \s*<td$atts>(?<opt2>$content)<\/td>
+      \s*<td${atts}class="spread"${atts}>(?<spread>$content)<\/td>
+      \s*<\/tr>
+      $/x){
+      push @rawPolls, {%+};
+    }
+  }
+
+  my @polls;
+  for my $rawPoll(@rawPolls){
+    my $pollName = $$rawPoll{poll};
+    $pollName =~ s/<a${atts}class="mobile_pollster_name"${atts}>$content<\/a>//;
+    $pollName = stripHTML $pollName;
+    my $type;
+    if($$rawPoll{atts} =~ /isInRcpAvg/){
+      $type = "isInRcpAvg";
+    }elsif($$rawPoll{atts} =~ /rcpAvg/){
+      $type = "rcpAvg";
+    }else{
+      $type = "other";
+    }
+
+    push @polls, {
+      pollName => $pollName,
+      type     => $type,
+      opt1     => stripHTML($$rawPoll{opt1}),
+      opt2     => stripHTML($$rawPoll{opt2}),
+      spread   => stripHTML($$rawPoll{spread}),
+      opt1Name => stripHTML($opt1Name),
+      opt2Name => stripHTML($opt2Name),
+    };
+  }
+  return @polls;
+}
+
+sub formatSpread($){
+  my ($spread) = @_;
+  my $spreadFmt;
+  $spreadFmt = sprintf "+%.1f", $spread if $spread >= 0;
+  $spreadFmt = sprintf "-%.1f", $spread if $spread < 0;
+  return $spreadFmt;
+}
+
+sub stripHTML($){
+  my ($html) = @_;
+  my $str = $html;
+  $str =~ s/<\s*\w+[^>]*>//g;
+  $str =~ s/<\s*\/\s*\w+\s*>//g;
+  die "ERROR: malformed html $html\n" if $str =~ /<|>/;
+
+  $str =~ s/&nbsp;|&#160;/ /g;
+  $str =~ s/&lt;|&#60;/</g;
+  $str =~ s/&gt;|&#62;/>/g;
+  $str =~ s/&amp;|&#38;/&/g;
+
+  return $str;
+}
+
+sub fetchHTML($){
+  my ($url) = @_;
+  open CMD, "-|", "curl", $url;
+  my $html = join '', <CMD>;
+  close CMD;
+  if($? != 0){
+    die "ERROR: curl failed for $url\n$!\n";
+  }
+  return $html;
+}
+
+&main(@ARGV);
