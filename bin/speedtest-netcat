@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+my $NETCAT_EXEC = "nc";
+
 my $DEFAULT_TIMEOUT_MILLIS = 15 * 1000;
 
 my $usage = "Usage:
@@ -11,8 +13,8 @@ my $usage = "Usage:
 
   $0 [OPTS] [USER@]IP_ADDRESS
     perform a speedtest using netcat
-      nc -n IP_ADDRESS <random-port>
-      ssh USER\@IP_ADDRESS nc -l -p <random-port>
+      $NETCAT_EXEC -n IP_ADDRESS <random-port>
+      ssh USER\@IP_ADDRESS $NETCAT_EXEC -l -p <random-port>
 
   $0 [OPTS] [USER@]IPMAGIC_NAME
     resolve IPMAGIC_NAME to an IP_ADDRESS with ipmagic
@@ -72,8 +74,8 @@ sub main(@){
 sub speedtest($$$){
   my ($ip, $user, $timeoutMillis) = @_;
   my $port = 5000 + int(rand(1000)); #5000-5999
-  my @sendCmd = "nc -v -v -n $ip $port";
-  my @rcvCmd = "nc -l -w 60 -p $port";
+  my @sendCmd = "$NETCAT_EXEC -v -v -n $ip $port";
+  my @rcvCmd = "$NETCAT_EXEC -l -w 60 -p $port";
 
   my $sshHost = defined $user ? "$user\@$ip" : "$ip";
 
@@ -89,9 +91,9 @@ sub speedtest($$$){
   }
 
   if(fork){
-    printf "waiting %3.1fs seconds and killing nc\n", $timeoutMillis/1000.0;
+    printf "waiting %3.1fs seconds and killing $NETCAT_EXEC\n", $timeoutMillis/1000.0;
     sleep $timeoutMillis/1000.0;
-    my @cmd = ("ssh", @sshOpts, $sshHost, "killall nc");
+    my @cmd = ("ssh", @sshOpts, $sshHost, "killall $NETCAT_EXEC");
     print "@cmd\n";
     exec @cmd;
   }
