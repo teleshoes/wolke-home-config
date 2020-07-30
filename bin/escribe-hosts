@@ -95,7 +95,7 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0
+  $0 [--cacerts]
     -dig IPs for indicated <LOOKUP_HOST>s using DNS nameserver $nameserver
     -update /etc/hosts:
        -fetched IPs for the indicated <LOOKUP_HOST>s and <SYNONYMS>
@@ -103,7 +103,7 @@ my $usage = "Usage:
     -update SSH config file:
        -with User $defaultUser for all <LOOKUP_HOST>s and <FIXED_HOST>s
        -with IdentityFile <IDENTIFY_FILE> for indicated <SSH_HOST>s
-    -update cacerts for the indicated <CACERT_HOST>s
+    -if --cacerts: update cacerts for the indicated <CACERT_HOST>s
 
       LOOKUP_HOST => SYNONYMS (for DNS lookup)
         " . join("\n        ", map {"$_ => @{$lookupHostSyns{$_}}"}
@@ -123,11 +123,14 @@ my $usage = "Usage:
 
 sub main(@){
   die "Cannot run $0 as root\n" if `whoami` eq "root\n";
+  my $cacertsUpdate = 0;
   while(@_ > 0 and $_[0] =~ /-/){
     my $opt = shift @_;
     if($opt =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($opt =~ /^(--cacerts)$/){
+      $cacertsUpdate = 1;
     }else{
       die "$usage\nUNKNOWN OPT: $opt\n";
     }
@@ -150,9 +153,11 @@ sub main(@){
 
   updateSSHConfigFile();
 
-  for my $host(@$cacertsHosts){
-    print "\n\n\nrunning: keytool-cacerts $host\n";
-    system "keytool-cacerts", $host;
+  if($cacertsUpdate){
+    for my $host(@$cacertsHosts){
+      print "\n\n\nrunning: keytool-cacerts $host\n";
+      system "keytool-cacerts", $host;
+    }
   }
 
   if(@unknownHosts > 0){
