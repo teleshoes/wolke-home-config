@@ -85,6 +85,10 @@ my $sshHostIdentityFiles = {
    "www-01.prod" => "~/.ssh/lillegroup_rsa",
 };
 
+#lookupHost, lookupSyns, lookupHost, lookupSyns, ..., fixedHost, fixedHost
+my @allHostNames = map {($_, @{$lookupHostSyns{$_}})} @lookupHostNames;
+@allHostNames = (@allHostNames, @fixedHostNames);
+
 my $usage = "Usage:
   $0
     -dig IPs for indicated <LOOKUP_HOST>s using DNS nameserver $nameserver
@@ -120,44 +124,45 @@ sub main(@){
     die "ERROR: cant ping nameserver $nameserver\n";
   }
 
-  my %hostIps;
-  my @hostOrder;
-
-  my @unknownHosts;
-
-  for(my $i=0; $i < @$lookupHosts; $i+=2){
-    my $host = $$lookupHosts[$i];
-    my @syns = @{$$lookupHosts[$i+1]};
+  my $lookupHostIps = {};
+  for my $host(@lookupHostNames){
     my $ip = dig $host, $nameserver;
-    if(not defined $ip){
-      print STDERR "WARNING: unknown server: $host\n";
-      push @unknownHosts, $host;
-    }
-    for my $hostname($host, @syns){
-      $hostIps{$hostname} = $ip;
-      push @hostOrder, $hostname;
+    $$lookupHostIps{$host} = $ip;
+    print STDERR "\nWARNING: unknown server: $host\n" if not defined $ip;
+  }
+  my @unknownHosts = grep {not defined $$lookupHostIps{$_}} @lookupHostNames;
+
+
+  my $allHostIps = {};
+  $allHostIps = {%$allHostIps, %$lookupHostIps};
+  $allHostIps = {%$allHostIps, %fixedHostIps};
+  for my $host(@lookupHostNames){
+    for my $syn(@{$lookupHostSyns{$host}}){
+      $$allHostIps{$syn} = $$lookupHostIps{$host};
     }
   }
 
-  for(my $i=0; $i < @$fixedHosts; $i+=2){
-    my $hostname = $$fixedHosts[$i];
-    my $ip = $$fixedHosts[$i+1];
-    $hostIps{$hostname} = $ip;
-    push @hostOrder, $hostname;
-  }
 
   my @hostLines = readFileLines($hostsFile);
   #remove lines with <COMMENT_MARKER> at the end
   @hostLines = grep {$_ !~ /$COMMENT_MARKER\s*$/} @hostLines;
+
+  #add lines for each host, ending with #<COMMENT_MARKER>
+  for my $host(@allHostNames){
+    push @hostLines, "$$allHostIps{$host}\t$host $COMMENT_MARKER\n";
+  }
+  print "\n\nhosts:\n";
+  open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
+  print FH @hostLines;
+  close FH;
+
 
   my $sshConfig = join '', readFileLines($sshConfigFile);
   #remove everything between <COMMENT_MARKER> and <COMMENT_MARKER>
   $sshConfig =~ s/$COMMENT_MARKER.*$COMMENT_MARKER\n//s;
 
   $sshConfig .= "$COMMENT_MARKER\n";
-  for my $host(@hostOrder){
-    my $ip = $hostIps{$host};
-    push @hostLines, "$ip\t$host $COMMENT_MARKER\n";
+  for my $host(@allHostNames){
     $sshConfig .= ""
       . "Host $host\n"
       . "    User $defaultUser\n"
@@ -167,11 +172,6 @@ sub main(@){
     }
   }
   $sshConfig .= "$COMMENT_MARKER\n";
-
-  print "\n\nhosts:\n";
-  open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
-  print FH @hostLines;
-  close FH;
 
   print "\n\nssh config:\n";
   open FH, "| tee $sshConfigFile" or die "Could not write to $hostsFile\n";
