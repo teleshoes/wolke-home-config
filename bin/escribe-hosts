@@ -21,7 +21,7 @@ my $cacertsHosts = [qw(
 
 my $intAws = "int.aws.lillegroup.com";
 
-my $hosts = [
+my $lookupHosts = [
   "ehr-01.dev.$intAws"       => ["ehr-01.dev", "ehr.dev", "ehr.dev.$intAws"],
   "ehr-01.stage.$intAws"     => ["ehr-01.stage", "ehr.stage", "ehr.stage.$intAws"],
   "ehr-01.prod.$intAws"      => ["ehr-01.prod", "ehr.prod", "ehr.prod.$intAws"],
@@ -80,8 +80,8 @@ my $sshHostIdentityFiles = {
    "www-01.prod" => "~/.ssh/lillegroup_rsa",
 };
 
-my @hostNames = map {$$hosts[$_]} grep {$_%2==0} (0..@$hosts-1);
-my %hostSyns = map {$$hosts[$_] => $$hosts[$_+1]} grep {$_%2==0} (0..@$hosts-1);
+my @lookupHostNames = map {$$lookupHosts[$_]} grep {$_%2==0} (0..@$lookupHosts-1);
+my %lookupHostSyns = map {$$lookupHosts[$_] => $$lookupHosts[$_+1]} grep {$_%2==0} (0..@$lookupHosts-1);
 my @fixedHostNames = map {$$fixedHosts[$_]} grep {$_%2==0} (0..@$fixedHosts-1);
 my %fixedHostIps = (@$fixedHosts);
 
@@ -97,14 +97,16 @@ my $usage = "Usage:
     -update cacerts for the indicated <CACERT_HOST>s
 
       LOOKUP_HOST => SYNONYMS (for DNS lookup)
-        " . join("\n        ", map {"$_ => @{$hostSyns{$_}}"} @hostNames) . "
+        " . join("\n        ", map {"$_ => @{$lookupHostSyns{$_}}"}
+                                 @lookupHostNames) . "
 
       FIXED_HOST => FIXED_IP (hardcoded)
-        " . join("\n        ", map {"$_ => $fixedHostIps{$_}"} @fixedHostNames) . "
+        " . join("\n        ", map {"$_ => $fixedHostIps{$_}"}
+                                 @fixedHostNames) . "
 
       SSH_HOST => IDENTITY_FILE
         " . join("\n        ", map {"$_ => $$sshHostIdentityFiles{$_}"}
-                            sort keys %$sshHostIdentityFiles) . "
+                                 sort keys %$sshHostIdentityFiles) . "
 
       CACERT_HOST
         " . join("\n        ", @$cacertsHosts) . "
@@ -123,9 +125,9 @@ sub main(@){
 
   my @unknownHosts;
 
-  for(my $i=0; $i < @$hosts; $i+=2){
-    my $host = $$hosts[$i];
-    my @syns = @{$$hosts[$i+1]};
+  for(my $i=0; $i < @$lookupHosts; $i+=2){
+    my $host = $$lookupHosts[$i];
+    my @syns = @{$$lookupHosts[$i+1]};
     my $ip = dig $host, $nameserver;
     if(not defined $ip){
       print STDERR "WARNING: unknown server: $host\n";
