@@ -5,7 +5,7 @@ use warnings;
 my $hostsFile = "/etc/hosts";
 my $sshConfigFile = "$ENV{HOME}/.ssh/config";
 my $defaultUser = "ewolk";
-my $marker = "###escribe-hosts###";
+my $COMMENT_MARKER = "###escribe-hosts###";
 
 sub dig($$);
 sub getHosts();
@@ -149,17 +149,17 @@ sub main(@){
 
   my @hostLines = getHosts();
   my @sshConfigLines = getSSHConfig();
-  push @sshConfigLines, "$marker\n";
+  push @sshConfigLines, "$COMMENT_MARKER\n";
   for my $host(@hostOrder){
     my $ip = $hostIps{$host};
-    push @hostLines, "$ip\t$host $marker\n";
+    push @hostLines, "$ip\t$host $COMMENT_MARKER\n";
     push @sshConfigLines, "Host $host\n";
     push @sshConfigLines, "    User $defaultUser\n";
     if(defined $$sshHostIdentityFiles{$host}){
       push @sshConfigLines, "    IdentityFile $$sshHostIdentityFiles{$host}\n";
     }
   }
-  push @sshConfigLines, "$marker\n";
+  push @sshConfigLines, "$COMMENT_MARKER\n";
 
   print "\n\nhosts:\n";
   open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
@@ -205,7 +205,7 @@ sub getHosts(){
 
   #remove lines with comment #escribe-host at the end
   for my $line(@lines){
-    $line = '' if $line =~ /$marker\s*$/;
+    $line = '' if $line =~ /$COMMENT_MARKER\s*$/;
   }
   return @lines;
 }
@@ -219,7 +219,7 @@ sub getSSHConfig(){
   my $remove = 0;
   my @okLines;
   for my $line(@lines){
-    if($line =~ /^\s*$marker\s*$/){
+    if($line =~ /^\s*$COMMENT_MARKER\s*$/){
       $remove = not $remove;
     }else{
       push @okLines, $line unless $remove;
