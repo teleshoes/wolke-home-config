@@ -8,8 +8,7 @@ my $defaultUser = "ewolk";
 my $COMMENT_MARKER = "###escribe-hosts###";
 
 sub dig($$);
-sub getHosts();
-sub getSSHConfig();
+sub readFileLines($);
 sub canPing($);
 
 my $nameserver = '10.128.1.10';
@@ -147,19 +146,27 @@ sub main(@){
     push @hostOrder, $hostname;
   }
 
-  my @hostLines = getHosts();
-  my @sshConfigLines = getSSHConfig();
-  push @sshConfigLines, "$COMMENT_MARKER\n";
+  my @hostLines = readFileLines($hostsFile);
+  #remove lines with <COMMENT_MARKER> at the end
+  @hostLines = grep {$_ !~ /$COMMENT_MARKER\s*$/} @hostLines;
+
+  my $sshConfig = join '', readFileLines($sshConfigFile);
+  #remove everything between <COMMENT_MARKER> and <COMMENT_MARKER>
+  $sshConfig =~ s/$COMMENT_MARKER.*$COMMENT_MARKER\n//s;
+
+  $sshConfig .= "$COMMENT_MARKER\n";
   for my $host(@hostOrder){
     my $ip = $hostIps{$host};
     push @hostLines, "$ip\t$host $COMMENT_MARKER\n";
-    push @sshConfigLines, "Host $host\n";
-    push @sshConfigLines, "    User $defaultUser\n";
+    $sshConfig .= ""
+      . "Host $host\n"
+      . "    User $defaultUser\n"
+    ;
     if(defined $$sshHostIdentityFiles{$host}){
-      push @sshConfigLines, "    IdentityFile $$sshHostIdentityFiles{$host}\n";
+      $sshConfig .= "    IdentityFile $$sshHostIdentityFiles{$host}\n"
     }
   }
-  push @sshConfigLines, "$COMMENT_MARKER\n";
+  $sshConfig .= "$COMMENT_MARKER\n";
 
   print "\n\nhosts:\n";
   open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
@@ -168,7 +175,7 @@ sub main(@){
 
   print "\n\nssh config:\n";
   open FH, "| tee $sshConfigFile" or die "Could not write to $hostsFile\n";
-  print FH @sshConfigLines;
+  print FH $sshConfig;
   close FH;
 
   for my $host(@$cacertsHosts){
@@ -198,34 +205,12 @@ sub dig($$){
   return undef;
 }
 
-sub getHosts(){
-  open FH, "< $hostsFile" or die "Could not read $hostsFile\n";
+sub readFileLines($){
+  my ($file) = @_;
+  open FH, "< $file" or die "Could not read $file\n$!\n";
   my @lines = <FH>;
   close FH;
-
-  #remove lines with comment #escribe-host at the end
-  for my $line(@lines){
-    $line = '' if $line =~ /$COMMENT_MARKER\s*$/;
-  }
   return @lines;
-}
-
-sub getSSHConfig(){
-  return () if not -e $sshConfigFile;
-  open FH, "< $sshConfigFile" or die "Could not read $sshConfigFile\n";
-  my @lines = <FH>;
-  close FH;
-
-  my $remove = 0;
-  my @okLines;
-  for my $line(@lines){
-    if($line =~ /^\s*$COMMENT_MARKER\s*$/){
-      $remove = not $remove;
-    }else{
-      push @okLines, $line unless $remove;
-    }
-  }
-  return @okLines;
 }
 
 sub canPing($){
