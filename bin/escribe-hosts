@@ -71,18 +71,46 @@ my $hosts = [
   "escribehost.com"          => [],
 ];
 my $fixedHosts = [
-  'dev1'                => '172.18.10.91',
-  'dev2'                => '172.18.10.92',
-  'web.escribehost.com' => '10.1.14.20',
-  'escribehost.com'     => '10.1.14.20',
+  'dev1'                     => '172.18.10.91',
+  'dev2'                     => '172.18.10.92',
+  'web.escribehost.com'      => '10.1.14.20',
+  'escribehost.com'          => '10.1.14.20',
 ];
 my $sshHostIdentityFiles = {
    "www-01.prod" => "~/.ssh/lillegroup_rsa",
 };
 
+my @hostNames = map {$$hosts[$_]} grep {$_%2==0} (0..@$hosts-1);
+my %hostSyns = map {$$hosts[$_] => $$hosts[$_+1]} grep {$_%2==0} (0..@$hosts-1);
+my @fixedHostNames = map {$$fixedHosts[$_]} grep {$_%2==0} (0..@$fixedHosts-1);
+my %fixedHostIps = (@$fixedHosts);
+
+my $usage = "Usage:
+  $0
+    -fetch IPs for indicated <HOST>s using DNS nameserver $nameserver
+    -update /etc/hosts with fetched IPs for the indicated <HOST>s and <SYNONYMS>
+    -update /etc/hosts with hardcoded IPs for the indicated <FIXED_HOSTS>
+    -update SSH config file with User $defaultUser for all hosts updated
+    -update SSH config file with IdentityFile for the indicated <SSH_HOST>s
+    -update cacerts for the indicated <CACERT_HOST>s
+
+      HOST => SYNONYMS (for DNS lookup)
+        " . join("\n        ", map {"$_ => @{$hostSyns{$_}}"} @hostNames) . "
+
+      FIXED_HOST => FIXED_IP (hardcoded)
+        " . join("\n        ", map {"$_ => $fixedHostIps{$_}"} @fixedHostNames) . "
+
+      SSH_HOST => IDENTITY_FILE
+        " . join("\n        ", map {"$_ => $$sshHostIdentityFiles{$_}"}
+                            sort keys %$sshHostIdentityFiles) . "
+
+      CACERT_HOST
+        " . join("\n        ", @$cacertsHosts) . "
+";
+
 sub main(@){
   die "Cannot run $0 as root\n" if `whoami` eq "root\n";
-  die "Usage: $0\n" if @_ != 0;
+  die $usage if @_ != 0;
 
   if(not canPing $nameserver){
     die "ERROR: cant ping nameserver $nameserver\n";
