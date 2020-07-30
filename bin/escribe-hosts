@@ -7,6 +7,8 @@ my $sshConfigFile = "$ENV{HOME}/.ssh/config";
 my $defaultUser = "ewolk";
 my $COMMENT_MARKER = "###escribe-hosts###";
 
+sub updateHostsFile($);
+sub updateSSHConfigFile();
 sub dig($$);
 sub readFileLines($);
 sub canPing($);
@@ -132,6 +134,23 @@ sub main(@){
   }
   my @unknownHosts = grep {not defined $$lookupHostIps{$_}} @lookupHostNames;
 
+  updateHostsFile($lookupHostIps);
+
+  updateSSHConfigFile();
+
+  for my $host(@$cacertsHosts){
+    print "\n\n\nrunning: keytool-cacerts $host\n";
+    system "keytool-cacerts", $host;
+  }
+
+  if(@unknownHosts > 0){
+    print "\n\n\nWARNING: the following hosts were not found\n";
+    print "$_\n" foreach @unknownHosts;
+  }
+}
+
+sub updateHostsFile($){
+  my ($lookupHostIps) = @_;
 
   my $allHostIps = {};
   $allHostIps = {%$allHostIps, %$lookupHostIps};
@@ -155,8 +174,9 @@ sub main(@){
   open FH, "| sudo tee $hostsFile" or die "Could not write to $hostsFile\n";
   print FH @hostLines;
   close FH;
+}
 
-
+sub updateSSHConfigFile(){
   my $sshConfig = join '', readFileLines($sshConfigFile);
   #remove everything between <COMMENT_MARKER> and <COMMENT_MARKER>
   $sshConfig =~ s/$COMMENT_MARKER.*$COMMENT_MARKER\n//s;
@@ -177,16 +197,6 @@ sub main(@){
   open FH, "| tee $sshConfigFile" or die "Could not write to $hostsFile\n";
   print FH $sshConfig;
   close FH;
-
-  for my $host(@$cacertsHosts){
-    print "\n\n\nrunning: keytool-cacerts $host\n";
-    system "keytool-cacerts", $host;
-  }
-
-  if(@unknownHosts > 0){
-    print "\n\n\nWARNING: the following hosts were not found\n";
-    print "$_\n" foreach @unknownHosts;
-  }
 }
 
 sub dig($$){
