@@ -1,16 +1,19 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import dbus
 import dbus.service
 import dbus.mainloop.glib
 import fcntl
-import gobject
 import os
 import re
 import signal
 import subprocess
 import sys
 import time
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -20,14 +23,14 @@ usage = """Usage: %(exec)s""" % {"exec": sys.argv[0]}
 
 def main(args):
   if len(args) > 0:
-    print >> sys.stderr, usage
+    sys.stderr.write(usage + "\n")
     sys.exit(2)
 
   dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
   CecDbus()
 
-  gobject.MainLoop().run()
+  Gtk.main()
 
 
 class CecClient():
@@ -47,12 +50,12 @@ class CecClient():
       except:
         break
       if len(line) > 0:
-        out += line
+        out += line.decode("utf-8")
       else:
         break
     return out
   def write(self, cecInput):
-    self.p.stdin.write(cecInput)
+    self.p.stdin.write(cecInput.encode('utf-8'))
     self.p.stdin.flush()
 
   def writeCommands(self, commands):
@@ -65,11 +68,11 @@ class CecClient():
 
   def nameCmd(self, address):
     self.writeCommands(["name " + str(address)])
-    print self.read()
+    print(self.read())
   def volCmd(self, cmd, address, count):
     commands = [cmd + " " + str(address) for i in range(count)]
     self.writeCommands(commands)
-    print self.read()
+    print(self.read())
 
   def getPowerStatusCmd(self, address):
     getPowCmd = "tx 4" + str(address) + ":8f"
@@ -78,7 +81,7 @@ class CecClient():
     self.writeCommands([getPowCmd])
     time.sleep(0.15)
     out = self.read()
-    print out
+    print(out)
     lines = out.splitlines()
     lines.reverse()
 
@@ -105,13 +108,13 @@ class CecClient():
     self.writeCommands(["pow " + str(address)])
     time.sleep(0.25)
     out = self.read()
-    print out
+    print(out)
     lines = out.splitlines()
     lines.reverse()
 
     status = None
     for line in lines:
-      print line
+      print(line)
       m = re.search('power status: (on|standby)', line)
       if m:
         status = m.group(1)
@@ -125,13 +128,13 @@ class CecClient():
     self.writeCommands(["tx 4" + str(address) + ":71"])
     time.sleep(0.25)
     out = self.read()
-    print out
+    print(out)
     lines = out.splitlines()
     lines.reverse()
 
     status = None
     for line in lines:
-      print line
+      print(line)
       m = re.search('[0-9a-f][0-9a-f]:7a:([0-9a-f][0-9a-f])', line)
       if m:
         status = int(m.group(1), 16)
