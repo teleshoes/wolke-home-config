@@ -132,7 +132,7 @@ main = do
           , lap  $ W.fanW
           , all  $ W.brightnessW
           , tv   $ W.screenSaverW
-          , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "www.google.com"
+          , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "google.com"
                                     , main $ W.pingMonitorW "E" "ehr.dev"
                                     ]
           , main $ W.openvpnW "lg" "VPN\nlg "
