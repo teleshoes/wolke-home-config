@@ -1,0 +1,400 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::Local qw(timelocal);
+use POSIX qw(strftime);
+
+sub downloadURL($);
+sub parseHighchart($);
+sub parseMonthDateToYYYYMMD($);
+sub getRecentPastDaysYYYYMMDD($);
+sub yyyymmddAddOneDay($);
+sub yyyymmddSubtractOneDay($);
+sub yyyymmddAddSeconds($$);
+sub yyyymmddToEpoch($);
+sub epochToYYYYMMDD($);
+
+my $CURRENT_YEAR = (localtime)[5] + 1900;
+
+my $CORONAVIRUS_URL_PREFIX = "https://www.worldometers.info/coronavirus";
+
+my $SUFFIX_SYN_ARR = [
+  WORLD => '/',
+  US    => '/country/us',
+  USA   => '/country/us',
+  DC    => '/usa/district-of-columbia',
+  AL    => '/usa/alabama',
+  AK    => '/usa/alaska',
+  AZ    => '/usa/arizona',
+  AR    => '/usa/arkansas',
+  CA    => '/usa/california',
+  CO    => '/usa/colorado',
+  CT    => '/usa/connecticut',
+  DE    => '/usa/delaware',
+  FL    => '/usa/florida',
+  GA    => '/usa/georgia',
+  HI    => '/usa/hawaii',
+  ID    => '/usa/idaho',
+  IL    => '/usa/illinois',
+  IN    => '/usa/indiana',
+  IA    => '/usa/iowa',
+  KS    => '/usa/kansas',
+  KY    => '/usa/kentucky',
+  LA    => '/usa/louisiana',
+  ME    => '/usa/maine',
+  MD    => '/usa/maryland',
+  MA    => '/usa/massachusetts',
+  MI    => '/usa/michigan',
+  MN    => '/usa/minnesota',
+  MS    => '/usa/mississippi',
+  MO    => '/usa/missouri',
+  MT    => '/usa/montana',
+  NE    => '/usa/nebraska',
+  NV    => '/usa/nevada',
+  NH    => '/usa/new-hampshire',
+  NJ    => '/usa/new-jersey',
+  NM    => '/usa/new-mexico',
+  NY    => '/usa/new-york',
+  NC    => '/usa/north-carolina',
+  ND    => '/usa/north-dakota',
+  OH    => '/usa/ohio',
+  OK    => '/usa/oklahoma',
+  OR    => '/usa/oregon',
+  PA    => '/usa/pennsylvania',
+  RI    => '/usa/rhode-island',
+  SC    => '/usa/south-carolina',
+  SD    => '/usa/south-dakota',
+  TN    => '/usa/tennessee',
+  TX    => '/usa/texas',
+  UT    => '/usa/utah',
+  VT    => '/usa/vermont',
+  VA    => '/usa/virginia',
+  WA    => '/usa/washington',
+  WV    => '/usa/west-virginia',
+  WI    => '/usa/wisconsin',
+  WY    => '/usa/wyoming',
+];
+my %SUFFIX_SYN_URL_SUFFIXES = @$SUFFIX_SYN_ARR;
+my @SUFFIX_SYN_NAMES = map {$$SUFFIX_SYN_ARR[$_]} grep {$_ % 2 == 0} (0..$#$SUFFIX_SYN_ARR);
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 URL
+    -download the worldometers page at URL
+    -parse the HTML for graph info
+    -print the last 10 days for each of the following:
+      -daily new cases
+      -daily deaths
+
+  $0 CORONAVIRUS_URL_SUFFIX
+    same as: $EXEC $CORONAVIRUS_URL_PREFIX<CORONA_VIRUS_URL_SUFFIX>
+
+    CORONA_VIRUS_URL_SUFFIX must start with a forward slash '/'
+
+  $0 SUFFIX_SYNONYM_NAME
+    same as: $EXEC <SYNONYM_URL_SUFFIX>
+
+    SUFFIX_SYNONYM_NAME => SYNONYM_URL_SUFFIX
+    " . join("\n    ",
+          map {
+            sprintf "%-19s => %s", $_, $SUFFIX_SYN_URL_SUFFIXES{$_}
+          } @SUFFIX_SYN_NAMES
+        ) . "
+";
+
+sub main(@){
+  my $url;
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^https?:/){
+    $url = $_[0];
+  }elsif(@_ == 1 and $_[0] =~ /^\//){
+    my $urlSuffix = $_[0];
+    $url = "$CORONAVIRUS_URL_PREFIX$urlSuffix";
+  }elsif(@_ == 1 and defined $SUFFIX_SYN_URL_SUFFIXES{uc $_[0]}){
+    my $urlSuffix = $SUFFIX_SYN_URL_SUFFIXES{uc $_[0]};
+    $url = "$CORONAVIRUS_URL_PREFIX$urlSuffix";
+  }else{
+    die $usage;
+  }
+
+  my $html = downloadURL $url;
+  my %charts;
+  my @highcharts = $html =~ /Highcharts.chart.*?\}\);/gs;
+  for my $highchart(@highcharts){
+    my $chart = parseHighchart $highchart;
+    if(defined $chart){
+      $charts{$$chart{title}} = $chart;
+    }
+  }
+
+  my $urlFmt = $url;
+  $urlFmt =~ s/$CORONAVIRUS_URL_PREFIX//;
+  for my $suffixSynName(@SUFFIX_SYN_NAMES){
+    if($urlFmt eq $SUFFIX_SYN_URL_SUFFIXES{$suffixSynName}){
+      $urlFmt = $suffixSynName;
+      last;
+    }
+  }
+
+  my $valWidth = 6;
+  my $numberOfVals = 10;
+
+  my @recentDays = getRecentPastDaysYYYYMMDD($numberOfVals);
+
+  my $dateSpacerLen = $valWidth+($valWidth+1)*($numberOfVals-1) - 10 - 10;
+  $dateSpacerLen = 3 if $dateSpacerLen < 3;
+  my $dateSpacer = '.' x $dateSpacerLen;
+
+  my $dateStart = $recentDays[0];
+  $dateStart = "$1-$2-$3" if $dateStart =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
+  my $dateEnd = $recentDays[-1];
+  $dateEnd = "$1-$2-$3" if $dateEnd =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
+
+  my $format = "";
+  $format .= "== $urlFmt\n";
+  $format .= "======== $dateStart $dateSpacer $dateEnd\n";
+
+  $format .= "newcases:  ";
+  if(defined $charts{"Daily New Cases"}){
+    my $chart = $charts{"Daily New Cases"};
+    my @vals = map {$$chart{values}{$_}} @recentDays;
+    @vals = map {defined $_ ? sprintf "%${valWidth}d", $_ : "?????"} @vals;
+    $format .= "@vals\n";
+  }else{
+    $format .= "??????\n";
+  }
+
+  $format .= "newdeaths: ";
+  if(defined $charts{"Daily Deaths"}){
+    my $chart = $charts{"Daily Deaths"};
+    my @vals = map {$$chart{values}{$_}} @recentDays;
+    @vals = map {defined $_ ? sprintf "%${valWidth}d", $_ : "?????"} @vals;
+    $format .= "@vals\n";
+  }else{
+    $format .= "??????\n";
+  }
+
+  print $format;
+}
+
+sub downloadURL($){
+  my ($url) = @_;
+  open CMD, "-|", "wget", "-q", "-O", "-", $url;
+  my $out = join '', <CMD>;
+  close CMD;
+  return $out;
+}
+
+sub parseHighchart($){
+  my ($highchart) = @_;
+
+  my $title;
+  if($highchart =~ /
+      title: \s* \{
+        \s* text: \s* ['"]  ([^'"]+)  ['"] \s*
+      \}  ,
+  /sxi){
+    $title = $1;
+  }
+
+  my @dates;
+  if($highchart =~ /
+      xAxis: \s* \{
+        \s* categories: \s* \[  ( (?:"[^"]*",)* "[^"]*" )  \] \s*
+      \}
+  /sxi){
+    my ($xAxisCategoriesCsv) = ($1);
+    my @xAxisCategories = split ",", $xAxisCategoriesCsv;
+
+    my $prevDate = undef;
+    for my $categoryMonthDay(@xAxisCategories){
+      my $date = parseMonthDateToYYYYMMD $categoryMonthDay;
+      if(not defined $date){
+        die "ERROR: malformed x-axis category (date): $categoryMonthDay\n";
+      }
+      if(defined $prevDate){
+        my $prevDatePlusOneDay = yyyymmddAddOneDay $prevDate;
+        if($date <= $prevDate){
+          die "ERROR: dates out of order $prevDate >= $date\n";
+        }elsif($date ne $prevDatePlusOneDay){
+          print STDERR "WARNING: missing date value between $prevDate and $date for $title\n";
+        }
+      }
+      push @dates, $date;
+      $prevDate = $date;
+    }
+  }
+
+  my @mainData;
+  if($highchart =~ /
+    series: \s* \[ \s*
+      \{
+        \s* name: \s* ['"]  ([^'"]+)  ['"] \s* , \s*
+        (?: \s* \w+: \s* [^\{\}\[\]]* \s* , \s*)
+        \s* data: \s* \[   ( [^\[\]]+ )  \]
+        [^\{\}]*
+      \}
+  /sxi){
+    my ($dataTitle, $dataCsv) = ($1, $2);
+    @mainData = split ",", $dataCsv;
+  }
+
+  my @avg3Day;
+  if($highchart =~ /
+    series: \s* \[ \s*
+      (?: \{
+            [^\{\}]*
+          \} \s* , \s*
+      )* \s*
+      \{
+        \s* name: \s* ['"]  3-day \s* moving \s* average  ['"] \s* , \s*
+        (?: \s* \w+: \s* [^\{\}\[\]]* \s* , \s*)
+        \s* data: \s* \[   ( [^\[\]]+ )  \]
+        [^\{\}]*
+      \}
+  /sxi){
+    my ($dataCsv) = ($1);
+    @avg3Day = split ",", $dataCsv;
+  }
+
+  my @avg7Day;
+  if($highchart =~ /
+    series: \s* \[ \s*
+      (?: \{
+            [^\{\}]*
+          \} \s* , \s*
+      )* \s*
+      \{
+        \s* name: \s* ['"]  7-day \s* moving \s* average  ['"] \s* , \s*
+        (?: \s* \w+: \s* [^\{\}\[\]]* \s* , \s*)
+        \s* data: \s* \[   ( [^\[\]]+ )  \]
+        [^\{\}]*
+      \}
+  /sxi){
+    my ($dataCsv) = ($1);
+    @avg7Day = split ",", $dataCsv;
+  }
+
+  if(not defined $title and @dates > 0){
+    die "ERROR: missing graph title for $highchart\n";
+  }
+  if(@mainData != @dates){
+    die "ERROR: mismatch between x-axis and data points for $title\n";
+  }
+  if(@avg3Day > 0 and @avg3Day != @dates){
+    die "ERROR: mismatch between x-axis and 3-day-avg data points for $title\n";
+  }
+  if(@avg7Day > 0 and @avg7Day != @dates){
+    die "ERROR: mismatch between x-axis and 7-day-avg data points for $title\n";
+  }
+
+  if(@dates == 0){
+    return undef;
+  }else{
+    return {
+      title   => $title,
+      values  => { map {$dates[$_] => $mainData[$_]} (0..$#mainData) },
+      avg3Day => { map {$dates[$_] => $mainData[$_]} (0..$#avg3Day) },
+      avg7Day => { map {$dates[$_] => $mainData[$_]} (0..$#avg7Day) },
+    };
+  }
+}
+
+# 'Aug 03' => 20200803
+sub parseMonthDateToYYYYMMD($){
+  my ($monthDay) = @_;
+  my %months = (
+    Jan => '01',  Feb => '02',  Mar => '03',  Apr => '04',  May => '05',  Jun => '06',
+    Jul => '07',  Aug => '08',  Sep => '09',  Oct => '10',  Nov => '11',  Dec => '12',
+  );
+
+  my $year = $CURRENT_YEAR;
+
+  my ($month, $day);
+  my $okMonth = join "|", sort keys %months;
+  if($monthDay =~ /^"($okMonth) (\d\d)"$/){
+    my $monthName = $1;
+    $day = $2;
+    $month = $months{$monthName};
+  }
+
+  my $dateYYYYMMDD;
+  if(defined $year and defined $month and defined $day){
+    my $epoch = yyyymmddToEpoch "$year$month$day";
+    $dateYYYYMMDD = epochToYYYYMMDD $epoch;
+  }
+
+  if(defined $dateYYYYMMDD and $dateYYYYMMDD ne "$year$month$day"){
+    $dateYYYYMMDD = undef;
+  }
+
+  return $dateYYYYMMDD;
+}
+
+sub getRecentPastDaysYYYYMMDD($){
+  my($numberOfDays) = @_;
+
+  my $today = epochToYYYYMMDD time;
+  my @pastDays;
+  my $prevPastDay = $today;
+  while(@pastDays < $numberOfDays){
+    my $pastDay = yyyymmddSubtractOneDay $prevPastDay;
+    push @pastDays, $pastDay;
+    $prevPastDay = $pastDay;
+  }
+
+  return @pastDays;
+}
+
+sub yyyymmddAddOneDay($){
+  my ($dateYYYYMMDD) = @_;
+  return yyyymmddAddSeconds $dateYYYYMMDD, 60*60*36; #plus 36 hours
+}
+sub yyyymmddSubtractOneDay($){
+  my ($dateYYYYMMDD) = @_;
+  return yyyymmddAddSeconds $dateYYYYMMDD, 0-(60*60*12); #minus 12 hours
+}
+sub yyyymmddAddSeconds($$){
+  my ($dateYYYYMMDD, $secondsToAdd) = @_;
+
+  my $epoch = yyyymmddToEpoch $dateYYYYMMDD;
+  $epoch += $secondsToAdd;
+  my $datePlusOne = epochToYYYYMMDD $epoch;
+  chomp $datePlusOne;
+  if($datePlusOne !~ /^\d{8}$/){
+    die "ERROR: could not add one day to $dateYYYYMMDD\n";
+  }
+
+  return $datePlusOne;
+}
+
+sub yyyymmddToEpoch($){
+  my ($yyyymmdd) = @_;
+  our %cache;
+  return $cache{$yyyymmdd} if defined $cache{$yyyymmdd};
+
+  my ($year, $mon, $day) = ($1, $2, $3) if $yyyymmdd =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
+  my $epoch = timelocal(0, 0, 0, $day, $mon-1, $year-1900);
+
+  $cache{$yyyymmdd} = $epoch;
+  return $epoch;
+}
+sub epochToYYYYMMDD($){
+  my ($epoch) = @_;
+  our %cache;
+  return $cache{$epoch} if defined $cache{$epoch};
+
+  my $yyyymmdd = strftime "%Y%m%d", localtime $epoch;
+
+  $cache{$epoch} = $yyyymmdd;
+  return $yyyymmdd;
+}
+
+&main(@ARGV);
