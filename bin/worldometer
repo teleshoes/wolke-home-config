@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use Time::Local qw(timelocal);
 use POSIX qw(strftime);
 
+sub formatChartsForURL($$);
 sub downloadURL($);
 sub parseHighchart($);
 sub parseMonthDateToYYYYMMD($);
@@ -84,23 +85,31 @@ my $NUMBER_OF_VALS = 10;
 my $EXEC = basename $0;
 
 my $usage = "Usage:
-  $0 -h | --help
+  $EXEC -h | --help
     show this message
 
-  $0 URL
-    -download the worldometers page at URL
-    -parse the HTML for graph info
-    -print the last $NUMBER_OF_VALS days for each of the following:
-      -daily new cases
-      -daily deaths
+  $EXEC URL_ARG [URL_ARG URL_ARG ..]
+    -for each <URL_ARG>
+      -parse <URL_ARG> to <URL>
+      -download the worldometers page at <URL>
+      -parse the HTML for graph info
+      -print the last $NUMBER_OF_VALS days for each of the following:
+        -daily new cases
+        -daily deaths
 
-  $0 CORONAVIRUS_URL_SUFFIX
-    same as: $EXEC $CORONAVIRUS_URL_PREFIX<CORONA_VIRUS_URL_SUFFIX>
+  URL_ARG
+    either: <URL> or <CORONAVIRUS_URL_SUFFIX> or <SUFFIX_SYNONYM_NAME>
 
-    CORONA_VIRUS_URL_SUFFIX must start with a forward slash '/'
+  URL
+    must start with 'http://' or 'https://'
+
+  CORONAVIRUS_URL_SUFFIX
+    must start with a forward slash '/'
+    same as: URL=$CORONAVIRUS_URL_PREFIX<CORONA_VIRUS_URL_SUFFIX>
+
 
   $0 SUFFIX_SYNONYM_NAME
-    same as: $EXEC <SYNONYM_URL_SUFFIX>
+    same as: CORONAVIRUS_URL_SUFFIX=<SYNONYM_URL_SUFFIX>
 
     SUFFIX_SYNONYM_NAME => SYNONYM_URL_SUFFIX
     " . join("\n    ",
@@ -111,32 +120,49 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  my $url;
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-    exit 0;
-  }elsif(@_ == 1 and $_[0] =~ /^https?:/){
-    $url = $_[0];
-  }elsif(@_ == 1 and $_[0] =~ /^\//){
-    my $urlSuffix = $_[0];
-    $url = "$CORONAVIRUS_URL_PREFIX$urlSuffix";
-  }elsif(@_ == 1 and defined $SUFFIX_SYN_URL_SUFFIXES{uc $_[0]}){
-    my $urlSuffix = $SUFFIX_SYN_URL_SUFFIXES{uc $_[0]};
-    $url = "$CORONAVIRUS_URL_PREFIX$urlSuffix";
-  }else{
-    die $usage;
-  }
-
-  my $html = downloadURL $url;
-  my %charts;
-  my @highcharts = $html =~ /Highcharts.chart.*?\}\);/gs;
-  for my $highchart(@highcharts){
-    my $chart = parseHighchart $highchart;
-    if(defined $chart){
-      $charts{$$chart{title}} = $chart;
+  my @urls;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^https?:/){
+      push @urls, $arg;
+    }elsif($arg =~ /^\//){
+      my $urlSuffix = $arg;
+      push @urls, "$CORONAVIRUS_URL_PREFIX$urlSuffix";
+    }elsif(defined $SUFFIX_SYN_URL_SUFFIXES{uc $arg}){
+      my $urlSuffix = $SUFFIX_SYN_URL_SUFFIXES{uc $arg};
+      push @urls, "$CORONAVIRUS_URL_PREFIX$urlSuffix";
+    }else{
+      die $usage;
     }
   }
 
+  die $usage if @urls == 0;
+
+  my $first = 1;
+  for my $url(@urls){
+    my $html = downloadURL $url;
+    my $charts = {};
+    my @highcharts = $html =~ /Highcharts.chart.*?\}\);/gs;
+    for my $highchart(@highcharts){
+      my $chart = parseHighchart $highchart;
+      if(defined $chart){
+        $$charts{$$chart{title}} = $chart;
+      }
+    }
+
+    print "\n" unless $first;
+    $first = 0;
+
+    my $format = formatChartsForURL($url, $charts);
+    print $format;
+  }
+}
+
+sub formatChartsForURL($$){
+  my ($url, $charts) = @_;
   my $urlFmt = $url;
   $urlFmt =~ s/$CORONAVIRUS_URL_PREFIX//;
   for my $suffixSynName(@SUFFIX_SYN_NAMES){
@@ -158,12 +184,13 @@ sub main(@){
   $dateEnd = "$1-$2-$3" if $dateEnd =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
 
   my $format = "";
+  $format .= "========\n";
   $format .= "== $urlFmt\n";
   $format .= "======== $dateStart $dateSpacer $dateEnd\n";
 
   $format .= "newcases:  ";
-  if(defined $charts{"Daily New Cases"}){
-    my $chart = $charts{"Daily New Cases"};
+  if(defined $$charts{"Daily New Cases"}){
+    my $chart = $$charts{"Daily New Cases"};
     my @vals = map {$$chart{values}{$_}} @recentDays;
     @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
     $format .= "@vals\n";
@@ -172,8 +199,8 @@ sub main(@){
   }
 
   $format .= "newdeaths: ";
-  if(defined $charts{"Daily Deaths"}){
-    my $chart = $charts{"Daily Deaths"};
+  if(defined $$charts{"Daily Deaths"}){
+    my $chart = $$charts{"Daily Deaths"};
     my @vals = map {$$chart{values}{$_}} @recentDays;
     @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
     $format .= "@vals\n";
@@ -181,7 +208,7 @@ sub main(@){
     $format .= "??????\n";
   }
 
-  print $format;
+  return $format;
 }
 
 sub downloadURL($){
