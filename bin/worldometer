@@ -5,8 +5,8 @@ use File::Basename qw(basename);
 use Time::Local qw(timelocal);
 use POSIX qw(strftime);
 
-sub formatChartsForURL($$);
-sub formatChart($$$);
+sub formatChartsForURL($$$$);
+sub formatChart($$$$);
 sub downloadURL($);
 sub parseHighchart($);
 sub parseMonthDateToYYYYMMD($);
@@ -80,8 +80,8 @@ my $SUFFIX_SYN_ARR = [
 my %SUFFIX_SYN_URL_SUFFIXES = @$SUFFIX_SYN_ARR;
 my @SUFFIX_SYN_NAMES = map {$$SUFFIX_SYN_ARR[$_]} grep {$_ % 2 == 0} (0..$#$SUFFIX_SYN_ARR);
 
-my $VALUE_WIDTH = 6;
 my $NUMBER_OF_VALS = 10;
+my $VALUE_WIDTH = 6;
 
 my $EXEC = basename $0;
 
@@ -157,13 +157,13 @@ sub main(@){
     print "\n" unless $first;
     $first = 0;
 
-    my $format = formatChartsForURL($url, $charts);
+    my $format = formatChartsForURL($NUMBER_OF_VALS, $VALUE_WIDTH, $url, $charts);
     print $format;
   }
 }
 
-sub formatChartsForURL($$){
-  my ($url, $charts) = @_;
+sub formatChartsForURL($$$$){
+  my ($numberOfVals, $valueWidth, $url, $charts) = @_;
   my $urlFmt = $url;
   $urlFmt =~ s/$CORONAVIRUS_URL_PREFIX//;
   for my $suffixSynName(@SUFFIX_SYN_NAMES){
@@ -173,9 +173,9 @@ sub formatChartsForURL($$){
     }
   }
 
-  my $recentDays = [getRecentPastDaysYYYYMMDD($NUMBER_OF_VALS)];
+  my $recentDays = [getRecentPastDaysYYYYMMDD($numberOfVals)];
 
-  my $dateSpacerLen = $VALUE_WIDTH+($VALUE_WIDTH+1)*($NUMBER_OF_VALS-1) - 10 - 10;
+  my $dateSpacerLen = $valueWidth+($valueWidth+1)*($numberOfVals-1) - 10 - 10;
   $dateSpacerLen = 3 if $dateSpacerLen < 3;
   my $dateSpacer = '.' x $dateSpacerLen;
 
@@ -189,19 +189,19 @@ sub formatChartsForURL($$){
   $format .= "== $urlFmt\n";
   $format .= "======== $dateStart $dateSpacer $dateEnd\n";
 
-  $format .= formatChart "newcases: ", $recentDays, $$charts{"Daily New Cases"};
-  $format .= formatChart "newdeaths:", $recentDays, $$charts{"Daily Deaths"};
+  $format .= formatChart "newcases: ", $valueWidth, $recentDays, $$charts{"Daily New Cases"};
+  $format .= formatChart "newdeaths:", $valueWidth, $recentDays, $$charts{"Daily Deaths"};
 
   return $format;
 }
 
-sub formatChart($$$){
-  my ($prefix, $dates, $chart) = @_;
+sub formatChart($$$$){
+  my ($prefix, $valueWidth, $dates, $chart) = @_;
   if(not defined $chart){
     return "$prefix ?\n";
   }else{
     my @vals = map {$$chart{values}{$_}} @$dates;
-    @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
+    @vals = map {defined $_ ? sprintf "%${valueWidth}d", $_ : "?????"} @vals;
     return "$prefix @vals\n";
   }
 }
