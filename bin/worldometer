@@ -6,6 +6,7 @@ use Time::Local qw(timelocal);
 use POSIX qw(strftime);
 
 sub formatChartsForURL($$);
+sub formatChart($$$);
 sub downloadURL($);
 sub parseHighchart($);
 sub parseMonthDateToYYYYMMD($);
@@ -172,15 +173,15 @@ sub formatChartsForURL($$){
     }
   }
 
-  my @recentDays = getRecentPastDaysYYYYMMDD($NUMBER_OF_VALS);
+  my $recentDays = [getRecentPastDaysYYYYMMDD($NUMBER_OF_VALS)];
 
   my $dateSpacerLen = $VALUE_WIDTH+($VALUE_WIDTH+1)*($NUMBER_OF_VALS-1) - 10 - 10;
   $dateSpacerLen = 3 if $dateSpacerLen < 3;
   my $dateSpacer = '.' x $dateSpacerLen;
 
-  my $dateStart = $recentDays[0];
+  my $dateStart = $$recentDays[0];
   $dateStart = "$1-$2-$3" if $dateStart =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
-  my $dateEnd = $recentDays[-1];
+  my $dateEnd = $$recentDays[-1];
   $dateEnd = "$1-$2-$3" if $dateEnd =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
 
   my $format = "";
@@ -188,27 +189,21 @@ sub formatChartsForURL($$){
   $format .= "== $urlFmt\n";
   $format .= "======== $dateStart $dateSpacer $dateEnd\n";
 
-  $format .= "newcases:  ";
-  if(defined $$charts{"Daily New Cases"}){
-    my $chart = $$charts{"Daily New Cases"};
-    my @vals = map {$$chart{values}{$_}} @recentDays;
-    @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
-    $format .= "@vals\n";
-  }else{
-    $format .= "??????\n";
-  }
-
-  $format .= "newdeaths: ";
-  if(defined $$charts{"Daily Deaths"}){
-    my $chart = $$charts{"Daily Deaths"};
-    my @vals = map {$$chart{values}{$_}} @recentDays;
-    @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
-    $format .= "@vals\n";
-  }else{
-    $format .= "??????\n";
-  }
+  $format .= formatChart "newcases: ", $recentDays, $$charts{"Daily New Cases"};
+  $format .= formatChart "newdeaths:", $recentDays, $$charts{"Daily Deaths"};
 
   return $format;
+}
+
+sub formatChart($$$){
+  my ($prefix, $dates, $chart) = @_;
+  if(not defined $chart){
+    return "$prefix ?\n";
+  }else{
+    my @vals = map {$$chart{values}{$_}} @$dates;
+    @vals = map {defined $_ ? sprintf "%${VALUE_WIDTH}d", $_ : "?????"} @vals;
+    return "$prefix @vals\n";
+  }
 }
 
 sub downloadURL($){
