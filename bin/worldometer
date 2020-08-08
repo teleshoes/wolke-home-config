@@ -5,7 +5,7 @@ use File::Basename qw(basename);
 use Time::Local qw(timelocal);
 use POSIX qw(strftime);
 
-sub formatChartsForURL($$$$);
+sub formatChartsForURL($$$$$);
 sub formatChart($$$$);
 sub downloadURL($);
 sub parseHighchart($);
@@ -85,6 +85,12 @@ my $VALUE_WIDTH = 6;
 
 my $EXEC = basename $0;
 
+my %CHARTS_BY_NAME = (
+  newcases => "Daily New Cases",
+  newdeaths => "Daily Deaths",
+);
+my @DEFAULT_CHART_NAMES = qw(newcases newdeaths);
+
 my $usage = "Usage:
   $EXEC -h | --help
     show this message
@@ -134,10 +140,22 @@ my $usage = "Usage:
       values are left-padded with spaces,
         to align the least significant digits where possible
       values are never truncated, but may not align properly if VALUE_WIDTH is small
+
+    -c CHARTS_CSV
+    --charts=CHARTS_CSV
+      which charts to format and print, separated with commas
+      (default=" . join(",", @DEFAULT_CHART_NAMES) . ")
+      NOTE: multiple --charts arguments do NOT work (latest takes effect)
+        chart names:
+          " . join("          ",
+                 map {"$_ => $CHARTS_BY_NAME{$_}\n"}
+                 sort keys %CHARTS_BY_NAME) . "
+
 ";
 
 sub main(@){
   my @urls;
+  my $chartNames = [@DEFAULT_CHART_NAMES];
   my $numberOfVals = $NUMBER_OF_VALS;
   my $valueWidth = $VALUE_WIDTH;
   while(@_ > 0){
@@ -153,6 +171,12 @@ sub main(@){
       $valueWidth = shift;
     }elsif($arg =~ /^(?:--val-width|--value-width)=(\d+)$/){
       $valueWidth = $1;
+    }elsif($arg =~ /^(-c|--charts)$/ and @_ > 0){
+      my $chartNamesCsv = shift;
+      $chartNames = [split ",", $chartNamesCsv];
+    }elsif($arg =~ /^(?:--charts)=(.+)$/){
+      my $chartNamesCsv = $1;
+      $chartNames = [split ",", $chartNamesCsv];
     }elsif($arg =~ /^https?:/){
       push @urls, $arg;
     }elsif($arg =~ /^\//){
@@ -167,6 +191,13 @@ sub main(@){
   }
 
   die $usage if @urls == 0;
+
+  die "$usage\nERROR: no chart names given\n" if @$chartNames == 0;
+  for my $chartName(@$chartNames){
+    if(not defined $CHARTS_BY_NAME{$chartName}){
+      die "$usage\nERROR: invalid chart name $chartName\n";
+    }
+  }
 
   my $first = 1;
   for my $url(@urls){
@@ -183,13 +214,13 @@ sub main(@){
     print "\n" unless $first;
     $first = 0;
 
-    my $format = formatChartsForURL($numberOfVals, $valueWidth, $url, $charts);
+    my $format = formatChartsForURL($numberOfVals, $valueWidth, $chartNames, $url, $charts);
     print $format;
   }
 }
 
-sub formatChartsForURL($$$$){
-  my ($numberOfVals, $valueWidth, $url, $charts) = @_;
+sub formatChartsForURL($$$$$){
+  my ($numberOfVals, $valueWidth, $chartNames, $url, $charts) = @_;
   my $urlFmt = $url;
   $urlFmt =~ s/$CORONAVIRUS_URL_PREFIX//;
   for my $suffixSynName(@SUFFIX_SYN_NAMES){
@@ -215,8 +246,18 @@ sub formatChartsForURL($$$$){
   $format .= "== $urlFmt\n";
   $format .= "======== $dateStart $dateSpacer $dateEnd\n";
 
-  $format .= formatChart "newcases: ", $valueWidth, $recentDays, $$charts{"Daily New Cases"};
-  $format .= formatChart "newdeaths:", $valueWidth, $recentDays, $$charts{"Daily Deaths"};
+  my $maxChartNameLen = 0;
+  for my $chartName(@$chartNames){
+    if(length $chartName > $maxChartNameLen){
+      $maxChartNameLen = length $chartName;
+    }
+  }
+
+  for my $chartName(@$chartNames){
+    my $prefix = "$chartName:" . ' 'x($maxChartNameLen-length $chartName);
+    my $chartTitle = $CHARTS_BY_NAME{$chartName};
+    $format .= formatChart $prefix, $valueWidth, $recentDays, $$charts{$chartTitle};
+  }
 
   return $format;
 }
