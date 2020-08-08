@@ -5,8 +5,8 @@ use File::Basename qw(basename);
 use Time::Local qw(timelocal);
 use POSIX qw(strftime);
 
-sub formatChartsForURL($$$$$);
-sub formatChart($$$$);
+sub formatChartsForURL($$$$$$$);
+sub formatChart($$$$$$);
 sub downloadURL($);
 sub parseHighchart($);
 sub parseMonthDateToYYYYMMD($);
@@ -158,6 +158,13 @@ my $usage = "Usage:
                  map {"$_ => $CHARTS_BY_NAME{$_}\n"}
                  sort keys %CHARTS_BY_NAME) . "
 
+    -3
+    --avg3day
+      include 3-day avg after the actual values for each chart title for each url
+
+    -7
+    --avg7day
+      include 7-day avg after the actual values for each chart title for each url
 ";
 
 sub main(@){
@@ -165,6 +172,8 @@ sub main(@){
   my $chartNames = [@DEFAULT_CHART_NAMES];
   my $numberOfVals = $NUMBER_OF_VALS;
   my $valueWidth = $VALUE_WIDTH;
+  my $include3DayAvg = 0;
+  my $include7DayAvg = 0;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -184,6 +193,10 @@ sub main(@){
     }elsif($arg =~ /^(?:--charts)=(.+)$/){
       my $chartNamesCsv = $1;
       $chartNames = [split ",", $chartNamesCsv];
+    }elsif($arg =~ /^(?:-3|--avg3day)$/){
+      $include3DayAvg = 1;
+    }elsif($arg =~ /^(?:-7|--avg7day)$/){
+      $include7DayAvg = 1;
     }elsif($arg =~ /^https?:/){
       push @urls, $arg;
     }elsif($arg =~ /^\//){
@@ -223,13 +236,15 @@ sub main(@){
 
     my $format = formatChartsForURL(
       $numberOfVals, $valueWidth, $chartNames,
+      $include3DayAvg, $include7DayAvg,
       $url, $charts);
     print $format;
   }
 }
 
-sub formatChartsForURL($$$$$){
+sub formatChartsForURL($$$$$$$){
   my ($numberOfVals, $valueWidth, $chartNames,
+      $include3DayAvg, $include7DayAvg,
       $url, $charts) = @_;
   my $urlFmt = $url;
   $urlFmt =~ s/$CORONAVIRUS_URL_PREFIX//;
@@ -267,21 +282,36 @@ sub formatChartsForURL($$$$$){
     my $prefix = "$chartName:" . ' 'x($maxChartNameLen-length $chartName);
     my $chartTitle = $CHARTS_BY_NAME{$chartName};
     $format .= formatChart($prefix, $valueWidth,
+                           $include3DayAvg, $include7DayAvg,
                            $recentDays, $$charts{$chartTitle});
   }
 
   return $format;
 }
 
-sub formatChart($$$$){
+sub formatChart($$$$$$){
   my ($prefix, $valueWidth,
+      $include3DayAvg, $include7DayAvg,
       $dates, $chart) = @_;
   if(not defined $chart){
     return "$prefix ?\n";
   }else{
     my @vals = map {$$chart{values}{$_}} @$dates;
     @vals = map {defined $_ ? sprintf "%${valueWidth}d", $_ : "?"x$valueWidth} @vals;
-    return "$prefix @vals\n";
+
+    my @avg3DayVals = map {$$chart{avg3Day}{$_}} @$dates;
+    @avg3DayVals = map {defined $_ ? sprintf "%${valueWidth}d", $_ : "?"x$valueWidth} @avg3DayVals;
+
+    my @avg7DayVals = map {$$chart{avg7Day}{$_}} @$dates;
+    @avg7DayVals = map {defined $_ ? sprintf "%${valueWidth}d", $_ : "?"x$valueWidth} @avg7DayVals;
+
+    my $avg3DayPrefix = "avg3day" . ' 'x(length($prefix) - length("avg3day"));
+    my $avg7DayPrefix = "avg7day" . ' 'x(length($prefix) - length("avg7day"));
+
+    my $fmt = "$prefix @vals\n";
+    $fmt .= "$avg3DayPrefix @avg3DayVals\n" if $include3DayAvg;
+    $fmt .= "$avg7DayPrefix @avg7DayVals\n" if $include7DayAvg;
+    return $fmt;
   }
 }
 
