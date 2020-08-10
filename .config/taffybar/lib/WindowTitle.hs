@@ -1,5 +1,6 @@
 module WindowTitle (windowTitleW) where
 import System.Taffybar.Widget.Util (widgetSetClassGI)
+import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (intercalate)
 import Data.List.Split (chunksOf)
 import Data.Text (Text, pack)
@@ -10,8 +11,16 @@ import GI.Gtk.Objects.ScrolledWindow (scrolledWindowNew, scrolledWindowSetPolicy
 import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
 import System.Taffybar.Context (runX11)
 import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindow, getWindowTitle)
+import System.Taffybar.Information.X11DesktopInfo (getDefaultCtx)
 import System.Taffybar.Widget.Windows (
   WindowsConfig(..), defaultWindowsConfig, windowsNew)
+
+main = do
+  let profileTitle = 30
+  let linesInBar = 2
+  ctx <- getDefaultCtx
+  winTitle <- runReaderT getActiveWinTitle ctx
+  print $ formatTitle profileTitle linesInBar winTitle
 
 windowTitleW len lineCount = wrapFixedHeightPanel =<< windowsNew config
   where config = defaultWindowsConfig { getActiveLabel = getFmtWinTitle }
