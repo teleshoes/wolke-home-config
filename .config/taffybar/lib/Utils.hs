@@ -10,6 +10,7 @@ module Utils(
   stringWidth, trimL, trimR, padL, padR, padCols, uncols, chompAll,
   fmtSimpleRecord,
   pollingGraphMain,
+  sleep,
   ifM,
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   isSymlink, attemptCreateSymlink,
@@ -248,6 +249,9 @@ pollingGraphMain delay reader = forever $ do
   values <- reader
   print $ map (printfReal "%.3f") values
   threadDelay $ round $ delay * 10^6
+
+sleep :: (RealFrac a) => a -> IO ()
+sleep seconds = threadDelay $ round $ seconds * 10^6
 
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM mTest mThen mElse = mTest >>= \test -> if test then mThen else mElse
