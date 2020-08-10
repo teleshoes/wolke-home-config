@@ -1,5 +1,7 @@
 module WindowTitle (windowTitleW) where
+import Utils (sleep)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
+import Control.Monad (forever)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (intercalate)
 import Data.List.Split (chunksOf)
@@ -19,8 +21,10 @@ main = do
   let profileTitle = 30
   let linesInBar = 2
   ctx <- getDefaultCtx
-  winTitle <- runReaderT getActiveWinTitle ctx
-  print $ formatTitle profileTitle linesInBar winTitle
+  forever $ do
+    winTitle <- runReaderT getActiveWinTitle ctx
+    print $ formatTitle profileTitle linesInBar winTitle
+    sleep 1
 
 windowTitleW len lineCount = wrapFixedHeightPanel =<< windowsNew config
   where config = defaultWindowsConfig { getActiveLabel = getFmtWinTitle }
