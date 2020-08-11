@@ -179,15 +179,15 @@ isFullWidthChar ch = Set.member ch fullwidthCharSet
 
 fullwidthCharSet :: Set.Set Char
 fullwidthCharSet = Set.fromList $ map chr $ []
-  ++ [0x30A0  .. 0x30FF ] --katakana
   ++ [0x1100  .. 0x11FF ] --hangul
-  ++ [0xFF01  .. 0xFF60 ] --roman fullwidth
-  ++ [0x4E00  .. 0x9FFF ] --han common
+  ++ [0x30A0  .. 0x30FF ] --katakana
   ++ [0x3400  .. 0x4DBF ] --han rare
+  ++ [0x4E00  .. 0x9FFF ] --han common
+  ++ [0xF900  .. 0xFAFF ] --han duplicates, unifiable variants, corporate chars
+  ++ [0xFF01  .. 0xFF60 ] --roman fullwidth
   ++ [0x20000 .. 0x2A6DF] --han rare historic
   ++ [0x2A700 .. 0x2B73F] --han rare historic
   ++ [0x2B820 .. 0x2CEAF] --han rare historic
-  ++ [0xF900  .. 0xFAFF ] --han duplicates, unifiable variants, corporate chars
   ++ [0x2F800 .. 0x2FA1F] --han unifiable variants
 
 --remove chars from the left until stringWidth of str is <= len
