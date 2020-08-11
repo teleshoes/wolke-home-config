@@ -185,6 +185,10 @@ fullwidthCharSet = Set.fromList $ map chr $ []
   ++ [ 0x4E00 ..  0x9FFF] --han common
   ++ [ 0xF900 ..  0xFAFF] --han duplicates, unifiable variants, corporate chars
   ++ [ 0xFF01 ..  0xFF60] --roman fullwidth
+  ++ [0x1F600 .. 0x1F64F] --emoji (some are halfwidth)
+  ++ [0x1F300 .. 0x1F5FF] --emoji (some are halfwidth)
+  ++ [0x1F680 .. 0x1F6FF] --emoji (some are halfwidth)
+  ++ [0x1F1E0 .. 0x1F1FF] --emoji (some are halfwidth)
   ++ [0x20000 .. 0x2A6DF] --han rare historic
   ++ [0x2A700 .. 0x2B73F] --han rare historic
   ++ [0x2B820 .. 0x2CEAF] --han rare historic
