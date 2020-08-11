@@ -104,7 +104,7 @@ main = do
       start = catMaybes
               [ Nothing
               , all $ W.workspaceSwitcherW $ wImgH profile
-              , all $ W.windowTitleW (title profile) 2
+              , all $ W.windowTitleW (fontP profile) (title profile) 2
               , all $ liftIO $ sep
               , all $ W.layoutWindowsW
               ]
