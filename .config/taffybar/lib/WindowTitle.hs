@@ -27,9 +27,12 @@ main = do
     print $ formatTitle profileTitle linesInBar winTitle
     sleep 1
 
-windowTitleW len lineCount = wrapFixedHeightPanel =<< windowsNew config
-  where config = defaultWindowsConfig { getActiveLabel = getFmtWinTitle }
-        getFmtWinTitle = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
+windowTitleW len lineCount = do
+  let config = defaultWindowsConfig
+               { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
+               }
+  windowsW <- windowsNew config
+  wrapFixedHeightPanel windowsW
 
 wrapFixedHeightPanel childW = do
   scroll <- scrolledWindowNew noAdjustment noAdjustment
