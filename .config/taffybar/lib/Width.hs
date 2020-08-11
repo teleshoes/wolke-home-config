@@ -1,5 +1,5 @@
 module Width(
-  widthBox, widthWrap, widthScreenWrapW, widthCharWrapW,
+  charWidth, widthBox, widthWrap, widthScreenWrapW, widthCharWrapW,
   screenPctToPx, charsFitInPx, getScreenDPI) where
 
 import Control.Monad (when)
