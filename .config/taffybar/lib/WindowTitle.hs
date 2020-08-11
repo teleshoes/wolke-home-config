@@ -1,5 +1,6 @@
 module WindowTitle (windowTitleW) where
-import Utils (sleep)
+import Width (charWidth, getScreenDPI)
+import Utils (sleep, trimR, padR)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Control.Monad (forever)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -48,4 +49,4 @@ formatTitle len lineCount title = pack $ intercalate "\n" $ map (padTrim len) $ 
   where lines = take lineCount $ chunksOf len title ++ repeat ""
 
 padTrim :: Int -> String -> String
-padTrim n x = take n $ x ++ repeat ' '
+padTrim n x = padR ' ' n $ trimR n x
