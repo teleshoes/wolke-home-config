@@ -8,10 +8,15 @@ import Graphics.X11.Xlib.Display (
   displayHeight, displayWidth, displayHeightMM, displayWidthMM)
 
 import GI.Gtk.Enums (
-  Orientation(OrientationHorizontal))
+  Orientation(OrientationHorizontal),
+  PolicyType(..))
+import GI.Gtk.Objects.Adjustment (noAdjustment)
 import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
 import GI.Gtk.Objects.Container (
   Container, containerAdd, toContainer)
+import GI.Gtk.Objects.ScrolledWindow (
+  scrolledWindowNew, scrolledWindowSetPolicy,
+  scrolledWindowSetMinContentWidth, scrolledWindowSetMaxContentWidth)
 import GI.Gtk.Objects.Widget (
   Widget, toWidget, widgetSetSizeRequest, widgetShowAll)
 
@@ -37,26 +42,26 @@ widthBox widthPx = do
   widgetShowAll wbox
   toContainer wbox
 
-widthWrap :: Int -> Widget -> IO Container
-widthWrap widthPx w = do
-  wbox <- widthBox widthPx
-  containerAdd wbox w
-  widgetSetSizeRequest w (fromIntegral widthPx) (-1)
-  widgetShowAll wbox
-  return wbox
+widthWrap :: Int -> Widget -> IO Widget
+widthWrap widthPx childW = do
+  scroll <- scrolledWindowNew noAdjustment noAdjustment
+  containerAdd scroll childW
+  scrolledWindowSetPolicy scroll PolicyTypeExternal PolicyTypeExternal
+  scrolledWindowSetMinContentWidth scroll $ fromIntegral widthPx
+  scrolledWindowSetMaxContentWidth scroll $ fromIntegral widthPx
+  widgetShowAll scroll
+  toWidget scroll
 
 widthScreenWrapW :: Double -> Widget -> IO Widget
 widthScreenWrapW screenRatio w = do
   screenWidthPx <- getScreenWidth
   let widthPx = round $ screenRatio * fromIntegral screenWidthPx
-  box <- widthWrap widthPx w
-  toWidget box
+  widthWrap widthPx w
 
 widthCharWrapW :: Int -> Double -> Int -> Widget -> IO Widget
 widthCharWrapW dpi fontSize charCount w = do
   let widthPx = charWidth dpi fontSize * charCount
-  box <- widthWrap widthPx w
-  toWidget box
+  widthWrap widthPx w
 
 screenPctToPx :: Double -> IO Int
 screenPctToPx pct = do
