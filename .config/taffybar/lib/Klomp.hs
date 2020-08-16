@@ -51,12 +51,14 @@ klompReader rowLength = do
 readKlompInfo ipmagicName = do
   str <- readProc $ getKlompInfoCmd ipmagicName
   let utf8Str = decodeString $ utf8Encode str
-  return $ case decodeByName (encodeUtf8 $ T.pack $ utf8Str) of
-    Left msg -> emptyKlompInfo {errorMsg = formatErr utf8Str msg}
-    Right (hdr, csv) -> getOnlyCsvRow csv
-  where formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
-                                         then "(no song info found)"
-                                         else parseError
+  return $ parseKlompInfo utf8Str
+
+parseKlompInfo klompInfoStr = case decodeByName (encodeUtf8 $ T.pack $ klompInfoStr) of
+                                Left msg -> emptyKlompInfo {errorMsg = formatErr msg}
+                                Right (hdr, csv) -> getOnlyCsvRow csv
+  where formatErr parseError = if regexMatch "No song info found" klompInfoStr
+                               then "(no song info found)"
+                               else parseError
         getOnlyCsvRow csv = if Vector.length csv /= 1
                             then emptyKlompInfo {errorMsg = "rowcount != 1"}
                             else Vector.head csv
