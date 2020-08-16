@@ -39,37 +39,40 @@ klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
 klompReader rowLength = do
   klompBarIpmagic <- chompFile "/tmp/klomp-bar-ipmagic"
   let ipmagicName = if klompBarIpmagic == "" then Nothing else Just klompBarIpmagic
-  running <- isRunning "klomplayer"
+  klompRunning <- isRunning "klomplayer"
   klompInfo <- readKlompInfo ipmagicName
-  let errFmt = errorMsg klompInfo
-      titFmt = T.unpack $ title klompInfo
-      artFmt = T.unpack $ artist klompInfo
-      albFmt = T.unpack $ artist klompInfo
-      numFmt = T.unpack $ artist klompInfo
-      [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
-      perFmt = percent klompInfo
-      plsFmt = T.unpack $ playlist klompInfo
-      endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let topPrefix = case ipmagicName of
-                    Just "sx" -> sxPrefix
-                    Just "raspi" -> raspiPrefix
-                    Just "nuc" -> nucPrefix
-                    _ -> if running then "" else "x"
-      botPrefix = take 1 plsFmt
+  return $ formatKlompInfo klompInfo rowLength ipmagicName klompRunning
 
-  let isPrefixed = not((null topPrefix) && (null botPrefix))
-      topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
-      botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
-      rowLen = if isPrefixed then rowLength - 1 else rowLength
+formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
+  where errFmt = errorMsg klompInfo
+        titFmt = T.unpack $ title klompInfo
+        artFmt = T.unpack $ artist klompInfo
+        albFmt = T.unpack $ artist klompInfo
+        numFmt = T.unpack $ artist klompInfo
+        [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
+        perFmt = percent klompInfo
+        plsFmt = T.unpack $ playlist klompInfo
+        endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
 
-  let topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
-      botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
+        topPrefix = case ipmagicName of
+                      Just "sx" -> sxPrefix
+                      Just "raspi" -> raspiPrefix
+                      Just "nuc" -> nucPrefix
+                      _ -> if klompRunning then "" else "x"
+        botPrefix = take 1 plsFmt
 
-  let top = escapeMarkup topText
-  let bot = escapeMarkup botText
+        isPrefixed = not((null topPrefix) && (null botPrefix))
+        topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
+        botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
+        rowLen = if isPrefixed then rowLength - 1 else rowLength
 
-  return $ topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
+        topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
+        botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
+
+        top = escapeMarkup topText
+        bot = escapeMarkup botText
+
 
 prefixFmt = fgbg "green" "black" . padSquish 1
 
