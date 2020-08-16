@@ -53,16 +53,6 @@ readKlompInfo ipmagicName = do
   let utf8Str = decodeString $ utf8Encode str
   return $ parseKlompInfo utf8Str
 
-parseKlompInfo klompInfoStr = case decodeByName (encodeUtf8 $ T.pack $ klompInfoStr) of
-                                Left msg -> emptyKlompInfo {errorMsg = formatErr msg}
-                                Right (hdr, csv) -> getOnlyCsvRow csv
-  where formatErr parseError = if regexMatch "No song info found" klompInfoStr
-                               then "(no song info found)"
-                               else parseError
-        getOnlyCsvRow csv = if Vector.length csv /= 1
-                            then emptyKlompInfo {errorMsg = "rowcount != 1"}
-                            else Vector.head csv
-
 
 data KlompInfo = KlompInfo { errorMsg :: !String
                            , title    :: !T.Text
@@ -91,6 +81,16 @@ emptyKlompInfo = KlompInfo {errorMsg = "",
                             title = "", artist = "", album = "", number = "",
                             pos = 0.0, len = 0.0, percent = 0,
                             playlist = "", ended = ""}
+
+parseKlompInfo klompInfoStr = case decodeByName (encodeUtf8 $ T.pack $ klompInfoStr) of
+                                Left msg -> emptyKlompInfo {errorMsg = formatErr msg}
+                                Right (hdr, csv) -> getOnlyCsvRow csv
+  where formatErr parseError = if regexMatch "No song info found" klompInfoStr
+                               then "(no song info found)"
+                               else parseError
+        getOnlyCsvRow csv = if Vector.length csv /= 1
+                            then emptyKlompInfo {errorMsg = "rowcount != 1"}
+                            else Vector.head csv
 
 formatKlompInfo :: KlompInfo -> Int -> Maybe String -> Bool -> String
 formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topLine ++ "\n" ++ botLine
