@@ -44,36 +44,6 @@ klompReader rowLength = do
 
   return $ formatKlompInfo klompInfo rowLength ipmagicName klompRunning
 
-formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
-  where errFmt = errorMsg klompInfo
-        titFmt = T.unpack $ title klompInfo
-        artFmt = T.unpack $ artist klompInfo
-        albFmt = T.unpack $ artist klompInfo
-        numFmt = T.unpack $ artist klompInfo
-        [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
-        perFmt = percent klompInfo
-        plsFmt = T.unpack $ playlist klompInfo
-        endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
-
-        topPrefix = case ipmagicName of
-                      Just "sx" -> sxPrefix
-                      Just "raspi" -> raspiPrefix
-                      Just "nuc" -> nucPrefix
-                      _ -> if klompRunning then "" else "x"
-        botPrefix = take 1 plsFmt
-
-        isPrefixed = not((null topPrefix) && (null botPrefix))
-        topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
-        botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
-        rowLen = if isPrefixed then rowLength - 1 else rowLength
-
-        topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
-        botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
-
-        top = escapeMarkup topText
-        bot = escapeMarkup botText
-
-
 prefixFmt = fgbg "green" "black" . padSquish 1
 
 readKlompInfo ipmagicName = do
@@ -120,6 +90,34 @@ emptyKlompInfo = KlompInfo {errorMsg = "",
                             pos = 0.0, len = 0.0, percent = 0,
                             playlist = "", ended = ""}
 
+formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
+  where errFmt = errorMsg klompInfo
+        titFmt = T.unpack $ title klompInfo
+        artFmt = T.unpack $ artist klompInfo
+        albFmt = T.unpack $ artist klompInfo
+        numFmt = T.unpack $ artist klompInfo
+        [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
+        perFmt = percent klompInfo
+        plsFmt = T.unpack $ playlist klompInfo
+        endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
+
+        topPrefix = case ipmagicName of
+                      Just "sx" -> sxPrefix
+                      Just "raspi" -> raspiPrefix
+                      Just "nuc" -> nucPrefix
+                      _ -> if klompRunning then "" else "x"
+        botPrefix = take 1 plsFmt
+
+        isPrefixed = not((null topPrefix) && (null botPrefix))
+        topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
+        botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
+        rowLen = if isPrefixed then rowLength - 1 else rowLength
+
+        topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
+        botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
+
+        top = escapeMarkup topText
+        bot = escapeMarkup botText
 
 formatTimes ts = map fmt ts
   where maxH = (maximum ts) `div` (60^2)
