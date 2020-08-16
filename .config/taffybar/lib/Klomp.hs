@@ -44,8 +44,6 @@ klompReader rowLength = do
 
   return $ formatKlompInfo klompInfo rowLength ipmagicName klompRunning
 
-prefixFmt = fgbg "green" "black" . padSquish 1
-
 readKlompInfo ipmagicName = do
   str <- readProc $ cmd ipmagicName
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
@@ -90,25 +88,22 @@ emptyKlompInfo = KlompInfo {errorMsg = "",
                             pos = 0.0, len = 0.0, percent = 0,
                             playlist = "", ended = ""}
 
-formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
-  where errFmt = errorMsg klompInfo
-        titFmt = T.unpack $ title klompInfo
-        artFmt = T.unpack $ artist klompInfo
-        albFmt = T.unpack $ artist klompInfo
-        numFmt = T.unpack $ artist klompInfo
-        [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
-        perFmt = percent klompInfo
-        plsFmt = T.unpack $ playlist klompInfo
+formatKlompInfo :: KlompInfo -> Int -> Maybe String -> Bool -> String
+formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topLine ++ "\n" ++ botLine
+  where [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
         endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
-
+        errFmt = errorMsg klompInfo
+        artFmt = T.unpack $ artist klompInfo
+        titFmt = T.unpack $ title klompInfo
         topPrefix = case ipmagicName of
                       Just "sx" -> sxPrefix
                       Just "raspi" -> raspiPrefix
                       Just "nuc" -> nucPrefix
                       _ -> if klompRunning then "" else "x"
-        botPrefix = take 1 plsFmt
+        botPrefix = take 1 $ T.unpack $ playlist klompInfo
 
         isPrefixed = not((null topPrefix) && (null botPrefix))
+        prefixFmt = fgbg "green" "black" . padSquish 1
         topPrefixFmt = if isPrefixed then prefixFmt topPrefix else ""
         botPrefixFmt = if isPrefixed then prefixFmt botPrefix else ""
         rowLen = if isPrefixed then rowLength - 1 else rowLength
@@ -116,9 +111,10 @@ formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topPrefixFmt ++ t
         topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
         botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
 
-        top = escapeMarkup topText
-        bot = escapeMarkup botText
+        topLine = topPrefixFmt ++ escapeMarkup topText
+        botLine = botPrefixFmt ++ escapeMarkup botText
 
+formatTimes :: [Int] -> [String]
 formatTimes ts = map fmt ts
   where maxH = (maximum ts) `div` (60^2)
         maxHLen = length $ show $ maxH
@@ -127,6 +123,7 @@ formatTimes ts = map fmt ts
         m t = padL '0' 2 $ show $ (t `mod` 60^2) `div` 60
         s t = padL '0' 2 $ show $ t `mod` 60
 
+--pad to max len and elide the middle with ...
 padSquish len s = padR ' ' len $ sTrim
   where strLen = stringWidth s
         sTrim = if strLen > len then prefix ++ sep ++ suffix else s
