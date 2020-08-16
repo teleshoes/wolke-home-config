@@ -3,7 +3,7 @@ module Utils(
   getExactImageDir, selectClosestImageDir, selectClosestImageSize,
   availableImageDirSizes,
   maybeJoin,
-  fg, bg, fgbg,
+  fg, bg, fgbg, escapeMarkup,
   rowW, colW, containerW, eboxStyleWrapW,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts,
@@ -106,6 +106,15 @@ fgbg fg bg m = "<span"
                ++ " foreground=\"" ++ fg ++ "\""
                ++ " background=\"" ++ bg ++ "\""
                ++ ">" ++ m ++ "</span>"
+
+--roughly equivalent to g_markup_escape_text, except leaves unicode chars alone
+escapeMarkup :: String -> String
+escapeMarkup = id
+               . replace "<"  "&lt;"
+               . replace ">"  "&gt;"
+               . replace "'"  "&apos;"
+               . replace "\"" "&quot;"
+               . replace "&"  "&amp;"
 
 -- WIDGETS
 hboxW :: IO Container
