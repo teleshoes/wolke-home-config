@@ -1,25 +1,22 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW, mainLabel)
 import Utils (
   regexMatch, stringWidth, trimL, trimR, padL, padR,
   fgbg, escapeMarkup,
-  isRunning, chompFile, readProc)
+  isRunning, chompFile, readProc, readInt, readDouble)
 
+import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
-import Control.Applicative ((<$>), (<*>))
-import Data.Csv (decodeByName, FromNamedRecord, parseNamedRecord, (.:))
-import qualified Data.Vector as Vector
-import qualified Data.Text.Lazy as T
-import Data.Text (pack, unpack)
-import Data.Text.Lazy.Encoding (encodeUtf8)
+import qualified Data.Text as T (pack)
 
 main = mainLabel $ klompReader 30
+
 klompW rowLength = do
   label <- labelW (klompReader rowLength)
-  widgetSetClassGI label $ pack "Klomp"
+  widgetSetClassGI label $ T.pack "Klomp"
   clickable clickL clickM clickR label
 
 gapOffset = 3
@@ -32,9 +29,12 @@ clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
-infoColumns = ["title", "artist", "album", "number",
-               "pos", "len", "percent", "playlist", "ended"]
-klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
+klompInfoCmd = ["klomp-info", "-s", "--format=" ++ formatStr] ++ infoColumns
+  where formatStr = intercalate "\\n" $ map (const "%s") infoColumns
+        infoColumns = [ "title", "artist", "album", "number"
+                      , "pos", "len", "percent"
+                      , "playlist", "ended"
+                      ]
 
 getKlompInfoCmd :: Maybe String -> [String]
 getKlompInfoCmd (Just ipmagicName) = "ipmagic":ipmagicName:klompInfoCmd
@@ -55,56 +55,57 @@ readKlompInfo ipmagicName = do
 
 
 data KlompInfo = KlompInfo { errorMsg :: !String
-                           , title    :: !T.Text
-                           , artist   :: !T.Text
-                           , album    :: !T.Text
-                           , number   :: !T.Text
+                           , title    :: !String
+                           , artist   :: !String
+                           , album    :: !String
+                           , number   :: !String
                            , pos      :: !Double
                            , len      :: !Double
-                           , percent  :: !Int
-                           , playlist :: !T.Text
-                           , ended    :: !T.Text
+                           , percent  :: !Integer
+                           , playlist :: !String
+                           , ended    :: !String
                            } deriving Show
-instance FromNamedRecord KlompInfo where
-   parseNamedRecord m = KlompInfo <$> return "" <*>
-                        m .: "title" <*>
-                        m .: "artist" <*>
-                        m .: "album" <*>
-                        m .: "number" <*>
-                        m .: "pos" <*>
-                        m .: "len" <*>
-                        m .: "percent" <*>
-                        m .: "playlist" <*>
-                        m .: "ended"
 
-emptyKlompInfo = KlompInfo {errorMsg = "",
-                            title = "", artist = "", album = "", number = "",
-                            pos = 0.0, len = 0.0, percent = 0,
-                            playlist = "", ended = ""}
+emptyKlompInfo = KlompInfo { errorMsg = ""
+                           , title = "", artist = "", album = "", number = ""
+                           , pos = 0.0, len = 0.0, percent = 0
+                           , playlist = "", ended = ""
+                           }
 
-parseKlompInfo klompInfoStr = case decodeByName (encodeUtf8 $ T.pack $ klompInfoStr) of
-                                Left msg -> emptyKlompInfo {errorMsg = formatErr msg}
-                                Right (hdr, csv) -> getOnlyCsvRow csv
-  where formatErr parseError = if regexMatch "No song info found" klompInfoStr
-                               then "(no song info found)"
-                               else parseError
-        getOnlyCsvRow csv = if Vector.length csv /= 1
-                            then emptyKlompInfo {errorMsg = "rowcount != 1"}
-                            else Vector.head csv
+parseKlompInfo klompInfoStr | noSongFound    = errKlompInfo "(no song info found)"
+                            | lineCount /= 9 = errKlompInfo "(ERROR: klomp-info)"
+                            | otherwise      = okKlompInfo
+  where noSongFound = lineCount == 1 && regexMatch klompInfoStr "^No Song info found"
+        str lineNum = klompInfoLines !! lineNum
+        dbl lineNum = fromMaybe 0.0 $ readDouble $ klompInfoLines !! lineNum
+        int lineNum = fromMaybe 0 $ readInt $ klompInfoLines !! lineNum
+        klompInfoLines = lines klompInfoStr
+        lineCount = length klompInfoLines
+        errKlompInfo err = emptyKlompInfo { errorMsg = err }
+        okKlompInfo = emptyKlompInfo { title    = str 0
+                                     , artist   = str 1
+                                     , album    = str 2
+                                     , number   = str 3
+                                     , pos      = dbl 4
+                                     , len      = dbl 5
+                                     , percent  = int 6
+                                     , playlist = str 7
+                                     , ended    = str 8
+                                     }
 
 formatKlompInfo :: KlompInfo -> Int -> Maybe String -> Bool -> String
 formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topLine ++ "\n" ++ botLine
   where [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
-        endFmt = if null $ T.unpack $ ended klompInfo then "" else "*ENDED*"
+        endFmt = if null $ ended klompInfo then "" else "*ENDED*"
         errFmt = errorMsg klompInfo
-        artFmt = T.unpack $ artist klompInfo
-        titFmt = T.unpack $ title klompInfo
+        artFmt = artist klompInfo
+        titFmt = title klompInfo
         topPrefix = case ipmagicName of
                       Just "sx" -> sxPrefix
                       Just "raspi" -> raspiPrefix
                       Just "nuc" -> nucPrefix
                       _ -> if klompRunning then "" else "x"
-        botPrefix = take 1 $ T.unpack $ playlist klompInfo
+        botPrefix = take 1 $ playlist klompInfo
 
         isPrefixed = not((null topPrefix) && (null botPrefix))
         prefixFmt = fgbg "green" "black" . padSquish 1
