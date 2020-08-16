@@ -32,20 +32,9 @@ clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
-getKlompInfo ipmagicName = do
-  str <- readProc $ cmd ipmagicName
-  return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
-    Left msg -> emptyKlompInfo {errorMsg = formatErr str msg}
-    Right (hdr, csv) -> if Vector.length csv /= 1
-                        then emptyKlompInfo {errorMsg = "rowcount != 1"}
-                        else Vector.head csv
-  where cmd (Just ipmagicName) = ["ipmagic", ipmagicName] ++ klompInfoCmd
-        cmd Nothing = klompInfoCmd
-        formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
-                                         then "(no song info found)"
-                                         else parseError
-
-coerceUtf8 = decodeString . utf8Encode
+infoColumns = ["title", "artist", "album", "number",
+               "pos", "len", "percent", "playlist", "ended"]
+klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
 
 klompReader rowLength = do
   klompBarIpmagic <- chompFile "/tmp/klomp-bar-ipmagic"
@@ -84,9 +73,21 @@ klompReader rowLength = do
 
 prefixFmt = fgbg "green" "black" . padSquish 1
 
-infoColumns = ["title", "artist", "album", "number",
-               "pos", "len", "percent", "playlist", "ended"]
-klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
+getKlompInfo ipmagicName = do
+  str <- readProc $ cmd ipmagicName
+  return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
+    Left msg -> emptyKlompInfo {errorMsg = formatErr str msg}
+    Right (hdr, csv) -> if Vector.length csv /= 1
+                        then emptyKlompInfo {errorMsg = "rowcount != 1"}
+                        else Vector.head csv
+  where cmd (Just ipmagicName) = ["ipmagic", ipmagicName] ++ klompInfoCmd
+        cmd Nothing = klompInfoCmd
+        formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
+                                         then "(no song info found)"
+                                         else parseError
+
+coerceUtf8 = decodeString . utf8Encode
+
 
 data KlompInfo = KlompInfo { errorMsg :: !String
                            , title    :: !T.Text
