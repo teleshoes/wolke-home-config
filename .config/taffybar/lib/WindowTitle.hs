@@ -1,19 +1,13 @@
 module WindowTitle (windowTitleW) where
-import Width (charWidth, getScreenDPI)
+import Width (widthCharWrapW, getScreenDPI)
 import Utils (sleep, trimR, padR)
-import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Control.Monad (forever)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (intercalate)
 import Data.List.Split (chunksOf)
 import Data.Text (Text, pack)
-import GI.Gtk.Enums (PolicyType(..))
-import GI.Gtk.Objects.Adjustment (noAdjustment)
 import GI.Gtk.Objects.Container (containerAdd)
-import GI.Gtk.Objects.ScrolledWindow (
-  scrolledWindowNew, scrolledWindowSetPolicy,
-  scrolledWindowSetMinContentWidth, scrolledWindowSetMaxContentWidth)
 import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
 import System.Taffybar.Context (runX11)
 import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindow, getWindowTitle)
@@ -32,21 +26,11 @@ main = do
 
 windowTitleW fontSizePt len lineCount = do
   dpi <- lift getScreenDPI
-  let widthPx = fromIntegral $ (charWidth dpi fontSizePt) * len
   let config = defaultWindowsConfig
                { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
                }
   windowsW <- windowsNew config
-  wrapFixedSizePanel widthPx windowsW
-
-wrapFixedSizePanel widthPx childW = do
-  scroll <- scrolledWindowNew noAdjustment noAdjustment
-  containerAdd scroll childW
-  scrolledWindowSetPolicy scroll PolicyTypeExternal PolicyTypeExternal
-  scrolledWindowSetMinContentWidth scroll widthPx
-  scrolledWindowSetMaxContentWidth scroll widthPx
-  widgetShowAll scroll
-  toWidget scroll
+  lift $ widthCharWrapW dpi fontSizePt len windowsW
 
 getActiveWinTitle = do
   w <- getActiveWindow
