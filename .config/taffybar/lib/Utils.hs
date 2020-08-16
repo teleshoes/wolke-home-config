@@ -32,6 +32,7 @@ import Data.List.Split (keepDelimsL, oneOf, split)
 import Data.List.Utils (replace)
 import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import Data.String.Unicode (unicodeToXmlEntity)
 import Data.Text (pack)
 
 import GI.Gtk.Objects.Widget (
@@ -107,9 +108,9 @@ fgbg fg bg m = "<span"
                ++ " background=\"" ++ bg ++ "\""
                ++ ">" ++ m ++ "</span>"
 
---roughly equivalent to g_markup_escape_text, except leaves unicode chars alone
+--roughly equivalent to g_markup_escape_text
 escapeMarkup :: String -> String
-escapeMarkup = id
+escapeMarkup = unicodeToXmlEntity
                . replace "<"  "&lt;"
                . replace ">"  "&gt;"
                . replace "'"  "&apos;"
