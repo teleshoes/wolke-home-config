@@ -1,5 +1,5 @@
 module WindowTitle (windowTitleW) where
-import Width (widthCharWrapW, getScreenDPI)
+import Width (widthCharScreenDPIWrapW)
 import Utils (sleep, trimR, padR)
 import Control.Monad (forever)
 import Control.Monad.Trans.Class (lift)
@@ -25,12 +25,11 @@ main = do
     sleep 1
 
 windowTitleW fontSizePt len lineCount = do
-  dpi <- lift getScreenDPI
   let config = defaultWindowsConfig
                { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
                }
   windowsW <- windowsNew config
-  lift $ widthCharWrapW dpi fontSizePt len windowsW
+  lift $ widthCharScreenDPIWrapW fontSizePt len windowsW
 
 getActiveWinTitle = do
   w <- getActiveWindow
