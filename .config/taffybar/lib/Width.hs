@@ -1,5 +1,5 @@
 module Width(
-  charWidth, widthBox, widthWrap, widthScreenWrapW, widthCharWrapW,
+  charWidth, widthBox, widthWrap, widthScreenWrapW, widthCharWrapW, widthCharScreenDPIWrapW,
   screenPctToPx, charsFitInPx, getScreenDPI) where
 
 import Control.Monad (when)
@@ -67,6 +67,11 @@ widthCharWrapW :: Int -> Double -> Int -> Widget -> IO Widget
 widthCharWrapW dpi fontSize charCount w = do
   let widthPx = charWidth dpi fontSize * charCount
   widthWrap widthPx w
+
+widthCharScreenDPIWrapW :: Double -> Int -> Widget -> IO Widget
+widthCharScreenDPIWrapW fontSize charCount w = do
+  dpi <- getScreenDPI
+  widthCharWrapW dpi fontSize charCount w
 
 screenPctToPx :: Double -> IO Int
 screenPctToPx pct = do
