@@ -3,6 +3,7 @@ module Width(
   screenPctToPx, charsFitInPx, getScreenDPI) where
 
 import Control.Monad (when)
+import qualified Data.Text as T (pack)
 import Graphics.X11.Xlib.Display (
   openDisplay, defaultScreen,
   displayHeight, displayWidth, displayHeightMM, displayWidthMM)
@@ -19,6 +20,8 @@ import GI.Gtk.Objects.ScrolledWindow (
   scrolledWindowSetMinContentWidth, scrolledWindowSetMaxContentWidth)
 import GI.Gtk.Objects.Widget (
   Widget, toWidget, widgetSetSizeRequest, widgetShowAll)
+
+import System.Taffybar.Widget.Util (widgetSetClassGI)
 
 -- ratio of font size to width
 fontSizeToWidthRatio = 2.0 -- Inconsolata medium
@@ -49,8 +52,10 @@ widthWrap widthPx childW = do
   scrolledWindowSetPolicy scroll PolicyTypeExternal PolicyTypeExternal
   scrolledWindowSetMinContentWidth scroll $ fromIntegral widthPx
   scrolledWindowSetMaxContentWidth scroll $ fromIntegral widthPx
+  w <- toWidget scroll
+  widgetSetClassGI w $ T.pack "WidthWrap"
   widgetShowAll scroll
-  toWidget scroll
+  return w
 
 widthScreenWrapW :: Double -> Widget -> IO Widget
 widthScreenWrapW screenRatio w = do
