@@ -40,7 +40,7 @@ klompReader rowLength = do
   klompBarIpmagic <- chompFile "/tmp/klomp-bar-ipmagic"
   let ipmagicName = if klompBarIpmagic == "" then Nothing else Just klompBarIpmagic
   running <- isRunning "klomplayer"
-  klompInfo <- getKlompInfo ipmagicName
+  klompInfo <- readKlompInfo ipmagicName
   let errFmt = errorMsg klompInfo
       titFmt = T.unpack $ title klompInfo
       artFmt = T.unpack $ artist klompInfo
@@ -73,7 +73,7 @@ klompReader rowLength = do
 
 prefixFmt = fgbg "green" "black" . padSquish 1
 
-getKlompInfo ipmagicName = do
+readKlompInfo ipmagicName = do
   str <- readProc $ cmd ipmagicName
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
     Left msg -> emptyKlompInfo {errorMsg = formatErr str msg}
