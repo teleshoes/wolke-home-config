@@ -36,6 +36,10 @@ infoColumns = ["title", "artist", "album", "number",
                "pos", "len", "percent", "playlist", "ended"]
 klompInfoCmd = ["klomp-info", "-c", "-h", "-s"] ++ infoColumns
 
+getKlompInfoCmd :: Maybe String -> [String]
+getKlompInfoCmd (Just ipmagicName) = "ipmagic":ipmagicName:klompInfoCmd
+getKlompInfoCmd Nothing            = klompInfoCmd
+
 klompReader rowLength = do
   klompBarIpmagic <- chompFile "/tmp/klomp-bar-ipmagic"
   let ipmagicName = if klompBarIpmagic == "" then Nothing else Just klompBarIpmagic
@@ -45,15 +49,13 @@ klompReader rowLength = do
   return $ formatKlompInfo klompInfo rowLength ipmagicName klompRunning
 
 readKlompInfo ipmagicName = do
-  str <- readProc $ cmd ipmagicName
+  str <- readProc $ getKlompInfoCmd ipmagicName
   return $ case decodeByName (encodeUtf8 $ T.pack $ coerceUtf8 str) of
     Left msg -> emptyKlompInfo {errorMsg = formatErr str msg}
     Right (hdr, csv) -> if Vector.length csv /= 1
                         then emptyKlompInfo {errorMsg = "rowcount != 1"}
                         else Vector.head csv
-  where cmd (Just ipmagicName) = ["ipmagic", ipmagicName] ++ klompInfoCmd
-        cmd Nothing = klompInfoCmd
-        formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
+  where formatErr klompInfo parseError = if regexMatch "No song info found" klompInfo
                                          then "(no song info found)"
                                          else parseError
 
