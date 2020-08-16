@@ -4,13 +4,13 @@ import Clickable (clickable)
 import Label (labelW, mainLabel)
 import Utils (
   regexMatch, stringWidth, trimL, trimR, padL, padR,
-  fgbg, isRunning, chompFile, readProc)
+  fgbg, escapeMarkup,
+  isRunning, chompFile, readProc)
 
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import Control.Applicative ((<$>), (<*>))
 import Data.Csv (decodeByName, FromNamedRecord, parseNamedRecord, (.:))
-import GI.GLib.Functions (markupEscapeText)
 import qualified Data.Vector as Vector
 import qualified Data.Text.Lazy as T
 import Data.Text (pack, unpack)
@@ -77,15 +77,10 @@ klompReader rowLength = do
   let topText = padSquish rowLen $ posFmt ++ "-" ++ errFmt ++ artFmt
       botText = padSquish rowLen $ lenFmt ++ "-" ++ endFmt ++ titFmt
 
-  top <- escapeMarkup topText
-  bot <- escapeMarkup botText
+  let top = escapeMarkup topText
+  let bot = escapeMarkup botText
 
   return $ topPrefixFmt ++ top ++ "\n" ++ botPrefixFmt ++ bot
-
-escapeMarkup :: String -> IO String
-escapeMarkup text = do
-  markup <- markupEscapeText (pack text) (fromIntegral $ length text)
-  return $ unpack markup
 
 prefixFmt = fgbg "green" "black" . padSquish 1
 
