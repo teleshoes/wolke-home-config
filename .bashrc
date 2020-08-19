@@ -268,6 +268,16 @@ function mkdit        { mkdir "$@"; }
 function cim          { vim "$@"; }
 function bim          { vim "$@"; }
 
+# dc DIR => cd DIR
+# dc ARG ARG .. => command dc ARG ARG
+function dc {
+  if [[ $# == 1 ]] && [[ -d $1 ]]; then
+    cd "$1"
+  else
+    command dc "$@"
+  fi
+}
+
 function maven() {
   args=""
   if ! [[ "$@" =~ (^| )test($| ) ]]; then
