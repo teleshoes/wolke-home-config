@@ -19,6 +19,7 @@ my $DEFAULT_OPTS = {
 my $MODE_SIMULATE = "simulate";
 my $MODE_RUN = "run";
 my $MODE_FIND_FAKE_CHAPTER_BREAKS = "find-fake-chapter-breaks";
+my $MODE_ANALYZE_WAVS = "analyze-wavs";
 
 my $usage = "Usage:
   $0 [OPTS] INPUT_FILE
@@ -38,6 +39,13 @@ my $usage = "Usage:
     -for each chapter found:
       -print the silence info for that break as in silence-detect
       -play the original file using `mpv` at the chapter start
+
+  $0 [OPTS] INPUT_FILE --analyze-wavs
+    -analyze all *.wav files in current dir
+    -create three files:
+      -wav-md5sums (md5sum *.wav)
+      -wav-durations (duration -s *.wav)
+      -wav-filesizes (du -b *.wav)
 
   OPTS
     -h | --help
@@ -155,8 +163,18 @@ sub main(@){
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
+  }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--analyze-wavs$/){
+    $inputFile = $_[0];
+    $mode = $MODE_ANALYZE_WAVS;
   }else{
     die "$usage\nERROR: missing input file, or invalid command\n";
+  }
+
+  if($mode eq $MODE_ANALYZE_WAVS){
+    system "md5sum *.wav > wav-md5sums";
+    system "duration -s *.wav > wav-durations";
+    system "du -b *.wav > wav-filesizes";
+    exit 0;
   }
 
   my @silences = getSilences($opts, $inputFile);
@@ -234,10 +252,6 @@ sub main(@){
       system @oggencCmd unless -e $fileNameOgg;
     }
   }
-
-  #system "md5sum *.wav > wav-md5sums";
-  #system "duration -s *.wav > wav-duration";
-  #system "du -b *.wav > wav-filesize";
 }
 
 sub getChapterBreaks($$){
