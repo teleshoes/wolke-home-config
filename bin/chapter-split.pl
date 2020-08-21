@@ -16,12 +16,20 @@ my $DEFAULT_OPTS = {
   minPartMillis                 => 300000,
 };
 
+my $MODE_SIMULATE = "simulate";
+my $MODE_RUN = "run";
+
 my $usage = "Usage:
   $0 [OPTS] INPUT_FILE
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
     -split chapters into breaks by short breaks
     -write ffmpeg + oggenc commands to generate 1 file per part
+
+  $0 [OPTS] INPUT_FILE --run
+    same as `$0 [OPTS] INPUT_FILE`,
+      except also RUN the ffmpeg+oggenc commands,
+      unless the target files exist already
 
   OPTS
     -h | --help
@@ -127,11 +135,17 @@ sub main(@){
     }
   }
 
+  my $mode;
+
   my $inputFile;
   if(@_ == 1 and -f $_[0]){
     $inputFile = $_[0];
+    $mode = $MODE_SIMULATE;
+  }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--run$/){
+    $inputFile = $_[0];
+    $mode = $MODE_RUN;
   }else{
-    die "$usage\nERROR: missing input file\n";
+    die "$usage\nERROR: missing input file, or invalid command\n";
   }
 
   my @silences = getSilences($opts, $inputFile);
@@ -184,8 +198,12 @@ sub main(@){
       "-bitexact",
       $fileNameWav,
     );
-    print "@ffmpegCmd\n";
-    #system @ffmpegCmd unless -e $fileNameWav;
+    if($mode eq $MODE_SIMULATE){
+      print "@ffmpegCmd\n";
+    }elsif($mode eq $MODE_RUN){
+      print "@ffmpegCmd\n";
+      system @ffmpegCmd unless -e $fileNameWav;
+    }
 
     my @oggencCmd = ("oggenc",
       "--title", "$chapterName - pt$partNumFmt",
@@ -194,8 +212,12 @@ sub main(@){
       $fileNameWav,
     );
     my @oggencCmdFmt = map {"\"$_\""} @oggencCmd;
-    print "@oggencCmdFmt\n";
-    #system @oggencCmd unless -e $fileNameOgg;
+    if($mode eq $MODE_SIMULATE){
+      print "@oggencCmdFmt\n";
+    }elsif($mode eq $MODE_RUN){
+      print "@oggencCmdFmt\n";
+      system @oggencCmd unless -e $fileNameOgg;
+    }
   }
 
   #system "md5sum *.wav > wav-md5sums";
