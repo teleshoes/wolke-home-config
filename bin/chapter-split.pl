@@ -3,52 +3,139 @@ use strict;
 use warnings;
 use List::Util qw(max);
 
-my $inputFile = "googleplay_shards_of_honor.m4a.orig";
+my $DEFAULT_OPTS = {
+  artist                        => "",
+  album                         => "",
+  customChapterNames            => {},
+  shortestChapterLenMillis      => 300000,
+  fakeChapterBreakEndsSeconds   => {},
+  silenceDetectMinMillis        => 1000,
+  leadingSilenceMillis          => 500,
+  longBreaksMinSilenceMillis    => 2800,
+  shortBreaksMinSilenceMillis   => 1500,
+  minPartMillis                 => 300000,
+};
 
-my $artist = "Lois McMaster Bujold, Grover Gardner";
-my $album = "Shards of Honor";
+my $usage = "Usage:
+  $0 [OPTS] INPUT_FILE
+    -detect silences in INPUT_FILE using `silence-detect`
+    -split into chapters by long breaks
+    -split chapters into breaks by short breaks
+    -write ffmpeg + oggenc commands to generate 1 file per part
 
-# chapter names by number
-#   custom chapter names appear in filename,
-#     lowercase,
-#     with non-word chars replaced with '_',
-#     multiple '_'s replaced with a single '_',
-#     and leading/trailing '_'s removed
-#   default chapter names are "Chapter #", and "ch#" in the filename
-my %customChapterNames = (
-  16 => 'Aftermaths',
-);
+  OPTS
+    -h | --help
+      show this message
 
-# min silence to detect for later use, calculated and stored in a file
-my $silenceDetectMinMillis = 1000;
+    --artist=ARTIST
+      add this tag to oggenc (--title is calculated from chapter/part)
 
-#
-my $longBreaksMinSilenceS = 2.8;
-my $shortBreaksMinSilenceS = 1.5;
+    --album=ALBUM
+      add this tag to oggenc (--title is calculated from chapter/part)
 
-# shift each break to this many seconds before the silence ends
-my $leadingSilenceS = 0.5;
+    --custom-chapter-name=CHAPTER_NUM:CHAPTER_NAME
+      (this arg can be given more than once)
+      (default <CHAPTER_NAME> in title is \"Chapter <CHAPTER_NUM>\")
+      (default <CHAPTER_NAME> in filename is \"ch<CHAPTER_NUM>\")
 
-# smallest duration for a part file, excepting full chapters that are shorter
-my $minPartSeconds = 300;
+      for chapter# <CHAPTER_NUM>, use <CHAPTER_NAME> as part of oggenc --title
+      for chapter# <CHAPTER_NUM>, use <CHAPTER_NAME> as part of the filename, after:
+        -converting to lowercase
+        -replacing non-word chars with '_'
+        -replacing multiple '_'s in sequence with a single '_'
+        -removing leading/trailing '_'s
 
-# set higher to find more fake chapter breaks, 0 for no fakes
-#   ignore any long break that would result in a chapter shorter than this value
-my $shortestChapterLenS = 1140;
+    --shortest-chapter-len-millis=SHORTEST_CHAPTER_LEN_MILLIS
+      (default is $$DEFAULT_OPTS{shortestChapterLenMillis})
 
-# long breaks that are not in fact chapter breaks
-my %hardcodedFakeChapterBreakEnds = map {$_ => 1} qw(
-  22554.2 29676.8 31169.8
-);
+      ignore any long break that would result in a chapter shorter than
+      <SHORTEST_CHAPTER_LEN_MILLIS>ms
+        -the higher this number, the more fake chapter breaks are found
+        -set to 0 to assume all chapter breaks found are valid
 
-sub getChapterBreaks($);
-sub parseChapterBreaksIntoChapters($);
-sub getFilesToCreate($$);
-sub getSilences($);
+    --fake-chapter-break-end-seconds=FAKE_CHAPTER_BREAK_END_SECONDS
+      (this arg can be given more than once)
+
+      long breaks that are NOT chapter breaks:
+        do not treat any long break that ends at PRECISELY this value as a chapter
+      note that this is the second value printed by `silence-detect`
+
+    --silence-detect-min-millis=SILENCE_DETECT_MIN_MILLIS
+      (default is $$DEFAULT_OPTS{silenceDetectMinMillis})
+
+      minimum silence period in milliseconds to pass to `silence-detect`
+
+    --leading-silence-millis=LEADING_SILENCE_MILLIS
+      (default is $$DEFAULT_OPTS{leadingSilenceMillis}
+
+      split parts at <LEADING_SILENCE_MILLIS>ms before the end of the silence
+      be sure to use a value smaller than --short-breaks-min-silence-millis
+
+    --long-breaks-min-silence-millis=LONG_BREAKS_MIN_SILENCE_MILLIS
+      (default is $$DEFAULT_OPTS{longBreaksMinSilenceMillis})
+
+      split file into chapters using silences that are
+        at least <LONG_BREAKS_MIN_SILENCE_MILLIS>ms
+
+    --short-breaks-min-silence-millis=SHORT_BREAKS_MIN_SILENCE_MILLIS
+      (default is $$DEFAULT_OPTS{shortBreaksMinSilenceMillis})
+
+      split chapters into parts using silences that are
+        at least <SHORT_BREAKS_MIN_SILENCE_MILLIS>ms
+
+    --min-part-millis=MIN_PART_MILLIS
+      (default is $$DEFAULT_OPTS{minPartMillis}
+
+      the minimum length of a generated story part,
+        EXCEPT for full chapters that are smaller
+";
+
+sub getChapterBreaks($$);
+sub parseChapterBreaksIntoChapters($$);
+sub getFilesToCreate($$$);
+sub getSilences($$);
 
 sub main(@){
-  my @silences = getSilences($silenceDetectMinMillis);
-  my @chapterBreaks = getChapterBreaks [@silences];
+  my $opts = {%$DEFAULT_OPTS};
+  while(@_ > 0 and $_[0] =~ /^-/){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--artist=(.+)$/){
+      $$opts{artist} = $1;
+    }elsif($arg =~ /^--album=(.+)$/){
+      $$opts{album} = $1;
+    }elsif($arg =~ /^--custom-chapter-name=(\d+):(.+)$/){
+      $$opts{customChapterNames}{$1} = $2;
+    }elsif($arg =~ /^--shortest-chapter-len-millis=(\d+)$/){
+      $$opts{shortestChapterLenMillis} = $1;
+    }elsif($arg =~ /^--fake-chapter-break-end-seconds=(\d+|\d*\.\d+)$/){
+      $$opts{fakeChapterBreakEndsSeconds}{$1} = 1;
+    }elsif($arg =~ /^--silence-detect-min-millis=(\d+)$/){
+      $$opts{silenceDetectMinMillis} = $1;
+    }elsif($arg =~ /^--leading-silence-millis=(\d+)$/){
+      $$opts{leadingSilenceMillis} = $1;
+    }elsif($arg =~ /^--long-breaks-min-silence-millis=(\d+)$/){
+      $$opts{longBreaksMinSilenceMillis} = $1;
+    }elsif($arg =~ /^--short-breaks-min-silence-millis=(\d+)$/){
+      $$opts{shortBreaksMinSilenceMillis} = $1;
+    }elsif($arg =~ /^--min-part-millis=(\d+)$/){
+      $$opts{minPartMillis} = $1;
+    }else{
+      die "$usage\nERROR: unknown or invalid arg $arg\n";
+    }
+  }
+
+  my $inputFile;
+  if(@_ == 1 and -f $_[0]){
+    $inputFile = $_[0];
+  }else{
+    die "$usage\nERROR: missing input file\n";
+  }
+
+  my @silences = getSilences($opts, $inputFile);
+  my @chapterBreaks = getChapterBreaks $opts, [@silences];
 
   for my $chapterBreak(@chapterBreaks){
     ### uncomment to find fake chapter breaks
@@ -58,9 +145,9 @@ sub main(@){
     #system "mpv", "-ss", $$chapterBreak{end}, $inputFile and die;
   }
 
-  my @chapters = parseChapterBreaksIntoChapters [@chapterBreaks];
+  my @chapters = parseChapterBreaksIntoChapters $opts, [@chapterBreaks];
 
-  my @filesToCreate = getFilesToCreate [@chapters], [@silences];
+  my @filesToCreate = getFilesToCreate $opts, [@chapters], [@silences];
 
   my $fileNumDigs = length max(map {$$_{fileNum}} @filesToCreate);
   my $chapterNumDigs = length max(map {$$_{chapterNum}} @filesToCreate);
@@ -73,8 +160,8 @@ sub main(@){
 
     my $chapterName;
     my $cleanChapterName;
-    if(defined $customChapterNames{$$file{chapterNum}}){
-      $chapterName = $customChapterNames{$$file{chapterNum}};
+    if(defined $$opts{customChapterNames}{$$file{chapterNum}}){
+      $chapterName = $$opts{customChapterNames}{$$file{chapterNum}};
       $cleanChapterName = lc $chapterName;
       $cleanChapterName =~ s/[^a-zA-Z0-9]+/_/g;
       $cleanChapterName =~ s/^_//;
@@ -100,8 +187,8 @@ sub main(@){
 
     my @oggencCmd = ("oggenc",
       "--title", "$chapterName - pt$partNumFmt",
-      "--artist", $artist,
-      "--album", $album,
+      "--artist", $$opts{artist},
+      "--album", $$opts{album},
       $fileNameWav,
     );
     my @oggencCmdFmt = map {"\"$_\""} @oggencCmd;
@@ -114,9 +201,13 @@ sub main(@){
   #system "du -b *.wav > wav-filesize";
 }
 
-sub getChapterBreaks($){
-  my @silences = @{$_[0]};
-  my @longBreaks = grep {$$_{dur} >= $longBreaksMinSilenceS} @silences;
+sub getChapterBreaks($$){
+  my ($opts, $silences) = @_;
+
+  my $longBreaksMinSilenceS = $$opts{longBreaksMinSilenceMillis} / 1000.0;
+  my $shortestChapterLenS = $$opts{shortestChapterLenMillis} / 1000.0;
+
+  my @longBreaks = grep {$$_{dur} >= $longBreaksMinSilenceS} @$silences;
 
   my @chapterBreaks;
   my $prevChapterStart = 0;
@@ -124,7 +215,7 @@ sub getChapterBreaks($){
     my $chapterStart = $$break{end};
     if($chapterStart - $prevChapterStart < $shortestChapterLenS){
       next; # fake chapter break
-    }elsif(defined $hardcodedFakeChapterBreakEnds{$chapterStart}){
+    }elsif(defined $$opts{fakeChapterBreakEndsSeconds}{$chapterStart}){
       next; # fake chapter break
     }else{
       push @chapterBreaks, $break;
@@ -134,11 +225,13 @@ sub getChapterBreaks($){
   return @chapterBreaks;
 }
 
-sub parseChapterBreaksIntoChapters($){
-  my @chapterBreaks = @{$_[0]};
+sub parseChapterBreaksIntoChapters($$){
+  my ($opts, $chapterBreaks) = @_;
+  my $leadingSilenceS = $$opts{leadingSilenceMillis} / 1000.0;
+
   my @chapters;
   my $prevChapterEnd = 0;
-  for my $chapterBreak(@chapterBreaks){
+  for my $chapterBreak(@$chapterBreaks){
     my $chapterStart = $prevChapterEnd;
     my $chapterEnd = $$chapterBreak{end} - $leadingSilenceS; #minus seconds before end of silence
     push @chapters, {
@@ -151,28 +244,31 @@ sub parseChapterBreaksIntoChapters($){
   return @chapters;
 }
 
-sub getFilesToCreate($$){
-  my @chapters = @{$_[0]};
-  my @silences = @{$_[1]};
+sub getFilesToCreate($$$){
+  my ($opts, $chapters, $silences) = @_;
+
+  my $leadingSilenceS = $$opts{leadingSilenceMillis} / 1000.0;
+  my $shortBreaksMinSilenceS = $$opts{shortBreaksMinSilenceMillis} / 1000.0;
+  my $minPartS = $$opts{minPartMillis} / 1000.0;
 
   my @filesToCreate;
   my $fileNum = 1;
 
   my $chapterNum = 1;
-  for my $chapter(@chapters){
+  for my $chapter(@$chapters){
     my $chapterStart = $$chapter{start};
     my $chapterEnd = $$chapter{end};
     my @shortBreaksInChapter =
-      grep {$$_{dur} >= $shortBreaksMinSilenceS and $$_{start} < $chapterEnd} @silences;
+      grep {$$_{dur} >= $shortBreaksMinSilenceS and $$_{start} < $chapterEnd} @$silences;
 
     my $partNum = 1;
     my $curPartStart = $chapterStart;
     for my $break(@shortBreaksInChapter){
       my $targetEnd = $$break{end} - $leadingSilenceS; #minus seconds before end of silence
-      if($targetEnd - $curPartStart < $minPartSeconds){
+      if($targetEnd - $curPartStart < $minPartS){
         # this part would be too short
         next;
-      }elsif($chapterEnd - $targetEnd < $minPartSeconds){
+      }elsif($chapterEnd - $targetEnd < $minPartS){
         # the next part would be too short
         next;
       }else{
@@ -204,8 +300,9 @@ sub getFilesToCreate($$){
   return @filesToCreate;
 }
 
-sub getSilences($){
-  my ($intervalMillis) = @_;
+sub getSilences($$){
+  my ($opts, $inputFile) = @_;
+  my $intervalMillis = $$opts{silenceDetectMinMillis};
   my $silenceDetectOutputFile = "silence-detect-interval-$intervalMillis.out";
   if(not -e $silenceDetectOutputFile){
     print "DETECTING SILENCES >= ${intervalMillis}ms\n";
