@@ -18,6 +18,7 @@ my $DEFAULT_OPTS = {
 
 my $MODE_SIMULATE = "simulate";
 my $MODE_RUN = "run";
+my $MODE_FIND_FAKE_CHAPTER_BREAKS = "find-fake-chapter-breaks";
 
 my $usage = "Usage:
   $0 [OPTS] INPUT_FILE
@@ -30,6 +31,13 @@ my $usage = "Usage:
     same as `$0 [OPTS] INPUT_FILE`,
       except also RUN the ffmpeg+oggenc commands,
       unless the target files exist already
+
+  $0 [OPTS] INPUT_FILE --find-fake-chapter-breaks
+    -detect silences in INPUT_FILE using `silence-detect`
+    -split into chapters by long breaks
+    -for each chapter found:
+      -print the silence info for that break as in silence-detect
+      -play the original file using `mpv` at the chapter start
 
   OPTS
     -h | --help
@@ -144,6 +152,9 @@ sub main(@){
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--run$/){
     $inputFile = $_[0];
     $mode = $MODE_RUN;
+  }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
+    $inputFile = $_[0];
+    $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
   }else{
     die "$usage\nERROR: missing input file, or invalid command\n";
   }
@@ -151,12 +162,16 @@ sub main(@){
   my @silences = getSilences($opts, $inputFile);
   my @chapterBreaks = getChapterBreaks $opts, [@silences];
 
-  for my $chapterBreak(@chapterBreaks){
-    ### uncomment to find fake chapter breaks
-    ###   listen to each, if it doesnt start with 'chapter whatever',
-    ###     copy the 2nd number, the silence end, to hardcodedFakeChapterBreakEnds
-    #print "$$chapterBreak{start}  $$chapterBreak{end}  $$chapterBreak{dur}\n";
-    #system "mpv", "-ss", $$chapterBreak{end}, $inputFile and die;
+  if($mode eq $MODE_FIND_FAKE_CHAPTER_BREAKS){
+    for my $chapterBreak(@chapterBreaks){
+      print "\n\n\nif the long-break now playing is not a chapter break, add:\n";
+      print "--fake-chapter-break-end-seconds=$$chapterBreak{end}\n";
+      print " ($$chapterBreak{start}  $$chapterBreak{end}  $$chapterBreak{dur})\n";
+      print "Press q for next (Ctrl+C in mpv will abort all)\n";
+      system "mpv", "-ss", $$chapterBreak{end}, $inputFile
+        and die; #Ctrl+C kills
+    }
+    exit 0;
   }
 
   my $inputFileDurationS = `duration -s -n "$inputFile"`;
