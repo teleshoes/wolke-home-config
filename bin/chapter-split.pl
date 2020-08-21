@@ -91,7 +91,7 @@ my $usage = "Usage:
 ";
 
 sub getChapterBreaks($$);
-sub parseChapterBreaksIntoChapters($$);
+sub parseChapterBreaksIntoChapters($$$);
 sub getFilesToCreate($$$);
 sub getSilences($$);
 
@@ -145,7 +145,9 @@ sub main(@){
     #system "mpv", "-ss", $$chapterBreak{end}, $inputFile and die;
   }
 
-  my @chapters = parseChapterBreaksIntoChapters $opts, [@chapterBreaks];
+  my $inputFileDurationS = `duration -s -n "$inputFile"`;
+
+  my @chapters = parseChapterBreaksIntoChapters $opts, $inputFileDurationS, [@chapterBreaks];
 
   my @filesToCreate = getFilesToCreate $opts, [@chapters], [@silences];
 
@@ -225,8 +227,8 @@ sub getChapterBreaks($$){
   return @chapterBreaks;
 }
 
-sub parseChapterBreaksIntoChapters($$){
-  my ($opts, $chapterBreaks) = @_;
+sub parseChapterBreaksIntoChapters($$$){
+  my ($opts, $inputFileDurationS, $chapterBreaks) = @_;
   my $leadingSilenceS = $$opts{leadingSilenceMillis} / 1000.0;
 
   my @chapters;
@@ -240,6 +242,10 @@ sub parseChapterBreaksIntoChapters($$){
     };
     $prevChapterEnd = $chapterEnd;
   }
+  push @chapters, {
+    start => $prevChapterEnd,
+    end => $inputFileDurationS,
+  };
 
   return @chapters;
 }
