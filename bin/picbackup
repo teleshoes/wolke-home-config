@@ -38,10 +38,11 @@ my $usage = "Usage:
 
   $0 [OPTS] SRC DEST
     copy files (recursively) from <SRC> to a backup-dir <DEST>,
-      skipping files with the same mtime/filesize and similar filenames
+      skipping files with the same filesize, similar mtimes, and similar filenames
 
     -recursively find all files in <SRC>
-    -compare mtime+filesize exactly
+    -compare filesize exactly
+    -compare mtimes fuzzily (within 24h, and within 3s of a whole number of hours)
     -ignore case and certain prefixes/suffixes for filename
     -copy files to <DEST>/backup_<YYYYMMDD>_<HHMMSS>_<MILLIS>/<FILENAME>
 
@@ -49,7 +50,7 @@ my $usage = "Usage:
      -s | -n | --simulate | --no-act
        print a message instead of copying files
 
-     --fuzzy-mtime
+     --fuzzy-mtime (default)
       consider two mtimes to 'match':
         -if they are within 24 hours of each other
            |mtimeSeconds1 - mtimeSeconds2| <= 86400
@@ -59,7 +60,7 @@ my $usage = "Usage:
         e.g.: (smaller date is on the left for convenience)
           $fmtTestsFuzzyMtime
 
-     --exact-mtime (default)
+     --exact-mtime
        use exact mtime (in integer seconds) instead of fuzzy (+/-24h, +/-3s)
 ";
 
@@ -67,7 +68,7 @@ sub main(@){
   testMtimeFuzzyMatch();
 
   my $simulate = 0;
-  my $fuzzyMtime = 0;
+  my $fuzzyMtime = 1;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
