@@ -27,6 +27,11 @@ my @TESTS_FUZZY_MTIME = (
   ['1985-03-14 16:22:58' => '1985-03-15 16:23:01' => 0 => 'NO match +24h +03s (>24h)'],
 );
 
+my $fmtTestsFuzzyMtime = join "\n          ",
+  map {/NO match/ ? "$_\n" : "$_"}  #extra newline after no-matches
+  map {"$$_[0] ~ $$_[1] => $$_[3]"} #MTIME1 ~ MTIME2 => DISPLAY_NAME
+  @TESTS_FUZZY_MTIME;
+
 my $usage = "Usage:
   $0 -h | --help
     show this message
@@ -43,12 +48,23 @@ my $usage = "Usage:
    OPTS:
      -s | -n | --simulate | --no-act
        print a message instead of copying files
+
+     --fuzzy-mtime
+      consider two mtimes to 'match':
+        -if they are within 24 hours of each other
+           |mtimeSeconds1 - mtimeSeconds2| <= 86400
+        -if they are within 3s of being a whole number of hours apart
+           |mtimeSeconds1 - mtimeSeconds2| mod 3600 <= 3
+
+        e.g.: (smaller date is on the left for convenience)
+          $fmtTestsFuzzyMtime
 ";
 
 sub main(@){
   testMtimeFuzzyMatch();
 
   my $simulate = 0;
+  my $fuzzyMtime = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
@@ -56,6 +72,8 @@ sub main(@){
       exit 0;
     }elsif($opt =~ /^(-s|-n|--simulate|--no-act)$/){
       $simulate = 1;
+    }elsif($opt =~ /^(--fuzzy-mtime)$/){
+      $fuzzyMtime = 1;
     }else{
       die "$usage\nERROR: unknown opt \"$opt\"\n";
     }
@@ -102,8 +120,13 @@ sub main(@){
       @matches = ();
     }
 
-    #exact mtime match
-    @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
+    if($fuzzyMtime){
+      #fuzzy mtime match
+      @matches = grep {mtimeFuzzyMatch($$_{mtime}, $$srcFile{mtime})} @matches;
+    }else{
+      #exact mtime match
+      @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
+    }
 
     #fuzzy filename match
     @matches = grep {fileNameFuzzyMatch($$_{file}, $$srcFile{file})} @matches;
