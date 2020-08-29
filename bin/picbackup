@@ -4,7 +4,7 @@ use warnings;
 use Time::HiRes qw(time);
 
 sub fileNameMatch($$);
-sub getFilesByKey($);
+sub getFileInfo($);
 sub findFiles($);
 
 my $usage = "Usage:
@@ -57,26 +57,27 @@ sub main(@){
   my $countSkipped = 0;
   my $countToCopy = 0;
 
-  my $srcFilesByKey = getFilesByKey $src;
-  my $destFilesByKey = getFilesByKey $dest;
+  my @srcFiles = map {getFileInfo $_} findFiles $src;
+  my @destFiles = map {getFileInfo $_} findFiles $dest;
 
-  for my $key(sort keys %$srcFilesByKey){
-    my @srcFiles = @{$$srcFilesByKey{$key}};
-    my @destFiles = @{$$destFilesByKey{$key}} if defined $$destFilesByKey{$key};
+  for my $srcFile(@srcFiles){
+    my @matches;
 
-    for my $srcFile(@srcFiles){
-      my @matchingDestFiles = grep {fileNameMatch($srcFile, $_)} @destFiles;
-      my $mtimeFsizeMatched = @destFiles > 0;
-      my $filenameMatched = @matchingDestFiles > 0;
+    #exact size match
+    @matches = grep {$$_{size} == $$srcFile{size}} @matches;
 
-      $countTotal++;
-      if($mtimeFsizeMatched and $filenameMatched){
-        # at least one file in DEST has the same mtime and fsize, and a similar filename
-        $countSkipped++;
-      }else{
-        $countToCopy++;
-        push @filesToBackup, $srcFile;
-      }
+    #exact mtime match
+    @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
+
+    #fuzzy filename match
+    @matches = grep {fileNameMatch($$_{file}, $$srcFile{file})} @matches;
+
+    $countTotal++;
+    if(@matches > 0){
+      $countSkipped++;
+    }else{
+      $countToCopy++;
+      push @filesToBackup, $$srcFile{file};
     }
   }
 
@@ -144,20 +145,15 @@ sub fileNameMatch($$){
   }
 }
 
-sub getFilesByKey($){
-  my ($dir) = @_;
-
-  my @files = findFiles $dir;
-
-  my $filesByKey = {};
-  for my $file(@files){
-    my @stat = stat $file;
-    my ($size, $mtime) = ($stat[7], $stat[9]);
-    my $key = "$size-$mtime";
-    $$filesByKey{$key} = [] if not defined $$filesByKey{$key};
-    push @{$$filesByKey{$key}}, $file;
-  }
-  return $filesByKey;
+sub getFileInfo($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  my ($size, $mtime) = ($stat[7], $stat[9]);
+  return {
+    file => $file,
+    size => $size,
+    mtime => $mtime,
+  };
 }
 
 sub findFiles($){
