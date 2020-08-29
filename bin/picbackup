@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(time);
 
 sub fileNameFuzzyMatch($$);
+sub mtimeFuzzyMatch($$);
 sub getFileInfo($);
 sub findFiles($);
 
@@ -156,6 +157,31 @@ sub fileNameFuzzyMatch($$){
     return 1;
   }else{
     return 0;
+  }
+}
+
+#mtimes are within 24h, AND within 3s of a whole number of hours of each other
+sub mtimeFuzzyMatch($$){
+  my ($mtime1, $mtime2) = @_;
+  my $diffS = $mtime1 - $mtime2;
+  $diffS = 0 - $diffS if $diffS < 0;
+
+  #difference in seconds between 'MM:SS' of each mtime
+  my $subhourDriftS = ($mtime1 % 3600) - ($mtime2 % 3600);
+  $subhourDriftS = 0 - $subhourDriftS if $subhourDriftS < 0;
+
+  my $maxSubhourDriftS = 3;    #3s  MM:SS
+  my $maxDiffS = 86400; #24h total
+
+  if($diffS > $maxDiffS){
+    #mtimes are more than a day apart
+    return 0;
+  }elsif($maxSubhourDriftS < $subhourDriftS and $subhourDriftS < (3600-$maxSubhourDriftS)){
+    #mtimes MM:SS is more than 3s apart
+    return 0;
+  }else{
+    #mtimes are within 24h, and MM:SS are within 3s
+    return 1;
   }
 }
 
