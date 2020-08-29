@@ -60,11 +60,25 @@ sub main(@){
   my @srcFiles = map {getFileInfo $_} findFiles $src;
   my @destFiles = map {getFileInfo $_} findFiles $dest;
 
+  #to speed up exact filesize match
+  my $destFilesBySize = {};
+  for my $destFile(@destFiles){
+    my $size = $$destFile{size};
+    if(not defined $$destFilesBySize{$size}){
+      $$destFilesBySize{$size} = [];
+    }
+    push @{$$destFilesBySize{$size}}, $destFile;
+  }
+
   for my $srcFile(@srcFiles){
     my @matches;
 
     #exact size match
-    @matches = grep {$$_{size} == $$srcFile{size}} @matches;
+    if(defined $$destFilesBySize{$$srcFile{size}}){
+      @matches = @{$$destFilesBySize{$$srcFile{size}}};
+    }else{
+      @matches = ();
+    }
 
     #exact mtime match
     @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
