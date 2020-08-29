@@ -5,8 +5,27 @@ use Time::HiRes qw(time);
 
 sub fileNameFuzzyMatch($$);
 sub mtimeFuzzyMatch($$);
+sub testMtimeFuzzyMatch();
 sub getFileInfo($);
 sub findFiles($);
+
+my @TESTS_FUZZY_MTIME = (
+  # MTIME1 => MTIME2 => IS_MATCH => DISPLAY_NAME
+  ['1985-12-01 09:22:55' => '1985-12-01 09:22:55' => 1 => 'MATCH    +00h +00s'],
+  ['1985-12-01 09:22:55' => '1985-12-01 13:22:55' => 1 => 'MATCH    +04h +00s'],
+  ['1985-12-01 09:22:55' => '1985-12-01 13:22:58' => 1 => 'MATCH    +04h +03s'],
+  ['1985-12-01 09:22:55' => '1985-12-01 09:23:55' => 0 => 'NO match +00h +60s (>3s)'],
+
+  ['1985-12-31 23:59:59' => '1986-01-01 00:00:02' => 1 => 'MATCH    +00h +03s'],
+  ['1985-12-31 23:59:59' => '1986-01-01 23:59:59' => 1 => 'MATCH    +24h +00s'],
+  ['1985-12-31 23:59:59' => '1986-01-01 23:59:56' => 1 => 'MATCH    +24h -03s'],
+  ['1985-12-31 23:59:59' => '1986-01-02 23:59:59' => 0 => 'NO match +48h +00s (>24h)'],
+
+  ['1985-03-14 16:22:58' => '1985-03-15 16:22:55' => 1 => 'MATCH    +24h -03s'],
+  ['1985-03-14 16:22:58' => '1985-03-15 16:22:58' => 1 => 'MATCH    +24h +00s'],
+  ['1985-03-14 16:22:58' => '1985-03-15 15:23:01' => 1 => 'MATCH    +23h +03s'],
+  ['1985-03-14 16:22:58' => '1985-03-15 16:23:01' => 0 => 'NO match +24h +03s (>24h)'],
+);
 
 my $usage = "Usage:
   $0 -h | --help
@@ -27,6 +46,8 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  testMtimeFuzzyMatch();
+
   my $simulate = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
@@ -182,6 +203,23 @@ sub mtimeFuzzyMatch($$){
   }else{
     #mtimes are within 24h, and MM:SS are within 3s
     return 1;
+  }
+}
+
+sub testMtimeFuzzyMatch(){
+  for my $test(@TESTS_FUZZY_MTIME){
+    my ($mtimeFmt1, $mtimeFmt2, $isMatch, $displayName) = @$test;
+    my $mtime1 = `date --date="$mtimeFmt1" +%s`;
+    chomp $mtime1;
+    my $mtime2 = `date --date="$mtimeFmt2" +%s`;
+    chomp $mtime2;
+
+    my $expected = $isMatch ? 1 : 0;
+    my $actual = mtimeFuzzyMatch($mtime1, $mtime2) ? 1 : 0;
+
+    if($expected != $actual){
+      die "ERROR: fuzzy-mtime test failed: $mtimeFmt1 ~ $mtimeFmt2 => $displayName\n";
+    }
   }
 }
 
