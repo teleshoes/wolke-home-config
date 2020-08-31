@@ -2,17 +2,28 @@
 import sys
 import os
 
-IS_GTK = False
+PYTHON2 = sys.version_info < (3, 0)
+PYTHON3 = sys.version_info >= (3, 0)
+
+GTK_MOD = None
 KEY_ESCAPE = None
 WIN_POS_CENTER = None
 
 try:
-  import gtk
-  IS_GTK = True
-  KEY_ESCAPE = gtk.keysyms.Escape
-  WIN_POS_CENTER = gtk.WIN_POS_CENTER
+  if PYTHON2:
+    import gtk
+    GTK_MOD = gtk
+    KEY_ESCAPE = gtk.keysyms.Escape
+    WIN_POS_CENTER = gtk.WIN_POS_CENTER
+  if PYTHON3:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, Gdk
+    GTK_MOD = Gtk
+    KEY_ESCAPE = Gdk.KEY_Escape
+    WIN_POS_CENTER = Gtk.WindowPosition.CENTER
 except ImportError:
-  IS_GTK = False
+  GTK_MOD = None
 
 gui = None
 
@@ -54,12 +65,12 @@ def runRootCommand(cmdString):
 
 def showGui():
   global gui
-  if IS_GTK:
+  if GTK_MOD != None:
     if gui == None:
-      gui = ActionGui(filter((lambda a: a.showInGui), getActions()))
+      gui = ActionGui(list(filter((lambda a: a.showInGui), getActions())))
     gui.show()
   else:
-    print("ERROR: cannot start gui without module gtk")
+    print("ERROR: cannot start gui without GTK module")
 def hideGui():
   global gui
   if gui != None: gui.hide()
@@ -113,10 +124,10 @@ class Action():
     for c in self.cmds:
       c()
 
-if IS_GTK:
-  class ActionButton(gtk.Button):
+if GTK_MOD != None:
+  class ActionButton(GTK_MOD.Button):
     def __init__(self, actionGui, action):
-      gtk.Button.__init__(self, action.labelText)
+      GTK_MOD.Button.__init__(self, action.labelText)
       self.connect("clicked", lambda widget: actionGui.runAction(action))
 else:
   class ActionButton():
@@ -126,8 +137,8 @@ else:
 class ActionGui():
   def __init__(self, actions):
     self.actions = actions
-    self.box = gtk.VBox()
-    self.box.add(gtk.Label(""
+    self.box = GTK_MOD.VBox()
+    self.box.add(GTK_MOD.Label(""
       + "escape cancels\n"
       + "up/down/enter to select\n"
       + "or press shortcut key"
@@ -135,7 +146,7 @@ class ActionGui():
     for a in self.actions:
       self.box.add(ActionButton(self, a))
 
-    self.window = gtk.Window()
+    self.window = GTK_MOD.Window()
     self.window.set_default_size(300, 500)
     self.window.set_position(WIN_POS_CENTER)
     self.window.set_title("Off")
@@ -144,11 +155,11 @@ class ActionGui():
     self.window.connect("key_press_event", self.keyPress)
   def show(self):
     self.window.show_all()
-    gtk.main()
+    GTK_MOD.main()
   def hide(self):
     self.window.hide()
-    while gtk.events_pending():
-      gtk.main_iteration()
+    while GTK_MOD.events_pending():
+      GTK_MOD.main_iteration()
   def keyPress(self, widget, event):
     #note: up/down/enter keys are already handled
     if event.keyval == KEY_ESCAPE:
