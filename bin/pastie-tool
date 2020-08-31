@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import urllib2, urllib, sys
+import subprocess, sys
 
 # Pastie Tool
 # Copyright 2013 Elliot Wolk
@@ -63,12 +63,18 @@ def download_file(pastie_index, file_name):
   f.close()
 
 def read_pastie(pastie_index):
-  return urllib2.urlopen(
-    'http://pastie.org/p/' + pastie_index + '/raw').read()
+  return readProc(["curl", "--silent", "http://pastie.org/p/" + pastie_index + "/raw"])
 
 def write_pastie(text):
-  params = urllib.urlencode({'content': text})
-  return urllib2.urlopen('http://pastie.org/pastes/create', params, 500).geturl()
+  text = text.replace("+", "%2B")
+  text = text.replace("/", "%2F")
+  text = text.replace("=", "%3D")
+  return readProc(["curl", "--silent", "http://pastie.org/pastes/create",
+    "--data-raw", "content=" + text])
+
+def readProc(cmd):
+  p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+  return p.stdout.read()
 
 if __name__ == '__main__' :
   if len(sys.argv) == 3 and '-u' == sys.argv[1]:
