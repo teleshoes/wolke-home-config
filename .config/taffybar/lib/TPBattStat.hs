@@ -4,8 +4,14 @@ import Utils (defaultDelay, procToChan)
 import Control.Concurrent (readChan)
 import Data.Maybe (fromMaybe, listToMaybe)
 
+tpBattStatW h = jsonWidgetNew =<< tpBattStatReader h
+
+tpBattStatReader :: Int -> IO (IO String)
+tpBattStatReader h = fmap readChan $ procToChan $ tpBattStatCmd h
+
 availableIconSizes = [18, 20, 24, 36, 38, 40, 48, 50, 64] :: [Int]
 
+tpBattStatCmd :: Int -> [String]
 tpBattStatCmd h = [ "/usr/lib/tpbattstat-applet/tpbattstat.py"
                   , "--json"
                   , show $ floor $ defaultDelay * 1000
@@ -15,8 +21,3 @@ tpBattStatCmd h = [ "/usr/lib/tpbattstat-applet/tpbattstat.py"
         smallestSize = minimum availableIconSizes
         size = maximum (smallestSize:okSizes)
         sizeFmt = show size ++ "x" ++ show size
-
-tpBattStatW h = do
-  chan <- procToChan $ tpBattStatCmd h
-  widget <- jsonWidgetNew $ readChan chan
-  return widget
