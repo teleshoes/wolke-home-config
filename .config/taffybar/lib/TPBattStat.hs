@@ -1,8 +1,11 @@
 module TPBattStat (tpBattStatW) where
+import Label (mainLabel)
 import JsonWidget (jsonWidgetNew)
 import Utils (defaultDelay, procToChan)
 import Control.Concurrent (readChan)
 import Data.Maybe (fromMaybe, listToMaybe)
+
+main = mainLabel =<< tpBattStatReader 30
 
 tpBattStatW h = jsonWidgetNew =<< tpBattStatReader h
 
