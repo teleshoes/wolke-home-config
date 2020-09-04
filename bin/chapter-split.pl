@@ -34,10 +34,13 @@ my $usage = "Usage:
       except also RUN the ffmpeg+oggenc commands,
       unless the target files exist already
 
-  $0 [OPTS] INPUT_FILE --find-fake-chapter-breaks
+  $0 [OPTS] INPUT_FILE --find-fake-chapter-breaks [MIN_DUR_SECONDS [START_SECONDS [END_SECONDS]]]
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
     -for each silence designated a chapter (long enough, and does not result in too-short-chapter):
+      -skip if silence-duration is less than MIN_DUR_SECONDS seconds, if given
+      -skip if silence-end is less than START_SECONDS, if given
+      -skip if silence-end is greater than END_SECONDS, if given
       -print the silence info for that break as in silence-detect
       -print '--fake-chapter-break-end-seconds' arg to add if not valid chapter
       -play the original file using `mpv` at the silence end (chapter start)
@@ -165,20 +168,30 @@ sub main(@){
   my $mode;
 
   my $inputFile;
+  my ($findMinDur, $findStart, $findEnd);
   if(@_ == 1 and -f $_[0]){
     $inputFile = $_[0];
     $mode = $MODE_SIMULATE;
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--run$/){
     $inputFile = $_[0];
     $mode = $MODE_RUN;
-  }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
+  }elsif((@_ == 2 or @_ == 4) and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
+    ($findMinDur, $findStart, $findEnd) = @_[2..5];
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--analyze-wavs$/){
     $inputFile = $_[0];
     $mode = $MODE_ANALYZE_WAVS;
   }else{
     die "$usage\nERROR: missing input file, or invalid command\n";
+  }
+
+  if(defined $findMinDur and $findMinDur !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid minimum duration \"$findMinDur\"\n"
+  }elsif(defined $findStart and $findStart !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid start \"$findStart\"\n"
+  }elsif(defined $findEnd and $findEnd !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid End \"$findEnd\"\n"
   }
 
   if($mode eq $MODE_ANALYZE_WAVS){
@@ -192,14 +205,24 @@ sub main(@){
   my @chapterBreaks = getChapterBreaks $opts, [@silences];
 
   if($mode eq $MODE_FIND_FAKE_CHAPTER_BREAKS){
-    for my $chapterBreak(@chapterBreaks){
+    my %chapterBreakEnds = map {$$_{end} => 1} @chapterBreaks;
+
+    my @targets = @silences;
+    @targets = grep {$$_{dur} >= $findMinDur} @targets if defined $findMinDur;
+    @targets = grep {$$_{end} >= $findStart} @targets if defined $findStart;
+    @targets = grep {$$_{end} <= $findEnd} @targets if defined $findEnd;
+
+    @targets = grep {defined $chapterBreakEnds{$$_{end}}} @targets;
+
+    for my $target(@targets){
       print "\n\n\nif the long-break now playing is not a chapter break, add:\n";
       print "--fake-chapter-break-end-seconds=$$chapterBreak{end}\n";
-      print " ($$chapterBreak{start}  $$chapterBreak{end}  $$chapterBreak{dur})\n";
+      print " ($$target{start}  $$target{end}  $$target{dur})\n";
       print "Press q for next (Ctrl+C in mpv will abort all)\n";
-      system "mpv", "-ss", $$chapterBreak{end}, $inputFile
+      system "mpv", "-ss", $$target{end}, $inputFile
         and die; #Ctrl+C kills
     }
+
     exit 0;
   }
 
