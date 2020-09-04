@@ -8,6 +8,7 @@ my $DEFAULT_OPTS = {
   album                         => "",
   customChapterNames            => {},
   shortestChapterLenMillis      => 300000,
+  forceChapterBreakEndsSeconds  => {},
   fakeChapterBreakEndsSeconds   => {},
   silenceDetectMinMillis        => 1000,
   leadingSilenceMillis          => 500,
@@ -77,6 +78,13 @@ my $usage = "Usage:
         -the higher this number, the more fake chapter breaks are found
         -set to 0 to assume all chapter breaks found are valid
 
+    --force-chapter-break-end-seconds=FORCE_CHAPTER_BREAK_END_SECONDS
+      (this arg can be given more than once)
+
+      short breaks that SHOULD be treated as long chapter breaks:
+        treat any short break that ends at PRECISELY this value as a chapter
+      note that this is the second value printed by `silence-detect`
+
     --fake-chapter-break-end-seconds=FAKE_CHAPTER_BREAK_END_SECONDS
       (this arg can be given more than once)
 
@@ -134,6 +142,8 @@ sub main(@){
       $$opts{customChapterNames}{$1} = $2;
     }elsif($arg =~ /^--shortest-chapter-len-millis=(\d+)$/){
       $$opts{shortestChapterLenMillis} = $1;
+    }elsif($arg =~ /^--force-chapter-break-end-seconds=(\d+|\d*\.\d+)$/){
+      $$opts{forceChapterBreakEndsSeconds}{$1} = 1;
     }elsif($arg =~ /^--fake-chapter-break-end-seconds=(\d+|\d*\.\d+)$/){
       $$opts{fakeChapterBreakEndsSeconds}{$1} = 1;
     }elsif($arg =~ /^--silence-detect-min-millis=(\d+)$/){
@@ -260,7 +270,11 @@ sub getChapterBreaks($$){
   my $longBreaksMinSilenceS = $$opts{longBreaksMinSilenceMillis} / 1000.0;
   my $shortestChapterLenS = $$opts{shortestChapterLenMillis} / 1000.0;
 
-  my @longBreaks = grep {$$_{dur} >= $longBreaksMinSilenceS} @$silences;
+  my @longBreaks = grep {
+    $$_{dur} >= $longBreaksMinSilenceS
+    or
+    defined $$opts{forceChapterBreakEndsSeconds}{$$_{end}}
+  } @$silences;
 
   my @chapterBreaks;
   my $prevChapterStart = 0;
