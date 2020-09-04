@@ -26,7 +26,7 @@ my $usage = "Usage:
   $0 [OPTS] INPUT_FILE
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
-    -split chapters into breaks by short breaks
+    -split chapters into parts by short breaks
     -write ffmpeg + oggenc commands to generate 1 file per part
 
   $0 [OPTS] INPUT_FILE --run
@@ -37,9 +37,10 @@ my $usage = "Usage:
   $0 [OPTS] INPUT_FILE --find-fake-chapter-breaks
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
-    -for each chapter found:
+    -for each silence designated a chapter (long enough, and does not result in too-short-chapter):
       -print the silence info for that break as in silence-detect
-      -play the original file using `mpv` at the chapter start
+      -print '--fake-chapter-break-end-seconds' arg to add if not valid chapter
+      -play the original file using `mpv` at the silence end (chapter start)
 
   $0 [OPTS] INPUT_FILE --analyze-wavs
     -analyze all *.wav files in current dir
