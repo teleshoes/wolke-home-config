@@ -191,7 +191,7 @@ sub main(@){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FORCE_CHAPTER_BREAKS;
     ($findMinDur, $findStart, $findEnd) = @_[2..5];
-  }elsif((@_ == 2 or @_ == 4) and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
+  }elsif(@_ >= 2 and @_ <= 5 and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
     ($findMinDur, $findStart, $findEnd) = @_[2..5];
