@@ -11,7 +11,7 @@ import Graphics.X11.Xlib.Display (
 import GI.Gtk.Enums (
   Orientation(OrientationHorizontal),
   PolicyType(..))
-import GI.Gtk.Objects.Adjustment (noAdjustment)
+import GI.Gtk.Objects.Adjustment (Adjustment)
 import GI.Gtk.Objects.Box (boxNew, boxSetHomogeneous)
 import GI.Gtk.Objects.Container (
   Container, containerAdd, toContainer)
@@ -44,6 +44,8 @@ widthBox widthPx = do
   widgetSetSizeRequest wbox (fromIntegral widthPx) (-1)
   widgetShowAll wbox
   toContainer wbox
+
+noAdjustment = Nothing :: Maybe Adjustment
 
 widthWrap :: Int -> Widget -> IO Widget
 widthWrap widthPx childW = do
