@@ -36,6 +36,7 @@ my $usage = "Usage:
       unless the target files exist already
 
   $0 [OPTS] INPUT_FILE --find-force-chapter-breaks [MIN_DUR_SECONDS [START_SECONDS [END_SECONDS]]]
+  $0 [OPTS] INPUT_FILE force [MIN_DUR_SECONDS [START_SECONDS [END_SECONDS]]]
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
     -for each silence NOT designated a chapter (too short, or would result in a too-short-chapter):
@@ -47,6 +48,7 @@ my $usage = "Usage:
       -play the original file using `mpv` at the silence end
 
   $0 [OPTS] INPUT_FILE --find-fake-chapter-breaks [MIN_DUR_SECONDS [START_SECONDS [END_SECONDS]]]
+  $0 [OPTS] INPUT_FILE fake [MIN_DUR_SECONDS [START_SECONDS [END_SECONDS]]]
     -detect silences in INPUT_FILE using `silence-detect`
     -split into chapters by long breaks
     -for each silence designated a chapter (long enough, and does not result in too-short-chapter):
@@ -187,11 +189,11 @@ sub main(@){
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--run$/){
     $inputFile = $_[0];
     $mode = $MODE_RUN;
-  }elsif(@_ >= 2 and @_ <= 5 and -f $_[0] and $_[1] =~ /^--find-force-chapter-breaks$/){
+  }elsif(@_ >= 2 and @_ <= 5 and -f $_[0] and $_[1] =~ /^(--find-force-chapter-breaks|force)$/){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FORCE_CHAPTER_BREAKS;
     ($findMinDur, $findStart, $findEnd) = @_[2..5];
-  }elsif(@_ >= 2 and @_ <= 5 and -f $_[0] and $_[1] =~ /^--find-fake-chapter-breaks$/){
+  }elsif(@_ >= 2 and @_ <= 5 and -f $_[0] and $_[1] =~ /^(--find-fake-chapter-breaks|fake)$/){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
     ($findMinDur, $findStart, $findEnd) = @_[2..5];
