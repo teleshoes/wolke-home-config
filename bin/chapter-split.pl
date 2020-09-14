@@ -273,7 +273,14 @@ sub main(@){
     if(defined $$opts{customChapterNames}{$$file{chapterNum}}){
       $chapterName = $$opts{customChapterNames}{$$file{chapterNum}};
       $cleanChapterName = lc $chapterName;
-      $cleanChapterName =~ s/[^a-zA-Z0-9]+/_/g;
+      $cleanChapterName =~ s/[^a-zA-Z0-9']/_/g;
+
+      $cleanChapterName =~ s/'s_/s_/g; #replace "'s" with "s" at the end of midchapter words
+      $cleanChapterName =~ s/'s$/s/g; #replace "'s" with "s" at the end of the chapter
+      $cleanChapterName =~ s/'/_/g; #replace any remaining "'" with "_"
+
+      $cleanChapterName =~ s/__+/_/;
+
       $cleanChapterName =~ s/^_//;
       $cleanChapterName =~ s/_$//;
     }else{
