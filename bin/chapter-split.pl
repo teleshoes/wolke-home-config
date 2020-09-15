@@ -64,6 +64,8 @@ my $usage = "Usage:
     -creates file 'info-commands' with interspersed ffmpeg and oggenc commands:
       ffmpeg -i <INPUT_FILE> -ss <PART_START> -t <PART_DUR> -bitexact <PART_FILENAME>.wav
       oggenc --title <TITLE> --artist <ARTIST> --album <ALBUM> <PART_FILENAME>.wav
+    -creates file 'info-chapters' with one line each for each chapter:
+      <CHAPTER_NUM> <CHAPTER_START_SECONDS> <CHAPTER_NAME> (<PART_START_SECONDS>, ...)
 
   $0 [OPTS] INPUT_FILE --analyze-wavs
     -analyze all *.wav files in current dir
@@ -150,6 +152,7 @@ sub getChapterBreaks($$);
 sub parseChapterBreaksIntoChapters($$$);
 sub getFilesToCreate($$$);
 sub getSilences($$);
+sub formatHMSF($);
 
 sub main(@){
   my $opts = {%$DEFAULT_OPTS};
@@ -274,6 +277,7 @@ sub main(@){
 
   if($mode eq $MODE_OUTPUT_INFO){
     open INFO_CMDS_FH, "> info-commands" or die "ERROR: could not write info-commands\n$!\n";
+    open INFO_CHAPTERS_FH, "> info-chapters" or die "ERROR: could not write info-chapters\n$!\n";
   }
 
   for my $file(@filesToCreate){
@@ -302,6 +306,27 @@ sub main(@){
     }
 
     my $fileNamePrefix = "${fileNumFmt}_${cleanChapterName}_pt${partNumFmt}";
+
+    if($mode eq $MODE_OUTPUT_INFO){
+      if($$file{isFirstPart}){
+        my $chapterDur = $$file{chapterEnd} - $$file{chapterStart};
+        my $chapterDurFmt = formatHMSF($chapterDur);
+
+        my $chapterStartFmt = sprintf "%-7s", $$file{chapterStart};
+        print INFO_CHAPTERS_FH ""
+          . "$chapterNumFmt"
+          . " $chapterStartFmt"
+          . " $chapterDurFmt"
+          . " $cleanChapterName"
+          . " ("
+          ;
+      }
+      print INFO_CHAPTERS_FH "$$file{start}";
+      print INFO_CHAPTERS_FH ", " unless $$file{isLastPart};
+      if($$file{isLastPart}){
+        print INFO_CHAPTERS_FH ")\n";
+      }
+    }
 
     my $fileNameWav = "$fileNamePrefix.wav";
     my $fileNameOgg = "$fileNamePrefix.ogg";
@@ -479,6 +504,15 @@ sub getSilences($$){
     }
   }
   return @silences;
+}
+
+sub formatHMSF($){
+  my ($seconds) = @_;
+  my $h = int($seconds / 60 / 60);
+  my $m = int($seconds / 60) % 60;
+  my $s = int($seconds) % 60;
+  my $ms = int($seconds * 1000 + 0.5) % 1000;
+  return sprintf("%02d:%02d:%02d.%03d", $h, $m, $s, $ms);
 }
 
 &main(@ARGV);
