@@ -21,6 +21,7 @@ my $MODE_SIMULATE = "simulate";
 my $MODE_RUN = "run";
 my $MODE_FIND_FORCE_CHAPTER_BREAKS = "find-force-chapter-breaks";
 my $MODE_FIND_FAKE_CHAPTER_BREAKS = "find-fake-chapter-breaks";
+my $MODE_OUTPUT_INFO = "output-info";
 my $MODE_ANALYZE_WAVS = "analyze-wavs";
 
 my $usage = "Usage:
@@ -58,6 +59,11 @@ my $usage = "Usage:
       -print the silence info for that break as in silence-detect
       -print '--fake-chapter-break-end-seconds' arg to add if not valid chapter
       -play the original file using `mpv` at the silence end (chapter start)
+
+  $0 [OPTS] INPUT_FILE --output-info
+    -creates file 'info-commands' with interspersed ffmpeg and oggenc commands:
+      ffmpeg -i <INPUT_FILE> -ss <PART_START> -t <PART_DUR> -bitexact <PART_FILENAME>.wav
+      oggenc --title <TITLE> --artist <ARTIST> --album <ALBUM> <PART_FILENAME>.wav
 
   $0 [OPTS] INPUT_FILE --analyze-wavs
     -analyze all *.wav files in current dir
@@ -197,6 +203,9 @@ sub main(@){
     $inputFile = $_[0];
     $mode = $MODE_FIND_FAKE_CHAPTER_BREAKS;
     ($findMinDur, $findStart, $findEnd) = @_[2..5];
+  }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--output-info$/){
+    $inputFile = $_[0];
+    $mode = $MODE_OUTPUT_INFO;
   }elsif(@_ == 2 and -f $_[0] and $_[1] =~ /^--analyze-wavs$/){
     $inputFile = $_[0];
     $mode = $MODE_ANALYZE_WAVS;
@@ -263,6 +272,10 @@ sub main(@){
   my $chapterNumDigs = length max(map {$$_{chapterNum}} @filesToCreate);
   my $partNumDigs = length max(map {$$_{partNum}} @filesToCreate);
 
+  if($mode eq $MODE_OUTPUT_INFO){
+    open INFO_CMDS_FH, "> info-commands" or die "ERROR: could not write info-commands\n$!\n";
+  }
+
   for my $file(@filesToCreate){
     my $fileNumFmt = sprintf "%0${fileNumDigs}d", $$file{fileNum};
     my $partNumFmt = sprintf "%0${partNumDigs}d", $$file{partNum};
@@ -301,6 +314,8 @@ sub main(@){
     );
     if($mode eq $MODE_SIMULATE){
       print "@ffmpegCmd\n";
+    }elsif($mode eq $MODE_OUTPUT_INFO){
+      print INFO_CMDS_FH "@ffmpegCmd\n";
     }elsif($mode eq $MODE_RUN){
       print "@ffmpegCmd\n";
       system @ffmpegCmd unless -e $fileNameWav;
@@ -315,6 +330,8 @@ sub main(@){
     my @oggencCmdFmt = map {"\"$_\""} @oggencCmd;
     if($mode eq $MODE_SIMULATE){
       print "@oggencCmdFmt\n";
+    }elsif($mode eq $MODE_OUTPUT_INFO){
+      print INFO_CMDS_FH "@oggencCmdFmt\n";
     }elsif($mode eq $MODE_RUN){
       print "@oggencCmdFmt\n";
       system @oggencCmd unless -e $fileNameOgg;
