@@ -409,6 +409,10 @@ sub getFilesToCreate($$$){
           chapterNum => $chapterNum,
           partNum => $partNum,
           fileNum => $fileNum,
+          chapterStart => $chapterStart,
+          chapterEnd => $chapterEnd,
+          isFirstPart => $partNum == 1 ? 1 : 0,
+          isLastPart => 0,
         };
         $fileNum++;
         $partNum++;
@@ -422,6 +426,10 @@ sub getFilesToCreate($$$){
       chapterNum => $chapterNum,
       partNum => $partNum,
       fileNum => $fileNum,
+      chapterStart => $chapterStart,
+      chapterEnd => $chapterEnd,
+      isFirstPart => $partNum == 1 ? 1 : 0,
+      isLastPart => 1,
     };
     $fileNum++;
     $chapterNum++;
