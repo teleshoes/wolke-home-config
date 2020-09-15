@@ -340,9 +340,10 @@ sub getChapterBreaks($$){
     my $chapterStart = $$break{end};
 
     my $prevChapterTooShort = $chapterStart - $prevChapterStart < $shortestChapterLenS;
+    my $optForce = defined $$opts{forceChapterBreakEndsSeconds}{$chapterStart};
     my $optFake = defined $$opts{fakeChapterBreakEndsSeconds}{$chapterStart};
 
-    if(not $optFake and not $prevChapterTooShort){
+    if($optForce or (not $optFake and not $prevChapterTooShort)){
       push @chapterBreaks, $break;
       $prevChapterStart = $chapterStart;
     }
