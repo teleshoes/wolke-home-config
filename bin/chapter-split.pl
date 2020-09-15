@@ -338,11 +338,11 @@ sub getChapterBreaks($$){
   my $prevChapterStart = 0;
   for my $break(@longBreaks){
     my $chapterStart = $$break{end};
-    if($chapterStart - $prevChapterStart < $shortestChapterLenS){
-      next; # fake chapter break
-    }elsif(defined $$opts{fakeChapterBreakEndsSeconds}{$chapterStart}){
-      next; # fake chapter break
-    }else{
+
+    my $prevChapterTooShort = $chapterStart - $prevChapterStart < $shortestChapterLenS;
+    my $optFake = defined $$opts{fakeChapterBreakEndsSeconds}{$chapterStart};
+
+    if(not $optFake and not $prevChapterTooShort){
       push @chapterBreaks, $break;
       $prevChapterStart = $chapterStart;
     }
