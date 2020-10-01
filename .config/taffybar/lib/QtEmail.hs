@@ -38,6 +38,7 @@ binRe = "/(\\S+/)?bin/"
 daemonProcRe = "(" ++ binRe ++ ")?" ++ "daemon"
 pythonProcRe = "(" ++ binRe ++ ")?" ++ "python[0-9\\.]*"
 emailGuiProcRe = "(" ++ binRe ++ ")?" ++ emailGuiExec
+emailGuiWrapperProcRe = "(" ++ binRe ++ ")?" ++ emailGuiWrapperExec
 
 runCmd = "daemon " ++ emailGuiWrapperExec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
@@ -45,10 +46,13 @@ wsCmd = "wmctrl -s " ++ show (workspace-1)
 clickL = ifM (isRunning emailGuiExec) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
 clickR = return $ Just $ ""
-  ++ "echo killing " ++ emailGuiExec
+  ++ "echo killing " ++ emailGuiExec ++ " and " ++ emailGuiWrapperExec
   ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
   ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
   ++ " ; pkill -9 -f '^"                        ++ emailGuiProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^"                        ++ emailGuiWrapperProcRe ++ "$'"
 
 getImage h = do
   running <- isRunning emailGuiExec
