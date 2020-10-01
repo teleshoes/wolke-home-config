@@ -15,6 +15,10 @@ import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Data.Text (pack)
 import System.Environment (getEnv)
 
+emailGuiWrapperExec = "qtemail-gui-wrapper"
+emailGuiExec = "email-gui.py"
+workspace = 8
+
 main = mainLabel statusShortMarkup
 
 qtemailW h = do
@@ -30,27 +34,24 @@ qtemailW h = do
   box <- clickableAsync clickL clickM clickR box
   eboxStyleWrapW box "Email"
 
-emailGuiExec = "qtemail-gui-wrapper"
-emailGuiProc = "email-gui.py"
-workspace = 8
-
 binRe = "/(\\S+/)?bin/"
 daemonProcRe = "(" ++ binRe ++ ")?" ++ "daemon"
 pythonProcRe = "(" ++ binRe ++ ")?" ++ "python[0-9\\.]*"
-emailGuiProcRe = "(" ++ binRe ++ ")?" ++ emailGuiProc
+emailGuiProcRe = "(" ++ binRe ++ ")?" ++ emailGuiExec
 
-runCmd = "daemon " ++ emailGuiExec
+runCmd = "daemon " ++ emailGuiWrapperExec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
-clickL = ifM (isRunning emailGuiProc) (return $ Just wsCmd) (return $ Just runCmd)
+clickL = ifM (isRunning emailGuiExec) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return Nothing
 clickR = return $ Just $ ""
-  ++ "   pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "'"
-  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "'"
-  ++ " ; pkill -9 -f '^" ++ emailGuiProcRe ++ "$'"
+  ++ "echo killing " ++ emailGuiExec
+  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^"                        ++ emailGuiProcRe ++ "$'"
 
 getImage h = do
-  running <- isRunning emailGuiProc
+  running <- isRunning emailGuiExec
   dir <- selectClosestImageDir h
   let img = if running then "qtemail-on.png" else "qtemail-off.png"
   return $ dir ++ "/" ++ img
