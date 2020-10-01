@@ -44,6 +44,9 @@ my $usage = "Usage:
       -d | --debug
         use maven surefire
 
+      --skip-compile
+        -pass \"-Dmaven.main.skip\" to maven
+
       -e | --profile=external | --external   (default with <TEST_NAME>)
         -should skip NO tests, including external
         -appends args: @{$$profiles{external}}
@@ -78,12 +81,15 @@ sub main(@){
     exit 0;
   }
   my $debug = 0;
+  my $skipCompile = 0;
   my $profile = undef;
   my $test = undef;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-d|--debug)$/){
       $debug = 1;
+    }elsif($arg =~ /^(--skip-compile)$/){
+      $skipCompile = 1;
     }elsif($arg =~ /^(-e|--profile=external|--external)$/){
       $profile = "external";
     }elsif($arg =~ /^(-s|--profile=slow|--slow)$/){
@@ -110,6 +116,7 @@ sub main(@){
 
   my @cmd = @mvnCmd;
   push @cmd, $mvnDebugArg if $debug;
+  push @cmd, "-Dmaven.main.skip" if $skipCompile;
   push @cmd, "-Dtest=$test" if defined $test;
   for my $arg(@{$$profiles{$profile}}){
     push @cmd, $arg;
