@@ -487,8 +487,6 @@ sub getSilences($$){
   if(not -e $silenceDetectOutputFile){
     print "DETECTING SILENCES >= ${intervalMillis}ms\n";
     system "silence-detect --interval $intervalMillis $inputFile | tee $silenceDetectOutputFile";
-  }else{
-    print "SKIPPING DETECTING SILENCES\n";
   }
   my @lines = `cat $silenceDetectOutputFile`;
   my @silences;
