@@ -47,12 +47,12 @@ clickL = ifM (isRunning emailGuiExec) (return $ Just wsCmd) (return $ Just runCm
 clickM = return Nothing
 clickR = return $ Just $ ""
   ++ "echo killing " ++ emailGuiExec ++ " and " ++ emailGuiWrapperExec
-  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
-  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "$'"
-  ++ " ; pkill -9 -f '^"                        ++ emailGuiProcRe ++ "$'"
-  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "$'"
-  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "$'"
-  ++ " ; pkill -9 -f '^"                        ++ emailGuiWrapperProcRe ++ "$'"
+  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiProcRe ++ "( .*)?$'"
+  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiProcRe ++ "( .*)?$'"
+  ++ " ; pkill -9 -f '^"                        ++ emailGuiProcRe ++ "( .*)?$'"
+  ++ " ; pkill -9 -f '^" ++ daemonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "( .*)?$'"
+  ++ " ; pkill -9 -f '^" ++ pythonProcRe ++ " " ++ emailGuiWrapperProcRe ++ "( .*)?$'"
+  ++ " ; pkill -9 -f '^"                        ++ emailGuiWrapperProcRe ++ "( .*)?$'"
 
 getImage h = do
   running <- isRunning emailGuiExec
