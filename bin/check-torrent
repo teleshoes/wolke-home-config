@@ -27,12 +27,12 @@ def main():
     if expectedPieceHash == None and actualPieceHash == None:
       break
     elif expectedPieceHash == None:
-      fail("TOO MANY PIECES (paths=" + str(pathsInPiece) + ")")
+      fail("TOO MANY PIECES (paths=" + toStr(pathsInPiece) + ")")
     elif actualPieceHash == None:
-      fail("MISSING PIECES (paths=" + str(pathsInPiece) + ")")
+      fail("MISSING PIECES (paths=" + toStr(pathsInPiece) + ")")
     count += 1
     if actualPieceHash != expectedPieceHash:
-      fail("PIECE HASH MISMATCH (paths=" + str(pathsInPiece) + ")")
+      fail("PIECE HASH MISMATCH (paths=" + toStr(pathsInPiece) + ")")
   print(str(count) + " pieces\n")
   print("\nVERIFIED")
 
@@ -47,29 +47,32 @@ def readTorrentInfo(torrentPath):
   f = open(torrentPath, "rb")
   metaInfo = bencodepy.decode(f.read())
   f.close
-  return metaInfo['info']
+  return metaInfo[b'info']
 
 def getFileInfo(info):
   fileInfo = []
-  if 'files' in info:
-    for torrentFileInfo in info['files']:
-      path = os.sep.join([info['name']] + torrentFileInfo['path'])
-      size = torrentFileInfo['length']
+  if b'files' in info:
+    for torrentFileInfo in info[b'files']:
+      torrentName = info[b'name']
+      pathSegs = [torrentName] + torrentFileInfo[b'path']
+
+      path = os.sep.join(map(toStr, pathSegs))
+      size = int(toStr(torrentFileInfo[b'length']))
       fileInfo.append({'path': path, 'size': size})
   else:
-    path = info['name']
-    size = info['length']
+    path = info[b'name']
+    size = info[b'length']
     fileInfo.append({'path': path, 'size': size})
   return fileInfo
 
 def genFilePieceHashes(fileInfo, pieceLen):
-  piece = ""
+  piece = bytes()
 
   for f in fileInfo:
     path = f['path']
     size = f['size']
     if not os.path.isfile(path):
-      fail("file is missing: " + path)
+      fail("file is missing: " + toStr(path))
     actualSize = os.path.getsize(path)
     if not size == actualSize:
       fail("filesize mismatch "
@@ -80,10 +83,10 @@ def genFilePieceHashes(fileInfo, pieceLen):
   pathsInPiece = []
   for f in fileInfo:
     path = f['path']
-    print("\nhashing pieces for file:\n" + path)
+    print("\nhashing pieces for file:\n" + toStr(path))
     sys.stdout.flush()
     try:
-      sfile = open(path.decode('UTF-8'), "rb")
+      sfile = open(path, "rb")
     except:
       print("DOWNLOAD CORRUPTED: error opening file: " + path)
       raise
@@ -98,13 +101,13 @@ def genFilePieceHashes(fileInfo, pieceLen):
         sfile.close()
         break
       yield {"pieceHash": hashPiece(piece), "paths": pathsInPiece}
-      piece = ""
+      piece = bytes()
       pathsInPiece = [path]
   if piece != "":
     yield {"pieceHash": hashPiece(piece), "paths": pathsInPiece}
 
 def genDownloadPieceHashes(info):
-  pieceLen = info['piece length']
+  pieceLen = int(toStr(info[b'piece length']))
   fileInfo = getFileInfo(info)
   return genFilePieceHashes(fileInfo, pieceLen)
 
@@ -114,6 +117,15 @@ def hashPiece(piece):
 def fail(msg):
   print("DOWNLOAD CORRUPTED: " + msg)
   exit(1)
+
+def toStr(string):
+  if type(string) == str:
+    return string
+  else:
+    try:
+      return string.decode("utf-8")
+    except:
+      return str(string)
 
 if __name__ == "__main__":
   main()
