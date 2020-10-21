@@ -204,6 +204,8 @@ function sd           { screen-daemon "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
+function rsyncsshc    { sshc --rsync "$@"; }
+
 function k            { pkill -9 keys ; keys-to-window; }
 
 function sm           { sheetmusic "$@"; }
