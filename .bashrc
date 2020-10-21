@@ -5,6 +5,8 @@
 shopt -s dotglob
 shopt -s extglob
 
+bind 'set enable-bracketed-paste off'
+
 # allow <C-S> in vim
 stty stop undef 2>/dev/null
 
