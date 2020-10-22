@@ -4,21 +4,37 @@ use warnings;
 
 my $GST_LAUNCH_EXEC = "gst-launch-1.0";
 
+my $MAX_VOL_PCT = 200;
+
 my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 WAV_FILE
+  $0 [OPTS] WAV_FILE
     play WAV_FILE using $GST_LAUNCH_EXEC and pulse
+
+  WAV_FILE
+    an audio wav file, with filename ending in '.wav'
+
+  OPTS
+    --volume=VOLUME_PERCENT
+      set the volume using 'volume' pipeline (divide VOLUME_PERCENT by 100)
+      VOLUME_PERCENT
+        integer between 0 and $MAX_VOL_PCT, possibly ending in '%'
+      e.g.: --volume=50, --volume=150
 ";
 
 sub main(@){
   my $wavFile;
+  my $volumePercent;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^--volume=(\d+)%?$/){
+      $volumePercent = $1;
+      die "$usage\nERROR: invalid volume $volumePercent\n" if $volumePercent > $MAX_VOL_PCT;
     }elsif(-f $arg and $arg =~ /\.wav$/i){
       $wavFile = $arg;
     }else{
@@ -26,10 +42,16 @@ sub main(@){
     }
   }
 
+  my @volPipeline;
+  if(defined $volumePercent){
+    @volPipeline = ("!", "volume", sprintf("volume=%.2f", $volumePercent/100.0));
+  }
+
   my @cmd = (
     "gst-launch-1.0", "filesrc", "location=$wavFile",
     "!", "wavparse",
     "!", "audioconvert",
+    @volPipeline,
     "!", "audioresample",
     "!", "pulsesink",
   );
