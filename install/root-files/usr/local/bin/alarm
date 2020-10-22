@@ -26,7 +26,8 @@ my $validSounds = join '|', @sounds;
 my $usage = "Usage:
   $0 [OPTS] [ALARM_NAME|SOUND_NAME]
     Runs 'term mpv $alarmsDir/ALARM_NAME -loop 0'.
-      or 'term qtcmdplayer $alarmsDir/ALARM_NAME --loop'
+      or 'term gst-play $alarmsDir/ALARM_NAME --loop' (if no mpv and file ends in .wav)
+      or 'term qtcmdplayer $alarmsDir/ALARM_NAME --loop' (if no mpv otherwise)
     If run as root, reruns as the user running pulseaudio.
 
   $0 --print-alarms
@@ -55,11 +56,14 @@ my $usage = "Usage:
       -n | --norerun
          Do not rerun as pulse user
       -o | --once
-        Do not repeat alarm {don't pass '-loop 0' to mpv or '--loop' to qtcmdplayer}
+        Do not repeat alarm, i.e.: don't pass '-loop 0' to mpv
+                                     or '--loop' to gst-play
+                                     or '--loop' to qtcmdplayer
       -g | --guess
         If alarm does not match, use 'default' instead of failing
       -v N | --vol N | --volume N
         Pass '-volume N' to mpv (e.g.: -v 50, -v 300)
+          or '--volume=N' to gst-play
           or '--volume N' to qtcmdplayer
       --unmute
         Attempt to unmute and set system volume to 100% using pulse-vol
@@ -133,6 +137,8 @@ sub main(@){
   my $exec;
   if(`which mpv 2>/dev/null` =~ /mpv/){
     $exec = "mpv";
+  }elsif($absFile =~ /\.wav$/i and `which gst-play 2>/dev/null` =~ /gst-play/){
+    $exec = "gst-play";
   }elsif(`which qtcmdplayer 2>/dev/null` =~ /qtcmdplayer/){
     $exec = "qtcmdplayer";
   }
@@ -143,6 +149,10 @@ sub main(@){
     @cmd = (@cmd, $exec, $file);
     @cmd = (@cmd, "-volume", $vol) if defined $vol;
     @cmd = (@cmd, "-loop", "0") unless $once;
+  }elsif($exec eq "gst-play"){
+    @cmd = (@cmd, $exec, $file);
+    @cmd = (@cmd, "--volume=$vol") if defined $vol;
+    @cmd = (@cmd, "--loop",) unless $once;
   }elsif($exec eq "qtcmdplayer"){
     @cmd = (@cmd, $exec, $file);
     @cmd = (@cmd, "--daemon");
