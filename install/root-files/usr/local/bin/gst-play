@@ -22,11 +22,15 @@ my $usage = "Usage:
       VOLUME_PERCENT
         integer between 0 and $MAX_VOL_PCT, possibly ending in '%'
       e.g.: --volume=50, --volume=150
+
+    --loop
+      repeatedly call $GST_LAUNCH_EXEC forever
 ";
 
 sub main(@){
   my $wavFile;
   my $volumePercent;
+  my $loop = 0;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -35,6 +39,8 @@ sub main(@){
     }elsif($arg =~ /^--volume=(\d+)%?$/){
       $volumePercent = $1;
       die "$usage\nERROR: invalid volume $volumePercent\n" if $volumePercent > $MAX_VOL_PCT;
+    }elsif($arg =~ /^(--loop)$/){
+      $loop = 1;
     }elsif(-f $arg){
       $wavFile = $arg;
     }else{
@@ -55,8 +61,17 @@ sub main(@){
     "!", "audioresample",
     "!", "pulsesink",
   );
-  print "@cmd\n";
-  system @cmd;
+
+  while(1){
+    print "@cmd\n";
+    system @cmd;
+    my $exitCode = $?;
+    if($exitCode != 0){
+      print "ERROR: @cmd FAILED\n";
+      exit $exitCode;
+    }
+    last if not $loop;
+  }
 }
 
 &main(@ARGV);
