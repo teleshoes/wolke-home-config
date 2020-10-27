@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $UNTRUNC_EXEC_DEST = "/usr/local/bin/untrunc";
+
+sub main(@) {
+  die "Usage: $0\n" if @_ > 0;
+
+  installFromGit "git://github.com/ponchio/untrunc.git", 'echo OK';
+
+  my $dir = getSrcCache() . "/untrunc";
+  cd($dir);
+  $ENV{PWD} = $dir;
+
+  my $libavDir = "libav-12.3";
+  my $libavSrcTar = "$libavDir.tar.xz";
+  if(not -f $libavSrcTar){
+    run "wget", "https://libav.org/releases/$libavSrcTar";
+  }
+  if(not -d $libavDir){
+    run "tar", "-xf", $libavSrcTar;
+
+    cd($libavDir);
+    $ENV{PWD} = $libavDir;
+    run "./configure";
+    run "make", "-j8";
+    cd($dir);
+    $ENV{PWD} = $dir;
+  }else{
+    print "\n\nSKIPPING LIBAV COMPILE\n\n";
+  }
+
+  run "rm", "-f", "untrunc";
+  run "g++",
+    "-o", "untrunc",
+    "-I./libav-12.3",
+    "file.cpp", "main.cpp", "track.cpp", "atom.cpp", "mp4.cpp",
+    "-L./libav-12.3/libavformat", "-lavformat",
+    "-L./libav-12.3/libavcodec", "-lavcodec",
+    "-L./libav-12.3/libavresample", "-lavresample",
+    "-L./libav-12.3/libavutil", "-lavutil",
+    "-lpthread",
+    "-lz",
+    "-lbz2", #required extra
+    ;
+
+  run "rm", "-f", $UNTRUNC_EXEC_DEST;
+  run "sudo", "cp", "-a", "untrunc", $UNTRUNC_EXEC_DEST;
+}
+
+&main(@ARGV);
