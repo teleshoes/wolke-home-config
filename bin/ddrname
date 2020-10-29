@@ -541,6 +541,10 @@ sub getUsage(;$){
          show song banners on rename (this is the default)
        --no-banner-flash
          do NOT show song banners on rename
+       --check-orientation
+         check EXIF orientation with $EXIFTOOL_EXEC (this is the default)
+       --no-check-orientation
+         do NOT check EXIF orientation with $EXIFTOOL_EXEC
 
   $0 --edit-names [OPT OPT ..] [INFO_ARG INFO_ARG ..] [JPG_FILE JPG_FILE ..]
     group-edit a single attribute for multiple files
@@ -1072,7 +1076,9 @@ sub nameFile($$$){
   my $scores = [values %$scoresByFile];
   my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
 
-  my $orient = getImageOrientation $file;
+  my $orient = undef;
+  $orient = getImageOrientation $file if $$opts{checkOrientation};
+
   my $game = $$info{game};
   if(not defined $orient){
     warnMsg("unknown orientation");
@@ -1161,6 +1167,7 @@ sub editNames($$@){
 sub parseOptsAndInfoArgs(@){
   my $opts = {
     bannerFlash => 1,
+    checkOrientation => 1,
   };
   my $info = {};
 
@@ -1170,6 +1177,12 @@ sub parseOptsAndInfoArgs(@){
       next;
     }elsif($arg =~ /^(--no-banner-flash)$/){
       $$opts{bannerFlash} = 0;
+      next;
+    }elsif($arg =~ /^(--check-orientation)$/){
+      $$opts{checkOrientation} = 1;
+      next;
+    }elsif($arg =~ /^(--no-check-orientation)$/){
+      $$opts{checkOrientation} = 0;
       next;
     }
 
