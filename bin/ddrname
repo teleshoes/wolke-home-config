@@ -103,9 +103,9 @@ sub parseFilterOptions($);
 sub validateFile($);
 sub validateInfo($);
 sub nameReminder($$);
-sub nameFile($$);
-sub editNames($@);
-sub parseArgs(@);
+sub nameFile($$$);
+sub editNames($$@);
+sub parseOptsAndInfoArgs(@);
 sub getScoresByFile();
 sub listScoreFiles();
 sub parseScoreFile($);
@@ -473,7 +473,7 @@ sub getUsage(;$){
          -contain only letters, numbers, underscores, and dashes
          -and end with a letter or number
 
-  $0 JPG_FILE [INFO_ARG INFO_ARG ..]
+  $0 JPG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]
 
     rename a jpeg file using a consistent format
     \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_FC_SPECIAL_BAR_STAGE.jpg\"
@@ -536,12 +536,14 @@ sub getUsage(;$){
        one of [$okFailedArgs]  {optional, '$emptyFailedArg' is the same as no FAILED arg}
        if 'failed', name will start with \"reminder_failed\"
 
-  $0 --edit-names [INFO_ARG INFO_ARG ..] [JPG_FILE JPG_FILE ..]
+     OPT
+
+  $0 --edit-names [OPT OPT ..] [INFO_ARG INFO_ARG ..] [JPG_FILE JPG_FILE ..]
     group-edit a single attribute for multiple files
     for each JPG_FILE:
       -parse original info args attributes from JPG_FILE file name
       -replace previous values of the attribute for each INFO_ARG given
-      -rename the file, as in '$0 JPG_FILE [INFO_ARG INFO_ARG ..]'
+      -rename the file, as in '$0 JPG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]'
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -606,16 +608,16 @@ sub main(@){
       push @infoArgs, shift @args;
     }
     @jpgFiles = @args;
-    my $editInfo = parseArgs @infoArgs;
-    editNames($editInfo, @jpgFiles);
+    my ($opts, $editInfo) = parseOptsAndInfoArgs @infoArgs;
+    editNames($editInfo, $opts, @jpgFiles);
   }elsif(@_ == 2 and $_[0] =~ /\.jpg$/){
     nameReminder($_[0], $_[1]);
   }elsif(@_ > 1 and $_[0] =~ /\.jpg$/){
     my ($file, @args) = @_;
-    my $info = parseArgs @args;
+    my ($opts, $info) = parseOptsAndInfoArgs @args;
     $$info{game} = $singlesGameArg if not defined $$info{game};
     $$info{machine} = $defaultMachineArg if not defined $$info{machine};
-    nameFile($file, $info);
+    nameFile($file, $info, $opts);
   }else{
     die getUsage();
   }
@@ -1040,8 +1042,8 @@ sub nameReminder($$){
   run @cmd;
 }
 
-sub nameFile($$){
-  my ($file, $info) = @_;
+sub nameFile($$$){
+  my ($file, $info, $opts) = @_;
 
   validateFile($file);
   validateInfo($info);
@@ -1056,7 +1058,7 @@ sub nameFile($$){
   }
   $$info{feet} = $feet;
 
-  bannerFlash $$info{song};
+  bannerFlash $$info{song} if $$opts{bannerFlash};
 
   my $bucketName = getBucketName $info, 0, @DEFAULT_BUCKET_FIELDS;
   print "BUCKET: $bucketName\n";
@@ -1135,8 +1137,8 @@ sub nameFile($$){
   run @cmd;
 }
 
-sub editNames($@){
-  my ($editInfo, @jpgFiles) = @_;
+sub editNames($$@){
+  my ($editInfo, $opts, @jpgFiles) = @_;
 
   my $infoByFile = {};
   for my $jpgFile(@jpgFiles){
@@ -1148,12 +1150,15 @@ sub editNames($@){
   }
 
   for my $jpgFile(@jpgFiles){
-    nameFile $jpgFile, $$infoByFile{$jpgFile};
+    nameFile $jpgFile, $$infoByFile{$jpgFile}, $opts;
   }
 }
 
-sub parseArgs(@){
+sub parseOptsAndInfoArgs(@){
+  my $opts = {
+  };
   my $info = {};
+
   for my $arg(@_){
     my $infoAtt;
     my $value = $arg;
@@ -1203,7 +1208,7 @@ sub parseArgs(@){
     }
   }
 
-  return $info;
+  return ($opts, $info);
 }
 
 sub getScoresByFile(){
@@ -2044,7 +2049,7 @@ sub bashComplete($$){
 
   shift @words;
 
-  my $info = parseArgs @words;
+  my ($opts, $info) = parseOptsAndInfoArgs @words;
   if(not defined $info){
     return ();
   }
