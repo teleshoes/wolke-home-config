@@ -137,6 +137,7 @@ function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
 function ds           { zenius-ddrsonglist --search "$@"; }
 function ddr-search   { zenius-ddrsonglist --search "$@"; }
+function ddr-banners  { image-flash $(zenius-ddrsonglist --banners "$@"); }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh "$@"; }
 function snapshot     { backup --snapshot "$@"; }
