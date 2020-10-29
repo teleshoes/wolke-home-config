@@ -169,13 +169,16 @@ my $okStageArgs = join '|', @stageArgs;
 my @barArgs = qw(bar nobar);
 my $okBarArgs = join '|', @barArgs;
 
-my @fcArgs = qw(gfc fc pfc mfc);
+my @fcArgs = qw(nofc gfc fc pfc mfc);
+my $emptyFCArg = "nofc";
 my $okFCArgs = join '|', @fcArgs;
 
-my @specialArgs = qw(unlock);
+my @specialArgs = qw(nospecial unlock);
+my $emptySpecialArg = qw(nospecial);
 my $okSpecialArgs = join '|', @specialArgs;
 
-my @failedArgs = qw(failed);
+my @failedArgs = qw(passed failed);
+my $emptyFailedArg = "passed";
 my $okFailedArgs = join '|', @failedArgs;
 
 sub getUsage(;$){
@@ -482,9 +485,9 @@ sub getUsage(;$){
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
        exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
-       exactly zero or one FC args can be given  {optional}
-       exactly zero or one SPECIAL args can be given  {optional}
-       exactly zero or one FAILED args can be given  {optional}
+       exactly zero or one FC args can be given  {optional, '$emptyFCArg' is the same as no FC arg}
+       exactly zero or one SPECIAL args can be given  {optional, '$emptySpecialArg' is the same as no SPECIAL arg}
+       exactly zero or one FAILED args can be given  {optional, '$emptyFailedArg' is the same as no FAILED arg}
 
      SONG
        song name from $SONG_LIST_FILE
@@ -515,10 +518,10 @@ sub getUsage(;$){
        commas, if present, are stripped out
 
      FC
-       one of [$okFCArgs]  {optional}
+       one of [$okFCArgs]  {optional, '$emptyFCArg' is the same as no FC arg}
 
      SPECIAL
-       one of [$okSpecialArgs]  {optional}
+       one of [$okSpecialArgs]  {optional, '$emptySpecialArg' is the same as no SPECIAL arg}
 
      BAR
        one of [$okBarArgs]
@@ -527,7 +530,8 @@ sub getUsage(;$){
        one of [$okStageArgs]
 
      FAILED
-       one of [$okFailedArgs]  {optional; name will start with \"reminder_failed\"}
+       one of [$okFailedArgs]  {optional, '$emptyFailedArg' is the same as no FAILED arg}
+       if 'failed', name will start with \"reminder_failed\"
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -1071,6 +1075,10 @@ sub name(@){
   }
   my $prefix = $1;
 
+  delete $$info{fc} if defined $$info{fc} and $$info{fc} eq $emptyFCArg;
+  delete $$info{special} if defined $$info{special} and $$info{special} eq $emptySpecialArg;
+  delete $$info{failed} if defined $$info{failed} and $$info{failed} eq $emptyFailedArg;
+
   my $newFileName = '';
   $newFileName .= "$prefix";
   $newFileName .= "_reminder_failed" if defined $$info{failed};
@@ -1123,7 +1131,6 @@ sub parseArgs(@){
       $infoAtt = "stage";
     }elsif($arg =~ /^($okFailedArgs)$/){
       $infoAtt = "failed";
-      $value = "FAILED";
     }else{
       $infoAtt = undef;
     }
