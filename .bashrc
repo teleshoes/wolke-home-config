@@ -69,6 +69,7 @@ pathAppend          \
   /sbin             \
   /usr/local/games  \
   /usr/games        \
+  /snap/bin         \
 ;
 
 hostname=`hostname | cut -f 1,2 -d '.'`
