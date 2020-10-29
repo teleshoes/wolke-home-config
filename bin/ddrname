@@ -103,7 +103,7 @@ sub parseFilterOptions($);
 sub validateFile($);
 sub validateInfo($);
 sub nameReminder($$);
-sub nameFile($$$);
+sub nameFile($$$$);
 sub editNames($$@);
 sub parseOptsAndInfoArgs(@);
 sub getScoresByFile();
@@ -627,7 +627,12 @@ sub main(@){
     my ($opts, $info) = parseOptsAndInfoArgs @args;
     $$info{game} = $singlesGameArg if not defined $$info{game};
     $$info{machine} = $defaultMachineArg if not defined $$info{machine};
-    nameFile($file, $info, $opts);
+
+    my $scoresByFile = getScoresByFile();
+    my $scores = [values %$scoresByFile];
+    my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
+
+    nameFile($file, $info, $buckets, $opts);
   }else{
     die getUsage();
   }
@@ -1052,8 +1057,8 @@ sub nameReminder($$){
   run @cmd;
 }
 
-sub nameFile($$$){
-  my ($file, $info, $opts) = @_;
+sub nameFile($$$$){
+  my ($file, $info, $buckets, $opts) = @_;
 
   validateFile($file);
   validateInfo($info);
@@ -1073,10 +1078,6 @@ sub nameFile($$$){
   my $bucketName = getBucketName $info, 0, @DEFAULT_BUCKET_FIELDS;
   print "BUCKET: $bucketName\n";
   print "FEET: $$info{feet}\n";
-
-  my $scoresByFile = getScoresByFile();
-  my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
 
   my $orient = undef;
   $orient = getImageOrientation $file if $$opts{checkOrientation};
@@ -1165,8 +1166,12 @@ sub editNames($$@){
     validateInfo $info;
   }
 
+  my $scoresByFile = getScoresByFile();
+  my $scores = [values %$scoresByFile];
+  my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
+
   for my $jpgFile(@jpgFiles){
-    nameFile $jpgFile, $$infoByFile{$jpgFile}, $opts;
+    nameFile $jpgFile, $$infoByFile{$jpgFile}, $buckets, $opts;
   }
 }
 
