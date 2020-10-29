@@ -473,7 +473,7 @@ sub getUsage(;$){
          -contain only letters, numbers, underscores, and dashes
          -and end with a letter or number
 
-  $0 JPG_FILE [ARG ARG ..]
+  $0 JPG_FILE [INFO_ARG INFO_ARG ..]
 
     rename a jpeg file using a consistent format
     \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_FC_SPECIAL_BAR_STAGE.jpg\"
@@ -483,7 +483,7 @@ sub getUsage(;$){
        jpeg file to rename
        must start with '########_###' and end with '.jpg'
 
-     ARG
+     INFO_ARG
        one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
@@ -536,12 +536,12 @@ sub getUsage(;$){
        one of [$okFailedArgs]  {optional, '$emptyFailedArg' is the same as no FAILED arg}
        if 'failed', name will start with \"reminder_failed\"
 
-  $0 --edit-names ARG [JPG_FILE JPG_FILE ..]
+  $0 --edit-names [INFO_ARG INFO_ARG ..] [JPG_FILE JPG_FILE ..]
     group-edit a single attribute for multiple files
     for each JPG_FILE:
-      -parse other info ARGs from JPG_FILE file name
-      -replace the previous value of the attribute for ARG with ARG given
-      -rename the file, as in '$0 JPG_FILE [ARG ARG ..]'
+      -parse original info args attributes from JPG_FILE file name
+      -replace previous values of the attribute for each INFO_ARG given
+      -rename the file, as in '$0 JPG_FILE [INFO_ARG INFO_ARG ..]'
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -599,9 +599,15 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--files|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
-  }elsif(@_ >= 3 and $_[0] =~ /^(--edit-names)$/){
-    my ($cmd, $editInfoArg, @jpgFiles) = @_;
-    editNames($editInfoArg, @jpgFiles);
+  }elsif(@_ >= 2 and $_[0] =~ /^(--edit-names)$/){
+    my ($cmd, @args) = @_;
+    my (@infoArgs, @jpgFiles);
+    while(@args > 0 and not -f $args[0]){
+      push @infoArgs, shift @args;
+    }
+    @jpgFiles = @args;
+    my $editInfo = parseArgs @infoArgs;
+    editNames($editInfo, @jpgFiles);
   }elsif(@_ == 2 and $_[0] =~ /\.jpg$/){
     nameReminder($_[0], $_[1]);
   }elsif(@_ > 1 and $_[0] =~ /\.jpg$/){
@@ -1130,8 +1136,7 @@ sub nameFile($$){
 }
 
 sub editNames($@){
-  my ($editInfoArg, @jpgFiles) = @_;
-  my $editInfo = parseArgs($editInfoArg);
+  my ($editInfo, @jpgFiles) = @_;
 
   my $infoByFile = {};
   for my $jpgFile(@jpgFiles){
