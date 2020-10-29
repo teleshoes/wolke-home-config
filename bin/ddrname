@@ -100,7 +100,9 @@ sub scoreStats($@);
 sub formatFileInfo($$);
 sub parsePlotOptions($);
 sub parseFilterOptions($);
-sub name(@);
+sub validateFile($);
+sub validateInfo($);
+sub nameFile($$);
 sub nameReminder($$);
 sub parseArgs(@);
 sub getScoresByFile();
@@ -592,7 +594,9 @@ sub main(@){
   }elsif(@_ == 2 and $_[0] =~ /\.jpg$/){
     nameReminder($_[0], $_[1]);
   }elsif(@_ > 1 and $_[0] =~ /\.jpg$/){
-    name(@_);
+    my ($file, @args) = @_;
+    my $info = parseArgs @args;
+    nameFile($file, $info);
   }else{
     die getUsage();
   }
@@ -974,6 +978,26 @@ sub parseFilterOptions($){
   return $filters;
 }
 
+sub validateFile($){
+  my ($file) = @_;
+
+  die getUsage() if not defined $file or not -f $file;
+  die "\n\n!!!\nmisnamed jpg file: $file\n" if $file !~ /^(.\/)?(IMG_)?(\d{8}_\d{3,}).*\.jpg$/;
+}
+
+sub validateInfo($){
+  my ($info) = @_;
+
+  die getUsage() if not defined $info;
+  die "missing SONG\n" if not defined $$info{song};
+  die "missing GAME\n" if not defined $$info{game};
+  die "missing DIFFICULTY\n" if not defined $$info{difficulty};
+  die "missing MACHINE\n" if not defined $$info{machine};
+  die "missing SCORE\n" if not defined $$info{score};
+  die "missing BAR\n" if not defined $$info{bar};
+  die "missing STAGE\n" if not defined $$info{stage};
+}
+
 sub nameReminder($$){
   my ($file, $reminder) = @_;
 
@@ -996,17 +1020,11 @@ sub nameReminder($$){
   run @cmd;
 }
 
-sub name(@){
-  my $file = shift;
-  my $info = parseArgs @_;
-  die getUsage() if not defined $file or not -f $file or not defined $info;
-  die "missing SONG\n" if not defined $$info{song};
-  die "missing GAME\n" if not defined $$info{game};
-  die "missing DIFFICULTY\n" if not defined $$info{difficulty};
-  die "missing MACHINE\n" if not defined $$info{machine};
-  die "missing SCORE\n" if not defined $$info{score};
-  die "missing BAR\n" if not defined $$info{bar};
-  die "missing STAGE\n" if not defined $$info{stage};
+sub nameFile($$){
+  my ($file, $info) = @_;
+
+  validateFile($file);
+  validateInfo($info);
 
   my $feet = $songFeetDifficulties{$$info{song}}{$$info{game}}{$$info{difficulty}};
   if(not defined $feet or $feet !~ /^\d+$/){
