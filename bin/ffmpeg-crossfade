@@ -1,0 +1,186 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage:
+  take a bunch of videos and concatenate them with ffmpeg,
+    overlapping them by 2s with a fade transition
+  input videos must all have the exact same codecs,
+    filetypes, and bitrates (and maybe other things)
+
+  $0 -h|--help
+    show this message
+
+  $0 [OPTS] INPUT_VID [INPUT_VID INPUT_VID ..]
+    -generate video-only crossfade of 2s between each input
+       <OUTPUT_VIDEO>-tmp-video.<EXT>
+    -genearte audio-only crossfade of 0.8s (???) between each input
+       <OUTPUT_VIDEO>-tmp-audio.<EXT>
+    -combine the files with -c copy
+
+  OPTS
+    -o OUTPUT_VIDEO
+    --output OUTPUT_VIDEO
+    --output=OUTPUT_VIDEO
+      default is out.<EXT>
+";
+
+sub crossfadeVideo($@);
+sub dur($);
+
+sub main(@){
+  my @inputVideos;
+  my $outputVideo;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputVideo = $1;
+    }elsif($arg =~ /^(-o|--output)$/ and @_ > 0){
+      $outputVideo = shift;
+    }else{
+      push @inputVideos, $arg;
+    }
+  }
+  die "ERROR: output video $outputVideo exists\n" if defined $outputVideo and -e $outputVideo;
+  for my $inputVideo(@inputVideos){
+    die "ERROR: input video $inputVideo is not a file\n" if not -f $inputVideo;
+  }
+
+  my $ext = ".mp4";
+  $ext = $1 if $inputVideos[0] =~ /\.([a-z0-9]+)$/;
+
+  $outputVideo = "out.$ext" if not defined $outputVideo;
+
+  my $tmpVideo = "$outputVideo-tmp-video.$ext";
+  my $tmpAudio = "$outputVideo-tmp-video.$ext";
+
+  crossfadeVideo($tmpVideo, @inputVideos);
+}
+
+sub crossfadeVideo($@){
+  my ($output, @inputs) = @_;
+
+  my $fadeLen = "2.0";
+
+  my @durs = map {dur $_} @inputs;
+
+  my @filters;
+
+  #fade-in each video except the first, and slide the start times down by <fadeLen>
+  my $nextPtsOffset = 0;
+  for(my $i=0; $i<@inputs; $i++){
+    my @filterChain;
+
+    my $setptsFilter = "setpts=PTS-STARTPTS";
+    if($nextPtsOffset > 0){
+      $setptsFilter .= sprintf("+(%.2f/TB)", $nextPtsOffset);
+    }
+
+    if($i > 0){ #dont fade-in the first video
+      push @filterChain, "format=yuva420p";
+      push @filterChain, "fade=in:st=0:d=$fadeLen:alpha=1";
+    }
+    push @filterChain, $setptsFilter;
+
+    #the next fade starts a little after the end of the current total vid
+    $nextPtsOffset += $durs[$i] - $fadeLen;
+    my $filter = "[$i:v]" . join(",", @filterChain) . "[fadevid$i]";
+
+    push @filters, $filter;
+  }
+  #fade-in each audio except the first, and slide the start times down by <fadeLen>
+  $nextPtsOffset = 0;
+  for(my $i=0; $i<@inputs; $i++){
+    my @filterChain;
+
+    my $setptsFilter = "asetpts=PTS-STARTPTS";
+    if($nextPtsOffset > 0){
+      $setptsFilter .= sprintf("+(%.2f/TB)", $nextPtsOffset);
+    }
+
+    if($i != 0){ #dont fade-in the first video
+      push @filterChain, "afade=in:st=0:d=$fadeLen";
+    }
+
+    push @filterChain, $setptsFilter;
+
+    #the next fade starts a little after the end of the current total vid
+    $nextPtsOffset += $durs[$i] - $fadeLen;
+    my $filter = "[$i:a]" . join(",", @filterChain) . "[fadeaud$i]";
+
+#    push @filters, $filter;
+  }
+
+  #overlay each video onto the previous overlay
+  my $previousVidOverlay = undef;
+  for(my $i=0; $i<@inputs; $i++){
+    my $overlay = "overlayvid$i";
+    if(not defined $previousVidOverlay){
+      push @filters, "[fadevid$i]copy[$overlay]";
+    }else{
+      push @filters, "[$previousVidOverlay][fadevid$i]" . "overlay" . "[$overlay]";
+    }
+    $previousVidOverlay = $overlay;
+  }
+  push @filters, "[$previousVidOverlay]copy[vidfinal]";
+
+  #overlay each audio onto the previous overlay
+  my $previousAudOverlay = undef;
+  for(my $i=0; $i<@inputs; $i++){
+    my $overlay = "overlayaud$i";
+    if(not defined $previousAudOverlay){
+#      push @filters, "[fadeaud$i]acopy[$overlay]";
+    }else{
+#      push @filters, "[$previousAudOverlay][fadeaud$i]" . "concat=n=2:v=0:a=1" . "[$overlay]";
+    }
+    $previousAudOverlay = $overlay;
+  }
+#  push @filters, "[$previousAudOverlay]acopy[audfinal]";
+
+  my $previousAudioOverlay = undef;
+  for(my $i=0; $i<@inputs; $i++){
+    my $overlay = "audio$i";
+    if(not defined $previousAudioOverlay){
+      push @filters, "[$i]acopy[$overlay]";
+    }else{
+      push @filters, "[$previousAudioOverlay][$i]" . "acrossfade=d=$fadeLen". "[$overlay]";
+    }
+    $previousAudioOverlay = $overlay;
+  }
+  push @filters, "[$previousAudioOverlay]acopy[audfinal]";
+
+  my @cmd = ("ffmpeg",
+    (map {("-i", $_)} @inputs),
+    "-filter_complex", join(";", @filters),
+    "-map", "[vidfinal]", "-map", "[audfinal]",
+    $output,
+  );
+
+  print "\n=====\nCOMMAND:\n@cmd\n";
+  print "\n=====\nFILTERS:\n";
+  print "$_\n" foreach @filters;
+
+  system @cmd;
+
+  print "\n=====\nCOMMAND:\n@cmd\n";
+  print "\n=====\nFILTERS:\n";
+  print "$_\n" foreach @filters;
+}
+
+sub dur($){
+  my ($file) = @_;
+  my @durCmd = ("duration", "-n", "-s", $file);
+  open CMD, "-|", @durCmd or die "could not run @durCmd\n$!\n";
+  my $duration = join '', <CMD>;
+  close CMD;
+  chomp $duration;
+  if($duration !~ /^(\d+|\d*\.\d+)$/){
+    die "invalid duration for $file: $duration\n";
+  }
+  return $duration;
+}
+
+&main(@ARGV);
