@@ -2,9 +2,11 @@
 use strict;
 use warnings;
 
+my $defaultFadeLen = "2.00";
+
 my $usage = "Usage:
   take a bunch of videos and concatenate them with ffmpeg,
-    overlapping them by 2s with a fade transition
+    overlapping them by ${defaultFadeLen}s with a fade transition
   input videos must all have the exact same codecs,
     filetypes, and bitrates (and maybe other things)
 
@@ -12,9 +14,9 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS] INPUT_VID [INPUT_VID INPUT_VID ..]
-    -generate video-only crossfade of 2s between each input
+    -generate video-only crossfade of ${defaultFadeLen}s between each input
        <OUTPUT_VIDEO>-tmp-video.<EXT>
-    -genearte audio-only crossfade of 0.8s (???) between each input
+    -genearte audio-only crossfade of ${defaultFadeLen}-0.2s (???) between each input
        <OUTPUT_VIDEO>-tmp-audio.<EXT>
     -combine the files with -c copy
 
@@ -23,14 +25,17 @@ my $usage = "Usage:
     --output OUTPUT_VIDEO
     --output=OUTPUT_VIDEO
       default is out.<EXT>
+    --fade-len=DURATION_SECONDS
+      make the duration of the crossfade DURATION_SECONDS (default is 2.00)
 ";
 
-sub crossfadeVideo($@);
+sub crossfadeVideo($$@);
 sub dur($);
 
 sub main(@){
   my @inputVideos;
   my $outputVideo;
+  my $fadeLen = $defaultFadeLen;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -40,6 +45,8 @@ sub main(@){
       $outputVideo = $1;
     }elsif($arg =~ /^(-o|--output)$/ and @_ > 0){
       $outputVideo = shift;
+    }elsif($arg =~ /^--fade-len=(\d+|\d*\.\d+)$/){
+      $fadeLen = $1;
     }else{
       push @inputVideos, $arg;
     }
@@ -57,13 +64,11 @@ sub main(@){
   my $tmpVideo = "$outputVideo-tmp-video.$ext";
   my $tmpAudio = "$outputVideo-tmp-video.$ext";
 
-  crossfadeVideo($tmpVideo, @inputVideos);
+  crossfadeVideo($fadeLen, $tmpVideo, @inputVideos);
 }
 
-sub crossfadeVideo($@){
-  my ($output, @inputs) = @_;
-
-  my $fadeLen = "2.0";
+sub crossfadeVideo($$@){
+  my ($fadeLen, $output, @inputs) = @_;
 
   my @durs = map {dur $_} @inputs;
 
