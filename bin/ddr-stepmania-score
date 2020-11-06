@@ -8,6 +8,7 @@ my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 sub parseXmlFile($);
 sub parseSMFile($);
 sub parseNoteSetStats($);
+sub getScoreDDRA($$);
 sub getOldestXmlFileAfterMtime($);
 
 sub readFile($);
@@ -43,6 +44,9 @@ sub main(@){
     die "ERROR: $stepsTypeKey is not defined in $songDir/$smFile\n";
   }
   my $songStats = $$songInfo{$stepsTypeKey}{stats};
+
+  my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
+  print "$ddraScore - $$xmlInfo{failed} - $songDir - $stepsTypeKey\n";
 }
 
 sub parseXmlFile($){
@@ -194,6 +198,20 @@ sub parseNoteSetStats($){
     $$stats{mines} += $row =~ /M/;
   }
   return $stats;
+}
+
+sub getScoreDDRA($$){
+  my ($xmlInfo, $songStats) = @_;
+  my $sc = 1000000 / ($$songStats{totalNoteRows}+$$songStats{holdRows});
+
+  my $score = 0;
+  $score += $$xmlInfo{holdOk}   * $sc;
+  $score += $$xmlInfo{flawless} * $sc;
+  $score += $$xmlInfo{perfect}  * ($sc-10);
+  $score += $$xmlInfo{great}    * (($sc*0.6)-10);
+  $score += $$xmlInfo{good}     * (($sc*0.2)-10);
+  $score = int($score/10) * 10;
+  return $score;
 }
 
 sub getOldestXmlFileAfterMtime($){
