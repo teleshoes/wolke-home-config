@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $gaUrl = "https://www.nytimes.com/interactive/2020/11/03/us/elections/results-georgia-president.html";
+
+sub main(@){
+  my $file = "ga-results-" . time;
+  system 'wget', "--quiet", $gaUrl, "-O", $file;
+  my $c = `cat $file`;
+
+  my ($trump, $biden, $reported);
+  if($c =~ /<tr class="e-row e-trump.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
+    $trump = $1;
+  }
+  if($c =~ /<tr class="e-row e-biden.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
+    $biden = $1;
+  }
+  if($c =~ /<tr class="e-row e-candidate-total.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
+    $reported = $1;
+  }
+  $trump =~ s/,//g;
+  $biden =~ s/,//g;
+  $reported =~ s/,//g;
+
+  my $total = 4970557;
+
+  my $diff = $trump-$biden;
+  my $rem = $total-$reported;
+  print "T=$trump  B=$biden reported=$reported diff=$diff\n";
+  printf "biden needs %.2f%% of %d votes\n", ((($rem-$diff)/2)+$diff)/$rem*100.0, $rem;
+  print "\n";
+
+  if(@_ > 0 and $biden != $_[0]){
+    system "alarm", "-s", "success";
+  }
+}
+
+&main(@ARGV);
