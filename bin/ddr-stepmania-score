@@ -9,6 +9,7 @@ sub parseXmlFile($);
 sub getOldestXmlFileAfterMtime($);
 
 sub readFile($);
+sub listDirFiles($);
 sub mtime($);
 
 sub main(@){
@@ -29,6 +30,10 @@ sub main(@){
   if(not -d $songDir){
     die "ERROR: \"$songDir\" is not a dir\n";
   }
+
+  my @smFiles = grep {$_ =~ /\.(ssc|sm)$/} listDirFiles $songDir;
+  die "ERROR: could not find SSC or SM file in $songDir\n" if @smFiles == 0;
+  my $smFile = $smFiles[0];
 }
 
 sub parseXmlFile($){
@@ -101,6 +106,17 @@ sub readFile($){
   my $contents = join '', <FH>;
   close FH;
   return $contents;
+}
+
+sub listDirFiles($){
+  my ($dir) = @_;
+  opendir(my $dh, $dir) or die "ERROR: could not read dir $dir\n$!\n";
+  my @files = readdir($dh);
+  closedir($dh);
+  $dir =~ s/\/?$//;
+  @files = map {"$dir/$_"} @files;
+  @files = grep {-f $_} @files;
+  return @files;
 }
 
 sub mtime($){
