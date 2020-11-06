@@ -48,6 +48,11 @@ my @okFilters = qw(
   --recent --sixmos --sixmonths --6mos
   --bar --nobar --diffbar --samebar
 );
+my $yesbarFilter="bar";
+my $nobarFilter="nobar";
+my $diffbarFilter="diffbar";
+my $samebarFilter="samebar";
+
 my $argOptFiltersRegex = join "|", qw(
   --song --feet --minfeet --maxfeet --score --minscore --maxscore --date --mindate --maxdate
 );
@@ -170,6 +175,8 @@ my @stageArgs = qw(1st 2nd 3rd 4extra 4nonstop 5encore);
 my $okStageArgs = join '|', @stageArgs;
 
 my @barArgs = qw(bar nobar);
+my $yesbarArg = "bar";
+my $nobarArg = "nobar";
 my $okBarArgs = join '|', @barArgs;
 
 my @fcArgs = qw(nofc gfc fc pfc mfc);
@@ -277,7 +284,7 @@ sub getUsage(;$){
         highscore
           add 'SCORE SONG' if SCORE is the highest in the bucket
         nobar
-          add 'nobar' if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET) and BAR is 'nobar'
+          add 'nobar' if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET) and BAR is '$nobarArg'
         3rd
           add '3rd' if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET) and STAGE is '3rd'
       --abbrev
@@ -357,9 +364,9 @@ sub getUsage(;$){
 
     FILTER: BAR
       --bar
-        include only scores where BAR=bar
+        include only scores where BAR=$yesbarArg
       --nobar
-        include only scores where BAR=nobar
+        include only scores where BAR=$nobarArg
       --diffbar
         include only scores where BAR is different than at least half of all
           scores with the same \"$bucketFieldDesc\"
@@ -370,20 +377,20 @@ sub getUsage(;$){
           (counted against all scores, before any filtering)
 
       e.g.:
-        TOTAL|BAR=bar|BAR=nobar|--bar |--nobar |--diffbar|--samebar
-        =====|=======|=========|======|========|=========|===========
-        2    |1      |1        |B1 N0 |B0 N1   |B1 N1    |B1 N1
-        2    |2      |0        |B2 N0 |B0 N0   |B0 N0    |B2 N0
-        3    |1      |2        |B1 N0 |B0 N2   |B1 N0    |B0 N2
-        4    |2      |2        |B2 N0 |B0 N2   |B2 N2    |B2 N2
+        TOTAL|BAR=yes|BAR=no|--bar |--nobar |--diffbar|--samebar
+        =====|=======|======|======|========|=========|===========
+        2    |1      |1     |B1 N0 |B0 N1   |B1 N1    |B1 N1
+        2    |2      |0     |B2 N0 |B0 N0   |B0 N0    |B2 N0
+        3    |1      |2     |B1 N0 |B0 N2   |B1 N0    |B0 N2
+        4    |2      |2     |B2 N0 |B0 N2   |B2 N2    |B2 N2
 
         the 3rd row, in english, says if there are 3 songs recorded
           for the given $bucketFieldDesc,
-          and 1 has BAR=bar, and 2 have BAR=nobar, then:
-            --bar will show the one with BAR=bar
-            --nobar will show the two with BAR=nobar
-            --diffbar will show the one with BAR=bar
-            --samebar will show the two with BAR=nobar
+          and 1 has BAR=$yesbarArg, and 2 have BAR=$nobarArg, then:
+            --bar will show the one with BAR=$yesbarArg
+            --nobar will show the two with BAR=$nobarArg
+            --diffbar will show the one with BAR=$yesbarArg
+            --samebar will show the two with BAR=$nobarArg
 
 
     scores are grouped into sections by \"$bucketFieldDesc\"
@@ -1000,13 +1007,13 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--dailybest)$/){
       $$filters{dailybest} = 1;
     }elsif($opt =~ /^(--bar)$/){
-      $$filters{bar} = "bar";
+      $$filters{bar} = $yesbarFilter;
     }elsif($opt =~ /^(--nobar)$/){
-      $$filters{bar} = "nobar";
+      $$filters{bar} = $nobarFilter;
     }elsif($opt =~ /^(--diffbar)$/){
-      $$filters{bar} = "diff";
+      $$filters{bar} = $diffbarFilter;
     }elsif($opt =~ /^(--samebar)$/){
-      $$filters{bar} = "same";
+      $$filters{bar} = $samebarFilter;
     }else{
       die getUsage("unknown filter: $opt");
     }
@@ -1093,10 +1100,10 @@ sub nameFile($$$$){
 
   if(not defined $$buckets{$bucketName}){
     warnMsg("no existing scores found for $bucketName");
-    if($$info{bar} eq "nobar" and $$info{feet} >= $HARD_SONG_FEET){
-      warnMsg("$bucketName is new, has feet=$$info{feet} and 'nobar'");
-    }elsif($$info{bar} eq "bar" and $$info{feet} < $HARD_SONG_FEET){
-      warnMsg("$bucketName is new, has feet=$$info{feet} and 'bar'");
+    if($$info{bar} eq $nobarArg and $$info{feet} >= $HARD_SONG_FEET){
+      warnMsg("$bucketName is new, has feet=$$info{feet} and '$nobarArg'");
+    }elsif($$info{bar} eq $yesbarArg and $$info{feet} < $HARD_SONG_FEET){
+      warnMsg("$bucketName is new, has feet=$$info{feet} and '$yesbarArg'");
     }
   }else{
     my $minScore = 0;
@@ -1112,12 +1119,12 @@ sub nameFile($$$$){
     }
 
     my $bucketBarCounts = getBucketBarCounts $buckets;
-    my $barCount = $$bucketBarCounts{$bucketName}{bar};
-    my $nobarCount = $$bucketBarCounts{$bucketName}{nobar};
-    if($$info{bar} eq "bar" and $barCount < $nobarCount){
-      warnMsg("$bucketName is usually 'nobar'");
-    }elsif($$info{bar} eq "nobar" and $nobarCount < $barCount){
-      warnMsg("$bucketName is usually 'bar'");
+    my $barCount = $$bucketBarCounts{$bucketName}{$yesbarArg};
+    my $nobarCount = $$bucketBarCounts{$bucketName}{$nobarArg};
+    if($$info{bar} eq $yesbarArg and $barCount < $nobarCount){
+      warnMsg("$bucketName is usually '$nobarArg'");
+    }elsif($$info{bar} eq $nobarArg and $nobarCount < $barCount){
+      warnMsg("$bucketName is usually '$yesbarArg'");
     }
   }
 
@@ -1355,7 +1362,7 @@ sub getQualityPoints($){
     $quality += 50;
   }
 
-  if($$info{bar} eq "nobar"){
+  if($$info{bar} eq $nobarArg){
     $quality += 100 * $feetGrade;
   }
 
@@ -1448,7 +1455,7 @@ sub formatBucketCsv($$$){
       my $abbrev = $songAbbrevs{$$s{song}};
       push @notes, "$$s{score} $abbrev";
     }
-    if($$okNotes{'nobar'} and $$s{bar} eq "nobar" and $$s{feet} > $HARD_SONG_FEET){
+    if($$okNotes{'nobar'} and $$s{bar} eq $nobarArg and $$s{feet} > $HARD_SONG_FEET){
       push @notes, $$s{bar};
     }
     if($$okNotes{'3rd'} and $$s{stage} eq "3rd" and $$s{feet} > $HARD_SONG_FEET){
@@ -1470,11 +1477,11 @@ sub getBucketBarCounts($){
     my $barCount = 0;
     my $nobarCount = 0;
     for my $score(@$bucketScores){
-      $barCount++ if $$score{bar} eq "bar";
-      $nobarCount++ if $$score{bar} eq "nobar";
+      $barCount++ if $$score{bar} eq $yesbarArg;
+      $nobarCount++ if $$score{bar} eq $nobarArg;
     }
-    $$bucketBarCounts{$bucketName}{bar} = $barCount;
-    $$bucketBarCounts{$bucketName}{nobar} = $nobarCount;
+    $$bucketBarCounts{$bucketName}{$yesbarArg} = $barCount;
+    $$bucketBarCounts{$bucketName}{$nobarArg} = $nobarCount;
   }
   return $bucketBarCounts;
 }
@@ -1560,19 +1567,19 @@ sub filterScores($$){
     my $bucketBarCounts = getBucketBarCounts $buckets;
     for my $bucketName(sort keys %$buckets){
       my $bucketScores = $$buckets{$bucketName};
-      my $barCount = $$bucketBarCounts{$bucketName}{bar};
-      my $nobarCount = $$bucketBarCounts{$bucketName}{nobar};
+      my $barCount = $$bucketBarCounts{$bucketName}{$yesbarArg};
+      my $nobarCount = $$bucketBarCounts{$bucketName}{$nobarArg};
       for my $score(@$bucketScores){
         my $bar = $$score{bar};
-        my $sameCount = $bar eq "bar" ? $barCount : $nobarCount;
-        my $diffCount = $bar eq "bar" ? $nobarCount : $barCount;
-        if($$filters{bar} eq "bar" and $bar ne "bar"){
+        my $sameCount = $bar eq $yesbarArg ? $barCount : $nobarCount;
+        my $diffCount = $bar eq $yesbarArg ? $nobarCount : $barCount;
+        if($$filters{bar} eq $yesbarFilter and $bar ne $yesbarArg){
           delete $$scoresByFile{$$score{file}};
-        }elsif($$filters{bar} eq "nobar" and $bar ne "nobar"){
+        }elsif($$filters{bar} eq $nobarFilter and $bar ne $nobarArg){
           delete $$scoresByFile{$$score{file}};
-        }elsif($$filters{bar} eq "same" and $sameCount < $diffCount){
+        }elsif($$filters{bar} eq $samebarFilter and $sameCount < $diffCount){
           delete $$scoresByFile{$$score{file}};
-        }elsif($$filters{bar} eq "diff" and $diffCount < $sameCount){
+        }elsif($$filters{bar} eq $diffbarFilter and $diffCount < $sameCount){
           delete $$scoresByFile{$$score{file}};
         }
       }
