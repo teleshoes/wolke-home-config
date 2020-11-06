@@ -2,38 +2,44 @@
 use strict;
 use warnings;
 
-my $gaUrl = "https://www.nytimes.com/interactive/2020/11/03/us/elections/results-georgia-president.html";
+my $states = [
+  [ga => 4970557 => "https://www.nytimes.com/interactive/2020/11/03/us/elections/results-georgia-president.html"],
+];
+
+sub getVoteRow($$);
 
 sub main(@){
-  my $file = "ga-results-" . time;
-  system 'wget', "--quiet", $gaUrl, "-O", $file;
-  my $c = `cat $file`;
+  for my $stateArr(@$states){
+    my ($state, $total, $url) = @$stateArr;
 
-  my ($trump, $biden, $reported);
-  if($c =~ /<tr class="e-row e-trump.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
-    $trump = $1;
-  }
-  if($c =~ /<tr class="e-row e-biden.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
-    $biden = $1;
-  }
-  if($c =~ /<tr class="e-row e-candidate-total.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
-    $reported = $1;
-  }
-  $trump =~ s/,//g;
-  $biden =~ s/,//g;
-  $reported =~ s/,//g;
+    my $file = "nyt-election-results-$state" . time;
+    system 'wget', "--quiet", $url, "-O", $file;
+    my $html = `cat $file`;
 
-  my $total = 4970557;
+    my $trump = getVoteRow $html, 'e-trump';
+    my $biden = getVoteRow $html, 'e-biden';
+    my $reported = getVoteRow $html, 'e-candidate-total';
 
-  my $diff = $trump-$biden;
-  my $rem = $total-$reported;
-  print "T=$trump  B=$biden reported=$reported diff=$diff\n";
-  printf "biden needs %.2f%% of %d votes\n", ((($rem-$diff)/2)+$diff)/$rem*100.0, $rem;
-  print "\n";
+    my $diff = $trump-$biden;
+    my $rem = $total-$reported;
+    print "$state: T=$trump  B=$biden reported=$reported diff=$diff\n";
+    printf "  biden needs %.2f%% of %d votes\n", ((($rem-$diff)/2)+$diff)/$rem*100.0, $rem;
+    print "\n";
 
-  if(@_ > 0 and $biden != $_[0]){
-    system "alarm", "-s", "success";
+    if(@_ == 2 and $_[0] =~ /$state/i and $_[1] ne $biden){
+      system "alarm", "-s", "success";
+    }
   }
+}
+
+sub getVoteRow($$){
+  my ($html, $voteRowStylePrefix) = @_;
+  my $count;
+  if($html =~ /<tr class="e-row $voteRowStylePrefix.*?<span class="e-votes-display">([0-9,]+)<\/span>/){
+    $count = $1;
+  }
+  $count =~ s/,//g;
+  return $count;
 }
 
 &main(@ARGV);
