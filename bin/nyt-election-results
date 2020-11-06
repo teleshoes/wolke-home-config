@@ -9,9 +9,35 @@ my $states = [
   [pa => 6707736 => "https://www.nytimes.com/interactive/2020/11/03/us/elections/results-pennsylvania-president.html"],
 ];
 
+my @stateNames = map {$$_[0]} @$states;
+my $okStateNames = join "|", @stateNames;
+
 sub getVoteRow($$);
 
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0
+    print the vote totals from nytimes.com for the following states: @stateNames
+
+  $0 STATE BIDEN_VOTES
+    print the vote totals as in `$0`
+    run `alarm -s success` if biden's vote count is not equal to BIDEN_VOTES for STATE
+";
+
 sub main(@){
+  my $stateCheck;
+  my $bidenCheck;
+  if(@_ == 1 and $_[0] =~ /^-h|--help$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 2 and $_[0] =~ /^($okStateNames)$/ and $_[1] =~ /^\d+$/){
+    ($stateCheck, $bidenCheck) = @_;
+  }elsif(@_ > 0){
+    die $usage;
+  }
+
   for my $stateArr(@$states){
     my ($state, $total, $url) = @$stateArr;
 
@@ -30,8 +56,10 @@ sub main(@){
     printf "  biden needs %.2f%% of %d votes\n", ((($rem-$diff)/2)+$diff)/$rem*100.0, $rem;
     print "\n";
 
-    if(@_ == 2 and $_[0] =~ /$state/i and $_[1] ne $biden){
-      system "alarm", "-s", "success";
+    if(defined $stateCheck and $state eq $stateCheck){
+      if(defined $bidenCheck and $bidenCheck != $biden){
+        system "alarm", "-s", "success";
+      }
     }
   }
 }
