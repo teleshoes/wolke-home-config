@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $CONVERTER_BUILD = "$ENV{HOME}/Games/stepmania/converter";
+
+sub getExtFiles($$);
+
+sub main(@){
+  die "ERROR: $CONVERTER_BUILD not found\n" if not -d "$CONVERTER_BUILD/";
+  chdir "$CONVERTER_BUILD/";
+  $ENV{PWD} = "$CONVERTER_BUILD/";
+
+  my @songDirs = glob "Songs/*/*/";
+  for my $songDir(@songDirs){
+    my $dir = $songDir;
+    my @sm = getExtFiles($songDir, "sm");
+    my @ssc = getExtFiles($songDir, "ssc");
+    my @dwi = getExtFiles($songDir, "dwi");
+    if(@dwi > 0 and @sm == 0 and @ssc == 0){
+      print "$songDir\n";
+      system "./stepmania", "--convert", $songDir;
+    }
+  }
+}
+
+sub getExtFiles($$){
+  my ($dir, $ext) = @_;
+  opendir(my $dh, $dir) or die "ERROR: could not read dir $dir\n$!\n";
+  my @files = readdir($dh);
+  closedir($dh);
+  $dir =~ s/\/?$//;
+  @files = map {"$dir/$_"} @files;
+  @files = grep {-f $_} @files;
+  @files = grep {$_ =~ /\.$ext$/i} @files;
+  return @files;
+}
+
+&main(@ARGV);
