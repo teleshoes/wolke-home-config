@@ -7,6 +7,7 @@ my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 
 sub parseXmlFile($);
 sub parseSMFile($);
+sub parseNoteSetStats($);
 sub getOldestXmlFileAfterMtime($);
 
 sub readFile($);
@@ -37,6 +38,11 @@ sub main(@){
   my $smFile = $smFiles[0];
 
   my $songInfo = parseSMFile $smFile;
+  my $stepsTypeKey = lc "$$xmlInfo{game}-$$xmlInfo{difficulty}";
+  if(not defined $$songInfo{$stepsTypeKey}){
+    die "ERROR: $stepsTypeKey is not defined in $songDir/$smFile\n";
+  }
+  my $songStats = $$songInfo{$stepsTypeKey}{stats};
 }
 
 sub parseXmlFile($){
@@ -134,7 +140,60 @@ sub parseSMFile($){
     die "ERROR: could not parse any note sets in $smFile\n";
   }
 
+  for my $game(@games){
+    for my $diff(@diffs){
+      my $key = lc "$game-$diff";
+      if(defined $$noteSets{$key}){
+        my $stats = parseNoteSetStats $$noteSets{$key}{notes};
+        #print "$key  $$stats{totalNoteRows}  $$stats{holdRows}\n";
+        $$noteSets{$key}{stats} = $stats;
+      }
+    }
+  }
+
   return $noteSets;
+}
+
+sub parseNoteSetStats($){
+  my ($noteSetText) = @_;
+  my @lines = split /[\r\n]+/, $noteSetText;
+  my @noteRows;
+  for my $line(@lines){
+    my $row = $line;
+
+    $row =~ s/\/\/.*//;                   #remove comments
+    $row =~ s/F/0/g;                      #remove fakes
+    next if $row =~ /^0+$/;               #ignore empty rows
+    next if $row !~ /^[01234MLFAKNH]+$/;  #ignore rows that do not contain only note-chars
+
+    push @noteRows, $row;
+  }
+
+  my $stats = {
+    totalNoteRows  => 0,
+    holdRows       => 0,
+    jumpRows       => 0,
+    taps           => 0,
+    holds          => 0,
+    rolls          => 0,
+    mines          => 0,
+  };
+  for my $row(@noteRows){
+    if($row =~ /[124]/){
+      $$stats{totalNoteRows}++;
+    }
+    if($row =~ /[2]/){
+      $$stats{holdRows}++;
+    }
+    if($row =~ /[124].*[124]/){
+      $$stats{jumpRows}++;
+    }
+    $$stats{taps}  += $row =~ /1/;
+    $$stats{holds} += $row =~ /2/;
+    $$stats{rolls} += $row =~ /4/;
+    $$stats{mines} += $row =~ /M/;
+  }
+  return $stats;
 }
 
 sub getOldestXmlFileAfterMtime($){
