@@ -6,6 +6,7 @@ my $XML_FILE_PATTERN = "$ENV{HOME}/.stepmania-*/Save/Upload/*.xml";
 my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 
 sub parseXmlFile($);
+sub parseSMFile($);
 sub getOldestXmlFileAfterMtime($);
 
 sub readFile($);
@@ -34,6 +35,8 @@ sub main(@){
   my @smFiles = grep {$_ =~ /\.(ssc|sm)$/} listDirFiles $songDir;
   die "ERROR: could not find SSC or SM file in $songDir\n" if @smFiles == 0;
   my $smFile = $smFiles[0];
+
+  my $songInfo = parseSMFile $smFile;
 }
 
 sub parseXmlFile($){
@@ -79,6 +82,59 @@ sub parseXmlFile($){
   $$info{failed} = $$info{grade} =~ /failed/i ? "FAILED" : "passed";
 
   return $info;
+}
+
+sub parseSMFile($){
+  my ($smFile) = @_;
+  my $sm = readFile $smFile;
+  my $noteSets = {};
+
+  my @games = qw(
+    dance-single dance-double dance-solo
+    pump-single pump-double
+  );
+  my @diffs = qw(Beginner Easy Medium Hard Expert Challenge);
+  my $reGames = join "|", @games;
+  my $reDiffs = join "|", @diffs;
+
+  #SM files
+  while($sm =~ /
+    \#NOTES                  \s*:\s*
+    (?<game>$reGames)        \s*:\s*
+    [^:]*?                   \s*:\s*
+    (?<difficulty>$reDiffs)  \s*:\s*
+    (?<feet>\d+)             \s*:\s*
+    (?<radar>[^;]*?)         \s*:\s*
+    (?<notes>[^;]+?)         ;
+  /gsxi){
+    my $key = lc "$+{game}-$+{difficulty}";
+    $$noteSets{$key} = {%+};
+  }
+
+  #SSC files
+  my @sscNoteSets = $sm =~ /\#NOTEDATA\s*:.*?#NOTES\s*:[^;]*;/gsi;
+  for my $noteSet(@sscNoteSets){
+    my $info = {};
+    $$info{game} = $1       if $noteSet =~ /\#STEPSTYPE    \s*:\s*   ($reGames)   \s*;\s*/sxi;
+    $$info{difficulty} = $1 if $noteSet =~ /\#DIFFICULTY   \s*:\s*   ($reDiffs)   \s*;\s*/sxi;
+    $$info{feet} = $1       if $noteSet =~ /\#METER        \s*:\s*   (\d+)        \s*;\s*/sxi;
+    $$info{radar} = $1      if $noteSet =~ /\#RADARVALUES  \s*:\s*   ([^;]+)      \s*;\s*/sxi;
+    $$info{notes} = $1      if $noteSet =~ /\#NOTES        \s*:\s*   ([^;]+)      \s*;\s*/sxi;
+
+    die "ERROR: missing STEPSTYPE from $smFile $noteSet\n" if not defined $$info{game};
+    die "ERROR: missing DIFFICULTY from $smFile\n" if not defined $$info{difficulty};
+    die "ERROR: missing NOTES from $smFile\n" if not defined $$info{notes};
+
+    my $key = lc "$$info{game}-$$info{difficulty}";
+    $$noteSets{$key} = $info;
+  }
+
+  my $numKeys = keys %$noteSets;
+  if($numKeys == 0){
+    die "ERROR: could not parse any note sets in $smFile\n";
+  }
+
+  return $noteSets;
 }
 
 sub getOldestXmlFileAfterMtime($){
