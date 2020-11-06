@@ -2,8 +2,13 @@
 use strict;
 use warnings;
 
+my $XML_FILE_PATTERN = "$ENV{HOME}/.stepmania-*/Save/Upload/*.xml";
+
 sub parseXmlFile($);
+sub getOldestXmlFileAfterMtime($);
+
 sub readFile($);
+sub mtime($);
 
 sub main(@){
 }
@@ -53,12 +58,36 @@ sub parseXmlFile($){
   return $info;
 }
 
+sub getOldestXmlFileAfterMtime($){
+  my ($targetMtime) = @_;
+
+  my @xmlFiles = glob $XML_FILE_PATTERN;
+  my %mtimes = map {$_ => mtime $_} @xmlFiles;
+  @xmlFiles = sort {$mtimes{$a} <=> $mtimes{$b}} @xmlFiles;
+
+  my $closestXmlFile;
+  for my $xmlFile(@xmlFiles){
+    my $xmlMtime = $mtimes{$xmlFile};
+    if($targetMtime < $xmlMtime){
+      last;
+    }
+    $closestXmlFile = $xmlFile;
+  }
+
+  return $closestXmlFile;
+}
+
 sub readFile($){
   my ($file) = @_;
   open FH, "< $file" or die "ERROR: could not read $file\n";
   my $contents = join '', <FH>;
   close FH;
   return $contents;
+}
+
+sub mtime($){
+  my @stat = stat $_[0];
+  return $stat[9];
 }
 
 &main(@ARGV);
