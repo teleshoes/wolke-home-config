@@ -8,6 +8,7 @@ my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 sub parseXmlFile($);
 sub parseSMFile($);
 sub parseNoteSetStats($);
+sub gameDiffKey($$);
 sub getScoreDDRA($$);
 sub getOldestXmlFileAfterMtime($);
 
@@ -39,14 +40,14 @@ sub main(@){
   my $smFile = $smFiles[0];
 
   my $songInfo = parseSMFile $smFile;
-  my $stepsTypeKey = lc "$$xmlInfo{game}-$$xmlInfo{difficulty}";
-  if(not defined $$songInfo{$stepsTypeKey}){
-    die "ERROR: $stepsTypeKey is not defined in $songDir/$smFile\n";
+  my $gameDiffKey = gameDiffKey($$xmlInfo{game}, $$xmlInfo{difficulty});
+  if(not defined $$songInfo{$gameDiffKey}){
+    die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n";
   }
-  my $songStats = $$songInfo{$stepsTypeKey}{stats};
+  my $songStats = $$songInfo{$gameDiffKey}{stats};
 
   my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
-  print "$ddraScore - $$xmlInfo{failed} - $songDir - $stepsTypeKey\n";
+  print "$ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
 }
 
 sub parseXmlFile($){
@@ -117,8 +118,8 @@ sub parseSMFile($){
     (?<radar>[^;]*?)         \s*:\s*
     (?<notes>[^;]+?)         ;
   /gsxi){
-    my $key = lc "$+{game}-$+{difficulty}";
-    $$noteSets{$key} = {%+};
+    my $gameDiffKey = gameDiffKey($+{game}, $+{difficulty});
+    $$noteSets{$gameDiffKey} = {%+};
   }
 
   #SSC files
@@ -135,22 +136,21 @@ sub parseSMFile($){
     die "ERROR: missing DIFFICULTY from $smFile\n" if not defined $$info{difficulty};
     die "ERROR: missing NOTES from $smFile\n" if not defined $$info{notes};
 
-    my $key = lc "$$info{game}-$$info{difficulty}";
-    $$noteSets{$key} = $info;
+    my $gameDiffKey = gameDiffKey($$info{game}, $$info{difficulty});
+    $$noteSets{$gameDiffKey} = $info;
   }
 
-  my $numKeys = keys %$noteSets;
-  if($numKeys == 0){
+  my $gameDiffKeyCount = keys %$noteSets;
+  if($gameDiffKeyCount == 0){
     die "ERROR: could not parse any note sets in $smFile\n";
   }
 
   for my $game(@games){
     for my $diff(@diffs){
-      my $key = lc "$game-$diff";
-      if(defined $$noteSets{$key}){
-        my $stats = parseNoteSetStats $$noteSets{$key}{notes};
-        #print "$key  $$stats{totalNoteRows}  $$stats{holdRows}\n";
-        $$noteSets{$key}{stats} = $stats;
+      my $gameDiffKey = gameDiffKey($game, $diff);
+      if(defined $$noteSets{$gameDiffKey}){
+        my $stats = parseNoteSetStats $$noteSets{$gameDiffKey}{notes};
+        $$noteSets{$gameDiffKey}{stats} = $stats;
       }
     }
   }
@@ -198,6 +198,11 @@ sub parseNoteSetStats($){
     $$stats{mines} += $row =~ /M/;
   }
   return $stats;
+}
+
+sub gameDiffKey($$){
+  my ($game, $diff) = @_;
+  return lc "$game-$diff";
 }
 
 sub getScoreDDRA($$){
