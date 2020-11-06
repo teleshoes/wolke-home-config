@@ -174,7 +174,8 @@ my $okMachineArgs = join '|', @machineArgs;
 my @stageArgs = qw(1st 2nd 3rd 4extra 4nonstop 5encore);
 my $okStageArgs = join '|', @stageArgs;
 
-my @barArgs = qw(bar nobar);
+my @barArgs = qw(bar nobar avgbar);
+my $avgbarArg = "avgbar";
 my $yesbarArg = "bar";
 my $nobarArg = "nobar";
 my $okBarArgs = join '|', @barArgs;
@@ -535,6 +536,10 @@ sub getUsage(;$){
 
      BAR
        one of [$okBarArgs]
+         $avgbarArg is replaced with the most common BAR arg for this bucket[@DEFAULT_BUCKET_FIELDS]
+         if the counts are tied (new song, or both the same number of $yesbarArg/$nobarArg), then:
+           \"$yesbarArg\" if song is HARD (feet>$HARD_SONG_FEET)
+           \"$nobarArg\" otherwise
 
      STAGE
        one of [$okStageArgs]
@@ -1098,8 +1103,14 @@ sub nameFile($$$$){
     warnMsg("image orientation is $orient, which is unusual for game=$game");
   }
 
+  my $isHardSong = $$info{feet} >= $HARD_SONG_FEET;
+
   if(not defined $$buckets{$bucketName}){
     warnMsg("no existing scores found for $bucketName");
+    if($$info{bar} eq $avgbarArg){
+      $$info{bar} = $isHardSong ? $yesbarArg : $nobarArg;
+    }
+
     if($$info{bar} eq $nobarArg and $$info{feet} >= $HARD_SONG_FEET){
       warnMsg("$bucketName is new, has feet=$$info{feet} and '$nobarArg'");
     }elsif($$info{bar} eq $yesbarArg and $$info{feet} < $HARD_SONG_FEET){
@@ -1119,11 +1130,21 @@ sub nameFile($$$$){
     }
 
     my $bucketBarCounts = getBucketBarCounts $buckets;
-    my $barCount = $$bucketBarCounts{$bucketName}{$yesbarArg};
+    my $yesbarCount = $$bucketBarCounts{$bucketName}{$yesbarArg};
     my $nobarCount = $$bucketBarCounts{$bucketName}{$nobarArg};
-    if($$info{bar} eq $yesbarArg and $barCount < $nobarCount){
+    if($$info{bar} eq $avgbarArg){
+      if($yesbarCount > $nobarCount){
+        $$info{bar} = $yesbarArg;
+      }elsif($nobarCount > $yesbarCount){
+        $$info{bar} = $nobarArg;
+      }else{
+        $$info{bar} = $isHardSong ? $yesbarArg : $nobarArg;
+      }
+    }
+
+    if($$info{bar} eq $yesbarArg and $yesbarCount < $nobarCount){
       warnMsg("$bucketName is usually '$nobarArg'");
-    }elsif($$info{bar} eq $nobarArg and $nobarCount < $barCount){
+    }elsif($$info{bar} eq $nobarArg and $nobarCount < $yesbarCount){
       warnMsg("$bucketName is usually '$yesbarArg'");
     }
   }
