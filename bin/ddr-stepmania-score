@@ -2,7 +2,55 @@
 use strict;
 use warnings;
 
+sub parseXmlFile($);
+sub readFile($);
+
 sub main(@){
+}
+
+sub parseXmlFile($){
+  my ($xmlFile) = @_;
+  my $xml = readFile $xmlFile;
+
+  my $num = '(?:\d+|\d*\.\d+)';
+  my $int = '\d+';
+
+  my $info = {};
+  $$info{songDir} = $1        if $xml =~ /<Song Dir=['"]([^'"]+)['"]\/>/;
+  $$info{difficulty} = $1     if $xml =~ /<Steps.* Difficulty=['"]([^'"]+).*\/>/;
+  $$info{game} = $1           if $xml =~ /<Steps.* StepsType=['"]([^'"]+).*\/>/;
+  $$info{mods} = $1           if $xml =~ /<Modifiers>(.*)<\/Modifiers>/;
+
+  $$info{grade} = $1          if $xml =~ /<Grade>(.*)<\/Grade>/;
+  $$info{percentDP} = $1      if $xml =~ /<PercentDP>($num)<\/PercentDP>/;
+  $$info{surviveSeconds} = $1 if $xml =~ /<SurviveSeconds>($num)<\/SurviveSeconds>/;
+  $$info{maxCombo} = $1       if $xml =~ /<MaxCombo>($int)<\/MaxCombo>/;
+
+  $$info{mineOk} = $1         if $xml =~ /<AvoidMine>($int)<\/AvoidMine>/;
+  $$info{mineHit} = $1        if $xml =~ /<HitMine>($int)<\/HitMine>/;
+
+  $$info{holdOk} = $1         if $xml =~ /<Held>($int)<\/Held>/;
+  $$info{holdLetGo} = $1      if $xml =~ /<LetGo>($int)<\/LetGo>/;
+  $$info{holdMissed} = $1     if $xml =~ /<MissedHold>($int)<\/MissedHold>/;
+
+  $$info{flawless} = $1       if $xml =~ /<W1>($int)<\/W1>/;
+  $$info{perfect} = $1        if $xml =~ /<W2>($int)<\/W2>/;
+  $$info{great} = $1          if $xml =~ /<W3>($int)<\/W3>/;
+  $$info{good} = $1           if $xml =~ /<W4>($int)<\/W4>/;
+  $$info{bad} = $1            if $xml =~ /<W5>($int)<\/W5>/;
+  $$info{miss} = $1           if $xml =~ /<Miss>($int)<\/Miss>/;
+
+  $$info{failed} = $$info{grade} =~ /failed/i ? "FAILED" : "passed";
+
+  return $info;
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n";
+  my $contents = join '', <FH>;
+  close FH;
+  return $contents;
 }
 
 &main(@ARGV);
