@@ -509,7 +509,7 @@ sub getUsage(;$){
          SONG is the song name
            if consists only of lower-case letters, numbers, and dashes (e.g.: max-300)
          ABBREV is the abbreviation for the SONG
-         FEET is the song's feet difficulty. it must be an integer or a single dash '-'
+         FEET is the song's feet difficulty. it must be an integer or one-or-more dashes '--'
            they are listed in the song list in the following order:
            singles (beginner, basic, difficult, expert, challenge)
            doubles (basic, difficult, expert, challenge)
@@ -658,9 +658,9 @@ sub readSongList(){
   my @songs;
   while(my $line = <FH>){
     next if $line =~ /^\s*$/;
-    if($line =~ /^([a-zA-Z0-9\-]+)\s*([a-zA-Z0-9]+)((?:\s+(?:\d+|-)){9})$/){
+    if($line =~ /^([a-zA-Z0-9\-]+)\s*([a-zA-Z0-9]+)((?:\s+(?:\d+|-+)){9})$/){
       my ($song, $abbrev, $feet) = ($1, $2, $3);
-      my @feetArr = $feet =~ /\s+(\d+|-)/g;
+      my @feetArr = $feet =~ /\s+(\d+|-+)/g;
       if(@feetArr != 9){
         die getUsage("ERROR: Malformed feet in line in $SONG_LIST_FILE: $line");
       }
@@ -1968,11 +1968,17 @@ sub getImageOrientation($){
 sub parseFeetDifficulties(@){
   my @feetArr = @_;
   if(@feetArr != 9){
-    die "invalid feet list: @feetArr\n";
+    die "ERROR: invalid feet list (should be 9 entries): @feetArr\n";
   }
+
+  my @parsedFeetArr;
   for my $feet(@feetArr){
-    if($feet !~ /^(\d+|-)$/){
-      die "invalid feet: $feet\n";
+    if($feet =~ /^-+$/){
+      push @parsedFeetArr, "-";
+    }elsif($feet =~ /^\d+$/){
+      push @parsedFeetArr, 0+$feet;
+    }else{
+      die "ERROR: could not parse feet \"$feet\"\n";
     }
   }
 
@@ -1980,17 +1986,17 @@ sub parseFeetDifficulties(@){
 
   return {
     singles => {
-      beginner  => $feetArr[$i++],
-      basic     => $feetArr[$i++],
-      difficult => $feetArr[$i++],
-      expert    => $feetArr[$i++],
-      challenge => $feetArr[$i++],
+      beginner  => $parsedFeetArr[$i++],
+      basic     => $parsedFeetArr[$i++],
+      difficult => $parsedFeetArr[$i++],
+      expert    => $parsedFeetArr[$i++],
+      challenge => $parsedFeetArr[$i++],
     },
     doubles => {
-      basic     => $feetArr[$i++],
-      difficult => $feetArr[$i++],
-      expert    => $feetArr[$i++],
-      challenge => $feetArr[$i++],
+      basic     => $parsedFeetArr[$i++],
+      difficult => $parsedFeetArr[$i++],
+      expert    => $parsedFeetArr[$i++],
+      challenge => $parsedFeetArr[$i++],
     },
   };
 }
