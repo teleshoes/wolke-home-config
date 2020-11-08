@@ -6,6 +6,8 @@ use File::Basename qw(basename);
 my $XML_FILE_PATTERN = "$ENV{HOME}/.stepmania-*/Save/Upload/*.xml";
 my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 
+my $ZENIUS_TOOL = "zenius-ddrsonglist";
+
 sub getSongAbsDir($);
 sub getSMFileFromSongDir($);
 sub parseXmlFile($);
@@ -14,6 +16,8 @@ sub parseNoteSetStats($);
 sub gameDiffKey($$);
 sub getScoreDDRA($$);
 sub getOldestXmlFileAfterMtime($);
+
+sub getSongNameWithZeniusTool($);
 
 sub readFile($);
 sub listDirFiles($);
@@ -52,8 +56,9 @@ sub main(@){
     my $songStats = $$songInfo{$gameDiffKey}{stats};
     die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n" if not defined $songStats;
 
+    my $songName = getSongNameWithZeniusTool $songDir;
     my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
-    print "$ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
+    print "$songName - $ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
   }elsif(@_ == 1 and $_[0] =~ /\.(jpg|png)/i){
     my $imgFile = $_[0];
     my $targetMtime = mtime $imgFile;
@@ -73,8 +78,9 @@ sub main(@){
     my $songStats = $$songInfo{$gameDiffKey}{stats};
     die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n" if not defined $songStats;
 
+    my $songName = getSongNameWithZeniusTool $songDir;
     my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
-    print "$ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
+    print "$songName - $ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
   }else{
     die $usage;
   }
@@ -289,6 +295,21 @@ sub getOldestXmlFileAfterMtime($){
   }
 
   return $closestXmlFile;
+}
+
+sub getSongNameWithZeniusTool($){
+  my ($songDir) = @_;
+  my $subDir = $songDir;
+  $subDir =~ s/.*\///;
+  open CMD, "-|", $ZENIUS_TOOL, "--extract-name-id", $subDir;
+  my $songName = join '', <CMD>;
+  close CMD;
+  chomp $songName;
+  if($songName =~ /^[a-z0-9\-]+$/){
+    return $songName;
+  }else{
+    die "ERROR: could not extract song name from song dir: $songDir\n";
+  }
 }
 
 sub readFile($){
