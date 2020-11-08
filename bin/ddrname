@@ -96,7 +96,8 @@ my $okFileFormatVarsRegex = join "|", @okFileFormatVars;
 my $HARD_SONG_FEET = 14;
 
 sub getUsage(;$);
-sub readSongList();
+sub readSongLists();
+sub readSongListFromFile($);
 sub fehterm($@);
 sub orientation($@);
 sub dateStats($@);
@@ -137,7 +138,7 @@ sub bashComplete($$);
 sub warnMsg($);
 sub run(@);
 
-my @songArr = readSongList();
+my @songArr = readSongLists();
 
 my %songAbbrevs = map { $$_[0] => $$_[1] } @songArr;
 my %songFeetDifficulties = map { $$_[0] => parseFeetDifficulties(@{$$_[2]}) } @songArr;
@@ -650,11 +651,20 @@ sub main(@){
   }
 }
 
-sub readSongList(){
-  if(not -f $SONG_LIST_FILE){
+sub readSongLists(){
+  my @songs;
+  if(-f $SONG_LIST_FILE){
+    @songs = (@songs, readSongListFromFile($SONG_LIST_FILE));
+  }else{
     die getUsage("ERROR: Could not find $SONG_LIST_FILE") if not -f $SONG_LIST_FILE;
   }
-  open FH, "< $SONG_LIST_FILE" or die "Could not read $SONG_LIST_FILE\n$!\n";
+
+  return @songs;
+}
+
+sub readSongListFromFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "Could not read $file\n$!\n";
   my @songs;
   while(my $line = <FH>){
     next if $line =~ /^\s*$/;
@@ -662,11 +672,11 @@ sub readSongList(){
       my ($song, $abbrev, $feet) = ($1, $2, $3);
       my @feetArr = $feet =~ /\s+(\d+|-+)/g;
       if(@feetArr != 9){
-        die getUsage("ERROR: Malformed feet in line in $SONG_LIST_FILE: $line");
+        die getUsage("ERROR: Malformed feet in line in $file: $line");
       }
       push @songs, [$song, $abbrev, [@feetArr]];
     }else{
-      die getUsage("ERROR: Malformed line in $SONG_LIST_FILE: $line");
+      die getUsage("ERROR: Malformed line in $file: $line");
     }
   }
   return @songs;
