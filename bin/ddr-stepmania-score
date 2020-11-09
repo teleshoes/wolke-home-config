@@ -18,6 +18,7 @@ sub getSongNameWithZeniusTool($);
 sub readFile($);
 sub listDirFiles($);
 sub mtime($);
+sub chunkArr($@);
 
 my $XML_FILE_PATTERN = "$ENV{HOME}/.stepmania-*/Save/Upload/*.xml";
 my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
@@ -36,6 +37,8 @@ my $SONG_NAME_IDS_BY_SONG_DIR = {
   "ani/The WORLD - Death Note 1st OP [Asahina-san]"        => "the-world-death-note",
   "vid/Super Mario Bros"                                   => "super-mario-bros-behemoth",
 };
+my $FMT_HARDCODED_SONG_NAME_IDS = join "\n        ", map {join " ", @$_}
+  chunkArr(3, sort values %$SONG_NAME_IDS_BY_SONG_DIR);
 
 my $SM_DDRA_DIFF_ARR = [
   ["Beginner"  => "beginner"],
@@ -77,6 +80,8 @@ my $usage = "Usage:
       -extract BASENAME_SONG_DIR (the last element of the SONG_DIR path, not including group name)
       -run `$ZENIUS_TOOL --extract-name-id BASENAME_SONG_DIR`
       -override this value for certain hardcoded SONG_DIR values
+      -the following SONG_NAME values have hardcoded SONG_DIR values:
+        $FMT_HARDCODED_SONG_NAME_IDS
     -calculate the DDR-A style score
       -parse the SIMFILE:
         -obtain DDRA-style DDR_HOLD_ROW_COUNTS (single and multi-arrow holds)
@@ -425,6 +430,23 @@ sub listDirFiles($){
 sub mtime($){
   my @stat = stat $_[0];
   return $stat[9];
+}
+
+sub chunkArr($@){
+  my ($chunkSize, @arr) = @_;
+  my @chunkArr;
+  my $chunk = undef;
+  for my $elem(@arr){
+    if(defined $chunk and @$chunk >= $chunkSize){
+      $chunk = undef;
+    }
+    if(not defined $chunk){
+      $chunk = [];
+      push @chunkArr, $chunk;
+    }
+    push @$chunk, $elem;
+  }
+  return @chunkArr;
 }
 
 &main(@ARGV);
