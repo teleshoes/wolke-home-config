@@ -26,6 +26,11 @@ my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
 
 my $ZENIUS_TOOL = "zenius-ddrsonglist";
 
+my $DDRNAME_TOOL = "ddrname";
+my $DDRNAME_MACHINE = "sm53pdp";
+my $DDRNAME_STAGE = "0none";
+my $DDRNAME_BAR = "avgbar";
+
 my $XML_MTIME_DIFF_WARNING_SECONDS = 90; #warn if image file and XML file mtimes diff is greater
 my $XML_MTIME_DIFF_ERROR_SECONDS = 300; #FAIL if image file and XML file mtimes diff is greater
 
@@ -124,6 +129,21 @@ my $usage = "Usage:
       -of the remaining, select the oldest file as XML_SCORE_FILE
     -obtain SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
     -print SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
+
+  $EXEC --ddrname IMG_SCORE_FILE [IMG_SCORE_FILE ..]
+    -for each IMG_SCORE_FILE:
+      -obtain SCORE_DATA, as in `$EXEC --closest-scoredata IMG_SCORE_FILE`
+      -make system call:
+          $DDRNAME_TOOL \\
+            IMG_SCORE_FILE \\
+            $DDRNAME_MACHINE \\
+            $DDRNAME_STAGE \\
+            SONG_NAME \\
+            PASS_FAIL \\
+            DDRA_SCORE \\
+            DDRA_GAME \\
+            DDRA_DIFFICULTY \\
+          ;
 ";
 
 sub main(@){
@@ -143,8 +163,7 @@ sub main(@){
       ;
   }elsif(@_ == 2 and $_[0] =~ /^(--closest-scoredata)$/i){
     my ($cmd, $file) = @_;
-    my $targetMtime = mtime $file;
-    my $closestXmlFile = getOldestXmlFileAfterMtime $targetMtime;
+    my $closestXmlFile = getOldestXmlFileAfterMtime mtime($file);
 
     assertMtimesCloseEnough($file, $closestXmlFile,
       $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
@@ -158,6 +177,32 @@ sub main(@){
       . "DDRA_GAME:       $$sd{ddraGame}\n"
       . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
       ;
+  }elsif(@_ >= 2 and $_[0] =~ /^(--ddrname)$/i){
+    my ($cmd, @imgFiles) = @_;
+    my $scoreData = {};
+    for my $imgFile(@imgFiles){
+      my $closestXmlFile = getOldestXmlFileAfterMtime mtime($imgFile);
+      assertMtimesCloseEnough($imgFile, $closestXmlFile,
+        $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
+      $$scoreData{$imgFile} = getScoreDataByXmlFile($closestXmlFile);
+    }
+
+    for my $imgFile(@imgFiles){
+      my $sd = $$scoreData{$imgFile};
+      my @cmd = ($DDRNAME_TOOL,
+        $imgFile,
+        $DDRNAME_MACHINE,
+        $DDRNAME_STAGE,
+        $DDRNAME_BAR,
+        $$sd{songName},
+        $$sd{passFail},
+        $$sd{ddraScore},
+        $$sd{ddraGame},
+        $$sd{ddraDifficulty},
+      );
+      print "@cmd\n";
+      system @cmd;
+    }
   }else{
     die $usage;
   }
