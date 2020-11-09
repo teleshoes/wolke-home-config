@@ -65,12 +65,48 @@ my $usage = "Usage:
     show this message
 
   $EXEC XML_SCORE_FILE
-    -fetch DDRA-like score using timing values in XML
-      and total tap/jump/hold values from the SM song file
-    -fetch FAILED value from XML file
-    -print SCORE - FAILED - SONG_DIR - GAME-DIFFICULTY
-      e.g.:
-      856520 - passed - $SONGS_PARENT_DIR/Songs/DDR_16_A/Astrogazer - dange-single-hard
+    -parse stepmania XML file for: SONG_DIR TIMING_DATA PASS_FAIL SM_GAME SM_DIFF
+      -SONG_DIR is relative to the dir the stepmania exec is in, and always starts with Songs/
+      -TIMING_DATA includes values like: FLAWLESS PERFECT GREAT GOOD OK
+      -PASS_FAIL is 'FAILED' if grade is failed, and 'passed' otherwise
+      -SM_GAME is 'StepsType' att of <Steps> in the XML and contains a value like 'dance-single'
+      -SM_DIFF is 'Difficulty' att of <Steps> in the XML and contains a value like 'Hard'
+    -parse SM_GAME into DDRA_GAME and SM_DIFF into DDRA_DIFFICULTY using hardcoded transforms
+    -locate the stepmania *.sm or *.ssc SIMFILE in $SONGS_PARENT_DIR/<SONG_DIR>/*.*
+    -parse SONG_NAME out of SONG_DIR, using $ZENIUS_TOOL
+      -extract BASENAME_SONG_DIR (the last element of the SONG_DIR path, not including group name)
+      -run `$ZENIUS_TOOL --extract-name-id BASENAME_SONG_DIR`
+      -override this value for certain hardcoded SONG_DIR values
+    -calculate the DDR-A style score
+      -parse the SIMFILE:
+        -obtain DDRA-style DDR_HOLD_ROW_COUNTS (single and multi-arrow holds)
+          -stepmania counts multi-arrow holds as multiple holds, DDR as single holds
+        -obtain DDRA-style DDR_TAP_ROW_COUNTS (number of rows with taps)
+          -same as TIMING_DATA; both DDR and stepmania count multi-arrow taps as single taps
+      -calculate the ratio of successful holds:
+        -get OK/LETGO/MISSED holds from TIMING_DATA
+        -calculate the SM_HOLD_SUCCESS_RATIO: OK-holds divided by (LETGO-holds + MISSED-holds)
+      -estimate the number of successful holds there would have been in DDR:
+        -multiply SM_HOLD_SUCCESS_RATIO by DDR_HOLD_ROW_COUNTS to obtain ADJUSTED_OK_HOLD_COUNT
+      -calculate the DDRA_SCORE as follows:
+        -STEP = 1000000 / (DDR_TAP_ROW_COUNTS + DDR_HOLD_ROW_COUNTS)
+        -DDRA_UNROUNDED_SCORE = 0
+            + ADJUSTED_OK_HOLD_COUNT * STEP
+            + FLAWLESS               * (STEP)
+            + PERFECT                * (STEP-10)
+            + GREAT                  * (STEP*0.6 - 10)
+            + GOOD                   * (STEP*0.2 - 10)
+        -DDRA_SCORE = floor(DDRA_UNROUNDED_SCORE/10)*10
+      -obtain SCORE_DATA, consisting of the following items:
+        -SONG_NAME
+        -SONG_DIR
+        -PASS_FAIL
+        -DDRA_SCORE
+        -DDRA_GAME
+        -DDRA_DIFFICULTY
+      -print each SCORE_DATA item, one per line
+        -formatted: 'ITEM_NAME:   ITEM_VALUE'
+        -align ITEM_VALUE whitespace
 
   $EXEC IMG_SCORE_FILE
     -fetch closest XML_SCORE_FILE (oldest XML score file by mtime, after IMG_SCORE_FILE mtime)
@@ -84,7 +120,14 @@ sub main(@){
   }elsif(@_ == 1 and $_[0] =~ /\.xml/i){
     my $xmlFile = $_[0];
     my $sd = getScoreDataByXmlFile($xmlFile);
-    print "$$sd{songName} - $$sd{ddraScore} - $$sd{passFail} - $$sd{songDir} - $$sd{ddraGame} - $$sd{ddraDifficulty}\n";
+    print ""
+      . "SONG_NAME:       $$sd{songName}\n"
+      . "SONG_DIR:        $$sd{songDir}\n"
+      . "PASS_FAIL:       $$sd{passFail}\n"
+      . "DDRA_SCORE:      $$sd{ddraScore}\n"
+      . "DDRA_GAME:       $$sd{ddraGame}\n"
+      . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
+      ;
   }elsif(@_ == 1 and $_[0] =~ /\.(jpg|png)/i){
     my $imgFile = $_[0];
     my $targetMtime = mtime $imgFile;
@@ -97,7 +140,14 @@ sub main(@){
     }
 
     my $sd = getScoreDataByXmlFile($closestXmlFile);
-    print "$$sd{songName} - $$sd{ddraScore} - $$sd{passFail} - $$sd{songDir} - $$sd{ddraGame} - $$sd{ddraDifficulty}\n";
+    print ""
+      . "SONG_NAME:       $$sd{songName}\n"
+      . "SONG_DIR:        $$sd{songDir}\n"
+      . "PASS_FAIL:       $$sd{passFail}\n"
+      . "DDRA_SCORE:      $$sd{ddraScore}\n"
+      . "DDRA_GAME:       $$sd{ddraGame}\n"
+      . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
+      ;
   }else{
     die $usage;
   }
