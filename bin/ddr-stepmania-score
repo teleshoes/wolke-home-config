@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub getScoreDataByXmlFile($);
 sub getSongAbsDir($);
 sub getSMFileFromSongDir($);
 sub parseXmlFile($);
@@ -82,17 +83,8 @@ sub main(@){
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /\.xml/i){
     my $xmlFile = $_[0];
-    my $xmlInfo = parseXmlFile $xmlFile;
-    my $songDir = getSongAbsDir $$xmlInfo{songDir};
-    my $gameDiffKey = gameDiffKey($$xmlInfo{game}, $$xmlInfo{difficulty});
-    my $smFile = getSMFileFromSongDir $songDir;
-    my $songInfo = parseSMFile $smFile;
-    my $songStats = $$songInfo{$gameDiffKey}{stats};
-    die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n" if not defined $songStats;
-
-    my $songName = getSongNameWithZeniusTool $songDir;
-    my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
-    print "$songName - $ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
+    my $sd = getScoreDataByXmlFile($xmlFile);
+    print "$$sd{songName} - $$sd{ddraScore} - $$sd{failed} - $$sd{songDir} - $$sd{gameDiffKey}\n";
   }elsif(@_ == 1 and $_[0] =~ /\.(jpg|png)/i){
     my $imgFile = $_[0];
     my $targetMtime = mtime $imgFile;
@@ -104,20 +96,34 @@ sub main(@){
       print "\n\nWARNING: img mtime is more than 10s (${mtimeDiff}s) away from xml mtime\n";
     }
 
-    my $xmlInfo = parseXmlFile $closestXmlFile;
-    my $songDir = getSongAbsDir $$xmlInfo{songDir};
-    my $gameDiffKey = gameDiffKey($$xmlInfo{game}, $$xmlInfo{difficulty});
-    my $smFile = getSMFileFromSongDir $songDir;
-    my $songInfo = parseSMFile $smFile;
-    my $songStats = $$songInfo{$gameDiffKey}{stats};
-    die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n" if not defined $songStats;
-
-    my $songName = getSongNameWithZeniusTool $songDir;
-    my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
-    print "$songName - $ddraScore - $$xmlInfo{failed} - $songDir - $gameDiffKey\n";
+    my $sd = getScoreDataByXmlFile($closestXmlFile);
+    print "$$sd{songName} - $$sd{ddraScore} - $$sd{failed} - $$sd{songDir} - $$sd{gameDiffKey}\n";
   }else{
     die $usage;
   }
+}
+
+sub getScoreDataByXmlFile($){
+  my ($xmlFile) = @_;
+
+  my $xmlInfo = parseXmlFile $xmlFile;
+  my $songDir = getSongAbsDir $$xmlInfo{songDir};
+  my $gameDiffKey = gameDiffKey($$xmlInfo{game}, $$xmlInfo{difficulty});
+  my $smFile = getSMFileFromSongDir $songDir;
+  my $songInfo = parseSMFile $smFile;
+  my $songStats = $$songInfo{$gameDiffKey}{stats};
+  die "ERROR: $gameDiffKey is not defined in $songDir/$smFile\n" if not defined $songStats;
+
+  my $songName = getSongNameWithZeniusTool $songDir;
+  my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
+
+  return {
+    songName       => $songName,
+    songDir        => $songDir,
+    failed         => $$xmlInfo{failed},
+    gameDiffKey    => $gameDiffKey,
+    ddraScore      => $ddraScore,
+  };
 }
 
 sub getSongAbsDir($){
