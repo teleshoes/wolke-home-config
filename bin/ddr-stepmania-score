@@ -70,7 +70,7 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC XML_SCORE_FILE
+  $EXEC --scoredata XML_SCORE_FILE
     -parse stepmania XML file for: SONG_DIR TIMING_DATA PASS_FAIL SM_GAME SM_DIFF
       -SONG_DIR is relative to the dir the stepmania exec is in, and always starts with Songs/
       -TIMING_DATA includes values like: FLAWLESS PERFECT GREAT GOOD OK
@@ -116,17 +116,21 @@ my $usage = "Usage:
         -formatted: 'ITEM_NAME:   ITEM_VALUE'
         -align ITEM_VALUE whitespace
 
-  $EXEC IMG_SCORE_FILE
-    -fetch closest XML_SCORE_FILE (oldest XML score file by mtime, after IMG_SCORE_FILE mtime)
-    -same as: `$EXEC XML_SCORE_FILE`
+  $EXEC --closest-scoredata FILE
+    -fetch CLOSEST_XML_SCORE_FILE
+      -take all XML score file matching $XML_FILE_PATTERN
+      -ignore any XML files with mtime after FILE mtime
+      -of the remaining, select the oldest file as XML_SCORE_FILE
+    -obtain SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
+    -print SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
 ";
 
 sub main(@){
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-h|--help)$/)){
     print $usage;
     exit 0;
-  }elsif(@_ == 1 and $_[0] =~ /\.xml/i){
-    my $xmlFile = $_[0];
+  }elsif(@_ == 2 and $_[0] =~ /^(--scoredata)$/i){
+    my ($cmd, $xmlFile) = @_;
     my $sd = getScoreDataByXmlFile($xmlFile);
     print ""
       . "SONG_NAME:       $$sd{songName}\n"
@@ -136,9 +140,9 @@ sub main(@){
       . "DDRA_GAME:       $$sd{ddraGame}\n"
       . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
       ;
-  }elsif(@_ == 1 and $_[0] =~ /\.(jpg|png)/i){
-    my $imgFile = $_[0];
-    my $targetMtime = mtime $imgFile;
+  }elsif(@_ == 2 and $_[0] =~ /^(--closest-scoredata)$/i){
+    my ($cmd, $file) = @_;
+    my $targetMtime = mtime $file;
     my $closestXmlFile = getOldestXmlFileAfterMtime $targetMtime;
 
     my $mtimeDiff = $targetMtime - mtime($closestXmlFile);
