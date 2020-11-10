@@ -10,6 +10,7 @@ sub parseXmlFile($);
 sub parseSMFile($);
 sub parseNoteSetStats($);
 sub gameDiffKey($$);
+sub getFCValue($);
 sub getScoreDDRA($$);
 sub getOldestXmlFileAfterMtime($);
 sub assertMtimesCloseEnough($$$$);
@@ -114,11 +115,19 @@ my $usage = "Usage:
             + GREAT                  * (STEP*0.6 - 10)
             + GOOD                   * (STEP*0.2 - 10)
         -DDRA_SCORE = floor(DDRA_UNROUNDED_SCORE/10)*10
+      -calculate FC value:
+        -'nofc' if PASS_FAIL is 'failed', or any hit mines, or any LETGO/MISSED holds
+        -'nofc' if any BAD/MISS taps
+        -'gfc'  if any GOOD taps       (only FLAWLESS/PERFECT/GREAT/GOOD taps, no BAD/MISS)
+        -'fc'   if any GREAT taps      (only FLAWLESS/PERFECT/GREAT taps, no BAD/MISS/GOOD)
+        -'pfc'  if any PERFECT taps    (only FLAWLESS/PERFECT taps, no BAD/MISS/GOOD/GREAT)
+        -'mfc'  if any FLAWLESS taps   (only FLAWLESS taps, no BAD/MISS/GOOD/GREAT/PERFECT)
       -obtain SCORE_DATA, consisting of the following items:
         -SONG_NAME
         -SONG_DIR
         -PASS_FAIL
         -DDRA_SCORE
+        -FC
         -DDRA_GAME
         -DDRA_DIFFICULTY
       -print each SCORE_DATA item, one per line
@@ -145,6 +154,7 @@ my $usage = "Usage:
             SONG_NAME \\
             PASS_FAIL \\
             DDRA_SCORE \\
+            FC \\
             DDRA_GAME \\
             DDRA_DIFFICULTY \\
           ;
@@ -162,6 +172,7 @@ sub main(@){
       . "SONG_DIR:        $$sd{songDir}\n"
       . "PASS_FAIL:       $$sd{passFail}\n"
       . "DDRA_SCORE:      $$sd{ddraScore}\n"
+      . "FC:              $$sd{fc}\n"
       . "DDRA_GAME:       $$sd{ddraGame}\n"
       . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
       ;
@@ -178,6 +189,7 @@ sub main(@){
       . "SONG_DIR:        $$sd{songDir}\n"
       . "PASS_FAIL:       $$sd{passFail}\n"
       . "DDRA_SCORE:      $$sd{ddraScore}\n"
+      . "FC:              $$sd{fc}\n"
       . "DDRA_GAME:       $$sd{ddraGame}\n"
       . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
       ;
@@ -202,6 +214,7 @@ sub main(@){
         $$sd{songName},
         $$sd{passFail},
         $$sd{ddraScore},
+        $$sd{fc},
         $$sd{ddraGame},
         $$sd{ddraDifficulty},
       );
@@ -228,6 +241,7 @@ sub getScoreDataByXmlFile($){
 
   my $songName = getSongNameWithZeniusTool $songDir;
   my $ddraScore = getScoreDDRA($xmlInfo, $songStats);
+  my $fc = getFCValue($xmlInfo);
 
   return {
     songName       => $songName,
@@ -235,6 +249,7 @@ sub getScoreDataByXmlFile($){
     passFail       => $$xmlInfo{passFail},
     gameDiffKey    => $gameDiffKey,
     ddraScore      => $ddraScore,
+    fc             => $fc,
     percentScore   => $$xmlInfo{percentScore},
     ddraGame       => $$DDRA_GAMES_BY_STEPMANIA_GAME{$$xmlInfo{game}},
     ddraDifficulty => $$DDRA_DIFFICULTIES_BY_STEPMANIA_DIFFICULTY{$$xmlInfo{difficulty}},
@@ -416,6 +431,36 @@ sub parseNoteSetStats($){
 sub gameDiffKey($$){
   my ($game, $diff) = @_;
   return lc "$game-$diff";
+}
+
+sub getFCValue($){
+  my ($xmlInfo) = @_;
+
+  my $fc;
+
+  if($$xmlInfo{passFail} =~ /failed/i){
+    $fc = undef;
+  }if($$xmlInfo{holdLetGo} > 0 or $$xmlInfo{holdMissed} > 0){
+    $fc = undef;
+  }elsif($$xmlInfo{mineHit} > 0){
+    $fc = undef;
+  }elsif($$xmlInfo{miss} > 0 or $$xmlInfo{bad} > 0){
+    $fc = undef;
+  }elsif($$xmlInfo{good} > 0){
+    $fc = "gfc";
+  }elsif($$xmlInfo{great} > 0){
+    $fc = "fc";
+  }elsif($$xmlInfo{perfect} > 0){
+    $fc = "pfc";
+  }elsif($$xmlInfo{flawless} > 0){
+    $fc = "mfc";
+  }else{
+    $fc = undef;
+  }
+
+  $fc = "nofc" if not defined $fc;
+
+  return $fc;
 }
 
 sub getScoreDDRA($$){
