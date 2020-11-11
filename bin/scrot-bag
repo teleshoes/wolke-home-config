@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Cwd qw(abs_path);
 
 my $EXEC = basename $0;
 
@@ -16,15 +17,20 @@ my $usage = "Usage:
     show this message
 
   $EXEC DIR
-    -create DIR
-    -get today's date, formatted YYYYMMDD
-    -find all files in DIR named: YYYYMMDD_NUM.EXT
-      -EXT is $OK_EXTS
-      -YYYYMMDD is today's date
-      -NUM is a string of digits
-    -find the largest NUM among these files, and add 1 to it for NEXTNUM
-    -use 001 if no such files exist
-    -run `scrot YYYYMMDD_NEXTNUM.png`
+    run: `scrot <DIR>/<YYYYMMDD>_<NEXTNUM>.png`
+      DIR
+        directory passed in; must already exist
+        converted to an absolute path by Cwd::abs_path
+      YYYYMMDD
+        today's date, formatted +%Y%m%d
+      NEXTNUM
+        find all files in DIR named: <YYYYMMDD>_<NUM>.<EXT>
+        extract the largest NUM, and add 1 to it
+        format as at least 3 digits with leading 0s i.e.: %03d
+      NUM
+        any sequence of digits (non-negative integer)
+      EXT
+        one of: $OK_EXTS
 
   $EXEC
     same as `$EXEC \$HOME`
@@ -35,7 +41,7 @@ sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
-  }elsif(@_ == 1){
+  }elsif(@_ == 1 and -d $_[0]){
     ($dir) = @_;
   }elsif(@_ == 0){
     $dir = $ENV{HOME};
@@ -43,7 +49,13 @@ sub main(@){
     die "$usage\nERROR: unknown args @_\n";
   }
 
-  system "mkdir", $dir if not -d $dir;
+  $dir = abs_path($dir);
+
+  $dir =~ s/\/+$//;
+
+  if(not -d $dir){
+    die "ERROR: $dir is not a dir\n";
+  }
 
   my $date = `date +%Y%m%d`;
   chomp $date;
