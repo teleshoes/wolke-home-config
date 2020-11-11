@@ -16,7 +16,7 @@ my $usage = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC DIR
+  $EXEC [OPTS] DIR
     run: `scrot <DIR>/<YYYYMMDD>_<NEXTNUM>.png`
       DIR
         directory passed in; must already exist
@@ -32,12 +32,18 @@ my $usage = "Usage:
       EXT
         one of: $OK_EXTS
 
-  $EXEC
-    same as `$EXEC \$HOME`
+  $EXEC [OPTS]
+    same as `$EXEC OPTS \$HOME`
+
+  OPTS
+    --flash
+      after running `scrot <DIR>/<YYYYMMDD>_<NEXTNUM>.png`,
+      run: `image-flash <DIR>/<YYYYMMDD>_<NEXTNUM>.png`
 ";
 
 sub main(@){
   my $dir = undef;
+  my $flash = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -46,6 +52,8 @@ sub main(@){
     }elsif(-d $arg){
       die "ERROR: multiple dirs given \"$arg\" and \"$dir\"\n" if defined $dir;
       $dir = $arg;
+    }elsif($arg =~ /^(--flash)$/){
+      $flash = 1;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
@@ -84,7 +92,11 @@ sub main(@){
   }
 
   print "Taking screenshot and putting it in $file\n";
-  system "scrot $file";
+  system "scrot", $file;
+
+  if($flash){
+    system "image-flash", $file;
+  }
 }
 
 sub listDirFiles($){
