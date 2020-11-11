@@ -5,6 +5,9 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my @EXTS = qw(png jpg jpeg);
+my $OK_EXTS = join "|", @EXTS;
+
 my $usage = "Usage:
   use scrot-bag to take a screenshot and store it in a directory,
   not overwriting existing screenshots
@@ -14,10 +17,9 @@ my $usage = "Usage:
 
   $EXEC DIR
     -create DIR
-    -cd to DIR
     -get today's date, formatted YYYYMMDD
     -find all files in DIR named: YYYYMMDD_NUM.EXT
-      -EXT is png/jpg/jpeg
+      -EXT is $OK_EXTS
       -YYYYMMDD is today's date
       -NUM is a string of digits
     -find the largest NUM among these files, and add 1 to it for NEXTNUM
@@ -29,33 +31,55 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  my $dir;
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
     print $usage;
     exit 0;
+  }elsif(@_ == 1){
+    ($dir) = @_;
+  }elsif(@_ == 0){
+    $dir = $ENV{HOME};
+  }else{
+    die "$usage\nERROR: unknown args @_\n";
   }
 
-  my $dir = shift || "$ENV{HOME}";
-  $dir = "$ENV{PWD}/$dir" if not $dir =~ m|^/|;
-  mkdir $dir;
-  chdir $dir;
+  system "mkdir", $dir if not -d $dir;
 
   my $date = `date +%Y%m%d`;
   chomp $date;
 
-  my $maxNum = '000';
-  for my $ss(`ls`){
-    if($ss =~ /(?:.*\/)?  $date  _  (\d+)  \.  (png|jpg|jpeg)$/xi){
-      if($1 > $maxNum){
-        $maxNum = $1;
+  my @files = listDirFiles($dir);
+  my $maxNum = 0;
+  for my $file(@files){
+    if($file =~ /^(?:.*\/)?${date}_(\d+)\.(?:$OK_EXTS)$/i){
+      my $num = 0 + $1;
+      if($num > $maxNum){
+        $maxNum = $num;
       }
     }
   }
 
-  $maxNum++;
+  my $nextNum = sprintf "%03d", $maxNum + 1;
 
-  my $file = "${dir}/${date}_${maxNum}.png";
+  my $file = "${dir}/${date}_${nextNum}.png";
+
+  if(-e $file){
+    die "ERROR: $file already exists\n";
+  }
+
   print "Taking screenshot and putting it in $file\n";
   system "scrot $file";
+}
+
+sub listDirFiles($){
+  my ($dir) = @_;
+  opendir(my $dh, $dir) or die "ERROR: could not read dir $dir\n$!\n";
+  my @files = readdir($dh);
+  closedir($dh);
+  $dir =~ s/\/?$//;
+  @files = map {"$dir/$_"} @files;
+  @files = grep {-f $_} @files;
+  return @files;
 }
 
 &main(@ARGV);
