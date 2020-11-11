@@ -320,7 +320,7 @@ sub parseXmlFile($){
   $$info{mods} = $1           if $xml =~ /<Modifiers>(.*)<\/Modifiers>/;
 
   $$info{grade} = $1          if $xml =~ /<Grade>(.*)<\/Grade>/;
-  $$info{percentScore} = $1   if $xml =~ /<PercentDP>($num)<\/PercentDP>/;
+  $$info{percentDP} = $1      if $xml =~ /<PercentDP>($num)<\/PercentDP>/;
   $$info{surviveSeconds} = $1 if $xml =~ /<SurviveSeconds>($num)<\/SurviveSeconds>/;
   $$info{maxCombo} = $1       if $xml =~ /<MaxCombo>($int)<\/MaxCombo>/;
 
@@ -347,13 +347,18 @@ sub parseXmlFile($){
   }
 
   my @requiredAtts = qw(
-    songDir difficulty game grade
+    songDir difficulty game grade percentDP
     holdOk holdLetGo holdMissed
     flawless perfect great good bad miss
   );
 
   for my $att(@requiredAtts){
     die "ERROR: could not parse '$att' in $xmlFile\n" if not defined $$info{$att};
+  }
+
+  if(defined $$info{percentDP}){
+    #percentDP is a ratio in the XML...
+    $$info{percentScore} = sprintf("%.2f", ($$info{percentDP} * 100.0)) . "%";
   }
 
   $$info{passFail} = $$info{grade} =~ /failed/i ? "failed" : "passed";
