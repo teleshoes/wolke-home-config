@@ -477,32 +477,40 @@ sub getUsage(;$){
     FILE_FORMAT_PATTERN
       see --files FILE_FORMAT_PATTERN
 
-  $0 JPG_FILE REMINDER
+  $0 IMG_FILE REMINDER
 
-    rename a jpeg file, adding '_<REMINDER>' before .jpg
+    rename a jpg/png file, adding '_<REMINDER>' before '.EXT'
 
-     JPG_FILE
-       jpeg file to rename
-       must start with '########_###' and end with '.jpg'
+     IMG_FILE
+       jpg/png file to rename
+       must start with '########_###' and end with '.EXT'
+
+     EXT
+       one of [jpg|png]
 
      REMINDER
        text to append
-       can optionally start with the same prefix as JPG_FILE ('########_###')
-         and/or end in '.jpg', in which case the prefix or suffix are removed
+         if REMINDER starts with the same prefix as IMG_FILE ('########_###'):
+           remove that prefix from REMINDER text (dont duplicate it)
+         if REMINDER ends with '.EXT':
+           remove .EXT from REMINDER text (dont duplicate it)
        must:
          -start with 'reminder_'
          -contain only letters, numbers, underscores, and dashes
          -and end with a letter or number
 
-  $0 JPG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]
+  $0 IMG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]
 
-    rename a jpeg file using a consistent format
-    \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_FC_SPECIAL_BAR_STAGE.jpg\"
+    rename a jpg/png file using a consistent format
+    \"########_###_SONG_GAME_DIFFICULTY_MACHINE_SCORE_FC_SPECIAL_BAR_STAGE.EXT\"
     ######## is presumably a date in YYYYMMDD and ### is the camera pic index
 
-     JPG_FILE
-       jpeg file to rename
-       must start with '########_###' and end with '.jpg'
+     IMG_FILE
+       jpg/png file to rename
+       must start with '########_###' and end with .EXT
+
+     EXT
+       one of [jpg|png]
 
      INFO_ARG
        one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
@@ -574,12 +582,12 @@ sub getUsage(;$){
        --fast
          same as --no-banner-flash --no-check-orientation
 
-  $0 --edit-names [OPT OPT ..] [INFO_ARG INFO_ARG ..] [JPG_FILE JPG_FILE ..]
+  $0 --edit-names [OPT OPT ..] [INFO_ARG INFO_ARG ..] [IMG_FILE IMG_FILE ..]
     group-edit a single attribute for multiple files
-    for each JPG_FILE:
-      -parse original info args attributes from JPG_FILE file name
+    for each IMG_FILE:
+      -parse original info args attributes from IMG_FILE file name
       -replace previous values of the attribute for each INFO_ARG given
-      -rename the file, as in '$0 JPG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]'
+      -rename the file, as in '$0 IMG_FILE [OPT OPT ..] [INFO_ARG INFO_ARG ..]'
 
   $0 --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
@@ -639,16 +647,16 @@ sub main(@){
     scoreStats($cmd, @_);
   }elsif(@_ >= 2 and $_[0] =~ /^(--edit-names)$/){
     my ($cmd, @args) = @_;
-    my (@infoArgs, @jpgFiles);
+    my (@infoArgs, @imgFiles);
     while(@args > 0 and not -f $args[0]){
       push @infoArgs, shift @args;
     }
-    @jpgFiles = @args;
+    @imgFiles = @args;
     my ($opts, $editInfo) = parseOptsAndInfoArgs @infoArgs;
-    editNames($editInfo, $opts, @jpgFiles);
-  }elsif(@_ == 2 and $_[0] =~ /\.jpg$/){
+    editNames($editInfo, $opts, @imgFiles);
+  }elsif(@_ == 2 and $_[0] =~ /\.(jpg|png)$/){
     nameReminder($_[0], $_[1]);
-  }elsif(@_ > 1 and $_[0] =~ /\.jpg$/){
+  }elsif(@_ > 1 and $_[0] =~ /\.(jpg|png)$/){
     my ($file, @args) = @_;
     my ($opts, $info) = parseOptsAndInfoArgs @args;
     $$info{game} = $singlesGameArg if not defined $$info{game};
@@ -1061,7 +1069,7 @@ sub validateFile($){
   my ($file) = @_;
 
   die getUsage() if not defined $file;
-  die "\n\n!!!\nmisnamed jpg file: $file\n" if $file !~ /^(.\/)?(IMG_)?(\d{8}_\d{3,}).*\.jpg$/;
+  die "\n\n!!!\nmisnamed jpg/png file: $file\n" if $file !~ /^(.\/)?(IMG_)?(\d{8}_\d{3,}).*\.(jpg|png)$/;
   die "\n\n!!!\nfile not found: $file\n" if not -f $file;
 }
 
@@ -1083,18 +1091,18 @@ sub nameReminder($$){
 
   $file =~ s/^\.\///;
 
-  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.jpg$/){
-    die "\n\n!!!\nmisnamed jpg file: $file\n";
+  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.(jpg|png)$/){
+    die "\n\n!!!\nmisnamed jpg/png file: $file\n";
   }
-  my $prefix = $1;
+  my ($prefix, $ext) = ($1, $2);
   $reminder =~ s/^$prefix//;
-  $reminder =~ s/\.jpg$//;
+  $reminder =~ s/\.$ext$//;
 
   if($reminder !~ /^(reminder)_[a-zA-Z0-9_\-]*[a-zA-Z0-9]$/){
     die "invalid reminder: $reminder\n";
   }
 
-  my $newFileName = "${prefix}_${reminder}.jpg";
+  my $newFileName = "${prefix}_${reminder}.$ext";
 
   my @cmd = ("mv", $file, $newFileName);
   run @cmd;
@@ -1182,10 +1190,10 @@ sub nameFile($$$$){
 
   $file =~ s/^\.\///;
 
-  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.jpg$/){
-    die "\n\n!!!\nmisnamed jpg file: $file\n";
+  if($file !~ /^(?:IMG_)?(\d{8}_\d{3,}).*\.(jpg|png)$/){
+    die "\n\n!!!\nmisnamed jpg/png file: $file\n";
   }
-  my $prefix = $1;
+  my ($prefix, $ext) = ($1, $2);
 
   delete $$info{fc} if defined $$info{fc} and $$info{fc} eq $emptyFCArg;
   delete $$info{special} if defined $$info{special} and $$info{special} eq $emptySpecialArg;
@@ -1203,7 +1211,7 @@ sub nameFile($$$$){
   $newFileName .= "_$$info{special}" if defined $$info{special};
   $newFileName .= "_$$info{bar}";
   $newFileName .= "_$$info{stage}";
-  $newFileName .= ".jpg";
+  $newFileName .= ".$ext";
 
   my @cmd = ("mv", $file, $newFileName);
   if($file eq $newFileName){
@@ -1214,14 +1222,14 @@ sub nameFile($$$$){
 }
 
 sub editNames($$@){
-  my ($editInfo, $opts, @jpgFiles) = @_;
+  my ($editInfo, $opts, @imgFiles) = @_;
 
   my $infoByFile = {};
-  for my $jpgFile(@jpgFiles){
-    my $origInfo = parseScoreFile($jpgFile);
+  for my $imgFile(@imgFiles){
+    my $origInfo = parseScoreFile($imgFile);
     my $info = {%$origInfo, %$editInfo};
-    $$infoByFile{$jpgFile} = $info;
-    validateFile $jpgFile;
+    $$infoByFile{$imgFile} = $info;
+    validateFile $imgFile;
     validateInfo $info;
   }
 
@@ -1229,8 +1237,8 @@ sub editNames($$@){
   my $scores = [values %$scoresByFile];
   my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
 
-  for my $jpgFile(@jpgFiles){
-    nameFile $jpgFile, $$infoByFile{$jpgFile}, $buckets, $opts;
+  for my $imgFile(@imgFiles){
+    nameFile $imgFile, $$infoByFile{$imgFile}, $buckets, $opts;
   }
 }
 
@@ -1318,9 +1326,10 @@ sub getScoresByFile(){
 }
 
 sub listScoreFiles(){
-  my @files = `cd $scoreDir && ls *.jpg`;
+  my @files = `cd $scoreDir && ls *.jpg *.png`;
   chomp foreach @files;
-  @files = grep {$_ =~ /^\d+_.*\.jpg$/} @files;
+  @files = sort @files;
+  @files = grep {$_ =~ /^\d+_.*\.(jpg|png)$/} @files;
   @files = grep {$_ !~ /_reminder_/} @files;
   return @files;
 }
@@ -1341,7 +1350,7 @@ sub parseScoreFile($){
     (?:_(?<special>$okSpecialArgs))?
     _(?<bar>$okBarArgs)
     _(?<stage>$okStageArgs)
-    \.jpg$/x){
+    \.(?:jpg|png)$/x){
     die "malformed file name: $file\n";
   }
   my $info = {
@@ -2071,11 +2080,12 @@ sub bashComplete($$){
   pop @words if not $isNewWord;
 
   if(@words == 0){
-    my @jpgFiles = `ls *.jpg 2>/dev/null`;
-    chomp foreach @jpgFiles;
+    my @imgFiles = `ls *.jpg *.png 2>/dev/null`;
+    chomp foreach @imgFiles;
+    @imgFiles = sort @imgFiles;
     return ("--fehterm", "--banners", "--orientation", "--datestats", "--coursestats",
       "--print", "--gnuplot", "--files", "--bestfiles", "--edit-names",
-      @jpgFiles);
+      @imgFiles);
   }
 
   if($words[0] =~ /^(--banners)$/ and @words == 1){
@@ -2178,9 +2188,10 @@ sub bashComplete($$){
   #@complete = (@failedArgs, @complete) if not defined $$info{failed};
 
   if($editNames){
-    my @jpgFiles = `ls *.jpg 2>/dev/null`;
-    chomp foreach @jpgFiles;
-    @complete = (@jpgFiles, @complete);
+    my @imgFiles = `ls *.jpg *.png 2>/dev/null`;
+    chomp foreach @imgFiles;
+    @imgFiles = sort @imgFiles;
+    @complete = (@imgFiles, @complete);
   }
 
   @complete = ("reminder_", "reminder_closeup_", @complete) if @words == 0 and not $editNames;
