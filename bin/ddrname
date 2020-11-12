@@ -66,7 +66,7 @@ my @okFormatOptCourses = qw(--minlen);
 my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
-my @okFormatOptSongs = qw(--notes --abbrev);
+my @okFormatOptSongs = qw(--notes --abbrev --combine-machines);
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
 my $argOptFormatOptSongsRegex = join "|", qw(--notes);
 
@@ -126,7 +126,7 @@ sub filterScores($$);
 sub getMtimesByFile($);
 sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
-sub formatScores($$$);
+sub formatScores($$$$);
 sub getBestScores($);
 sub gnuplot($$);
 sub combine(@);
@@ -292,6 +292,10 @@ sub getUsage(;$){
           add '3rd' if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET) and STAGE is '3rd'
       --abbrev
         shorten bucket names by using song abbreviations
+      --combine-machines
+        after filtering (which can still filter by machine),
+        ignore machine field, combining all scores with the same song/game/difficulty
+        but potentially different machines into one bucket
 
     FILTER: SONG
       --song REGEX
@@ -884,6 +888,7 @@ sub scoreStats($@){
   }
 
   my $abbrevBucket = 0;
+  my $combineMachines = 0;
 
   if($cmd =~ /^(--print|--gnuplot)$/){
     while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
@@ -904,6 +909,10 @@ sub scoreStats($@){
         }
       }elsif($opt =~ /^(--abbrev)$/){
         $abbrevBucket = 1;
+      }elsif($opt =~ /^(--combine-machines)$/){
+        $combineMachines = 1;
+      }else{
+        die "ERROR: unknown opt $opt\n";
       }
     }
   }
@@ -919,10 +928,10 @@ sub scoreStats($@){
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($okNotes, $abbrevBucket, $filters);
+    my $fmt = formatScores($okNotes, $abbrevBucket, $combineMachines, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($okNotes, $abbrevBucket, $filters);
+    my $fmt = formatScores($okNotes, $abbrevBucket, $combineMachines, $filters);
     gnuplot $plotOptions, $fmt;
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
@@ -1831,14 +1840,20 @@ sub splitCoursesIntoSessions(@){
   return @sessions;
 }
 
-sub formatScores($$$){
-  my ($okNotes, $abbrevBucket, $filters) = @_;
+sub formatScores($$$$){
+  my ($okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
 
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
 
+  my @bucketFields = @DEFAULT_BUCKET_FIELDS;
+
+  if($combineMachines){
+    @bucketFields = grep {$_ !~ /machine/} @bucketFields;
+  }
+
   my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, $abbrevBucket, @DEFAULT_BUCKET_FIELDS);
+  my $buckets = getScoreBuckets($scores, $abbrevBucket, @bucketFields);
 
   my $fmt = "";
   for my $bucketName(sort keys %$buckets){
