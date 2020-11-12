@@ -19,16 +19,21 @@ my $usage = "Usage:
     show this message
 
   $EXEC [OPTS] DIR
-    run: `scrot <DIR>/<YYYYMMDD>_<NEXTNUM>.png`
+    run: `scrot <DIR>/<DATE>_<TIME>_<NEXTNUM>.png`
       DIR
         directory passed in; must already exist
         converted to an absolute path by Cwd::abs_path
-      YYYYMMDD
-        today's date, formatted +%Y%m%d
+      DATE
+        current date, formatted +%Y%m%d
+        e.g.: 20201111
+      TIME
+        current time, formatted +%H%M%S
+        e.g.: 193743
       NEXTNUM
-        find all files in DIR named: <YYYYMMDD>_<NUM>.<EXT>
+        find all files in DIR named: <DATE>*_<NUM>.<EXT>
         extract the largest NUM, and add 1 to it
-        format as at least 3 digits with leading 0s i.e.: %03d
+        formatted as at least 3 digits with leading 0s i.e.: %03d
+        e.g.: 001
       NUM
         any sequence of digits (non-negative integer)
       EXT
@@ -73,11 +78,13 @@ sub main(@){
 
   my $date = `date +%Y%m%d`;
   chomp $date;
+  my $time = `date +%H%M%S`;
+  chomp $time;
 
   my @files = listDirFiles($dir);
   my $maxNum = 0;
   for my $file(@files){
-    if($file =~ /^(?:.*\/)?${date}_(\d+)\.(?:$OK_EXTS)$/i){
+    if($file =~ /^(?:.*\/)?${date}.*_(\d+)\.(?:$OK_EXTS)$/i){
       my $num = 0 + $1;
       if($num > $maxNum){
         $maxNum = $num;
@@ -87,7 +94,7 @@ sub main(@){
 
   my $nextNum = sprintf "%03d", $maxNum + 1;
 
-  my $file = "${dir}/${date}_${nextNum}.png";
+  my $file = "${dir}/${date}_${time}_${nextNum}.png";
 
   if(-e $file){
     die "ERROR: $file already exists\n";
