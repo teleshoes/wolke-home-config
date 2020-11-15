@@ -79,55 +79,106 @@ my @STEPMANIA_GAMES = map {$$_[0]} @$SM_DDRA_GAMES_ARR;
 
 my $SEP = "="x50;
 
+my $COMMAND_PRINT = "print";
+my $COMMAND_DDRNAME = "ddrname";
+
+my $SCORE_FILE_MODE_BY_FILE_EXT = "by-file-ext";
+my $SCORE_FILE_MODE_DIRECT_XML = "direct-xml";
+my $SCORE_FILE_MODE_CLOSEST_XML_BY_MTIME = "closest-by-mtime";
+
+my $FILENAME_PRINT_MODE_MULTIPLE_ONLY = "multiple-only";
+my $FILENAME_PRINT_MODE_ALWAYS = "always";
+my $FILENAME_PRINT_MODE_NEVER = "never";
+
 my $EXEC = basename $0;
 
 my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC --scoredata XML_SCORE_FILE
-    -parse stepmania XML file for: SONG_DIR TIMING_DATA PASS_FAIL SM_GAME SM_DIFF
-      -SONG_DIR is relative to the dir the stepmania exec is in, and always starts with Songs/
-      -TIMING_DATA includes values like: FLAWLESS PERFECT GREAT GOOD OK
-      -PASS_FAIL is 'failed' if grade is failed, and 'passed' otherwise
-      -SM_GAME is 'StepsType' att of <Steps> in the XML and contains a value like 'dance-single'
-      -SM_DIFF is 'Difficulty' att of <Steps> in the XML and contains a value like 'Hard'
-    -parse SM_GAME into DDRA_GAME and SM_DIFF into DDRA_DIFFICULTY using hardcoded transforms
-    -locate the stepmania *.sm or *.ssc SIMFILE in $SONGS_PARENT_DIR/<SONG_DIR>/*.*
-    -parse SONG_NAME out of SONG_DIR, using $ZENIUS_TOOL
-      -extract BASENAME_SONG_DIR (the last element of the SONG_DIR path, not including group name)
-      -run `$ZENIUS_TOOL --extract-name-id BASENAME_SONG_DIR`
-      -override this value for certain hardcoded SONG_DIR values
-      -the following SONG_NAME values have hardcoded SONG_DIR values:
-        $FMT_HARDCODED_SONG_NAME_IDS
-    -calculate the DDR-A style score
-      -parse the SIMFILE:
-        -obtain DDRA-style DDR_HOLD_ROW_COUNTS (single and multi-arrow holds)
-          -stepmania counts multi-arrow holds as multiple holds, DDR as single holds
-        -obtain DDRA-style DDR_TAP_ROW_COUNTS (number of rows with taps)
-          -same as TIMING_DATA; both DDR and stepmania count multi-arrow taps as single taps
-      -calculate the ratio of successful holds:
-        -get OK/LETGO/MISSED holds from TIMING_DATA
-        -calculate the SM_HOLD_SUCCESS_RATIO: OK-holds divided by (LETGO-holds + MISSED-holds)
-      -estimate the number of successful holds there would have been in DDR:
-        -multiply SM_HOLD_SUCCESS_RATIO by DDR_HOLD_ROW_COUNTS to obtain ADJUSTED_OK_HOLD_COUNT
-      -calculate the DDRA_SCORE as follows:
-        -STEP = 1000000 / (DDR_TAP_ROW_COUNTS + DDR_HOLD_ROW_COUNTS)
-        -DDRA_UNROUNDED_SCORE = 0
-            + ADJUSTED_OK_HOLD_COUNT * STEP
-            + FLAWLESS               * (STEP)
-            + PERFECT                * (STEP-10)
-            + GREAT                  * (STEP*0.6 - 10)
-            + GOOD                   * (STEP*0.2 - 10)
-        -DDRA_SCORE = floor(DDRA_UNROUNDED_SCORE/10)*10
-      -calculate FC value:
+  $EXEC [OPTS] [COMMAND] FILE [FILE ..]
+    for each FILE:
+      (A) print FILE, if more than one FILE is given (or --filenames is given)
+      (B) obtain XML_SCORE_FILE
+        (i) if FILE ends in .xml (or --xml is gven)
+            -use FILE as XML_SCORE_FILE
+            -obtain SCORE_DATA from XML_SCORE_FILE
+        (ii) if FILE ends in .jpg or .png (or --img is given):
+             -use FILE as IMG_FILE
+             -take all XML score file matching $XML_FILE_PATTERN
+             -ignore any XML files with mtime after IMG_FILE mtime
+             -of the remaining, select the oldest file as XML_SCORE_FILE
+      (C) obtain SCORE_DATA from XML_SCORE_FILE (see SCORE_DATA)
+      (D) perform COMMAND
+        (i) if COMMAND is --print (this is the default):
+            -print $SEP
+            -print each SCORE_DATA item, one per line
+              -formatted: 'ITEM_NAME:   ITEM_VALUE'
+              -align ITEM_VALUE whitespace
+            -print $SEP
+        (ii) if COMMAND is --ddrname:
+             -make system call:
+                 $DDRNAME_TOOL \\
+                   IMG_SCORE_FILE \\
+                   @DDRNAME_OPTS \\
+                   $DDRNAME_MACHINE \\
+                   $DDRNAME_STAGE \\
+                   SONG_NAME \\
+                   PASS_FAIL \\
+                   DDRA_SCORE \\
+                   FC \\
+                   DDRA_GAME \\
+                   DDRA_DIFFICULTY \\
+                 ;
+
+  SCORE_DATA
+    (1) parse stepmania XML_SCORE_FILE, and obtain: SONG_DIR TIMING_DATA PASS_FAIL SM_GAME SM_DIFF
+        -SONG_DIR is relative to the dir the stepmania exec is in, and always starts with Songs/
+        -TIMING_DATA includes values like: FLAWLESS PERFECT GREAT GOOD OK
+        -PASS_FAIL is 'failed' if grade is failed, and 'passed' otherwise
+        -SM_GAME is 'StepsType' att of <Steps> in the XML and contains a value like 'dance-single'
+        -SM_DIFF is 'Difficulty' att of <Steps> in the XML and contains a value like 'Hard'
+        -PERCENT_SCORE is 'PercentDP' (which is a ratio) times 100%
+    (2) parse SONG_NAME out of SONG_DIR, using $ZENIUS_TOOL
+        -extract BASENAME_SONG_DIR (the last element of the SONG_DIR path, not including group name)
+        -run `$ZENIUS_TOOL --extract-name-id BASENAME_SONG_DIR`
+        -override this value for certain hardcoded SONG_DIR values
+        -the following SONG_NAME values have hardcoded SONG_DIR values:
+          $FMT_HARDCODED_SONG_NAME_IDS
+    (3) parse SM_GAME/SM_DIFF into DDRA_GAME / DDRA_DIFFICULTY using hardcoded transforms
+    (4) locate the stepmania SIMFILE (*.sm or *.ssc) in $SONGS_PARENT_DIR/<SONG_DIR>/*.*
+    (5) parse the SIMFILE:
+        -parse all games/difficulties, but ignore all except SM_GAME/SM_DIFF
+        -for SM_GAME/SM_DIFF, parse:
+          -DDR_HOLD_ROW_COUNTS is DDRA-style count of number of rows with holds (single/multi arrow)
+            -stepmania counts multi-arrow holds as multiple holds, DDR as single holds
+          -DDR_TAP_ROW_COUNTS is DDRA-style count of number of rows with taps (single/multi arrow)
+            -same as TIMING_DATA; both DDR and stepmania count multi-arrow taps as single taps
+          -SM_FEET is the hard-coded numeric complexity level of the SM_GAME/SM_DIFF
+          -SM_RADAR is the hard-coded set of numbers representing things like stream/voltage/air/etc
+    (6) calculate DDRA_SCORE score using TIMING_DATA and DDR_TAP_ROW_COUNTS/DDR_HOLD_ROW_COUNTS
+        -calculate the ratio of successful holds:
+          -get OK/LETGO/MISSED holds from TIMING_DATA
+          -calculate the SM_HOLD_SUCCESS_RATIO: OK-holds divided by (LETGO-holds + MISSED-holds)
+        -estimate the number of successful holds there would have been in DDR:
+          -multiply SM_HOLD_SUCCESS_RATIO by DDR_HOLD_ROW_COUNTS to obtain ADJUSTED_OK_HOLD_COUNT
+        -calculate the DDRA_SCORE as follows:
+          -STEP = 1000000 / (DDR_TAP_ROW_COUNTS + DDR_HOLD_ROW_COUNTS)
+          -DDRA_UNROUNDED_SCORE = 0
+              + ADJUSTED_OK_HOLD_COUNT * STEP
+              + FLAWLESS               * (STEP)
+              + PERFECT                * (STEP-10)
+              + GREAT                  * (STEP*0.6 - 10)
+              + GOOD                   * (STEP*0.2 - 10)
+          -DDRA_SCORE = floor(DDRA_UNROUNDED_SCORE/10)*10
+    (7) calculate FC value from TIMING_DATA/PASS_FAIL:
         -'nofc' if PASS_FAIL is 'failed', or any hit mines, or any LETGO/MISSED holds
         -'nofc' if any BAD/MISS taps
         -'gfc'  if any GOOD taps       (only FLAWLESS/PERFECT/GREAT/GOOD taps, no BAD/MISS)
         -'fc'   if any GREAT taps      (only FLAWLESS/PERFECT/GREAT taps, no BAD/MISS/GOOD)
         -'pfc'  if any PERFECT taps    (only FLAWLESS/PERFECT taps, no BAD/MISS/GOOD/GREAT)
         -'mfc'  if any FLAWLESS taps   (only FLAWLESS taps, no BAD/MISS/GOOD/GREAT/PERFECT)
-      -obtain SCORE_DATA, consisting of the following items:
+    (8) include the following items in SCORE_DATA:
         -XML_FILE
         -SONG_DIR
         -SONG_NAME
@@ -139,63 +190,52 @@ my $usage = "Usage:
         -DDRA_DIFFICULTY
         -SM_FEET
         -SM_RADAR
-      -print $SEP
-      -print each SCORE_DATA item, one per line
-        -formatted: 'ITEM_NAME:   ITEM_VALUE'
-        -align ITEM_VALUE whitespace
-      -print $SEP
 
-  $EXEC --closest-scoredata IMG_FILE
-    -fetch CLOSEST_XML_SCORE_FILE
-      -take all XML score file matching $XML_FILE_PATTERN
-      -ignore any XML files with mtime after IMG_FILE mtime
-      -of the remaining, select the oldest file as XML_SCORE_FILE
-    -obtain SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
-    -print SCORE_DATA, as in `$EXEC --scoredata CLOSEST_XML_FILE`
+  COMMAND
+    --print
+      format and print SCORE_DATA for each FILE passed in
+      (this is the default if no command is given)
+    --ddrname
+      call `$DDRNAME_TOOL` with SCORE_DATA info on each FILE passed in
 
-  $EXEC FILE_NAME [FILE_NAME ..]
-    -for each FILE_NAME, check extension, and fetch+print score data appropriately:
-      -print FILE_NAME
-      -if FILE_NAME ends with .xml:
-        $EXEC --scoredata FILE_NAME
-      -if FILE_NAME ends with .jpg/.jpeg/.png:
-        $EXEC --closest-scoredata FILE_NAME
+  OPTS
+    --xml
+      treat all FILE args as XML_SCORE_FILE files, regardless of filename
+      FILE is parsed directly as XML_SCORE_FILE, without reading mtimes
+    --img | --image | --closest-by-mtime
+      treat all FILE args as IMG_FILE
+      mtime of IMG_FILE is used to obtain the XML_SCORE_FILE
 
-  $EXEC --ddrname IMG_SCORE_FILE [IMG_SCORE_FILE ..]
-    -for each IMG_SCORE_FILE:
-      -obtain SCORE_DATA, as in `$EXEC --closest-scoredata IMG_SCORE_FILE`
-      -make system call:
-          $DDRNAME_TOOL \\
-            IMG_SCORE_FILE \\
-            @DDRNAME_OPTS \\
-            $DDRNAME_MACHINE \\
-            $DDRNAME_STAGE \\
-            SONG_NAME \\
-            PASS_FAIL \\
-            DDRA_SCORE \\
-            FC \\
-            DDRA_GAME \\
-            DDRA_DIFFICULTY \\
-          ;
+    --filename | --filenames
+      always print FILE before parsing scoredata
+      (default is to print only if more than one FILE given)
+    --no-filename | --nofilename | --no-filenames | --nofilenames
+      never print FILE before parsing scoredata
+      (default is to print only if more than one FILE given)
 ";
 
 sub main(@){
-  my $cmd;
+  my $cmd = $COMMAND_PRINT;
   my @files;
+  my $scoreFileMode = $SCORE_FILE_MODE_BY_FILE_EXT;
+  my $filenamePrintMode = $FILENAME_PRINT_MODE_MULTIPLE_ONLY;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
-    }elsif($arg =~ /^(--scoredata|--closest-scoredata|--ddrname)$/i){
-      if(@_ == 0){
-        die "$usage\nERROR: missing arg to $arg\n";
-      }elsif(defined $cmd){
-        die "$usage\nERROR: multiple commands given\n"
-      }
-      $cmd = $arg;
-      my $file = shift @_;
-      push @files, $file;
+    }elsif($arg =~ /^(--print)$/i){
+      $cmd = $COMMAND_PRINT;
+    }elsif($arg =~ /^(--ddrname)$/i){
+      $cmd = $COMMAND_DDRNAME;
+    }elsif($arg =~ /^(--xml)$/i){
+      $scoreFileMode = $SCORE_FILE_MODE_DIRECT_XML;
+    }elsif($arg =~ /^(--img|--image|--closest-by-mtime)$/i){
+      $scoreFileMode = $SCORE_FILE_MODE_CLOSEST_XML_BY_MTIME;
+    }elsif($arg =~ /^(--filenames?)$/i){
+      $filenamePrintMode = $FILENAME_PRINT_MODE_ALWAYS;
+    }elsif($arg =~ /^(--no-filenames?|--nofilenames?)$/i){
+      $filenamePrintMode = $FILENAME_PRINT_MODE_NEVER;
     }elsif(-f $arg){
       push @files, $arg;
     }else{
@@ -203,53 +243,52 @@ sub main(@){
     }
   }
 
-  if(defined $cmd and $cmd =~ /^(--scoredata)$/i and @files == 1){
-    my ($xmlFile) = @files;
-    my $sd = getScoreDataByXmlFile($xmlFile);
-    print formatScoreData($sd);
-  }elsif(defined $cmd and $cmd =~ /^(--closest-scoredata)$/i and @files == 1){
-    my ($imgFile) = @files;
-    my $closestXmlFile = getOldestXmlFileAfterMtime mtime($imgFile);
-
-    assertMtimesCloseEnough($imgFile, $closestXmlFile,
-      $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
-
-    my $sd = getScoreDataByXmlFile($closestXmlFile);
-    print formatScoreData($sd);
-  }elsif(not defined $cmd and @files >= 1){
-    for my $file(@files){
-      die "ERROR: '$file' is not a file\n" if not -f $file;
-      print "$file\n";
+  for my $file(@files){
+    my $mode;
+    if($scoreFileMode eq $SCORE_FILE_MODE_BY_FILE_EXT){
       if($file =~ /\.xml$/i){
-        my $sd = getScoreDataByXmlFile($file);
-        print formatScoreData($sd);
+        $mode = $SCORE_FILE_MODE_DIRECT_XML;
       }elsif($file =~ /\.(png|jpg|jpeg)$/i){
-        my $closestXmlFile = getOldestXmlFileAfterMtime mtime($file);
-
-        assertMtimesCloseEnough($file, $closestXmlFile,
-          $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
-
-        my $sd = getScoreDataByXmlFile($closestXmlFile);
-        print formatScoreData($sd);
+        $mode = $SCORE_FILE_MODE_CLOSEST_XML_BY_MTIME;
       }else{
         die "ERROR: unknown file type $file\n";
       }
-    }
-  }elsif($cmd =~ /^(--ddrname)$/i){
-    my @imgFiles = @files;
-    my $scoreData = {};
-    for my $imgFile(@imgFiles){
-      die "ERROR: '$imgFile' is not a file\n" if not -f $imgFile;
-      my $closestXmlFile = getOldestXmlFileAfterMtime mtime($imgFile);
-      assertMtimesCloseEnough($imgFile, $closestXmlFile,
-        $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
-      $$scoreData{$imgFile} = getScoreDataByXmlFile($closestXmlFile);
+    }else{
+      $mode = $scoreFileMode;
     }
 
-    for my $imgFile(@imgFiles){
-      my $sd = $$scoreData{$imgFile};
+    my $xmlFile;
+    if($mode eq $SCORE_FILE_MODE_DIRECT_XML){
+      $xmlFile = $file;
+    }elsif($mode eq $SCORE_FILE_MODE_CLOSEST_XML_BY_MTIME){
+      $xmlFile = getOldestXmlFileAfterMtime mtime($file);
+      assertMtimesCloseEnough($file, $xmlFile,
+        $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
+    }else{
+      die "ERROR: unknown SCORE_FILE_MODE: $mode\n";
+    }
+
+    my $sd = getScoreDataByXmlFile($xmlFile);
+
+    if($cmd eq $COMMAND_PRINT){
+      my $printFilename;
+      if($filenamePrintMode eq $FILENAME_PRINT_MODE_ALWAYS){
+        $printFilename = 1;
+      }elsif($filenamePrintMode eq $FILENAME_PRINT_MODE_NEVER){
+        $printFilename = 0;
+      }elsif($filenamePrintMode eq $FILENAME_PRINT_MODE_MULTIPLE_ONLY){
+        $printFilename = @files > 1;
+      }else{
+        die "ERROR: unknown FILENAME_PRINT_MODE: $filenamePrintMode\n";
+      }
+
+      if($printFilename){
+        print "$file\n";
+      }
+      print formatScoreData($sd);
+    }elsif($cmd eq $COMMAND_DDRNAME){
       my @cmd = ($DDRNAME_TOOL,
-        $imgFile,
+        $file,
         @DDRNAME_OPTS,
         $DDRNAME_MACHINE,
         $DDRNAME_STAGE,
@@ -264,10 +303,14 @@ sub main(@){
       print "$SEP\n";
       print "@cmd\n";
       system @cmd;
+      my $exitCode = $?;
       print "$SEP\n";
+      if($exitCode != 0){
+        die "ERROR: $DDRNAME_TOOL failed for $file\n";
+      }
+    }else{
+      die "$usage\nERROR: unknown command $cmd\n";
     }
-  }else{
-    die $usage;
   }
 }
 
