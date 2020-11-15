@@ -155,7 +155,7 @@ my @songArgs = sort {$a cmp $b} map { $$_[0] } @songArr;
 my $okSongArgs = join '|', @songArgs;
 
 my @gameArgs = qw(singles doubles nonstop nonstopdoubles);
-my $singlesGameArg = "singles";
+my $emptyGameArg = "singles";
 my $okGameArgs = join '|', @gameArgs;
 
 my %gameAbbrevs = (
@@ -436,8 +436,8 @@ sub getUsage(;$){
 
 
     scores are grouped into sections by \"$bucketFieldDesc\"
-      '<GAME>-' is omitted if GAME is '$singlesGameArg' (or missing)
-      '<MACHINE>-' is omitted if MACHINE is '$defaultMachineArg'
+      '<GAME>-' is not printed if GAME is '$emptyGameArg' (or missing)
+      '<MACHINE>-' is not printed if MACHINE is '$defaultMachineArg'
     each section starts with the name, and then contains the scores,
       one per line, formatted '<date>,<score>,<notes>'
     sections are separated by two newlines
@@ -543,8 +543,8 @@ sub getUsage(;$){
      INFO_ARG
        one of [SONG|GAME|DIFFICULTY|MACHINE|TIMING_WINDOWS|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
-       exactly zero or one GAME args can be given  {missing means 'singles'}
-       exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
+       exactly zero or one MACHINE args can be given  {REQUIRED, but defaults to '$defaultMachineArg' if missing}
+       exactly zero or one GAME args can be given  {optional, '$emptyGameArg' is the same as no GAME arg}
        exactly zero or one TIMING_WINDOWS args can be given {optional, '$emptyTimingWindowsArg' is the same as no TIMING_WINDOWS arg}
        exactly zero or one FC args can be given  {optional, '$emptyFCArg' is the same as no FC arg}
        exactly zero or one SPECIAL args can be given  {optional, '$emptySpecialArg' is the same as no SPECIAL arg}
@@ -566,7 +566,7 @@ sub getUsage(;$){
            doubles (basic, difficult, expert, challenge)
 
      GAME
-       one of [$okGameArgs]  {missing means 'singles'}
+       one of [$okGameArgs]  {optional, '$emptyGameArg' is the same as no GAME arg}
 
      DIFFICULTY
        one of [$okDifficultyArgs]
@@ -691,9 +691,12 @@ sub main(@){
   }elsif(@_ > 1 and $_[0] =~ /\.(jpg|png)$/){
     my ($file, @args) = @_;
     my ($opts, $info) = parseOptsAndInfoArgs @args;
-    $$info{game} = $singlesGameArg if not defined $$info{game};
     $$info{machine} = $defaultMachineArg if not defined $$info{machine};
+    $$info{game} = $emptyGameArg if not defined $$info{game};
     $$info{timingWindows} = $emptyTimingWindowsArg if not defined $$info{timingWindows};
+    $$info{fc} = $emptyFCArg if not defined $$info{fc};
+    $$info{special} = $emptySpecialArg if not defined $$info{special};
+    $$info{failed} = $emptyFailedArg if not defined $$info{failed};
 
     my $scoresByFile = getScoresByFile();
     my $scores = [values %$scoresByFile];
@@ -1258,6 +1261,7 @@ sub nameFile($$$$){
   }
   my ($prefix, $ext) = ($1, $2);
 
+  delete $$info{game} if defined $$info{game} and $$info{game} eq $emptyGameArg;
   delete $$info{timingWindows} if defined $$info{timingWindows} and $$info{timingWindows} eq $emptyTimingWindowsArg;
   delete $$info{fc} if defined $$info{fc} and $$info{fc} eq $emptyFCArg;
   delete $$info{special} if defined $$info{special} and $$info{special} eq $emptySpecialArg;
@@ -1267,7 +1271,7 @@ sub nameFile($$$$){
   $newFileName .= "$prefix";
   $newFileName .= "_reminder_failed" if defined $$info{failed};
   $newFileName .= "_$$info{song}";
-  $newFileName .= "_$$info{game}" if $$info{game} ne $singlesGameArg;
+  $newFileName .= "_$$info{game}" if defined $$info{game};
   $newFileName .= "_$$info{difficulty}";
   $newFileName .= "_$$info{machine}";
   $newFileName .= "_$$info{timingWindows}" if defined $$info{timingWindows};
@@ -1438,8 +1442,11 @@ sub parseScoreFile($){
     stage         => $+{stage},
   };
 
-  $$info{game} = $singlesGameArg if not defined $$info{game} or $$info{game} eq "";
+  $$info{game} = $emptyGameArg if not defined $$info{game} or $$info{game} eq "";
   $$info{timingWindows} = $emptyGameArg if not defined $$info{timingWindows} or $$info{timingWindows} eq "";
+  $$info{fc} = $emptyFCArg if not defined $$info{fc} or $$info{fc} eq "";
+  $$info{special} = $emptySpecialArg if not defined $$info{special} or $$info{special} eq "";
+  $$info{failed} = $emptyFailedArg if not defined $$info{failed} or $$info{failed} eq "";
 
   my $feet = $songFeetDifficulties{$$info{song}}{$$info{game}}{$$info{difficulty}};
   if(not defined $feet or $feet !~ /^\d+$/){
@@ -1530,7 +1537,7 @@ sub getBucketName($$@){
       }elsif($bucketField eq "difficulty"){
         $val = $difficultyAbbrevs{$val};
       }elsif($bucketField eq "game"){
-        if($val eq $singlesGameArg){
+        if($val eq $emptyGameArg){
           $val = undef;
         }else{
           $val = $gameAbbrevs{$val};
@@ -1576,10 +1583,10 @@ sub formatBucketCsv($$$){
   my $fmt = "";
   for my $s(@$bucketScores){
     my @notes;
-    if($$okNotes{'fc'} and defined $$s{fc}){
+    if($$okNotes{'fc'} and defined $$s{fc} and $$s{fc} ne $emptyFCArg){
       push @notes, $$s{fc};
     }
-    if($$okNotes{'special'} and defined $$s{special}){
+    if($$okNotes{'special'} and defined $$s{special} and $$s{special} ne $emptySpecialArg){
       push @notes, $$s{special};
     }
     if($$okNotes{'highscore'} and $$s{file} eq $maxScoreFile){
