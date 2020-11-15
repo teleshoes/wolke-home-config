@@ -180,15 +180,35 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-h|--help)$/)){
-    print $usage;
-    exit 0;
-  }elsif(@_ == 2 and $_[0] =~ /^(--scoredata)$/i){
-    my ($cmd, $xmlFile) = @_;
+  my $cmd;
+  my @files;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--scoredata|--closest-scoredata|--ddrname)$/i){
+      if(@_ == 0){
+        die "$usage\nERROR: missing arg to $arg\n";
+      }elsif(defined $cmd){
+        die "$usage\nERROR: multiple commands given\n"
+      }
+      $cmd = $arg;
+      my $file = shift @_;
+      push @files, $file;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(defined $cmd and $cmd =~ /^(--scoredata)$/i and @files == 1){
+    my ($xmlFile) = @files;
     my $sd = getScoreDataByXmlFile($xmlFile);
     print formatScoreData($sd);
-  }elsif(@_ == 2 and $_[0] =~ /^(--closest-scoredata)$/i){
-    my ($cmd, $imgFile) = @_;
+  }elsif(defined $cmd and $cmd =~ /^(--closest-scoredata)$/i and @files == 1){
+    my ($imgFile) = @files;
     my $closestXmlFile = getOldestXmlFileAfterMtime mtime($imgFile);
 
     assertMtimesCloseEnough($imgFile, $closestXmlFile,
@@ -196,21 +216,30 @@ sub main(@){
 
     my $sd = getScoreDataByXmlFile($closestXmlFile);
     print formatScoreData($sd);
-  }elsif(@_ >= 1 and allFilesExist(@_)){
-    for my $file(@_){
+  }elsif(not defined $cmd and @files >= 1){
+    for my $file(@files){
+      die "ERROR: '$file' is not a file\n" if not -f $file;
       print "$file\n";
       if($file =~ /\.xml$/i){
-        system $0, "--scoredata", $file;
+        my $sd = getScoreDataByXmlFile($file);
+        print formatScoreData($sd);
       }elsif($file =~ /\.(png|jpg|jpeg)$/i){
-        system $0, "--closest-scoredata", $file;
+        my $closestXmlFile = getOldestXmlFileAfterMtime mtime($file);
+
+        assertMtimesCloseEnough($file, $closestXmlFile,
+          $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
+
+        my $sd = getScoreDataByXmlFile($closestXmlFile);
+        print formatScoreData($sd);
       }else{
         die "ERROR: unknown file type $file\n";
       }
     }
-  }elsif(@_ >= 2 and $_[0] =~ /^(--ddrname)$/i and allFilesExist(@_[1,])){
-    my ($cmd, @imgFiles) = @_;
+  }elsif($cmd =~ /^(--ddrname)$/i){
+    my @imgFiles = @files;
     my $scoreData = {};
     for my $imgFile(@imgFiles){
+      die "ERROR: '$imgFile' is not a file\n" if not -f $imgFile;
       my $closestXmlFile = getOldestXmlFileAfterMtime mtime($imgFile);
       assertMtimesCloseEnough($imgFile, $closestXmlFile,
         $XML_MTIME_DIFF_WARNING_SECONDS, $XML_MTIME_DIFF_ERROR_SECONDS);
