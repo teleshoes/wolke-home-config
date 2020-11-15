@@ -43,7 +43,7 @@ my @okFilters = qw(
   --song
   --hard --nothard --feet --minfeet --maxfeet
   --singles --doubles --nonstop --nonstopdoubles
-  --sn2 --2013 --x3 --a --sm
+  --machine --sn2 --2013 --x3 --a --sm
   --score --minscore --maxscore --monotonic --increasing --records
   --date --mindate --maxdate --dailybest
   --recent --sixmos --sixmonths --6mos
@@ -59,6 +59,7 @@ my $argOptFiltersRegex = join "|", qw(
   --feet --minfeet --maxfeet
   --score --minscore --maxscore
   --date --mindate --maxdate
+  --machine
 );
 
 my @okFormatOptDates = qw(--showscores --reverse --short);
@@ -351,16 +352,22 @@ sub getUsage(;$){
         {overrides --singles and --nonstop and --doubles}
 
     FILTER: MACHINE
+      --machine MACHINE_CSV
+        include only scores where MACHINE is one of the values
+          in the comma-separated list of machines MACHINE_CSV
+          (all other scores are excluded)
+        e.g.: --machine sn2,x3,sm50pdp
       --sn2
-        include only scores where MACHINE is sn2
+        include only scores where MACHINE is sn2 (same as: --machine sn2)
       --2013
-        include only scores where MACHINE is 2013
+        include only scores where MACHINE is 2013 (same as: --machine 2013)
       --x3
-        include only scores where MACHINE is x3
+        include only scores where MACHINE is x3 (same as: --machine x3)
       --a
-        include only scores where MACHINE is a
+        include only scores where MACHINE is a (same as: --machine a)
       --sm
         include only scores where MACHINE is sm50pdp or sm53pdp
+        (same as: --machine sm50pdp,sm53pdp)
 
     FILTER: SCORE
       --score N, --minscore N
@@ -1044,6 +1051,15 @@ sub parseFilterOptions($){
       $$filters{machine} = {map {$_ => 0} @machineArgs};
       $$filters{machine}{sm50pdp} = 1;
       $$filters{machine}{sm53pdp} = 1;
+    }elsif($opt =~ /^(--machine)$/){
+      $$filters{machine} = {map {$_ => 0} @machineArgs};
+      my @okMachines = split /\s*,\s*/, $arg;
+      for my $mach(@okMachines){
+        if(not defined $$filters{machine}{$mach}){
+          die getUsage("invalid $opt: $arg");
+        }
+        $$filters{machine}{$mach} = 1;
+      }
     }elsif($opt =~ /^(--score|--minscore)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;
