@@ -44,6 +44,7 @@ my @okFilters = qw(
   --hard --nothard --feet --minfeet --maxfeet
   --singles --doubles --nonstop --nonstopdoubles
   --machine --sn2 --2013 --x3 --a --sm
+  --tw
   --score --minscore --maxscore --monotonic --increasing --records
   --date --mindate --maxdate --dailybest
   --recent --sixmos --sixmonths --6mos
@@ -60,6 +61,7 @@ my $argOptFiltersRegex = join "|", qw(
   --score --minscore --maxscore
   --date --mindate --maxdate
   --machine
+  --tw
 );
 
 my @okFormatOptDates = qw(--showscores --reverse --short);
@@ -86,6 +88,7 @@ my @okFileFormatVars = qw(
   game
   difficulty
   machine
+  timingWindows
   score
   fc
   special
@@ -176,6 +179,10 @@ my %difficultyAbbrevs = (
 my @machineArgs = qw(sn2 2013 x3 a sm50pdp sm53pdp);
 my $defaultMachineArg = "sm53pdp";
 my $okMachineArgs = join '|', @machineArgs;
+
+my @timingWindowsArgs = qw(twdefault);
+my $emptyTimingWindowsArg = "twdefault";
+my $okTimingWindowsArgs = join '|', @timingWindowsArgs;
 
 my @stageArgs = qw(0none 1st 2nd 3rd 4extra 4nonstop 5encore);
 my $okStageArgs = join '|', @stageArgs;
@@ -369,6 +376,13 @@ sub getUsage(;$){
         include only scores where MACHINE is sm50pdp or sm53pdp
         (same as: --machine sm50pdp,sm53pdp)
 
+    FILTER: TIMING_WINDOWS
+      --tw TIMING_WINDOWS_CSV
+        include only scores where TIMING_WINDOWS is one of the values
+          in the comma-separated list of timing windows TIMING_WINDOWS_CSV
+          (all other scores are excluded)
+        NOTE: $emptyTimingWindowsArg matches scores where no timing windows are set
+
     FILTER: SCORE
       --score N, --minscore N
         include only scores where SCORE >= N
@@ -527,10 +541,11 @@ sub getUsage(;$){
        one of [jpg|png]
 
      INFO_ARG
-       one of [SONG|GAME|DIFFICULTY|MACHINE|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
+       one of [SONG|GAME|DIFFICULTY|MACHINE|TIMING_WINDOWS|SCORE|STAGE|BAR|FC|SPECIAL|FAILED]
        exactly one SONG, DIFFICULTY, SCORE, STAGE, and BAR must be given
        exactly zero or one GAME args can be given  {missing means 'singles'}
        exactly zero or one MACHINE args can be given  {defaults to '$defaultMachineArg'}
+       exactly zero or one TIMING_WINDOWS args can be given {optional, '$emptyTimingWindowsArg' is the same as no TIMING_WINDOWS arg}
        exactly zero or one FC args can be given  {optional, '$emptyFCArg' is the same as no FC arg}
        exactly zero or one SPECIAL args can be given  {optional, '$emptySpecialArg' is the same as no SPECIAL arg}
        exactly zero or one FAILED args can be given  {optional, '$emptyFailedArg' is the same as no FAILED arg}
@@ -558,6 +573,9 @@ sub getUsage(;$){
 
      MACHINE
        one of [$okMachineArgs]  {defaults to '$defaultMachineArg'}
+
+     TIMING_WINDOWS
+       one of [$okTimingWindowsArgs]  {optional, '$emptyTimingWindowsArg' is the same as no TIMING_WINDOWS arg}
 
      SCORE
        an integer between 100,000 and 1,000,000
@@ -630,7 +648,7 @@ sub main(@){
     @okFormatOptDates, @okFormatOptCourses, @okFormatOptSongs, @okPlotOptions,
 
     @songArgs, @gameArgs, @difficultyArgs,
-    @machineArgs, @stageArgs, @barArgs, @fcArgs, @specialArgs,
+    @machineArgs, @timingWindowsArgs, @stageArgs, @barArgs, @fcArgs, @specialArgs,
     @uniqSongAbbrevs,
     (sort values %gameAbbrevs),
     (sort values %difficultyAbbrevs),
@@ -675,6 +693,7 @@ sub main(@){
     my ($opts, $info) = parseOptsAndInfoArgs @args;
     $$info{game} = $singlesGameArg if not defined $$info{game};
     $$info{machine} = $defaultMachineArg if not defined $$info{machine};
+    $$info{timingWindows} = $emptyTimingWindowsArg if not defined $$info{timingWindows};
 
     my $scoresByFile = getScoresByFile();
     my $scores = [values %$scoresByFile];
@@ -1060,6 +1079,15 @@ sub parseFilterOptions($){
         }
         $$filters{machine}{$mach} = 1;
       }
+    }elsif($opt =~ /^(--tw)$/){
+      $$filters{timingWindows} = {map {$_ => 0} @timingWindowsArgs};
+      my @okTWs = split /\s*,\s*/, $arg;
+      for my $tw(@okTWs){
+        if(not defined $$filters{timingWindows}{$tw}){
+          die getUsage("invalid $opt: $arg");
+        }
+        $$filters{timingWindows}{$tw} = 1;
+      }
     }elsif($opt =~ /^(--score|--minscore)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)$/;
       $$filters{minscore} = $1;
@@ -1115,6 +1143,7 @@ sub validateInfo($){
   die "missing GAME\n" if not defined $$info{game};
   die "missing DIFFICULTY\n" if not defined $$info{difficulty};
   die "missing MACHINE\n" if not defined $$info{machine};
+  die "missing TIMING_WINDOWS\n" if not defined $$info{timingWindows};
   die "missing SCORE\n" if not defined $$info{score};
   die "missing BAR\n" if not defined $$info{bar};
   die "missing STAGE\n" if not defined $$info{stage};
@@ -1229,6 +1258,7 @@ sub nameFile($$$$){
   }
   my ($prefix, $ext) = ($1, $2);
 
+  delete $$info{timingWindows} if defined $$info{timingWindows} and $$info{timingWindows} eq $emptyTimingWindowsArg;
   delete $$info{fc} if defined $$info{fc} and $$info{fc} eq $emptyFCArg;
   delete $$info{special} if defined $$info{special} and $$info{special} eq $emptySpecialArg;
   delete $$info{failed} if defined $$info{failed} and $$info{failed} eq $emptyFailedArg;
@@ -1240,6 +1270,7 @@ sub nameFile($$$$){
   $newFileName .= "_$$info{game}" if $$info{game} ne $singlesGameArg;
   $newFileName .= "_$$info{difficulty}";
   $newFileName .= "_$$info{machine}";
+  $newFileName .= "_$$info{timingWindows}" if defined $$info{timingWindows};
   $newFileName .= "_$$info{score}";
   $newFileName .= "_$$info{fc}" if defined $$info{fc};
   $newFileName .= "_$$info{special}" if defined $$info{special};
@@ -1312,6 +1343,8 @@ sub parseOptsAndInfoArgs(@){
       $infoAtt = "difficulty";
     }elsif($arg =~ /^($okMachineArgs)$/){
       $infoAtt = "machine";
+    }elsif($arg =~ /^($okTimingWindowsArgs)$/){
+      $infoAtt = "timingWindows";
     }elsif($arg =~ /^(\d,?){5,6}(\d)$/){
       warnMsg("score non-multiple-of-ten: $arg") if $2 != 0;
       my $score = $arg;
@@ -1379,6 +1412,7 @@ sub parseScoreFile($){
     (?:_(?<game>$okGameArgs))?
     _(?<difficulty>$okDifficultyArgs)
     _(?<machine>$okMachineArgs)
+    (?:_(?<timingWindows>$okTimingWindowsArgs))?
     _(?<score>\d+)
     (?:_(?<fc>$okFCArgs))?
     (?:_(?<special>$okSpecialArgs))?
@@ -1388,22 +1422,24 @@ sub parseScoreFile($){
     die "malformed file name: $file\n";
   }
   my $info = {
-    file       => $file,
-    date       => $+{date},
-    index      => $+{index},
-    failed     => $+{failed},
-    song       => $+{song},
-    game       => $+{game},
-    difficulty => $+{difficulty},
-    machine    => $+{machine},
-    score      => $+{score},
-    fc         => $+{fc},
-    special    => $+{special},
-    bar        => $+{bar},
-    stage      => $+{stage},
+    file          => $file,
+    date          => $+{date},
+    index         => $+{index},
+    failed        => $+{failed},
+    song          => $+{song},
+    game          => $+{game},
+    difficulty    => $+{difficulty},
+    machine       => $+{machine},
+    timingWindows => $+{timingWindows},
+    score         => $+{score},
+    fc            => $+{fc},
+    special       => $+{special},
+    bar           => $+{bar},
+    stage         => $+{stage},
   };
 
   $$info{game} = $singlesGameArg if not defined $$info{game} or $$info{game} eq "";
+  $$info{timingWindows} = $emptyGameArg if not defined $$info{timingWindows} or $$info{timingWindows} eq "";
 
   my $feet = $songFeetDifficulties{$$info{song}}{$$info{game}}{$$info{difficulty}};
   if(not defined $feet or $feet !~ /^\d+$/){
@@ -1622,6 +1658,14 @@ sub filterScores($$){
       my $f = $$filters{machine};
       my $machine = $$s{machine};
       if(defined $$f{$machine} and not $$f{$machine}){
+        $ok = 0;
+      }
+    }
+    if(defined $$filters{timingWindows}){
+      my $f = $$filters{timingWindows};
+      my $tw = $$s{timingWindows};
+      $tw = $emptyTimingWindowsArg if not defined $tw;
+      if(defined $$f{$tw} and not $$f{$tw}){
         $ok = 0;
       }
     }
@@ -2221,6 +2265,7 @@ sub bashComplete($$){
   #@complete = (@gameArgs, @complete) if not defined $$info{game};
   @complete = (@difficultyArgs, @complete) if not defined $$info{difficulty};
   #@complete = (@machineArgs, @complete) if not defined $$info{machine};
+  #@complete = (@timingWindowsArgs, @complete) if not defined $$info{timingWindows};
   #@complete = (@fcArgs, @complete) if not defined $$info{fc};
   #@complete = (@specialArgs, @complete) if not defined $$info{special};
   @complete = (@barArgs, @complete) if not defined $$info{bar};
