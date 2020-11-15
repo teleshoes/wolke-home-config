@@ -4,7 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub getScoreDataByXmlFile($);
-sub formatScoreData($);
+sub formatScoreData($$);
 sub getSongAbsDir($);
 sub getSMFileFromSongDir($);
 sub parseXmlFile($);
@@ -90,6 +90,23 @@ my $FILENAME_PRINT_MODE_MULTIPLE_ONLY = "multiple-only";
 my $FILENAME_PRINT_MODE_ALWAYS = "always";
 my $FILENAME_PRINT_MODE_NEVER = "never";
 
+my $DEFAULT_FORMAT_SPEC = ""
+  . "%SEP\n"
+  . "XML_FILE:        %XML_FILE\n"
+  . "SONG_DIR:        %SONG_DIR\n"
+  . "SONG_NAME:       %SONG_NAME\n"
+  . "PASS_FAIL:       %PASS_FAIL\n"
+  . "DDRA_SCORE:      %DDRA_SCORE\n"
+  . "PERCENT_SCORE:   %PERCENT_SCORE\n"
+  . "FC:              %FC\n"
+  . "DDRA_GAME:       %DDRA_GAME\n"
+  . "DDRA_DIFFICULTY: %DDRA_DIFFICULTY\n"
+  . "MODS:            %MODS\n"
+  . "SM_FEET:         %SM_FEET\n"
+  . "SM_RADAR:        %SM_RADAR\n"
+  . "%SEP\n"
+  ;
+
 my $EXEC = basename $0;
 
 my $usage = "Usage:
@@ -111,11 +128,11 @@ my $usage = "Usage:
       (C) obtain SCORE_DATA from XML_SCORE_FILE (see SCORE_DATA)
       (D) perform COMMAND
         (i) if COMMAND is --print (this is the default):
-            -print $SEP
+            -print SEPARATOR line
             -print each SCORE_DATA item, one per line
               -formatted: 'ITEM_NAME:   ITEM_VALUE'
               -align ITEM_VALUE whitespace
-            -print $SEP
+            -print SEPARATOR line
         (ii) if COMMAND is --ddrname:
              -make system call:
                  $DDRNAME_TOOL \\
@@ -179,7 +196,7 @@ my $usage = "Usage:
         -'fc'   if any GREAT taps      (only FLAWLESS/PERFECT/GREAT taps, no BAD/MISS/GOOD)
         -'pfc'  if any PERFECT taps    (only FLAWLESS/PERFECT taps, no BAD/MISS/GOOD/GREAT)
         -'mfc'  if any FLAWLESS taps   (only FLAWLESS taps, no BAD/MISS/GOOD/GREAT/PERFECT)
-    (8) include the following items in SCORE_DATA:
+    (8) include the following SCORE_DATA_ITEM items in SCORE_DATA:
         -XML_FILE
         -SONG_DIR
         -SONG_NAME
@@ -200,6 +217,9 @@ my $usage = "Usage:
     --ddrname
       call `$DDRNAME_TOOL` with SCORE_DATA info on each FILE passed in
 
+  SEPARATOR
+    the string: $SEP
+
   OPTS
     --xml
       treat all FILE args as XML_SCORE_FILE files, regardless of filename
@@ -214,6 +234,15 @@ my $usage = "Usage:
     --no-filename | --nofilename | --no-filenames | --nofilenames
       never print FILE before parsing scoredata
       (default is to print only if more than one FILE given)
+
+    --format=FORMAT_SPEC
+      instead of printing one item per line in SCORE_DATA surrounded by the SEP,
+      print given format
+      FORMAT_SPEC can be any string, with the following replacements:
+        %%               = a literal % character
+        %n               = a newline character (\\n)
+        %SEP             = the SEPARATOR
+        %SCORE_DATA_ITEM = replaced with the value from SCORE_DATA (e.g.: %PASS_FAIL)
 ";
 
 sub main(@){
@@ -221,6 +250,7 @@ sub main(@){
   my @files;
   my $scoreFileMode = $SCORE_FILE_MODE_BY_FILE_EXT;
   my $filenamePrintMode = $FILENAME_PRINT_MODE_MULTIPLE_ONLY;
+  my $formatSpec = $DEFAULT_FORMAT_SPEC;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -238,6 +268,8 @@ sub main(@){
       $filenamePrintMode = $FILENAME_PRINT_MODE_ALWAYS;
     }elsif($arg =~ /^(--no-filenames?|--nofilenames?)$/i){
       $filenamePrintMode = $FILENAME_PRINT_MODE_NEVER;
+    }elsif($arg =~ /^--format=(.+)$/i){
+      $formatSpec = $1;
     }elsif(-f $arg){
       push @files, $arg;
     }else{
@@ -287,7 +319,7 @@ sub main(@){
       if($printFilename){
         print "$file\n";
       }
-      print formatScoreData($sd);
+      print formatScoreData($formatSpec, $sd);
     }elsif($cmd eq $COMMAND_DDRNAME){
       my @cmd = ($DDRNAME_TOOL,
         $file,
@@ -348,24 +380,33 @@ sub getScoreDataByXmlFile($){
   };
 }
 
-sub formatScoreData($){
-  my ($sd) = @_;
-  return ""
-    . "$SEP\n"
-    . "XML_FILE:        $$sd{xmlFile}\n"
-    . "SONG_DIR:        $$sd{songDir}\n"
-    . "SONG_NAME:       $$sd{songName}\n"
-    . "PASS_FAIL:       $$sd{passFail}\n"
-    . "DDRA_SCORE:      $$sd{ddraScore}\n"
-    . "PERCENT_SCORE:   $$sd{percentScore}\n"
-    . "FC:              $$sd{fc}\n"
-    . "DDRA_GAME:       $$sd{ddraGame}\n"
-    . "DDRA_DIFFICULTY: $$sd{ddraDifficulty}\n"
-    . "MODS:            $$sd{mods}\n"
-    . "SM_FEET:         $$sd{smFeet}\n"
-    . "SM_RADAR:        $$sd{smRadar}\n"
-    . "$SEP\n"
-    ;
+sub formatScoreData($$){
+  my ($formatSpec, $sd) = @_;
+
+  my $s = $formatSpec;
+  $s =~ s/&/&amp;/g;
+  $s =~ s/%%/&boing;/g;
+
+  $s =~ s/%n/\n/g;
+  $s =~ s/%SEP/$SEP/g;
+
+  $s =~ s/%XML_FILE/$$sd{xmlFile}/g;
+  $s =~ s/%SONG_DIR/$$sd{songDir}/g;
+  $s =~ s/%SONG_NAME/$$sd{songName}/g;
+  $s =~ s/%PASS_FAIL/$$sd{passFail}/g;
+  $s =~ s/%DDRA_SCORE/$$sd{ddraScore}/g;
+  $s =~ s/%PERCENT_SCORE/$$sd{percentScore}/g;
+  $s =~ s/%FC/$$sd{fc}/g;
+  $s =~ s/%DDRA_GAME/$$sd{ddraGame}/g;
+  $s =~ s/%DDRA_DIFFICULTY/$$sd{ddraDifficulty}/g;
+  $s =~ s/%MODS/$$sd{mods}/g;
+  $s =~ s/%SM_FEET/$$sd{smFeet}/g;
+  $s =~ s/%SM_RADAR/$$sd{smRadar}/g;
+
+  $s =~ s/&boing;/%/g;
+  $s =~ s/&amp;/&/g;
+
+  return $s;
 }
 
 sub getSongAbsDir($){
