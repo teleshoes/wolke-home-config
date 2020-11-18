@@ -2,6 +2,9 @@
 use strict;
 use warnings;
 
+my $ROWS_PER_MEASURE = 192;
+my $ROWS_PER_BEAT = int(192/4); #48
+
 sub getNoteCounts($);
 sub getStats($$$$$);
 sub parseSMFile($);
@@ -81,7 +84,7 @@ sub getSongDuration($$$){
     my $beatsPerSecond = $bpm/60.0;
 
     my $elapsedRows = $endRow - $startRow;
-    my $elapsedBeats = $elapsedRows / 48.0; #rows are 1/192 notes in 4/4 measures
+    my $elapsedBeats = $elapsedRows / $ROWS_PER_BEAT; #rows are 1/192 notes in 4/4 measures
 
     $songDurS += $elapsedBeats / $beatsPerSecond;
   }
@@ -168,10 +171,8 @@ sub getTotalFreezeRowCount($){
 sub getMaxMeasureDensity($){
   my ($rows) = @_;
 
-  my $rowsInMeasure = 192;
-
   my $startRow = 0;
-  my $endRow = $rowsInMeasure-1;
+  my $endRow = $ROWS_PER_MEASURE-1;
 
   if($endRow > $#$rows){
     $endRow = $#$rows;
@@ -218,13 +219,13 @@ sub getTotalNoteIrregularity($){
     $previousNoteIndex = $i;
 
     my $noteTypeModifier;
-    if($i % 48 == 0){
+    if($i % int($ROWS_PER_MEASURE/4) == 0){
       #1/4 note row, 'red'
       $noteTypeModifier = 0; #1/4 notes have zero irregularity
-    }elsif($i % 24 == 0){
+    }elsif($i % int($ROWS_PER_MEASURE/8) == 0){
       #1/8 note row, 'blue'
       $noteTypeModifier = 0.5;
-    }elsif($i % 12 == 0){
+    }elsif($i % int($ROWS_PER_MEASURE/16) == 0){
       #1/16 note row, 'yellow'
       $noteTypeModifier = 1.0;
     }else{
@@ -234,7 +235,7 @@ sub getTotalNoteIrregularity($){
 
     my $irregularity = 0;
     if($interval > 0){
-      $irregularity = (192/$interval) * $arrowCount * $noteTypeModifier;
+      $irregularity = ($ROWS_PER_MEASURE/$interval) * $arrowCount * $noteTypeModifier;
     }
     $totalIrregularity += $irregularity;
   }
@@ -286,15 +287,15 @@ sub getStats($$$$$){
   $$stats{BPM_CHANGE_AMOUNT}            = getBPMChangeAmount($bpmsByRow, $stopsByRow);
 
   #DDR does lots of premature rounding
-  $$stats{SONG_BEAT_COUNT}              = int($$stats{SONG_ROW_COUNT}/48.0 + 0.5);
+  $$stats{SONG_BEAT_COUNT}              = int($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
 
   $$stats{TOTAL_NOTES}                  = $$stats{NOTE_COUNTS}{NOTE_ROWS} + $$stats{NOTE_COUNTS}{SHOCK_ROWS};
   $$stats{TOTAL_JUMPS_SHOCKS}           = $$stats{NOTE_COUNTS}{JUMP_ROWS} + $$stats{NOTE_COUNTS}{SHOCK_ROWS};
   $$stats{NOTES_PER_MIN}                = 60 * ($$stats{TOTAL_NOTES}) / $$stats{SONG_DUR};
-  $$stats{AVG_BPM}                      = 60 * ($$stats{SONG_ROW_COUNT}/48.0) / $$stats{SONG_DUR};
+  $$stats{AVG_BPM}                      = 60 * ($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT) / $$stats{SONG_DUR};
   $$stats{MAX_DENSITY_PER_MIN}          = $$stats{AVG_BPM}*$$stats{MAX_MEASURE_DENSITY}/4;
   $$stats{JUMPS_SHOCKS_PER_MIN}         = 60 * $$stats{TOTAL_JUMPS_SHOCKS} / $$stats{SONG_DUR};
-  $$stats{FREEZE_RATIO_10K}             = 10000 * ($$stats{TOTAL_FREEZE_ROW_COUNT}/48.0) / $$stats{SONG_BEAT_COUNT};
+  $$stats{FREEZE_RATIO_10K}             = 10000 * ($$stats{TOTAL_FREEZE_ROW_COUNT}/$ROWS_PER_BEAT) / $$stats{SONG_BEAT_COUNT};
   $$stats{BPM_CHANGE_AMOUNT_PER_MIN}    = 60 * $$stats{BPM_CHANGE_AMOUNT} / $$stats{SONG_DUR};
   $$stats{OVERALL_IRREGULARITY}         = $$stats{TOTAL_NOTE_IRREGULARITY} * (1 + $$stats{BPM_CHANGE_AMOUNT_PER_MIN}/1500);
   $$stats{IRREGULARITY_PER_CENTISECOND} = 100 * $$stats{OVERALL_IRREGULARITY} / $$stats{SONG_DUR};
@@ -477,14 +478,18 @@ sub convertValuesByBeatToValuesByRow($){
     if($beatValPair !~ /^(\d+|\d*\.\d+)=(\d+|\d*\.\d+)$/){
       die "ERROR: invalid BEAT=VALUE entry \"$beatValPair\"\n";
     }
-    my ($quarterNote, $val) = ($1, $2);
-    my $fracRow = $quarterNote * 48.0;
+    my ($beat, $val) = ($1, $2);
+    my $fracRow = $beat * $ROWS_PER_BEAT;
     my $row = int($fracRow + 0.5);
 
     my $fracDiff = $fracRow - $row;
     $fracDiff = 0 - $fracDiff if $fracDiff < 0;
     if($fracDiff > 0.001){
-      print "WARNING: invalid BEAT in BPM (not close to 1/192 note; forced to the nearest anyway) \"$fracRow\"\n";
+      my $msg = "WARNING: invalid BEAT in BPM"
+        . " (not close to 1/$ROWS_PER_MEASURE note; forced to the nearest anyway)"
+        . " \"$fracRow\"\n"
+        ;
+      print $msg;
     }
 
     $$valsByRow{$row} = $val;
@@ -544,7 +549,7 @@ sub getExpandedNoteRows($){
     @rows = grep {$_ !~ /^\s*$/} @rows;   #remove whitespace-only/empty lines
 
     my $measureInitialRowCount = @rows;
-    my $repeatRowCount = int(192/@rows);
+    my $repeatRowCount = int($ROWS_PER_MEASURE/@rows);
 
     my $emptyRow = $rows[0];
     $emptyRow =~ s/[01234MLFAKNH]/0/g;
@@ -560,7 +565,7 @@ sub getExpandedNoteRows($){
       }
     }
 
-    if(@expandedMeasure != 192){
+    if(@expandedMeasure != $ROWS_PER_MEASURE){
       die "ERROR: malformed measure (rowCount=$measureInitialRowCount):\n$measure";
     }
     @noteRows = (@noteRows, @expandedMeasure);
