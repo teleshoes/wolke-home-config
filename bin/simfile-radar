@@ -197,6 +197,18 @@ sub getMaxMeasureDensity($){
   return $maxDensity;
 }
 
+#chaos calculation part one of two - how closely packed notes with weird timings are
+#  combines the timing of each note within a measure (arrow color),
+#    and distance between that note and the previous note
+#  this value typically ranges from 0 to 20,000
+#  timings have specific irregularities:
+#    1/4 notes (red arrows) have 0 irregularity
+#    1/8 notes (blue arrows) are 0.5,
+#    1/16 notes (yellow arrows) are 1
+#    and everything else is 1.25
+#  notes that are closer together have more irregularity
+#    this is the inverse of the fractional number of measures between the notes
+#  each arrow of each note adds cumulatively for a single fractional value,
 sub getTotalNoteIrregularity($){
   my ($rows) = @_;
   my $totalIrregularity = 0;
@@ -204,40 +216,57 @@ sub getTotalNoteIrregularity($){
   my $previousNoteIndex = undef;
   for(my $i=0; $i<@$rows; $i++){
     my $row = $$rows[$i];
-    next if $row !~ /[124M]/;
+    next if $row !~ /[124M]/; #ignore rows without jumps, taps or mines
 
-    my $arrowCount = 0 + grep {$_ =~ /[124M]/} split //, $row;
+    #timing of the notes within a measure
+    #  this corresponds to arrow 'color' in certain noteskins,
+    #  although mines/shocks work the same way and dont have color
+    my $noteTypeIrregularity;
+    if($i % int($ROWS_PER_MEASURE/4) == 0){
+      #1/4 note row => red arrows
+      $noteTypeIrregularity = 0; #1/4 notes have zero irregularity
+    }elsif($i % int($ROWS_PER_MEASURE/8) == 0){
+      #1/8 note row => blue arrows
+      $noteTypeIrregularity = 0.5;
+    }elsif($i % int($ROWS_PER_MEASURE/16) == 0){
+      #1/16 note row => yellow arrows
+      $noteTypeIrregularity = 1.0;
+    }else{
+      #anything else (1/12, 1/24, 1/32, 1/48, 1/64, 1/92) => purple/green/gray arrows
+      $noteTypeIrregularity = 1.25;
+    }
 
-    my $interval;
+    my $intervalIrregularity;
     if(defined $previousNoteIndex){
-      $interval = $i-$previousNoteIndex;
+      #how many rows of 1/192 notes between this note and the previous
+      my $intervalRows = $i-$previousNoteIndex;
+
+      #how much of a measure is between this note and the previous
+      # a single 1/4 note is 0.25
+      # a single 1/16 note is 0.0625
+      # three 1/16 notes is 0.1875
+      # eight 1/4 notes is 2
+      my $intervalFractionalMeasures = $intervalRows/$ROWS_PER_MEASURE;
+
+      #multiplicative inverse (smaller intervals means more irregularity)
+      # a single 1/4 note is 4
+      # a single 1/16 note is 16
+      # three 1/16 notes is 5.3333
+      # eight 1/4 notes is 0.5
+      $intervalIrregularity = 1/$intervalFractionalMeasures;
     }else{
       #first note has no irregularity
-      $interval = 0;
+      $intervalIrregularity = 0;
     }
 
-    $previousNoteIndex = $i;
+    #each arrow has its own irregularity, so 2-arrow jumps count twice,
+    #  and shocks count 4x in singles and 8x in doubles
+    my $arrowCount = 0 + grep {$_ =~ /[124M]/} split //, $row;
 
-    my $noteTypeModifier;
-    if($i % int($ROWS_PER_MEASURE/4) == 0){
-      #1/4 note row, 'red'
-      $noteTypeModifier = 0; #1/4 notes have zero irregularity
-    }elsif($i % int($ROWS_PER_MEASURE/8) == 0){
-      #1/8 note row, 'blue'
-      $noteTypeModifier = 0.5;
-    }elsif($i % int($ROWS_PER_MEASURE/16) == 0){
-      #1/16 note row, 'yellow'
-      $noteTypeModifier = 1.0;
-    }else{
-      #anything else, 'green' et al
-      $noteTypeModifier = 1.25;
-    }
+    my $irregularity = $arrowCount * $intervalIrregularity * $noteTypeIrregularity;
 
-    my $irregularity = 0;
-    if($interval > 0){
-      $irregularity = ($ROWS_PER_MEASURE/$interval) * $arrowCount * $noteTypeModifier;
-    }
     $totalIrregularity += $irregularity;
+    $previousNoteIndex = $i;
   }
   return $totalIrregularity;
 }
