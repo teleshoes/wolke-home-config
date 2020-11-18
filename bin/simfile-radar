@@ -590,33 +590,36 @@ sub getExpandedNoteRows($){
 
   my @noteRows;
   for my $measure(@measures){
-    my @rows = split /[\r\n]+/, $measure;
+    my @lines = split /[\r\n]+/, $measure;
 
-    s/\/\/.*// foreach @rows;             #remove comments
-    s/F/0/g foreach @rows;                #remove fakes
-    @rows = grep {$_ !~ /^\s*$/} @rows;   #remove whitespace-only/empty lines
+    s/\/\/.*// foreach @lines;            #remove comments
+    s/F/0/g foreach @lines;               #remove fakes
+    @lines = grep {$_ !~ /^\s*$/} @lines; #remove whitespace-only/empty lines
 
-    my $measureInitialRowCount = @rows;
-    my $repeatRowCount = int($ROWS_PER_MEASURE/@rows);
+    my @collapsedMeasureRows = @lines;
+    my $collapsedMeasureRowCount = @collapsedMeasureRows;
 
-    my $emptyRow = $rows[0];
+    my $firstRow = $collapsedMeasureRows[0];
+    my $emptyRow = $firstRow;
     $emptyRow =~ s/[01234MLFAKNH]/0/g;
 
-    my @expandedMeasure;
-    for my $row(@rows){
+    my $repeatRowCount = int($ROWS_PER_MEASURE/$collapsedMeasureRowCount);
+
+    my @expandedMeasureRows;
+    for my $row(@collapsedMeasureRows){
       if($row !~ /^[01234MLFAKNH]+$/){
         die "ERROR: malformed note row: $row\n";
       }
-      push @expandedMeasure, $row;
+      push @expandedMeasureRows, $row;
       for(my $i=0; $i<$repeatRowCount-1; $i++){
-        push @expandedMeasure, $emptyRow;
+        push @expandedMeasureRows, $emptyRow;
       }
     }
 
-    if(@expandedMeasure != $ROWS_PER_MEASURE){
-      die "ERROR: malformed measure (rowCount=$measureInitialRowCount):\n$measure";
+    if(@expandedMeasureRows != $ROWS_PER_MEASURE){
+      die "ERROR: malformed measure (rowCount=$collapsedMeasureRowCount):\n$measure";
     }
-    @noteRows = (@noteRows, @expandedMeasure);
+    @noteRows = (@noteRows, @expandedMeasureRows);
   }
 
   return \@noteRows;
