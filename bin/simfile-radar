@@ -25,9 +25,26 @@ my $usage = "Usage:
   VARIABLE
     SONG_DUR
       song duration, in fractional seconds
-      this is calculated using BPMS and STOPS attributes in SIMFILE,
-        and SONG_ROW_COUNT derived from NOTES sections of SIMFILE
+      this is calculated using BPM_ROWS, STOP_ROWS and SONG_ROW_COUNT
       e.g.: 121.000666666667
+    BPM_ROWS
+      a comma-separated list of ROW=BPM pairs
+      (this is converted from the BEAT=BPM pairs stored in the simfile)
+        BEAT = fractional index of 1/4 note, as defined in the simfile
+        BPM = beats per minute, as defined in the simfile
+        ROW = BEAT*$ROWS_PER_BEAT
+      e.g.: \"#BPMS:0=180,4=180,142=90,143=180,149=180,149.5=180,156=90,157=180;\"
+            =>
+            0=180,192=180,6816=90,6864=180,7152=180,7176=180,7488=90,7536=180
+    STOP_ROWS
+      a comma-separated list of ROW=STOP_DURATION pairs
+      (this is converted from the BEAT=STOP_DURATION pairs stored in the simfile)
+        BEAT = fractional index of 1/4 note, as defined in the simfile
+        STOP_DURATION = stop duration in seconds, as defined in the simfile
+        ROW = BEAT*$ROWS_PER_BEAT
+      e.g.: \"#STOPS:149=0.167,149.5=0.167;\"
+            =>
+            7152=0.167,7176=0.167
     SONG_ROW_COUNT
       this is the total number of 1/$ROWS_PER_MEASURE rows in a song,
         and is equivalent to the number of beats in a song times $ROWS_PER_BEAT
@@ -435,8 +452,9 @@ sub getStats($$$$$){
   $$stats{BPM_CHANGE_AMOUNT}            = getBPMChangeAmount($bpmsByRow, $stopsByRow);
 
   #meaningful calculated values
+  $$stats{BPM_ROWS}                     = join ",", map {"$_=$$bpmsByRow{$_}"} sort {$a <=> $b} keys %$bpmsByRow;
+  $$stats{STOP_ROWS}                    = join ",", map {"$_=$$stopsByRow{$_}"} sort {$a <=> $b} keys %$stopsByRow;
   $$stats{SONG_BEAT_COUNT}              = int($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
-
   $$stats{TOTAL_NOTES}                  = $$stats{COUNT_NOTE_ROWS} + $$stats{COUNT_SHOCK_ROWS};
   $$stats{TOTAL_JUMPS_SHOCKS}           = $$stats{COUNT_JUMP_ROWS} + $$stats{COUNT_SHOCK_ROWS};
   $$stats{NOTES_PER_MIN}                = 60 * ($$stats{TOTAL_NOTES}) / $$stats{SONG_DUR};
@@ -607,12 +625,8 @@ sub parseSMFile($){
   return $smInfo;
 }
 
-#convert BPMS or STOPS entries like '1.125=90.000' to '54 => 90.000'
-#  ROW == BEAT * 48
-#  entries in SM files use BEATs, i.e.: fractional 1/4 notes
-#     (the first three 1/8 notes in a song of just 1/8 notes: 0.000, 0.500, 1.000)
-#  this converts everything to 1/192 note ROWs, and assigns an integral index
-#     (the first three 1/8 notes in a song of just 1/8 notes: 0, 24, 48)
+#convert simfile atts like "#BPMS:" and "#STOPS:", which are by beat,
+# to values like BPM_ROWS and STOP_ROWS, which are by row
 sub convertValuesByBeatToValuesByRow($){
   my ($csvBeatValPairs) = @_;
 
