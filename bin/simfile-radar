@@ -19,7 +19,119 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS] SM_FILE
-    analyze SM_FILE, gather statistics, and print the results
+    analyze SM_FILE, gather statistics for each VARIABLE,
+    and print the result
+
+  VARIABLE
+    SONG_DUR
+      song duration, in fractional seconds
+      this is calculated using BPMS and STOPS attributes in SIMFILE,
+        and SONG_ROW_COUNT derived from NOTES sections of SIMFILE
+      e.g.: 121.000666666667
+    SONG_ROW_COUNT
+      this is the total number of 1/$ROWS_PER_MEASURE rows in a song,
+        and is equivalent to the number of beats in a song times $ROWS_PER_BEAT
+      note that leading empty rows DO count towards the count or song duration,
+        but trailing empty rows do NOT count towards the count or song duration
+        (all empty rows at the end of a song are ignored)
+      e.g.: 17281
+    SONG_BEAT_COUNT
+      SONG_ROW_COUNT divided by $ROWS_PER_BEAT, rounded to the nearest integer
+      e.g.: 360
+    MAX_MEASURE_DENSITY
+      for every contiguous chain of $ROWS_PER_MEASURE rows in the song,
+        count the number of non-empty ROWS (not arrows),
+        where non-empty rows contain at least one arrow with a tap, hold, roll, or mine
+      take the maximum count of non-empty rows of any contiguous chain
+      if a 'song' has fewer than $ROWS_PER_MEASURE rows (song is shorter than one measure),
+        count the total number of non-empty rows
+    TOTAL_FREEZE_ROW_COUNT
+      find every hold-row, count the number of rows until its released, and sum the counts
+        a hold-row is a row with a single-arrow-hold-start or a multi-arrow-hold-start
+        a hold-row is released when ALL of its arrows have a hold-release
+          i.e.: the last hold-release for all the arrows in the hold-start
+      note:
+        holds on different arrows that start at different times can overlap,
+          and each is counted independently
+        multi-arrow holds only count once, and the longest-held arrow is used
+    TOTAL_NOTE_IRREGULARITY
+      sum( ARROW_COUNT * TIMING_IRREGULARITY / INTERVAL_MEASURES )
+      an arbitrary measure of how closely packed notes with weird timings are
+        (this is one of two components of CHAOS, along with BPM_CHANGE_AMOUNT)
+        this value typically ranges from 0 to 6000
+      for each note-row (row containing taps/holds/rolls/mines):
+        find the TIMING_IRREGULARITY, based on the timing of the row within a measure
+          (this is sometimes called 'arrow color', as some noteskins assign different colors)
+          timings have arbitrarily-defined TIMING_IRREGULARITY values:
+            1/4 notes (red arrows)     => 0
+            1/8 notes (blue arrows)    => 0.5
+            1/16 notes (yellow arrows) => 1
+            everything else            => 1.25
+          note that this is counted the same for taps, holds, rolls, and mines/shocks,
+            regardless of what 'arrow color' the noteskin uses for these
+        find the INTERVAL_MEASURES, in fractional measures,
+          between this note-row and the previous note-row
+          (count the number of rows between, and divide by $ROWS_PER_MEASURE)
+        find the ARROW_COUNT, the number of taps/holds/mines in the row
+          e.g.: 1 for single-arrow taps/holds/rolls
+                2 for jumps
+                4 for shocks on singles play
+                8 for shocks on doubles play
+        divide the arbitrary timing-irregularity based on
+          the timing of each note within a measure (arrow color),
+          by the fractional number of measures between that note and the previous note,
+          and multiply by the ARROW_COUNT
+    BPM_CHANGE_AMOUNT
+      sum( BPM_CHANGE_DIFF )
+      the sum of the amount that BPMs change in a song
+        (this is one of two components of CHAOS, along with TOTAL_NOTE_IRREGULARITY)
+      the absolute value of the difference between the old BPM and the new BPM,
+        for each change AND stop, all added together
+        this does NOT count the first BPM
+          (a song with one fixed BPM and no stops has a BPM_CHANGE_AMOUNT of 0)
+        a stop is equivalent to a change from 0 BPM back to the current BPM,
+          though NOT the current BPM to 0 BPM, which is ignored
+          (a stop counts only once, not twice, and the length of the stop is ignored)
+        a stop and a BPM change on the same 1/192 note row counts only as a change from 0BPM
+          to the new BPM (stop+change counts only once)
+      e.g.:
+        BPM=100, BPM=300, BPM=100           => BPM_CHANGE_AMOUNT=400
+        BPM=100, stop, stop, stop           => BPM_CHANGE_AMOUNT=300
+        BPM=100, BPM=300, stop, BPM=100     => BPM_CHANGE_AMOUNT=700
+        BPM=50, stop&BPM=100, stop, BPM=120 => BPM_CHANGE_AMOUNT=170
+    COUNT_NOTE_ROWS
+      total number of rows in the song that contain:
+        single-arrow-tap,        multi-arrow-tap,
+        single-arrow-hold-start, multi-arrow-hold-start,
+        single-arrow-roll-start, multi-arrow-roll-start
+    COUNT_TAP_ROWS
+      total number of rows in the song that contain:
+        single-arrow-tap,        multi-arrow-tap
+    COUNT_HOLD_ROWS
+      total number of rows in the song that contain:
+        single-arrow-hold-start, multi-arrow-hold-start
+    COUNT_JUMP_ROWS
+      total number of rows in the song that contain:
+        mutli-arrow-tap,
+        multi-arrow-hold-start
+        multi-arrow-roll-start
+    COUNT_MINE_ROWS
+      total number of rows in the song that contain:
+        single-mine,              multi-mine
+    COUNT_SHOCK_ROWS
+      total number of rows in the song that contain ONLY mines, for all arrows
+    COUNT_TAPS
+      total number of ARROWS in single-arrow-tap or multi-arrow-tap rows
+        e.g.: a jump is 2 taps, but only 1 tap-row
+    COUNT_HOLDS
+      total number of ARROWS in single-arrow-hold-start or multi-arrow-hold-start rows
+        e.g.: a jump-hold is 2 holds, but only 1 hold-row
+    COUNT_ROLLS
+      total number of ARROWS in single-arrow-roll-start or multi-arrow-roll-start rows
+        e.g.: a jump-roll is 2 rolls, but only 1 roll-row
+    COUNT_MINES
+      total number of MINES in single-mine or multi-mine rows
+        e.g.: a shock is 4 mines (in singles play), but only 1 shock-row
 
   OPTS
 ";
@@ -221,19 +333,6 @@ sub getMaxMeasureDensity($){
   return $maxDensity;
 }
 
-#chaos calculation part one of two - how closely packed notes with weird timings are
-#  divides the arbitrary timing-irregularity based on
-#    the timing of each note within a measure (arrow color),
-#    by the fractional number of measures between that note and the previous note
-#
-#  this value typically ranges from 0 to 20,000
-#  timings have arbitrarily-defined irregularities:
-#    1/4 notes (red arrows) have 0 irregularity
-#    1/8 notes (blue arrows) are 0.5,
-#    1/16 notes (yellow arrows) are 1
-#    and everything else is 1.25
-#
-#  each arrow of each row adds cumulatively
 sub getTotalNoteIrregularity($){
   my ($rows) = @_;
   my $totalIrregularity = 0;
@@ -290,25 +389,6 @@ sub getTotalNoteIrregularity($){
   return $totalIrregularity;
 }
 
-#chaos calculation part two of two - the sum of the amount that BPMs change in a song
-#  the absolute value of the difference between the old BPM and the new BPM,
-#    for each change and stop
-#  this does NOT count the first BPM, so a song with only one BPM and no stops
-#    has a BPM_CHANGE_AMOUNT of 0
-#
-#  a stop is equivalent to a change from 0 BPM back to the current BPM,
-#    though NOT the current BPM to 0 BPM, which is ignored
-#    (a stop counts only once, not twice, and the length of the stop is ignored)
-#
-#  a stop and a BPM change on the same 1/192 note row counts only as a change from 0BPM
-#    to the new BPM (stop+change counts only once)
-#
-#  e.g.:
-#    BPM=100, BPM=300, BPM=100           => BPM_CHANGE_AMOUNT=400
-#    BPM=100, stop, stop, stop           => BPM_CHANGE_AMOUNT=300
-#    BPM=100, BPM=300, stop, BPM=100     => BPM_CHANGE_AMOUNT=700
-#    BPM=50, stop&BPM=100, stop, BPM=120 => BPM_CHANGE_AMOUNT=170
-#
 sub getBPMChangeAmount($$){
   my ($bpmsByRow, $stopsByRow) = @_;
   my $bpmChangeAmount = 0;
