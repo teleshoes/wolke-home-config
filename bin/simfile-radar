@@ -582,81 +582,80 @@ sub formatDDRDiff($){
 
 sub getStats($$$$$){
   my ($game, $diff, $rows, $bpmsByRow, $stopsByRow) = @_;
-  my $stats = {
-    GAME => formatDDRGame($game),
-    DIFF => formatDDRDiff($diff),
-  };
 
   #analysis + data-collection
-  $stats = {%$stats, %{getNoteCounts($rows)}};
-  $$stats{SONG_DUR}                     = getSongDuration($rows, $bpmsByRow, $stopsByRow);
-  $$stats{SONG_ROW_COUNT}               = getSongRowCount($rows);
-  $$stats{MAX_MEASURE_DENSITY}          = getMaxMeasureDensity $rows;
-  $$stats{TOTAL_FREEZE_ROW_COUNT}       = getTotalFreezeRowCount $rows;
-  $$stats{TOTAL_NOTE_IRREGULARITY}      = getTotalNoteIrregularity $rows;
-  $$stats{BPM_CHANGE_AMOUNT}            = getBPMChangeAmount($bpmsByRow, $stopsByRow);
+  my $s = {                      %{getNoteCounts($rows)},
+    GAME                      => formatDDRGame($game),
+    DIFF                      => formatDDRDiff($diff),
+    SONG_DUR                  => getSongDuration($rows, $bpmsByRow, $stopsByRow),
+    SONG_ROW_COUNT            => getSongRowCount($rows),
+    MAX_MEASURE_DENSITY       => getMaxMeasureDensity $rows,
+    TOTAL_FREEZE_ROW_COUNT    => getTotalFreezeRowCount $rows,
+    TOTAL_NOTE_IRREGULARITY   => getTotalNoteIrregularity $rows,
+    BPM_CHANGE_AMOUNT         => getBPMChangeAmount($bpmsByRow, $stopsByRow),
+  };
 
   #meaningful calculated values
-  $$stats{BPM_ROWS}                     = join ",", map {"$_=$$bpmsByRow{$_}"} sort {$a <=> $b} keys %$bpmsByRow;
-  $$stats{STOP_ROWS}                    = join ",", map {"$_=$$stopsByRow{$_}"} sort {$a <=> $b} keys %$stopsByRow;
-  $$stats{SONG_BEAT_COUNT}              = int($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
-  $$stats{TOTAL_NOTES}                  = $$stats{COUNT_NOTE_ROWS} + $$stats{COUNT_SHOCK_ROWS};
-  $$stats{TOTAL_JUMPS_SHOCKS}           = $$stats{COUNT_JUMP_ROWS} + $$stats{COUNT_SHOCK_ROWS};
-  $$stats{NOTES_PER_MIN}                = 60 * ($$stats{TOTAL_NOTES}) / $$stats{SONG_DUR};
-  $$stats{AVG_BPM}                      = 60 * ($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT) / $$stats{SONG_DUR};
-  $$stats{MAX_DENSITY_PER_MIN}          = $$stats{AVG_BPM}*$$stats{MAX_MEASURE_DENSITY}/4;
-  $$stats{JUMPS_SHOCKS_PER_MIN}         = 60 * $$stats{TOTAL_JUMPS_SHOCKS} / $$stats{SONG_DUR};
-  $$stats{FREEZE_RATIO_10K}             = 10000 * ($$stats{TOTAL_FREEZE_ROW_COUNT}/$ROWS_PER_BEAT) / $$stats{SONG_BEAT_COUNT};
-  $$stats{BPM_CHANGE_AMOUNT_PER_MIN}    = 60 * $$stats{BPM_CHANGE_AMOUNT} / $$stats{SONG_DUR};
-  $$stats{OVERALL_IRREGULARITY}         = $$stats{TOTAL_NOTE_IRREGULARITY} * (1 + $$stats{BPM_CHANGE_AMOUNT_PER_MIN}/1500);
-  $$stats{IRREGULARITY_PER_CENTISECOND} = 100 * $$stats{OVERALL_IRREGULARITY} / $$stats{SONG_DUR};
+  $$s{BPM_ROWS}                  = join ",", map {"$_=$$bpmsByRow{$_}"} sort {$a <=> $b} keys %$bpmsByRow;
+  $$s{STOP_ROWS}                 = join ",", map {"$_=$$stopsByRow{$_}"} sort {$a <=> $b} keys %$stopsByRow;
+  $$s{SONG_BEAT_COUNT}           = int($$s{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
+  $$s{TOTAL_NOTES}               = $$s{COUNT_NOTE_ROWS} + $$s{COUNT_SHOCK_ROWS};
+  $$s{TOTAL_JUMPS_SHOCKS}        = $$s{COUNT_JUMP_ROWS} + $$s{COUNT_SHOCK_ROWS};
+  $$s{NOTES_PER_MIN}             = 60 * ($$s{TOTAL_NOTES}) / $$s{SONG_DUR};
+  $$s{AVG_BPM}                   = 60 * ($$s{SONG_ROW_COUNT}/$ROWS_PER_BEAT) / $$s{SONG_DUR};
+  $$s{MAX_DENSITY_PER_MIN}       = $$s{AVG_BPM}*$$s{MAX_MEASURE_DENSITY}/4;
+  $$s{JUMPS_SHOCKS_PER_MIN}      = 60 * $$s{TOTAL_JUMPS_SHOCKS} / $$s{SONG_DUR};
+  $$s{FREEZE_RATIO_10K}          = 10000 * ($$s{TOTAL_FREEZE_ROW_COUNT}/$ROWS_PER_BEAT) / $$s{SONG_BEAT_COUNT};
+  $$s{BPM_CHANGE_AMOUNT_PER_MIN} = 60 * $$s{BPM_CHANGE_AMOUNT} / $$s{SONG_DUR};
+  $$s{OVERALL_IRREGULARITY}      = $$s{TOTAL_NOTE_IRREGULARITY} * (1 + $$s{BPM_CHANGE_AMOUNT_PER_MIN}/1500);
+  $$s{IRREG_PER_CENTISECOND}     = 100 * $$s{OVERALL_IRREGULARITY} / $$s{SONG_DUR};
 
   #stream
   if($game =~ /single/i){
-    if($$stats{NOTES_PER_MIN} >= 300){
-      $$stats{DDRSN2_STREAM} = ($$stats{NOTES_PER_MIN}-203)*100/97;
-      $$stats{DDRA_STREAM} = ($$stats{NOTES_PER_MIN}-139)*100/161;
+    if($$s{NOTES_PER_MIN} >= 300){
+      $$s{DDRSN2_STREAM} = ($$s{NOTES_PER_MIN}-203)*100/97;
+      $$s{DDRA_STREAM} = ($$s{NOTES_PER_MIN}-139)*100/161;
     }else{
-      $$stats{DDRSN2_STREAM} = $$stats{NOTES_PER_MIN}/3;
-      $$stats{DDRA_STREAM} = $$stats{NOTES_PER_MIN}/3;
+      $$s{DDRSN2_STREAM} = $$s{NOTES_PER_MIN}/3;
+      $$s{DDRA_STREAM} = $$s{NOTES_PER_MIN}/3;
     }
   }elsif($game =~ /double/i){
-    if($$stats{NOTES_PER_MIN} >= 300){
-      $$stats{DDRSN2_STREAM} = ($$stats{NOTES_PER_MIN}-205)*20/19;
-      $$stats{DDRA_STREAM} = ($$stats{NOTES_PER_MIN}-183)*100/117;
+    if($$s{NOTES_PER_MIN} >= 300){
+      $$s{DDRSN2_STREAM} = ($$s{NOTES_PER_MIN}-205)*20/19;
+      $$s{DDRA_STREAM} = ($$s{NOTES_PER_MIN}-183)*100/117;
     }else{
-      $$stats{DDRSN2_STREAM} = $$stats{NOTES_PER_MIN}/3;
-      $$stats{DDRA_STREAM} = $$stats{NOTES_PER_MIN}/3;
+      $$s{DDRSN2_STREAM} = $$s{NOTES_PER_MIN}/3;
+      $$s{DDRA_STREAM} = $$s{NOTES_PER_MIN}/3;
     }
   }else{
     die "ERROR: unknown game \"$game\"\n";
   }
 
   #voltage
-  if($$stats{MAX_DENSITY_PER_MIN} >= 600){
-    $$stats{DDRSN2_VOLTAGE} = ($$stats{MAX_DENSITY_PER_MIN}+102)*100/702;
-    $$stats{DDRA_VOLTAGE} = ($$stats{MAX_DENSITY_PER_MIN}+594)*100/1194;
+  if($$s{MAX_DENSITY_PER_MIN} >= 600){
+    $$s{DDRSN2_VOLTAGE} = ($$s{MAX_DENSITY_PER_MIN}+102)*100/702;
+    $$s{DDRA_VOLTAGE} = ($$s{MAX_DENSITY_PER_MIN}+594)*100/1194;
   }else{
-    $$stats{DDRSN2_VOLTAGE} = $$stats{MAX_DENSITY_PER_MIN}/6;
-    $$stats{DDRA_VOLTAGE} = $$stats{MAX_DENSITY_PER_MIN}/6;
+    $$s{DDRSN2_VOLTAGE} = $$s{MAX_DENSITY_PER_MIN}/6;
+    $$s{DDRA_VOLTAGE} = $$s{MAX_DENSITY_PER_MIN}/6;
   }
 
   #air
   if($game =~ /single/i){
-    if($$stats{JUMPS_SHOCKS_PER_MIN} >= 55){
-      $$stats{DDRSN2_AIR} = ($$stats{JUMPS_SHOCKS_PER_MIN}-1)*50/27;
-      $$stats{DDRA_AIR} = ($$stats{JUMPS_SHOCKS_PER_MIN}+36)*100/91;
+    if($$s{JUMPS_SHOCKS_PER_MIN} >= 55){
+      $$s{DDRSN2_AIR} = ($$s{JUMPS_SHOCKS_PER_MIN}-1)*50/27;
+      $$s{DDRA_AIR} = ($$s{JUMPS_SHOCKS_PER_MIN}+36)*100/91;
     }else{
-      $$stats{DDRSN2_AIR} = $$stats{JUMPS_SHOCKS_PER_MIN}*20/11;
-      $$stats{DDRA_AIR} = $$stats{JUMPS_SHOCKS_PER_MIN}*20/11;
+      $$s{DDRSN2_AIR} = $$s{JUMPS_SHOCKS_PER_MIN}*20/11;
+      $$s{DDRA_AIR} = $$s{JUMPS_SHOCKS_PER_MIN}*20/11;
     }
   }elsif($game =~ /double/i){
-    if($$stats{JUMPS_SHOCKS_PER_MIN} >= 55){
-      $$stats{DDRSN2_AIR} = ($$stats{JUMPS_SHOCKS_PER_MIN}-1)*50/27;
-      $$stats{DDRA_AIR} = ($$stats{JUMPS_SHOCKS_PER_MIN}+35)*10/9;
+    if($$s{JUMPS_SHOCKS_PER_MIN} >= 55){
+      $$s{DDRSN2_AIR} = ($$s{JUMPS_SHOCKS_PER_MIN}-1)*50/27;
+      $$s{DDRA_AIR} = ($$s{JUMPS_SHOCKS_PER_MIN}+35)*10/9;
     }else{
-      $$stats{DDRSN2_AIR} = $$stats{JUMPS_SHOCKS_PER_MIN}*20/11;
-      $$stats{DDRA_AIR} = $$stats{JUMPS_SHOCKS_PER_MIN}*20/11;
+      $$s{DDRSN2_AIR} = $$s{JUMPS_SHOCKS_PER_MIN}*20/11;
+      $$s{DDRA_AIR} = $$s{JUMPS_SHOCKS_PER_MIN}*20/11;
     }
   }else{
     die "ERROR: unknown game \"$game\"\n";
@@ -664,20 +663,20 @@ sub getStats($$$$$){
 
   #freeze
   if($game =~ /single/i){
-    if($$stats{FREEZE_RATIO_10K} >= 3500){
-      $$stats{DDRSN2_FREEZE} = ($$stats{FREEZE_RATIO_10K}+2484)*100/5984;
-      $$stats{DDRA_FREEZE} = ($$stats{FREEZE_RATIO_10K}+2484)*100/5984;
+    if($$s{FREEZE_RATIO_10K} >= 3500){
+      $$s{DDRSN2_FREEZE} = ($$s{FREEZE_RATIO_10K}+2484)*100/5984;
+      $$s{DDRA_FREEZE} = ($$s{FREEZE_RATIO_10K}+2484)*100/5984;
     }else{
-      $$stats{DDRSN2_FREEZE} = $$stats{FREEZE_RATIO_10K}/35;
-      $$stats{DDRA_FREEZE} = $$stats{FREEZE_RATIO_10K}/35;
+      $$s{DDRSN2_FREEZE} = $$s{FREEZE_RATIO_10K}/35;
+      $$s{DDRA_FREEZE} = $$s{FREEZE_RATIO_10K}/35;
     }
   }elsif($game =~ /double/i){
-    if($$stats{FREEZE_RATIO_10K} >= 3500){
-      $$stats{DDRSN2_FREEZE} = ($$stats{FREEZE_RATIO_10K}+2246)*100/5746;
-      $$stats{DDRA_FREEZE} = ($$stats{FREEZE_RATIO_10K}+2246)*100/5746;
+    if($$s{FREEZE_RATIO_10K} >= 3500){
+      $$s{DDRSN2_FREEZE} = ($$s{FREEZE_RATIO_10K}+2246)*100/5746;
+      $$s{DDRA_FREEZE} = ($$s{FREEZE_RATIO_10K}+2246)*100/5746;
     }else{
-      $$stats{DDRSN2_FREEZE} = $$stats{FREEZE_RATIO_10K}/35;
-      $$stats{DDRA_FREEZE} = $$stats{FREEZE_RATIO_10K}/35;
+      $$s{DDRSN2_FREEZE} = $$s{FREEZE_RATIO_10K}/35;
+      $$s{DDRA_FREEZE} = $$s{FREEZE_RATIO_10K}/35;
     }
   }else{
     die "ERROR: unknown game \"$game\"\n";
@@ -685,26 +684,26 @@ sub getStats($$$$$){
 
   #chaos
   if($game =~ /single/i){
-    if($$stats{IRREGULARITY_PER_CENTISECOND} >= 2000){
-      $$stats{DDRSN2_CHAOS} = ($$stats{IRREGULARITY_PER_CENTISECOND}+21605)*100/23605;
-      $$stats{DDRA_CHAOS} = ($$stats{IRREGULARITY_PER_CENTISECOND}+21605)*100/23605;
+    if($$s{IRREG_PER_CENTISECOND} >= 2000){
+      $$s{DDRSN2_CHAOS} = ($$s{IRREG_PER_CENTISECOND}+21605)*100/23605;
+      $$s{DDRA_CHAOS} = ($$s{IRREG_PER_CENTISECOND}+21605)*100/23605;
     }else{
-      $$stats{DDRSN2_CHAOS} = $$stats{IRREGULARITY_PER_CENTISECOND}/20;
-      $$stats{DDRA_CHAOS} = $$stats{IRREGULARITY_PER_CENTISECOND}/20;
+      $$s{DDRSN2_CHAOS} = $$s{IRREG_PER_CENTISECOND}/20;
+      $$s{DDRA_CHAOS} = $$s{IRREG_PER_CENTISECOND}/20;
     }
   }elsif($game =~ /double/i){
-    if($$stats{IRREGULARITY_PER_CENTISECOND} >= 2000){
-      $$stats{DDRSN2_CHAOS} = ($$stats{IRREGULARITY_PER_CENTISECOND}+16628)*100/18628;
-      $$stats{DDRA_CHAOS} = ($$stats{IRREGULARITY_PER_CENTISECOND}+16628)*100/18628;
+    if($$s{IRREG_PER_CENTISECOND} >= 2000){
+      $$s{DDRSN2_CHAOS} = ($$s{IRREG_PER_CENTISECOND}+16628)*100/18628;
+      $$s{DDRA_CHAOS} = ($$s{IRREG_PER_CENTISECOND}+16628)*100/18628;
     }else{
-      $$stats{DDRSN2_CHAOS} = $$stats{IRREGULARITY_PER_CENTISECOND}/20;
-      $$stats{DDRA_CHAOS} = $$stats{IRREGULARITY_PER_CENTISECOND}/20;
+      $$s{DDRSN2_CHAOS} = $$s{IRREG_PER_CENTISECOND}/20;
+      $$s{DDRA_CHAOS} = $$s{IRREG_PER_CENTISECOND}/20;
     }
   }else{
     die "ERROR: unknown game \"$game\"\n";
   }
 
-  return $stats;
+  return $s;
 }
 
 sub parseSMFile($){
