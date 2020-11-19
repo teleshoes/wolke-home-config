@@ -6,8 +6,32 @@ use Time::HiRes qw(sleep);
 my $IPMAGIC_NAME = "sx";
 
 sub main(@){
+  my $phoneHeight = "";
+  my $phoneResOut = `ipmagic $IPMAGIC_NAME -u root -s "cat /sys/class/graphics/fb*/modes"`;
+  if($phoneResOut =~ /(\d+)x(\d+)p/){
+    my ($w, $h)= ($1, $2);
+    $phoneHeight = $w > $h? $w : $h;
+  }
+  if($phoneHeight !~ /^\d+$/){
+    die "ERROR: could not obtain phone resolution\n";
+  }
+
+  my $monitorHeight = `res -h`;
+  chomp $monitorHeight;
+  if($monitorHeight !~ /^\d+$/){
+    die "ERROR: could not obtain monitor resolution\n";
+  }
+
+  my $desiredViewportHeight = $monitorHeight*0.95;
+
+  #scale is in increments of 10%, between 10% and 100%
+  my $scale = sprintf "%.1f", int(10*($desiredViewportHeight)/$phoneHeight)/10.0;
+  $scale = "1.0" if $scale >= 1;
+  $scale = "0.1" if $scale <= 0.1;
+  print "SCALE: $scale\n";
+
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
-    echo \"LIPSTICK2VNC_OPTS=\\\"--allow-all -s 0.8\\\"\" > /var/lib/environment/nemo/70-lipstick2vnc.conf
+    echo \"LIPSTICK2VNC_OPTS=\\\"--allow-all -s $scale\\\"\" > /var/lib/environment/nemo/70-lipstick2vnc.conf
     lock --unlock &
     systemctl start vnc
   ";
