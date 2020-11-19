@@ -5,6 +5,7 @@ use warnings;
 my $ROWS_PER_MEASURE = 192;
 my $ROWS_PER_BEAT = int(192/4); #48
 
+sub formatStats($$);
 sub getNoteCounts($);
 sub getStats($$$$$);
 sub parseSMFile($);
@@ -14,13 +15,24 @@ sub parseGameDiffKey($);
 sub getExpandedNoteRows($);
 sub readFile($);
 
+my $DEFAULT_FORMAT_SPEC = ""
+  . "%-7s-GAME"
+  . " | %-10s-DIFF"
+  . " | S%-3d-DDRA_STREAM"
+  . " | V%-3d-DDRA_VOLTAGE"
+  . " | A%-3d-DDRA_AIR"
+  . " | F%-3d-DDRA_FREEZE"
+  . " | C%-3d-DDRA_CHAOS"
+  . "%n"
+;
+
 my $usage = "Usage:
   $0 -h|--help
     show this message
 
   $0 [OPTS] SM_FILE
     analyze SM_FILE, gather statistics for each VARIABLE,
-    and print the result
+    and print the result using FORMAT_SPEC
 
   VARIABLE
     GAME
@@ -175,15 +187,52 @@ my $usage = "Usage:
       groove radar \"chaos\" value approximately matching values in DDR A + DDR A20
 
   OPTS
+    --format=FORMAT_SPEC
+      FORMAT_SPEC can be any string, with the following printf-like replacements:
+        %%                       = a literal % character
+        %n                       = a newline character (\\n)
+        %<VARIABLE>              = VARIABLE value
+                                   e.g.: %STREAM
+        %<PRINTF_MOD><VARIABLE>  = VARIABLE value, formatted with PRINTF_MOD
+                                   e.g.: %05.2fSTREAM
+        %<PRINTF_MOD>-<VARIABLE> = VARIABLE value, formatted with PRINTF_MOD
+                                   e.g.: %05.2f-STREAM
+      default=$DEFAULT_FORMAT_SPEC
+         e.g.: singles | expert     | S122 | V109 | A0   | F0   | C108
+
+      PRINTF_MOD = FLAGS|WIDTH|PRECISION|SPECIFIER
+        almost any printf string, like '+08.2f',
+          except:
+            'width' must be a number, not '*'
+            'precision' must be a number, not '.*'
+            'length' (C datatype) is not allowed
+            'specifier' n is not allowed
+            'specifier' % is not allowed
+
+        FLAGS
+          any (or none) of \"-\", \"+\", \" \", \"#\", \"0\"
+          e.g.: - 0
+        WIDTH:
+          missing, or a positive integer
+          e.g.: 32
+        PRECISION:
+          missing, or a decimal point followed by a positive integer
+          e.g.: .2
+        SPECIFIER:
+          exactly one of: d i u o x X f F e E g G a A c s
+          e.g.: f
 ";
 
 sub main(@){
   my $smFile;
+  my $formatSpec = $DEFAULT_FORMAT_SPEC;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^--format=(.+)$/){
+      $formatSpec = $1;
     }elsif(-f $arg){
       die "$usage\nERROR: multiple SM_FILE args \"$arg\" + \"$smFile\"\n" if defined $smFile;
       $smFile = $arg;
@@ -206,23 +255,40 @@ sub main(@){
   }
 
   for my $gameDiffKey(sort keys %$stats){
-    my $s = $$stats{$gameDiffKey};
-    for my $key(sort keys %$s){
-      print "$gameDiffKey.$key = $$s{$key}\n";
+    print formatStats($formatSpec, $$stats{$gameDiffKey});
+  }
+}
+
+sub formatStats($$){
+  my ($formatSpec, $stats) = @_;
+
+  my $s = $formatSpec;
+  $s =~ s/&/&amp;/g;
+  $s =~ s/%%/&boing;/g;
+
+  $s =~ s/%n/\n/g;
+
+  my $varRegex = join "|", sort keys %$stats;
+  my $printfModRegex = '[ \-+#0]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcs]';
+  while($s =~ s/%((?:$printfModRegex)?)-?($varRegex)/&var;/){
+    my ($printfMod, $varName) = ($1, $2);
+    my $val = $$stats{$varName};
+    $val =~ s/&/&amp;/g;
+    $val =~ s/%/&boing;/g;
+    if(length $printfMod > 0){
+      $val = sprintf "%$printfMod", $val;
     }
+    $s =~ s/&var;/$val/g;
   }
-  print "\n";
-  for my $gameDiffKey(sort keys %$stats){
-    my $s = $$stats{$gameDiffKey};
-    printf "%-22s - S%-3d - V%-3d - A%-3d - F%-3d - C%-3d\n",
-      $gameDiffKey,
-      int($$s{DDRA_STREAM} + 0.5),
-      int($$s{DDRA_VOLTAGE} + 0.5),
-      int($$s{DDRA_AIR} + 0.5),
-      int($$s{DDRA_FREEZE} + 0.5),
-      int($$s{DDRA_CHAOS} + 0.5),
-    ;
+
+  if($s =~ /%/){
+    die "ERROR: format-spec contains unknown replacement var \"$formatSpec\"\n";
   }
+
+  $s =~ s/&boing;/%/g;
+  $s =~ s/&amp;/&/g;
+
+  return $s;
 }
 
 sub getSongRowCount($){
