@@ -187,6 +187,21 @@ my $usage = "Usage:
       groove radar \"chaos\" value approximately matching values in DDR A + DDR A20
 
   OPTS
+    --singles | singles | --single | single | --dance-single | dance-single
+      ignore (and skip calculations for) all note-sets where GAME is not 'singles'
+    --doubles | doubles | --double | double | --dance-double | dance-double
+      ignore (and skip calculations for) all note-sets where GAME is not 'doubles'
+
+    --beginner | beginner
+      ignore (and skip calculations for) all note-sets where DIFF is not 'beginner'
+    --basic | basic
+      ignore (and skip calculations for) all note-sets where DIFF is not 'basic'
+    --difficult | difficult
+      ignore (and skip calculations for) all note-sets where DIFF is not 'difficult'
+    --expert | expert
+      ignore (and skip calculations for) all note-sets where DIFF is not 'expert'
+    --challenge | challenge
+      ignore (and skip calculations for) all note-sets where DIFF is not 'challenge'
     --format=FORMAT_SPEC
       FORMAT_SPEC can be any string, with the following printf-like replacements:
         %%                       = a literal % character
@@ -225,12 +240,18 @@ my $usage = "Usage:
 
 sub main(@){
   my $smFile;
+  my $gameFilter;
+  my $diffFilter;
   my $formatSpec = $DEFAULT_FORMAT_SPEC;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(?:--)?(?:dance-)?(single|double)s$/){
+      $gameFilter = "$1s";
+    }elsif($arg =~ /^(?:--)?(beginner|basic|difficult|expert|challenge)$/){
+      $diffFilter = $1;
     }elsif($arg =~ /^--format=(.+)$/){
       $formatSpec = $1;
     }elsif(-f $arg){
@@ -251,6 +272,10 @@ sub main(@){
   for my $gameDiffKey(sort keys %{$$smInfo{notesByGameDiffKey}}){
     my $rows = getExpandedNoteRows $$smInfo{notesByGameDiffKey}{$gameDiffKey};
     my ($game, $diff) = parseGameDiffKey($gameDiffKey);
+    my $ddrGame = formatDDRGame($game);
+    my $ddrDiff = formatDDRDiff($diff);
+    next if defined $gameFilter and $ddrGame !~ /^$gameFilter$/i;
+    next if defined $diffFilter and $ddrDiff !~ /^$diffFilter$/i;
     $$stats{$gameDiffKey} = getStats($game, $diff, $rows, $bpmsByRow, $stopsByRow);
   }
 
