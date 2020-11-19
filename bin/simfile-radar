@@ -124,29 +124,29 @@ sub getNoteCounts($){
   my ($rows) = @_;
 
   my $noteCounts = {
-    NOTE_ROWS  => 0,
-    TAP_ROWS   => 0,
-    HOLD_ROWS  => 0,
-    JUMP_ROWS  => 0,
-    MINE_ROWS  => 0,
-    SHOCK_ROWS => 0,
-    TAPS       => 0,
-    HOLDS      => 0,
-    ROLLS      => 0,
-    MINES      => 0,
+    COUNT_NOTE_ROWS  => 0,
+    COUNT_TAP_ROWS   => 0,
+    COUNT_HOLD_ROWS  => 0,
+    COUNT_JUMP_ROWS  => 0,
+    COUNT_MINE_ROWS  => 0,
+    COUNT_SHOCK_ROWS => 0,
+    COUNT_TAPS       => 0,
+    COUNT_HOLDS      => 0,
+    COUNT_ROLLS      => 0,
+    COUNT_MINES      => 0,
   };
   for my $row(@$rows){
-    $$noteCounts{NOTE_ROWS}++  if $row =~ /[124]/;
-    $$noteCounts{TAP_ROWS}++   if $row =~ /1/;
-    $$noteCounts{HOLD_ROWS}++  if $row =~ /[2]/;
-    $$noteCounts{JUMP_ROWS}++  if $row =~ /[124].*[124]/;
-    $$noteCounts{MINE_ROWS}++  if $row =~ /M/;
-    $$noteCounts{SHOCK_ROWS}++ if $row =~ /^M+$/; #"shocks" are mine-only rows
+    $$noteCounts{COUNT_NOTE_ROWS}++  if $row =~ /[124]/;
+    $$noteCounts{COUNT_TAP_ROWS}++   if $row =~ /1/;
+    $$noteCounts{COUNT_HOLD_ROWS}++  if $row =~ /[2]/;
+    $$noteCounts{COUNT_JUMP_ROWS}++  if $row =~ /[124].*[124]/;
+    $$noteCounts{COUNT_MINE_ROWS}++  if $row =~ /M/;
+    $$noteCounts{COUNT_SHOCK_ROWS}++ if $row =~ /^M+$/; #"shocks" are mine-only rows
 
-    $$noteCounts{TAPS}  += $row =~ /1/;
-    $$noteCounts{HOLDS} += $row =~ /2/;
-    $$noteCounts{ROLLS} += $row =~ /4/;
-    $$noteCounts{MINES} += $row =~ /M/;
+    $$noteCounts{COUNT_TAPS}  += $row =~ /1/;
+    $$noteCounts{COUNT_HOLDS} += $row =~ /2/;
+    $$noteCounts{COUNT_ROLLS} += $row =~ /4/;
+    $$noteCounts{COUNT_MINES} += $row =~ /M/;
   }
 
   return $noteCounts;
@@ -345,9 +345,9 @@ sub getStats($$$$$){
   my ($game, $diff, $rows, $bpmsByRow, $stopsByRow) = @_;
   my $stats = {};
 
+  $stats = {%$stats, %{getNoteCounts($rows)}};
   $$stats{SONG_DUR}                     = getSongDuration($rows, $bpmsByRow, $stopsByRow);
   $$stats{SONG_ROW_COUNT}               = getSongRowCount($rows);
-  $$stats{NOTE_COUNTS}                  = getNoteCounts($rows);
   $$stats{MAX_MEASURE_DENSITY}          = getMaxMeasureDensity $rows;
   $$stats{TOTAL_FREEZE_ROW_COUNT}       = getTotalFreezeRowCount $rows;
   $$stats{TOTAL_NOTE_IRREGULARITY}      = getTotalNoteIrregularity $rows;
@@ -356,8 +356,8 @@ sub getStats($$$$$){
   #DDR does lots of premature rounding
   $$stats{SONG_BEAT_COUNT}              = int($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
 
-  $$stats{TOTAL_NOTES}                  = $$stats{NOTE_COUNTS}{NOTE_ROWS} + $$stats{NOTE_COUNTS}{SHOCK_ROWS};
-  $$stats{TOTAL_JUMPS_SHOCKS}           = $$stats{NOTE_COUNTS}{JUMP_ROWS} + $$stats{NOTE_COUNTS}{SHOCK_ROWS};
+  $$stats{TOTAL_NOTES}                  = $$stats{COUNT_NOTE_ROWS} + $$stats{COUNT_SHOCK_ROWS};
+  $$stats{TOTAL_JUMPS_SHOCKS}           = $$stats{COUNT_JUMP_ROWS} + $$stats{COUNT_SHOCK_ROWS};
   $$stats{NOTES_PER_MIN}                = 60 * ($$stats{TOTAL_NOTES}) / $$stats{SONG_DUR};
   $$stats{AVG_BPM}                      = 60 * ($$stats{SONG_ROW_COUNT}/$ROWS_PER_BEAT) / $$stats{SONG_DUR};
   $$stats{MAX_DENSITY_PER_MIN}          = $$stats{AVG_BPM}*$$stats{MAX_MEASURE_DENSITY}/4;
