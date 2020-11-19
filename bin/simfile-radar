@@ -334,8 +334,10 @@ sub main(@){
   my $bpmsByRow = convertValuesByBeatToValuesByRow($$smInfo{bpms});
   my $stopsByRow = convertValuesByBeatToValuesByRow($$smInfo{stops});
 
+  my @gameDiffKeys = @{$$smInfo{gameDiffKeyOrder}};
+
   my $stats = {};
-  for my $gameDiffKey(sort keys %{$$smInfo{notesByGameDiffKey}}){
+  for my $gameDiffKey(@gameDiffKeys){
     my $rows = getExpandedNoteRows $$smInfo{notesByGameDiffKey}{$gameDiffKey};
     my ($game, $diff) = parseGameDiffKey($gameDiffKey);
     my $ddrGame = formatDDRGame($game);
@@ -345,7 +347,7 @@ sub main(@){
     $$stats{$gameDiffKey} = getStats($game, $diff, $defaultVarsMachine, $rows, $bpmsByRow, $stopsByRow);
   }
 
-  for my $gameDiffKey(sort keys %$stats){
+  for my $gameDiffKey(@gameDiffKeys){
     if($dump){
       $formatSpec = "";
       for my $varName(sort keys %{$$stats{$gameDiffKey}}){
@@ -740,6 +742,7 @@ sub parseSMFile($){
     bpms               => undef,
     stops              => undef,
     notesByGameDiffKey => {},
+    gameDiffKeyOrder   => [],
   };
 
   if($sm !~ /#BPMS:([^;]+);/i){
@@ -770,6 +773,7 @@ sub parseSMFile($){
 
     my $gameDiffKey = gameDiffKey($game, $difficulty);
     $$smInfo{notesByGameDiffKey}{$gameDiffKey} = $notes;
+    push @{$$smInfo{gameDiffKeyOrder}}, $gameDiffKey;
   }
 
   #SSC files
@@ -785,6 +789,7 @@ sub parseSMFile($){
 
     my $gameDiffKey = gameDiffKey($game, $difficulty);
     $$smInfo{notesByGameDiffKey}{$gameDiffKey} = $notes;
+    push @{$$smInfo{gameDiffKeyOrder}}, $gameDiffKey;
   }
 
   my $gameDiffKeyCount = keys %{$$smInfo{notesByGameDiffKey}};
