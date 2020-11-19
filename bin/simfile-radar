@@ -256,6 +256,12 @@ my $usage = "Usage:
       e.g.: --machine=ddrsn2
             => STREAM = STREAM_DDRSN2
 
+    --dump
+      print all variables for each GAME and DIFF
+      equivalent to setting FORMAT_SPEC to the concatentation of:
+        %GAME.%DIFF.<VARIABLE>=%<VARIABLE>%n
+      for each VARIABLE (one per line, sorted asciibetically)
+
     --format=FORMAT_SPEC
       FORMAT_SPEC can be any string, with the following printf-like replacements:
         %%                       = a literal % character
@@ -297,6 +303,7 @@ sub main(@){
   my $gameFilter;
   my $diffFilter;
   my $defaultVarsMachine = $DEFAULT_MACHINE;
+  my $dump = 0;
   my $formatSpec = $DEFAULT_FORMAT_SPEC;
   while(@_ > 0){
     my $arg = shift;
@@ -309,6 +316,8 @@ sub main(@){
       $diffFilter = $1;
     }elsif($arg =~ /^--machine=(DDRA|DDRSN2)$/i){
       $defaultVarsMachine = uc $1;
+    }elsif($arg =~ /^--dump$/){
+      $dump = 1;
     }elsif($arg =~ /^--format=(.+)$/){
       $formatSpec = $1;
     }elsif(-f $arg){
@@ -337,6 +346,12 @@ sub main(@){
   }
 
   for my $gameDiffKey(sort keys %$stats){
+    if($dump){
+      $formatSpec = "";
+      for my $varName(sort keys %{$$stats{$gameDiffKey}}){
+        $formatSpec .= "%GAME.%DIFF.$varName=%$varName%n";
+      }
+    }
     print formatStats($formatSpec, $$stats{$gameDiffKey});
   }
 }
