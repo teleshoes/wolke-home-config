@@ -7,7 +7,7 @@ my $ROWS_PER_BEAT = int(192/4); #48
 
 sub formatStats($$);
 sub getNoteCounts($);
-sub getStats($$$$$);
+sub getStats($$$$$$);
 sub parseSMFile($);
 sub getBPMsByRow($);
 sub gameDiffKey($$);
@@ -243,6 +243,19 @@ my $usage = "Usage:
       ignore (and skip calculations for) all note-sets where DIFF is not 'expert'
     --challenge | challenge
       ignore (and skip calculations for) all note-sets where DIFF is not 'challenge'
+
+    --machine=MACHINE
+      MACHINE is one of the following values (case-insensitive):
+        DDRA DDRSN2
+      this changes the value of the following variables:
+        STREAM  = STREAM_<MACHINE>
+        VOLTAGE = VOLTAGE_<MACHINE>
+        AIR     = AIR_<MACHINE>
+        FREEZE  = FREEZE_<MACHINE>
+        CHAOS   = CHAOS_<MACHINE>
+      e.g.: --machine=ddrsn2
+            => STREAM = STREAM_DDRSN2
+
     --format=FORMAT_SPEC
       FORMAT_SPEC can be any string, with the following printf-like replacements:
         %%                       = a literal % character
@@ -283,6 +296,7 @@ sub main(@){
   my $smFile;
   my $gameFilter;
   my $diffFilter;
+  my $defaultVarsMachine = $DEFAULT_MACHINE;
   my $formatSpec = $DEFAULT_FORMAT_SPEC;
   while(@_ > 0){
     my $arg = shift;
@@ -293,6 +307,8 @@ sub main(@){
       $gameFilter = "$1s";
     }elsif($arg =~ /^(?:--)?(beginner|basic|difficult|expert|challenge)$/){
       $diffFilter = $1;
+    }elsif($arg =~ /^--machine=(DDRA|DDRSN2)$/i){
+      $defaultVarsMachine = uc $1;
     }elsif($arg =~ /^--format=(.+)$/){
       $formatSpec = $1;
     }elsif(-f $arg){
@@ -317,7 +333,7 @@ sub main(@){
     my $ddrDiff = formatDDRDiff($diff);
     next if defined $gameFilter and $ddrGame !~ /^$gameFilter$/i;
     next if defined $diffFilter and $ddrDiff !~ /^$diffFilter$/i;
-    $$stats{$gameDiffKey} = getStats($game, $diff, $rows, $bpmsByRow, $stopsByRow);
+    $$stats{$gameDiffKey} = getStats($game, $diff, $defaultVarsMachine, $rows, $bpmsByRow, $stopsByRow);
   }
 
   for my $gameDiffKey(sort keys %$stats){
@@ -621,8 +637,8 @@ sub formatDDRDiff($){
   }
 }
 
-sub getStats($$$$$){
-  my ($game, $diff, $rows, $bpmsByRow, $stopsByRow) = @_;
+sub getStats($$$$$$){
+  my ($game, $diff, $defaultVarsMachine, $rows, $bpmsByRow, $stopsByRow) = @_;
 
   #analysis + data-collection
   my $s = {                      %{getNoteCounts($rows)},
@@ -695,7 +711,7 @@ sub getStats($$$$$){
 
   #copy default machine values into plain radar variables
   for my $radarStat(qw(STREAM VOLTAGE AIR FREEZE CHAOS)){
-    $$s{$radarStat} = $$s{"${radarStat}_${DEFAULT_MACHINE}"};
+    $$s{$radarStat} = $$s{"${radarStat}_${defaultVarsMachine}"};
   }
 
   return $s;
