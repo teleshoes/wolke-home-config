@@ -7,7 +7,7 @@ my $ROWS_PER_BEAT = int(192/4); #48
 
 sub formatStats($$);
 sub getNoteCounts($);
-sub getStats($$$$$$);
+sub getStats($$$$$);
 sub parseSMFile($);
 sub getBPMsByRow($);
 sub gameDiffKey($$);
@@ -344,18 +344,27 @@ sub main(@){
     my $ddrDiff = formatDDRDiff($diff);
     next if defined $gameFilter and $ddrGame !~ /^$gameFilter$/i;
     next if defined $diffFilter and $ddrDiff !~ /^$diffFilter$/i;
-    $$stats{$gameDiffKey} = getStats($game, $diff, $defaultVarsMachine, $rows, $bpmsByRow, $stopsByRow);
+    $$stats{$gameDiffKey} = getStats($game, $diff, $rows, $bpmsByRow, $stopsByRow);
   }
 
   for my $gameDiffKey(@gameDiffKeys){
-    next if not defined $$stats{$gameDiffKey};
-    if($dump){
-      $formatSpec = "";
-      for my $varName(sort keys %{$$stats{$gameDiffKey}}){
-        $formatSpec .= "%GAME.%DIFF.$varName=%$varName%n";
+    my $s = $$stats{$gameDiffKey};
+    if(defined $s){
+      #copy default machine values into plain radar variables
+      for my $radarStat(qw(STREAM VOLTAGE AIR FREEZE CHAOS)){
+        my $machineVal = $$s{"${radarStat}_${defaultVarsMachine}"};
+        $$s{$radarStat} = $machineVal;
       }
+
+      if($dump){
+        $formatSpec = "";
+        for my $varName(sort keys %{$$stats{$gameDiffKey}}){
+          $formatSpec .= "%GAME.%DIFF.$varName=%$varName%n";
+        }
+      }
+
+      print formatStats($formatSpec, $s);
     }
-    print formatStats($formatSpec, $$stats{$gameDiffKey});
   }
 }
 
@@ -655,8 +664,8 @@ sub formatDDRDiff($){
   }
 }
 
-sub getStats($$$$$$){
-  my ($game, $diff, $defaultVarsMachine, $rows, $bpmsByRow, $stopsByRow) = @_;
+sub getStats($$$$$){
+  my ($game, $diff, $rows, $bpmsByRow, $stopsByRow) = @_;
 
   #analysis + data-collection
   my $s = {                      %{getNoteCounts($rows)},
@@ -727,11 +736,6 @@ sub getStats($$$$$$){
     my $countCondOK = grep {$_} @$conditions;
     my $countCondTotal = @$conditions;
     $$s{$radarStat} = $val if $countCondOK == $countCondTotal;
-  }
-
-  #copy default machine values into plain radar variables
-  for my $radarStat(qw(STREAM VOLTAGE AIR FREEZE CHAOS)){
-    $$s{$radarStat} = $$s{"${radarStat}_${defaultVarsMachine}"};
   }
 
   return $s;
