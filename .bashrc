@@ -12,6 +12,8 @@ stty stop undef 2>/dev/null
 
 ssh-add ~/.ssh/id_rsa 2> /dev/null
 
+export TCLLIBPATH="${HOME}/.local/share/tk-themes"
+
 export QUOTING_STYLE=literal #the fuck? fucken coreutils man
 export HISTTIMEFORMAT="%F %T "
 export HISTSIZE=1000000
