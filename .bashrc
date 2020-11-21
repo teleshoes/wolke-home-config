@@ -20,7 +20,7 @@ export HISTSIZE=1000000
 # ignoredups: do not add duplicate history entries
 # ignoredspace: do not add history entries that start with space
 export HISTCONTROL=ignoredups:ignorespace
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/
 
 export GTK_OVERLAY_SCROLLING=0
 
