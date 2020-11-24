@@ -244,7 +244,7 @@ sub getUsage(;$){
         dont show individual songs at all
 
     FILTER
-      see --print FILTER
+      see --scorestats FILTER
 
   $0 --coursestats [FORMAT_OPT_COURSES FORMAT_OPT_COURSES ..] [FILTER FILTER ..]
     show songs that appear to be part of the same course, played back-to-back
@@ -280,9 +280,9 @@ sub getUsage(;$){
           show all courses,, even if only one score recorded (after filtering)
 
     FILTER
-      see --print FILTER
+      see --scorestats FILTER
 
-  $0 --print [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
+  $0 --scorestats [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
       and print the result
 
@@ -500,6 +500,9 @@ sub getUsage(;$){
             --diffbar will show the one with BAR=$yesbarArg
             --samebar will show the two with BAR=$nobarArg
 
+  $0 --print [ARG ARG ..]
+    same as: $0 --scorestats ARG ARG ..
+
   $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
     format songs as above and write to a tmp file
     write a gnuplot script and run it in gnuplot
@@ -519,16 +522,16 @@ sub getUsage(;$){
         also turns off all notes unless --notes is given
 
     FORMAT_OPT_SCORES
-      see --print FORMAT_OPT_SCORES
+      see --scorestats FORMAT_OPT_SCORES
 
     FILTER
-      see --print FILTER
+      see --scorestats FILTER
 
   $0 --files [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
     print the filenames, one per line without directories, of matching songs
 
     FILTER
-      see --print FILTER
+      see --scorestats FILTER
 
     FILE_FORMAT_PATTERN
       printing format for each score file
@@ -543,7 +546,7 @@ sub getUsage(;$){
       $bucketFieldDesc
 
     FILTER
-      see --print FILTER
+      see --scorestats FILTER
 
     FILE_FORMAT_PATTERN
       see --files FILE_FORMAT_PATTERN
@@ -717,7 +720,7 @@ sub main(@){
   }elsif(@_ >= 1 and $_[0] =~ /^(--coursestats)$/){
     my $cmd = shift;
     courseStats($cmd, @_);
-  }elsif(@_ >= 1 and $_[0] =~ /^(--print|--gnuplot|--files|--bestfiles)$/){
+  }elsif(@_ >= 1 and $_[0] =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles)$/){
     my $cmd = shift;
     scoreStats($cmd, @_);
   }elsif(@_ >= 2 and $_[0] =~ /^(--edit-names)$/){
@@ -968,7 +971,7 @@ sub scoreStats($@){
   my $abbrevBucket = 0;
   my $combineMachines = 0;
 
-  if($cmd =~ /^(--print|--gnuplot)$/){
+  if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
     while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
       my $opt = shift @$opts;
       my $arg;
@@ -1015,7 +1018,7 @@ sub scoreStats($@){
 
   my $filters = parseFilterOptions $opts;
 
-  if($cmd =~ /^(--print)$/){
+  if($cmd =~ /^(--scorestats|--print)$/){
     my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
@@ -2255,7 +2258,7 @@ sub bashComplete($$){
     chomp foreach @imgFiles;
     @imgFiles = sort @imgFiles;
     return ("--fehterm", "--banners", "--orientation", "--datestats", "--coursestats",
-      "--print", "--gnuplot", "--files", "--bestfiles", "--edit-names",
+      "--scorestats", "--print", "--gnuplot", "--files", "--bestfiles", "--edit-names",
       @imgFiles);
   }
 
@@ -2263,13 +2266,13 @@ sub bashComplete($$){
     return @songArgs;
   }
 
-  if($words[0] =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
+  if($words[0] =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
     my $cmd = shift @words;
     my @complete;
     my $lastWord = $words[-1] if @words > 0;
     $lastWord = "" if not defined $lastWord;
 
-    if($cmd =~ /^(--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
+    if($cmd =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles|--datestats|--coursestats|--orientation)$/){
       if($lastWord =~ /^(--song)$/){
         return @songArgs;
       }elsif($lastWord =~ /^($argOptFiltersRegex)$/){
@@ -2277,7 +2280,7 @@ sub bashComplete($$){
       }
     }
 
-    if($cmd =~ /^(--print|--gnuplot)$/){
+    if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
       if($lastWord =~ /^(--notes)$/){
         my @combinations = combine sort keys %$defaultNotes;
         my @csv = sort map {join ",", @$_} @combinations;
@@ -2299,7 +2302,7 @@ sub bashComplete($$){
         @complete = (@okPlotOptions, @complete);
       }
     }
-    if($cmd =~ /^(--print|--gnuplot)/){
+    if($cmd =~ /^(--scorestats|--print|--gnuplot)/){
       @complete = (@okFormatOptSongs, @complete) if @words == 0;
     }
     if($cmd =~ /^(--files|--bestfiles)$/){
