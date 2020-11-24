@@ -74,7 +74,7 @@ my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
 my @okFormatOptSongs = qw(
-  --format --group-buckets --no-group-buckets --best-by-bucket
+  --run-gnuplot --format --group-buckets --no-group-buckets --best-by-bucket
   --notes --abbrev --combine-machines
 );
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
@@ -282,9 +282,9 @@ sub getUsage(;$){
     FILTER
       see --scorestats FILTER
 
-  $0 --scorestats [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
+  $0 --scorestats [PLOT_OPT PLOT_OPT ..] [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
     parse filenames of score pictures in $scoreDir
-      and print the result
+      and print the result (or run gnuplot if --run-gnuplot)
 
     scores are filtered, and then grouped into sections by bucket
       sections start with \"$bucketFieldDesc\" and are separated by an empty line
@@ -310,6 +310,16 @@ sub getUsage(;$){
             20140331,723150,
 
     FORMAT_OPT_SCORES
+      --run-gnuplot
+        format songs in the default format, and write to a tmp file
+        write a gnuplot script to a file, pointing to the tmp file
+        run gnuplot, with the gnuplot script
+        print the resulting PNG file
+          (see PLOT_OPTs below)
+        implies:
+          --group-buckets
+          --format='%{date},%{score},%{notes}'
+          (overriding either will break gnuplot output)
       --format FORMAT_SPEC
         format each song line using FORMAT_SPEC (default is: %{date},%{score},%{notes})
         variables are formatted: %{VAR_NAME}
@@ -500,15 +510,7 @@ sub getUsage(;$){
             --diffbar will show the one with BAR=$yesbarArg
             --samebar will show the two with BAR=$nobarArg
 
-  $0 --print [ARG ARG ..]
-    same as: $0 --scorestats ARG ARG ..
-
-  $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [FORMAT_OPT_SCORES FORMAT_OPT_SCORES ..] [FILTER FILTER ..]
-    format songs as above and write to a tmp file
-    write a gnuplot script and run it in gnuplot
-      all PLOT_OPTIONs must precede all FILTERs
-
-    PLOT_OPTION
+    PLOT_OPT
       --file PNG_FILE_PATH
         output PNG file to indicated path
 
@@ -521,11 +523,11 @@ sub getUsage(;$){
         use 'smooth bezier' instead of 'with linespoints'
         also turns off all notes unless --notes is given
 
-    FORMAT_OPT_SCORES
-      see --scorestats FORMAT_OPT_SCORES
+  $0 --print [ARG ARG ..]
+    same as: $0 --scorestats ARG ARG ..
 
-    FILTER
-      see --scorestats FILTER
+  $0 --gnuplot [ARG ARG ..]
+    same as: $0 --scorestats --run-gnuplot ARG ARG ..
 
   $0 --files [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
     print the filenames, one per line without directories, of matching songs
@@ -962,7 +964,7 @@ sub scoreStats($@){
   }elsif($cmd =~ /^(--print)$/){
     $opts = [@_];
   }elsif($cmd =~ /^(--gnuplot)$/){
-    $opts = [@_];
+    $opts = ["--run-gnuplot", @_];
   }elsif($cmd =~ /^(--files)$/){
     $opts = [@_];
   }elsif($cmd =~ /^(--bestfiles)$/){
@@ -971,7 +973,7 @@ sub scoreStats($@){
     die "ERROR: unknown scorestats command \"$cmd\"\n";
   }
 
-  my $plotOptions = parsePlotOptions $opts if $cmd =~ /^(--gnuplot)$/;
+  my $plotOptions = parsePlotOptions $opts;
 
   my $okNotes = $defaultNotes;
   if($$plotOptions{smooth}){
@@ -979,6 +981,7 @@ sub scoreStats($@){
   }
 
   my $format = "%{date},%{score},%{notes}";
+  my $runGnuplot = 0;
   my $groupBuckets = 1;
   my $bestByBucketOnly = 0;
   my $abbrevBucket = 0;
@@ -992,7 +995,11 @@ sub scoreStats($@){
         die "malformed or missing argument to $opt\n" if @$opts == 0;
         $arg = shift @$opts;
       }
-      if($opt =~ /^(--format)$/){
+      if($opt =~ /^(--run-gnuplot)$/){
+        $runGnuplot = 1;
+        $groupBuckets = 1;
+        $format = "%{date},%{score},%{notes}";
+      }elsif($opt =~ /^(--format)$/){
         $format = $arg;
       }elsif($opt =~ /^(--group-buckets)$/){
         $groupBuckets = 1;
@@ -1031,12 +1038,13 @@ sub scoreStats($@){
 
   my $filters = parseFilterOptions $opts;
 
-  if($cmd =~ /^(--scorestats|--print)$/){
+  if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
     my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
-    print $fmt;
-  }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
-    gnuplot $plotOptions, $fmt;
+    if($runGnuplot){
+      gnuplot $plotOptions, $fmt;
+    }else{
+      print $fmt;
+    }
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
     $scoresByFile = filterScores $scoresByFile, $filters;
