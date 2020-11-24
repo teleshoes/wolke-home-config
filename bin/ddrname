@@ -128,7 +128,7 @@ sub getQualityPoints($);
 sub sortScores($);
 sub getBucketName($$@);
 sub getScoreBuckets($$@);
-sub formatBucketCsv($$$);
+sub formatScoreLine($$$$);
 sub getBucketBarCounts($);
 sub filterScores($$);
 sub getMtimesByFile($);
@@ -1589,43 +1589,29 @@ sub getScoreBuckets($$@){
   return $buckets;
 }
 
-sub formatBucketCsv($$$){
-  my ($okNotes, $bucketName, $bucketScores) = @_;
+sub formatScoreLine($$$$){
+  my ($s, $isHighScore, $okNotes, $bucketName) = @_;
 
-  $bucketScores = sortScores $bucketScores;
-
-  my $maxScore = undef;
-  my $maxScoreFile = undef;
-  for my $s(@$bucketScores){
-    if(not defined $maxScore or $$s{score} > $maxScore){
-      $maxScore = $$s{score};
-      $maxScoreFile = $$s{file};
-    }
+  my @notes;
+  if($$okNotes{'fc'} and defined $$s{fc} and $$s{fc} ne $emptyFCArg){
+    push @notes, $$s{fc};
+  }
+  if($$okNotes{'special'} and defined $$s{special} and $$s{special} ne $emptySpecialArg){
+    push @notes, $$s{special};
+  }
+  if($$okNotes{'highscore'} and $isHighScore){
+    my $abbrev = $songAbbrevs{$$s{song}};
+    push @notes, "$$s{score} $abbrev";
+  }
+  if($$okNotes{'nobar'} and $$s{bar} eq $nobarArg and $$s{feet} > $HARD_SONG_FEET){
+    push @notes, $$s{bar};
+  }
+  if($$okNotes{'3rd'} and $$s{stage} eq "3rd" and $$s{feet} > $HARD_SONG_FEET){
+    push @notes, $$s{stage};
   }
 
-  my $fmt = "";
-  for my $s(@$bucketScores){
-    my @notes;
-    if($$okNotes{'fc'} and defined $$s{fc} and $$s{fc} ne $emptyFCArg){
-      push @notes, $$s{fc};
-    }
-    if($$okNotes{'special'} and defined $$s{special} and $$s{special} ne $emptySpecialArg){
-      push @notes, $$s{special};
-    }
-    if($$okNotes{'highscore'} and $$s{file} eq $maxScoreFile){
-      my $abbrev = $songAbbrevs{$$s{song}};
-      push @notes, "$$s{score} $abbrev";
-    }
-    if($$okNotes{'nobar'} and $$s{bar} eq $nobarArg and $$s{feet} > $HARD_SONG_FEET){
-      push @notes, $$s{bar};
-    }
-    if($$okNotes{'3rd'} and $$s{stage} eq "3rd" and $$s{feet} > $HARD_SONG_FEET){
-      push @notes, $$s{stage};
-    }
-
-    my $note = join " ", @notes;
-    $fmt .= "$$s{date},$$s{score},$note\n";
-  }
+  my $note = join " ", @notes;
+  my $fmt = "$$s{date},$$s{score},$note\n";
 
   return $fmt;
 }
@@ -1964,9 +1950,14 @@ sub formatScores($$$$){
   my $fmt = "";
   for my $bucketName(sort keys %$buckets){
     my $bucketScores = $$buckets{$bucketName};
+    $bucketScores = sortScores $bucketScores;
+    my $bestScore = getBestScore $bucketScores;
     $fmt .= "\n\n" unless $fmt eq "";
     $fmt .= "\"$bucketName\"\n";
-    $fmt .= formatBucketCsv $okNotes, $bucketName, $bucketScores;
+    for my $score(@$bucketScores){
+      my $isHighScore = $$score{score} >= $$bestScore{score} ? 1 : 0;
+      $fmt .= formatScoreLine($score, $isHighScore, $okNotes, $bucketName);
+    }
   }
   return $fmt;
 }
