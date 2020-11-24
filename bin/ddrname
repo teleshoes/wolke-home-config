@@ -286,9 +286,28 @@ sub getUsage(;$){
     parse filenames of score pictures in $scoreDir
       and print the result
 
-    each successive FILTER can only remove scores
-    specifying the same FILTER twice is legal, but useless
-    some FILTERs override others as indicated, so specifying both is useless
+    scores are filtered, and then grouped into sections by bucket
+      sections start with \"$bucketFieldDesc\" and are separated by an empty line
+      (see --group-buckets)
+    each contains the scores for the bucket, one per line
+      formatted '%{date},%{score},%{notes}' e.g.: 20180523,999930,pfc
+      (see --format)
+    \"notes\" are a space-separated list of:
+      FC      if one of [$okFCArgs] is present in the filename
+      SPECIAL if one of [$okSpecialArgs] is present in the filename
+      nobar   if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
+      3rd     if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
+      (see --notes)
+
+      e.g.: \"max300-doubles-expert\"
+            20140331,723150,
+            20140401,990000,pfc nobar
+            20140402,684120,nobar
+            20140403,784120,fc
+
+
+            \"paranoiarespect-expert\"
+            20140331,723150,
 
     FORMAT_OPT_SONGS
       --format FORMAT_SPEC
@@ -332,9 +351,11 @@ sub getUsage(;$){
       --abbrev
         shorten bucket names by using song abbreviations
       --combine-machines
-        after filtering (which can still filter by machine),
-        ignore machine field, combining all scores with the same song/game/difficulty
-        but potentially different machines into one bucket
+        ignore machine field for bucket grouping (not for filtering)
+          after filtering (which can still filter by machine),
+          combine all scores with the same song/game/difficulty into one bucket
+        this also changes the bucket header from
+          SONG-GAME-DIFFICULTY-MACHINE => SONG-GAME-DIFFCULTY
 
     FILTER: SONG
       --song REGEX
@@ -478,29 +499,6 @@ sub getUsage(;$){
             --nobar will show the two with BAR=$nobarArg
             --diffbar will show the one with BAR=$yesbarArg
             --samebar will show the two with BAR=$nobarArg
-
-
-    scores are grouped into sections by \"$bucketFieldDesc\"
-      '<GAME>-' is not printed if GAME is '$emptyGameArg' (or missing)
-      '<MACHINE>-' is not printed if MACHINE is '$defaultMachineArg'
-    each section starts with the name, and then contains the scores,
-      one per line, formatted '<date>,<score>,<notes>'
-    sections are separated by two newlines
-    <notes> are space-separated list of:
-      FC      if one of [$okFCArgs] is present in the filename
-      SPECIAL if one of [$okSpecialArgs] is present in the filename
-      nobar   if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
-      3rd     if $bucketFieldDesc is hard (FEET>=$HARD_SONG_FEET)
-
-      e.g.: \"max300-doubles-expert\"
-            20140331,723150,
-            20140401,990000,pfc nobar
-            20140402,684120,nobar
-            20140403,784120,fc
-
-
-            \"paranoiarespect-expert\"
-            20140331,723150,
 
   $0 --gnuplot [PLOT_OPTION PLOT_OPTION ..] [FORMAT_OPT_SONGS FORMAT_OPT_SONGS ..] [FILTER FILTER ..]
     format songs as above and write to a tmp file
