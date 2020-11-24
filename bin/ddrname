@@ -74,7 +74,7 @@ my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
 my @okFormatOptSongs = qw(
-  --format
+  --format --best-by-bucket
   --notes --abbrev --combine-machines
 );
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
@@ -137,7 +137,7 @@ sub filterScores($$);
 sub getMtimesByFile($);
 sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
-sub formatScores($$$$$);
+sub formatScores($$$$$$);
 sub getBestScore($);
 sub getBestScoresByBucket($);
 sub gnuplot($$);
@@ -299,6 +299,8 @@ sub getUsage(;$){
           $okFileFormatVarsRegex
           | notes   (space-separated list of vars from NOTES_CSV)
           | bucket  ($bucketFieldDesc)
+      --best-by-bucket
+        include ONLY the highest score per bucket
       --notes NOTES_CSV
         comma-separated list of notes to add.
         default is: '$defaultNotesFormat'.
@@ -950,6 +952,7 @@ sub scoreStats($@){
   }
 
   my $format = "%{date},%{score},%{notes}";
+  my $bestByBucketOnly = 0;
   my $abbrevBucket = 0;
   my $combineMachines = 0;
 
@@ -963,6 +966,8 @@ sub scoreStats($@){
       }
       if($opt =~ /^(--format)$/){
         $format = $arg;
+      }elsif($opt =~ /^(--best-by-bucket)$/){
+        $bestByBucketOnly = 1;
       }elsif($opt =~ /^(--notes)$/){
         my $notesCsv = $arg;
         $$okNotes{$_} = 0 foreach keys %$okNotes;
@@ -993,10 +998,10 @@ sub scoreStats($@){
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($format, $okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($format, $okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
     gnuplot $plotOptions, $fmt;
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
@@ -1956,8 +1961,9 @@ sub splitCoursesIntoSessions(@){
   return @sessions;
 }
 
-sub formatScores($$$$$){
-  my ($format, $okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
+sub formatScores($$$$$$){
+  my ($format, $bestByBucketOnly,
+      $okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
 
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
@@ -1976,6 +1982,10 @@ sub formatScores($$$$$){
     my $bucketScores = $$buckets{$bucketName};
     $bucketScores = sortScores $bucketScores;
     my $bestScore = getBestScore $bucketScores;
+    if($bestByBucketOnly){
+      $bucketScores = [$bestScore];
+    }
+
     $fmt .= "\n\n" unless $fmt eq "";
     $fmt .= "\"$bucketName\"\n";
     for my $score(@$bucketScores){
