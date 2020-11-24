@@ -43,6 +43,7 @@ my @okFilters = qw(
   --song
   --hard --nothard --feet --minfeet --maxfeet
   --singles --doubles --nonstop --nonstopdoubles
+  --beginner --basic --difficult --expert --challenge
   --machine --sn2 --2013 --x3 --a --sm
   --tw
   --score --minscore --maxscore --monotonic --increasing --records
@@ -357,6 +358,23 @@ sub getUsage(;$){
       --nonstopdoubles
         include only scores where GAME is nonstopdoubles
         {overrides --singles and --nonstop and --doubles}
+
+    FILTER: DIFFICULTY
+      --beginner
+        include only scores where DIFFICULTY is beginner OR not defined
+        {overrides --basic and --difficult and --expert and --challenge}
+      --basic
+        include only scores where DIFFICULTY is beginner OR not defined
+        {overrides --beginner and --difficult and --expert and --challenge}
+      --difficult
+        include only scores where DIFFICULTY is beginner OR not defined
+        {overrides --beginner and --basic and --expert and --challenge}
+      --expert
+        include only scores where DIFFICULTY is beginner OR not defined
+        {overrides --beginner and --basic and --difficult and --challenge}
+      --challenge
+        include only scores where DIFFICULTY is beginner OR not defined
+        {overrides --beginner and --basic and --difficult and --expert}
 
     FILTER: MACHINE
       --machine MACHINE_CSV
@@ -1057,6 +1075,10 @@ sub parseFilterOptions($){
       $$filters{game} = {singles => 0, doubles => 0, nonstop => 1, nonstopdoubles => 0};
     }elsif($opt =~ /^(--nonstopdoubles)$/){
       $$filters{game} = {singles => 0, doubles => 0, nonstop => 0, nonstopdoubles => 1};
+    }elsif($opt =~ /^--(beginner|basic|difficult|expert|challenge)$/){
+      my $difficulty = $1;
+      $$filters{difficulty} = {map {$_ => 0} @difficultyArgs};
+      $$filters{difficulty}{$difficulty} = 1;
     }elsif($opt =~ /^(--sn2)$/){
       $$filters{machine} = {map {$_ => 0} @machineArgs};
       $$filters{machine}{sn2} = 1;
@@ -1658,6 +1680,13 @@ sub filterScores($$){
       my $f = $$filters{game};
       my $game = $$s{game};
       if(defined $$f{$game} and not $$f{$game}){
+        $ok = 0;
+      }
+    }
+    if(defined $$filters{difficulty}){
+      my $f = $$filters{difficulty};
+      my $difficulty = $$s{difficulty};
+      if(defined $$f{$difficulty} and not $$f{$difficulty}){
         $ok = 0;
       }
     }
