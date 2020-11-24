@@ -74,7 +74,7 @@ my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
 my @okFormatOptSongs = qw(
-  --format --best-by-bucket
+  --format --group-buckets --no-group-buckets --best-by-bucket
   --notes --abbrev --combine-machines
 );
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
@@ -137,7 +137,7 @@ sub filterScores($$);
 sub getMtimesByFile($);
 sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
-sub formatScores($$$$$$);
+sub formatScores($$$$$$$);
 sub getBestScore($);
 sub getBestScoresByBucket($);
 sub gnuplot($$);
@@ -299,6 +299,13 @@ sub getUsage(;$){
           $okFileFormatVarsRegex
           | notes   (space-separated list of vars from NOTES_CSV)
           | bucket  ($bucketFieldDesc)
+      --group-buckets
+        (this is the default)
+        print bucket name (SONG-GAME-DIFFICULTY-MACHINE),
+          followed by one line for each score in the bucket
+        separate buckets by an empty line
+      --no-group-buckets
+        print each score, one per line, with no bucket name headers or separators
       --best-by-bucket
         include ONLY the highest score per bucket
       --notes NOTES_CSV
@@ -952,6 +959,7 @@ sub scoreStats($@){
   }
 
   my $format = "%{date},%{score},%{notes}";
+  my $groupBuckets = 1;
   my $bestByBucketOnly = 0;
   my $abbrevBucket = 0;
   my $combineMachines = 0;
@@ -966,6 +974,10 @@ sub scoreStats($@){
       }
       if($opt =~ /^(--format)$/){
         $format = $arg;
+      }elsif($opt =~ /^(--group-buckets)$/){
+        $groupBuckets = 1;
+      }elsif($opt =~ /^(--no-group-buckets)$/){
+        $groupBuckets = 0;
       }elsif($opt =~ /^(--best-by-bucket)$/){
         $bestByBucketOnly = 1;
       }elsif($opt =~ /^(--notes)$/){
@@ -998,10 +1010,10 @@ sub scoreStats($@){
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($format, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($format, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
     gnuplot $plotOptions, $fmt;
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
@@ -1961,8 +1973,8 @@ sub splitCoursesIntoSessions(@){
   return @sessions;
 }
 
-sub formatScores($$$$$$){
-  my ($format, $bestByBucketOnly,
+sub formatScores($$$$$$$){
+  my ($format, $groupBuckets, $bestByBucketOnly,
       $okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
 
   my $scoresByFile = getScoresByFile();
@@ -1978,20 +1990,23 @@ sub formatScores($$$$$$){
   my $buckets = getScoreBuckets($scores, $abbrevBucket, @bucketFields);
 
   my $fmt = "";
+  my $isFirstBucket = 1;
   for my $bucketName(sort keys %$buckets){
     my $bucketScores = $$buckets{$bucketName};
     $bucketScores = sortScores $bucketScores;
-    my $bestScore = getBestScore $bucketScores;
+    my $bestScore = getBestScore($bucketScores);
     if($bestByBucketOnly){
       $bucketScores = [$bestScore];
     }
-
-    $fmt .= "\n\n" unless $fmt eq "";
-    $fmt .= "\"$bucketName\"\n";
+    if($groupBuckets){
+      $fmt .= "\n\n" unless $isFirstBucket;
+      $fmt .= "\"$bucketName\"\n";
+    }
     for my $score(@$bucketScores){
       my $isHighScore = $$score{score} >= $$bestScore{score} ? 1 : 0;
       $fmt .= formatScoreLine($score, $isHighScore, $format, $okNotes, $bucketName);
     }
+    $isFirstBucket = 0;
   }
   return $fmt;
 }
