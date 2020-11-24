@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Time::HiRes qw(time);
 
 my $execDir = "$ENV{HOME}/Games/stepmania/latest/";
 my $exec = "$execDir/stepmania";
@@ -105,6 +106,9 @@ my @okScreens = qw(
 );
 my %okScreensHash = map {$_ => 1} @okScreens;
 
+my $patches = {
+};
+
 sub generateKeymap($$);
 sub readLines($);
 sub writeLines($@);
@@ -112,7 +116,9 @@ sub readConf($);
 sub writeConf($);
 sub modifyConf($$);
 sub replaceConf($$);
+sub patchFile($$);
 sub editExistingLuaPrefs($$);
+sub nowMillis($);
 
 my $usage = "Usage:
   $0 -h|--help
@@ -190,6 +196,11 @@ sub main(@){
   replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
 
   replaceConf $fallbackMetricsIni, $fallbackMetricsPrefs;
+
+  for my $file(sort keys %$patches){
+    my $patch = $$patches{$file};
+    patchFile($file, $patch);
+  }
 
   my $fullscreen = $$prefs{Options}{Windowed} == 0;
   system "bash", "-c", $fullscreenUpCmd if $fullscreen;
@@ -327,6 +338,31 @@ sub replaceConf($$){
   close FH;
 }
 
+sub patchFile($$){
+  my ($file, $patch) = @_;
+  my $patchFile = "/tmp/stepmania-patch-file-" . nowMillis() . ".patch";
+  open FH, "> $patchFile" or die "ERROR: could not write $patchFile\n$!\n";
+  print FH $patch;
+  close FH;
+
+  system "patch",
+    "--silent",
+    "--force",         #dont ask questions, just fail
+    "--reject-file=-", #ignore rejects
+    "--reverse",       #in case already applied
+    $file,
+    $patchFile,
+  ;
+
+  system "patch",
+    "--silent",
+    "--force",         #dont ask questions, just fail
+    "--reject-file=-", #ignore rejects
+    $file,
+    $patchFile,
+  ;
+}
+
 sub editExistingLuaPrefs($$){
   my ($file, $prefs) = @_;
   if(not -f $file){
@@ -349,4 +385,8 @@ sub editExistingLuaPrefs($$){
   }
 }
 
-main(@ARGV);
+sub nowMillis($){
+  return int(time*1000.0 + 0.5);
+}
+
+&main(@ARGV);
