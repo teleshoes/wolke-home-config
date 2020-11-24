@@ -73,9 +73,12 @@ my @okFormatOptCourses = qw(--minlen);
 my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
-my @okFormatOptSongs = qw(--notes --abbrev --combine-machines);
+my @okFormatOptSongs = qw(
+  --format
+  --notes --abbrev --combine-machines
+);
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
-my $argOptFormatOptSongsRegex = join "|", qw(--notes);
+my $argOptFormatOptSongsRegex = join "|", qw(--format --notes);
 
 my @okPlotOptions = qw(--file --size --smooth);
 my $okPlotOptionsRegex = join "|", @okPlotOptions;
@@ -128,13 +131,13 @@ sub getQualityPoints($);
 sub sortScores($);
 sub getBucketName($$@);
 sub getScoreBuckets($$@);
-sub formatScoreLine($$$$);
+sub formatScoreLine($$$$$);
 sub getBucketBarCounts($);
 sub filterScores($$);
 sub getMtimesByFile($);
 sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
-sub formatScores($$$$);
+sub formatScores($$$$$);
 sub getBestScore($);
 sub getBestScoresByBucket($);
 sub gnuplot($$);
@@ -288,6 +291,14 @@ sub getUsage(;$){
     some FILTERs override others as indicated, so specifying both is useless
 
     FORMAT_OPT_SONGS
+      --format FORMAT_SPEC
+        format each song line using FORMAT_SPEC (default is: %{date},%{score},%{notes})
+        variables are formatted: %{VAR_NAME}
+
+        VAR_NAME
+          $okFileFormatVarsRegex
+          | notes   (space-separated list of vars from NOTES_CSV)
+          | bucket  ($bucketFieldDesc)
       --notes NOTES_CSV
         comma-separated list of notes to add.
         default is: '$defaultNotesFormat'.
@@ -938,6 +949,7 @@ sub scoreStats($@){
     $okNotes = {map {$_ => 0} keys %$okNotes};
   }
 
+  my $format = "%{date},%{score},%{notes}";
   my $abbrevBucket = 0;
   my $combineMachines = 0;
 
@@ -949,7 +961,9 @@ sub scoreStats($@){
         die "malformed or missing argument to $opt\n" if @$opts == 0;
         $arg = shift @$opts;
       }
-      if($opt =~ /^(--notes)$/){
+      if($opt =~ /^(--format)$/){
+        $format = $arg;
+      }elsif($opt =~ /^(--notes)$/){
         my $notesCsv = $arg;
         $$okNotes{$_} = 0 foreach keys %$okNotes;
 
@@ -979,10 +993,10 @@ sub scoreStats($@){
   my $filters = parseFilterOptions $opts;
 
   if($cmd =~ /^(--print)$/){
-    my $fmt = formatScores($okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $okNotes, $abbrevBucket, $combineMachines, $filters);
     print $fmt;
   }elsif($cmd =~ /^(--gnuplot)$/){
-    my $fmt = formatScores($okNotes, $abbrevBucket, $combineMachines, $filters);
+    my $fmt = formatScores($format, $okNotes, $abbrevBucket, $combineMachines, $filters);
     gnuplot $plotOptions, $fmt;
   }elsif($cmd =~ /^(--files)$/){
     my $scoresByFile = getScoresByFile();
@@ -1589,8 +1603,8 @@ sub getScoreBuckets($$@){
   return $buckets;
 }
 
-sub formatScoreLine($$$$){
-  my ($score, $isHighScore, $okNotes, $bucketName) = @_;
+sub formatScoreLine($$$$$){
+  my ($score, $isHighScore, $format, $okNotes, $bucketName) = @_;
 
   my @notes;
   if($$okNotes{'fc'} and defined $$score{fc} and $$score{fc} ne $emptyFCArg){
@@ -1611,9 +1625,19 @@ sub formatScoreLine($$$$){
   }
 
   my $note = join " ", @notes;
-  my $fmt = "$$score{date},$$score{score},$note\n";
 
-  return $fmt;
+  my %replacements = map {$_ => $$score{$_}} sort keys %$score;
+  $replacements{notes} = $note;
+  $replacements{bucket} = $bucketName;
+
+  my $scoreFmt = $format;
+  for my $varName(sort keys %replacements){
+    my $val = $replacements{$varName};
+    $scoreFmt =~ s/\%\{$varName\}/$val/g;
+  }
+  $scoreFmt .= "\n";
+
+  return $scoreFmt;
 }
 
 sub getBucketBarCounts($){
@@ -1932,8 +1956,8 @@ sub splitCoursesIntoSessions(@){
   return @sessions;
 }
 
-sub formatScores($$$$){
-  my ($okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
+sub formatScores($$$$$){
+  my ($format, $okNotes, $abbrevBucket, $combineMachines, $filters) = @_;
 
   my $scoresByFile = getScoresByFile();
   $scoresByFile = filterScores $scoresByFile, $filters;
@@ -1956,7 +1980,7 @@ sub formatScores($$$$){
     $fmt .= "\"$bucketName\"\n";
     for my $score(@$bucketScores){
       my $isHighScore = $$score{score} >= $$bestScore{score} ? 1 : 0;
-      $fmt .= formatScoreLine($score, $isHighScore, $okNotes, $bucketName);
+      $fmt .= formatScoreLine($score, $isHighScore, $format, $okNotes, $bucketName);
     }
   }
   return $fmt;
