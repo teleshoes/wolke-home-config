@@ -135,7 +135,8 @@ sub getMtimesByFile($);
 sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
 sub formatScores($$$$);
-sub getBestScores($);
+sub getBestScore($);
+sub getBestScoresByBucket($);
 sub gnuplot($$);
 sub combine(@);
 sub mtime($);
@@ -993,7 +994,7 @@ sub scoreStats($@){
       print "$fileFmt\n";
     }
   }elsif($cmd =~ /^(--bestfiles)$/){
-    my $bestScores = getBestScores($filters);
+    my $bestScores = getBestScoresByBucket($filters);
     for my $bucketName(sort keys %$bestScores){
       my $fileInfo = $$bestScores{$bucketName};
       my $fileFmt = formatFileInfo($fileInfo, $fileFormatPattern);
@@ -1970,7 +1971,18 @@ sub formatScores($$$$){
   return $fmt;
 }
 
-sub getBestScores($){
+sub getBestScore($){
+  my ($scores) = @_;
+  my $maxScore;
+  for my $score(@$scores){
+    if(not defined $maxScore or $$score{score} > $$maxScore{score}){
+      $maxScore = $score;
+    }
+  }
+  return $maxScore;
+}
+
+sub getBestScoresByBucket($){
   my ($filters) = @_;
 
   my $scoresByFile = getScoresByFile();
@@ -1980,16 +1992,9 @@ sub getBestScores($){
   my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
 
   my $bestScores = {};
-
   for my $bucketName(sort keys %$buckets){
     my $bucketScores = $$buckets{$bucketName};
-    my $maxScore;
-    for my $s(@$bucketScores){
-      if(not defined $maxScore or $$s{score} > $$maxScore{score}){
-        $maxScore = $s;
-      }
-    }
-    $$bestScores{$bucketName} = $maxScore if defined $maxScore;
+    $$bestScores{$bucketName} = getBestScore($bucketScores);
   }
 
   return $bestScores;
