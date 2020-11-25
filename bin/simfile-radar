@@ -17,7 +17,7 @@ sub getTotalNoteIrregularity($);
 sub getBPMChangeAmount($$);
 sub formatDDRGame($);
 sub formatDDRDiff($);
-sub getStats($$$);
+sub getStats($$);
 sub parseSMFile($);
 sub extractSongNameId($);
 sub convertValuesByBeatToValuesByRow($);
@@ -390,10 +390,9 @@ sub main(@){
   my $stats = {};
   for my $gameDiffKey(@gameDiffKeys){
     my $noteSetInfo = $$smInfo{noteSetInfoByGameDiffKey}{$gameDiffKey};
-    my $rows = getExpandedNoteRows $$noteSetInfo{noteSetText};
     next if defined $gameFilter and $$noteSetInfo{ddrGame} !~ /^$gameFilter$/i;
     next if defined $diffFilter and $$noteSetInfo{ddrDiff} !~ /^$diffFilter$/i;
-    $$stats{$gameDiffKey} = getStats($smInfo, $noteSetInfo, $rows);
+    $$stats{$gameDiffKey} = getStats($smInfo, $noteSetInfo);
   }
 
   for my $gameDiffKey(@gameDiffKeys){
@@ -713,8 +712,8 @@ sub formatDDRDiff($){
   }
 }
 
-sub getStats($$$){
-  my ($smInfo, $noteSetInfo, $rows) = @_;
+sub getStats($$){
+  my ($smInfo, $noteSetInfo) = @_;
   my $s = {
     GAME                      => $$noteSetInfo{ddrGame},
     DIFF                      => $$noteSetInfo{ddrDiff},
@@ -724,6 +723,7 @@ sub getStats($$$){
     SONG_NAME_ID              => $$smInfo{songNameId},
   };
 
+  my $rows = $$noteSetInfo{expandedNoteRows};
   my $bpmsByRow = $$smInfo{bpmsByRow};
   my $stopsByRow = $$smInfo{stopsByRow};
 
@@ -860,7 +860,7 @@ sub parseSMFile($){
       ddrGame => formatDDRGame($game),
       ddrDiff => formatDDRDiff($difficulty),
       smFeet => $smFeet,
-      noteSetText => $notes,
+      expandedNoteRows => getExpandedNoteRows $notes,
     };
     push @{$$smInfo{gameDiffKeyOrder}}, $gameDiffKey;
   }
@@ -885,7 +885,7 @@ sub parseSMFile($){
       ddrGame => formatDDRGame($game),
       ddrDiff => formatDDRDiff($difficulty),
       smFeet => $smFeet,
-      noteSetText => $notes,
+      expandedNoteRows => getExpandedNoteRows $notes,
     };
     push @{$$smInfo{gameDiffKeyOrder}}, $gameDiffKey;
   }
