@@ -73,12 +73,12 @@ my @okFormatOptCourses = qw(--minlen);
 my $okFormatOptCoursesRegex = join "|", @okFormatOptCourses;
 my $argOptFormatOptCoursesRegex = join "|", qw(--minlen);
 
-my @okFormatOptSongs = qw(
+my @okFormatOptScores = qw(
   --run-gnuplot --format --group-buckets --no-group-buckets --best-by-bucket
   --notes --abbrev --combine-machines
 );
-my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
-my $argOptFormatOptSongsRegex = join "|", qw(--format --notes);
+my $okFormatOptScoresRegex = join "|", @okFormatOptScores;
+my $argOptFormatOptScoresRegex = join "|", qw(--format --notes);
 
 my @okPlotOptions = qw(--file --overwrite --no-overwrite --size --smooth);
 my $okPlotOptionsRegex = join "|", @okPlotOptions;
@@ -116,6 +116,7 @@ sub dateStats($@);
 sub courseStats($@);
 sub scoreStats($@);
 sub parsePlotOptions($);
+sub parseFormatOptScoresOptions($);
 sub parseFilterOptions($);
 sub validateFile($);
 sub validateInfo($);
@@ -680,7 +681,7 @@ sub main(@){
   @uniqSongAbbrevs = grep {not defined $songAbbrevs{$_}} @uniqSongAbbrevs;
   checkUnique(
     @okFilters,
-    @okFormatOptDates, @okFormatOptCourses, @okFormatOptSongs, @okPlotOptions,
+    @okFormatOptDates, @okFormatOptCourses, @okFormatOptScores, @okPlotOptions,
 
     @songArgs, @gameArgs, @difficultyArgs,
     @machineArgs, @timingWindowsArgs, @stageArgs, @barArgs, @fcArgs, @specialArgs,
@@ -960,64 +961,45 @@ sub scoreStats($@){
     die "ERROR: unknown scorestats command \"$cmd\"\n";
   }
 
-  my $plotOptions = parsePlotOptions $opts;
+  my ($plotOptions, $formatOptScoresOptions, $filterOptions);
+
+  ($opts, $plotOptions) = parsePlotOptions $opts;
+  ($opts, $formatOptScoresOptions) = parseFormatOptScoresOptions $opts;
+  ($opts, $filterOptions) = parseFilterOptions $opts;
+
+  if(@$opts != 0){
+    die "ERROR: unknown opts @$opts\n";
+  }
 
   my $okNotes = $defaultNotes;
+
+  #remove all notes if --smooth is given (unless --notes follows)
   if($$plotOptions{smooth}){
     $okNotes = {map {$_ => 0} keys %$okNotes};
   }
 
-  my $format = "%{date},%{score},%{notes}";
-  my $runGnuplot = 0;
-  my $groupBuckets = 1;
-  my $bestByBucketOnly = 0;
-  my $abbrevBucket = 0;
-  my $combineMachines = 0;
-
-  while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
-    my $opt = shift @$opts;
-    my $arg;
-    if($opt =~ /^($argOptFormatOptSongsRegex)$/){
-      die "malformed or missing argument to $opt\n" if @$opts == 0;
-      $arg = shift @$opts;
-    }
-    if($opt =~ /^(--run-gnuplot)$/){
-      $runGnuplot = 1;
-      $groupBuckets = 1;
-      $format = "%{date},%{score},%{notes}";
-    }elsif($opt =~ /^(--format)$/){
-      $format = $arg;
-    }elsif($opt =~ /^(--group-buckets)$/){
-      $groupBuckets = 1;
-      $format = "%{date},%{score},%{notes}";
-    }elsif($opt =~ /^(--no-group-buckets)$/){
-      $groupBuckets = 0;
-      $format = "%{bucket},%{date},%{score},%{notes}";
-    }elsif($opt =~ /^(--best-by-bucket)$/){
-      $bestByBucketOnly = 1;
-    }elsif($opt =~ /^(--notes)$/){
-      my $notesCsv = $arg;
-      $$okNotes{$_} = 0 foreach keys %$okNotes;
-
-      my @notes = split /\s*,\s*/, $notesCsv;
-      for my $note(@notes){
-        die "invalid note '$note' in --notes: $note\n" if not defined $$okNotes{$note};
+  if(defined $$formatOptScoresOptions{notesCsv}){
+    my @notes = split /\s*,\s*/, $$formatOptScoresOptions{notesCsv};
+    for my $note(@notes){
+      if(defined $$okNotes{$note}){
         $$okNotes{$note} = 1;
+      }else{
+        die "invalid note '$note' in --notes CSV: $note\n";
       }
-    }elsif($opt =~ /^(--abbrev)$/){
-      $abbrevBucket = 1;
-    }elsif($opt =~ /^(--combine-machines)$/){
-      $combineMachines = 1;
-    }else{
-      die "ERROR: unknown opt $opt\n";
     }
   }
 
-  my $filters = parseFilterOptions $opts;
-  my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly,
-    $okNotes, $abbrevBucket, $combineMachines, $filters);
+  my $fmt = formatScores(
+    $$formatOptScoresOptions{format},
+    $$formatOptScoresOptions{groupBuckets},
+    $$formatOptScoresOptions{bestByBucketOnly},
+    $okNotes,
+    $$formatOptScoresOptions{abbrevBucket},
+    $$formatOptScoresOptions{combineMachines},
+    $filterOptions,
+  );
 
-  if($runGnuplot){
+  if($$formatOptScoresOptions{runGnuplot}){
     gnuplot $plotOptions, $fmt;
   }else{
     print $fmt;
@@ -1025,9 +1007,10 @@ sub scoreStats($@){
 }
 
 sub parsePlotOptions($){
-  my $opts = shift;
+  my ($opts) = @_;
+  my $otherOpts = [];
   my $plotOptions = {};
-  while(@$opts > 0 and $$opts[0] =~ /^($okPlotOptionsRegex)$/){
+  while(@$opts > 0){
     my $opt = shift @$opts;
     my $arg;
     if($opt =~ /^($argOptPlotOptionsRegex)$/){
@@ -1046,13 +1029,63 @@ sub parsePlotOptions($){
       $$plotOptions{size} = "$1,$2";
     }elsif($opt =~ /^(--smooth)$/){
       $$plotOptions{smooth} = 1;
+    }else{
+      push @$otherOpts, $opt;
     }
   }
-  return ($opts, $plotOptions);
+  return ($otherOpts, $plotOptions);
+}
+
+sub parseFormatOptScoresOptions($){
+  my ($opts) = @_;
+  my $otherOpts = [];
+  my $formatOptScoresOptions = {
+    format           => "%{date},%{score},%{notes}",
+    runGnuplot       => 0,
+    groupBuckets     => 1,
+    bestByBucketOnly => 0,
+    abbrevBucket     => 0,
+    combineMachines  => 0,
+    notesCsv         => undef,
+  };
+  while(@$opts > 0){
+    my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptFormatOptScoresRegex)$/){
+      die "malformed or missing argument to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
+    }
+    if($opt =~ /^(--run-gnuplot)$/){
+      $$formatOptScoresOptions{runGnuplot} = 1;
+      $$formatOptScoresOptions{groupBuckets} = 1;
+      $$formatOptScoresOptions{format} = "%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--format)$/){
+      $$formatOptScoresOptions{format} = $arg;
+    }elsif($opt =~ /^(--group-buckets)$/){
+      $$formatOptScoresOptions{groupBuckets} = 1;
+      $$formatOptScoresOptions{format} = "%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--no-group-buckets)$/){
+      $$formatOptScoresOptions{groupBuckets} = 0;
+      $$formatOptScoresOptions{format} = "%{bucket},%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--best-by-bucket)$/){
+      $$formatOptScoresOptions{bestByBucketOnly} = 1;
+    }elsif($opt =~ /^(--notes)$/){
+      $$formatOptScoresOptions{notesCsv} = $arg;
+    }elsif($opt =~ /^(--abbrev)$/){
+      $$formatOptScoresOptions{abbrevBucket} = 1;
+    }elsif($opt =~ /^(--combine-machines)$/){
+      $$formatOptScoresOptions{combineMachines} = 1;
+    }else{
+      push @$otherOpts, $opt;
+    }
+  }
+
+  return ($otherOpts, $formatOptScoresOptions);
 }
 
 sub parseFilterOptions($){
-  my $opts = shift;
+  my ($opts) = @_;
+  my $otherOpts = [];
   my $filters = {};
   while(@$opts > 0){
     my $opt = shift @$opts;
@@ -1159,10 +1192,10 @@ sub parseFilterOptions($){
     }elsif($opt =~ /^(--samebar)$/){
       $$filters{bar} = $samebarFilter;
     }else{
-      die getUsage("unknown filter: $opt");
+      push @$otherOpts, $opt;
     }
   }
-  return $filters;
+  return ($otherOpts, $filters);
 }
 
 sub validateFile($){
@@ -2267,7 +2300,7 @@ sub bashComplete($$){
         my @combinations = combine sort keys %$defaultNotes;
         my @csv = sort map {join ",", @$_} @combinations;
         return sort @csv;
-      }elsif($lastWord =~ /^($argOptFormatOptSongsRegex)$/){
+      }elsif($lastWord =~ /^($argOptFormatOptScoresRegex)$/){
         return ();
       }
     }
@@ -2285,7 +2318,7 @@ sub bashComplete($$){
       }
     }
     if($cmd =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles)/){
-      @complete = (@okFormatOptSongs, @complete) if @words == 0;
+      @complete = (@okFormatOptScores, @complete) if @words == 0;
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
