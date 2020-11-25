@@ -19,6 +19,7 @@ sub formatDDRGame($);
 sub formatDDRDiff($);
 sub getStats($$$$$);
 sub parseSMFile($);
+sub extractSongNameId($);
 sub convertValuesByBeatToValuesByRow($);
 sub gameDiffKey($$);
 sub parseGameDiffKey($);
@@ -87,7 +88,17 @@ my $usage = "Usage:
     SONG_NAME
       parsed out of '#TITLE' in simfile
     SONG_NAME_TRANSLIT
-      parsed out of '#TITLEiTRANLIST' if present, or '#TITLE' if not, in simfile
+      parsed out of '#TITLETRANLIST' if present, or '#TITLE' if not, in simfile
+    SONG_NAME_ID
+      song name ID, with lowercase-letters/numbers/hyphens only (e.g.: max-300)
+      start with #TITLETRANSLIT (or #TITLE if no #TITLETRANLIST is present)
+      invoke `zenius-ddrsonglist --extract-name-id TITLETRANSLIT`, if available
+      if not or if output is malformed:
+        lowercase TITLETRANLIST,
+        perform some simple special replacements,
+        replace all other invalid chars with '-',
+        replace multiple '-'s with one '-',
+        and trim leading/trailing '-'s
     SM_FEET
       parsed out of '#METER' (*.ssc) or '#NOTES' (*.sm) in simfile
       always a non-negative integer (or else ignored)
@@ -711,6 +722,7 @@ sub getStats($$$$$){
     SM_FEET                   => $$noteSetInfo{smFeet},
     SONG_NAME                 => $$smInfo{songName},
     SONG_NAME_TRANSLIT        => $$smInfo{songNameTranslit},
+    SONG_NAME_ID              => $$smInfo{songNameId},
   };
 
   #analysis + data-collection
@@ -792,6 +804,7 @@ sub parseSMFile($){
   my $smInfo = {
     songName              => undef,
     songNameTranslit      => undef,
+    songNameId            => undef,
     bpms                  => undef,
     stops                 => undef,
     noteSetInfoByGameDiffKey => {},
@@ -808,6 +821,8 @@ sub parseSMFile($){
   }else{
     $$smInfo{songNameTranslit} = $1;
   }
+
+  $$smInfo{songNameId} = extractSongNameId($$smInfo{songNameTranslit});
 
   if($sm !~ /#BPMS:([^;]+);/i){
     die "ERROR: could not read BPMs from $smFile\n";
@@ -879,6 +894,30 @@ sub parseSMFile($){
   }
 
   return $smInfo;
+}
+
+sub extractSongNameId($){
+  my ($title) = @_;
+
+  my $songNameId;
+  system "type zenius-ddrsonglist >/dev/null 2>/dev/null";
+  if($? == 0){
+    open CMD, "-|", "zenius-ddrsonglist", "--extract-name-id", $title;
+    $songNameId = join '', <CMD>;
+    close CMD;
+    chomp $songNameId;
+  }
+
+  if(not defined $songNameId or $songNameId !~ /^[a-z0-9\-]+$/){
+    $songNameId = lc $title;
+    $songNameId =~ s/&/-and-/g;
+    $songNameId =~ s/[^a-z0-9]/-/g;
+    $songNameId =~ s/--+/-/;
+    $songNameId =~ s/^-*//;
+    $songNameId =~ s/-*$//;
+  }
+
+  return $songNameId;
 }
 
 #convert simfile atts like "#BPMS:" and "#STOPS:", which are by beat,
