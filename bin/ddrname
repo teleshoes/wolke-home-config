@@ -115,7 +115,6 @@ sub orientation($@);
 sub dateStats($@);
 sub courseStats($@);
 sub scoreStats($@);
-sub formatFileInfo($$);
 sub parsePlotOptions($);
 sub parseFilterOptions($);
 sub validateFile($);
@@ -139,7 +138,6 @@ sub splitScoresIntoCourses($$);
 sub splitCoursesIntoSessions(@);
 sub formatScores($$$$$$$);
 sub getBestScore($);
-sub getBestScoresByBucket($);
 sub gnuplot($$);
 sub combine(@);
 sub mtime($);
@@ -529,29 +527,11 @@ sub getUsage(;$){
   $0 --gnuplot [ARG ARG ..]
     same as: $0 --scorestats --run-gnuplot ARG ARG ..
 
-  $0 --files [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
-    print the filenames, one per line without directories, of matching songs
+  $0 --files [ARG ARG ..]
+    same as $0 --scorestats --no-group-buckets --format=%{file} ARG ARG ..
 
-    FILTER
-      see --scorestats FILTER
-
-    FILE_FORMAT_PATTERN
-      printing format for each score file
-      variables are formatted: %{VAR_NAME}
-      default is: %{file}
-
-      VAR_NAME
-        one of: @okFileFormatVars
-
-  $0 --bestfiles [--format FILE_FORMAT_PATTERN] [FILTER FILTER ..]
-    print the filename of the highest score for each set of scores with the same:
-      $bucketFieldDesc
-
-    FILTER
-      see --scorestats FILTER
-
-    FILE_FORMAT_PATTERN
-      see --files FILE_FORMAT_PATTERN
+  $0 --bestfiles [ARG ARG ..]
+    same as $0 --scorestats --no-group-buckets --format=%{file} --best-by-bucket ARG ARG ..
 
   $0 IMG_FILE REMINDER
 
@@ -966,9 +946,9 @@ sub scoreStats($@){
   }elsif($cmd =~ /^(--gnuplot)$/){
     $opts = ["--run-gnuplot", @_];
   }elsif($cmd =~ /^(--files)$/){
-    $opts = [@_];
+    $opts = ["--no-group-buckets", "--format", "%{file}", @_];
   }elsif($cmd =~ /^(--bestfiles)$/){
-    $opts = [@_];
+    $opts = ["--no-group-buckets", "--format", "%{file}", "--best-by-bucket", @_];
   }else{
     die "ERROR: unknown scorestats command \"$cmd\"\n";
   }
@@ -987,94 +967,54 @@ sub scoreStats($@){
   my $abbrevBucket = 0;
   my $combineMachines = 0;
 
-  if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
-    while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
-      my $opt = shift @$opts;
-      my $arg;
-      if($opt =~ /^($argOptFormatOptSongsRegex)$/){
-        die "malformed or missing argument to $opt\n" if @$opts == 0;
-        $arg = shift @$opts;
-      }
-      if($opt =~ /^(--run-gnuplot)$/){
-        $runGnuplot = 1;
-        $groupBuckets = 1;
-        $format = "%{date},%{score},%{notes}";
-      }elsif($opt =~ /^(--format)$/){
-        $format = $arg;
-      }elsif($opt =~ /^(--group-buckets)$/){
-        $groupBuckets = 1;
-        $format = "%{date},%{score},%{notes}";
-      }elsif($opt =~ /^(--no-group-buckets)$/){
-        $groupBuckets = 0;
-        $format = "%{bucket},%{date},%{score},%{notes}";
-      }elsif($opt =~ /^(--best-by-bucket)$/){
-        $bestByBucketOnly = 1;
-      }elsif($opt =~ /^(--notes)$/){
-        my $notesCsv = $arg;
-        $$okNotes{$_} = 0 foreach keys %$okNotes;
-
-        my @notes = split /\s*,\s*/, $notesCsv;
-        for my $note(@notes){
-          die "invalid note '$note' in --notes: $note\n" if not defined $$okNotes{$note};
-          $$okNotes{$note} = 1;
-        }
-      }elsif($opt =~ /^(--abbrev)$/){
-        $abbrevBucket = 1;
-      }elsif($opt =~ /^(--combine-machines)$/){
-        $combineMachines = 1;
-      }else{
-        die "ERROR: unknown opt $opt\n";
-      }
+  while(@$opts > 0 and $$opts[0] =~ /^($okFormatOptSongsRegex)$/){
+    my $opt = shift @$opts;
+    my $arg;
+    if($opt =~ /^($argOptFormatOptSongsRegex)$/){
+      die "malformed or missing argument to $opt\n" if @$opts == 0;
+      $arg = shift @$opts;
     }
-  }
+    if($opt =~ /^(--run-gnuplot)$/){
+      $runGnuplot = 1;
+      $groupBuckets = 1;
+      $format = "%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--format)$/){
+      $format = $arg;
+    }elsif($opt =~ /^(--group-buckets)$/){
+      $groupBuckets = 1;
+      $format = "%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--no-group-buckets)$/){
+      $groupBuckets = 0;
+      $format = "%{bucket},%{date},%{score},%{notes}";
+    }elsif($opt =~ /^(--best-by-bucket)$/){
+      $bestByBucketOnly = 1;
+    }elsif($opt =~ /^(--notes)$/){
+      my $notesCsv = $arg;
+      $$okNotes{$_} = 0 foreach keys %$okNotes;
 
-  my $fileFormatPattern = "%{file}";
-  if($cmd =~ /^(--files|--bestfiles)$/){
-    if(@$opts > 1 and $$opts[0] =~ /^--format$/){
-      shift @$opts;
-      $fileFormatPattern = shift @$opts;
+      my @notes = split /\s*,\s*/, $notesCsv;
+      for my $note(@notes){
+        die "invalid note '$note' in --notes: $note\n" if not defined $$okNotes{$note};
+        $$okNotes{$note} = 1;
+      }
+    }elsif($opt =~ /^(--abbrev)$/){
+      $abbrevBucket = 1;
+    }elsif($opt =~ /^(--combine-machines)$/){
+      $combineMachines = 1;
+    }else{
+      die "ERROR: unknown opt $opt\n";
     }
   }
 
   my $filters = parseFilterOptions $opts;
+  my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly,
+    $okNotes, $abbrevBucket, $combineMachines, $filters);
 
-  if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
-    my $fmt = formatScores($format, $groupBuckets, $bestByBucketOnly, $okNotes, $abbrevBucket, $combineMachines, $filters);
-    if($runGnuplot){
-      gnuplot $plotOptions, $fmt;
-    }else{
-      print $fmt;
-    }
-  }elsif($cmd =~ /^(--files)$/){
-    my $scoresByFile = getScoresByFile();
-    $scoresByFile = filterScores $scoresByFile, $filters;
-    my @files = sort keys %$scoresByFile;
-    for my $file(@files){
-      my $fileInfo = $$scoresByFile{$file};
-      my $fileFmt = formatFileInfo($fileInfo, $fileFormatPattern);
-      print "$fileFmt\n";
-    }
-  }elsif($cmd =~ /^(--bestfiles)$/){
-    my $bestScores = getBestScoresByBucket($filters);
-    for my $bucketName(sort keys %$bestScores){
-      my $fileInfo = $$bestScores{$bucketName};
-      my $fileFmt = formatFileInfo($fileInfo, $fileFormatPattern);
-      print "$fileFmt\n";
-    }
+  if($runGnuplot){
+    gnuplot $plotOptions, $fmt;
+  }else{
+    print $fmt;
   }
-}
-
-sub formatFileInfo($$){
-  my ($fileInfo, $fileFormatPattern) = @_;
-
-  my @okVars = sort keys %$fileInfo;
-
-  my $fileFmt = $fileFormatPattern;
-  for my $varName(@okFileFormatVars){
-    $fileFmt =~ s/\%\{$varName\}/$$fileInfo{$varName}/g;
-  }
-
-  return $fileFmt;
 }
 
 sub parsePlotOptions($){
@@ -2052,24 +1992,6 @@ sub getBestScore($){
   return $maxScore;
 }
 
-sub getBestScoresByBucket($){
-  my ($filters) = @_;
-
-  my $scoresByFile = getScoresByFile();
-  $scoresByFile = filterScores $scoresByFile, $filters;
-
-  my $scores = [values %$scoresByFile];
-  my $buckets = getScoreBuckets($scores, 0, @DEFAULT_BUCKET_FIELDS);
-
-  my $bestScores = {};
-  for my $bucketName(sort keys %$buckets){
-    my $bucketScores = $$buckets{$bucketName};
-    $$bestScores{$bucketName} = getBestScore($bucketScores);
-  }
-
-  return $bestScores;
-}
-
 sub gnuplot($$){
   my ($plotOptions, $data) = @_;
   my $dataFile = "/tmp/ddrname-gnuplot-data";
@@ -2301,7 +2223,7 @@ sub bashComplete($$){
       }
     }
 
-    if($cmd =~ /^(--scorestats|--print|--gnuplot)$/){
+    if($cmd =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles)$/){
       if($lastWord =~ /^(--notes)$/){
         my @combinations = combine sort keys %$defaultNotes;
         my @csv = sort map {join ",", @$_} @combinations;
@@ -2323,11 +2245,8 @@ sub bashComplete($$){
         @complete = (@okPlotOptions, @complete);
       }
     }
-    if($cmd =~ /^(--scorestats|--print|--gnuplot)/){
+    if($cmd =~ /^(--scorestats|--print|--gnuplot|--files|--bestfiles)/){
       @complete = (@okFormatOptSongs, @complete) if @words == 0;
-    }
-    if($cmd =~ /^(--files|--bestfiles)$/){
-      @complete = ("--format", @complete) if @words == 0;
     }
     if($cmd =~ /^(--datestats)/){
       my @args = @words;
