@@ -80,7 +80,7 @@ my @okFormatOptSongs = qw(
 my $okFormatOptSongsRegex = join "|", @okFormatOptSongs;
 my $argOptFormatOptSongsRegex = join "|", qw(--format --notes);
 
-my @okPlotOptions = qw(--file --size --smooth);
+my @okPlotOptions = qw(--file --overwrite --no-overwrite --size --smooth);
 my $okPlotOptionsRegex = join "|", @okPlotOptions;
 my $argOptPlotOptionsRegex = join "|", qw( --file --size );
 
@@ -511,6 +511,13 @@ sub getUsage(;$){
     PLOT_OPT
       --file PNG_FILE_PATH
         output PNG file to indicated path
+
+      --overwrite
+        (this is the default unless --file is given)
+        remove PNG_FILE_PATH before running gnuplot
+      --no-overwrite
+        (this is the default if --file is given)
+        fail if PNG_FILE_PATH exists
 
       --size PNG_SIZE
         output PNG pixelsize, WIDTHxHEIGHT
@@ -1030,6 +1037,10 @@ sub parsePlotOptions($){
 
     if($opt =~ /^(--file)$/){
       $$plotOptions{file} = $arg;
+    }elsif($opt =~ /^(--overwrite)$/){
+      $$plotOptions{overwrite} = 1;
+    }elsif($opt =~ /^(--no-overwrite)$/){
+      $$plotOptions{overwrite} = 0;
     }elsif($opt =~ /^(--size)$/){
       die getUsage("invalid $opt: $arg") if $arg !~ /^(\d+)[ ,x]+(\d+)$/;
       $$plotOptions{size} = "$1,$2";
@@ -1997,8 +2008,31 @@ sub gnuplot($$){
   my $dataFile = "/tmp/ddrname-gnuplot-data";
   my $scriptFile = "/tmp/ddrname-gnuplot-script";
 
-  my $outputFile = "/tmp/ddrname-gnuplot-output.png";
-  $outputFile = $$plotOptions{file} if defined $$plotOptions{file};
+  if(not defined $$plotOptions{overwrite}){
+    if(defined $$plotOptions{file}){
+      #default to NOT overwriting a file passed in with --file
+      $$plotOptions{overwrite} = 0;
+    }else{
+      #default to overwriting for the default file path
+      $$plotOptions{overwrite} = 1;
+    }
+  }
+
+  my $outputFile;
+  if(defined $$plotOptions{file}){
+    $outputFile = $$plotOptions{file} if defined $$plotOptions{file};
+  }else{
+    $outputFile = "/tmp/ddrname-gnuplot-output.png";
+  }
+
+  if(-f $outputFile and $$plotOptions{overwrite}){
+    print "removing output file $outputFile\n";
+    system "rm", $outputFile;
+  }
+
+  if(-e $outputFile){
+    die "ERROR: $outputFile already exists\n";
+  }
 
   my $pngSize = $gnuplotDefaultPngSize;
   $pngSize = $$plotOptions{size} if defined $$plotOptions{size};
@@ -2068,6 +2102,11 @@ sub gnuplot($$){
 
   run "gnuplot", "-p", $scriptFile;
   die "error runnning gnuplot script:\n===\n$script===\n" if $? != 0;
+  if(-f $outputFile){
+    print "$outputFile\n";
+  }else{
+    die "ERROR: $outputFile is not a file after running gnuplot\n";
+  }
 }
 
 sub combine(@){
