@@ -17,7 +17,7 @@ sub getTotalNoteIrregularity($);
 sub getBPMChangeAmount($$);
 sub formatDDRGame($);
 sub formatDDRDiff($);
-sub getStats($$$$$);
+sub getStats($$$);
 sub parseSMFile($);
 sub extractSongNameId($);
 sub convertValuesByBeatToValuesByRow($);
@@ -382,9 +382,8 @@ sub main(@){
   die "$usage\nERROR: missing SM_FILE\n" if not defined $smFile;
 
   my $smInfo = parseSMFile($smFile);
-
-  my $bpmsByRow = convertValuesByBeatToValuesByRow($$smInfo{bpms});
-  my $stopsByRow = convertValuesByBeatToValuesByRow($$smInfo{stops});
+  $$smInfo{bpmsByRow} = convertValuesByBeatToValuesByRow($$smInfo{bpms});
+  $$smInfo{stopsByRow} = convertValuesByBeatToValuesByRow($$smInfo{stops});
 
   my @gameDiffKeys = @{$$smInfo{gameDiffKeyOrder}};
 
@@ -394,7 +393,7 @@ sub main(@){
     my $rows = getExpandedNoteRows $$noteSetInfo{noteSetText};
     next if defined $gameFilter and $$noteSetInfo{ddrGame} !~ /^$gameFilter$/i;
     next if defined $diffFilter and $$noteSetInfo{ddrDiff} !~ /^$diffFilter$/i;
-    $$stats{$gameDiffKey} = getStats($smInfo, $noteSetInfo, $rows, $bpmsByRow, $stopsByRow);
+    $$stats{$gameDiffKey} = getStats($smInfo, $noteSetInfo, $rows);
   }
 
   for my $gameDiffKey(@gameDiffKeys){
@@ -714,8 +713,8 @@ sub formatDDRDiff($){
   }
 }
 
-sub getStats($$$$$){
-  my ($smInfo, $noteSetInfo, $rows, $bpmsByRow, $stopsByRow) = @_;
+sub getStats($$$){
+  my ($smInfo, $noteSetInfo, $rows) = @_;
   my $s = {
     GAME                      => $$noteSetInfo{ddrGame},
     DIFF                      => $$noteSetInfo{ddrDiff},
@@ -724,6 +723,9 @@ sub getStats($$$$$){
     SONG_NAME_TRANSLIT        => $$smInfo{songNameTranslit},
     SONG_NAME_ID              => $$smInfo{songNameId},
   };
+
+  my $bpmsByRow = $$smInfo{bpmsByRow};
+  my $stopsByRow = $$smInfo{stopsByRow};
 
   #analysis + data-collection
   $s = {%$s,                     %{getNoteCounts($rows)},
@@ -802,13 +804,13 @@ sub parseSMFile($){
   my $sm = readFile $smFile;
 
   my $smInfo = {
-    songName              => undef,
-    songNameTranslit      => undef,
-    songNameId            => undef,
-    bpms                  => undef,
-    stops                 => undef,
+    songName                 => undef,
+    songNameTranslit         => undef,
+    songNameId               => undef,
+    bpms                     => undef,
+    stops                    => undef,
     noteSetInfoByGameDiffKey => {},
-    gameDiffKeyOrder    => [],
+    gameDiffKeyOrder         => [],
   };
 
   if($sm !~ /#TITLE:([^\r\n]+);/i){
