@@ -20,6 +20,9 @@ sub getBPMChangeAmount($$);
 sub formatDDRGame($);
 sub formatDDRDiff($);
 sub getNoteSetStats($$);
+sub getSMInfo($);
+sub readSMInfoCache($);
+sub writeSMInfoCache($$);
 sub parseSMFile($);
 sub extractSongNameId($);
 sub convertValuesByBeatToValuesByRow($);
@@ -383,7 +386,7 @@ sub main(@){
   }
   die "$usage\nERROR: missing SM_FILE\n" if not defined $smFile;
 
-  my $smInfo = parseSMFile($smFile);
+  my $smInfo = getSMInfo($smFile);
 
   my @gameDiffKeys = @{$$smInfo{gameDiffKeyOrder}};
 
@@ -797,6 +800,100 @@ sub getNoteSetStats($$){
   }
 
   return $s;
+}
+
+sub getSMInfo($){
+  my ($smFile) = @_;
+  my $smInfo = readSMInfoCache $smFile;
+  if(not defined $smInfo){
+    $smInfo = parseSMFile $smFile;
+    writeSMInfoCache($smFile, $smInfo);
+  }
+  return $smInfo;
+}
+
+sub readSMInfoCache($){
+  my ($smFile) = @_;
+  my $cacheDir = getCacheDir($smFile);
+  if(not -f "$cacheDir/smInfo"){
+    return undef;
+  }
+
+  my $smInfoTxt = `cat "$cacheDir/smInfo" 2>/dev/null`;
+  my $smInfo = {};
+  $$smInfo{songName} = $1         if $smInfoTxt =~ /^songName=(.+)$/m;
+  $$smInfo{songNameTranslit} = $1 if $smInfoTxt =~ /^songNameTranslit=(.+)$/m;
+  $$smInfo{songNameId} = $1       if $smInfoTxt =~ /^songNameId=(.+)$/m;
+  $$smInfo{bpms} = $1             if $smInfoTxt =~ /^bpms=(.+)$/m;
+  $$smInfo{stops} = $1            if $smInfoTxt =~ /^stops=(.+)$/m;
+  my $gameDiffKeyOrderCsv = $1    if $smInfoTxt =~ /^gameDiffKeyOrder=(.+)$/m;
+
+  $$smInfo{gameDiffKeyOrder} = [split /,/, $gameDiffKeyOrderCsv];
+  $$smInfo{bpmsByRow} = convertValuesByBeatToValuesByRow($$smInfo{bpms});
+  $$smInfo{stopsByRow} = convertValuesByBeatToValuesByRow($$smInfo{stops});
+
+  $$smInfo{noteSetInfoByGameDiffKey} = {};
+  for my $gameDiffKey(@{$$smInfo{gameDiffKeyOrder}}){
+    if(not -f "$cacheDir/noteSetInfo-$gameDiffKey"){
+      return undef;
+    }
+    my $noteSetInfoTxt = `cat "$cacheDir/noteSetInfo-$gameDiffKey" 2>/dev/null`;
+    my $noteSetInfo = {};
+    $$noteSetInfo{game} = $1    if $noteSetInfoTxt =~ /^game=(.+)$/m;
+    $$noteSetInfo{diff} = $1    if $noteSetInfoTxt =~ /^diff=(.+)$/m;
+    $$noteSetInfo{ddrGame} = $1 if $noteSetInfoTxt =~ /^ddrGame=(.+)$/m;
+    $$noteSetInfo{ddrDiff} = $1 if $noteSetInfoTxt =~ /^ddrDiff=(.+)$/m;
+    $$noteSetInfo{smFeet} = $1  if $noteSetInfoTxt =~ /^smFeet=(.+)$/m;
+
+    if(not -f "$cacheDir/expandedNoteRows-$gameDiffKey.gz"){
+      return undef;
+    }
+
+    open FH, "-|", "gunzip", "-c", "$cacheDir/expandedNoteRows-$gameDiffKey";
+    my @expandedNoteRows = <FH>;
+    close FH;
+    chomp foreach @expandedNoteRows;
+
+    $$noteSetInfo{expandedNoteRows} = [@expandedNoteRows];
+
+    $$smInfo{noteSetInfoByGameDiffKey}{$gameDiffKey} = $noteSetInfo;
+  }
+
+  return $smInfo;
+}
+sub writeSMInfoCache($$){
+  my ($smFile, $smInfo) = @_;
+  my $cacheDir = getCacheDir($smFile);
+  system "rm", "-rf", $cacheDir;
+  system "mkdir", "-p", $cacheDir;
+  open FH, "> $cacheDir/smInfo";
+  print FH ""
+    . "songName=$$smInfo{songName}\n"
+    . "songNameTranslit=$$smInfo{songNameTranslit}\n"
+    . "songNameId=$$smInfo{songNameId}\n"
+    . "bpms=$$smInfo{bpms}\n"
+    . "stops=$$smInfo{bpms}\n"
+    . "gameDiffKeyOrder=" . join(",", @{$$smInfo{gameDiffKeyOrder}}) . "\n"
+    ;
+  close FH;
+
+  for my $gameDiffKey(@{$$smInfo{gameDiffKeyOrder}}){
+    my $noteSetInfo = $$smInfo{noteSetInfoByGameDiffKey}{$gameDiffKey};
+    open FH, "> $cacheDir/noteSetInfo-$gameDiffKey";
+    print FH ""
+      . "game=$$noteSetInfo{game}\n"
+      . "diff=$$noteSetInfo{diff}\n"
+      . "ddrGame=$$noteSetInfo{ddrGame}\n"
+      . "ddrDiff=$$noteSetInfo{ddrDiff}\n"
+      . "smFeet=$$noteSetInfo{smFeet}\n"
+      ;
+    close FH;
+
+    open FH, "> $cacheDir/expandedNoteRows-$gameDiffKey";
+    print FH "$_\n" foreach @{$$noteSetInfo{expandedNoteRows}};
+    close FH;
+    system "gzip", "$cacheDir/expandedNoteRows-$gameDiffKey";
+  }
 }
 
 sub parseSMFile($){
