@@ -19,7 +19,10 @@ sub getTotalNoteIrregularity($);
 sub getBPMChangeAmount($$);
 sub formatDDRGame($);
 sub formatDDRDiff($);
-sub getNoteSetStats($$);
+sub getNoteSetStats($$$);
+sub readNoteSetStatsCache($$);
+sub writeNoteSetStatsCache($$$);
+sub calculateNoteSetStats($$);
 sub getSMInfo($);
 sub readSMInfoCache($);
 sub writeSMInfoCache($$);
@@ -395,7 +398,7 @@ sub main(@){
     my $noteSetInfo = $$smInfo{noteSetInfoByGameDiffKey}{$gameDiffKey};
     next if defined $gameFilter and $$noteSetInfo{ddrGame} !~ /^$gameFilter$/i;
     next if defined $diffFilter and $$noteSetInfo{ddrDiff} !~ /^$diffFilter$/i;
-    $$stats{$gameDiffKey} = getNoteSetStats($smInfo, $noteSetInfo);
+    $$stats{$gameDiffKey} = getNoteSetStats($smFile, $smInfo, $gameDiffKey);
   }
 
   for my $gameDiffKey(@gameDiffKeys){
@@ -715,8 +718,44 @@ sub formatDDRDiff($){
   }
 }
 
-sub getNoteSetStats($$){
-  my ($smInfo, $noteSetInfo) = @_;
+sub getNoteSetStats($$$){
+  my ($smFile, $smInfo, $gameDiffKey) = @_;
+  my $stats = readNoteSetStatsCache($smFile, $gameDiffKey);
+  if(not defined $stats){
+    $stats = calculateNoteSetStats($smInfo, $gameDiffKey);
+    writeNoteSetStatsCache($smFile, $gameDiffKey, $stats);
+  }
+  return $stats;
+}
+
+sub readNoteSetStatsCache($$){
+  my ($smFile, $gameDiffKey) = @_;
+  my $cacheDir = getCacheDir($smFile);
+  if(not -f "$cacheDir/stats-$gameDiffKey"){
+    return undef;
+  }
+  open FH, "<", "$cacheDir/stats-$gameDiffKey";
+  my @lines = <FH>;
+  close FH;
+  my $stats = {};
+  for my $line(@lines){
+    if($line =~ /^(\w+)=(.+)$/){
+      $$stats{$1} = $2;
+    }
+  }
+  return $stats;
+}
+sub writeNoteSetStatsCache($$$){
+  my ($smFile, $gameDiffKey, $stats) = @_;
+  my $cacheDir = getCacheDir($smFile);
+  open FH, ">", "$cacheDir/stats-$gameDiffKey";
+  print FH "$_=$$stats{$_}\n" foreach sort keys %$stats;
+  close FH;
+}
+
+sub calculateNoteSetStats($$){
+  my ($smInfo, $gameDiffKey) = @_;
+  my $noteSetInfo = $$smInfo{noteSetInfoByGameDiffKey}{$gameDiffKey};
   my $s = {
     GAME                      => $$noteSetInfo{ddrGame},
     DIFF                      => $$noteSetInfo{ddrDiff},
