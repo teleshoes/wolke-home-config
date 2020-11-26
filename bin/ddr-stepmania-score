@@ -4,6 +4,10 @@ use warnings;
 use File::Basename qw(basename);
 
 sub getScoreDataByXmlFile($);
+sub readScoreDataCache($);
+sub writeScoreDataCache($$);
+sub getCacheFile($);
+sub calculateScoreDataCache($);
 sub formatScoreData($$);
 sub getSongAbsDir($);
 sub getSMFileFromSongDir($);
@@ -24,9 +28,11 @@ sub mtime($);
 sub mtimeFmt($);
 sub allFilesExist(@);
 sub chunkArr($@);
+sub md5sum($);
 
 my $XML_FILE_PATTERN = "$ENV{HOME}/.stepmania-*/Save/Upload/*.xml";
 my $SONGS_PARENT_DIR = "$ENV{HOME}/.stepmania-5.0";
+my $CACHE_BASE_DIR = "$ENV{HOME}/.cache/ddr-stepmania-score";
 
 my $ZENIUS_TOOL = "zenius-ddrsonglist";
 
@@ -357,7 +363,65 @@ sub main(@){
 
 sub getScoreDataByXmlFile($){
   my ($xmlFile) = @_;
+  my $sd = readScoreDataCache($xmlFile);
+  if(not defined $sd){
+    $sd = calculateScoreDataCache($xmlFile);
+    writeScoreDataCache($xmlFile, $sd);
+  }
+  return $sd;
+}
 
+sub readScoreDataCache($){
+  my ($xmlFile) = @_;
+  my $sd = undef;
+  my $cacheFile = getCacheFile($xmlFile);
+  if(not -f $cacheFile){
+    return undef;
+  }
+
+  open FH, "< $cacheFile" or die "ERROR: could not read $cacheFile\n$1\n";
+  my @lines = <FH>;
+  close FH;
+
+  for my $line(@lines){
+    if($line =~ /^(\w+)=(.+)$/){
+      my ($key, $val) = ($1, $2);
+      $$sd{$key} = $val;
+    }
+  }
+
+  $$sd{XML_FILE} = $xmlFile;
+  $$sd{DATETIME} = mtimeFmt($xmlFile);
+
+  return $sd;
+}
+sub writeScoreDataCache($$){
+  my ($xmlFile, $sd) = @_;
+  my $cacheFile = getCacheFile($xmlFile);
+  system "mkdir", "-p", $CACHE_BASE_DIR if not -d $CACHE_BASE_DIR;
+  open FH, "> $cacheFile";
+  print FH "$_=$$sd{$_}\n" foreach sort keys %$sd;
+  close FH;
+}
+
+sub getCacheFile($){
+  my ($xmlFile) = @_;
+  my $fileName = $xmlFile;
+  $fileName =~ s/^.*\///;
+  $fileName =~ s/\.\w+$//;
+  $fileName = lc $fileName;
+  $fileName =~ s/[^a-zA-Z0-9\-]+/-/g;
+  $fileName =~ s/--+/-/g;
+  $fileName =~ s/^--*//g;
+  $fileName =~ s/--*$//g;
+
+  my $md5sum = md5sum $xmlFile;
+  my $cacheFile = "$CACHE_BASE_DIR/$fileName-$md5sum";
+  return $cacheFile;
+}
+
+sub calculateScoreDataCache($){
+  my ($xmlFile) = @_;
   my $xmlInfo = parseXmlFile $xmlFile;
   my $songDir = getSongAbsDir $$xmlInfo{songDir};
   my $gameDiffKey = gameDiffKey($$xmlInfo{game}, $$xmlInfo{difficulty});
@@ -756,6 +820,18 @@ sub chunkArr($@){
     push @$chunk, $elem;
   }
   return @chunkArr;
+}
+
+sub md5sum($){
+  open CMD, "-|", "md5sum", $_[0];
+  my $md5sum = <CMD>;
+  close CMD;
+  chomp $md5sum;
+  if($md5sum =~ /^([0-9a-f]{32})(\s.*|$)$/){
+    return $1;
+  }else{
+    return undef;
+  }
 }
 
 &main(@ARGV);
