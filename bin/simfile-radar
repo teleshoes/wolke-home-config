@@ -7,6 +7,8 @@ use warnings;
 my $ROWS_PER_MEASURE = 192;
 my $ROWS_PER_BEAT = int(192/4); #48
 
+my $CACHE_BASE_DIR = "$ENV{HOME}/.cache/simfile-radar";
+
 sub formatStats($$);
 sub getSongRowCount($);
 sub getSongDuration($$$);
@@ -1048,12 +1050,39 @@ sub getExpandedNoteRows($){
   return \@noteRows;
 }
 
+sub getCacheDir($){
+  my ($file) = @_;
+  my $checksum = getChecksum($file);
+  my $fileName = $file;
+  $fileName =~ s/^.*\///;
+  $fileName = lc $fileName;
+  $fileName =~ s/\.([a-z0-9]+)$//;
+  $fileName =~ s/[^a-z0-9]/-/g;
+  $fileName =~ s/--+/-/g;
+  $fileName =~ s/^-*//g;
+  $fileName =~ s/-*$//g;
+
+  return "$CACHE_BASE_DIR/$fileName-$checksum";
+}
+
 sub readFile($){
   my ($file) = @_;
   open FH, "< $file" or die "ERROR: could not read $file\n";
   my $contents = join '', <FH>;
   close FH;
   return $contents;
+}
+
+sub getChecksum($){
+  my ($file) = @_;
+  open CMD, "-|", "sha256sum", $file or die "ERROR: sha256sum failed for $file\n$!\n";
+  my $checksum = <CMD>;
+  close CMD;
+  if($checksum =~ /^([0-9a-f]{64})(?:\s.*)$/){
+    return $1;
+  }else{
+    die "ERROR: sha256sum failed for $file\n";
+  }
 }
 
 &main(@ARGV);
