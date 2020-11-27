@@ -9,6 +9,7 @@ sub formatCurSongInfo($);
 sub getCurSongInfo();
 sub getSongInfo($$$);
 sub findXmlFiles($$$);
+sub readProcLine(@);
 
 my $CURSONG_FILE = "$ENV{HOME}/.cache/stepmania-selected-song";
 my $XML_UPLOAD_DIR = "$ENV{HOME}/.stepmania/Save/Upload";
@@ -19,7 +20,7 @@ sub main(@){
 
 sub formatCurSongInfo($){
   my ($info) = @_;
-  return "";
+  return "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
 }
 
 sub getCurSongInfo(){
@@ -39,8 +40,12 @@ sub getSongInfo($$$){
   my $songDir = dirname $simfile;
   my $smGame = lc $stepsType;
   $smGame =~ s/_/-/g;
-
   my $smDiff = $difficulty;
+
+  $$info{songDir}    = $songDir;
+  $$info{songNameId} = readProcLine("ddr-stepmania-score", "--extract-song-name", $songDir);
+  $$info{ddrGame}    = readProcLine("ddr-stepmania-score", "--extract-ddra-game", $smGame);
+  $$info{ddrDiff}    = readProcLine("ddr-stepmania-score", "--extract-ddra-diff", $smDiff);
 
   my @xmlFiles = findXmlFiles($songDir, $smGame, $smDiff);
   @xmlFiles = reverse @xmlFiles;
@@ -84,6 +89,15 @@ sub findXmlFiles($$$){
   chomp foreach @files;
   @files = grep {$_ =~ /\.xml$/i} @files;
   return @files;
+}
+
+sub readProcLine(@){
+  my @cmd = @_;
+  open CMD, "-|", @cmd or die "ERROR: \"@cmd\" failed\n$!\n";
+  my $out = join '', <CMD>;
+  close CMD;
+  chomp $out;
+  return $out;
 }
 
 &main(@ARGV);
