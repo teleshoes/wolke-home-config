@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use AI::FANN qw(:all);
 
 my $SCALE = {
   S    => {low=>0, high=>200},
@@ -10,6 +11,9 @@ my $SCALE = {
   C    => {low=>0, high=>200},
   FEET => {low=>0, high=>20},
 };
+
+my $DESIRED_ERROR = "0.0003";
+my $MAX_EPOCHS = 50000;
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-radar-feet";
 my $RADAR_CACHE = "$ENV{HOME}/.cache/ddr-radar-feet/radar-training-data";
@@ -24,6 +28,7 @@ sub addSimfileToRadarCache($);
 sub readRadarCache();
 sub readZeniusFeetFromSongList();
 
+sub createNeuralNet($$);
 sub loadNeuralNetTrainingData($$);
 sub getScaledValue($$);
 
@@ -146,6 +151,27 @@ sub readZeniusFeetFromSongList(){
     }
   }
   return $zeniusFeet;
+}
+
+sub createNeuralNet($$){
+  my ($game, $diff) = @_;
+  my $neuralNetCacheFile = "$CACHE_DIR/neuralnet-$game-$diff.ann";
+  if(not -f $neuralNetCacheFile){
+    my $ann = AI::FANN->new_standard(5, 8, 1);
+
+    $ann->hidden_activation_function(FANN_SIGMOID_SYMMETRIC);
+    $ann->output_activation_function(FANN_SIGMOID_SYMMETRIC);
+
+    my $data = loadNeuralNetTrainingData($game, $diff);
+
+    my $trainData = AI::FANN::TrainData->new(@$data);
+    $trainData->shuffle();
+
+    $ann->train_on_data($trainData, $MAX_EPOCHS, 1000, $DESIRED_ERROR);
+
+    $ann->save($neuralNetCacheFile);
+  }
+  return AI::FANN->new_from_file($neuralNetCacheFile);
 }
 
 sub loadNeuralNetTrainingData($$){
