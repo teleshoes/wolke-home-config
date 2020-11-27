@@ -9,12 +9,14 @@ sub formatCurSongInfo($);
 sub getCurSongInfo();
 sub getSongInfo($$$);
 sub ddrnameBestScore($$$);
+sub simfileRadar($$$);
 sub getDDRStepmaniaScoreAtts($@);
 sub findXmlFiles($$$);
 sub readProcLine(@);
 
 my $CURSONG_FILE = "$ENV{HOME}/.cache/stepmania-selected-song";
 my $XML_UPLOAD_DIR = "$ENV{HOME}/.stepmania/Save/Upload";
+my $SONG_PARENT_DIR = "$ENV{HOME}/Games/stepmania/latest";
 
 my @ATTS = qw(DATETIME PASS_FAIL DDRA_SCORE PERCENT_SCORE FC_MAYBE);
 
@@ -26,6 +28,7 @@ sub formatCurSongInfo($){
   my ($info) = @_;
   my $fmt = "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
   $fmt .= "BEST: $$info{ddrnameBestScore}\n";
+  $fmt .= "RADAR: $$info{simfileRadar}\n";
   for my $scoreAtts(@{$$info{xmlScores}}){
     $fmt .= "$$scoreAtts{DDRA_SCORE}\n";
   }
@@ -73,6 +76,8 @@ sub getSongInfo($$$){
   $$info{ddrnameBestScore} = ddrnameBestScore(
     $$info{songNameId}, $$info{ddrGame}, $$info{ddrDiff});
 
+  $$info{simfileRadar} = simfileRadar($simfile, $$info{ddrGame}, $$info{ddrDiff});
+
   return $info;
 }
 
@@ -87,6 +92,16 @@ sub ddrnameBestScore($$$){
     "--format", "%{score} (%{date})",
     "--combine-machines",
     "--best-by-bucket",
+  );
+}
+
+sub simfileRadar($$$){
+  my ($simfile, $ddrGame, $ddrDiff) = @_;
+  return readProcLine("simfile-radar",
+    "--$ddrGame",
+    "--$ddrDiff",
+    "--format=S%-3d-STREAM | V%-3d-VOLTAGE | A%-3d-AIR | F%-3d-FREEZE | C%-3d-CHAOS",
+    "$SONG_PARENT_DIR/$simfile",
   );
 }
 
