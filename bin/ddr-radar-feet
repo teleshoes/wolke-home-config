@@ -3,11 +3,87 @@ use strict;
 use warnings;
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-radar-feet";
+my $RADAR_CACHE = "$ENV{HOME}/.cache/ddr-radar-feet/radar-training-data";
+
+my $SONGS_BASE_DIR = "$ENV{HOME}/.stepmania/Songs";
+my $DDRNAME_SONGLIST = "$ENV{HOME}/.config/ddrname-songlist";
+my $TRAINING_SIMFILES_PATTERN = "$SONGS_BASE_DIR/DDR_*/*/*.sm";
+
+sub ensureRadarCache();
+sub generateRadarCache();
+sub addSimfileToRadarCache($);
+sub readRadarCache();
 
 sub run(@);
 sub readProcLine(@);
 
 sub main(@){
+  ensureRadarCache();
+  my $radarCache = readRadarCache();
+  for my $songNameId(sort keys %$radarCache){
+    print "$songNameId\n";
+  }
+}
+
+sub ensureRadarCache(){
+  generateRadarCache() if not -f $RADAR_CACHE;
+}
+sub generateRadarCache(){
+  run "rm", "-f", $RADAR_CACHE;
+  my @simfiles = glob $TRAINING_SIMFILES_PATTERN;
+  for my $simfile(@simfiles){
+    addSimfileToRadarCache($simfile);
+  }
+}
+sub addSimfileToRadarCache($){
+  my ($simfile) = @_;
+  my @lines = readProcLines(
+    "simfile-radar",
+    "--format="
+      . "%-7s-GAME"
+      . " | %-10s-DIFF"
+      . " | S%-3d-STREAM | V%-3d-VOLTAGE | A%-3d-AIR | F%-3d-FREEZE | C%-3d-CHAOS"
+      . " | %SONG_NAME_ID"
+      . "%n",
+    $simfile,
+  );
+  open FH, ">> $RADAR_CACHE" or die "ERROR: could not append to $RADAR_CACHE\n$!\n";
+  print FH $_ foreach @lines;
+  close FH;
+}
+sub readRadarCache(){
+  open FH, "< $RADAR_CACHE" or die "ERROR: could not read $RADAR_CACHE\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $radar = {};
+  for my $line(@lines){
+    if($line =~ /^
+                (?<game>       [a-zA-Z0-9\-]+)
+       \s*\|\s* (?<diff>       \w+)
+       \s*\|\s* S(?<S>         \d+)
+       \s*\|\s* V(?<V>         \d+)
+       \s*\|\s* A(?<A>         \d+)
+       \s*\|\s* F(?<F>         \d+)
+       \s*\|\s* C(?<C>         \d+)
+       \s*\|\s* (?<songNameId> [a-z0-9\-]+)
+    $/x){
+      my $gameDiffKey = $+{game} . "-" . $+{diff};
+      $$radar{$+{songNameId}} = {} if not defined $$radar{$+{songNameId}};
+      $$radar{$+{songNameId}}{$gameDiffKey} = {
+        GAME => $+{game},
+        DIFF => $+{diff},
+        S    => $+{S},
+        V    => $+{V},
+        A    => $+{A},
+        F    => $+{F},
+        C    => $+{C},
+      };
+    }else{
+      die "ERROR: malformed line in $RADAR_CACHE\n$line";
+    }
+  }
+  return $radar;
 }
 
 sub run(@){
