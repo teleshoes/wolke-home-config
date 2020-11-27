@@ -13,6 +13,7 @@ sub ensureRadarCache();
 sub generateRadarCache();
 sub addSimfileToRadarCache($);
 sub readRadarCache();
+sub readZeniusFeetFromSongList();
 
 sub run(@);
 sub readProcLine(@);
@@ -20,8 +21,15 @@ sub readProcLine(@);
 sub main(@){
   ensureRadarCache();
   my $radarCache = readRadarCache();
+  my $zeniusFeet = readZeniusFeetFromSongList();
   for my $songNameId(sort keys %$radarCache){
     print "$songNameId\n";
+    if(defined $$zeniusFeet{$songNameId}){
+      for my $gameDiffKey(sort keys %{$$zeniusFeet{$songNameId}}){
+        my $feet = $$zeniusFeet{$songNameId}{$gameDiffKey};
+        print "$songNameId - $gameDiffKey - $feet\n";
+      }
+    }
   }
 }
 
@@ -84,6 +92,48 @@ sub readRadarCache(){
     }
   }
   return $radar;
+}
+
+sub readZeniusFeetFromSongList(){
+  open FH, "<", $DDRNAME_SONGLIST or die "ERROR: could not read $DDRNAME_SONGLIST\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $zeniusFeet = {};
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^
+                (?<songNameId>           [a-z0-9\-]+)
+       \s*\|\s* (?<abbrev>               \w+)
+       \s*\|\s* (?<feetSinglesBeginner>  \d+|-+)
+       \s*\|\s* (?<feetSinglesBasic>     \d+|-+)
+       \s*\|\s* (?<feetSinglesDifficult> \d+|-+)
+       \s*\|\s* (?<feetSinglesExpert>    \d+|-+)
+       \s*\|\s* (?<feetSinglesChallenge> \d+|-+)
+       \s*\|\s* \s*
+       \s*\|\s* (?<feetDoublesBasic>     \d+|-+)
+       \s*\|\s* (?<feetDoublesDifficult> \d+|-+)
+       \s*\|\s* (?<feetDoublesExpert>    \d+|-+)
+       \s*\|\s* (?<feetDoublesChallenge> \d+|-+)
+       \s*\|\s*
+    $/x){
+      $$zeniusFeet{$+{songNameId}} = {
+        "singles-beginner"   =>  $+{feetSinglesBeginner},
+        "singles-basic"      =>  $+{feetSinglesBasic},
+        "singles-difficult"  =>  $+{feetSinglesDifficult},
+        "singles-expert"     =>  $+{feetSinglesExpert},
+        "singles-challenge"  =>  $+{feetSinglesChallenge},
+        "doubles-basic"      =>  $+{feetDoublesBasic},
+        "doubles-difficult"  =>  $+{feetDoublesDifficult},
+        "doubles-expert"     =>  $+{feetDoublesExpert},
+        "doubles-challenge"  =>  $+{feetDoublesChallenge},
+      };
+    }else{
+      die "ERROR: malformed line in $DDRNAME_SONGLIST\n$line";
+    }
+  }
+  return $zeniusFeet;
 }
 
 sub run(@){
