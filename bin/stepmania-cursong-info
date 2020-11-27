@@ -2,10 +2,14 @@
 use strict;
 use warnings;
 
+my $LIMIT = 10;
+
 sub getCurSongInfo();
 sub getSongInfo($$$);
+sub findXmlFiles($$$);
 
 my $CURSONG_FILE = "$ENV{HOME}/.cache/stepmania-selected-song";
+my $XML_UPLOAD_DIR = "$ENV{HOME}/.stepmania/Save/Upload";
 
 sub main(@){
   getCurSongInfo();
@@ -24,7 +28,54 @@ sub getCurSongInfo(){
 sub getSongInfo($$$){
   my ($stepsType, $difficulty, $simfile) = ($1, $2, $3);
 
-  print "$stepsType-$difficulty-$simfile\n";
+  my $songDir = $simfile;
+  $songDir =~ s/^\///;
+  $songDir =~ s/\/[^\/]*$/\//;
+
+  my $smGame = lc $stepsType;
+  $smGame =~ s/_/-/g;
+
+  my $smDiff = $difficulty;
+
+  my @xmlFiles = findXmlFiles($songDir, $smGame, $smDiff);
+  @xmlFiles = reverse @xmlFiles;
+  if(@xmlFiles > $LIMIT){
+    @xmlFiles = @xmlFiles[0..($LIMIT-1)];
+  }
+  return @xmlFiles;
+}
+
+sub findXmlFiles($$$){
+  my ($songDir, $smGame, $smDiff) = @_;
+
+  my $songDirRegex = $songDir;
+  $songDirRegex =~ s/^\/*//;
+  $songDirRegex =~ s/\/*$//;
+  $songDirRegex =~ s/[^a-zA-Z0-9_\-\/]+/.*/g;
+  $songDirRegex = "/*$songDirRegex/*";
+
+  my $regex = ""
+    . "<Song Dir='$songDirRegex'/>"
+    . "[ \\t\\r\\n]*"
+    . "<Steps Difficulty='$smDiff' StepsType='$smGame'"
+    ;
+
+  my @grepCmd = ("pcre2grep",
+    "--multiline",
+    "--ignore-case",
+    "--files-with-matches",
+    "--recursive",
+    $regex,
+    $XML_UPLOAD_DIR,
+  );
+
+  open CMD, "-|", @grepCmd or die "ERROR: could not run @grepCmd\n";
+  my @files = <CMD>;
+  close CMD;
+
+  chomp foreach @files;
+  @files = grep {$_ =~ /\.xml$/i} @files;
+  return @files;
 }
 
 &main(@ARGV);
