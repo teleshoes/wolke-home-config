@@ -26,6 +26,7 @@ my $SONGS_BASE_DIR = "$ENV{HOME}/.stepmania/Songs";
 my $DDRNAME_SONGLIST = "$ENV{HOME}/.config/ddrname-songlist";
 my $TRAINING_SIMFILES_PATTERN = "$SONGS_BASE_DIR/DDR_*/*/*.sm";
 
+sub runNeuralNet($$$$$$$);
 sub ensureRadarCache();
 sub generateRadarCache();
 sub addSimfileToRadarCache($);
@@ -37,6 +38,7 @@ sub createNeuralNet($$);
 sub loadNeuralNet($$);
 sub loadNeuralNetTrainingData($$);
 sub getScaledValue($$);
+sub getUnscaledValue($$);
 
 sub run(@);
 sub readProcLine(@);
@@ -145,6 +147,21 @@ sub main(@){
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
   }
+}
+
+sub runNeuralNet($$$$$$$){
+  my ($game, $diff, $s, $v, $a, $f, $c) = @_;
+  my $ann = loadNeuralNet($game, $diff);
+  my $input = [
+    getScaledValue($s, $$SCALE{S}),
+    getScaledValue($v, $$SCALE{V}),
+    getScaledValue($a, $$SCALE{A}),
+    getScaledValue($f, $$SCALE{F}),
+    getScaledValue($c, $$SCALE{C}),
+  ];
+  my $out = $ann->run($input);
+  my $feet = getUnscaledValue($$out[0],  $$SCALE{FEET});
+  return $feet;
 }
 
 sub ensureRadarCache(){
@@ -331,6 +348,13 @@ sub getScaledValue($$){
   my $high = $$valScale{high};
 
   return ($val-$low) / ($high - $low);
+}
+sub getUnscaledValue($$){
+  my ($scaledVal, $valScale) = @_;
+  my $low = $$valScale{low};
+  my $high = $$valScale{high};
+
+  return ($scaledVal*($high-$low)) + $low;
 }
 
 sub run(@){
