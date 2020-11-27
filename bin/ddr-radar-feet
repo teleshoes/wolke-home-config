@@ -51,30 +51,53 @@ my $usage = "Usage:
 
   $EXEC -h|--help
     show this message
+
+  $EXEC --calculate-training-radar-data
+    -remove cached radar training data
+      $RADAR_CACHE
+    -extract input radar training data with simfile-radar for simfiles that match this pattern:
+      $TRAINING_SIMFILES_PATTERN
+    -format each training input data set as:
+      <GAME> | <DIFF> | S<STREAM> | V<VOLTAGE> | A<AIR> | F<FREEZE> | C<CHAOS> | <SONG_NAME_ID>
+    -store the values in $RADAR_CACHE
+    NOTE: this is computationally and i/o intensive, and is by far the slowest part
+          currently takes about 780s without simfile-radar cached
+          (about 90s with simfile-radar cached)
+
+  $EXEC --ensure-training-radar-data
+    if cache file $RADAR_CACHE exists:
+      do nothing
+    otherwise:
+      same as: $EXEC --calculate-training-radar-data
 ";
 
+my $CMD_CALCULATE_TRAINING_RADAR_DATA = "calculate-training-radar-data";
+my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
+my $OK_CMDS = join "|", (
+  $CMD_CALCULATE_TRAINING_RADAR_DATA,
+  $CMD_ENSURE_TRAINING_RADAR_DATA,
+);
+
 sub main(@){
+  my $cmd = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^--($OK_CMDS)$/){
+      $cmd = $1
     }else{
       die $usage;
     }
   }
 
-  ensureRadarCache();
-  my $radarCache = readRadarCache();
-  my $zeniusFeet = readZeniusFeetFromSongList();
-  for my $songNameId(sort keys %$radarCache){
-    print "$songNameId\n";
-    if(defined $$zeniusFeet{$songNameId}){
-      for my $gameDiffKey(sort keys %{$$zeniusFeet{$songNameId}}){
-        my $feet = $$zeniusFeet{$songNameId}{$gameDiffKey};
-        print "$songNameId - $gameDiffKey - $feet\n";
-      }
-    }
+  if($cmd eq $CMD_CALCULATE_TRAINING_RADAR_DATA){
+    generateRadarCache();
+  }elsif($cmd eq $CMD_ENSURE_TRAINING_RADAR_DATA){
+    ensureRadarCache();
+  }else{
+    die "ERROR: unknown cmd \"$cmd\"\n";
   }
 }
 
