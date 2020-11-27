@@ -13,8 +13,11 @@ my $SCALE = {
   FEET => {low=>0, high=>20},
 };
 
-my $DESIRED_ERROR = "0.0003";
+my $DESIRED_ERROR = 0.0003;
 my $MAX_EPOCHS = 50000;
+my $HIDDEN_NODES = 8;
+my $SHUFFLE_DATA = 1;
+my $ACTIVATION_FUNCTION = FANN_SIGMOID_SYMMETRIC;
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-radar-feet";
 my $RADAR_CACHE = "$ENV{HOME}/.cache/ddr-radar-feet/radar-training-data";
@@ -216,15 +219,15 @@ sub createNeuralNet($$){
   my ($game, $diff) = @_;
   my $neuralNetCacheFile = "$CACHE_DIR/neuralnet-$game-$diff.ann";
   run "rm", "-f", $neuralNetCacheFile;
-  my $ann = AI::FANN->new_standard(5, 8, 1);
+  my $ann = AI::FANN->new_standard(5, $HIDDEN_NODES, 1);
 
-  $ann->hidden_activation_function(FANN_SIGMOID_SYMMETRIC);
-  $ann->output_activation_function(FANN_SIGMOID_SYMMETRIC);
+  $ann->hidden_activation_function($ACTIVATION_FUNCTION);
+  $ann->output_activation_function($ACTIVATION_FUNCTION);
 
   my $data = loadNeuralNetTrainingData($game, $diff);
 
   my $trainData = AI::FANN::TrainData->new(@$data);
-  $trainData->shuffle();
+  $trainData->shuffle() if $SHUFFLE_DATA;
 
   $ann->train_on_data($trainData, $MAX_EPOCHS, 1000, $DESIRED_ERROR);
 
