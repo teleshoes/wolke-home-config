@@ -26,12 +26,39 @@ sub main(@){
 
 sub formatCurSongInfo($){
   my ($info) = @_;
-  my $fmt = "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
-  $fmt .= "BEST: $$info{ddrnameBestScore}\n";
-  $fmt .= "RADAR: $$info{simfileRadar}\n";
-  for my $scoreAtts(@{$$info{xmlScores}}){
-    $fmt .= "$$scoreAtts{DDRA_SCORE}\n";
+  my $fmt = "\n";
+  $fmt .= readProcLine("date") . "\n";
+  $fmt .= "\n";
+  $fmt .= sprintf("%s\n%-7s %-9s %s\n",
+            $$info{songNameId},
+            $$info{ddrGame},
+            $$info{ddrDiff},
+            $$info{ddrnameBestScore},
+  );
+
+  $fmt .= "$$info{simfileRadar}\n";
+  $fmt .= "\n";
+
+  my @xmlScores = @{$$info{xmlScores}};
+  for(my $i=0; $i<$LIMIT; $i++){
+    my $scoreAtts;
+    if($i < @xmlScores){
+      $scoreAtts = $xmlScores[$i];
+    }else{
+      $scoreAtts = {map {$_ => ""} @ATTS};
+    }
+    my $passFail = $$scoreAtts{PASS_FAIL};
+    $passFail = "p" if $passFail =~ /^passed$/i;
+    $passFail = "F" if $passFail =~ /^failed$/i;
+    $fmt .= sprintf("  %s   %-7s %s %s\n    %s\n",
+              $$scoreAtts{PASS_FAIL},
+              $$scoreAtts{DDRA_SCORE},
+              $$scoreAtts{PERCENT_SCORE},
+              $$scoreAtts{FC_MAYBE},
+              $$scoreAtts{DATETIME},
+    );
   }
+
   return $fmt;
 }
 
