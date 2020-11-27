@@ -240,11 +240,27 @@ sub main(@){
     die "ERROR: SIMFILE is required for $cmd\n" if not defined $simfile;
 
     my @radars = map {parseRadarLine($_)} runSimfileRadar($simfile);
+    my %replacementGameDiffKeys;
     for my $r(@radars){
       my ($game, $diff) = ($$r{GAME}, $$r{DIFF});
-      my $feet = runNeuralNet($game, $diff, $$r{S}, $$r{V}, $$r{A}, $$r{F}, $$r{C});
+
+      my $neuralnetGame = $game;
+      $neuralnetGame = "singles" if $neuralnetGame !~ /^($okGames)$/;
+      my $neuralnetDiff = $diff;
+      $neuralnetDiff = "expert" if $neuralnetDiff !~ /^($okDiffs)$/;
+      if($game ne $neuralnetGame or $diff ne $neuralnetDiff){
+        $replacementGameDiffKeys{"$game-$diff"} = "$neuralnetGame-$neuralnetDiff";
+      }
+
+      my $feet = runNeuralNet($neuralnetGame, $neuralnetDiff,
+        $$r{S}, $$r{V}, $$r{A}, $$r{F}, $$r{C});
       printf "%-17s %05.2f\n", "$game-$diff", $feet;
     }
+
+    for my $actual(sort keys %replacementGameDiffKeys){
+      my $replacement = $replacementGameDiffKeys{$actual};
+      print STDERR "WARNING: using neuralnet \"$replacement\" for \"$actual\"\n";
+    };
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
   }
