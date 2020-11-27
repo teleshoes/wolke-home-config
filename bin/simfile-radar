@@ -32,6 +32,7 @@ sub convertValuesByBeatToValuesByRow($);
 sub gameDiffKey($$);
 sub parseGameDiffKey($);
 sub getExpandedNoteRows($);
+sub formatTimeMSS($);
 sub readFile($);
 
 my $DEFAULT_MACHINE = "DDRA";
@@ -115,6 +116,8 @@ my $usage = "Usage:
       song duration, in fractional seconds
       this is calculated using BPM_ROWS, STOP_ROWS and SONG_ROW_COUNT
       e.g.: 121.000666666667
+    SONG_DUR_FMT
+      SONG_DUR formatted M:SS (e.g.: 2:01)
     BPM_ROWS
       a comma-separated list of ROW=BPM pairs
       (this is converted from the BEAT=BPM pairs stored in the simfile)
@@ -781,6 +784,7 @@ sub calculateNoteSetStats($$){
   };
 
   #meaningful calculated values
+  $$s{SONG_DUR_FMT}              = formatTimeMSS $$s{SONG_DUR};
   $$s{BPM_ROWS}                  = join ",", map {"$_=$$bpmsByRow{$_}"} sort {$a <=> $b} keys %$bpmsByRow;
   $$s{STOP_ROWS}                 = join ",", map {"$_=$$stopsByRow{$_}"} sort {$a <=> $b} keys %$stopsByRow;
   $$s{SONG_BEAT_COUNT}           = int($$s{SONG_ROW_COUNT}/$ROWS_PER_BEAT + 0.5);
@@ -1251,6 +1255,13 @@ sub getCacheDir($){
   $fileName =~ s/-*$//g;
 
   return "$CACHE_BASE_DIR/$fileName-$checksum";
+}
+
+sub formatTimeMSS($){
+  my ($time) = @_;
+  my $m = int($time/60.0);
+  my $s = $time - $m*60;
+  return sprintf "%d:%02d", $m, $s;
 }
 
 sub readFile($){
