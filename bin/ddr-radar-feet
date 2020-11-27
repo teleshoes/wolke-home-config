@@ -31,6 +31,7 @@ sub ensureRadarCache();
 sub generateRadarCache();
 sub addSimfileToRadarCache($);
 sub readRadarCache();
+sub parseRadarLine($);
 sub readZeniusFeetFromSongList();
 
 sub ensureNeuralNet($$);
@@ -219,32 +220,41 @@ sub readRadarCache(){
 
   my $radar = {};
   for my $line(@lines){
-    if($line =~ /^
-                (?<game>       [a-zA-Z0-9\-]+)
-       \s*\|\s* (?<diff>       \w+)
-       \s*\|\s* S(?<S>         \d+)
-       \s*\|\s* V(?<V>         \d+)
-       \s*\|\s* A(?<A>         \d+)
-       \s*\|\s* F(?<F>         \d+)
-       \s*\|\s* C(?<C>         \d+)
-       \s*\|\s* (?<songNameId> [a-z0-9\-]+)
-    $/x){
-      my $gameDiffKey = $+{game} . "-" . $+{diff};
-      $$radar{$+{songNameId}} = {} if not defined $$radar{$+{songNameId}};
-      $$radar{$+{songNameId}}{$gameDiffKey} = {
-        GAME => $+{game},
-        DIFF => $+{diff},
-        S    => $+{S},
-        V    => $+{V},
-        A    => $+{A},
-        F    => $+{F},
-        C    => $+{C},
-      };
-    }else{
-      die "ERROR: malformed line in $RADAR_CACHE\n$line";
-    }
+    my $r = parseRadarLine($line);
+    die "ERROR: malformed line in $RADAR_CACHE\n$line" if not defined $r;
+
+    my $songNameId = $$r{SONG_NAME_ID};
+    my $gameDiffKey = $$r{GAME} . "-" . $$r{DIFF};
+    $$radar{$songNameId} = {} if not defined $$radar{$songNameId};
+    $$radar{$songNameId}{$gameDiffKey} = $r;
   }
   return $radar;
+}
+sub parseRadarLine($){
+  my ($line) = @_;
+  if($line =~ /^
+              (?<game>       [a-zA-Z0-9\-]+)
+     \s*\|\s* (?<diff>       \w+)
+     \s*\|\s* S(?<S>         \d+)
+     \s*\|\s* V(?<V>         \d+)
+     \s*\|\s* A(?<A>         \d+)
+     \s*\|\s* F(?<F>         \d+)
+     \s*\|\s* C(?<C>         \d+)
+     \s*\|\s* (?<songNameId> [a-z0-9\-]+)
+  $/x){
+    return {
+      SONG_NAME_ID => $+{songNameId},
+      GAME         => $+{game},
+      DIFF         => $+{diff},
+      S            => $+{S},
+      V            => $+{V},
+      A            => $+{A},
+      F            => $+{F},
+      C            => $+{C},
+    };
+  }else{
+    return undef;
+  }
 }
 
 sub readZeniusFeetFromSongList(){
