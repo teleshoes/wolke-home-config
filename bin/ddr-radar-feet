@@ -72,17 +72,48 @@ my $usage = "Usage:
       do nothing
     otherwise:
       same as: $EXEC --calculate-training-radar-data
+
+  $EXEC --build-neuralnet GAME DIFF
+    -remove cached neuralnet: $CACHE_DIR/neuralnet-GAME-DIFF.ann
+    -ensure training radar data ($EXEC --ensure-training-radar-data)
+    -extract output data from $DDRNAME_SONGLIST
+    -create a new FANN neural net:
+       -input nodes    = 5 (STREAM, VOLTAGE, AIR, FREEZE, CHAOS)
+       -output nodes   = 1 (FEET)
+       -hidden notes   = $HIDDEN_NODES
+       -activation fct = $ACTIVATION_FUNCTION
+       -error          = $DESIRED_ERROR
+       -max epochs     = $MAX_EPOCHS
+       -shuffle data   = " . ($SHUFFLE_DATA ? "yes" : "no") . "
+    -train on the data set
+    -store the neuralnet in $CACHE_DIR/neuralnet-GAME-DIFF.ann
+    NOTE: this is cpu-intensive, but fairly fast- currently takes 1s ~ 15s
+
+  $EXEC --ensure-neuralnet GAME DIFF
+    if neuralnet $CACHE_DIR/neuralnet-GAME-DIFF.ann exists:
+      do nothing
+    otherwise:
+      same as: $EXEC --build-neuralnet GAME DIFF
 ";
 
 my $CMD_CALCULATE_TRAINING_RADAR_DATA = "calculate-training-radar-data";
 my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
+my $CMD_BUILD_NEURAL_NET = "build-neuralnet";
+my $CMD_ENSURE_NEURAL_NET = "ensure-neuralnet";
 my $OK_CMDS = join "|", (
   $CMD_CALCULATE_TRAINING_RADAR_DATA,
   $CMD_ENSURE_TRAINING_RADAR_DATA,
+  $CMD_BUILD_NEURAL_NET,
+  $CMD_ENSURE_NEURAL_NET,
 );
+
+my $OK_GAMES = join "|", qw(singles doubles);
+my $OK_DIFFS = join "|", qw(beginner basic difficulty expert challenge);
 
 sub main(@){
   my $cmd = undef;
+  my $game = undef;
+  my $diff = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -90,6 +121,10 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^--($OK_CMDS)$/){
       $cmd = $1
+    }elsif($arg =~ /^($OK_GAMES)$/){
+      $game = $1;
+    }elsif($arg =~ /^($OK_DIFFS)$/){
+      $diff = $1;
     }else{
       die $usage;
     }
@@ -99,6 +134,14 @@ sub main(@){
     generateRadarCache();
   }elsif($cmd eq $CMD_ENSURE_TRAINING_RADAR_DATA){
     ensureRadarCache();
+  }elsif($cmd eq $CMD_BUILD_NEURAL_NET){
+    die "ERROR: GAME is required for $cmd\n" if not defined $game;
+    die "ERROR: DIFF is required for $cmd\n" if not defined $diff;
+    createNeuralNet($game, $diff);
+  }elsif($cmd eq $CMD_ENSURE_NEURAL_NET){
+    die "ERROR: GAME is required for $cmd\n" if not defined $game;
+    die "ERROR: DIFF is required for $cmd\n" if not defined $diff;
+    ensureNeuralNet($game, $diff);
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
   }
