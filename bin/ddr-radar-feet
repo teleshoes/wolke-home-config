@@ -28,7 +28,9 @@ sub addSimfileToRadarCache($);
 sub readRadarCache();
 sub readZeniusFeetFromSongList();
 
+sub ensureNeuralNet($$);
 sub createNeuralNet($$);
+sub loadNeuralNet($$);
 sub loadNeuralNetTrainingData($$);
 sub getScaledValue($$);
 
@@ -168,24 +170,37 @@ sub readZeniusFeetFromSongList(){
   return $zeniusFeet;
 }
 
-sub createNeuralNet($$){
+sub ensureNeuralNet($$){
   my ($game, $diff) = @_;
   my $neuralNetCacheFile = "$CACHE_DIR/neuralnet-$game-$diff.ann";
   if(not -f $neuralNetCacheFile){
-    my $ann = AI::FANN->new_standard(5, 8, 1);
-
-    $ann->hidden_activation_function(FANN_SIGMOID_SYMMETRIC);
-    $ann->output_activation_function(FANN_SIGMOID_SYMMETRIC);
-
-    my $data = loadNeuralNetTrainingData($game, $diff);
-
-    my $trainData = AI::FANN::TrainData->new(@$data);
-    $trainData->shuffle();
-
-    $ann->train_on_data($trainData, $MAX_EPOCHS, 1000, $DESIRED_ERROR);
-
-    $ann->save($neuralNetCacheFile);
+    createNeuralNet($game, $diff);
   }
+}
+
+sub createNeuralNet($$){
+  my ($game, $diff) = @_;
+  my $neuralNetCacheFile = "$CACHE_DIR/neuralnet-$game-$diff.ann";
+  run "rm", "-f", $neuralNetCacheFile;
+  my $ann = AI::FANN->new_standard(5, 8, 1);
+
+  $ann->hidden_activation_function(FANN_SIGMOID_SYMMETRIC);
+  $ann->output_activation_function(FANN_SIGMOID_SYMMETRIC);
+
+  my $data = loadNeuralNetTrainingData($game, $diff);
+
+  my $trainData = AI::FANN::TrainData->new(@$data);
+  $trainData->shuffle();
+
+  $ann->train_on_data($trainData, $MAX_EPOCHS, 1000, $DESIRED_ERROR);
+
+  $ann->save($neuralNetCacheFile);
+}
+
+sub loadNeuralNet($$){
+  my ($game, $diff) = @_;
+  my $neuralNetCacheFile = "$CACHE_DIR/neuralnet-$game-$diff.ann";
+  ensureNeuralNet($game, $diff);
   return AI::FANN->new_from_file($neuralNetCacheFile);
 }
 
