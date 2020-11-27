@@ -30,19 +30,41 @@ my $usage = "Usage:
     extract+print info with `ddr-stepmania-score`, `ddrname`, and `simfile-radar`
 
   OPTS
+    --monitor
+      loop forever, using inotifywait to efficiently wait on I/O writes to:
+        $CURSONG_FILE
+        $XML_UPLOAD_DIR/
+      when either is written to (current song changes or new XML score appears),
+        do the same as `$0`
 ";
 
 sub main(@){
+  my $monitor = 0;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(--monitor)$/){
+      $monitor = 1;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
   }
-  print formatCurSongInfo(getCurSongInfo());
+
+  if($monitor){
+    while(1){
+      print formatCurSongInfo(getCurSongInfo());
+      system "inotifywait",
+        "-q", "-q",          #silent
+        "-e", "close_write", #directory or file written
+        $CURSONG_FILE,       #song selected in stepmania
+        $XML_UPLOAD_DIR,     #new score file appeared in stepmania
+      ;
+    }
+  }else{
+    print formatCurSongInfo(getCurSongInfo());
+  }
 }
 
 sub formatCurSongInfo($){
