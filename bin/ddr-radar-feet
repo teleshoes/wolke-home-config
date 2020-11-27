@@ -31,6 +31,7 @@ sub ensureRadarCache();
 sub generateRadarCache();
 sub addSimfileToRadarCache($);
 sub readRadarCache();
+sub runSimfileRadar($@);
 sub parseRadarLine($);
 sub readZeniusFeetFromSongList();
 
@@ -199,16 +200,7 @@ sub generateRadarCache(){
 }
 sub addSimfileToRadarCache($){
   my ($simfile) = @_;
-  my @lines = readProcLines(
-    "simfile-radar",
-    "--format="
-      . "%-7s-GAME"
-      . " | %-10s-DIFF"
-      . " | S%-3d-STREAM | V%-3d-VOLTAGE | A%-3d-AIR | F%-3d-FREEZE | C%-3d-CHAOS"
-      . " | %SONG_NAME_ID"
-      . "%n",
-    $simfile,
-  );
+  my @lines = runSimfileRadar($simfile);
   open FH, ">> $RADAR_CACHE" or die "ERROR: could not append to $RADAR_CACHE\n$!\n";
   print FH $_ foreach @lines;
   close FH;
@@ -229,6 +221,21 @@ sub readRadarCache(){
     $$radar{$songNameId}{$gameDiffKey} = $r;
   }
   return $radar;
+}
+sub runSimfileRadar($@){
+  my ($simfile, @args) = @_;
+  my @lines = readProcLines(
+    "simfile-radar",
+    "--format="
+      . "%-7s-GAME"
+      . " | %-10s-DIFF"
+      . " | S%-3d-STREAM | V%-3d-VOLTAGE | A%-3d-AIR | F%-3d-FREEZE | C%-3d-CHAOS"
+      . " | %SONG_NAME_ID"
+      . "%n",
+    $simfile,
+    @args,
+  );
+  return @lines;
 }
 sub parseRadarLine($){
   my ($line) = @_;
