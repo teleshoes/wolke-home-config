@@ -8,11 +8,14 @@ my $LIMIT = 10;
 sub formatCurSongInfo($);
 sub getCurSongInfo();
 sub getSongInfo($$$);
+sub getDDRStepmaniaScoreAtts($@);
 sub findXmlFiles($$$);
 sub readProcLine(@);
 
 my $CURSONG_FILE = "$ENV{HOME}/.cache/stepmania-selected-song";
 my $XML_UPLOAD_DIR = "$ENV{HOME}/.stepmania/Save/Upload";
+
+my @ATTS = qw(DATETIME PASS_FAIL DDRA_SCORE PERCENT_SCORE FC_MAYBE);
 
 sub main(@){
   print formatCurSongInfo(getCurSongInfo());
@@ -20,7 +23,11 @@ sub main(@){
 
 sub formatCurSongInfo($){
   my ($info) = @_;
-  return "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
+  my $fmt = "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
+  for my $scoreAtts(@{$$info{xmlScores}}){
+    $fmt .= "$$scoreAtts{DDRA_SCORE}\n";
+  }
+  return $fmt;
 }
 
 sub getCurSongInfo(){
@@ -53,9 +60,38 @@ sub getSongInfo($$$){
     @xmlFiles = @xmlFiles[0..($LIMIT-1)];
   }
 
-  $$info{xmlFiles} = [@xmlFiles];
+  my $xmlScores = [];
+  for my $xmlFile(@xmlFiles){
+    my $scoreAtts = getDDRStepmaniaScoreAtts($xmlFile, @ATTS);
+    push @$xmlScores, $scoreAtts;
+  }
+
+  $$info{xmlScores} = $xmlScores;
 
   return $info;
+}
+
+sub getDDRStepmaniaScoreAtts($@){
+  my ($xmlFile, @atts) = @_;
+
+  my $format = join("###", map {"%$_"} @atts) . "%n";
+  my $cmd = "ddr-stepmania-score --no-filename \"$xmlFile\" --format=\"$format\"";
+
+  my $out = `$cmd`;
+  chomp $out;
+
+  my @vals = split /###/, $out;
+  if(@vals == @atts - 1){
+    push @vals, "";
+  }
+  if(@vals != @atts){
+    die "ERROR: could not parse \"$cmd\" output: \"$out\"\n";
+  }
+  my $attVals = {};
+  for(my $i=0; $i<@atts; $i++){
+    $$attVals{$atts[$i]} = $vals[$i];
+  }
+  return $attVals;
 }
 
 sub findXmlFiles($$$){
