@@ -2,6 +2,15 @@
 use strict;
 use warnings;
 
+my $SCALE = {
+  S    => {low=>0, high=>200},
+  V    => {low=>0, high=>200},
+  A    => {low=>0, high=>200},
+  F    => {low=>0, high=>200},
+  C    => {low=>0, high=>200},
+  FEET => {low=>0, high=>20},
+};
+
 my $CACHE_DIR = "$ENV{HOME}/.cache/ddr-radar-feet";
 my $RADAR_CACHE = "$ENV{HOME}/.cache/ddr-radar-feet/radar-training-data";
 
@@ -14,6 +23,9 @@ sub generateRadarCache();
 sub addSimfileToRadarCache($);
 sub readRadarCache();
 sub readZeniusFeetFromSongList();
+
+sub loadNeuralNetTrainingData($$);
+sub getScaledValue($$);
 
 sub run(@);
 sub readProcLine(@);
@@ -134,6 +146,55 @@ sub readZeniusFeetFromSongList(){
     }
   }
   return $zeniusFeet;
+}
+
+sub loadNeuralNetTrainingData($$){
+  my ($game, $diff) = @_;
+  my $data = [];
+
+  ensureRadarCache();
+  my $radar = readRadarCache();
+  my $zeniusFeet = readZeniusFeetFromSongList();
+
+  for my $songNameId(sort keys %$radar){
+    for my $gameDiffKey(sort keys %{$$radar{$songNameId}}){
+      my $r = $$radar{$songNameId}{$gameDiffKey};
+      next if not defined $$zeniusFeet{$songNameId};
+      next if not defined $$zeniusFeet{$songNameId}{$gameDiffKey};
+
+      next if $$r{GAME} !~ /^$game$/i;
+      next if $$r{DIFF} !~ /^$diff$/i;
+
+      my $feet = $$zeniusFeet{$songNameId}{$gameDiffKey};
+      next if $feet !~ /^\d+$/;
+
+      my $input = [
+        getScaledValue($$r{S}, $$SCALE{S}),
+        getScaledValue($$r{V}, $$SCALE{V}),
+        getScaledValue($$r{A}, $$SCALE{A}),
+        getScaledValue($$r{F}, $$SCALE{F}),
+        getScaledValue($$r{C}, $$SCALE{C}),
+      ];
+      my $output = [
+        getScaledValue($feet,      $$SCALE{FEET}),
+      ];
+      push @$data, $input;
+      push @$data, $output;
+    }
+  }
+
+  if(@$data == 0){
+    die "ERROR: no data found for $game-$diff\n";
+  }
+  return $data;
+}
+
+sub getScaledValue($$){
+  my ($val, $valScale) = @_;
+  my $low = $$valScale{low};
+  my $high = $$valScale{high};
+
+  return ($val-$low) / ($high - $low);
 }
 
 sub run(@){
