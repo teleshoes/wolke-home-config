@@ -29,6 +29,8 @@ my $TRAINING_SIMFILES_PATTERN = "$SONGS_BASE_DIR/DDR_*/*/*.sm";
 my @ALL_GAMES = qw(singles doubles);
 my @ALL_DIFFS = qw(beginner basic difficult expert challenge);
 
+my @SKIP_GAME_DIFF_KEYS = qw(doubles-beginner);
+
 sub runNeuralNet($$$$$$$);
 sub ensureRadarCache();
 sub generateRadarCache();
@@ -65,6 +67,7 @@ my $usage = "Usage:
   $EXEC --ensure | --cache
     -ensure training radar data is cached ($EXEC --ensure-training-radar-data)
     -for each GAME (@ALL_GAMES) and DIFF (@ALL_DIFFS):
+      -skip if GAME-DIFF is: @SKIP_GAME_DIFF_KEYS
       -ensure neuralnet is built ($EXEC --ensure-neuralnet GAME DIFF)
 
   $EXEC GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS
@@ -195,8 +198,10 @@ sub main(@){
 
   if($cmd eq $CMD_ENSURE){
     ensureRadarCache();
+    my %okSkips = map {$_=>1} @SKIP_GAME_DIFF_KEYS;
     for my $game(@ALL_GAMES){
       for my $diff(@ALL_DIFFS){
+        next if defined $okSkips{"$game-$diff"};
         ensureNeuralNet($game, $diff);
       }
     }
