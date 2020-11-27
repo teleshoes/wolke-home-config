@@ -72,6 +72,14 @@ my $usage = "Usage:
     -format FEET as %04.1f
     -print \"FEET\" (e.g.; 15.3)
 
+  $EXEC --run-simfile-all SIMFILE
+    -extract all GAME/DIFF from SIMFILE
+    -for each GAME DIFF:
+      -extract STREAM/VOLTAGE/AIR/FREEZE/CHAOS from SIMFILE with simfile-radar
+      -calculate FEET (same as: $EXEC --run-inputs GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS)
+      -format FEET as %04.1f
+      -print \"GAME-DIFF FEET\" (e.g.: singles-expert 15.3)
+
   $EXEC --calculate-training-radar-data
     -remove cached radar training data
       $RADAR_CACHE
@@ -115,6 +123,7 @@ my $usage = "Usage:
 
 my $CMD_RUN_INPUTS = "run-inputs";
 my $CMD_RUN_SIMFILE = "run-simfile";
+my $CMD_RUN_SIMFILE_ALL = "run-simfile-all";
 my $CMD_CALCULATE_TRAINING_RADAR_DATA = "calculate-training-radar-data";
 my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
 my $CMD_BUILD_NEURAL_NET = "build-neuralnet";
@@ -122,6 +131,7 @@ my $CMD_ENSURE_NEURAL_NET = "ensure-neuralnet";
 my @ALL_CMDS = (
   $CMD_RUN_INPUTS,
   $CMD_RUN_SIMFILE,
+  $CMD_RUN_SIMFILE_ALL,
   $CMD_CALCULATE_TRAINING_RADAR_DATA,
   $CMD_ENSURE_TRAINING_RADAR_DATA,
   $CMD_BUILD_NEURAL_NET,
@@ -201,6 +211,15 @@ sub main(@){
     my $r = $radars[0];
     my $feet = runNeuralNet($game, $diff, $$r{S}, $$r{V}, $$r{A}, $$r{F}, $$r{C});
     printf "%05.2f\n", $feet;
+  }elsif($cmd eq $CMD_RUN_SIMFILE_ALL){
+    die "ERROR: SIMFILE is required for $cmd\n" if not defined $simfile;
+
+    my @radars = map {parseRadarLine($_)} runSimfileRadar($simfile);
+    for my $r(@radars){
+      my ($game, $diff) = ($$r{GAME}, $$r{DIFF});
+      my $feet = runNeuralNet($game, $diff, $$r{S}, $$r{V}, $$r{A}, $$r{F}, $$r{C});
+      printf "%-17s %05.2f\n", "$game-$diff", $feet;
+    }
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
   }
