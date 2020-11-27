@@ -8,6 +8,7 @@ my $LIMIT = 10;
 sub formatCurSongInfo($);
 sub getCurSongInfo();
 sub getSongInfo($$$);
+sub ddrnameBestScore($$$);
 sub getDDRStepmaniaScoreAtts($@);
 sub findXmlFiles($$$);
 sub readProcLine(@);
@@ -24,6 +25,7 @@ sub main(@){
 sub formatCurSongInfo($){
   my ($info) = @_;
   my $fmt = "$$info{songNameId}  $$info{ddrGame}   $$info{ddrDiff}\n";
+  $fmt .= "BEST: $$info{ddrnameBestScore}\n";
   for my $scoreAtts(@{$$info{xmlScores}}){
     $fmt .= "$$scoreAtts{DDRA_SCORE}\n";
   }
@@ -68,7 +70,24 @@ sub getSongInfo($$$){
 
   $$info{xmlScores} = $xmlScores;
 
+  $$info{ddrnameBestScore} = ddrnameBestScore(
+    $$info{songNameId}, $$info{ddrGame}, $$info{ddrDiff});
+
   return $info;
+}
+
+sub ddrnameBestScore($$$){
+  my ($songNameId, $ddrGame, $ddrDiff) = @_;
+  return readProcLine("ddrname",
+    "--scorestats",
+    "--song", "$songNameId",
+    "--$ddrGame",
+    "--$ddrDiff",
+    "--no-group-buckets",
+    "--format", "%{score} (%{date})",
+    "--combine-machines",
+    "--best-by-bucket",
+  );
 }
 
 sub getDDRStepmaniaScoreAtts($@){
