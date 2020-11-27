@@ -57,6 +57,11 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
+  $EXEC --run-inputs GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS
+    -ensure neuralnet for GAME+DIFF ($EXEC --ensure-neuralnet GAME DIFF)
+    -write input nodes (STREAM/VOLTAGE/AIR/FREEZE/CHAOS) nodes and read output node (FEET)
+    -format+print FEET as %04.1f  (e.g.: 15.3)
+
   $EXEC --calculate-training-radar-data
     -remove cached radar training data
       $RADAR_CACHE
@@ -98,11 +103,13 @@ my $usage = "Usage:
       same as: $EXEC --build-neuralnet GAME DIFF
 ";
 
+my $CMD_RUN_INPUTS = "run-inputs";
 my $CMD_CALCULATE_TRAINING_RADAR_DATA = "calculate-training-radar-data";
 my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
 my $CMD_BUILD_NEURAL_NET = "build-neuralnet";
 my $CMD_ENSURE_NEURAL_NET = "ensure-neuralnet";
 my $OK_CMDS = join "|", (
+  $CMD_RUN_INPUTS,
   $CMD_CALCULATE_TRAINING_RADAR_DATA,
   $CMD_ENSURE_TRAINING_RADAR_DATA,
   $CMD_BUILD_NEURAL_NET,
@@ -116,6 +123,7 @@ sub main(@){
   my $cmd = undef;
   my $game = undef;
   my $diff = undef;
+  my @inputVals;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -127,10 +135,14 @@ sub main(@){
       $game = $1;
     }elsif($arg =~ /^($OK_DIFFS)$/){
       $diff = $1;
+    }elsif($arg =~ /^(\d+|\d*\.\d+)$/){
+      push @inputVals, $1;
     }else{
       die $usage;
     }
   }
+
+  my $inputCount = @inputVals;
 
   if($cmd eq $CMD_CALCULATE_TRAINING_RADAR_DATA){
     generateRadarCache();
@@ -144,6 +156,13 @@ sub main(@){
     die "ERROR: GAME is required for $cmd\n" if not defined $game;
     die "ERROR: DIFF is required for $cmd\n" if not defined $diff;
     ensureNeuralNet($game, $diff);
+  }elsif($cmd eq $CMD_RUN_INPUTS){
+    die "ERROR: GAME is required for $cmd\n" if not defined $game;
+    die "ERROR: DIFF is required for $cmd\n" if not defined $diff;
+    die "ERROR: insufficient radar inputs (expected 5, got $inputCount)\n" if $inputCount != 5;
+    my ($s, $v, $a, $f, $c) = @inputVals;
+    my $feet = runNeuralNet($game, $diff, $s, $v, $a, $f, $c);
+    printf "%05.2f\n", $feet;
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
   }
