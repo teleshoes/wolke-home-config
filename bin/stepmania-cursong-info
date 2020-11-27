@@ -12,6 +12,7 @@ sub ddrnameBestScore($$$);
 sub simfileRadar($$$);
 sub getDDRStepmaniaScoreAtts($@);
 sub findXmlFiles($$$);
+sub md5sum($);
 sub readProcLine(@);
 
 my $CURSONG_FILE = "$ENV{HOME}/.cache/stepmania-selected-song";
@@ -54,7 +55,11 @@ sub main(@){
 
   if($monitor){
     while(1){
+      my $md5 = md5sum $CURSONG_FILE;
       print formatCurSongInfo(getCurSongInfo());
+      if($md5 ne md5sum $CURSONG_FILE){
+        next;
+      }
       system "inotifywait",
         "-q", "-q",          #silent
         "-e", "close_write", #directory or file written
@@ -229,6 +234,18 @@ sub findXmlFiles($$$){
   chomp foreach @files;
   @files = grep {$_ =~ /\.xml$/i} @files;
   return @files;
+}
+
+sub md5sum($){
+  open CMD, "-|", "md5sum", $_[0];
+  my $md5sum = <CMD>;
+  close CMD;
+  chomp $md5sum;
+  if($md5sum =~ /^([0-9a-f]{32})(\s.*|$)$/){
+    return $1;
+  }else{
+    return undef;
+  }
 }
 
 sub readProcLine(@){
