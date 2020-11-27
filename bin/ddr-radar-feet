@@ -66,6 +66,12 @@ my $usage = "Usage:
     -format FEET as %04.1f
     -print \"FEET\" (e.g.; 15.3)
 
+  $EXEC --run-simfile GAME DIFF SIMFILE
+    -extract STREAM/VOLTAGE/AIR/FREEZE/CHAOS from SIMFILE with simfile-radar
+    -calculate FEET (same as: $EXEC --run-inputs GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS)
+    -format FEET as %04.1f
+    -print \"FEET\" (e.g.; 15.3)
+
   $EXEC --calculate-training-radar-data
     -remove cached radar training data
       $RADAR_CACHE
@@ -108,12 +114,14 @@ my $usage = "Usage:
 ";
 
 my $CMD_RUN_INPUTS = "run-inputs";
+my $CMD_RUN_SIMFILE = "run-simfile";
 my $CMD_CALCULATE_TRAINING_RADAR_DATA = "calculate-training-radar-data";
 my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
 my $CMD_BUILD_NEURAL_NET = "build-neuralnet";
 my $CMD_ENSURE_NEURAL_NET = "ensure-neuralnet";
 my @ALL_CMDS = (
   $CMD_RUN_INPUTS,
+  $CMD_RUN_SIMFILE,
   $CMD_CALCULATE_TRAINING_RADAR_DATA,
   $CMD_ENSURE_TRAINING_RADAR_DATA,
   $CMD_BUILD_NEURAL_NET,
@@ -131,6 +139,7 @@ sub main(@){
   my $cmd = undef;
   my $game = undef;
   my $diff = undef;
+  my $simfile = undef;
   my @inputVals;
   while(@_ > 0){
     my $arg = shift;
@@ -145,6 +154,8 @@ sub main(@){
       $diff = $1;
     }elsif($arg =~ /^(\d+|\d*\.\d+)$/){
       push @inputVals, $1;
+    }elsif(-f $arg){
+      $simfile = $arg;
     }else{
       die "$usage\nERROR: unknown arg \"$arg\"\n";
     }
@@ -177,6 +188,18 @@ sub main(@){
     die "ERROR: insufficient radar inputs (expected 5, got $inputCount)\n" if $inputCount != 5;
     my ($s, $v, $a, $f, $c) = @inputVals;
     my $feet = runNeuralNet($game, $diff, $s, $v, $a, $f, $c);
+    printf "%05.2f\n", $feet;
+  }elsif($cmd eq $CMD_RUN_SIMFILE){
+    die "ERROR: GAME is required for $cmd\n" if not defined $game;
+    die "ERROR: DIFF is required for $cmd\n" if not defined $diff;
+    die "ERROR: SIMFILE is required for $cmd\n" if not defined $simfile;
+
+    my @radars = map {parseRadarLine($_)} runSimfileRadar($simfile, "--$game", "--$diff");
+    die "ERROR: too many simfile-radar results for $game-$diff for $simfile\n" if @radars > 1;
+    die "ERROR: no simfile-radar results for $game-$diff for $simfile\n" if @radars < 1;
+
+    my $r = $radars[0];
+    my $feet = runNeuralNet($game, $diff, $$r{S}, $$r{V}, $$r{A}, $$r{F}, $$r{C});
     printf "%05.2f\n", $feet;
   }else{
     die "ERROR: unknown cmd \"$cmd\"\n";
