@@ -26,6 +26,9 @@ my $SONGS_BASE_DIR = "$ENV{HOME}/.stepmania/Songs";
 my $DDRNAME_SONGLIST = "$ENV{HOME}/.config/ddrname-songlist";
 my $TRAINING_SIMFILES_PATTERN = "$SONGS_BASE_DIR/DDR_*/*/*.sm";
 
+my @ALL_GAMES = qw(singles doubles);
+my @ALL_DIFFS = qw(beginner basic difficult expert challenge);
+
 sub runNeuralNet($$$$$$$);
 sub ensureRadarCache();
 sub generateRadarCache();
@@ -58,6 +61,11 @@ my $usage = "Usage:
 
   $EXEC -h|--help
     show this message
+
+  $EXEC --ensure | --cache
+    -ensure training radar data is cached ($EXEC --ensure-training-radar-data)
+    -for each GAME (@ALL_GAMES) and DIFF (@ALL_DIFFS):
+      -ensure neuralnet is built ($EXEC --ensure-neuralnet GAME DIFF)
 
   $EXEC GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS
   $EXEC --run-inputs GAME DIFF STREAM VOLTAGE AIR FREEZE CHAOS
@@ -123,6 +131,7 @@ my $usage = "Usage:
       same as: $EXEC --build-neuralnet GAME DIFF
 ";
 
+my $CMD_ENSURE = "ensure";
 my $CMD_RUN_INPUTS = "run-inputs";
 my $CMD_RUN_SIMFILE = "run-simfile";
 my $CMD_RUN_SIMFILE_ALL = "run-simfile-all";
@@ -131,6 +140,7 @@ my $CMD_ENSURE_TRAINING_RADAR_DATA = "ensure-training-radar-data";
 my $CMD_BUILD_NEURAL_NET = "build-neuralnet";
 my $CMD_ENSURE_NEURAL_NET = "ensure-neuralnet";
 my @ALL_CMDS = (
+  $CMD_ENSURE,
   $CMD_RUN_INPUTS,
   $CMD_RUN_SIMFILE,
   $CMD_RUN_SIMFILE_ALL,
@@ -139,9 +149,6 @@ my @ALL_CMDS = (
   $CMD_BUILD_NEURAL_NET,
   $CMD_ENSURE_NEURAL_NET,
 );
-
-my @ALL_GAMES = qw(singles doubles);
-my @ALL_DIFFS = qw(beginner basic difficult expert challenge);
 
 sub main(@){
   my $okCmds = join "|", @ALL_CMDS;
@@ -160,6 +167,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^--($okCmds)$/){
       $cmd = $1
+    }elsif($arg =~ /^(--cache)$/){
+      $cmd = $CMD_ENSURE;
     }elsif($arg =~ /^($okGames)$/){
       $game = $1;
     }elsif($arg =~ /^($okDiffs)$/){
@@ -184,7 +193,14 @@ sub main(@){
 
   die $usage if not defined $cmd;
 
-  if($cmd eq $CMD_CALCULATE_TRAINING_RADAR_DATA){
+  if($cmd eq $CMD_ENSURE){
+    ensureRadarCache();
+    for my $game(@ALL_GAMES){
+      for my $diff(@ALL_DIFFS){
+        ensureNeuralNet($game, $diff);
+      }
+    }
+  }elsif($cmd eq $CMD_CALCULATE_TRAINING_RADAR_DATA){
     generateRadarCache();
   }elsif($cmd eq $CMD_ENSURE_TRAINING_RADAR_DATA){
     ensureRadarCache();
