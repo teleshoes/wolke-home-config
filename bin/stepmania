@@ -50,6 +50,11 @@ my $prefs = {
   },
 };
 
+my $outfoxPrefs = {
+  ComboIsPerRow => "false", #default is false
+  SmartTimings => "Original",   #default is Original
+};
+
 my $fallbackMetricsPrefs = {
   'Common' => {
     DefaultModifiers          => "\"$defaultSpeedMod\"",
@@ -171,7 +176,7 @@ my $usage = "Usage:
 my $prefsIni = "$saveDir/Preferences.ini";
 my $themePrefsIni = "$saveDir/ThemePrefs.ini";
 my $keymapsIni = "$saveDir/Keymaps.ini";
-
+my $outfoxPrefsIni = "$saveDir/OutFoxPrefs.ini";
 my $fallbackMetricsIni = "$execDir/Appearance/Themes/_fallback/metrics.ini";
 
 sub main(@){
@@ -214,6 +219,29 @@ sub main(@){
   replaceConf $prefsIni, $prefs;
   replaceConf $themePrefsIni, $themePrefs;
   replaceConf $keymapsIni, generateKeymap($keyGrid, $keyArgs);
+
+  my @outfoxPrefsLines = `cat $outfoxPrefsIni 2>/dev/null`;
+  for my $key(sort keys %$outfoxPrefs){
+    my $val = $$outfoxPrefs{$key};
+    my $found = 0;
+    for my $line(@outfoxPrefsLines){
+      if($line =~ /^$key=(.*)/){
+        $found = 1;
+        my $oldVal = $1;
+        if($oldVal ne $val){
+          print "outfox-prefs $key \"$oldVal\" => \"$val\"\n";
+        }
+        $line = "$key=$val\n";
+      }
+    }
+    if(not $found){
+      print "outfox-prefs $key \"\" => \"$val\"\n";
+      push @outfoxPrefsLines, "$key=$val\n";
+    }
+  }
+  open FH, ">", $outfoxPrefsIni or die "ERROR: could not write $outfoxPrefsIni\n";
+  print FH $_ foreach @outfoxPrefsLines;
+  close FH;
 
   replaceConf $fallbackMetricsIni, $fallbackMetricsPrefs;
 
