@@ -44,8 +44,15 @@ my $usage = "Usage:
     --tag=TAG
       insert \"_<TAG>\" after YYYYMMDD_HHMMSS when renaming
         -TAG can contain only lowercase letters, numbers, and underscores
-      e.g.: $0 --tag=screenshot 20150601_001.png
-        mv 20150601_001.png 20150601_194358_screenshot_001.png
+        -TAG is ignored if filename is already named:
+          TAG.ext
+          or YYYYMMDD_HHMMSS_TAG.ext
+          or YYYYMMDD_HHMMSS_TAG_INDEX.ext
+      e.g.:
+        $0 --tag=screenshot 20150601_001.png
+          mv 20150601_001.png 20150601_194358_screenshot_001.png
+        $0 --tag=screenshot 20150601_194358_screenshot_001.png
+          skipping rename 20150601_194358_screenshot_001.png
 
     -n | -s | --no-act | --simulate
       print the commands, but dont actually run 'touch' or 'mv'
@@ -191,6 +198,11 @@ sub handleFile($$$$$$){
     #remove duplicate YYYYMMDD from files that start out named <YYYYMMDD>_<INDEX>.ext
     #e.g.: 20181031_001.png => 20181031_153022_20181031_001.png => 20181031_153022_001.png
     $fileName = "$index";
+  }
+
+  if(defined $tag and $fileName =~ /^${tag}(_\d+)?$/){
+    #remove <TAG> if filename is <TAG> or <TAG>_<INDEX>
+    $tag = undef;
   }
 
   my $maybeTag = defined $tag ? "_$tag" : "";
