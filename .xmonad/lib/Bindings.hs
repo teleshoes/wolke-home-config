@@ -225,6 +225,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "FBreader"      @@ mCA   xK_r    #! "fbreader"
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
+        "stepmania"     @@ mCA   xK_d    #! "stepmania"
         "stepmania -i"  @@ mCA   xK_i    #! "stepmania -i"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
