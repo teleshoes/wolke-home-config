@@ -16,6 +16,7 @@ mnt --other &
 MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 
 if [ $MACHINE_TYPE = "main" ]; then
+  sudo tso-disable
   sudo wauto -p &
   brightness 100 &
   ( pulse-enable on ; pulse-vol mic mute ) &
