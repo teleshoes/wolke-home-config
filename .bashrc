@@ -1,6 +1,7 @@
 [ -f /etc/bashrc ] && . /etc/bashrc
 [ -n "$PS1" ] && [ -f /etc/bash_completion ] && . /etc/bash_completion
 [ -n "$PS1" ] && [ -f /etc/bash_completion.d/git ] && . /etc/bash_completion.d/git
+[ -n "$PS1" ] && [ -f ~/.bash_completion ] && . ~/.bash_completion
 
 shopt -s dotglob
 shopt -s extglob
