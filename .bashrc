@@ -73,20 +73,21 @@ pathAppend          \
   /snap/bin         \
 ;
 
-hostname=`hostname | cut -f 1,2 -d '.'`
+host_alias=`hostname | cut -f 1,2 -d '.'`
+hostname="$host_alias"
 
 ########################################
 # command prompt
 if [[ -z "$DISPLAY" ]]; then
   #host abbrevs
-  case "$hostname" in
+  case "$host_alias" in
     "wolke-main"              ) h='@main' ;;
     "wolke-aux"               ) h='@aux' ;;
     "wolke-bed"               ) h='@bed' ;;
     "wolke-nuc"               ) h='@nuc' ;;
     "wolke-sx"                ) h='@sx' ;;
     "raspberrypi"             ) h='@raspi' ;;
-    *                         ) h="@$hostname" ;;
+    *                         ) h="@$host_alias" ;;
   esac
 
   #set DISPLAY using who (probably ":0")
