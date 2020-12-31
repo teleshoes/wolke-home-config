@@ -348,22 +348,14 @@ function update-repo {
     "$@"
 }
 
-
-function git-log() {
-  git log --color --decorate --name-status -M "$@"
-}
 function git() {
-  realgit="$(which git)"
-  realcmd="$1"
-  fct="git-$realcmd"
-  if [ "$(type -t $fct)" = "function" ]; then
-    shift
-    $fct "$@"
-  elif [[ "$realcmd" == *-real ]]; then
-    shift
-    cmd=${realcmd%-real}
-    $realgit $cmd "$@"
+  cmd="$1"
+  shift
+  if [[ "$cmd" == log ]]; then
+    command git log --color --decorate --name-status -M "$@"
+  elif [[ "$cmd" == log-real ]]; then
+    command git log "$@"
   else
-    $realgit "$@"
+    command git "$cmd" "$@"
   fi
 }
