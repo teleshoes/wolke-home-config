@@ -350,7 +350,7 @@ function update-repo {
 
 
 function git-log() {
-  git logn "$@"
+  git log --color --decorate --name-status -M "$@"
 }
 function git() {
   realgit="$(which git)"
