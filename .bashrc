@@ -152,9 +152,9 @@ function cx           { chmod +x "$@"; }
 function shutdown     { poweroff "$@"; }
 function xmb          { xmonad-bindings "$@"; }
 function ls           { command ls --color=auto "$@"; }
-function l            { ls -Al --color=auto "$@"; }
-function ll           { ls -Al --color=auto "$@"; }
-function ld           { ls -dAl --color=auto "$@"; }
+function l            { command ls -Al --color=auto "$@"; }
+function ll           { command ls -Al --color=auto "$@"; }
+function ld           { command ls -dAl --color=auto "$@"; }
 function perms        { stat -c %a "$@"; }
 function glxgears     { vblank_mode=0 glxgears "$@"; }
 function mnto         { sudo mnt --other --no-usb --no-card "$@"; }
