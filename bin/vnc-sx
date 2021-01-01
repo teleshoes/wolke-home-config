@@ -10,6 +10,8 @@ my $LIPSTICK2VNC_CONF_FILE = "/var/lib/environment/nemo/70-lipstick2vnc.conf";
 my $SLEEP_DELAY_MILLIS = 300;
 my $VNC_VIEWER_EXEC = "xtigervncviewer";
 
+sub calculateScale();
+
 my $usage = "Usage:
   vnc to phone using $VNC_VIEWER_EXEC and lipstick2vnc, scaling the viewport
 
@@ -45,6 +47,23 @@ sub main(@){
     }
   }
 
+  my $scale = calculateScale();
+  print "SCALE: $scale\n";
+
+  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
+    echo \"LIPSTICK2VNC_OPTS=\\\"--allow-all -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
+    lock --unlock &
+    systemctl start vnc
+  ";
+  my $host = `ipmagic $IPMAGIC_NAME`;
+  chomp $host;
+
+  sleep ($SLEEP_DELAY_MILLIS/1000.0);
+  system $VNC_VIEWER_EXEC, $host;
+  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
+}
+
+sub calculateScale(){
   my $phoneHeight = "";
   my $phoneResOut = `ipmagic $IPMAGIC_NAME -s "cat $PHONE_GRAPHICS_MODES_FILE_GLOB"`;
   if($phoneResOut =~ /(\d+)x(\d+)p/){
@@ -67,19 +86,8 @@ sub main(@){
   my $scale = sprintf "%.1f", int(10*($desiredViewportHeight)/$phoneHeight)/10.0;
   $scale = "1.0" if $scale >= 1;
   $scale = "0.1" if $scale <= 0.1;
-  print "SCALE: $scale\n";
 
-  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
-    echo \"LIPSTICK2VNC_OPTS=\\\"--allow-all -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
-    lock --unlock &
-    systemctl start vnc
-  ";
-  my $host = `ipmagic $IPMAGIC_NAME`;
-  chomp $host;
-
-  sleep ($SLEEP_DELAY_MILLIS/1000.0);
-  system $VNC_VIEWER_EXEC, $host;
-  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
+  return $scale;
 }
 
 &main(@ARGV);
