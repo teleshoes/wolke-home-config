@@ -34,20 +34,46 @@ my $usage = "Usage:
     -stop lipstick2vnc after vnc viewer exits
 
   OPTS
+    --scale=SCALE_RATIO | SCALE_RATIO
+    --scale=SCALE_PCT% | SCALE_PCT%
+      skip calculating scale and just use the indicated ratio (or percentage)
+        can be given as a fractional value, or as a percentage followed by %
+        '--scale' is optional, can just give the value
+        scale value is rounded to the nearest tenth
+      e.g.: (all are equivalent)
+        --scale=60%
+        0.6
+        --scale=0.6
+        60%
 ";
 
 sub main(@){
+  my $scaleArg;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(?:--scale=)?(\d+|\d*\.\d+)(%?)$/){
+      my ($scaleVal, $scaleUnit) = ($1, $2);
+      if(defined $scaleUnit and $scaleUnit =~ /%/){
+        $scaleVal = $scaleVal/100.0;
+      }
+      $scaleVal = sprintf "%.1f", $scaleVal;
+      $scaleVal = 0.1 if $scaleVal < 0.1;
+      $scaleVal = 1.0 if $scaleVal > 1.0;
+      $scaleArg = $scaleVal;
     }else{
       die "$usage\nERROR: unknown arg \"$arg\"\n";
     }
   }
 
-  my $scale = calculateScale();
+  my $scale;
+  if(defined $scaleArg){
+    $scale = $scaleArg;
+  }else{
+    $scale = calculateScale();
+  }
   print "SCALE: $scale\n";
 
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
