@@ -10,7 +10,41 @@ my $LIPSTICK2VNC_CONF_FILE = "/var/lib/environment/nemo/70-lipstick2vnc.conf";
 my $SLEEP_DELAY_MILLIS = 300;
 my $VNC_VIEWER_EXEC = "xtigervncviewer";
 
+my $usage = "Usage:
+  vnc to phone using $VNC_VIEWER_EXEC and lipstick2vnc, scaling the viewport
+
+  $0 -h|--help
+    show this message
+
+  $0 [OPTS]
+    -obtain phone resolution:
+      use ipmagic to run `cat $PHONE_GRAPHICS_MODES_FILE_GLOB`
+    -obtain monitor resoltion:
+      run `res -h`
+    -calculate a scale based on the height, targeting 95% of the monitor height
+    -round down to the nearest 10% (max of 100% and min of 10%)
+    -put --allow-all and -s with scale as a ratio in LIPSTICK2VNC_OPTS
+    -write LIPSTICK2VNC_OPTS to $LIPSTICK2VNC_CONF_FILE
+    -unlock phone screen
+    -start lipstick2vnc
+    -sleep for $SLEEP_DELAY_MILLIS millis
+    -run $VNC_VIEWER_EXEC
+    -stop lipstick2vnc after vnc viewer exits
+
+  OPTS
+";
+
 sub main(@){
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }else{
+      die "$usage\nERROR: unknown arg \"$arg\"\n";
+    }
+  }
+
   my $phoneHeight = "";
   my $phoneResOut = `ipmagic $IPMAGIC_NAME -s "cat $PHONE_GRAPHICS_MODES_FILE_GLOB"`;
   if($phoneResOut =~ /(\d+)x(\d+)p/){
