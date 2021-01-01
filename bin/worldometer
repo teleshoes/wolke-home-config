@@ -465,6 +465,7 @@ sub parseMonthDateToYYYYMMD($){
   my $dateYYYYMMDD;
   if(defined $year and defined $month and defined $day){
     my $epoch = yyyymmddToEpoch "$year$month$day";
+    return undef if not defined $epoch;
     $dateYYYYMMDD = epochToYYYYMMDD $epoch;
   }
 
@@ -518,7 +519,11 @@ sub yyyymmddToEpoch($){
   return $cache{$yyyymmdd} if defined $cache{$yyyymmdd};
 
   my ($year, $mon, $day) = ($1, $2, $3) if $yyyymmdd =~ /^(\d\d\d\d)(\d\d)(\d\d)$/;
-  my $epoch = timelocal(0, 0, 0, $day, $mon-1, $year-1900);
+  my $epoch = eval { return timelocal(0, 0, 0, $day, $mon-1, $year-1900) };
+  if(not defined $epoch or $epoch !~ /^\d+$/){
+    print STDERR "WARNING: could not parse $yyyymmdd\n";
+    return undef;
+  }
 
   $cache{$yyyymmdd} = $epoch;
   return $epoch;
