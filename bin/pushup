@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $usage = "Usage: $0 [DATE_YYYYMMDD] [TYPE_WORD] COUNT\n";
+my $dir = "$ENV{HOME}/.cache/pushups";
+
+sub main(@){
+  my $now = time;
+  my $date;
+  if(@_ > 0 and $_[0] =~ /^(\d{8})$/){
+    $date = shift;
+  }else{
+    $date = `date +%Y%m%d`;
+    chomp $date;
+  }
+
+  if(@_ == 0){
+    my $link = readlink "$dir/latest";
+    print "$link\n";
+    system "cat $dir/latest";
+    exit 0;
+  }
+
+  my $type = undef;
+  if(@_ > 0 and $_[0] =~ /^([a-zA-Z]\w+)$/){
+    $type = shift;
+  }
+
+  my $count;
+  if(@_ > 0 and $_[0] =~ /^(\d+)$/){
+    $count = shift;
+  }
+  die $usage if not defined $count or @_ > 0;
+
+  $type = " $type" if defined $type;
+  $type = "" if not defined $type;
+
+  my $file = "$dir/$date";
+
+  print "###echo '$count$type #$now' >> $file\n";
+  open FH, ">> $file" or die "could not open file\n$!\n";
+  print FH "$count$type #$now\n";
+  close FH;
+
+  system "rm", "$dir/latest";
+  system "ln", "-s", $file, "$dir/latest";
+}
+
+&main(@ARGV);
