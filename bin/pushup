@@ -10,12 +10,14 @@ my $DATEFILE_NEW_DAY_START_HOUR = 4; #new date starts at 4am localtime
 my $EXEC = basename $0;
 
 sub appendDateFile($$$);
+sub gnuplot();
 sub getDate($);
 sub getTime($);
 sub getDateFile($$);
 
 my $MODE_APPEND = "append";
 my $MODE_PRINT = "print";
+my $MODE_PLOT = "plot";
 
 my $usage = "Usage:
   $EXEC -h|--help
@@ -23,6 +25,10 @@ my $usage = "Usage:
 
   $EXEC [OPTS] [--print|--get]
     cat all $CACHE_DIR/<DATEFILE> files
+
+  $EXEC [OPTS] -g | -p | --gnuplot | --plot | gnuplot | plot
+    use gnuplot to plot max and total of all values in each DATEFILE,
+      with date from filename as x-axis and max and total on the y-axis
 
   $EXEC [OPTS] [--append] COUNT
     append \"<COUNT> | <EPOCH> | <DATE> <TIME> | <TYPE>\"
@@ -60,6 +66,8 @@ sub main(@){
       $mode = $MODE_PRINT;
     }elsif($arg =~ /^(?:--append)$/){
       $mode = $MODE_APPEND;
+    }elsif($arg =~ /^(?:-g|-p|--gnuplot|--plot|gnuplot|plot)$/){
+      $mode = $MODE_PLOT;
     }elsif($arg =~ /^((?:[a-z][A-Z])\w+)$/){
       $type = $1;
     }elsif($arg =~ /^(?:--type|--epoch)=(\d+)$/){
@@ -74,6 +82,8 @@ sub main(@){
 
   if($mode eq $MODE_PRINT){
     system "cat $CACHE_DIR/????-??-??";
+  }elsif($mode eq $MODE_PLOT){
+    gnuplot();
   }elsif($mode eq $MODE_APPEND){
     die "ERROR: missing COUNT\n" if not defined $count;
     appendDateFile($count, $type, $epoch);
@@ -99,6 +109,86 @@ sub appendDateFile($$$){
   open FH, ">> $dateFile" or die "could not open file\n$!\n";
   print FH "$line\n";
   close FH;
+}
+
+sub gnuplot(){
+  my $gnuplotDataFile = "/tmp/$EXEC-gnuplot-data";
+  my $gnuplotScriptFile = "/tmp/$EXEC-gnuplot-script";
+  my $gnuplotOutputFile = "/tmp/$EXEC-gnuplot-output.png";
+
+  my $dataByDate = {};
+  for my $dateFile(glob "$CACHE_DIR/????-??-??"){
+    my $date;
+    if($dateFile =~ /(\d\d\d\d)-(\d\d)-(\d\d)$/){
+      $date = "$1$2$3";
+    }
+    die "ERROR: duplicate date file\n" if defined $$dataByDate{$date};
+    $$dataByDate{$date} = {
+      total => 0,
+      max   => 0,
+    };
+    my @lines = `cat $dateFile`;
+    for my $line(@lines){
+      if($line =~ /^(\d+)\s*\|/){
+        my $count = $1;
+        $$dataByDate{$date}{total} += $count;
+        $$dataByDate{$date}{max} = $count if $count > $$dataByDate{$date}{max};
+      }
+    }
+  }
+
+  my $data = "";
+  $data .= "\"daily max\"\n";
+  for my $date(sort keys %$dataByDate){
+    $data .= "$date,$$dataByDate{$date}{max}\n";
+  }
+
+  $data .= "\n\n";
+
+  $data .= "\"daily total\"\n";
+  for my $date(sort keys %$dataByDate){
+    $data .= "$date,$$dataByDate{$date}{total}\n";
+  }
+
+  open FH, "> $gnuplotDataFile";
+  print FH $data;
+  close FH;
+
+  my $pointCount = 0 + keys %$dataByDate;
+  # first and last point
+  my $every1 = sprintf "%6d", $pointCount - 1;
+  # ten points, spread out evenly
+  my $every2 = sprintf "%6d", int($pointCount / 10 + 0.5);
+  $every1 = 1 if $every1 <= 0;
+  $every2 = 1 if $every2 <= 0;
+
+  my $script = ""
+    . "set xdata time\n"
+    . "set timefmt \"%Y%m%d\"\n"
+    . "set datafile separator \",\"\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set grid noytics mxtics linewidth 4 , linewidth 2\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$gnuplotOutputFile\"\n"
+    . "plot \\\n"
+    . "  for [BUCKET=0:1] \"$gnuplotDataFile\" index BUCKET using 1:2   smooth bezier                     , \\\n"
+    . "  for [BUCKET=0:1] \"$gnuplotDataFile\" index BUCKET using 1:2   dashtype 3 with linespoints       , \\\n"
+    . "  for [BUCKET=0:1] \"$gnuplotDataFile\" index BUCKET using 1:2:2 every $every1 with labels notitle , \\\n"
+    . "  for [BUCKET=0:1] \"$gnuplotDataFile\" index BUCKET using 1:2:2 every $every2 with labels notitle , \\\n"
+    . "  1/0\n"
+    ;
+
+  open FH, "> $gnuplotScriptFile";
+  print FH $script;
+  close FH;
+
+  system "rm", "-f", $gnuplotOutputFile;
+  system "gnuplot", "-p", $gnuplotScriptFile;
+  if(-f $gnuplotOutputFile){
+    print "plotted $pointCount dates\n$gnuplotOutputFile\n";
+  }else{
+    die "ERROR: gnuplot failed, $gnuplotOutputFile does not exist\n";
+  }
 }
 
 sub getDate($){
