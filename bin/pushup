@@ -2,49 +2,101 @@
 use strict;
 use warnings;
 
-my $usage = "Usage: $0 [DATE_YYYYMMDD] [TYPE_WORD] COUNT\n";
-my $dir = "$ENV{HOME}/.cache/pushups";
+my $CACHE_DIR = "$ENV{HOME}/.cache/pushups";
+
+sub getDate($);
+sub getTime($);
+
+my $usage = "Usage:
+  $0 -h|--help
+    print this message
+
+  $0
+    print $CACHE_DIR/latest
+
+  $0 [OPTS] COUNT
+    append \"<COUNT> | <EPOCH> | <DATE> <TIME> | <TYPE>\"
+    to a file named $CACHE_DIR/<DATE>
+
+    COUNT
+      a positive integer
+    EPOCH
+      seconds sincd 1970-01-01 00:00, as of now
+    DATE
+      <EPOCH> formatted as YYYY-mm-dd
+    TIME
+      <EPOCH> formatted as formatted HH:MM:SS
+
+  OPTS
+    TYPE | --type=TYPE
+      must start with a letter, can be letters/numbers/underscores
+
+    --time=EPOCH | --epoch=EPOCH
+      EPOCH must be a number, to be interpreted like `date --date=@<EPOCH>`
+";
 
 sub main(@){
-  my $now = time;
-  my $date;
-  if(@_ > 0 and $_[0] =~ /^(\d{8})$/){
-    $date = shift;
-  }else{
-    $date = `date +%Y%m%d`;
-    chomp $date;
+  my ($count, $type, $epoch);
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^((?:[a-z][A-Z])\w+)$/){
+      $type = $1;
+    }elsif($arg =~ /^(?:--type|--epoch)=(\d+)$/){
+      $epoch = $1;
+    }elsif($arg =~ /^(\d+)$/){
+      $count = $1;
+    }else{
+      die "ERROR: unknown arg \"$arg\n";
+    }
   }
 
-  if(@_ == 0){
-    my $link = readlink "$dir/latest";
+  if(not defined $count){
+    my $link = readlink "$CACHE_DIR/latest";
     print "$link\n";
-    system "cat $dir/latest";
+    system "cat $CACHE_DIR/latest";
     exit 0;
   }
 
-  my $type = undef;
-  if(@_ > 0 and $_[0] =~ /^([a-zA-Z]\w+)$/){
-    $type = shift;
-  }
+  $epoch = time if not defined $epoch;
 
-  my $count;
-  if(@_ > 0 and $_[0] =~ /^(\d+)$/){
-    $count = shift;
-  }
-  die $usage if not defined $count or @_ > 0;
+  my $date = getDate $epoch;
+  my $time = getTime $epoch;
+  my $dateFile = getDateFile $CACHE_DIR, $epoch;
 
-  $type = " $type" if defined $type;
-  $type = "" if not defined $type;
+  $type = "-" if not defined $type;
 
-  my $file = "$dir/$date";
+  my $line = sprintf "%-3d | %d | %s %s | %s",
+    $count, $epoch, $date, $time, $type;
 
-  print "###echo '$count$type #$now' >> $file\n";
-  open FH, ">> $file" or die "could not open file\n$!\n";
-  print FH "$count$type #$now\n";
+  print "WRITING: $line\n => $dateFile\n";
+  open FH, ">> $dateFile" or die "could not open file\n$!\n";
+  print FH "$line\n";
   close FH;
 
-  system "rm", "$dir/latest";
-  system "ln", "-s", $file, "$dir/latest";
+  system "rm", "$CACHE_DIR/latest";
+  system "ln", "-s", $dateFile, "$CACHE_DIR/latest";
+}
+
+sub getDate($){
+  my ($time) = @_;
+  my $dateFmt = `date +%Y-%m-%d --date=\@$time`;
+  if($dateFmt =~ /^(\d\d\d\d-\d\d-\d\d)$/){
+    return $1;
+  }else{
+    die "ERROR: malformed date $dateFmt\n";
+  }
+}
+sub getTime($){
+  my ($time) = @_;
+  my $dateFmt = `date +%H:%M:%S --date=\@$time`;
+  if($dateFmt =~ /^(\d\d:\d\d:\d\d)$/){
+    return $1;
+  }else{
+    die "ERROR: malformed time $dateFmt\n";
+  }
 }
 
 &main(@ARGV);
