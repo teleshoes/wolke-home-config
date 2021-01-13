@@ -1,23 +1,30 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/pushups";
 
 my $DATEFILE_NEW_DAY_START_HOUR = 4; #new date starts at 4am localtime
 
+my $EXEC = basename $0;
+
+sub appendDateFile($$$);
 sub getDate($);
 sub getTime($);
 sub getDateFile($$);
 
+my $MODE_APPEND = "append";
+my $MODE_PRINT = "print";
+
 my $usage = "Usage:
-  $0 -h|--help
+  $EXEC -h|--help
     print this message
 
-  $0
-    print $CACHE_DIR/latest
+  $EXEC [OPTS] [--print|--get]
+    cat all $CACHE_DIR/<DATEFILE> files
 
-  $0 [OPTS] COUNT
+  $EXEC [OPTS] [--append] COUNT
     append \"<COUNT> | <EPOCH> | <DATE> <TIME> | <TYPE>\"
     to a file named $CACHE_DIR/<DATEFILE>
 
@@ -43,36 +50,47 @@ my $usage = "Usage:
 
 sub main(@){
   my ($count, $type, $epoch);
+  my $mode = $MODE_PRINT;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(?:--print|--get)$/){
+      $mode = $MODE_PRINT;
+    }elsif($arg =~ /^(?:--append)$/){
+      $mode = $MODE_APPEND;
     }elsif($arg =~ /^((?:[a-z][A-Z])\w+)$/){
       $type = $1;
     }elsif($arg =~ /^(?:--type|--epoch)=(\d+)$/){
       $epoch = $1;
     }elsif($arg =~ /^(\d+)$/){
       $count = $1;
+      $mode = $MODE_APPEND;
     }else{
       die "ERROR: unknown arg \"$arg\n";
     }
   }
 
-  if(not defined $count){
-    my $link = readlink "$CACHE_DIR/latest";
-    print "$link\n";
-    system "cat $CACHE_DIR/latest";
-    exit 0;
+  if($mode eq $MODE_PRINT){
+    system "cat $CACHE_DIR/????-??-??";
+  }elsif($mode eq $MODE_APPEND){
+    die "ERROR: missing COUNT\n" if not defined $count;
+    appendDateFile($count, $type, $epoch);
+  }else{
+    die $usage;
   }
+}
+
+sub appendDateFile($$$){
+  my ($count, $type, $epoch) = @_;
 
   $epoch = time if not defined $epoch;
+  $type = "-" if not defined $type;
 
   my $date = getDate $epoch;
   my $time = getTime $epoch;
   my $dateFile = getDateFile $CACHE_DIR, $epoch;
-
-  $type = "-" if not defined $type;
 
   my $line = sprintf "%-3d | %d | %s %s | %s",
     $count, $epoch, $date, $time, $type;
