@@ -269,6 +269,8 @@ function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
 function migl         { vim `~/workspace/escribehost/migrations/latest-script "$@"`; }
 
+function recscreen    { simplescreenrecorder --start-recording "$@"; }
+
 function first        { ls "$@" | head -1; }
 function last         { ls "$@" | tail -1; }
 function apN          { let n=${#@}; "$2" "${@:3:$1-1}" "${!n}" "${@:$1+2:$n-$1-2}"; }
