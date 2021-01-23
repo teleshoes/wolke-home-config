@@ -51,6 +51,9 @@ my $usage = "Usage:
       use <MIN_NEXTNUM> instead of <NEXTNUM>, if <MIN_NEXTNUM> is larger than <NEXTNUM>
       (default is 1)
 
+    --force-next-num=NEXTNUM | --force-num=NEXTNUM | --next-num=NEXTNUM
+      override <NEXTNUM> detection and just use <NEXTNUM>. fails if file already exists
+
     --digits=DIGITS | --min-digits=DIGITS
       left-pad <NEXTNUM> with 0s until it is at least <DIGITS> digits long
       (default is 3)
@@ -60,6 +63,7 @@ sub main(@){
   my $dir = undef;
   my $flash = 0;
   my $minNextNum = 1;
+  my $forceNextNum = undef;
   my $minDigits = 3;
   while(@_ > 0){
     my $arg = shift @_;
@@ -73,6 +77,8 @@ sub main(@){
       $flash = 1;
     }elsif($arg =~ /^--min=(\d+)$/){
       $minNextNum = $1;
+    }elsif($arg =~ /^--(?:force-next-num|force-num|next-num)=(\d+)$/){
+      $forceNextNum = $1;
     }elsif($arg =~ /^--(?:digits|min-digits)=(\d+)$/){
       $minDigits = $1;
     }else{
@@ -95,20 +101,25 @@ sub main(@){
   my $time = `date +%H%M%S`;
   chomp $time;
 
-  my @files = listDirFiles($dir);
-  my $maxNum = 0;
-  for my $file(@files){
-    if($file =~ /^(?:.*\/)?${date}.*_(\d+)\.(?:$OK_EXTS)$/i){
-      my $num = 0 + $1;
-      if($num > $maxNum){
-        $maxNum = $num;
+  my $nextNum;
+  if(defined $forceNextNum){
+    $nextNum = $forceNextNum;
+  }else{
+    my @files = listDirFiles($dir);
+    my $maxNum = 0;
+    for my $file(@files){
+      if($file =~ /^(?:.*\/)?${date}.*_(\d+)\.(?:$OK_EXTS)$/i){
+        my $num = 0 + $1;
+        if($num > $maxNum){
+          $maxNum = $num;
+        }
       }
     }
+
+    $nextNum = $maxNum + 1;
+    $nextNum = $minNextNum if $nextNum < $minNextNum;
   }
 
-  my $nextNum;
-  $nextNum = $maxNum + 1;
-  $nextNum = $minNextNum if $nextNum < $minNextNum;
   $nextNum = sprintf "%0${minDigits}d", $nextNum;
 
   my $file = "${dir}/${date}_${time}_${nextNum}.png";
