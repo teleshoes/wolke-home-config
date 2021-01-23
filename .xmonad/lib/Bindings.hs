@@ -141,7 +141,7 @@ shortcuts conf = "Shortcuts" @@ do
         up          @@  do m_    xK_VolUp#! "pulse-vol +6 100"
                            mA    xK_VolUp#! "pulse-vol +6 150"
                            mW    xK_F3   #! "pulse-vol +6 150"
-                           mC    xK_VolUp#! "pulse-vol +6 300"
+                           mC    xK_F3   #! "pulse-vol +6 300"
         down        @@  do m_    xK_VolDn#! "pulse-vol -6 100"
                            mA    xK_VolDn#! "pulse-vol -6 150"
                            mW    xK_F2   #! "pulse-vol -6 150"
