@@ -2,27 +2,94 @@
 use strict;
 use warnings;
 
-my $SONG_COMMON_POINT = 2.1;
-my $CAMERA_VIDEO_COMMON_POINT = 36.6;
-my $CAMERA_AUDIO_COMMON_POINT = 36.4;
-my $SCREEN_COMMON_POINT = 59.0;
-
 my $SONG_VOLUME = 0.2 * 2;
 my $CAMERA_VOLUME = 6.0 * 2;
 my $CAMERA_FPS = "15.793";
 
 my @EXTRA_OPTS = qw(-bitexact);
 
+sub isFile($);
 sub ffmpeg($@);
 
+my $usage = "Usage:
+  $0 [OPTS]
+    use ffmpeg to combine CAMERA_VIDEO and SCREEN_VIDEO and SONG_AUDIO files
+    produces tmp files named 'tmp-*' in the current directory,
+      and writes final video to OUTPUT_FILE
+
+  OPTS
+    --camera=CAMERA_VIDEO
+      the file of the main camera video
+
+    --screen=SCREEN_VIDEO
+      the file of the screencast video
+
+    --song=SONG_AUDIO
+      an audio file to overlay the camera video
+
+    --output=OUTPUT_FILE
+      the file to write the final video to
+
+    --camera-audio-offset=OFFSET
+      the audio offset, in seconds, in CAMERA_VIDEO
+      (use positive values when the audio is happening before the video, to correct the delay)
+
+    --camera-audio-point=CAMERA_AUDIO_POINT
+    --screen-point=SCREEN_POINT
+    --song-point=SONG_POINT
+      the times, in (fractional) seconds, when all of the following are aligned:
+        the audio of CAMERA_VIDEO at CAMERA_AUDIO_POINT (before correcting audio offset)
+        the video of SCREEN_AUDIO at SCREEN_POINT
+        the audio of SONG_AUDIO at SONG_POINT
+      if not given, each value defaults to 0
+";
+
 sub main(@){
+  my ($cameraFile, $screenFile, $songFile, $outputFile);
+  my $cameraAudioOffset = 0;
+  my $cameraAudioPoint = 0;
+  my $screenPoint = 0;
+  my $songPoint = 0;
+  my $useScreenAudio = 0;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--camera=(.+)$/){
+      $cameraFile = $1;
+    }elsif($arg =~ /^--screen=(.+)$/){
+      $screenFile = $1;
+    }elsif($arg =~ /^--song=(.+)$/){
+      $songFile = $1;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputFile = $1;
+    }elsif($arg =~ /^--outputFile=(.+)$/){
+      $outputFile = $1;
+    }elsif($arg =~ /^--camera-audio-offset=(\d+|\d*\.\d+)$/){
+      $cameraAudioOffset = $1;
+    }elsif($arg =~ /^--camera-audio-point=(\d+|\d*\.\d+)$/){
+      $cameraAudioPoint = $1;
+    }elsif($arg =~ /^--screen-point=(\d+|\d*\.\d+)$/){
+      $screenPoint = $1;
+    }elsif($arg =~ /^--song-point=(\d+|\d*\.\d+)$/){
+      $songPoint = $1;
+    }else{
+      die "$usage\nERROR: unknown arg \"$arg\"\n";
+    }
+  }
+  die "ERROR: CAMERA_FILE arg is missing or not a file\n" if not isFile($cameraFile);
+  die "ERROR: SCREEN_FILE arg is missing or not a file\n" if not isFile($screenFile);
+  die "ERROR: SONG_FILE arg is missing or not a file\n" if not isFile($songFile);
+  die "ERROR: OUTPUT_FILE arg is missing\n" if not defined $outputFile;
+
   #delay the song-audio to match the start of the camera audio
-  my $songSilencePrefixLen = $CAMERA_AUDIO_COMMON_POINT - $SONG_COMMON_POINT;
+  my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
   ffmpeg("tmp-song-extended.wav",
     "-f", "lavfi",
     "-t", "$songSilencePrefixLen",
     "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-i", "orig-song.ogg",
+    "-i", $songFile,
     "-filter_complex", join(",",
       "[0:a][1:a]concat=n=2:v=0:a=1",
       "volume=$SONG_VOLUME",
@@ -31,7 +98,7 @@ sub main(@){
 
   #increase camera volume
   ffmpeg("tmp-camera-audio.wav",
-    "-i", "orig-camera.mp4",
+    "-i", $cameraFile,
     "-filter:a", "volume=$CAMERA_VOLUME",
   );
 
@@ -42,10 +109,12 @@ sub main(@){
     "-filter_complex", "amix=inputs=2:duration=shortest",
   );
 
+  my $cameraVideoPoint = $cameraAudioPoint + $cameraAudioOffset;
+
   #trim screen-video to start of camera-video, trim+resize for stacking
-  my $screenOffset = $SCREEN_COMMON_POINT - $CAMERA_VIDEO_COMMON_POINT;
+  my $screenOffset = $screenPoint - $cameraVideoPoint;
   ffmpeg("tmp-screen-trim-crop-scale-fps.mp4",
-    "-i", "orig-screen.mkv",
+    "-i", $screenFile,
     "-ss", "$screenOffset",
     "-filter_complex", join(",",
       "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
@@ -57,7 +126,7 @@ sub main(@){
 
   #rotate+resize camera-video for stacking (no cropping)
   ffmpeg("tmp-camera-transpose-scale.mp4",
-    "-i", "orig-camera.mp4",
+    "-i", $cameraFile,
     "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
     "-filter_complex", join(",",
       "transpose=3",                #fix metadata confusion bug
@@ -76,14 +145,18 @@ sub main(@){
     "-an",
   );
 
-  #combin video and audio with the same overall audio offset as the original camera file
-  my $audioOffset = $CAMERA_VIDEO_COMMON_POINT - $CAMERA_AUDIO_COMMON_POINT;
-  ffmpeg("final.mp4",
+  #combine video and audio with the same overall audio offset as the original camera file
+  ffmpeg($outputFile,
     "-i", "tmp-video-final.mp4",
-    "-itsoffset", "$audioOffset",
+    "-itsoffset", $cameraAudioOffset,
     "-i", "tmp-audio-final.wav",
     "-c:v", "copy",
   );
+}
+
+sub isFile($){
+  return 0 if not defined $_[0];
+  return -f $_[0] ? 1 : 0;
 }
 
 sub ffmpeg($@){
