@@ -1,0 +1,105 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $SONG_COMMON_POINT = 2.1;
+my $CAMERA_VIDEO_COMMON_POINT = 36.6;
+my $CAMERA_AUDIO_COMMON_POINT = 36.4;
+my $SCREEN_COMMON_POINT = 59.0;
+
+my $SONG_VOLUME = 0.2 * 2;
+my $CAMERA_VOLUME = 6.0 * 2;
+my $CAMERA_FPS = "15.793";
+
+my @EXTRA_OPTS = qw(-bitexact);
+
+sub ffmpeg($@);
+
+sub main(@){
+  #delay the song-audio to match the start of the camera audio
+  my $songSilencePrefixLen = $CAMERA_AUDIO_COMMON_POINT - $SONG_COMMON_POINT;
+  ffmpeg("tmp-song-extended.wav",
+    "-f", "lavfi",
+    "-t", "$songSilencePrefixLen",
+    "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-i", "orig-song.ogg",
+    "-filter_complex", join(",",
+      "[0:a][1:a]concat=n=2:v=0:a=1",
+      "volume=$SONG_VOLUME",
+    ),
+  );
+
+  #increase camera volume
+  ffmpeg("tmp-camera-audio.wav",
+    "-i", "orig-camera.mp4",
+    "-filter:a", "volume=$CAMERA_VOLUME",
+  );
+
+  #overlay camera+song audio
+  ffmpeg("tmp-audio-final.wav",
+    "-i", "tmp-camera-audio.wav",
+    "-i", "tmp-song-extended.wav",
+    "-filter_complex", "amix=inputs=2:duration=shortest",
+  );
+
+  #trim screen-video to start of camera-video, trim+resize for stacking
+  my $screenOffset = $SCREEN_COMMON_POINT - $CAMERA_VIDEO_COMMON_POINT;
+  ffmpeg("tmp-screen-trim-crop-scale-fps.mp4",
+    "-i", "orig-screen.mkv",
+    "-ss", "$screenOffset",
+    "-filter_complex", join(",",
+      "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
+      "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
+      "fps=fps=$CAMERA_FPS",        #match camera
+    ),
+    "-an",
+  );
+
+  #rotate+resize camera-video for stacking (no cropping)
+  ffmpeg("tmp-camera-transpose-scale.mp4",
+    "-i", "orig-camera.mp4",
+    "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
+    "-filter_complex", join(",",
+      "transpose=3",                #fix metadata confusion bug
+      "transpose=3",                #actually rotate (same as overall transpose=1)
+      "scale=608:1080",             #1080x1920 => 608x1080
+    ),
+    "-an",
+  );
+
+  #stack camera-video (left) and screen-video (right) horizontally
+  ffmpeg("tmp-video-final.mp4",
+    "-i", "tmp-camera-transpose-scale.mp4",
+    "-i", "tmp-screen-trim-crop-scale-fps.mp4",
+    "-vsync", "2",
+    "-filter_complex", "hstack=inputs=2:shortest=1",
+    "-an",
+  );
+
+  #combin video and audio with the same overall audio offset as the original camera file
+  my $audioOffset = $CAMERA_VIDEO_COMMON_POINT - $CAMERA_AUDIO_COMMON_POINT;
+  ffmpeg("final.mp4",
+    "-i", "tmp-video-final.mp4",
+    "-itsoffset", "$audioOffset",
+    "-i", "tmp-audio-final.wav",
+    "-c:v", "copy",
+  );
+}
+
+sub ffmpeg($@){
+  my ($output, @opts) = @_;
+  my @cmd = ("ffmpeg");
+  @cmd = (@cmd, @opts, @EXTRA_OPTS, $output);
+
+  print "@cmd\n";
+  if(-f $output){
+    print "  #skipped @cmd\n";
+  }else{
+    system @cmd;
+    my $exitCode = $?;
+    print "  #ran @cmd\n";
+    die "FAILED\n" if $exitCode != 0;
+  }
+}
+
+&main(@ARGV);
