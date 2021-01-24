@@ -12,7 +12,7 @@ sub ffmpeg($@);
 
 my $usage = "Usage:
   $0 [OPTS]
-    use ffmpeg to combine CAMERA_VIDEO and SCREEN_VIDEO and SONG_AUDIO files
+    use ffmpeg to combine CAMERA_VIDEO and SCREEN_VIDEO and optional SONG_AUDIO files
     produces tmp files named 'tmp-*' in the current directory,
       and writes final video to OUTPUT_FILE
 
@@ -25,6 +25,7 @@ my $usage = "Usage:
 
     --song=SONG_AUDIO
       an audio file to overlay the camera video
+      (optional)
 
     --output=OUTPUT_FILE
       the file to write the final video to
@@ -45,7 +46,7 @@ my $usage = "Usage:
       the times, in (fractional) seconds, when all of the following are aligned:
         the audio of CAMERA_VIDEO at CAMERA_AUDIO_POINT (before correcting audio offset)
         the video of SCREEN_AUDIO at SCREEN_POINT
-        the audio of SONG_AUDIO at SONG_POINT
+        the audio of SONG_AUDIO at SONG_POINT (if SONG_AUDIO is given)
       if not given, each value defaults to 0
 ";
 
@@ -91,7 +92,6 @@ sub main(@){
   }
   die "ERROR: CAMERA_FILE arg is missing or not a file\n" if not isFile($cameraFile);
   die "ERROR: SCREEN_FILE arg is missing or not a file\n" if not isFile($screenFile);
-  die "ERROR: SONG_FILE arg is missing or not a file\n" if not isFile($songFile);
   die "ERROR: OUTPUT_FILE arg is missing\n" if not defined $outputFile;
 
   my @cameraFpsFilter;
@@ -112,31 +112,41 @@ sub main(@){
     }
   }
 
-  #delay the song-audio to match the start of the camera audio
-  my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
-  ffmpeg("tmp-song-extended.wav",
-    "-f", "lavfi",
-    "-t", sprintf("%.2f", $songSilencePrefixLen),
-    "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-i", $songFile,
-    "-filter_complex", join(",",
-      "[0:a][1:a]concat=n=2:v=0:a=1",
-      "volume=$songVolume",
-    ),
-  );
-
   #increase camera volume
   ffmpeg("tmp-camera-audio.wav",
     "-i", $cameraFile,
     "-filter:a", "volume=$cameraVolume",
   );
 
-  #overlay camera+song audio
-  ffmpeg("tmp-audio-final.wav",
-    "-i", "tmp-camera-audio.wav",
-    "-i", "tmp-song-extended.wav",
-    "-filter_complex", "amix=inputs=2:duration=shortest",
-  );
+  if(isFile($songFile)){
+    #delay the song-audio to match the start of the camera audio
+    my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
+    $audioOverlay = "tmp-audio-overlay-song.wav";
+    ffmpeg($audioOverlay,
+      "-f", "lavfi",
+      "-t", sprintf("%.2f", $songSilencePrefixLen),
+      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-i", $songFile,
+      "-filter_complex", join(",",
+        "[0:a][1:a]concat=n=2:v=0:a=1",
+        "volume=$songVolume",
+      ),
+    );
+  }
+
+  if(defined $audioOverlay){
+    #overlay camera+song audio
+    ffmpeg("tmp-audio-final.wav",
+      "-i", "tmp-camera-audio.wav",
+      "-i", $audioOverlay,
+      "-filter_complex", "amix=inputs=2:duration=shortest",
+    );
+  }else{
+    ffmpeg("tmp-audio-final.wav",
+      "-i", "tmp-camera-audio.wav",
+      "-c", "copy",
+    );
+  }
 
   my $cameraVideoPoint = $cameraAudioPoint + $cameraAudioOffset;
 
