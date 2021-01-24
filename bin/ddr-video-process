@@ -4,7 +4,6 @@ use warnings;
 
 my $SONG_VOLUME = 0.2 * 2;
 my $CAMERA_VOLUME = 6.0 * 2;
-my $CAMERA_FPS = "15.793";
 
 my @EXTRA_OPTS = qw(-bitexact);
 
@@ -83,6 +82,24 @@ sub main(@){
   die "ERROR: SONG_FILE arg is missing or not a file\n" if not isFile($songFile);
   die "ERROR: OUTPUT_FILE arg is missing\n" if not defined $outputFile;
 
+  my @cameraFpsFilter;
+  my @ffprobeCmd = ("ffprobe",
+    "-v", "error",
+    "-select_streams", "v:0",
+    "-show_entries", "stream=avg_frame_rate",
+    "-of", "default=nw=1:nk=1",
+    $cameraFile,
+  );
+  my $cameraInfo = `@ffprobeCmd 2>&1`;
+  if($cameraInfo =~ /^(\d+)\/(\d+)$/){
+    my $fps = $2 == 0 ? 0 : $1/$2;
+    if($fps > 0){
+      push @cameraFpsFilter, sprintf "fps=fps=%.3f", $fps;
+    }else{
+      print STDERR "WARNING: could not parse camera fps\n" if $fps <= 0;
+    }
+  }
+
   #delay the song-audio to match the start of the camera audio
   my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
   ffmpeg("tmp-song-extended.wav",
@@ -119,7 +136,7 @@ sub main(@){
     "-filter_complex", join(",",
       "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
       "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
-      "fps=fps=$CAMERA_FPS",        #match camera
+      @cameraFpsFilter,             #adjust to match camera
     ),
     "-an",
   );
