@@ -2,8 +2,8 @@
 use strict;
 use warnings;
 
-my $SONG_VOLUME = 0.2 * 2;
-my $CAMERA_VOLUME = 6.0 * 2;
+my $DEFAULT_SONG_VOLUME = 0.4;
+my $DEFAULT_CAMERA_VOLUME = 12.0;
 
 my @EXTRA_OPTS = qw(-bitexact);
 
@@ -29,6 +29,12 @@ my $usage = "Usage:
     --output=OUTPUT_FILE
       the file to write the final video to
 
+    --camera-volume=SONG_VOLUME
+      scale audio volume of CAMERA_VIDEO file (default is $DEFAULT_CAMERA_VOLUME)
+
+    --song-volume=SONG_VOLUME
+      scale audio volume of SONG_AUDIO file (default is $DEFAULT_SONG_VOLUME)
+
     --camera-audio-offset=OFFSET
       the audio offset, in seconds, in CAMERA_VIDEO
       (use positive values when the audio is happening before the video, to correct the delay)
@@ -45,6 +51,8 @@ my $usage = "Usage:
 
 sub main(@){
   my ($cameraFile, $screenFile, $songFile, $outputFile);
+  my $cameraVolume = $DEFAULT_CAMERA_VOLUME;
+  my $songVolume = $DEFAULT_SONG_VOLUME;
   my $cameraAudioOffset = 0;
   my $cameraAudioPoint = 0;
   my $screenPoint = 0;
@@ -65,6 +73,10 @@ sub main(@){
       $outputFile = $1;
     }elsif($arg =~ /^--outputFile=(.+)$/){
       $outputFile = $1;
+    }elsif($arg =~ /^--camera-volume=(\d+|\d*\.\d+)$/){
+      $cameraVolume = $1;
+    }elsif($arg =~ /^--song-volume=(\d+|\d*\.\d+)$/){
+      $songVolume = $1;
     }elsif($arg =~ /^--camera-audio-offset=(\d+|\d*\.\d+)$/){
       $cameraAudioOffset = $1;
     }elsif($arg =~ /^--camera-audio-point=(\d+|\d*\.\d+)$/){
@@ -109,14 +121,14 @@ sub main(@){
     "-i", $songFile,
     "-filter_complex", join(",",
       "[0:a][1:a]concat=n=2:v=0:a=1",
-      "volume=$SONG_VOLUME",
+      "volume=$songVolume",
     ),
   );
 
   #increase camera volume
   ffmpeg("tmp-camera-audio.wav",
     "-i", $cameraFile,
-    "-filter:a", "volume=$CAMERA_VOLUME",
+    "-filter:a", "volume=$cameraVolume",
   );
 
   #overlay camera+song audio
