@@ -30,6 +30,9 @@ my $usage = "Usage:
     --output=OUTPUT_FILE
       the file to write the final video to
 
+    --use-screen-audio
+      overlay the audio from SCREEN_VIDEO on the camera video (using SCREEN_POINT to align)
+
     --camera-volume=SONG_VOLUME
       scale audio volume of CAMERA_VIDEO file (default is $DEFAULT_CAMERA_VOLUME)
 
@@ -47,6 +50,7 @@ my $usage = "Usage:
         the audio of CAMERA_VIDEO at CAMERA_AUDIO_POINT (before correcting audio offset)
         the video of SCREEN_VIDEO at SCREEN_POINT
         the audio of SONG_AUDIO at SONG_POINT (if SONG_AUDIO is given)
+        the audio of SCREEN_VIDEO at SCREEN_POINT (if --use-screen-audio is given)
       if not given, each value defaults to 0
 ";
 
@@ -72,6 +76,8 @@ sub main(@){
       $songFile = $1;
     }elsif($arg =~ /^--output=(.+)$/){
       $outputFile = $1;
+    }elsif($arg =~ /^(--use-screen-audio)$/){
+      $useScreenAudio = 1;
     }elsif($arg =~ /^--outputFile=(.+)$/){
       $outputFile = $1;
     }elsif($arg =~ /^--camera-volume=(\d+|\d*\.\d+)$/){
@@ -118,7 +124,17 @@ sub main(@){
     "-filter:a", "volume=$cameraVolume",
   );
 
-  if(isFile($songFile)){
+  my $audioOverlay = undef;
+  if($useScreenAudio){
+    my $screenAudioOffset = $screenPoint - $cameraAudioPoint;
+    $audioOverlay = "tmp-audio-overlay-screen.wav";
+    #extract song audio from screen
+    ffmpeg($audioOverlay,
+      "-i", $screenFile,
+      "-ss", "$screenAudioOffset",
+      "-filter:a", "volume=$songVolume",
+    );
+  }elsif(isFile($songFile)){
     #delay the song-audio to match the start of the camera audio
     my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
     $audioOverlay = "tmp-audio-overlay-song.wav";
