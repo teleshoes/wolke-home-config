@@ -343,14 +343,10 @@ sub parseHighchart($){
       \}
   /sxi){
     my ($xAxisCategoriesCsv) = ($1);
-    my @xAxisCategories = split ",", $xAxisCategoriesCsv;
+    my @xAxisCategories = parseXAxisDateCsv($xAxisCategoriesCsv);
 
     my $prevDate = undef;
-    for my $categoryMonthDay(@xAxisCategories){
-      my $date = parseMonthDateToYYYYMMD $categoryMonthDay;
-      if(not defined $date){
-        die "ERROR: malformed x-axis category (date): $categoryMonthDay\n";
-      }
+    for my $date(@xAxisCategories){
       if(defined $prevDate){
         my $prevDatePlusOneDay = yyyymmddAddOneDay $prevDate;
         if($date <= $prevDate){
@@ -439,41 +435,29 @@ sub parseHighchart($){
   }
 }
 
-# 'Aug 03' => 20200803
-sub parseMonthDateToYYYYMMD($){
-  my ($monthDay) = @_;
+sub parseXAxisDateCsv($){
+  my ($csv) = @_;
+  my @dateVals = $csv =~ /(?:[^,"]*|"[^"]*")*(?:,|$)/g;
+  @dateVals = grep {length $_ > 0} @dateVals;
+
   my %months = (
     Jan => '01',  Feb => '02',  Mar => '03',  Apr => '04',  May => '05',  Jun => '06',
     Jul => '07',  Aug => '08',  Sep => '09',  Oct => '10',  Nov => '11',  Dec => '12',
   );
-
-  my ($month, $day);
-  my $okMonth = join "|", sort keys %months;
-  if($monthDay =~ /^"($okMonth) (\d\d)"$/){
-    my $monthName = $1;
-    $day = $2;
-    $month = $months{$monthName};
+  my @datesYYYYMMDD;
+  my $monthNameRegex = join "|", sort keys %months;
+  for my $dateVal(@dateVals){
+    $dateVal =~ s/^"//;
+    $dateVal =~ s/",?$//;
+    if($dateVal =~ /^($monthNameRegex) (\d\d), (\d\d\d\d)$/){
+      my ($monthName, $day, $year) = ($1, $2, $3);
+      my $month = $months{$monthName};
+      push @datesYYYYMMDD, "$year$month$day";
+    }else{
+      die "ERROR: malformed x-axis category: $dateVal\n";
+    }
   }
-
-  my $year;
-  if($month > $CURRENT_MONTH or ($month == $CURRENT_MONTH and $day > $CURRENT_DAY)){
-    $year = $CURRENT_YEAR - 1;
-  }else{
-    $year = $CURRENT_YEAR;
-  }
-
-  my $dateYYYYMMDD;
-  if(defined $year and defined $month and defined $day){
-    my $epoch = yyyymmddToEpoch "$year$month$day";
-    return undef if not defined $epoch;
-    $dateYYYYMMDD = epochToYYYYMMDD $epoch;
-  }
-
-  if(defined $dateYYYYMMDD and $dateYYYYMMDD ne "$year$month$day"){
-    $dateYYYYMMDD = undef;
-  }
-
-  return $dateYYYYMMDD;
+  return @datesYYYYMMDD;
 }
 
 sub getRecentPastDaysYYYYMMDD($){
