@@ -234,8 +234,8 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --next"  @@ mCAW  xK_w    #! "ipmagic tv bgset --next"
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
-    "wemo"         @@ do
-        "wemo-lights"   @@ mC    xK_PgDn #! "wemo-switch wemo1 --toggle"
+    "tasmota"         @@ do
+        "ts-outleti1"   @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx"
