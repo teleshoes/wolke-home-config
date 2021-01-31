@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
 my $DEFAULT_DEVICE = "outlet1";
 my $DEFAULT_COMMAND = "POWER TOGGLE";
@@ -14,10 +15,43 @@ my $DEVICES = {
   outlet3 => "192.168.11.98",
 };
 
+my $DEVICES_REGEX = join "|", sort keys %$DEVICES;
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC DEVICE COMMAND
+    use curl to send <COMMAND> to named <DEVICE>
+    DEVICE = $DEVICES_REGEX
+
+  $EXEC
+    same as: $EXEC $DEFAULT_DEVICE '$DEFAULT_COMMAND'
+
+  $EXEC DEVICE
+    same as: $EXEC <DEVICE> '$DEFAULT_COMMAND'
+";
+
 sub cmd($$);
 
 sub main(@){
-  my ($device, $cmd) = @_;
+  my ($device, $cmd);
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^($DEVICES_REGEX)$/){
+      $device = $arg;
+    }elsif(not defined $cmd and @_ == 0){
+      $cmd = $arg;
+    }else{
+      die $USAGE;
+    }
+  }
+
   $device = $DEFAULT_DEVICE if not defined $device;
   $cmd = $DEFAULT_COMMAND if not defined $cmd;
   cmd $device, $cmd;
