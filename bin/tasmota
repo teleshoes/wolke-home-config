@@ -23,28 +23,28 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC DEVICE COMMAND
-    use curl to send <COMMAND> to named <DEVICE>
+  $EXEC DEVICE [DEVICE ..] COMMAND
+    use curl to send <COMMAND> to each named <DEVICE>
     DEVICE = $DEVICES_REGEX
 
   $EXEC
     same as: $EXEC $DEFAULT_DEVICE '$DEFAULT_COMMAND'
 
-  $EXEC DEVICE
-    same as: $EXEC <DEVICE> '$DEFAULT_COMMAND'
+  $EXEC DEVICE [DEVICE]
+    same as: $EXEC <DEVICE> <DEVICE> .. '$DEFAULT_COMMAND'
 ";
 
 sub cmd($$);
 
 sub main(@){
-  my ($device, $cmd);
+  my (@devices, $cmd);
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
-      $device = $arg;
+      push @devices, $arg;
     }elsif(not defined $cmd and @_ == 0){
       $cmd = $arg;
     }else{
@@ -52,10 +52,12 @@ sub main(@){
     }
   }
 
-  $device = $DEFAULT_DEVICE if not defined $device;
+  push @devices, $DEFAULT_DEVICE if @devices == 0;
   $cmd = $DEFAULT_COMMAND if not defined $cmd;
-  cmd $device, $cmd;
-  print "\n";
+  for my $device(@devices){
+    cmd $device, $cmd;
+    print "\n";
+  }
 }
 
 sub cmd($$){
