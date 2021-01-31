@@ -219,7 +219,6 @@ function sm           { sheetmusic "$@"; }
 function pl           { play-show "$@"; }
 
 function ts           { tasmota "$@"; }
-function ws           { wemo-switch "$@"; }
 
 function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           command igcmd "$@";
