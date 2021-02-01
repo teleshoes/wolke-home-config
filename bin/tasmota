@@ -80,6 +80,13 @@ sub runCommandOnDevices($@){
     $pm->set_waitpid_blocking_sleep(0);  #enable true blocking calls
 
     my %outputByDevice;
+    for my $device(@devices){
+      if(defined $outputByDevice{$device}){
+        die "ERROR: duplicate device $device (not allowed in parallel)\n";
+      }
+      $outputByDevice{$device} = "UNKNOWN";
+    }
+
     $pm->run_on_finish(
       sub {
         my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_structure_reference) = @_;
@@ -95,6 +102,7 @@ sub runCommandOnDevices($@){
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
+
     for my $device(@devices){
       print "$device - $outputByDevice{$device}\n";
     }
