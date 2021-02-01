@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 my $DEFAULT_DEVICE = "outlet1";
 my $DEFAULT_COMMAND = "POWER TOGGLE";
@@ -70,9 +71,38 @@ sub main(@){
 
 sub runCommandOnDevices($@){
   my ($cmd, @devices) = @_;
-  for my $device(@devices){
-    my $out = cmd $device, $cmd;
-    print "$device - $out\n";
+  if($FORKMGR_LIB){
+    my $tmpDir = "/tmp/$EXEC-perl-storable";
+    $ENV{TMPDIR} = $tmpDir;
+    system "mkdir", "-p", "/tmp/$EXEC-perl-storable";
+
+    my $pm = Parallel::ForkManager->new(10, $tmpDir);
+    $pm->set_waitpid_blocking_sleep(0);  #enable true blocking calls
+
+    my %outputByDevice;
+    $pm->run_on_finish(
+      sub {
+        my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_structure_reference) = @_;
+        $outputByDevice{$ident} = $$data_structure_reference;
+      }
+    );
+
+    for my $device(@devices){
+      my $pid = $pm->start($device);
+      next if $pid;
+
+      my $out = cmd $device, $cmd;
+      $pm->finish(0, \$out);
+    }
+    $pm->wait_all_children();
+    for my $device(@devices){
+      print "$device - $outputByDevice{$device}\n";
+    }
+  }else{
+    for my $device(@devices){
+      my $out = cmd $device, $cmd;
+      print "$device - $out\n";
+    }
   }
 }
 
