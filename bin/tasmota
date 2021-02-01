@@ -77,6 +77,7 @@ sub main(@){
 
 sub runCommandOnDevices($@){
   my ($cmd, @devices) = @_;
+  my $outputByDevice = {};
   if($FORKMGR_LIB){
     my $tmpDir = "/tmp/$EXEC-perl-storable";
     $ENV{TMPDIR} = $tmpDir;
@@ -85,18 +86,17 @@ sub runCommandOnDevices($@){
     my $pm = Parallel::ForkManager->new(10, $tmpDir);
     $pm->set_waitpid_blocking_sleep(0);  #enable true blocking calls
 
-    my %outputByDevice;
     for my $device(@devices){
-      if(defined $outputByDevice{$device}){
+      if(defined $$outputByDevice{$device}){
         die "ERROR: duplicate device $device (not allowed in parallel)\n";
       }
-      $outputByDevice{$device} = "UNKNOWN";
+      $$outputByDevice{$device} = "UNKNOWN";
     }
 
     $pm->run_on_finish(
       sub {
         my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_structure_reference) = @_;
-        $outputByDevice{$ident} = $$data_structure_reference;
+        $$outputByDevice{$ident} = $$data_structure_reference;
       }
     );
 
@@ -110,14 +110,16 @@ sub runCommandOnDevices($@){
     $pm->wait_all_children();
 
     for my $device(@devices){
-      print "$device - $outputByDevice{$device}\n";
+      print "$device - $$outputByDevice{$device}\n";
     }
   }else{
     for my $device(@devices){
       my $out = cmd $device, $cmd;
+      $$outputByDevice{$device} = $out;
       print "$device - $out\n";
     }
   }
+  return $outputByDevice;
 }
 
 sub cmd($$){
