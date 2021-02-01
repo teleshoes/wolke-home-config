@@ -15,8 +15,15 @@ my $DEVICES = {
   outlet2 => "192.168.11.97",
   outlet3 => "192.168.11.98",
 };
+my $DEVICE_ALIASES = {
+  "b"     => [qw(bulb1 bulb2 bulb3)],
+  "bulbs" => [qw(bulb1 bulb2 bulb3)],
+};
 
 my $DEVICES_REGEX = join "|", sort keys %$DEVICES;
+my $DEVICE_ALIASES_REGEX = join "|", sort keys %$DEVICE_ALIASES;
+my $DEVICE_ALIAS_FMT =
+  join "", map {"      $_ = @{$$DEVICE_ALIASES{$_}}\n"} sort keys %$DEVICE_ALIASES;
 
 my $EXEC = basename $0;
 
@@ -24,21 +31,22 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC DEVICE [DEVICE ..] COMMAND
+  $EXEC [DEVICE DEVICE ..] COMMAND
     use curl to send <COMMAND> to each named <DEVICE>
-    DEVICE = $DEVICES_REGEX
+    <DEVICE> defaults to '$DEFAULT_DEVICE' if none are given
+    available <DEVICE> arguments:
+      $DEVICE_ALIASES_REGEX|$DEVICES_REGEX
 
-  $EXEC
-    same as: $EXEC $DEFAULT_DEVICE '$DEFAULT_COMMAND'
+  $EXEC [DEVICE DEVICE ..]
+    same as: $EXEC [DEVICE DEVICE ..] '$DEFAULT_COMMAND'
 
-  $EXEC DEVICE [DEVICE]
-    same as: $EXEC <DEVICE> <DEVICE> .. '$DEFAULT_COMMAND'
+  DEVICE = DEVICE_NAME | DEVICE_ALIAS
+    name of device, or named alias for a list of devices
 
-  $EXEC -b | --bulbs | b
-    same as:
-      $EXEC bulb1 '$DEFAULT_COMMAND'
-      $EXEC bulb2 '$DEFAULT_COMMAND'
-      $EXEC bulb3 '$DEFAULT_COMMAND'
+    DEVICE_NAME
+      $DEVICES_REGEX
+
+    DEVICE_ALIAS" . "\n$DEVICE_ALIAS_FMT\n" . "
 ";
 
 sub runCommandOnDevices($@);
@@ -53,10 +61,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
-    }elsif($arg =~ /^(-b|--bulbs|b)$/){
-      push @devices, "bulb1";
-      push @devices, "bulb2";
-      push @devices, "bulb3";
+    }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
+      @devices = (@devices, @{$$DEVICE_ALIASES{$arg}});
     }elsif(not defined $cmd and @_ == 0){
       $cmd = $arg;
     }else{
