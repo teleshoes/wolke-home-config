@@ -5,7 +5,6 @@ use File::Basename qw(basename);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 my $DEFAULT_DEVICE = "outlet1";
-my $DEFAULT_COMMAND = "POWER TOGGLE";
 
 my $DEVICES = {
   bulb1   => "192.168.11.93",
@@ -38,7 +37,11 @@ my $USAGE = "Usage:
       $DEVICE_ALIASES_REGEX|$DEVICES_REGEX
 
   $EXEC [DEVICE DEVICE ..]
-    same as: $EXEC [DEVICE DEVICE ..] '$DEFAULT_COMMAND'
+  $EXEC -t | --toggle [DEVICE DEVICE ..]
+    either power on or power off all <DEVICE>s (does NOT send 'toggle')
+      -send <COMMAND> 'POWER' to all <DEVICE>s
+      -if response is 'OFF' for all: send <COMMAND> 'POWER ON' to all <DEVICE>s
+      -otherwise: send <COMMAND> 'POWER OFF' to all <DEVICE>s
 
   DEVICE = DEVICE_NAME | DEVICE_ALIAS
     name of device, or named alias for a list of devices
@@ -63,6 +66,8 @@ sub main(@){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
       @devices = (@devices, @{$$DEVICE_ALIASES{$arg}});
+    }elsif($arg =~ /^(-t|--toggle)$/){
+      $cmd = undef;
     }elsif(not defined $cmd and @_ == 0){
       $cmd = $arg;
     }else{
@@ -71,8 +76,24 @@ sub main(@){
   }
 
   push @devices, $DEFAULT_DEVICE if @devices == 0;
-  $cmd = $DEFAULT_COMMAND if not defined $cmd;
-  runCommandOnDevices($cmd, @devices);
+
+  if(not defined $cmd){
+    my $outputByDevice = runCommandOnDevices("POWER", @devices);
+    my $allOff = 1;
+    print "=>\n";
+    for my $device(@devices){
+      my $output = $$outputByDevice{$device};
+      $output = "" if not defined $output;
+      if($output !~ /{"POWER":"OFF"}/){
+        $allOff = 0;
+        last;
+      }
+    }
+    my $cmd = $allOff ? "POWER ON" : "POWER OFF";
+    runCommandOnDevices($cmd, @devices);
+  }else{
+    runCommandOnDevices($cmd, @devices);
+  }
 }
 
 sub runCommandOnDevices($@){
