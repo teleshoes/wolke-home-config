@@ -31,7 +31,7 @@ my $usage = "Usage:
         current time, formatted +%H%M%S
         e.g.: 193743
       NEXTNUM
-        find all files in DIR named: <DATE>*_<NUM>.<EXT>
+        find all files in DIR named: <DATE>*_<NUM>.<EXT> or <DATE>*_<NUM>_*.<EXT>
         extract the largest NUM, and add 1 to it
         formatted as at least 3 digits with leading 0s i.e.: %03d
         e.g.: 001
@@ -59,6 +59,14 @@ my $usage = "Usage:
       left-pad <NEXTNUM> with 0s until it is at least <DIGITS> digits long
       (default is 3)
 
+    --suffix=SUFFIX
+      filename suffix to append before extension, after an underscore
+      when given, filename becomes: <DIR>/<DATE>_<TIME>_<NEXTNUM>_<SUFFIX>.png
+      <SUFFIX> can contain only lowercase letters, numbers and underscores
+      <SUFFIX> must start with a lowercase letter
+      <SUFFIX> cannot end with an underscore
+      <SUFFIX> cannot have two adjacent underscores
+
     --micro
       same as: --digits=6 and --force-next-num=<CURRENT_MICROSECONDS>
       CURRENT_MICROSECONDS
@@ -77,6 +85,7 @@ sub main(@){
   my $minNextNum = 1;
   my $forceNextNum = undef;
   my $minDigits = 3;
+  my $suffix = undef;
   my $useMicro = 0;
   while(@_ > 0){
     my $arg = shift @_;
@@ -94,6 +103,11 @@ sub main(@){
       $forceNextNum = $1;
     }elsif($arg =~ /^--(?:digits|min-digits)=(\d+)$/){
       $minDigits = $1;
+    }elsif($arg =~ /^--suffix=(.+)$/){
+      $suffix = $1;
+      if($suffix !~ /^[a-z]([a-z0-9_]*[a-z0-9])?$/ or $suffix =~ /__/){
+        die "$usage\nERROR: invalid suffix \"$suffix\"";
+      }
     }elsif($arg =~ /^--micro$/){
       $useMicro = 1;
       $minDigits = 6;
@@ -126,7 +140,7 @@ sub main(@){
     my @files = listDirFiles($dir);
     my $maxNum = 0;
     for my $file(@files){
-      if($file =~ /^(?:.*\/)?${date}.*_(\d+)\.(?:$OK_EXTS)$/i){
+      if($file =~ /^(?:.*\/)?${date}.*_(\d+)(?:_.*)?\.(?:$OK_EXTS)$/i){
         my $num = 0 + $1;
         if($num > $maxNum){
           $maxNum = $num;
@@ -140,7 +154,9 @@ sub main(@){
 
   $nextNum = sprintf "%0${minDigits}d", $nextNum;
 
-  my $file = "${dir}/${date}_${time}_${nextNum}.png";
+  $suffix = defined $suffix ? "_${suffix}" : "";
+
+  my $file = "${dir}/${date}_${time}_${nextNum}${suffix}.png";
 
   if(-e $file){
     die "ERROR: $file already exists\n";
