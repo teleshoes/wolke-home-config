@@ -113,7 +113,6 @@ shortcuts conf = "Shortcuts" @@ do
     "Invert Colors"     @@ mW    xK_n    #! "xcalib -i -a"
     "Screen Off Idle"   @@ mW    xK_s    #! "sleep 0.5; screenOff"
     "Screen On/Off"     @@ mCW   xK_s    #! "screenpwr"
-    "thinklight"        @@ mC    xK_PgUp #! "led thinklight"
     "touchclick toggle" @@ mC    xK_Menu #! "touchClick toggle"
     "htop"              @@ mCA   (xK ' ')#! "term htop"
 
@@ -236,6 +235,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "tasmota"         @@ do
         "ts-outlet1"    @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
+        "ts-bulbs"      @@ mC    xK_PgUp #! "tasmota bulbs --toggle"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx"
