@@ -31,6 +31,10 @@ my $usage = "Usage:
     --output=OUTPUT_FILE
       the file to write the final video to
 
+    --re-encode | --last-pass | --force-mp4
+      do a final pass, re-encoding OUTPUT_FILE with default audio/video,
+      to a file named OUTPUT_FILE.mp4
+
     --ffmpeg-initial-opts=FFMPEG_INITIAL_OPTS
       space-separated list of arguments to put immediately after `ffmpeg` in each command
 
@@ -68,6 +72,7 @@ sub main(@){
   my ($cameraFile, $screenFile, $songFile, $outputFile);
   my $cameraVolume = $DEFAULT_CAMERA_VOLUME;
   my $songVolume = $DEFAULT_SONG_VOLUME;
+  my $lastPassEncode = 0;
   my $cameraAVSyncOffset = 0;
   my $cameraAudioPoint = 0;
   my $screenPoint = 0;
@@ -88,6 +93,8 @@ sub main(@){
       $songFile = $1;
     }elsif($arg =~ /^--output=(.+)$/){
       $outputFile = $1;
+    }elsif($arg =~ /^(--re-encode|--last-pass|--force-mp4)$/){
+      $lastPassEncode = 1;
     }elsif($arg =~ /^--ffmpeg-initial-opts=(.+)$/){
       my $argList = $1;
       @INITIAL_OPTS = split /\s+/, $argList;
@@ -302,6 +309,15 @@ sub main(@){
   );
 
   system "touch", $outputFile, "-r", $cameraFile;
+
+  if($lastPassEncode){
+    my $mp4OutputFile = "$outputFile.mp4";
+    ffmpeg($mp4OutputFile,
+      "-i", $outputFile,
+    );
+
+    system "touch", $mp4OutputFile, "-r", $cameraFile;
+  }
 }
 
 sub isFile($){
