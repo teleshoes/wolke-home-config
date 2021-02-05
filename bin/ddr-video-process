@@ -61,7 +61,7 @@ sub main(@){
   my ($cameraFile, $screenFile, $songFile, $outputFile);
   my $cameraVolume = $DEFAULT_CAMERA_VOLUME;
   my $songVolume = $DEFAULT_SONG_VOLUME;
-  my $cameraAudioOffset = 0;
+  my $cameraAVSyncOffset = 0;
   my $cameraAudioPoint = 0;
   my $screenPoint = 0;
   my $songPoint = 0;
@@ -91,7 +91,7 @@ sub main(@){
     }elsif($arg =~ /^--song-volume=(\d+|\d*\.\d+)$/){
       $songVolume = $1;
     }elsif($arg =~ /^--camera-audio-offset=(\d+|\d*\.\d+)$/){
-      $cameraAudioOffset = $1;
+      $cameraAVSyncOffset = $1;
     }elsif($arg =~ /^--camera-audio-point=(\d+|\d*\.\d+)$/){
       $cameraAudioPoint = $1;
     }elsif($arg =~ /^--screen-point=(\d+|\d*\.\d+)$/){
@@ -132,17 +132,19 @@ sub main(@){
 
   my $audioOverlay = undef;
   if($useScreenAudio){
-    my $screenAudioOffset = $screenPoint - $cameraAudioPoint;
+    my $screenAudioStartPos = $screenPoint - $cameraAudioPoint;
     $audioOverlay = "tmp-audio-overlay-screen.wav";
     #extract song audio from screen
     ffmpeg($audioOverlay,
       "-i", $screenFile,
-      "-ss", "$screenAudioOffset",
+      "-ss", "$screenAudioStartPos",
       "-filter:a", "volume=$songVolume",
     );
   }elsif(isFile($songFile)){
     #delay the song-audio to match the start of the camera audio
-    my $songSilencePrefixLen = $cameraAudioPoint - $songPoint;
+    # (camera always starts before the song)
+    my $songAudioStartPos = $songPoint - $cameraAudioPoint;
+    my $songSilencePrefixLen = 0 - $songAudioStartPos;
     $audioOverlay = "tmp-audio-overlay-song.wav";
     ffmpeg($audioOverlay,
       "-f", "lavfi",
@@ -175,13 +177,13 @@ sub main(@){
     exit 0;
   }
 
-  my $cameraVideoPoint = $cameraAudioPoint + $cameraAudioOffset;
+  my $cameraVideoPoint = $cameraAudioPoint + $cameraAVSyncOffset;
 
   #trim screen-video to start of camera-video, trim+resize for stacking
-  my $screenOffset = $screenPoint - $cameraVideoPoint;
+  my $screenVideoStartPos = $screenPoint - $cameraVideoPoint;
   ffmpeg("tmp-screen-trim-crop-scale-fps.mp4",
     "-i", $screenFile,
-    "-ss", sprintf("%.2f", $screenOffset),
+    "-ss", sprintf("%.2f", $screenVideoStartPos),
     "-filter_complex", join(",",
       "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
       "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
@@ -214,7 +216,7 @@ sub main(@){
   #combine video and audio with the same overall audio offset as the original camera file
   ffmpeg($outputFile,
     "-i", "tmp-video-final.mp4",
-    "-itsoffset", sprintf("%.2f", $cameraAudioOffset),
+    "-itsoffset", sprintf("%.2f", $cameraAVSyncOffset),
     "-i", "tmp-audio-final.wav",
     "-c:v", "copy",
   );
