@@ -179,20 +179,30 @@ sub main(@){
       "-filter:a", "volume=$songVolume",
     );
   }elsif(isFile($songFile)){
-    #delay the song-audio to match the start of the camera audio
-    # (camera always starts before the song)
-    my $songSilencePrefixLen = 0 - $songAudioStartPos;
     $audioOverlay = "tmp-audio-overlay-song.wav";
-    ffmpeg($audioOverlay,
-      "-f", "lavfi",
-      "-t", sprintf("%.2f", $songSilencePrefixLen),
-      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-      "-i", $songFile,
-      "-filter_complex", join(",",
-        "[0:a][1:a]concat=n=2:v=0:a=1",
-        "volume=$songVolume",
-      ),
-    );
+    if($songAudioStartPos > 0){
+      #camera started after the song (means partial recording)
+      # trim out the start of the song
+      ffmpeg($audioOverlay,
+        "-i", $songFile,
+        "-ss", "$songAudioStartPos",
+        "-filter:a", "volume=$songVolume",
+      );
+    }else{
+      #camera started before the song (this is normal)
+      # delay the song-audio to match the start of the camera audio
+      my $songSilencePrefixLen = 0 - $songAudioStartPos;
+      ffmpeg($audioOverlay,
+        "-f", "lavfi",
+        "-t", sprintf("%.2f", $songSilencePrefixLen),
+        "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+        "-i", $songFile,
+        "-filter_complex", join(",",
+          "[0:a][1:a]concat=n=2:v=0:a=1",
+          "volume=$songVolume",
+        ),
+      );
+    }
   }
 
   if(defined $audioOverlay){
