@@ -235,7 +235,7 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "tasmota"         @@ do
-        "ts-outleti1"   @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
+        "ts-outlet1"    @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx"
