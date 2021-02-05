@@ -116,7 +116,6 @@ sub main(@){
     }
   }
   die "ERROR: CAMERA_FILE arg is missing or not a file\n" if not isFile($cameraFile);
-  die "ERROR: SCREEN_FILE arg is missing or not a file\n" if not isFile($screenFile);
   die "ERROR: OUTPUT_FILE arg is missing\n" if not defined $outputFile;
 
   my $ext = $1 if $cameraFile =~ /\.(\w+)$/;
@@ -243,39 +242,48 @@ sub main(@){
     $cameraVideoStartPos = $cameraVideoPoint - $screenPoint;
   }
 
-  #trim screen-video to start of camera-video, trim+resize for stacking
-  ffmpeg("tmp-screen-trim-crop-scale-fps.$ext",
-    "-i", $screenFile,
-    "-ss", sprintf("%.2f", $screenVideoStartPos),
-    "-filter_complex", join(",",
-      "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
-      "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
-      @cameraFpsFilter,             #adjust to match camera
-    ),
-    "-an",
-  );
+  if(isFile($screenFile)){
+    #trim screen-video to start of camera-video, trim+resize for stacking
+    ffmpeg("tmp-screen-trim-crop-scale-fps.$ext",
+      "-i", $screenFile,
+      "-ss", sprintf("%.2f", $screenVideoStartPos),
+      "-filter_complex", join(",",
+        "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
+        "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
+        @cameraFpsFilter,             #adjust to match camera
+      ),
+      "-an",
+    );
 
-  #trim camera-video to start of screen-video, rotate+resize camera-video for stacking
-  ffmpeg("tmp-camera-transpose-scale.$ext",
-    "-i", $cameraFile,
-    "-ss", sprintf("%.2f", $cameraVideoStartPos),
-    "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
-    "-filter_complex", join(",",
-      "transpose=3",                #fix metadata confusion bug
-      "transpose=3",                #actually rotate (same as overall transpose=1)
-      "scale=608:1080",             #1080x1920 => 608x1080
-    ),
-    "-an",
-  );
+    #trim camera-video to start of screen-video, rotate+resize camera-video for stacking
+    ffmpeg("tmp-camera-transpose-scale.$ext",
+      "-i", $cameraFile,
+      "-ss", sprintf("%.2f", $cameraVideoStartPos),
+      "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
+      "-filter_complex", join(",",
+        "transpose=3",                #fix metadata confusion bug
+        "transpose=3",                #actually rotate (same as overall transpose=1)
+        "scale=608:1080",             #1080x1920 => 608x1080
+      ),
+      "-an",
+    );
 
-  #stack camera-video (left) and screen-video (right) horizontally
-  ffmpeg("tmp-video-final.$ext",
-    "-i", "tmp-camera-transpose-scale.$ext",
-    "-i", "tmp-screen-trim-crop-scale-fps.$ext",
-    "-vsync", "2",
-    "-filter_complex", "hstack=inputs=2:shortest=1",
-    "-an",
-  );
+    #stack camera-video (left) and screen-video (right) horizontally
+    ffmpeg("tmp-video-final.$ext",
+      "-i", "tmp-camera-transpose-scale.$ext",
+      "-i", "tmp-screen-trim-crop-scale-fps.$ext",
+      "-vsync", "2",
+      "-filter_complex", "hstack=inputs=2:shortest=1",
+      "-an",
+    );
+  }else{
+    #just use camera video unaltered
+    ffmpeg("tmp-video-final.$ext",
+      "-i", $cameraFile,
+      "-c:v", "copy",
+      "-an",
+    );
+  }
 
   my $itsOffset;
   if($cameraVideoStartPos > 0){
