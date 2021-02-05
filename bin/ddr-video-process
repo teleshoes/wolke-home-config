@@ -5,6 +5,7 @@ use warnings;
 my $DEFAULT_SONG_VOLUME = 0.4;
 my $DEFAULT_CAMERA_VOLUME = 12.0;
 
+my @INITIAL_OPTS;
 my @EXTRA_OPTS = qw(-bitexact);
 
 sub isFile($);
@@ -29,6 +30,9 @@ my $usage = "Usage:
 
     --output=OUTPUT_FILE
       the file to write the final video to
+
+    --ffmpeg-initial-opts=FFMPEG_INITIAL_OPTS
+      space-separated list of arguments to put immediately after `ffmpeg` in each command
 
     --use-screen-audio
       overlay the audio from SCREEN_VIDEO on the camera video (using SCREEN_POINT to align)
@@ -80,6 +84,9 @@ sub main(@){
       $songFile = $1;
     }elsif($arg =~ /^--output=(.+)$/){
       $outputFile = $1;
+    }elsif($arg =~ /^--ffmpeg-initial-opts=(.+)$/){
+      my $argList = $1;
+      @INITIAL_OPTS = split /\s+/, $argList;
     }elsif($arg =~ /^(--use-screen-audio)$/){
       $useScreenAudio = 1;
     }elsif($arg =~ /^(-a|--audio-only|--stop-after-audio)$/){
@@ -270,7 +277,7 @@ sub isFile($){
 sub ffmpeg($@){
   my ($output, @opts) = @_;
   my @cmd = ("ffmpeg");
-  @cmd = (@cmd, @opts, @EXTRA_OPTS, $output);
+  @cmd = (@cmd, @INITIAL_OPTS, @opts, @EXTRA_OPTS, $output);
 
   print "@cmd\n";
   if(-f $output){
