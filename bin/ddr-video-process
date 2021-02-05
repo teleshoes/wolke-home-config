@@ -124,15 +124,37 @@ sub main(@){
     }
   }
 
+  my ($cameraAudioStartPos, $screenAudioStartPos, $songAudioStartPos);
+  if($useScreenAudio){
+    if($screenPoint > $cameraAudioPoint){
+      $cameraAudioStartPos = 0;
+      $screenAudioStartPos = $screenPoint - $cameraAudioPoint;
+      $songAudioStartPos = 0;
+    }else{
+      $cameraAudioStartPos = $cameraAudioPoint - $screenPoint;
+      $screenAudioStartPos = 0;
+      $songAudioStartPos = 0;
+    }
+  }elsif(isFile($songFile)){
+    $cameraAudioStartPos = 0;
+    $screenAudioStartPos = 0;
+    $songAudioStartPos = $songPoint - $cameraAudioPoint;
+    #presumably always negative, camera starts before song
+  }else{
+    $cameraAudioStartPos = 0;
+    $screenAudioStartPos = 0;
+    $songAudioStartPos = 0;
+  }
+
   #increase camera volume
   ffmpeg("tmp-camera-audio.wav",
     "-i", $cameraFile,
+    "-ss", "$cameraAudioStartPos",
     "-filter:a", "volume=$cameraVolume",
   );
 
   my $audioOverlay = undef;
   if($useScreenAudio){
-    my $screenAudioStartPos = $screenPoint - $cameraAudioPoint;
     $audioOverlay = "tmp-audio-overlay-screen.wav";
     #extract song audio from screen
     ffmpeg($audioOverlay,
@@ -143,7 +165,6 @@ sub main(@){
   }elsif(isFile($songFile)){
     #delay the song-audio to match the start of the camera audio
     # (camera always starts before the song)
-    my $songAudioStartPos = $songPoint - $cameraAudioPoint;
     my $songSilencePrefixLen = 0 - $songAudioStartPos;
     $audioOverlay = "tmp-audio-overlay-song.wav";
     ffmpeg($audioOverlay,
@@ -179,8 +200,16 @@ sub main(@){
 
   my $cameraVideoPoint = $cameraAudioPoint + $cameraAVSyncOffset;
 
+  my ($screenVideoStartPos, $cameraVideoStartPos);
+  if($screenPoint > $cameraVideoPoint){
+    $screenVideoStartPos = $screenPoint - $cameraVideoPoint;
+    $cameraVideoStartPos = 0;
+  }else{
+    $screenVideoStartPos = 0;
+    $cameraVideoStartPos = $cameraVideoPoint - $screenPoint;
+  }
+
   #trim screen-video to start of camera-video, trim+resize for stacking
-  my $screenVideoStartPos = $screenPoint - $cameraVideoPoint;
   ffmpeg("tmp-screen-trim-crop-scale-fps.mp4",
     "-i", $screenFile,
     "-ss", sprintf("%.2f", $screenVideoStartPos),
@@ -192,9 +221,10 @@ sub main(@){
     "-an",
   );
 
-  #rotate+resize camera-video for stacking (no cropping)
+  #trim camera-video to start of screen-video, rotate+resize camera-video for stacking
   ffmpeg("tmp-camera-transpose-scale.mp4",
     "-i", $cameraFile,
+    "-ss", sprintf("%.2f", $cameraVideoStartPos),
     "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
     "-filter_complex", join(",",
       "transpose=3",                #fix metadata confusion bug
@@ -213,10 +243,18 @@ sub main(@){
     "-an",
   );
 
-  #combine video and audio with the same overall audio offset as the original camera file
+  my $itsOffset;
+  if($cameraVideoStartPos > 0){
+    #camera video trimmed already, so audio a/v sync offset fixed there instead of here
+    $itsOffset = 0;
+  }else{
+    $itsOffset = $cameraAVSyncOffset;
+  }
+
+  #combine video and audio with the AV sync matching camera file, unless corrected earlier
   ffmpeg($outputFile,
     "-i", "tmp-video-final.mp4",
-    "-itsoffset", sprintf("%.2f", $cameraAVSyncOffset),
+    "-itsoffset", sprintf("%.2f", $itsOffset),
     "-i", "tmp-audio-final.wav",
     "-c:v", "copy",
   );
