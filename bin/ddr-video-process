@@ -37,6 +37,9 @@ my $usage = "Usage:
     --use-screen-audio
       overlay the audio from SCREEN_VIDEO on the camera video (using SCREEN_POINT to align)
 
+    --longest-audio
+      use longest instead of shortest, and specify the audio overlay before the camera audio
+
     -a | --audio-only | --stop-after-audio
       halt after processing the audio instead of processing the video and combining
 
@@ -70,6 +73,7 @@ sub main(@){
   my $screenPoint = 0;
   my $songPoint = 0;
   my $useScreenAudio = 0;
+  my $longestAudio = 0;
   my $audioOnly = 0;
   while(@_ > 0){
     my $arg = shift;
@@ -89,6 +93,8 @@ sub main(@){
       @INITIAL_OPTS = split /\s+/, $argList;
     }elsif($arg =~ /^(--use-screen-audio)$/){
       $useScreenAudio = 1;
+    }elsif($arg =~ /^(--longest-audio)$/){
+      $longestAudio = 1;
     }elsif($arg =~ /^(-a|--audio-only|--stop-after-audio)$/){
       $audioOnly = 1;
     }elsif($arg =~ /^--outputFile=(.+)$/){
@@ -191,11 +197,19 @@ sub main(@){
 
   if(defined $audioOverlay){
     #overlay camera+song audio
-    ffmpeg("tmp-audio-final.wav",
-      "-i", "tmp-camera-audio.wav",
-      "-i", $audioOverlay,
-      "-filter_complex", "amix=inputs=2:duration=shortest",
-    );
+    if($longestAudio){
+      ffmpeg("tmp-audio-final.wav",
+        "-i", $audioOverlay,
+        "-i", "tmp-camera-audio.wav",
+        "-filter_complex", "amix=inputs=2:duration=longest",
+      );
+    }else{
+      ffmpeg("tmp-audio-final.wav",
+        "-i", "tmp-camera-audio.wav",
+        "-i", $audioOverlay,
+        "-filter_complex", "amix=inputs=2:duration=shortest",
+      );
+    }
   }else{
     ffmpeg("tmp-audio-final.wav",
       "-i", "tmp-camera-audio.wav",
