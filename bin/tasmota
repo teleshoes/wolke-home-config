@@ -84,9 +84,10 @@ my $USAGE = "Usage:
     available <DEVICE> arguments:
       $DEVICE_ALIASES_REGEX|$DEVICES_REGEX
 
+  $EXEC --toggle-all | -t [DEVICE DEVICE ..]
   $EXEC [DEVICE DEVICE ..]
-  $EXEC -t | --toggle [DEVICE DEVICE ..]
-    either power on or power off all <DEVICE>s (does NOT send 'toggle')
+    either power on all devices OR power off all <DEVICE>s
+    does NOT send 'power toggle' command
       -send <COMMAND> 'POWER' to all <DEVICE>s
       -if response is 'OFF' for all: send <COMMAND> 'POWER ON' to all <DEVICE>s
       -otherwise: send <COMMAND> 'POWER OFF' to all <DEVICE>s
@@ -107,12 +108,12 @@ sub runCommandOnDevices($@);
 sub cmd($$);
 
 my $MODE_COMMAND = "command";
-my $MODE_TOGGLE = "toggle";
+my $MODE_TOGGLE_ALL = "toggle-all";
 my $MODE_MAC = "mac";
 my $MODE_INIT_DEVICE = "init-device";
 
 sub main(@){
-  my $mode = $MODE_TOGGLE;
+  my $mode = $MODE_TOGGLE_ALL;
   my (@devices, $cmd);
   while(@_ > 0){
     my $arg = shift;
@@ -125,8 +126,8 @@ sub main(@){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
       @devices = (@devices, @{$$DEVICE_ALIASES{$arg}});
-    }elsif($arg =~ /^(-t|--toggle)$/){
-      $mode = $MODE_TOGGLE;
+    }elsif($arg =~ /^(--toggle-all|-t|)$/){
+      $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
@@ -147,7 +148,7 @@ sub main(@){
   if($mode eq $MODE_COMMAND){
     my $outputByDevice = runCommandOnDevices($cmd, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
-  }elsif($mode eq $MODE_TOGGLE){
+  }elsif($mode eq $MODE_TOGGLE_ALL){
     my $outputByDevice = runCommandOnDevices("POWER", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
     my $allOff = 1;
