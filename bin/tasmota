@@ -6,10 +6,9 @@ my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 my $WIFI_SSID = "FlipsAFad";
 my $INITIAL_DEVICE_IP = "192.168.4.1";
-
 my $DEFAULT_DEVICE = "outlet1";
 
-my $DEVICES = {
+my @DEVICES_ARR = (
   init    => "$INITIAL_DEVICE_IP",
   bulb1   => "192.168.11.93",
   bulb2   => "192.168.11.94",
@@ -17,8 +16,12 @@ my $DEVICES = {
   outlet1 => "192.168.11.96",
   outlet2 => "192.168.11.97",
   outlet3 => "192.168.11.98",
-};
-my $DEVICE_ALIASES = {
+);
+my @DEVICE_NAMES = map {$DEVICES_ARR[$_]}
+                   grep {$_ % 2 == 0} (0..$#DEVICES_ARR);
+my %DEVICES = @DEVICES_ARR;
+
+my @DEVICE_ALIASES_ARR = (
   "all"   => [qw(bulb1 bulb2 bulb3 outlet1 outlet2 outlet3)],
 
   "b"     => [qw(bulb1 bulb2 bulb3)],
@@ -30,9 +33,12 @@ my $DEVICE_ALIASES = {
   "o1"    => [qw(outlet1)],
   "o2"    => [qw(outlet2)],
   "o3"    => [qw(outlet3)],
-};
+);
+my @DEVICE_ALIAS_NAMES = map {$DEVICE_ALIASES_ARR[$_]}
+                         grep {$_ % 2 == 0} (0..$#DEVICE_ALIASES_ARR);
+my %DEVICE_ALIASES = @DEVICE_ALIASES_ARR;
 
-my $COMMAND_ALIASES = {
+my @COMMAND_ALIASES_ARR = (
   on      => 'POWER ON',
   off     => 'POWER OFF',
   toggle  => 'POWER TOGGLE',
@@ -54,12 +60,19 @@ my $COMMAND_ALIASES = {
 
   purple  => 'COLOR 8000800000',
   brown   => 'COLOR 6543210000',
-};
+);
+my @COMMAND_ALIAS_NAMES = map {$COMMAND_ALIASES_ARR[$_]}
+                          grep {$_ % 2 == 0} (0..$#COMMAND_ALIASES_ARR);
+my %COMMAND_ALIASES = @COMMAND_ALIASES_ARR;
 
-my $DEVICES_REGEX = join "|", sort keys %$DEVICES;
-my $DEVICE_ALIASES_REGEX = join "|", sort keys %$DEVICE_ALIASES;
-my $DEVICE_ALIAS_FMT =
-  join "", map {"      $_ = @{$$DEVICE_ALIASES{$_}}\n"} sort keys %$DEVICE_ALIASES;
+
+my $DEVICES_REGEX = join "|", sort keys %DEVICES;
+
+my $DEVICE_ALIASES_REGEX = join "|", sort keys %DEVICE_ALIASES;
+my $DEVICE_ALIAS_FMT = join "",
+                       map {"      $_ = @{$DEVICE_ALIASES{$_}}\n"}
+                       @DEVICE_ALIAS_NAMES;
+
 
 my $EXEC = basename $0;
 
@@ -126,16 +139,16 @@ sub main(@){
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
-      @devices = (@devices, @{$$DEVICE_ALIASES{$arg}});
+      @devices = (@devices, @{$DEVICE_ALIASES{$arg}});
     }elsif($arg =~ /^(--toggle-all|-t|)$/){
       $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
-    }elsif(defined $$COMMAND_ALIASES{lc $arg}){
+    }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
-      $cmd = $$COMMAND_ALIASES{lc $arg};
+      $cmd = $COMMAND_ALIASES{lc $arg};
     }elsif(not defined $cmd and @_ == 0){
       $mode = $MODE_COMMAND;
       $cmd = $arg;
@@ -211,13 +224,13 @@ sub runCommandOnDevices($@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = cmd $$DEVICES{$device}, $cmd;
+      my $out = cmd $DEVICES{$device}, $cmd;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = cmd $$DEVICES{$device}, $cmd;
+      my $out = cmd $DEVICES{$device}, $cmd;
       $$outputByDevice{$device} = $out;
     }
   }
