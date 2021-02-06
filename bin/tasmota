@@ -108,11 +108,11 @@ my $USAGE = "Usage:
 
   $EXEC --toggle-all | -t [DEVICE DEVICE ..]
   $EXEC [DEVICE DEVICE ..]
-    either power on all devices OR power off all <DEVICE>s
-    does NOT send 'power toggle' command
-      -send <COMMAND> 'POWER' to all <DEVICE>s
-      -if response is 'OFF' for all: send <COMMAND> 'POWER ON' to all <DEVICE>s
-      -otherwise: send <COMMAND> 'POWER OFF' to all <DEVICE>s
+    either turn on all devices, or turn off all devices,
+      by toggling all and then turning off stragglers
+    -send 'POWER TOGGLE' to all devices
+    -check the current power status after toggling
+    -if at least one is 'OFF' and at least one is 'ON', send 'off' to all
 
   $EXEC --mac [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -176,21 +176,25 @@ sub main(@){
     my $outputByDevice = runCommandOnDevices($cmd, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_TOGGLE_ALL){
-    my $outputByDevice = runCommandOnDevices("POWER", @devices);
+    print "toggling all =>\n";
+    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
-    my $allOff = 1;
-    print "=>\n";
+    my $someOff = 0;
+    my $someOn = 0;
     for my $device(@devices){
       my $output = $$outputByDevice{$device};
       $output = "" if not defined $output;
-      if($output !~ /{"POWER":"OFF"}/){
-        $allOff = 0;
-        last;
+      if($output =~ /{"POWER":"OFF"}/i){
+        $someOff = 1;
+      }elsif($output =~ /{"POWER":"ON"}/i){
+        $someOn = 1;
       }
     }
-    my $cmd = $allOff ? "POWER ON" : "POWER OFF";
-    $outputByDevice = runCommandOnDevices($cmd, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    if($someOff and $someOn){
+      print "\nsome devices off, some devices on, turning all off =>\n";
+      $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
+      print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    }
   }elsif($mode eq $MODE_MAC){
     my $outputByDevice = runCommandOnDevices("STATUS 0", @devices);
     for my $device(@devices){
