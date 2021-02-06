@@ -63,7 +63,12 @@ my $USAGE = "Usage:
 sub runCommandOnDevices($@);
 sub cmd($$);
 
+my $MODE_COMMAND = "command";
+my $MODE_TOGGLE = "toggle";
+my $MODE_INIT_DEVICE = "init-device";
+
 sub main(@){
+  my $mode = $MODE_TOGGLE;
   my (@devices, $cmd);
   while(@_ > 0){
     my $arg = shift;
@@ -71,18 +76,17 @@ sub main(@){
       print $USAGE;
       exit 0;
     }elsif($arg =~ /^(-s|--setup-wifi)$/){
-      my $key = `winfo --key $WIFI_SSID`;
-      chomp $key;
-      cmd $INITIAL_DEVICE_IP, "BACKLOG SSID1 $WIFI_SSID ; Password1 $key";
-      exit 0;
+      $mode = $MODE_INIT_DEVICE;
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
       @devices = (@devices, @{$$DEVICE_ALIASES{$arg}});
     }elsif($arg =~ /^(-t|--toggle)$/){
       $cmd = undef;
+      $mode = $MODE_TOGGLE;
     }elsif(not defined $cmd and @_ == 0){
       $cmd = $arg;
+      $mode = $MODE_COMMAND;
     }else{
       die $USAGE;
     }
@@ -90,7 +94,10 @@ sub main(@){
 
   push @devices, $DEFAULT_DEVICE if @devices == 0;
 
-  if(not defined $cmd){
+  if($mode eq $MODE_COMMAND){
+    my $outputByDevice = runCommandOnDevices($cmd, @devices);
+    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($mode eq $MODE_TOGGLE){
     my $outputByDevice = runCommandOnDevices("POWER", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
     my $allOff = 1;
@@ -106,9 +113,12 @@ sub main(@){
     my $cmd = $allOff ? "POWER ON" : "POWER OFF";
     $outputByDevice = runCommandOnDevices($cmd, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($mode eq $MODE_INIT_DEVICE){
+    my $key = `winfo --key $WIFI_SSID`;
+    chomp $key;
+    cmd $INITIAL_DEVICE_IP, "BACKLOG SSID1 $WIFI_SSID ; Password1 $key";
   }else{
-    my $outputByDevice = runCommandOnDevices($cmd, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    die "ERROR: unknown mode \"$mode\"\n";
   }
 }
 
