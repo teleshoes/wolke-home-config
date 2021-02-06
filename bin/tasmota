@@ -4,6 +4,9 @@ use warnings;
 use File::Basename qw(basename);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
+my $WIFI_SSID = "FlipsAFad";
+my $INITIAL_DEVICE_IP = "192.168.4.1";
+
 my $DEFAULT_DEVICE = "outlet1";
 
 my $DEVICES = {
@@ -29,6 +32,11 @@ my $EXEC = basename $0;
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
+
+  $EXEC -s | --setup-wifi
+    assuming connected to newly flashed/reset tasmota device,
+    send SSID1=$WIFI_SSID and Password1=`winfo --key $WIFI_SSID`
+    to $INITIAL_DEVICE_IP
 
   $EXEC [DEVICE DEVICE ..] COMMAND
     use curl to send <COMMAND> to each named <DEVICE>
@@ -61,6 +69,11 @@ sub main(@){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-s|--setup-wifi)$/){
+      my $key = `winfo --key $WIFI_SSID`;
+      chomp $key;
+      cmd $INITIAL_DEVICE_IP, "BACKLOG SSID1 $WIFI_SSID ; Password1 $key";
       exit 0;
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
