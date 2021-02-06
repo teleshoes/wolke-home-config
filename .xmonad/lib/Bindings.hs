@@ -235,7 +235,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "tasmota"         @@ do
         "ts-outlet1"    @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
-        "ts-bulbs"      @@ mC    xK_PgUp #! "tasmota bulbs --toggle"
+        "ts-bulbs"      @@ mC    xK_PgUp #! "tasmota bulbs --toggle-all"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx"
