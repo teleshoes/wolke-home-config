@@ -70,6 +70,8 @@ my @COMMAND_ALIAS_NAMES = map {$COMMAND_ALIASES_ARR[$_]}
                           grep {$_ % 2 == 0} (0..$#COMMAND_ALIASES_ARR);
 my %COMMAND_ALIASES = @COMMAND_ALIASES_ARR;
 
+my %DEVICE_CONFIG_COMMANDS = (
+);
 
 my $DEVICES_REGEX = join "|", sort keys %DEVICES;
 
@@ -100,6 +102,10 @@ my $USAGE = "Usage:
         -run `$EXEC --setup-wifi`
         -add a static DHCP entry for MAC and add to device list
         -restart router
+        -add configuration commands, and then run `$EXEC --config <DEVICE>`
+
+  $EXEC --config [DEVICE DEVICE ..]
+    run the device-specific config commands for each <DEVICE>
 
   $EXEC [DEVICE DEVICE ..] COMMAND
     use curl to send <COMMAND> to each named <DEVICE>
@@ -143,6 +149,7 @@ my $MODE_COMMAND = "command";
 my $MODE_TOGGLE_ALL = "toggle-all";
 my $MODE_MAC = "mac";
 my $MODE_SETUP_WIFI = "setup-wifi";
+my $MODE_CONFIG_DEVICE = "config-device";
 
 sub main(@){
   my $mode = $MODE_TOGGLE_ALL;
@@ -154,6 +161,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-s|--setup-wifi)$/){
       $mode = $MODE_SETUP_WIFI;
+    }elsif($arg =~ /^(--config)$/){
+      $mode = $MODE_CONFIG_DEVICE;
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
@@ -212,6 +221,21 @@ sub main(@){
     my $key = `winfo --key $WIFI_SSID`;
     chomp $key;
     cmd $INITIAL_DEVICE_IP, "BACKLOG SSID1 $WIFI_SSID ; Password1 $key";
+  }elsif($mode eq $MODE_CONFIG_DEVICE){
+    for my $device(@devices){
+      my $cmds = $DEVICE_CONFIG_COMMANDS{$device};
+      if(not defined $cmds){
+        print "$device - no config commands found\n";
+        next;
+      }
+      for my $cmd(@$cmds){
+        if(defined $COMMAND_ALIASES{$cmd}){
+          $cmd = $COMMAND_ALIASES{$cmd};
+        }
+        my $out = cmd($DEVICES{$device}, $cmd);
+        print "$device - $cmd - $out\n";
+      }
+    }
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
