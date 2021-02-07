@@ -269,7 +269,7 @@ function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
 function migl         { vim `~/workspace/escribehost/migrations/latest-script "$@"`; }
 
-function recscreen    { simplescreenrecorder --start-recording "$@"; }
+function recscreen    { pulse-vol mic unmute ; simplescreenrecorder --start-recording "$@"; }
 
 function first        { ls "$@" | head -1; }
 function last         { ls "$@" | tail -1; }
