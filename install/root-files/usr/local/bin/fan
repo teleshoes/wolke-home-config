@@ -13,6 +13,7 @@ sub readFan();
 sub readFanLevelStateFile();
 sub writeFanLevelStateFile($);
 sub setLevel($);
+sub setWatchdog($);
 
 my $fanDev = "/proc/acpi/ibm/fan";
 
@@ -46,6 +47,10 @@ my $usage = "Usage:
      set fan level to the <LEVEL> in $stateFile if it exists
   $0 --clear
      remove $stateFile (further calls to --reapply without --set will do nothing)
+
+  $0 --watchdog=TIMEOUT_SECONDS
+    write 'watchdog TIMEOUT_SECONDS' to $fanDev
+    (0 disabled the watchdog timeout, value of 1-120 enables it for that many seconds)
 
   $0 --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
     -checks the temperature every ${MONITOR_INTERVAL_MILLIS}ms:
@@ -126,6 +131,9 @@ sub main(@){
     }
   }elsif(@_ == 1 and $_[0] =~ /^(--clear)$/){
     writeFanLevelStateFile undef;
+  }elsif(@_ == 1 and $_[0] =~ /^--watchdog=(\d+)$/){
+    my $timeoutSeconds = $1;
+    setWatchdog $timeoutSeconds;
   }elsif(@_ >= 1 and $_[0] =~ /^(--monitor)$/){
     my ($monitorCmd, @args) = @_;
     my $once = 0;
@@ -317,6 +325,11 @@ sub writeFanLevelStateFile($){
 sub setLevel($){
   open FH, "> $fanDev" or die "Could not open $fanDev for writing\n$!\n";
   print FH "level $_[0]\n";
+  close FH;
+}
+sub setWatchdog($){
+  open FH, "> $fanDev" or die "Could not open $fanDev for writing\n$!\n";
+  print FH "watchdog $_[0]\n";
   close FH;
 }
 
