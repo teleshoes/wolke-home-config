@@ -8,6 +8,8 @@ sub nowMillis();
 
 my $EXEC = basename $0;
 my $INITIAL_DELAY_MILLIS = 1000;
+my $DEFAULT_SUCCESS_CMD = "alarm -s success";
+my $DEFAULT_FAILURE_CMD = "alarm -s failure";
 
 my $usage = "Usage:
   $EXEC -h|--help
@@ -18,9 +20,9 @@ my $usage = "Usage:
     -ignore all lines read for the first ${INITIAL_DELAY_MILLIS}ms
     -for each subsequent line:
       -if line matches SUCCESS_REGEX (default is ALL lines if not given)
-        -run `alarm -s success`
+        -run <SUCCESS_CMD>
       -if line matches FAILURE_REGEX (default is NO lines if not given)
-        -run `alarm -s failure`
+        -run <FAILURE_CMD>
 
   OPTS:
     --command=COMMAND
@@ -29,19 +31,27 @@ my $usage = "Usage:
     --file=FILE
       same as --cmd=\"tail -F <FILE>\"
 
+    --success-cmd=SUCCESS_CMD
+      default is `$DEFAULT_SUCCESS_CMD`
+
+    --failure-cmd=SUCCESS_CMD
+      default is `$DEFAULT_FAILURE_CMD`
+
     --success-regex=SUCCESS_REGEX
-      only lines that match <SUCCESS_REGEX> will run `alarm -s success`
+      only lines that match <SUCCESS_REGEX> will run <SUCCESS_CMD>
       match can be partial-string match, not just full-string match
       (default is to match ALL lines)
 
     --failure-regex=FAILURE_REGEX
-      only lines that match <FAILURE_REGEX> will run `alarm -s failure`
+      only lines that match <FAILURE_REGEX> will run <FAILURE_CMD>
       match can be partial-string match, not just full-string match
       (default is to match NO lines)
 ";
 
 sub main(@){
   my $command = undef;
+  my $successCmd = $DEFAULT_SUCCESS_CMD;
+  my $failureCmd = $DEFAULT_FAILURE_CMD;
   my $successRegex = undef;
   my $failureRegex = undef;
   while(@_ > 0){
@@ -55,6 +65,10 @@ sub main(@){
       my $file = $1;
       $file =~ s/'/'\\''/g;
       $command = "tail -F '$file'";
+    }elsif($arg =~ /^--success-cmd=(.+)$/){
+      $successCmd = $1;
+    }elsif($arg =~ /^--failure-cmd=(.+)$/){
+      $failureCmd = $1;
     }elsif($arg =~ /^--success-regex=(.+)$/){
       $successRegex = $1;
     }elsif($arg =~ /^--failure-regex=(.+)$/){
@@ -86,10 +100,10 @@ sub main(@){
     my $isFailure = defined $failureRegex ? $line =~ /$failureRegex/ : 0;
 
     if($isSuccess){
-      system "alarm -s success";
+      system $successCmd;
     }
     if($isFailure){
-      system "alarm -s failure";
+      system $failureCmd;
     }
   }
 
