@@ -180,10 +180,10 @@ shortcuts conf = "Shortcuts" @@ do
         "0%"            @@ mCWS  xK_F4   #! "sudo cpu-set 0%"
 
     "Fan"           @@ do
-        "auto"          @@ mW    xK_F5   #! "screen-daemon fan --start"
-        "fast"          @@ mW    xK_F6   #! "screen-daemon fan --stop && sudo fan fast"
-        "medium"        @@ mW    xK_F7   #! "screen-daemon fan --stop && sudo fan medium"
-        "slow"          @@ mW    xK_F8   #! "screen-daemon fan --stop && sudo fan slow"
+        "auto"          @@ mW    xK_F5   #! "screen-daemon fan --start && sudo fan --watchdog=0"
+        "fast"          @@ mW    xK_F6   #! "screen-daemon fan --stop && sudo fan fast && sudo fan --watchdog=0"
+        "medium"        @@ mW    xK_F7   #! "screen-daemon fan --stop && sudo fan medium && sudo fan --watchdog=0"
+        "slow"          @@ mW    xK_F8   #! "screen-daemon fan --stop && sudo fan slow && sudo fan --watchdog=1"
 
     "feh"           @@ do
         "left"          @@ m_    xK_ScrLk#! "feh-left"
