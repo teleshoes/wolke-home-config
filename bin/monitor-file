@@ -7,6 +7,7 @@ use Time::HiRes qw(time);
 sub nowMillis();
 
 my $EXEC = basename $0;
+my $QUIET_PERIOD_MILLIS = 500;
 my $INITIAL_DELAY_MILLIS = 1000;
 my $DEFAULT_SUCCESS_CMD = "alarm -s success";
 my $DEFAULT_FAILURE_CMD = "alarm -s failure";
@@ -20,9 +21,9 @@ my $usage = "Usage:
     -ignore all lines read for the first ${INITIAL_DELAY_MILLIS}ms
     -for each subsequent line:
       -if line matches SUCCESS_REGEX (default is ALL lines if not given)
-        -run <SUCCESS_CMD>
+        -run <SUCCESS_CMD> if it hasnt been run in the last ${QUIET_PERIOD_MILLIS}ms
       -if line matches FAILURE_REGEX (default is NO lines if not given)
-        -run <FAILURE_CMD>
+        -run <FAILURE_CMD> if it hasnt been run in the last ${QUIET_PERIOD_MILLIS}ms
 
   OPTS:
     --command=COMMAND
@@ -86,11 +87,15 @@ sub main(@){
   }
 
   my $startMillis = nowMillis();
+  my $lastSuccessMillis = 0;
+  my $lastFailureMillis = 0;
 
   my $line;
   while($line = <$fh>){
     my $nowMillis = nowMillis();
     my $elapsedStart = $nowMillis - $startMillis;
+    my $elapsedSuccess = $nowMillis - $lastSuccessMillis;
+    my $elapsedFailure = $nowMillis - $lastFailureMillis;
 
     if($elapsedStart < $INITIAL_DELAY_MILLIS){
       next;
@@ -99,10 +104,12 @@ sub main(@){
     my $isSuccess = defined $successRegex ? $line =~ /$successRegex/ : 1;
     my $isFailure = defined $failureRegex ? $line =~ /$failureRegex/ : 0;
 
-    if($isSuccess){
+    if($isSuccess and $elapsedSuccess > $QUIET_PERIOD_MILLIS){
+      $lastSuccessMillis = $nowMillis;
       system $successCmd;
     }
-    if($isFailure){
+    if($isFailure and $elapsedFailure > $QUIET_PERIOD_MILLIS){
+      $lastFailureMillis = $nowMillis;
       system $failureCmd;
     }
   }
