@@ -1,68 +1,95 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
 sub nowMillis();
-my $DELAY_MILLIS = 100;
+
+my $EXEC = basename $0;
+my $INITIAL_DELAY_MILLIS = 1000;
 
 my $usage = "Usage:
-  $0 -h|--help
+  $EXEC -h|--help
     print this message
 
-  $0 [OPTS] FILE [REGEX_GOOD [REGEX_BAD]]
-    -run `tail -F <FILE>`, and read output line-by-line
-    -if <FILE> is '-', read output from STDIN
-    -for each line:
-      -if <REGEX_GOOD> is given and matches the line:
-        `alarm -s success`
-      -if <REGEX_GOOD> is NOT given:
-        `alarm -s success`
-      -if <REGEX_BAD> is given and matches the line:
-        `alarm -s failure`
+  $EXEC [OPTS]
+    -read lines from STDIN (or from `<COMMAND>` if given with --command/--file)
+    -ignore all lines read for the first ${INITIAL_DELAY_MILLIS}ms
+    -for each subsequent line:
+      -if line matches SUCCESS_REGEX (default is ALL lines if not given)
+        -run `alarm -s success`
+      -if line matches FAILURE_REGEX (default is NO lines if not given)
+        -run `alarm -s failure`
 
   OPTS:
-    -d | --delay
-      ignore all lines for the first ${DELAY_MILLIS}ms
+    --command=COMMAND
+      run <COMMAND> and read lines from it instead of STDIN
+
+    --file=FILE
+      same as --cmd=\"tail -F <FILE>\"
+
+    --success-regex=SUCCESS_REGEX
+      only lines that match <SUCCESS_REGEX> will run `alarm -s success`
+      match can be partial-string match, not just full-string match
+      (default is to match ALL lines)
+
+    --failure-regex=FAILURE_REGEX
+      only lines that match <FAILURE_REGEX> will run `alarm -s failure`
+      match can be partial-string match, not just full-string match
+      (default is to match NO lines)
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-    exit 0;
-  }
-
-  my $delay = 0;
-  while(@_ > 0 and $_[0] =~ /^(-d|--delay)$/){
+  my $command = undef;
+  my $successRegex = undef;
+  my $failureRegex = undef;
+  while(@_ > 0){
     my $arg = shift @_;
-    if($arg =~ /^(-d|--delay)$/){
-      $delay = 1;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--command=(.+)$/){
+      $command = $1;
+    }elsif($arg =~ /^--file=(.+)$/){
+      my $file = $1;
+      $file =~ s/'/'\\''/g;
+      $command = "tail -F '$file'";
+    }elsif($arg =~ /^--success-regex=(.+)$/){
+      $successRegex = $1;
+    }elsif($arg =~ /^--failure-regex=(.+)$/){
+      $failureRegex = $1;
+    }else{
+      die "$usage\nERROR: unknown arg \"$arg\"\n";
     }
   }
 
-  die $usage if @_ < 1 or @_ > 3;
-
-  my ($file, $regexGood, $regexBad) = @_;
-
   my $fh;
-  if($file =~ /^(-)$/){
-    $fh = \*STDIN;
+  if(defined $command){
+    open $fh, "-|", $command;
   }else{
-    open $fh, "-|", "tail", "-F", $file;
+    $fh = \*STDIN;
   }
 
   my $startMillis = nowMillis();
 
   my $line;
   while($line = <$fh>){
-    if($delay and nowMillis() - $startMillis < $DELAY_MILLIS){
+    my $nowMillis = nowMillis();
+    my $elapsedStart = $nowMillis - $startMillis;
+
+    if($elapsedStart < $INITIAL_DELAY_MILLIS){
       next;
     }
-    if(not defined $regexGood or $line =~ /$regexGood/){
-      system "alarm", "-s", "success";
+
+    my $isSuccess = defined $successRegex ? $line =~ /$successRegex/ : 1;
+    my $isFailure = defined $failureRegex ? $line =~ /$failureRegex/ : 0;
+
+    if($isSuccess){
+      system "alarm -s success";
     }
-    if(defined $regexBad and $line =~ /$regexBad/){
-      system "alarm", "-s", "failure";
+    if($isFailure){
+      system "alarm -s failure";
     }
   }
 
