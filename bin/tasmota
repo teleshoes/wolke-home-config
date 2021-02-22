@@ -132,6 +132,16 @@ my $USAGE = "Usage:
     -check the current power status after toggling
     -if at least one is 'OFF' and at least one is 'ON', send 'off' to all
 
+  $EXEC --dimmer [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
+    -get the current <DIMMER_PCT> value from all devices, and select the smallest value
+    -select the smallest <DIMMER_PCT_ARG> that is strictly greater than <DIMMER_PCT>
+    -if there is no such <DIMMER_PCT_ARG>, use the smallest <DIMMER_PCT_ARG> given
+    -run command 'DIMMER <DIMMER_PCT_ARG>'
+      e.g.:
+        $EXEC --dimmer 33 66 100     #DIMMER 100 => 33
+        $EXEC --dimmer 33 66 100     #DIMMER 33  => 66
+        $EXEC --dimmer 33 66 100     #DIMMER 66  => 100
+
   $EXEC --mac [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
@@ -149,18 +159,20 @@ my $USAGE = "Usage:
     . "
 ";
 
+sub readMinDimmer(@);
 sub runCommandOnDevices($@);
 sub cmd($$);
 
 my $MODE_COMMAND = "command";
 my $MODE_TOGGLE_ALL = "toggle-all";
+my $MODE_DIMMER = "dimmer";
 my $MODE_MAC = "mac";
 my $MODE_SETUP_WIFI = "setup-wifi";
 my $MODE_CONFIG_DEVICE = "config-device";
 
 sub main(@){
   my $mode = $MODE_TOGGLE_ALL;
-  my (@devices, $cmd);
+  my (@devices, $cmd, @dimmerArgs);
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -177,6 +189,11 @@ sub main(@){
     }elsif($arg =~ /^(--toggle-all|-t)$/){
       $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
+    }elsif($arg =~ /^(--dimmer)$/){
+      $mode = $MODE_DIMMER;
+      $cmd = undef;
+    }elsif($arg =~ /^(\d+)$/){
+      push @dimmerArgs, $1;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
@@ -216,6 +233,21 @@ sub main(@){
       $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
       print "$_ - $$outputByDevice{$_}\n" foreach @devices;
     }
+  }elsif($mode eq $MODE_DIMMER){
+    die "ERROR: no DIMMER_PCT_ARG given\n" if @dimmerArgs == 0;
+    my $curDimmer = readMinDimmer(@devices);
+    @dimmerArgs = sort {$a <=> $b} @dimmerArgs;
+    my $targetDimmerVal = undef;
+    for my $dimmerArg(@dimmerArgs){
+      if($dimmerArg > $curDimmer){
+        $targetDimmerVal = $dimmerArg;
+        last;
+      }
+    }
+    $targetDimmerVal = $dimmerArgs[0] if not defined $targetDimmerVal;
+    print "dimmer $curDimmer => $targetDimmerVal\n";
+    my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", @devices);
+    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_MAC){
     my $outputByDevice = runCommandOnDevices("STATUS 0", @devices);
     for my $device(@devices){
@@ -246,6 +278,23 @@ sub main(@){
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
+}
+
+sub readMinDimmer(@){
+  my (@devices) = @_;
+  my $outputByDevice = runCommandOnDevices("DIMMER", @devices);
+  my $minDimmer = 100;
+  for my $device(@devices){
+    my $output = $$outputByDevice{$device};
+    $output = "" if not defined $output;
+    if($output =~ /{"Dimmer":(\d+)}/i){
+      my $dimmerVal = $1;
+      if($dimmerVal < $minDimmer){
+        $minDimmer = $dimmerVal;
+      }
+    }
+  }
+  return $minDimmer;
 }
 
 sub runCommandOnDevices($@){
