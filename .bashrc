@@ -145,6 +145,7 @@ function ddr-banners  { image-flash $(zenius-ddrsonglist --banners "$@"); }
 function ddredit      { ddrname --edit-names --fast "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh "$@"; }
+function p            { pushup "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
 function dus          { du -s * | sort -g "$@"; }
