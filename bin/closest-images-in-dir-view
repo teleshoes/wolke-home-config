@@ -1,0 +1,144 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $EXEC_FEH = "feh";
+my $EXEC_IDENTIFY = "identify";
+my $EXEC_CONVERT = "convert";
+my $EXEC_CLOSEST_BY_MTIME = "closest-by-mtime";
+
+my $usage = "Usage:
+  $EXEC [OPTS] COMP_DIR [IMG IMG IMG ..]
+    for each <IMG>:
+      -get the mtime for <IMG>
+      -fetch the <CLOSEST_IMG> in <COMP_DIR> with `$EXEC_CLOSEST_BY_MTIME`
+      -create left and right labels using the filenames and `$EXEC_IDENTIFY`
+      -combine <IMG> and <CLOSEST_IMAGE> and add the labels with `$EXEC_CONVERT`
+    run `$EXEC_FEH` with all created images as an argument
+
+  OPTS
+    --info-cmd=INFO_CMD_PREFIX
+      run `<INFO_CMD_PREFIX> <IMG>` and `<INFO_CMD_PREFIX> <CLOSEST_IMG>`
+      and append them to the filename for the labels on the combined image
+";
+
+sub createCombinedImage($$$);
+sub getImageGeometry($);
+sub mtime($);
+sub run(@);
+
+sub main(@){
+  my $compDir;
+  my @imgs;
+  my $infoCmdPrefix = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--info-cmd=(.+)$/){
+      $infoCmdPrefix = $1;
+    }elsif(-d $arg){
+      $compDir = $arg;
+    }elsif(-f $arg){
+      push @imgs, $arg;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  my @compImgs = glob("$compDir/*.*");
+  @compImgs = grep {-f $_ and $_ =~ /\.(jpg|jpeg|png|gif)/i} @compImgs;
+  die "ERROR: $compDir does not contain any images\n" if @compImgs == 0;
+
+  my @combinedImages;
+  for my $img(@imgs){
+    my $mtime = mtime($img);
+    if($mtime !~ /^\d+$/){
+      die "ERROR: could not obtain mtime for $img\n";
+    }
+    my $closestImg = `$EXEC_CLOSEST_BY_MTIME $mtime @compImgs`;
+    chomp $closestImg;
+    if(not -f $closestImg){
+      die "ERROR: could not find closest image in $compDir for $img\n";
+    }
+
+    my $combinedImg = createCombinedImage($img, $closestImg, $infoCmdPrefix);
+
+    push @combinedImages, $combinedImg;
+
+    print "\n";
+  }
+  print "\n\n";
+  run $EXEC_FEH, "-ZF", @combinedImages;
+
+  print "\n\n";
+  run "rm", @combinedImages;
+}
+
+sub createCombinedImage($$$){
+  my ($leftImg, $rightImg, $infoCmdPrefix) = @_;
+
+  if($leftImg !~ /^(?:.*\/)?([^\/]+)\.(\w+)$/){
+    die "ERROR: could not parse $leftImg filename\n";
+  }
+  my ($leftFileName, $leftExt) = ($1, $2);
+
+
+  if($rightImg !~ /^(?:.*\/)?([^\/]+)\.(\w+)$/){
+    die "ERROR: could not parse $rightImg filename\n";
+  }
+  my ($rightFileName, $rightExt) = ($1, $2);
+
+  my $combinedImg = "/tmp/join-${leftFileName}_____${rightFileName}.${leftExt}";
+
+  my $leftText = "$leftImg";
+  my $rightText = "$rightImg";
+  if(defined $infoCmdPrefix and $infoCmdPrefix !~ /^\s*$/){
+    $leftText .= " " . `$infoCmdPrefix $leftImg`;
+    $rightText .= " " . `$infoCmdPrefix $rightImg`;
+  }
+
+  my ($w, $h) = getImageGeometry($leftImg);
+
+  my @convertCmd = ($EXEC_CONVERT,
+    $leftImg, $rightImg, "+append",
+    "-gravity", "south", "-splice", "0x10%",
+    "-font", "helvetica", "-fill", "black", "-pointsize", "20", "-gravity", "southwest",
+    "-draw", "text 0,20  '$leftText'",
+    "-draw", "text $w,20 '$rightText'",
+    $combinedImg,
+  );
+
+  run @convertCmd;
+  if($? != 0 or not -f $combinedImg){
+    die "ERROR: `convert` failed for $leftImg + $rightImg\n";
+  }
+  return $combinedImg;
+}
+
+sub getImageGeometry($){
+  my ($file) = @_;
+  my $identifyOut = `$EXEC_IDENTIFY -verbose "$file"`;
+  if($identifyOut =~ /^\s*Geometry: (\d+)x(\d+)/m){
+    return ($1, $2);
+  }else{
+    die "ERROR: `identify` failed for $file\n";
+  }
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my $mtime = (stat $file)[9];
+  return $mtime;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
