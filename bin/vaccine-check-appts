@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $url = "https://am-i-eligible.covid19vaccine.health.ny.gov/api/list-providers";
+
+sub main(@){
+  my $response = `wget $url -O - 2>/dev/null`;
+  my @avail;
+  my @restricted;
+  my @unavail;
+  while($response =~ /
+     { \s* "providerId"            \s* : \s* (\d+)     \s*
+     , \s* "providerName"          \s* : \s* "([^"]*)" \s*
+     , \s* "address"               \s* : \s* "([^"]*)" \s*
+     , \s* "availableAppointments" \s* : \s* "([^"]*)" \s*
+     }
+  /gx){
+    my ($provId, $provName, $addr, $avail) = ($1, $2, $3, $4);
+    my $restricted = $provName =~ /^\*\*/ ? 1 : 0;
+    my $fmt = sprintf "%-3s %s\n", $avail, $addr;
+    if($avail eq "AA" and not $restricted){
+      push @avail, $fmt;
+    }elsif($avail eq "AA" and $restricted){
+      push @restricted, $fmt;
+    }else{
+      push @unavail, $fmt;
+    }
+  }
+  print "\nAVAILABLE\n" . join('', @avail) . "\n";
+  print "\nRESTRICTED\n" . join('', @restricted) . "\n";
+  print "\nUNAVAILALBE\n" . join('', @unavail) . "\n";
+}
+
+&main(@ARGV);
