@@ -17,9 +17,9 @@ my $usage = "Usage:
       (note that <SECONDARY_SSH_OPTS> are not passed into the master session)
     -run: `ssh <SSH_OPTS_SECONDARY> -S <CONTROL_PATH> <DEST> <COMMAND>`
 
-  $EXEC --open DEST
+  $EXEC [SSH_OPTS_OPEN] --open DEST
     -if CONTROL_PATH does not exist:
-      -run: ssh -n -N -F -o ControlMaster=yes -o ControlPath=<CONTROL_PATH> <DEST>
+      -run: ssh -n -N -F -o ControlMaster=yes -o ControlPath=<CONTROL_PATH> <SSH_OPTS_OPEN> <DEST>
 
   $EXEC --close DEST
     -if CONTROL_PATH exists and is active (using `ssh -O check`):
@@ -31,18 +31,21 @@ my $usage = "Usage:
     -for all <CONTROL_PATH>s in $CONTROL_PATH_DIR/*
       -run: ssh -O exit -o ControlPath=<CONTROL_PATH> <DEST>
 
-  $EXEC --rsync RSYNC_ARGS
-  $EXEC rsync RSYNC_ARGS
+  $EXEC [SSH_OPTS_OPEN] --rsync RSYNC_ARGS
+  $EXEC [SSH_OPTS_OPEN] rsync RSYNC_ARGS
     -find the first arg in <RSYNC_ARGS> that contains a ':'
     -treat everything before the first colon in that arg as <REMOTE>
     -use: CONTROL_PATH=$CONTROL_PATH_DIR/<REMOTE>
-    -ensure SSH master session, like: `$EXEC --open <REMOTE>`
+    -ensure SSH master session, like: `$EXEC <SSH_OPTS_OPEN> --open <REMOTE>`
     -run: `rsync -e \"ssh -o ControlPath=CONTROL_PATH\" <RSYNC_ARGS>
 
   DEST
     SSH destination (e.g.: HOSTNAME or USER\@HOSTNAME)
   CONTROL_PATH
     $CONTROL_PATH_DIR/<DEST>
+  SSH_OPTS_OPEN
+    these options are passed to the master SSH session when opening it
+    can be any <SSH_OPTS>
   SSH_OPTS_SECONDARY
     these options are passed to the secondary SSH command
       (after opening the master without these options)
@@ -62,7 +65,7 @@ my $usage = "Usage:
 my $SSH_OPTS_ARGS_REGEX = "-[BbcDEeFIiJLlmOopQRSWw]";
 my $SSH_OPTS_NOARGS_REGEX = "-([46AaCfGgKkMNnqsTtVvXxYy])+";
 
-sub ensureSSHOpen($);
+sub ensureSSHOpen($$);
 sub ensureSSHClosed($);
 sub runSSH($$$);
 
@@ -109,14 +112,14 @@ sub main(@){
     my $dest = shift @args;
     my $command = [@args];
 
-    ensureSSHOpen($dest);
+    ensureSSHOpen($dest, $sshOpts);
     runSSH($dest, $sshOpts, $command);
   }elsif($mode eq $MODE_OPEN){
     die "$usage\nERROR: missing DEST\n" if @args == 0;
     die "$usage\nERROR: unknown args \"@args\"\n" if @args > 1;
     my $dest = shift @args;
 
-    ensureSSHOpen($dest);
+    ensureSSHOpen($dest, $sshOpts);
   }elsif($mode eq $MODE_CLOSE){
     die "$usage\nERROR: missing DEST\n" if @args == 0;
     die "$usage\nERROR: unknown args \"@_\"\n" if @args > 1;
@@ -142,15 +145,15 @@ sub main(@){
     }
     my $controlPath = "$CONTROL_PATH_DIR/$remote";
 
-    ensureSSHOpen($remote);
+    ensureSSHOpen($remote, $sshOpts);
     system "rsync", "-e", "ssh -o ControlPath=$controlPath", @args;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
 }
 
-sub ensureSSHOpen($){
-  my ($dest) = @_;
+sub ensureSSHOpen($$){
+  my ($dest, $sshOpts) = @_;
   my $controlPath = "$CONTROL_PATH_DIR/$dest";
   system "mkdir", "-p", $CONTROL_PATH_DIR if not -d $CONTROL_PATH_DIR;
   if(not -e $controlPath){
@@ -158,6 +161,7 @@ sub ensureSSHOpen($){
       "-n", "-N", "-f",
       "-o", "ControlMaster=yes",
       "-o", "ControlPath=$controlPath",
+      @$sshOpts,
       $dest,
     );
     system @cmd;
