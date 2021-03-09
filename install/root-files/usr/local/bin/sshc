@@ -64,51 +64,81 @@ sub ensureSSHOpen($);
 sub ensureSSHClosed($);
 sub runSSH($$$);
 
+my $MODE_SSH = "ssh";
+my $MODE_OPEN = "open";
+my $MODE_CLOSE = "close";
+my $MODE_CLOSE_ALL = "close-all";
+my $MODE_RSYNC = "rsync";
+
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-  }elsif(@_ == 2 and $_[0] =~ /^(--open)$/){
-    my $dest = $_[1];
+  my $mode = $MODE_SSH;
+  my $sshOpts = [];
+  my @args;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--open)$/){
+      $mode = $MODE_OPEN;
+    }elsif($arg =~ /^(--close)$/){
+      $mode = $MODE_CLOSE;
+    }elsif($arg =~ /^(--close-all)$/){
+      $mode = $MODE_CLOSE_ALL;
+    }elsif($arg =~ /^(--rsync|rsync)$/){
+      $mode = $MODE_RSYNC;
+    }elsif($arg =~ /^($SSH_OPTS_NOARGS_REGEX)$/){
+      my $sshOpt = $arg;
+      push @$sshOpts, $sshOpt;
+    }elsif($arg =~ /^($SSH_OPTS_ARGS_REGEX)$/){
+      my $sshOpt = $arg;
+      my $sshOptArg = shift @_;
+      die "$usage\nERROR: missing arg to SSH opt $sshOpt\n" if not defined $sshOptArg;
+      push @$sshOpts, $sshOpt;
+      push @$sshOpts, $sshOptArg;
+    }else{
+      @args = ($arg, @_);
+      last;
+    }
+  }
+
+  if($mode eq $MODE_OPEN){
+    die "$usage\nERROR: missing DEST\n" if @args == 0;
+    die "$usage\nERROR: unknown args \"@args\"\n" if @args > 1;
+    my $dest = shift @args;
+
     ensureSSHOpen($dest);
-  }elsif(@_ == 2 and $_[0] =~ /^(--close)$/){
-    my $dest = $_[1];
+  }elsif($mode eq $MODE_CLOSE){
+    die "$usage\nERROR: missing DEST\n" if @args == 0;
+    die "$usage\nERROR: unknown args \"@_\"\n" if @args > 1;
+    my $dest = shift @args;
+
     ensureSSHClosed($dest);
-  }elsif(@_ == 1 and $_[0] =~ /^(--close-all)$/){
+  }elsif($mode eq $MODE_CLOSE_ALL){
+    die "$usage\nERROR: unknown args \"@args\"\n" if @args > 0;
+
     my @controlPaths = glob "$CONTROL_PATH_DIR/*";
     my @dests = map {$_ =~ s/^.*\///; $_} @controlPaths;
     ensureSSHClosed($_) foreach @dests;
-  }elsif(@_ > 0 and $_[0] =~ /^(--rsync|rsync)$/){
-    shift @_;
-
-    my @rsyncArgs = @_;
+  }elsif($mode eq $MODE_RSYNC){
     my $remote;
-    for my $arg(@rsyncArgs){
+    for my $arg(@args){
       if($arg =~ /^([^:]+):/){
         $remote = $1;
         last;
       }
     }
     if(not defined $remote){
-      die "$usage\nERROR: could not find rsync remote src/dest in \"@rsyncArgs\"\n";
+      die "$usage\nERROR: could not find rsync remote src/dest in \"@args\"\n";
     }
     my $controlPath = "$CONTROL_PATH_DIR/$remote";
 
     ensureSSHOpen($remote);
-    system "rsync", "-e", "ssh -o ControlPath=$controlPath", @_;
-  }elsif(@_ > 0){
-    my $sshOpts = [];
-    while(@_ > 0 and $_[0] =~ /^($SSH_OPTS_ARGS_REGEX|$SSH_OPTS_NOARGS_REGEX)$/){
-      my $opt = shift @_;
-      push @$sshOpts, $opt;
-      if($opt =~ /^$SSH_OPTS_ARGS_REGEX$/){
-        die "$usage\nERROR: missing arg to $opt\n" if @_ == 0;
-        push @$sshOpts, shift @_;
-      }
-    }
-    die "$usage\nERROR: missing DESTINATION\n" if @_ == 0;
-
-    my $dest = shift @_;
-    my $command = [@_];
+    system "rsync", "-e", "ssh -o ControlPath=$controlPath", @args;
+  }elsif($mode eq $MODE_SSH){
+    die "$usage\nERROR: missing DEST\n" if @args == 0;
+    my $dest = shift @args;
+    my $command = [@args];
 
     ensureSSHOpen($dest);
     runSSH($dest, $sshOpts, $command);
