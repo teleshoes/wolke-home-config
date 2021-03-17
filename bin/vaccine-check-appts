@@ -12,26 +12,26 @@ sub main(@){
   while($response =~ /
      { \s* "providerId"            \s* : \s* (\d+)     \s*
      , \s* "providerName"          \s* : \s* "([^"]*)" \s*
+     , \s* "vaccineBrand"          \s* : \s* "([^"]*)" \s*
      , \s* "address"               \s* : \s* "([^"]*)" \s*
      , \s* "availableAppointments" \s* : \s* "([^"]*)" \s*
      }
   /gx){
-    my ($provId, $provName, $addr, $avail) = ($1, $2, $3, $4);
+    my ($provId, $provName, $brand, $addr, $avail) = ($1, $2, $3, $4, $5);
     my $restricted = $provName =~ /^\*\*/ ? 1 : 0;
-    my $brand = lc $1 if $provName =~ /(pfizer|moderna|j\s*\&\s*j)/i;
-    $brand = "UNKNOWN" if not defined $brand;
+    $brand = lc $brand;
     $brand = "johnson" if $brand =~ /j\s*\&\s*j/i;
 
     my $fmt = sprintf "%-3s %-7s %s\n", $avail, $brand, $addr;
-    if($avail eq "AA" and not $restricted){
+    if($avail eq "Y" and not $restricted){
       push @avail, $fmt;
-    }elsif($avail eq "AA" and $restricted){
+    }elsif($avail eq "N" and $restricted){
       push @restricted, $fmt;
     }else{
       push @unavail, $fmt;
     }
 
-    if($brand =~ /johnson/ and $avail =~ /AA/ and not $restricted){
+    if($brand =~ /johnson/ and $avail =~ /Y/ and not $restricted){
       system "alarm", "-s", "success";
       sleep 1;
       system "alarm", "-s", "zelda-item";
