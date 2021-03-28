@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use List::Util qw(max);
 
+sub parseFanValueOrSyn($);
 sub parseFanTempRange($);
 sub getTargetFanLevelFromTempRanges($$@);
 sub formatFanInfo($);
@@ -37,20 +38,21 @@ my $usage = "Usage:
      use `acpi -V` to get first CPU temperature in degrees celsius,
        and print as an integer
 
-  $0 LEVEL_OR_SYN
-  $0 --set=LEVEL_OR_SYN
-     calculate <LEVEL> from <LEVEL_OR_SYN>
-     set fan level to <LEVEL> using $fanDev
-     write <LEVEL> (not synonym) to $stateFile
+  $0 FAN_VALUE
+  $0 --set=FAN_VALUE
+     calculate <FAN_LEVEL> and <WATCHDOG_TIMEOUT_SECONDS> from <FAN_VALUE>
+     set fan level to <FAN_LEVEL> using $fanDev
+     if given, also set fan watchdog timeout to <WATCHDOG_TIMEOUT_SECONDS>
+     write <FAN_LEVEL> (not synonym or watchdog) to $stateFile
 
   $0 --reapply
-     set fan level to the <LEVEL> in $stateFile if it exists
+     set fan level to the <FAN_LEVEL> in $stateFile if it exists
   $0 --clear
      remove $stateFile (further calls to --reapply without --set will do nothing)
 
-  $0 --watchdog=TIMEOUT_SECONDS
-    write 'watchdog TIMEOUT_SECONDS' to $fanDev
-    (0 disabled the watchdog timeout, value of 1-120 enables it for that many seconds)
+  $0 --watchdog=WATCHDOG_TIMEOUT_SECONDS
+    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $fanDev
+    (0 disables the watchdog timeout, value of 1-120 enables it that many seconds)
 
   $0 --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
     -checks the temperature every ${MONITOR_INTERVAL_MILLIS}ms:
@@ -84,27 +86,37 @@ my $usage = "Usage:
         64    3    => 2
         106   6    => 7
 
-  <LEVEL_OR_SYN> = <LEVEL> | <SYNONYM>
-    argument for $fanDev or a synonym, one of either <LEVEL> or <SYNONYM>
+  <FAN_VALUE> = <FAN_LEVEL>
+              | <FAN_LEVEL>,<WATCHDOG_TIMEOUT_SECONDS>
+              | <SYNONYM>
+    argument for $fanDev level or a synonym
+    one of either <LEVEL> or <SYNONYM>
 
-  <LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
+  <FAN_LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
     valid arguments for $fanDev (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
       NOTE:
         0 means FULLY DISABLED and is quite dangerous
-        disengaged and full-speed do the same thing, and are faster than 7
+        disengaged and full-speed do the same thing, and are (generally) faster than 7
         auto varies based on CPU load and is done by the kernel module or firmware
+
+  <WATCHDOG_TIMEOUT_SECONDS>
+    watchdog timeout, as an integer number of seconds between 0 and 120 inclusive
+    0 means disabled
 
   <SYNONYM>
     synonyms are defined in $configFile
-      -one per line: \"SYN_NAME=SYN_VALUE\"
-      -NAME is one or more letters or numbers
-      -VALUE is one of the arguments above for $fanDev
+      -one per line:
+        SYN_NAME = FAN_VALUE
+
     e.g.:  default=5
            fast=disengaged
            medium=4
            slow=3
-           morning=5
-           evening=1
+           morning=5,60
+           evening=1,5
+
+  <SYN_NAME>
+    any name, one or more letters or numbers
 ";
 
 my @okLevels = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
@@ -177,11 +189,17 @@ sub main(@){
       }
     }
   }elsif(@_ == 1){
-    my $levelOrSyn = $_[0];
-    $levelOrSyn = $1 if $_[0] =~ /^--set=(.+)$/;
-    my $level = parseLevelOrSyn $levelOrSyn;
+    my $value;
+    if($_[0] =~ /^--set=(.+)$/){
+      $value = $1;
+    }else{
+      $value = $_[0];
+    }
+
+    my ($level, $watchdogTimeoutSeconds) = parseFanValueOrSyn $value;
+
     if(not defined $level or $level !~ /^$okLevelsRe$/){
-      die "$usage\ninvalid level: $levelOrSyn\n";
+      die "$usage\ninvalid FAN_VALUE: $value\n";
     }
 
     my $fanInfo = readFan();
@@ -192,6 +210,9 @@ sub main(@){
       print "$curLevel => $level\n";
       writeFanLevelStateFile($level);
       setLevel $level;
+    }
+    if(defined $watchdogTimeoutSeconds){
+      setWatchdog $watchdogTimeoutSeconds;
     }
   }else{
     die $usage;
@@ -240,14 +261,23 @@ sub formatFanInfo($){
   return "$$fanInfo{speed},$$fanInfo{level}\n";
 }
 
-sub parseLevelOrSyn($){
-  my ($levelOrSyn) = @_;
-  if($levelOrSyn =~ /^$okLevelsRe$/){
-    return $levelOrSyn;
+sub parseFanValueOrSyn($){
+  my ($value) = @_;
+  if($value =~ /^($okLevelsRe)$/){
+    return ($1, undef);
+  }elsif($value =~ /^($okLevelsRe),(\d+)$/){
+    return ($1, $2);
   }else{
     my $confSynonyms = parseConfigFile $configFile;
-    if(defined $$confSynonyms{$levelOrSyn}){
-      return $$confSynonyms{$levelOrSyn};
+    if(defined $$confSynonyms{$value}){
+      $value = $$confSynonyms{$value};
+      if($value =~ /^($okLevelsRe)$/){
+        return ($1, undef);
+      }elsif($value =~ /^($okLevelsRe),(\d+)$/){
+        return ($1, $2);
+      }else{
+        return undef;
+      }
     }else{
       return undef;
     }
@@ -263,7 +293,7 @@ sub parseConfigFile($){
     close FH;
     for my $line(@lines){
       next if $line =~ /^\s*(#|$)/;
-      if($line =~ /^\s*(\w+)\s*=\s*($okLevelsRe)\s*$/){
+      if($line =~ /^\s*(\w+)\s*=\s*((?:$okLevelsRe)(?:,\d+)?)\s*$/){
         my ($key, $val) = ($1, $2);
         $$conf{$key} = $val;
       }else{
