@@ -53,6 +53,7 @@ import System.FilePath.Find (
 import System.IO (
   stderr, hGetContents, hGetLine, hPutStrLn,
   hSetBuffering, BufferMode(LineBuffering))
+import qualified System.IO.Strict as Strict
 import System.IO.Error (isDoesNotExistError)
 import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 import System.Posix.Files (
@@ -320,7 +321,7 @@ attemptCreateSymlink f target = ifM isSym (rmFile >> createSym) (unlessM exists 
 chompFile :: FilePath -> IO String
 chompFile file = do
   curExists <- doesFileExist file
-  if curExists then fmap chompAll $ readFile file else return ""
+  if curExists then fmap chompAll $ Strict.readFile file else return ""
 
 systemReadLines :: String -> IO [String]
 systemReadLines cmd = fmap lines $ sys >>= \(_,Just h,_,_) -> lineBufContent h
