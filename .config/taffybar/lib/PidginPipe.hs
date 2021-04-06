@@ -23,6 +23,7 @@ clickL = ifM (isRunning process) (return $ Just wsCmd) (return $ Just runCmd)
 clickM = return $ Just rerunCmd
 clickR = return $ Just killCmd
 
+getImage :: Int -> IO String
 getImage h = do
   pipeFile <- getHomeFile ".purple/plugins/pipe"
 

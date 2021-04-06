@@ -6,7 +6,7 @@ import Data.Maybe (isJust)
 
 import Data.GI.Gtk.Threading (postGUIASync)
 import GI.Gtk.Objects.Image (
-  imageNew, imageClear, imageSetFromPixbuf)
+  Image, imageNew, imageClear, imageSetFromPixbuf)
 import GI.Gtk.Objects.Widget (onWidgetRealize)
 
 import Control.Monad (forever, unless, void)
@@ -14,6 +14,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, takeMVar, putMVar)
 import Control.Exception as E (catch, IOException)
 
+imageW :: (IO String) -> IO Image
 imageW cmd = do
   img <- imageNew
   pbCache <- pixbufCacheNew
