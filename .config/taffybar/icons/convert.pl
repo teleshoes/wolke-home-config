@@ -19,8 +19,9 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS]
     convert icons in $SCALABLE_DIR
-    to each dirs: $BASE_DIR/<HEIGHT>
-    using rsvg + imageMagick
+      to each dirs: $BASE_DIR/<HEIGHT>
+      using rsvg + imageMagick
+    skip icons that already exist
 
   HEIGHT
     one of: @HEIGHTS
@@ -67,6 +68,8 @@ sub main(@){
 
       my $srcImgFile = "$SCALABLE_DIR/$srcImg";
       my $destImgFile = "$sizeDir/$destImg";
+
+      next if -e $destImgFile;
 
       my $destDir = dirname "$sizeDir/$destImg";
       run "mkdir", "-p", $destDir;
