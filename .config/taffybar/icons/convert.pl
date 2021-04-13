@@ -4,33 +4,9 @@ use warnings;
 
 my @heights = (8, 10, 12, 16, 18, 20, 24, 28, 30, 36, 38, 40, 48, 50, 64);
 
-sub run(@){
-  print "@_\n";
-  system @_;
-}
-
-sub convertRsvg($$$){
-  my ($src, $dest, $h) = @_;
-  if(`which rsvg-convert` =~ /rsvg-convert/){
-    run "rsvg-convert",
-      "-h", $h,
-      "-a",
-      "-f", "png",
-      "-o", $dest,
-      $src;
-  }elsif(`which rsvg` =~ /rsvg/){
-    run "rsvg",
-      "-h", $h,
-      "-a",
-      "-f", "png",
-      "-o", $dest,
-      $src, "$dest";
-  }
-}
-sub convertImageMagick($$$){
-  my ($src, $dest, $h) = @_;
-  run "convert", "-resize", "${h}x${h}", $src, $dest;
-}
+sub convertRsvg($$$);
+sub convertImageMagick($$$);
+sub run(@);
 
 sub main(@){
   my @imgs = `cd scalable; find -name '*.svg' -or -name '*.png'`;
@@ -59,6 +35,34 @@ sub main(@){
       }
     }
   }
+}
+
+sub convertRsvg($$$){
+  my ($src, $dest, $h) = @_;
+  if(`which rsvg-convert` =~ /rsvg-convert/){
+    run "rsvg-convert",
+      "-h", $h,
+      "-a",
+      "-f", "png",
+      "-o", $dest,
+      $src;
+  }elsif(`which rsvg` =~ /rsvg/){
+    run "rsvg",
+      "-h", $h,
+      "-a",
+      "-f", "png",
+      "-o", $dest,
+      $src, "$dest";
+  }
+}
+sub convertImageMagick($$$){
+  my ($src, $dest, $h) = @_;
+  run "convert", "-resize", "${h}x${h}", $src, $dest;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
