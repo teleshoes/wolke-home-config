@@ -1,15 +1,32 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use File::Basename qw(dirname);
+use File::Basename qw(basename dirname);
 
 my @HEIGHTS = (8, 10, 12, 16, 18, 20, 24, 28, 30, 36, 38, 40, 48, 50, 64);
+
+my $EXEC = basename $0;
 my $BASE_DIR = dirname $0;
 my $SCALABLE_DIR = "$BASE_DIR/scalable";
 
 my $OK_SVG_EXTS = join "|", qw(svg);
 my $OK_OTHER_EXTS = join "|", qw(png jpg jpeg bmp xpm);
 my $OK_ALL_EXTS = "$OK_SVG_EXTS|$OK_OTHER_EXTS";
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS]
+    convert icons in $SCALABLE_DIR
+    to each dirs: $BASE_DIR/<HEIGHT>
+    using rsvg + imageMagick
+
+  HEIGHT
+    one of: @HEIGHTS
+
+  OPTS
+";
 
 sub getScalableImages();
 sub getSizeDirs();
@@ -18,6 +35,16 @@ sub convertImageMagick($$$);
 sub run(@);
 
 sub main(@){
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }else{
+      die $USAGE;
+    }
+  }
+
   my @scalableImages = getScalableImages();
 
   my @sizeDirs = getSizeDirs();
