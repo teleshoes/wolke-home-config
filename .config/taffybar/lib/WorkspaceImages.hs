@@ -18,6 +18,7 @@ import Data.List (dropWhile, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.List.Utils (replace)
 import Data.Maybe (fromMaybe)
 import Data.Maybe (listToMaybe, catMaybes)
+import Text.Regex.PCRE ((=~))
 
 import System.Environment (getEnv)
 
@@ -93,6 +94,7 @@ loadFilePixbuf (Just file) = tryMaybe $ pixbufNewFromFile file
 getOverrideIconName :: String -> String -> Maybe IconName
 getOverrideIconName winTitle winClass
   | null winTitle && null winClass              = Just "blank"
+  | winTitle =~ "Riot.*\\|.* - Mozilla Firefox"  = Just "riot"
   | winTitle == "..." && winClass == "..."      = Just "blank"
   | winTitle `endsWith` " - VIM"                = Just "vim"
   | winTitle `contains` "| Jitsi Meet -"        = Just "jitsi"
