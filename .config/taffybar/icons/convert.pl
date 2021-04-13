@@ -23,6 +23,10 @@ my $USAGE = "Usage:
       using rsvg + imageMagick
     skip icons that already exist
 
+  $EXEC ICON_NAME
+    same as: $EXEC --icon=<ICON_NAME> --force
+    ICON_NAME must be letters/numbers/underscores only
+
   HEIGHT
     one of: @HEIGHTS
 
@@ -57,6 +61,9 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^--icon=(.+)$/){
       $iconRegex = $1;
+    }elsif($arg =~ /^([a-zA-Z0-9_]+)$/){
+      $iconRegex = $1;
+      $force = 1;
     }elsif($arg =~ /^(-f|--force)$/){
       $force = 1;
     }elsif($arg =~ /^(-r|--clean|--reset|--init)$/){
