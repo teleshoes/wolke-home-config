@@ -26,6 +26,10 @@ my $USAGE = "Usage:
     one of: @HEIGHTS
 
   OPTS
+    -r | --clean | --reset | --init
+      before converting, recursively remove all dirs that look like:
+        $BASE_DIR/<INT>/
+        (where <INT> is any integer)
 ";
 
 sub getScalableImages();
@@ -35,11 +39,14 @@ sub convertImageMagick($$$);
 sub run(@);
 
 sub main(@){
+  my $clean = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-r|--clean|--reset|--init)$/){
+      $clean = 1;
     }else{
       die $USAGE;
     }
@@ -49,7 +56,7 @@ sub main(@){
 
   my @sizeDirs = getSizeDirs();
   for my $sizeDir(@sizeDirs){
-    run "rm -r $sizeDir/";
+    run "rm -r $sizeDir/" if $clean;
   }
 
   for my $h(@HEIGHTS){
