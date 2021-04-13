@@ -1,40 +1,70 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(dirname);
 
-my @heights = (8, 10, 12, 16, 18, 20, 24, 28, 30, 36, 38, 40, 48, 50, 64);
+my @HEIGHTS = (8, 10, 12, 16, 18, 20, 24, 28, 30, 36, 38, 40, 48, 50, 64);
+my $BASE_DIR = dirname $0;
+my $SCALABLE_DIR = "$BASE_DIR/scalable";
 
+my $OK_SVG_EXTS = join "|", qw(svg);
+my $OK_OTHER_EXTS = join "|", qw(png jpg jpeg bmp xpm);
+my $OK_ALL_EXTS = "$OK_SVG_EXTS|$OK_OTHER_EXTS";
+
+sub getScalableImages();
+sub getSizeDirs();
 sub convertRsvg($$$);
 sub convertImageMagick($$$);
 sub run(@);
 
 sub main(@){
-  my @imgs = `cd scalable; find -name '*.svg' -or -name '*.png'`;
+  my @scalableImages = getScalableImages();
 
-  my @sizeDirs = `find -mindepth 1 -maxdepth 1 -regex '.*/[0-9]+'`;
+  my @sizeDirs = getSizeDirs();
   for my $sizeDir(@sizeDirs){
-    chomp $sizeDir;
     run "rm -r $sizeDir/";
   }
 
-  for my $h(@heights){
-    my $dir = "./$h";
-    for my $img(@imgs){
-      chomp $img;
-      my $dest = $img;
-      $dest =~ s/\.[a-zA-Z0-9]+$/.png/i;
+  for my $h(@HEIGHTS){
+    my $sizeDir = "$BASE_DIR/$h";
+    for my $srcImg(@scalableImages){
+      my $destImg = $srcImg;
+      $destImg =~ s/\.[a-zA-Z0-9]+$/.png/i;
 
-      my $destDir = "$dir/$dest";
-      $destDir =~ s/\/[^\/]*$//;
+      my $srcImgFile = "$SCALABLE_DIR/$srcImg";
+      my $destImgFile = "$sizeDir/$destImg";
+
+      my $destDir = dirname "$sizeDir/$destImg";
       run "mkdir", "-p", $destDir;
 
-      if($img =~ /\.svg$/i){
-        convertRsvg "scalable/$img", "$dir/$dest", $h;
+      if($srcImg =~ /\.($OK_SVG_EXTS)$/i){
+        convertRsvg $srcImgFile, $destImgFile, $h;
+      }elsif($srcImg =~ /\.($OK_OTHER_EXTS)$/i){
+        convertImageMagick $srcImgFile, $destImgFile, $h;
       }else{
-        convertImageMagick "scalable/$img", "$dir/$dest", $h;
+        die "ERROR: img $srcImg must end in $OK_ALL_EXTS\n";
       }
     }
   }
+}
+
+sub getScalableImages(){
+  my @scalableImages = `find $SCALABLE_DIR/ -type f`;
+  chomp foreach @scalableImages;
+  for my $img(@scalableImages){
+    if($img !~ s/^$SCALABLE_DIR\///){
+      die "ERROR: malformed `find` output: $img\n";
+    }
+    if($img !~ /\.($OK_ALL_EXTS)$/){
+      die "ERROR: img $img must end in $OK_ALL_EXTS\n";
+    }
+  }
+  return @scalableImages;
+}
+
+sub getSizeDirs(){
+  my @sizeDirs = glob("$BASE_DIR/*");
+  return grep {-d $_ and $_ =~ /\/\d+$/} @sizeDirs;
 }
 
 sub convertRsvg($$$){
@@ -63,6 +93,9 @@ sub convertImageMagick($$$){
 sub run(@){
   print "@_\n";
   system @_;
+  if($? != 0){
+    die "ERROR: \"@_\" exited with non-zero exit code\n";
+  }
 }
 
 &main(@ARGV);
