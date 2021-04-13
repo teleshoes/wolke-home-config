@@ -27,6 +27,9 @@ my $USAGE = "Usage:
     one of: @HEIGHTS
 
   OPTS
+    -f | --force
+      remove dest img file if it exists before converting
+
     -r | --clean | --reset | --init
       before converting, recursively remove all dirs that look like:
         $BASE_DIR/<INT>/
@@ -40,12 +43,15 @@ sub convertImageMagick($$$);
 sub run(@);
 
 sub main(@){
+  my $force = 0;
   my $clean = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-f|--force)$/){
+      $force = 1;
     }elsif($arg =~ /^(-r|--clean|--reset|--init)$/){
       $clean = 1;
     }else{
@@ -69,6 +75,7 @@ sub main(@){
       my $srcImgFile = "$SCALABLE_DIR/$srcImg";
       my $destImgFile = "$sizeDir/$destImg";
 
+      run "rm", "-f", $destImgFile if $force;
       next if -e $destImgFile;
 
       my $destDir = dirname "$sizeDir/$destImg";
