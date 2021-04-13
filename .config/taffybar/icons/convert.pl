@@ -27,6 +27,10 @@ my $USAGE = "Usage:
     one of: @HEIGHTS
 
   OPTS
+    --icon=ICON_REGEX
+      skip converting icons unless the relative path to $SCALABLE_DIR
+      matches <ICON_REGEX>
+
     -f | --force
       remove dest img file if it exists before converting
 
@@ -43,6 +47,7 @@ sub convertImageMagick($$$);
 sub run(@);
 
 sub main(@){
+  my $iconRegex = undef;
   my $force = 0;
   my $clean = 0;
   while(@_ > 0){
@@ -50,6 +55,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^--icon=(.+)$/){
+      $iconRegex = $1;
     }elsif($arg =~ /^(-f|--force)$/){
       $force = 1;
     }elsif($arg =~ /^(-r|--clean|--reset|--init)$/){
@@ -69,6 +76,8 @@ sub main(@){
   for my $h(@HEIGHTS){
     my $sizeDir = "$BASE_DIR/$h";
     for my $srcImg(@scalableImages){
+      next if defined $iconRegex and $srcImg !~ /$iconRegex/;
+
       my $destImg = $srcImg;
       $destImg =~ s/\.[a-zA-Z0-9]+$/.png/i;
 
