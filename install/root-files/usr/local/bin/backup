@@ -21,6 +21,7 @@ my $DEFAULT_SORT_BY = 'size';
 my $DEFAULT_KEEP_SNAPSHOT_COUNT = 30;
 
 my $COMMAND_HELP = "help";
+my $COMMAND_BACKUP_RSYNC = "backup-rsync";
 my $COMMAND_CHECK_UUIDS = "check-uuids";
 my $COMMAND_BACKUP_SENDRECEIVE = "backup-sendreceive";
 my $COMMAND_SENDRECEIVE = "sendreceive";
@@ -41,6 +42,25 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] SRC_MOUNTPOINT DEST_MOUNTPOINT
     same as: $EXEC [OPTS] --backup-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
+
+  $EXEC [OPTS] --backup-rsync BACKUP_NAME
+    backup with rsync
+      -fetch IPMAGIC_NAME from BACKUP_CONF_FILE ($BACKUP_CONF_FILE)
+        use `ipmagic.BACKUP_NAME=IPMAGIC_NAME` present,
+        unless IPMAGIC_NAME is given on the commandline
+      -get SRC_MOUNTPOINT and DEST_MOUNTPOINT and compare UUIDs, as in
+        $EXEC [--ipmagic=IPMAGIC_NAME] --check-uuids BACKUP_NAME
+      -perform rsync backup, same as:
+        $EXEC [--ipmagic=IPMAGIC_NAME] --backup-rsync SRC_MOUNTPOINT DEST_MOUNTPOINT
+
+  $EXEC [OPTS] --backup-rsync SRC_MOUNTPOINT DEST_MOUNTPOINT
+    backup with rsync
+      -make a new snapshot SNAPSHOT for SRC_MOUNTPOINT, as in:
+        $EXEC --snapshot SRC_MOUNTPOINT BACKUP
+      -fetch HOST using `ipmagic IPMAGIC_NAME --host`, if IPMAGIC_NAME given
+      -run rsync from the new SNAPSHOT to DEST_MOUNTPOINT, as in:
+        rsync -avP SRC_MOUNTPOINT/SNAPSHOT/ [HOST:]DEST_MOUNTPOINT/ \\
+          --exclude=$SUBVOL_CONTAINER
 
   $EXEC [OPTS] --check-uuids BACKUP_NAME
     check that the correct partitions are mounted for the backup
@@ -193,6 +213,8 @@ sub getBackupMountpoints($$);
 sub checkBackupNameUUIDs($$$);
 sub checkUUID($$$);
 
+sub backupRsync($$$);
+
 sub backupSendReceive($$$;$);
 sub sendReceive($$$$$);
 sub getSyncedSnapshot($$$);
@@ -241,6 +263,8 @@ sub main(@){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       $command = $COMMAND_HELP;
+    }elsif($arg =~ /^(--backup-rsync)$/){
+      $command = $COMMAND_BACKUP_RSYNC;
     }elsif($arg =~ /^(--check-uuids)$/){
       $command = $COMMAND_CHECK_UUIDS;
     }elsif($arg =~ /^(--backup-sendreceive)$/){
@@ -291,6 +315,23 @@ sub main(@){
   if($command eq $COMMAND_HELP){
     print $USAGE;
     exit 0;
+  }elsif($command eq $COMMAND_BACKUP_RSYNC){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
+    my ($backupName) = @commandArgs if @commandArgs == 1;
+    my ($srcMountpoint, $destMountpoint) = @commandArgs if @commandArgs == 2;
+    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
+    }
+    ensureRoot();
+
+    if(defined $backupName){
+      my $conf = readBackupConf($BACKUP_CONF_FILE);
+      $ipmagicName = selectIpmagicName($conf, $ipmagicName, $backupName);
+      ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      checkBackupNameUUIDs($ipmagicName, $conf, $backupName);
+    }
+
+    backupRsync($ipmagicName, $srcMountpoint, $destMountpoint);
   }elsif($command eq $COMMAND_CHECK_UUIDS){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
     my ($backupName) = @commandArgs;
@@ -451,6 +492,25 @@ sub checkUUID($$$){
   if($actualMountpoint ne $expectedMountpoint){
     die "ERROR: $blkDev is not mounted at $expectedMountpoint (actual: \"$actualMountpoint\")\n";
   }
+}
+
+sub backupRsync($$$){
+  my ($ipmagicName, $srcMountpoint, $destMountpoint) = @_;
+
+  print "\n\nCREATING SRC SNAPSHOT\n";
+  my $timeMillis = nowMillis();
+  my $newSrcSnapshot = makeSnapshot(undef, $timeMillis, $srcMountpoint, "BACKUP");
+
+  my $src = "$srcMountpoint/$newSrcSnapshot";
+  my $dest = wrapIpmagicHostPath($ipmagicName, "$destMountpoint");
+
+  print "\n\nRSYNC SRC => DEST\n";
+  run undef, "rsync", "-avP", "--del", "$src/", "$dest/", "--exclude=$SUBVOL_CONTAINER";
+
+  sync($ipmagicName);
+
+  print "\n\nCREATING DEST SNAPSHOT\n";
+  makeSnapshot($ipmagicName, $timeMillis, $destMountpoint, "BACKUP");
 }
 
 sub backupSendReceive($$$;$){
@@ -1071,6 +1131,7 @@ sub bashComplete($$){
 
   my @cmds = qw(
     -h --help
+    --backup-rsync
     --check-uuids
     --backup-sendreceive
     --sendreceive
