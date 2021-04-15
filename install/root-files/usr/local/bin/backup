@@ -1,457 +1,598 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
-sub mountAndBackup($$$);
-sub backup($$$;$);
-sub backupSymlink($$$);
-sub sendReceive($$$$$);
-sub test($@);
-sub getSyncedSnapshot($$$);
-sub makeSnapshot($$);
-sub getSubvolumes($);
-sub getSubvolumePaths($);
-sub getSubvolumeQuotaInfo($);
-sub formatSubvolumeQuotaInfo($$$);
-sub isQuotaEnabled($);
-sub getSnapshots($$);
-sub getLastSnapshot($$$);
-sub cleanupSnapshots($$$);
-sub deleteSnapshots($@);
-sub getBtrfsMountDev($$);
-sub isMountPoint($);
-sub monitorPvLog();
-sub latestPvLogFile();
-sub guessPrefixes($);
-sub guessSubvolNames($);
-sub readBackupConf($);
-sub bashComplete($$);
+my $EXEC = basename $0;
 
-sub sync();
-sub getIpmagicCmd($);
-sub run(@);
-sub tryrun(@);
-sub ensureRoot();
+my $BACKUP_CONF_FILE = "$ENV{HOME}/.config/backup.conf";
+my $LOG_DIR = "/var/log/backup";
+my $SUBVOL_CONTAINER = "SUBVOL";
 
-my $logDir = "/var/log/backup";
+my $SUBVOL_DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S";
+my $DATE_TIME_REGEX = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
+my $EPOCH_MILLIS_REGEX = "\\d{13}";
 
-my $subvolContainer = "SUBVOL";
-my $dateTimeFormat = "%Y-%m-%d_%H-%M-%S";
-my $dateTimeRegex = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
-my $millisRegex = "\\d{13}";
+my @INFO_SORT_BY_OPTS = qw(id path size);
+my $OK_INFO_SORT_BY = join "|", @INFO_SORT_BY_OPTS;
+my $DEFAULT_SORT_BY = 'size';
 
-my $mntDir = "/media";
-my $backupConf = "$ENV{HOME}/.config/backup.conf";
-my $backups = readBackupConf($backupConf);
+my $DEFAULT_KEEP_SNAPSHOT_COUNT = 30;
 
-my $okNames = join "|", sort keys %$backups;
-my @mntPoints = map {$$_[0]} values %$backups;
-my @backupMntNames = map {$$_[1]} values %$backups;
+my $COMMAND_HELP = "help";
+my $COMMAND_CHECK_UUIDS = "check-uuids";
+my $COMMAND_BACKUP_SENDRECEIVE = "backup-sendreceive";
+my $COMMAND_SENDRECEIVE = "sendreceive";
+my $COMMAND_SEED_SENDRECEIVE = "seed-sendreceive";
+my $COMMAND_LAST_SNAPSHOT = "last-snapshot";
+my $COMMAND_SNAPSHOT = "snapshot";
+my $COMMAND_CLEANUP = "cleanup";
+my $COMMAND_DELETE = "delete";
+my $COMMAND_INFO = "info";
+my $COMMAND_BASH_COMPLETE = "bash-complete";
 
-my $okSortBy = join "|", qw(id path size);
-my $defaultSortBy = 'size';
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    print this message
 
-my $usage = "Usage:
-  $0 -h|--help
-    Print this message
+  $EXEC [OPTS] BACKUP_NAME
+    same as: $EXEC [OPTS] --backup-sendreceive BACKUP_NAME
 
-  $0 [$okNames] [--ipmagic=IPMAGIC]
-    Perform backup specified in $backupConf
-      {default is to perform all}
-    $backupConf contains one backup per line, formatted like this:
-      NAME: SRC_MOUNT_POINT => DEST_MNT_NAME
-      {e.g.: \"home: /home => /media/HOME_BAK\"}
-    Performs these operations to run backup:
-      -use specified SRC {e.g.: '/home'}
-      -use specified DEST {e.g.: '$mntDir/HOME_BAK'}
-      -use mnt to (re)mount DEST
-      -find the last sync-ed snapshot in SRC and DEST
-      -make a new snapshot in SRC
-      -send the difference between the old SRC and new SRC to DEST
-      -use mnt to unmount DEST
-    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
-      -runs 'btrfs receive', 'mnt', etc using 'ipmagic IPMAGIC'
+  $EXEC [OPTS] SRC_MOUNTPOINT DEST_MOUNTPOINT
+    same as: $EXEC [OPTS] --backup-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
 
-  $0 SRC DEST [--ipmagic=IPMAGIC]
-    Perform an incremental backup between two btrfs filesystems
-      -find the last agreed upon snapshot in SRC and DEST
-      -make a new snapshot in SRC
-      -send the difference between the old SRC and new SRC to DEST
-    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
-      -runs 'btrfs receive' and all DEST commands using 'ipmagic IPMAGIC'
+  $EXEC [OPTS] --check-uuids BACKUP_NAME
+    check that the correct partitions are mounted for the backup
+      -read and parse BACKUP_CONF_FILE ($BACKUP_CONF_FILE)
+      -get SRC_MOUNTPOINT and DEST_MOUNTPOINT for BACKUP_NAME
+      -get SRC_UUID and DEST_UUID for BACKUP_NAME
+      -fetch mountpoint for SRC_UUID:
+        lsblk /dev/disk/by-uuid/SRC_UUID
+      -fetch mountpoint for DEST_UUID:
+        [ipmagic IPMAGIC_NAME] lsblk /dev/disk/by-uuid/DEST_UUID
+      -compare mountpoints from lsblk to backup conf file
+      -exit with exit code 0 if and fail on mismatch
 
-  $0 --sendreceive SRC DEST SNAPSHOT [PARENT_SNAPSHOT] [--ipmagic=IPMAGIC]
+  $EXEC [OPTS] --backup-sendreceive BACKUP_NAME
+    backup using btrfs send/receive
+      -fetch IPMAGIC_NAME from BACKUP_CONF_FILE ($BACKUP_CONF_FILE)
+        use `ipmagic.BACKUP_NAME=IPMAGIC_NAME` present,
+        unless IPMAGIC_NAME is given on the commandline
+      -get SRC_MOUNTPOINT and DEST_MOUNTPOINT and compare UUIDs, same as:
+        $EXEC [--ipmagic=IPMAGIC_NAME] --check-uuids BACKUP_NAME
+      -perform send/receive backup, same as:
+        $EXEC [--ipmagic=IPMAGIC_NAME] --backup-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
+
+  $EXEC [OPTS] --backup-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
+    backup using btrfs send/receive
+      -find last snapshot for SRC_MOUNTPOINT, as in:
+      -obtain PARENT_SNAPSHOT for src, as in:
+        $EXEC --last-snapshot SRC_MOUNTPOINT BACKUP
+      -obtain PARENT_SNAPSHOT for dest, as in:
+        $EXEC [--ipmagic=IPMAGIC_NAME] --last-snapshot SRC_MOUNTPOINT BACKUP
+      -fail if PARENT_SNAPSHOT is different for src and dest
+      -make a new snapshot SNAPSHOT for SRC_MOUNTPOINT, as in:
+        $EXEC --snapshot SRC_MOUNTPOINT BACKUP
+      -send the diff between the two latest snapshots to DEST_MOUNTPOINT, roughly the same as:
+         $EXEC [--ipmagic=IPMAGIC_NAME] --sendreceive \\
+           SRC_MOUNTPOINT DEST_MOUNTPOINT SNAPSHOT PARENT_SNAPSHOT
+      -run `sync` and `[ipmagic IPMAGIC_NAME] sync`
+
+  $EXEC [OPTS] --sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT SNAPSHOT [PARENT_SNAPSHOT]
     Call send/receive to send a btrfs image.
-    Roughly equivalent to:
-      btrfs send -p SRC/PARENT_SNAPSHOT SRC/SNAPSHOT | btrfs receive DEST/SDIR
-      # SDIR is SNAPSHOT with the last path name removed
-    If PARENT_SNAPSHOT is omitted, no -p argument is given
-    If IPMAGIC is given, assumes that DEST is located at that ipmagic host
-      -roughly equivalent to: ipmagic IPMAGIC btrfs receive DEST
+      -extract SUBVOL_DIR by removing last path element from SNAPSHOT
+         e.g.: SUBVOL/BACKUP/BACKUP_176 => SUBVOL/BACKUP
+      -prepare '-p' argument for btrfs send if PARENT_SNAPSHOT is given (no -p if omitted)
+      -invoke btrfs send and btrfs receive, roughly equivalent to:
+         btrfs send [-p SRC_MOUNTPOINT/PARENT_SNAPSHOT] SRC_MOUNTPOINT/SNAPSHOT \\
+         | [ipmagic IPMAGIC_NAME] btrfs receive DEST_MOUNTPOINT/SNAPSHOT
 
-  $0 --seed SRC DEST [--ipmagic=IPMAGIC]
-    Make a BACKUP snapshot on SRC, and call send/receive
-    roughly equivalent to:
-      backup --snapshot \$SRC BACKUP --allow-backup
-      last=`backup --lastsnapshot \$SRC BACKUP`
-      backup --sendreceive SRC DEST \$last --ipmagic=IPMAGIC
+  $EXEC [OPTS] --seed-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
+    Make a BACKUP snapshot on SRC_MOUNTPOINT, and call btrfs send/receive
+      -make snapshot, same as:
+        $EXEC --snapshot SRC_MOUNTPOINT BACKUP --allow-backup
+      -obtain PARENT_SNAPSHOT, as in:
+        $EXEC --last-snapshot SRC_MOUNTPOINT BACKUP
+      -run btrfs send/receive, as in:
+        $EXEC [OPTS] --sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT PARENT_SNAPSHOT
 
-  $0 --lastsnapshot MOUNT_POINT [PREFIX]
+  $EXEC [OPTS] --last-snapshot MOUNTPOINT PREFIX
     Print the last snapshot of the given prefix
+      -get a list of subvolumes, as in:
+        [ipmagic IPMAGIC_NAME] btrfs subvolume list MOUNTPOINT
+      -filter out subvolumes that do not match:
+        $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
+      -ensure that subvolumes are ordered by btrfs the same as MILLIS
+      -print the last subvolume
 
-  $0 --snapshot MOUNT_POINT [PREFIX] [--allow-backup]
-    make a read-only snapshot of MOUNT_POINT named:
-      $subvolContainer/<PREFIX>/<PREFIX>_<$dateTimeFormat>_<MILLIS>
-    PREFIX defaults to \"SNAPSHOT\",
-    PREFIX cannot be \"BACKUP\" unless you specify --allow-backup
+  $EXEC [OPTS] --snapshot MOUNTPOINT [PREFIX]
+    Make a read-only snapshot of mountpoint
+      -default PREFIX to 'SNAPSHOT' if not given
+      -get SNAPSHOT name:
+        $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
+      -create snapshot, as in:
+        [ipmagic IPMAGIC_NAME] btrfs subvol snapshot -r MOUNTPOINT MOUNTPOINT/$SUBVOL_CONTAINER/SNAPSHOT
 
-  $0 --cleanup=INSTANCES MOUNT_POINT PREFIX
-    remove snapshots named $subvolContainer/<PREFIX>/<PREFIX>_*,
-      ensuring that the there are at least INSTANCES left {the last ones}
-    INSTANCES is a positive integer, or 'all' to leave 0 instances.
+  $EXEC [OPTS] --cleanup MOUNTPOINT PREFIX
+    remove snapshots named $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_*,
+      ensuring that the there are at least SNAPSHOT_COUNT left
+      (see --keep-snapshot-count=SNAPSHOT_COUNT)
 
-  $0 --remove
-    for each MOUNT_POINT in (" . join(", ", @mntPoints) . "), run:
-      $0 --cleanup=1 /media/MOUNT_POINT \"BACKUP\"
-    for each MOUNTNAME in (" . join(", ", @backupMntNames) . "), run:
-      mnt -m MOUNTNAME
-      $0 --cleanup=1 /media/MOUNTNAME \"BACKUP\"
+  $EXEC [OPTS] --cleanup-all MOUNTPOINT PREFIX
+    same as: $EXEC [OPTS] --remove-all-snapshots --cleanup MOUNTPOINT PREFIX
+  $EXEC [OPTS] --cleanup=SNAPSHOT_COUNT MOUNTPOINT PREFIX
+    same as: $EXEC [OPTS] --keep-snapshot-count=SNAPSHOT_COUNT --cleanup MOUNTPOINT PREFIX
 
-  $0 --delete MOUNT_POINT SUBVOLUME_NAME [SUBVOLUME_NAME...]
-    similar to:
-    'cd MOUNT_POINT; btrfs subvol delete SUBVOLUME_NAME SUBVOLUME_NAME ..'
-    also cleans up qgroups if quota is enabled
+  $EXEC [OPTS] --delete MOUNTPOINT SUBVOL [SUBVOL SUBVOL ..]
+    remove snapshots named SUBVOL
+      -delete snapshots and qgroups for each subvol, as in:
+        [ipmagic IPMAGIC_NAME] btrfs subvol delete MOUNTPOINT/SUBVOL
 
-  $0 --monitor
-    tail the latest pv log, switching to the latest when a new one is created
+  $EXEC [OPTS] --info MOUNTPOINT
+    show all btrfs subvolumes and data usage (requires quotas enabled)
+    optionally re-enable and rescan btrfs quotas
+      -if --info-rescan is given:
+        -disable quotas (if enabled), as in:
+          [ipmagic IPMAGIC_NAME] btrfs quota disable MOUNTPOINT
+        -enable quotas, as in:
+          [ipmagic IPMAGIC_NAME] btrfs quota enable MOUNTPOINT
+        -rescan quotas, as in:
+          [ipmagic IPMAGIC_NAME] btrfs quota rescan <path>
+      -get and print subvolume usage info, as in:
+          [ipmagic IPMAGIC_NAME] btrfs qgroup show MOUNTPOINT
 
-  $0 --info [--quick] [--sort-by=[$okSortBy] MOUNT_POINT
-    show all subvolumes and data usage
-    if --quick is not specified, (re-)enable quotas and rescan first
-    --sort-by is the sort order of the subvols (default is $defaultSortBy)
-      id:   subvol id, smallest first
-      path: subvol path, lexicographically
-      size: bytes used exclusively by subvol, largest first
-
-   $0 --bash-complete COMP_LINE COMP_POINT
+  $EXEC --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
      COMP_LINE  - the full cmdline as a string
      COMP_POINT - the cursor position in the cmdline
+
+  OPTS
+    --ipmagic=IPMAGIC_NAME
+      use `ipmagic IPMAGIC_NAME` for remote operations,
+      overriding IPMAGIC_NAME for a given BACKUP_NAME
+      if empty or not given, perform all operations locally
+    --local
+      synonym for --ipmagic=\"\"
+
+    --keep-snapshot-count=SNAPSHOT_COUNT
+      number of instances to keep in --cleanup
+      SNAPSHOT_COUNT is a positive integer (use --remove-all-snapshots for 0)
+      (default is $DEFAULT_KEEP_SNAPSHOT_COUNT)
+
+    --remove-all-snapshots
+      set SNAPSHOT_COUNT to 0 for --cleanup
+
+    --info-rescan
+      disable/enable/rescan btrfs quotas for --info
+
+    --info-sort-by=[$OK_INFO_SORT_BY]
+      sort subvolumes listed by --info/--info-quick
+      (default is ($DEFAULT_SORT_BY)
+        id:   subvol id, smallest first
+        path: subvol path, lexicographically
+        size: bytes used exclusively by subvol, largest first
+
+  BACKUP_CONF_FILE
+    config file:  $BACKUP_CONF_FILE
+      -lines containing only empty space are ignored
+      -lines starting with '#' are ignored
+      -each line must be one of:
+        BACKUP_NAME = SRC_MOUNTPOINT => DEST_MOUNTPOINT
+        ipmagic.BACKUP_NAME = IPMAGIC_NAME
+        uuid.MOUNTPOINT = UUID
+      -e.g.:
+        pix = /media/PICTURES => /media/BackupDrive
+        ipmagic.pix = home-desktop
+        uuid./media/PICTURES = 8f9f9b1e-9b2f-11eb-8c15-0711f5e696a9
+        uuid./media/BackupDrive = 965d282c-9b2f-11eb-b521-47c0725542a3
 ";
 
+sub selectIpmagicName($$$);
+sub getBackupMountpoints($$);
+sub checkBackupNameUUIDs($$$);
+sub checkUUID($$$);
+
+sub backupSendReceive($$$;$);
+sub sendReceive($$$$$);
+sub getSyncedSnapshot($$$);
+sub makeSnapshot($$$$);
+sub getSubvolumes($$);
+sub getSubvolumePaths($$);
+sub getSubvolumeQuotaInfo($$);
+sub formatSubvolumeQuotaInfo($$$);
+sub isQuotaEnabled($$);
+sub getSnapshots($$$);
+sub getLastSnapshot($$$);
+sub cleanupSnapshots($$$$);
+sub deleteSnapshots($$@);
+sub getBtrfsMountDev($$);
+sub getMountpoint($$);
+sub isMountpoint($$);
+sub guessMountpoints();
+sub guessPrefixes($);
+sub guessSubvolNames($);
+sub readBackupConf($);
+sub readBackupNames($);
+
+sub sync($);
+sub dfBytes($$);
+sub wrapIpmagicCmd($@);
+sub wrapIpmagicHostPath($$);
+
+sub run($@);
+sub tryrun($@);
+sub readProc($@);
+sub readProcLines($@);
+sub nowMillis();
+sub ensureRoot();
+
+sub bashComplete($$);
+
 sub main(@){
-  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
-    print map {"$_\n"} bashComplete($_[1], $_[2]);
+  my $command = undef;
+  my @commandArgs;
+  my $ipmagicName = undef;
+  my $keepSnapshotCount = $DEFAULT_KEEP_SNAPSHOT_COUNT;
+  my $infoRescan = 0;
+  my $infoSortBy = $DEFAULT_SORT_BY;
+
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      $command = $COMMAND_HELP;
+    }elsif($arg =~ /^(--check-uuids)$/){
+      $command = $COMMAND_CHECK_UUIDS;
+    }elsif($arg =~ /^(--backup-sendreceive)$/){
+      $command = $COMMAND_BACKUP_SENDRECEIVE;
+    }elsif($arg =~ /^(--sendreceive)$/){
+      $command = $COMMAND_SENDRECEIVE;
+    }elsif($arg =~ /^(--seed-sendreceive)$/){
+      $command = $COMMAND_SEED_SENDRECEIVE;
+    }elsif($arg =~ /^(--last-snapshot)$/){
+      $command = $COMMAND_LAST_SNAPSHOT;
+    }elsif($arg =~ /^(--snapshot)$/){
+      $command = $COMMAND_SNAPSHOT;
+    }elsif($arg =~ /^(--cleanup)$/){
+      $command = $COMMAND_CLEANUP;
+    }elsif($arg =~ /^--cleanup-all$/){
+      $command = $COMMAND_CLEANUP;
+      $keepSnapshotCount = 0;
+    }elsif($arg =~ /^--cleanup=([1-9]\d*)$/){
+      $command = $COMMAND_CLEANUP;
+      $keepSnapshotCount = $1;
+    }elsif($arg =~ /^(--delete)$/){
+      $command = $COMMAND_DELETE;
+    }elsif($arg =~ /^(--info)$/){
+      $command = $COMMAND_INFO;
+    }elsif($arg =~ /^(--bash-complete)$/){
+      $command = $COMMAND_BASH_COMPLETE;
+    }elsif($arg =~ /^--ipmagic=(.*)$/){
+      $ipmagicName = $1;
+    }elsif($arg =~ /^(--local)$/){
+      $ipmagicName = "";
+    }elsif($arg =~ /^--keep-snapshot-count=([1-9]\d*)$/){
+      $keepSnapshotCount = $1;
+    }elsif($arg =~ /^(--remove-all-snapshots)$/){
+      $keepSnapshotCount = 0;
+    }elsif($arg =~ /^(--info-rescan)$/){
+      $infoRescan = 1;
+    }elsif($arg =~ /^--info-sort-by=($OK_INFO_SORT_BY)$/){
+      $infoSortBy = $1;
+    }elsif($arg !~ /^-/){
+      push @commandArgs, $arg;
+    }else{
+      die "ERROR: unknown arg \"$arg\"\n";
+    }
+  }
+
+  $command = $COMMAND_BACKUP_SENDRECEIVE if not defined $command;
+
+  if($command eq $COMMAND_HELP){
+    print $USAGE;
     exit 0;
-  }
-
-  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
-  ensureRoot();
-
-  my $ipmagic;
-  if(@_ > 0 and $_[-1] =~ /^--ipmagic=(.*)/){
-    pop;
-    $ipmagic = $1;
-  }elsif(@_ > 0 and $_[0] =~ /^--ipmagic=(.*)/){
-    shift;
-    $ipmagic = $1;
-  }
-
-  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^($okNames)$/)){
-    my $name = shift;
-    for my $backupName(sort keys %$backups){
-      next unless not defined $name or $name eq $backupName;
-      my ($srcDir, $mntName) = @{$$backups{$backupName}};
-      mountAndBackup $srcDir, $mntName, $ipmagic;
-      print "\n\n";
+  }elsif($command eq $COMMAND_CHECK_UUIDS){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
+    my ($backupName) = @commandArgs;
+    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
     }
-  }elsif((@_ == 4 or @_ == 5) and $_[0] =~ /^--sendreceive$/){
-    shift;
-    my ($srcDir, $destDir, $snapshot, $parentSnapshot) = @_;
-    sendReceive $srcDir, $destDir, $snapshot, $parentSnapshot, $ipmagic;
-  }elsif(@_ == 3 and $_[0] =~ /^--seed$/){
-    shift;
-    my ($srcDir, $destDir) = @_;
-    backup $srcDir, $destDir, $ipmagic, 1;
-  }elsif((@_ == 2 or @_ == 3 or @_ == 4) and $_[0] =~ /^--snapshot$/){
-    die $usage if defined $ipmagic;
-    shift;
-    my $allowBackup = pop if @_ > 0 and $_[-1] eq "--allow-backup";
-    my $mountPoint = shift;
-    my $prefix = shift;
-    $prefix = "SNAPSHOT" if not defined $prefix;
-    die $usage if @_ != 0;
+    ensureRoot();
 
-    die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
-    if($prefix eq "BACKUP" and not defined $allowBackup){
-      die "PREFIX cannot be 'BACKUP' unless --allow-backup is given\n";
+    my $conf = readBackupConf($BACKUP_CONF_FILE);
+    $ipmagicName = selectIpmagicName($conf, $ipmagicName, $backupName);
+    checkBackupNameUUIDs($ipmagicName, $conf, $backupName);
+    print "UUIDs match\n";
+  }elsif($command eq $COMMAND_BACKUP_SENDRECEIVE){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
+    my ($backupName) = @commandArgs if @commandArgs == 1;
+    my ($srcMountpoint, $destMountpoint) = @commandArgs if @commandArgs == 2;
+    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
+    }
+    ensureRoot();
+
+    if(defined $backupName){
+      my $conf = readBackupConf($BACKUP_CONF_FILE);
+      $ipmagicName = selectIpmagicName($conf, $ipmagicName, $backupName);
+      ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      checkBackupNameUUIDs($ipmagicName, $conf, $backupName);
     }
 
-    makeSnapshot $mountPoint, $prefix;
-    sync();
-  }elsif((@_ == 2 or @_ == 3) and $_[0] =~ /^--lastsnapshot$/){
-    die $usage if defined $ipmagic;
-    shift;
-    my ($mountPoint, $prefix) = @_;
-    $prefix = "SNAPSHOT" if not defined $prefix;
-    $mountPoint =~ s/\/$//;
-    die "not a dir: $mountPoint\n" if not -d $mountPoint;
+    my $syncedSnapshot = getSyncedSnapshot($ipmagicName, $srcMountpoint, $destMountpoint);
+    my $newSnapshot = makeSnapshot(undef, nowMillis(), $srcMountpoint, "BACKUP");
 
+    sync(undef);
+
+    sendReceive $ipmagicName, $srcMountpoint, $destMountpoint, $newSnapshot, $syncedSnapshot;
+    sync($ipmagicName);
+  }elsif($command eq $COMMAND_SENDRECEIVE){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 3 and @commandArgs != 4;
+    my ($srcMountpoint, $destMountpoint, $snapshot, $parentSnapshot) = @commandArgs;
+    ensureRoot();
+
+    sendReceive $ipmagicName, $srcMountpoint, $destMountpoint, $snapshot, $parentSnapshot;
+  }elsif($command eq $COMMAND_SEED_SENDRECEIVE){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
+    my ($srcMountpoint, $destMountpoint) = @commandArgs;
+    ensureRoot();
+
+    my $newSnapshot = makeSnapshot(undef, nowMillis(), $srcMountpoint, "BACKUP");
+    sendReceive $ipmagicName, $srcMountpoint, $destMountpoint, $newSnapshot, undef;
+  }elsif($command eq $COMMAND_LAST_SNAPSHOT){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
+    my ($mountpoint, $prefix) = @commandArgs;
+    ensureRoot();
+
+    $mountpoint =~ s/\/$//;
     die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
+    die "not a dir: $mountpoint\n" if not tryrun($ipmagicName, "test", "-d", "$mountpoint");
 
-    die $usage if not defined $mountPoint or @_ > 2;
-    my $snapshot = getLastSnapshot $mountPoint, $prefix, undef;
+    my $snapshot = getLastSnapshot($ipmagicName, $mountpoint, $prefix);
     print "$snapshot\n";
-  }elsif(@_ == 3 and $_[0] =~ /^--cleanup=(\d+|all)$/){
-    die $usage if defined $ipmagic;
-    my ($mountPoint, $prefix, $instances) = ($_[1], $_[2], $1);
-    die "INSTANCES must be > 0 {use 'all' for 0}\n" if $instances ne 'all' and $instances <= 0;
-    cleanupSnapshots $mountPoint, $prefix, $instances;
-  }elsif(@_ >= 3 and $_[0] =~ /^--delete$/){
-    die $usage if defined $ipmagic;
-    my $mountPoint = $_[1];
-    my @toDelete = @_[2..$#_];
-    deleteSnapshots $mountPoint, @toDelete;
-  }elsif(@_ == 1 and $_[0] =~ /^--remove$/){
-    die $usage if defined $ipmagic;
-    for my $name(sort keys %$backups){
-      my ($srcMntPoint, $destMntName) = @{$$backups{$name}};
-      my $destMntPoint = "/media/$destMntName";
-      tryrun "mnt", "-m", $destMntName;
-
-      my $oldBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint, undef);
-      cleanupSnapshots $srcMntPoint, "BACKUP", 1;
-      cleanupSnapshots $destMntPoint, "BACKUP", 1;
-      my $newBackup = getSyncedSnapshot($srcMntPoint, $destMntPoint, undef);
-      if($oldBackup ne $newBackup){
-        die "FATAL ERROR: latest backup is missing- $oldBackup\n";
-      }
-      run "mnt", "-u", $destMntName;
+  }elsif($command eq $COMMAND_SNAPSHOT){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
+    my ($mountpoint, $prefix) = @commandArgs;
+    $prefix = "SNAPSHOT" if not defined $prefix;
+    if($prefix !~ /^[a-zA-Z0-9_]+$/){
+      die "ERROR: prefix can contain only letters/numbers/underscores \"$prefix\"\n";
     }
-  }elsif(@_ == 1 and $_[0] =~ /^--monitor$/){
-    die $usage if defined $ipmagic;
-    monitorPvLog();
-  }elsif(@_ >= 2 and $_[0] =~ /^--info$/){
-    die $usage if defined $ipmagic;
-    shift;
-    my $quick = 0;
-    if($_[0] =~ /^(--quick)$/){
-      $quick = 1;
-      shift;
-    }
+    ensureRoot();
 
-    my $sortBy = $defaultSortBy;
-    if($_[0] =~ /^--sort-by=($okSortBy)$/){
-      $sortBy = $1;
-      shift;
-    }
+    makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
+    sync($ipmagicName);
+  }elsif($command eq $COMMAND_CLEANUP){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
+    my ($mountpoint, $prefix) = @commandArgs;
+    ensureRoot();
 
-    my $mnt = shift;
-    die $usage if not defined $mnt or @_ > 0;
+    cleanupSnapshots $ipmagicName, $mountpoint, $prefix, $keepSnapshotCount;
+  }elsif($command eq $COMMAND_DELETE){
+    die "$USAGE\nbad args to $command\n" if @commandArgs < 2;
+    my ($mountpoint, @subvols) = @commandArgs;
+    ensureRoot();
 
-    my $fsSize = `df -B1 --output=size "$mnt" | tail -1`;
-    chomp $fsSize;
-    die "could not df $mnt\n" if $fsSize !~ /^\d+$/ or $fsSize == 0;
+    deleteSnapshots $ipmagicName, $mountpoint, @subvols;
+  }elsif($command eq $COMMAND_INFO){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
+    my ($mountpoint) = @commandArgs;
+    ensureRoot();
 
-    if(not $quick){
+    my $fsSizeBytes = dfBytes($ipmagicName, $mountpoint);
+
+    if($infoRescan){
       print "(re-)enabling quota and rescanning:\n";
-      run "btrfs quota disable \"$mnt\"";
-      run "btrfs quota enable \"$mnt\"";
-      run "btrfs quota rescan -w \"$mnt\"";
-    }
-    if(not isQuotaEnabled($mnt)){
-      die "quota is not enabled\n";
+      run $ipmagicName, "btrfs quota disable \"$mountpoint\"";
+      run $ipmagicName, "btrfs quota enable \"$mountpoint\"";
+      run $ipmagicName, "btrfs quota rescan -w \"$mountpoint\"";
     }
 
-    my $info = getSubvolumeQuotaInfo $mnt;
+    if(not isQuotaEnabled($ipmagicName, $mountpoint)){
+      die "ERROR: btrfs quota is not enabled for $mountpoint\n";
+    }
 
-    print formatSubvolumeQuotaInfo($fsSize, $info, $sortBy);
-  }elsif(@_ == 2){
-    my ($srcDir, $destDir) = @_;
-    backup $srcDir, $destDir, $ipmagic;
+    my $info = getSubvolumeQuotaInfo($ipmagicName, $mountpoint);
+
+    print formatSubvolumeQuotaInfo($fsSizeBytes, $info, $infoSortBy);
+  }elsif($command eq $COMMAND_BASH_COMPLETE){
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
+    my ($cmdLine, $pos) = @commandArgs;
+
+    print map {"$_\n"} bashComplete($cmdLine, $pos);
   }else{
-    die $usage;
+    die "$USAGE\nERROR: unknown command $command\n";
   }
 }
 
-sub mountAndBackup($$$){
-  my ($srcDir, $mntName, $ipmagic) = @_;
-  my $destDir = "$mntDir/$mntName";
-
-  die "dir not found: $srcDir\n" if not -d $srcDir;
-
-  my @ipmagicCmd = getIpmagicCmd $ipmagic;
-
-  my $wasMounted = test $ipmagic, "-e", $destDir;
-  run @ipmagicCmd, "mnt", "-u", $mntName if $wasMounted;
-  die "$destDir exists already\n" if test $ipmagic, "-e", $destDir;
-
-  run @ipmagicCmd, "mnt", "-l", $mntName;
-
-  backup $srcDir, $destDir, $ipmagic;
-
-  run @ipmagicCmd, "mnt", "-u", $mntName;
-  run @ipmagicCmd, "mnt", "-m", $mntName if $wasMounted;
+sub selectIpmagicName($$$){
+  my ($conf, $ipmagicNameArg, $backupName) = @_;
+  if(defined $ipmagicNameArg){
+    return $ipmagicNameArg;
+  }elsif(defined $$conf{IPMAGIC_NAMES}{$backupName}){
+    return $$conf{IPMAGIC_NAMES}{$backupName};
+  }else{
+    return undef;
+  }
 }
 
-sub backup($$$;$){
-  my ($srcDir, $destDir, $remoteDestIpmagic, $seed) = @_;
-  $srcDir =~ s/\/$//;
-  $destDir =~ s/\/$//;
+sub getBackupMountpoints($$){
+  my ($conf, $backupName) = @_;
+  if(not defined $$conf{BACKUPS}{$backupName}){
+    die "ERROR: $backupName missing from $BACKUP_CONF_FILE\n";
+  }
 
-  if(not defined getBtrfsMountDev $srcDir, undef){
-    die "$srcDir is not btrfs\n";
-  }elsif(not defined getBtrfsMountDev $destDir, $remoteDestIpmagic){
-    die "$destDir is not btrfs\n";
+  my $srcMountpoint = $$conf{BACKUPS}{$backupName}{SRC_MOUNTPOINT};
+  my $destMountpoint = $$conf{BACKUPS}{$backupName}{DEST_MOUNTPOINT};
+  return ($srcMountpoint, $destMountpoint);
+}
+
+sub checkBackupNameUUIDs($$$){
+  my ($ipmagicName, $conf, $backupName) = @_;
+
+  my ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+  my $srcUUID = $$conf{UUIDS}{$srcMountpoint};
+  my $destUUID = $$conf{UUIDS}{$destMountpoint};
+  die "ERROR: missing SRC_UUID for $srcMountpoint\n" if not defined $srcUUID;
+  die "ERROR: missing DEST_UUID for $destMountpoint\n" if not defined $destUUID;
+
+  checkUUID(undef, $srcMountpoint, $srcUUID);
+  checkUUID($ipmagicName, $destMountpoint, $destUUID);
+  print "\nUUIDs match for $srcMountpoint and $destMountpoint\n";
+}
+
+sub checkUUID($$$){
+  my ($ipmagicName, $expectedMountpoint, $uuid) = @_;
+  my $blkDev = "/dev/disk/by-uuid/$uuid";
+  if(not tryrun($ipmagicName, "test", "-e", $blkDev)){
+    die "ERROR: could not find $blkDev for $expectedMountpoint\n";
+  }
+  my $actualMountpoint = getMountpoint($ipmagicName, $blkDev);
+
+  if($actualMountpoint ne $expectedMountpoint){
+    die "ERROR: $blkDev is not mounted at $expectedMountpoint (actual: \"$actualMountpoint\")\n";
+  }
+}
+
+sub backupSendReceive($$$;$){
+  my ($ipmagicName, $srcMountpoint, $destMountpoint, $seed) = @_;
+  $srcMountpoint =~ s/\/$//;
+  $destMountpoint =~ s/\/$//;
+
+  if(not defined getBtrfsMountDev(undef, $srcMountpoint)){
+    die "$srcMountpoint is not btrfs\n";
+  }elsif(not defined getBtrfsMountDev($ipmagicName, $destMountpoint)){
+    die "$destMountpoint is not btrfs\n";
   }
 
   my $syncedSnapshot;
   if(defined $seed and $seed){
     $syncedSnapshot = undef;
   }else{
-    $syncedSnapshot = getSyncedSnapshot $srcDir, $destDir, $remoteDestIpmagic;
+    $syncedSnapshot = getSyncedSnapshot($ipmagicName, $srcMountpoint, $destMountpoint);
   }
 
-  my $newSnapshot = makeSnapshot $srcDir, "BACKUP";
+  my $newSnapshot = makeSnapshot(undef, nowMillis(), $srcMountpoint, "BACKUP");
 
-  sync();
+  sync(undef);
 
-  sendReceive $srcDir, $destDir,
-    $newSnapshot, $syncedSnapshot,
-    $remoteDestIpmagic;
+  sendReceive $ipmagicName, $srcMountpoint, $destMountpoint, $newSnapshot, $syncedSnapshot;
 
-  backupSymlink $destDir, $newSnapshot, $remoteDestIpmagic;
-}
-
-sub backupSymlink($$$){
-  my ($dir, $snapshotName, $remoteIpmagic) = @_;
-
-  my @ipmagicCmd = getIpmagicCmd $remoteIpmagic;
-
-  if(test $remoteIpmagic, "-h", "$dir/backup"){
-    run @ipmagicCmd, "rm", "$dir/backup";
-  }
-
-  if(not test $remoteIpmagic, "-e", "$dir/backup"){
-    run @ipmagicCmd, "ln", "-s", $snapshotName, "$dir/backup";
-  }else{
-    print STDERR "$dir/backup exists, not creating symlink\n";
-  }
+  sync($ipmagicName);
 }
 
 sub sendReceive($$$$$){
-  my ($sendDir, $receiveDir,
-      $snapshotName, $parentSnapshotName,
-      $remoteDestIpmagic) = @_;
-
-  my $snapshotBaseName = $snapshotName;
-  $snapshotBaseName =~ s/^.*\///;
+  my ($ipmagicName, $sendMountpoint, $receiveMountpoint, $snapshotName, $parentSnapshotName) = @_;
 
   my $destDir = $snapshotName;
   $destDir =~ s/([^\/]*)$//;
-  $destDir = "$receiveDir/$destDir";
+  $destDir = "$receiveMountpoint/$destDir";
 
-  my $parent = '';
+  my $parentArg = '';
   if(defined $parentSnapshotName){
-    $parent = "-p \"$sendDir/$parentSnapshotName\"";
+    $parentArg = "-p \"$sendMountpoint/$parentSnapshotName\"";
   }
 
-  if(not test $remoteDestIpmagic, "-d", "$receiveDir"){
-    die "dir does not exist on dest: $receiveDir\n";
+  if(not tryrun($ipmagicName, "test", "-d", "$receiveMountpoint")){
+    die "ERROR: dir does not exist on dest: $receiveMountpoint\n";
   }
-  if(test $remoteDestIpmagic, "-e", "$receiveDir/$snapshotName"){
-    die "snapshot exists on dest already: $receiveDir/$snapshotName\n";
+  if(tryrun($ipmagicName, "test", "-e", "$receiveMountpoint/$snapshotName")){
+    die "ERROR: snapshot exists on dest already: $receiveMountpoint/$snapshotName\n";
   }
 
-  my $ipmagicCmd = getIpmagicCmd($remoteDestIpmagic);
+  run $ipmagicName, "mkdir -p $destDir";
 
-  run "$ipmagicCmd mkdir -p $destDir";
 
-  run "mkdir -p $logDir";
-  my $pvLog = "$logDir/$snapshotBaseName-pv.log";
-  my $rcvLog = "$logDir/$snapshotBaseName-btrfs-rcv.log";
+  my $snapshotBasename = $snapshotName;
+  $snapshotBasename =~ s/\/*$//;
+  $snapshotBasename =~ s/^.*\///;
+
+  my $sendMountpointBasename = $sendMountpoint;
+  $sendMountpointBasename =~ s/\/*$//;
+  $sendMountpointBasename =~ s/^.*\///;
+
+  my $logFilePrefix = "$snapshotBasename-$sendMountpointBasename";
+
+  run undef, "mkdir -p $LOG_DIR";
+  my $pvLog = "$LOG_DIR/$logFilePrefix-pv.log";
+  my $rcvLog = "$LOG_DIR/$logFilePrefix-btrfs-rcv.log";
   print "\nLOGS: $pvLog $rcvLog\n";
 
+  my @btrfsRemoteCmd = wrapIpmagicCmd($ipmagicName, "btrfs");
+
   print "\n";
-  run "bash", "-c", "time ( "
-    . " btrfs send $parent \"$sendDir/$snapshotName\""
+  run undef, "bash", "-c", "time ( "
+    . " btrfs send $parentArg \"$sendMountpoint/$snapshotName\""
     . " | "
     . " pv -r -a -t -b -f 2> >(tee $pvLog 1>&2)"
     . " | "
-    . " $ipmagicCmd btrfs receive -v -v \"$destDir\" 2> >(tee $rcvLog 1>&2)"
+    . " @btrfsRemoteCmd receive -v -v \"$destDir\" 2> >(tee $rcvLog 1>&2)"
     . " )"
     ;
 
   print "\nLOGS: $pvLog $rcvLog\n";
   print "\n";
-  run "cat", $pvLog;
+  run undef, "cat", $pvLog;
   print "\n";
 
-  if(not test $remoteDestIpmagic, "-d", "$receiveDir/$snapshotName"){
-    die "snapshot send/receive failed: $receiveDir/$snapshotName\n";
+  if(not tryrun($ipmagicName, "test", "-d", "$receiveMountpoint/$snapshotName")){
+    die "snapshot send/receive failed: $receiveMountpoint/$snapshotName\n";
   }
 }
 
-sub test($@){
-  my $remoteIpmagic = shift;
-  my @test = (getIpmagicCmd($remoteIpmagic), "test", @_);
-  tryrun @test;
-  return $? == 0 ? 1 : 0;
-}
-
 sub getSyncedSnapshot($$$){
-  my ($srcDir, $destDir, $remoteDestIpmagic) = @_;
-  $srcDir =~ s/\/$//;
-  $destDir =~ s/\/$//;
+  my ($ipmagicName, $srcMountpoint, $destMountpoint) = @_;
+  $srcMountpoint =~ s/\/$//;
+  $destMountpoint =~ s/\/$//;
 
-  my $lastSrc = getLastSnapshot $srcDir, "BACKUP", undef;
-  my $lastDest = getLastSnapshot $destDir, "BACKUP", $remoteDestIpmagic;
+  my $lastSrc = getLastSnapshot(undef, $srcMountpoint, "BACKUP");
+  my $lastDest = getLastSnapshot($ipmagicName, $destMountpoint, "BACKUP");
 
   if($lastSrc ne $lastDest){
-    die "Mismatched last snapshot:\n$srcDir/$lastSrc\n$destDir/$lastDest\n";
+    die "Mismatched last snapshot:\n$srcMountpoint/$lastSrc\n$destMountpoint/$lastDest\n";
   }
   return $lastSrc;
 }
 
-sub makeSnapshot($$){
-  my ($mountPoint, $prefix) = @_;
-  my $millis = int(time * 1000);
-  my $dateTime = `date +$dateTimeFormat`;
+sub makeSnapshot($$$$){
+  my ($ipmagicName, $timestampMillis, $mountpoint, $prefix) = @_;
+
+  my $epoch = int($timestampMillis / 1000.0 + 0.5);
+  my $dateTime = `date --date=\@$epoch +$SUBVOL_DATETIME_FORMAT`;
   chomp $dateTime;
 
-  $mountPoint =~ s/\/+$//;
-  die "not a dir: $mountPoint\n" if not -d $mountPoint;
-  die "not a mountpoint: $mountPoint\n" if not isMountPoint($mountPoint);
+  $mountpoint =~ s/\/+$//;
+  die "not a dir: $mountpoint\n" if not tryrun($ipmagicName, "test", "-d", $mountpoint);
+  die "not a mountpoint: $mountpoint\n" if not isMountpoint($ipmagicName, $mountpoint);
 
-  my $parentDir = "$subvolContainer/$prefix";
-  run "mkdir", "-p", "$mountPoint/$parentDir";
+  my $parentDir = "$SUBVOL_CONTAINER/$prefix";
+  run $ipmagicName, "mkdir", "-p", "$mountpoint/$parentDir";
 
-  my $snapshotName = "${prefix}_${dateTime}_${millis}";
+  my $snapshotName = "${prefix}_${dateTime}_${timestampMillis}";
 
   my $snapshot = "$parentDir/$snapshotName";
-  my $snapshotDir = "$mountPoint/$snapshot";
+  my $snapshotDir = "$mountpoint/$snapshot";
 
-  die "$snapshotDir already exists!\n" if -e $snapshotDir;
-  run "btrfs", "subvolume", "snapshot", "-r", $mountPoint, $snapshotDir;
+  die "$snapshotDir already exists!\n" if tryrun($ipmagicName, "test", "-e", $snapshotDir);
+  run $ipmagicName, "btrfs", "subvolume", "snapshot", "-r", $mountpoint, $snapshotDir;
 
-  my $latestSymlink = "$mountPoint/$parentDir/latest";
+  my $latestSymlink = "$mountpoint/$parentDir/latest";
 
-  run "rm", "-f", $latestSymlink;
-  run "ln", "-s", $snapshotName, $latestSymlink;
+  run $ipmagicName, "rm", "-f", $latestSymlink;
+  run $ipmagicName, "ln", "-s", $snapshotName, $latestSymlink;
 
-  if($snapshot ne getLastSnapshot $mountPoint, $prefix, undef){
-    die "snapshot failed\n";
+  if($snapshot ne getLastSnapshot($ipmagicName, $mountpoint, $prefix)){
+    die "ERROR: snapshot on $mountpoint failed\n";
   }
 
   return $snapshot;
 }
 
-sub getSubvolumes($){
-  my $mnt = shift;
-  my @subLines = `btrfs subvolume list "$mnt"`;
+sub getSubvolumes($$){
+  my ($ipmagicName, $mountpoint) = @_;
+  my @subvolLines = readProcLines($ipmagicName,
+    "btrfs", "subvolume", "list", $mountpoint);
   my $subs = {};
-  for my $subLine(@subLines){
+  for my $subLine(@subvolLines){
     if($subLine =~ /ID (\d+) gen (\d+) top level (\d+) path (.*)$/){
       my ($id, $gen, $level, $path) = ($1, $2, $3, $4);
       $$subs{$id} = $path;
@@ -461,9 +602,9 @@ sub getSubvolumes($){
   }
   return $subs;
 }
-sub getSubvolumePaths($){
-  my $mnt = shift;
-  my $subs = getSubvolumes($mnt);
+sub getSubvolumePaths($$){
+  my ($ipmagicName, $mountpoint) = @_;
+  my $subs = getSubvolumes($ipmagicName, $mountpoint);
   my $paths = [];
   for my $id(sort {$a <=> $b} keys %$subs){
     push @$paths, $$subs{$id};
@@ -471,18 +612,20 @@ sub getSubvolumePaths($){
   return $paths;
 }
 
-sub getSubvolumeQuotaInfo($){
-  my $mnt = shift;
-  my @qgroupLines = `btrfs qgroup show --raw \"$mnt\"`;
-  die "invalid output from qgroup show on $mnt" if 0
+sub getSubvolumeQuotaInfo($$){
+  my ($ipmagicName, $mountpoint) = @_;
+
+  my @qgroupLines = readProcLines($ipmagicName,
+    "btrfs", "qgroup", "show", "--raw", $mountpoint);
+  die "invalid output from qgroup show on $mountpoint" if 0
     or @qgroupLines < 3
     or $qgroupLines[0] !~ /^\s*qgroupid\s*rfer\s*excl\s*$/
     or $qgroupLines[1] !~ /^\s*-+\s*-+\s*-+\s*$/
     ;
-  shift @qgroupLines;
-  shift @qgroupLines;
+  shift @qgroupLines; #qgroupid         rfer         excl
+  shift @qgroupLines; #--------         ----         ----
 
-  my $subs = getSubvolumes($mnt);
+  my $subs = getSubvolumes($ipmagicName, $mountpoint);
   my $root = undef;
 
   my $info = {};
@@ -531,9 +674,15 @@ sub formatSubvolumeQuotaInfo($$$){
   my $sortFct = $$sortFcts{$sortBy};
   die "unknown sort function: $sortBy\n" if not defined $sortFct;
 
+  my $maxPathLen = 0;
+  for my $subId(sort $sortFct (keys %$info)){
+    my $len = length $$info{$subId}{path};
+    $maxPathLen = $len if $len > $maxPathLen;
+  };
+
   for my $subId(sort $sortFct (keys %$info)){
     my $path = $$info{$subId}{path};
-    $path = sprintf '%-32s', $path;
+    $path = sprintf "%-${maxPathLen}s", $path;
 
     my $size = $$info{$subId}{excl};
     $size /= 1024;
@@ -548,16 +697,26 @@ sub formatSubvolumeQuotaInfo($$$){
   return $s;
 }
 
-sub isQuotaEnabled($){
-  my $mnt = shift;
-  system "btrfs qgroup show \"$mnt\" >/dev/null 2>/dev/null";
-  return $? == 0;
+sub isQuotaEnabled($$){
+  my ($ipmagicName, $mountpoint) = @_;
+  my $qgroupShowOut = readProc($ipmagicName,
+    "btrfs qgroup show \"$mountpoint\" 2>&1");
+  if($qgroupShowOut =~ /^qgroupid\s*rfer\s*excl\s*\n/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
-sub getSnapshots($$){
-  my ($dir, $prefix) = @_;
-  my @subs = @{getSubvolumePaths($dir)};
-  @subs = grep {/^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/} @subs;
+sub getSnapshots($$$){
+  my ($ipmagicName, $dir, $prefix) = @_;
+  my @subs = @{getSubvolumePaths($ipmagicName, $dir)};
+  @subs = grep {/
+     ^  ${SUBVOL_CONTAINER}\/
+        ${prefix}\/
+        ${prefix}_${DATE_TIME_REGEX}_${EPOCH_MILLIS_REGEX}
+     $
+  /x} @subs;
 
   my @sortedSubs = sort @subs;
   for(my $i=0; $i<@subs; $i++){
@@ -567,49 +726,38 @@ sub getSnapshots($$){
   }
 
   for my $sub(@subs){
-    die "$dir/$sub is not a dir\n" if not -d "$dir/$sub";
+    die "$dir/$sub is not a dir\n" if not tryrun($ipmagicName, "test", "-d", "$dir/$sub");
   }
 
   return @subs;
 }
 
 sub getLastSnapshot($$$){
-  my ($dir, $prefix, $remoteIpmagic) = @_;
-  my $sub;
-  if(defined $remoteIpmagic){
-    my $ipmagicCmd = getIpmagicCmd $remoteIpmagic;
-    $sub = `$ipmagicCmd $0 --lastsnapshot "$dir" "$prefix"`;
-    die "Failed to fetch subvol $prefix from $remoteIpmagic" if $? != 0;
-    chomp $sub;
-  }else{
-    die "not a dir: $dir\n" if not -d $dir;
+  my ($ipmagicName, $dir, $prefix) = @_;
+  die "ERROR: not a dir \"$dir\"\n" if not tryrun($ipmagicName, "test", "-d", $dir);
 
-    my @subs = getSnapshots $dir, $prefix;
-    die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
-    $sub = $subs[-1];
-  }
-  die "Malformed snapshot: $sub\n" if $sub !~ /^${subvolContainer}\/${prefix}\/${prefix}_${dateTimeRegex}_${millisRegex}$/;
-  return $sub;
+  my @subs = getSnapshots $ipmagicName, $dir, $prefix;
+  die "no '$prefix' snapshot found for $dir\n" if @subs == 0;
+  my $lastSub = $subs[-1];
+
+  die "Malformed snapshot: $lastSub\n" if $lastSub !~ /
+    ^ ${SUBVOL_CONTAINER}\/
+      ${prefix}\/
+      ${prefix}_${DATE_TIME_REGEX}_${EPOCH_MILLIS_REGEX}
+    $
+  /x;
+  return $lastSub;
 }
 
-sub cleanupSnapshots($$$){
-  my ($mountPoint, $prefix, $instances) = @_;
-  my @subs = getSnapshots $mountPoint, $prefix;
-
-  if($instances eq 'all' and $prefix =~ /BACKUP/i){
-    die "NOT deleting all your backups, do that by hand if you like\n";
-  }
+sub cleanupSnapshots($$$$){
+  my ($ipmagicName, $mountpoint, $prefix, $keepSnapshotCount) = @_;
+  my @subs = getSnapshots($ipmagicName, $mountpoint, $prefix);
 
   my @toKeep;
   my @toDelete;
-  if($instances eq 'all'){
-    @toKeep = ();
-    @toDelete = @subs;
-  }else{
-    my @revsubs = reverse sort @subs;
-    @toKeep = grep {defined} reverse @revsubs[0 .. $instances-1];
-    @toDelete = grep {defined} reverse @revsubs[$instances .. $#revsubs];
-  }
+  my @revsubs = reverse sort @subs;
+  @toKeep = grep {defined} reverse @revsubs[0 .. $keepSnapshotCount-1];
+  @toDelete = grep {defined} reverse @revsubs[$keepSnapshotCount .. $#revsubs];
 
   print "to keep (" . scalar(@toKeep) . "):\n ";
   print join "\n ", @toKeep;
@@ -618,51 +766,48 @@ sub cleanupSnapshots($$$){
   print join "\n ", @toDelete;
   print "\n\n";
 
-  if($instances eq 'all'){
+  if(@toKeep == 0){
     print "DELETING ALL THESE SNAPSHOTS\n";
     print "ok? [Y/n] ";
     my $ok = <STDIN>;
     if($ok =~ /n/i){
       die "user cancelled\n";
     }
-  }else{
-    die "ERROR: no snapshots would remain\n" if @toKeep == 0;
   }
 
   if(@toDelete > 0){
-    deleteSnapshots $mountPoint, @toDelete;
+    deleteSnapshots $ipmagicName, $mountpoint, @toDelete;
   }
 }
 
-sub deleteSnapshots($@){
-  my ($mountPoint, @toDelete) = @_;
+sub deleteSnapshots($$@){
+  my ($ipmagicName, $mountpoint, @toDelete) = @_;
 
   @toDelete = map {s/\/$//; $_} @toDelete;
 
-  my $subvolumes = getSubvolumes $mountPoint;
+  my $subvolumes = getSubvolumes $ipmagicName, $mountpoint;
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
 
   for my $sub(@toDelete){
-    die "MISSING SNAPSHOT: $sub\n" if not -d "$mountPoint/$sub";
+    die "MISSING SNAPSHOT: $sub\n" if not -d "$mountpoint/$sub";
     die "SUBVOLUME ID NOT FOUND: $sub\n" if not defined $subIds{$sub};
   }
 
-  my @pathsToDelete = map {"$mountPoint/$_"} @toDelete;
+  my @pathsToDelete = map {"$mountpoint/$_"} @toDelete;
   my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
-  run "btrfs", "subvolume", "delete", @pathsToDelete;
-  if(isQuotaEnabled($mountPoint)){
+  run undef, "btrfs", "subvolume", "delete", @pathsToDelete;
+  if(isQuotaEnabled($ipmagicName, $mountpoint)){
     for my $qgroupId(@qgroupsToDelete){
-      tryrun "btrfs", "qgroup", "destroy", $qgroupId, $mountPoint;
+      tryrun $ipmagicName, "btrfs", "qgroup", "destroy", $qgroupId, $mountpoint;
     }
   }
   print "deleted " . scalar(@toDelete) . " subvolumes\n";
-  sync();
+  sync($ipmagicName);
 }
 
 sub getBtrfsMountDev($$){
-  my ($dir, $ipmagic) = @_;
-  my $ipmagicCmd = getIpmagicCmd($ipmagic);
-  my @mountLines = `$ipmagicCmd mount`;
+  my ($ipmagicName, $dir) = @_;
+  my @mountLines = split /\n/, readProc $ipmagicName, "mount";
   for my $line(@mountLines){
     if($line =~ m/^([_a-zA-Z0-9\/\-]+) on $dir type btrfs /){
       return $1;
@@ -671,12 +816,19 @@ sub getBtrfsMountDev($$){
   return undef;
 }
 
-sub isMountPoint($){
-  my ($dir) = @_;
-  open CMD, "-|", "mountpoint", $dir
-    or die "could not run mountpoint\n$!\n";
-  my $out = <CMD>;
-  close CMD;
+sub getMountpoint($$){
+  my ($ipmagicName, $blkDev) = @_;
+  my $dir = readProc($ipmagicName, "lsblk", "-n", "-o", "MOUNTPOINT", $blkDev);
+  chomp $dir;
+  if(not tryrun($ipmagicName, "test", "-d", $dir)){
+    die "ERROR: $dir is not a dir\n";
+  }
+  return $dir;
+}
+
+sub isMountpoint($$){
+  my ($ipmagicName, $dir) = @_;
+  my $out = readProc($ipmagicName, "mountpoint", $dir);
   if($out =~ /is a mountpoint$/){
     return 1;
   }elsif($out =~ /is not a mountpoint$/){
@@ -686,20 +838,35 @@ sub isMountPoint($){
   }
 }
 
+sub guessMountpoints(){
+  my @mountLines = split /\n/, `mount 2>/dev/null`;
+  my @mountpoints;
+  for my $line(@mountLines){
+    if($line =~ /^\S+ on (.+) type (ext4|btrfs)/){
+      push @mountpoints, $1;
+    }
+  }
+  return @mountpoints;
+}
 sub guessPrefixes($){
-  my $mountPoint = shift;
-  my @subs = guessSubvolNames $mountPoint;
-  my @prefixWords = map { /^$subvolContainer\/(\w+)/; $1} @subs;
+  my ($mountpoint) = @_;
+  my @subs = guessSubvolNames $mountpoint;
+  my @prefixWords = map { /^$SUBVOL_CONTAINER\/(\w+)/; $1} @subs;
   my %uniqPrefixWords = map { $_ => 1} @prefixWords;
   return sort keys %uniqPrefixWords;
 }
 sub guessSubvolNames($){
-  my $mountPoint = shift;
-  $mountPoint =~ s/'/'\\''/g;
-  my @subs = `ls -d '$mountPoint'/$subvolContainer/*/* 2>/dev/null`;
+  my ($mountpoint) = @_;
+  $mountpoint =~ s/'/'\\''/g;
+  my @subs = readProc(undef, "ls -d '$mountpoint'/$SUBVOL_CONTAINER/*/* 2>/dev/null");
   my %subvolNames;
   for my $sub(@subs){
-    if($sub =~ /^(?:.*\/)?(${subvolContainer}\/\w+\/\w+_${dateTimeRegex}_${millisRegex})$/){
+    if($sub =~ /
+      ^
+      (?:.*\/)?
+      (${SUBVOL_CONTAINER}\/\w+\/\w+_${DATE_TIME_REGEX}_${EPOCH_MILLIS_REGEX})
+      $
+    /){
       $subvolNames{$1} = 1;
     }
   }
@@ -707,24 +874,144 @@ sub guessSubvolNames($){
 }
 
 sub readBackupConf($){
-  my $file = shift;
-  my $backups = {};
-  if(-f $file){
-    my @lines = `cat "$file"`;
-    for my $line(@lines){
-      chomp $line;
-      next if $line =~ /^\s*(#.*)?$/;
-      if($line =~ /^\s*(\w+)\s*:\s*(.+?)\s*=>\s*(.+?)\s*$/){
-        my ($name, $srcDir, $destName) = ($1, $2, $3);
-        $$backups{$name} = [$srcDir, $destName];
-      }else{
-        print STDERR "warning: malformed config line: $line\n";
-      }
-    }
-  }else{
-    print STDERR "warning: $file does not exist\n";
+  my ($confFile) = @_;
+
+  my $conf = {
+    BACKUPS       => {},
+    IPMAGIC_NAMES => {},
+    UUIDS         => {},
+  };
+
+  if(not -f $confFile){
+    return $conf;
   }
-  return $backups;
+
+  open FH, "< $confFile" or die "ERROR: could not read $confFile\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $hex4 = "[0-9a0-f]{4}";
+  my $hex8 = "[0-9a0-f]{8}";
+  my $hex12 = "[0-9a0-f]{12}";
+
+  for my $line(@lines){
+    if($line =~ /^\s*(?:#.*)?$/){
+      next;
+    }elsif($line =~ /^ \s* (\w+) \s* = \s* (.*\S) \s* => \s* (.*\S) \s* $/x){
+      my ($backupName, $srcMountpoint, $destMountpoint) = ($1, $2, $3);
+      if(defined $$conf{BACKUPS}{$backupName}){
+        print STDERR "WARNING: duplicate BACKUP_NAME $backupName in $confFile\n";
+      }
+      $$conf{BACKUPS}{$backupName} = {
+        SRC_MOUNTPOINT  => $srcMountpoint,
+        DEST_MOUNTPOINT => $destMountpoint,
+      };
+    }elsif($line =~ /^ \s* ipmagic\.(\w+) \s* = \s* (.*\S) \s* $/x){
+      my ($backupName, $ipmagicName) = ($1, $2);
+      if(defined $$conf{IPMAGIC_NAME}{$backupName}){
+        print STDERR "WARNING: duplicate IPMAGIC_NAME for $backupName in $confFile\n";
+      }
+      $$conf{IPMAGIC_NAMES}{$backupName} = $ipmagicName;
+    }elsif($line =~ /^ \s* uuid\.(.*\S) \s* = \s* ($hex8-$hex4-$hex4-$hex4-$hex12) \s* $/x){
+      my ($mountpoint, $uuid) = ($1, $2);
+      if(defined $$conf{UUIDS}{$mountpoint}){
+        print STDERR "WARNING: duplicate UUID for $mountpoint in $confFile\n";
+      }
+      $$conf{UUIDS}{$mountpoint} = $uuid;
+    }else{
+      print STDERR "WARNING: malformed config line in $confFile - $line\n";
+    }
+  }
+
+  return $conf;
+}
+sub readBackupNames($){
+  my ($confFile) = @_;
+  my $conf = readBackupConf($confFile);
+  return sort keys %{$$conf{BACKUPS}};
+}
+
+sub sync($){
+  my($ipmagicName) = @_;
+  run $ipmagicName, "sync";
+}
+
+sub dfBytes($$){
+  my ($ipmagicName, $mountpoint) = @_;
+
+  my $bytes = 0;
+  my $dfOut = readProc $ipmagicName, "df -B1 --output=size \"$mountpoint\"";
+  if($dfOut =~ /^(?:.*\n)?(\d+)$/){
+    $bytes = $1;
+  }
+  #positive integer only
+  die "ERROR: df failed for $mountpoint\n" if $bytes !~ /^[1-9]\d*$/;
+  return $bytes;
+}
+
+sub wrapIpmagicCmd($@){
+  my ($ipmagicName, @cmd) = @_;
+  if(defined $ipmagicName and length $ipmagicName > 0){
+    return ("ipmagic", $ipmagicName, "-u", "root", @cmd);
+  }else{
+    return @cmd;
+  }
+}
+
+sub wrapIpmagicHostPath($$){
+  my ($ipmagicName, $path) = @_;
+  if(defined $ipmagicName){
+    my $host = readProc(undef, "ipmagic", $ipmagicName, "--host");
+    chomp $host;
+    return "root\@$host:$path";
+  }else{
+    return $path;
+  }
+}
+
+sub run($@){
+  my ($ipmagicName, @cmd) = @_;
+  print "@cmd\n";
+  my $ok = tryrun($ipmagicName, @cmd);
+  die "ERROR: \"@cmd\" failed\n" if not $ok;
+}
+
+sub tryrun($@){
+  my ($ipmagicName, @cmd) = @_;
+  @cmd = wrapIpmagicCmd($ipmagicName, @cmd);
+
+  system @cmd;
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub readProc($@){
+  my ($ipmagicName, @cmd) = @_;
+  return join '', readProcLines($ipmagicName, @cmd);
+}
+sub readProcLines($@){
+  my ($ipmagicName, @cmd) = @_;
+  @cmd = wrapIpmagicCmd($ipmagicName, @cmd);
+
+  open CMD, "-|", @cmd or die "ERROR: could not run @cmd\n";
+  my @lines = <CMD>;
+  close CMD;
+
+  return @lines;
+}
+
+sub nowMillis(){
+  return int(time * 1000 + 0.5);
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
 }
 
 sub bashComplete($$){
@@ -738,160 +1025,102 @@ sub bashComplete($$){
   shift @words;
   pop @words if not $isNewWord;
 
-  my @backupNames = sort keys %$backups;
+  my $command = undef;
+  my @commandArgs;
+  while(@words > 0){
+    my $arg = shift @words;
+    if($arg =~ /^(-h|--help)$/){
+      $command = $COMMAND_HELP;
+    }elsif($arg =~ /^(--check-uuids)$/){
+      $command = $COMMAND_CHECK_UUIDS;
+    }elsif($arg =~ /^(--backup-sendreceive)$/){
+      $command = $COMMAND_BACKUP_SENDRECEIVE;
+    }elsif($arg =~ /^(--sendreceive)$/){
+      $command = $COMMAND_SENDRECEIVE;
+    }elsif($arg =~ /^(--seed-sendreceive)$/){
+      $command = $COMMAND_SEED_SENDRECEIVE;
+    }elsif($arg =~ /^(--last-snapshot)$/){
+      $command = $COMMAND_LAST_SNAPSHOT;
+    }elsif($arg =~ /^(--snapshot)$/){
+      $command = $COMMAND_SNAPSHOT;
+    }elsif($arg =~ /^(--cleanup)$/){
+      $command = $COMMAND_CLEANUP;
+    }elsif($arg =~ /^--cleanup-all$/){
+      $command = $COMMAND_CLEANUP;
+    }elsif($arg =~ /^--cleanup=([1-9]\d*)$/){
+      $command = $COMMAND_CLEANUP;
+    }elsif($arg =~ /^(--delete)$/){
+      $command = $COMMAND_DELETE;
+    }elsif($arg =~ /^(--info)$/){
+      $command = $COMMAND_INFO;
+    }elsif($arg =~ /^(--bash-complete)$/){
+      $command = $COMMAND_BASH_COMPLETE;
+    }elsif($arg !~ /^-/){
+      push @commandArgs, $arg;
+    }
+  }
+
+  my @opts = (
+    "--ipmagic=",
+    "--local",
+    "--keep-snapshot-count=",
+    "--remove-all-snapshots",
+    "--info-rescan",
+    (map {"--info-sort-by=$_"} @INFO_SORT_BY_OPTS),
+  );
 
   my @cmds = qw(
     -h --help
+    --check-uuids
+    --backup-sendreceive
     --sendreceive
-    --seed
-    --lastsnapshot
+    --seed-sendreceive
+    --last-snapshot
     --snapshot
-    --cleanup=1 --cleanup=30 --cleanup=all
-    --remove
+    --cleanup
+    --cleanup-all
+    --cleanup=
     --delete
-    --monitor
     --info
     --bash-complete
   );
 
-  my @opts = qw(
-    --ipmagic=
-  );
-
-  if(@words == 0){
-    return (@backupNames, @mntPoints, @cmds, @opts);
+  my @complete = (@opts);
+  if(not defined $command){
+    @complete = (@complete, @cmds) if @commandArgs == 0;
+    @complete = (@complete, readBackupNames($BACKUP_CONF_FILE)) if @commandArgs == 0;
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
+  }elsif($command eq $COMMAND_HELP){
+    @complete = ();
+  }elsif($command eq $COMMAND_CHECK_UUIDS){
+    @complete = (@complete, readBackupNames($BACKUP_CONF_FILE)) if @commandArgs == 0;
+  }elsif($command eq $COMMAND_BACKUP_SENDRECEIVE){
+    @complete = (@complete, readBackupNames($BACKUP_CONF_FILE)) if @commandArgs == 0;
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
+  }elsif($command eq $COMMAND_SENDRECEIVE){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
+    @complete = (@complete, guessSubvolNames($commandArgs[0])) if @commandArgs == 2 or @commandArgs == 3;
+  }elsif($command eq $COMMAND_SEED_SENDRECEIVE){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
+  }elsif($command eq $COMMAND_LAST_SNAPSHOT){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
+    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+  }elsif($command eq $COMMAND_SNAPSHOT){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
+    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+  }elsif($command eq $COMMAND_CLEANUP){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
+    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+  }elsif($command eq $COMMAND_DELETE){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
+    @complete = (@complete, guessSubvolNames($commandArgs[0])) if @commandArgs == 1;
+  }elsif($command eq $COMMAND_INFO){
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
+  }elsif($command eq $COMMAND_BASH_COMPLETE){
+    @complete = ();
   }
 
-  if($words[0] =~ /^(--sendreceive)/){
-    if(@words == 1 or @words == 2){
-      return @mntPoints;
-    }elsif(@words == 3){
-      my $src = $words[1];
-      return guessSubvolNames $src;
-    }elsif(@words == 4){
-      my $src = $words[1];
-      return (@opts, guessSubvolNames $src);
-    }elsif(@words == 5){
-      return @opts;
-    }
-  }
-
-  if($words[0] =~ /^(--seed)/){
-    if(@words == 1 or @words == 2){
-      return @mntPoints;
-    }elsif(@words == 3){
-      return @opts;
-    }
-  }
-
-  if($words[0] =~ /^(--snapshot|--lastsnapshot|--cleanup.*)/){
-    if(@words == 1){
-      return @mntPoints;
-    }elsif(@words == 2){
-      my $mnt = $words[1];
-      my @prefixes = guessPrefixes $mnt;
-      push @prefixes, "SNAPSHOT" if $words[0] =~ /^(--snapshot)$/;
-      return @prefixes;
-    }elsif(@words == 3){
-      return ("--allow-backup");
-    }
-  }
-
-  if($words[0] =~ /^(--delete)$/){
-    if(@words == 1){
-      return @mntPoints;
-    }elsif(@words > 1){
-      my $mnt = $words[1];
-      return guessSubvolNames $mnt;
-    }
-  }
-
-  if($words[0] =~ /^(--info)$/){
-    my @quick = qw(--quick);
-    my @sortBy = qw(--sort-by=id --sort-by=path --sort-by=size);
-    if(@words == 1){
-      return (@quick, @sortBy, @mntPoints);
-    }elsif(@words == 2 and $words[1] =~ /^(--quick)$/){
-      return (@sortBy, @mntPoints);
-    }elsif(@words == 3 and $words[2] =~ /^(--sort-by.*)$/){
-      return (@mntPoints);
-    }
-  }
-
-  if($words[0] =~ /^($okNames)/){
-    return @opts;
-  }
-
-  if(@words == 1){
-    return @mntPoints;
-  }elsif(@words == 2){
-    return @opts;
-  }
-
-  return ();
-}
-
-sub sync(){
-  run "sync";
-}
-
-sub monitorPvLog(){
-  my $latest = undef;
-  my $pid = undef;
-  while(1){
-    my $prev = $latest;
-    $latest = latestPvLogFile();
-
-    if(defined $latest and (not defined $prev or $prev ne $latest)){
-      print "\n\nLOG FILE: $latest\n";
-      kill $pid if defined $pid;
-      $pid = fork;
-      if(not $pid){
-        exec "tail", "-F", $latest;
-      }
-    }
-
-    sleep 0.5;
-  }
-}
-
-sub latestPvLogFile(){
-  my @pvLogs = `ls $logDir/BACKUP_*-pv.log 2>/dev/null`;
-  chomp foreach @pvLogs;
-  @pvLogs = sort grep {/^$logDir\/BACKUP_${dateTimeRegex}_${millisRegex}-pv\.log$/} @pvLogs;
-  return @pvLogs == 0 ? undef : $pvLogs[-1];
-}
-
-sub ensureRoot(){
-  if(`whoami` ne "root\n"){
-    print STDERR "rerunning as root\n";
-    exec "sudo", $0, @ARGV;
-  }
-}
-
-sub getIpmagicCmd($){
-  my $ipmagic = shift;
-  my @cmd;
-  if(defined $ipmagic){
-    @cmd = (@cmd, "sudo", "-u", "$ENV{SUDO_USER}") if defined $ENV{SUDO_USER};
-    @cmd = (@cmd, "ipmagic", $ipmagic, "-u", "root");
-  }
-
-  if(wantarray){
-    return @cmd;
-  }else{
-    return "@cmd";
-  }
-}
-
-sub run(@){
-  print "@_\n";
-  system @_;
-  die "FAILED: @_\n" if $? != 0;
-}
-sub tryrun(@){
-  print "@_\n";
-  system @_;
+  return @complete;
 }
 
 &main(@ARGV);
