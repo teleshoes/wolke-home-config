@@ -523,22 +523,30 @@ sub backupRsync($$$){
   my $dest = wrapIpmagicHostPath($ipmagicName, "$destMountpoint");
 
   my $logFile = createLogFile($newSrcSnapshot, $srcMountpoint, "rsync");
-  print "\n\nRSYNC SRC => DEST\n";
+  print "\n";
   print "LOGS: $logFile\n";
+  print "\n";
 
   my $logHandle = startLogging($logFile);
+
+  print "INITIAL DF:\n";
+  run $ipmagicName, "df", $destMountpoint;
+  print "\n";
 
   my $rsyncStartMillis = nowMillis();
   run undef, "rsync", "-avP", "--del", "$src/", "$dest/", "--exclude=$SUBVOL_CONTAINER";
   my $rsyncEndMillis = nowMillis();
   printf "  elapsed: %s\n", formatMillisHHMMSSFFF($rsyncEndMillis - $rsyncStartMillis);
-
   print "\n";
 
   my $syncStartMillis = nowMillis();
   sync($ipmagicName);
   my $syncEndMillis = nowMillis();
   printf "  elapsed: %s\n", formatMillisHHMMSSFFF($syncEndMillis - $syncStartMillis);
+  print "\n";
+
+  print "FINAL DF:\n";
+  run $ipmagicName, "df", $destMountpoint;
 
   stopLogging($logHandle);
 
