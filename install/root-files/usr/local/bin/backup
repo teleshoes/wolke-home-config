@@ -505,9 +505,17 @@ sub backupRsync($$$){
   my $dest = wrapIpmagicHostPath($ipmagicName, "$destMountpoint");
 
   print "\n\nRSYNC SRC => DEST\n";
+  my $rsyncStartMillis = nowMillis();
   run undef, "rsync", "-avP", "--del", "$src/", "$dest/", "--exclude=$SUBVOL_CONTAINER";
+  my $rsyncEndMillis = nowMillis();
+  printf "  elapsed: %s\n", formatMillisHHMMSSFFF($rsyncEndMillis - $rsyncStartMillis);
 
+  print "\n";
+
+  my $syncStartMillis = nowMillis();
   sync($ipmagicName);
+  my $syncEndMillis = nowMillis();
+  printf "  elapsed: %s\n", formatMillisHHMMSSFFF($syncEndMillis - $syncStartMillis);
 
   print "\n\nCREATING DEST SNAPSHOT\n";
   makeSnapshot($ipmagicName, $timeMillis, $destMountpoint, "BACKUP");
@@ -1061,6 +1069,16 @@ sub readProcLines($@){
   close CMD;
 
   return @lines;
+}
+
+sub formatMillisHHMMSSFFF($){
+  my ($millis) = @_;
+  my $timeS = int($millis / 1000.0 + 0.5);
+  my $h = sprintf "%02d", int($timeS / 60 / 60);
+  my $m = sprintf "%02d", int($timeS / 60) % 60;
+  my $s = sprintf "%02d", int($timeS) % 60;
+  my $f = sprintf "%03d", $millis % 1000;
+  return "$h:$m:$s.$f";
 }
 
 sub nowMillis(){
