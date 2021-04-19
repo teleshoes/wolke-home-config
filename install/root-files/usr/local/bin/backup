@@ -246,6 +246,8 @@ sub sync($);
 sub dfBytes($$);
 sub getUsers();
 sub createLogFile($$$);
+sub startLogging($);
+sub stopLogging($);
 
 sub wrapIpmagicCmd($@);
 sub wrapIpmagicHostPath($$);
@@ -520,7 +522,12 @@ sub backupRsync($$$){
   my $src = "$srcMountpoint/$newSrcSnapshot";
   my $dest = wrapIpmagicHostPath($ipmagicName, "$destMountpoint");
 
+  my $logFile = createLogFile($newSrcSnapshot, $srcMountpoint, "rsync");
   print "\n\nRSYNC SRC => DEST\n";
+  print "LOGS: $logFile\n";
+
+  my $logHandle = startLogging($logFile);
+
   my $rsyncStartMillis = nowMillis();
   run undef, "rsync", "-avP", "--del", "$src/", "$dest/", "--exclude=$SUBVOL_CONTAINER";
   my $rsyncEndMillis = nowMillis();
@@ -532,6 +539,8 @@ sub backupRsync($$$){
   sync($ipmagicName);
   my $syncEndMillis = nowMillis();
   printf "  elapsed: %s\n", formatMillisHHMMSSFFF($syncEndMillis - $syncStartMillis);
+
+  stopLogging($logHandle);
 
   print "\n\nCREATING DEST SNAPSHOT\n";
   makeSnapshot($ipmagicName, $timeMillis, $destMountpoint, "BACKUP");
@@ -1119,6 +1128,40 @@ sub createLogFile($$$){
   run undef, "mkdir", "-p", $LOG_DIR;
   run undef, "touch", $logFile;
   return $logFile;
+}
+
+sub startLogging($){
+  my ($logFile) = @_;
+
+  open my $origSTDOUT, ">&STDOUT";
+  open my $origSTDERR, ">&STDERR";
+
+  my $logTeePid = open STDOUT, "| tee -a $logFile"
+    or die "ERROR: could not redirect stdout to tee $logFile\n$!\n";
+  open STDERR, ">&STDOUT"
+    or die "ERROR: could not redirect STDERR to STDOUT\n$!\n";
+
+  my $logHandle = {
+    origSTDOUT => $origSTDOUT,
+    origSTDERR => $origSTDERR,
+    logTeePid => $logTeePid,
+  };
+
+  return $logHandle;
+}
+sub stopLogging($){
+  my ($logHandle) = @_;
+  system "kill", $$logHandle{logTeePid};
+  close STDOUT;
+  close STDERR;
+
+  open STDOUT, ">&", $$logHandle{origSTDOUT}
+    or die "ERROR: could not restore STDOUT\n";
+  open STDERR, ">&", $$logHandle{origSTDERR}
+    or die "ERROR: could not restore STDERR\n";
+
+  close $$logHandle{origSTDOUT};
+  close $$logHandle{origSTDERR};
 }
 
 sub wrapIpmagicCmd($@){
