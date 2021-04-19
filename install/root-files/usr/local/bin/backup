@@ -585,14 +585,19 @@ sub sendReceive($$$$$){
 
   run $ipmagicName, "mkdir -p $destDir";
 
-
+  my $infoLog = createLogFile($snapshotName, $sendMountpoint, "btrfs-info");
   my $pvLog = createLogFile($snapshotName, $sendMountpoint, "btrfs-send-pv");
   my $rcvLog = createLogFile($snapshotName, $sendMountpoint, "btrfs-rcv");
-  print "\nLOGS: $pvLog $rcvLog\n";
+  print "\nLOGS: $infoLog $pvLog $rcvLog\n";
 
   my @btrfsRemoteCmd = wrapIpmagicCmd($ipmagicName, "btrfs");
 
+  my $dateFmt = `date`;
+  chomp $dateFmt;
   print "\n";
+
+  my $startMillis = nowMillis();
+
   run undef, "bash", "-c", "time ( "
     . " btrfs send $parentArg \"$sendMountpoint/$snapshotName\""
     . " | "
@@ -602,7 +607,14 @@ sub sendReceive($$$$$){
     . " )"
     ;
 
-  print "\nLOGS: $pvLog $rcvLog\n";
+  my $endMillis = nowMillis();
+
+  open FH, "> $infoLog" or die "ERROR: could not write to $infoLog\n$!\n";
+  print FH "$dateFmt\n";
+  printf FH "elapsed: %s\n", formatMillisHHMMSSFFF($endMillis - $startMillis);
+  close FH;
+
+  print "\nLOGS: $infoLog $pvLog $rcvLog\n";
   print "\n";
   run undef, "cat", $pvLog;
   print "\n";
