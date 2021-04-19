@@ -180,6 +180,11 @@ my $USAGE = "Usage:
       SNAPSHOT_COUNT is a positive integer (use --remove-all-snapshots for 0)
       (default is $DEFAULT_KEEP_SNAPSHOT_COUNT)
 
+    --auto-cleanup=SNAPSHOT_COUNT
+      cleanup snapshots before creating a new one in --snapshot
+        -before creating a snapshot in MOUNTPOINT for PREFIX, cleanup as in:
+          $EXEC --cleanup=SNAPSHOT_COUNT MOUNTPOINT PREFIX
+
     --remove-all-snapshots
       set SNAPSHOT_COUNT to 0 for --cleanup
 
@@ -256,6 +261,7 @@ sub main(@){
   my @commandArgs;
   my $ipmagicName = undef;
   my $keepSnapshotCount = $DEFAULT_KEEP_SNAPSHOT_COUNT;
+  my $autoCleanupSnapshotCount = undef;
   my $infoRescan = 0;
   my $infoSortBy = $DEFAULT_SORT_BY;
 
@@ -297,6 +303,8 @@ sub main(@){
       $ipmagicName = "";
     }elsif($arg =~ /^--keep-snapshot-count=([1-9]\d*)$/){
       $keepSnapshotCount = $1;
+    }elsif($arg =~ /^--auto-cleanup=([1-9]\d*)$/){
+      $autoCleanupSnapshotCount = $1;
     }elsif($arg =~ /^(--remove-all-snapshots)$/){
       $keepSnapshotCount = 0;
     }elsif($arg =~ /^(--info-rescan)$/){
@@ -399,6 +407,11 @@ sub main(@){
       die "ERROR: prefix can contain only letters/numbers/underscores \"$prefix\"\n";
     }
     ensureRoot();
+
+    if(defined $autoCleanupSnapshotCount){
+      cleanupSnapshots($ipmagicName, $mountpoint, $prefix, $autoCleanupSnapshotCount);
+      print "\n\n";
+    }
 
     makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
     sync($ipmagicName);
