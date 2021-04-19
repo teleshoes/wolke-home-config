@@ -244,6 +244,9 @@ sub readBackupNames($);
 
 sub sync($);
 sub dfBytes($$);
+sub getUsers();
+sub createLogFile($$$);
+
 sub wrapIpmagicCmd($@);
 sub wrapIpmagicHostPath($$);
 
@@ -583,19 +586,8 @@ sub sendReceive($$$$$){
   run $ipmagicName, "mkdir -p $destDir";
 
 
-  my $snapshotBasename = $snapshotName;
-  $snapshotBasename =~ s/\/*$//;
-  $snapshotBasename =~ s/^.*\///;
-
-  my $sendMountpointBasename = $sendMountpoint;
-  $sendMountpointBasename =~ s/\/*$//;
-  $sendMountpointBasename =~ s/^.*\///;
-
-  my $logFilePrefix = "$snapshotBasename-$sendMountpointBasename";
-
-  run undef, "mkdir -p $LOG_DIR";
-  my $pvLog = "$LOG_DIR/$logFilePrefix-pv.log";
-  my $rcvLog = "$LOG_DIR/$logFilePrefix-btrfs-rcv.log";
+  my $pvLog = createLogFile($snapshotName, $sendMountpoint, "pv");
+  my $rcvLog = createLogFile($snapshotName, $sendMountpoint, "btrfs-rcv");
   print "\nLOGS: $pvLog $rcvLog\n";
 
   my @btrfsRemoteCmd = wrapIpmagicCmd($ipmagicName, "btrfs");
@@ -1028,6 +1020,89 @@ sub dfBytes($$){
   #positive integer only
   die "ERROR: df failed for $mountpoint\n" if $bytes !~ /^[1-9]\d*$/;
   return $bytes;
+}
+
+sub getUsers(){
+  open FH, "< /etc/passwd" or die "ERROR: could not read /etc/passwd\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  my @users;
+  for my $line(@lines){
+    push @users, $1 if $line =~ /^(\w+):/;
+  }
+  return @users;
+}
+
+sub createLogFile($$$){
+  my ($snapshotName, $mountpoint, $suffix) = @_;
+
+  # format snapshot name, removing subvol container if present
+  # e.g.:
+  #   SUBVOL/DAILY/DAILY_2016-07-07_08-52-11_1467895931512/
+  #     => DAILY_2016-07-07_08-52-11_1467895931512
+  #   SUBVOL/DAILY/DAILY_2016-07-07_08-52-11_1467895931512/
+  #     => DAILY_2016-07-07_08-52-11_1467895931512
+  #   SUBVOL/DAILY/2016-07-07_08-52-11_1467895931512
+  #     => DAILY-2016-07-07_08-52-11_1467895931512
+  #   -----apple/dapple@@@###/sun---shine-----
+  #     => apple-dapple-sun-shine
+  my $fmtSnapshot;
+  if($snapshotName =~ /^$SUBVOL_CONTAINER\/(\w+)\/([^\/]+)\/?$/){
+    my ($prefix, $basename) = ($1, $2);
+    if($basename =~ /\Q$prefix\E/){
+      $fmtSnapshot = $basename;
+    }else{
+      $fmtSnapshot = "${prefix}_${basename}";
+    }
+  }else{
+    $fmtSnapshot = $snapshotName;
+  }
+  $fmtSnapshot =~ s/[^a-zA-Z0-9_\-]+/-/g;
+  $fmtSnapshot =~ s/^-+//g;
+  $fmtSnapshot =~ s/-+$//g;
+  $fmtSnapshot =~ s/--+/-/g;
+
+
+  # format mountpoint, removing root-level mount container and user if present
+  # e.g.:
+  #   /home/
+  #     => home
+  #   /media/BACKUP_FOO
+  #     => BACKUP_FOO
+  #   /media/johnson/foo
+  #     => foo
+  #   /media/abc/def/ghi
+  #     media-abc-def-ghi
+  #   /mnt/----_----FOO-----bar@@@@###---
+  #     => _FOO-bar
+  my $fmtMountpoint;
+  my $usersRegex = join "|", getUsers();
+  if($mountpoint =~ /^\/?(mnt|media)\/($usersRegex)\/([^\/]+)\/?/){
+    my ($systemMountContainer, $user, $dirname) = ($1, $2, $3);
+    $fmtMountpoint = $dirname;
+  }elsif($mountpoint =~ /^\/?(mnt|media)\/([^\/]+)\/?/){
+    my ($systemMountContainer, $dirname) = ($1, $2);
+    $fmtMountpoint = $dirname;
+  }else{
+    $fmtMountpoint = $mountpoint;
+  }
+  $fmtMountpoint =~ s/[^a-zA-Z0-9_\-]+/-/g;
+  $fmtMountpoint =~ s/^-+//g;
+  $fmtMountpoint =~ s/-+$//g;
+  $fmtMountpoint =~ s/--+/-/g;
+
+
+  my $fmtSuffix = $suffix;
+  $fmtSuffix =~ s/[^a-zA-Z0-9_\-]+/-/g;
+  $fmtSuffix =~ s/^-+//g;
+  $fmtSuffix =~ s/-+$//g;
+  $fmtSuffix =~ s/--+/-/g;
+
+  my $logFile = "$LOG_DIR/$fmtSnapshot-$fmtMountpoint-$fmtSuffix.log";
+  run undef, "mkdir", "-p", $LOG_DIR;
+  run undef, "touch", $logFile;
+  return $logFile;
 }
 
 sub wrapIpmagicCmd($@){
