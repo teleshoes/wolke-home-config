@@ -243,7 +243,8 @@ sub readBackupConf($);
 sub readBackupNames($);
 
 sub sync($);
-sub dfBytes($$);
+sub dfSizeBytes($$);
+sub dfBytes($$$);
 sub getUsers();
 sub createLogFile($$$);
 sub startLogging($);
@@ -437,7 +438,7 @@ sub main(@){
     my ($mountpoint) = @commandArgs;
     ensureRoot();
 
-    my $fsSizeBytes = dfBytes($ipmagicName, $mountpoint);
+    my $fsSizeBytes = dfSizeBytes($ipmagicName, $mountpoint);
 
     if($infoRescan){
       print "(re-)enabling quota and rescanning:\n";
@@ -1042,11 +1043,15 @@ sub sync($){
   run $ipmagicName, "sync";
 }
 
-sub dfBytes($$){
+sub dfSizeBytes($$){
   my ($ipmagicName, $mountpoint) = @_;
+  return dfBytes($ipmagicName, $mountpoint, "size");
+}
+sub dfBytes($$$){
+  my ($ipmagicName, $mountpoint, $dfField) = @_;
 
   my $bytes = 0;
-  my $dfOut = readProc $ipmagicName, "df -B1 --output=size \"$mountpoint\"";
+  my $dfOut = readProc $ipmagicName, "df -B1 --output=$dfField \"$mountpoint\"";
   if($dfOut =~ /^(?:.*\n)?(\d+)$/){
     $bytes = $1;
   }
