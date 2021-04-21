@@ -244,6 +244,8 @@ sub readBackupNames($);
 
 sub sync($);
 sub dfSizeBytes($$);
+sub dfUsedHuman($$);
+sub dfHuman($$$);
 sub dfBytes($$$);
 sub getUsers();
 sub createLogFile($$$);
@@ -1046,6 +1048,22 @@ sub sync($){
 sub dfSizeBytes($$){
   my ($ipmagicName, $mountpoint) = @_;
   return dfBytes($ipmagicName, $mountpoint, "size");
+}
+sub dfUsedHuman($$){
+  my ($ipmagicName, $mountpoint) = @_;
+  return dfHuman($ipmagicName, $mountpoint, "used");
+}
+sub dfHuman($$$){
+  my ($ipmagicName, $mountpoint, $dfField) = @_;
+  my $dfOut = readProc $ipmagicName, "df -h --output=$dfField \"$mountpoint\"";
+  my $fmt;
+  if($dfOut =~ /^(?:.*\n)?\s*(\d+|\d*\.\d+)(\w+)$/){
+    my ($val, $unit) = ($1, $2);
+    $fmt = "$val$unit";
+  }else{
+    die "ERROR: df failed for $mountpoint\n";
+  }
+  return $fmt;
 }
 sub dfBytes($$$){
   my ($ipmagicName, $mountpoint, $dfField) = @_;
