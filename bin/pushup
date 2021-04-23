@@ -13,11 +13,13 @@ my $TYPE_FILTER_REGEX_EMPTY = '^$';
 my $EXEC = basename $0;
 
 my $MODE_PRINT = "print";
+my $MODE_DATES = "dates";
 my $MODE_PLOT = "plot";
 my $MODE_APPEND = "append";
 
 sub appendDateFile($$$);
 sub getDataByDate($);
+sub printDates($);
 sub gnuplot($$);
 sub getDate($);
 sub getTime($);
@@ -29,6 +31,9 @@ my $usage = "Usage:
 
   $EXEC [OPTS] [--print|--get]
     cat all $CACHE_DIR/<DATEFILE> files
+
+  $EXEC [OPTS] -d | --dates | --days | dates | days | d
+    print max and total values for each DATEFILE
 
   $EXEC [OPTS] -g | -p | --gnuplot | --plot | gnuplot | plot
     use gnuplot to plot max and total of all values in each DATEFILE,
@@ -86,6 +91,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(?:--print|--get)$/){
       $mode = $MODE_PRINT;
+    }elsif($arg =~ /^(?:-d|--dates|--days|dates|days|d)$/){
+      $mode = $MODE_DATES;
     }elsif($arg =~ /^(?:-g|-p|--gnuplot|--plot|gnuplot|plot)$/){
       $mode = $MODE_PLOT;
     }elsif($arg =~ /^(f)$/){
@@ -119,6 +126,8 @@ sub main(@){
 
   if($mode eq $MODE_PRINT){
     system "cat $CACHE_DIR/????-??-??";
+  }elsif($mode eq $MODE_DATES){
+    printDates($typeFilterRegex);
   }elsif($mode eq $MODE_PLOT){
     gnuplot($feh, $typeFilterRegex);
   }elsif($mode eq $MODE_APPEND){
@@ -176,6 +185,16 @@ sub getDataByDate($){
       $$dataByDate{$date}{total} == 0;
   }
   return $dataByDate;
+}
+
+sub printDates($){
+  my ($typeFilterRegex) = @_;
+  my $dataByDate = getDataByDate($typeFilterRegex);
+  for my $date(sort keys %$dataByDate){
+    my $total = $$dataByDate{$date}{total};
+    my $max = $$dataByDate{$date}{max};
+    printf "%s   %-3d  %-3d\n", $date, $max, $total;
+  }
 }
 
 sub gnuplot($$){
