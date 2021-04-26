@@ -989,13 +989,13 @@ sub deleteSnapshots($$@){
   my %subIds = map {$$subvolumes{$_} => $_} keys %$subvolumes;
 
   for my $sub(@toDelete){
-    die "MISSING SNAPSHOT: $sub\n" if not -d "$mountpoint/$sub";
+    die "MISSING SNAPSHOT: $sub\n" if not tryrun($ipmagicName, "test", "-d", "$mountpoint/$sub");
     die "SUBVOLUME ID NOT FOUND: $sub\n" if not defined $subIds{$sub};
   }
 
   my @pathsToDelete = map {"$mountpoint/$_"} @toDelete;
   my @qgroupsToDelete = map {"0/$subIds{$_}"} @toDelete;
-  run undef, "btrfs", "subvolume", "delete", @pathsToDelete;
+  run $ipmagicName, "btrfs", "subvolume", "delete", @pathsToDelete;
   if(isQuotaEnabled($ipmagicName, $mountpoint)){
     for my $qgroupId(@qgroupsToDelete){
       tryrun $ipmagicName, "btrfs", "qgroup", "destroy", $qgroupId, $mountpoint;
