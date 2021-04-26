@@ -10,7 +10,9 @@ my $BACKUP_CONF_FILE = "$ENV{HOME}/.config/backup.conf";
 my $LOG_DIR = "/var/log/backup";
 my $SUBVOL_CONTAINER = "SUBVOL";
 
+my $DEFAULT_PREFIX_NAME = "SNAPSHOT";
 my @PREFIX_NAMES = qw(BACKUP SNAPSHOT DAILY HOURLY FIVEMIN);
+my $OK_PREFIX_NAMES = join "|", @PREFIX_NAMES;
 
 my $SUBVOL_DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S";
 my $DATE_TIME_REGEX = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
@@ -58,13 +60,13 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --backup-rsync SRC_MOUNTPOINT DEST_MOUNTPOINT
     backup with rsync
       -make a new snapshot SNAPSHOT for SRC_MOUNTPOINT, as in:
-        $EXEC --snapshot SRC_MOUNTPOINT BACKUP
+        $EXEC --snapshot --prefix=BACKUP SRC_MOUNTPOINT
       -fetch HOST using `ipmagic IPMAGIC_NAME --host`, if IPMAGIC_NAME given
       -run rsync from the new SNAPSHOT to DEST_MOUNTPOINT, as in:
         rsync -avP SRC_MOUNTPOINT/SNAPSHOT/ [HOST:]DEST_MOUNTPOINT/ \\
           --exclude=$SUBVOL_CONTAINER
       -make a snapshot also named SNAPSHOT (same timestamp) for DEST_MOUNTPOINT, as in:
-        $EXEC [--ipmagic=IPMAGIC_NAME] --snapshot DEST_MOUNTPOINT BACKUP
+        $EXEC [--ipmagic=IPMAGIC_NAME] --snapshot --prefix=BACKUP DEST_MOUNTPOINT
 
   $EXEC [OPTS] --check-uuids BACKUP_NAME
     check that the correct partitions are mounted for the backup
@@ -92,12 +94,12 @@ my $USAGE = "Usage:
     backup using btrfs send/receive
       -find last snapshot for SRC_MOUNTPOINT, as in:
       -obtain PARENT_SNAPSHOT for src, as in:
-        $EXEC --last-snapshot SRC_MOUNTPOINT BACKUP
+        $EXEC --last-snapshot --prefix=BACKUP SRC_MOUNTPOINT
       -obtain PARENT_SNAPSHOT for dest, as in:
-        $EXEC [--ipmagic=IPMAGIC_NAME] --last-snapshot DEST_MOUNTPOINT BACKUP
+        $EXEC [--ipmagic=IPMAGIC_NAME] --last-snapshot --prefix=BACKUP DEST_MOUNTPOINT
       -fail if PARENT_SNAPSHOT is different for src and dest
       -make a new snapshot SNAPSHOT for SRC_MOUNTPOINT, as in:
-        $EXEC --snapshot SRC_MOUNTPOINT BACKUP
+        $EXEC --snapshot --prefix=BACKUP SRC_MOUNTPOINT
       -send the diff between the two latest snapshots to DEST_MOUNTPOINT, roughly the same as:
          $EXEC [--ipmagic=IPMAGIC_NAME] --sendreceive \\
            SRC_MOUNTPOINT DEST_MOUNTPOINT SNAPSHOT PARENT_SNAPSHOT
@@ -115,14 +117,14 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --seed-sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT
     Make a BACKUP snapshot on SRC_MOUNTPOINT, and call btrfs send/receive
       -make snapshot, same as:
-        $EXEC --snapshot SRC_MOUNTPOINT BACKUP
+        $EXEC --snapshot --prefix=BACKUP SRC_MOUNTPOINT
       -obtain PARENT_SNAPSHOT, as in:
-        $EXEC --last-snapshot SRC_MOUNTPOINT BACKUP
+        $EXEC --last-snapshot --prefix=BACKUP SRC_MOUNTPOINT
       -run btrfs send/receive, as in:
         $EXEC [OPTS] --sendreceive SRC_MOUNTPOINT DEST_MOUNTPOINT PARENT_SNAPSHOT
 
-  $EXEC [OPTS] --last-snapshot MOUNTPOINT PREFIX
-    Print the last snapshot of the given prefix
+  $EXEC [OPTS] --last-snapshot [PREFIX] MOUNTPOINT
+    Print the last snapshot of the given --prefix=PREFIX
       -get a list of subvolumes, as in:
         [ipmagic IPMAGIC_NAME] btrfs subvolume list MOUNTPOINT
       -filter out subvolumes that do not match:
@@ -130,23 +132,24 @@ my $USAGE = "Usage:
       -ensure that subvolumes are ordered by btrfs the same as MILLIS
       -print the last subvolume
 
-  $EXEC [OPTS] --snapshot MOUNTPOINT [PREFIX]
-    Make a read-only snapshot of mountpoint
-      -default PREFIX to 'SNAPSHOT' if not given
+  $EXEC [OPTS] --snapshot [PREFIX] MOUNTPOINT
+    Make a read-only snapshot of mountpoint with the given --prefix=PREFIX
       -get SNAPSHOT name:
         $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
       -create snapshot, as in:
         [ipmagic IPMAGIC_NAME] btrfs subvol snapshot -r MOUNTPOINT MOUNTPOINT/$SUBVOL_CONTAINER/SNAPSHOT
 
-  $EXEC [OPTS] --cleanup MOUNTPOINT PREFIX
-    remove snapshots named $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_*,
-      ensuring that the there are at least SNAPSHOT_COUNT left
+  $EXEC [OPTS] --cleanup [PREFIX] MOUNTPOINT
+    find subvols for the given --prefix=PREFIX named:
+      $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_*,
+    ensuring that the there are at least SNAPSHOT_COUNT left
       (see --keep-snapshot-count=SNAPSHOT_COUNT)
+    delete the rest with `btrfs subvol delete`
 
-  $EXEC [OPTS] --cleanup-all MOUNTPOINT PREFIX
-    same as: $EXEC [OPTS] --remove-all-snapshots --cleanup MOUNTPOINT PREFIX
-  $EXEC [OPTS] --cleanup=SNAPSHOT_COUNT MOUNTPOINT PREFIX
-    same as: $EXEC [OPTS] --keep-snapshot-count=SNAPSHOT_COUNT --cleanup MOUNTPOINT PREFIX
+  $EXEC [OPTS] --cleanup-all [PREFIX] MOUNTPOINT
+    same as: $EXEC [OPTS] --remove-all-snapshots --cleanup [PREFIX] MOUNTPOINT
+  $EXEC [OPTS] --cleanup=SNAPSHOT_COUNT [PREFIX] MOUNTPOINT
+    same as: $EXEC [OPTS] --keep-snapshot-count=SNAPSHOT_COUNT --cleanup [PREFIX] MOUNTPOINT
 
   $EXEC [OPTS] --delete MOUNTPOINT SUBVOL [SUBVOL SUBVOL ..]
     remove snapshots named SUBVOL
@@ -179,6 +182,16 @@ my $USAGE = "Usage:
     --local
       synonym for --ipmagic=\"\"
 
+    --prefix=PREFIX
+      (default is '$DEFAULT_PREFIX_NAME')
+      use snapshots named:
+        $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
+      PREFIX must contain only letters/numbers/underscores
+
+    PREFIX
+      one of the built-in prefix names: $OK_PREFIX_NAMES
+      same as: --prefix=PREFIX
+
     --keep-snapshot-count=SNAPSHOT_COUNT
       number of instances to keep in --cleanup
       SNAPSHOT_COUNT is a positive integer (use --remove-all-snapshots for 0)
@@ -187,7 +200,7 @@ my $USAGE = "Usage:
     --auto-cleanup=SNAPSHOT_COUNT
       cleanup snapshots before creating a new one in --snapshot
         -before creating a snapshot in MOUNTPOINT for PREFIX, cleanup as in:
-          $EXEC --cleanup=SNAPSHOT_COUNT MOUNTPOINT PREFIX
+          $EXEC --cleanup=SNAPSHOT_COUNT [PREFIX] MOUNTPOINT
 
     --remove-all-snapshots
       set SNAPSHOT_COUNT to 0 for --cleanup
@@ -271,6 +284,7 @@ sub main(@){
   my $command = undef;
   my @commandArgs;
   my $ipmagicName = undef;
+  my $prefix = $DEFAULT_PREFIX_NAME;
   my $keepSnapshotCount = $DEFAULT_KEEP_SNAPSHOT_COUNT;
   my $autoCleanupSnapshotCount = undef;
   my $infoRescan = 0;
@@ -312,6 +326,10 @@ sub main(@){
       $ipmagicName = $1;
     }elsif($arg =~ /^(--local)$/){
       $ipmagicName = "";
+    }elsif($arg =~ /^--prefix=(\w+)$/){
+      $prefix = $1;
+    }elsif($arg =~ /^($OK_PREFIX_NAMES)$/){
+      $prefix = $1;
     }elsif($arg =~ /^--keep-snapshot-count=([1-9]\d*)$/){
       $keepSnapshotCount = $1;
     }elsif($arg =~ /^--auto-cleanup=([1-9]\d*)$/){
@@ -400,23 +418,18 @@ sub main(@){
     my $newSnapshot = makeSnapshot(undef, nowMillis(), $srcMountpoint, "BACKUP");
     sendReceive $ipmagicName, $srcMountpoint, $destMountpoint, $newSnapshot, undef;
   }elsif($command eq $COMMAND_LAST_SNAPSHOT){
-    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
-    my ($mountpoint, $prefix) = @commandArgs;
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
+    my ($mountpoint) = @commandArgs;
     ensureRoot();
 
     $mountpoint =~ s/\/$//;
-    die "prefix must be a word i.e.: /\\w+/: $prefix\n" if $prefix !~ /^\w+$/;
     die "not a dir: $mountpoint\n" if not tryrun($ipmagicName, "test", "-d", "$mountpoint");
 
     my $snapshot = getLastSnapshot($ipmagicName, $mountpoint, $prefix);
     print "$snapshot\n";
   }elsif($command eq $COMMAND_SNAPSHOT){
-    die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
-    my ($mountpoint, $prefix) = @commandArgs;
-    $prefix = "SNAPSHOT" if not defined $prefix;
-    if($prefix !~ /^[a-zA-Z0-9_]+$/){
-      die "ERROR: prefix can contain only letters/numbers/underscores \"$prefix\"\n";
-    }
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
+    my ($mountpoint) = @commandArgs;
     ensureRoot();
 
     if(defined $autoCleanupSnapshotCount){
@@ -427,8 +440,8 @@ sub main(@){
     makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
     sync($ipmagicName);
   }elsif($command eq $COMMAND_CLEANUP){
-    die "$USAGE\nbad args to $command\n" if @commandArgs != 2;
-    my ($mountpoint, $prefix) = @commandArgs;
+    die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
+    my ($mountpoint) = @commandArgs;
     ensureRoot();
 
     cleanupSnapshots $ipmagicName, $mountpoint, $prefix, $keepSnapshotCount;
@@ -1321,6 +1334,7 @@ sub bashComplete($$){
   my @opts = (
     "--ipmagic=",
     "--local",
+    "--prefix=",
     "--keep-snapshot-count=",
     "--remove-all-snapshots",
     "--info-rescan",
@@ -1362,14 +1376,14 @@ sub bashComplete($$){
   }elsif($command eq $COMMAND_SEED_SENDRECEIVE){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_LAST_SNAPSHOT){
-    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_SNAPSHOT){
-    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_CLEANUP){
-    @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
+    @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_DELETE){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
     @complete = (@complete, guessSubvolNames($commandArgs[0])) if @commandArgs == 1;
