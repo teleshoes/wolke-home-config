@@ -10,6 +10,8 @@ my $BACKUP_CONF_FILE = "$ENV{HOME}/.config/backup.conf";
 my $LOG_DIR = "/var/log/backup";
 my $SUBVOL_CONTAINER = "SUBVOL";
 
+my @PREFIX_NAMES = qw(BACKUP SNAPSHOT DAILY HOURLY FIVEMIN);
+
 my $SUBVOL_DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S";
 my $DATE_TIME_REGEX = "\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}";
 my $EPOCH_MILLIS_REGEX = "\\d{13}";
@@ -239,7 +241,6 @@ sub getBtrfsMountDev($$);
 sub getMountpoint($$);
 sub isMountpoint($$);
 sub guessMountpoints();
-sub guessPrefixes($);
 sub guessSubvolNames($);
 sub readBackupConf($);
 sub readBackupNames($);
@@ -965,13 +966,6 @@ sub guessMountpoints(){
   }
   return @mountpoints;
 }
-sub guessPrefixes($){
-  my ($mountpoint) = @_;
-  my @subs = guessSubvolNames $mountpoint;
-  my @prefixWords = map { /^$SUBVOL_CONTAINER\/(\w+)/; $1} @subs;
-  my %uniqPrefixWords = map { $_ => 1} @prefixWords;
-  return sort keys %uniqPrefixWords;
-}
 sub guessSubvolNames($){
   my ($mountpoint) = @_;
   $mountpoint =~ s/'/'\\''/g;
@@ -1369,13 +1363,13 @@ sub bashComplete($$){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_LAST_SNAPSHOT){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
   }elsif($command eq $COMMAND_SNAPSHOT){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
   }elsif($command eq $COMMAND_CLEANUP){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
-    @complete = (@complete, guessPrefixes($commandArgs[0])) if @commandArgs == 1;
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 1;
   }elsif($command eq $COMMAND_DELETE){
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0;
     @complete = (@complete, guessSubvolNames($commandArgs[0])) if @commandArgs == 1;
