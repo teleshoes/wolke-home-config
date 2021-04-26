@@ -457,50 +457,75 @@ sub main(@){
     my @mountpoints = @commandArgs;
     ensureRoot();
 
+    my $summary = "";
+
     for my $mountpoint(@mountpoints){
+      my $deletedCount = 0;
       if(defined $autoCleanupSnapshotCount){
-        cleanupSnapshots($ipmagicName, $mountpoint, $prefix, $autoCleanupSnapshotCount);
+        my @deleted = cleanupSnapshots(
+          $ipmagicName, $mountpoint, $prefix, $autoCleanupSnapshotCount);
+        $deletedCount = @deleted;
         print "\n\n";
       }
 
-      makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
+      my $snapshot = makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
       sync($ipmagicName);
+      $summary .= sprintf "%-15s - created %s (deleted %d)\n",
+        $mountpoint, $snapshot, $deletedCount;
     }
+
+    print "\n\n$summary";
   }elsif($command eq $COMMAND_SNAPSHOT_SRC){
     die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
     my @backupNames = @commandArgs;
     ensureRoot();
 
     my $conf = readBackupConf($BACKUP_CONF_FILE);
+    my $summary = "";
 
     for my $backupName(@backupNames){
-      my ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      my ($srcMountpoint, $destMountpointUnused) = getBackupMountpoints($conf, $backupName);
+      my $deletedCount = 0;
       if(defined $autoCleanupSnapshotCount){
-        cleanupSnapshots(undef, $srcMountpoint, $prefix, $autoCleanupSnapshotCount);
+        my @deleted = cleanupSnapshots(
+          undef, $srcMountpoint, $prefix, $autoCleanupSnapshotCount);
+        $deletedCount = @deleted;
         print "\n\n";
       }
 
-      makeSnapshot(undef, nowMillis(), $srcMountpoint, $prefix);
+      my $snapshot = makeSnapshot(undef, nowMillis(), $srcMountpoint, $prefix);
       sync(undef);
+      $summary .= sprintf "%-15s - created %s (deleted %d)\n",
+        $srcMountpoint, $snapshot, $deletedCount;
     }
+
+    print "\n\n$summary";
   }elsif($command eq $COMMAND_SNAPSHOT_DEST){
     die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
     my @backupNames = @commandArgs;
     ensureRoot();
 
     my $conf = readBackupConf($BACKUP_CONF_FILE);
+    my $summary = "";
 
     for my $backupName(@backupNames){
-      my ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      my ($srcMountpointUnused, $destMountpoint) = getBackupMountpoints($conf, $backupName);
       my $destIpmagicName = selectIpmagicName($conf, $ipmagicName, $backupName);
+      my $deletedCount = 0;
       if(defined $autoCleanupSnapshotCount){
-        cleanupSnapshots($destIpmagicName, $destMountpoint, $prefix, $autoCleanupSnapshotCount);
+        my @deleted = cleanupSnapshots(
+          $destIpmagicName, $destMountpoint, $prefix, $autoCleanupSnapshotCount);
+        $deletedCount = @deleted;
         print "\n\n";
       }
 
-      makeSnapshot($destIpmagicName, nowMillis(), $destMountpoint, $prefix);
+      my $snapshot = makeSnapshot($destIpmagicName, nowMillis(), $destMountpoint, $prefix);
       sync($destIpmagicName);
+      $summary .= sprintf "%-15s - created %s (deleted %d)\n",
+        $destMountpoint, $snapshot, $deletedCount;
     }
+
+    print "\n\n$summary";
   }elsif($command eq $COMMAND_CLEANUP){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
     my ($mountpoint) = @commandArgs;
