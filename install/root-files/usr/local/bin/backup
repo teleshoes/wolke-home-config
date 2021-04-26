@@ -32,6 +32,8 @@ my $COMMAND_SENDRECEIVE = "sendreceive";
 my $COMMAND_SEED_SENDRECEIVE = "seed-sendreceive";
 my $COMMAND_LAST_SNAPSHOT = "last-snapshot";
 my $COMMAND_SNAPSHOT = "snapshot";
+my $COMMAND_SNAPSHOT_SRC = "snapshot-src";
+my $COMMAND_SNAPSHOT_DEST = "snapshot-dest";
 my $COMMAND_CLEANUP = "cleanup";
 my $COMMAND_DELETE = "delete";
 my $COMMAND_INFO = "info";
@@ -138,6 +140,25 @@ my $USAGE = "Usage:
         $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
       -create snapshot, as in:
         [ipmagic IPMAGIC_NAME] btrfs subvol snapshot -r MOUNTPOINT MOUNTPOINT/SNAPSHOT
+
+  $EXEC [OPTS] --snapshot-src [PREFIX] BACKUP_NAME [BACKUP_NAME BACKUP_NAME]
+   -for each BACKUP_NAME
+     -fetch SRC_MOUNTPOINT from BACKUP_CONF_FILE ($BACKUP_CONF_FILE)
+     -disregard --ipmagic and IPMAGIC_NAME (create snapshot locally)
+     -make a read-only snapshot for SRC_MOUNTPOINT with the given --prefix=PREFIX
+      -get SNAPSHOT name:
+        $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
+      -create snapshot, as in:
+        btrfs subvol snapshot -r SRC_MOUNTPOINT SRC_MOUNTPOINT/SNAPSHOT
+
+  $EXEC [OPTS] --snapshot-dest [PREFIX] BACKUP_NAME [BACKUP_NAME BACKUP_NAME]
+   -for each BACKUP_NAME
+     -fetch IPMAGIC_NAME and DEST_MOUNTPOINT from BACKUP_CONF_FILE ($BACKUP_CONF_FILE)
+     -make a read-only snapshot for DEST_MOUNTPOINT with the given --prefix=PREFIX
+      -get SNAPSHOT name:
+        $SUBVOL_CONTAINER/<PREFIX>/<PREFIX>_<$SUBVOL_DATETIME_FORMAT>_<MILLIS>
+      -create snapshot, as in:
+        [ipmagic IPMAGIC_NAME] btrfs subvol snapshot -r DEST_MOUNTPOINT DEST_MOUNTPOINT/SNAPSHOT
 
   $EXEC [OPTS] --cleanup [PREFIX] MOUNTPOINT
     find subvols for the given --prefix=PREFIX named:
@@ -308,6 +329,10 @@ sub main(@){
       $command = $COMMAND_LAST_SNAPSHOT;
     }elsif($arg =~ /^(--snapshot)$/){
       $command = $COMMAND_SNAPSHOT;
+    }elsif($arg =~ /^(--snapshot-src)$/){
+      $command = $COMMAND_SNAPSHOT_SRC;
+    }elsif($arg =~ /^(--snapshot-dest)$/){
+      $command = $COMMAND_SNAPSHOT_DEST;
     }elsif($arg =~ /^(--cleanup)$/){
       $command = $COMMAND_CLEANUP;
     }elsif($arg =~ /^--cleanup-all$/){
@@ -440,6 +465,41 @@ sub main(@){
 
       makeSnapshot($ipmagicName, nowMillis(), $mountpoint, $prefix);
       sync($ipmagicName);
+    }
+  }elsif($command eq $COMMAND_SNAPSHOT_SRC){
+    die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
+    my @backupNames = @commandArgs;
+    ensureRoot();
+
+    my $conf = readBackupConf($BACKUP_CONF_FILE);
+
+    for my $backupName(@backupNames){
+      my ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      if(defined $autoCleanupSnapshotCount){
+        cleanupSnapshots(undef, $srcMountpoint, $prefix, $autoCleanupSnapshotCount);
+        print "\n\n";
+      }
+
+      makeSnapshot(undef, nowMillis(), $srcMountpoint, $prefix);
+      sync(undef);
+    }
+  }elsif($command eq $COMMAND_SNAPSHOT_DEST){
+    die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
+    my @backupNames = @commandArgs;
+    ensureRoot();
+
+    my $conf = readBackupConf($BACKUP_CONF_FILE);
+
+    for my $backupName(@backupNames){
+      my ($srcMountpoint, $destMountpoint) = getBackupMountpoints($conf, $backupName);
+      my $destIpmagicName = selectIpmagicName($conf, $ipmagicName, $backupName);
+      if(defined $autoCleanupSnapshotCount){
+        cleanupSnapshots($destIpmagicName, $destMountpoint, $prefix, $autoCleanupSnapshotCount);
+        print "\n\n";
+      }
+
+      makeSnapshot($destIpmagicName, nowMillis(), $destMountpoint, $prefix);
+      sync($destIpmagicName);
     }
   }elsif($command eq $COMMAND_CLEANUP){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
@@ -1316,6 +1376,10 @@ sub bashComplete($$){
       $command = $COMMAND_LAST_SNAPSHOT;
     }elsif($arg =~ /^(--snapshot)$/){
       $command = $COMMAND_SNAPSHOT;
+    }elsif($arg =~ /^(--snapshot-src)$/){
+      $command = $COMMAND_SNAPSHOT_SRC;
+    }elsif($arg =~ /^(--snapshot-dest)$/){
+      $command = $COMMAND_SNAPSHOT_DEST;
     }elsif($arg =~ /^(--cleanup)$/){
       $command = $COMMAND_CLEANUP;
     }elsif($arg =~ /^--cleanup-all$/){
@@ -1352,6 +1416,8 @@ sub bashComplete($$){
     --seed-sendreceive
     --last-snapshot
     --snapshot
+    --snapshot-src
+    --snapshot-dest
     --cleanup
     --cleanup-all
     --cleanup=
@@ -1383,6 +1449,9 @@ sub bashComplete($$){
   }elsif($command eq $COMMAND_SNAPSHOT){
     @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
+  }elsif($command eq $COMMAND_SNAPSHOT_SRC or $command eq $COMMAND_SNAPSHOT_DEST){
+    @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
+    @complete = (@complete, readBackupNames($BACKUP_CONF_FILE)) if @commandArgs == 0 or @commandArgs == 1;
   }elsif($command eq $COMMAND_CLEANUP){
     @complete = (@complete, @PREFIX_NAMES) if @commandArgs == 0;
     @complete = (@complete, guessMountpoints()) if @commandArgs == 0 or @commandArgs == 1;
