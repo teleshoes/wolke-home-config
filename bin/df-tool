@@ -5,7 +5,7 @@ use File::Basename qw(basename);
 
 sub df($);
 sub listMountpoints();
-sub formatBytes($$);
+sub formatBytes($$$$);
 sub readProcLines(@);
 
 my $EXEC = basename $0;
@@ -52,6 +52,14 @@ my $usage = "Usage:
       use SI units of powers of 1000 instead of powers of 1024
       also, use B|KB|MB|GB|TB|PB|EB|ZB|YB instead of B|K|M|G|T|P|E|Z|Y in human formats
 
+    --min-power=MIN_POWER
+      restrict <POWER> to be no smaller than <MIN_POWER>
+      <MIN_POWER> is a non-negative integer, and cannot be larger than 8 (YiB / YB)
+
+    --max-power=MAX_POWER
+      restrict <POWER> to be no larger than <MAX_POWER>
+      <MAX_POWER> is a non-negative integer, and cannot be smaller than 0 (B)
+
     default | --default
       same as: --format='$$FORMAT_SPECS{default}'
 
@@ -82,6 +90,8 @@ sub main(@){
   my @files;
   my $formatSpec = $$FORMAT_SPECS{default};
   my $siUnits = 0;
+  my $minPower = undef;
+  my $maxPower = undef;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -89,6 +99,11 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--si|--pow1000)$/){
       $siUnits = 1;
+    }elsif($arg =~ /^--min-power=(\d+)$/){
+      $minPower = $1;
+      die "$usage\nERROR: MIN_POWER cannot be larger than 8\n" if $minPower > 8;
+    }elsif($arg =~ /^--max-power=(\d+)$/){
+      $maxPower = $1;
     }elsif($arg =~ /^--format=(.+)$/){
       $formatSpec = $1;
     }elsif(defined $$FORMAT_SPECS{$arg}){
@@ -111,9 +126,9 @@ sub main(@){
       SIZE_BYTES  => $$df{size},
       USED_BYTES  => $$df{used},
       AVAIL_BYTES => $$df{avail},
-      SIZE_HUMAN  => formatBytes($siUnits, $$df{size}),
-      USED_HUMAN  => formatBytes($siUnits, $$df{used}),
-      AVAIL_HUMAN => formatBytes($siUnits, $$df{avail}),
+      SIZE_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{size}),
+      USED_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{used}),
+      AVAIL_HUMAN => formatBytes($siUnits, $minPower, $maxPower, $$df{avail}),
       PERCENT     => sprintf("%.1f", $$df{used} / $$df{size} * 100.0),
       MOUNTPOINT  => $$df{mountpoint},
       DEVICE      => $$df{dev},
@@ -179,8 +194,8 @@ sub listMountpoints(){
   return @mountpoints;
 }
 
-sub formatBytes($$){
-  my ($siUnits, $bytes) = @_;
+sub formatBytes($$$$){
+  my ($siUnits, $minPower, $maxPower, $bytes) = @_;
   my ($base, @units);
   if($siUnits){
     $base = 10**3;
@@ -198,6 +213,10 @@ sub formatBytes($$){
       last;
     }
   }
+
+  $targetPow = $maxPower if defined $maxPower and $targetPow > $maxPower;
+  $targetPow = $minPower if defined $minPower and $targetPow < $minPower;
+  $targetPow = @units - 1 if $targetPow > @units - 1;
 
   return sprintf "%.1f%s",
     $bytes / $base**($targetPow),
