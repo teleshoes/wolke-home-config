@@ -284,6 +284,7 @@ sub dfSizeBytes($$);
 sub dfUsedHuman($$);
 sub dfHuman($$$);
 sub dfBytes($$$);
+sub formatBytes($$$$);
 sub getUsers();
 sub createLogFile($$$);
 sub startLogging($);
@@ -1166,15 +1167,8 @@ sub dfUsedHuman($$){
 }
 sub dfHuman($$$){
   my ($ipmagicName, $mountpoint, $dfField) = @_;
-  my $dfOut = readProc $ipmagicName, "df -h --output=$dfField \"$mountpoint\"";
-  my $fmt;
-  if($dfOut =~ /^(?:.*\n)?\s*(\d+|\d*\.\d+)(\w+)$/){
-    my ($val, $unit) = ($1, $2);
-    $fmt = "$val$unit";
-  }else{
-    die "ERROR: df failed for $mountpoint\n";
-  }
-  return $fmt;
+  my $bytes = dfBytes($ipmagicName, $mountpoint, $dfField);
+  return formatBytes(undef, undef, undef, $bytes);
 }
 sub dfBytes($$$){
   my ($ipmagicName, $mountpoint, $dfField) = @_;
@@ -1187,6 +1181,34 @@ sub dfBytes($$$){
   #positive integer only
   die "ERROR: df failed for $mountpoint\n" if $bytes !~ /^[1-9]\d*$/;
   return $bytes;
+}
+sub formatBytes($$$$){
+  my ($siUnits, $minPower, $maxPower, $bytes) = @_;
+  my ($base, @units);
+  if($siUnits){
+    $base = 10**3;
+    @units = qw(B KB MB GB TB PB EB ZB YB);
+  }else{
+    $base = 2**10;
+    @units = qw(B K M G T P E Z Y);
+  }
+
+  my $targetPow = 0;
+  for(my $pow = 0; $pow < @units; $pow++){
+    if($bytes / $base**($pow) >= 1){
+      $targetPow = $pow;
+    }else{
+      last;
+    }
+  }
+
+  $targetPow = $maxPower if defined $maxPower and $targetPow > $maxPower;
+  $targetPow = $minPower if defined $minPower and $targetPow < $minPower;
+  $targetPow = @units - 1 if $targetPow > @units - 1;
+
+  return sprintf "%.1f%s",
+    $bytes / $base**($targetPow),
+    $units[$targetPow];
 }
 
 sub getUsers(){
