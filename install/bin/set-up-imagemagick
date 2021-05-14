@@ -1,0 +1,34 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $POLICY_XML = "/etc/ImageMagick-6/policy.xml";
+
+sub main(@) {
+  getRoot();
+
+  #comment-out ghostscript security vulnerability workaround (fixed in gs 9.24)
+  editFileLines($POLICY_XML, undef, sub {
+    my $line = shift;
+
+    $line =~ s/
+      ^ (\s+)
+      (?:<!-- \s*)?
+      (<policy
+        \s+ domain="coder"
+        \s+ rights="none"
+        \s+ pattern="(?:PS|PS2|PS3|EPS|PDF|XPS)"
+        \s*
+      \/>)
+      \s* (?:--> \s*)?
+      \s*$
+    /$1<!-- $2 -->/x;
+
+    $line =~ s/([\r\n]*)$/\n/;
+    return $line;
+  });
+}
+
+&main(@ARGV);
