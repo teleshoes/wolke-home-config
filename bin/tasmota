@@ -114,12 +114,13 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC -s | --setup-wifi [DEVICE DEVICE ..]
+  $EXEC -s | --setup-wifi [--ssid=WIFI_SSID] [DEVICE DEVICE ..]
     if no device is specified, defaults to $DEVICES{init}
       (this is the IP for newly flashed/reset tasmota devices)
+    WIFI_SSID defaults to $WIFI_SSID
     send BACKLOG command to set:
-      SSID1=$WIFI_SSID
-      Password1=`winfo --key $WIFI_SSID`
+      SSID1=WIFI_SSID
+      Password1=`winfo --key WIFI_SSID`
     NOTE: to set up a new device:
         -connect to SSID (looks like: tasmota_FFFFFF-9999)
         -run `$EXEC --mac init` (and note the MAC)
@@ -191,7 +192,7 @@ my $MODE_CONFIG_DEVICE = "config-device";
 
 sub main(@){
   my $mode = $MODE_TOGGLE_ALL;
-  my (@devices, $cmd, @dimmerArgs);
+  my (@devices, $cmd, @dimmerArgs, $ssid);
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -217,6 +218,8 @@ sub main(@){
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
+    }elsif($arg =~ /^--ssid=(.+)$/){
+      $ssid = $1;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
       $cmd = $COMMAND_ALIASES{lc $arg};
@@ -284,10 +287,12 @@ sub main(@){
       print "$device - $mac\n";
     }
   }elsif($mode eq $MODE_SETUP_WIFI){
-    my $key = `winfo --key $WIFI_SSID`;
+    $ssid = $WIFI_SSID if not defined $ssid;
+
+    my $key = `winfo --key $ssid`;
     chomp $key;
     for my $device(@devices){
-      my $wifiCmd = "BACKLOG SSID1 $WIFI_SSID; Password1 $key";
+      my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
       cmd($DEVICES{$device}, $wifiCmd);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
