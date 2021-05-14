@@ -7,9 +7,11 @@ my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 my $WIFI_SSID = "FlipsAFad";
 my $INITIAL_DEVICE_IP = "192.168.4.1";
 my $DEFAULT_DEVICE = "outlet1";
+my $INIT_DEVICE = "init";
 
 my @DEVICES_ARR = (
-  init    => "$INITIAL_DEVICE_IP",
+  $INIT_DEVICE => $INITIAL_DEVICE_IP,
+
   bulb1   => "192.168.11.93",
   bulb2   => "192.168.11.94",
   bulb3   => "192.168.11.95",
@@ -112,12 +114,13 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC -s | --setup-wifi
-    assuming connection to newly flashed/reset tasmota device,
-    send command to $INITIAL_DEVICE_IP to set:
-    SSID1=$WIFI_SSID
-    Password1=`winfo --key $WIFI_SSID`
-      to set up a new device:
+  $EXEC -s | --setup-wifi [DEVICE DEVICE ..]
+    if no device is specified, defaults to $DEVICES{init}
+      (this is the IP for newly flashed/reset tasmota devices)
+    send BACKLOG command to set:
+      SSID1=$WIFI_SSID
+      Password1=`winfo --key $WIFI_SSID`
+    NOTE: to set up a new device:
         -connect to SSID (looks like: tasmota_FFFFFF-9999)
         -run `$EXEC --mac init` (and note the MAC)
         -run `$EXEC --setup-wifi`
@@ -225,7 +228,9 @@ sub main(@){
     }
   }
 
-  push @devices, $DEFAULT_DEVICE if @devices == 0;
+  if(@devices == 0){
+    @devices = $mode eq $MODE_SETUP_WIFI ? ($INIT_DEVICE) : ($DEFAULT_DEVICE);
+  }
 
   if($mode eq $MODE_COMMAND){
     my $outputByDevice = runCommandOnDevices($cmd, @devices);
@@ -281,7 +286,10 @@ sub main(@){
   }elsif($mode eq $MODE_SETUP_WIFI){
     my $key = `winfo --key $WIFI_SSID`;
     chomp $key;
-    cmd $INITIAL_DEVICE_IP, "BACKLOG SSID1 $WIFI_SSID ; Password1 $key";
+    for my $device(@devices){
+      my $wifiCmd = "BACKLOG SSID1 $WIFI_SSID; Password1 $key";
+      cmd($DEVICES{$device}, $wifiCmd);
+    }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
       my $cmds = $DEVICE_CONFIG_COMMANDS{$device};
