@@ -16,6 +16,8 @@ my $USAGE = "Usage:
     show all instruments total cost and total quantity
 ";
 
+sub getInstrumentSummary(@);
+sub parseJsonOrders();
 sub readInstrumentCache();
 sub writeInstrumentCache($);
 sub getInstrumentSymbol($);
@@ -34,18 +36,25 @@ sub main(@){
   }
 
   my @orders = parseJsonOrders();
-  my %inst;
+  my $summary = getInstrumentSummary(@orders);
+  for my $sym(sort keys %$summary){
+    my ($cost, $amount) = ($$summary{$sym}{cost}, $$summary{$sym}{amount});
+    printf "%-5s - %8.2f\$ - %8.3f\n", $sym, $cost, $amount;
+  }
+}
+
+sub getInstrumentSummary(@){
+  my @orders = @_;
+  my $summary = {};
   for my $order(@orders){
     my ($sym, $price, $amount) = ($$order{symbol}, $$order{price}, $$order{amount});
-    $inst{$sym} = {cost => 0, amount => 0} if not defined $inst{$sym};
+    $$summary{$sym} = {cost => 0, amount => 0} if not defined $$summary{$sym};
     if(defined $amount and defined $price){
-      $inst{$sym}{cost} += $price*$amount;
-      $inst{$sym}{amount} += $amount;
+      $$summary{$sym}{cost} += $price*$amount;
+      $$summary{$sym}{amount} += $amount;
     }
   }
-  for my $sym(sort keys %inst){
-    printf "%-5s - %8.2f\$ - %8.3f\n", $sym, $inst{$sym}{cost}, $inst{$sym}{amount};
-  }
+  return $summary;
 }
 
 sub parseJsonOrders(){
