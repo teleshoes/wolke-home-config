@@ -97,91 +97,105 @@ sub main(@){
 
   if($cmd eq $COMMAND_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    my @orders = parseJsonOrders();
-    my $summary = getInstrumentSummary(@orders);
-    my $totalCost = 0;
-    my $totalValue = 0;
-    for my $sym(sort keys %$summary){
-      my ($cost, $amount) = ($$summary{$sym}{cost}, $$summary{$sym}{amount});
-      my $quote = readCachedQuote($sym);
-      my $value = $amount * $quote;
-      my $profit = $value - $cost;
-
-      $totalCost += $cost;
-      $totalValue += $value;
-
-      my $profitSign = $profit > 0 ? "+" : "-";
-      my $absProfit = $profit >= 0 ? $profit : 0-$profit;
-
-      printf "%-5s | %8.2f\$ | %8.3f for %8.2f\$ | %s%8.2f\n",
-        $sym, $value, $amount, $cost, $profitSign, $absProfit;
-    }
-    my $totalProfit = $totalValue - $totalCost;
-    my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
-    my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
-
-    printf "%-5s | %8.2f\$ | %8s     %8.2f\$ | %s%8.2f\n",
-      "TOTAL", $totalValue, "", $totalCost, $totalProfitSign, $totalAbsProfit;
+    cmdSummary();
   }elsif($cmd eq $COMMAND_ORDERS){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    my @orders = parseJsonOrders();
-    for my $order(@orders){
-      my $timeFmt = dateFmt $$order{time}, '%Y-%m-%d_%H:%M:%S';
-      chomp $timeFmt;
-      my ($symbol, $price, $amount, $buySell) = (
-        $$order{symbol}, $$order{price}, $$order{amount}, $$order{buySell});
-      my $cost = defined $price && defined $amount ? $price*$amount : undef;
-
-      $price = 0 if not defined $price;
-      $amount = 0 if not defined $amount;
-      $cost = 0 if not defined $cost;
-
-      my $plusMinus = $buySell eq "buy" ? "-" : "+";
-
-      printf "%s | %-5s | %4s | %8.3f @ %8.2f\$ | %s %8.2f\$\n",
-        $timeFmt, $symbol, $buySell, $amount, $price, $plusMinus, $cost;
-    }
+    cmdOrders();
   }elsif($cmd eq $COMMAND_FETCH_ORDERS){
     die "$USAGE\nERROR: missing BEARER_TOKEN\n" if @cmdArgs == 0;
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 1;
     my ($bearerToken) = @cmdArgs;
-    $bearerToken =~ s/^\s*Authorization:\s*Bearer\s*//;
-
-    my $nowMillis = nowMillis();
-    my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
-    my $filePrefix = "${nowFmt}_${nowMillis}";
-
-    runQuiet "mkdir", "-p", $JSON_ORDERS_CACHE_DIR;
-
-    writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_stocks.json",
-      apiCallCurl($API_ORDERS_STOCKS_URL, $bearerToken) . "\n";
-
-    writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_crypto.json",
-      apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
+    cmdFetchOrders($bearerToken);
   }elsif($cmd eq $COMMAND_FETCH_QUOTES){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    my @orders = parseJsonOrders();
-
-    my $nowMillis = nowMillis();
-    my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
-    my $filePrefix = "${nowFmt}_${nowMillis}";
-
-    my $bearerToken = getReadonlyBearerToken();
-
-    my %seenSymbols;
-    for my $order(@orders){
-      next if defined $seenSymbols{$$order{symbol}};
-      $seenSymbols{$$order{symbol}} = 1;
-      fetchAndCacheQuote($filePrefix, $bearerToken,
-        $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
-    }
-
-    print "\n";
-    for my $symbol(sort keys %seenSymbols){
-      printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
-    }
+    cmdFetchQuotes();
   }else{
     die $USAGE;
+  }
+}
+
+sub cmdSummary(){
+  my @orders = parseJsonOrders();
+  my $summary = getInstrumentSummary(@orders);
+  my $totalCost = 0;
+  my $totalValue = 0;
+  for my $sym(sort keys %$summary){
+    my ($cost, $amount) = ($$summary{$sym}{cost}, $$summary{$sym}{amount});
+    my $quote = readCachedQuote($sym);
+    my $value = $amount * $quote;
+    my $profit = $value - $cost;
+
+    $totalCost += $cost;
+    $totalValue += $value;
+
+    my $profitSign = $profit > 0 ? "+" : "-";
+    my $absProfit = $profit >= 0 ? $profit : 0-$profit;
+
+    printf "%-5s | %8.2f\$ | %8.3f for %8.2f\$ | %s%8.2f\n",
+      $sym, $value, $amount, $cost, $profitSign, $absProfit;
+  }
+  my $totalProfit = $totalValue - $totalCost;
+  my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
+  my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
+
+  printf "%-5s | %8.2f\$ | %8s     %8.2f\$ | %s%8.2f\n",
+    "TOTAL", $totalValue, "", $totalCost, $totalProfitSign, $totalAbsProfit;
+}
+sub cmdOrders(){
+  my @orders = parseJsonOrders();
+  for my $order(@orders){
+    my $timeFmt = dateFmt $$order{time}, '%Y-%m-%d_%H:%M:%S';
+    chomp $timeFmt;
+    my ($symbol, $price, $amount, $buySell) = (
+      $$order{symbol}, $$order{price}, $$order{amount}, $$order{buySell});
+    my $cost = defined $price && defined $amount ? $price*$amount : undef;
+
+    $price = 0 if not defined $price;
+    $amount = 0 if not defined $amount;
+    $cost = 0 if not defined $cost;
+
+    my $plusMinus = $buySell eq "buy" ? "-" : "+";
+
+    printf "%s | %-5s | %4s | %8.3f @ %8.2f\$ | %s %8.2f\$\n",
+      $timeFmt, $symbol, $buySell, $amount, $price, $plusMinus, $cost;
+  }
+}
+sub cmdFetchOrders($){
+  my ($bearerToken) = @_;
+  $bearerToken =~ s/^\s*Authorization:\s*Bearer\s*//;
+
+  my $nowMillis = nowMillis();
+  my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
+  my $filePrefix = "${nowFmt}_${nowMillis}";
+
+  runQuiet "mkdir", "-p", $JSON_ORDERS_CACHE_DIR;
+
+  writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_stocks.json",
+    apiCallCurl($API_ORDERS_STOCKS_URL, $bearerToken) . "\n";
+
+  writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_crypto.json",
+    apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
+}
+sub cmdFetchQuotes(){
+  my @orders = parseJsonOrders();
+
+  my $nowMillis = nowMillis();
+  my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
+  my $filePrefix = "${nowFmt}_${nowMillis}";
+
+  my $bearerToken = getReadonlyBearerToken();
+
+  my %seenSymbols;
+  for my $order(@orders){
+    next if defined $seenSymbols{$$order{symbol}};
+    $seenSymbols{$$order{symbol}} = 1;
+    fetchAndCacheQuote($filePrefix, $bearerToken,
+      $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
+  }
+
+  print "\n";
+  for my $symbol(sort keys %seenSymbols){
+    printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
   }
 }
 
