@@ -28,6 +28,8 @@ sub writeInstrumentCache($);
 sub getInstrumentSymbol($);
 sub getCryptoCode($);
 sub readUrl($);
+sub readFile($);
+sub dateFmt($$);
 
 my $COMMAND_SUMMARY = "summary";
 my $COMMAND_ORDERS = "orders";
@@ -61,7 +63,7 @@ sub main(@){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
     my @orders = parseJsonOrders();
     for my $order(@orders){
-      my $timeFmt = `date --date=\@$$order{time} +%Y-%m-%d_%H:%M:%S`;
+      my $timeFmt = dateFmt $$order{time}, '%Y-%m-%d_%H:%M:%S';
       chomp $timeFmt;
       my ($symbol, $price, $amount, $buySell) = (
         $$order{symbol}, $$order{price}, $$order{amount}, $$order{buySell});
@@ -106,7 +108,7 @@ sub parseJsonOrders(){
   my %seenOrderIds;
   my @ordersFiles = sort glob "$JSON_CACHE_DIR/*";
   for my $file(reverse @ordersFiles){
-    my $json = `cat $file`;
+    my $json = readFile $file;
     my $obj = from_json $json;
     my @results = @{$$obj{results}};
     for my $res(@results){
@@ -193,6 +195,21 @@ sub getCryptoCode($){
 sub readUrl($){
   my ($url) = @_;
   return `wget "$url" -O - -q`;
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $content = join '', <FH>;
+  close FH;
+  return $content;
+}
+
+sub dateFmt($$){
+  my ($epoch, $fmt) = @_;
+  my $dateFmt = `date --date=\@$epoch +'$fmt'`;
+  chomp $dateFmt;
+  return $dateFmt;
 }
 
 &main(@ARGV);
