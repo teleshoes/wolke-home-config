@@ -9,6 +9,8 @@ my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
 
 my $API_INSTRUMENT_URL_PREFIX = "https://api.robinhood.com/instruments";
 my $API_CURRENCY_PAIRS_URL_PREFIX = "https://nummus.robinhood.com/currency_pairs";
+my $API_ORDERS_STOCKS_URL = "https://api.robinhood.com/orders/?page_size=100";
+my $API_ORDERS_CRYPTO_URL = "https://nummus.robinhood.com/orders/?page_size=100";
 
 my $USAGE = "Usage:
   $0 -h | --help
@@ -20,8 +22,26 @@ my $USAGE = "Usage:
 
   $0 -o | --orders
     show all orders
+
+  $0 --fetch-orders BEARER_TOKEN
+    fetch stocks+crypto orders JSON and place them in:
+      $JSON_CACHE_DIR
+
+    to get BEARER_CODE:
+      -log in with username/password/mfa/etc in a browser
+      -inspect any network call to api.robinhood.com
+      -copy the auth header
+      -paste between single quotes as arg to $0
+      -CLEAR YOUR TERMINAL HISTORY
+
+    BEARER_CODE
+      the fully authorized robinhood auth token
+      can optionally start with \"Authorization: Bearer \"
+        or can just be the token
+      NOTE: protect BEARER_TOKEN closer than a password
 ";
 
+sub apiCallCurl($$);
 sub getInstrumentSummary(@);
 sub parseJsonOrders();
 sub readInstrumentCache();
@@ -37,6 +57,7 @@ sub run(@);
 
 my $COMMAND_SUMMARY = "summary";
 my $COMMAND_ORDERS = "orders";
+my $COMMAND_FETCH_ORDERS = "fetch-orders";
 
 sub main(@){
   my $cmd = $COMMAND_SUMMARY;
@@ -50,6 +71,8 @@ sub main(@){
       $cmd = $COMMAND_SUMMARY;
     }elsif($arg =~ /^(-o|--orders)$/){
       $cmd = $COMMAND_ORDERS;
+    }elsif($arg =~ /^(--fetch-orders)$/){
+      $cmd = $COMMAND_FETCH_ORDERS;
     }else{
       push @cmdArgs, $arg;
     }
@@ -82,9 +105,39 @@ sub main(@){
       printf "%s | %-5s | %4s | %8.3f @ %8.2f\$ | %s %8.2f\$\n",
         $timeFmt, $symbol, $buySell, $amount, $price, $plusMinus, $cost;
     }
+  }elsif($cmd eq $COMMAND_FETCH_ORDERS){
+    die "$USAGE\nERROR: missing BEARER_TOKEN\n" if @cmdArgs == 0;
+    die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 1;
+    my ($bearerToken) = @cmdArgs;
+    $bearerToken =~ s/^\s*Authorization:\s*Bearer\s*//;
+
+    my $nowMillis = nowMillis();
+    my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
+    my $filePrefix = "${nowFmt}_${nowMillis}";
+
+    run "mkdir", "-p", $JSON_CACHE_DIR;
+
+    writeFile "${JSON_CACHE_DIR}/${filePrefix}_stocks.json",
+      apiCallCurl($API_ORDERS_STOCKS_URL, $bearerToken) . "\n";
+
+    writeFile "${JSON_CACHE_DIR}/${filePrefix}_crypto.json",
+      apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
   }else{
     die $USAGE;
   }
+}
+
+sub apiCallCurl($$){
+  my ($url, $bearerToken) = @_;
+  my @cmd = ("curl",
+    "--silent",
+    "-H", "Authorization: Bearer $bearerToken",
+    $url,
+  );
+  open CMD, "-|", @cmd or die "ERROR: curl failed\n$!\n";
+  my $out = join '', <CMD>;
+  close CMD;
+  return $out;
 }
 
 sub getInstrumentSummary(@){
