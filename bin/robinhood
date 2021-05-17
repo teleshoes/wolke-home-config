@@ -60,8 +60,12 @@ sub getInstrumentSummary(@){
     my ($sym, $price, $amount) = ($$order{symbol}, $$order{price}, $$order{amount});
     $$summary{$sym} = {cost => 0, amount => 0} if not defined $$summary{$sym};
     if(defined $amount and defined $price){
-      $$summary{$sym}{cost} += $price*$amount;
-      $$summary{$sym}{amount} += $amount;
+      my $deltaCost = $price*$amount;
+      my $deltaAmount = $amount;
+      $deltaCost = 0-$deltaCost if $$order{buySell} eq "sell";
+      $deltaAmount = 0-$deltaAmount if $$order{buySell} eq "sell";
+      $$summary{$sym}{cost} += $deltaCost;
+      $$summary{$sym}{amount} += $deltaAmount;
     }
   }
   return $summary;
@@ -88,6 +92,7 @@ sub parseJsonOrders(){
       my $price = $$res{average_price};
       my $amount = $$res{cumulative_quantity};
       my $createdAt = $$res{created_at};
+      my $buySell = $$res{side};
 
       my $time = `date --date="$createdAt" +%s.%N`;
       chomp $time;
@@ -100,10 +105,11 @@ sub parseJsonOrders(){
 
       my $sym = $$instrumentCache{$instId} if defined $instId;
       my $order = {
-        symbol => $sym,
-        price  => $price,
-        amount => $amount,
-        time   => $time,
+        symbol  => $sym,
+        price   => $price,
+        amount  => $amount,
+        time    => $time,
+        buySell => $buySell,
       };
       push @orders, $order;
     }
