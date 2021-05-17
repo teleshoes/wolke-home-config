@@ -15,6 +15,9 @@ my $USAGE = "Usage:
   $0
   $0 --summary
     show all instruments total cost and total quantity
+
+  $0 -o | --orders
+    show all orders
 ";
 
 sub getInstrumentSummary(@);
@@ -26,6 +29,7 @@ sub getCryptoCode($);
 sub readUrl($);
 
 my $COMMAND_SUMMARY = "summary";
+my $COMMAND_ORDERS = "orders";
 
 sub main(@){
   my $cmd = $COMMAND_SUMMARY;
@@ -36,6 +40,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--summary)$/){
       $cmd = $COMMAND_SUMMARY;
+    }elsif($arg =~ /^(-o|--orders)$/){
+      $cmd = $COMMAND_ORDERS;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -47,6 +53,24 @@ sub main(@){
     for my $sym(sort keys %$summary){
       my ($cost, $amount) = ($$summary{$sym}{cost}, $$summary{$sym}{amount});
       printf "%-5s - %8.2f\$ - %8.3f\n", $sym, $cost, $amount;
+    }
+  }elsif($cmd eq $COMMAND_ORDERS){
+    my @orders = parseJsonOrders();
+    for my $order(@orders){
+      my $timeFmt = `date --date=\@$$order{time} +%Y-%m-%d_%H:%M:%S`;
+      chomp $timeFmt;
+      my ($symbol, $price, $amount, $buySell) = (
+        $$order{symbol}, $$order{price}, $$order{amount}, $$order{buySell});
+      my $cost = defined $price && defined $amount ? $price*$amount : undef;
+
+      $price = 0 if not defined $price;
+      $amount = 0 if not defined $amount;
+      $cost = 0 if not defined $cost;
+
+      my $plusMinus = $buySell eq "buy" ? "-" : "+";
+
+      printf "%s | %-5s | %4s | %8.3f @ %8.2f\$ | %s %8.2f\$\n",
+        $timeFmt, $symbol, $buySell, $amount, $price, $plusMinus, $cost;
     }
   }else{
     die $USAGE;
