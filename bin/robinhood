@@ -55,6 +55,7 @@ sub apiCallCurl($$);
 sub getInstrumentSummary(@);
 sub getReadonlyBearerToken();
 sub fetchAndCacheQuote($$$$$);
+sub readCachedQuote($);
 sub parseJsonOrders();
 sub readInstrumentCache();
 sub writeInstrumentCache($);
@@ -141,7 +142,6 @@ sub main(@){
   }elsif($cmd eq $COMMAND_FETCH_QUOTES){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
     my @orders = parseJsonOrders();
-    my %seenSymbols;
 
     my $nowMillis = nowMillis();
     my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
@@ -149,11 +149,17 @@ sub main(@){
 
     my $bearerToken = getReadonlyBearerToken();
 
+    my %seenSymbols;
     for my $order(@orders){
       next if defined $seenSymbols{$$order{symbol}};
       $seenSymbols{$$order{symbol}} = 1;
       fetchAndCacheQuote($filePrefix, $bearerToken,
         $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
+    }
+
+    print "\n";
+    for my $symbol(sort keys %seenSymbols){
+      printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
     }
   }else{
     die $USAGE;
@@ -198,6 +204,23 @@ sub getInstrumentSummary(@){
     }
   }
   return $summary;
+}
+
+sub readCachedQuote($){
+  my ($symbol) = @_;
+  my @quoteFiles = sort glob "$JSON_QUOTES_CACHE_DIR/*_$symbol.json";
+  return undef if @quoteFiles == 0;
+  my $quoteFile = $quoteFiles[-1];
+  my $json = readFile $quoteFile;
+  my $obj = from_json $json;
+  die "ERROR: malformed quote $quoteFile\n" if $$obj{symbol} !~ /^$symbol(USD)?$/;
+
+  my $lastTradePrice = $$obj{last_trade_price};
+  my $askPrice = $$obj{ask_price};
+  my $quote = undef;
+  $quote = $lastTradePrice if not defined $quote;
+  $quote = $askPrice if not defined $quote;
+  return $quote;
 }
 
 sub fetchAndCacheQuote($$$$$){
