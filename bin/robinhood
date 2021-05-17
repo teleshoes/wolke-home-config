@@ -5,12 +5,15 @@ use JSON qw(from_json);
 use Time::HiRes qw(time);
 
 my $JSON_ORDERS_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
+my $JSON_QUOTES_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/quotes-json";
 my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
 
 my $API_INSTRUMENT_URL_PREFIX = "https://api.robinhood.com/instruments";
 my $API_CURRENCY_PAIRS_URL_PREFIX = "https://nummus.robinhood.com/currency_pairs";
 my $API_ORDERS_STOCKS_URL = "https://api.robinhood.com/orders/?page_size=100";
 my $API_ORDERS_CRYPTO_URL = "https://nummus.robinhood.com/orders/?page_size=100";
+my $API_QUOTES_CRYPTO_URL = "https://api.robinhood.com/marketdata/forex/quotes";
+my $API_QUOTES_STOCKS_URL = "https://api.robinhood.com/quotes";
 
 my $USAGE = "Usage:
   $0 -h | --help
@@ -39,10 +42,19 @@ my $USAGE = "Usage:
       can optionally start with \"Authorization: Bearer \"
         or can just be the token
       NOTE: protect BEARER_TOKEN closer than a password
+
+  $0 --fetch-quotes
+    -obtain a readonly auth token
+    -for each instrument in any cached order
+      -fetch a quote from the api (last_trade_price or ask_price)
+      -store the quote in:
+        $JSON_QUOTES_CACHE_DIR/YYYYMMDD_HHMMSS_MILLIS_SYMBOL.json
 ";
 
 sub apiCallCurl($$);
 sub getInstrumentSummary(@);
+sub getReadonlyBearerToken();
+sub fetchAndCacheQuote($$$$$);
 sub parseJsonOrders();
 sub readInstrumentCache();
 sub writeInstrumentCache($);
@@ -58,6 +70,7 @@ sub run(@);
 my $COMMAND_SUMMARY = "summary";
 my $COMMAND_ORDERS = "orders";
 my $COMMAND_FETCH_ORDERS = "fetch-orders";
+my $COMMAND_FETCH_QUOTES = "fetch-quotes";
 
 sub main(@){
   my $cmd = $COMMAND_SUMMARY;
@@ -73,6 +86,8 @@ sub main(@){
       $cmd = $COMMAND_ORDERS;
     }elsif($arg =~ /^(--fetch-orders)$/){
       $cmd = $COMMAND_FETCH_ORDERS;
+    }elsif($arg =~ /^(--fetch-quotes)$/){
+      $cmd = $COMMAND_FETCH_QUOTES;
     }else{
       push @cmdArgs, $arg;
     }
@@ -122,6 +137,23 @@ sub main(@){
 
     writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_crypto.json",
       apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
+  }elsif($cmd eq $COMMAND_FETCH_QUOTES){
+    die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
+    my @orders = parseJsonOrders();
+    my %seenSymbols;
+
+    my $nowMillis = nowMillis();
+    my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
+    my $filePrefix = "${nowFmt}_${nowMillis}";
+
+    my $bearerToken = getReadonlyBearerToken();
+
+    for my $order(@orders){
+      next if defined $seenSymbols{$$order{symbol}};
+      $seenSymbols{$$order{symbol}} = 1;
+      fetchAndCacheQuote($filePrefix, $bearerToken,
+        $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
+    }
   }else{
     die $USAGE;
   }
@@ -165,6 +197,28 @@ sub getInstrumentSummary(@){
     }
   }
   return $summary;
+}
+
+sub fetchAndCacheQuote($$$$$){
+  my ($filePrefix, $bearerToken, $symbol, $instrumentId, $isCrypto) = @_;
+  my $url;
+  if($isCrypto){
+    $url = "$API_QUOTES_CRYPTO_URL/$instrumentId/";
+  }else{
+    $url = "$API_QUOTES_STOCKS_URL/$symbol/";
+  }
+
+  run "mkdir", "-p", $JSON_QUOTES_CACHE_DIR;
+  writeFile "${JSON_QUOTES_CACHE_DIR}/${filePrefix}_$symbol.json",
+    apiCallCurl($url, $bearerToken) . "\n";
+}
+
+sub getReadonlyBearerToken(){
+  my $html = `wget -q -O - https://robinhood.com/stocks/IBM`;
+  if($html =~ /"access_token":"([^"]*)"/){
+    return $1;
+  }
+  return undef;
 }
 
 sub parseJsonOrders(){
