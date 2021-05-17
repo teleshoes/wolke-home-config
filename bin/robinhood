@@ -23,7 +23,7 @@ my $USAGE = "Usage:
 
   $EXEC
   $EXEC --fetch-summary
-    same as: $EXEC --fetch-quotes && $EXEC --summary
+    same as: $EXEC --fetch-quotes >/dev/null && $EXEC --summary
 
   $EXEC -s | --summary
     show all instruments total cost and total quantity
@@ -59,7 +59,7 @@ my $USAGE = "Usage:
 sub apiCallCurl($$);
 sub getInstrumentSummary(@);
 sub getReadonlyBearerToken();
-sub fetchAndCacheQuote($$$$$);
+sub fetchAndCacheQuote($$$$$$);
 sub readCachedQuote($);
 sub parseJsonOrders();
 sub readInstrumentCache();
@@ -105,7 +105,7 @@ sub main(@){
 
   if($cmd eq $COMMAND_FETCH_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdFetchQuotes();
+    cmdFetchQuotes(1);
     cmdSummary();
   }elsif($cmd eq $COMMAND_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
@@ -120,7 +120,7 @@ sub main(@){
     cmdFetchOrders($bearerToken);
   }elsif($cmd eq $COMMAND_FETCH_QUOTES){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdFetchQuotes();
+    cmdFetchQuotes(0);
   }else{
     die $USAGE;
   }
@@ -188,26 +188,30 @@ sub cmdFetchOrders($){
   writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_crypto.json",
     apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
 }
-sub cmdFetchQuotes(){
+sub cmdFetchQuotes($){
+  my ($quiet) = @_;
   my @orders = parseJsonOrders();
 
   my $nowMillis = nowMillis();
   my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
   my $filePrefix = "${nowFmt}_${nowMillis}";
 
+  print "fetching read-only bearer token\n" unless $quiet;
   my $bearerToken = getReadonlyBearerToken();
 
   my %seenSymbols;
   for my $order(@orders){
     next if defined $seenSymbols{$$order{symbol}};
     $seenSymbols{$$order{symbol}} = 1;
-    fetchAndCacheQuote($filePrefix, $bearerToken,
+    fetchAndCacheQuote($quiet, $filePrefix, $bearerToken,
       $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
   }
 
-  print "\n";
-  for my $symbol(sort keys %seenSymbols){
-    printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
+  if(not $quiet){
+    print "\n";
+    for my $symbol(sort keys %seenSymbols){
+      printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
+    }
   }
 }
 
@@ -268,8 +272,8 @@ sub readCachedQuote($){
   return $quote;
 }
 
-sub fetchAndCacheQuote($$$$$){
-  my ($filePrefix, $bearerToken, $symbol, $instrumentId, $isCrypto) = @_;
+sub fetchAndCacheQuote($$$$$$){
+  my ($quiet, $filePrefix, $bearerToken, $symbol, $instrumentId, $isCrypto) = @_;
   my $url;
   if($isCrypto){
     $url = "$API_QUOTES_CRYPTO_URL/$instrumentId/";
@@ -278,13 +282,12 @@ sub fetchAndCacheQuote($$$$$){
   }
 
   runQuiet "mkdir", "-p", $JSON_QUOTES_CACHE_DIR;
-  print "fetching quote for $symbol\n";
+  print "fetching quote for $symbol\n" unless $quiet;
   writeFile "${JSON_QUOTES_CACHE_DIR}/${filePrefix}_$symbol.json",
     apiCallCurl($url, $bearerToken) . "\n";
 }
 
 sub getReadonlyBearerToken(){
-  print "fetching read-only bearer token\n";
   my $html = `wget -q -O - https://robinhood.com/stocks/IBM`;
   if($html =~ /"access_token":"([^"]*)"/){
     return $1;
