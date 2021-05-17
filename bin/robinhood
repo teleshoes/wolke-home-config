@@ -34,6 +34,7 @@ my $COMMAND_ORDERS = "orders";
 
 sub main(@){
   my $cmd = $COMMAND_SUMMARY;
+  my @cmdArgs;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -44,11 +45,12 @@ sub main(@){
     }elsif($arg =~ /^(-o|--orders)$/){
       $cmd = $COMMAND_ORDERS;
     }else{
-      die "$USAGE\nERROR: unknown arg $arg\n";
+      push @cmdArgs, $arg;
     }
   }
 
   if($cmd eq $COMMAND_SUMMARY){
+    die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
     my @orders = parseJsonOrders();
     my $summary = getInstrumentSummary(@orders);
     for my $sym(sort keys %$summary){
@@ -56,6 +58,7 @@ sub main(@){
       printf "%-5s - %8.2f\$ - %8.3f\n", $sym, $cost, $amount;
     }
   }elsif($cmd eq $COMMAND_ORDERS){
+    die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
     my @orders = parseJsonOrders();
     for my $order(@orders){
       my $timeFmt = `date --date=\@$$order{time} +%Y-%m-%d_%H:%M:%S`;
