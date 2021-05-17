@@ -242,6 +242,8 @@ function dft          { df-tool "$@"; }
 function dfavail      { df-tool avail "$@"; }
 function dfused       { df-tool used "$@"; }
 
+function rh           { robinhood "$@"; }
+
 function tvg          { tv-gpio "$@" ; }
 
 function so           { screenOff ; }
