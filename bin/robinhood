@@ -4,7 +4,7 @@ use warnings;
 use JSON qw(from_json);
 use Time::HiRes qw(time);
 
-my $JSON_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
+my $JSON_ORDERS_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
 my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
 
 my $API_INSTRUMENT_URL_PREFIX = "https://api.robinhood.com/instruments";
@@ -25,7 +25,7 @@ my $USAGE = "Usage:
 
   $0 --fetch-orders BEARER_TOKEN
     fetch stocks+crypto orders JSON and place them in:
-      $JSON_CACHE_DIR
+      $JSON_ORDERS_CACHE_DIR
 
     to get BEARER_CODE:
       -log in with username/password/mfa/etc in a browser
@@ -115,12 +115,12 @@ sub main(@){
     my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
     my $filePrefix = "${nowFmt}_${nowMillis}";
 
-    run "mkdir", "-p", $JSON_CACHE_DIR;
+    run "mkdir", "-p", $JSON_ORDERS_CACHE_DIR;
 
-    writeFile "${JSON_CACHE_DIR}/${filePrefix}_stocks.json",
+    writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_stocks.json",
       apiCallCurl($API_ORDERS_STOCKS_URL, $bearerToken) . "\n";
 
-    writeFile "${JSON_CACHE_DIR}/${filePrefix}_crypto.json",
+    writeFile "${JSON_ORDERS_CACHE_DIR}/${filePrefix}_crypto.json",
       apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
   }else{
     die $USAGE;
@@ -163,7 +163,7 @@ sub parseJsonOrders(){
   my $updateInstrumentCache = 0;
   my @orders;
   my %seenOrderIds;
-  my @ordersFiles = sort glob "$JSON_CACHE_DIR/*";
+  my @ordersFiles = sort glob "$JSON_ORDERS_CACHE_DIR/*";
   for my $file(reverse @ordersFiles){
     my $json = readFile $file;
     my $obj = from_json $json;
