@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use JSON qw(from_json);
+use POSIX qw(ceil);
 use Time::HiRes qw(time);
 
 my $EXEC = basename $0;
@@ -69,6 +70,7 @@ sub getCryptoCode($);
 sub readUrl($);
 sub readFile($);
 sub writeFile($$);
+sub usdFmt($);
 sub dateFmt($$);
 sub nowMillis();
 sub run(@);
@@ -143,15 +145,15 @@ sub cmdSummary(){
     my $profitSign = $profit > 0 ? "+" : "-";
     my $absProfit = $profit >= 0 ? $profit : 0-$profit;
 
-    printf "%-5s | %8.2f\$ | %8.3f for %8.2f\$ | %s%8.2f\n",
-      $sym, $value, $amount, $cost, $profitSign, $absProfit;
+    printf "%-5s | %10s | %8.3f for %10s | %s%10s\n",
+      $sym, usdFmt($value), $amount, usdFmt($cost), $profitSign, usdFmt($absProfit);
   }
   my $totalProfit = $totalValue - $totalCost;
   my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
   my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
 
-  printf "%-5s | %8.2f\$ | %8s     %8.2f\$ | %s%8.2f\n",
-    "TOTAL", $totalValue, "", $totalCost, $totalProfitSign, $totalAbsProfit;
+  printf "%-5s | %10s | %8s     %10s | %s%10s\n",
+    "TOTAL", usdFmt($totalValue), "", usdFmt($totalCost), $totalProfitSign, usdFmt($totalAbsProfit);
 }
 sub cmdOrders(){
   my @orders = parseJsonOrders();
@@ -420,6 +422,11 @@ sub writeFile($$){
   open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
   print FH $content;
   close FH;
+}
+
+sub usdFmt($){
+  my ($usd) = @_;
+  return sprintf "\$%.2f", ceil($usd * 100.0) / 100.0;
 }
 
 sub dateFmt($$){
