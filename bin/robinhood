@@ -86,6 +86,7 @@ my $COMMAND_FETCH_QUOTES = "fetch-quotes";
 
 sub main(@){
   my $cmd = $COMMAND_FETCH_SUMMARY;
+  my $opts = {};
   my @cmdArgs;
   while(@_ > 0){
     my $arg = shift;
@@ -109,28 +110,31 @@ sub main(@){
 
   if($cmd eq $COMMAND_FETCH_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdFetchQuotes(1);
-    cmdSummary();
+    $$opts{quiet} = 1 if not defined $$opts{quiet};
+    cmdFetchQuotes($opts);
+    cmdSummary($opts);
   }elsif($cmd eq $COMMAND_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdSummary();
+    cmdSummary($opts);
   }elsif($cmd eq $COMMAND_ORDERS){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdOrders();
+    cmdOrders($opts);
   }elsif($cmd eq $COMMAND_FETCH_ORDERS){
     die "$USAGE\nERROR: missing BEARER_TOKEN\n" if @cmdArgs == 0;
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 1;
     my ($bearerToken) = @cmdArgs;
-    cmdFetchOrders($bearerToken);
+    cmdFetchOrders($opts, $bearerToken);
   }elsif($cmd eq $COMMAND_FETCH_QUOTES){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
-    cmdFetchQuotes(0);
+    $$opts{quiet} = 0 if not defined $$opts{quiet};
+    cmdFetchQuotes($opts);
   }else{
     die $USAGE;
   }
 }
 
-sub cmdSummary(){
+sub cmdSummary($){
+  my ($opts) = @_;
   my @orders = parseJsonOrders();
   my $summary = getInstrumentSummary(@orders);
   my $totalCost = 0;
@@ -157,7 +161,8 @@ sub cmdSummary(){
   printf "%-5s | %10s | %8s     %10s | %s%10s\n",
     "TOTAL", usdFmt($totalValue), "", usdFmt($totalCost), $totalProfitSign, usdFmt($totalAbsProfit);
 }
-sub cmdOrders(){
+sub cmdOrders($){
+  my ($opts) = @_;
   my @orders = parseJsonOrders();
   for my $order(@orders){
     my $timeFmt = dateFmt $$order{time}, '%Y-%m-%d_%H:%M:%S';
@@ -176,8 +181,8 @@ sub cmdOrders(){
       $timeFmt, $symbol, $buySell, $amount, $price, $plusMinus, $cost;
   }
 }
-sub cmdFetchOrders($){
-  my ($bearerToken) = @_;
+sub cmdFetchOrders($$){
+  my ($opts, $bearerToken) = @_;
   $bearerToken =~ s/^\s*Authorization:\s*Bearer\s*//;
 
   my $nowMillis = nowMillis();
@@ -193,25 +198,25 @@ sub cmdFetchOrders($){
     apiCallCurl($API_ORDERS_CRYPTO_URL, $bearerToken) . "\n";
 }
 sub cmdFetchQuotes($){
-  my ($quiet) = @_;
+  my ($opts) = @_;
   my @orders = parseJsonOrders();
 
   my $nowMillis = nowMillis();
   my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
   my $filePrefix = "${nowFmt}_${nowMillis}";
 
-  print "fetching read-only bearer token\n" unless $quiet;
+  print "fetching read-only bearer token\n" unless $$opts{quiet};
   my $bearerToken = getReadonlyBearerToken();
 
   my %seenSymbols;
   for my $order(@orders){
     next if defined $seenSymbols{$$order{symbol}};
     $seenSymbols{$$order{symbol}} = 1;
-    fetchAndCacheQuote($quiet, $filePrefix, $bearerToken,
+    fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerToken,
       $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
   }
 
-  if(not $quiet){
+  if(not $$opts{quiet}){
     print "\n";
     for my $symbol(sort keys %seenSymbols){
       printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
