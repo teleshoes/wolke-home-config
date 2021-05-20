@@ -57,6 +57,11 @@ my $USAGE = "Usage:
         $JSON_QUOTES_CACHE_DIR/YYYYMMDD_HHMMSS_MILLIS_SYMBOL.json
 
    OPTS
+    --color
+      use Term::ANSIColor to output text formatted with ANSI color escapes
+    --no-color
+      (this is the default)
+      do not output any ANSI color escapes
 ";
 
 sub apiCallCurl($$);
@@ -72,7 +77,9 @@ sub getCryptoCode($);
 sub readUrl($);
 sub readFile($);
 sub writeFile($$);
-sub usdFmt($);
+sub maybeColorText($$$);
+sub colorText($$);
+sub usdFmt($$$$);
 sub dateFmt($$);
 sub nowMillis();
 sub run(@);
@@ -103,12 +110,17 @@ sub main(@){
       $cmd = $COMMAND_FETCH_ORDERS;
     }elsif($arg =~ /^(--fetch-quotes)$/){
       $cmd = $COMMAND_FETCH_QUOTES;
+    }elsif($arg =~ /^(--color)$/){
+      $$opts{useColor} = 1;
+    }elsif($arg =~ /^(--no-color)$/){
+      $$opts{useColor} = 0;
     }else{
       push @cmdArgs, $arg;
     }
   }
 
   $$opts{quiet} = $cmd eq $COMMAND_FETCH_SUMMARY ? 1 : 0 if not defined $$opts{quiet};
+  $$opts{useColor} = 0 if not defined $$opts{useColor};
 
   if($cmd eq $COMMAND_FETCH_SUMMARY){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
@@ -150,16 +162,30 @@ sub cmdSummary($){
 
     my $profitSign = $profit > 0 ? "+" : "-";
     my $absProfit = $profit >= 0 ? $profit : 0-$profit;
+    my $colorProfit = $profitSign eq "+" ? "green" : "red";
 
-    printf "%-5s | %10s | %8.3f for %10s | %s%10s\n",
-      $sym, usdFmt($value), $amount, usdFmt($cost), $profitSign, usdFmt($absProfit);
+    printf "%-5s | %s | %8.3f for %s | %s%s\n",
+      $sym,
+      usdFmt($opts, 10, undef, $value),
+      $amount,
+      usdFmt($opts, 10, undef, $cost),
+      $profitSign,
+      usdFmt($opts, 10, $colorProfit, $absProfit),
+    ;
   }
   my $totalProfit = $totalValue - $totalCost;
   my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
   my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
+  my $colorTotalProfit = $totalProfitSign eq "+" ? "green" : "red";
 
-  printf "%-5s | %10s | %8s     %10s | %s%10s\n",
-    "TOTAL", usdFmt($totalValue), "", usdFmt($totalCost), $totalProfitSign, usdFmt($totalAbsProfit);
+  printf "%-5s | %s | %8s     %s | %s%s\n",
+    "TOTAL",
+    usdFmt($opts, 10, undef, $totalValue),
+    "",
+    usdFmt($opts, 10, undef, $totalCost),
+    $totalProfitSign,
+    usdFmt($opts, 10, $colorTotalProfit, $totalAbsProfit),
+  ;
 }
 sub cmdOrders($){
   my ($opts) = @_;
@@ -432,9 +458,25 @@ sub writeFile($$){
   close FH;
 }
 
-sub usdFmt($){
-  my ($usd) = @_;
-  return sprintf "\$%.2f", ceil($usd * 100.0) / 100.0;
+sub maybeColorText($$$){
+  my ($useColor, $text, $color) = @_;
+  if($useColor and defined $color){
+    return colorText($text, $color);
+  }else{
+    return $text;
+  }
+}
+sub colorText($$){
+  my ($text, $color) = @_;
+  require Term::ANSIColor;
+  return Term::ANSIColor::colored($text, $color);
+}
+
+sub usdFmt($$$$){
+  my ($opts, $len, $color, $usd) = @_;
+  my $fmt = sprintf "\$%.2f", ceil($usd * 100.0) / 100.0;
+  $fmt = sprintf "%${len}s", $fmt;
+  return maybeColorText($$opts{useColor}, $fmt, $color);
 }
 
 sub dateFmt($$){
