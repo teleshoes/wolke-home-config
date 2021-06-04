@@ -237,6 +237,7 @@ function acpower      { igcmd ac-power "$@"; }
 function ac2fan_up    { igcmd ac2-fan_up "$@"; }
 function ac2fan_down  { igcmd ac2-fan_down "$@"; }
 function ac2power     { igcmd ac2-power "$@"; }
+function ac2          { igcmd ac2-power "$@"; }
 
 function dft          { df-tool "$@"; }
 function dfavail      { df-tool avail "$@"; }
