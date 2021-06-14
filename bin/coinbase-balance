@@ -15,6 +15,7 @@ my $CACHE_FILE_BTC_BALANCE= "$CACHE_DIR/btc-balance";
 sub fetchBTCToUSDExchangeRate();
 sub fetchBTCBalance($$);
 sub getSignature($$$$$);
+sub callCoinbaseAPI($$$);
 sub readBTCBalanceCache();
 sub writeBTCBalanceCache($);
 sub readCoinbaseKeyAndSecret();
@@ -120,8 +121,19 @@ sub fetchBTCToUSDExchangeRate(){
 sub fetchBTCBalance($$){
   my ($key, $secret) = @_;
 
+  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts");
+  my $btcBalance;
+  if($out =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
+    $btcBalance = $1;
+  }else{
+    die "ERROR: malformed coinbase output:\n$out\n";
+  }
+  return $btcBalance;
+}
+
+sub callCoinbaseAPI($$$){
+  my ($key, $secret, $path) = @_;
   my $timestamp = time;
-  my $path = "/v2/accounts";
   my $method = "GET";
   my $body = "";
   my $sig = getSignature($secret, $timestamp, $method, $path, $body);
@@ -137,13 +149,8 @@ sub fetchBTCBalance($$){
   open CMD, "-|", @cmd or die "error running curl\n";
   my $out = join '', <CMD>;
   close CMD;
-  my $btcBalance;
-  if($out =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
-    $btcBalance = $1;
-  }else{
-    die "ERROR: malformed coinbase output:\n$out\n";
-  }
-  return $btcBalance;
+
+  return $out;
 }
 
 sub getSignature($$$$$){
