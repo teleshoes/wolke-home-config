@@ -31,12 +31,24 @@ my $usage = "Usage:
     -print balance in USD and BTC
 
   OPTS
+    --fetch-default
+      fetch BTC balance only if there is no cached value
+      (this is the default)
+    -f | --fetch-always | --fetch
+      always fetch BTC balance, never use cache
+    --fetch-never
+      never fetch BTC balance, always use cache
 ";
 
 my $COMMAND_PRINT = "print";
 
+my $FETCH_MODE_DEFAULT = "default";
+my $FETCH_MODE_ALWAYS = "always";
+my $FETCH_MODE_NEVER = "never";
+
 sub main(@){
   my $command = $COMMAND_PRINT;
+  my $fetchMode = $FETCH_MODE_DEFAULT;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -44,6 +56,12 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--print)$/){
       $command = $COMMAND_PRINT;
+    }elsif($arg =~ /^(--fetch-default)$/){
+      $fetchMode = $FETCH_MODE_DEFAULT;
+    }elsif($arg =~ /^(-f|--fetch-always|--fetch)$/){
+      $fetchMode = $FETCH_MODE_ALWAYS;
+    }elsif($arg =~ /^(--fetch-never)$/){
+      $fetchMode = $FETCH_MODE_NEVER;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
@@ -53,8 +71,12 @@ sub main(@){
     my $btcBalance = undef;
     my $cachedBTCBalance = readBTCBalanceCache();
 
+    my $fetch = 0;
+    $fetch = 1 if $fetchMode eq $FETCH_MODE_DEFAULT and not defined $cachedBTCBalance;
+    $fetch = 1 if $fetchMode eq $FETCH_MODE_ALWAYS;
+    $fetch = 0 if $fetchMode eq $FETCH_MODE_NEVER;
 
-    if(not defined $cachedBTCBalance){
+    if($fetch){
       my ($key, $secret) = readCoinbaseKeyAndSecret();
       $btcBalance = fetchBTCBalance($key, $secret);
       writeBTCBalanceCache($btcBalance);
