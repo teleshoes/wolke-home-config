@@ -10,7 +10,9 @@ my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $API_URL = "https://api.coinbase.com";
 
 sub getBTCToUSDExchangeRate();
+sub fetchBTCBalance($$);
 sub getSignature($$$$$);
+sub readCoinbaseKeyAndSecret();
 sub readSecrets();
 sub decrypt($);
 
@@ -34,17 +36,32 @@ sub main(@){
     }
   }
 
-  my $conf = readSecrets();
-  my ($key, $secret);
-  $key = $$conf{"$API_KEY_NAME.key"};
-  $secret = $$conf{"$API_KEY_NAME.secret"};
+  my ($btcBalance, $exRate, $usdBalance);
 
-  if(not defined $key){
-    die "could not find secret 'coinbase.api.$API_KEY_NAME.key\n";
+  my ($key, $secret) = readCoinbaseKeyAndSecret();
+  $btcBalance = fetchBTCBalance($key, $secret);
+
+  $exRate = getBTCToUSDExchangeRate();
+  $usdBalance = $btcBalance*$exRate;
+
+  printf ""
+    . "%.2fUSD  (%.8fBTC)\n"
+    . "  (1 BTC = %.2f USD)\n",
+    $usdBalance,
+    $btcBalance,
+    $exRate;
+}
+
+sub getBTCToUSDExchangeRate(){
+  my $out = `curl --silent https://api.coinbase.com/v2/exchange-rates?currency=BTC`;
+  if($out =~ /"currency":"BTC","rates":\{[^}]*"USD":"(\d*\.\d*)"/){
+    return $1;
   }
-  if(not defined $secret){
-    die "could not find secret 'coinbase.api.$API_KEY_NAME.secret\n";
-  }
+  die "could not get exchanged rate\n";
+}
+
+sub fetchBTCBalance($$){
+  my ($key, $secret) = @_;
 
   my $timestamp = time;
   my $path = "/v2/accounts";
@@ -66,29 +83,29 @@ sub main(@){
   if($out =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
     $btcBalance = $1;
   }
-  my $exRate = getBTCToUSDExchangeRate();
-  my $usdBalance = $btcBalance*$exRate;
-
-  printf ""
-    . "%.2fUSD  (%.8fBTC)\n"
-    . "  (1 BTC = %.2f USD)\n",
-    $usdBalance,
-    $btcBalance,
-    $exRate;
-}
-
-sub getBTCToUSDExchangeRate(){
-  my $out = `curl --silent https://api.coinbase.com/v2/exchange-rates?currency=BTC`;
-  if($out =~ /"currency":"BTC","rates":\{[^}]*"USD":"(\d*\.\d*)"/){
-    return $1;
-  }
-  die "could not get exchanged rate\n";
+  return $btcBalance;
 }
 
 sub getSignature($$$$$){
   my ($secret, $timestamp, $method, $path, $body) = @_;
   my $prehash = $timestamp . $method . $path . $body;
   return hmac_sha256_hex($prehash, $secret);
+}
+
+sub readCoinbaseKeyAndSecret(){
+  my $conf = readSecrets();
+  my ($key, $secret);
+  $key = $$conf{"$API_KEY_NAME.key"};
+  $secret = $$conf{"$API_KEY_NAME.secret"};
+
+  if(not defined $key){
+    die "could not find secret 'coinbase.api.$API_KEY_NAME.key\n";
+  }
+  if(not defined $secret){
+    die "could not find secret 'coinbase.api.$API_KEY_NAME.secret\n";
+  }
+
+  return ($key, $secret);
 }
 
 sub readSecrets(){
