@@ -8,10 +8,14 @@ my $EXEC = basename $0;
 my $API_KEY_NAME = "accreadonly";
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $API_URL = "https://api.coinbase.com";
+my $CACHE_DIR = "$ENV{HOME}/.cache/coinbase";
+my $CACHE_FILE_BTC_BALANCE= "$CACHE_DIR/btc-balance";
 
 sub fetchBTCToUSDExchangeRate();
 sub fetchBTCBalance($$);
 sub getSignature($$$$$);
+sub readBTCBalanceCache();
+sub writeBTCBalanceCache($);
 sub readCoinbaseKeyAndSecret();
 sub readSecrets();
 sub decrypt($);
@@ -23,7 +27,7 @@ my $usage = "Usage:
   $EXEC [OPTS]
   $EXEC [OPTS] --print
     -fetch BTC=>USD conversion rate using API
-    -fetch BTC balance using API
+    -fetch BTC balance if not cached using API
     -print balance in USD and BTC
 
   OPTS
@@ -47,9 +51,16 @@ sub main(@){
 
   if($command eq $COMMAND_PRINT){
     my $btcBalance = undef;
+    my $cachedBTCBalance = readBTCBalanceCache();
 
-    my ($key, $secret) = readCoinbaseKeyAndSecret();
-    $btcBalance = fetchBTCBalance($key, $secret);
+
+    if(not defined $cachedBTCBalance){
+      my ($key, $secret) = readCoinbaseKeyAndSecret();
+      $btcBalance = fetchBTCBalance($key, $secret);
+      writeBTCBalanceCache($btcBalance);
+    }else{
+      $btcBalance = $cachedBTCBalance;
+    }
 
     die "ERROR: unable to get BTC balance\n" if not defined $btcBalance;
 
@@ -107,6 +118,33 @@ sub getSignature($$$$$){
   my ($secret, $timestamp, $method, $path, $body) = @_;
   my $prehash = $timestamp . $method . $path . $body;
   return hmac_sha256_hex($prehash, $secret);
+}
+
+sub readBTCBalanceCache(){
+  if(not -f $CACHE_FILE_BTC_BALANCE){
+    return undef;
+  }else{
+    my $btcBalance = `cat $CACHE_FILE_BTC_BALANCE`;
+    chomp $btcBalance;
+    if($btcBalance =~ /^(\d+|\d*\.\d+)$/){
+      return $btcBalance;
+    }else{
+      die "ERROR: malformed BTC balance cache: $btcBalance\n";
+    }
+  }
+}
+sub writeBTCBalanceCache($){
+  my ($btcBalance) = @_;
+  system "mkdir", "-p", $CACHE_DIR;
+
+  if(defined $btcBalance){
+    open FH, "> $CACHE_FILE_BTC_BALANCE"
+      or die "ERROR: could not write $CACHE_FILE_BTC_BALANCE\n$!\n";
+    print FH "$btcBalance\n";
+    close FH;
+  }else{
+    system "rm", "-f", $CACHE_FILE_BTC_BALANCE;
+  }
 }
 
 sub readCoinbaseKeyAndSecret(){
