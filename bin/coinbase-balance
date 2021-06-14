@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use Digest::SHA qw(hmac_sha256_hex);
 use File::Basename qw(basename);
+use JSON qw(from_json);
+use POSIX qw(ceil);
 
 my $EXEC = basename $0;
 my $API_KEY_NAME = "accreadonly";
@@ -14,6 +16,7 @@ my $CACHE_FILE_BTC_BALANCE= "$CACHE_DIR/btc-balance";
 
 sub fetchBTCToUSDExchangeRate();
 sub fetchBTCBalance($$);
+sub fetchBTCAccountID($$);
 sub callCoinbaseAPI($$$);
 sub getSignature($$$$$);
 sub readBTCBalanceCache();
@@ -32,6 +35,11 @@ my $usage = "Usage:
     -fetch BTC balance if not cached using API
     -print balance in USD and BTC
 
+  $EXEC [OPTS] -t
+  $EXEC [OPTS] --transactions
+    -fetch all BTC transactions using API
+    -format and print all transactions, one per line
+
   $EXEC [OPTS] --clear-cache
     -remove BTC balance cache
 
@@ -46,6 +54,7 @@ my $usage = "Usage:
 ";
 
 my $COMMAND_PRINT = "print";
+my $COMMAND_TRANSACTIONS = "transactions";
 my $COMMAND_CLEAR_CACHE = "clear-cache";
 
 my $FETCH_MODE_DEFAULT = "default";
@@ -62,6 +71,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--print)$/){
       $command = $COMMAND_PRINT;
+    }elsif($arg =~ /^(-t|--transactions)$/){
+      $command = $COMMAND_TRANSACTIONS;
     }elsif($arg =~ /^(--clear-cache)$/){
       $command = $COMMAND_CLEAR_CACHE;
     }elsif($arg =~ /^(--fetch-default)$/){
@@ -103,6 +114,18 @@ sub main(@){
       $usdBalance,
       $btcBalance,
       $exRate;
+  }elsif($command eq $COMMAND_TRANSACTIONS){
+    my ($key, $secret) = readCoinbaseKeyAndSecret();
+    my $transactionsJSON = fetchBTCTransactions($key, $secret);
+    my @transactions = parseTransactionsJSON($transactionsJSON);
+    for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
+      my $dateFmt = `date --date=\@$$t{date} +'%Y-%m-%d %H:%M:%S'`;
+      chomp $dateFmt;
+      my $desc = $$t{desc};
+      $desc = "" if not defined $desc;
+      printf "%s | %4s | %s | %s | %s\n",
+        $dateFmt, $$t{type}, btcFmt(15, $$t{btc}), usdFmt(9, $$t{usd}), $desc;
+    }
   }elsif($command eq $COMMAND_CLEAR_CACHE){
     writeBTCBalanceCache(undef);
   }else{
@@ -131,6 +154,24 @@ sub fetchBTCBalance($$){
   return $btcBalance;
 }
 
+sub fetchBTCAccountID($$){
+  my ($key, $secret) = @_;
+  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts");
+  my $uuidRegex = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+  if($out =~ /"id":"($uuidRegex)","name":"BTC Wallet"/){
+    return $1;
+  }else{
+    die "ERROR: could not parse BTC account ID from coinbase output:\n$out\n";
+  }
+}
+
+sub fetchBTCTransactions($$){
+  my ($key, $secret) = @_;
+  my $accId = fetchBTCAccountID($key, $secret);
+  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts/$accId/transactions");
+  return $out;
+}
+
 sub callCoinbaseAPI($$$){
   my ($key, $secret, $path) = @_;
   my $timestamp = time;
@@ -157,6 +198,50 @@ sub getSignature($$$$$){
   my ($secret, $timestamp, $method, $path, $body) = @_;
   my $prehash = $timestamp . $method . $path . $body;
   return hmac_sha256_hex($prehash, $secret);
+}
+
+sub parseTransactionsJSON($){
+  my ($json) = @_;
+  my $obj = from_json $json;
+  my @jsonTransactions = @{$$obj{data}};
+  my @transactions;
+  for my $j(@jsonTransactions){
+    my $date = `date --date="$$j{created_at}" +%s`;
+    chomp $date;
+
+    die "ERROR: currency is not BTC\n$json" if $$j{amount}{currency} ne "BTC";
+    die "ERROR: native currency is not USD\n$json" if $$j{native_amount}{currency} ne "USD";
+    die "ERROR: could not parse date\n$json" if $date !~ /^\d+$/;
+
+    my $t = {
+      type => $$j{type},
+      btc  => $$j{amount}{amount},
+      usd  => $$j{native_amount}{amount},
+      date => $date,
+      desc => $$j{description},
+    };
+    push @transactions, $t;
+  }
+  return @transactions;
+}
+
+sub usdFmt($$){
+  my ($len, $usd) = @_;
+  my $sign = $usd >= 0 ? "" : "-";
+  $usd = $usd*-1 if $usd < 0;
+  my $fmt = sprintf "\$%.2f", ceil($usd * 100.0) / 100.0;
+  $fmt = "$sign$fmt";
+  $fmt = sprintf "%${len}s", $fmt;
+  return $fmt;
+}
+sub btcFmt($$){
+  my ($len, $btc) = @_;
+  my $sign = $btc >= 0 ? "" : "-";
+  $btc = $btc*-1 if $btc < 0;
+  my $fmt = sprintf "%.8f BTC", $btc;
+  $fmt = "$sign$fmt";
+  $fmt = sprintf "%${len}s", $fmt;
+  return $fmt;
 }
 
 sub readBTCBalanceCache(){
