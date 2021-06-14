@@ -21,6 +21,7 @@ my $usage = "Usage:
     show this message
 
   $EXEC [OPTS]
+  $EXEC [OPTS] --print
     -fetch BTC=>USD conversion rate using API
     -fetch BTC balance using API
     -print balance in USD and BTC
@@ -28,31 +29,42 @@ my $usage = "Usage:
   OPTS
 ";
 
+my $COMMAND_PRINT = "print";
+
 sub main(@){
+  my $command = $COMMAND_PRINT;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(--print)$/){
+      $command = $COMMAND_PRINT;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
   }
 
-  my ($btcBalance, $exRate, $usdBalance);
+  if($command eq $COMMAND_PRINT){
+    my $btcBalance = undef;
 
-  my ($key, $secret) = readCoinbaseKeyAndSecret();
-  $btcBalance = fetchBTCBalance($key, $secret);
+    my ($key, $secret) = readCoinbaseKeyAndSecret();
+    $btcBalance = fetchBTCBalance($key, $secret);
 
-  $exRate = fetchBTCToUSDExchangeRate();
-  $usdBalance = $btcBalance*$exRate;
+    die "ERROR: unable to get BTC balance\n" if not defined $btcBalance;
 
-  printf ""
-    . "%.2fUSD  (%.8fBTC)\n"
-    . "  (1 BTC = %.2f USD)\n",
-    $usdBalance,
-    $btcBalance,
-    $exRate;
+    my $exRate = fetchBTCToUSDExchangeRate();
+    my $usdBalance = $btcBalance*$exRate;
+
+    printf ""
+      . "%.2fUSD  (%.8fBTC)\n"
+      . "  (1 BTC = %.2f USD)\n",
+      $usdBalance,
+      $btcBalance,
+      $exRate;
+  }else{
+    die "ERROR: unknown command $command\n";
+  }
 }
 
 sub fetchBTCToUSDExchangeRate(){
