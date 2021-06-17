@@ -6,14 +6,18 @@ use Cwd 'abs_path';
 
 my $emailDir = "$ENV{HOME}/.cache/email";
 my $tmpPrefix = "/tmp/emlview-";
-my $browser = "firefox";
+my @browsers = qw(
+  firefox
+);
 
+sub selectBrowser();
 sub viewFiles(@);
 
 my $usage = "Usage:
   $0 FILE [FILE FILE ..]
-    call mhonarc -outdir $tmpPrefix<MILLIS> FILE [FILE FILE ..]
-    and then call $browser $tmpPrefix<MILLIS>/msg*.html
+    -call mhonarc -outdir $tmpPrefix<MILLIS> FILE [FILE FILE ..]
+    -select one of @browsers for <BROWSER>
+    -call <BROWSER> $tmpPrefix<MILLIS>/msg*.html
 
   $0 ACC [FOLDER] UID [UID UID ..]
     equivalent to:
@@ -44,11 +48,22 @@ sub main(@){
   }
 }
 
+sub selectBrowser(){
+  for my $browser(@browsers){
+    system "type \"$browser\" >/dev/null 2>/dev/null";
+    if($? == 0){
+      return $browser;
+    }
+  }
+  die "ERROR: could not find a browser (@browsers)\n";
+}
+
 sub viewFiles(@){
   my @files = @_;
   my $dir = $tmpPrefix . int(time*1000);
   system "mkdir", "-p", "$dir";
   system "mhonarc", "-outdir", $dir, @files;
+  my $browser = selectBrowser();
   system "$browser $dir/msg*.html &";
 }
 
