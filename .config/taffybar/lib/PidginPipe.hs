@@ -21,7 +21,7 @@ exec = "pidgin"
 process = exec
 workspace = 2
 
-runCmd = "daemon " ++ exec
+runCmd = "daemon tsocks-maybe " ++ exec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 killCmd = "pkill " ++ process ++ " ; sleep 0.1 ; pidgin-matrix-log-cleanup"
 rerunCmd = killCmd ++ "; " ++ runCmd
