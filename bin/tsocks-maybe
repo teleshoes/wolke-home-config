@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+my $CONF_FILE = "$ENV{HOME}/.config/tsocks-maybe.conf";
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC CMD [ARG ARG ..]
+    -check file: $CONF_FILE
+    -if file exists and starts with \"on\", case-insensitive:
+      -run: tsocks CMD ARG ARG ..
+    -otherwise:
+      -run: CMD ARG ARG
+
+  $EXEC on | --on | -on
+    write \"on\" to $CONF_FILE
+
+  $EXEC off | --off | -off
+    write \"off\" to $CONF_FILE
+";
+
+my $MODE_SET_ON = "set-on";
+my $MODE_SET_OFF = "set-off";
+my $MODE_RUN = "run";
+
+sub main(@){
+  my $mode;
+  my @execCmd;
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $USAGE;
+    exit 0;
+  }elsif(@_ == 1 and $_[0] =~ /^(on|--on|-on)$/){
+    $mode = $MODE_SET_ON;
+  }elsif(@_ == 1 and $_[0] =~ /^(off|--off|-off)$/){
+    $mode = $MODE_SET_OFF;
+  }elsif(@_ >= 1){
+    $mode = $MODE_RUN;
+    @execCmd = @_;
+  }else{
+    die $USAGE;
+  }
+
+  if($mode eq $MODE_SET_ON){
+    writeFile($CONF_FILE, "on\n");
+  }elsif($mode eq $MODE_SET_OFF){
+    writeFile($CONF_FILE, "off\n");
+  }elsif($mode eq $MODE_RUN){
+    my $conf = readFile($CONF_FILE);
+    $conf = "" if not defined $conf;
+
+    my $useTsocks = $conf =~ /^on/ ? 1 : 0;
+    @execCmd = ("tsocks", @execCmd) if $useTsocks;
+    exec @execCmd;
+  }else{
+    die "$USAGE\nERROR: unknown mode $mode\n";
+  }
+}
+
+sub readFile($){
+  my ($file) = @_;
+  return undef if not -f $file;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $out = join '', <FH>;
+  close FH;
+  return $out;
+}
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
+}
+
+&main(@ARGV);
