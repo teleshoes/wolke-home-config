@@ -40,7 +40,7 @@ pythonProcRe = "(" ++ binRe ++ ")?" ++ "python[0-9\\.]*"
 emailGuiProcRe = "(" ++ binRe ++ ")?" ++ emailGuiExec
 emailGuiWrapperProcRe = "(" ++ binRe ++ ")?" ++ emailGuiWrapperExec
 
-runCmd = "daemon " ++ emailGuiWrapperExec
+runCmd = "daemon tsocks-maybe " ++ emailGuiWrapperExec
 wsCmd = "wmctrl -s " ++ show (workspace-1)
 
 clickL = ifM (isRunning emailGuiExec) (return $ Just wsCmd) (return $ Just runCmd)
