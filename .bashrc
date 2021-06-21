@@ -227,7 +227,7 @@ function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           command igcmd "$@";
                         else
                           echo "RUNNING ON raspi"
-                          ipmagic raspi -b "command igcmd $@"
+                          ipmagic raspi -s "command igcmd $@"
                         fi
                       }
 function ig           { igcmd "$@"; }
