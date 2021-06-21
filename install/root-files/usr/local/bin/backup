@@ -280,6 +280,7 @@ sub readBackupConf($);
 sub readBackupNames($);
 
 sub sync($);
+sub dfPercent($$);
 sub dfSizeBytes($$);
 sub dfUsedGiB($$);
 sub dfBytes($$$);
@@ -663,8 +664,9 @@ sub backupRsync($$$){
   run $ipmagicName, "df", $destMountpoint;
 
   my $dfUsedEnd = dfUsedGiB $ipmagicName, $destMountpoint;
+  my $dfPercent = dfPercent $ipmagicName, $destMountpoint;
 
-  print "\ndf used: $dfUsedStart => $dfUsedEnd\n";
+  print "\ndf used: $dfUsedStart => $dfUsedEnd ($dfPercent%)\n";
 
   stopLogging($logHandle);
 
@@ -1160,6 +1162,17 @@ sub readBackupNames($){
 sub sync($){
   my($ipmagicName) = @_;
   run $ipmagicName, "sync";
+}
+
+sub dfPercent($$){
+  my ($ipmagicName, $mountpoint) = @_;
+  my $dfOut = readProc $ipmagicName, "df --output=pcent \"$mountpoint\"";
+  my $percent;
+  if($dfOut =~ /^Use%\n\s*(\d+)\s*%$/){
+    $percent = $1;
+  }
+  die "ERROR: could not parse percent in df\n" if $percent !~ /^\d+$/;
+  return $percent;
 }
 
 sub dfSizeBytes($$){
