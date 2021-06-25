@@ -277,6 +277,9 @@ function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
 function migl         { vim `~/workspace/escribehost/migrations/latest-script "$@"`; }
 
+function qtcreator    { ~/SailfishOS/bin/qtcreator "$@"; }
+function sfdk         { ~/SailfishOS/bin/sfdk "$@"; }
+
 function recscreen    { pulse-vol mic unmute ; simplescreenrecorder --start-recording "$@"; }
 
 function first        { ls "$@" | head -1; }
