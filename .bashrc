@@ -174,6 +174,8 @@ function mpu          {
   livestreamer "$@" $default_quality
 }
 
+function gimp         { flatpak run org.gimp.GIMP "$@"; }
+
 function vol {
   # use pulse-vol unless theres a command named `vol`
   VOL_CMD=$(which vol)
