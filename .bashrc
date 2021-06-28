@@ -249,6 +249,7 @@ function dft          { df-tool "$@"; }
 function dfavail      { df-tool avail "$@"; }
 function dfused       { df-tool used "$@"; }
 
+function db           { dashboard "$@"; }
 function cb           { coinbase-balance "$@"; }
 function rh           { robinhood "$@"; }
 
