@@ -19,9 +19,9 @@ my $MODE_PLOT = "plot";
 my $MODE_APPEND = "append";
 
 sub appendDateFile($$$);
-sub getDataByDate($$);
-sub printDates($$);
-sub gnuplot($$$);
+sub getDataByDate($$$);
+sub printDates($$$);
+sub gnuplot($$$$);
 sub getDate($);
 sub getTime($);
 sub getDateFile($$);
@@ -72,6 +72,10 @@ my $usage = "Usage:
     --3mos
       same as --min-date='3 months ago'
 
+    --min-sets=MIN_SETS_FILTER_COUNT
+      in --dates and --gnuplot, include only entries
+        with at least MIN_SETS_FILTER_COUNT sets
+
     --type-filter=TYPE_FILTER_REGEX
       in --dates and --gnuplot, include only entries
         with type that matches TYPE_FILTER_REGEX
@@ -95,6 +99,7 @@ sub main(@){
   my $mode = $MODE_PRINT;
   my $feh = 0;
   my $minDateFilterExpr = undef;
+  my $minSetsFilterCount = undef;
   my $typeFilterRegex = $TYPE_FILTER_REGEX_DEFAULT;
   while(@_ > 0){
     my $arg = shift @_;
@@ -122,6 +127,8 @@ sub main(@){
       $minDateFilterExpr = "6 months ago";
     }elsif($arg =~ /^(--3mos)$/){
       $minDateFilterExpr = "3 months ago";
+    }elsif($arg =~ /^--min-sets=(\d+)$/){
+      $minSetsFilterCount = $1;
     }elsif($arg =~ /^(?:--type-filter)=(.+)$/){
       $typeFilterRegex = $1;
     }elsif($arg =~ /^(--type-filter-all)$/){
@@ -144,15 +151,16 @@ sub main(@){
 
   if($mode eq $MODE_PRINT){
     if(defined $minDateFilterExpr
+        or defined $minSetsFilterCount
         or $typeFilterRegex ne $TYPE_FILTER_REGEX_DEFAULT
     ){
       die "ERROR: cannot filter $MODE_PRINT mode\n";
     }
     system "cat $CACHE_DIR/????-??-??";
   }elsif($mode eq $MODE_DATES){
-    printDates($minDateFilterExpr, $typeFilterRegex);
+    printDates($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
   }elsif($mode eq $MODE_PLOT){
-    gnuplot($feh, $minDateFilterExpr, $typeFilterRegex);
+    gnuplot($feh, $minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
   }elsif($mode eq $MODE_APPEND){
     die "ERROR: missing COUNT\n" if not defined $count;
     appendDateFile($count, $type, $epoch);
@@ -180,8 +188,8 @@ sub appendDateFile($$$){
   close FH;
 }
 
-sub getDataByDate($$){
-  my ($minDateFilterExpr, $typeFilterRegex) = @_;
+sub getDataByDate($$$){
+  my ($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex) = @_;
   my $minDate = undef;
   if(defined $minDateFilterExpr){
     $minDate = `date --date="$minDateFilterExpr" +%Y%m%d`;
@@ -217,14 +225,16 @@ sub getDataByDate($$){
     }
     if($$dataByDate{$date}{total} == 0){
       delete $$dataByDate{$date};
+    }elsif(defined $minSetsFilterCount and $$dataByDate{$date}{sets} < $minSetsFilterCount){
+      delete $$dataByDate{$date};
     }
   }
   return $dataByDate;
 }
 
-sub printDates($$){
-  my ($minDateFilterExpr, $typeFilterRegex) = @_;
-  my $dataByDate = getDataByDate($minDateFilterExpr, $typeFilterRegex);
+sub printDates($$$){
+  my ($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex) = @_;
+  my $dataByDate = getDataByDate($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
   for my $date(sort keys %$dataByDate){
     my $total = $$dataByDate{$date}{total};
     my $max = $$dataByDate{$date}{max};
@@ -233,13 +243,13 @@ sub printDates($$){
   }
 }
 
-sub gnuplot($$$){
-  my ($feh, $minDateFilterExpr, $typeFilterRegex) = @_;
+sub gnuplot($$$$){
+  my ($feh, $minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex) = @_;
   my $gnuplotDataFile = "/tmp/$EXEC-gnuplot-data";
   my $gnuplotScriptFile = "/tmp/$EXEC-gnuplot-script";
   my $gnuplotOutputFile = "/tmp/$EXEC-gnuplot-output.png";
 
-  my $dataByDate = getDataByDate($minDateFilterExpr, $typeFilterRegex);
+  my $dataByDate = getDataByDate($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
 
   my $data = "";
   $data .= "\"daily max\"\n";
