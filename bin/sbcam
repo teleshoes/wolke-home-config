@@ -2,19 +2,14 @@
 use strict;
 use warnings;
 
-my $size = "640x480";
+my $STREAMER_SIZE = "640x480";
+my $IPMAGIC_NAME = "tv";
 
 sub run(@);
 
-my $ipmagicConf = "tv";
-my $ipmagicUser = undef;
-
-my @ipmagicCmd = ("ipmagic", $ipmagicConf);
-@ipmagicCmd = (@ipmagicCmd, "-u", $ipmagicUser) if defined $ipmagicUser;
-
 my $usage = "Usage:
   $0 [FILENAME]
-    run `streamer` on `@ipmagicCmd` or `seedbox -r`,
+    run `streamer` using `ipmagic $IPMAGIC_NAME` or `seedbox -r`,
       copy the image over
     if FILENAME is specified, move to FILENAME
     if FILENAME is NOT specified, run `feh` on the image
@@ -28,14 +23,20 @@ sub main(@){
   chomp $d;
   my $file = "sbcam-$d.jpeg";
 
-  my @camCmd = ("streamer", "-s", $size, "-f", "jpeg", "-o", "/tmp/$file");
+  my @camCmd = ("streamer", "-s", $STREAMER_SIZE, "-f", "jpeg", "-o", "/tmp/$file");
 
-  my $ipmagicHost = `ipmagic $ipmagicConf -r 0 2>/dev/null`;
-  chomp $ipmagicHost;
-  $ipmagicHost = "$ipmagicUser\@$ipmagicHost" if defined $ipmagicUser;
+  my $ipmagicIsOk = `ipmagic $IPMAGIC_NAME -r 0 echo ok 2>/dev/null`;
 
-  if($ipmagicHost =~ /\w/){
-    run (@ipmagicCmd, @camCmd);
+  if($ipmagicIsOk =~ /ok/){
+    my $ipmagicHost = `ipmagic $IPMAGIC_NAME --host`;
+    chomp $ipmagicHost;
+    die "ERROR: missing ipmagic host\n" if $ipmagicHost =~ /^\s*$/;
+
+    my $ipmagicUser = `ipmagic $IPMAGIC_NAME --default-user`;
+    chomp $ipmagicUser;
+    $ipmagicHost = "$ipmagicUser\@$ipmagicHost" if $ipmagicUser =~ /\S/;
+
+    run ("ipmagic", $IPMAGIC_NAME, @camCmd);
     run "scp", "$ipmagicHost:/tmp/$file", "/tmp/$file";
   }else{
     my $sbHost = `seedbox`;
