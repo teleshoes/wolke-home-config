@@ -1,0 +1,84 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+#$ptrn23 = "##_P__PP_PP_PP__P__PP_____P__PPPPPP_P_PPPP_P_P____##_P__PP_PP_PP__P__PP_____P__PPPPPP_P_PPPP_P_P____";
+#$ptrn24 = "##_P__PP_PP_PP__P__PP_____P__PPPPPP_PPPPPP_P______##_P__PP_PP_PP__P__PP_____P__PPPPPP_PPPPPP_P______";
+
+my $CONST1 = '1011';
+my $CONST2 = '0010';
+
+my $TEMPS = {
+  t17  => '0000',
+  t18  => '0001',
+  t19  => '0011',
+  t20  => '0010',
+  t21  => '0110',
+  t22  => '0111',
+  t23  => '0101',
+  t24  => '0100',
+  t25  => '1100',
+  t26  => '1101',
+  t27  => '1001',
+  t28  => '1000',
+  t29  => '1010',
+  t30  => '1011',
+  tSS  => '1111',
+  toff => '1110',
+};
+
+my $FANS = {
+  auto => '1011',
+  low  => '1001',
+  med  => '0101',
+  high => '0011',
+  off  => '0111',
+};
+
+my $STATES = {
+  on  => '1111',
+  off => '1011',
+};
+
+my $MODES = {
+  cool => '0000',
+  heat => '1100',
+  auto => '1000',
+  fan  => '0100',
+};
+
+sub main(@){
+  my $fan = $$FANS{low};
+  my $temp = $$TEMPS{t23};
+  my $mode = $$MODES{cool};
+  my $state = $$STATES{off};
+
+  my $bits = "";
+  $bits .= $CONST1 . $CONST2 . inv($CONST1) . inv($CONST2);
+  $bits .= $fan    . $state  . inv($fan)    . inv($state);
+  $bits .= $temp   . $mode   . inv($temp)   . inv($mode);
+
+  print "$bits\n";
+
+  my $ptrn = "##$bits##$bits";
+  $ptrn =~ s/0/_/g;
+  $ptrn =~ s/1/X/g;
+  $ptrn =~ s/_/space 500\npulse 500\n/g;
+  $ptrn =~ s/X/space 1500\npulse 500\n/g;
+  $ptrn =~ s/#/space 4000\npulse 4000\n/g;
+
+  open FH, "> $ENV{HOME}/.config/iguana/remotes/midea_ac_MAW08V1QWT/buttons/test";
+  print FH $ptrn;
+  close FH;
+}
+
+sub inv($){
+  my ($nibble) = @_;
+  $nibble =~ s/0/one/g;
+  $nibble =~ s/1/zero/g;
+  $nibble =~ s/zero/0/g;
+  $nibble =~ s/one/1/g;
+  return $nibble;
+}
+
+&main(@ARGV);
