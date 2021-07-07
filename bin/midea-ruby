@@ -6,6 +6,7 @@ my $MIDEA_CONFIG_DIR = "$ENV{HOME}/.midea";
 my $MIDEA_CONFIG_FILE = "$ENV{HOME}/.midea/config";
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/midea-ruby";
+my $CACHE_AC_IDS = "$CACHE_DIR/ac-ids.csv";
 my $CACHE_SECRETS_MTIME = "$CACHE_DIR/secrets-mtime";
 
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
@@ -13,6 +14,10 @@ my $SECRETS_PREFIX = "midea";
 my $SECRETS_KEYS_REGEX = join "|", qw(app_key email password);
 my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
 
+my $DEFAULT_AC_NUM = 1;
+
+sub getACId($);
+sub ensureACIds();
 sub ensureConfig();
 sub getCachedSecretsMtime();
 
@@ -25,6 +30,52 @@ sub decrypt($);
 
 sub main(@){
   ensureConfig();
+  ensureACIds();
+}
+
+sub getACId($){
+  my ($acNum) = @_;
+  ensureACIds();
+  my @csvLines = `cat $CACHE_AC_IDS`;
+  for my $line(@csvLines){
+    if($line =~ /^$acNum,(\d+)$/){
+      return $1;
+    }
+  }
+  die "ERROR: could not get AC ID for AC#$acNum\n";
+}
+
+sub ensureACIds(){
+  return if -e $CACHE_AC_IDS;
+  ensureConfig();
+
+  my $col = '[^|]*[^| \t]';
+  my $acNum = 0;
+  my %acIdsByACNum;
+  for my $line(`midea-ac list 2>/dev/null`){
+    if($line =~ /^\|\s*($col)\s*\|\s*($col)\s*\|\s*($col)\s*\|\s*($col)\s*\|\s*($col)\s*\|$/){
+      my ($id, $name, $type, $online, $active) = ($1, $2, $3, $4, $5);
+      next if $id eq "ID";
+
+      if($id !~ /^\d+$/){
+        die "ERROR: malformed `midea-ac list` line:\n$line";
+      }elsif($type ne '0xAC' or $online ne '1' or $active ne '1'){
+        print "WARNING: skipping device $line";
+      }else{
+        $acNum++;
+        $acIdsByACNum{$acNum} = $id;
+      }
+    }
+  }
+
+  my $count = keys %acIdsByACNum;
+  if($count == 0){
+    die "ERROR: could not obtain any AC IDs\n";
+  }
+
+  system "mkdir", "-p", $CACHE_DIR;
+  my $csv = join '', map {"$_,$acIdsByACNum{$_}\n"} sort keys %acIdsByACNum;
+  writeFile($CACHE_AC_IDS, $csv);
 }
 
 sub ensureConfig(){
