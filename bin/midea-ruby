@@ -16,6 +16,9 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
 sub ensureConfig();
 sub getCachedSecretsMtime();
 
+sub readFile($);
+sub readFileLines($);
+sub writeFile($$);
 sub mtime($);
 sub readSecrets();
 sub decrypt($);
@@ -32,15 +35,15 @@ sub ensureConfig(){
   }else{
     system "mkdir", "-p", $MIDEA_CONFIG_DIR;
     my $cfg = readSecrets();
-    open FH, "> $MIDEA_CONFIG_FILE" or die "ERROR: could not write $MIDEA_CONFIG_FILE\n$!\n";
-    print FH "---\n";
-    print FH "email: $$cfg{email}\n";
-    print FH "password: $$cfg{password}\n";
-    print FH "app_key: $$cfg{app_key}\n";
-    close FH;
+    my $contents = "";
+    $contents .= "---\n";
+    $contents .= "email: $$cfg{email}\n";
+    $contents .= "password: $$cfg{password}\n";
+    $contents .= "app_key: $$cfg{app_key}\n";
+    writeFile($MIDEA_CONFIG_FILE, $contents);
 
     system "mkdir", "-p", $CACHE_DIR;
-    system "echo $secretsMtime > $CACHE_SECRETS_MTIME";
+    writeFile($CACHE_SECRETS_MTIME, "$secretsMtime\n");
   }
 }
 
@@ -57,6 +60,24 @@ sub mtime($){
   my ($file) = @_;
   my @stat = stat $file;
   return $stat[9];
+}
+
+sub readFile($){
+  my ($file) = @_;
+  my $contents = join '', readFileLines($file);
+}
+sub readFileLines($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  return @lines;
+}
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
 }
 
 sub readSecrets(){
