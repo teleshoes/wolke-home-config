@@ -2,7 +2,86 @@
 use strict;
 use warnings;
 
+my $MIDEA_CONFIG_DIR = "$ENV{HOME}/.midea";
+my $MIDEA_CONFIG_FILE = "$ENV{HOME}/.midea/config";
+
+my $CACHE_DIR = "$ENV{HOME}/.cache/midea-ruby";
+my $CACHE_SECRETS_MTIME = "$CACHE_DIR/secrets-mtime";
+
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_PREFIX = "midea";
+my $SECRETS_KEYS_REGEX = join "|", qw(app_key email password);
+my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
+
+sub ensureConfig();
+sub getCachedSecretsMtime();
+
+sub mtime($);
+sub readSecrets();
+sub decrypt($);
+
 sub main(@){
+  ensureConfig();
+}
+
+sub ensureConfig(){
+  my $secretsMtime = mtime $SECRETS_FILE;
+  my $cachedSecretsMtime = getCachedSecretsMtime();
+  if(-e $MIDEA_CONFIG_FILE and $secretsMtime == $cachedSecretsMtime){
+    return;
+  }else{
+    system "mkdir", "-p", $MIDEA_CONFIG_DIR;
+    my $cfg = readSecrets();
+    open FH, "> $MIDEA_CONFIG_FILE" or die "ERROR: could not write $MIDEA_CONFIG_FILE\n$!\n";
+    print FH "---\n";
+    print FH "email: $$cfg{email}\n";
+    print FH "password: $$cfg{password}\n";
+    print FH "app_key: $$cfg{app_key}\n";
+    close FH;
+
+    system "mkdir", "-p", $CACHE_DIR;
+    system "echo $secretsMtime > $CACHE_SECRETS_MTIME";
+  }
+}
+
+sub getCachedSecretsMtime(){
+  my $c = `cat $CACHE_SECRETS_MTIME 2>/dev/null`;
+  if($c =~ /^(\d+)$/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $cfg = {};
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_PREFIX\.($SECRETS_KEYS_REGEX)\s*=\s*(.+)$/){
+      $$cfg{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$cfg){
+    $$cfg{$key} = decrypt $$cfg{$key} if defined $SECRETS_ENC_KEYS{$key};
+  }
+  return $cfg;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
 }
 
 &main(@ARGV);
