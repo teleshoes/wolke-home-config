@@ -232,6 +232,24 @@ function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           sshc pi@raspi "command igcmd $@"
                         fi
                       }
+function midea-igcmd  { if [[ "$(hostname)" == "raspberrypi" ]]; then
+                          command midea-igcmd "$@";
+                        elif [[ "$1" == "--bash-complete" ]]; then
+                          command midea-igcmd "$@";
+                        else
+                          echo "RUNNING ON raspi"
+                          sshc pi@raspi "command midea-igcmd $@"
+                        fi
+                      }
+function ac-midea     { if [[ "$(hostname)" == "raspberrypi" ]]; then
+                          command ac-midea "$@";
+                        elif [[ "$1" == "--bash-complete" ]]; then
+                          command ac-midea "$@";
+                        else
+                          echo "RUNNING ON raspi"
+                          sshc pi@raspi "command ac-midea $@"
+                        fi
+                      }
 function ig           { igcmd "$@"; }
 function acfu         { igcmd ac-fan_up "$@"; }
 function acfd         { igcmd ac-fan_down "$@"; }
