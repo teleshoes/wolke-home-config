@@ -37,7 +37,7 @@ my $usage = "Usage:
   $0 [OPTS] -r|--read
     -read cached AC info from last --fetch
     -print AC info, formatted:
-      <POWER> <MODE> <FAN_SPEED>% <TARGET_TEMP>C <INDOOR_TEMP>C/<OUTDOOR_TEMP>C
+      <POWER> <MODE> <FAN_SPEED>% <TARGET_TEMP>C <INDOOR_TEMP>C/<OUTDOOR_TEMP>C - <ELAPSED>
 
       POWER:        'on' or 'off'
       MODE:         'cool', 'heat', 'dry', or 'fan'
@@ -45,6 +45,7 @@ my $usage = "Usage:
       TARGET_TEMP:  degrees celsius of set/desired temperature
       INDOOR_TEMP:  degrees celsius from indoor thermometer
       OUTDOOR_TEMP: degrees celsius from outdoor thermometer
+      ELAPSED:      time since last fetch, formatted 'X sec ago' or 'X min ago'
 
   OPTS
     --ac=AC_NUM
@@ -80,14 +81,23 @@ sub main(@){
 
 sub formatACInfo($){
   my ($acInfo) = @_;
+  my $elapsedS = time - $$acInfo{mtime};
+  my $elapsedMin = int($elapsedS / 60.0);
+  my $elapsedFmt;
+  if($elapsedS < 60){
+    $elapsedFmt = "$elapsedS sec ago";
+  }else{
+    $elapsedFmt = "$elapsedMin min ago";
+  }
 
-  return sprintf "%-3s %4s %3d%%  %2dC  (%2dC/%2dC)\n",
+  return sprintf "%-3s %4s %3d%%  %2dC  (%2dC/%2dC)   -   %s\n",
     $$acInfo{power},
     $$acInfo{mode},
     $$acInfo{fan},
     $$acInfo{temp},
     $$acInfo{indoor_temp},
     $$acInfo{outdoor_temp},
+    $elapsedFmt,
   ;
 }
 
@@ -106,6 +116,8 @@ sub getCachedACInfo($){
   my $cacheFile = "$CACHE_DIR/ac-$acID";
 
   my $info = {};
+  $$info{mtime} = mtime $cacheFile;
+
   for my $line(readFileLines($cacheFile)){
     if($line =~ /^Device is turned (on|off)\.$/){
       $$info{power} = $1;
@@ -127,6 +139,7 @@ sub getCachedACInfo($){
       $$info{eco} = $1;
     }
   }
+
   if(
     not defined $$info{power}
     or not defined $$info{mode}
