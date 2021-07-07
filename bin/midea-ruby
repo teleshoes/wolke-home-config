@@ -32,18 +32,57 @@ sub decrypt($);
 my $usage = "Usage:
   $0 -h | --help
     show this message
+
+  $0
+  $0 -r|--read
+    -read cached AC info from last --fetch
+    -print AC info, formatted:
+      <POWER> <MODE> <FAN_SPEED>% <TARGET_TEMP>C <INDOOR_TEMP>C/<OUTDOOR_TEMP>C
+
+      POWER:        'on' or 'off'
+      MODE:         'cool', 'heat', 'dry', or 'fan'
+      FAN_SPEED:    integer (low=40, med=60, high=100, auto=102)
+      TARGET_TEMP:  degrees celsius of set/desired temperature
+      INDOOR_TEMP:  degrees celsius from indoor thermometer
+      OUTDOOR_TEMP: degrees celsius from outdoor thermometer
 ";
 
+my $COMMAND_READ = "read";
+
 sub main(@){
+  my $acNum = $DEFAULT_AC_NUM;
+  my $cmd = $COMMAND_READ;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(-r|--read)$/){
+      $cmd = $COMMAND_READ;
     }else{
       die $usage;
     }
   }
+
+  if($cmd eq $COMMAND_READ){
+    my $acInfo = getCachedACInfo($acNum);
+    print formatACInfo($acInfo);
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub formatACInfo($){
+  my ($acInfo) = @_;
+
+  return sprintf "%-3s %4s %3d%%  %2dC  (%2dC/%2dC)\n",
+    $$acInfo{power},
+    $$acInfo{mode},
+    $$acInfo{fan},
+    $$acInfo{temp},
+    $$acInfo{indoor_temp},
+    $$acInfo{outdoor_temp},
+  ;
 }
 
 sub fetchACInfo($){
