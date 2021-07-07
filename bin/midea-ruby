@@ -16,6 +16,7 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
 
 my $DEFAULT_AC_NUM = 1;
 
+sub fetchACInfo($);
 sub getACId($);
 sub ensureACIds();
 sub ensureConfig();
@@ -29,8 +30,55 @@ sub readSecrets();
 sub decrypt($);
 
 sub main(@){
+  my $acInfo = getCachedACInfo($DEFAULT_AC_NUM);
+}
+
+sub fetchACInfo($){
+  my ($acNum) = @_;
+  my $acID = getACId($acNum);
   ensureConfig();
-  ensureACIds();
+  my $output = `midea-ac get $acID 2>/dev/null`;
+  my $cacheFile = "$CACHE_DIR/ac-$acID";
+  writeFile($cacheFile, $output);
+}
+
+sub getCachedACInfo($){
+  my ($acNum) = @_;
+  my $acID = getACId($acNum);
+  my $cacheFile = "$CACHE_DIR/ac-$acID";
+
+  my $info = {};
+  for my $line(readFileLines($cacheFile)){
+    if($line =~ /^Device is turned (on|off)\.$/){
+      $$info{power} = $1;
+    }elsif($line =~ /^Target temperature: (\d+) celsius$/){
+      $$info{temp} = $1;
+    }elsif($line =~ /^Indoor temperature: (\d+) celsius$/){
+      $$info{indoor_temp} = $1;
+    }elsif($line =~ /^Outdoor temperature: (\d+) celsius$/){
+      $$info{outdoor_temp} = $1;
+    }elsif($line =~ /^Mode: (\w+)$/){
+      $$info{mode} = $1;
+    }elsif($line =~ /^Fan speed: (\d+)$/){
+      $$info{fan} = $1;
+    }elsif($line =~ /^TimerOn is (active|not active).$/){
+      $$info{timerOn} = $1;
+    }elsif($line =~ /^TimerOff is (active|not active).$/){
+      $$info{timerOff} = $1;
+    }elsif($line =~ /^Eco mode is (on|off).$/){
+      $$info{eco} = $1;
+    }
+  }
+  if(
+    not defined $$info{power}
+    or not defined $$info{mode}
+    or not defined $$info{temp}
+    or not defined $$info{fan}
+  ){
+    die "ERROR: could not parse AC info\n";
+  }
+
+  return $info;
 }
 
 sub getACId($){
