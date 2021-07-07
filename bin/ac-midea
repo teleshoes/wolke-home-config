@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $IPMAGIC_NAME = "pi";
+my $MIDEA_RUBY_EXEC = "midea-ruby";
+my $MIDEA_IGCMD_EXEC = "midea-igcmd";
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC
+  $EXEC -t | --toggle
+    -check $MIDEA_RUBY_EXEC --read
+    -if POWER=on:
+      -run $MIDEA_IGCMD_EXEC off
+    -if POWER=off:
+      -run $MIDEA_IGCMD_EXEC cool 22 low
+";
+
+my $COMMAND_TOGGLE = "toggle";
+
+sub isACOn();
+
+sub main(@){
+  my $cmd = $COMMAND_TOGGLE;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-t|--toggle)$/){
+      $cmd = $COMMAND_TOGGLE;
+    }else{
+      die $USAGE;
+    }
+  }
+
+  if($cmd eq $COMMAND_TOGGLE){
+    my $isACOn = isACOn();
+    my @args = $isACOn ? ("off") : ("cool", "low", 22);
+    system $MIDEA_IGCMD_EXEC, @args;
+    system $MIDEA_RUBY_EXEC, "--fetch";
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub isACOn(){
+  my $status = `$MIDEA_RUBY_EXEC --read`;
+  if($status =~ /^on/){
+    return 1;
+  }elsif($status =~ /^off/){
+    return 0;
+  }else{
+    die "ERROR: could not parse $MIDEA_RUBY_EXEC output: $status\n";
+  }
+}
+
+&main(@ARGV);
