@@ -104,8 +104,14 @@ my $usage = "Usage:
       (this is the default)
 ";
 
+my $COMMAND_CUSTOM_BTN = "custom-btn";
+
+sub igcmdPattern($$$$);
+sub inv($);
+
 sub main(@){
   my $fan = $$FANS{auto};
+  my $state = $$STATES{off}; #this is ignored, apparently
   my $temp = $$TEMPS{same};
   my $mode = $$MODES{auto};
   while(@_ > 0){
@@ -148,7 +154,21 @@ sub main(@){
     }
   }
 
-  my $state = $$STATES{off}; #this is ignored, apparently
+  if($cmd eq $COMMAND_CUSTOM_BTN){
+    my $ptrn = igcmdPattern($fan, $state, $temp, $mode);
+
+    open FH, "> $IGCMD_BTN_FILE" or die "ERROR: could not write $IGCMD_BTN_FILE\n$!\n";
+    print FH $ptrn;
+    close FH;
+
+    system "igcmd", "$IGCMD_REMOTE_NAME-$IGCMD_BTN_NAME";
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub igcmdPattern($$$$){
+  my ($fan, $state, $temp, $mode) = @_;
 
   my $bits = "";
   $bits .= $CONST1 . $CONST2 . inv($CONST1) . inv($CONST2);
@@ -166,11 +186,7 @@ sub main(@){
 
   $ptrn =~ s/^space \d+\n//;
 
-  open FH, "> $IGCMD_BTN_FILE" or die "ERROR: could not write $IGCMD_BTN_FILE\n$!\n";
-  print FH $ptrn;
-  close FH;
-
-  system "igcmd", "$IGCMD_REMOTE_NAME-$IGCMD_BTN_NAME";
+  return $ptrn;
 }
 
 sub inv($){
