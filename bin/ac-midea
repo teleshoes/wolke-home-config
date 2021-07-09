@@ -26,16 +26,22 @@ my $USAGE = "Usage:
 
   $EXEC -r|--read
     -run $MIDEA_RUBY_EXEC --read
+
+  $EXEC -s|--set [ARG ARG ..]
+    -run $MIDEA_IGCMD_EXEC ARG ARG ..
+    -run $MIDEA_RUBY_EXEC --fetch
 ";
 
 my $COMMAND_TOGGLE = "toggle";
 my $COMMAND_FETCH = "fetch";
 my $COMMAND_READ = "read";
+my $COMMAND_SET = "set";
 
 sub isACOn();
 
 sub main(@){
   my $cmd = $COMMAND_TOGGLE;
+  my @igcmdArgs;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -47,9 +53,15 @@ sub main(@){
       $cmd = $COMMAND_FETCH;
     }elsif($arg =~ /^(-r|--read)$/){
       $cmd = $COMMAND_READ;
+    }elsif($arg =~ /^(-s|--set)$/){
+      $cmd = $COMMAND_SET;
     }else{
-      die $USAGE;
+      push @igcmdArgs, $arg;
     }
+  }
+
+  if(@igcmdArgs > 0 and $cmd ne $COMMAND_SET){
+    die "ERROR: unknown args @igcmdArgs\n";
   }
 
   if($cmd eq $COMMAND_TOGGLE){
@@ -60,6 +72,9 @@ sub main(@){
     system $MIDEA_RUBY_EXEC, "--fetch-and-read";
   }elsif($cmd eq $COMMAND_READ){
     system $MIDEA_RUBY_EXEC, "--read";
+  }elsif($cmd eq $COMMAND_SET){
+    system $MIDEA_IGCMD_EXEC, @igcmdArgs;
+    system $MIDEA_RUBY_EXEC, "--fetch";
   }else{
     die "ERROR: unknown command $cmd\n";
   }
