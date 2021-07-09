@@ -56,6 +56,10 @@ my $usage = "Usage:
   $0 [PRESET] [STATE] [MODE] [TEMP] [FAN]
     generate an iguana pattern for midea ac to set MODE/TEMP/FAN
 
+  $0 eco | --eco | --energy-saver
+    run: igcmd $IGCMD_REMOTE_NAME-energy_saver
+
+
   PRESET
     on | default
       same as: cool low T22
@@ -105,6 +109,7 @@ my $usage = "Usage:
 ";
 
 my $COMMAND_CUSTOM_BTN = "custom-btn";
+my $COMMAND_STATIC_BTN = "static-btn";
 
 sub igcmdPattern($$$$);
 sub inv($);
@@ -114,6 +119,8 @@ sub main(@){
   my $state = $$STATES{off}; #this is ignored, apparently
   my $temp = $$TEMPS{same};
   my $mode = $$MODES{auto};
+  my $cmd = $COMMAND_CUSTOM_BTN;
+  my $staticButtonName = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -149,6 +156,9 @@ sub main(@){
       $fan = $$FANS{high};
     }elsif($arg =~ /^T?(17|18|19|2\d|30)C?$/){
       $temp = $$TEMPS{$1};
+    }elsif($arg =~ /^(eco|--eco|--energy-saver)$/){
+      $cmd = $COMMAND_STATIC_BTN;
+      $staticButtonName = "energy_saver";
     }else{
       die $usage;
     }
@@ -162,6 +172,8 @@ sub main(@){
     close FH;
 
     system "igcmd", "$IGCMD_REMOTE_NAME-$IGCMD_BTN_NAME";
+  }elsif($cmd eq $COMMAND_STATIC_BTN){
+    system "igcmd", "$IGCMD_REMOTE_NAME-$staticButtonName";
   }else{
     die "ERROR: unknown command $cmd\n";
   }
