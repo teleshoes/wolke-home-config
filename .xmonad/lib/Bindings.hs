@@ -166,7 +166,7 @@ shortcuts conf = "Shortcuts" @@ do
         "tv spkr cyc"   @@ mCAW  xK_VolUp#! "ipmagic tv speaker --cycle; ipmagic tv klomp-cmd restart"
 
     "iguana IR"     @@ do
-        "A/C power"     @@ mC    xK_F1   #! "ac ac-power"
+        "A/C toggle  "  @@ mC    xK_F1   #! "ipmagic pi ac-midea --toggle"
         "A/C 1h-toggle" @@ mCS   xK_F1   #! "term ac 60min"
 
     "CEC power"     @@ do
