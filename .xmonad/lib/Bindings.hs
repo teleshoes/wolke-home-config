@@ -167,6 +167,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "iguana IR"     @@ do
         "A/C toggle  "  @@ mC    xK_F1   #! "ipmagic pi ac-midea --toggle"
+        "A/C cold"      @@ mCS   xK_F1   #! "ipmagic pi ac-midea cold"
 
     "CEC power"     @@ do
         "TV pwr toggle" @@ mC    xK_F2   #! "ipmagic tv cec-cmd --tv togglestandby"
