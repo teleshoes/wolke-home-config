@@ -15,13 +15,16 @@ my $EXEC = basename $0;
 
 my $MODE_PRINT = "print";
 my $MODE_DATES = "dates";
+my $MODE_TODAY = "today";
 my $MODE_PLOT = "plot";
 my $MODE_APPEND = "append";
 
 sub appendDateFile($$$);
+sub getDataForToday();
 sub getDataByDate($$$);
 sub printDates($$$);
 sub gnuplot($$$$);
+sub formatHMS($);
 sub getDate($);
 sub getTime($);
 sub getDateFile($$);
@@ -35,6 +38,9 @@ my $usage = "Usage:
 
   $EXEC [OPTS] -d | --dates | --days | dates | days | d
     print max, number of sets, and total values for each DATEFILE
+
+  $EXEC [OPTS] -t | --today | t
+    print sets done on today's DATEFILE, and time since last set
 
   $EXEC [OPTS] -g | -p | --gnuplot | --plot | gnuplot | plot
     use gnuplot to plot max and total of all values in each DATEFILE,
@@ -110,6 +116,8 @@ sub main(@){
       $mode = $MODE_PRINT;
     }elsif($arg =~ /^(?:-d|--dates|--days|dates|days|d)$/){
       $mode = $MODE_DATES;
+    }elsif($arg =~ /^(?:-t|--today|t)$/){
+      $mode = $MODE_TODAY;
     }elsif($arg =~ /^(?:-g|-p|--gnuplot|--plot|gnuplot|plot)$/){
       $mode = $MODE_PLOT;
     }elsif($arg =~ /^(f)$/){
@@ -162,6 +170,26 @@ sub main(@){
   }elsif($mode eq $MODE_DATES){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
     printDates($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
+  }elsif($mode eq $MODE_TODAY){
+    die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
+    die "ERROR: cannot filter mode $mode\n" if $isFiltered;
+    my $data = getDataForToday();
+    if(not defined $data){
+      print "no data for today\n";
+    }else{
+      my $total = $$data{total};
+      my $max = $$data{max};
+      my $sets = $$data{sets};
+      my $entries = $$data{entries};
+
+      my @epochs = sort map {$$_{epoch}} @$entries;
+      my $maxEpoch = $epochs[-1];
+
+      print join '', map {$$_{text}} @$entries;
+      print "total=$total  max=$max  sets=$sets\n";
+      my $elapsedS = time - $maxEpoch;
+      print "elapsed: " . formatHMS($elapsedS) . "\n";
+    }
   }elsif($mode eq $MODE_PLOT){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
     gnuplot($feh, $minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
@@ -191,6 +219,17 @@ sub appendDateFile($$$){
   open FH, ">> $dateFile" or die "could not open file\n$!\n";
   print FH "$line\n";
   close FH;
+}
+
+sub getDataForToday(){
+  my $dataByDate = getDataByDate(undef, undef, $TYPE_FILTER_REGEX_ALL);
+  my $today = getDate(time);
+  $today =~ s/-//g;
+  if(defined $$dataByDate{$today}){
+    return $$dataByDate{$today};
+  }else{
+    return undef;
+  }
 }
 
 sub getDataByDate($$$){
@@ -316,6 +355,14 @@ sub gnuplot($$$$){
   }else{
     die "ERROR: gnuplot failed, $gnuplotOutputFile does not exist\n";
   }
+}
+
+sub formatHMS($){
+  my ($t) = @_;
+  my $h = int($t / 60.0 / 60.0);
+  my $m = int($t / 60.0) % 60;
+  my $s = int($t) % 60;
+  return sprintf("%d:%02d:%02d", $h, $m, $s);
 }
 
 sub getDate($){
