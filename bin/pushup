@@ -25,6 +25,7 @@ sub getDataByDate($);
 sub printDates($);
 sub gnuplot($$);
 sub formatHMS($);
+sub parseDateExprYYYYMMDD($);
 sub getDate($);
 sub getTime($);
 sub getDateFile($$);
@@ -253,14 +254,8 @@ sub getDataForToday(){
 sub getDataByDate($){
   my ($filters) = @_;
 
-  my $minDate = undef;
-  if(defined $$filters{minDateExpr}){
-    $minDate = `date --date="$$filters{minDateExpr}" +%Y%m%d`;
-    chomp $minDate;
-    if($minDate !~ /^\d\d\d\d\d\d\d\d$/){
-      die "ERROR: could not parse \"$$filters{minDateExpr}\" with `date`\n";
-    }
-  }
+  my $minDate = parseDateExprYYYYMMDD($$filters{minDateExpr});
+
   my $dataByDate = {};
   for my $dateFile(glob "$CACHE_DIR/????-??-??"){
     my $date;
@@ -391,6 +386,18 @@ sub formatHMS($){
   my $m = int($t / 60.0) % 60;
   my $s = int($t) % 60;
   return sprintf("%d:%02d:%02d", $h, $m, $s);
+}
+
+sub parseDateExprYYYYMMDD($){
+  my ($dateExpr) = @_;
+  return undef if not defined $dateExpr;
+
+  my $fmt = `date --date="$dateExpr" +%Y%m%d`;
+  chomp $fmt;
+  if($fmt !~ /^\d\d\d\d\d\d\d\d$/){
+    die "ERROR: could not parse \"$dateExpr\" with `date`\n";
+  }
+  return $fmt;
 }
 
 sub getDate($){
