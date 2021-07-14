@@ -95,6 +95,11 @@ my $usage = "Usage:
       empty value will clear previously specified filters
     --sets=SETS_FILTER_COUNT
       same as: --min-sets=SETS_FILTER_COUNT --max-sets=SETS_FILTER_COUNT
+    --normal-sets | --mode-sets | --sets-mode
+      calculate the mode of the number of sets as SETS_COUNT_MODE,
+        among all entries after applying other filters,
+        and then filter as in:
+          --min-sets=SETS_COUNT_MODE --max-sets=SETS_COUNT_MODE
 
     --type-filter=TYPE_FILTER_REGEX
       in --dates and --gnuplot, include only entries
@@ -169,6 +174,10 @@ sub main(@){
     }elsif($arg =~ /^--sets=(\d*)$/){
       $$filters{minSetsCount} = $1;
       $$filters{maxSetsCount} = $1;
+      $anyFilterArgs = 1;
+    }elsif($arg =~ /^(--normal-sets|--mode-sets|--sets-mode)$/){
+      $$filters{minSetsCount} = "MODE";
+      $$filters{maxSetsCount} = "MODE";
       $anyFilterArgs = 1;
     }elsif($arg =~ /^(?:--type-filter)=(.+)$/){
       $$filters{typeRegex} = $1;
@@ -304,11 +313,25 @@ sub getDataByDate($){
     }
   }
 
-  my @dates = sort keys %$dataByDate;
-  for my $date(@dates){
-    if($$dataByDate{$date}{total} == 0){
-      delete $$dataByDate{$date};
-    }elsif($$filters{minSetsCount} and $$dataByDate{$date}{sets} < $$filters{minSetsCount}){
+  for my $date(sort keys %$dataByDate){
+    delete $$dataByDate{$date} if $$dataByDate{$date}{total} == 0;
+  }
+
+  my $setCountsFreq = {};
+  for my $date(sort keys %$dataByDate){
+    next if not defined $$dataByDate{$date};
+    my $sets = $$dataByDate{$date}{sets};
+    $$setCountsFreq{$sets} = 0 if not defined $$setCountsFreq{$sets};
+    $$setCountsFreq{$sets}++;
+  }
+  my @setCountsSortedByFreq = sort {$$setCountsFreq{$a} <=> $$setCountsFreq{$b}} keys %$setCountsFreq;
+  my $setCountsMode = @setCountsSortedByFreq > 0 ? $setCountsSortedByFreq[-1] : 0;
+
+  $$filters{minSetsCount} = $setCountsMode if $$filters{minSetsCount} eq "MODE";
+  $$filters{maxSetsCount} = $setCountsMode if $$filters{maxSetsCount} eq "MODE";
+
+  for my $date(sort keys %$dataByDate){
+    if($$filters{minSetsCount} and $$dataByDate{$date}{sets} < $$filters{minSetsCount}){
       delete $$dataByDate{$date};
     }elsif($$filters{maxSetsCount} and $$dataByDate{$date}{sets} > $$filters{maxSetsCount}){
       delete $$dataByDate{$date};
