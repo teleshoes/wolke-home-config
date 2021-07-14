@@ -23,6 +23,7 @@ my $MODE_APPEND = "append";
 sub appendDateFile($$$);
 sub getDataForToday();
 sub getDataByDate($);
+sub printEntries($);
 sub printDates($);
 sub gnuplot($$);
 sub formatHMS($);
@@ -39,7 +40,8 @@ my $usage = "Usage:
     cat all $CACHE_DIR/<DATEFILE> files without processing/filtering
 
   $EXEC [OPTS] --print|--get
-    cat all $CACHE_DIR/<DATEFILE> files without processing/filtering
+    process and print all entries in $CACHE_DIR/<DATEFILE> files
+    with default filters
 
   $EXEC [OPTS] -d | --dates | --days | dates | days | d
     print max, number of sets, and total values for each DATEFILE
@@ -217,8 +219,7 @@ sub main(@){
     system "cat $CACHE_DIR/????-??-??";
   }elsif($mode eq $MODE_PRINT){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
-    die "ERROR: cannot filter mode $mode\n" if $anyFilterArgs;
-    system "cat $CACHE_DIR/????-??-??";
+    printEntries($filters);
   }elsif($mode eq $MODE_DATES){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
     printDates($filters);
@@ -356,6 +357,16 @@ sub getDataByDate($){
   }
 
   return $dataByDate;
+}
+
+sub printEntries($){
+  my ($filters) = @_;
+  my $dataByDate = getDataByDate($filters);
+  for my $date(sort keys %$dataByDate){
+    for my $entry(@{$$dataByDate{$date}{entries}}){
+      print $$entry{text};
+    }
+  }
 }
 
 sub printDates($){
