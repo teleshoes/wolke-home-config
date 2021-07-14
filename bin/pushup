@@ -81,6 +81,11 @@ my $usage = "Usage:
     --min-sets=MIN_SETS_FILTER_COUNT
       in --dates and --gnuplot, include only entries
         with at least MIN_SETS_FILTER_COUNT sets
+    --max-sets=MAX_SETS_FILTER_COUNT
+      in --dates and --gnuplot, include only entries
+        with at most MIN_SETS_FILTER_COUNT sets
+    --sets=SETS_FILTER_COUNT
+      same as: --min-sets=SETS_FILTER_COUNT --max-sets=SETS_FILTER_COUNT
 
     --type-filter=TYPE_FILTER_REGEX
       in --dates and --gnuplot, include only entries
@@ -107,6 +112,7 @@ sub main(@){
   my $filters = {
     minDateExpr  => undef,
     minSetsCount => undef,
+    maxSetsCount => undef,
     typeRegex    => $TYPE_FILTER_REGEX_DEFAULT,
   };
   my $anyFilterArgs = 0;
@@ -143,6 +149,13 @@ sub main(@){
       $anyFilterArgs = 1;
     }elsif($arg =~ /^--min-sets=(\d+)$/){
       $$filters{minSetsCount} = $1;
+      $anyFilterArgs = 1;
+    }elsif($arg =~ /^--max-sets=(\d+)$/){
+      $$filters{maxSetsCount} = $1;
+      $anyFilterArgs = 1;
+    }elsif($arg =~ /^--sets=(\d+)$/){
+      $$filters{minSetsCount} = $1;
+      $$filters{maxSetsCount} = $1;
       $anyFilterArgs = 1;
     }elsif($arg =~ /^(?:--type-filter)=(.+)$/){
       $$filters{typeRegex} = $1;
@@ -283,6 +296,8 @@ sub getDataByDate($){
     if($$dataByDate{$date}{total} == 0){
       delete $$dataByDate{$date};
     }elsif(defined $$filters{minSetsCount} and $$dataByDate{$date}{sets} < $$filters{minSetsCount}){
+      delete $$dataByDate{$date};
+    }elsif(defined $$filters{maxSetsCount} and $$dataByDate{$date}{sets} > $$filters{maxSetsCount}){
       delete $$dataByDate{$date};
     }
   }
