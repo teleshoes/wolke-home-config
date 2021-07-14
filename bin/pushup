@@ -74,10 +74,12 @@ my $usage = "Usage:
       in --dates and --gnuplot, include only entries
         with date on or after MIN_DATE,
         where MIN_DATE is `date --date=\"<MIN_DATE_FILTER_EXPR>\" +%Y-%m-%d`
+      empty value will clear previously specified filters
     --max-date=MAX_DATE_FILTER_EXPR
       in --dates and --gnuplot, include only entries
         with date on or before MAX_DATE,
         where MAX_DATE is `date --date=\"<MAX_DATE_FILTER_EXPR>\" +%Y-%m-%d`
+      empty value will clear previously specified filters
     --recent | --6mos
       same as --min-date='6 months ago'
     --3mos
@@ -86,9 +88,11 @@ my $usage = "Usage:
     --min-sets=MIN_SETS_FILTER_COUNT
       in --dates and --gnuplot, include only entries
         with at least MIN_SETS_FILTER_COUNT sets
+      empty value will clear previously specified filters
     --max-sets=MAX_SETS_FILTER_COUNT
       in --dates and --gnuplot, include only entries
         with at most MIN_SETS_FILTER_COUNT sets
+      empty value will clear previously specified filters
     --sets=SETS_FILTER_COUNT
       same as: --min-sets=SETS_FILTER_COUNT --max-sets=SETS_FILTER_COUNT
 
@@ -144,10 +148,10 @@ sub main(@){
       $type = $1;
     }elsif($arg =~ /^(?:--type)=((?:[a-zA-Z])\w*)$/){
       $type = $1;
-    }elsif($arg =~ /^--min-date=(.+)$/){
+    }elsif($arg =~ /^--min-date=(.*)$/){
       $$filters{minDateExpr} = $1;
       $anyFilterArgs = 1;
-    }elsif($arg =~ /^--max-date=(.+)$/){
+    }elsif($arg =~ /^--max-date=(.*)$/){
       $$filters{maxDateExpr} = $1;
       $anyFilterArgs = 1;
     }elsif($arg =~ /^(--recent|--6mos)$/){
@@ -156,13 +160,13 @@ sub main(@){
     }elsif($arg =~ /^(--3mos)$/){
       $$filters{minDateExpr} = "3 months ago";
       $anyFilterArgs = 1;
-    }elsif($arg =~ /^--min-sets=(\d+)$/){
+    }elsif($arg =~ /^--min-sets=(\d*)$/){
       $$filters{minSetsCount} = $1;
       $anyFilterArgs = 1;
-    }elsif($arg =~ /^--max-sets=(\d+)$/){
+    }elsif($arg =~ /^--max-sets=(\d*)$/){
       $$filters{maxSetsCount} = $1;
       $anyFilterArgs = 1;
-    }elsif($arg =~ /^--sets=(\d+)$/){
+    }elsif($arg =~ /^--sets=(\d*)$/){
       $$filters{minSetsCount} = $1;
       $$filters{maxSetsCount} = $1;
       $anyFilterArgs = 1;
@@ -304,9 +308,9 @@ sub getDataByDate($){
   for my $date(@dates){
     if($$dataByDate{$date}{total} == 0){
       delete $$dataByDate{$date};
-    }elsif(defined $$filters{minSetsCount} and $$dataByDate{$date}{sets} < $$filters{minSetsCount}){
+    }elsif($$filters{minSetsCount} and $$dataByDate{$date}{sets} < $$filters{minSetsCount}){
       delete $$dataByDate{$date};
-    }elsif(defined $$filters{maxSetsCount} and $$dataByDate{$date}{sets} > $$filters{maxSetsCount}){
+    }elsif($$filters{maxSetsCount} and $$dataByDate{$date}{sets} > $$filters{maxSetsCount}){
       delete $$dataByDate{$date};
     }
   }
@@ -400,7 +404,7 @@ sub formatHMS($){
 
 sub parseDateExprYYYYMMDD($){
   my ($dateExpr) = @_;
-  return undef if not defined $dateExpr;
+  return undef if not defined $dateExpr or $dateExpr eq "";
 
   my $fmt = `date --date="$dateExpr" +%Y%m%d`;
   chomp $fmt;
