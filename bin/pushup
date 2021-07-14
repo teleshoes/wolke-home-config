@@ -107,6 +107,7 @@ sub main(@){
   my $minDateFilterExpr = undef;
   my $minSetsFilterCount = undef;
   my $typeFilterRegex = $TYPE_FILTER_REGEX_DEFAULT;
+  my $anyFilterArgs = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -131,18 +132,25 @@ sub main(@){
       $type = $1;
     }elsif($arg =~ /^--min-date=(.+)$/){
       $minDateFilterExpr = $1;
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(--recent|--6mos)$/){
       $minDateFilterExpr = "6 months ago";
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(--3mos)$/){
       $minDateFilterExpr = "3 months ago";
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^--min-sets=(\d+)$/){
       $minSetsFilterCount = $1;
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(?:--type-filter)=(.+)$/){
       $typeFilterRegex = $1;
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(--type-filter-all)$/){
       $typeFilterRegex = $TYPE_FILTER_REGEX_ALL;
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(--type-filter-empty)$/){
       $typeFilterRegex = $TYPE_FILTER_REGEX_EMPTY;
+      $anyFilterArgs = 1;
     }elsif($arg =~ /^(?:--epoch)=(\d+)$/){
       $epoch = $1;
     }elsif($arg =~ /^(--feh)$/){
@@ -157,22 +165,16 @@ sub main(@){
     }
   }
 
-  my $isFiltered = 0
-    || (defined $minDateFilterExpr)
-    || (defined $minSetsFilterCount)
-    || ($typeFilterRegex ne $TYPE_FILTER_REGEX_DEFAULT)
-  ;
-
   if($mode eq $MODE_PRINT){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
-    die "ERROR: cannot filter mode $mode\n" if $isFiltered;
+    die "ERROR: cannot filter mode $mode\n" if $anyFilterArgs;
     system "cat $CACHE_DIR/????-??-??";
   }elsif($mode eq $MODE_DATES){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
     printDates($minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
   }elsif($mode eq $MODE_TODAY){
     die "ERROR: cannot defined append-type for mode $mode\n" if defined $type;
-    die "ERROR: cannot filter mode $mode\n" if $isFiltered;
+    die "ERROR: cannot filter mode $mode\n" if $anyFilterArgs;
     my $data = getDataForToday();
     if(not defined $data){
       print "no data for today\n";
@@ -195,7 +197,7 @@ sub main(@){
     gnuplot($feh, $minDateFilterExpr, $minSetsFilterCount, $typeFilterRegex);
   }elsif($mode eq $MODE_APPEND){
     die "ERROR: missing COUNT\n" if not defined $count;
-    die "ERROR: cannot filter mode $mode\n" if $isFiltered;
+    die "ERROR: cannot filter mode $mode\n" if $anyFilterArgs;
     appendDateFile($count, $type, $epoch);
   }else{
     die $usage;
