@@ -74,6 +74,10 @@ my $usage = "Usage:
       in --dates and --gnuplot, include only entries
         with date on or after MIN_DATE,
         where MIN_DATE is `date --date=\"<MIN_DATE_FILTER_EXPR>\" +%Y-%m-%d`
+    --max-date=MAX_DATE_FILTER_EXPR
+      in --dates and --gnuplot, include only entries
+        with date on or before MAX_DATE,
+        where MAX_DATE is `date --date=\"<MAX_DATE_FILTER_EXPR>\" +%Y-%m-%d`
     --recent | --6mos
       same as --min-date='6 months ago'
     --3mos
@@ -112,6 +116,7 @@ sub main(@){
   my $feh = 0;
   my $filters = {
     minDateExpr  => undef,
+    maxDateExpr  => undef,
     minSetsCount => undef,
     maxSetsCount => undef,
     typeRegex    => $TYPE_FILTER_REGEX_DEFAULT,
@@ -141,6 +146,9 @@ sub main(@){
       $type = $1;
     }elsif($arg =~ /^--min-date=(.+)$/){
       $$filters{minDateExpr} = $1;
+      $anyFilterArgs = 1;
+    }elsif($arg =~ /^--max-date=(.+)$/){
+      $$filters{maxDateExpr} = $1;
       $anyFilterArgs = 1;
     }elsif($arg =~ /^(--recent|--6mos)$/){
       $$filters{minDateExpr} = "6 months ago";
@@ -255,6 +263,7 @@ sub getDataByDate($){
   my ($filters) = @_;
 
   my $minDate = parseDateExprYYYYMMDD($$filters{minDateExpr});
+  my $maxDate = parseDateExprYYYYMMDD($$filters{maxDateExpr});
 
   my $dataByDate = {};
   for my $dateFile(glob "$CACHE_DIR/????-??-??"){
@@ -263,6 +272,7 @@ sub getDataByDate($){
       $date = "$1$2$3";
     }
     next if defined $minDate and $date lt $minDate;
+    next if defined $maxDate and $date gt $maxDate;
     die "ERROR: duplicate date file\n" if defined $$dataByDate{$date};
     $$dataByDate{$date} = {
       total   => 0,
