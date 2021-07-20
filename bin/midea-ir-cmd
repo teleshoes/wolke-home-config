@@ -60,11 +60,11 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 [PRESET] [STATE] [MODE] [TEMP] [FAN] [AUX_CMD]
+  $0 [SERIAL_DEVICE] [PRESET] [STATE] [MODE] [TEMP] [FAN] [AUX_CMD]
     -generate a command string for midea-ir-arduino device
-    -write command to /dev/ttyUSB*
+    -write command to SERIAL_DEVICE
 
-  $0 " . join(" | ", sort keys %$STATIC_COMMANDS) . "
+  $0 [SERIAL_DEVICE] " . join(" | ", sort keys %$STATIC_COMMANDS) . "
     write pre-generated static command string to SERIAL_DEVICE:$STATIC_CMD_FMT
 
   PRESET
@@ -113,6 +113,15 @@ my $usage = "Usage:
     same
       set temperature to $$TEMPS{same}
       (this is the default)
+
+  SERIAL_DEVICE
+    -g | --guess
+      use the first device that matches glob: /dev/ttyUSB*
+      (this is the default)
+    --dev=FILE
+      use FILE as SERIAL_DEVICE
+    CHARACTER_SPECIAL_FILE
+      any file that exists and is a character special file
 ";
 
 sub guessDevice();
@@ -124,6 +133,7 @@ my $ACTION_COMMAND = "command";
 sub main(@){
   my $action = $ACTION_COMMAND;
   my $cmd = undef;
+  my $device = undef;
   my $fan = $$FANS{auto};
   my $state = $$STATES{off}; #this is ignored, apparently
   my $temp = $$TEMPS{same};
@@ -165,12 +175,18 @@ sub main(@){
       $temp = $$TEMPS{$1};
     }elsif(defined $$STATIC_COMMANDS{$arg}){
       $cmd = $$STATIC_COMMANDS{$arg};
+    }elsif($arg =~ /^(-g|--guess)$/){
+      $device = guessDevice();
+    }elsif($arg =~ /^--dev=(.+)$/){
+      $device = $1;
+    }elsif(-e $arg and -c $arg){
+      $device = $arg;
     }else{
       die $usage;
     }
   }
 
-  my $device = guessDevice();
+  $device = guessDevice() if not defined $device;
 
   if($action eq $ACTION_COMMAND){
     if(not defined $cmd){
