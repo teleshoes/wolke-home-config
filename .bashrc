@@ -204,6 +204,8 @@ function rename       {
   fi
 }
 
+function udotool      { sudo udotool "$@"; }
+
 function sb           { seedbox "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
