@@ -47,6 +47,18 @@ my $MODES = {
   off  => '0000',
 };
 
+my $AUX_COMMANDS = {
+  f_hi => '1101 0101 0110 0100 0010 0000 0000 0001 0000 0000 0101 1010',
+  f_lo => '1101 0101 0010 1000 0000 0000 0000 0001 0000 0000 1111 1110',
+  f_60 => '1101 0101 0110 0100 0000 0000 0001 0001 0000 0000 0100 1010',
+  f_61 => '1101 0101 0110 0100 0010 0000 0001 0001 0000 0000 0110 1010',
+  c_16 => '1101 0101 0110 0100 0000 0000 0001 0000 0000 0000 0100 1001',
+};
+
+my $AUX_CMD_FMT = join '',
+  map {"\n        $_ = $$AUX_COMMANDS{$_}"}
+  sort keys %$AUX_COMMANDS;
+
 my $STATIC_COMMANDS = {
   eco => '# 1011 1001 0100 0110 1111 0101 0000 1010 0110 1001 1001 0110 *',
   led => '# 1011 1001 0100 0110 1111 0101 0000 1010 0000 1001 1111 0110 *',
@@ -119,6 +131,9 @@ my $usage = "Usage:
       set temperature to $$TEMPS{same}
       (this is the default)
 
+  AUX_CMD
+    command to append to the main command" . $AUX_CMD_FMT . "
+
   SERIAL_DEVICE
     -g | --guess
       use the first device that matches glob: /dev/ttyUSB*
@@ -130,7 +145,7 @@ my $usage = "Usage:
 ";
 
 sub guessDevice();
-sub getSerialCmd($$$$);
+sub getSerialCmd($$$$$);
 sub inv($);
 
 my $ACTION_COMMAND = "command";
@@ -139,6 +154,7 @@ my $ACTION_RESET = "reset";
 sub main(@){
   my $action = $ACTION_COMMAND;
   my $cmd = undef;
+  my $auxCmd = undef;
   my $device = undef;
   my $fan = $$FANS{auto};
   my $state = $$STATES{off}; #this is ignored, apparently
@@ -181,6 +197,8 @@ sub main(@){
       $fan = $$FANS{high};
     }elsif($arg =~ /^T?(17|18|19|2\d|30)C?$/){
       $temp = $$TEMPS{$1};
+    }elsif(defined $$AUX_COMMANDS{$arg}){
+      $auxCmd = $$AUX_COMMANDS{$arg};
     }elsif(defined $$STATIC_COMMANDS{$arg}){
       $cmd = $$STATIC_COMMANDS{$arg};
     }elsif($arg =~ /^(-g|--guess)$/){
@@ -198,7 +216,7 @@ sub main(@){
 
   if($action eq $ACTION_COMMAND){
     if(not defined $cmd){
-      $cmd = getSerialCmd($fan, $state, $temp, $mode);
+      $cmd = getSerialCmd($fan, $state, $temp, $mode, $auxCmd);
     }
 
     open FH, "> $device" or die "ERROR: could not write $device\n$!\n";
@@ -221,14 +239,15 @@ sub guessDevice(){
   return $devices[0];
 }
 
-sub getSerialCmd($$$$){
-  my ($fan, $state, $temp, $mode) = @_;
+sub getSerialCmd($$$$$){
+  my ($fan, $state, $temp, $mode, $auxCmd) = @_;
 
   my $bits = "";
   $bits .= $ID1  . $ID2   . inv($ID1)  . inv($ID2);
   $bits .= $fan  . $state . inv($fan)  . inv($state);
   $bits .= $temp . $mode  . inv($temp) . inv($mode);
 
+  $bits .= "\@$auxCmd" if defined $auxCmd;
   $bits =~ s/\s+//g;
 
   my $cmd = "#$bits*";
