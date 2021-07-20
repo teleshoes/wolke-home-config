@@ -60,6 +60,11 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
+  $0 [SERIAL_DEVICE] --reset
+    -run: stty -F SERIAL_DEVICE hupcl
+    -run: head -1 SERIAL_DEVICE
+    -run: stty -F SERIAL_DEVICE -hupcl
+
   $0 [SERIAL_DEVICE] [PRESET] [STATE] [MODE] [TEMP] [FAN] [AUX_CMD]
     -generate a command string for midea-ir-arduino device
     -write command to SERIAL_DEVICE
@@ -129,6 +134,7 @@ sub getSerialCmd($$$$);
 sub inv($);
 
 my $ACTION_COMMAND = "command";
+my $ACTION_RESET = "reset";
 
 sub main(@){
   my $action = $ACTION_COMMAND;
@@ -143,6 +149,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(--reset)$/){
+      $action = $ACTION_RESET;
     }elsif($arg =~ /^(on|default)$/){
       $mode = $$MODES{cool};
       $fan = $$FANS{low};
@@ -196,6 +204,10 @@ sub main(@){
     open FH, "> $device" or die "ERROR: could not write $device\n$!\n";
     print FH $cmd;
     close FH;
+  }elsif($action eq $ACTION_RESET){
+    system "stty -F $device hupcl";
+    system "head -1 $device";
+    system "stty -F $device -hupcl";
   }else{
     die "ERROR: unknown action $action\n";
   }
