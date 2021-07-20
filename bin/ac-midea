@@ -7,7 +7,7 @@ my $EXEC = basename $0;
 
 my $IPMAGIC_NAME = "pi";
 my $MIDEA_RUBY_EXEC = "midea-ruby";
-my $MIDEA_IGCMD_EXEC = "midea-igcmd";
+my $MIDEA_IR_CMD_EXEC = "midea-ir-cmd";
 
 my $USAGE = "Usage:
   $EXEC -h | --help
@@ -17,9 +17,9 @@ my $USAGE = "Usage:
   $EXEC -t | --toggle
     -check $MIDEA_RUBY_EXEC --read
     -if POWER=on:
-      -run $MIDEA_IGCMD_EXEC off
+      -run $MIDEA_IR_CMD_EXEC off
     -if POWER=off:
-      -run $MIDEA_IGCMD_EXEC cool 22 low
+      -run $MIDEA_IR_CMD_EXEC cool 22 low
 
   $EXEC -g|--get|-f|--fetch
     -run $MIDEA_RUBY_EXEC --fetch-and-read
@@ -28,12 +28,12 @@ my $USAGE = "Usage:
     -run $MIDEA_RUBY_EXEC --read
 
   $EXEC -s|--set [ARG ARG ..]
-    -run $MIDEA_IGCMD_EXEC ARG ARG ..
+    -run $MIDEA_IR_CMD_EXEC ARG ARG ..
     -run $MIDEA_RUBY_EXEC --fetch
 
-  $EXEC IGCMD_ARG [ARG ARG ..]
-    -same as: $EXEC --set IGCMD_ARG ARG ARG
-      IGCMD_ARG = on | off | cold | cool | fan | low | med | high | TEMP
+  $EXEC IR_CMD_ARG [ARG ARG ..]
+    -same as: $EXEC --set IR_CMD_ARG ARG ARG
+      IR_CMD_ARG = on | off | cold | cool | fan | low | med | high | TEMP
       TEMP = 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30
 ";
 
@@ -46,7 +46,7 @@ sub isACOn();
 
 sub main(@){
   my $cmd = $COMMAND_TOGGLE;
-  my @igcmdArgs;
+  my @irCmdArgs;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -62,26 +62,26 @@ sub main(@){
       $cmd = $COMMAND_SET;
     }elsif($arg =~ /^(on|off|cold|cool|fan|low|med|high|1[789]|2\d|30)$/){
       $cmd = $COMMAND_SET;
-      push @igcmdArgs, $arg;
+      push @irCmdArgs, $arg;
     }else{
-      push @igcmdArgs, $arg;
+      push @irCmdArgs, $arg;
     }
   }
 
-  if(@igcmdArgs > 0 and $cmd ne $COMMAND_SET){
-    die "ERROR: unknown args @igcmdArgs\n";
+  if(@irCmdArgs > 0 and $cmd ne $COMMAND_SET){
+    die "ERROR: unknown args @irCmdArgs\n";
   }
 
   if($cmd eq $COMMAND_TOGGLE){
     my $toggleArg = isACOn() ? "off" : "on";
-    system $MIDEA_IGCMD_EXEC, $toggleArg;
+    system $MIDEA_IR_CMD_EXEC, $toggleArg;
     system $MIDEA_RUBY_EXEC, "--fetch";
   }elsif($cmd eq $COMMAND_FETCH){
     system $MIDEA_RUBY_EXEC, "--fetch-and-read";
   }elsif($cmd eq $COMMAND_READ){
     system $MIDEA_RUBY_EXEC, "--read";
   }elsif($cmd eq $COMMAND_SET){
-    system $MIDEA_IGCMD_EXEC, @igcmdArgs;
+    system $MIDEA_IR_CMD_EXEC, @irCmdArgs;
     system $MIDEA_RUBY_EXEC, "--fetch";
   }else{
     die "ERROR: unknown command $cmd\n";
