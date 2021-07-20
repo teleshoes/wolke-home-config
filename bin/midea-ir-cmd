@@ -195,13 +195,14 @@ my $ACTION_RESET = "reset";
 
 sub main(@){
   my $action = $ACTION_COMMAND;
-  my $cmd = undef;
+  my $staticCmd = undef;
   my $auxCmd = undef;
+  my $tempAux = undef;
   my $device = undef;
-  my $fan = $$FANS{auto};
-  my $state = $$STATES{off}; #this is ignored, apparently
-  my $temp = $$TEMPS{same};
-  my $mode = $$MODES{auto};
+  my $fan = 'auto';
+  my $state = 'off'; #this is ignored, apparently
+  my $temp = 'same';
+  my $mode = 'auto';
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -210,43 +211,41 @@ sub main(@){
     }elsif($arg =~ /^(--reset)$/){
       $action = $ACTION_RESET;
     }elsif($arg =~ /^(on|default|normal)$/){
-      $mode = $$MODES{cool};
-      $fan = $$FANS{low};
-      $temp = $$TEMPS{22};
+      $mode = 'cool';
+      $fan = 'low';
+      $temp = '22';
     }elsif($arg =~ /^(cold)$/){
-      $mode = $$MODES{cool};
-      $fan = $$FANS{high};
-      $temp = $$TEMPS{21};
+      $mode = 'cool';
+      $fan = 'high';
+      $temp = '21';
     }elsif($arg =~ /^(off)$/){
-      $mode = $$MODES{off};
-      $fan = $$FANS{off};
-      $temp = $$TEMPS{off};
+      $mode = 'off';
+      $fan = 'off';
+      $temp = 'off';
     }elsif($arg =~ /^(auto-mode|mode-auto)$/){
-      $mode = $$MODES{auto};
+      $mode = 'auto';
     }elsif($arg =~ /^(cool)$/){
-      $mode = $$MODES{cool};
+      $mode = 'cool';
     }elsif($arg =~ /^(heat)$/){
-      $mode = $$MODES{heat};
+      $mode = 'heat';
     }elsif($arg =~ /^(fan|fan-only)$/){
-      $mode = $$MODES{fan};
+      $mode = 'fan';
     }elsif($arg =~ /^(auto-fan|fan-auto)$/){
-      $fan = $$FANS{auto};
+      $fan = 'auto';
     }elsif($arg =~ /^(low)$/){
-      $fan = $$FANS{low};
+      $fan = 'low';
     }elsif($arg =~ /^(med|medium)$/){
-      $fan = $$FANS{med};
+      $fan = 'med';
     }elsif($arg =~ /^(high)$/){
-      $fan = $$FANS{high};
+      $fan = 'high';
     }elsif($arg =~ /^T?(17|18|19|2\d|30)C?$/){
-      $temp = $$TEMPS{$1};
+      $temp = $1;
     }elsif(defined $$AUX_COMMANDS{$arg}){
-      $auxCmd = $$AUX_COMMANDS{$arg};
+      $auxCmd = $arg;
     }elsif(defined $$STATIC_COMMANDS{$arg}){
-      $cmd = $$STATIC_COMMANDS{$arg};
+      $staticCmd = $arg;
     }elsif(defined $$TEMP_AUX{$arg}){
-      my ($tempName, $auxCmdName) = @{$$TEMP_AUX{$arg}};
-      $temp = $$TEMPS{$tempName};
-      $auxCmd = $$AUX_COMMANDS{$auxCmdName};
+      $tempAux = $arg;
     }elsif($arg =~ /^(-g|--guess)$/){
       $device = guessDevice();
     }elsif($arg =~ /^--dev=(.+)$/){
@@ -260,9 +259,20 @@ sub main(@){
 
   $device = guessDevice() if not defined $device;
 
+  ($temp, $auxCmd) = @{$$TEMP_AUX{$tempAux}} if defined $tempAux;
+
   if($action eq $ACTION_COMMAND){
-    if(not defined $cmd){
-      $cmd = getSerialCmd($fan, $state, $temp, $mode, $auxCmd);
+    my $cmd;
+    if(defined $staticCmd){
+      $cmd = $$STATIC_COMMANDS{$staticCmd};
+    }else{
+      $cmd = getSerialCmd(
+        (defined $fan    ? $$FANS{$fan}            : undef),
+        (defined $state  ? $$STATES{$state}        : undef),
+        (defined $temp   ? $$TEMPS{$temp}          : undef),
+        (defined $mode   ? $$MODES{$mode}          : undef),
+        (defined $auxCmd ? $$AUX_COMMANDS{$auxCmd} : undef),
+      );
     }
 
     open FH, "> $device" or die "ERROR: could not write $device\n$!\n";
