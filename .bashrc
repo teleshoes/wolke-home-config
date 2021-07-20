@@ -232,13 +232,13 @@ function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           sshc pi@raspi "command igcmd $@"
                         fi
                       }
-function midea-igcmd  { if [[ "$(hostname)" == "raspberrypi" ]]; then
-                          command midea-igcmd "$@";
+function midea-ir-cmd { if [[ "$(hostname)" == "raspberrypi" ]]; then
+                          command midea-ir-cmd "$@";
                         elif [[ "$1" == "--bash-complete" ]]; then
-                          command midea-igcmd "$@";
+                          command midea-ir-cmd "$@";
                         else
                           echo "RUNNING ON raspi"
-                          sshc pi@raspi "command midea-igcmd $@"
+                          sshc pi@raspi "command midea-ir-cmd $@"
                         fi
                       }
 function ac-midea     { if [[ "$(hostname)" == "raspberrypi" ]]; then
