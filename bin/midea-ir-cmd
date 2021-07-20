@@ -2,12 +2,10 @@
 use strict;
 use warnings;
 
-my $IGCMD_REMOTE_NAME = "ac";
-my $IGCMD_BTN_NAME = "custom";
-my $IGCMD_BTN_FILE = "$ENV{HOME}/.config/iguana/names/$IGCMD_REMOTE_NAME/buttons/$IGCMD_BTN_NAME";
+my $DEVICE_GLOB = "/dev/ttyUSB*";
 
-my $CONST1 = '1011';
-my $CONST2 = '0010';
+my $ID1 = '1011';
+my $ID2 = '0010';
 
 my $TEMPS = {
   17   => '0000',
@@ -49,18 +47,25 @@ my $MODES = {
   off  => '0000',
 };
 
+my $STATIC_COMMANDS = {
+  eco => '# 1011 1001 0100 0110 1111 0101 0000 1010 0110 1001 1001 0110 *',
+  led => '# 1011 1001 0100 0110 1111 0101 0000 1010 0000 1001 1111 0110 *',
+};
+
+my $STATIC_CMD_FMT = join '',
+  map {"\n      $_ = $$STATIC_COMMANDS{$_}"}
+  sort keys %$STATIC_COMMANDS;
+
 my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 [PRESET] [STATE] [MODE] [TEMP] [FAN]
-    generate an iguana pattern for midea ac to set MODE/TEMP/FAN
+  $0 [PRESET] [STATE] [MODE] [TEMP] [FAN] [AUX_CMD]
+    -generate a command string for midea-ir-arduino device
+    -write command to /dev/ttyUSB*
 
-  $0 eco | --eco | --energy-saver
-    run: igcmd $IGCMD_REMOTE_NAME-energy_saver
-  $0 led | --led
-    run: igcmd $IGCMD_REMOTE_NAME-led
-
+  $0 " . join(" | ", sort keys %$STATIC_COMMANDS) . "
+    write pre-generated static command string to SERIAL_DEVICE:$STATIC_CMD_FMT
 
   PRESET
     on | default
@@ -110,19 +115,19 @@ my $usage = "Usage:
       (this is the default)
 ";
 
-my $COMMAND_CUSTOM_BTN = "custom-btn";
-my $COMMAND_STATIC_BTN = "static-btn";
-
-sub igcmdPattern($$$$);
+sub guessDevice();
+sub getSerialCmd($$$$);
 sub inv($);
 
+my $ACTION_COMMAND = "command";
+
 sub main(@){
+  my $action = $ACTION_COMMAND;
+  my $cmd = undef;
   my $fan = $$FANS{auto};
   my $state = $$STATES{off}; #this is ignored, apparently
   my $temp = $$TEMPS{same};
   my $mode = $$MODES{auto};
-  my $cmd = $COMMAND_CUSTOM_BTN;
-  my $staticButtonName = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -158,52 +163,49 @@ sub main(@){
       $fan = $$FANS{high};
     }elsif($arg =~ /^T?(17|18|19|2\d|30)C?$/){
       $temp = $$TEMPS{$1};
-    }elsif($arg =~ /^(eco|--eco|--energy-saver)$/){
-      $cmd = $COMMAND_STATIC_BTN;
-      $staticButtonName = "energy_saver";
-    }elsif($arg =~ /^(led|--led)$/){
-      $cmd = $COMMAND_STATIC_BTN;
-      $staticButtonName = "led";
+    }elsif(defined $$STATIC_COMMANDS{$arg}){
+      $cmd = $$STATIC_COMMANDS{$arg};
     }else{
       die $usage;
     }
   }
 
-  if($cmd eq $COMMAND_CUSTOM_BTN){
-    my $ptrn = igcmdPattern($fan, $state, $temp, $mode);
+  my $device = guessDevice();
 
-    open FH, "> $IGCMD_BTN_FILE" or die "ERROR: could not write $IGCMD_BTN_FILE\n$!\n";
-    print FH $ptrn;
+  if($action eq $ACTION_COMMAND){
+    if(not defined $cmd){
+      $cmd = getSerialCmd($fan, $state, $temp, $mode);
+    }
+
+    open FH, "> $device" or die "ERROR: could not write $device\n$!\n";
+    print FH $cmd;
     close FH;
-
-    system "igcmd", "$IGCMD_REMOTE_NAME-$IGCMD_BTN_NAME";
-  }elsif($cmd eq $COMMAND_STATIC_BTN){
-    system "igcmd", "$IGCMD_REMOTE_NAME-$staticButtonName";
   }else{
-    die "ERROR: unknown command $cmd\n";
+    die "ERROR: unknown action $action\n";
   }
 }
 
-sub igcmdPattern($$$$){
+sub guessDevice(){
+  my @devices = glob $DEVICE_GLOB;
+  if(@devices == 0){
+    die "ERROR: could not find a device matching $DEVICE_GLOB\n";
+  }
+  return $devices[0];
+}
+
+sub getSerialCmd($$$$){
   my ($fan, $state, $temp, $mode) = @_;
 
   my $bits = "";
-  $bits .= $CONST1 . $CONST2 . inv($CONST1) . inv($CONST2);
-  $bits .= $fan    . $state  . inv($fan)    . inv($state);
-  $bits .= $temp   . $mode   . inv($temp)   . inv($mode);
+  $bits .= $ID1  . $ID2   . inv($ID1)  . inv($ID2);
+  $bits .= $fan  . $state . inv($fan)  . inv($state);
+  $bits .= $temp . $mode  . inv($temp) . inv($mode);
 
-  my $ptrn = "#$bits#$bits";
+  $bits =~ s/\s+//g;
 
+  my $cmd = "#$bits*";
 
-  $ptrn =~ s/0/%0%/g;
-  $ptrn =~ s/1/%1%/g;
-  $ptrn =~ s/%0%/space 500\npulse 500\n/g;
-  $ptrn =~ s/%1%/space 1500\npulse 500\n/g;
-  $ptrn =~ s/#/space 5000\npulse 4400\nspace 4300\npulse 550\n/g;
-
-  $ptrn =~ s/^space \d+\n//;
-
-  return $ptrn;
+  return $cmd;
 }
 
 sub inv($){
