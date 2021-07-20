@@ -1,11 +1,15 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use List::Util qw(sum);
 
 my $DEVICE_GLOB = "/dev/ttyUSB*";
 
 my $ID1 = '1011';
 my $ID2 = '0010';
+
+my $EXT_ID1 = '1101';
+my $EXT_ID2 = '0101';
 
 my $TEMPS = {
   17   => '0000',
@@ -26,43 +30,51 @@ my $TEMPS = {
   off  => '1110',
 };
 
-my $TEMP_AUX = {
-  16 => [17, "c_16"],
-  60 => [17, "f_60"],
-  61 => [17, "f_61"],
-  62 => [17, "f_lo"],
-  63 => [17, "f_hi"],
-  64 => [18, "f_lo"],
-  65 => [18, "f_hi"],
-  66 => [19, "f_lo"],
-  67 => [19, "f_hi"],
-  68 => [20, "f_lo"],
-  69 => [20, "f_hi"],
-  70 => [21, "f_lo"],
-  71 => [21, "f_hi"],
- #72 => [22, "f_lo"],
-  72 => [22, "f_hi"],
-  73 => [23, "f_lo"],
-  74 => [23, "f_hi"],
-  75 => [24, "f_lo"],
-  76 => [24, "f_hi"],
-  77 => [25, "f_lo"],
-  78 => [25, "f_hi"],
-  79 => [26, "f_lo"],
-  80 => [26, "f_hi"],
- #81 => [27, "f_lo"],
-  81 => [27, "f_hi"],
-  82 => [28, "f_lo"],
-  83 => [28, "f_hi"],
-  84 => [29, "f_lo"],
-  85 => [29, "f_hi"],
- #86 => [30, "f_lo"],
-  86 => [30, "f_hi"],
+my $TEMP_EXT = {
+  16 => {baseTempC=>17, plusTemp=>0, lowTemp=>1, unitF=>0},
+ #16 => {baseTempC=>17, plusTemp=>1, lowTemp=>1, unitF=>0},
+  60 => {baseTempC=>17, plusTemp=>0, lowTemp=>1, unitF=>1},
+  61 => {baseTempC=>17, plusTemp=>1, lowTemp=>1, unitF=>1},
+
+  62 => {baseTempC=>17, plusTemp=>0, lowTemp=>0, unitF=>1},
+  63 => {baseTempC=>17, plusTemp=>1, lowTemp=>0, unitF=>1},
+  64 => {baseTempC=>18, plusTemp=>0, lowTemp=>0, unitF=>1},
+  65 => {baseTempC=>18, plusTemp=>1, lowTemp=>0, unitF=>1},
+  66 => {baseTempC=>19, plusTemp=>0, lowTemp=>0, unitF=>1},
+  67 => {baseTempC=>19, plusTemp=>1, lowTemp=>0, unitF=>1},
+  68 => {baseTempC=>20, plusTemp=>0, lowTemp=>0, unitF=>1},
+  69 => {baseTempC=>20, plusTemp=>1, lowTemp=>0, unitF=>1},
+  70 => {baseTempC=>21, plusTemp=>0, lowTemp=>0, unitF=>1},
+  71 => {baseTempC=>21, plusTemp=>1, lowTemp=>0, unitF=>1},
+ #72 => {baseTempC=>22, plusTemp=>0, lowTemp=>0, unitF=>1},
+  72 => {baseTempC=>22, plusTemp=>1, lowTemp=>0, unitF=>1},
+  73 => {baseTempC=>23, plusTemp=>0, lowTemp=>0, unitF=>1},
+  74 => {baseTempC=>23, plusTemp=>1, lowTemp=>0, unitF=>1},
+  75 => {baseTempC=>24, plusTemp=>0, lowTemp=>0, unitF=>1},
+  76 => {baseTempC=>24, plusTemp=>1, lowTemp=>0, unitF=>1},
+  77 => {baseTempC=>25, plusTemp=>0, lowTemp=>0, unitF=>1},
+  78 => {baseTempC=>25, plusTemp=>1, lowTemp=>0, unitF=>1},
+  79 => {baseTempC=>26, plusTemp=>0, lowTemp=>0, unitF=>1},
+  80 => {baseTempC=>26, plusTemp=>1, lowTemp=>0, unitF=>1},
+ #81 => {baseTempC=>27, plusTemp=>0, lowTemp=>0, unitF=>1},
+  81 => {baseTempC=>27, plusTemp=>1, lowTemp=>0, unitF=>1},
+  82 => {baseTempC=>28, plusTemp=>0, lowTemp=>0, unitF=>1},
+  83 => {baseTempC=>28, plusTemp=>1, lowTemp=>0, unitF=>1},
+  84 => {baseTempC=>29, plusTemp=>0, lowTemp=>0, unitF=>1},
+  85 => {baseTempC=>29, plusTemp=>1, lowTemp=>0, unitF=>1},
+ #86 => {baseTempC=>30, plusTemp=>0, lowTemp=>0, unitF=>1},
+  86 => {baseTempC=>30, plusTemp=>1, lowTemp=>0, unitF=>1},
 };
 
-my $TEMP_AUX_FMT = join '',
-  map {"\n        $_ = (@{$$TEMP_AUX{$_}})"}
-  sort keys %$TEMP_AUX;
+my $TEMP_EXT_FMT = join '',
+  map {"\n          $_ = {"
+    . "baseTempC=>${$$TEMP_EXT{$_}}{baseTempC}"
+    . ", plusTemp=>${$$TEMP_EXT{$_}}{plusTemp}"
+    . ", lowTemp=>${$$TEMP_EXT{$_}}{lowTemp}"
+    . ", unitF=>${$$TEMP_EXT{$_}}{unitF}"
+    . "}"
+  }
+  sort keys %$TEMP_EXT;
 
 my $FANS = {
   auto => '1011',
@@ -70,6 +82,14 @@ my $FANS = {
   med  => '0101',
   high => '0011',
   off  => '0111',
+};
+
+my $DEFAULT_FAN_PCT = {
+  auto => 102,
+  low  => 40,
+  med  => 60,
+  high => 100,
+  off  => 0,
 };
 
 my $STATES = {
@@ -85,18 +105,6 @@ my $MODES = {
   fan  => '0100',
   off  => '0000',
 };
-
-my $AUX_COMMANDS = {
-  f_hi => '1101 0101 0110 0100 0010 0000 0000 0001 0000 0000 0101 1010',
-  f_lo => '1101 0101 0010 1000 0000 0000 0000 0001 0000 0000 1111 1110',
-  f_60 => '1101 0101 0110 0100 0000 0000 0001 0001 0000 0000 0100 1010',
-  f_61 => '1101 0101 0110 0100 0010 0000 0001 0001 0000 0000 0110 1010',
-  c_16 => '1101 0101 0110 0100 0000 0000 0001 0000 0000 0000 0100 1001',
-};
-
-my $AUX_CMD_FMT = join '',
-  map {"\n        $_ = $$AUX_COMMANDS{$_}"}
-  sort keys %$AUX_COMMANDS;
 
 my $STATIC_COMMANDS = {
   eco      => '# 1011 1001 0100 0110 1111 0101 0000 1010 0110 1001 1001 0110 *',
@@ -118,7 +126,7 @@ my $usage = "Usage:
     -run: head -1 SERIAL_DEVICE
     -run: stty -F SERIAL_DEVICE -hupcl
 
-  $0 [SERIAL_DEVICE] [PRESET] [STATE] [MODE] [TEMP] [FAN] [AUX_CMD]
+  $0 [SERIAL_DEVICE] [PRESET] [STATE] [MODE] [TEMP] [FAN] [EXT_CMD_ARGS]
     -generate a command string for midea-ir-arduino device
     -write command to SERIAL_DEVICE
 
@@ -153,13 +161,17 @@ my $usage = "Usage:
   FAN
     auto-fan | fan-auto
       set fan to auto ($$FANS{auto})
+      (also set EXT_FAN_PCT=$$DEFAULT_FAN_PCT{auto} if EXT_CMD_ARGS are given)
       (this is the default)
     low
       set fan to low ($$FANS{low})
+      (also set EXT_FAN_PCT=$$DEFAULT_FAN_PCT{low} if EXT_CMD_ARGS are given)
     med | medium
       set fan to med ($$FANS{med})
+      (also set EXT_FAN_PCT=$$DEFAULT_FAN_PCT{med} if EXT_CMD_ARGS are given)
     high
       set fan to high ($$FANS{high})
+      (also set EXT_FAN_PCT=$$DEFAULT_FAN_PCT{high} if EXT_CMD_ARGS are given)
 
   TEMP
     17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30
@@ -174,12 +186,35 @@ my $usage = "Usage:
       set temperature to $$TEMPS{same}
       (this is the default)
 
-  TEMP_AUX
-    wrapper around TEMP and AUX_CMD to
-    set fahrenheit and extra-low temps" . $TEMP_AUX_FMT . "
+  EXT_CMD_ARGS
+    EXT_FAN_PCT
+      0% - 100% | 102%
+        send the extension command, setting fan percent
 
-  AUX_CMD
-    command to append to the main command" . $AUX_CMD_FMT . "
+    EXT_LOWTEMP
+      lowtemp
+        send the extension command, setting the low-temp bit to 1
+        (needed for 16C and 60F, and 61F with EXT_PLUSTEMP)
+
+    EXT_PLUSTEMP
+      plustemp
+        send the extension command, setting the plus-temp bit to 1
+        (needed for 63F 65F 67F 69F 71F 72F 74F 76F 78F 80F 81F 83F 85F 86F,
+         and 61F with EXT_LOWTEMP)
+
+    EXT_UNIT_F
+      f | F | fahrenheit
+        send the extension command, setting the fahrenheit bit to 1
+      c | C | celsius
+        send the extension command, setting the fahrenheit bit to 0
+
+    EXT_SLEEP
+      sleep
+        send the extension command, setting the sleep bit to 1
+
+    TEMP_EXT
+      wrapper around TEMP, EXT_PLUSTEMP, EXT_LOWTEMP, and EXT_UNIT_F to
+      set fahrenheit and extra-low temps (16C, 60F, and 61F)" . $TEMP_EXT_FMT . "
 
   SERIAL_DEVICE
     -g | --guess
@@ -192,7 +227,10 @@ my $usage = "Usage:
 ";
 
 sub guessDevice();
+sub getExtensionCommand($$$$$$);
 sub getSerialCmd($$$$$);
+sub numToBits($);
+sub bitsToNum($);
 sub inv($);
 
 my $ACTION_COMMAND = "command";
@@ -201,8 +239,12 @@ my $ACTION_RESET = "reset";
 sub main(@){
   my $action = $ACTION_COMMAND;
   my $staticCmd = undef;
-  my $auxCmd = undef;
-  my $tempAux = undef;
+  my $extFanPct = undef;
+  my $extPlusTemp = undef;
+  my $extLowTemp = undef;
+  my $extUnitF = undef;
+  my $extSleep = undef;
+  my $tempExt = undef;
   my $device = undef;
   my $fan = 'auto';
   my $state = 'off'; #this is ignored, apparently
@@ -247,12 +289,22 @@ sub main(@){
       $fan = 'high';
     }elsif($arg =~ /^T?(17|18|19|2\d|30)C?$/){
       $temp = $1;
-    }elsif(defined $$AUX_COMMANDS{$arg}){
-      $auxCmd = $arg;
+    }elsif($arg =~ /^(0|[1-9]\d|100|102)%$/){
+      $extFanPct = $1;
+    }elsif($arg =~ /^(f|F|fahrenheit)$/){
+      $extUnitF = 1;
+    }elsif($arg =~ /^(c|C|celsius)$/){
+      $extUnitF = 0;
+    }elsif($arg =~ /^(plustemp)$/){
+      $extPlusTemp = 1;
+    }elsif($arg =~ /^(lowtemp)$/){
+      $extLowTemp = 1;
+    }elsif($arg =~ /^(sleep)$/){
+      $extSleep = 1;
+    }elsif(defined $$TEMP_EXT{$arg}){
+      $tempExt = $arg;
     }elsif(defined $$STATIC_COMMANDS{$arg}){
       $staticCmd = $arg;
-    }elsif(defined $$TEMP_AUX{$arg}){
-      $tempAux = $arg;
     }elsif($arg =~ /^(-g|--guess)$/){
       $device = guessDevice();
     }elsif($arg =~ /^--dev=(.+)$/){
@@ -266,19 +318,29 @@ sub main(@){
 
   $device = guessDevice() if not defined $device;
 
-  ($temp, $auxCmd) = @{$$TEMP_AUX{$tempAux}} if defined $tempAux;
-
   if($action eq $ACTION_COMMAND){
     my $cmd;
     if(defined $staticCmd){
       $cmd = $$STATIC_COMMANDS{$staticCmd};
     }else{
+      if(defined $tempExt){
+        $temp = $$TEMP_EXT{$tempExt}{baseTempC};
+        $extPlusTemp = $$TEMP_EXT{$tempExt}{plusTemp};
+        $extLowTemp = $$TEMP_EXT{$tempExt}{lowTemp};
+        $extUnitF = $$TEMP_EXT{$tempExt}{unitF};
+      }
+
+      my $defaultFanPct = defined $fan ? $$DEFAULT_FAN_PCT{$fan} : 0;
+
+      my $extCommand = getExtensionCommand(
+        $defaultFanPct, $extFanPct, $extUnitF, $extPlusTemp, $extLowTemp, $extSleep);
+
       $cmd = getSerialCmd(
         (defined $fan    ? $$FANS{$fan}            : undef),
         (defined $state  ? $$STATES{$state}        : undef),
         (defined $temp   ? $$TEMPS{$temp}          : undef),
         (defined $mode   ? $$MODES{$mode}          : undef),
-        (defined $auxCmd ? $$AUX_COMMANDS{$auxCmd} : undef),
+        $extCommand,
       );
     }
 
@@ -302,15 +364,44 @@ sub guessDevice(){
   return $devices[0];
 }
 
+sub getExtensionCommand($$$$$$){
+  my ($defaultFanPct, $extFanPct, $extUnitF, $extPlusTemp, $extLowTemp, $extSleep) = @_;
+
+  return undef if 1
+    and not defined $extFanPct
+    and not defined $extUnitF
+    and not defined $extPlusTemp
+    and not defined $extLowTemp
+    and not defined $extSleep;
+
+  $extFanPct = $defaultFanPct if not defined $extFanPct;
+  $extUnitF = 0 if not defined $extUnitF;
+  $extPlusTemp = 0 if not defined $extPlusTemp;
+  $extLowTemp = 0 if not defined $extLowTemp;
+  $extSleep = 0 if not defined $extSleep;
+
+  my $byte1 = $EXT_ID1 . $EXT_ID2;
+  my $byte2 = numToBits($extFanPct);
+  my $byte3 = $extSleep . '0' . $extPlusTemp . '0' . '0000';
+  my $byte4 = '000' . $extLowTemp . '000' . $extUnitF;
+  my $byte5 = '00000000';
+
+  my $sum = sum(map {bitsToNum($_)} ($byte1, $byte2, $byte3, $byte4, $byte5));
+
+  my $byte6 = numToBits($sum % 256);
+
+  return "$byte1$byte2$byte3$byte4$byte5$byte6";
+}
+
 sub getSerialCmd($$$$$){
-  my ($fan, $state, $temp, $mode, $auxCmd) = @_;
+  my ($fan, $state, $temp, $mode, $extCmd) = @_;
 
   my $bits = "";
   $bits .= $ID1  . $ID2   . inv($ID1)  . inv($ID2);
   $bits .= $fan  . $state . inv($fan)  . inv($state);
   $bits .= $temp . $mode  . inv($temp) . inv($mode);
 
-  $bits .= "\@$auxCmd" if defined $auxCmd;
+  $bits .= "\@$extCmd" if defined $extCmd;
   $bits =~ s/\s+//g;
 
   my $cmd = "#$bits*";
@@ -318,13 +409,24 @@ sub getSerialCmd($$$$$){
   return $cmd;
 }
 
+sub numToBits($){
+  my ($dec) = @_;
+  return sprintf "%08b", $dec;
+}
+
+sub bitsToNum($){
+  my ($bitString) = @_;
+  return oct("0b$bitString");
+}
+
 sub inv($){
-  my ($nibble) = @_;
-  $nibble =~ s/0/one/g;
-  $nibble =~ s/1/zero/g;
-  $nibble =~ s/zero/0/g;
-  $nibble =~ s/one/1/g;
-  return $nibble;
+  my ($bitString) = @_;
+  $bitString =~ s/0/zero/g;
+  $bitString =~ s/1/one/g;
+
+  $bitString =~ s/zero/1/g;
+  $bitString =~ s/one/0/g;
+  return $bitString;
 }
 
 &main(@ARGV);
