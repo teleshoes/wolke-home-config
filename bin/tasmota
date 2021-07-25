@@ -395,6 +395,7 @@ sub cmd($$){
   $cmd =~ s/ /%20/g;
   $cmd =~ s/;/%3B/g;
   $cmd =~ s/'/'\\''/g;
+
   my $timeout = sprintf "%.3f", ($MAX_TIMEOUT_MILLIS / 1000.0);
   my $curlCmd = "curl -m $timeout -s 'http://$deviceIP/cm?cmnd=$cmd'";
 
@@ -408,6 +409,16 @@ sub cmd($$){
 
     if($out =~ /\S/){
       $success = 1;
+    }elsif($exitCode == 2){
+      my $curlVersion = `curl --version`;
+      my $v = $1 if $curlVersion =~ /^curl (\d+\.[0-9\.]+)/;
+      if($timeout =~ /\./ and cmpVersion($v, "7.32.0") < 0){
+        $attemptsRemaining++;
+        print STDERR "WARNING: curl version $v, changing timeout to integral seconds\n";
+        $timeout = sprintf "%d", ($MAX_TIMEOUT_MILLIS / 1000.0);
+        $curlCmd = "curl -m $timeout -s 'http://$deviceIP/cm?cmnd=$cmd'";
+      }
+      $success = 0;
     }elsif($exitCode == 28){
       #curl timeout
       $success = 0;
@@ -418,6 +429,29 @@ sub cmd($$){
   }
 
   return $out;
+}
+
+sub parseVersion($){
+  my ($v) = @_;
+  my ($maj, $min, $pt);
+  if($v =~ /^(\d+)\.(\d+)\.(\d+)$/){
+    ($maj, $min, $pt) = ($1, $2, $3);
+  }elsif($v =~ /^(\d+)\.(\d+)$/){
+    ($maj, $min, $pt) = ($1, $2, 0);
+  }elsif($v =~ /^(\d+)$/){
+    ($maj, $min, $pt) = ($1, 0, 0);
+  }else{
+    die "ERROR: could not parse version \"$v\"\n";
+  }
+
+  return ($maj, $min, $pt);
+}
+
+sub cmpVersion($$){
+  my ($v1, $v2) = @_;
+  my ($maj1, $min1, $pt1) = parseVersion($v1);
+  my ($maj2, $min2, $pt2) = parseVersion($v2);
+  return ($maj1 <=> $maj2) || ($min1 <=> $min2) || ($pt1 <=> $pt2);
 }
 
 &main(@ARGV);
