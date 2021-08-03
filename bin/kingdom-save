@@ -137,7 +137,7 @@ sub main(@){
     print "LAND:  $$saveInfo{land}\n";
     for my $islandName(sort keys %{$$saveInfo{islands}}){
       my $islandInfo = $$saveInfo{islands}{$islandName};
-      print "$islandName: $$islandInfo{countFmt}\n";
+      print "$$islandInfo{landFmt}: $$islandInfo{countFmt}\n";
     }
   }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--list)$/){
     my $listLimit = $DEFAULT_LIST_LIMIT;
@@ -225,6 +225,41 @@ sub parseSaveInfo($){
     my $islandName = $islandFile;
     $islandName =~ s/.*\///;
     $$info{islands}{$islandName} = {};
+
+    my $landFmt;
+    if($islandName =~ /^island-v\d+-c([012])-l([01234])$/){
+      my ($campaignIndex, $landIndex) = ($1, $2);
+      $landFmt = sprintf "SLOT %d/3 - LAND %2d/5",
+        ($campaignIndex+1),
+        ($landIndex+1),
+      ;
+    }elsif($islandName =~ /^island-v\d+-ch(\d+)-l(\d+)$/){
+      my ($challengeIndex, $landIndex) = ($1, $2);
+      my $challenges = {
+        1 => 'SKULL',
+        2 => 'PLAGUE',
+        4 => 'DIRE',
+        8 => 'TRADE',
+      };
+      my $challengeFmt = defined $$challenges{$challengeIndex}
+        ? $$challenges{$challengeIndex}
+        : sprintf "CHLNG#%02d", $challengeIndex;
+
+      my $maxLand = 1 if $challengeFmt =~ /^(SKULL|PLAGUE)$/;
+      $maxLand = 2 if $challengeFmt =~ /^(TRADE)$/;
+      $maxLand = '?' if $challengeFmt =~ /^(DIRE)$/;
+      $maxLand = '?' if not defined $maxLand;
+
+      $landFmt = sprintf "%-8s - LAND %2d/%s",
+        $challengeFmt,
+        ($landIndex+1),
+        $maxLand,
+      ;
+    }else{
+      $landFmt = $islandName;
+    }
+
+    $$info{islands}{$islandName}{"landFmt"} = $landFmt;
 
     my $json = `gzip --force --decompress --stdout $islandFile`;
     if($? != 0){
