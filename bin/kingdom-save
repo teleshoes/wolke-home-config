@@ -87,11 +87,14 @@ my $usage = "Usage:
   $EXEC --list [LIST_LIMIT]
     print the most recent LIST_LIMIT cached saves (default is $DEFAULT_LIST_LIMIT)
     oldest to newest, formatted like:
-      <INDEX> <MTIME> <DAYS>D <LAND> <SHA1SUM>
+      <INDEX> <MTIME> <DAYS>D <LAND_CHG> <SHA1SUM>
         INDEX:    the index to pass to --restore, 0 is most recent backup
         MTIME:    tarfile mtime formatted: YYYY-MM-DD HH:MM:SS
         DAYS:     the current in-game days counter
-        LAND:     the current land or challenge island, e.g: land0, ch2
+        LAND_CHG: the current land in campaign formatted \"LAND<LAND>/5\",
+                    or the name of the challenge island if known,
+                    or the challenge island NUMBER formatted \"CHG#<NUMBER>\"
+                    e.g.: \"LAND5/5\", \"SKULL\", \"PLAGUE\"
         SHA1SUM:  the sha1sum of the tarfile, also contained in the filename
 ";
 
@@ -158,7 +161,7 @@ sub main(@){
       my $saveInfo = parseSaveInfo $$save{file};
 
       printf "%-2d %19s %4s %5s %s\n",
-        $index, $$save{mtimeFmt}, $$saveInfo{daysFmt}, $$saveInfo{land}, $$save{sha1};
+        $index, $$save{mtimeFmt}, $$saveInfo{daysFmt}, $$saveInfo{landChg}, $$save{sha1};
 
       $index--;
     }
@@ -207,7 +210,7 @@ sub parseSaveInfo($){
       and $currentCampaign < @$campaigns
     ){
       $cur = $$campaigns[$currentCampaign];
-      $$info{land} = "land$$cur{currentLand}";
+      $$info{landChg} = sprintf "LAND%d/5", ($$cur{currentLand}+1);
     }elsif(
       ref $challenges eq "ARRAY"
       and defined $currentChallenge
@@ -218,7 +221,10 @@ sub parseSaveInfo($){
           my $challengeId = $$challenge{challengeId};
           if($currentChallenge == $challengeId){
             $cur = $challenge;
-            $$info{land} = "ch$currentChallenge";
+            my $challengeFmt = defined $$challengeNames{$currentChallenge}
+              ? $$challengeNames{$currentChallenge}
+              : sprintf "CHNG#%02d", $currentChallenge;
+            $$info{landChg} = sprintf "%-7s", $challengeFmt;
             last;
           }
         }
