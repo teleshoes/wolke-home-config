@@ -5,17 +5,20 @@ use File::Basename qw(basename);
 use Time::HiRes qw(time);
 use JSON;
 
+sub getSavesFromSaveArgs($@);
 sub parseSaveInfo($);
 sub extractTarToSaveDir($$);
 sub removeCurrentSave($);
 sub ensureSaveCached($$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
-sub readCachedSaves($);
-sub getSortedCachedSaves($);
-sub getCachedSaveByIndex($$);
+sub readCacheDirSavesInfo($);
+sub getSaveInfoFromTarFile($);
+sub readOrCalculateTarFileSHA1($);
+sub calculateTarFileSHA1($);
+sub runSha1Cmd($);
+
 sub notifySend($);
-sub sha1($);
 sub mtime($);
 sub nowMillis();
 sub run(@);
@@ -37,9 +40,14 @@ my $SAVE_DIR_PROTON_PATTERN = ""
 ;
 my $SAVE_DIR_PROTON = globOne($SAVE_DIR_PROTON_PATTERN);
 
-my $SAVE_DIR = $SAVE_DIR_LINUX;
+my $DEFAULT_SAVE_DIR = $SAVE_DIR_LINUX;
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
+
+my $CMD_BACKUP = "backup";
+my $CMD_RESTORE = "restore";
+my $CMD_INFO = "info";
+my $CMD_LIST = "list";
 
 my $EXEC = basename $0;
 
@@ -49,45 +57,36 @@ my $usage = "Usage:
 
   $EXEC
   $EXEC --backup|--save [SAVE_DIR]
-    take files from $SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
+    take files from $DEFAULT_SAVE_DIR/* and make an xz'd tarball in $CACHE_DIR
       skips storing the tarball if an identical one already exists
-    SAVE_DIR
-      use SAVE_DIR instead of $SAVE_DIR
 
-  $EXEC --restore TAR_BALL
+
+  $EXEC --restore TAR_BALL [SAVE_DIR]
     takes a (compressed or uncompressed) tar ball
       and extracts it to the save dir, after backing up the contents
     -MOVE files from
-      $SAVE_DIR/
+      $DEFAULT_SAVE_DIR/
       to
       /tmp/kingdom-save-backup-<MILLIS>
     -extract <TAR_BALL> to
-      $SAVE_DIR
+      $DEFAULT_SAVE_DIR
 
-  $EXEC --restore INDEX
-    same as `$EXEC --restore <TAR_BALL>`,
-      after finding <TAR_BALL> in $CACHE_DIR based on <INDEX>:
-        0   => most recent save
-        1   => second-most recent save
-        2   => third-most recent save
-        ...etc
-    NOTE: <TAR_BALL> is selected based on <INDEX> BEFORE backing up current
+  $EXEC --restore INDEX [SAVE_DIR]
+    same as: $EXEC --restore \$($EXEC --get-tar-ball INDEX)
+
 
   $EXEC --info TAR_BALL
     print detailed info about a save
 
   $EXEC --info INDEX
-    same as `$EXEC --info <TAR_BALL>`
-    after finding <TAR_BALL> in $CACHE_DIR based on <INDEX>
-        0   => most recent save
-        1   => second-most recent save
-        2   => third-most recent save
-        ...etc
+    same as: $EXEC --info \$($EXEC --get-tar-ball INDEX)
 
   $EXEC --info
-    same as `$EXEC --info 0`
+    same as: $EXEC --info 0
 
-  $EXEC --list [LIST_LIMIT]
+
+  $EXEC --list [INDEX_ARG INDEX_ARG...]
+    print a summary of each indicated cached save (default is 0-9)
     print the most recent LIST_LIMIT cached saves (default is $DEFAULT_LIST_LIMIT)
     oldest to newest, formatted like:
       <INDEX> <MTIME> <DAYS>D <LAND_CHG> <SHA1SUM>
@@ -99,79 +98,136 @@ my $usage = "Usage:
                     or the challenge island NUMBER formatted \"CHG#<NUMBER>\"
                     e.g.: \"LAND5/5\", \"SKULL\", \"PLAGUE\"
         SHA1SUM:  the sha1sum of the tarfile, also contained in the filename
+
+  SAVE_DIR
+    use SAVE_DIR instead of $DEFAULT_SAVE_DIR
+
+  INDEX_ARG
+    either an INDEX or an INDEX_RANGE
+
+  INDEX_RANGE
+    low index to high index (inclusive on both sides), formated LOW-HIGH or LOW..HIGH
+    e.g.: 0-5    => 0 1 2 3 4 5
+          99-99  => 99
+
+  INDEX
+    non-negative integer for save index
+    most recent save is 0, next most recent is 1
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-    exit 0;
-  }elsif(@_ == 0 or (@_ >= 1 and $_[0] =~ /^(--backup|--save)$/)){
-    my $saveDir;
-    if(@_ == 0 or @_ == 1){
-      $saveDir = $SAVE_DIR;
-    }elsif(@_ == 2){
-      $saveDir = $_[1];
+  my $cmd = $CMD_BACKUP;
+  my $saveDir = $DEFAULT_SAVE_DIR;
+  my @saveArgs;
+
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--backup|--save)$/){
+      $cmd = $CMD_BACKUP;
+    }elsif($arg =~ /^(--restore)$/){
+      $cmd = $CMD_RESTORE;
+    }elsif($arg =~ /^(--info)$/){
+      $cmd = $CMD_INFO;
+    }elsif($arg =~ /^(--list)$/){
+      $cmd = $CMD_LIST;
+    }elsif($arg =~ /^(\d+)$/){
+      push @saveArgs, $1;
+    }elsif($arg =~ /^(\d+)(?:-|\.\.|\.\.\.)(\d+)$/){
+      my ($minIndex, $maxIndex) = ($1, $2);
+      @saveArgs = (@saveArgs, ($minIndex..$maxIndex));
+    }elsif(-f $arg){
+      push @saveArgs, $arg;
+    }elsif(-d $arg){
+      $saveDir = $arg;
     }else{
-      die "$usage\nERROR: invalid args to backup command\n";
+      die "$usage\nERROR: unknown arg $arg\n";
     }
-    if(not -d $saveDir){
-      die "save dir \"$saveDir\" does not exist\n";
-    }
+  }
+
+  if($cmd eq $CMD_BACKUP){
+    die "ERROR: SAVE_DIR \"$saveDir\" does not exist\n" if not -d $saveDir;
+    die "ERROR: cannot specify saves by TAR_BALL or INDEX for $cmd\n" if @saveArgs > 0;
     ensureSaveCached($saveDir, $CACHE_DIR);
-  }elsif(@_ == 2 and $_[0] =~ /^(--restore)$/){
-    my $tarFile;
-    if($_[1] =~ /^\d+$/){
-      $tarFile = ${getCachedSaveByIndex($_[1], $CACHE_DIR)}{file};
-    }elsif(-f $_[1]){
-      $tarFile = $_[1];
+  }elsif($cmd eq $CMD_RESTORE){
+    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+    if(@saves != 1){
+      die "ERROR: must specify exactly one save by TAR_BALL or INDEX for $cmd\n";
     }
+    my $tarFile = $saves[0]{file};
 
     print "\nREMOVING CURRENT SAVE:\n";
-    removeCurrentSave($SAVE_DIR);
+    removeCurrentSave($saveDir);
 
     print "\nEXTRACTING NEW SAVE:\n";
-    extractTarToSaveDir($tarFile, $SAVE_DIR);
-  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--info)$/){
-    my $infoArg = @_ == 2 ? $_[1] : 0;
-    my $tarFile;
-    if($infoArg =~ /^\d+$/){
-      $tarFile = ${getCachedSaveByIndex($infoArg, $CACHE_DIR)}{file};
-    }elsif(-f $infoArg){
-      $tarFile = $infoArg;
-    }
-    my $saveInfo = parseSaveInfo $tarFile;
-    print "DAYS:  $$saveInfo{daysFmt}\n";
-    print "LAND:  $$saveInfo{landChg}\n";
-    for my $islandName(sort keys %{$$saveInfo{islands}}){
-      my $islandInfo = $$saveInfo{islands}{$islandName};
-      print "$$islandInfo{landFmt}: $$islandInfo{countFmt}\n";
-    }
-  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(--list)$/){
-    my $listLimit = $DEFAULT_LIST_LIMIT;
-    if(@_ == 2){
-      $listLimit = $_[1];
-      if($listLimit !~ /^\d+$/ or $listLimit == 0){
-        die "$usage\nERROR: LIST_LIMIT must be a positive integer: $listLimit\n";
+    extractTarToSaveDir($tarFile, $saveDir);
+  }elsif($cmd eq $CMD_INFO){
+    @saveArgs = qw(0) if @saveArgs == 0;
+    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+
+    for my $save(@saves){
+      my $saveInfo = parseSaveInfo $$save{file};
+      print "DAYS:  $$saveInfo{daysFmt}\n";
+      print "LAND:  $$saveInfo{landChg}\n";
+      for my $islandName(sort keys %{$$saveInfo{islands}}){
+        my $islandInfo = $$saveInfo{islands}{$islandName};
+        print "$$islandInfo{landFmt}: $$islandInfo{countFmt}\n";
       }
     }
-    print "listing last $listLimit saves in: $CACHE_DIR\n";
-    my @saves = getSortedCachedSaves($CACHE_DIR);
+  }elsif($cmd eq $CMD_LIST){
+    @saveArgs = qw(0 1 2 3 4 5 6 7 8 9) if @saveArgs == 0;
+    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
 
-    my $limit = @saves < $listLimit ? @saves : $listLimit;
-    @saves = @saves[0 .. $limit-1];
-
-    my $index = $#saves;
     for my $save(reverse @saves){
       my $saveInfo = parseSaveInfo $$save{file};
 
-      printf "%-2d %19s %4s %5s %s\n",
-        $index, $$save{mtimeFmt}, $$saveInfo{daysFmt}, $$saveInfo{landChg}, $$save{sha1};
-
-      $index--;
+      printf "%-3d %19s %4s %5s %s\n",
+        $$save{index}, $$save{mtimeFmt}, $$saveInfo{daysFmt}, $$saveInfo{landChg}, $$save{sha1};
     }
   }else{
-    die $usage;
+    die "ERROR: unknown command $cmd\n";
   }
+}
+
+sub getSavesFromSaveArgs($@){
+  my ($cacheDir, @saveArgs) = @_;
+
+  my $cacheDirSavesInfo = readCacheDirSavesInfo($cacheDir);
+
+  my @saves;
+  for my $arg(@saveArgs){
+    my $save;
+    if($arg =~ /^(\d+)$/){
+      my $index = $arg;
+      my $cachedSave = $$cacheDirSavesInfo{savesByIndex}{$index};
+
+      if(defined $cachedSave){
+        $save = $cachedSave;
+      }else{
+        die "ERROR: index $index not found in $cacheDir\n";
+      }
+    }elsif(-f $arg){
+      my $tarFile = $arg;
+      my $sha1 = readOrCalculateTarFileSHA1($tarFile);
+      my $cachedSave = $$cacheDirSavesInfo{savesBySha1}{$sha1};
+
+      my $save;
+      if(defined $cachedSave){
+        $save = $cachedSave;
+      }else{
+        $save = getSaveInfoFromTarFile($tarFile);
+        $$save{index} = -1;
+      }
+    }else{
+      die "ERROR: invalid save arg $arg\n";
+    }
+
+    push @saves, $save;
+  }
+
+  return @saves;
 }
 
 sub parseSaveInfo($){
@@ -321,7 +377,7 @@ sub parseSaveInfo($){
 
 sub extractTarToSaveDir($$){
   my ($tarFile, $saveDir) = @_;
-  run "tar", "-xf", $tarFile, "-C", $SAVE_DIR;
+  run "tar", "-xf", $tarFile, "-C", $saveDir;
 }
 
 sub removeCurrentSave($){
@@ -348,7 +404,7 @@ sub ensureSaveCached($$){
 
   my $currentSaveTar = fetchCurrentSaveTar($saveDir);
   my $currentSaveMtime = fetchCurrentSaveMtime($saveDir);
-  my $currentSaveSha1 = sha1 $currentSaveTar;
+  my $currentSaveSha1 = calculateTarFileSHA1 $currentSaveTar;
 
   run "mkdir", "-p", $cacheDir if not -d $cacheDir;
   if(not -d $cacheDir){
@@ -357,9 +413,12 @@ sub ensureSaveCached($$){
     die "$msg\n";
   }
 
-  my $saves = readCachedSaves($cacheDir);
-  if(defined $$saves{$currentSaveSha1}){
-    my $file = $$saves{$currentSaveSha1}{file};
+  my $cacheDirSavesInfo = readCacheDirSavesInfo($cacheDir);
+
+  my $cachedSave = $$cacheDirSavesInfo{savesBySha1}{$currentSaveSha1};
+
+  if(defined $cachedSave){
+    my $file = $$cachedSave{file};
     my $msg = "save already cached: $file\n";
     notifySend $msg;
     print "$msg\n";
@@ -383,7 +442,7 @@ sub ensureSaveCached($$){
     run "ln", "-s", $cacheFileName, "$cacheDir/latest.tar.xz";
 
     my $mtimeFmt = `date --date \@$currentSaveMtime '+%Y-%m-%d %H:%M:%S'`;
-    my $msg = "SAVED: $mtimeFmt  $$saveInfo{daysFmt}  $$saveInfo{land}";
+    my $msg = "SAVED: $mtimeFmt  $$saveInfo{daysFmt}  $$saveInfo{landChg}";
     notifySend $msg;
     print "$msg\n";
   }
@@ -422,68 +481,108 @@ sub fetchCurrentSaveMtime($){
   return $maxMtime;
 }
 
-sub readCachedSaves($){
+sub readCacheDirSavesInfo($){
   my ($cacheDir) = @_;
-  my @cacheSaves = glob("$cacheDir/*.tar.xz");
-  my $saves = {};
-  for my $file(@cacheSaves){
-    my $mtime = mtime $file;
-    my $mtimeFmt = `date --date \@$mtime +'%Y-%m-%d %H:%M:%S'`;
-    chomp $mtimeFmt;
 
-    if($file =~ /^$cacheDir\/(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)_([0-9a-f]{40})\.tar\.xz$/){
-      my ($date, $time, $sha1) = ($1, $2, $3);
-      $$saves{$sha1} = {
-        file     => $file,
-        date     => $date,
-        time     => $time,
-        sha1     => $sha1,
-        mtime    => $mtime,
-        mtimeFmt => $mtimeFmt,
-      };
-    }
+  my @tarFiles = glob("$cacheDir/*.tar.xz");
+
+  #get save files
+  my @saves = map {getSaveInfoFromTarFile $_} @tarFiles;
+
+  #remove duplicate save files using SHA-1 sums, keeping the latest by filename
+  my %seenSha1;
+  my @uniqueSaves;
+  for my $save(reverse sort @saves){
+    next if defined $seenSha1{$$save{sha1}};
+    $seenSha1{$$save{sha1}} = 1;
+    push @uniqueSaves, $save;
   }
-  return $saves;
+
+  #sort save files by mtime, newest first
+  @uniqueSaves = sort {$$b{mtime} <=> $$a{mtime}} @uniqueSaves;
+
+  #add indexes to saves
+  my $index = 0;
+  for my $save(@uniqueSaves){
+    $$save{index} = $index++;
+  }
+
+  #parse index=>save and save=>index
+  my $savesByIndex = {};
+  my $savesBySha1 = {};
+
+  for my $save(@uniqueSaves){
+    $$savesByIndex{$$save{index}} = $save;
+    $$savesBySha1{$$save{sha1}} = $save;
+  }
+
+  return {
+    savesByIndex => $savesByIndex,
+    savesBySha1 => $savesBySha1,
+  };
 }
 
-sub getSortedCachedSaves($){
-  my ($cacheDir) = @_;
-  my %mtimesBySha1;
-  my @saves = values %{readCachedSaves $cacheDir};
-  for my $save(@saves){
-    $mtimesBySha1{$$save{sha1}} = mtime $$save{file};
-  }
-  @saves = reverse sort {$mtimesBySha1{$$a{sha1}} <=> $mtimesBySha1{$$b{sha1}}} @saves;
-  return @saves;
+sub getSaveInfoFromTarFile($){
+  my ($tarFile) = @_;
+
+  my $mtime = mtime $tarFile;
+  my $mtimeFmt = `date --date \@$mtime +'%Y-%m-%d %H:%M:%S'`;
+  chomp $mtimeFmt;
+
+  my $sha1 = readOrCalculateTarFileSHA1($tarFile);
+
+  return {
+    file     => $tarFile,
+    sha1     => $sha1,
+    mtime    => $mtime,
+    mtimeFmt => $mtimeFmt,
+    index    => undef,
+  };
 }
 
-sub getCachedSaveByIndex($$){
-  my ($index, $cacheDir) = @_;
-  my @saves = getSortedCachedSaves($cacheDir);
-  if($index >= @saves){
-    my $cnt = @saves;
-    die "ERROR: save index '$index' is too large (there are $cnt saves)\n";
+sub readOrCalculateTarFileSHA1($){
+  my ($tarFile) = @_;
+  my $sha1;
+  if($tarFile =~ /(?:^|\/)(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)_([0-9a-f]{40})\.tar\.xz$/){
+    my ($date, $time, $sha1sum) = ($1, $2, $3);
+    $sha1 = $sha1sum;
+  }else{
+    $sha1 = calculateTarFileSHA1($tarFile);
   }
-  return $saves[$index];
+  return $sha1;
+}
+
+sub calculateTarFileSHA1($){
+  my ($tarFile) = @_;
+  my $sha1Cmd = "";
+  $sha1Cmd .= "cat \"$tarFile\"";
+  $sha1Cmd .= " | xz --decompress --stdout" if $tarFile =~ /\.xz$/i;
+  $sha1Cmd .= " | sha1sum";
+
+  my $sha1 = runSha1Cmd($sha1Cmd);
+
+  my $emptySha1 = runSha1Cmd(": | sha1sum");
+
+  die "ERROR: empty sha1sum returned for $tarFile\n" if $sha1 eq $emptySha1;
+
+  return $sha1;
+}
+
+sub runSha1Cmd($){
+  my ($sha1ShellCmd) = @_;
+  open FH, "-|", $sha1ShellCmd or die "ERROR: cmd failed $sha1ShellCmd\n$!\n";
+  my $out = join '', <FH>;
+  close FH;
+
+  if($out =~ /^([0-9a-f]{40})\s+-$/){
+    return $1;
+  }else{
+    die "ERROR: cmd failed $sha1ShellCmd\n";
+  }
 }
 
 sub notifySend($){
   system "notify-send", "-t", $NOTIFY_SEND_MILLIS, @_;
-}
-
-sub sha1($){
-  my ($file) = @_;
-  if(not -f $file){
-    die "ERROR: could not read $file\n";
-  }
-  open FH, "-|", "sha1sum", $file;
-  my $sha1sum = <FH>;
-  close FH;
-  if($sha1sum =~ /^([0-9a-f]{40})\s+$file$/){
-    return $1;
-  }else{
-    die "ERROR: could not sha1sum $file\n";
-  }
 }
 
 sub mtime($){
