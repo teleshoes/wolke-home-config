@@ -46,6 +46,7 @@ my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
 
 my $CMD_BACKUP = "backup";
 my $CMD_RESTORE = "restore";
+my $CMD_GET_TAR = "get-tar";
 my $CMD_INFO = "info";
 my $CMD_LIST = "list";
 
@@ -75,7 +76,15 @@ my $usage = "Usage:
         $DEFAULT_SAVE_DIR
 
   $EXEC --restore INDEX [SAVE_DIR]
-    same as: $EXEC --restore \$($EXEC --get-tar INDEX)
+    same as: $EXEC --restore \$($EXEC --get-tar INDEX) SAVE_DIR
+
+
+  $EXEC --get-tar INDEX
+    print the <TAR_FILE> for the save at index <INDEX>
+    0 is the most recent save, 1 is the second most recent
+
+  $EXEC --get-tar TAR_FILE
+    print <TAR_FILE>
 
 
   $EXEC --info TAR_FILE
@@ -132,6 +141,8 @@ sub main(@){
       $cmd = $CMD_BACKUP;
     }elsif($arg =~ /^(--restore)$/){
       $cmd = $CMD_RESTORE;
+    }elsif($arg =~ /^(--get-tar)$/){
+      $cmd = $CMD_GET_TAR;
     }elsif($arg =~ /^(--info)$/){
       $cmd = $CMD_INFO;
     }elsif($arg =~ /^(--list)$/){
@@ -166,6 +177,13 @@ sub main(@){
 
     print "\nEXTRACTING NEW SAVE:\n";
     extractTarToSaveDir($tarFile, $saveDir);
+  }elsif($cmd eq $CMD_GET_TAR){
+    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+    if(@saves != 1){
+      die "ERROR: must specify exactly one save by TAR_FILE or INDEX for $cmd\n";
+    }
+    my $tarFile = $saves[0]{file};
+    print "$tarFile\n";
   }elsif($cmd eq $CMD_INFO){
     @saveArgs = qw(0) if @saveArgs == 0;
     my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
