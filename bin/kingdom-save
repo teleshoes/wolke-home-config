@@ -6,7 +6,13 @@ use Time::HiRes qw(time);
 use JSON;
 
 sub getSavesFromSaveArgs($@);
-sub parseSaveInfo($);
+sub formatSave($$$$);
+sub getMaxLand($$);
+sub formatGame($$$);
+sub formatLand($$$$);
+sub parseSaveInfo($$);
+sub parseGlobalSaveFileJSON($);
+sub parseIslandSaveFileJSON($);
 sub extractTarToSaveDir($$);
 sub removeCurrentSave($);
 sub ensureSaveCached($$);
@@ -44,6 +50,40 @@ my $DEFAULT_SAVE_DIR = $SAVE_DIR_LINUX;
 
 my $CACHE_DIR = "$ENV{HOME}/.cache/kingdom-saves";
 
+my $CHALLENGE_ISLANDS = {
+  1 => {id=>1, name=>'SKULL',  shortName=>'SKUL', maxLand=>'1'},
+  2 => {id=>2, name=>'PLAGUE', shortName=>'PLAG', maxLand=>'1'},
+  4 => {id=>4, name=>'DIRE',   shortName=>'DIRE', maxLand=>'?'},
+  8 => {id=>8, name=>'TRADE',  shortName=>'TRAD', maxLand=>'2'},
+};
+
+my $DEFAULT_FORMAT_SUMMARY_SPEC = ''
+  . '%-3d:INDEX:'
+  . ' | %19s:DATE_TIME:'
+  . ' | %4s:CUR_GAME_SHORT:'
+  . ' | %4s:CUR_LAND_SHORT:'
+  . ' | D%03d:CUR_DAY:'
+  . '%n'
+  ;
+my $DEFAULT_FORMAT_LAND_SPEC = ''
+  . '  %-8s:GAME: - %8s:LAND::'
+  . ' %3d:ARCHER:Ar'
+  . ' %3d:WORKER:Fa'
+  . ' %3d:FARMER:Wk'
+  . ' %3d:SQUIRE:Kn'
+  . ' %3d:KNIGHT:Sq'
+  . ' %3d:PIKEMAN:Pk'
+  . ' %3d:PEASANT:Ps'
+  . ' B$%3d:BANK:'
+  . '%n'
+  ;
+my $NEW_SAVE_FORMAT_SUMMARY_SPEC = ''
+  . 'SAVED:%19s:DATE_TIME:'
+  . ' %03d:CUR_DAY:'
+  . ' %4s:CUR_GAME_SHORT:'
+  . ' %4s:CUR_LAND_SHORT:'
+  ;
+
 my $CMD_BACKUP = "backup";
 my $CMD_RESTORE = "restore";
 my $CMD_GET_TAR = "get-tar";
@@ -79,37 +119,151 @@ my $usage = "Usage:
     same as: $EXEC --restore \$($EXEC --get-tar INDEX) SAVE_DIR
 
 
-  $EXEC --get-tar INDEX
-    print the <TAR_FILE> for the save at index <INDEX>
-    0 is the most recent save, 1 is the second most recent
+  $EXEC --get-tar INDEX_ARG [INDEX_ARG INDEX_ARG...]
+    parse each <INDEX_ARG> as a list of <INDEX>s,
+    and print the <TAR_FILE> for each save at index <INDEX>, one per line
+    (0 is the most recent save, 1 is the second most recent)
 
-  $EXEC --get-tar TAR_FILE
-    print <TAR_FILE>
+  $EXEC --get-tar TAR_FILE [TAR_FILE TAR_FILE...]
+    print each <TAR_FILE>, one per line
 
 
-  $EXEC --info TAR_FILE
-    print detailed info about a save
+  $EXEC --info [FORMAT_OPTS] TAR_FILE [TAR_FILE TAR_FILE...]
+    for each <TAR_FILE>, print a summary of the save using FORMAT_SUMMARY_SPEC
+      followed by detailed info for each land, each formatted using FORMAT_LAND_SPEC
 
-  $EXEC --info INDEX
-    same as: $EXEC --info \$($EXEC --get-tar INDEX)
+  $EXEC --info [FORMAT_OPTS] INDEX_ARG [INDEX_ARG INDEX_ARG...]
+    same as: $EXEC --info \$($EXEC --get-tar INDEX_ARG...)
 
-  $EXEC --info
+  $EXEC --info [FORMAT_OPTS]
     same as: $EXEC --info 0
 
 
-  $EXEC --list [INDEX_ARG INDEX_ARG...]
-    print a summary of each indicated cached save (default is 0-9)
-    print the most recent LIST_LIMIT cached saves (default is $DEFAULT_LIST_LIMIT)
-    oldest to newest, formatted like:
-      <INDEX> <MTIME> <DAYS>D <LAND_CHG> <SHA1SUM>
-        INDEX:    the index to pass to --restore, 0 is most recent backup
-        MTIME:    tarfile mtime formatted: YYYY-MM-DD HH:MM:SS
-        DAYS:     the current in-game days counter
-        LAND_CHG: the current land in campaign formatted \"LAND<LAND>/5\",
-                    or the name of the challenge island if known,
-                    or the challenge island NUMBER formatted \"CHG#<NUMBER>\"
-                    e.g.: \"LAND5/5\", \"SKULL\", \"PLAGUE\"
-        SHA1SUM:  the sha1sum of the tarfile, also contained in the filename
+  $EXEC --list TAR_FILE [TAR_FILE TAR_FILE...]
+    same as: $EXEC --info --no-lands --reverse TAR_FILE...
+
+  $EXEC --list INDEX_ARG [INDEX_ARG INDEX_ARG...]
+    same as: $EXEC --info --no-lands --reverse INDEX_ARG...
+
+  $EXEC --list
+    same as: $EXEC --info --no-lands --reverse 0-9
+
+  FORMAT_OPTS
+    --format=FORMAT_SUMMARY_SPEC
+    --format-summary=FORMAT_SUMMARY_SPEC
+      default: $DEFAULT_FORMAT_SUMMARY_SPEC
+      format specification for formatting the save summary in --info and --list
+      the following replacements are peformed:
+        %%                                  => literal '%' character
+        %n                                  => newline character
+        %<PRINTF_SPEC>:<SUMMARY_VAR_NAME>:  => formatted variable
+
+        PRINTF_SPEC
+          passed exactly to sprintf
+          e.g.:
+            -03d    => left-aligned 3-digit integer
+            s       => unmodified string
+
+        SUMMARY_VAR_NAME
+          INDEX          = the game save index, 0 for the most recent, 1 for next
+                              0 for the most recent
+                              1 for the next most recent, etc.
+                              -1 for <TAR_FILE>s not backed up in the cache dir
+          TAR_FILE       = filename of the (possibly compressed) tar file
+          DATE_TIME      = save backup datetime, formatted like `date '+%Y-%m-%d %H:%M:%S'`
+          MTIME          = save backup datetime, formatted like `date '+%s'`
+          SHA1SUM        = the sha1sum of the uncompressed tar file (before xz)
+          CUR_DAY        = the current day number
+                             playTimeDays + 1, rounded down to nearest integer
+          CUR_GAME       = the current game mode, for campaign+challenges
+                           for campaign:
+                              'SLOT <SLOT>/3'  where <SLOT> is 1, 2, or 3
+                           for challenge:
+                              'SKULL', 'PLAGUE', 'DIRE', 'TRADE',
+                               or 'CHLNG#<CHLNG_ID>' where <CHLNG_ID> is an integer
+          CUR_GAME_SHORT = the current game mode, for campaign+challenges
+                           for campaign:
+                              'SLT<SLOT>'  where <SLOT> is 1, 2, or 3
+                           for challenge:
+                              'SKUL', 'PLAG', 'DIRE', 'TRAD',
+                               or 'CH<CHLNG_ID>' where <CHLNG_ID> is an integer
+          CUR_LAND_NUM   = current island number, with 1 being the first
+          CUR_LAND_MAX   = the maximum number of islands for the current game mode
+                             '5' for campaign
+                             '2' for TRADE
+                             '1' for SKULL+PLAGUE
+                             '?' otherwise
+          CUR_LAND       = if <CUR_LAND_NUM> is less than 10:
+                              'LAND  <CUR_LAND_NUM>/<CUR_LAND_MAX>'
+                           otherwise:
+                              'LAND <CUR_LAND_NUM>/<CUR_LAND_MAX>'
+          CUR_LAND_SHORT = if <CUR_LAND_NUM> is less than 10:
+                              'L<CUR_LAND_NUM>/<CUR_LAND_MAX>'
+                           otherwise:
+                              '<LAND_NUM>/<LAND_MAX>'
+
+    --format-land=FORMAT_LAND_SPEC
+      default: $DEFAULT_FORMAT_LAND_SPEC
+      format specification for formatting each land in a save in --info,
+        following the save summary (formatted with <FORMAT_SUMMARY_SPEC>)
+      the following replacements are performed:
+        %%                               => literal '%' character
+        %n                               => newline character
+        %<PRINTF_SPEC>:<LAND_VAR_NAME>:  => formatted variable
+
+        PRINTF_SPEC
+          passed exactly to sprintf
+          e.g.:
+            -03d    => left-aligned 3-digit integer
+            s       => unmodified string
+
+        LAND_VAR_NAME
+          DAY        = the current day number on the island
+                         playTimeDays + 1, rounded down to nearest integer
+          GAME       = the current game mode, for campaign+challenges
+                       for campaign:
+                          'SLOT <SLOT>/3'  where <SLOT> is 1, 2, or 3
+                       for challenge:
+                          'SKULL', 'PLAGUE', 'DIRE', 'TRADE',
+                           or 'CHLNG#<CHLNG_ID>' where <CHLNG_ID> is an integer
+          GAME_SHORT = the current game mode, for campaign+challenges
+                       for campaign:
+                          'SLT<SLOT>'  where <SLOT> is 1, 2, or 3
+                       for challenge:
+                          'SKUL', 'PLAG', 'DIRE', 'TRAD',
+                           or 'CH<CHLNG_ID>' where <CHLNG_ID> is an integer
+          LAND_NUM   = island number, with 1 being the first
+          LAND_MAX   = the maximum number of islands for the game mode
+                         '5' for campaign
+                         '2' for TRADE
+                         '1' for SKULL+PLAGUE
+                         '?' otherwise
+          LAND       = if <LAND_NUM> is less than 10:
+                          'LAND  <LAND_NUM>/<LAND_MAX>'
+                       otherwise:
+                          'LAND <LAND_NUM>/<LAND_MAX>'
+          LAND_SHORT = if <CUR_LAND_NUM> is less than 10:
+                          'L<CUR_LAND_NUM>/<CUR_LAND_MAX>'
+                       otherwise:
+                          '<LAND_NUM>/<LAND_MAX>'
+          ARCHER    = count of all objects named 'Archer' on the island
+          WORKER    = count of all objects named 'Worker' on the island
+          FARMER    = count of all objects named 'Farmer' on the island
+          SQUIRE    = count of all objects named 'Squire' on the island
+          KNIGHT    = count of all objects named 'Knight' on the island
+          PIKEMAN   = count of all objects named 'Pikeman' on the island
+          PEASANT   = count of all objects named 'Peasant' on the island
+          BANK      = integer number of coins stashed by the banker
+
+    --lands
+      print each land in the save file, formatted with FORMAT_LAND_SPEC
+      (this is the default)
+    --no-lands
+      do not print land info (this is implied by --list)
+
+    --reverse
+      print the saves in the reverse order given,
+      so that the first appears at the bottom
 
   SAVE_DIR
     use SAVE_DIR instead of $DEFAULT_SAVE_DIR
@@ -131,6 +285,10 @@ sub main(@){
   my $cmd = $CMD_BACKUP;
   my $saveDir = $DEFAULT_SAVE_DIR;
   my @saveArgs;
+  my $formatSummarySpec = $DEFAULT_FORMAT_SUMMARY_SPEC;
+  my $formatLandSpec = $DEFAULT_FORMAT_LAND_SPEC;
+  my $includeLands = 1;
+  my $reverseSaves = 0;
 
   while(@_ > 0){
     my $arg = shift @_;
@@ -145,8 +303,22 @@ sub main(@){
       $cmd = $CMD_GET_TAR;
     }elsif($arg =~ /^(--info)$/){
       $cmd = $CMD_INFO;
+      $includeLands = 1;
+      $reverseSaves = 0;
+    }elsif($arg =~ /^(?:--format|--format-summary)=(.+)$/){
+      $formatSummarySpec = $1;
+    }elsif($arg =~ /^(?:--format-land)=(.+)$/){
+      $formatLandSpec = $1;
+    }elsif($arg =~ /^(--lands)$/){
+      $includeLands = 1;
+    }elsif($arg =~ /^(--no-lands)$/){
+      $includeLands = 0;
+    }elsif($arg =~ /^(--reverse)$/){
+      $reverseSaves = 1;
     }elsif($arg =~ /^(--list)$/){
-      $cmd = $CMD_LIST;
+      $cmd = $CMD_INFO;
+      $includeLands = 0;
+      $reverseSaves = 1;
     }elsif($arg =~ /^(\d+)$/){
       push @saveArgs, $1;
     }elsif($arg =~ /^(\d+)(?:-|\.\.|\.\.\.)(\d+)$/){
@@ -179,33 +351,20 @@ sub main(@){
     extractTarToSaveDir($tarFile, $saveDir);
   }elsif($cmd eq $CMD_GET_TAR){
     my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
-    if(@saves != 1){
-      die "ERROR: must specify exactly one save by TAR_FILE or INDEX for $cmd\n";
+    for my $save(@saves){
+      print "$$save{file}\n";
     }
-    my $tarFile = $saves[0]{file};
-    print "$tarFile\n";
   }elsif($cmd eq $CMD_INFO){
-    @saveArgs = qw(0) if @saveArgs == 0;
+    if(@saveArgs == 0){
+      @saveArgs = $includeLands ? qw(0) : qw(0 1 2 3 4 5 6 7 8 9);
+    }
     my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+
+    @saves = reverse @saves if $reverseSaves;
 
     for my $save(@saves){
-      my $saveInfo = parseSaveInfo $$save{file};
-      print "DAYS:  $$saveInfo{daysFmt}\n";
-      print "LAND:  $$saveInfo{landChg}\n";
-      for my $islandName(sort keys %{$$saveInfo{islands}}){
-        my $islandInfo = $$saveInfo{islands}{$islandName};
-        print "$$islandInfo{landFmt}: $$islandInfo{countFmt}\n";
-      }
-    }
-  }elsif($cmd eq $CMD_LIST){
-    @saveArgs = qw(0 1 2 3 4 5 6 7 8 9) if @saveArgs == 0;
-    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
-
-    for my $save(reverse @saves){
-      my $saveInfo = parseSaveInfo $$save{file};
-
-      printf "%-3d %19s %4s %5s %s\n",
-        $$save{index}, $$save{mtimeFmt}, $$saveInfo{daysFmt}, $$saveInfo{landChg}, $$save{sha1};
+      my $fmt = formatSave($save, $formatSummarySpec, $formatLandSpec, $includeLands);
+      print $fmt;
     }
   }else{
     die "ERROR: unknown command $cmd\n";
@@ -250,149 +409,285 @@ sub getSavesFromSaveArgs($@){
   return @saves;
 }
 
-sub parseSaveInfo($){
-  my ($tarFile) = @_;
+sub formatSave($$$$){
+  my ($save, $formatSummarySpec, $formatLandSpec, $includeLands) = @_;
+
+  my $jsonInfo = parseSaveInfo($$save{file}, $includeLands);
+
+  my $g = $$jsonInfo{globalSaveInfo};
+
+  my $summaryVars = {
+    INDEX           => $$save{index},
+    TAR_FILE        => $$save{file},
+    DATE_TIME       => $$save{mtimeFmt},
+    MTIME           => $$save{mtime},
+    SHA1SUM         => $$save{sha1},
+    CUR_DAY         => int($$g{curPlayTimeDays} + 1),
+    CUR_GAME        => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 0),
+    CUR_GAME_SHORT  => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 1),
+    CUR_LAND_NUM    => $$g{curLandIndex} + 1,
+    CUR_LAND_MAX    => getMaxLand($$g{curCampaignIndex}, $$g{curChallengeId}),
+    CUR_LAND        => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
+    CUR_LAND_SHORT  => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
+  };
+
+  my @landVarSets = map { {
+    DAY        => int($$_{playTimeDays} + 1),
+    GAME       => formatGame($$_{campaignIndex}, $$_{challengeId}, 0),
+    GAME_SHORT => formatGame($$_{campaignIndex}, $$_{challengeId}, 1),
+    LAND_NUM   => $$_{landIndex} + 1,
+    LAND_MAX   => getMaxLand($$_{campaignIndex}, $$_{challengeId}),
+    LAND       => formatLand($$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    LAND_SHORT => formatLand($$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    ARCHER     => $$_{objectCounts}{Archer},
+    WORKER     => $$_{objectCounts}{Worker},
+    FARMER     => $$_{objectCounts}{Farmer},
+    SQUIRE     => $$_{objectCounts}{Squire},
+    KNIGHT     => $$_{objectCounts}{Knight},
+    PIKEMAN    => $$_{objectCounts}{Pikeman},
+    PEASANT    => $$_{objectCounts}{Peasant},
+    BANK       => $$_{bankCount},
+  } } @{$$jsonInfo{islandSaveInfos}};
+
+  my $fmt = applyFormatVars($formatSummarySpec, $summaryVars);
+  if($includeLands){
+    for my $landVars(@landVarSets){
+      $fmt .= applyFormatVars($formatLandSpec, $landVars);
+    }
+  }
+  return $fmt;
+}
+
+sub applyFormatVars($$){
+  my ($spec, $vars) = @_;
+
+  $spec =~ s/&/&amp;/g;
+  $spec =~ s/%%/&boing;/g;
+  $spec =~ s/%n/&newline;/g;
+
+  for my $varName(sort keys %$vars){
+    my $val = $$vars{$varName};
+    while($spec =~ /(%[^:]*):$varName:/){
+      my $sprintfSpec = $1;
+      my $valFmt = sprintf($1, $val);
+      if($spec !~ s/$sprintfSpec:$varName:/$valFmt/){
+        die "ERROR: could not replace variable $sprintfSpec:$varName:\n";
+      }
+    }
+  }
+
+  $spec =~ s/&newline;/\n/g;
+  $spec =~ s/&boing;/%/g;
+  $spec =~ s/&amp;/&/g;
+
+  return $spec;
+}
+
+sub getMaxLand($$){
+  my ($campaignIndex, $challengeId) = @_;
+  if(defined $campaignIndex){
+    return '5';
+  }elsif(defined $challengeId){
+    my $chal = $$CHALLENGE_ISLANDS{$challengeId};
+    if(defined $chal){
+      return $$chal{maxLand};
+    }else{
+      return '?';
+    }
+  }
+}
+
+sub formatGame($$$){
+  my ($campaignIndex, $challengeId, $formatShort) = @_;
+
+  if(defined $campaignIndex){
+    my $slot = $campaignIndex + 1;
+    return $formatShort ? "SLT$slot" : "SLOT $slot/3";
+  }elsif(defined $challengeId){
+    my $chal = $$CHALLENGE_ISLANDS{$challengeId};
+    if($formatShort){
+      return defined $chal ? $$chal{shortName} : "CH$challengeId";
+    }else{
+      return defined $chal ? $$chal{name} : "CHLNG#$challengeId";
+    }
+  }else{
+    die "ERROR: no campaign or challenge found\n";
+  }
+}
+
+sub formatLand($$$$){
+  my ($campaignIndex, $challengeId, $landIndex, $formatShort) = @_;
+
+  my $landNum = $landIndex + 1;
+
+  my $maxLand = getMaxLand($campaignIndex, $challengeId);
+
+  if($landNum < 10){
+    return $formatShort ? "L$landNum/$maxLand" : "LAND  $landNum/$maxLand";
+  }else{
+    return $formatShort ? "$landNum/$maxLand" : "LAND $landNum/$maxLand";
+  }
+}
+
+sub parseSaveInfo($$){
+  my ($tarFile, $includeLands) = @_;
   my $workDir = "/tmp/kingdom-save-tmp-" . nowMillis();
   runQuiet "mkdir", "-p", $workDir;
   runQuiet "tar", "-xf", $tarFile, "-C", $workDir;
 
-  my $info = {
-    land => "?",
-    days => "?",
-    islands => {},
-  };
-
-  my $challengeNames = {
-    1 => 'SKULL',
-    2 => 'PLAGUE',
-    4 => 'DIRE',
-    8 => 'TRADE',
-  };
-
   my $globalFile = globOne "$workDir/global-*";
-  if(-f $globalFile){
-    my $globalJson = readFile $globalFile;
-    my ($campaigns, $challenges, $currentCampaign, $currentChallenge);
-
-    my $obj = JSON->new->decode($globalJson);
-    if(ref $obj eq "HASH" and defined $$obj{campaigns}){
-      $campaigns = $$obj{campaigns};
-      $challenges = $$obj{challenges};
-      $currentCampaign = $$obj{_currentCampaign};
-      $currentChallenge = $$obj{_currentChallenge};
-    };
-
-    my $cur;
-    if(
-      ref $campaigns eq "ARRAY"
-      and defined $currentCampaign
-      and $currentCampaign =~ /^(\d+)$/
-      and $currentCampaign < @$campaigns
-    ){
-      $cur = $$campaigns[$currentCampaign];
-      $$info{landChg} = sprintf "LAND%d/5", ($$cur{currentLand}+1);
-    }elsif(
-      ref $challenges eq "ARRAY"
-      and defined $currentChallenge
-      and $currentChallenge =~ /^(\d+)$/
-    ){
-      for my $challenge(@$challenges){
-        if(ref $challenge eq "HASH"){
-          my $challengeId = $$challenge{challengeId};
-          if($currentChallenge == $challengeId){
-            $cur = $challenge;
-            my $challengeFmt = defined $$challengeNames{$currentChallenge}
-              ? $$challengeNames{$currentChallenge}
-              : sprintf "CHNG#%02d", $currentChallenge;
-            $$info{landChg} = sprintf "%-7s", $challengeFmt;
-            last;
-          }
-        }
-      }
-    }
-    if(defined $cur and defined $$cur{playTimeDays}){
-      $$info{days} = $$cur{playTimeDays};
-    }
+  if(not defined $globalFile or not -f $globalFile){
+    die "ERROR: global save file missing from $tarFile\n";
   }
+  my @islandFiles = grep {-f $_} glob "$workDir/island-*";
 
-  my @islandFiles = glob "$workDir/island-*";
-  for my $islandFile(@islandFiles){
-    my $islandName = $islandFile;
-    $islandName =~ s/.*\///;
-    $$info{islands}{$islandName} = {};
-
-    my $landFmt;
-    if($islandName =~ /^island-v\d+-c([012])-l([01234])$/){
-      my ($campaignIndex, $landIndex) = ($1, $2);
-      $landFmt = sprintf "SLOT %d/3 - LAND %2d/5",
-        ($campaignIndex+1),
-        ($landIndex+1),
-      ;
-    }elsif($islandName =~ /^island-v\d+-ch(\d+)-l(\d+)$/){
-      my ($challengeIndex, $landIndex) = ($1, $2);
-      my $challengeFmt = defined $$challengeNames{$challengeIndex}
-        ? $$challengeNames{$challengeIndex}
-        : sprintf "CHLNG#%02d", $challengeIndex;
-
-      my $maxLand = 1 if $challengeFmt =~ /^(SKULL|PLAGUE)$/;
-      $maxLand = 2 if $challengeFmt =~ /^(TRADE)$/;
-      $maxLand = '?' if $challengeFmt =~ /^(DIRE)$/;
-      $maxLand = '?' if not defined $maxLand;
-
-      $landFmt = sprintf "%-8s - LAND %2d/%s",
-        $challengeFmt,
-        ($landIndex+1),
-        $maxLand,
-      ;
-    }else{
-      $landFmt = $islandName;
-    }
-
-    $$info{islands}{$islandName}{"landFmt"} = $landFmt;
-
-    my $json = `gzip --force --decompress --stdout $islandFile`;
-    if($? != 0){
-      die "ERROR: could not gzip decompress $islandFile\n";
-    }
-
-    my $bankFmt;
-    if($json =~ /{[^}]*"name":"Banker"[^}]*\\"stashedCoins\\":(\d+)/){
-      $bankFmt = sprintf "B\$%03d", $1;
-    }else{
-      $bankFmt = "B\$???";
-    }
-
-    my %objNameAbbrevs = (
-      Archer  => "Ar",
-      Peasant => "Ps",
-      Worker  => "Wk",
-      Farmer  => "Fa",
-      Pikeman => "Pk",
-      Squire  => "Sq",
-      Knight  => "Kn",
-    );
-    my @countFmts;
-    for my $objName(sort keys %objNameAbbrevs){
-      my $objAbbrev = $objNameAbbrevs{$objName};
-      my @ids = $json =~ /"uniqueID"\s*:\s*"($objName \w+ \[\w+\]--\d+)"/g;
-      my %uniqIds = map {$_ => 1} @ids;
-      @ids = sort keys %uniqIds;
-      my $count = @ids;
-      $$info{islands}{$islandName}{"count$objName"} = $count;
-      push @countFmts, sprintf("%3d%s", $count, $objAbbrev);
-    }
-
-    $$info{islands}{$islandName}{"countFmt"} = join(" ", @countFmts) . " ${bankFmt}";
-  }
-
-  if(defined $$info{days} and $$info{days} =~ /^-?(\d+|\d*\.\d+)$/){
-    $$info{daysFmt} = sprintf "%03dD", int($$info{days} + 1 + 0.5);
-  }else{
-    $$info{daysFmt} = "?D";
+  my $globalSaveInfo = parseGlobalSaveFileJSON($globalFile);
+  my @islandSaveInfos;
+  if($includeLands){
+    @islandSaveInfos = map {parseIslandSaveFileJSON $_} @islandFiles;
   }
 
   runQuiet "rm", "-rf", $workDir;
-  return $info;
+
+  return {
+    globalSaveInfo => $globalSaveInfo,
+    islandSaveInfos => [@islandSaveInfos],
+  };
+}
+
+sub parseGlobalSaveFileJSON($){
+  my ($globalFile) = @_;
+  my $globalJson = readFile $globalFile;
+
+  my ($curPlayTimeDays, $curCampaignIndex, $curChallengeId, $curLandIndex);
+
+  my ($campaigns, $challenges, $currentCampaign, $currentChallenge);
+  my $obj = JSON->new->decode($globalJson);
+  if(ref $obj eq "HASH" and defined $$obj{campaigns}){
+    $campaigns = $$obj{campaigns};
+    $challenges = $$obj{challenges};
+    $currentCampaign = $$obj{_currentCampaign};
+    $currentChallenge = $$obj{_currentChallenge};
+  };
+
+  if(
+    ref $campaigns eq "ARRAY"
+    and defined $currentCampaign
+    and $currentCampaign =~ /^(\d+)$/
+    and $currentCampaign < @$campaigns
+  ){
+    my $cur = $$campaigns[$currentCampaign];
+    if(ref $cur eq "HASH"){
+      $curCampaignIndex = $currentCampaign;
+      $curChallengeId = undef;
+      $curPlayTimeDays = $$cur{playTimeDays};
+      $curLandIndex = $$cur{currentLand};
+    }
+  }elsif(
+    ref $challenges eq "ARRAY"
+    and defined $currentChallenge
+    and $currentChallenge =~ /^(\d+)$/
+  ){
+    for my $challenge(@$challenges){
+      if(ref $challenge eq "HASH"){
+        my $challengeId = $$challenge{challengeId};
+        if($currentChallenge == $challengeId){
+          my $cur = $challenge;
+          if(ref $cur eq "HASH"){
+            $curCampaignIndex = undef;
+            $curChallengeId = $currentChallenge;
+            $curPlayTimeDays = $$cur{playTimeDays};
+            $curLandIndex = $$cur{currentLand};
+          }
+          last;
+        }
+      }
+    }
+  }
+
+  if(not defined $curCampaignIndex and not defined $curChallengeId){
+    die "ERROR: could not find campaign slot or challenge ID in $globalFile\n";
+  }elsif(defined $curCampaignIndex and $curCampaignIndex !~ /^\d$/){
+    die "ERROR: malformed campaign index $curCampaignIndex in $globalFile\n";
+  }elsif(defined $curChallengeId and $curChallengeId !~ /^(\d|\d\d)$/){
+    die "ERROR: malformed challenge ID $curChallengeId in $globalFile\n";
+  }
+
+  if(not defined $curLandIndex or $curLandIndex !~ /^\d+$/){
+    die "ERROR: could not find current land index in $globalFile\n";
+  }
+
+  if(not defined $curPlayTimeDays or $curPlayTimeDays !~ /^\d*(\.\d*)?$/){
+    die "ERROR: could not find current playTimeDays in $globalFile\n";
+  }
+
+  return {
+    curCampaignIndex => $curCampaignIndex,
+    curChallengeId   => $curChallengeId,
+    curPlayTimeDays  => $curPlayTimeDays,
+    curLandIndex     => $curLandIndex,
+  }
+}
+
+sub parseIslandSaveFileJSON($){
+  my ($islandFile) = @_;
+
+  my ($campaignIndex, $challengeId, $landIndex,
+    $playTimeDays, $objectCounts, $bankCount);
+
+  if($islandFile =~ /(?:^|\/)island-v\d+-c([012])-l([01234])$/){
+    ($campaignIndex, $landIndex) = ($1, $2);
+  }elsif($islandFile =~ /(?:^|\/)island-v\d+-ch(\d+)-l(\d+)$/){
+    ($challengeId, $landIndex) = ($1, $2);
+  }else{
+    die "ERROR: malformed island file name $islandFile\n";
+  }
+
+  my $json = `gzip --force --decompress --stdout $islandFile`;
+  if($? != 0){
+    die "ERROR: could not gzip decompress $islandFile\n";
+  }
+
+  if($json =~ /{[^}]*"name":"Banker"[^}]*\\"stashedCoins\\":(\d+)/){
+    $bankCount = $1;
+  }else{
+    $bankCount = 0;
+  }
+
+  if($json =~ /"playTimeDays":(\d*\.\d*)/){
+    $playTimeDays = $1;
+  }else{
+    die "ERROR: could not file playTimeDays for island $islandFile\n";
+  }
+
+  $objectCounts = {
+    Archer    => 0,
+    Worker    => 0,
+    Farmer    => 0,
+    Squire    => 0,
+    Knight    => 0,
+    Pikeman   => 0,
+    Peasant   => 0,
+  };
+
+  my @objectNames = sort keys %$objectCounts;
+  for my $objName(@objectNames){
+    my @ids = $json =~ /"uniqueID"\s*:\s*"($objName \w+ \[\w+\]--\d+)"/g;
+    my %uniqIds = map {$_ => 1} @ids;
+    @ids = sort keys %uniqIds;
+
+    my $count = @ids;
+    $$objectCounts{$objName} = $count;
+  }
+
+  return {
+    campaignIndex => $campaignIndex,
+    challengeId   => $challengeId,
+    landIndex     => $landIndex,
+    playTimeDays  => $playTimeDays,
+    objectCounts  => $objectCounts,
+    bankCount     => $bankCount,
+  };
 }
 
 sub extractTarToSaveDir($$){
@@ -454,15 +749,16 @@ sub ensureSaveCached($$){
       notifySend $msg;
       die "$msg\n";
     }
-    my $saveInfo = parseSaveInfo $saveFileCachePath;
 
     run "touch", $saveFileCachePath, "--date", "\@$currentSaveMtime";
 
     run "rm", "-f", "$cacheDir/latest.tar.xz";
     run "ln", "-s", $cacheFileName, "$cacheDir/latest.tar.xz";
 
-    my $mtimeFmt = `date --date \@$currentSaveMtime '+%Y-%m-%d %H:%M:%S'`;
-    my $msg = "SAVED: $mtimeFmt  $$saveInfo{daysFmt}  $$saveInfo{landChg}";
+    my $save = getSaveInfoFromTarFile($saveFileCachePath);
+    $$save{index} = 0;
+
+    my $msg = formatSave($save, $NEW_SAVE_FORMAT_SUMMARY_SPEC, '', 0);
     notifySend $msg;
     print "$msg\n";
   }
