@@ -202,6 +202,9 @@ my $usage = "Usage:
                               'L<CUR_LAND_NUM>/<CUR_LAND_MAX>'
                            otherwise:
                               '<LAND_NUM>/<LAND_MAX>'
+          CUR_STAT<STAT> = 'persistentStats' at index <STAT> for the current
+                           campaign or challenge
+                           e.g.: CUR_STAT20 may be the number of greed killed on DIRE
 
     --format-land=FORMAT_LAND_SPEC
       default: $DEFAULT_FORMAT_LAND_SPEC
@@ -431,6 +434,10 @@ sub formatSave($$$$){
     CUR_LAND        => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
     CUR_LAND_SHORT  => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
   };
+  my @stats = @{$$g{curStats}};
+  for(my $statIndex=0; $statIndex<@stats; $statIndex++){
+    $$summaryVars{"CUR_STAT$statIndex"} = $stats[$statIndex];
+  }
 
   my @landVarSets = map { {
     DAY        => int($$_{playTimeDays} + 1),
@@ -560,7 +567,7 @@ sub parseGlobalSaveFileJSON($){
   my ($globalFile) = @_;
   my $globalJson = readFile $globalFile;
 
-  my ($curPlayTimeDays, $curCampaignIndex, $curChallengeId, $curLandIndex);
+  my ($curPlayTimeDays, $curCampaignIndex, $curChallengeId, $curLandIndex, $curStats);
 
   my ($campaigns, $challenges, $currentCampaign, $currentChallenge);
   my $obj = JSON->new->decode($globalJson);
@@ -583,6 +590,7 @@ sub parseGlobalSaveFileJSON($){
       $curChallengeId = undef;
       $curPlayTimeDays = $$cur{playTimeDays};
       $curLandIndex = $$cur{currentLand};
+      $curStats = $$cur{persistentStats};
     }
   }elsif(
     ref $challenges eq "ARRAY"
@@ -599,6 +607,7 @@ sub parseGlobalSaveFileJSON($){
             $curChallengeId = $currentChallenge;
             $curPlayTimeDays = $$cur{playTimeDays};
             $curLandIndex = $$cur{currentLand};
+            $curStats = $$cur{persistentStats};
           }
           last;
         }
@@ -622,11 +631,18 @@ sub parseGlobalSaveFileJSON($){
     die "ERROR: could not find current playTimeDays in $globalFile\n";
   }
 
+  if(defined $curStats and ref $curStats eq "ARRAY"){
+    $curStats = [@$curStats];
+  }else{
+    $curStats = [];
+  }
+
   return {
     curCampaignIndex => $curCampaignIndex,
     curChallengeId   => $curChallengeId,
     curPlayTimeDays  => $curPlayTimeDays,
     curLandIndex     => $curLandIndex,
+    curStats         => $curStats,
   }
 }
 
