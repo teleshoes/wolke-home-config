@@ -145,7 +145,7 @@ sub getRemyWikiFiles($);
 sub getRemyWikiFileUrlsByFilePath($);
 sub getAvgDifficultyRatiosBetweenGames($$);
 sub extractNameId($);
-sub abbrevNameId($$$$);
+sub abbrevNameId($$$);
 sub trimVowels($);
 sub abbrevWords($@);
 sub calculateSongDifficulties($$$);
@@ -324,7 +324,7 @@ sub formatSongList(){
 
     my $songDifficulties = calculateSongDifficulties $songId, $allGameInfo, $diffScalingRatios;
 
-    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist}, $$song{genre};
+    my $abbrev = abbrevNameId $ABBREV_LEN, $$song{nameId}, $$song{artist};
 
     $$songList{$$song{nameId}} = {
       abbrev          => $abbrev,
@@ -342,7 +342,7 @@ sub formatSongList(){
   }
   $fmt .= "\n";
   for my $nonstopCourse(sort @NONSTOP_COURSES){
-    my $abbrev = "non" . ucfirst abbrevNameId $ABBREV_LEN-3, $nonstopCourse, "", "";
+    my $abbrev = "non" . ucfirst abbrevNameId $ABBREV_LEN-3, $nonstopCourse, "";
     my @diffArr = map {"-"} (0..8);
 
     $fmt .= formatSong($nonstopCourse, $abbrev, @diffArr);
@@ -992,8 +992,8 @@ sub extractNameId($){
   return $nameId;
 }
 
-sub abbrevNameId($$$$){
-  my ($len, $nameId, $artist, $genre) = @_;
+sub abbrevNameId($$$){
+  my ($len, $nameId, $artist) = @_;
 
   my @words = split /-/, $nameId;
 
@@ -1041,22 +1041,11 @@ sub abbrevNameId($$$$){
       $artistAbbrev = abbrevWords $remLen, @artistWords;
     }
     $abbrev .= $artistAbbrev;
-  }
 
-  #if abbrev is STILL too short, append a genre abbrev
-  if(length $abbrev < $len){
-    $genre = extractNameId $genre;
-    my @genreWords = split /-/, $genre;
-    @genreWords = map {ucfirst $_} @genreWords;
-    my @genreShortWords = map {trimVowels $_} @genreWords;
-
-    my $remLen = $len - length $abbrev;
-
-    my $genreAbbrev = abbrevWords $remLen, @genreShortWords;
-    if(length $genreAbbrev < $remLen){
-      $genreAbbrev = abbrevWords $remLen, @genreWords;
+    #if abbrev is STILL too short, append artist again
+    if(length $abbrev < $len){
+      $abbrev .= $artistAbbrev;
     }
-    $abbrev .= $genreAbbrev;
   }
 
   $abbrev = substr $abbrev, 0, $len;
