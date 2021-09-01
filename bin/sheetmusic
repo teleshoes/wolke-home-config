@@ -170,6 +170,26 @@ sub getShowEntries(){
   return $entries;
 }
 
+#return all files in a dir before children of that dir
+sub sortBreadthFirst($$){
+  my ($a, $b) = @_;
+  my $aDir = $a;
+  $aDir =~ s/\/+$//;
+  $aDir =~ s/\/+[^\/]+$//;
+
+  my $bDir = $b;
+  $bDir =~ s/\/+$//;
+  $bDir =~ s/\/+[^\/]+$//;
+
+  if($aDir =~ /^\Q$bDir\E/){
+    return 1;
+  }elsif($bDir =~ /^\Q$aDir\E/){
+    return -1;
+  }else{
+    return $a cmp $b;
+  }
+}
+
 sub getDirEntries($){
   my ($dir) = @_;
   my $parentDirName = dirPathToName $dir;
@@ -179,7 +199,7 @@ sub getDirEntries($){
     my $name = dirPathToName $subDir;
     my @files = readProcLines "find", $subDir, "-type", "f";
     chomp foreach @files;
-    @files = sort @files;
+    @files = sort {sortBreadthFirst($a, $b)} @files;
 
     my @types;
     my @jpeg = grep {/\.(jpg|jpeg)$/} @files;
