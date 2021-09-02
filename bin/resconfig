@@ -145,6 +145,33 @@ my $usage ="Usage:
     $EXEC_RESCONFIG --reset-res
       -update WIDTH_PX and HEIGHT_PX in $RESCONFIG_SCREEN_FILE using RES_ALT1
 
+    $EXEC_RESCONFIG --get-scale-px
+      returns a real number representing current screen pixel width,
+        on a scale of: 0=${SCALE_PX_LOW}px to 1=${SCALE_PX_HIGH}px
+      e.g.:
+        1280x720  => " . sprintf("%6.2f", scale(1280, $SCALE_PX_LOW, $SCALE_PX_HIGH)) . "
+        1920x1080 => " . sprintf("%6.2f", scale(1920, $SCALE_PX_LOW, $SCALE_PX_HIGH)) . "
+        2560x1440 => " . sprintf("%6.2f", scale(2560, $SCALE_PX_LOW, $SCALE_PX_HIGH)) . "
+
+    $EXEC_RESCONFIG --get-scale-size
+      returns a real number representing current screen physical width,
+        on a scale of: 0=${SCALE_SIZE_LOW}mm to 1=${SCALE_SIZE_HIGH}mm
+      e.g.: (width in mm of 16:9 aspect ratio screens)
+        11.6in (253mm)  => " . sprintf("%6.2f", scale(253, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH)) . "
+        14in   (310mm)  => " . sprintf("%6.2f", scale(310, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH)) . "
+        15.6in (344mm)  => " . sprintf("%6.2f", scale(344, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH)) . "
+        50in   (1118mm) => " . sprintf("%6.2f", scale(1118, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH)) . "
+        70in   (1549mm) => " . sprintf("%6.2f", scale(1549, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH)) . "
+
+    $EXEC_RESCONFIG --get-scale-dist
+      returns a real number representing distance from eye to screen,
+        on a scale of: 0=${SCALE_SIZE_LOW}mm to 1=${SCALE_SIZE_HIGH}mm
+      e.g.:
+        127mm  (5in)     => " . sprintf("%6.2f", scale(127, $SCALE_DIST_LOW, $SCALE_DIST_HIGH)) . "
+        500mm  (lap)     => " . sprintf("%6.2f", scale(500, $SCALE_DIST_LOW, $SCALE_DIST_HIGH)) . "
+        1700mm (tv)      => " . sprintf("%6.2f", scale(1700, $SCALE_DIST_LOW, $SCALE_DIST_HIGH)) . "
+        9000mm (theatre) => " . sprintf("%6.2f", scale(9000, $SCALE_DIST_LOW, $SCALE_DIST_HIGH)) . "
+
     $EXEC_RESCONFIG --name | NAME | name
       print \"name\" from $RESCONFIG_SCREEN_FILE
     $EXEC_RESCONFIG --width-px | WIDTH_PX | width_px
@@ -222,6 +249,20 @@ sub main(@){
     }else{
       die "ERROR: res_alt1 not in $RESCONFIG_SCREEN_FILE\n";
     }
+  }elsif(@_ == 1 and $_[0] =~ /^--get-scale-(px|size|dist)$/i){
+    my $scaleType = $1;
+    my $resconfigScreen = readResconfigScreen();
+    my $scale;
+    if($scaleType eq "px"){
+      $scale = scale($$resconfigScreen{width_px}, $SCALE_PX_LOW, $SCALE_PX_HIGH);
+    }elsif($scaleType eq "size"){
+      $scale = scale($$resconfigScreen{width_mm}, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH);
+    }elsif($scaleType eq "dist"){
+      $scale = scale($$resconfigScreen{distance_mm}, $SCALE_DIST_LOW, $SCALE_DIST_HIGH);
+    }else{
+      die "ERROR: unknown scale type $scaleType\n";
+    }
+    print "$scale\n";
   }elsif(@_ == 1 and $_[0] =~ /^(--name|name)$/i){
     print ${readResconfigScreen()}{name} . "\n";
   }elsif(@_ == 1 and $_[0] =~ /^(--width-px|width_px)$/i){
