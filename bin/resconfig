@@ -11,6 +11,7 @@ sub readResconfigScreen();
 sub handleAllConfigs($);
 sub handleConfig($);
 sub allDigits(@);
+sub scale($$$);
 sub scaleInt($$$);
 sub readProcLines(@);
 sub readFileLines($);
@@ -29,11 +30,18 @@ my @RESCONFIG_KEYS_REQUIRED = qw(name width_px height_px width_mm height_mm dist
 my @RESCONFIG_KEYS_OPTIONAL = qw(res_alt1 res_alt2 res_alt3 res_alt4);
 my @RESCONFIG_KEYS = (@RESCONFIG_KEYS_REQUIRED, @RESCONFIG_KEYS_OPTIONAL);
 
+my $SCALE_PX_LOW = 1920;
+my $SCALE_PX_HIGH = 2560;
+my $SCALE_SIZE_LOW = 310;
+my $SCALE_SIZE_HIGH = 1118;
+my $SCALE_DIST_LOW = 500;
+my $SCALE_DIST_HIGH = 1700;
+
 sub configs($){
   my ($resconfigScreen) = @_;
-  my $scalePx = ($$resconfigScreen{width_px} - 1920) / (2560 - 1920);
-  my $scaleSize = ($$resconfigScreen{width_mm} - 310) / (1118 - 310);
-  my $scaleDist = ($$resconfigScreen{distance_mm} - 500) / (1700 - 500);
+  my $scalePx = scale($$resconfigScreen{width_px}, $SCALE_PX_LOW, $SCALE_PX_HIGH);
+  my $scaleSize = scale($$resconfigScreen{width_mm}, $SCALE_SIZE_LOW, $SCALE_SIZE_HIGH);
+  my $scaleDist = scale($$resconfigScreen{distance_mm}, $SCALE_DIST_LOW, $SCALE_DIST_HIGH);
 
   return (
     { name => "xresources-urxvt",
@@ -405,6 +413,11 @@ sub allDigits(@){
     return 0 if not defined $arg or $arg !~ /^\d+$/;
   }
   return 1;
+}
+
+sub scale($$$){
+  my ($val, $low, $high) = @_;
+  return ($val-$low)/($high-$low);
 }
 
 sub scaleInt($$$){
