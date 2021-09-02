@@ -15,7 +15,19 @@ my $usage = "USAGE:
         xft:$xftTypeface:pixelsize=<FONT_SIZE_PX>
       using:
         echo -ne '\\033]710;<FONT_STRING>\\033\\\\'
+
+  $0 --scale=BASE_FONT_SIZE_PX
+    -use `resconfig` to fetch scaling factors: <SCALE_PX>, <SCALE_SIZE>, <SCALE_DIST>
+      -use '0' for unknown scaling factors
+      -use '0' for negative scaling factors (do not decrease base font)
+    -calculate <TARGET_FONT_SIZE>:
+      <BASE_FONT_SIZE_PX> + 6*(<SCALE_PX) + 2*(SCALE_SIZE) + 2*(SCALE_DIST)
+    -set font size as in:
+      $0 <TARGET_FONT_SIZE>
 ";
+
+sub scaleFontSize($);
+sub getResconfigNonNegativeScale($);
 
 sub main(@){
   my $px = $defaultPx;
@@ -26,6 +38,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(\d+|\d*\.\d+)$/){
       $px = $1;
+    }elsif($arg =~ /^--scale=(\d+|\d*\.\d+)$/){
+      $px = scaleFontSize($1);
     }else{
       die $usage;
     }
@@ -34,6 +48,26 @@ sub main(@){
   my @cmd = ("echo", "-ne", "\\033]710;$font\\033\\\\");
   print "@cmd\n";
   system @cmd;
+}
+
+sub scaleFontSize($){
+  my ($baseFontSizePx) = @_;
+  my $scalePx = getResconfigNonNegativeScale("px");
+  my $scaleSize = getResconfigNonNegativeScale("size");
+  my $scaleDist = getResconfigNonNegativeScale("dist");
+
+  return $baseFontSizePx + 6*$scalePx + 2*$scaleSize + 2*$scaleDist;
+}
+
+sub getResconfigNonNegativeScale($){
+  my ($scaleType) = @_;
+  my $val = `resconfig --get-scale-$scaleType 2>/dev/null`;
+  chomp $val;
+  if($val =~ /^(\d+|\d*\.\d+)$/){
+    return $1;
+  }else{
+    return 0;
+  }
 }
 
 &main(@ARGV);
