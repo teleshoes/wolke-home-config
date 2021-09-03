@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Time::HiRes qw(sleep);
 
 my $XFT_TYPEFACE = "Inconsolata";
 my $DEFAULT_BASE_PX = 20;
@@ -13,11 +14,13 @@ my $USAGE = "USAGE:
     show this message
 
   $EXEC FONT_SIZE_PX
+    -use `xwininfo` to obtain the current window geometry
     -set the font size in pixels using typeface: $XFT_TYPEFACE
       prints this <FONT_STRING>:
         xft:$XFT_TYPEFACE:pixelsize=<FONT_SIZE_PX>
       using:
         echo -ne '\\033]710;<FONT_STRING>\\033\\\\'
+    -resize the window using wmctrl to the previous geometry (rxvt resizes it sometimes)
 
   $EXEC
     same as: $EXEC --scale=$DEFAULT_BASE_PX
@@ -47,10 +50,12 @@ my $USAGE = "USAGE:
 sub scaleFontSize($);
 sub getResconfigNonNegativeScale($);
 sub getWindowGeometryXwininfo();
+sub setWindowGeometryWmctrl($);
 sub getFontSizeForColumns($);
 
 sub main(@){
   my $px;
+  my $persistWindowSize = 1;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -68,10 +73,20 @@ sub main(@){
   }
   $px = scaleFontSize($DEFAULT_BASE_PX) if not defined $px;
 
+  my $geometry;
+  if($persistWindowSize){
+    $geometry = getWindowGeometryXwininfo();
+  }
+
   my $font = "xft:$XFT_TYPEFACE:pixelsize=$px";
   my @cmd = ("echo", "-ne", "\\033]710;$font\\033\\\\");
   print "@cmd\n";
   system @cmd;
+
+  if($persistWindowSize){
+    sleep 0.1;
+    setWindowGeometryWmctrl($geometry);
+  }
 }
 
 sub scaleFontSize($){
@@ -106,6 +121,20 @@ sub getWindowGeometryXwininfo(){
   $$geometry{left}   = $1 if $info =~ /^\s*Absolute upper-left X:\s*(\d+)\s*$/m;
   $$geometry{top}    = $1 if $info =~ /^\s*Absolute upper-left Y:\s*(\d+)\s*$/m;
   return $geometry;
+}
+
+sub setWindowGeometryWmctrl($){
+  my ($geometry) = @_;
+  my $windowId = $ENV{WINDOWID};
+  my $geometryFmt = "0"
+    . "," . (defined $$geometry{left} ? $$geometry{left} : "-1")
+    . "," . (defined $$geometry{top} ? $$geometry{top} : "-1")
+    . "," . (defined $$geometry{width} ? $$geometry{width} : "-1")
+    . "," . (defined $$geometry{height} ? $$geometry{height} : "-1")
+    ;
+  my @cmd = ("wmctrl", "-i", "-r", $windowId, "-e", $geometryFmt);
+  print "@cmd\n";
+  system @cmd;
 }
 
 sub getFontSizeForColumns($){
