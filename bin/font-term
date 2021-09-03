@@ -30,10 +30,24 @@ my $USAGE = "USAGE:
       <BASE_FONT_SIZE_PX> + 6*(<SCALE_PX) + 2*(SCALE_SIZE) + 2*(SCALE_DIST)
     -set font size as in:
       $EXEC <TARGET_FONT_SIZE>
+
+  $EXEC --chars=TARGET_COLUMNS
+  $EXEC --cols=TARGET_COLUMNS
+    -find the <WINDOW_WIDTH> and <WINDOW_HEIGHT> in pixels,
+      using env var \$WINDOWID and `xwininfo`
+    -get the max <CHARACTER_WIDTH>: floor(<WINDOW_WIDTH>/<TARGET_COLUMNS>)
+    -get <TARGET_FONT_SIZE> = <CHARACTER_WIDTH> * 2
+    -use <WINDOW_HEIGHT> for <TARGET_FONT_SIZE>,
+      if the font size is greater than the window height
+      (to ensure at least one line fits)
+    -set font size as in:
+      $EXEC <TARGET_FONT_SIZE>
 ";
 
 sub scaleFontSize($);
 sub getResconfigNonNegativeScale($);
+sub getWindowGeometryXwininfo();
+sub getFontSizeForColumns($);
 
 sub main(@){
   my $px;
@@ -46,6 +60,8 @@ sub main(@){
       $px = $1;
     }elsif($arg =~ /^--scale=(\d+|\d*\.\d+)$/){
       $px = scaleFontSize($1);
+    }elsif($arg =~ /^--(?:chars|cols)=(\d+)$/){
+      $px = getFontSizeForColumns($1);
     }else{
       die $USAGE;
     }
@@ -76,6 +92,38 @@ sub getResconfigNonNegativeScale($){
   }else{
     return 0;
   }
+}
+
+sub getWindowGeometryXwininfo(){
+  my $windowId = $ENV{WINDOWID};
+  my $geometry= {};
+
+  return $geometry if not defined $windowId;
+
+  my $info = `xwininfo -id $windowId 2>/dev/null`;
+  $$geometry{width}  = $1 if $info =~ /^\s*Width:\s*(\d+)\s*$/m;
+  $$geometry{height} = $1 if $info =~ /^\s*Height:\s*(\d+)\s*$/m;
+  $$geometry{left}   = $1 if $info =~ /^\s*Absolute upper-left X:\s*(\d+)\s*$/m;
+  $$geometry{top}    = $1 if $info =~ /^\s*Absolute upper-left Y:\s*(\d+)\s*$/m;
+  return $geometry;
+}
+
+sub getFontSizeForColumns($){
+  my ($cols) = @_;
+  my $geometry = getWindowGeometryXwininfo();
+  my $windowWidthPx = $$geometry{width};
+  my $windowHeightPx = $$geometry{height};
+  if(not defined $windowWidthPx or not defined $windowHeightPx){
+    die "ERROR: could not obtain current window width and height with xwininfo\n";
+  }
+  my $charWidth = int($windowWidthPx/$cols);
+  my $fontSize = $charWidth*2;
+
+  if($fontSize > $windowHeightPx){
+    return $windowHeightPx;
+  }
+
+  return $fontSize;
 }
 
 &main(@ARGV);
