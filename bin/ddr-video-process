@@ -128,24 +128,6 @@ sub main(@){
   my $ext = $1 if $cameraFile =~ /\.(\w+)$/;
   die "ERROR: missing file extension in $cameraFile\n" if not defined $ext;
 
-  my @cameraFpsFilter;
-  my @ffprobeCmd = ("ffprobe",
-    "-v", "error",
-    "-select_streams", "v:0",
-    "-show_entries", "stream=avg_frame_rate",
-    "-of", "default=nw=1:nk=1",
-    $cameraFile,
-  );
-  my $cameraInfo = `@ffprobeCmd 2>&1`;
-  if($cameraInfo =~ /^(\d+)\/(\d+)$/){
-    my $fps = $2 == 0 ? 0 : $1/$2;
-    if($fps > 0){
-      push @cameraFpsFilter, sprintf "fps=fps=%.3f", $fps;
-    }else{
-      print STDERR "WARNING: could not parse camera fps\n" if $fps <= 0;
-    }
-  }
-
   my ($cameraAudioStartPos, $screenAudioStartPos, $songAudioStartPos);
   if($useScreenAudio){
     if($screenPoint > $cameraAudioPoint){
@@ -257,13 +239,13 @@ sub main(@){
       "-filter_complex", join(",",
         "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
         "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
-        @cameraFpsFilter,             #adjust to match camera
+        "fps=fps=60",                 #force 60fps
       ),
       "-an",
     );
 
     #trim camera-video to start of screen-video, rotate+resize camera-video for stacking
-    ffmpeg("tmp-camera-transpose-scale.$ext",
+    ffmpeg("tmp-camera-transpose-scale-fps.$ext",
       "-i", $cameraFile,
       "-ss", sprintf("%.2f", $cameraVideoStartPos),
       "-metadata:s:v:0", "rotate=0",  #remove metadata fake rotation
@@ -271,13 +253,14 @@ sub main(@){
         "transpose=3",                #fix metadata confusion bug
         "transpose=3",                #actually rotate (same as overall transpose=1)
         "scale=608:1080",             #1080x1920 => 608x1080
+        "fps=fps=60",                 #force 60fps
       ),
       "-an",
     );
 
     #stack camera-video (left) and screen-video (right) horizontally
     ffmpeg("tmp-video-final.$ext",
-      "-i", "tmp-camera-transpose-scale.$ext",
+      "-i", "tmp-camera-transpose-scale-fps.$ext",
       "-i", "tmp-screen-trim-crop-scale-fps.$ext",
       "-vsync", "2",
       "-filter_complex", "hstack=inputs=2:shortest=1",
