@@ -1,0 +1,137 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $USAGE = "USAGE:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC
+  $EXEC --list
+    list pulse sink inputs, mute status, and the associated application.name
+    one per line, formatted:
+      <INDEX>: <MUTE_STATUS> <APP_NAME>
+
+  $EXEC APP_NAME
+    same as: $EXEC APP_NAME --toggle
+
+  $EXEC APP_NAME MUTE_OPT
+    -list all pulse sink inputs
+    -obtain the index of each input where:
+      application.name contains APP_NAME, case insensitive
+    -for each index, obtain the current mute status
+    -for each index, set new mute status using MUTE_OPT
+
+  MUTE_OPT
+    m | mute | -m | --mute
+      mute the sink input
+    u | unmute | -u | --unmute
+      mute the sink input
+    t | toggle | -t | --toggle
+      if sink input is currently muted, unmute the sink input
+      otherwise, mute the sink input
+";
+
+sub setSinkInputMute($$);
+sub getSinkInputsByIndex();
+sub run(@);
+
+my $CMD_LIST = "list";
+my $CMD_MUTE = "mute";
+my $CMD_UNMUTE = "unmute";
+my $CMD_TOGGLE = "toggle";
+
+my $MUTED_STATUS_MUTED = "muted";
+my $MUTED_STATUS_UNMUTED = "unmuted";
+my $MUTED_STATUS_UNKNOWN = "unknown";
+
+sub main(@){
+  my ($cmd, $appName);
+  $cmd = $CMD_LIST;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-l|--list)$/){
+      $cmd = $CMD_LIST;
+    }elsif($arg =~ /^(m|mute|-m|--mute)$/){
+      $cmd = $CMD_MUTE;
+    }elsif($arg =~ /^(u|unmute|-u|--unmute)$/){
+      $cmd = $CMD_UNMUTE;
+    }elsif($arg =~ /^(t|toggle|-t|--toggle)$/){
+      $cmd = $CMD_TOGGLE;
+    }else{
+      $appName = $arg;
+      $cmd = $CMD_TOGGLE if $cmd eq $CMD_LIST;
+    }
+  }
+
+  if($cmd eq $CMD_LIST){
+    my $sinkInputsByIndex = getSinkInputsByIndex();
+    for my $index(sort keys %$sinkInputsByIndex){
+      my $input = $$sinkInputsByIndex{$index};
+      print "$index: $$input{mutedStatus} $$input{appName}\n";
+    }
+  }elsif($cmd eq $CMD_MUTE or $cmd eq $CMD_UNMUTE or $cmd eq $CMD_TOGGLE){
+    my $sinkInputsByIndex = getSinkInputsByIndex();
+    for my $index(sort keys %$sinkInputsByIndex){
+      my $input = $$sinkInputsByIndex{$index};
+      my $inputAppName = $$input{appName};
+      if($inputAppName =~ /\Q$appName\E/i){
+        my $targetMute;
+        if($cmd eq $CMD_MUTE){
+          $targetMute = 1;
+        }elsif($cmd eq $CMD_UNMUTE){
+          $targetMute = 0;
+        }elsif($cmd eq $CMD_TOGGLE){
+          $targetMute = $$input{mutedStatus} eq $MUTED_STATUS_MUTED ? 0 : 1;
+        }else{
+          die "ERROR: unknown command $cmd\n";
+        }
+        setSinkInputMute($index, $targetMute);
+      }
+    }
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub setSinkInputMute($$){
+  my ($index, $isMuted) = @_;
+  run "pacmd", "set-sink-input-mute", $index, ($isMuted ? 1 : 0);
+}
+
+sub getSinkInputsByIndex(){
+  my $sinkInputs = `pacmd list-sink-inputs`;
+  my $inputsByIndex = {};
+
+  my @inputs = split /^    index: /m, $sinkInputs;
+  for my $input(@inputs){
+    if($input =~ /^(\d+)\n/){
+      my $index = $1;
+      $$inputsByIndex{$index} = {
+        appName => "",
+        mutedStatus => $MUTED_STATUS_UNKNOWN,
+      };
+
+      $$inputsByIndex{$index}{appName} = $1
+        if $input =~ /\n\s*application\.name\s*=\s*(.+)\n/;
+      $$inputsByIndex{$index}{mutedStatus} = $MUTED_STATUS_MUTED
+        if $input =~ /\n\s*muted: yes\n/;
+      $$inputsByIndex{$index}{mutedStatus} = $MUTED_STATUS_UNMUTED
+        if $input =~ /\n\s*muted: no\n/;
+    }
+  }
+  return $inputsByIndex;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
