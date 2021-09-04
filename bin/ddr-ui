@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $DEFAULT_SCREEN_HEIGHT = 1080;
+my $QTBTN_CONF_FILE = "$ENV{HOME}/.config/qtbtn-ddr.conf";
+
+my $ALL_PLAYERS_FILE = "/tmp/ddr-all-players";
+my $PLAYER_FILE = "/tmp/ddr-player";
+
+my $EXEC = basename $0;
+
+my $usage = "USAGE:
+  $EXEC [PLAYER PLAYER ..]
+    -write each PLAYER to $ALL_PLAYERS_FILE, one per line
+    -calculated screen scaling factor, relative to 1080p
+    -run qtbtn with scaling factor for $QTBTN_CONF_FILE
+
+  $EXEC --cycle-player
+    -read PLAYER from $PLAYER_FILE
+    -if PLAYER appears in $ALL_PLAYERS_FILE, followed by another player,
+      write that following player to $PLAYER_FILE
+    -otherwise, write the first PLAYER from $ALL_PLAYERS_FILE to $PLAYER_FILE
+";
+
+my $CMD_START_UI = "start-ui";
+my $CMD_CYCLE_PLAYER = "cycle-player";
+
+sub main(@){
+  my $cmd = $CMD_START_UI;
+  my @players;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^--cycle-player$/){
+      $cmd = $CMD_CYCLE_PLAYER;
+    }elsif($arg =~ /^([A-Z]+)$/){
+      push @players, $1;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($cmd eq $CMD_START_UI){
+    system "rm /tmp/ddr-*";
+    system "echo @players > $ALL_PLAYERS_FILE";
+    my $screenHeight = `res -h`;
+    chomp $screenHeight;
+    my $scale = $screenHeight / $DEFAULT_SCREEN_HEIGHT;
+    $scale = 0.25 if $scale < 0.25;
+    $scale = 8 if $scale > 8;
+    if(fork){
+      system "qtbtn.py --scale=$scale -w --left --bg $QTBTN_CONF_FILE >/dev/null";
+    }else{
+      system "stepmania-cursong-info -m --qml --file=/tmp/ddr-cursong";
+    }
+  }elsif($cmd eq $CMD_CYCLE_PLAYER){
+    my @allPlayers = split /[ \t\r\n]+/, `cat $ALL_PLAYERS_FILE 2>/dev/null`;
+    my $curPlayer = `cat $PLAYER_FILE 2>/dev/null`;
+    chomp $curPlayer;
+    my $index = undef;
+    for(my $i=0; $i<@allPlayers; $i++){
+      if($curPlayer eq $allPlayers[$i]){
+        $index = $i + 1;
+        last;
+      }
+    }
+    $index = 0 if not defined $index or $index >= @allPlayers or $index < 0;
+    if($index < @allPlayers){
+      system "echo $allPlayers[$index] > $PLAYER_FILE";
+    }
+  }else{
+    die "$usage\nERROR: unknown command $cmd\n";
+  }
+}
+
+&main(@ARGV);
