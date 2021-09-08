@@ -44,8 +44,9 @@ my $USAGE = "Usage:
     -run $MIDEA_IR_CMD_EXEC ARG ARG ..
     -run $MIDEA_RUBY_EXEC --fetch
 
-  $EXEC IR_CMD_ARG [ARG ARG ..]
-    -same as: $EXEC --set IR_CMD_ARG ARG ARG
+  $EXEC IR_CMD_ARG [IR_CMD_ARG IR_CMD_ARG ..]
+    -same as: $EXEC --set IR_CMD_ARG IR_CMD_ARG IR_CMD_ARG
+      i.e.: '--set' is optional when all <ARG>s are <IR_CMD_ARG>s
       IR_CMD_ARG" . $IR_CMD_REGEX . "
 ";
 
@@ -58,8 +59,8 @@ sub setACState(@);
 sub isACOn();
 
 sub main(@){
-  my $cmd = $COMMAND_TOGGLE;
-  my @irCmdArgs;
+  my $cmd = undef;
+  my @cliArgs;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -73,17 +74,30 @@ sub main(@){
       $cmd = $COMMAND_READ;
     }elsif($arg =~ /^(-s|--set)$/){
       $cmd = $COMMAND_SET;
-    }elsif($arg =~ /^($IR_CMD_REGEX)$/x){
-      $cmd = $COMMAND_SET;
-      push @irCmdArgs, $arg;
     }else{
-      push @irCmdArgs, $arg;
+      push @cliArgs, $arg;
     }
   }
 
-  if(@irCmdArgs > 0 and $cmd ne $COMMAND_SET){
-    die "ERROR: unknown args @irCmdArgs\n";
+  my @irCmdArgs;
+  if(not defined $cmd){
+    for my $arg(@cliArgs){
+      if($arg =~ /^($IR_CMD_REGEX)$/x){
+        push @irCmdArgs, $arg;
+      }else{
+        die "$USAGE\nERROR: unknown arg \"$arg\"\n";
+      }
+    }
+
+    if(@irCmdArgs > 0){
+      $cmd = $COMMAND_SET
+    }else{
+      $cmd = $COMMAND_TOGGLE;
+    }
+  }elsif($cmd eq $COMMAND_SET){
+    @irCmdArgs = @cliArgs;
   }
+
 
   if($cmd eq $COMMAND_TOGGLE){
     my $toggleArg = isACOn() ? "off" : "on";
