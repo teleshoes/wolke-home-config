@@ -8,6 +8,7 @@ my $EXEC = basename $0;
 my $IPMAGIC_NAME = "pi";
 my $MIDEA_RUBY_EXEC = "midea-ruby";
 my $MIDEA_IR_CMD_EXEC = "midea-ir-cmd";
+my $LAST_STATE_FILE = "$ENV{HOME}/.cache/ac-midea-last-state";
 
 my $IR_CMD_REGEX = "
         on | off | cold |
@@ -42,6 +43,7 @@ my $USAGE = "Usage:
 
   $EXEC -s|--set [ARG ARG ..]
     -run $MIDEA_IR_CMD_EXEC ARG ARG ..
+    -write 'ARG ARG ..' to $LAST_STATE_FILE
     -run $MIDEA_RUBY_EXEC --fetch
 
   $EXEC IR_CMD_ARG [IR_CMD_ARG IR_CMD_ARG ..]
@@ -57,6 +59,8 @@ my $COMMAND_SET = "set";
 
 sub setACState(@);
 sub isACOn();
+sub readLastState();
+sub writeLastState($);
 
 sub main(@){
   my $cmd = undef;
@@ -116,6 +120,7 @@ sub main(@){
 sub setACState(@){
   my (@irCmdArgs) = @_;
   system $MIDEA_IR_CMD_EXEC, @irCmdArgs;
+  writeLastState("@irCmdArgs");
   system $MIDEA_RUBY_EXEC, "--fetch";
 }
 
@@ -128,6 +133,20 @@ sub isACOn(){
   }else{
     die "ERROR: could not parse $MIDEA_RUBY_EXEC output: $status\n";
   }
+}
+
+sub readLastState(){
+  return "" if not -e $LAST_STATE_FILE;
+  my $state = `cat $LAST_STATE_FILE`;
+  chomp $state;
+  return $state;
+}
+sub writeLastState($){
+  my ($contents) = @_;
+  open FH, "> $LAST_STATE_FILE"
+    or die "ERROR: could not write $LAST_STATE_FILE\n";
+  print FH "$contents\n";
+  close FH;
 }
 
 &main(@ARGV);
