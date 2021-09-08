@@ -35,6 +35,22 @@ my $USAGE = "Usage:
     -if POWER=off:
       -run: $EXEC --set on
 
+  $EXEC --cycle ARG_LIST [ARG_LIST ARG_LIST ..]
+    -read last state from $LAST_STATE_FILE
+    -if last state matches any <ARG_LIST>, get the next <ARG_LIST>
+    -if no <ARG_LIST> matches, or the last matches, use the first <ARG_LIST>
+    -parse the selected <ARG_LIST> as a space-separated list of <ARG>s
+    -apply as in: $EXEC --set <ARG> <ARG> ..
+
+       e.g.: $EXEC --cycle on '73 med cool' off
+                 => $EXEC --set on
+             $EXEC --cycle on '73 med cool' off
+                 => $EXEC --set 73 med cool
+             $EXEC --cycle on '73 med cool' off
+                 => $EXEC --set off
+             $EXEC --cycle on '73 med cool' off
+                 => $EXEC --set on
+
   $EXEC -g|--get|-f|--fetch
     -run $MIDEA_RUBY_EXEC --fetch-and-read
 
@@ -53,6 +69,7 @@ my $USAGE = "Usage:
 ";
 
 my $COMMAND_TOGGLE = "toggle";
+my $COMMAND_CYCLE = "cycle";
 my $COMMAND_FETCH = "fetch";
 my $COMMAND_READ = "read";
 my $COMMAND_SET = "set";
@@ -72,6 +89,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-t|--toggle)$/){
       $cmd = $COMMAND_TOGGLE;
+    }elsif($arg =~ /^(-c|--cycle)$/){
+      $cmd = $COMMAND_CYCLE;
     }elsif($arg =~ /^(-g|--get|-f|--fetch)$/){
       $cmd = $COMMAND_FETCH;
     }elsif($arg =~ /^(-r|--read)$/){
@@ -83,7 +102,7 @@ sub main(@){
     }
   }
 
-  my @irCmdArgs;
+  my (@irCmdArgs, @cycleArgLists);
   if(not defined $cmd){
     for my $arg(@cliArgs){
       if($arg =~ /^($IR_CMD_REGEX)$/x){
@@ -100,12 +119,29 @@ sub main(@){
     }
   }elsif($cmd eq $COMMAND_SET){
     @irCmdArgs = @cliArgs;
+  }elsif($cmd eq $COMMAND_CYCLE){
+    @cycleArgLists = @cliArgs;
   }
 
 
   if($cmd eq $COMMAND_TOGGLE){
     my $toggleArg = isACOn() ? "off" : "on";
     setACState($toggleArg);
+  }elsif($cmd eq $COMMAND_CYCLE){
+    die "ERROR: no cycle arg lists given\n" if @cycleArgLists == 0;
+
+    my $state = readLastState();
+    my $targetIdx = 0;
+    for(my $i=0; $i<@cycleArgLists; $i++){
+      if($state eq $cycleArgLists[$i]){
+        $targetIdx = $i + 1;
+        last;
+      }
+    }
+    $targetIdx = 0 if $targetIdx > $#cycleArgLists;
+    my @args = split /\s+/, $cycleArgLists[$targetIdx];
+    print " \"$state\" => \"@args\"\n";
+    setACState(@args);
   }elsif($cmd eq $COMMAND_FETCH){
     system $MIDEA_RUBY_EXEC, "--fetch-and-read";
   }elsif($cmd eq $COMMAND_READ){
