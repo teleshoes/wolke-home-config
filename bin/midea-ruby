@@ -92,7 +92,10 @@ my $usage = "Usage:
         ACINFO_VAR_NAME
           power          = 'on' or 'off'
           mode           = 'cool', 'heat', 'dry', or 'fan'
+          fan            = same as 'fan_str'
           fan_pct        = integer fan speed 'percentage' (low=40, med=60, high=100, auto=102)
+          fan_str        = 0-40: low, 41-60: med, 61-100: high, 102: auto, other: ???
+          temp           = same as 'target_temp_c'
           target_temp_c  = degrees celsius of set/desired temperature
           indoor_temp_c  = degrees celsius from indoor thermometer
           outdoor_temp_c = degrees celsius from outdoor thermometer
@@ -202,6 +205,7 @@ sub getCachedACInfo($){
       my $temp = $1;
       $$info{target_temp_c} = $temp;
       $$info{target_temp_f} = $temp*9/5+32;
+      $$info{temp} = $$info{target_temp_c};
     }elsif($line =~ /^Indoor temperature: (\d+) celsius$/){
       my $temp = $1;
       $$info{indoor_temp_c} = $temp;
@@ -215,6 +219,12 @@ sub getCachedACInfo($){
     }elsif($line =~ /^Fan speed: (\d+)$/){
       my $speed = $1;
       $$info{fan_pct} = $speed;
+      $$info{fan_str} = "???";
+      $$info{fan_str} = "low"  if 0  <= $speed && $speed <= 40;
+      $$info{fan_str} = "med"  if 40 <= $speed && $speed <= 61;
+      $$info{fan_str} = "high" if 60 <= $speed && $speed <= 100;
+      $$info{fan_str} = "auto" if $speed == 102;
+      $$info{fan} = $$info{fan_str};
     }elsif($line =~ /^TimerOn is (active|not active).$/){
       $$info{timerOn} = $1;
     }elsif($line =~ /^TimerOff is (active|not active).$/){
