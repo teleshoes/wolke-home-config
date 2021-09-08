@@ -19,6 +19,17 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
 
 my $DEFAULT_AC_NUM = 1;
 
+my $DEFAULT_FORMAT_ACINFO_SPEC = ''
+  . '%-3s:power:'
+  . ' %4s:mode:'
+  . ' %3d:fan_pct:%%'
+  . '  %2d:target_temp_c:C'
+  . '  (%2d:indoor_temp_c:C/%2d:outdoor_temp_c:C)'
+  . '   -   %s:elapsed_fmt:'
+  . '%n'
+  ;
+
+sub formatACInfo($$);
 sub fetchACInfo($);
 sub getACId($);
 sub ensureACIds();
@@ -28,6 +39,7 @@ sub getCachedSecretsMtime();
 sub readFile($);
 sub readFileLines($);
 sub writeFile($$);
+sub applyFormatVars($$);
 sub mtime($);
 sub readSecrets();
 sub decrypt($);
@@ -42,16 +54,9 @@ my $usage = "Usage:
 
   $EXEC [OPTS] -r|--read
     -read cached AC info from last --fetch (does not ever fetch)
-    -print AC info, formatted:
-      <POWER> <MODE> <FAN_SPEED>% <TARGET_TEMP>C <INDOOR_TEMP>C/<OUTDOOR_TEMP>C - <ELAPSED>
-
-      POWER:        'on' or 'off'
-      MODE:         'cool', 'heat', 'dry', or 'fan'
-      FAN_SPEED:    integer (low=40, med=60, high=100, auto=102)
-      TARGET_TEMP:  degrees celsius of set/desired temperature
-      INDOOR_TEMP:  degrees celsius from indoor thermometer
-      OUTDOOR_TEMP: degrees celsius from outdoor thermometer
-      ELAPSED:      time since last fetch, formatted 'X sec ago' or 'X min ago'
+    -print AC info, formatted by default like: (see --format)
+      e.g.:   on  cool  61%  22C  (23C/26C)   -   38 min ago
+            (pow  mode  fan  temp indoor/outdoor  elapsed)
 
   $EXEC [OPTS] -f | --fetch | --fetch-ac-info
     -ensure $MIDEA_CONFIG_FILE is up-to-date with $SECRETS_FILE
@@ -69,6 +74,30 @@ my $usage = "Usage:
   OPTS
     --ac=AC_NUM
       use AC_NUM instead of $DEFAULT_AC_NUM
+
+    --format=FORMAT_ACINFO_SPEC
+      default: $DEFAULT_FORMAT_ACINFO_SPEC
+      format specification for formatting AC info in --read
+      the following replacements are peformed:
+        %%                                  => literal '%' character
+        %n                                  => newline character
+        %<PRINTF_SPEC>:<ACINFO_VAR_NAME>:  => formatted variable
+
+        PRINTF_SPEC
+          passed exactly to sprintf
+          e.g.:
+            -03d    => left-aligned 3-digit integer
+            s       => unmodified string
+
+        ACINFO_VAR_NAME
+          power          = 'on' or 'off'
+          mode           = 'cool', 'heat', 'dry', or 'fan'
+          fan_pct        = integer fan speed 'percentage' (low=40, med=60, high=100, auto=102)
+          target_temp_c  = degrees celsius of set/desired temperature
+          indoor_temp_c  = degrees celsius from indoor thermometer
+          outdoor_temp_c = degrees celsius from outdoor thermometer
+          mtime          = time of last fetch, in seconds since epoch
+          elapsed_fmt    = time since last fetch, formatted 'X sec ago' or 'X min ago'
 ";
 
 my $COMMAND_FETCH_AND_READ = "fetch-and-read";
@@ -80,6 +109,7 @@ my $COMMAND_CONFIG = "config";
 sub main(@){
   my $acNum = $DEFAULT_AC_NUM;
   my $cmd = $COMMAND_FETCH_AND_READ;
+  my $formatSpec = $DEFAULT_FORMAT_ACINFO_SPEC;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -97,6 +127,8 @@ sub main(@){
       $cmd = $COMMAND_CONFIG;
     }elsif($arg =~ /^--ac=(\d+)$/){
       $acNum = $1;
+    }elsif($arg =~ /^--format=(.+)$/){
+      $formatSpec = $1;
     }else{
       die $usage;
     }
@@ -105,10 +137,10 @@ sub main(@){
   if($cmd eq $COMMAND_FETCH_AND_READ){
     fetchACInfo($acNum);
     my $acInfo = getCachedACInfo($acNum);
-    print formatACInfo($acInfo);
+    print formatACInfo($formatSpec, $acInfo);
   }elsif($cmd eq $COMMAND_READ){
     my $acInfo = getCachedACInfo($acNum);
-    print formatACInfo($acInfo);
+    print formatACInfo($formatSpec, $acInfo);
   }elsif($cmd eq $COMMAND_FETCH_AC_INFO){
     fetchACInfo($acNum);
   }elsif($cmd eq $COMMAND_FETCH_AC_IDS){
@@ -122,8 +154,8 @@ sub main(@){
   }
 }
 
-sub formatACInfo($){
-  my ($acInfo) = @_;
+sub formatACInfo($$){
+  my ($formatSpec, $acInfo) = @_;
   my $elapsedS = time - $$acInfo{mtime};
   my $elapsedMin = int($elapsedS / 60.0);
   my $elapsedFmt;
@@ -133,15 +165,9 @@ sub formatACInfo($){
     $elapsedFmt = "$elapsedMin min ago";
   }
 
-  return sprintf "%-3s %4s %3d%%  %2dC  (%2dC/%2dC)   -   %s\n",
-    $$acInfo{power},
-    $$acInfo{mode},
-    $$acInfo{fan},
-    $$acInfo{temp},
-    $$acInfo{indoor_temp},
-    $$acInfo{outdoor_temp},
-    $elapsedFmt,
-  ;
+  $$acInfo{elapsed_fmt} = $elapsedFmt;
+
+  return applyFormatVars($formatSpec, $acInfo);
 }
 
 sub fetchACInfo($){
@@ -170,15 +196,19 @@ sub getCachedACInfo($){
     if($line =~ /^Device is turned (on|off)\.$/){
       $$info{power} = $1;
     }elsif($line =~ /^Target temperature: (\d+) celsius$/){
-      $$info{temp} = $1;
+      my $temp = $1;
+      $$info{target_temp_c} = $temp;
     }elsif($line =~ /^Indoor temperature: (\d+) celsius$/){
-      $$info{indoor_temp} = $1;
+      my $temp = $1;
+      $$info{indoor_temp_c} = $temp;
     }elsif($line =~ /^Outdoor temperature: (\d+) celsius$/){
-      $$info{outdoor_temp} = $1;
+      my $temp = $1;
+      $$info{outdoor_temp_c} = $temp;
     }elsif($line =~ /^Mode: (\w+)$/){
       $$info{mode} = $1;
     }elsif($line =~ /^Fan speed: (\d+)$/){
-      $$info{fan} = $1;
+      my $speed = $1;
+      $$info{fan_pct} = $speed;
     }elsif($line =~ /^TimerOn is (active|not active).$/){
       $$info{timerOn} = $1;
     }elsif($line =~ /^TimerOff is (active|not active).$/){
@@ -191,7 +221,7 @@ sub getCachedACInfo($){
   if(
     not defined $$info{power}
     or not defined $$info{mode}
-    or not defined $$info{temp}
+    or not defined $$info{target_temp_c}
     or not defined $$info{fan}
   ){
     die "ERROR: could not parse AC info\n";
@@ -275,6 +305,31 @@ sub getCachedSecretsMtime(){
   }else{
     return undef;
   }
+}
+
+sub applyFormatVars($$){
+  my ($spec, $vars) = @_;
+
+  $spec =~ s/&/&amp;/g;
+  $spec =~ s/%%/&boing;/g;
+  $spec =~ s/%n/&newline;/g;
+
+  for my $varName(sort keys %$vars){
+    my $val = $$vars{$varName};
+    while($spec =~ /(%[^:]*):$varName:/){
+      my $sprintfSpec = $1;
+      my $valFmt = sprintf($1, $val);
+      if($spec !~ s/$sprintfSpec:$varName:/$valFmt/){
+        die "ERROR: could not replace variable $sprintfSpec:$varName:\n";
+      }
+    }
+  }
+
+  $spec =~ s/&newline;/\n/g;
+  $spec =~ s/&boing;/%/g;
+  $spec =~ s/&amp;/&/g;
+
+  return $spec;
 }
 
 sub mtime($){
