@@ -20,6 +20,14 @@ my $GAME_IDS = {
 my $ABBREV_LEN = 7;
 my $MAX_SONG_NAME_ID_LEN = 40;
 
+my $PACKS = [
+  [DDRA20PLUS => 1293 => "$ENV{HOME}/songs/DDR_18_A20PLUS"],
+  [DDRA20     => 1292 => "$ENV{HOME}/songs/DDR_17_A20"],
+  [DDRA       => 1148 => "$ENV{HOME}/songs/DDR_16_A"],
+];
+my $PACK_IDS = { map {$$_[0] => $$_[1]} @$PACKS };
+my $PACK_SONG_DIRS = { map {$$_[0] => $$_[2]} @$PACKS };
+
 my @GAME_ORDER_FOR_DIFF_CALC = qw(DDRA20PLUS DDRA20 DDRA 2013 X SN2);
 my $GAME_DIFFICULTY_SCALING_BASE = {
   SN2 => "DDRA20", #scale SN2 difficulties to be similar to DDRA20 difficulties
@@ -130,6 +138,7 @@ sub refetchGameInfoCache($);
 sub readGameInfoCache($);
 sub writeGameInfoCache($$);
 sub parseGameHtml($$);
+sub parsePackHtml($$);
 sub getCachedSongsBySongNameId();
 sub getSongInfo($);
 sub ensureSongInfoCache($);
@@ -141,6 +150,7 @@ sub fetchGameSongIds($);
 sub fetchAllSongIds();
 sub fetchGameHtml($);
 sub fetchSongHtml($);
+sub fetchPackHtml($;$);
 sub fetchSongBanner($);
 sub ensureSongBanners($);
 sub getRemyWikiPageHtmlFile($);
@@ -180,6 +190,12 @@ my $usage = "Usage:
     -ensure remywiki files cached for all songs in <GAME_ID>
     -print summary of 'new' songs
       (songs that were not cached at the start and are now)
+
+  $0 --check-packs
+    -(re)download HTML page for each pack
+    -list all songs in the pack
+    -compare to the song dir for each pack
+    -print songs that are not present
 
   $0 --extract-name-id SONG_NAME
     -extract SONG_NAME_ID from SONG_NAME,
@@ -261,6 +277,40 @@ sub main(@){
     for my $songId(@newSongIds){
       my $songInfo = readSongInfoCache $songId;
       print "  $songId => $$songInfo{nameId}\n";
+    }
+  }elsif($cmd =~ /^(--check-packs)$/ and @_ == 0){
+    for my $packName(sort keys %$PACK_IDS){
+      my $packId = $$PACK_IDS{$packName};
+      my $html = fetchPackHtml($packId, 1);
+      my $simfiles = parsePackHtml($packId, $html);
+
+      my %okPackSongNames;
+      for my $simfileId(sort keys %$simfiles){
+        my $simfile = $$simfiles{$simfileId};
+        $okPackSongNames{$$simfile{name}} = 1;
+      }
+
+      my %okDirSongNames;
+      my @songDirs = glob "$$PACK_SONG_DIRS{$packName}/*/";
+      for my $dir(@songDirs){
+        if($dir !~ /^$$PACK_SONG_DIRS{$packName}\/([^\/]+)\/$/){
+          die "ERROR: malformed song dir name $dir\n";
+        }
+        my $dirSongName = $1;
+        $okDirSongNames{$dirSongName} = 1;
+      }
+
+      for my $simfileId(sort keys %$simfiles){
+        my $songName = $$simfiles{$simfileId}{name};
+        if(not defined $okDirSongNames{$songName}){
+          print "$packName($packId) missing simfile=$simfileId: $songName\n";
+        }
+      }
+      for my $songName(sort keys %okDirSongNames){
+        if(not defined $okPackSongNames{$songName}){
+          print "$packName($packId) extra song: $songName\n";
+        }
+      }
     }
   }elsif($cmd =~ /^(--extract-name-id)$/ and @_ == 1){
     my ($songName) = @_;
@@ -608,6 +658,109 @@ sub parseGameHtml($$){
   return $songs;
 }
 
+sub parsePackHtml($$){
+  my ($packId, $html) = @_;
+
+  my $simfiles = {};
+
+  for my $table(htmlGetAllTables($html)){
+    for my $row(@$table){
+      my $col=0;
+      if(@$row == 16 and defined $$row[0] and $$row[0] =~ /viewsimfile\.php\?simfileid=(\d+)/){
+        my $simfileId = $1;
+        my $simfileInfo = {
+          "nameHtml"               => $$row[$col++],
+          "simfileLastUpdated"     => $$row[$col++],
+
+          "diff-singles-beginner"  => $$row[$col++],
+          "diff-singles-basic"     => $$row[$col++],
+          "diff-singles-difficult" => $$row[$col++],
+          "diff-singles-expert"    => $$row[$col++],
+          "diff-singles-challenge" => $$row[$col++],
+          "diff-doubles-beginner"  => $$row[$col++],
+          "diff-doubles-basic"     => $$row[$col++],
+          "diff-doubles-difficult" => $$row[$col++],
+          "diff-doubles-expert"    => $$row[$col++],
+          "diff-doubles-challenge" => $$row[$col++],
+
+          "mp3-status"             => $$row[$col++],
+          "bn-status"              => $$row[$col++],
+          "bg-status"              => $$row[$col++],
+        };
+        $$simfiles{$simfileId} = $simfileInfo;
+      }elsif(@$row == 18 and defined $$row[0] and $$row[0] =~ /viewsimfile\.php\?simfileid=(\d+)/){
+        my $simfileId = $1;
+        my $simfileInfo = {
+          "nameHtml"               => $$row[$col++],
+          "simfileLastUpdated"     => $$row[$col++],
+
+          "diff-singles-beginner"  => $$row[$col++],
+          "diff-singles-basic"     => $$row[$col++],
+          "diff-singles-difficult" => $$row[$col++],
+          "diff-singles-expert"    => $$row[$col++],
+          "diff-singles-challenge" => $$row[$col++],
+          "diff-singles-edit"      => $$row[$col++],
+          "diff-doubles-beginner"  => $$row[$col++],
+          "diff-doubles-basic"     => $$row[$col++],
+          "diff-doubles-difficult" => $$row[$col++],
+          "diff-doubles-expert"    => $$row[$col++],
+          "diff-doubles-challenge" => $$row[$col++],
+          "diff-doubles-edit"      => $$row[$col++],
+
+          "mp3-status"             => $$row[$col++],
+          "bn-status"              => $$row[$col++],
+          "bg-status"              => $$row[$col++],
+        };
+        $$simfiles{$simfileId} = $simfileInfo;
+      }
+    }
+  }
+
+  for my $simfileId(sort keys %$simfiles){
+    my $simfileInfo = $$simfiles{$simfileId};
+    if($$simfileInfo{nameHtml} =~ m/
+      <a
+         \s
+         [^<>]*
+         href=\"viewsimfile\.php\?simfileid=(\d+)\"
+         [^<>]*
+      >
+        ([^<>]+)
+      <\/a>
+    /sx){
+      my ($simfileId, $name) = ($1, $2);
+      $name =~ s/<[^>]*>//g;
+      $name =~ s/&quot;/"/g;
+      $name =~ s/&apos;/'/g;
+      $name =~ s/&lt;/</g;
+      $name =~ s/&gt;/</g;
+      $name =~ s/&nbsp;/ /g;
+      $name =~ s/&#160;/ /g;
+      $name =~ s/&amp;/&/g;
+
+      $$simfileInfo{name} = $name;
+      $$simfileInfo{simfileId} = $simfileId;
+    }else{
+      die "invalid simfile name HTML=\"$$simfileInfo{nameHtml}\"\n";
+    }
+
+    $$simfiles{$$simfileInfo{simfileId}} = $simfileInfo;
+
+    for my $difficulty(@difficulties){
+      my $d = $$simfileInfo{$difficulty};
+      $d = "" if not defined $d;
+      $d =~ s/<[^>]*>//g;
+
+      if($d !~ /^(\d+|-)$/){
+        die "malformed difficulty $difficulty=\"$d\" for row=\"$$simfileInfo{name}\"\n";
+      }
+      $$simfileInfo{$difficulty} = $d;
+    }
+  }
+
+  return $simfiles;
+}
+
 sub getCachedSongsBySongNameId(){
   my $dir = "$CACHE_DIR/song-info";
   my @songIds;
@@ -821,6 +974,24 @@ sub fetchSongHtml($){
   }
   if(not -f $file){
     die "Could not fetch songid=$songId\n";
+  }
+  return `cat $file`;
+}
+
+sub fetchPackHtml($;$){
+  my ($packId, $forceRefetch) = @_;
+  my $dir = "$CACHE_DIR/pack-html";
+  system "mkdir", "-p", $dir;
+  my $file = "$dir/$packId.html";
+
+  if($forceRefetch){
+    system "rm", "-f", $file;
+  }
+  if(not -f $file){
+    system "wget $API_URL/viewsimfilecategory.php?categoryid=$packId -O $file";
+  }
+  if(not -f $file){
+    die "Could not fetch packid=$packId\n";
   }
   return `cat $file`;
 }
