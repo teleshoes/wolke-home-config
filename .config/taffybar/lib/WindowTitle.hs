@@ -5,6 +5,7 @@ import Control.Monad (forever)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (intercalate)
+import Data.List.Utils (replace)
 import Data.Text (Text, pack)
 import GI.Gtk.Objects.Container (containerAdd)
 import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
@@ -38,7 +39,9 @@ getActiveWinTitle = do
 
 formatTitle :: Int -> Int -> String -> Text
 formatTitle len lineCount title = pack $ intercalate "\n" $ map (padTrim len) $ lines
-  where lines = take lineCount $ chunkStr len title ++ repeat ""
+  where lines = take lineCount $ chunkStr len (cleanTitle title) ++ repeat ""
+
+cleanTitle = replace "—" "-"
 
 padTrim :: Int -> String -> String
 padTrim n x = padR ' ' n $ trimR n x
