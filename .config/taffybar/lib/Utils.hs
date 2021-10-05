@@ -7,7 +7,7 @@ module Utils(
   rowW, colW, containerW, eboxStyleWrapW,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
   readInt, readDouble, printfReal, collectInts,
-  stringWidth, trimL, trimR, padL, padR, padCols, uncols, chompAll,
+  stringWidth, chunkStr, trimL, trimR, padL, padR, padCols, uncols, chompAll,
   fmtSimpleRecord,
   pollingGraphMain,
   sleep,
@@ -188,6 +188,9 @@ stringWidth s = hwcs*1 + fwcs*2
 isFullWidthChar :: Char -> Bool
 isFullWidthChar ch = Set.member ch fullwidthCharSet
 
+charLen :: Char -> Int
+charLen c = if isFullWidthChar c then 2 else 1
+
 fullwidthCharSet :: Set.Set Char
 fullwidthCharSet = Set.fromList $ map chr $ []
   ++ [ 0x1100 ..  0x11FF] --hangul
@@ -204,6 +207,16 @@ fullwidthCharSet = Set.fromList $ map chr $ []
   ++ [0x2A700 .. 0x2B73F] --han rare historic
   ++ [0x2B820 .. 0x2CEAF] --han rare historic
   ++ [0x2F800 .. 0x2FA1F] --han unifiable variants
+
+--split into 'len' width chunks
+chunkStr :: Int -> String -> [String]
+chunkStr len str = chunkStrH len str "" 0
+chunkStrH :: Int -> String -> String -> Int -> [String]
+chunkStrH _ "" cur _ = reverse cur : []
+chunkStrH 0 _ _ _ = repeat []
+chunkStrH len (c:cs) cur curLen
+  | curLen + charLen c > len = reverse cur : chunkStrH len (c:cs) "" 0
+  | otherwise                = chunkStrH len cs (c:cur) (curLen + charLen c)
 
 --remove chars from the left until stringWidth of str is <= len
 trimL :: Int -> String -> String
