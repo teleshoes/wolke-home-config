@@ -1,11 +1,10 @@
 module WindowTitle (windowTitleW) where
 import Width (widthCharScreenDPIWrapW)
-import Utils (sleep, trimR, padR)
+import Utils (sleep, chunkStr, trimR, padR)
 import Control.Monad (forever)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.List (intercalate)
-import Data.List.Split (chunksOf)
 import Data.Text (Text, pack)
 import GI.Gtk.Objects.Container (containerAdd)
 import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
@@ -39,7 +38,7 @@ getActiveWinTitle = do
 
 formatTitle :: Int -> Int -> String -> Text
 formatTitle len lineCount title = pack $ intercalate "\n" $ map (padTrim len) $ lines
-  where lines = take lineCount $ chunksOf len title ++ repeat ""
+  where lines = take lineCount $ chunkStr len title ++ repeat ""
 
 padTrim :: Int -> String -> String
 padTrim n x = padR ' ' n $ trimR n x
