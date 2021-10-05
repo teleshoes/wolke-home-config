@@ -4,6 +4,7 @@ import Utils (attemptCreateSymlink, chompFile, colW,
   fmtSimpleRecord, getHomeFile, maybeJoin, readInt, regexFirstGroup, tryMaybe)
 import Width (charsFitInPx, getScreenDPI, screenPctToPx)
 
+import Graphics.UI.GIGtkStrut (StrutSize(ExactSize))
 import Control.Monad.Trans (liftIO)
 import System.Taffybar.SimpleConfig (simpleTaffybar, defaultSimpleTaffyConfig,
   barHeight, barPosition, widgetSpacing, startWidgets, endWidgets,
@@ -85,10 +86,12 @@ main = do
   dpi <- getScreenDPI
   isBot <- elem "--bottom" <$> getArgs
   klompWidthPx <- screenPctToPx $ music profile
-  let cfg = defaultSimpleTaffyConfig { barHeight = barHt profile
+  let cfg = defaultSimpleTaffyConfig { barHeight = barHeightNotStrut
                                      , widgetSpacing = space profile
                                      , barPosition = if isBot then Bottom else Top
                                      }
+      barHeightNotStrut = barHt profile
+      barHeightStrut = ExactSize $ fromIntegral $ barHt profile
       bgColor = hexColor $ RGB (0x00/0xff, 0x2b/0xff, 0x36/0xff)
       textColor = hexColor $ RGB (0x93/0xff, 0xa1/0xff, 0xa1/0xff)
       wsBorderColorNormal = hexColor $ RGB (0xD4/0xff, 0xAD/0xff, 0x35/0xff)
