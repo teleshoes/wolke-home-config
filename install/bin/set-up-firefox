@@ -17,7 +17,7 @@ sub placesRestore();
 sub removeProfile();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
-sub parseInstallRdf($);
+sub extractXpiInfo($);
 sub ensureAddonsDownloaded();
 sub extractXpiAddonsToProfile();
 sub uninstallAllAddons();
@@ -38,6 +38,7 @@ my $HOME = getHome();
 my $PROFILE_DIR = "$HOME/.mozilla/firefox/profile";
 my $DOWNLOAD_DIR = "$HOME/Downloads";
 my $GREASEMONKEY_TARGET_DIR = "$HOME/greasemonkey";
+my $ADDON_CACHE_DIR = "$HOME/.cache/firefox-addons";
 
 my $FIREFOX_PROC_NAME = 'firefox-esr';
 my $FIREFOX_EXEC_NAME = 'firefox';
@@ -432,47 +433,42 @@ sub removeProfile(){
 }
 
 sub getAddonXpiCache($){
-  my ($addon) = @_;
-  my $addonCacheDir = "$HOME/.cache/firefox-addons";
-  return globOne "$addonCacheDir/$addon-*.xpi";
+  my ($addonName) = @_;
+  return globOne "$ADDON_CACHE_DIR/$addonName-*.xpi";
 }
 sub putAddonXpiCache($$){
-  my ($addon, $xpiFile) = @_;
-  my $addonCacheDir = "$HOME/.cache/firefox-addons";
-  run "mkdir", "-p", $addonCacheDir;
+  my ($addonName, $xpiFile) = @_;
+  run "mkdir", "-p", $ADDON_CACHE_DIR;
 
-  my $addonInfo = parseInstallRdf $xpiFile;
-  my $v = $$addonInfo{version};
-  $v =~ s/[^0-9a-zA-Z_\-\.]/_/g;
+  my $addonInfo = extractXpiInfo $xpiFile;
+  my $version = $$addonInfo{version};
+  $version =~ s/[^0-9a-zA-Z_\-\.]/_/g;
+  if($version !~ /\d/){
+    die "ERROR: $addonName version '$version' must contain at least one number\n";
+  }
 
-  run "cp", "-a", $xpiFile, "$addonCacheDir/$addon-$v.xpi";
+  run "cp", "-a", $xpiFile, "$ADDON_CACHE_DIR/$addonName-$version.xpi";
 }
 
-sub parseInstallRdf($){
+sub extractXpiInfo($){
   my ($xpiFile) = @_;
-  open CMD, "-|", "unzip", "-p", $xpiFile, "install.rdf"
-    or die "Could not extract install.rdf from $xpiFile: $!\n";
-  my $installRdf = join '', <CMD>;
+  open CMD, "-|", "unzip", "-p", $xpiFile, "manifest.json"
+    or die "ERROR: could not extract manifest.json from $xpiFile\n$!\n";
+  my $manifestJson = join '', <CMD>;
   close CMD;
 
-  my $id = $1 if $installRdf =~ /<em:id>\s*(.+?)\s*<\/em:id>/;
-  my $version = $1 if $installRdf =~ /<em:version>\s*(.+?)\s*<\/em:version>/;
-
-  if(not defined $id or not defined $version){
-    if($installRdf =~ /(<RDF:Description RDF:about="urn:mozilla:install-manifest"[^>]*>)/){
-      my $rdfTag = $1;
-      $id = $1 if $rdfTag =~ /em:id="([^"]+)"/;
-      $version = $1 if $rdfTag =~ /em:version="([^"]+)"/;
-    }
-  }
-  if(not defined $id or not defined $version){
-    $id = $1 if $installRdf =~ /<id>\s*(.+?)\s*<\/id>/;
-    $version = $1 if $installRdf =~ /<version>\s*(.+?)\s*<\/version>/;
+  my $id;
+  if($manifestJson =~ /"id":\s*"([^"]+)"/){
+    $id = $1;
+  }else{
+    die "ERROR: could not read version from manifest.json inside $xpiFile\n";
   }
 
-
-  if(not defined $id or not defined $version){
-    die "Could not read id/version from $xpiFile install.rdf\n"
+  my $version;
+  if($manifestJson =~ /"version":\s*"([^"]+)"/){
+    $version = $1;
+  }else{
+    die "ERROR: could not read version from manifest.json inside $xpiFile\n";
   }
 
   return {
@@ -482,18 +478,19 @@ sub parseInstallRdf($){
 }
 
 sub ensureAddonsDownloaded(){
-  for my $addon(sort keys %$addons){
-    if(not defined getAddonXpiCache($addon)){
-      my $url = $$addons{$addon};
-      my $urlFileBaseName = $1 if $url =~ /([^\/]+\.xpi)$/;
-      my $dest = "/tmp/firefox-addon-tmp-" . int(time * 1000) . "-$urlFileBaseName";
+  for my $addonName(sort keys %$addons){
+    print "$addonName\n";
+    if(not defined getAddonXpiCache($addonName)){
+      my $url = $$addons{$addonName};
+      my $xpiFile = "/tmp/firefox-addon-tmp-" . int(time * 1000) . ".xpi";
 
-      run "wget", "-O", $dest, $url;
-      if(not -f $dest){
-        die "addon $addon error: '$url' did not download correctly\n";
+      run "curl", "-L", $url, "-o", $xpiFile;
+      if(not -f $xpiFile){
+        die "ERROR: failed to download $addonName XPI at $url\n";
       }
-      putAddonXpiCache $addon, $dest;
-      run "rm", "-f", $dest;
+      putAddonXpiCache $addonName, $xpiFile;
+      run "rm", "-f", $xpiFile;
+      print "\n\n";
     }
   }
 }
