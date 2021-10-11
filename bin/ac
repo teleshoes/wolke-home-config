@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $AC_ENABLED_FILE = "$ENV{HOME}/.config/ac-enabled";
+
+my $CMD_TOGGLE_AC = "sshc raspi ac-midea --cycle on off cold";
+my $CMD_TOGGLE_FAN = "tasmota outlet3";
+
+sub isAcEnabled();
+sub run(@);
+
+my $usage = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0
+    -check $AC_ENABLED_FILE
+    -if file exists and starts with \"enabled\":
+      -run: $CMD_TOGGLE_AC
+    -otherwise:
+      -run: $CMD_TOGGLE_FAN
+
+  $0 ARG [ARG ARG]
+    -run: ac-midea ARG ARG ARG...
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 0){
+    if(isAcEnabled()){
+      run $CMD_TOGGLE_AC;
+    }else{
+      run $CMD_TOGGLE_FAN;
+    }
+  }else{
+    run "ac-midea", @_;
+  }
+}
+
+sub isAcEnabled(){
+  my $val = `cat $AC_ENABLED_FILE 2>/dev/null`;
+  if($val =~ /^\s*enabled/i){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);

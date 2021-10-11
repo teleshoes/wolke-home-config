@@ -252,7 +252,6 @@ function ac-midea     { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           sshc pi@raspi "command ac-midea $@"
                         fi
                       }
-function ac           { ac-midea "$@"; }
 function ig           { igcmd "$@"; }
 function acfu         { igcmd ac-fan_up "$@"; }
 function acfd         { igcmd ac-fan_down "$@"; }
