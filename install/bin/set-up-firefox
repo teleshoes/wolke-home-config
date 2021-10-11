@@ -19,7 +19,7 @@ sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub extractXpiInfo($);
 sub ensureAddonsDownloaded();
-sub extractXpiAddonsToProfile();
+sub copyXpiAddonsToProfile();
 sub uninstallAllAddons();
 sub enableAllAddons();
 sub editMozillaPrefs($$$);
@@ -311,7 +311,7 @@ sub installAddons(){
   uninstallAllAddons();
 
   print "\n\n\n##### installing addons\n";
-  extractXpiAddonsToProfile();
+  copyXpiAddonsToProfile();
 
   print "\n\n\n##### creating initial extensions.json and enabling addons\n";
   my $extJsonFile = "$PROFILE_DIR/extensions.json";
@@ -495,15 +495,14 @@ sub ensureAddonsDownloaded(){
   }
 }
 
-sub extractXpiAddonsToProfile(){
+sub copyXpiAddonsToProfile(){
   for my $addon(sort keys %$addons){
     my $xpiFile = getAddonXpiCache $addon;
-    my $addonInfo = parseInstallRdf $xpiFile;
-    my $destDir = "$PROFILE_DIR/extensions/$$addonInfo{id}";
-    if(not -d $destDir){
+    my $addonInfo = extractXpiInfo $xpiFile;
+    my $destXpi = "$PROFILE_DIR/extensions/$$addonInfo{id}.xpi";
+    if(not -f $destXpi){
       print "installing $addon\n";
-      run "mkdir", "-p", $destDir;
-      run "unzip", "-q", "-d", $destDir, $xpiFile;
+      run "cp", "-ar", $xpiFile, "$destXpi";
     }
   }
 }
