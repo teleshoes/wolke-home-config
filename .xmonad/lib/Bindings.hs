@@ -166,7 +166,7 @@ shortcuts conf = "Shortcuts" @@ do
         "tv spkr cyc"   @@ mCAW  xK_VolUp#! "ipmagic tv speaker --cycle; ipmagic tv klomp-cmd restart"
 
     "iguana IR"     @@ do
-        "A/C cycle   "  @@ mC    xK_F1   #! "sshc raspi ac-midea --cycle on off cold"
+        "AC / fan"      @@ mC    xK_F1   #! "ac"
 
     "CEC power"     @@ do
         "TV pwr toggle" @@ mC    xK_F2   #! "ipmagic tv cec-cmd --tv togglestandby"
