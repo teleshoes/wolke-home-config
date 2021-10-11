@@ -27,8 +27,10 @@ sub getUiCustomizationPref($);
 sub getShortcutJson();
 sub parseJsonKeyVals($);
 sub modifyJsonKeyVals($$);
+sub jsonString($);
+sub jsonArr($);
+sub jsonStringArr($);
 sub jsonMap($);
-sub formatJsonCsv(@);
 sub amoUrl($;$);
 sub formatChunks($$@);
 
@@ -134,26 +136,55 @@ my $prefs = {
   "$prefKeys{youtubehighdefinition}.enableannotationsoff"       => "true",
   "$prefKeys{youtubehighdefinition}.enablesuggestedautoplay"    => "false",
 };
-$$prefs{"browser.uiCustomization.state"} = getUiCustomizationPref({
-  navBar => formatJsonCsv(qw(
-    urlbar-container zoom-controls dnsflusher_toolbar_button
-  )),
-  hamburgerMenu => formatJsonCsv(qw(
-    privatebrowsing-button preferences-button add-ons-button
-    downloads-button history-panelmenu bookmarks-menu-button
-    sessionmanager-toolbar ublock0-button textareaCacheButton
-    youtubehighdefinition-toolbarbutton noscript-tbb panic-button
-    useragentswitcher-button
-  )),
-  addonBar => formatJsonCsv(qw(addonbar-closebutton status-bar)),
-  personalToolbar => formatJsonCsv(qw(personal-bookmarks)),
-  tabsToolbar => formatJsonCsv(qw(tabbrowser-tabs new-tab-button alltabs-button)),
-  toolbarMenu => formatJsonCsv(qw(menubar-items)),
-  seen => formatJsonCsv(qw()),
-  dirtyAreaCache => formatJsonCsv(qw()),
-  currentVersion => 5,
-  newElementCount => 0,
-});
+
+$$prefs{"browser.uiCustomization.state"} = jsonString(jsonMap([
+  "placements" => jsonMap([
+    "nav-bar" => jsonStringArr([
+      "urlbar-container",
+      "zoom-controls",
+      "dnsflusher_toolbar_button",
+    ]),
+    #hamburger button
+    "PanelUI-contents" => jsonStringArr([
+      "privatebrowsing-button",
+      "preferences-button",
+      "add-ons-button",
+      "downloads-button",
+      "history-panelmenu",
+      "bookmarks-menu-button",
+      "sessionmanager-toolbar",
+      "ublock0-button",
+      "textareaCacheButton",
+      "youtubehighdefinition-toolbarbutton",
+      "noscript-tbb",
+      "panic-button",
+      "useragentswitcher-button",
+    ]),
+    "addon-bar" => jsonStringArr([
+      "addonbar-closebutton",
+      "status-bar",
+    ]),
+    "PersonalToolbar" => jsonStringArr([
+      "personal-bookmarks",
+    ]),
+    "TabsToolbar" => jsonStringArr([
+      "tabbrowser-tabs",
+      "new-tab-button",
+      "alltabs-button",
+    ]),
+    "toolbar-menubar" => jsonStringArr([
+      "menubar-items",
+    ]),
+  ]),
+
+  #prevent things that auto-insert themselves into nav bar
+  "seen" => jsonStringArr([
+  ]),
+
+  "dirtyAreaCache"  => jsonArr([]),
+  "currentVersion"  => "5",
+  "newElementCount" => "0",
+]));
 
 my $shortcutKeys = {
   key_fullZoomEnlarge => [  ["control","shift"], "VK_UP" ],
@@ -522,28 +553,6 @@ sub editMozillaPrefs($$$) {
   };
 }
 
-sub getUiCustomizationPref($){
-  my ($uiState) = @_;
-  my $json = ""
-    . "{"
-    . "\"placements\":{"
-      . "\"PanelUI-contents\":[$$uiState{hamburgerMenu}],"
-      . "\"addon-bar\":[$$uiState{addonBar}],"
-      . "\"PersonalToolbar\":[$$uiState{personalToolbar}],"
-      . "\"nav-bar\":[$$uiState{navBar}],"
-      . "\"TabsToolbar\":[$$uiState{tabsToolbar}],"
-      . "\"toolbar-menubar\":[$$uiState{toolbarMenu}]"
-      . "},"
-    . "\"seen\":[$$uiState{seen}],"
-    . "\"dirtyAreaCache\":[$$uiState{dirtyAreaCache}],"
-    . "\"currentVersion\":$$uiState{currentVersion},"
-    . "\"newElementCount\":$$uiState{newElementCount}"
-    . "}"
-    ;
-  $json =~ s/"/\\"/g;
-  return "\"$json\"";
-}
-
 sub getShortcutJson(){
   my @overlays;
   for my $keyId(sort keys %$shortcutKeys){
@@ -605,6 +614,19 @@ sub modifyJsonKeyVals($$){
   return $jsonKeyVals;
 }
 
+sub jsonString($){
+  my ($str) = @_;
+  $str =~ s/"/\\"/g;
+  return "\"$str\"";
+}
+sub jsonArr($){
+  my ($items) = @_;
+  return "[" . join(",", @$items) . "]";
+}
+sub jsonStringArr($){
+  my ($items) = @_;
+  return jsonArr([map {jsonString $_} @$items]);
+}
 sub jsonMap($){
   my ($jsonKeyVals) = @_;
   my @keyVals;
@@ -615,10 +637,6 @@ sub jsonMap($){
   }
   my $json = "{" . join(",", @keyVals) . "}";
   return $json;
-}
-
-sub formatJsonCsv(@){
-  return join ",", map {"\"$_\""} @_;
 }
 
 sub amoUrl($;$){
