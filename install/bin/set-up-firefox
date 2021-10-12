@@ -25,8 +25,6 @@ sub enableAllAddons();
 sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
 sub getShortcutJson();
-sub parseJsonKeyVals($);
-sub modifyJsonKeyVals($$);
 sub jsonString($);
 sub jsonArr($);
 sub jsonStringArr($);
@@ -159,8 +157,6 @@ my $shortcutKeys = {
 
 my $resconfigScale = getResconfigScale();
 
-my $browserExtensionDataPrefs = {
-};
 
 my $usage = "Usage:
   $0
@@ -177,7 +173,7 @@ my $usage = "Usage:
 
   COMMANDS
     prefs
-      selectively modify user.js and browser-extension-data files
+      selectively modify user.js
 
     addons
       -download XPI files:" . formatChunks(5, "\n        ", sort keys %$addons) . "
@@ -309,19 +305,6 @@ sub setPrefs(){
   system "touch", $userJs;
   die "Could not find user.js file\n" if not -f $userJs;
   editMozillaPrefs $userJs, "set-up-firefox", $prefs;
-
-  for my $extension(sort keys %$browserExtensionDataPrefs){
-    my $dir = "$PROFILE_DIR/browser-extension-data/$extension";
-    my $storageJSFile = "$dir/storage.js";
-    my $extensionPrefs = $$browserExtensionDataPrefs{$extension};
-    run "mkdir", "-p", $dir;
-
-    my $json = readFile $storageJSFile;
-    my $jsonKeyVals = parseJsonKeyVals $json;
-    modifyJsonKeyVals $jsonKeyVals, $extensionPrefs;
-    $json = jsonMap $jsonKeyVals;
-    writeFile $storageJSFile, $json;
-  }
 }
 
 sub writeXulStore(){
@@ -527,38 +510,6 @@ sub getShortcutJson(){
     ;
   }
   return '{"overlays":[' . (join ",", @overlays) . ']}';
-}
-
-sub parseJsonKeyVals($){
-  my ($json) = @_;
-  my $ws = "[ \\t\\r\\n]";
-  $json =~ s/^$ws*{$ws*(.+)$ws*}$ws*$/$1/s;
-  my $jsonKeyVals = [];
-  while($json =~ s/^$ws*"([^"]+)"$ws*:$ws*([^\[\{] [^,]* | \{[^\}]*\} | \[[^\]]*\])$ws*(?:,|$)//sx){
-    push @$jsonKeyVals, $1;
-    push @$jsonKeyVals, $2;
-  }
-  return $jsonKeyVals;
-}
-
-sub modifyJsonKeyVals($$){
-  my ($jsonKeyVals, $changes) = @_;
-  for my $key(sort keys %$changes){
-    my $val = $$changes{$key};
-    my $found = 0;
-    for(my $i=0; $i<@$jsonKeyVals; $i+=2){
-      if($$jsonKeyVals[$i] eq $key){
-        $$jsonKeyVals[$i+1] = $val;
-        $found = 1;
-        last;
-      }
-    }
-    if(not $found){
-      push @$jsonKeyVals, $key;
-      push @$jsonKeyVals, $val;
-    }
-  }
-  return $jsonKeyVals;
 }
 
 sub jsonString($){
