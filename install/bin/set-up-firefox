@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use lib `dirname $0 | tr -d '\n'`;
+use Cwd qw(abs_path);
 use ScriptScript;
 use Time::HiRes qw(sleep time);
 
@@ -371,9 +372,14 @@ sub placesRestore(){
 
 sub removeProfile(){
   print "\n\n\n##### moving profile to backup and making empty profile\n";
-  my $bakDir = "$PROFILE_DIR/../profile-bak-" . int(time*1000);
-  run "mv", $PROFILE_DIR, $bakDir;
-  run "mkdir", $PROFILE_DIR;
+  my $realProfileDir = abs_path $PROFILE_DIR;
+  if(-l $realProfileDir or not -d $realProfileDir or $realProfileDir eq $PROFILE_DIR){
+    die "ERROR: could not find real profile dir for symlink $PROFILE_DIR\n";
+  }
+
+  my $bakDir = "$realProfileDir/../profile-bak-" . int(time*1000);
+  run "mv", $realProfileDir, $bakDir;
+  run "mkdir", $realProfileDir;
 }
 
 sub getAddonXpiCache($){
