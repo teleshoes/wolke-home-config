@@ -28,7 +28,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
                   globOne
-                  writeFile tryWriteFile writeFileSudo
+                  writeFile writeFileQuiet tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
                   editFile editSimpleConf editIni editFileLines
@@ -459,7 +459,7 @@ sub globOne($){
 
 sub writeFileProto($@) {
     my $cfg = shift;
-    assertDef $cfg, qw(sudo fatal);
+    assertDef $cfg, qw(sudo fatal quiet);
 
     my ($file, $contents) = @_;
 
@@ -476,7 +476,7 @@ sub writeFileProto($@) {
       }else{
           $cmd .= " > $escFile";
       }
-      print "$cmd\n";
+      print "$cmd\n" unless $$cfg{quiet};
     }
 
     return if not $opts->{runCommand};
@@ -490,9 +490,10 @@ sub writeFileProto($@) {
         close $fh;
     };
 }
-sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
-sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
-sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1}, @_ }
+sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 0}, @_ }
+sub writeFileQuiet($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 1}, @_ }
+sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0, quiet => 0}, @_ }
+sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1, quiet => 0}, @_ }
 
 sub readFileProto($@) {
     my $cfg = shift;
