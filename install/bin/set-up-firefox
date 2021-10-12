@@ -12,7 +12,6 @@ sub installAddons();
 sub greasemonkeySymlink();
 sub setPrefs();
 sub writeXulStore();
-sub setupKeyboardShortcuts();
 sub placesBackup();
 sub placesRestore();
 sub removeProfile();
@@ -25,7 +24,6 @@ sub uninstallAllAddons();
 sub enableAllAddons();
 sub editMozillaPrefs($$$);
 sub getUiCustomizationPref($);
-sub getShortcutJson();
 sub jsonString($);
 sub jsonArr($);
 sub jsonStringArr($);
@@ -62,9 +60,6 @@ my $addons = {
   youtubehighdefinition     => "https://addons.mozilla.org/firefox/downloads/file/3719055",
   zoompagewe                => "https://addons.mozilla.org/firefox/downloads/file/3850992",
 };
-
-my $shortcutJsonRelpath =
-  "jetpack/keybinder\@fail.cl/simple-storage/store.json";
 
 my $xulStoreJson = ""
   . "{\"chrome://browser/content/browser.xhtml\":"
@@ -153,11 +148,6 @@ $$prefs{"browser.uiCustomization.state"} = jsonString(jsonMap([
   "newElementCount" => "0",
 ]));
 
-my $shortcutKeys = {
-  key_fullZoomEnlarge => [  ["control","shift"], "VK_UP" ],
-  key_fullZoomReduce  => [  ["control","shift"], "VK_DOWN" ],
-};
-
 my $resconfigScale = getResconfigScale();
 
 
@@ -165,11 +155,11 @@ my $usage = "Usage:
   $0
   $0 --safe
     same as:
-      'greasemonkey prefs xulstore shortcuts'
+      'greasemonkey prefs xulstore'
 
   $0 --full
     same as:
-      'placesbackup removeprofile addons greasemonkey prefs xulstore shortcuts placesrestore'
+      'placesbackup removeprofile addons greasemonkey prefs xulstore placesrestore'
 
   $0 COMMAND [COMMAND COMMAND ..]
     perform the indicated command(s) to set up firefox addons/prefs/etc
@@ -196,9 +186,6 @@ my $usage = "Usage:
     xulstore
       overwrite xulstore.json
 
-    shortcuts
-      overwrite shortcuts jetpack json file
-
     placesbackup
       copy 'places.sqlite*', 'permissions.sqlite*', 'logins.json' and 'key3.db' for use by 'placesrestore'
 
@@ -219,13 +206,13 @@ sub main(@){
 
   my @commands;
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--safe$)/)){
-    @commands = qw(greasemonkey prefs xulstore shortcuts);
+    @commands = qw(greasemonkey prefs xulstore);
   }elsif(@_ == 1 and $_[0] =~ /^(--full$)/){
     @commands = qw(
       placesbackup
       removeprofile
       addons
-      greasemonkey prefs xulstore shortcuts
+      greasemonkey prefs xulstore
       placesrestore
     );
   }else{
@@ -241,8 +228,6 @@ sub main(@){
       setPrefs();
     }elsif($cmd =~ /^(xulstore)$/){
       writeXulStore();
-    }elsif($cmd =~ /^(shortcuts)$/){
-      setupKeyboardShortcuts();
     }elsif($cmd =~ /^(placesbackup)$/){
       placesBackup();
     }elsif($cmd =~ /^(placesrestore)$/){
@@ -335,17 +320,6 @@ sub writeXulStore(){
   print "\n\n\n##### overwriting xulstore.json\n";
   my $xulStoreFile = "$PROFILE_DIR/xulstore.json";
   writeFile $xulStoreFile, $xulStoreJson;
-}
-
-sub setupKeyboardShortcuts(){
-  print "\n\n\n##### editing keyboard shortcuts\n";
-  my $shortcutsJson = "$PROFILE_DIR/$shortcutJsonRelpath";
-  my $dir = $shortcutsJson;
-  $dir =~ s/\/[^\/]*$//;
-  system "mkdir", "-p", $dir;
-
-  warn "warning: could not find shorcuts JSON file\n" if not -f $shortcutsJson;
-  writeFile $shortcutsJson, getShortcutJson();
 }
 
 sub placesBackup(){
@@ -506,35 +480,6 @@ sub editMozillaPrefs($$$) {
     }
     $cnts
   };
-}
-
-sub getShortcutJson(){
-  my @overlays;
-  for my $keyId(sort keys %$shortcutKeys){
-    my ($mods, $keycode) = @{$$shortcutKeys{$keyId}};
-    my $modArrStr = "[" . (join ",", map {"\"$_\""} @$mods) . "]";
-    push @overlays, ''
-      . '{'
-        . '"_type":"overlay",'
-        . '"key":'
-        . '{'
-          . '"_type":"key",'
-          . '"id":"' . $keyId . '"'
-        . '},'
-        . '"shortcut":'
-        . '{'
-          . '"_type":"shortcut",'
-          . '"keycode":"' . $keycode . '",'
-          . '"modifiers":'
-          . '{'
-            . '"_type":"modifiers",'
-            . '"modifiers":' . $modArrStr
-          . '}'
-        . '}'
-      . '}'
-    ;
-  }
-  return '{"overlays":[' . (join ",", @overlays) . ']}';
 }
 
 sub jsonString($){
