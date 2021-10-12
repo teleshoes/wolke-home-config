@@ -7,6 +7,7 @@ use Time::HiRes qw(sleep time);
 
 sub killFirefox();
 sub brieflyRunFirefox($);
+sub clearStartupCache();
 sub installAddons();
 sub greasemonkeySymlink();
 sub setPrefs();
@@ -279,6 +280,11 @@ sub brieflyRunFirefox($){
   killFirefox();
 }
 
+sub clearStartupCache(){
+  run "rm", "-rf", "$FIREFOX_CACHE_DIR/startupCache";
+  run "rm", "-f", "$PROFILE_DIR/addonStartup.json.lz4";
+}
+
 sub installAddons(){
   print "\n\n\n##### ensuring addons downloaded\n";
   ensureAddonsDownloaded();
@@ -291,16 +297,13 @@ sub installAddons(){
   print "\n\n\n##### installing addons\n";
   copyXpiAddonsToProfile();
 
-  run "rm", "-rf", "$FIREFOX_CACHE_DIR/startupCache";
-  run "rm", "-f", "$PROFILE_DIR/addonStartup.json.lz4";
-
   print "\n\n\n##### start firefox to create extensions.json\n";
   my $extJsonFile = "$PROFILE_DIR/extensions.json";
+  clearStartupCache();
   brieflyRunFirefox($FF_RUN_TIMEOUT_WITHOUT_EXTS_MILLIS);
   die "ERROR: $extJsonFile does not exist\n" if not -f $extJsonFile;
+  clearStartupCache();
 
-  run "rm", "-rf", "$FIREFOX_CACHE_DIR/startupCache";
-  run "rm", "-f", "$PROFILE_DIR/addonStartup.json.lz4";
 
   print "\n\n\n##### enable addons\n";
   enableAllAddons();
