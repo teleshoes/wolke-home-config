@@ -18,6 +18,7 @@ sub globMaybe($);
 sub placesBackup();
 sub placesRestore();
 sub removeProfile();
+sub removeCache();
 sub getAddonXpiCache($);
 sub putAddonXpiCache($$);
 sub extractXpiInfo($);
@@ -170,7 +171,7 @@ my $usage = "Usage:
 
   $0 --full
     same as:
-      'placesbackup removeprofile addons greasemonkey prefs xulstore placesrestore'
+      'placesbackup removeprofile removecache addons greasemonkey prefs xulstore placesrestore'
 
   $0 COMMAND [COMMAND COMMAND ..]
     perform the indicated command(s) to set up firefox addons/prefs/etc
@@ -207,6 +208,9 @@ my $usage = "Usage:
 
     removeprofile
       move existing profile dir to a backup, create empty profile dir
+
+    removecache
+      move existing cache dir to a backup, create empty cache dir
 ";
 
 sub main(@){
@@ -224,6 +228,7 @@ sub main(@){
     @commands = qw(
       placesbackup
       removeprofile
+      removecache
       addons
       greasemonkey prefs xulstore
       placesrestore
@@ -247,6 +252,8 @@ sub main(@){
       placesRestore();
     }elsif($cmd =~ /^(removeprofile)$/){
       removeProfile();
+    }elsif($cmd =~ /^(removecache)$/){
+      removeCache();
     }else{
       die "$usage\nunknown command: $cmd\n";
     }
@@ -400,6 +407,17 @@ sub removeProfile(){
   my $bakDir = "$realProfileDir/../profile-bak-" . int(time*1000);
   run "mv", $realProfileDir, $bakDir;
   run "mkdir", $realProfileDir;
+}
+sub removeCache(){
+  print "\n\n\n##### moving cache dir to backup and making empty cache dir\n";
+  my $realCacheDir = abs_path $FIREFOX_CACHE_DIR;
+  if(-l $realCacheDir or not -d $realCacheDir or $realCacheDir eq $FIREFOX_CACHE_DIR){
+    die "ERROR: could not find real cache dir for symlink $FIREFOX_CACHE_DIR\n";
+  }
+
+  my $bakDir = "$realCacheDir/../cache-bak-" . int(time*1000);
+  run "mv", $realCacheDir, $bakDir;
+  run "mkdir", $realCacheDir;
 }
 
 sub getAddonXpiCache($){
