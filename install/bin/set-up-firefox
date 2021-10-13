@@ -47,6 +47,8 @@ my $FIREFOX_EXEC_NAME = 'firefox';
 my $FF_RUN_TIMEOUT_MILLIS = 10000;
 my $FF_WINDOW_CLOSE_TIMEOUT_MILLIS = 500;
 
+my $LEPTON_GITHUB_REPO = "https://github.com/black7375/Firefox-UI-Fix";
+
 my @PLACES_PROFILE_FILE_PATTERNS = (
   "places.sqlite*",
   "permissions.sqlite*",
@@ -167,7 +169,7 @@ my $usage = "Usage:
   $0
   $0 --safe
     same as:
-      'greasemonkey prefs xulstore'
+      'greasemonkey prefs xulstore chrome'
 
   $0 --full
     same as:
@@ -175,6 +177,7 @@ my $usage = "Usage:
       removeprofile
       removecache
       prefs
+      chrome
       addons
       greasemonkey
       xulstore
@@ -186,6 +189,9 @@ my $usage = "Usage:
   COMMANDS
     prefs
       selectively modify user.js
+
+    chrome
+      setup chrome using $LEPTON_GITHUB_REPO
 
     addons
       -download+cache uncached XPI files:"
@@ -230,13 +236,14 @@ sub main(@){
 
   my @commands;
   if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--safe$)/)){
-    @commands = qw(greasemonkey prefs xulstore);
+    @commands = qw(greasemonkey prefs xulstore chrome);
   }elsif(@_ == 1 and $_[0] =~ /^(--full$)/){
     @commands = qw(
       placesbackup
       removeprofile
       removecache
       prefs
+      chrome
       addons
       greasemonkey
       xulstore
@@ -253,6 +260,8 @@ sub main(@){
       greasemonkeySymlink();
     }elsif($cmd =~ /^(prefs)$/){
       setPrefs();
+    }elsif($cmd =~ /^(chrome)$/){
+      setupLeptonChrome();
     }elsif($cmd =~ /^(xulstore)$/){
       writeXulStore();
     }elsif($cmd =~ /^(placesbackup)$/){
@@ -343,6 +352,13 @@ sub setPrefs(){
   system "touch", $userJs;
   die "Could not find user.js file\n" if not -f $userJs;
   editMozillaPrefs $userJs, "set-up-firefox", $prefs;
+}
+
+sub setupLeptonChrome(){
+  installFromGit $LEPTON_GITHUB_REPO, "
+    mkdir -p $PROFILE_DIR/chrome/
+    cp -ar userContent.css userChrome.css icons $PROFILE_DIR/chrome/
+  ";
 }
 
 sub writeXulStore(){
