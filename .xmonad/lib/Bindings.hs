@@ -240,6 +240,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx"
+        "vnc landscape" @@ mCS   xK_F11  #! "vnc-sx --landscape"
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
 
     "Klomp"         @@ do
