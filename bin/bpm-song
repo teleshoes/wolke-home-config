@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my @FFMPEG_OPTS = qw(
+  -v quiet -f f32le -ac 1 -c:a pcm_f32le -ar 44100 pipe:1
+);
+my $USAGE = "USAGE:
+  $0 -h | --help
+    show this message
+
+  $0 [BPM_OPTS] SONG_FILE
+    wrapper around `bpm` using `ffmpeg` to convert to the format `bpm` needs
+    roughly the same as:
+      ffmpeg -i SONG_FILE @FFMPEG_OPTS \
+        | bpm BPM_OPTS
+";
+
+sub main(@){
+  my $file = undef;
+  my @bpmOpts;
+  while(my $arg = shift @_){
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      $file = $arg;
+    }else{
+      push @bpmOpts, $arg;
+    }
+  }
+
+  die "$USAGE\nERROR: no file specified\n" if not defined $file;
+
+  $file =~ s/\\/\\\\/g;
+  $file =~ s/"/\\"/g;
+
+  exec "ffmpeg -i \"$file\" @FFMPEG_OPTS | bpm @bpmOpts";
+}
+
+&main(@ARGV);
