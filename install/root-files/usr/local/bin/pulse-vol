@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 my $PATOOL_PACMD = "pacmd";
+my $PATOOL_PACTL = "pactl";
 my $PATOOL = $PATOOL_PACMD;
 
 my $baseVol = 65537; #100%
@@ -117,6 +118,9 @@ sub main(@){
   if($PATOOL eq $PATOOL_PACMD){
     $paDevList = `$PATOOL list-${dev}s`;
     @indices = ($paDevList =~ /^  [ *] index: (\d+)$/gsm);
+  }elsif($PATOOL eq $PATOOL_PACTL){
+    $paDevList = `$PATOOL list ${dev}s`;
+    @indices = ($paDevList =~ /^$dev #(\d+)$/igsm);
   }else{
     die "ERROR: unknown tool $PATOOL\n";
   }
@@ -183,7 +187,7 @@ sub getAverageVolPercent($){
   my $count = 0;
   my $total = 0;
   for my $line(split /\n/, $paDevList){
-    if($line =~ /^\tvolume:/){
+    if($line =~ /^\tvolume:/i){
       while($line =~ /\s+(\d+)%/g){
         $count++;
         $total += $1;
@@ -199,8 +203,8 @@ sub anyMutedUnmuted($){
   my $anyMuted = 0;
   my $anyUnmuted = 0;
   for my $line(split /\n/, $paDevList){
-    $anyMuted = 1 if $line =~ /^\tmuted: yes/;
-    $anyUnmuted = 1 if $line =~ /^\tmuted: no/;
+    $anyMuted = 1 if $line =~ /^\tMute(?:d)?: yes/i;
+    $anyUnmuted = 1 if $line =~ /^\tMute(?:d)?: no/i;
   }
   return ($anyMuted, $anyUnmuted);
 }
