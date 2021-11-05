@@ -2,7 +2,9 @@
 use strict;
 use warnings;
 
-my $pacmd = "pacmd";
+my $PATOOL_PACMD = "pacmd";
+my $PATOOL = $PATOOL_PACMD;
+
 my $baseVol = 65537; #100%
 my $sinkSyns = "speaker|spkr|sink";
 my $sourceSyns = "microphone|mic|source";
@@ -110,8 +112,15 @@ sub main(@){
   die $usage if @_ > 0;
   $cmd = '' if not defined $cmd;
 
-  my $paDevList = `$pacmd list-${dev}s`;
-  my @indices = ($paDevList =~ /^  [ *] index: (\d+)$/gsm);
+  my $paDevList;
+  my @indices;
+  if($PATOOL eq $PATOOL_PACMD){
+    $paDevList = `$PATOOL list-${dev}s`;
+    @indices = ($paDevList =~ /^  [ *] index: (\d+)$/gsm);
+  }else{
+    die "ERROR: unknown tool $PATOOL\n";
+  }
+
   my $curVol = getAverageVolPercent $paDevList;
 
   if(defined $absVol){
@@ -159,13 +168,13 @@ sub main(@){
 
 sub setMuteStatus($$){
   my ($dev, $index, $muteVal) = @_;
-  system $pacmd, "set-$dev-mute", $index, $muteVal;
+  system $PATOOL, "set-$dev-mute", $index, $muteVal;
 }
 
 #percent of hard-coded base vol, not device base vol
 sub setVolPercent($$$){
   my ($dev, $index, $value) = @_;
-  system $pacmd, "set-$dev-volume", $index, int($value/100.0*$baseVol);
+  system $PATOOL, "set-$dev-volume", $index, int($value/100.0*$baseVol);
 }
 
 #percent of hard-coded base vol, not device base vol
