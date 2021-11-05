@@ -110,9 +110,9 @@ sub main(@){
   die $usage if @_ > 0;
   $cmd = '' if not defined $cmd;
 
-  my $pacmdList = `$pacmd list-${dev}s`;
-  my @indices = ($pacmdList =~ /^  [ *] index: (\d+)$/gsm);
-  my $curVol = getAverageVolPercent $pacmdList;
+  my $paDevList = `$pacmd list-${dev}s`;
+  my @indices = ($paDevList =~ /^  [ *] index: (\d+)$/gsm);
+  my $curVol = getAverageVolPercent $paDevList;
 
   if(defined $absVol){
     print "$curVol => $absVol\n";
@@ -133,9 +133,9 @@ sub main(@){
     }elsif($muteStatus eq 'unmute'){
       $muteVal = 0;
     }elsif($muteStatus eq 'toggle'){
-      $muteVal = getMuteStatus($pacmdList) eq 'muted' ? '0' : '1';
+      $muteVal = getMuteStatus($paDevList) eq 'muted' ? '0' : '1';
     }elsif($muteStatus eq 'equal'){
-      $muteVal = anyMuted($pacmdList) ? '1' : '0';
+      $muteVal = anyMuted($paDevList) ? '1' : '0';
     }
     setMuteStatus($dev, $_, $muteVal) foreach @indices;
     system $muteSinkCmd if $muteVal eq 1 and $dev eq 'sink';
@@ -143,15 +143,15 @@ sub main(@){
     system $muteSourceCmd if $muteVal eq 1 and $dev eq 'source';
     system $unmuteSourceCmd if $muteVal eq 0 and $dev eq 'source';
   }elsif($cmd =~ /^($okCmds{'get-volume'})$/){
-    print getAverageVolPercent($pacmdList) . "\n";
+    print getAverageVolPercent($paDevList) . "\n";
   }elsif($cmd =~ /^($okCmds{'get-mute'})$/){
-    print getMuteStatus($pacmdList) . "\n";
+    print getMuteStatus($paDevList) . "\n";
   }elsif($cmd =~ /^($okCmds{'update-volume'})$/){
-    my $absVol = getAverageVolPercent($pacmdList);
+    my $absVol = getAverageVolPercent($paDevList);
     setVolPercent $dev, $_, $absVol foreach @indices;
   }else{
-    print getAverageVolPercent($pacmdList);
-    print " (" . getMuteStatus($pacmdList) . ")";
+    print getAverageVolPercent($paDevList);
+    print " (" . getMuteStatus($paDevList) . ")";
     print "\n";
   }
 
@@ -170,10 +170,10 @@ sub setVolPercent($$$){
 
 #percent of hard-coded base vol, not device base vol
 sub getAverageVolPercent($){
-  my $pacmdList = shift;
+  my $paDevList = shift;
   my $count = 0;
   my $total = 0;
-  for my $line(split /\n/, $pacmdList){
+  for my $line(split /\n/, $paDevList){
     if($line =~ /^\tvolume:/){
       while($line =~ /\s+(\d+)%/g){
         $count++;
@@ -186,10 +186,10 @@ sub getAverageVolPercent($){
 }
 
 sub anyMutedUnmuted($){
-  my $pacmdList = shift;
+  my $paDevList = shift;
   my $anyMuted = 0;
   my $anyUnmuted = 0;
-  for my $line(split /\n/, $pacmdList){
+  for my $line(split /\n/, $paDevList){
     $anyMuted = 1 if $line =~ /^\tmuted: yes/;
     $anyUnmuted = 1 if $line =~ /^\tmuted: no/;
   }
@@ -197,14 +197,14 @@ sub anyMutedUnmuted($){
 }
 
 sub anyMuted($){
-  my $pacmdList = shift;
-  my ($anyMuted, $anyUnmuted) = anyMutedUnmuted $pacmdList;
+  my $paDevList = shift;
+  my ($anyMuted, $anyUnmuted) = anyMutedUnmuted $paDevList;
   return $anyMuted;
 }
 
 sub getMuteStatus($){
-  my $pacmdList = shift;
-  my ($anyMuted, $anyUnmuted) = anyMutedUnmuted $pacmdList;
+  my $paDevList = shift;
+  my ($anyMuted, $anyUnmuted) = anyMutedUnmuted $paDevList;
   if($anyMuted and not $anyUnmuted){
     return 'muted';
   }elsif(not $anyMuted and $anyUnmuted){
