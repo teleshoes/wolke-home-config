@@ -9,22 +9,34 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
+  $EXEC TEXT
+    copy TEXT to 'secondary' clipboard using `xsel`
+
   $EXEC
     copy STDIN to 'secondary' clipboard using `xsel`
 ";
 
 sub main(@){
+  my $text = undef;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif(not defined $text){
+      $text = $arg;
     }else{
       die $USAGE;
     }
   }
 
-  exec "xsel --input --clipboard -s";
+  if(defined $text){
+    open FH, "|-", "xsel --input --clipboard -s" or die "ERROR: `xsel` failed\n$!\n";
+    print FH $text;
+    close FH;
+  }else{
+    exec "xsel --input --clipboard -s";
+  }
 }
 
 &main(@ARGV);
