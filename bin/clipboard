@@ -9,20 +9,35 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC TEXT
+  $EXEC [OPTS] TEXT
     copy TEXT to clipboard using `xsel`
 
-  $EXEC
+  $EXEC [OPTS]
     copy STDIN to clipboard using `xsel`
+
+  OPTS
+    -c
+      use Clipboard (same as `xsel --clipboard`)
+      (this is the default)
+    -s
+      use X selection (same as `xsel --primary`)
 ";
+
+my $MODE_CLIPBOARD = "clipboard";
+my $MODE_SELECTION = "selection";
 
 sub main(@){
   my $text = undef;
+  my $mode = $MODE_CLIPBOARD;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-c)$/){
+      $mode = $MODE_CLIPBOARD;
+    }elsif($arg =~ /^(-s)$/){
+      $mode = $MODE_SELECTION;
     }elsif(not defined $text){
       $text = $arg;
     }else{
@@ -30,12 +45,22 @@ sub main(@){
     }
   }
 
+  my @cmd;
+
+  if($mode eq $MODE_CLIPBOARD){
+    @cmd = ("xsel", "--input", "--clipboard");
+  }elsif($mode eq $MODE_SELECTION){
+    @cmd = ("xsel", "--input", "--primary");
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+
   if(defined $text){
-    open FH, "|-", "xsel --input --clipboard" or die "ERROR: `xsel` failed\n$!\n";
+    open FH, "|-", @cmd or die "ERROR: `@cmd` failed\n$!\n";
     print FH $text;
     close FH;
   }else{
-    exec "xsel --input --clipboard";
+    exec @cmd;
   }
 }
 
