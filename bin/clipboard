@@ -23,8 +23,12 @@ my $USAGE = "Usage:
       use X selection (same as `xsel --primary`)
 ";
 
+my $CMD_XSEL = "xsel";
+
 my $MODE_CLIPBOARD = "clipboard";
 my $MODE_SELECTION = "selection";
+
+sub checkExec($);
 
 sub main(@){
   my $text = undef;
@@ -47,12 +51,16 @@ sub main(@){
 
   my @cmd;
 
-  if($mode eq $MODE_CLIPBOARD){
-    @cmd = ("xsel", "--input", "--clipboard");
-  }elsif($mode eq $MODE_SELECTION){
-    @cmd = ("xsel", "--input", "--primary");
+  if(checkExec($CMD_XSEL)){
+    if($mode eq $MODE_CLIPBOARD){
+      @cmd = ($CMD_XSEL, "--input", "--clipboard");
+    }elsif($mode eq $MODE_SELECTION){
+      @cmd = ($CMD_XSEL, "--input", "--primary");
+    }else{
+      die "ERROR: unknown mode $mode\n";
+    }
   }else{
-    die "ERROR: unknown mode $mode\n";
+    die "ERROR: could not find command $CMD_XSEL\n";
   }
 
   if(defined $text){
@@ -62,6 +70,12 @@ sub main(@){
   }else{
     exec @cmd;
   }
+}
+
+sub checkExec($){
+  my ($exec) = @_;
+  system "command -v '$exec' >/dev/null 2>/dev/null";
+  return $? == 0 ? 1 : 0;
 }
 
 &main(@ARGV);
