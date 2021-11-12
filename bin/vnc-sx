@@ -10,7 +10,7 @@ my $LIPSTICK2VNC_CONF_FILE = "/var/lib/environment/nemo/70-lipstick2vnc.conf";
 my $SLEEP_DELAY_MILLIS = 300;
 my $VNC_VIEWER_EXEC = "xtigervncviewer";
 
-sub calculateScale($);
+sub calculateScale($$);
 
 my $usage = "Usage:
   vnc to phone using $VNC_VIEWER_EXEC and lipstick2vnc, scaling the viewport
@@ -46,6 +46,13 @@ my $usage = "Usage:
         --scale=0.6
         60%
 
+    --res=PHONE_WIDTHxPHONE_HEIGHT
+    --mode=PHONE_WIDTHxPHONE_HEIGHT
+      the phone resolution, to skip checking $PHONE_GRAPHICS_MODES_FILE_GLOB
+      in order to calculate scale
+      orientation doesnt matter:
+        landscape always uses the smaller dimension, portrait the larger
+
     -l|--landscape
       pass --landscape to lipstick2vnc (rotate 90 degrees counter-clockwise)
       and use the smaller dimension for phone-height when calculating scale
@@ -53,6 +60,7 @@ my $usage = "Usage:
 
 sub main(@){
   my $scaleArg;
+  my $modeOverride = undef;
   my $landscape = 0;
   while(@_ > 0){
     my $arg = shift;
@@ -68,6 +76,8 @@ sub main(@){
       $scaleVal = 0.1 if $scaleVal < 0.1;
       $scaleVal = 1.0 if $scaleVal > 1.0;
       $scaleArg = $scaleVal;
+    }elsif($arg =~ /^(?:--res=|--mode=)(\d+)x(\d+)$/){
+      $modeOverride = $1 . "x" . $2;
     }elsif($arg =~ /^(-l|--landscape)$/){
       $landscape = 1;
     }else{
@@ -79,7 +89,7 @@ sub main(@){
   if(defined $scaleArg){
     $scale = $scaleArg;
   }else{
-    $scale = calculateScale($landscape);
+    $scale = calculateScale($landscape, $modeOverride);
   }
   print "SCALE: $scale\n";
 
@@ -106,11 +116,16 @@ sub main(@){
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
 }
 
-sub calculateScale($){
-  my ($landscape) = @_;
+sub calculateScale($$){
+  my ($landscape, $modeOverride) = @_;
   my $phoneHeight = "";
-  my $phoneResOut = `ipmagic $IPMAGIC_NAME -s "cat $PHONE_GRAPHICS_MODES_FILE_GLOB"`;
-  if($phoneResOut =~ /(\d+)x(\d+)p/){
+  my $phoneMode;
+  if(defined $modeOverride){
+    $phoneMode = $modeOverride;
+  }else{
+    $phoneMode = `ipmagic $IPMAGIC_NAME -s "cat $PHONE_GRAPHICS_MODES_FILE_GLOB"`;
+  }
+  if($phoneMode =~ /(\d+)x(\d+)/){
     my ($w, $h)= ($1, $2);
     my $minDim = $w > $h ? $h : $w;
     my $maxDim = $w > $h ? $w : $h;
