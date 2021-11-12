@@ -85,6 +85,9 @@ sub main(@){
 
   my $orientation = $landscape ? "--landscape" : "";
 
+  system "screen-daemon", "vnc-sx-tunnel", "--start", "0", "0",
+    "ipmagic $IPMAGIC_NAME --ssh-args '-t -t -L 5901:localhost:5900' -s";
+
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
     #dont run vnc as nemo (delete 'User=' line from vnc.service)
     sed -i '/^User=.*/d' /usr/lib/systemd/system/vnc.service
@@ -94,11 +97,12 @@ sub main(@){
     lock --unlock &
     systemctl start vnc
   ";
-  my $host = `ipmagic $IPMAGIC_NAME`;
-  chomp $host;
 
   sleep ($SLEEP_DELAY_MILLIS/1000.0);
-  system $VNC_VIEWER_EXEC, $host;
+
+  system $VNC_VIEWER_EXEC, "localhost:5901";
+
+  system "screen-daemon", "vnc-sx-tunnel", "--stop";
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
 }
 
