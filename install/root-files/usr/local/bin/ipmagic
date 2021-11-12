@@ -107,8 +107,9 @@ my $usage = "Usage:
                             otherwise, if DEFAULT_SSH_COMMAND is specified, it is passed to ssh
                             otherwise, no command is passed to ssh
 
-                            additional args can be set in the config file:
-                            sshArgs=SSH_ARGS
+                            default SSH_ARGS (passed to `ssh`): '$defaultSSHArgs'
+                            this can be overridden in the config file: 'sshArgs=SSH_ARGS'
+                            additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
         -p|--proxy|--socks  run ssh with `-N -D $SOCKS_PORT` to act as a SOCKS server
                             on port $SOCKS_PORT
@@ -130,16 +131,18 @@ my $usage = "Usage:
                             preBashCommand=PRE_BASH_COMMAND
                             {default is $defaultPreBashCommand}
 
-                            additional args can be set in the config file:
-                            sshArgs=SSH_ARGS
+                            default SSH_ARGS (passed to `ssh`): '$defaultSSHArgs'
+                            this can be overridden in the config file: 'sshArgs=SSH_ARGS'
+                            additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
         -vnc [VNC_ARGS]     call vncCmd
                             e.g.: for n9-vnc: `$EXEC -vnc rotate90 -- -quality 0`
 
         SSH_ARGS
-          additional args passed to ssh in '-s' and '-b'
-          specified in the config file:
-            sshArgs=SSH_ARGS
+          default args passed to `ssh`: '$defaultSSHArgs'
+          this can be overridden in the config file: 'sshArgs=SSH_ARGS'
+          additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
+          additional args are appended
 
         DEFAULT_SSH_COMMAND
           used when no arg is given for '-s'
@@ -171,6 +174,8 @@ my $usage = "Usage:
         -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
                             (number of total attempts is 1+<RETRIES>)
                             {default is $defaultRetries}
+        --ssh-args SSH_ARGS extra SSH args for -s and -b
+                            e.g.: --ssh-args '-L 80:localhost:81'
 ";
 
 sub main(@){
@@ -212,7 +217,7 @@ sub main(@){
   die "hostname not defined in conf\n" if not defined $config{hostname};
 
   my $optRegex = join "|", qw(
-    -v --verbose -u --user -m --method -r --retries
+    -v --verbose -u --user -m --method -r --retries --ssh-args
     -n --no-guess-ping
   );
 
@@ -233,6 +238,8 @@ sub main(@){
       $opts{no_guess_ping} = 1;
     }elsif(@_ > 0 and $arg =~ /^(-r|--retries)$/){
       $opts{retries} = shift;
+    }elsif(@_ > 0 and $arg =~ /^(--ssh-args)$/){
+      $opts{extraSSHArgs} = shift;
     }else{
       die $usage;
     }
@@ -370,6 +377,9 @@ sub main(@){
 
     my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
     my @sshCmdOpts = split /\s+/, $sshArgs;
+    if(defined $opts{extraSSHArgs}){
+      @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
+    }
 
     my @cmd = ("ssh", @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
