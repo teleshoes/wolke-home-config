@@ -61,7 +61,8 @@ my $usage = "Usage:
 sub main(@){
   my $scaleArg;
   my $modeOverride = undef;
-  my $landscape = 0;
+  my $orientationArg = undef;
+  my $isLandscape = 0;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -79,7 +80,8 @@ sub main(@){
     }elsif($arg =~ /^(?:--res=|--mode=)(\d+)x(\d+)$/){
       $modeOverride = $1 . "x" . $2;
     }elsif($arg =~ /^(-l|--landscape)$/){
-      $landscape = 1;
+      $orientationArg = "--landscape";
+      $isLandscape = 1;
     }else{
       die "$usage\nERROR: unknown arg \"$arg\"\n";
     }
@@ -89,11 +91,11 @@ sub main(@){
   if(defined $scaleArg){
     $scale = $scaleArg;
   }else{
-    $scale = calculateScale($landscape, $modeOverride);
+    $scale = calculateScale($isLandscape, $modeOverride);
   }
   print "SCALE: $scale\n";
 
-  my $orientation = $landscape ? "--landscape" : "";
+  $orientationArg = "" if not defined $orientationArg;
 
   my $status = `screen-daemon vnc-sx-tunnel --status`;
   if($status =~ /on/){
@@ -111,7 +113,7 @@ sub main(@){
     #probably not necessary
     #systemctl daemon-reload
 
-    echo \"LIPSTICK2VNC_OPTS=\\\"$orientation -k -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
+    echo \"LIPSTICK2VNC_OPTS=\\\"$orientationArg -k -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
     lock --unlock &
     systemctl start vnc
   ";
