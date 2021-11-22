@@ -9,9 +9,11 @@ my @DEVICE_ARR = (
 );
 my @DEVICE_NAMES = map {$$_[0]} @DEVICE_ARR;
 my $DEFAULT_DEVICE_NAME = $DEVICE_NAMES[0];
-
 my %DEVICE_MACS = map {$$_[0] => $$_[1]} @DEVICE_ARR;
 my %DEVICE_INIT_CMDS = map {$$_[0] => $$_[2]} @DEVICE_ARR;
+
+my $LOG_PREFIX = "/tmp/bt-scan";
+my $LOG_SYMLINK = $LOG_PREFIX;
 
 my $COMMAND_RERUN_TIMEOUT_MILLIS = 60 * 1000;
 
@@ -25,7 +27,12 @@ my $USAGE = "Usage:
   $EXEC --setup [DEVICE_NAME]
     -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
     -restart/reload/unblock bluetooth (modprobe/systemctl/rfkill) with `bluetooth` cmd
-    -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
+    -start scan with `screen-daemon` and `bluetoothctl`
+    -attempt to connect to DEVICE_MAC once
+    -if connect fails:
+      -remove the DEVICE_MAC
+      -every 3s, until success, run: `bluetoothctl pair DEVICE_MAC`
+      -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
     -run: `DEVICE_INIT_CMD`
 
   $EXEC --pair [DEVICE_NAME]
@@ -105,8 +112,25 @@ sub main(@){
     runOrDie "sudo", "bluetooth", "--unblock";
     sleep 3;
 
-    print "\ntrying to connect device\n";
-    runUntilSuccess "bluetoothctl connect $deviceMac";
+    my $logFile = "$LOG_PREFIX-" . nowMillis();
+    print "\nstarting scan in screen\n";
+    run "rm -f $LOG_PREFIX*";
+    run "ln -s $logFile $LOG_SYMLINK";
+
+    runOrDie "screen-daemon bt-scan --start 0 0 'unbuffer bluetoothctl scan on | tee $logFile'";
+    print "logging to $logFile (symlink at $LOG_SYMLINK)\n";
+    sleep 3;
+
+    print "\ntrying ONCE to connect device\n";
+    my $success = run "bluetoothctl connect $deviceMac";
+    if(not $success){
+      print "\nremoving, pairing, and connecting device\n";
+      run "bluetoothctl remove $deviceMac";
+      runUntilSuccess "bluetoothctl pair $deviceMac";
+      runUntilSuccess "bluetoothctl connect $deviceMac";
+    }
+
+    runOrDie "screen-daemon bt-scan --stop";
 
     if(defined $deviceInitCmd){
       print "\ninit-cmd - waiting 2s and running $deviceInitCmd\n";
