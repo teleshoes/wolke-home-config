@@ -1,32 +1,76 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
-my $btDev = '/proc/acpi/ibm/bluetooth';
+my $BT_DEV = '/proc/acpi/ibm/bluetooth';
 
-my $usage = "Usage:\n"
- . "$0                  prints bluetooth status\n"
- . "$0 get              prints bluetooth status\n"
- . "$0 [on|off|toggle]  sets bluetooth status\n"
-;
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC
+  $EXEC -g | --get | g | get
+    read $BT_DEV
+    print 'on' if 'enabled', print 'off' if 'disabled'
+
+  $EXEC --on | on
+    echo 'enable' to $BT_DEV
+
+  $EXEC --off | off
+    echo 'enable' to $BT_DEV
+
+  $EXEC -t | --toggle | t | toggle
+    read $BT_DEV
+    if 'enabled': echo 'disable' to $BT_DEV
+    if 'disabled': echo 'enable' to $BT_DEV
+";
 
 sub get();
 sub set($);
 
-sub main(@){
-  my $status = `cat $btDev`;
-  my $arg = shift;
-  $arg = 'get' if not defined $arg;
-  die $usage if @_ > 0 or $arg !~ /^(get|on|off|toggle)$/;
+my $CMD_GET = "get";
+my $CMD_ON = "on";
+my $CMD_OFF = "off";
+my $CMD_TOGGLE = "toggle";
 
-  print get() ? "on\n" : "off\n" if $arg eq 'get';
-  set(1) if $arg eq 'on';
-  set(0) if $arg eq 'off';
-  set(not get()) if $arg eq 'toggle';
+sub main(@){
+  my $cmd = $CMD_GET;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-g|--get|g|get)$/){
+      $cmd = $CMD_GET;
+    }elsif($arg =~ /^(--on|on)$/){
+      $cmd = $CMD_ON;
+    }elsif($arg =~ /^(--off|off)$/){
+      $cmd = $CMD_OFF;
+    }elsif($arg =~ /^(-t|--toggle|t|toggle)$/){
+      $cmd = $CMD_TOGGLE;
+    }else{
+      die "$USAGE: unknown arg $arg\n";
+    }
+  }
+
+  if($cmd eq $CMD_GET){
+    print get() ? "on\n" : "off\n";
+  }elsif($cmd eq $CMD_ON){
+    set(1);
+  }elsif($cmd eq $CMD_OFF){
+    set(0);
+  }elsif($cmd eq $CMD_TOGGLE){
+    set(get() ? 0 : 1);
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
 }
 
 sub get(){
-  my $status = `cat $btDev`;
+  my $status = `cat $BT_DEV`;
   if($status =~ /enabled/){
     return 1;
   }elsif($status =~ /disabled/){
@@ -39,7 +83,7 @@ sub get(){
 sub set($){
   my $status = shift;
   my $cmd = $status ? 'enable' : 'disable';
-  system "echo $cmd > $btDev";
+  system "echo $cmd > $BT_DEV";
 }
 
 &main(@ARGV);
