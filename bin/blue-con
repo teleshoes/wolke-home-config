@@ -1,44 +1,134 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
-my $btAcpiDev = '/proc/acpi/ibm/bluetooth';
-my $btHciDev = 'hci0';
+my @DEVICE_ARR = (
+  [ZERO2 => 'E4:17:D8:90:0D:08' => "8bitdo-zero-keyboard-map"],
+);
+my @DEVICE_NAMES = map {$$_[0]} @DEVICE_ARR;
+my $DEFAULT_DEVICE_NAME = $DEVICE_NAMES[0];
 
-if(`whoami` ne "root\n"){
-  print "sudo make me a sandwich\n";
-  exec "sudo", $0, @ARGV;
+my %DEVICE_MACS = map {$$_[0] => $$_[1]} @DEVICE_ARR;
+my %DEVICE_INIT_CMDS = map {$$_[0] => $$_[2]} @DEVICE_ARR;
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [DEVICE_NAME]
+  $EXEC --setup [DEVICE_NAME]
+    -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `sudo bluetooth off`
+    -run: `sudo bluetooth on`
+    -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
+    -run: `DEVICE_INIT_CMD`
+
+  $EXEC --pair [DEVICE_NAME]
+    -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `bluetoothctl pair DEVICE_MAC`
+  $EXEC --remove [DEVICE_NAME]
+    -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `bluetoothctl remove DEVICE_MAC`
+  $EXEC --connect [DEVICE_NAME]
+    -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `bluetoothctl connect DEVICE_MAC`
+  $EXEC --disconnect [DEVICE_NAME]
+    -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `bluetoothctl disconnect DEVICE_MAC`
+  $EXEC --init [DEVICE_NAME]
+    -obtain DEVICE_INIT_CMD for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `DEVICE_INIT_CMD`
+
+   DEVICE_NAME
+     one of: @DEVICE_NAMES
+
+   DEVICE_MAC
+     the MAC address of the device
+
+   DEVICE_INIT_CMD
+     the command, if any, that will be run after connecting the device
+";
+
+sub run(@);
+sub runOrDie(@);
+
+my $CMD_SETUP = "setup";
+my $CMD_PAIR = "pair";
+my $CMD_REMOVE = "remove";
+my $CMD_CONNECT = "connect";
+my $CMD_DISCONNECT = "disconnect";
+my $CMD_INIT = "init";
+
+sub main(@){
+  my $deviceName = $DEFAULT_DEVICE_NAME;
+  my $cmd = $CMD_SETUP;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(defined $DEVICE_MACS{$arg}){
+      $deviceName = $arg;
+    }elsif($arg =~ /^(--setup)$/){
+      $cmd = $CMD_SETUP;
+    }elsif($arg =~ /^(--pair)$/){
+      $cmd = $CMD_PAIR;
+    }elsif($arg =~ /^(--remove)$/){
+      $cmd = $CMD_REMOVE;
+    }elsif($arg =~ /^(--connect)$/){
+      $cmd = $CMD_CONNECT;
+    }elsif($arg =~ /^(--disconnect)$/){
+      $cmd = $CMD_DISCONNECT;
+    }elsif($arg =~ /^(--init)$/){
+      $cmd = $CMD_INIT;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  my $deviceMac = $DEVICE_MACS{$deviceName};
+  my $deviceInitCmd = $DEVICE_INIT_CMDS{$deviceName};
+
+  if($cmd eq $CMD_SETUP){
+    runOrDie "sudo", "bluetooth", "off";
+    runOrDie "sudo", "bluetooth", "on";
+
+    my $btctlCmd = "bluetoothctl connect $deviceMac";
+    while(not run $btctlCmd){
+      print "connect failed, waiting 3s and retrying...\n";
+      sleep 3;
+    }
+
+    if(defined $deviceInitCmd){
+      print "waiting 2s and running $deviceInitCmd\n";
+      sleep 2;
+      run $deviceInitCmd;
+    }
+  }elsif($cmd eq $CMD_PAIR){
+    run "bluetoothctl pair $deviceMac";
+  }elsif($cmd eq $CMD_REMOVE){
+    run "bluetoothctl remove $deviceMac";
+  }elsif($cmd eq $CMD_CONNECT){
+    run "bluetoothctl connect $deviceMac";
+  }elsif($cmd eq $CMD_DISCONNECT){
+    run "bluetoothctl disconnect $deviceMac";
+  }elsif($cmd eq $CMD_INIT){
+    run "$deviceInitCmd" if defined $deviceInitCmd;
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
 }
 
 sub run(@){
   print "@_\n";
   system @_;
+  return $? == 0 ? 1 : 0;
+}
+sub runOrDie(@){
+  run @_ or die "ERROR: @_ failed\n";
 }
 
-run "echo enabled > $btAcpiDev";
-print "\n\n";
-
-my $btAddr = "\n";
-while ($btAddr !~ /^([0-9a-f]{2}.?){6}$/i){
-  print "push the bluetooth button or whatever\n";
-  print "{wait until scan is done}\n";
-  run "hcitool scan";
-  print "paste the bt addr, or push enter to rerun scan\n";
-  print "mac: ";
-  $btAddr = <STDIN>;
-  print "\n\n";
-}
-
-my @segs = $btAddr =~ /([a-z0-9]{2})/gi;
-$btAddr = join ':', @segs;
-
-print "Pairing, you prolly wanna enter 0000 for PINs\n";
-print "After you enter a PIN, you may need to\n";
-print "type it on the bt device and press enter or whatever\n";
-run "bluez-simple-agent $btHciDev $btAddr";
-
-print "trusting device so this shit will be auto, maybe\n";
-run "bluez-test-device trusted $btAddr yes";
-
-print "connecting, maybe\n";
-run "bluez-test-input connect $btAddr";
+&main(@ARGV);
