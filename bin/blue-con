@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Time::HiRes qw(time);
 
 my @DEVICE_ARR = (
   [ZERO2 => 'E4:17:D8:90:0D:08' => "8bitdo-zero-keyboard-map"],
@@ -11,6 +12,8 @@ my $DEFAULT_DEVICE_NAME = $DEVICE_NAMES[0];
 
 my %DEVICE_MACS = map {$$_[0] => $$_[1]} @DEVICE_ARR;
 my %DEVICE_INIT_CMDS = map {$$_[0] => $$_[2]} @DEVICE_ARR;
+
+my $COMMAND_RERUN_TIMEOUT_MILLIS = 60 * 1000;
 
 my $EXEC = basename $0;
 
@@ -54,6 +57,8 @@ my $USAGE = "Usage:
 
 sub run(@);
 sub runOrDie(@);
+sub runUntilSuccess(@);
+sub nowMillis();
 
 my $CMD_SETUP = "setup";
 my $CMD_PAIR = "pair";
@@ -96,11 +101,7 @@ sub main(@){
     runOrDie "sudo", "bluetooth", "off";
     runOrDie "sudo", "bluetooth", "on";
 
-    my $btctlCmd = "bluetoothctl connect $deviceMac";
-    while(not run $btctlCmd){
-      print "connect failed, waiting 3s and retrying...\n";
-      sleep 3;
-    }
+    runUntilSuccess "bluetoothctl connect $deviceMac";
 
     if(defined $deviceInitCmd){
       print "waiting 2s and running $deviceInitCmd\n";
@@ -129,6 +130,26 @@ sub run(@){
 }
 sub runOrDie(@){
   run @_ or die "ERROR: @_ failed\n";
+}
+sub runUntilSuccess(@){
+  my $startTime = nowMillis();
+  while(1){
+    my $isSuccess = run @_;
+    if($isSuccess){
+      last;
+    }else{
+      my $elapsedMillis = nowMillis() - $startTime;
+      if($elapsedMillis > $COMMAND_RERUN_TIMEOUT_MILLIS){
+        die "ERROR: command-rerun timeout exceeded for @_\n";
+      }
+      print "@_ failed, waiting 3s and retrying...\n";
+      sleep 3;
+    }
+  }
+}
+
+sub nowMillis(){
+  return int(time() * 1000 + 0.5);
 }
 
 &main(@ARGV);
