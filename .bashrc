@@ -275,6 +275,8 @@ function db           { dashboard "$@"; }
 function cb           { coinbase-balance "$@"; }
 function rh           { robinhood "$@"; }
 
+function btcon        { blue-con "$@"; }
+
 function tvg          { tv-gpio "$@" ; }
 
 function so           { screenOff ; }
