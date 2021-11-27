@@ -1,0 +1,94 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  wrapper around `bchunk` and `toc2cue`
+    bchunk '-s' (byte-swap) is necessary for most audio CD bin files
+    bchunk '-w' is wav output instead of cdr
+
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS] BIN_NAME.bin CUE_NAME.cue
+    run: bchunk -s -w BIN_NAME.bin CUE_NAME.cue BIN_NAME
+
+  $EXEC [OPTS] BIN_NAME.bin TOC_NAME.toc
+    run: toc2cue TOC_NAME.toc TOC_NAME.cue
+    run: bchunk -s -w BIN_NAME.bin TOC_NAME.cue BIN_NAME
+
+  OPTS
+    -S | --no-swap
+      do not pass '-s' to `bchunk`
+";
+
+sub run(@);
+
+sub main(@){
+  my ($bin, $cue, $toc);
+  my $swapBytes = 1;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(.*\.bin)$/i){
+      $bin = $arg;
+    }elsif($arg =~ /^(.*\.cue)$/i){
+      $cue = $arg;
+    }elsif($arg =~ /^(.*\.toc)$/i){
+      $toc = $arg;
+    }elsif($arg =~ /^(-S|--no-swap)$/i){
+      $swapBytes = 0;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $bin){
+    die "ERROR: must specify BIN file\n";
+  }
+
+  if(defined $toc and not defined $cue){
+    $cue = $toc;
+    $cue =~ s/\.toc$//i;
+    $cue .= ".cue";
+
+    if(-e $cue){
+      die "ERROR: CUE file $cue is not a file\n" if not -f $cue;
+      print STDERR "\n\n\nWARNING: using existing CUE file $cue\n\n\n";
+    }else{
+      run "toc2cue", $toc, $cue;
+      die "ERROR: toc2cue failed - cannot find $cue\n" if not -f $cue;
+    }
+  }
+
+  if(not defined $cue){
+    die "ERROR: must specify either TOC or CUE file\n";
+  }
+
+  my $binName = $bin;
+  $binName =~ s/\.bin$//i;
+
+  run (
+    "bchunk",
+    ($swapBytes ? ("-s") : ()),
+    "-w",
+    $bin,
+    $cue,
+    $binName,
+  );
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  if($? != 0){
+    die "ERROR: \"@_\" failed\n";
+  }
+}
+
+&main(@ARGV);
