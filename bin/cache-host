@@ -1,0 +1,177 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $HOSTS_FILE = "/etc/hosts";
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS] HOST [HOST HOST]
+  $EXEC [OPTS] --cache HOST [HOST HOST]
+    -ensure running as root (unless --ipmagic given)
+    -for each HOST:
+      -lookup IPv4 address for HOST using `host`
+      -if not found:
+        -print an error message (do not edit $HOSTS_FILE)
+      -if found:
+        -remove all lines from $HOSTS_FILE that end with a tab, followed by HOST,
+          optionally followed by whitespace, optionally followed by a comment (#COMMENT)
+        -append a line to $HOSTS_FILE
+          containing IP, followed by a tab, followed by HOST
+
+  $EXEC [OPTS] --refresh|-r --comment=COMMENT
+    -read $HOSTS_FILE (locally or with IPMAGIC_NAME)
+    -for each line ending in '#COMMENT', extract the host
+    -run each HOST as in: `$EXEC --comment=COMMENT --cache HOST HOST ..`
+
+  OPTS
+    --ipmagic=IPMAGIC_NAME | --ipmagic-name=IPMAGIC_NAME
+      -do not ensure that user is root
+      -read/edit $HOSTS_FILE on the remote destination using:
+        `ipmagic IPMAGIC_NAME -u root`
+      -still run `host` commands on the local machine
+
+    --comment=COMMENT
+      -if COMMENT starts with '#', remove that char
+      -append ' #COMMENT' to the line appended to $HOSTS_FILE
+
+  HOST
+    hostname to lookup
+    (must be at least 3 chars long and contain one '.')
+";
+
+sub getHostIP($$);
+sub getCachedHostsForComment($$);
+sub ensureRoot();
+sub run(@);
+
+sub main(@){
+  my @hosts;
+  my $nameserver = undef;
+  my $refreshHosts = 0;
+  my $ipmagicName;
+  my $comment;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^--nameserver=(.+)$/){
+      $nameserver = $1;
+    }elsif($arg =~ /^(-r|--refresh)$/){
+      $refreshHosts = 1;
+    }elsif($arg =~ /^(?:--ipmagic|--ipmagic-name)=(\w+)$/){
+      $ipmagicName = $1;
+    }elsif($arg =~ /^--comment=(.+)$/){
+      $comment = $1;
+    }elsif($arg =~ /.\../){
+      push @hosts, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $ipmagicName){
+    ensureRoot();
+  }
+
+  if($refreshHosts){
+    die "ERROR: cannot give HOST for --refresh\n" if @hosts > 0;
+    die "ERROR: comment is required for --refresh\n" if not defined $comment;
+    @hosts = getCachedHostsForComment($ipmagicName, $comment);
+    die "ERROR: could not find any cached hosts for #$comment\n" if @hosts == 0;
+  }
+
+  for my $host(@hosts){
+    print "\n===$host===\n";
+    my $ip = getHostIP($host, $nameserver);
+    if(defined $ip){
+      print "  /etc/hosts $host => $ip\n";
+    }else{
+      print "  WARNING: host lookup failed, skipping $host\n";
+      next;
+    }
+
+    my $hostsLine = "$ip\t$host";
+    if(defined $comment){
+      $comment =~ s/^#//;
+      $hostsLine .= " #$comment";
+    }
+
+    my @cmds = (
+      "sed -i '/\\t$host\\s*\\(#.*\\)\\?\$/d' /etc/hosts",
+      "echo \"$hostsLine\" >> /etc/hosts",
+    );
+
+    for my $cmd(@cmds){
+      if(defined $ipmagicName){
+        run "ipmagic", $ipmagicName, "-u", "root", $cmd;
+      }else{
+        run $cmd;
+      }
+    }
+  }
+}
+
+sub getHostIP($$){
+  my ($host, $nameserver) = @_;
+  my $hostOut;
+  if(defined $nameserver){
+    $hostOut = `host "$host" "$nameserver"`;
+  }else{
+    $hostOut = `host "$host"`;
+  }
+
+  my $alias;
+  if($hostOut =~ /^$host is an alias for (.+)\.$/m){
+    $alias = $1;
+  }
+
+  if($hostOut =~ /^$host has address (\d+\.\d+\.\d+\.\d+)$/m){
+    return $1;
+  }elsif(defined $alias and $hostOut =~ /^$alias has address (\d+\.\d+\.\d+\.\d+)$/m){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+sub getCachedHostsForComment($$){
+  my ($ipmagicName, $comment) = @_;
+  my @hostLines;
+  if(defined $ipmagicName){
+    @hostLines = `ipmagic $ipmagicName -u root cat $HOSTS_FILE`;
+  }else{
+    @hostLines = `cat $HOSTS_FILE`;
+  }
+
+  $comment =~ s/^#//;
+
+  my @hosts;
+  for my $line(@hostLines){
+    if($line =~ /\t(.*\S)\s*#+$comment$/){
+      push @hosts, $1;
+    }
+  }
+  return @hosts;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  die "ERROR: \"@_\" failed\n" if $? != 0;
+}
+
+&main(@ARGV);
