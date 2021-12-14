@@ -121,24 +121,24 @@ sub main(@){
   my $status = `screen-daemon vnc-sx-tunnel --status`;
   if($status =~ /on/){
     system "screen-daemon", "vnc-sx-tunnel", "--stop";
-    system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
+    system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "systemctl --user stop vnc";
   }
 
   system "screen-daemon", "vnc-sx-tunnel", "--start", "0", "0",
-    "ipmagic $IPMAGIC_NAME --ssh-args '-t -t -L 5901:localhost:5900' -s";
+    "ipmagic $IPMAGIC_NAME -u $USERNAME --ssh-args '-t -t -L 5901:localhost:5900' -s";
 
-  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
-
-    echo \"LIPSTICK2VNC_OPTS=\\\"$orientationArg -k -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
+  system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "
+    echo \"LIPSTICK2VNC_OPTS=\\\"$orientationArg -k -s $scale\\\"\" \\
+      | sudo tee $LIPSTICK2VNC_CONF_FILE
     lock --unlock &
 
     #by default, /dev/uinput is owned by system.net_bt_stack
     #  setgid to ensure that user is at least in group privileged
     #  and then ensure group privileged can read/write uinput
-    chmod g+s /usr/bin/lipstick2vnc
-    chown system.privileged /dev/uinput
+    sudo chmod g+s /usr/bin/lipstick2vnc
+    sudo chown system.privileged /dev/uinput
 
-    systemctl start vnc
+    systemctl --user start vnc
   ";
 
   sleep ($SLEEP_DELAY_MILLIS/1000.0);
@@ -146,7 +146,7 @@ sub main(@){
   system $VNC_VIEWER_EXEC, "localhost:5901";
 
   system "screen-daemon", "vnc-sx-tunnel", "--stop";
-  system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "systemctl stop vnc";
+  system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "systemctl --user stop vnc";
 }
 
 sub calculateScale($$){
