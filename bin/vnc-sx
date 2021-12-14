@@ -128,13 +128,16 @@ sub main(@){
     "ipmagic $IPMAGIC_NAME --ssh-args '-t -t -L 5901:localhost:5900' -s";
 
   system "ipmagic", $IPMAGIC_NAME, "-u", "root", "-s", "
-    #dont run vnc as nemo (delete 'User=' line from vnc.service)
-    grep User /usr/lib/systemd/system/vnc.service \\
-      && sed -i '/^User=.*/d' /usr/lib/systemd/system/vnc.service \\
-      && systemctl daemon-reload
 
     echo \"LIPSTICK2VNC_OPTS=\\\"$orientationArg -k -s $scale\\\"\" > $LIPSTICK2VNC_CONF_FILE
     lock --unlock &
+
+    #by default, /dev/uinput is owned by system.net_bt_stack
+    #  setgid to ensure that user is at least in group privileged
+    #  and then ensure group privileged can read/write uinput
+    chmod g+s /usr/bin/lipstick2vnc
+    chown system.privileged /dev/uinput
+
     systemctl start vnc
   ";
 
