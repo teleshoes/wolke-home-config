@@ -249,6 +249,10 @@ my $USAGE = "Usage:
         ipmagic.pix = home-desktop
         uuid./media/PICTURES = 8f9f9b1e-9b2f-11eb-8c15-0711f5e696a9
         uuid./media/BackupDrive = 965d282c-9b2f-11eb-b521-47c0725542a3
+
+  BACKUP_NAME
+    backup names can contain only lower-case letters, numbers and underscores
+    (uppercase letters are converted to lowercase in cmdline args and BACKUP_CONF_FILE)
 ";
 
 sub selectIpmagicName($$$);
@@ -382,8 +386,9 @@ sub main(@){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
     my ($backupName) = @commandArgs if @commandArgs == 1;
     my ($srcMountpoint, $destMountpoint) = @commandArgs if @commandArgs == 2;
-    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
-      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
+    $backupName = lc $backupName if defined $backupName;
+    if(defined $backupName and $backupName !~ /^[a-z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only lowercase-letters/numbers/underscores\n";
     }
     ensureRoot();
 
@@ -398,8 +403,9 @@ sub main(@){
   }elsif($command eq $COMMAND_CHECK_UUIDS){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1;
     my ($backupName) = @commandArgs;
-    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
-      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
+    $backupName = lc $backupName if defined $backupName;
+    if(defined $backupName and $backupName !~ /^[a-z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only lowercase-letters/numbers/underscores\n";
     }
     ensureRoot();
 
@@ -411,8 +417,9 @@ sub main(@){
     die "$USAGE\nbad args to $command\n" if @commandArgs != 1 and @commandArgs != 2;
     my ($backupName) = @commandArgs if @commandArgs == 1;
     my ($srcMountpoint, $destMountpoint) = @commandArgs if @commandArgs == 2;
-    if(defined $backupName and $backupName !~ /^[a-zA-Z0-9_]+$/){
-      die "ERROR: BACKUP_NAME can contain only letters/numbers/underscores\n";
+    $backupName = lc $backupName if defined $backupName;
+    if(defined $backupName and $backupName !~ /^[a-z0-9_]+$/){
+      die "ERROR: BACKUP_NAME can contain only lowercase-letters/numbers/underscores\n";
     }
     ensureRoot();
 
@@ -481,6 +488,7 @@ sub main(@){
   }elsif($command eq $COMMAND_SNAPSHOT_SRC){
     die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
     my @backupNames = @commandArgs;
+    @backupNames = map {lc $_} @backupNames;
     ensureRoot();
 
     my $conf = readBackupConf($BACKUP_CONF_FILE);
@@ -508,6 +516,7 @@ sub main(@){
   }elsif($command eq $COMMAND_SNAPSHOT_DEST){
     die "$USAGE\nbad args to $command\n" if @commandArgs < 1;
     my @backupNames = @commandArgs;
+    @backupNames = map {lc $_} @backupNames;
     ensureRoot();
 
     my $conf = readBackupConf($BACKUP_CONF_FILE);
@@ -1132,6 +1141,7 @@ sub readBackupConf($){
       next;
     }elsif($line =~ /^ \s* (\w+) \s* = \s* (.*\S) \s* => \s* (.*\S) \s* $/x){
       my ($backupName, $srcMountpoint, $destMountpoint) = ($1, $2, $3);
+      $backupName = lc $backupName;
       if(defined $$conf{BACKUPS}{$backupName}){
         print STDERR "WARNING: duplicate BACKUP_NAME $backupName in $confFile\n";
       }
@@ -1141,6 +1151,7 @@ sub readBackupConf($){
       };
     }elsif($line =~ /^ \s* ipmagic\.(\w+) \s* = \s* (.*\S) \s* $/x){
       my ($backupName, $ipmagicName) = ($1, $2);
+      $backupName = lc $backupName;
       if(defined $$conf{IPMAGIC_NAME}{$backupName}){
         print STDERR "WARNING: duplicate IPMAGIC_NAME for $backupName in $confFile\n";
       }
