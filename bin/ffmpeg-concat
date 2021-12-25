@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Cwd qw(abs_path);
+
+my $EXEC = basename $0;
+
+my $usage = "Usage:
+  $EXEC -h | -help
+
+  $EXEC [OPTS] FILE [FILE FILE ..]
+    use -concat filter
+
+  OPTS
+    -o OUTPUT_FILE | --output=OUTPUT_FILE
+      use OUTPUT_FILE instead of out.<EXT>
+      where EXT is the extension of the first input file
+";
+
+sub main(@){
+  my @inputFiles;
+  my $outputFile = undef;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(-o)$/ and @_ > 0){
+      $outputFile = shift @_;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputFile = $1;
+    }elsif(-f $arg){
+      push @inputFiles, $arg;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$usage\nERROR: no input files\n" if @inputFiles == 0;
+
+  if(not defined $outputFile){
+    my $ext = $1 if $inputFiles[0] =~ /\.(\w+)$/;
+    die "ERROR: could not read extension from $inputFiles[0]\n" if not defined $ext;
+    $outputFile = "out.$ext";
+  }
+
+  my $tmpList = "/tmp/$EXEC-tmp-file-list.txt";
+  open FH, "> $tmpList" or die "ERROR: could not write $tmpList\n$!\n";
+  for my $inputFile(@inputFiles){
+    my $absPath = abs_path $inputFile;
+    $absPath =~ s/'/'\\''/g;
+    print FH "file '$absPath'\n";
+  }
+  close FH;
+
+  system "ffmpeg", "-f", "concat", "-safe", "0", "-i", $tmpList, "-c", "copy", $outputFile;
+}
+
+&main(@ARGV);
