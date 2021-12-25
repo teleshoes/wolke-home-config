@@ -135,15 +135,33 @@ sub main(@){
 sub handleFile($$$$$$){
   my ($action, $mode, $shiftHours, $tag, $simulate, $file) = @_;
   my ($dir, $fileName, $ext);
-  if($file =~ /^(.*\/)?(.+)\.($okExts)$/i){
-    ($dir, $fileName, $ext) = ($1, $2, $3);
+  $fileName = $file;
+
+  if($fileName =~ /^(.*\/)([^\/]+)$/){
+    ($dir, $fileName) = ($1, $2);
   }else{
-    die "$file did not end in one of: @exts\n";
+    $dir = "";
   }
-  $dir = "" if not defined $dir;
+  if($fileName =~ /^(.*)(\.\w+)$/){
+    ($fileName, $ext) = ($1, $2);
+  }else{
+    $ext = "";
+  }
+
+  if($fileName =~ /\//){
+    die "ERROR: could not parse directory of file: $file\n";
+  }
+
+  die "$file must end in one of: @exts\n";
+
+  my $isJpeg;
+  if($ext =~ /^\.(jpg|jpeg)$/i){
+    $isJpeg = 1;
+  }
+
   my $epoch;
   if($mode eq $MODE_EXIF_MTIME){
-    if($file =~ /\.(jpg|jpeg)/i){
+    if($isJpeg){
       $epoch = exifEpoch $file;
     }else{
       $epoch = mtimeEpoch $file;
@@ -195,7 +213,7 @@ sub handleFile($$$$$$){
 
   if($fileName =~ /^${ymd}_(\d+)$/){
     my $index = $1;
-    #remove duplicate YYYYMMDD from files that start out named <YYYYMMDD>_<INDEX>.ext
+    #remove duplicate YYYYMMDD from files that start out named <YYYYMMDD>_<INDEX><EXT>
     #e.g.: 20181031_001.png => 20181031_153022_20181031_001.png => 20181031_153022_001.png
     $fileName = "$index";
   }
@@ -207,11 +225,11 @@ sub handleFile($$$$$$){
 
   my $maybeTag = defined $tag ? "_$tag" : "";
 
-  my $newFile = "${typePrefix}${dir}${dateFmt}${maybeTag}_${fileName}.${ext}";
+  my $newFile = "${typePrefix}${dir}${dateFmt}${maybeTag}_${fileName}${ext}";
   my $count = 0;
   while(-f $newFile and $file ne $newFile){
     $count++;
-    $newFile = "$dir${dateFmt}_${fileName}_${count}.${ext}";
+    $newFile = "$dir${dateFmt}_${fileName}_${count}${ext}";
   }
 
   if($action eq $ACTION_RENAME){
