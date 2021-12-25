@@ -1,0 +1,104 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Cwd qw(abs_path);
+use File::Basename qw(basename);
+
+#consider the next day to start at midnight plus this offset
+my $DATE_OFFSET_MILLIS = 4 * 60 * 60 * 1000; # days start at 04:00
+
+sub getMonthDir($);
+sub mtime($);
+sub getFiles($);
+
+my $usage = "Usage:
+  $0 DIR [CMD]
+    find all files recursively under DIR
+    generate shell commands to move to dir named DIR/YYYY-MM based on file modtime
+    print those shell commands
+
+    CMD
+      -s | --simulate | -n | --dryrun    (DEFAULT)
+        just print the shell commands
+        this is the default if no command is given
+      --move
+        actually move the files
+";
+
+sub main(@){
+  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
+    print $usage;
+    exit 0;
+  }elsif(@_ == 0 or @_ > 2){
+    die $usage;
+  }
+
+  my ($dir, $cmd) = @_;
+  $cmd = "--simulate" if not defined $cmd;
+
+  $dir =~ s/\/+$//;
+  $dir = "$dir/";
+
+  die "$usage\nnot a directory: $dir\n" if not -d $dir;
+
+  if($cmd =~ /^(-s|--simulate|-n|--dryrun)$/){
+    my @commands = getCommands($dir);
+    for my $cmd(@commands){
+      print "@$cmd\n";
+    }
+  }elsif($cmd =~ /^(--move)$/){
+    my @commands = getCommands($dir);
+    for my $cmd(@commands){
+      print "@$cmd\n";
+      system @$cmd;
+      if($? != 0){
+        die "command failed: @$cmd\n";
+      }
+    }
+  }else{
+    die "$usage\nunknown command: $cmd\n";
+  }
+}
+
+sub getCommands($){
+  my ($dir) = @_;
+  my (@mkdirCmds, @mvCmds);
+  my @files = getFiles $dir;
+  my $dirsMade = {};
+  for my $file(@files){
+    my $destDir = $dir . getMonthDir($file);
+    if(not defined $$dirsMade{$destDir} and not -d $destDir){
+      push @mkdirCmds, ["mkdir", "$destDir/"];
+      $$dirsMade{$destDir} = 1;
+    }
+    my $newFile = "$destDir/" . basename($file);
+    if($file ne $newFile){
+      push @mvCmds, ["mv", "--no-clobber", $file, $newFile];
+    }
+  }
+  return (@mkdirCmds, @mvCmds);
+}
+
+sub getMonthDir($){
+  my ($file) = @_;
+  my $mtime = mtime $file;
+  $mtime = int($mtime - ($DATE_OFFSET_MILLIS / 1000.0) + 0.5);
+  my $fmt = `date --date \@$mtime +%Y-%m`;
+  chomp $fmt;
+  return $fmt;
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
+}
+
+sub getFiles($){
+  my ($dir) = @_;
+  my @files = `find "$dir" -type f`;
+  chomp foreach @files;
+  return @files;
+}
+
+&main(@ARGV);
