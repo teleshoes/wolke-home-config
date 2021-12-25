@@ -141,8 +141,8 @@ sub main(@){
       chomp $dateFmt;
       my $desc = $$t{desc};
       $desc = "" if not defined $desc;
-      printf "%s | %4s | %s | %s | %s\n",
-        $dateFmt, $$t{type}, btcFmt(15, $$t{btc}), usdFmt(9, $$t{usd}), $desc;
+      printf "%s | %4s | %s | %s | @%-6d | %s\n",
+        $dateFmt, $$t{type}, btcFmt(15, $$t{btc}), usdFmt(9, $$t{usd}), $$t{usd_per_btc}, $desc;
     }
   }elsif($command eq $COMMAND_CLEAR_CACHE){
     writeBTCBalanceCache(undef);
@@ -239,6 +239,26 @@ sub parseTransactionsJSON($){
       date => $date,
       desc => $$j{description},
     };
+
+    my $usdAbs = $$t{usd} > 0 ? $$t{usd} : 0 - $$t{usd};
+    my $btcAbs = $$t{btc} > 0 ? $$t{btc} : 0 - $$t{btc};
+
+    #guess fee using coinbase's stated 1.49% bank xfer fee
+    my $bankBtcFee = $btcAbs - ($btcAbs * (1 - 0.0149));
+
+    my $btcFee;
+    if($$t{type} =~ /^(buy)$/){
+      $btcFee = $bankBtcFee
+    }elsif($$t{type} =~ /^(sell)$/){
+      $btcFee = 0 - $bankBtcFee;
+    }elsif($$t{type} eq "send"){
+      $btcFee = 0;
+    }else{
+      $btcFee = 0;
+    }
+
+    $$t{usd_per_btc} = $usdAbs / ($btcAbs + $btcFee);
+
     push @transactions, $t;
   }
   return @transactions;
