@@ -16,7 +16,8 @@ my $usage = "Usage:
     rename, touch, or print info about files, using exif data, mtime, or filename
       -default action is to rename
       -default timestamp mode is to use exif for JPEG, and mtime otherwise
-    FILE must end in '.' followed by @exts
+    FILE must end in '.' followed by one of: @exts
+      (see --no-check-ext)
 
   OPTS
     --rename       {default}
@@ -41,6 +42,14 @@ my $usage = "Usage:
       use picname file name to get timestamp
       fails if file is not named in the expected format
 
+    --check-ext
+      fail if FILE does not end in '.' followed by one of: @exts
+      (this is the default)
+    -a | --no-check-ext | --allow-ext
+      do NOT fail if FILE does not end in '.' followed by one of: @exts
+      any ext (or no ext) is permitted
+      (files ending in .jpg or .jpeg still use exif mode by default)
+
     --tag=TAG
       insert \"_<TAG>\" after YYYYMMDD_HHMMSS when renaming
         -TAG can contain only lowercase letters, numbers, and underscores
@@ -64,7 +73,7 @@ my $usage = "Usage:
       e.g.: --shift-hours=-4  subtracts 4*60*60 seconds
 ";
 
-sub handleFile($$$$$$);
+sub handleFile($$$$$$$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
@@ -84,6 +93,7 @@ sub main(@){
   my $mode = $MODE_EXIF_MTIME;
   my $simulate = 0;
   my $shiftHours = 0;
+  my $checkExt = 1;
   my $tag = undef;
   my @files;
   while(@_ > 0){
@@ -105,6 +115,10 @@ sub main(@){
       $mode = $MODE_MTIME;
     }elsif($arg =~ /^(--filename)$/){
       $mode = $MODE_FILENAME;
+    }elsif($arg =~ /^(--check-ext)$/){
+      $checkExt = 1;
+    }elsif($arg =~ /^(-a|--no-check-ext|--allow-ext)$/){
+      $checkExt = 0;
     }elsif($arg =~ /^--tag=(.+)$/){
       $tag = $1;
       die "$usage\nERROR: invalid tag $tag\n" if $tag !~ /^[a-z0-9_]+$/;
@@ -122,7 +136,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $action, $mode, $shiftHours, $tag, $simulate, $file;
+      my $isOk = handleFile $action, $mode, $shiftHours, $tag, $simulate, $checkExt, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -132,8 +146,9 @@ sub main(@){
   }
 }
 
-sub handleFile($$$$$$){
-  my ($action, $mode, $shiftHours, $tag, $simulate, $file) = @_;
+sub handleFile($$$$$$$){
+  my ($action, $mode, $shiftHours, $tag, $simulate, $checkExt, $file) = @_;
+
   my ($dir, $fileName, $ext);
   $fileName = $file;
 
@@ -151,8 +166,9 @@ sub handleFile($$$$$$){
   if($fileName =~ /\//){
     die "ERROR: could not parse directory of file: $file\n";
   }
-
-  die "$file must end in one of: @exts\n";
+  if($checkExt and $ext !~ /^\.($okExts)$/i){
+    die "ERROR: invalid ext for $file (use -a to allow any): @exts\n";
+  }
 
   my $isJpeg;
   if($ext =~ /^\.(jpg|jpeg)$/i){
