@@ -342,8 +342,8 @@ function maven() {
   if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
     args="$args -Dcheckstyle.skip=true"
   fi
-  echo mvn $args $@
-  execAlarm mvn $args $@;
+  echo mvnd $args $@
+  execAlarm mvnd $args $@;
 }
 function mavenDebug() {
   port="8000"
@@ -355,8 +355,8 @@ function mavenDebug() {
   if ! [[ "$@" =~ (^| )checkstyle:check($| ) ]]; then
     args="$args -Dcheckstyle.skip=true"
   fi
-  echo mvn -Dmaven.surefire.debug=\'$debugOpts\' $args $@
-  execAlarm mvn -Dmaven.surefire.debug="$debugOpts" $args $@;
+  echo mvnd -Dmaven.surefire.debug=\'$debugOpts\' $args $@
+  execAlarm mvnd -Dmaven.surefire.debug="$debugOpts" $args $@;
 }
 
 
