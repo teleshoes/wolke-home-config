@@ -330,6 +330,10 @@ function dc {
   fi
 }
 
+function mvnd() {
+  ~/apps/mvnd-0.7.1-linux-amd64/bin/mvnd -Dmvnd.rollingWindowSize=15 "$@";
+}
+
 function maven() {
   args=""
   if ! [[ "$@" =~ (^| )test($| ) ]]; then
