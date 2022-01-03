@@ -286,9 +286,9 @@ function spawn        { "$@" & disown; }
 function spawnex      { "$@" & disown && exit 0; }
 function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
-function m            { maven -Psdm -Pdev -Pfast-tests -Dgwt.compiler.skip=true install "$@"; }
+function m            { maven -Psdm -Pdev -Dgwt.compiler.skip=true install "$@"; }
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
-function mc           { maven -Psdm -Pdev -Pfast-tests -Dgwt.draftCompile=true clean install "$@"; }
+function mc           { maven -Psdm -Pdev -Dgwt.draftCompile=true clean install "$@"; }
 function mck          { maven checkstyle:check "$@"; }
 function findesh      { command find "$@" -not -regex '\(^\|.*/\)\(target\|gen\|compile-sql\)\($\|/.*\)'; }
 function grepesh      { command grep "$@" \
