@@ -28,7 +28,8 @@ sub main(@){
   my $useMillis = 0;
   my $alwaysPrefix = 0;
   my $neverPrefix = 0;
-  while(@_ > 0 and $_[0] =~ /^-/ and not -e $_[0]){
+  my @files;
+  while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
@@ -41,13 +42,15 @@ sub main(@){
       $alwaysPrefix = 1;
     }elsif($arg =~ /^(-n|--no-prefix)$/){
       $neverPrefix = 1;
+    }elsif(-e $arg){
+      push @files, $arg;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
   }
 
   my $maxFileLen = 0;
-  for my $file(@_){
+  for my $file(@files){
     my $len = length $file;
     $maxFileLen = $len if $len > $maxFileLen;
   }
@@ -57,14 +60,13 @@ sub main(@){
     $usePrefix = 1;
   }elsif($neverPrefix){
     $usePrefix = 0;
-  }elsif(@_ > 1){
+  }elsif(@files > 1){
     $usePrefix = 1;
   }else{
     $usePrefix = 0;
   }
 
-  for my $file(@_){
-    print STDERR "$file does not exist\n" if not -e $file;
+  for my $file(@files){
     my @stat;
     if($useMillis){
       require Time::HiRes;
