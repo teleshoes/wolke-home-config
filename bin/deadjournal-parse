@@ -1,0 +1,385 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Text::Wrap;
+
+sub parseEntry($);
+
+my $htmlO = '<html[^>]*>';
+my $htmlC = '</html[^>]*>';
+my $bodyO = '<body[^>]*>';
+my $bodyC = '</body[^>]*>';
+my $scriptO = '<script[^>]*>';
+my $scriptC = '</script[^>]*>';
+my $divO = '<div[^>]*>';
+my $divC = '</div[^>]*>';
+my $spanO = '<span[^>]*>';
+my $spanC = '</span[^>]*>';
+my $pO = '<p[^>]*>';
+my $pC = '</p[^>]*>';
+my $bO = '<b[^>]*>';
+my $bC = '</b[^>]*>';
+my $fontO = '<font[^>]*>';
+my $fontC = '</font[^>]*>';
+my $centerO = '<center[^>]*>';
+my $centerC = '</center[^>]*>';
+my $aO = '<a[^>]*>';
+my $aC = '</a[^>]*>';
+my $imgO = '<img[^>]*>';
+my $imgC = '</img[^>]*>';
+my $tableO = '<table[^>]*>';
+my $tableC = '</table[^>]*>';
+my $tbodyO = '<tbody[^>]*>';
+my $tbodyC = '</tbody[^>]*>';
+my $trO = '<tr[^>]*>';
+my $trC = '</tr[^>]*>';
+my $tdO = '<td[^>]*>';
+my $tdC = '</td[^>]*>';
+my $br = '<br[^>]*>';
+my $nobr = '<nobr[^>]*>';
+my $wbr = '<wbr[^>]*>';
+
+my @mon = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+my $monRE = sprintf "(?:" . join("|", @mon) . " )";
+my %monNum = map { $mon[$_-1] => $_ } 1..12;
+
+my $usage = "Usage:
+  $0 HTML_FILE [TARGET_INDEX]
+";
+
+sub main(@){
+  my $htmlFile = shift;
+  my $targetIndex = shift;
+
+  die $usage if not defined $htmlFile or not -f $htmlFile;
+
+  my $html = `cat $htmlFile`;
+
+  no warnings qw(experimental::vlb);
+  my @entries = split /(?=
+    (?:<p>
+       \n?
+         <table
+           (?:\s summary="")?
+           (?:\s class="entrybox")?
+             \s width="600"
+           (?:\s cellspacing="(?:\d|\d\d)")?
+           (?:\s cellpadding="(?:\d|\d\d)")?
+           (?:\s border="(?:\d|\d\d)")?
+         >)
+  )/sx, $html;
+
+  my $open = shift @entries;
+  my $close;
+  my $last = $entries[-1];
+  if($last =~ s/(
+    \s*             $pO
+    \s*             $tableO \s* $tbodyO
+    \s*               $trO \s* $tdO
+    \s*                 $tableO \s* $tbodyO
+    \s*                   $trO \s* $tdO navigation $tdC \s* $trC
+    \s*                   $trO \s* $tdO
+    \s*                     $tableO \s* $tbodyO
+    \s*                       $trO
+    \s*                         $tdO \[ $tdC
+    \s*                         $tdO $bO viewing $bC $tdC
+    \s*                         $tdO \| $tdC
+    \s*                         $tdO most \s recent \s entries $tdC
+    \s*                         $tdO \] $tdC
+    \s*                       $trC
+    \s*                       $trO
+    \s*                         $tdO \[ $tdC
+    \s*                         $tdO $bO go $bC $tdC
+    \s*                         $tdO \| $tdC
+    \s*                         $tdO $aO earlier $aC $tdC
+    \s*                         $tdO \] $tdC
+    \s*                       $trC
+    \s*                     $tbodyC $tableC
+    \s*                   $tdC \s* $trC
+    \s*                 $tbodyC $tableC
+    \s*               $tdC $trC
+    \s*             $tbodyC $tableC
+    \s*   $pC $divC
+    \s*   $pO
+    \s*   $pC
+    \s* $bodyC
+    \s* $scriptO $scriptC
+    \s* $htmlC
+  )$//x){
+    $close = $1;
+    $entries[-1] = $last;
+  }else{
+    die "ERROR: malformed last entry:\n$last\n";
+  }
+
+  my @posts;
+
+  my $index = @entries;
+  my $prevEpoch = undef;
+  for my $entry(@entries){
+    my $post = parseEntry($entry);
+    my $epoch = $$post{epoch};
+
+    if(defined $prevEpoch and $epoch >= $prevEpoch){
+      die "ERROR: entries out of date order\n";
+    }
+    $prevEpoch = $epoch;
+
+    $$post{index} = $index;
+    $index--;
+
+    push @posts, $post;
+  }
+
+  mkdir "posts-html";
+  mkdir "posts-text";
+  system "rm -f posts-html/*.html";
+  system "rm -f posts-text/*.txt";
+
+  open ALL, "> all-posts.txt";
+  for my $post(@posts){
+    next if defined $targetIndex and $$post{index} != $targetIndex;
+
+    my $title = $$post{title};
+    $title =~ s/\n/ /g;
+
+    my $titlePlaintext = plaintext($title);
+
+    my $fileName = `date --date=\@$$post{epoch} +%Y%m%d_%H%M%S`;
+    chomp $fileName;
+
+    $fileName .= "_$title";
+    $fileName = lc $fileName;
+    $fileName =~ s/[^a-z0-9_]+/_/g;
+    $fileName =~ s/__+/_/g;
+    $fileName =~ s/^_//;
+    $fileName =~ s/_$//;
+
+    my $body = $$post{body};
+    my $bodyPlaintext = plaintext($body);
+
+    $Text::Wrap::columns = 100;
+    $Text::Wrap::unexpand = 0;
+    $bodyPlaintext = Text::Wrap::wrap('', '', $bodyPlaintext);
+
+    $bodyPlaintext =~ s/\s*$//gm;
+
+    my $textFormat = sprintf
+      "====================\n%-3d %s %s %s\n    mood:%s (%s) - music:%s\n%s",
+      $$post{index},
+      $$post{dateFmt},
+      $$post{timeFmt},
+      $titlePlaintext,
+      $$post{mood},
+      $$post{moodIcon},
+      $$post{music},
+      $bodyPlaintext,
+    ;
+
+    my $htmlFormat = sprintf
+      "%-3d %s %s %s<br>\n&nbsp;&nbsp;&nbsp; mood:<b>%s</b> (%s) - music:<b>%s</b><br/>\n%s",
+      $$post{index},
+      $$post{dateFmt},
+      $$post{timeFmt},
+      $title,
+      $$post{mood},
+      $$post{moodIcon},
+      $$post{music},
+      $body,
+    ;
+
+    open TEXT, "> posts-text/$fileName.txt";
+    print TEXT "$textFormat\n";
+    close TEXT;
+    system "touch posts-text/$fileName.txt --date=\@$$post{epoch}";
+
+    print ALL "\n\n$textFormat\n";
+    print STDOUT "\n\n$textFormat\n";
+
+    open HTML, "> posts-html/$fileName.html";
+    print HTML "$htmlFormat\n";
+    close HTML;
+    system "touch posts-html/$fileName.html --date=\@$$post{epoch}";
+  }
+  close ALL;
+  my $lastEpoch = ${$posts[0]}{epoch};
+  system "touch all-posts.txt --date=\@$lastEpoch";
+  system "touch posts-html --date=\@$lastEpoch";
+  system "touch posts-text --date=\@$lastEpoch";
+}
+
+sub plaintext($){
+  my ($html) = @_;
+  my $text = $html;
+
+  $text =~ s/></> </g;
+  $text =~ s/[\r\n\t]+/ /g;
+
+  $text =~ s/<img [^<>]* src="[^"]*_files\/([^"]*)"  [^<>]* >/img:$1/gx;
+  $text =~ s/<a   [^<>]* href="([^"]*)" [^<>]* >/<$1>/gx;
+
+  $text =~ s/$pO|$pC|$br|$divO|$divC|$trO/\n/g;
+
+  $text =~ s/
+      $spanO
+    | $spanC
+    | $fontO
+    | $fontC
+    | $centerO
+    | $centerC
+    | $aC
+    | $imgO
+    | $imgC
+    | $bO
+    | $bC
+    | $tableO
+    | $tableC
+    | $tbodyO
+    | $tbodyC
+    | $trC
+    | $tdO
+    | $tdC
+    | $nobr
+    | $wbr
+  //gx;
+
+  $text =~ s/&nbsp;/ /g;
+  $text =~ s/&#160;/ /g;
+
+  $text =~ s/ *\n/\n/g;
+
+  $text =~ s/^\s*//;
+  $text =~ s/\s*$//;
+
+  $text =~ s/\n\n\n+/\n\n/g;
+
+  $text =~ s/&lt;\/?\w+(\s+\w+=('[^']*'|"[^"]*"))*\s*\/?\s*&gt;//g;
+
+  return $text;
+}
+
+sub parseEntry($){
+  my ($entry) = @_;
+  if($entry =~ /
+    ^
+    \s* $pO
+    \s*   $tableO \s* $tbodyO
+    \s*     $trO
+    \s*       $tdO
+    \s*         $tableO \s* $tbodyO
+    \s*             $trO
+    \s*               $tdO (?<title>(?:.|\n)+) $tdC
+    \s*               $tdO
+    \s*                   \[ \s* (?<date>[^<>]+)
+    \s*                   \| $bO (?<time>[^<>]+)  $bC
+    \s*                   \]
+    \s*               $tdC
+    \s*             $trC
+    \s*             $trO
+    \s*               $tdO
+    \s*                 (?<postBody>(?:.|\n)+)
+    \s*               $tdC
+    \s*             $trC
+    \s*             $trO
+    \s*               $tdO
+    \s*                 (?: $aO             [^<>]*             $aC)? #next link (optional)
+    \s*                 (?: $aO \s* $bO \s* [^<>]* \s* $bC \s* $aC)  #reply link
+    \s*               $tdC
+    \s*             $trC
+    \s*         $tbodyC \s* $tableC
+    \s*       $tdC
+    \s*     $trC
+    \s*   $tbodyC \s* $tableC
+    \s* $pC
+    /x
+  ){
+    my $post = {%+};
+    my $postBody = $$post{postBody};
+
+    my $mood = "";
+    if($postBody =~ s/^
+      \s* (?: $tableO \s* $tbodyO )?
+      \s*     $trO
+      \s*       $tdO  \[           $tdC
+      \s*       $tdO  <b>mood<\/b> $tdC
+      \s*       $tdO  \|           $tdC
+      \s*       $tdO     (.*)      $tdC
+      \s*       $tdO  \]           $tdC
+      \s*     $trC
+      \s* (?: $tbodyC \s* $tableC )?
+      //x
+    ){
+      $mood = $1;
+    }
+
+    my $moodIcon = "";
+    if($mood =~ s/^
+      \s* (?:<img
+      \s*      [^<>]*
+      \s*      src="  [^"]*_files  \/  ([^"]+)  "
+      \s*      [^<>]*
+      \s*    >
+      \s* )?
+      //x
+    ){
+      $moodIcon = $1;
+    }
+
+    my $music = "";
+    if($postBody =~ s/^
+      \s* (?: $tableO \s* $tbodyO )?
+      \s*         $trO
+      \s*           $tdO  \[            $tdC
+      \s*           $tdO  <b>music<\/b> $tdC
+      \s*           $tdO  \|            $tdC
+      \s*           $tdO     (.*)       $tdC
+      \s*           $tdO  \]            $tdC
+      \s*         $trC
+      \s* (?: $tbodyC \s* $tableC )?
+      //x
+    ){
+      $music = $1;
+    }
+
+    my $spRE = '(?:&nbsp;| |\t)*';
+
+    my $dateFmt;
+    if($$post{date} =~ /^(\d|\d\d) $spRE ($monRE) $spRE (\d\d\d\d)$/x){
+      my ($day, $mon, $year) = ($1, $2, $3);
+      $dateFmt = sprintf "%04d-%02d-%02d", $year, $monNum{$mon}, $day;
+    }else{
+      die "ERROR: invalid date $$post{date}\n";
+    }
+
+    my $timeFmt;
+    if($$post{time} =~ /^(\d|\d\d):(\d|\d\d)([ap]m)$/x){
+      my ($hr, $min, $ampm) = ($1, $2, $3);
+      if($hr == 12){
+        $hr = 0 if $ampm eq "am";
+      }else{
+        $hr += 12 if $ampm eq "pm";
+      }
+      $timeFmt = sprintf "%02d:%02d", $hr, $min;
+    }else{
+      die "ERROR: invalid time $$post{time}\n";
+    }
+
+    my $epoch = `date --date='$dateFmt $timeFmt' +%s`;
+    chomp $epoch;
+
+    $$post{mood} = $mood;
+    $$post{moodIcon} = $moodIcon;
+    $$post{music} = $music;
+    $$post{body} = $postBody;
+
+    $$post{dateFmt} = $dateFmt;
+    $$post{timeFmt} = $timeFmt;
+    $$post{epoch} = $epoch;
+
+    return $post;
+  }else{
+    die "ERROR: could not parse entry\n$entry\n";
+  }
+}
+
+&main(@ARGV);
