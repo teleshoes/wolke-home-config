@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 my $EXEC_RES = basename $0;
+my $MODES_DEV_GLOB = "/sys/class/*/*/modes";
 
 my $usage = "Usage:
   $EXEC_RES --help
@@ -13,6 +14,12 @@ my $usage = "Usage:
 
   $EXEC_RES [OPTS] -g|--get
     use `xrandr` to print \"<WIDTH>x<HEIGHT>\" of the <FIRST_MONITOR>
+
+  $EXEC_RES [OPTS] -m|--modes [MODES_PREF_REGEX]
+    find graphics cards `modes` devs in /sys/class
+    select one that contains a <GEOMETRY>, and print it
+      -if given, prefer `modes` devices where full path matches MODES_PREF_REGEX
+      -otherwise, sort paths in lexicographical order
 
   $EXEC_RES [OPTS] -s GEOMETRY
   $EXEC_RES [OPTS] --set GEOMETRY
@@ -28,6 +35,10 @@ my $usage = "Usage:
   GEOMETRY
     <WIDTH>x<HEIGHT>
 
+  MODES_PREF_REGEX
+    comma-separated list of values to pattern match the graphics card in --modes
+    the full path of the `modes` devices is matched against
+
   FIRST_MONITOR
     the first monitor returned by `xrandr --list-monitors`
   LAST_MONITOR
@@ -39,11 +50,11 @@ my $usage = "Usage:
         set <FIRST_MONITOR> to the last monitor in `xrandr --listmonitors`
         set <LAST_MONITOR> to the first monitor in `xrandr --listmonitors`
     w | -w | --width | WIDTH | width
-      print just <WIDTH> in --get
+      print just <WIDTH> in --get and --modes
     h | -h | --height | HEIGHT | height
-      print just <HEIGHT> in --get
+      print just <HEIGHT> in --get and --modes
     --percent=PERCENT
-      print modified <WIDTH> and <HEIGHT> in --get
+      print modified <WIDTH> and <HEIGHT> in --get and --modes
       multiply the <WIDTH> and <HEIGHT> by PERCENT,
         divide by 100,
         and round to the nearest pixel
@@ -51,14 +62,17 @@ my $usage = "Usage:
       e.g.: `$EXEC_RES -p 50` prints \"960x540\" on 1920x1080 screen
 ";
 
+sub readModeFromDev($);
 sub getMonitors();
 
 my $CMD_GET = "get";
+my $CMD_MODES = "modes";
 my $CMD_SET = "set";
 my $CMD_CLONE = "clone";
 
 sub main(@){
   my $cmd = $CMD_GET;
+  my $modesPrefRegex = undef;
   my $setMode = undef;
   my $altMonitor = 0;
   my $showWidth = 1;
@@ -71,6 +85,9 @@ sub main(@){
       exit 0;
     }elsif($opt =~ /^(-g|--get)$/){
       $cmd = $CMD_GET;
+    }elsif($opt =~ /^(-m|--modes)$/){
+      $cmd = $CMD_MODES;
+      $modesPrefRegex = shift if @_ == 1;
     }elsif($opt =~ /^--set=(\d+x\d+)$/){
       $cmd = $CMD_SET;
       $setMode = $1;
@@ -95,12 +112,26 @@ sub main(@){
     }
   }
 
-  my @monitors = getMonitors();
-  my $primaryMonitor = $altMonitor ? $monitors[-1] : $monitors[0];
-  my $secondaryMonitor = $altMonitor ? $monitors[0] : $monitors[-1];
+  my ($primaryMonitor, $secondaryMonitor);
+  if($cmd =~ /^$CMD_GET|$CMD_SET|$CMD_CLONE$/){
+    my @monitors = getMonitors();
+    $primaryMonitor = $altMonitor ? $monitors[-1] : $monitors[0];
+    $secondaryMonitor = $altMonitor ? $monitors[0] : $monitors[-1];
+  }
 
   if($cmd eq $CMD_GET){
     my ($width, $height) = ($$primaryMonitor{width}, $$primaryMonitor{height});
+    $width = int($width * $percent / 100 + 0.5);
+    $height = int($height * $percent / 100 + 0.5);
+
+    my $fmt = "";
+    $fmt .= $width if $showWidth;
+    $fmt .= "x" if $showWidth and $showHeight;
+    $fmt .= $height  if $showHeight;
+
+    print "$fmt\n";
+  }elsif($cmd eq $CMD_MODES){
+    my ($width, $height) = readModeFromDev($modesPrefRegex);
     $width = int($width * $percent / 100 + 0.5);
     $height = int($height * $percent / 100 + 0.5);
 
@@ -125,6 +156,21 @@ sub main(@){
   }else{
     die "ERROR: unknown command $cmd\n";
   }
+}
+
+sub readModeFromDev($){
+  my ($modesPrefRegex) = @_;
+  my @modesDevs = sort glob $MODES_DEV_GLOB;
+  $modesPrefRegex = "" if not defined $modesPrefRegex;
+  my @prefDevs = sort grep {$_ =~ /$modesPrefRegex/} @modesDevs;
+  my @unprefDevs = sort grep {$_ !~ /$modesPrefRegex/} @modesDevs;
+  for my $dev (@prefDevs, @unprefDevs){
+    my $out = `cat $dev 2>/dev/null`;
+    if($out =~ /(\d+)x(\d+)/){
+      return ($1, $2);
+    }
+  }
+  die "ERROR: could not find geomery in $MODES_DEV_GLOB\n";
 }
 
 sub getMonitors(){
