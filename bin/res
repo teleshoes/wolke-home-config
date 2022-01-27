@@ -11,6 +11,10 @@ my $usage = "Usage:
     show this message
 
   $EXEC_RES [OPTS]
+    if `xrandr` is installed:
+      same as: $EXEC_RES --get
+    otherwise:
+      same as: $EXEC_RES --modes
 
   $EXEC_RES [OPTS] -g|--get
     use `xrandr` to print \"<WIDTH>x<HEIGHT>\" of the <FIRST_MONITOR>
@@ -62,6 +66,7 @@ my $usage = "Usage:
       e.g.: `$EXEC_RES -p 50` prints \"960x540\" on 1920x1080 screen
 ";
 
+sub isXrandrAvailable();
 sub readModeFromDev($);
 sub getMonitors();
 
@@ -71,7 +76,7 @@ my $CMD_SET = "set";
 my $CMD_CLONE = "clone";
 
 sub main(@){
-  my $cmd = $CMD_GET;
+  my $cmd = undef;
   my $modesPrefRegex = undef;
   my $setMode = undef;
   my $altMonitor = 0;
@@ -110,6 +115,10 @@ sub main(@){
     }else{
       die "$usage\nERROR: unknown opt $opt\n";
     }
+  }
+
+  if(not defined $cmd){
+    $cmd = isXrandrAvailable() ? $CMD_GET : $CMD_MODES;
   }
 
   my ($primaryMonitor, $secondaryMonitor);
@@ -156,6 +165,11 @@ sub main(@){
   }else{
     die "ERROR: unknown command $cmd\n";
   }
+}
+
+sub isXrandrAvailable(){
+  system "command -v xrandr >/dev/null";
+  return $? == 0 ? 1 : 0;
 }
 
 sub readModeFromDev($){
