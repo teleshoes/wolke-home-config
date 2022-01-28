@@ -6,7 +6,8 @@ use Time::HiRes qw(sleep);
 my $IPMAGIC_NAME = "sx";
 my $USERNAME = "nemo";
 
-my $PHONE_GRAPHICS_MODES_FILE_GLOB = "/sys/class/graphics/fb*/modes";
+my $PHONE_GRAPHICS_MODES_PREF_REGEX = "graphics/fb";
+
 my $LIPSTICK2VNC_CONF_FILE = "/var/lib/environment/$USERNAME/70-lipstick2vnc.conf";
 my $SLEEP_DELAY_MILLIS = 300;
 my $VNC_VIEWER_EXEC = "xtigervncviewer";
@@ -20,8 +21,7 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS]
-    -obtain phone resolution:
-      use ipmagic to run `cat $PHONE_GRAPHICS_MODES_FILE_GLOB`
+    -obtain phone resolution using `res --modes $PHONE_GRAPHICS_MODES_PREF_REGEX`:
     -obtain monitor resoltion:
       run `res -h`
     -calculate a scale based on the height, targeting 95% of the monitor height
@@ -49,7 +49,7 @@ my $usage = "Usage:
 
     --res=PHONE_WIDTHxPHONE_HEIGHT
     --mode=PHONE_WIDTHxPHONE_HEIGHT
-      the phone resolution, to skip checking $PHONE_GRAPHICS_MODES_FILE_GLOB
+      the phone resolution, to skip checking mode with `res`
       in order to calculate scale
       orientation doesnt matter:
         landscape/landscape-inverted always uses the smaller dimension
@@ -154,7 +154,7 @@ sub calculateScale($$){
   if(defined $modeOverride){
     $phoneMode = $modeOverride;
   }else{
-    $phoneMode = `ipmagic $IPMAGIC_NAME -s "cat $PHONE_GRAPHICS_MODES_FILE_GLOB"`;
+    $phoneMode = `ipmagic $IPMAGIC_NAME "res --modes '$PHONE_GRAPHICS_MODES_PREF_REGEX'"`;
   }
   if($phoneMode =~ /(\d+)x(\d+)/){
     my ($w, $h)= ($1, $2);
