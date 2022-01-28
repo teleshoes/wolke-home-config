@@ -69,19 +69,23 @@ my $usage = "Usage:
 sub isXrandrAvailable();
 sub readModeFromDev($);
 sub getMonitors();
+sub formatRes($$$);
 
 my $CMD_GET = "get";
 my $CMD_MODES = "modes";
 my $CMD_SET = "set";
 my $CMD_CLONE = "clone";
 
+my $RES_FORMAT_OPT_WIDTH = "width";
+my $RES_FORMAT_OPT_HEIGHT = "height";
+my $RES_FORMAT_OPT_BOTH = "both";
+
 sub main(@){
   my $cmd = undef;
   my $modesPrefRegex = undef;
   my $setMode = undef;
   my $altMonitor = 0;
-  my $showWidth = 1;
-  my $showHeight = 1;
+  my $resFormatOpt = $RES_FORMAT_OPT_BOTH;
   my $percent = 100;
   while(@_ > 0){
     my $opt = shift;
@@ -105,11 +109,9 @@ sub main(@){
     }elsif($opt =~ /^(--alt|--hdmi)$/){
       $altMonitor = 1;
     }elsif($opt =~ /^(w|-w|--width|WIDTH|width)$/){
-      $showWidth = 1;
-      $showHeight = 0;
+      $resFormatOpt = $RES_FORMAT_OPT_WIDTH;
     }elsif($opt =~ /^(h|-h|--height|HEIGHT|height)$/){
-      $showWidth = 0;
-      $showHeight = 1;
+      $resFormatOpt = $RES_FORMAT_OPT_HEIGHT;
     }elsif($opt =~ /^--percent=(\d+(?:\.\d+)?)$/){
       $percent = $1;
     }else{
@@ -133,10 +135,7 @@ sub main(@){
     $width = int($width * $percent / 100 + 0.5);
     $height = int($height * $percent / 100 + 0.5);
 
-    my $fmt = "";
-    $fmt .= $width if $showWidth;
-    $fmt .= "x" if $showWidth and $showHeight;
-    $fmt .= $height  if $showHeight;
+    my $fmt = formatRes($resFormatOpt, $width, $height);
 
     print "$fmt\n";
   }elsif($cmd eq $CMD_MODES){
@@ -144,10 +143,7 @@ sub main(@){
     $width = int($width * $percent / 100 + 0.5);
     $height = int($height * $percent / 100 + 0.5);
 
-    my $fmt = "";
-    $fmt .= $width if $showWidth;
-    $fmt .= "x" if $showWidth and $showHeight;
-    $fmt .= $height  if $showHeight;
+    my $fmt = formatRes($resFormatOpt, $width, $height);
 
     print "$fmt\n";
   }elsif($cmd eq $CMD_SET){
@@ -200,6 +196,19 @@ sub getMonitors(){
   }
   die "ERROR: could not parse xrandr output\n" if @monitors == 0;
   return @monitors;
+}
+
+sub formatRes($$$){
+  my ($resFormatOpt, $width, $height) = @_;
+  if($resFormatOpt eq $RES_FORMAT_OPT_WIDTH){
+    return "${width}";
+  }elsif($resFormatOpt eq $RES_FORMAT_OPT_HEIGHT){
+    return "${height}";
+  }elsif($resFormatOpt eq $RES_FORMAT_OPT_BOTH){
+    return "${width}x${height}";
+  }else{
+    die "ERROR: unknown resolution format mode $resFormatOpt\n";
+  }
 }
 
 &main(@ARGV);
