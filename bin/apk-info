@@ -10,6 +10,8 @@ my $usage ="Usage:
     show apk info with aapt
 ";
 
+sub parseApk($);
+
 sub main(@){
   my @apkFiles;
   while(@_ > 0){
@@ -27,8 +29,47 @@ sub main(@){
   die "ERROR: at least one APK_FILE is required\n" if @apkFiles == 0;
 
   for my $apkFile(@apkFiles){
-    system "aapt dump badging \"$apkFile\" | head -3";
+    my $info = parseApk($apkFile);
+    print "$$info{packageName}  $$info{version}  sdk=$$info{sdkVersion}\n";
   }
+}
+
+sub parseApk($){
+  my ($apkFile) = @_;
+  my $out = `aapt dump badging '$apkFile'`;
+  my $info = {};
+
+  my %requiredVarSynonyms = (
+    "package.name"         => "packageName",
+    "package.versionName"  => "version",
+    "package.versionCode"  => "versionCode",
+    "application-label"    => "label",
+    "sdkVersion"           => "sdk",
+  );
+
+  my @packageVars = qw(
+    name versionName versionCode
+    compileSdkVersion compileSdkVersionCodeName platformBuildVersionName
+  );
+  my @lineVars = qw(application-label sdkVersion targetSdkVersion native-code);
+
+  for my $var(@packageVars){
+    $$info{"package.$var"} = $1 if $out =~ /^package: .*? \s+ $var='([^']+)'/msxi;
+  }
+  for my $var(@lineVars){
+    $$info{$var} = $1 if $out =~ /^$var\s*:\s*'([^']+)'$/msxi;
+  }
+  $$info{perms} = join(',', $out =~ /^uses-permission: \s* name='([^']+)'$/gmsxi);
+
+  for my $var(sort keys %requiredVarSynonyms){
+    my $syn = $requiredVarSynonyms{$var};
+    if(not defined $$info{$var}){
+      die "ERROR: could not find $var in $apkFile\n$out\n";
+    }
+    $$info{$syn} = $$info{$var};
+  };
+
+  return $info;
 }
 
 &main(@ARGV);
