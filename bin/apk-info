@@ -55,23 +55,30 @@ sub main(@){
 
   die "ERROR: at least one APK_FILE is required\n" if @apkFiles == 0;
 
-  for my $apkFile(@apkFiles){
-    my $info = parseApk($apkFile);
-    my $linePrefix = $prefix ? "$apkFile " : "";
-    if($format eq $FORMAT_SHORT){
+  my %apkInfos = map {$_ => parseApk($_)} @apkFiles;
+
+  if($format eq $FORMAT_SHORT){
+    for my $apkFile(sort keys %apkInfos){
+      my $info = $apkInfos{$apkFile};
+      my $linePrefix = $prefix ? "$apkFile " : "";
       my $fmt = ""
         . "$linePrefix$$info{packageName}"
         . "  $$info{version}"
         . "  sdk=$$info{sdkVersion}"
         . "  (act=$$info{activity})"
         . "\n";
-    }elsif($format eq $FORMAT_LONG){
+      print $fmt;
+    }
+  }elsif($format eq $FORMAT_LONG){
+    for my $apkFile(sort keys %apkInfos){
+      my $info = $apkInfos{$apkFile};
+      my $linePrefix = $prefix ? "$apkFile " : "";
       for my $key(sort keys %$info){
         print "$linePrefix$key = $$info{$key}\n";
       }
-    }else{
-      die "ERROR: unknown format $format\n";
     }
+  }else{
+    die "ERROR: unknown format $format\n";
   }
 }
 
