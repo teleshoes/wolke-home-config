@@ -76,21 +76,31 @@ sub parseApk($){
   my $info = {};
 
   my %requiredVarSynonyms = (
-    "package.name"         => "packageName",
-    "package.versionName"  => "version",
-    "package.versionCode"  => "versionCode",
-    "application-label"    => "label",
-    "sdkVersion"           => "sdk",
+    "package.name"             => "packageName",
+    "package.versionName"      => "version",
+    "package.versionCode"      => "versionCode",
+    "application-label"        => "label",
+    "sdkVersion"               => "sdk",
+  );
+  my %optionalVarSynonyms = (
+    "launchable-activity.name" => "activity",
   );
 
   my @packageVars = qw(
     name versionName versionCode
     compileSdkVersion compileSdkVersionCodeName platformBuildVersionName
   );
+  my @launchableActivityVars = qw(
+    name label
+  );
   my @lineVars = qw(application-label sdkVersion targetSdkVersion native-code);
 
   for my $var(@packageVars){
     $$info{"package.$var"} = $1 if $out =~ /^package: .*? \s+ $var='([^']+)'/msxi;
+  }
+  for my $var(@packageVars){
+    $$info{"launchable-activity.$var"} = $1
+      if $out =~ /^launchable-activity: .*? \s+ $var='([^']+)'/msxi;
   }
   for my $var(@lineVars){
     $$info{$var} = $1 if $out =~ /^$var\s*:\s*'([^']+)'$/msxi;
@@ -103,7 +113,12 @@ sub parseApk($){
       die "ERROR: could not find $var in $apkFile\n$out\n";
     }
     $$info{$syn} = $$info{$var};
-  };
+  }
+
+  for my $var(sort keys %optionalVarSynonyms){
+    my $syn = $optionalVarSynonyms{$var};
+    $$info{$syn} = defined $$info{$var} ? $$info{$var} : "";
+  }
 
   return $info;
 }
