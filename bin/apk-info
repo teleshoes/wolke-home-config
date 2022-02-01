@@ -14,6 +14,9 @@ my $usage ="Usage:
       (this is the default)
       format each APK_FILE as:
         <PACKAGE_NAME>  <VERSION>  sdk<SDK_VERSION> (act=<LAUNCHABLE_ACTIVITY)
+    --grid
+      format each APK_FILE as:
+        | <PACKAGE_NAME> | <VERSION> | sdk<SDK_VERSION> | (act=<LAUNCHABLE_ACTIVITY) |
     --long
       print all parsed values one per line, as <KEY>=<VAL>
 
@@ -27,6 +30,7 @@ my $usage ="Usage:
 sub parseApk($);
 
 my $FORMAT_SHORT = "short";
+my $FORMAT_GRID = "grid";
 my $FORMAT_LONG = "long";
 
 sub main(@){
@@ -68,6 +72,38 @@ sub main(@){
         . "  (act=$$info{activity})"
         . "\n";
       print $fmt;
+    }
+  }elsif($format eq $FORMAT_GRID){
+    my @rows;
+    for my $apkFile(sort keys %apkInfos){
+      my $info = $apkInfos{$apkFile};
+      my $linePrefix = $prefix ? "$apkFile " : "";
+      my $row = [];
+      push @$row, $apkFile if $prefix;
+      push @$row, $$info{packageName};
+      push @$row, $$info{version};
+      push @$row, "sdk=$$info{sdkVersion}";
+      push @$row, "(act=$$info{activity})";
+
+      push @rows, $row;
+    }
+    my @maxLens = map{0} @{$rows[0]};
+    for my $row(@rows){
+      for(my $col=0; $col<@$row; $col++){
+        my $len = length $$row[$col];
+        if($len > $maxLens[$col]){
+          $maxLens[$col] = $len;
+        }
+      }
+    }
+    for my $row(@rows){
+      my $rowFmt = "|";
+      for(my $col=0; $col<@$row; $col++){
+        my $val = $$row[$col];
+        $val .= ' ' x ($maxLens[$col] - length $val);
+        $rowFmt .= " $val |";
+      }
+      print "$rowFmt\n";
     }
   }elsif($format eq $FORMAT_LONG){
     for my $apkFile(sort keys %apkInfos){
