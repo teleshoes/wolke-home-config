@@ -21,6 +21,12 @@ my $usage ="Usage:
     --long
       print all parsed values one per line, as <KEY>=<VAL>
 
+    --intent
+      if <LAUNCHABLE_ACTIVITY> is not missing/empty:
+        print <PACKAGE_NAME>/<LAUNCHABLE_ACTIVITY>
+      otherwise:
+        print <PACKAGE_NAME>
+
     --prefix
       add 'APK_FILE ' before each line
     --no-prefix
@@ -33,6 +39,7 @@ sub parseApk($);
 my $FORMAT_SHORT = "short";
 my $FORMAT_GRID = "grid";
 my $FORMAT_LONG = "long";
+my $FORMAT_INTENT = "intent";
 
 sub main(@){
   my @apkFiles;
@@ -49,6 +56,8 @@ sub main(@){
       $format = $FORMAT_SHORT;
     }elsif($arg =~ /^(--long)$/){
       $format = $FORMAT_LONG;
+    }elsif($arg =~ /^(--intent)$/){
+      $format = $FORMAT_INTENT;
     }elsif($arg =~ /^(--prefix)$/){
       $prefix = 1;
     }elsif($arg =~ /^(--no-prefix)$/){
@@ -117,6 +126,18 @@ sub main(@){
       for my $key(sort keys %$info){
         print "$linePrefix$key = $$info{$key}\n";
       }
+    }
+  }elsif($format eq $FORMAT_INTENT){
+    for my $apkFile(sort keys %apkInfos){
+      my $info = $apkInfos{$apkFile};
+      my $linePrefix = $prefix ? "$apkFile " : "";
+      my $intent;
+      if(defined $$info{activity} and length $$info{activity} > 0){
+        $intent = "$$info{packageName}/$$info{activity}";
+      }else{
+        $intent = "$$info{packageName}";
+      }
+      print "$linePrefix$intent\n";
     }
   }else{
     die "ERROR: unknown format $format\n";
