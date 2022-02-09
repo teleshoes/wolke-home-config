@@ -277,7 +277,7 @@ shortcuts conf = "Shortcuts" @@ do
         "stop"        @@ mCAW  xK_c    #! "ipmagic tv klomp-cmd stop"
 
     "Klomp sx"      @@ do
-        "pause"       @@ mCW   (xK ' ')#! "ipmagic sx klomp-cmd pause"
+        "pause"       @@ mCW   (xK ' ')#! "ipmagic sx klomp-coolreader --play-pause"
         "prev"        @@ mCW   xK_z    #! "ipmagic sx klomp-cmd prev"
         "next"        @@ mCW   xK_x    #! "ipmagic sx klomp-cmd next"
         "books pl"    @@ mCW   xK_b    #! "ipmagic sx klomp-cmd playlist books"
