@@ -3,6 +3,9 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+my @TV_IPMAGIC_NAMES = qw( nuc );
+my @LAPTOP_IPMAGIC_NAMES = qw( main aux aux2 emily-main );
+
 my $EXEC = basename $0;
 
 my $usage = "Usage:
@@ -10,21 +13,58 @@ my $usage = "Usage:
     show this message
 
   $EXEC
+  $EXEC guess | --guess
+    get local <IPMAGIC_NAME> with: ipmagic --get-ipmagic-name
+    if <IPMAGIC_NAME> is one of: @TV_IPMAGIC_NAMES
+      same as: $EXEC --cec
+    otherwise:
+      same as: $EXEC --dpms
+
+  $EXEC cec | --cec
+    run: cec-cmd --tv off
+
+  $EXEC dpms | --dpms
     run: xset dpms force off
 ";
 
+my $COMMAND_GUESS = "guess";
+my $COMMAND_DPMS = "dpms";
+my $COMMAND_CEC = "cec";
+
 sub main(@){
+  my $cmd = $COMMAND_GUESS;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(guess|--guess)$/){
+      $cmd = $COMMAND_GUESS;
+    }elsif($arg =~ /^(cec|--cec)$/){
+      $cmd = $COMMAND_CEC;
+    }elsif($arg =~ /^(dpms|--dpms)$/){
+      $cmd = $COMMAND_DPMS;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
   }
 
-  exec "xset dpms force off";
+  if($cmd eq $COMMAND_GUESS){
+    my $ipmagicName = `ipmagic --get-ipmagic-name`;
+    chomp $ipmagicName;
+    my %okTV = map {$_ => 1} @TV_IPMAGIC_NAMES;
+    if(defined $okTV{$ipmagicName}){
+      exec "cec-cmd --tv off";
+    }else{
+      exec "xset dpms force off";
+    }
+  }elsif($cmd eq $COMMAND_CEC){
+    exec "cec-cmd --tv off";
+  }elsif($cmd eq $COMMAND_DPMS){
+    exec "xset dpms force off";
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
 }
 
 &main(@ARGV);
