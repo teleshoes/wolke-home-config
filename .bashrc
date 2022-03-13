@@ -280,6 +280,7 @@ function btcon        { blue-con "$@"; }
 function tvg          { tv-gpio "$@" ; }
 
 function so           { screenOff "$@" ; }
+function soa          { screenOff all ; }
 
 function s            { "$@" & disown; }
 function spawn        { "$@" & disown; }
