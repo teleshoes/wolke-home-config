@@ -1,0 +1,169 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+sub getPids($);
+sub getProcPsInfo($);
+sub getTopInfo($);
+
+my $MIN_PROC_ELAPSED_MILLIS = 20 * 60 * 1000;
+my $MIN_PROC_CPU_PERCENT = 80;
+
+my $EXEC = basename $0;
+
+my @INTERPRETERS = qw(
+  sh bash ruby perl python python\d+ python\d+\.\d+
+);
+
+my $PGREP_PTRN_PREFIX = ''
+  . '^'
+  . '((\S*/)?'                                #optional interpreter dir
+    . '(' . join("|", @INTERPRETERS) . ')'    #optional interpreter basename
+    . '\s+'
+  . ')?'
+  . '(\S*/)?'                                 #optional exec or script dir
+  ;
+my $PGREP_PTRN_SUFFIX = ''
+  . '(\s.*)?'                                 #optional arguments
+  . '$';
+
+my $USAGE = "Usage:
+  $EXEC CMD CMD CMD...
+    -assemble a regex PGREP_PATTERN where CMD matches any of the following:
+      -the exec of a process                      e.g.: CMD arg arg
+      -the basename of the exec                   e.g.: /usr/bin/CMD arg arg
+      -the script passed to certain interpreters  e.g.: /usr/bin/python CMD arg arg
+      -the basename of the script                 e.g.: /usr/bin/python /opt/CMD arg arg
+    -for the following interpreter regexs:
+      @INTERPRETERS
+    -i.e.:
+      $PGREP_PTRN_PREFIX(CMD|CMD|CMD)$PGREP_PTRN_SUFFIX
+    -same as: $EXEC --regex=PGREP_PATTERN
+
+  $EXEC --regex=CMD_REGEX
+    -for each PID that matches CMD_REGEX with `pgrep -f`:
+      -get elapsed time (ETIME) since start of <PID> with `ps`
+      -if ETIME > $MIN_PROC_ELAPSED_MILLIS:
+        -get current %cpu (CPU) time of PID with `top`, three times, 1s apart
+        -if CPU > $MIN_PROC_CPU_PERCENT all three times:
+          -run: kill PID
+          -wait 1s
+          -run: kill -9 PID
+";
+
+sub main(@){
+  my $regex = undef;
+  my @cmds;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^--regex=(.+)$/){
+      $regex = $1;
+    }elsif($arg =~ /^\w/){
+      push @cmds, $arg;
+    }
+  }
+
+  if(not defined $regex){
+    if(@cmds == 0){
+      die "$USAGE\nERROR: must specify either CMD_REGEX or CMD\n";
+    }
+    $regex = $PGREP_PTRN_PREFIX . "(" . join("|", @cmds) . ")" . $PGREP_PTRN_SUFFIX;
+  }
+
+  my @pids = getPids($regex);
+  for my $pid(@pids){
+    my $psInfo = getProcPsInfo($pid);
+    my $elapsedMillis = int($$psInfo{ETIMES} * 1000.0 + 0.5);
+
+    if($elapsedMillis > $MIN_PROC_ELAPSED_MILLIS){
+      my $cpuOk = 0;
+      my $tries = 3;
+      while($tries > 0){
+        my $top = getTopInfo($pid);
+        if($$top{CPU} < $MIN_PROC_CPU_PERCENT){
+          $cpuOk = 1;
+          last;
+        }
+        $tries--;
+        sleep 1;
+      }
+      if(not $cpuOk){
+        print "KILLING PROC $pid: $$psInfo{CMD}\n";
+        print "  ETIMES=$$psInfo{ETIMES}\n";
+        print "  PCPU=$$psInfo{PCPU}\n";
+        print "  SIZE=$$psInfo{SIZE}\n";
+        system "kill", $pid;
+        sleep 1;
+        system "kill", "-9", $pid;
+      }
+    }
+  }
+}
+
+sub getPids($){
+  my ($cmdRegex) = @_;
+  open FH, "-|", "pgrep", "-f", $cmdRegex;
+  my @pids = <FH>;
+  close FH;
+
+  chomp foreach @pids;
+
+  for my $pid(@pids){
+    die "ERROR: malformed pgrep output\n$pid\n" if $pid !~ /^\d+$/;
+  }
+
+  return @pids;
+}
+
+sub getProcPsInfo($){
+  my ($pid) = @_;
+  my $psCmd = "ps -o etimes=,pcpu=,size=,cmd= -p $pid";
+  my @psLines = `$psCmd`;
+  my $last = @psLines > 0 ? $psLines[-1] : "";
+
+  if($last !~ /^
+    \s* (?<ETIMES>\d+)
+    \s+ (?<PCPU>  \d+|\d*\.\d+)
+    \s+ (?<SIZE>  \d+)
+    \s+ (?<CMD>   .+)
+  $/x){
+    die "ERROR: could not parse output from $psCmd\n";
+  }
+
+  my $psInfo = { %+ };
+  return $psInfo;
+}
+
+sub getTopInfo($){
+  my ($pid) = @_;
+  my $topCmd = "top -b -n 1 -w 120 -p $pid";
+  my @topLines = `$topCmd`;
+  my $last = @topLines > 0 ? $topLines[-1] : "";
+
+  if($last !~ /^
+    \s* $pid
+    \s+ (?<USER>   \S+)
+    \s+ (?<PR>     \d+)
+    \s+ (?<NI>     \d+)
+    \s+ (?<VIRT>   \d+)
+    \s+ (?<RES>    \d+)
+    \s+ (?<SHR>    \d+)
+    \s+ (?<S>      \S+)
+    \s+ (?<CPU>    \S+)
+    \s+ (?<MEM>    \S+)
+    \s+ (?<TIME>   \S+)
+    \s+ (?<COMMAND>.+?)
+    \s*
+  $/x){
+    die "ERROR: could not parse output from $topCmd\n";
+  }
+
+  my $topInfo = { %+ };
+  return $topInfo;
+}
+
+&main(@ARGV);
