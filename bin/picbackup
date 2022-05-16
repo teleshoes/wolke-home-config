@@ -69,27 +69,33 @@ sub main(@){
 
   my $simulate = 0;
   my $fuzzyMtime = 1;
-  while(@_ > 0 and $_[0] =~ /^-/){
-    my $opt = shift;
-    if($opt =~ /^(-h|--help)$/){
+  my ($src, $dest);
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
-    }elsif($opt =~ /^(-s|-n|--simulate|--no-act)$/){
+    }elsif($arg =~ /^(-s|-n|--simulate|--no-act)$/){
       $simulate = 1;
-    }elsif($opt =~ /^(--fuzzy-mtime)$/){
+    }elsif($arg =~ /^(--fuzzy-mtime)$/){
       $fuzzyMtime = 1;
-    }elsif($opt =~ /^(--exact-mtime)$/){
+    }elsif($arg =~ /^(--exact-mtime)$/){
       $fuzzyMtime = 0;
+    }elsif(-d $arg){
+      if(not defined $src){
+        $src = $arg;
+      }elsif(not defined $dest){
+        $dest = $arg;
+      }else{
+        die "$usage\nERROR: too many directories specified\n";
+      }
     }else{
-      die "$usage\nERROR: unknown opt \"$opt\"\n";
+      die "$usage\nERROR: unknown cmdline arg \"$arg\"\n";
     }
   }
 
-  die $usage if @_ != 2;
-
-  my ($src, $dest) = @_;
-  die "$usage\nsrc dir not found: $src\n" if not -d $src;
-  die "$usage\ndest dir not found: $dest\n" if not -d $dest;
+  die "$usage\nERROR: missing src dir\n" if not defined $src;
+  die "$usage\nERROR: missing dest dir\n" if not defined $dest;
 
   my $datetimeFmt = `date +'%Y%m%d_%H%M%S'`;
   chomp $datetimeFmt;
