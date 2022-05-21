@@ -24,6 +24,16 @@ my @TYPES_EASY = (
   "incline",  #raised chest+hands
 );
 
+my %TYPE_ABBREVS = (
+  incline => "INC",
+  knuckle => "KNK",
+  wide    => "WID",
+  diamond => "DIA",
+  decline => "DEC",
+  power   => "POW",
+  clap    => "CLP",
+);
+
 my $TYPE_FILTER_REGEX_NORMAL = '^(' . join('|', @TYPES_NORMAL) . ')$';
 my $TYPE_FILTER_REGEX_HARD = '^(' . join('|', @TYPES_HARD) . ')$';
 my $TYPE_FILTER_REGEX_EASY = '^(' . join('|', @TYPES_EASY) . ')$';
@@ -408,11 +418,35 @@ sub printEntries($){
 sub printDates($){
   my ($filters) = @_;
   my $dataByDate = getDataByDate($filters);
+
   for my $date(sort keys %$dataByDate){
+    my @entries = @{$$dataByDate{$date}{entries}};
+    my $entryFmt = "";
+    my $previousEntry;
+    for my $entry(@entries){
+      if(defined $previousEntry){
+        my $delay = $$entry{epoch} - $$previousEntry{epoch};
+        my $delayFmt = sprintf "+%03dm", int($delay/60 + 0.5);
+        $entryFmt .= "   $delayFmt   ";
+      }
+
+      my $typeFmt;
+      if(defined $TYPE_ABBREVS{$$entry{type}}){
+        $typeFmt = $TYPE_ABBREVS{$$entry{type}};
+      }elsif($$entry{type} eq ""){
+        $typeFmt = "   ";
+      }else{
+        die $$entry{type};
+        $typeFmt = "???";
+      }
+      $entryFmt .= sprintf "%3d %3s", $$entry{count}, $typeFmt;
+      $previousEntry = $entry;
+    }
+
     my $total = $$dataByDate{$date}{total};
     my $max = $$dataByDate{$date}{max};
     my $sets = $$dataByDate{$date}{sets};
-    printf "%s   %-3dmax | x%-1d | %-3d total\n", $date, $max, $sets, $total;
+    printf "%s   %3d total | x%-1d | %3d max | %s\n", $date, $total, $sets, $max, $entryFmt;
   }
 }
 
