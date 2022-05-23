@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $IGCMD = "ac3-power";
+my $TSDEV = "outlet4";
+
+my $THRESHOLD_WATTS = 10;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC -g|--get|get|-r|--read|read
+    -read Watts with: `tasmota --power $TSDEV`
+    -if Watts > $THRESHOLD_WATTS:
+      -print \"on\"
+    -if 0 <= Watts < $THRESHOLD_WATTS:
+      -print \"off\"
+    -otherwise:
+      -print \"???\"
+
+  $EXEC
+  $EXEC -t|--toggle|toggle
+    -check if on (as in `$EXEC --get`)
+    -run: `igcmd $IGCMD`
+    -check if on (as in `$EXEC --get`)
+    -print OLD => NEW
+
+  $EXEC --on|on
+    -check if on (as in `$EXEC --get`)
+    -if \"on\":
+      -do nothing
+    -if \"off\":
+      -run: `igcmd $IGCMD`
+    -otherwise:
+      -do nothing
+    -check if on (as in `$EXEC --get`)
+    -print OLD => NEW
+
+  $EXEC --off|off
+    -check if on ($EXEC --get)
+    -if \"on\":
+      -run: `igcmd $IGCMD`
+    -if \"off\":
+      -do nothing
+    -otherwise:
+      -do nothing
+    -check if on (as in `$EXEC --get`)
+    -print OLD => NEW
+";
+
+my $MODE_GET = "get";
+my $MODE_TOGGLE = "toggle";
+my $MODE_ON = "on";
+my $MODE_OFF = "off";
+
+sub isOn();
+
+sub main(@){
+  my $mode = $MODE_TOGGLE;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-g|--get|get|-r|--read|read)$/){
+      $mode = $MODE_GET;
+    }elsif($arg =~ /^(-t|--toggle|toggle)$/){
+      $mode = $MODE_TOGGLE;
+    }elsif($arg =~ /^(--on|on)$/){
+      $mode = $MODE_ON;
+    }elsif($arg =~ /^(--off|off)$/){
+      $mode = $MODE_OFF;
+    }else{
+      die "$USAGE\nERROR: unknown arg \"$arg\"\n";
+    }
+  }
+
+  if($mode eq $MODE_GET){
+    print isOn() . "\n";
+  }elsif($mode =~ /^($MODE_TOGGLE|$MODE_ON|$MODE_OFF)$/){
+    my $old = isOn();
+    if(0
+      or ($mode eq $MODE_ON and $old eq "off")
+      or ($mode eq $MODE_OFF and $old eq "on")
+      or ($mode eq $MODE_TOGGLE)
+    ){
+      print "toggling power\n";
+      system "ipmagic", "raspi", "-s", "igcmd", $IGCMD;
+      print "waiting 5s\n";
+      sleep 5;
+    }
+    my $new = isOn();
+    print "$old => $new\n";
+  }else{
+    die "ERROR: unknown mode \"$mode\"\n";
+  }
+}
+
+sub isOn(){
+  my $power = `tasmota --power $TSDEV`;
+  chomp $power;
+  if($power !~ /^(\d+|\d*\.\d+)$/){
+    die "ERROR: could not read Watts from tasmota device $TSDEV\n";
+  }
+
+  if($power > $THRESHOLD_WATTS){
+    return "on";
+  }elsif(0 <= $power and $power < $THRESHOLD_WATTS){
+    return "off";
+  }else{
+    return "???";
+  }
+}
+
+&main(@ARGV);
