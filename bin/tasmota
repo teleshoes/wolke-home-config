@@ -183,6 +183,11 @@ my $USAGE = "Usage:
         $EXEC --dimmer 33 66 100     #DIMMER 33  => 66
         $EXEC --dimmer 33 66 100     #DIMMER 66  => 100
 
+  $EXEC --power|power|pow|--watts|watts|watt [DEVICE DEVICE ..]
+    -run 'STATUS 10' (show connected sensor information)
+    -parse out JSON result: StatusSNS.ENERGY.Power
+    -print integer power in Watts, one per line, for each DEVICE, in order given
+
   $EXEC --mac [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
@@ -207,6 +212,7 @@ sub cmd($$);
 my $MODE_COMMAND = "command";
 my $MODE_TOGGLE_ALL = "toggle-all";
 my $MODE_DIMMER = "dimmer";
+my $MODE_POWER = "power";
 my $MODE_MAC = "mac";
 my $MODE_SETUP_WIFI = "setup-wifi";
 my $MODE_CONFIG_DEVICE = "config-device";
@@ -236,6 +242,9 @@ sub main(@){
     }elsif($arg =~ /^(\d+)$/){
       push @dimmerArgs, $1;
       $mode = $MODE_DIMMER;
+    }elsif($arg =~ /^(--power|power|pow|--watts|watts|watt)$/){
+      $mode = $MODE_POWER;
+      $cmd = undef;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
@@ -299,6 +308,17 @@ sub main(@){
     print "dimmer $curDimmer => $targetDimmerVal\n";
     my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($mode eq $MODE_POWER){
+    my $outputByDevice = runCommandOnDevices("Status 10", @devices);
+    for my $device(@devices){
+      my $json = $$outputByDevice{$device};
+      my $power;
+      if($json =~ /^{"StatusSNS".*"ENERGY":.*"Power":(\d+|\d*\.\d+)/){
+        $power = $1;
+      }
+      $power = "???" if not defined $power;
+      print "$power\n";
+    }
   }elsif($mode eq $MODE_MAC){
     my $outputByDevice = runCommandOnDevices("STATUS 0", @devices);
     for my $device(@devices){
