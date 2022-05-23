@@ -255,6 +255,7 @@ function ac-midea     { if [[ "$(hostname)" == "raspberrypi" ]]; then
                         fi
                       }
 function ig           { igcmd "$@"; }
+function acts         { ac-tasmota "$@"; }
 function acfu         { igcmd ac-fan_up "$@"; }
 function acfd         { igcmd ac-fan_down "$@"; }
 function acfan_up     { igcmd ac-fan_up "$@"; }
