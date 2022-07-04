@@ -239,8 +239,8 @@ shortcuts conf = "Shortcuts" @@ do
         "ts-dimmer"     @@ mCS   xK_PgUp #! "tasmota liv --dimmer 33 66 100"
 
     "sx"            @@ do
-        "vnc"           @@ mC    xK_F11  #! "vnc-sx --mode=2160x1080"
-        "vnc landscape" @@ mCS   xK_F11  #! "vnc-sx --mode=2160x1080 --landscape"
+        "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
+        "vnc landscape" @@ mCS   xK_F11  #! "vnc-sx --landscape --cache"
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
 
     "Klomp"         @@ do
