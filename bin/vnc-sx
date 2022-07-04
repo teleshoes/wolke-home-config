@@ -12,7 +12,12 @@ my $LIPSTICK2VNC_CONF_FILE = "/var/lib/environment/$USERNAME/70-lipstick2vnc.con
 my $SLEEP_DELAY_MILLIS = 300;
 my $VNC_VIEWER_EXEC = "xtigervncviewer";
 
+my $SCALE_CACHE_PORTRAIT = "$ENV{HOME}/.cache/vnc-sx-scale-portrait";
+my $SCALE_CACHE_LANDSCAPE = "$ENV{HOME}/.cache/vnc-sx-scale-landscape";
+
 sub calculateScale($$);
+sub readScaleCache($);
+sub writeScaleCacheFiles();
 
 my $usage = "Usage:
   vnc to phone using $VNC_VIEWER_EXEC and lipstick2vnc, scaling the viewport
@@ -58,6 +63,21 @@ my $usage = "Usage:
         landscape/landscape-inverted always uses the smaller dimension
         portrait/portrait-inverted always uses the larger dimension
 
+    -r|-c|--read-scale-cache|--cache
+      use the scale from cache file instead of calculating it:
+        $SCALE_CACHE_PORTRAIT
+        or
+        $SCALE_CACHE_LANDSCAPE
+      if the file is missing or invalid, this option has no effect
+      if this option is not given, the cache files are not used
+
+    -w|--write-scale-cache
+      -do not start vnc
+      -calculate scale for portrait and write to:
+        $SCALE_CACHE_PORTRAIT
+      -calculate scale for landscape and write to:
+        $SCALE_CACHE_LANDSCAPE
+
     -l|--landscape
       pass --landscape to lipstick2vnc (rotate 90 degrees counter-clockwise)
       and use the smaller dimension for phone-height when calculating scale
@@ -78,6 +98,8 @@ sub main(@){
   my $modeOverride = undef;
   my $orientationArg = undef;
   my $isLandscape = 0;
+  my $readScaleCache = 0;
+  my $writeScaleCache = 0;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -106,15 +128,28 @@ sub main(@){
     }elsif($arg =~ /^(--portrait-inverted)$/){
       $orientationArg = "--portrat-inverted";
       $isLandscape = 0;
+    }elsif($arg =~ /^(-r|-c|--read-scale-cache|--cache)$/){
+      $readScaleCache = 1;
+    }elsif($arg =~ /^(-w|--write-scale-cache)$/){
+      $writeScaleCache = 1;
     }else{
       die "$usage\nERROR: unknown arg \"$arg\"\n";
     }
   }
 
+  if($writeScaleCache){
+    writeScaleCacheFiles();
+    exit 0;
+  }
+
   my $scale;
   if(defined $scaleArg){
     $scale = $scaleArg;
-  }else{
+  }elsif($readScaleCache){
+    $scale = readScaleCache($isLandscape);
+  }
+
+  if(not defined $scale){
     $scale = calculateScale($isLandscape, $modeOverride);
   }
   print "SCALE: $scale\n";
@@ -202,6 +237,40 @@ sub calculateScale($$){
   $minScale = sprintf "%.1f", int($minScale*10)/10.0;
 
   return $minScale;
+}
+
+sub readScaleCache($){
+  my ($isLandscape) = @_;
+  my $scaleFile = $isLandscape ? $SCALE_CACHE_LANDSCAPE : $SCALE_CACHE_PORTRAIT;
+  return readCacheFile($scaleFile);
+}
+
+sub writeScaleCacheFiles(){
+  writeCacheFile($SCALE_CACHE_PORTRAIT, calculateScale(0, undef));
+  writeCacheFile($SCALE_CACHE_LANDSCAPE, calculateScale(1, undef));
+}
+
+sub readCacheFile($){
+  my ($file) = @_;
+  return undef if not -f $file;
+  open FH, "< $file" or die "ERROR: could not read file $file\n$!\n";
+  my $contents = join '', <FH>;
+  close FH;
+
+  my $val = undef;
+  if($contents =~ /^(\d+|\d*\.\d+)$/){
+    $val = $1;
+  }
+  return $val;
+}
+sub writeCacheFile($$){
+  my ($file, $val) = @_;
+  if($val !~ /^(\d+|\d*\.\d+)$/){
+    die "ERROR: $file cache can contain only non-negative real numbers\n";
+  }
+  open FH, "> $file" or die "ERROR: could not write file $file\n$!\n";
+  print FH "$val\n";
+  close FH;
 }
 
 &main(@ARGV);
