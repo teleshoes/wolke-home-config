@@ -21,11 +21,14 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS]
-    -obtain phone resolution using `res --modes $PHONE_GRAPHICS_MODES_PREF_REGEX`:
-    -obtain monitor resoltion:
-      run `res -h`
-    -calculate a scale based on the height, targeting 95% of the monitor height
-    -round down to the nearest 10% (min of 10%)
+    -calculate the scale
+      -obtain phone resolution using: `res --modes $PHONE_GRAPHICS_MODES_PREF_REGEX`:
+      -obtain monitor resoltion using: `res`
+      -find the largest scale that will fit in 100% of the monitor width
+      -find the largest scale that will fit in 95% of the monitor height
+      -take the smaller of the two scales
+      -if scale is less than 10%, use 10%
+      -round down to the nearest 10%
     -put --allow-all and -s with scale as a ratio in LIPSTICK2VNC_OPTS
     -write LIPSTICK2VNC_OPTS to $LIPSTICK2VNC_CONF_FILE
     -unlock phone screen
@@ -149,7 +152,7 @@ sub main(@){
 
 sub calculateScale($$){
   my ($landscape, $modeOverride) = @_;
-  my $phoneHeight = "";
+  my ($phoneWidth, $phoneHeight);
   my $phoneMode;
   if(defined $modeOverride){
     $phoneMode = $modeOverride;
@@ -161,28 +164,44 @@ sub calculateScale($$){
     my $minDim = $w > $h ? $h : $w;
     my $maxDim = $w > $h ? $w : $h;
     if($landscape){
+      $phoneWidth = $maxDim;
       $phoneHeight = $minDim;
     }else{
+      $phoneWidth = $minDim;
       $phoneHeight = $maxDim;
     }
   }
-  if($phoneHeight !~ /^\d+$/){
+  if($phoneWidth !~ /^\d+$/ or $phoneHeight !~ /^\d+$/){
     die "ERROR: could not obtain phone resolution\n";
   }
 
-  my $monitorHeight = `res -h`;
-  chomp $monitorHeight;
-  if($monitorHeight !~ /^\d+$/){
+  my $monitorRes = `res`;
+  my ($monitorWidth, $monitorHeight);
+  if($monitorRes =~ /^(\d+)x(\d+)$/){
+    $monitorWidth = $1;
+    $monitorHeight = $2;
+  }
+  if($monitorWidth !~ /^\d+$/ or $monitorHeight !~ /^\d+$/){
     die "ERROR: could not obtain monitor resolution\n";
   }
 
+  my $desiredViewportWidth = $monitorWidth;
   my $desiredViewportHeight = $monitorHeight*0.95;
 
-  #scale is in increments of 10%, between 10% and 100%
-  my $scale = sprintf "%.1f", int(10*($desiredViewportHeight)/$phoneHeight)/10.0;
-  $scale = "0.1" if $scale <= 0.1;
 
-  return $scale;
+  my $scaleW = $desiredViewportWidth/$phoneWidth;
+  my $scaleH = $desiredViewportHeight/$phoneHeight;
+
+  my $minScale = $scaleW < $scaleH ? $scaleW : $scaleH;
+
+  #minimum scale is 10%
+  $minScale = 0.1 if $minScale <= 0.1;
+
+  #scale must be in increments of 10%
+  #  weird display bugs happen at finer granularity like 0.41
+  $minScale = sprintf "%.1f", int($minScale*10)/10.0;
+
+  return $minScale;
 }
 
 &main(@ARGV);
