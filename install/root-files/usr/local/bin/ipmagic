@@ -127,6 +127,15 @@ my $usage = "Usage:
                             this can be overridden in the config file: 'sshArgs=SSH_ARGS'
                             additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
+        --rsync [ARG ARG..] copy files to/from remote server with rsync
+                              -find the first ARG that starts with a ':' (if none, fail)
+                              -prefix this ARG with 'USER\@HOST'
+                              -run: `rsync -e \"ssh SSH_ARGS\" ARG ARG..
+                            e.g.:
+                              $EXEC dev1 --rsync -avP /tmp/abc :/tmp/
+                              =>
+                              rsync -e 'ssh $defaultSSHArgs' /tmp/abc user\@dev1:/tmp/
+
         -p|--proxy|--socks  run ssh with `-N -D $SOCKS_PORT` to act as a SOCKS server
                             on port $SOCKS_PORT
 
@@ -307,9 +316,10 @@ sub main(@){
     exit 0;
   }
 
-  my ($isVnc, $isSsh) = (0, 0);
+  my ($isVnc, $isSsh, $isRsync) = (0, 0, 0);
   my $vncCmd;
   my @sshCmd;
+  my @rsyncArgs;
   if(@_ > 0 and $_[0] eq '-vnc'){
     $isVnc = shift;
     if(defined $config{vncCommand}){
@@ -332,6 +342,10 @@ sub main(@){
   }elsif(@_ == 1 and $_[0] =~ /^(-p|--proxy|--socks)$/){
     $isSsh = 1;
     @sshCmd = ("-N", "-D", $SOCKS_PORT);
+  }elsif(@_ > 0 and $_[0] eq '--rsync'){
+    shift;
+    $isRsync = 1;
+    @rsyncArgs = @_;
   }elsif(@_ > 0){
     shift if $_[0] eq '-b';
     $isSsh = 1;
@@ -405,6 +419,31 @@ sub main(@){
     }
 
     my @cmd = ("ssh", @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
+    print "@cmd\n" if $opts{verbose};
+    exec @cmd;
+  }elsif($isRsync){
+    ensureFingerprint $config{hostname}, $ip if defined $ip;
+
+    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
+    my @sshCmdOpts = split /\s+/, $sshArgs;
+    if(defined $opts{extraSSHArgs}){
+      @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
+    }
+
+    my @cmd = ("rsync", "-e", "ssh @sshCmdOpts");
+    my $remoteFileFound = 0;
+    for my $arg(@rsyncArgs){
+      if(not $remoteFileFound and $arg =~ /^:/){
+        push @cmd, "$opts{user}\@$config{hostname}$arg";
+        $remoteFileFound = 1;
+      }else{
+        push @cmd, $arg;
+      }
+    }
+    if(not $remoteFileFound){
+      die "ERROR: no remote file found in rsync args \"@rsyncArgs\"\n";
+    }
+
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
   }else{
