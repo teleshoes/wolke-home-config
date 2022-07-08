@@ -23,7 +23,7 @@ import XMonad.Layout.Grid (Grid(..))
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
 import XMonad.Layout.NoBorders (smartBorders)
-import XMonad.Layout.PerWorkspace (onWorkspaces)
+import XMonad.Layout.PerWorkspace (onWorkspace)
 import XMonad.StackSet (
   RationalRect(..), float, sink, view, focusDown)
 import XMonad.Util.Types (Direction2D(U,D,L,R))
@@ -73,17 +73,22 @@ myStartupHook = do
   io $ tryWriteKeyBindingsPrettyCache =<< relToHomeDir ".cache/xmonad-bindings-pretty"
 
 myLayoutHook = smartBorders
-             $   namedLayoutWs "left" (Tall 1 incr ratio)           (Just (["B"], Tall 1 incr ratioWide))
-             ||| namedLayoutWs "top"  (Mirror $ Tall 1 incr ratio)  (Nothing)
-             ||| namedLayoutWs "full" (Full)                        (Nothing)
-             ||| namedLayoutWs "grid" (Grid)                        (Nothing)
+             $   ( named "left"
+                   $ onWorkspace "B" (Tall 1 incr ratioWide)
+                   $ (Tall 1 incr ratio)
+                 )
+             ||| ( named "top"
+                   $ (Mirror $ Tall 1 incr ratio)
+                 )
+             ||| ( named "full"
+                   $ (Full)
+                 )
+             ||| ( named "grid"
+                   $ (Grid)
+                 )
   where incr = 3/100
         ratio = 55/100
         ratioWide = 80/100
-        namedLayoutWs name layoutNormal Nothing =
-          onWorkspaces [] (named name layoutNormal) (named name layoutNormal)
-        namedLayoutWs name layoutNormal (Just (wsNames,wsLayout)) =
-          onWorkspaces wsNames (named name wsLayout) (named name layoutNormal)
 
 (~?) :: Query String -> String -> Query Bool
 q ~? s = fmap (isInfixOf s) q
