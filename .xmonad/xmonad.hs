@@ -75,6 +75,7 @@ myStartupHook = do
 myLayoutHook = smartBorders
              $   ( named "left"
                    $ onWorkspace "B" (Tall 1 incr ratioWide)
+                   $ onWorkspace "9" (Tall 1 incr ratioDDR)
                    $ (Tall 1 incr ratio)
                  )
              ||| ( named "top"
@@ -89,6 +90,7 @@ myLayoutHook = smartBorders
   where incr = 3/100
         ratio = 55/100
         ratioWide = 80/100
+        ratioDDR = 82/100
 
 (~?) :: Query String -> String -> Query Bool
 q ~? s = fmap (isInfixOf s) q
