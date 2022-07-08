@@ -17,6 +17,7 @@ layoutConfig = defaultLayoutConfig
                        "top"  -> return $ pack "TTT"
                        "grid" -> return $ pack "###"
                        "full" -> fmap formatWindowCount windowCount
+                       otherwise -> return $ pack "???"
   }
 
 formatWindowCount :: Int -> Text
