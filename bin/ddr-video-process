@@ -35,6 +35,10 @@ my $usage = "Usage:
       do a final pass, re-encoding OUTPUT_FILE with default audio/video,
       to a file named OUTPUT_FILE.mp4
 
+    --force-mp4
+      use '.mp4' as extension for output file for all ffmpeg video encoding to MP4
+      (instead of copying the extension from the camera video)
+
     --crop-camera=WIDTH:HEIGHT:X_OFFSET:Y_OFFSET
       crop camera video immediately before scaling to 608:1080
       (WIDTH/HEIGHT ratio should be 608/1080)
@@ -77,6 +81,7 @@ sub main(@){
   my $cameraVolume = $DEFAULT_CAMERA_VOLUME;
   my $songVolume = $DEFAULT_SONG_VOLUME;
   my $lastPassEncode = 0;
+  my $forceMP4 = 0;
   my $cameraAVSyncOffset = 0;
   my $cameraAudioPoint = 0;
   my $screenPoint = 0;
@@ -100,6 +105,8 @@ sub main(@){
       $outputFile = $1;
     }elsif($arg =~ /^(--re-encode|--last-pass)$/){
       $lastPassEncode = 1;
+    }elsif($arg =~ /^(--force-mp4)$/){
+      $forceMP4 = 1;
     }elsif($arg =~ /^--crop-camera=(.+)$/){
       $cropCameraArg = $1;
     }elsif($arg =~ /^--ffmpeg-initial-opts=(.+)$/){
@@ -132,7 +139,12 @@ sub main(@){
   die "ERROR: CAMERA_FILE arg is missing or not a file\n" if not isFile($cameraFile);
   die "ERROR: OUTPUT_FILE arg is missing\n" if not defined $outputFile;
 
-  my $ext = $1 if $cameraFile =~ /\.(\w+)$/;
+  my $ext;
+  if($forceMP4){
+    $ext = "mp4";
+  }else{
+    $ext = $1 if $cameraFile =~ /\.(\w+)$/;
+  }
   die "ERROR: missing file extension in $cameraFile\n" if not defined $ext;
 
   my ($cameraAudioStartPos, $screenAudioStartPos, $songAudioStartPos);
