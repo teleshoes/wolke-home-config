@@ -38,6 +38,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   readConf readConfDir
                   installFromDir aptSrcInstall removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
+                  md5sum
                   nowMillis
                 );
 
@@ -99,6 +100,7 @@ sub removeSrcCache($);
 sub installFromGit($;$);
 sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
+sub md5sum($);
 
 $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
 
@@ -869,6 +871,17 @@ sub extractNameFromGitUrl($){
       die "could not parse repo name from last element of git URL:\n$gitUrl\n";
     }
     return $name;
+}
+
+sub md5sum($){
+  my ($file) = @_;
+  return undef if not -f $file;
+  my $md5 = tryproc "md5sum", $file;
+  if($md5 =~ /^([0-9a-f]{32})\s+($file)$/){
+    return $1;
+  }else{
+    return undef;
+  }
 }
 
 sub nowMillis(){
