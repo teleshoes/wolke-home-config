@@ -5,6 +5,7 @@ use Time::HiRes qw(sleep time);
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use File::Tee qw(tee);
+use IO::Select;
 
 sub getCrashplanPid();
 sub backupLogs();
@@ -914,9 +915,9 @@ sub sleepMillis($;$){
   my ($millis, $actionMsg) = @_;
   if(defined $actionMsg){
     if($millis >= 1000){
-      printf "sleeping %.1fs %s\n", $millis/1000.0, $actionMsg;
+      printf "sleeping %.1fs %s ('s' to skip)\n", $millis/1000.0, $actionMsg;
     }else{
-      printf "sleeping %.3fs %s\n", $millis/1000.0, $actionMsg;
+      printf "sleeping %.3fs %s ('s' to skip)\n", $millis/1000.0, $actionMsg;
     }
   }
 
@@ -929,7 +930,28 @@ sub sleepMillis($;$){
 
     $remMillis -= $targetMillis;
     Time::HiRes::sleep($targetMillis/1000.0);
+
+    my @lines = tryReadSTDIN();
+    if(@lines > 0){
+      chomp foreach @lines;
+      my $input = join " ", @lines;
+      if($input =~ /\bs\b/){
+        print "skipping\n";
+        $remMillis = 0;
+      }
+    }
   }
+}
+
+sub tryReadSTDIN(){
+  my $select = IO::Select->new( \*STDIN );
+  my @lines;
+  while(my @fhs = $select->can_read(0)){
+    for my $fh(@fhs) {
+      push @lines, $fh->getline();
+    }
+  }
+  return @lines;
 }
 
 sub readSecret($){
