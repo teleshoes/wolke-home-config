@@ -35,6 +35,10 @@ my $usage = "Usage:
       do a final pass, re-encoding OUTPUT_FILE with default audio/video,
       to a file named OUTPUT_FILE.mp4
 
+    --crop-camera=WIDTH:HEIGHT:X_OFFSET:Y_OFFSET
+      crop camera video immediately before scaling to 608:1080
+      (WIDTH/HEIGHT ratio should be 608/1080)
+
     --ffmpeg-initial-opts=FFMPEG_INITIAL_OPTS
       space-separated list of arguments to put immediately after `ffmpeg` in each command
 
@@ -80,6 +84,7 @@ sub main(@){
   my $useScreenAudio = 0;
   my $longestAudio = 0;
   my $audioOnly = 0;
+  my $cropCameraArg = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -95,6 +100,8 @@ sub main(@){
       $outputFile = $1;
     }elsif($arg =~ /^(--re-encode|--last-pass|--force-mp4)$/){
       $lastPassEncode = 1;
+    }elsif($arg =~ /^--crop-camera=(.+)$/){
+      $cropCameraArg = $1;
     }elsif($arg =~ /^--ffmpeg-initial-opts=(.+)$/){
       my $argList = $1;
       @INITIAL_OPTS = split /\s+/, $argList;
@@ -244,6 +251,9 @@ sub main(@){
       "-an",
     );
 
+    my @cropCameraArgList;
+    push @cropCameraArgList, "crop=$cropCameraArg" if defined $cropCameraArg;
+
     #trim camera-video to start of screen-video, rotate+resize camera-video for stacking
     ffmpeg("tmp-camera-transpose-scale-fps.$ext",
       "-i", $cameraFile,
@@ -252,6 +262,7 @@ sub main(@){
       "-filter_complex", join(",",
         "transpose=3",                #fix metadata confusion bug
         "transpose=3",                #actually rotate (same as overall transpose=1)
+        @cropCameraArgList,           #crop camera, e.g.: for wide webcam
         "scale=608:1080",             #1080x1920 => 608x1080
         "fps=fps=60",                 #force 60fps
       ),
