@@ -43,6 +43,13 @@ my $usage = "Usage:
       crop camera video immediately before scaling to 608:1080
       (WIDTH/HEIGHT ratio should be 608/1080)
 
+    --trim-video=DURATION
+      truncate final output file to DURATION with `ffmpeg -i DURATION`
+
+    --trim-audio=DURATION
+      truncate audio to DURATION with `ffmpeg -t DURATION`
+      (video will end in silence)
+
     --ffmpeg-initial-opts=FFMPEG_INITIAL_OPTS
       space-separated list of arguments to put immediately after `ffmpeg` in each command
 
@@ -90,6 +97,8 @@ sub main(@){
   my $longestAudio = 0;
   my $audioOnly = 0;
   my $cropCameraArg = undef;
+  my $trimVideoDur = undef;
+  my $trimAudioDur = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -109,6 +118,10 @@ sub main(@){
       $forceMP4 = 1;
     }elsif($arg =~ /^--crop-camera=(.+)$/){
       $cropCameraArg = $1;
+    }elsif($arg =~ /^--trim-video=(.+)$/){
+      $trimVideoDur = $1;
+    }elsif($arg =~ /^--trim-audio=(.+)$/){
+      $trimAudioDur = $1;
     }elsif($arg =~ /^--ffmpeg-initial-opts=(.+)$/){
       my $argList = $1;
       @INITIAL_OPTS = split /\s+/, $argList;
@@ -212,6 +225,8 @@ sub main(@){
     }
   }
 
+  my @audioDurationArgList = ("-t", $trimAudioDur) if defined $trimAudioDur;
+
   if(defined $audioOverlay){
     #overlay camera+song audio
     if($longestAudio){
@@ -219,18 +234,21 @@ sub main(@){
         "-i", $audioOverlay,
         "-i", "tmp-camera-audio.wav",
         "-filter_complex", "amix=inputs=2:duration=longest",
+        @audioDurationArgList,
       );
     }else{
       ffmpeg("tmp-audio-final.wav",
         "-i", "tmp-camera-audio.wav",
         "-i", $audioOverlay,
         "-filter_complex", "amix=inputs=2:duration=shortest",
+        @audioDurationArgList,
       );
     }
   }else{
     ffmpeg("tmp-audio-final.wav",
       "-i", "tmp-camera-audio.wav",
       "-c", "copy",
+      @audioDurationArgList,
     );
   }
 
@@ -306,12 +324,15 @@ sub main(@){
     $itsOffset = $cameraAVSyncOffset;
   }
 
+  my @videoDurationArgList = ("-t", $trimVideoDur) if defined $trimVideoDur;
+
   #combine video and audio with the AV sync matching camera file, unless corrected earlier
   ffmpeg($outputFile,
     "-i", "tmp-video-final.$ext",
     "-itsoffset", sprintf("%.2f", $itsOffset),
     "-i", "tmp-audio-final.wav",
     "-c:v", "copy",
+     @videoDurationArgList,
   );
 
   system "touch", $outputFile, "-r", $cameraFile;
