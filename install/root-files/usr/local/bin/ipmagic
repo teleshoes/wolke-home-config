@@ -748,24 +748,20 @@ sub usb($$){
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
 
+
   my $ifconfig = `$ifconfigExec -a`;
-  my @macs;
-  if(defined $config{macList}){
-    @macs = @{$config{macList}};
-  }
-  foreach my $mac(@macs){
-    if($ifconfig =~ /^(\w+)([^\n]+\n?)*(HWaddr|ether) $mac/mi){
-      my $dev = $1;
-      print "mac $mac => device $dev\n" if $opts{verbose};
-      $ifconfig = `$ifconfigExec $dev`;
-      if($ifconfig !~ /inet (addr:)?$localIp/){
-        print STDERR "USB DEVICE UP\n";
-        sudoIfup $dev, $localIp;
-      }
-      print "  success!\n" if $opts{verbose};
-      return $remoteIp;
+  if($ifconfig =~ /^(usb\d+):/m){
+    my $dev = $1;
+    $ifconfig = `$ifconfigExec $dev`;
+    if($ifconfig !~ /inet (addr:)?$localIp/){
+      print STDERR "USB DEVICE UP\n";
+      sudoIfup $dev, $localIp;
     }
+    print "  using USB device $dev\n" if $opts{verbose};
+    print "  success!\n" if $opts{verbose};
+    return $remoteIp;
   }
+
   return undef;
 }
 
