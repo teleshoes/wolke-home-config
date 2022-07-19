@@ -44,6 +44,14 @@ my $usage = "Usage:
     -ensure SSH master session, like: `$EXEC <SSH_OPTS_OPEN> --open <REMOTE>`
     -run: `rsync -e \"ssh -o ControlPath=CONTROL_PATH\" <RSYNC_ARGS>
 
+  $EXEC [SSH_OPTS_OPEN] --scp SCP_ARGS
+  $EXEC [SSH_OPTS_OPEN] scp SCP_ARGS
+    -find the first arg in <SCP_ARGS> that contains a ':'
+    -treat everything before the first colon in that arg as <REMOTE>
+    -use: CONTROL_PATH=$CONTROL_PATH_DIR/<REMOTE>
+    -ensure SSH master session, like: `$EXEC <SSH_OPTS_OPEN> --open <REMOTE>`
+    -run: `scp -o \"ControlPath=CONTROL_PATH\" <SCP_ARGS>
+
   DEST
     SSH destination (e.g.: HOSTNAME or USER\@HOSTNAME)
   CONTROL_PATH
@@ -79,6 +87,7 @@ my $MODE_OPEN = "open";
 my $MODE_CLOSE = "close";
 my $MODE_CLOSE_ALL = "close-all";
 my $MODE_RSYNC = "rsync";
+my $MODE_SCP = "scp";
 
 sub main(@){
   my $mode = $MODE_SSH;
@@ -97,6 +106,8 @@ sub main(@){
       $mode = $MODE_CLOSE_ALL;
     }elsif($arg =~ /^(--rsync|rsync)$/){
       $mode = $MODE_RSYNC;
+    }elsif($arg =~ /^(--scp|scp)$/){
+      $mode = $MODE_SCP;
     }elsif($arg =~ /^(--proxy|--socks)$/){
       push @$sshOpts, "-o";
       push @$sshOpts, "ProxyCommand=nc -x $DEFAULT_SOCKS_PROXY %h %p";
@@ -155,6 +166,21 @@ sub main(@){
 
     ensureSSHOpen($remote, $sshOpts);
     system "rsync", "-e", "ssh -o ControlPath=$controlPath", @args;
+  }elsif($mode eq $MODE_SCP){
+    my $remote;
+    for my $arg(@args){
+      if($arg =~ /^([^:]+):/){
+        $remote = $1;
+        last;
+      }
+    }
+    if(not defined $remote){
+      die "$usage\nERROR: could not find scp remote src/dest in \"@args\"\n";
+    }
+    my $controlPath = "$CONTROL_PATH_DIR/$remote";
+
+    ensureSSHOpen($remote, $sshOpts);
+    system "scp", "-o", "ControlPath=$controlPath", @args;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
