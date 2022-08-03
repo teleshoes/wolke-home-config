@@ -1,0 +1,117 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Cwd qw(abs_path);
+use IPC::Run qw(run);
+use Time::HiRes qw(time);
+
+sub getFingerprints($@);
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 [OPTS] IMG IMG [IMG IMG ...]
+    -run `findimagedupes --no-compare -v fp` to get image fingerprints
+    -if EVERY image has the SAME fingerprint:
+      -print \"SIMILAR\"
+      -exit with exit code 0
+    -if ANY file does not appear on the first line of output:
+      -print \"DIFFERENT\"
+      -exit with exit code 1
+
+  OPTS
+    --db=DB_FILE
+      use fingerprint database DB_FILE to speedup comparison
+        -pass '-f DB_FILE' to findimagedupes
+
+    --no-db
+      generate each image fingerprint without using a cache DB
+        -pass '--no-rescan' to findimagedupes
+      (this is the default)
+";
+
+sub main(@){
+  my @imgs;
+  my $db;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @imgs, abs_path($arg);
+    }elsif($arg =~ /^--db=(.+)$/){
+      $db = $1;
+    }elsif($arg =~ /^--no-db$/){
+      $db = undef;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$USAGE\nERROR: no images given\n" if @imgs == 0;
+
+  my $fps = getFingerprints($db, @imgs);
+  my $firstFP = $$fps{$imgs[0]};
+  if($firstFP !~ /^.{43}=$/){
+    die "ERROR: malformed fingerprint $firstFP for $imgs[0]\n";
+  }
+
+  my $similar = 1;
+  for my $img(@imgs){
+    if($firstFP ne $$fps{$img}){
+      $similar = 0;
+      last;
+    }
+  }
+
+  if($similar){
+    print "SIMILAR\n";
+    exit 0;
+  }else{
+    print "DIFFERENT\n";
+    exit 1;
+  }
+}
+
+sub getFingerprints($@){
+  my ($fingerprintDB, @imgs) = @_;
+
+  my @cmd = ("findimagedupes");
+  if(defined $fingerprintDB){
+    @cmd = (@cmd, "-f", $fingerprintDB);
+  }else{
+    @cmd = (@cmd, "--rescan");
+  }
+  @cmd = (@cmd, "--no-compare");
+  @cmd = (@cmd, "-v", "fp");
+  @cmd = (@cmd, @imgs);
+
+  my ($out, $err);
+  run \@cmd, ">", \$out, "2>", \$err
+    or die "ERROR: could not run @cmd\n$!\n";
+
+  my $fps = {};
+  for my $line(split /\n/, $out){
+    if($line =~ /^(\S+)  (.+)$/){
+      my ($fp, $file) = ($1, $2);
+      if(defined $$fps{$file} and $fp ne $$fps{$file}){
+        die "ERROR: duplicate file $file with different fingerprint in output $out\n";
+      }
+      $$fps{$file} = $fp;
+    }else{
+      die "ERROR: malformed line $line\n";
+    }
+  }
+
+  for my $img(@imgs){
+    if(not defined $$fps{$img}){
+      die "ERROR: missing fingerprint for $img\n";
+    }
+  }
+
+  return $fps;
+}
+
+&main(@ARGV);
