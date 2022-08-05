@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use Cwd qw(abs_path);
-use Time::HiRes qw(time);
+use Time::HiRes qw(sleep time);
 
 my $EXEC = basename $0;
 
@@ -44,6 +44,19 @@ my $usage = "Usage:
     same as `$EXEC OPTS \$HOME`
 
   OPTS
+    -d DELAY_SECONDS | --delay DELAY_SECONDS | --delay=DELAY_SECONDS
+      sleep for DELAY_SECONDS before taking screenshot
+      print a message every second
+
+      DELAY_SECONDS
+        -fractional number of seconds to sleep before running `scrot`
+        -rounded (half-up) to the nearest millisecond
+        -non-negative real numbers only, 0 means no delay
+        -e.g.: 3   1   .5   0.5   0.001
+
+    --delay-millis=DELAY_MILLIS
+      same as: --delay=`echo \"scale=3;\$DELAY_MILLIS/1000\" | bc`
+
     --flash
       after running `scrot <DIR>/<YYYYMMDD>_<NEXTNUM>.png`,
       run: `image-flash --timeout-millis=$FLASH_DURATION_MILLIS <DIR>/<YYYYMMDD>_<NEXTNUM>.png`
@@ -78,6 +91,7 @@ my $usage = "Usage:
 ";
 
 sub getCurrentMicrosecondsSuffix();
+sub nowMillis();
 
 sub main(@){
   my $dir = undef;
@@ -87,6 +101,7 @@ sub main(@){
   my $minDigits = 3;
   my $suffix = undef;
   my $useMicro = 0;
+  my $delayS = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -95,6 +110,12 @@ sub main(@){
     }elsif(-d $arg){
       die "ERROR: multiple dirs given \"$arg\" and \"$dir\"\n" if defined $dir;
       $dir = $arg;
+    }elsif($arg =~ /^(-d|--delay)$/ and @_ > 0){
+      $delayS = shift @_;
+    }elsif($arg =~ /^--delay=(.+)$/){
+      $delayS = $1;
+    }elsif($arg =~ /^--delay-millis=(\d+)$/){
+      $delayS = $1/1000.0;
     }elsif($arg =~ /^(--flash)$/){
       $flash = 1;
     }elsif($arg =~ /^--min=(\d+)$/){
@@ -117,13 +138,28 @@ sub main(@){
   }
 
   $dir = $ENV{HOME} if not defined $dir;
-
   $dir = abs_path($dir);
-
   $dir =~ s/\/+$//;
 
   if(not -d $dir){
     die "ERROR: $dir is not a dir\n";
+  }
+
+  die "$usage\nERROR: invalid DELAY_SECONDS $delayS\n" if $delayS !~ /^(\d+|\d*\.\d+)$/;
+
+  if($delayS > 0){
+    my $delayMS = int($delayS*1000.0 + 0.5);
+    my $startMS = nowMillis();
+    my $nowMS = $startMS;
+    while($nowMS < $startMS+$delayMS){
+      my $elapsedMS = $nowMS - $startMS;
+      my $remDelayMS = $delayMS - $elapsedMS;
+      my $sleepMS = $remDelayMS > 1000.0 ? 1000.0 : $remDelayMS;
+
+      printf "sleeping (%.3f seconds remaining)\n", $remDelayMS/1000.0;
+      sleep $sleepMS/1000.0;
+      $nowMS = nowMillis();
+    }
   }
 
   my $date = `date +%Y%m%d`;
@@ -183,6 +219,10 @@ sub listDirFiles($){
 
 sub getCurrentMicrosecondsSuffix(){
   return int(time * 1000000 + 0.5) % 1000000;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
 }
 
 &main(@ARGV);
