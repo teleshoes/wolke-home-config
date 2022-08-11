@@ -42,6 +42,9 @@ my $usage = "Usage:
       use picname file name to get timestamp
       fails if file is not named in the expected format
 
+    --quiet
+      do not print 'skipping rename' or 'skipping touch' messages
+
     --check-ext
       fail if FILE does not end in '.' followed by one of: @exts
       (this is the default)
@@ -73,7 +76,7 @@ my $usage = "Usage:
       e.g.: --shift-hours=-4  subtracts 4*60*60 seconds
 ";
 
-sub handleFile($$$$$$$);
+sub handleFile($$$$$$$$);
 sub exifEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
@@ -93,6 +96,7 @@ sub main(@){
   my $mode = $MODE_EXIF_MTIME;
   my $simulate = 0;
   my $shiftHours = 0;
+  my $quiet = 0;
   my $checkExt = 1;
   my $tag = undef;
   my @files;
@@ -115,6 +119,8 @@ sub main(@){
       $mode = $MODE_MTIME;
     }elsif($arg =~ /^(--filename)$/){
       $mode = $MODE_FILENAME;
+    }elsif($arg =~ /^(--quiet)$/){
+      $quiet = 1;
     }elsif($arg =~ /^(--check-ext)$/){
       $checkExt = 1;
     }elsif($arg =~ /^(-a|--no-check-ext|--allow-ext)$/){
@@ -136,7 +142,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $action, $mode, $shiftHours, $tag, $simulate, $checkExt, $file;
+      my $isOk = handleFile $action, $mode, $shiftHours, $tag, $simulate, $quiet, $checkExt, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -146,8 +152,8 @@ sub main(@){
   }
 }
 
-sub handleFile($$$$$$$){
-  my ($action, $mode, $shiftHours, $tag, $simulate, $checkExt, $file) = @_;
+sub handleFile($$$$$$$$){
+  my ($action, $mode, $shiftHours, $tag, $simulate, $quiet, $checkExt, $file) = @_;
 
   my ($dir, $fileName, $ext);
   $fileName = $file;
@@ -250,7 +256,7 @@ sub handleFile($$$$$$$){
 
   if($action eq $ACTION_RENAME){
     if($file eq $newFile){
-      print "skipping rename $file\n";
+      print "skipping rename $file\n" unless $quiet;
       return 1;
     }else{
       my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
@@ -264,7 +270,7 @@ sub handleFile($$$$$$$){
   }elsif($action eq $ACTION_TOUCH){
     my $epochMtime = mtimeEpoch $file;
     if($epoch == $epochMtime){
-      print "skipping touch $file\n";
+      print "skipping touch $file\n" unless $quiet;
     }else{
       my @touchCmd = ("touch", $file, "--date", "\@$epoch");
       if($simulate){
