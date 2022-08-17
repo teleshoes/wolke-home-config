@@ -1,5 +1,4 @@
 module PixbufCache (pixbufCacheNew, loadPixbuf) where
-import Utils (tryMaybe)
 import qualified Data.Map as M (Map, empty, insert, lookup)
 import Control.Concurrent.MVar (MVar, newMVar, readMVar, takeMVar, putMVar)
 import GI.GdkPixbuf.Objects.Pixbuf (Pixbuf, pixbufNewFromFile)
@@ -26,6 +25,6 @@ loadPixbuf pbCache filepath = do
   case cachedPb of
     Just _  -> return cachedPb
     Nothing -> do
-      pixbuf <- tryMaybe $ pixbufNewFromFile filepath
+      pixbuf <- pixbufNewFromFile filepath
       setMaybe pbCache filepath pixbuf
       return pixbuf

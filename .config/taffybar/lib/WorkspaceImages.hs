@@ -89,7 +89,7 @@ getWindowIconPixbufNothing _ _ = return Nothing
 
 loadFilePixbuf :: Maybe FilePath -> IO (Maybe Pixbuf)
 loadFilePixbuf Nothing = return Nothing
-loadFilePixbuf (Just file) = tryMaybe $ pixbufNewFromFile file
+loadFilePixbuf (Just file) = pixbufNewFromFile file
 
 getOverrideIconName :: String -> String -> Maybe IconName
 getOverrideIconName winTitle winClass
