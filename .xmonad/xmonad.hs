@@ -18,7 +18,7 @@ import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.ManageHelpers (doFullFloat, isFullscreen)
 import XMonad.Hooks.ManageDocks (
   SetStruts(..),
-  avoidStruts, docksEventHook, docksStartupHook, manageDocks)
+  avoidStruts, docks, manageDocks)
 import XMonad.Layout.Grid (Grid(..))
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
 import XMonad.Layout.Named (named)
@@ -50,15 +50,15 @@ ffName = "Iceweasel"
 
 relToHomeDir file = (</> file) <$> getHomeDirectory
 
-main = xmonad . ewmh . pagerHints $ def
+main = xmonad . ewmh . pagerHints . docks $ def
   { focusFollowsMouse  = False
   , modMask            = mod1Mask
   , normalBorderColor  = "#dddddd"
   , focusedBorderColor = "#ff0000"
   , borderWidth        = 3
 
-  , handleEventHook    = myEventHook <+> docksEventHook
-  , startupHook        = myStartupHook <+> docksStartupHook
+  , handleEventHook    = myEventHook
+  , startupHook        = myStartupHook
   , layoutHook         = myLayoutHook & avoidStruts
   , manageHook         = myManageHook <+> manageDocks
 
