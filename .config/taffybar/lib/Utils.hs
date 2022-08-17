@@ -35,6 +35,8 @@ import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.String.Unicode (unicodeToXmlEntity)
 import Data.Text (pack)
 
+import GHC.Clock (getMonotonicTimeNSec)
+
 import GI.Gtk.Objects.Widget (
   Widget, toWidget, widgetShowAll)
 import GI.Gtk.Enums (
@@ -55,7 +57,6 @@ import System.IO (
   hSetBuffering, BufferMode(LineBuffering))
 import qualified System.IO.Strict as Strict
 import System.IO.Error (isDoesNotExistError)
-import System.Posix.Clock (timeSpecToInt64, monotonicClock, getClockTime)
 import System.Posix.Files (
   getSymbolicLinkStatus, isSymbolicLink, createSymbolicLink)
 import System.Process (
@@ -297,7 +298,7 @@ millisTime :: IO Integer
 millisTime = fmap (`div`10^6) nanoTime
 
 nanoTime :: IO Integer
-nanoTime = fmap (fromIntegral . timeSpecToInt64) $ getClockTime monotonicClock
+nanoTime = fmap fromIntegral getMonotonicTimeNSec
 
 isRunning :: String -> IO Bool
 isRunning p = do
