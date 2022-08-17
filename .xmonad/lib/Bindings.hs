@@ -308,8 +308,9 @@ windowKeys conf = "Windows" @@ do
     "Attach/Detach" @@  do mAW   xK_Enter#  killAllOtherCopies
                            mAWS  xK_Enter## copyToAll
     "Move Floating"     @@ frobWin mCW   keysMoveWindow
-    "Resize Floating"   @@ frobWin mCA   $ flip keysResizeWindow (0,0)
+    "Resize Floating"   @@ frobWin mCA   keysResizeWindowFromTopLeft
   where
+    keysResizeWindowFromTopLeft (x,y) = keysResizeWindow (fromIntegral x, fromIntegral y) (0,0)
     popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
     mag = 20
     frobWin m f = mapM_ (\(k,v) -> m k #^ f v) $ zip arrKeys vs
