@@ -307,14 +307,22 @@ windowKeys conf = "Windows" @@ do
                            mA    xK_u    #^ windows . popout
     "Attach/Detach" @@  do mAW   xK_Enter#  killAllOtherCopies
                            mAWS  xK_Enter## copyToAll
-    "Move Floating"     @@ frobWin mCW   keysMoveWindow
-    "Resize Floating"   @@ frobWin mCA   keysResizeWindowFromTopLeft
+    "Move Floating" @@  do
+                           mCW   xK_Up   #^ moveWindow (0, -winPx)
+                           mCW   xK_Down #^ moveWindow (0, winPx)
+                           mCW   xK_Left #^ moveWindow (-winPx, 0)
+                           mCW   xK_Right#^ moveWindow (winPx, 0)
+    "Resize Floating" @@  do
+                           mCA   xK_Up   #^ resizeWindowFromTopLeft (0, -winPx)
+                           mCA   xK_Down #^ resizeWindowFromTopLeft (0, winPx)
+                           mCA   xK_Left #^ resizeWindowFromTopLeft (-winPx, 0)
+                           mCA   xK_Right#^ resizeWindowFromTopLeft (winPx, 0)
   where
-    keysResizeWindowFromTopLeft (x,y) = keysResizeWindow (fromIntegral x, fromIntegral y) (0,0)
     popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
-    mag = 22
-    frobWin m f = mapM_ (\(k,v) -> m k #^ f v) $ zip arrKeys vs
-      where vs = [(-mag, 0), (0, -mag), (mag, 0), (0, mag)]
+    moveWindow = keysMoveWindow . intToDim
+    resizeWindowFromTopLeft = flip keysResizeWindow (0,0) . intToDim
+    intToDim (x,y) = (fromIntegral x, fromIntegral y)
+    winPx = 22
 
 layoutKeys conf = "Layout" @@ do
     "Restore Default"   @@ mAS   (xK ' ')#  do sinkAll
