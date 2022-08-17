@@ -312,7 +312,7 @@ windowKeys conf = "Windows" @@ do
   where
     keysResizeWindowFromTopLeft (x,y) = keysResizeWindow (fromIntegral x, fromIntegral y) (0,0)
     popout = flip SS.float $ RationalRect (1/4) (1/4) (1/2) (1/2)
-    mag = 20
+    mag = 22
     frobWin m f = mapM_ (\(k,v) -> m k #^ f v) $ zip arrKeys vs
       where vs = [(-mag, 0), (0, -mag), (mag, 0), (0, mag)]
 
