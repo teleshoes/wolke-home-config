@@ -75,7 +75,8 @@ keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
 
 restartXmonad = do
   spawn $ "notify-send -t 1000 xmonad recompile"
-  okRecompile <- recompile True
+  dirs <- io getDirectories
+  okRecompile <- recompile dirs True
   let status = if okRecompile then "success" else "failure"
   spawn $ "notify-send -t 1000 xmonad " ++ status
   spawn $ "alarm -s " ++ status
