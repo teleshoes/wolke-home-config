@@ -61,8 +61,8 @@ xK_BriUp = xF86XK_MonBrightnessUp
 xK_BriDn = xF86XK_MonBrightnessDown
 xK_Power = xF86XK_PowerOff
 
-arrKeys = [xK_Left, xK_Up, xK_Right, xK_Down]
-arrStrs = ["←","↑","→","↓"]
+arrKeys = [xK_Up, xK_Down, xK_Left, xK_Right]
+arrStrs = ["↑", "↓", "←", "→"]
 
 numKeys = [xK_1 .. xK_9]
 fKeys = [xK_F1 .. xK_F12]
