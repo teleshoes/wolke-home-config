@@ -212,8 +212,8 @@ my $USAGE = "Usage:
   $EXEC --mac [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
-  DEVICE = DEVICE_NAME | DEVICE_ALIAS
-    name of device, or named alias for a list of devices
+  DEVICE = DEVICE_NAME | DEVICE_ALIAS | DEVICE_IP4
+    name of device, or named alias for a list of devices, or IPv4 address of device
 
     DEVICE_NAME
       $DEVICES_REGEX
@@ -258,6 +258,8 @@ sub main(@){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
       @devices = (@devices, @{$DEVICES_BY_ALIAS{$arg}});
+    }elsif($arg =~ /^(\d+\.\d+\.\d+\.\d+)$/){
+      push @devices, $arg;
     }elsif($arg =~ /^(--toggle-all|-t)$/){
       $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
@@ -359,8 +361,9 @@ sub main(@){
     chomp $key;
     for my $device(@devices){
       my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
-      print "$device ($DEVICE_IPS{$device}) => $wifiCmd\n";
-      cmd($DEVICE_IPS{$device}, $wifiCmd);
+      my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
+      print "$device ($deviceIP) => $wifiCmd\n";
+      cmd($device, $wifiCmd);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
@@ -373,7 +376,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($DEVICE_IPS{$device}, $cmd);
+        my $out = cmd($device, $cmd);
         print "$device - $cmd - $out\n";
       }
     }
@@ -386,7 +389,7 @@ sub main(@){
         next;
       }
       my $cmd = "TEMPLATE $template";
-      my $out = cmd($DEVICE_IPS{$device}, $cmd);
+      my $out = cmd($device, $cmd);
       print "$device - $out\n";
     }
   }else{
@@ -440,13 +443,13 @@ sub runCommandOnDevices($@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = cmd $DEVICE_IPS{$device}, $cmd;
+      my $out = cmd $device, $cmd;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = cmd $DEVICE_IPS{$device}, $cmd;
+      my $out = cmd $device, $cmd;
       $$outputByDevice{$device} = $out;
     }
   }
@@ -454,7 +457,9 @@ sub runCommandOnDevices($@){
 }
 
 sub cmd($$){
-  my ($deviceIP, $cmd) = @_;
+  my ($device, $cmd) = @_;
+  my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
+
   $cmd =~ s/ /%20/g;
   $cmd =~ s/;/%3B/g;
   $cmd =~ s/\{/%7B/g;
