@@ -212,11 +212,18 @@ my $USAGE = "Usage:
   $EXEC --mac [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
-  DEVICE = DEVICE_NAME | DEVICE_ALIAS | DEVICE_IP4
-    name of device, or named alias for a list of devices, or IPv4 address of device
+  DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
+    name or IP or both of a single device, or named alias for a list of devices
 
     DEVICE_NAME
       $DEVICES_REGEX
+
+    DEVICE_IP4
+      IPv4 address of device
+
+    DEVICE_IP4_OVERRIDE
+      <DEVICE_NAME>=<DEVICE_IP4>
+      set the DEVICE_IP4 for the DEVICE_NAME, e.g.: outlet1=192.168.11.105
 
     DEVICE_ALIAS"
       . "\n$DEVICE_ALIAS_FMT"
@@ -260,6 +267,10 @@ sub main(@){
       @devices = (@devices, @{$DEVICES_BY_ALIAS{$arg}});
     }elsif($arg =~ /^(\d+\.\d+\.\d+\.\d+)$/){
       push @devices, $arg;
+    }elsif($arg =~ /^($DEVICES_REGEX)=(\d+\.\d+\.\d+\.\d+)$/){
+      my ($device, $ip) = ($1, $2);
+      $DEVICE_IPS{$device} = $ip;
+      push @devices, $device;
     }elsif($arg =~ /^(--toggle-all|-t)$/){
       $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
