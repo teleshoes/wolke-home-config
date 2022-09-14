@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 my $MAX_TIMEOUT_MILLIS = 1200;
@@ -13,50 +14,55 @@ my $DEFAULT_DEVICE = "outlet1";
 my $INIT_DEVICE = "init";
 
 my @DEVICES_ARR = (
-  $INIT_DEVICE => $INITIAL_DEVICE_IP,
+  $INIT_DEVICE => [$INITIAL_DEVICE_IP, [], []],
 
-  bulb1   => "192.168.11.93",
-  bulb2   => "192.168.11.94",
-  bulb3   => "192.168.11.95",
-  bulb4   => "192.168.11.30",
-  bulb5   => "192.168.11.31",
-  bulb6   => "192.168.11.32",
-  bulb7   => "192.168.11.33",
-  outlet1 => "192.168.11.96",
-  outlet2 => "192.168.11.97",
-  outlet3 => "192.168.11.98",
-  outlet4 => "192.168.11.99",
-  outlet5 => "192.168.11.10",
+  bulb1   => ["192.168.11.93", [qw(b1 all b bulbs   liv)], [qw(starton dimnopow default)]],
+  bulb2   => ["192.168.11.94", [qw(b2 all b bulbs   liv)], [qw(starton dimnopow default)]],
+  bulb3   => ["192.168.11.95", [qw(b3 all b bulbs   liv)], [qw(starton dimnopow default)]],
+  bulb4   => ["192.168.11.30", [qw(b4 all b bulbs   bed)], [qw(starton dimnopow default)]],
+  bulb5   => ["192.168.11.31", [qw(b5 all b bulbs   bed)], [qw(starton dimnopow default)]],
+  bulb6   => ["192.168.11.32", [qw(b6 all b bulbs   bed)], [qw(starton dimnopow default)]],
+  bulb7   => ["192.168.11.33", [qw(b7 all b bulbs   bed)], [qw(starton dimnopow default)]],
+  outlet1 => ["192.168.11.96", [qw(o1 all              )], [qw(startlast               )]],
+  outlet2 => ["192.168.11.97", [qw(o2 all              )], [qw(startlast               )]],
+  outlet3 => ["192.168.11.98", [qw(o3 all              )], [qw(startlast               )]],
+  outlet4 => ["192.168.11.99", [qw(o4 all              )], [qw(startlast               )]],
+  outlet5 => ["192.168.11.10", [qw(o5 all              )], [qw(startlast               )]],
 );
-my @DEVICE_NAMES = map {$DEVICES_ARR[$_]}
-                   grep {$_ % 2 == 0} (0..$#DEVICES_ARR);
 my %DEVICES = @DEVICES_ARR;
+my @DEVICE_NAMES = map {$DEVICES_ARR[$_]} grep {$_ % 2 == 0} (0..$#DEVICES_ARR);
 
-my @DEVICE_ALIASES_ARR = (
-  "all"   => [qw(bulb1 bulb2 bulb3 outlet1 outlet2 outlet3 outlet4 outlet5)],
+my %DEVICE_IPS             = map {$_ => ${$DEVICES{$_}}[0]} @DEVICE_NAMES;
+my %DEVICE_ALIASES         = map {$_ => ${$DEVICES{$_}}[1]} @DEVICE_NAMES;
+my %DEVICE_CONFIG_COMMANDS = map {$_ => ${$DEVICES{$_}}[2]} @DEVICE_NAMES;
 
-  "b"     => [qw(bulb1 bulb2 bulb3 bulb4 bulb5 bulb6 bulb7)],
-  "bulbs" => [qw(bulb1 bulb2 bulb3 bulb4 bulb5 bulb6 bulb7)],
+my %OK_ALL_DEVICE_ALIASES = map {$_ => 1} map {@{$DEVICE_ALIASES{$_}}} @DEVICE_NAMES;
 
-  "liv"   => [qw(bulb1 bulb2 bulb3)],
-  "bed"   => [qw(bulb4 bulb5 bulb6 bulb7)],
+my %DEVICES_BY_ALIAS = map {$_ => []} sort keys %OK_ALL_DEVICE_ALIASES;
+for my $device(@DEVICE_NAMES){
+  my %okAliases = map {$_ => 1} @{$DEVICE_ALIASES{$device}};
+  for my $alias(sort keys %OK_ALL_DEVICE_ALIASES){
+    push @{$DEVICES_BY_ALIAS{$alias}}, $device if defined $okAliases{$alias};
+  }
+}
 
-  "b1"    => [qw(bulb1)],
-  "b2"    => [qw(bulb2)],
-  "b3"    => [qw(bulb3)],
-  "b4"    => [qw(bulb4)],
-  "b5"    => [qw(bulb5)],
-  "b6"    => [qw(bulb6)],
-  "b7"    => [qw(bulb7)],
-  "o1"    => [qw(outlet1)],
-  "o2"    => [qw(outlet2)],
-  "o3"    => [qw(outlet3)],
-  "o4"    => [qw(outlet4)],
-  "o5"    => [qw(outlet5)],
-);
-my @DEVICE_ALIAS_NAMES = map {$DEVICE_ALIASES_ARR[$_]}
-                         grep {$_ % 2 == 0} (0..$#DEVICE_ALIASES_ARR);
-my %DEVICE_ALIASES = @DEVICE_ALIASES_ARR;
+my @DEVICE_ALIAS_NAMES = sort {
+  my @aDevs = @{$DEVICES_BY_ALIAS{$a}};
+  my @bDevs = @{$DEVICES_BY_ALIAS{$b}};
+  my $aSize = 0 + @aDevs;
+  my $bSize = 0 + @bDevs;
+  my $aIsSingle = $aSize == 1 ? 1 : 0;
+  my $bIsSingle = $bSize == 1 ? 1 : 0;
+  my $aFirstDevIndex = first {$aDevs[0] eq $DEVICE_NAMES[$_]} 0..$#DEVICE_NAMES;
+  my $bFirstDevIndex = first {$bDevs[0] eq $DEVICE_NAMES[$_]} 0..$#DEVICE_NAMES;
+
+  return $aIsSingle <=> $bIsSingle          #single-device aliases last
+    || $aFirstDevIndex <=> $bFirstDevIndex  #sort groups by first device
+    || $bSize <=> $aSize                    #show larger groups first, within same first dev
+    || $a cmp $b                            #sort by alias name last as tie-breaker
+  ;
+} keys %OK_ALL_DEVICE_ALIASES;
+
 
 my @COMMAND_ALIASES_ARR = (
   on        => 'POWER ON',
@@ -109,26 +115,11 @@ my @COMMAND_ALIAS_NAMES = map {$COMMAND_ALIASES_ARR[$_]}
                           grep {$_ % 2 == 0} (0..$#COMMAND_ALIASES_ARR);
 my %COMMAND_ALIASES = @COMMAND_ALIASES_ARR;
 
-my %DEVICE_CONFIG_COMMANDS = (
-  bulb1   => [qw(starton dimnopow default)],
-  bulb2   => [qw(starton dimnopow default)],
-  bulb3   => [qw(starton dimnopow default)],
-  bulb4   => [qw(starton dimnopow default)],
-  bulb5   => [qw(starton dimnopow default)],
-  bulb6   => [qw(starton dimnopow default)],
-  bulb7   => [qw(starton dimnopow default)],
-  outlet1 => [qw(startlast)],
-  outlet2 => [qw(startlast)],
-  outlet3 => [qw(startlast)],
-  outlet4 => [qw(startlast)],
-  outlet5 => [qw(startlast)],
-);
+my $DEVICES_REGEX = join "|", @DEVICE_NAMES;
 
-my $DEVICES_REGEX = join "|", sort keys %DEVICES;
-
-my $DEVICE_ALIASES_REGEX = join "|", sort keys %DEVICE_ALIASES;
+my $DEVICE_ALIASES_REGEX = join "|", @DEVICE_ALIAS_NAMES;
 my $DEVICE_ALIAS_FMT = join "",
-                       map {sprintf "      %-5s = %s\n", $_, "@{$DEVICE_ALIASES{$_}}"}
+                       map {sprintf "      %-5s = %s\n", $_, "@{$DEVICES_BY_ALIAS{$_}}"}
                        @DEVICE_ALIAS_NAMES;
 
 my $COMMAND_ALIAS_FMT = join "",
@@ -143,7 +134,7 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC -s | --setup-wifi [--ssid=WIFI_SSID] [DEVICE DEVICE ..]
-    if no device is specified, defaults to $DEVICES{init}
+    if no device is specified, defaults to $DEVICE_IPS{init}
       (this is the IP for newly flashed/reset tasmota devices)
     WIFI_SSID defaults to $WIFI_SSID
     send BACKLOG command to set:
@@ -210,6 +201,7 @@ my $USAGE = "Usage:
   COMMAND_ALIAS"
     . "\n$COMMAND_ALIAS_FMT"
     . "
+
 ";
 
 sub readMinDimmer(@);
@@ -239,7 +231,7 @@ sub main(@){
     }elsif($arg =~ /^($DEVICES_REGEX)$/){
       push @devices, $arg;
     }elsif($arg =~ /^($DEVICE_ALIASES_REGEX)$/){
-      @devices = (@devices, @{$DEVICE_ALIASES{$arg}});
+      @devices = (@devices, @{$DEVICES_BY_ALIAS{$arg}});
     }elsif($arg =~ /^(--toggle-all|-t)$/){
       $mode = $MODE_TOGGLE_ALL;
       $cmd = undef;
@@ -341,8 +333,8 @@ sub main(@){
     chomp $key;
     for my $device(@devices){
       my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
-      print "$device ($DEVICES{$device}) => $wifiCmd\n";
-      cmd($DEVICES{$device}, $wifiCmd);
+      print "$device ($DEVICE_IPS{$device}) => $wifiCmd\n";
+      cmd($DEVICE_IPS{$device}, $wifiCmd);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
@@ -355,7 +347,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($DEVICES{$device}, $cmd);
+        my $out = cmd($DEVICE_IPS{$device}, $cmd);
         print "$device - $cmd - $out\n";
       }
     }
@@ -410,13 +402,13 @@ sub runCommandOnDevices($@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = cmd $DEVICES{$device}, $cmd;
+      my $out = cmd $DEVICE_IPS{$device}, $cmd;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = cmd $DEVICES{$device}, $cmd;
+      my $out = cmd $DEVICE_IPS{$device}, $cmd;
       $$outputByDevice{$device} = $out;
     }
   }
