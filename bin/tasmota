@@ -239,6 +239,8 @@ my $USAGE = "Usage:
     . "
 
   OPTS
+    --init
+      override all IP addresses with $INITIAL_DEVICE_IP
 ";
 
 my $MODE_COMMAND = "command";
@@ -252,6 +254,7 @@ my $MODE_SET_TEMPLATE = "set-template";
 
 sub main(@){
   my $mode = $MODE_TOGGLE_ALL;
+  my $forceInitIP = 0;
   my (@devices, $cmd, @dimmerArgs, $ssid);
   while(@_ > 0){
     my $arg = shift;
@@ -289,6 +292,8 @@ sub main(@){
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
+    }elsif($arg =~ /^(--init)$/){
+      $forceInitIP = 1;
     }elsif($arg =~ /^--ssid=(.+)$/){
       $ssid = $1;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
@@ -304,6 +309,13 @@ sub main(@){
 
   if(@devices == 0){
     @devices = $mode eq $MODE_SETUP_WIFI ? ($INIT_DEVICE) : ($DEFAULT_DEVICE);
+  }
+
+  if($forceInitIP){
+    print "using IP $INITIAL_DEVICE_IP\n";
+    for my $device(@devices){
+      $DEVICE_IPS{$device} = $INITIAL_DEVICE_IP;
+    }
   }
 
   if($mode eq $MODE_COMMAND){
