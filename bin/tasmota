@@ -5,6 +5,8 @@ use File::Basename qw(basename);
 use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
+sub extractDevicesByAlias($$);
+sub sortAliasesByFirstDevice($$);
 sub extractTemplateJSONByDevType($);
 sub formatTemplateJSON($);
 
@@ -43,32 +45,8 @@ my %DEVICE_SSIDS           = map {$_ => ${$DEVICES{$_}}[1]} @DEVICE_NAMES;
 my %DEVICE_TYPES           = map {$_ => ${$DEVICES{$_}}[2]} @DEVICE_NAMES;
 my %DEVICE_ALIASES         = map {$_ => ${$DEVICES{$_}}[3]} @DEVICE_NAMES;
 
-my %OK_ALL_DEVICE_ALIASES = map {$_ => 1} map {@{$DEVICE_ALIASES{$_}}} @DEVICE_NAMES;
-
-my %DEVICES_BY_ALIAS = map {$_ => []} sort keys %OK_ALL_DEVICE_ALIASES;
-for my $device(@DEVICE_NAMES){
-  my %okAliases = map {$_ => 1} @{$DEVICE_ALIASES{$device}};
-  for my $alias(sort keys %OK_ALL_DEVICE_ALIASES){
-    push @{$DEVICES_BY_ALIAS{$alias}}, $device if defined $okAliases{$alias};
-  }
-}
-
-my @DEVICE_ALIAS_NAMES = sort {
-  my @aDevs = @{$DEVICES_BY_ALIAS{$a}};
-  my @bDevs = @{$DEVICES_BY_ALIAS{$b}};
-  my $aSize = 0 + @aDevs;
-  my $bSize = 0 + @bDevs;
-  my $aIsSingle = $aSize == 1 ? 1 : 0;
-  my $bIsSingle = $bSize == 1 ? 1 : 0;
-  my $aFirstDevIndex = first {$aDevs[0] eq $DEVICE_NAMES[$_]} 0..$#DEVICE_NAMES;
-  my $bFirstDevIndex = first {$bDevs[0] eq $DEVICE_NAMES[$_]} 0..$#DEVICE_NAMES;
-
-  return $aIsSingle <=> $bIsSingle          #single-device aliases last
-    || $aFirstDevIndex <=> $bFirstDevIndex  #sort groups by first device
-    || $bSize <=> $aSize                    #show larger groups first, within same first dev
-    || $a cmp $b                            #sort by alias name last as tie-breaker
-  ;
-} keys %OK_ALL_DEVICE_ALIASES;
+my %DEVICES_BY_ALIAS = extractDevicesByAlias([@DEVICE_NAMES], {%DEVICE_ALIASES});
+my @DEVICE_ALIAS_NAMES = sortAliasesByFirstDevice([@DEVICE_NAMES], {%DEVICES_BY_ALIAS});
 my $DEVICE_ALIASES_REGEX = join "|", @DEVICE_ALIAS_NAMES;
 
 
@@ -441,6 +419,47 @@ sub main(@){
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
+}
+
+sub extractDevicesByAlias($$){
+  my @deviceNames = @{$_[0]};
+  my %deviceAliases = %{$_[1]};
+
+  my %uniqAliases = map {$_ => 1} map {@{$deviceAliases{$_}}} @deviceNames;
+
+  my %devicesByAlias = map {$_ => []} sort keys %uniqAliases;
+  for my $device(@deviceNames){
+    my %aliasesForDevice = map {$_ => 1} @{$deviceAliases{$device}};
+    for my $alias(sort keys %uniqAliases){
+      push @{$devicesByAlias{$alias}}, $device if defined $aliasesForDevice{$alias};
+    }
+  }
+
+  return %devicesByAlias;
+}
+
+sub sortAliasesByFirstDevice($$){
+  my @deviceNames = @{$_[0]};
+  my %devicesByAlias = %{$_[1]};
+
+  my @aliasNames = sort {
+    my @aDevs = @{$devicesByAlias{$a}};
+    my @bDevs = @{$devicesByAlias{$b}};
+    my $aSize = 0 + @aDevs;
+    my $bSize = 0 + @bDevs;
+    my $aIsSingle = $aSize == 1 ? 1 : 0;
+    my $bIsSingle = $bSize == 1 ? 1 : 0;
+    my $aFirstDevIndex = first {$aDevs[0] eq $deviceNames[$_]} 0..$#deviceNames;
+    my $bFirstDevIndex = first {$bDevs[0] eq $deviceNames[$_]} 0..$#deviceNames;
+
+    return $aIsSingle <=> $bIsSingle          #single-device aliases last
+      || $aFirstDevIndex <=> $bFirstDevIndex  #sort groups by first device
+      || $bSize <=> $aSize                    #show larger groups first, within same first dev
+      || $a cmp $b                            #sort by alias name last as tie-breaker
+    ;
+  } keys %devicesByAlias;
+
+  return @aliasNames;
 }
 
 sub extractTemplateJSONByDevType($){
