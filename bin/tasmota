@@ -5,6 +5,9 @@ use File::Basename qw(basename);
 use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
+sub extractTemplateJSONByDevType($);
+sub formatTemplateJSON($);
+
 sub getSSID();
 sub readMinDimmer(@);
 sub runCommandOnDevices($@);
@@ -69,22 +72,18 @@ my @DEVICE_ALIAS_NAMES = sort {
 } keys %OK_ALL_DEVICE_ALIASES;
 
 my @DEV_TYPES_ARR = (
-  athom_7w     => ['"GPIO":[0,0,0,0,37,40,0,0,38,41,39,0,0]'],
-  athom_15w    => ['"GPIO":[0,0,0,0,416,419,0,0,417,452,418,0,0,0]'],
-  kauf_10w     => ['"GPIO":[0,0,0,0,416,419,0,0,417,420,418,0,0,0]'
-                    . ',"CMND":"SO105 1|RGBWWTable 204,204,122,153,153"'],
-  athom_outlet => ['"GPIO":[0,0,0,32,2720,2656,0,0,2624,320,224,0,0,1]'],
+  athom_7w     => [[GPIO => '[0,0,0,0,37,40,0,0,38,41,39,0,0]']],
+  athom_15w    => [[GPIO => '[0,0,0,0,416,419,0,0,417,452,418,0,0,0]']],
+  kauf_10w     => [[GPIO => '[0,0,0,0,416,419,0,0,417,420,418,0,0,0]',
+                    CMND => '"SO105 1|RGBWWTable 204,204,122,153,153"']],
+  athom_outlet => [[GPIO => '[0,0,0,32,2720,2656,0,0,2624,320,224,0,0,1]']],
 );
 my %DEV_TYPES = @DEV_TYPES_ARR;
 my @DEV_TYPE_NAMES = map {$DEV_TYPES_ARR[$_]} grep {$_ % 2 == 0} (0..$#DEV_TYPES_ARR);
 my %DEV_TYPE_TEMPLATE_GPIO_CFG = map {$_ => ${$DEV_TYPES{$_}}[0]} @DEV_TYPE_NAMES;
 
-my %DEV_TEMPLATES = map { $_ => ''
-  . '{ "NAME":"' . $_ . '",'
-  . $DEV_TYPE_TEMPLATE_GPIO_CFG{$_}
-  . ',"FLAG":0'
-  . ',"BASE":18}'
-} sort keys %DEV_TYPE_TEMPLATE_GPIO_CFG;
+my %DEV_TYPE_TEMPLATE_JSON = extractTemplateJSONByDevType({%DEV_TYPE_TEMPLATE_GPIO_CFG});
+
 
 my @COMMAND_ALIASES_ARR = (
   on        => 'POWER ON',
@@ -429,18 +428,53 @@ sub main(@){
   }elsif($mode eq $MODE_SET_TEMPLATE){
     for my $device(@devices){
       my $type = $DEVICE_TYPES{$device};
-      my $template = $DEV_TEMPLATES{$type};
-      if(not defined $template){
+      my $templateJSON = $DEV_TYPE_TEMPLATE_JSON {$type};
+      if(not defined $templateJSON){
         print "$device - no template found\n";
         next;
       }
-      my $cmd = "TEMPLATE $template";
+      my $cmd = "TEMPLATE $templateJSON";
       my $out = cmd($device, $cmd);
       print "$device - $out\n";
     }
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
+}
+
+sub extractTemplateJSONByDevType($){
+  my ($devTypeTemplateGpioCfg) = @_;
+  my %devTypeTemplateJSON;
+  for my $devType(sort keys %$devTypeTemplateGpioCfg){
+    $devTypeTemplateJSON{$devType} = formatTemplateJSON([
+      NAME => "\"$devType\"",
+      @{$$devTypeTemplateGpioCfg{$devType}},
+      FLAG => 0,
+      BASE => 18,
+    ]);
+  }
+  return %devTypeTemplateJSON;
+}
+
+sub formatTemplateJSON($){
+  my ($templateCfgArr) = @_;
+  my %cfg = @$templateCfgArr;
+  my @cfgKeys = map {$$templateCfgArr[$_]} grep {$_ % 2 == 0} (0..$#{$templateCfgArr});
+
+  my $fmt = '';
+  for(my $i=0; $i<@cfgKeys; $i++){
+    my $key = $cfgKeys[$i];
+    my $val = $cfg{$key};
+    if($i == 0){
+      $fmt .= "{ ";
+    }else{
+      $fmt .= ", ";
+    }
+    $fmt .= "\"$key\":$val";
+  }
+  $fmt .= " }";
+
+  return $fmt;
 }
 
 sub getSSID(){
