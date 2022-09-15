@@ -145,7 +145,7 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC [OPTS] -s | --setup-wifi [DEVICE DEVICE ..]
+  $EXEC [OPTS] -s | --setup-wifi DEVICE [DEVICE DEVICE ..]
     -set the SSID1 and Password1 for each named DEVICE, using BACKLOG command:
       SSID1=WIFI_SSID
       Password1=`winfo --key WIFI_SSID`
@@ -173,10 +173,10 @@ my $USAGE = "Usage:
         -if debug log gets all the way to 100, tasmota SSID will probably appear in a min
         -otherwise, wait 1min, turn off bulb, and start over, maybe bricking device
 
-  $EXEC [OPTS] --config [DEVICE DEVICE ..]
+  $EXEC [OPTS] --config DEVICE [DEVICE DEVICE ..]
     run the device-specific config commands for each <DEVICE>
 
-  $EXEC [OPTS] --template [DEVICE DEVICE ..]
+  $EXEC [OPTS] --template DEVICE [DEVICE DEVICE ..]
     get device type for each device, lookup template for type, and set it
 
   $EXEC [OPTS] [DEVICE DEVICE ..] COMMAND
@@ -187,34 +187,36 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] [DEVICE DEVICE ..] COMMAND_ALIAS
     get <COMMAND> from <COMMAND_ALIAS> (case insensitive)
+    <DEVICE> defaults to '$DEFAULT_DEVICE' if none are given
     same as: $EXEC DEVICE DEVICE .. COMMAND
 
-  $EXEC [OPTS] --toggle-all  [DEVICE DEVICE ..]
+  $EXEC [OPTS] --toggle-all [DEVICE DEVICE ..]
   $EXEC [OPTS] -t [DEVICE DEVICE ..]
   $EXEC [OPTS] [DEVICE DEVICE ..]
     either turn on all devices, or turn off all devices,
       by toggling all and then turning off stragglers
+    <DEVICE> defaults to '$DEFAULT_DEVICE' if none are given
     -send 'POWER TOGGLE' to all devices
     -check the current power status after toggling
     -if at least one is 'OFF' and at least one is 'ON', send 'off' to all
 
-  $EXEC [OPTS] --dimmer [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
-  $EXEC [OPTS] [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
+  $EXEC [OPTS] --dimmer DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
+  $EXEC [OPTS] DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
     -get the current <DIMMER_PCT> value from all devices, and select the smallest value
     -select the smallest <DIMMER_PCT_ARG> that is strictly greater than <DIMMER_PCT>
     -if there is no such <DIMMER_PCT_ARG>, use the smallest <DIMMER_PCT_ARG> given
     -run command 'DIMMER <DIMMER_PCT_ARG>'
       e.g.:
-        $EXEC --dimmer 33 66 100     #DIMMER 100 => 33
-        $EXEC --dimmer 33 66 100     #DIMMER 33  => 66
-        $EXEC --dimmer 33 66 100     #DIMMER 66  => 100
+        $EXEC --dimmer bed 33 66 100     #DIMMER 100 => 33
+        $EXEC --dimmer bed 33 66 100     #DIMMER 33  => 66
+        $EXEC --dimmer bed 33 66 100     #DIMMER 66  => 100
 
-  $EXEC [OPTS] --power|power|pow|--watts|watts|watt [DEVICE DEVICE ..]
+  $EXEC [OPTS] --power|power|pow|--watts|watts|watt DEVICE [DEVICE DEVICE ..]
     -run 'STATUS 10' (show connected sensor information)
     -parse out JSON result: StatusSNS.ENERGY.Power
     -print integer power in Watts, one per line, for each DEVICE, in order given
 
-  $EXEC [OPTS] --mac [DEVICE DEVICE ..]
+  $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
   DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
@@ -304,8 +306,12 @@ sub main(@){
     }
   }
 
-  if(@devices == 0){
+  if(@devices == 0 and $mode =~ /^($MODE_COMMAND|$MODE_TOGGLE_ALL)$/){
     @devices = ($DEFAULT_DEVICE);
+  }
+
+  if(@devices == 0){
+    die "$USAGE\nERROR: at least one DEVICE must be given for $mode\n";
   }
 
   if($forceInitIP){
