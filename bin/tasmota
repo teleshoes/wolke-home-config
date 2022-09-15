@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
+sub getSSID();
 sub readMinDimmer(@);
 sub runCommandOnDevices($@);
 sub cmd($$);
@@ -150,15 +151,16 @@ my $USAGE = "Usage:
       SSID1=WIFI_SSID
       Password1=`winfo --key WIFI_SSID`
     -WIFI_SSID is configured for the named DEVICE
-    -use --init to force IP address to $INITIAL_DEVICE_IP
+    -if current SSID starts with 'tasmota', IP address to $INITIAL_DEVICE_IP
       -this is the IP for newly flashed/reset tasmota devices
+      -see --auto-init
 
     NOTE: to set up a new device named 'KITCHEN1':
         -add device entry (name, desired IP, router SSID, device type, aliases)
         -connect to SSID (looks like: tasmota_FFFFFF-9999)
-        -run `$EXEC --init --mac KITCHEN1` (and note the MAC)
+        -run `$EXEC --mac KITCHEN1`
           -add a static DHCP entry for MAC to local router to desired IP
-        -run `$EXEC --init --setup-wifi KITCHEN1`
+        -run `$EXEC --setup-wifi KITCHEN1`
           -restart router, and wait for device to be pingable again
         -run `$EXEC --template KITCHEN1`
           -wait for it be pingable again
@@ -241,7 +243,17 @@ my $USAGE = "Usage:
 
   OPTS
     --init
-      override all IP addresses with $INITIAL_DEVICE_IP
+      always override all IP addresses with $INITIAL_DEVICE_IP
+
+    --auto-init
+      (this is the default, see --no-auto-init)
+      -if EXACTLY ONE device is specified on the command line:
+        -get SSID with `wstatus --ssid`
+        -if SSID starts with \"tasmota\"
+        -override device IP with $INITIAL_DEVICE_IP
+
+    --no-auto-init | --no-init
+      do not automatically override IP address
 ";
 
 my $MODE_COMMAND = "command";
@@ -256,6 +268,7 @@ my $MODE_SET_TEMPLATE = "set-template";
 sub main(@){
   my $mode = $MODE_TOGGLE_ALL;
   my $forceInitIP = 0;
+  my $autoInitIP = 1;
   my (@devices, $cmd, @dimmerArgs);
   while(@_ > 0){
     my $arg = shift;
@@ -295,6 +308,13 @@ sub main(@){
       $cmd = undef;
     }elsif($arg =~ /^(--init)$/){
       $forceInitIP = 1;
+      $autoInitIP = 0;
+    }elsif($arg =~ /^(--auto-init)$/){
+      $autoInitIP = 1;
+      $forceInitIP = 0;
+    }elsif($arg =~ /^(--no-auto-init|--no-init)$/){
+      $autoInitIP = 0;
+      $forceInitIP = 0;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
       $cmd = $COMMAND_ALIASES{lc $arg};
@@ -306,6 +326,9 @@ sub main(@){
     }
   }
 
+  my $initIP = 0;
+  $initIP = 1 if $forceInitIP or ($autoInitIP and @devices == 1 and getSSID() =~ /^tasmota/);
+
   if(@devices == 0 and $mode =~ /^($MODE_COMMAND|$MODE_TOGGLE_ALL)$/){
     @devices = ($DEFAULT_DEVICE);
   }
@@ -314,7 +337,7 @@ sub main(@){
     die "$USAGE\nERROR: at least one DEVICE must be given for $mode\n";
   }
 
-  if($forceInitIP){
+  if($initIP){
     print "using IP $INITIAL_DEVICE_IP\n";
     for my $device(@devices){
       $DEVICE_IPS{$device} = $INITIAL_DEVICE_IP;
@@ -428,6 +451,12 @@ sub main(@){
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
+}
+
+sub getSSID(){
+  my $ssid = `wstatus --ssid 2>/dev/null`;
+  chomp $ssid;
+  return $ssid;
 }
 
 sub readMinDimmer(@){
