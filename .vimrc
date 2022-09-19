@@ -4,13 +4,20 @@
 filetype plugin on
 let g:omni_sql_no_default_maps = 1
 
+let g:csv_mode="off"
 function CSV()
-  if &ft ==? "csv"
-    %UnArrangeCol
-    set filetype=""
-  else
-    set filetype=csv
+  if g:csv_mode ==? "off"
+    set filetype="csv"
+    set syntax="csv"
+    runtime ftplugin/csv.vim
+    runtime csv-syntax.vim
+
     %ArrangeColumn
+    let g:csv_mode="on"
+  else
+    %UnArrangeCol
+    let g:csv_mode="off"
+    set syntax=""
   endif
 endfunction
 command CSV call CSV()
