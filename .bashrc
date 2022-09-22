@@ -63,6 +63,7 @@ pathRemove ()  { for x in $@; do
 pathAppend          \
   $HOME/bin         \
   $HOME/.cabal/bin  \
+  $HOME/go/bin      \
   /usr/local/bin    \
   /usr/bin          \
   /bin              \
