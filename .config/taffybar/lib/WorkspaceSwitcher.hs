@@ -6,7 +6,7 @@ import Control.Monad.Trans (liftIO)
 
 import System.Taffybar.Widget.Workspaces (
   WorkspacesConfig(..), WorkspacesIO, Workspace(..), WorkspaceState(..),
-  defaultWorkspacesConfig, workspacesNew)
+  defaultWorkspacesConfig, sortWindowsByPosition, workspacesNew)
 
 workspaceSwitcherW wsImageHeight = do
   iconInitialState <- liftIO $ loadIconInitialState $ wsImageHeight
@@ -17,6 +17,6 @@ workspacesConfig iconInitialState = defaultWorkspacesConfig
   { widgetGap           = 3
   , maxIcons            = Just 1
   , minIcons            = 1
-  , iconSort            = return -- unsorted leaves active first
+  , iconSort            = sortWindowsByPosition --unsorted is no longer last-active
   , getWindowIconPixbuf = getIcon iconInitialState
   }
