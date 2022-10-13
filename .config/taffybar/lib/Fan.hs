@@ -41,7 +41,6 @@ formatInfo temp speed level = tempFmt ++ "\n" ++ speedFmt
         padNum width text = padL '0' width $ take width text
 
 colorTemp temp | temp > 80 = bg "red" . fg "#002b36"
-               | temp > 60 = bg "orange" . fg "#002b36"
                | otherwise = fg "white"
 
 colorFan level = case level of
