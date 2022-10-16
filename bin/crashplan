@@ -9,6 +9,7 @@ use IO::Select;
 
 sub getCrashplanPid();
 sub backupLogs();
+sub startGui();
 sub runCommandInCommandsGui($);
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
@@ -148,7 +149,7 @@ sub main(@){
   $cmd = $defaultCmd if not defined $cmd;
 
   if($cmd =~ /^(-g|--gui|gui)$/ and @_ == 0){
-    exec "$guiExec 2>&1 | grep -v '$regexToIgnoreGtkWarnings'";
+    startGui();
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
     my $logfile = $historyLogFile;
@@ -217,13 +218,20 @@ sub backupLogs(){
   print "\n\n";
 }
 
+sub startGui(){
+  if(fork){
+    exec "$guiExec 2>&1 | grep -v '$regexToIgnoreGtkWarnings'";
+  }
+}
+
 sub runCommandInCommandsGui($){
   my $command = shift;
 
   STDOUT->autoflush(1);
 
   print "starting gui\n";
-  run "$0 -g &";
+  startGui();
+
   sleepMillis $delayBeforeGUITypePasswordMillis, "before typing password";
 
   my $guiWindowId = `windowid --exact --class=code42.Code42 --name=Code42`;
