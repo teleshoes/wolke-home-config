@@ -16,6 +16,7 @@ sub typePassword($);
 sub openCmdWindow($);
 sub typeCommand($$);
 sub closeGui($$);
+sub startGuiWithPassword();
 sub runCommandInCommandsGui($);
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
@@ -54,6 +55,7 @@ my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
 my $delayBeforeGUIStartMillis = int(5 * 1000);
 my $delayBeforeGUITypePasswordMillis = int(60 * 1000);
+my $delayBeforeGUITypePasswordQuickMillis = int(5 * 1000);
 my $delayBeforeGUIOpenCmdWindowMillis = int(10 * 1000);
 my $delayBeforeGUIKeyboardCmdMillis = int(10 * 1000);
 my $delayBeforeGUICloseMillis = int(5 * 1000);
@@ -91,6 +93,8 @@ my $usage = "Usage:
   $0
   $0 -g|--gui
     -start GUI, skipping some warnings with grep
+    -sleep ${delayBeforeGUITypePasswordQuickMillis}ms
+    -enter password
 
   $0 -l|--log|log [--date=DATE] [--logfile=LOGFILE] [BACKUP_NAME]
     format recent info from $historyLogFile
@@ -156,7 +160,7 @@ sub main(@){
   $cmd = $defaultCmd if not defined $cmd;
 
   if($cmd =~ /^(-g|--gui|gui)$/ and @_ == 0){
-    startGui();
+    startGuiWithPassword();
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
     my $logfile = $historyLogFile;
@@ -270,6 +274,12 @@ sub closeGui($$){
   my ($guiWindowId, $cmdWindowId) = @_;
   run "wmctrl", "-i", "-c", $cmdWindowId;
   run "wmctrl", "-i", "-c", $guiWindowId;
+}
+
+sub startGuiWithPassword(){
+  startGui();
+  sleepMillis $delayBeforeGUITypePasswordQuickMillis, "before typing password";
+  typePassword(getGuiWindowId());
 }
 
 sub runCommandInCommandsGui($){
