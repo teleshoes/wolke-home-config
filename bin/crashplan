@@ -10,6 +10,12 @@ use IO::Select;
 sub getCrashplanPid();
 sub backupLogs();
 sub startGui();
+sub getGuiWindowId();
+sub getCmdWindowId();
+sub typePassword($);
+sub openCmdWindow($);
+sub typeCommand($$);
+sub closeGui($$);
 sub runCommandInCommandsGui($);
 sub runBackup($);
 sub getFilteredBackupSets($$$$);
@@ -224,8 +230,49 @@ sub startGui(){
   }
 }
 
+sub getGuiWindowId(){
+  my $guiWindowId = `windowid --exact --class=code42.Code42 --name=Code42`;
+  chomp $guiWindowId;
+  die "could not get window id of gui\n" if $guiWindowId !~ /^0x/;
+  return $guiWindowId;
+}
+
+sub getCmdWindowId(){
+  my $cmdWindowId = `windowid --exact --class=code42.Code42 --name='Code42 Commands'`;
+  chomp $cmdWindowId;
+  die "could not get window id of Commands GUI\n" if $cmdWindowId !~ /^0x/;
+  return $cmdWindowId;
+}
+
+sub typePassword($){
+  my ($guiWindowId) = @_;
+  my $password = readSecret("crashplan.password");
+
+  run "wmctrl", "-i", "-a", $guiWindowId;
+  print "xdotool type --window $guiWindowId <PASSWORD_REDACTED>\n";
+  runQuiet "xdotool", "type", "--window", $guiWindowId, "$password\n";
+}
+
+sub openCmdWindow($){
+  my ($guiWindowId) = @_;
+  run "wmctrl", "-i", "-a", $guiWindowId;
+  run "xdotool", "key", "--window", $guiWindowId, "Ctrl+Shift+C";
+}
+
+sub typeCommand($$){
+  my ($cmdWindowId, $command) = @_;
+  run "wmctrl", "-i", "-a", $cmdWindowId;
+  run "xdotool", "type", "--window", $cmdWindowId, "$command\n";
+}
+
+sub closeGui($$){
+  my ($guiWindowId, $cmdWindowId) = @_;
+  run "wmctrl", "-i", "-c", $cmdWindowId;
+  run "wmctrl", "-i", "-c", $guiWindowId;
+}
+
 sub runCommandInCommandsGui($){
-  my $command = shift;
+  my ($command) = @_;
 
   STDOUT->autoflush(1);
 
@@ -234,36 +281,25 @@ sub runCommandInCommandsGui($){
 
   sleepMillis $delayBeforeGUITypePasswordMillis, "before typing password";
 
-  my $guiWindowId = `windowid --exact --class=code42.Code42 --name=Code42`;
-  chomp $guiWindowId;
-  die "could not get window id of gui\n" if $guiWindowId !~ /^0x/;
-
-  my $password = readSecret("crashplan.password");
+  my $guiWindowId = getGuiWindowId();
 
   print "typing password\n";
-  run "wmctrl", "-i", "-a", $guiWindowId;
-  print "xdotool type --window $guiWindowId <PASSWORD_REDACTED>\n";
-  runQuiet "xdotool", "type", "--window", $guiWindowId, "$password\n";
+  typePassword($guiWindowId);
 
   sleepMillis $delayBeforeGUIOpenCmdWindowMillis, "before opening cmd window";
 
   print "opening cmd window (Ctrl+Shift+C)\n";
-  run "wmctrl", "-i", "-a", $guiWindowId;
-  run "xdotool", "key", "--window", $guiWindowId, "Ctrl+Shift+C";
+  openCmdWindow($guiWindowId);
 
   sleepMillis $delayBeforeGUIKeyboardCmdMillis, "before typing keyboard command";
 
-  my $cmdWindowId = `windowid --exact --class=code42.Code42 --name='Code42 Commands'`;
-  chomp $cmdWindowId;
-  die "could not get window id of Commands GUI\n" if $cmdWindowId !~ /^0x/;
+  my $cmdWindowId = getCmdWindowId();
 
   print "typing command in Commands GUI\n";
-  run "wmctrl", "-i", "-a", $cmdWindowId;
-  run "xdotool", "type", "--window", $cmdWindowId, "$command\n";
+  typeCommand($cmdWindowId, $command);
 
   sleepMillis $delayBeforeGUICloseMillis, "before closing the GUI";
-  run "wmctrl", "-i", "-c", $cmdWindowId;
-  run "wmctrl", "-i", "-c", $guiWindowId;
+  closeGui($guiWindowId, $cmdWindowId);
 }
 
 sub runBackup($){
