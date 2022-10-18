@@ -213,6 +213,7 @@ function rename       {
 function udotool      { sudo udotool "$@"; }
 
 function sb           { seedbox "$@"; }
+function sbs          { seedbox -s "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
 function sbrsync      { seedbox --rsync-revtun "$@"; }
