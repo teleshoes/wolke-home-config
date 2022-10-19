@@ -25,16 +25,24 @@ my $usage = "Usage:
     --file-multi
       only include 'FILE' in output if more than one file is given
       (this is the default)
+
+    -s | --suffix
+      print mtime before the 'FILE', with a single space between
+      implies --file, but --file-multi can override this
 ";
 
 my $FILE_MODE_ALWAYS = 'always';
 my $FILE_MODE_NEVER = 'never';
 my $FILE_MODE_MULTI = 'multi';
 
+my $FILE_DISPLAY_POS_PREFIX = 'prefix';
+my $FILE_DISPLAY_POS_SUFFIX = 'suffix';
+
 sub main(@){
   my $format = 0;
   my $useMillis = 0;
   my $fileMode = $FILE_MODE_MULTI;
+  my $fileDisplayPos = $FILE_DISPLAY_POS_PREFIX;
   my @files;
   while(@_ > 0){
     my $arg = shift;
@@ -51,6 +59,9 @@ sub main(@){
       $fileMode = $FILE_MODE_NEVER;
     }elsif($arg =~ /^(--file-multi)$/){
       $fileMode = $FILE_MODE_MULTI;
+    }elsif($arg =~ /^(-s|--suffix)$/){
+      $fileDisplayPos = $FILE_DISPLAY_POS_SUFFIX;
+      $fileMode = $FILE_MODE_ALWAYS;
     }elsif(-l $arg or -e $arg){
       push @files, $arg;
     }else{
@@ -94,8 +105,14 @@ sub main(@){
     }
 
     if($displayFile){
-      my $len = $maxFileLen + 2;
-      printf "\%-${len}s \%s\n", $file, $mtimeFmt;
+      if($fileDisplayPos eq $FILE_DISPLAY_POS_PREFIX){
+        my $len = $maxFileLen + 2;
+        printf "\%-${len}s \%s\n", $file, $mtimeFmt;
+      }elsif($fileDisplayPos eq $FILE_DISPLAY_POS_SUFFIX){
+        printf "%s %s\n", $mtimeFmt, $file;
+      }else{
+        die "ERROR: unknown file display pos $fileDisplayPos\n";
+      }
     }else{
       print "$mtimeFmt\n";
     }
