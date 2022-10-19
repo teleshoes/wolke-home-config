@@ -4,6 +4,10 @@ use warnings;
 use JSON qw(from_json);
 use Time::HiRes qw(time);
 
+my $OK_EXTS_REGEX = join "|", qw(
+  avi m2ts mts mov mkv mpeg mpg mp4
+);
+
 sub getSRTFile($);
 sub ensureSRT($$);
 sub removeSRT($);
@@ -12,21 +16,25 @@ sub getTracks($);
 sub run(@);
 
 my $USAGE = "Usage:
-  $0 [OPTS] --extract MKV_FILE
+  $0 [OPTS] --extract VIDEO_FILE
     -if SRT_FILE exists, do nothing
-    -otherwise, extract SRT track MKV_FILE, and write to SRT_FILE
+    -if VIDEO_FILE is an MKV file:
+      -extract SRT track using `mkvextract`, and write to SRT_FILE
+    -otherwise, fail with an error
 
-    SRT_FILE
-      same as MKV_FILE, with '.mkv' suffix replaced with '.srt', case-insensitive
+  SRT_FILE
+    same as VIDEO_FILE, with '.<EXT>' suffix replaced with '.srt', case-insensitive
+
+  TMP_SRT_FILE
+    backup file for SRT_FILE: /tmp/subtitle-fix-<SRT_FILE_BOING>-<MILLIS>
+      SRT_FILE_BOING
+        SRT_FILE, with all chars except alphanumeric and underscore with '%'
+      MILLIS
+        time since epoch, in millis
 
   OPTS
     --replace
       when extracting subtitles, first move the existing SRT_FILE to TMP_SRT_FILE
-        TMP_SRT_FILE = /tmp/subtitle-fix-<MKV_FILE_BOING>-<MILLIS>
-        MKV_FILE_BOING
-          MKV_FILE, with all chars except alphanumeric and underscore with '%'
-        MILLIS
-          time since epoch, in millis
 
     --eng
       choose the first english lang subtitle track
@@ -57,7 +65,7 @@ my $CMD_EXTRACT = "extract";
 
 sub main(@){
   my $cmd = $CMD_EXTRACT;
-  my $mkvFile = undef;
+  my $videoFile = undef;
   my $subArgCSV = "ENG1,1";
   my $replace = 0;
   while(@_ > 0){
@@ -75,8 +83,8 @@ sub main(@){
       $subArgCSV = "ENG2,ENG1,1";
     }elsif($arg =~ /^--priority=(.+)$/){
       $subArgCSV = $1;
-    }elsif(-f $arg and $arg =~ /\.mkv/i){
-      $mkvFile = $arg;
+    }elsif(-f $arg and $arg =~ /\.($OK_EXTS_REGEX)$/i){
+      $videoFile = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -84,28 +92,32 @@ sub main(@){
 
   if($cmd eq $CMD_EXTRACT){
     if($replace){
-      removeSRT($mkvFile);
+      removeSRT($videoFile);
     }
-    ensureSRT($mkvFile, $subArgCSV);
+    ensureSRT($videoFile, $subArgCSV);
   }else{
     die "ERROR: unknown command $cmd\n";
   }
 }
 
 sub getSRTFile($){
-  my ($mkvFile) = @_;
-  my $srtFile = $mkvFile;
-  if($srtFile !~ s/\.mkv/.srt/i){
-    die "ERROR: malformed MKV_FILE $mkvFile, must end in .mkv\n";
+  my ($videoFile) = @_;
+  my $srtFile = $videoFile;
+  if($srtFile !~ s/\.($OK_EXTS_REGEX)/.srt/i){
+    die "ERROR: malformed VIDEO_FILE $videoFile, <EXT> must be one of: $OK_EXTS_REGEX\n";
   }
   return $srtFile;
 }
 
 sub ensureSRT($$){
-  my ($mkvFile, $subArgCSV) = @_;
-  my $srtFile = getSRTFile($mkvFile);
+  my ($videoFile, $subArgCSV) = @_;
+  my $srtFile = getSRTFile($videoFile);
   if(-e $srtFile){
     return;
+  }
+  my $mkvFile = $videoFile;
+  if($mkvFile !~ /\.mkv/i){
+    die "ERROR: malformed MKV_FILE $mkvFile, must end in .mkv\n";
   }
 
   my $trackID = selectSubTrackID($mkvFile, $subArgCSV);
@@ -116,12 +128,12 @@ sub ensureSRT($$){
 }
 
 sub removeSRT($){
-  my ($mkvFile) = @_;
-  my $srtFile = getSRTFile($mkvFile);
+  my ($videoFile) = @_;
+  my $srtFile = getSRTFile($videoFile);
   if(-f $srtFile){
-    my $boingMkvFile = $mkvFile;
-    $boingMkvFile =~ s/[^a-zA-Z0-9_]/%/g;
-    my $tmpFile = "/tmp/subtitle-fix-$boingMkvFile-" . nowMillis();
+    my $boingSrtFile = $srtFile;
+    $boingSrtFile =~ s/[^a-zA-Z0-9_]/%/g;
+    my $tmpFile = "/tmp/subtitle-fix-$boingSrtFile-" . nowMillis();
     my @cmd = ("mv", $srtFile, $tmpFile);
     run @cmd;
   }
@@ -168,8 +180,8 @@ sub selectSubTrackID($$){
 }
 
 sub getTracks($){
-  my ($file) = @_;
-  my @cmd = ("mkvmerge", "-J", $file);
+  my ($mkvFile) = @_;
+  my @cmd = ("mkvmerge", "-J", $mkvFile);
   open CMD, "-|", @cmd or die "ERROR: could not run @cmd\n";
   my $json = join '', <CMD>;
   close CMD;
