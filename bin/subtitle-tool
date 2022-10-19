@@ -1,0 +1,192 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON qw(from_json);
+use Time::HiRes qw(time);
+
+sub getSRTFile($);
+sub ensureSRT($$);
+sub removeSRT($);
+sub selectSubTrackID($$);
+sub getTracks($);
+sub run(@);
+
+my $USAGE = "Usage:
+  $0 [OPTS] --extract MKV_FILE
+    -if SRT_FILE exists, do nothing
+    -otherwise, extract SRT track MKV_FILE, and write to SRT_FILE
+
+    SRT_FILE
+      same as MKV_FILE, with '.mkv' suffix replaced with '.srt', case-insensitive
+
+  OPTS
+    --replace
+      when extracting subtitles, first move the existing SRT_FILE to TMP_SRT_FILE
+        TMP_SRT_FILE = /tmp/subtitle-fix-<MKV_FILE_BOING>-<MILLIS>
+        MKV_FILE_BOING
+          MKV_FILE, with all chars except alphanumeric and underscore with '%'
+        MILLIS
+          time since epoch, in millis
+
+    --eng
+      choose the first english lang subtitle track
+      (this is the default)
+      same as: --priority=ENG1,1
+
+    --alt
+      choose the second english lang subtitle track
+      same as: --priority=ENG2,ENG1,1
+
+    --priority=SUB_CSV
+      choose the first subtitle track that matches the first SUB
+
+    SUB_CSV
+      comma-separated list of <SUB>s
+      e.g.:   'ENG1,ENG2,1'   'SPA2'
+    SUB
+      a specifier to match subtitle tracks
+      <LANG><LANG_IDX>
+        a language, and the index, starting with 1, of only subtitle tracks with <LANG>
+      <LANG>
+        same as: <LANG>1
+      <IDX>
+        the index, starting with 1, of all subtitle tracks
+";
+
+my $CMD_EXTRACT = "extract";
+
+sub main(@){
+  my $cmd = $CMD_EXTRACT;
+  my $mkvFile = undef;
+  my $subArgCSV = "ENG1,1";
+  my $replace = 0;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-e|--extract)$/){
+      $cmd = $CMD_EXTRACT;
+    }elsif($arg =~ /^(-r|--replace)$/){
+      $replace = 1;
+    }elsif($arg =~ /^--eng$/){
+      $subArgCSV = "ENG1,1";
+    }elsif($arg =~ /^--alt$/){
+      $subArgCSV = "ENG2,ENG1,1";
+    }elsif($arg =~ /^--priority=(.+)$/){
+      $subArgCSV = $1;
+    }elsif(-f $arg and $arg =~ /\.mkv/i){
+      $mkvFile = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($cmd eq $CMD_EXTRACT){
+    if($replace){
+      removeSRT($mkvFile);
+    }
+    ensureSRT($mkvFile, $subArgCSV);
+  }else{
+    die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub getSRTFile($){
+  my ($mkvFile) = @_;
+  my $srtFile = $mkvFile;
+  if($srtFile !~ s/\.mkv/.srt/i){
+    die "ERROR: malformed MKV_FILE $mkvFile, must end in .mkv\n";
+  }
+  return $srtFile;
+}
+
+sub ensureSRT($$){
+  my ($mkvFile, $subArgCSV) = @_;
+  my $srtFile = getSRTFile($mkvFile);
+  if(-e $srtFile){
+    return;
+  }
+
+  my $trackID = selectSubTrackID($mkvFile, $subArgCSV);
+  die "ERROR: could not find subtitle tracks in $mkvFile\n" if not defined $trackID;
+
+  my @cmd = ("mkvextract", $mkvFile, "tracks", "$trackID:$srtFile");
+  run @cmd;
+}
+
+sub removeSRT($){
+  my ($mkvFile) = @_;
+  my $srtFile = getSRTFile($mkvFile);
+  if(-f $srtFile){
+    my $boingMkvFile = $mkvFile;
+    $boingMkvFile =~ s/[^a-zA-Z0-9_]/%/g;
+    my $tmpFile = "/tmp/subtitle-fix-$boingMkvFile-" . nowMillis();
+    my @cmd = ("mv", $srtFile, $tmpFile);
+    run @cmd;
+  }
+}
+
+
+sub selectSubTrackID($$){
+  my ($mkvFile, $subArgCSV) = @_;
+  my @tracks = getTracks($mkvFile);
+  for my $subArg(split(/,/, $subArgCSV)){
+    my ($lang, $langIdx, $idx);
+    if($subArg =~ /^\s*([a-z]+)(\d+)\s*$/i){
+      ($lang, $langIdx, $idx) = ($1, $2, undef);
+    }elsif($subArg =~ /^\s*([a-z]+)\s*$/i){
+      ($lang, $langIdx, $idx) = ($1, 1, undef);
+    }elsif($subArg =~ /^\s*(\d+)\s*$/){
+      ($lang, $langIdx, $idx) = (undef, undef, $1);
+    }else{
+      die "ERROR: malformed SUB_CSV $subArgCSV\n";
+    }
+
+    my $curLangIdx = 0;
+    my $curSubIdx = 0;
+    for my $track(@tracks){
+      next if $$track{type} ne "subtitles";
+      next if $$track{codec} !~ /SRT/i;
+
+      my $subLang = $$track{properties}{language};
+      $subLang = "" if not defined $subLang;
+      if(defined $lang and lc $lang eq lc $subLang){
+        $curLangIdx++;
+        if($curLangIdx == $langIdx){
+          return $$track{id};
+        }
+      }
+      $curSubIdx++;
+      if(defined $idx and $curSubIdx == $idx){
+        return $$track{id};
+      }
+    }
+  }
+
+  return undef;
+}
+
+sub getTracks($){
+  my ($file) = @_;
+  my @cmd = ("mkvmerge", "-J", $file);
+  open CMD, "-|", @cmd or die "ERROR: could not run @cmd\n";
+  my $json = join '', <CMD>;
+  close CMD;
+
+  my $obj = from_json($json);
+  my @tracks = @{$$obj{tracks}};
+  die "ERROR: could not fetch tracks with @cmd\n" if @tracks == 0;
+  return @tracks;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
