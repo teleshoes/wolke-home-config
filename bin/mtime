@@ -9,7 +9,7 @@ my $usage = "Usage:
   $0 [OPTS] [FILE FILE ..]
     print file modification time in seconds since epoch UTC, one per line
     if more than one file is specified, prefix each line with 'FILE',
-      followed by whitespace to align the mtime
+      followed by whitespace (one or more ' ' chars, to align the mtime)
 
   OPTS
     -f
@@ -17,17 +17,24 @@ my $usage = "Usage:
     -m | --ms | --millis | --milliseconds
       use milliseconds from Time::HiRes->stat
       if -f, use format: HH_MM_SS.FFF
-    -p | --prefix
-      always prefix line with 'FILE' and whitespace
-    -n | --no-prefix
-      never prefix line with 'FILE' and whitespace
+
+    --file | -p | --prefix
+      always include 'FILE' in output
+    --no-file | -n | --no-prefix
+      never include 'FILE' in output
+    --file-multi
+      only include 'FILE' in output if more than one file is given
+      (this is the default)
 ";
+
+my $FILE_MODE_ALWAYS = 'always';
+my $FILE_MODE_NEVER = 'never';
+my $FILE_MODE_MULTI = 'multi';
 
 sub main(@){
   my $format = 0;
   my $useMillis = 0;
-  my $alwaysPrefix = 0;
-  my $neverPrefix = 0;
+  my $fileMode = $FILE_MODE_MULTI;
   my @files;
   while(@_ > 0){
     my $arg = shift;
@@ -38,10 +45,12 @@ sub main(@){
       $format = 1;
     }elsif($arg =~ /^(-m|--ms|--millis|--milliseconds)$/){
       $useMillis = 1;
-    }elsif($arg =~ /^(-p|--prefix)$/){
-      $alwaysPrefix = 1;
-    }elsif($arg =~ /^(-n|--no-prefix)$/){
-      $neverPrefix = 1;
+    }elsif($arg =~ /^(--file|-p|--prefix)$/){
+      $fileMode = $FILE_MODE_ALWAYS;
+    }elsif($arg =~ /^(--no-file|-n|--no-prefix)$/){
+      $fileMode = $FILE_MODE_NEVER;
+    }elsif($arg =~ /^(--file-multi)$/){
+      $fileMode = $FILE_MODE_MULTI;
     }elsif(-l $arg or -e $arg){
       push @files, $arg;
     }else{
@@ -55,9 +64,10 @@ sub main(@){
     $maxFileLen = $len if $len > $maxFileLen;
   }
 
-  my $usePrefix = @files > 1 ? 1 : 0;
-  $usePrefix = 1 if $alwaysPrefix;
-  $usePrefix = 0 if $neverPrefix;
+  my $displayFile = 0;
+  $displayFile = @files > 1 ? 1 : 0 if $fileMode eq $FILE_MODE_MULTI;
+  $displayFile = 1 if $fileMode eq $FILE_MODE_ALWAYS;
+  $displayFile = 0 if $fileMode eq $FILE_MODE_NEVER;
 
   for my $file(@files){
     my @stat;
@@ -83,7 +93,7 @@ sub main(@){
       $mtimeFmt = int($mtime);
     }
 
-    if($usePrefix){
+    if($displayFile){
       my $len = $maxFileLen + 2;
       printf "\%-${len}s \%s\n", $file, $mtimeFmt;
     }else{
