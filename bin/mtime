@@ -37,6 +37,10 @@ my $usage = "Usage:
       same as: --format=DATE_FORMAT
       NOTE: if '+DATE_FORMAT' exists as a file, it is used as FILE, not --format
 
+    -u | --utc
+      pass '--utc' to `date` when using DATE_FORMAT
+      (no effect without one of the --format args, epoch is always UTC)
+
     -m | --ms | --millis | --milliseconds
       use milliseconds from Time::HiRes->stat
       if --format, but no DATE_FORMAT given, use format: $DATE_FORMAT_SPEC_MILLIS
@@ -57,6 +61,7 @@ my $usage = "Usage:
 
 sub main(@){
   my $useDateFormat = 0;
+  my $useDateUTC = 0;
   my $dateFormatSpec = undef;
   my $useMillis = 0;
   my $fileMode = $FILE_MODE_MULTI;
@@ -78,6 +83,8 @@ sub main(@){
     }elsif(not -e $arg and $arg =~ /^\+(.+)$/){
       $useDateFormat = 1;
       $dateFormatSpec = $1;
+    }elsif($arg =~ /^(-u|--utc)$/){
+      $useDateUTC = 1;
     }elsif($arg =~ /^(-m|--ms|--millis|--milliseconds)$/){
       $useMillis = 1;
     }elsif($arg =~ /^(--file|-p|--prefix)$/){
@@ -122,7 +129,8 @@ sub main(@){
       if(not defined $dateFormatSpec){
         $dateFormatSpec = $useMillis ? $DATE_FORMAT_SPEC_MILLIS : $DATE_FORMAT_SPEC_DEFAULT;
       }
-      $mtimeFmt = `date --date \@$mtime +$dateFormatSpec`;
+      my @dateArgs = $useDateUTC ? ("--utc") : ();
+      $mtimeFmt = `date @dateArgs --date \@$mtime +$dateFormatSpec`;
       chomp $mtimeFmt;
     }elsif($useMillis){
       $mtimeFmt = int($mtime * 1000.0);
