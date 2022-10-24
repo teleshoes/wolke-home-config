@@ -101,20 +101,20 @@ sub crossfadeVideo($$@){
     $nextPtsOffset += $durs[$i] - $fadeLen;
     my $filter = "[$i:v]" . join(",", @filterChain) . "[fadevid$i]";
 
-    push @filters, $filter;
+#    push @filters, $filter;
   }
   #overlay each video onto the previous overlay
   my $previousVidOverlay = undef;
   for(my $i=0; $i<@inputs; $i++){
     my $overlay = "overlayvid$i";
     if(not defined $previousVidOverlay){
-      push @filters, "[fadevid$i]copy[$overlay]";
+#      push @filters, "[fadevid$i]copy[$overlay]";
     }else{
-      push @filters, "[$previousVidOverlay][fadevid$i]" . "overlay" . "[$overlay]";
+#      push @filters, "[$previousVidOverlay][fadevid$i]" . "overlay" . "[$overlay]";
     }
     $previousVidOverlay = $overlay;
   }
-  push @filters, "[$previousVidOverlay]copy[vidfinal]";
+#  push @filters, "[$previousVidOverlay]copy[vidfinal]";
 
 
   #fade-in each audio except the first, and slide the start times down by <fadeLen>
@@ -153,6 +153,28 @@ sub crossfadeVideo($$@){
   }
 #  push @filters, "[$previousAudOverlay]acopy[audfinal]";
 
+
+  #apply xfade to each subsequent video overlay
+  my $previousVideoOverlay = undef;
+  my $nextFadeOffset = 0;
+  for(my $i=0; $i<@inputs; $i++){
+    my $origInputVideo = "$i:v";
+    my $overlayToCreate = "video$i";
+    if(not defined $previousVideoOverlay){
+      #make current overlay by copying current input changed (for first input)
+      push @filters, "[$origInputVideo]copy[$overlayToCreate]";
+    }else{
+      #make current overlay by smooshing previous overlay and current input
+      push @filters, ""
+        . "[$previousVideoOverlay][$origInputVideo]"
+        . "xfade=transition=fade:duration=$fadeLen:offset=$nextFadeOffset"
+        . "[$overlayToCreate]"
+        ;
+    }
+    $previousVideoOverlay = $overlayToCreate;
+    $nextFadeOffset += $durs[$i] - $fadeLen;
+  }
+  push @filters, "[$previousVideoOverlay]copy[vidfinal]";
 
   #apply acrossfade to each subsequent audio overlay
   my $previousAudioOverlay = undef;
