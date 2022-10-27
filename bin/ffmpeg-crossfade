@@ -81,61 +81,65 @@ sub crossfadeVideo($$@){
   my @filters;
 
   #apply xfade to each subsequent video overlay
-  my $previousVideoOverlay = undef;
+  my $idVidPrev = undef;
   my $nextFadeOffset = 0;
   for(my $i=0; $i<@inputs; $i++){
-    my $origInputVideo = "$i:v";
-    my $overlayToCreate = "video$i";
+    my $idVidCur = "$i:v";
 
     if(defined $$opts{forceResolution}){
+      my $idVidScale = "scaleVid$i";
       push @filters, ''
-        . "[$origInputVideo]"
+        . "[$idVidCur]"
         . "scale=$$opts{forceResolution}"
-        . "[scaleVid$i]"
+        . "[$idVidScale]"
         ;
-      $origInputVideo = "scaleVid$i";
+      $idVidCur = $idVidScale;
     }
 
-    if(not defined $previousVideoOverlay){
-      #make current overlay by copying current input changed (for first input)
-      push @filters, "[$origInputVideo]copy[$overlayToCreate]";
-    }else{
-      #make current overlay by smooshing previous overlay and current input
+    if(defined $idVidPrev){
+      #smoosh the previous smooshed inputs into this input
+      my $idVidFade = "fadeVid$i";
       push @filters, ""
-        . "[$previousVideoOverlay][$origInputVideo]"
+        . "[$idVidPrev][$idVidCur]"
         . "xfade=transition=fade:duration=$fadeLen:offset=$nextFadeOffset"
-        . "[$overlayToCreate]"
+        . "[$idVidFade]"
         ;
+      $idVidCur = $idVidFade;
     }
-    $previousVideoOverlay = $overlayToCreate;
+
+    $idVidPrev = $idVidCur;
     $nextFadeOffset += $durs[$i] - $fadeLen;
   }
-  push @filters, "[$previousVideoOverlay]copy[vidfinal]";
+  my $idVidFinal = $idVidPrev;
+
+
 
   #apply acrossfade to each subsequent audio overlay
-  my $previousAudioOverlay = undef;
+  my $idAudPrev = undef;
   for(my $i=0; $i<@inputs; $i++){
-    my $origInputAudio = "$i:a";
-    my $overlayToCreate = "audio$i";
-    if(not defined $previousAudioOverlay){
-      #make current overlay by copying current input changed (for first input)
-      push @filters, "[$origInputAudio]acopy[$overlayToCreate]";
-    }else{
-      #make current overlay by smooshing previous overlay and current input
+    my $idAudCur = "$i:a";
+
+    if(defined $idAudPrev){
+      #smoosh the previous smooshed inputs into this input
+      my $idAudFade = "fadeAud$i";
       push @filters, ""
-        . "[$previousAudioOverlay][$origInputAudio]"
+        . "[$idAudPrev][$idAudCur]"
         . "acrossfade=d=$fadeLen"
-        . "[$overlayToCreate]"
+        . "[$idAudFade]"
         ;
+      $idAudCur = $idAudFade;
     }
-    $previousAudioOverlay = $overlayToCreate;
+
+    $idAudPrev = $idAudCur;
   }
-  push @filters, "[$previousAudioOverlay]acopy[audfinal]";
+  my $idAudFinal = $idAudPrev;
+
+
 
   my @cmd = ("ffmpeg",
     (map {("-i", $_)} @inputs),
     "-filter_complex", join(";", @filters),
-    "-map", "[vidfinal]", "-map", "[audfinal]",
+    "-map", "[$idVidFinal]", "-map", "[$idAudFinal]",
     $output,
   );
 
