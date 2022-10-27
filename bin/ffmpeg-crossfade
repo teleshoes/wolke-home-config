@@ -32,8 +32,6 @@ my $usage = "Usage:
 ";
 
 sub crossfadeVideo($$@);
-sub crossfadeVideoWithXfade($$@);
-sub crossfadeVideoWithFadeAndOverlay($$@);
 sub dur($);
 
 sub main(@){
@@ -74,12 +72,6 @@ sub main(@){
 }
 
 sub crossfadeVideo($$@){
-  my ($opts, $output, @inputs) = @_;
-
-  crossfadeVideoWithXfade($opts, $output, @inputs);
-}
-
-sub crossfadeVideoWithXfade($$@){
   my ($opts, $output, @inputs) = @_;
 
   my $fadeLen = $$opts{fadeLen};
@@ -139,110 +131,6 @@ sub crossfadeVideoWithXfade($$@){
     $previousAudioOverlay = $overlayToCreate;
   }
   push @filters, "[$previousAudioOverlay]acopy[audfinal]";
-
-  my @cmd = ("ffmpeg",
-    (map {("-i", $_)} @inputs),
-    "-filter_complex", join(";", @filters),
-    "-map", "[vidfinal]", "-map", "[audfinal]",
-    $output,
-  );
-
-  print "\n=====\nCOMMAND:\n@cmd\n";
-  print "\n=====\nFILTERS:\n";
-  print "$_\n" foreach @filters;
-
-  system @cmd;
-
-  print "\n=====\nCOMMAND:\n@cmd\n";
-  print "\n=====\nFILTERS:\n";
-  print "$_\n" foreach @filters;
-}
-
-sub crossfadeVideoWithFadeAndOverlay($$@){
-  my ($opts, $output, @inputs) = @_;
-
-  my $fadeLen = $$opts{fadeLen};
-
-  my @durs = map {dur $_} @inputs;
-
-  my @filters;
-
-  #fade-in each video except the first, and slide the start times down by <fadeLen>
-  my $nextPtsOffset = 0;
-  for(my $i=0; $i<@inputs; $i++){
-    my @filterChain;
-
-    my $setptsFilter = "setpts=PTS-STARTPTS";
-    if($nextPtsOffset > 0){
-      $setptsFilter .= sprintf("+(%.2f/TB)", $nextPtsOffset);
-    }
-
-    if(defined $$opts{forceResolution}){
-      push @filterChain, "scale=$$opts{forceResolution}";
-    }
-
-    #dont fade-in the first file
-    if($i > 0){
-      push @filterChain, "format=yuva420p";
-      push @filterChain, "fade=in:st=0:d=$fadeLen:alpha=1";
-    }
-    push @filterChain, $setptsFilter;
-
-    #the next fade starts a little after the end of the current total vid
-    $nextPtsOffset += $durs[$i] - $fadeLen;
-    my $filter = "[$i:v]" . join(",", @filterChain) . "[fadevid$i]";
-
-    push @filters, $filter;
-  }
-  #overlay each video onto the previous overlay
-  my $previousVidOverlay = undef;
-  for(my $i=0; $i<@inputs; $i++){
-    my $overlay = "overlayvid$i";
-    if(not defined $previousVidOverlay){
-      push @filters, "[fadevid$i]copy[$overlay]";
-    }else{
-      push @filters, "[$previousVidOverlay][fadevid$i]" . "overlay" . "[$overlay]";
-    }
-    $previousVidOverlay = $overlay;
-  }
-  push @filters, "[$previousVidOverlay]copy[vidfinal]";
-
-
-  #fade-in each audio except the first, and slide the start times down by <fadeLen>
-  $nextPtsOffset = 0;
-  for(my $i=0; $i<@inputs; $i++){
-    my @filterChain;
-
-    my $setptsFilter = "asetpts=PTS-STARTPTS";
-    if($nextPtsOffset > 0){
-      $setptsFilter .= sprintf("+(%.2f/TB)", $nextPtsOffset);
-    }
-
-    #dont fade-in the first file
-    if($i != 0){
-      push @filterChain, "afade=in:st=0:d=$fadeLen";
-    }
-
-    push @filterChain, $setptsFilter;
-
-    #the next fade starts a little after the end of the current total vid
-    $nextPtsOffset += $durs[$i] - $fadeLen;
-    my $filter = "[$i:a]" . join(",", @filterChain) . "[fadeaud$i]";
-
-    push @filters, $filter;
-  }
-  #overlay each audio onto the previous overlay
-  my $previousAudOverlay = undef;
-  for(my $i=0; $i<@inputs; $i++){
-    my $overlay = "overlayaud$i";
-    if(not defined $previousAudOverlay){
-      push @filters, "[fadeaud$i]acopy[$overlay]";
-    }else{
-      push @filters, "[$previousAudOverlay][fadeaud$i]" . "concat=n=2:v=0:a=1" . "[$overlay]";
-    }
-    $previousAudOverlay = $overlay;
-  }
-  push @filters, "[$previousAudOverlay]acopy[audfinal]";
 
   my @cmd = ("ffmpeg",
     (map {("-i", $_)} @inputs),
