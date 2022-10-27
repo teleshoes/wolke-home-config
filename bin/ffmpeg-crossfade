@@ -1,7 +1,9 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+
 use File::Basename qw(basename);
+use List::Util qw(sum);
 
 my $EXEC = basename $0;
 
@@ -100,7 +102,6 @@ sub crossfadeVideo($$@){
 
   #apply xfade to each subsequent video overlay
   my $idVidPrev = undef;
-  my $nextFadeOffset = 0;
   for(my $i=0; $i<@inputs; $i++){
     my $idVidCur = "$i:v";
 
@@ -117,16 +118,20 @@ sub crossfadeVideo($$@){
     if(defined $idVidPrev){
       #smoosh the previous smooshed inputs into this input
       my $idVidFade = "fadeVid$i";
+
+      my $previousTotalDuration = $i == 0 ? 0 : sum(@durs[0..$i-1]);
+      my $previousCount = $i;
+      my $fadeOffset = $previousTotalDuration - ($fadeLen * $previousCount);
+
       push @filters, ""
         . "[$idVidPrev][$idVidCur]"
-        . "xfade=transition=fade:duration=$fadeLen:offset=$nextFadeOffset"
+        . "xfade=transition=fade:duration=$fadeLen:offset=$fadeOffset"
         . "[$idVidFade]"
         ;
       $idVidCur = $idVidFade;
     }
 
     $idVidPrev = $idVidCur;
-    $nextFadeOffset += $durs[$i] - $fadeLen;
   }
   my $idVidFinal = $idVidPrev;
 
