@@ -31,6 +31,9 @@ my $usage = "Usage:
     --resolution WIDTHxHEIGHT | --res WIDTHxHEIGHT | --scale WIDTHxHEIGHT
     --resolution=WIDTHxHEIGHT | --res=WIDTHxHEIGHT | --scale=WIDTHxHEIGHT
       add scale=WIDTHxHEIGHT to filter_complex chain
+
+    -an | --an | --no-audio | --audio-null
+      remove audio channel (do not map any audio)
 ";
 
 sub crossfadeVideo($$@);
@@ -43,6 +46,7 @@ sub main(@){
   my $opts = {
     fadeLen         => $defaultFadeLen,
     forceResolution => undef,
+    audioNull       => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -61,6 +65,8 @@ sub main(@){
       $$opts{forceResolution} = $2;
     }elsif($arg =~ /^(--resolution|--res|--scale)$/ and @_ > 0 and $_[0] =~ /^(\d+x\d+)$/){
       $$opts{forceResolution} = shift;
+    }elsif($arg =~ /^(-an|--an|--no-audio|--audio-null)$/){
+      $$opts{audioNull} = 1;
     }else{
       push @inputVideos, $arg;
     }
@@ -126,6 +132,7 @@ sub crossfadeVideo($$@){
   #apply acrossfade to each subsequent audio overlay
   my $idAudPrev = undef;
   for(my $i=0; $i<@inputs; $i++){
+    next if $$opts{audioNull};
     my $idAudCur = "$i:a";
 
     if(defined $idAudPrev){
@@ -150,7 +157,7 @@ sub crossfadeVideo($$@){
   @cmd = (@cmd, map {("-i", $_)} @inputs);
   @cmd = (@cmd, "-filter_complex", join(";", @filters));
   @cmd = (@cmd, "-map", "[$idVidFinal]");
-  @cmd = (@cmd, "-map", "[$idAudFinal]");
+  @cmd = (@cmd, "-map", "[$idAudFinal]") unless $$opts{audioNull};
   @cmd = (@cmd, $output);
 
   my $msg = ""
