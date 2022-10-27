@@ -33,6 +33,7 @@ my $usage = "Usage:
 
 sub crossfadeVideo($$@);
 sub dur($);
+sub shellEscape($);
 
 sub main(@){
   my @inputVideos;
@@ -136,22 +137,27 @@ sub crossfadeVideo($$@){
 
 
 
-  my @cmd = ("ffmpeg",
-    (map {("-i", $_)} @inputs),
-    "-filter_complex", join(";", @filters),
-    "-map", "[$idVidFinal]", "-map", "[$idAudFinal]",
-    $output,
-  );
+  my @cmd = ();
+  @cmd = (@cmd, "ffmpeg");
+  @cmd = (@cmd, map {("-i", $_)} @inputs);
+  @cmd = (@cmd, "-filter_complex", join(";", @filters));
+  @cmd = (@cmd, "-map", "[$idVidFinal]");
+  @cmd = (@cmd, "-map", "[$idAudFinal]");
+  @cmd = (@cmd, $output);
 
-  print "\n=====\nCOMMAND:\n@cmd\n";
-  print "\n=====\nFILTERS:\n";
-  print "$_\n" foreach @filters;
+  my $msg = ""
+    . "\n\n\n"
+    . "===== COMMAND (shell-escaped):\n"
+    . (join " ", map {shellEscape($_)} @cmd) . "\n"
+    . "===== FILTERS (one per line):\n"
+    . (join "", map {"$_\n"} @filters)
+    . "=====\n"
+    . "\n\n\n"
+  ;
 
+  print $msg;
   system @cmd;
-
-  print "\n=====\nCOMMAND:\n@cmd\n";
-  print "\n=====\nFILTERS:\n";
-  print "$_\n" foreach @filters;
+  print $msg;
 }
 
 sub dur($){
@@ -165,6 +171,23 @@ sub dur($){
     die "invalid duration for $file: $duration\n";
   }
   return $duration;
+}
+
+sub shellEscape($){
+  my $s = shift;
+  my $allowedChars = join '', qw(
+    a-z   A-Z   0-9
+    :    =   @   _   %
+    \+   \-   \.   \/
+    ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ
+  );
+  my $specialChars = "[^$allowedChars]";
+
+  if($s =~ /$specialChars/){
+    $s =~ s/'/'\\''/g;
+    $s = "'$s'";
+  }
+  return $s;
 }
 
 &main(@ARGV);
