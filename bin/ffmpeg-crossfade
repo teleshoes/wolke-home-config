@@ -31,16 +31,18 @@ my $usage = "Usage:
       add scale=WIDTHxHEIGHT to filter_complex chain
 ";
 
-sub crossfadeVideo($$$@);
-sub crossfadeVideoWithXfade($$$@);
-sub crossfadeVideoWithFadeAndOverlay($$$@);
+sub crossfadeVideo($$@);
+sub crossfadeVideoWithXfade($$@);
+sub crossfadeVideoWithFadeAndOverlay($$@);
 sub dur($);
 
 sub main(@){
   my @inputVideos;
   my $outputVideo;
-  my $fadeLen = $defaultFadeLen;
-  my $forceResolution = undef;
+  my $opts = {
+    fadeLen         => $defaultFadeLen,
+    forceResolution => undef,
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -51,9 +53,9 @@ sub main(@){
     }elsif($arg =~ /^(-o|--output)$/ and @_ > 0){
       $outputVideo = shift;
     }elsif($arg =~ /^--fade-len=(\d+|\d*\.\d+)$/){
-      $fadeLen = $1;
+      $$opts{fadeLen} = $1;
     }elsif($arg =~ /^--resolution=(\d+x\d+)$/){
-      $forceResolution = $1;
+      $$opts{forceResolution} = $1;
     }else{
       push @inputVideos, $arg;
     }
@@ -68,17 +70,19 @@ sub main(@){
 
   $outputVideo = "out.$ext" if not defined $outputVideo;
 
-  crossfadeVideo($fadeLen, $forceResolution, $outputVideo, @inputVideos);
+  crossfadeVideo($opts, $outputVideo, @inputVideos);
 }
 
-sub crossfadeVideo($$$@){
-  my ($fadeLen, $forceResolution, $output, @inputs) = @_;
+sub crossfadeVideo($$@){
+  my ($opts, $output, @inputs) = @_;
 
-  crossfadeVideoWithXfade($fadeLen, $forceResolution, $output, @inputs);
+  crossfadeVideoWithXfade($opts, $output, @inputs);
 }
 
-sub crossfadeVideoWithXfade($$$@){
-  my ($fadeLen, $forceResolution, $output, @inputs) = @_;
+sub crossfadeVideoWithXfade($$@){
+  my ($opts, $output, @inputs) = @_;
+
+  my $fadeLen = $$opts{fadeLen};
 
   my @durs = map {dur $_} @inputs;
 
@@ -91,10 +95,10 @@ sub crossfadeVideoWithXfade($$$@){
     my $origInputVideo = "$i:v";
     my $overlayToCreate = "video$i";
 
-    if(defined $forceResolution){
+    if(defined $$opts{forceResolution}){
       push @filters, ''
         . "[$origInputVideo]"
-        . "scale=$forceResolution"
+        . "scale=$$opts{forceResolution}"
         . "[scaleVid$i]"
         ;
       $origInputVideo = "scaleVid$i";
@@ -154,8 +158,10 @@ sub crossfadeVideoWithXfade($$$@){
   print "$_\n" foreach @filters;
 }
 
-sub crossfadeVideoWithFadeAndOverlay($$$@){
-  my ($fadeLen, $forceResolution, $output, @inputs) = @_;
+sub crossfadeVideoWithFadeAndOverlay($$@){
+  my ($opts, $output, @inputs) = @_;
+
+  my $fadeLen = $$opts{fadeLen};
 
   my @durs = map {dur $_} @inputs;
 
@@ -171,8 +177,8 @@ sub crossfadeVideoWithFadeAndOverlay($$$@){
       $setptsFilter .= sprintf("+(%.2f/TB)", $nextPtsOffset);
     }
 
-    if(defined $forceResolution){
-      push @filterChain, "scale=$forceResolution";
+    if(defined $$opts{forceResolution}){
+      push @filterChain, "scale=$$opts{forceResolution}";
     }
 
     #dont fade-in the first file
