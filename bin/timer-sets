@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep time);
+
+my $USAGE = "
+  $0 -h|--help
+    show this message
+
+  $0 [OPTS] [DURATION_SECONDS]
+    wait DURATION_SECONDS
+";
+
+sub main(@){
+  my $durMillis = 30000;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(\d+)$/){
+      $durMillis = $1 * 1000;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  $| = 1;
+  my $count = 0;
+  while(1){
+    $count++;
+
+    system "alarm -s failure";
+    print "SET: $count\n";
+
+    sleep 3;
+    system "alarm -s success";
+
+    my $startMillis = nowMillis();
+    my $endMillis = $startMillis + $durMillis;
+    while(1){
+      my $remMillis = $endMillis - nowMillis();
+      last if $remMillis <= 0;
+
+      my $sleepMillis = $remMillis > 1000 ? 1000 : $remMillis;
+      sleep $sleepMillis/1000.0;
+
+      my $elapsedMillis = nowMillis() - $startMillis;
+      my $elapsedS = int($elapsedMillis/1000.0 + 0.5);
+      print " $elapsedS";
+    }
+    print "\n";
+  }
+}
+
+sub nowMillis(){
+  return int(time() * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
