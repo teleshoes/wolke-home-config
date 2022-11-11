@@ -156,9 +156,9 @@ shortcuts conf = "Shortcuts" @@ do
                            mW    xK_F4   #! "pulse-vol microphone toggle"
 
         "spkr switch"   @@ mW    xK_VolUp#! "speaker toggle; klomp-cmd restart"
-        "tv cec mute"   @@ mC    xK_Mute #! "ipmagic tv -s cec-cmd --av mute"
-        "tv cec volup"  @@ mC    xK_equal#! "ipmagic tv -s cec-cmd --av vol +1"
-        "tv cec voldn"  @@ mC    xK_minus#! "ipmagic tv -s cec-cmd --av vol -1"
+        "AVR volup"     @@ mC    xK_equal#! "avr volup"
+        "AVR voldn"     @@ mC    xK_minus#! "avr voldown"
+        "AVR mute"      @@ mC    xK_Mute #! "avr --mute-toggle"
         "igcmd volup"   @@ mCS   xK_equal#! "ipmagic pi igcmd av-vol_up"
         "igcmd voldn"   @@ mCS   xK_minus#! "ipmagic pi igcmd av-vol_down"
         "tv vol up"     @@ mCA   xK_VolUp#! "ipmagic tv -s pulse-vol +6 100"
