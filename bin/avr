@@ -4,6 +4,11 @@ use warnings;
 use Time::HiRes qw(sleep);
 use File::Basename qw(basename);
 
+sub curl($);
+sub runCmd($);
+sub setVol($);
+sub getInfo();
+
 my $IP = "192.168.11.84";
 
 my $URL_CMD_PREFIX = "http://$IP:8080/goform/formiPhoneAppDirect.xml";
@@ -22,6 +27,23 @@ my $USAGE = "Usage:
     print the current volume level (EXEC..98)
     if muted, print ' (mute)' after volume
 
+  $EXEC -m | --mute-toggle | mute-toggle
+    get current mute status as in `$EXEC --get`
+    if muted, run command 'MUOFF'
+    otherwise, run command 'MUON'
+
+  $EXEC mute | --mute-on | mute-on
+    run command 'MUON'
+
+  $EXEC unmute | --mute-off | mute-off
+    run command 'MUOFF'
+
+  $EXEC up | volup | --up | --volup
+    run command 'MVUP'
+
+  $EXEC down | voldown | --down | --voldown
+    run command 'MVDOWN'
+
   $EXEC VOL
   $EXEC =VOL
     set the current volume directly to VOL with 'MV<VOL_ARG>' command
@@ -36,11 +58,14 @@ my $USAGE = "Usage:
 
 my $MODE_GET_VOL = "get-vol";
 my $MODE_SET_VOL = "set-vol";
+my $MODE_MUTE_TOGGLE = "mute-toggle";
+my $MODE_RUN_CMD = "run-cmd";
 
 sub main(@){
   my $mode = $MODE_GET_VOL;
   my $vol = undef;
   my $volSign = undef;
+  my $commandToRun = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -52,6 +77,20 @@ sub main(@){
       $mode = $MODE_SET_VOL;
       ($volSign, $vol) = ($1, $2);
       $volSign = "=" if not defined $volSign or $volSign eq "";
+    }elsif($arg =~ /^(-m|--mute-toggle|mute-toggle)$/){
+      $mode = $MODE_MUTE_TOGGLE;
+    }elsif($arg =~ /^(mute|--mute-on|mute-on)$/){
+      $mode = $MODE_RUN_CMD;
+      $commandToRun = "MUON";
+    }elsif($arg =~ /^(unmute|--mute-off|mute-off)$/){
+      $mode = $MODE_RUN_CMD;
+      $commandToRun = "MUOFF";
+    }elsif($arg =~ /^(up|volup|--up|--volup)$/){
+      $mode = $MODE_RUN_CMD;
+      $commandToRun = "MVUP";
+    }elsif($arg =~ /^(down|voldown|--down|--voldown)$/){
+      $mode = $MODE_RUN_CMD;
+      $commandToRun = "MVDOWN";
     }else{
       die "ERROR: unknown arg $arg\n";
     }
@@ -80,6 +119,15 @@ sub main(@){
     $targetVol = 98 if $targetVol > 98;
 
     setVol($targetVol);
+  }elsif($mode eq $MODE_MUTE_TOGGLE){
+    my $info = getInfo();
+    if($$info{mute} eq "on"){
+      runCmd "MUOFF";
+    }else{
+      runCmd "MUON";
+    }
+  }elsif($mode eq $MODE_RUN_CMD){
+    runCmd $commandToRun;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -91,6 +139,11 @@ sub curl($){
   my $out = join '', <FH>;
   close FH;
   return $out;
+}
+
+sub runCmd($){
+  my ($cmd) = @_;
+  return curl("$URL_CMD_PREFIX?$cmd");
 }
 
 sub setVol($){
@@ -111,7 +164,7 @@ sub setVol($){
   }
   $volArg .= '5' if $appendHalf;
 
-  curl("$URL_CMD_PREFIX?MV$volArg");
+  runCmd("MV$volArg");
 }
 
 sub getInfo(){
