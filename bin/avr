@@ -1,0 +1,160 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(sleep);
+use File::Basename qw(basename);
+
+my $IP = "192.168.11.84";
+
+my $URL_CMD_PREFIX = "http://$IP:8080/goform/formiPhoneAppDirect.xml";
+my $URL_GET_DEVICEINFO = "http://$IP:8080/goform/Deviceinfo.xml";
+my $URL_GET_MAINZONE = "http://$IP:8080/goform/formMainZone_MainZoneXmlStatusLite.xml";
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  Denon AVR http port 8080 interface wrapper
+
+  $EXEC -h | --help
+    show this message
+
+  $EXEC -g | --get | get
+    print the current volume level (EXEC..98)
+    if muted, print ' (mute)' after volume
+
+  $EXEC VOL
+  $EXEC =VOL
+    set the current volume directly to VOL with 'MV<VOL_ARG>' command
+    VOL_ARG is 2-digit VOL, with '5' appended for half volume steps
+
+  $EXEC +VOL
+  $EXEC -VOL
+    -get the current volume as in `$EXEC --get`
+    -add or subtract VOL
+    -set the volume as in `$EXEC =VOL`
+";
+
+my $MODE_GET_VOL = "get-vol";
+my $MODE_SET_VOL = "set-vol";
+
+sub main(@){
+  my $mode = $MODE_GET_VOL;
+  my $vol = undef;
+  my $volSign = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-g|--get|get)$/){
+      $mode = $MODE_GET_VOL;
+    }elsif($arg =~ /^(\+|-|=)?(\d+|\d*\.\d+)$/){
+      $mode = $MODE_SET_VOL;
+      ($volSign, $vol) = ($1, $2);
+      $volSign = "=" if not defined $volSign or $volSign eq "";
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($mode eq $MODE_GET_VOL){
+    my $info = getInfo();
+    my $msg = $$info{vol};
+    $msg .= " (mute)" if $$info{mute} =~ /on/;
+    print "$msg\n";
+  }elsif($mode eq $MODE_SET_VOL){
+    my $targetVol;
+    if($volSign eq "="){
+      $targetVol = $vol;
+    }elsif($volSign eq "+"){
+      my $info = getInfo();
+      $targetVol = $$info{vol} + $vol;
+    }elsif($volSign eq "-"){
+      my $info = getInfo();
+      $targetVol = $$info{vol} - $vol;
+    }else{
+      die "ERROR: unknown volume operator $volSign\n";
+    }
+
+    $targetVol = 0 if $targetVol < 0;
+    $targetVol = 98 if $targetVol > 98;
+
+    setVol($targetVol);
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub curl($){
+  my ($url) = @_;
+  open FH, "-|", "curl", "--insecure", "--silent", $url;
+  my $out = join '', <FH>;
+  close FH;
+  return $out;
+}
+
+sub setVol($){
+  my ($vol) = @_;
+  if($vol < 0 or $vol > 98){
+    die "ERROR: volume level (not dB) must be between 0..98 $vol\n";
+  }
+
+  my $appendHalf = 0;
+  my $frac = $vol - int($vol);
+  if($frac >= 0.25){
+    $appendHalf = 1;
+  }
+
+  my $volArg = int($vol);
+  if($volArg < 10){
+    $volArg = "0$vol";
+  }
+  $volArg .= '5' if $appendHalf;
+
+  curl("$URL_CMD_PREFIX?MV$volArg");
+}
+
+sub getInfo(){
+  my $out = curl($URL_GET_MAINZONE);
+
+  my $info = {
+    power => undef,
+    input => undef,
+    vol => undef,
+    mute => undef,
+  };
+
+  if($out =~ /<Power><value>(on|off)<\/value><\/Power>/i){
+    $$info{power} = lc $1;
+  }else{
+    die "ERROR: could not get power from $URL_GET_MAINZONE\n";
+  }
+
+  if($out =~ /<InputFuncSelect><value>([^<]+)<\/value><\/InputFuncSelect>/i){
+    $$info{input} = $1;
+  }else{
+    die "ERROR: could not get power from $URL_GET_MAINZONE\n";
+  }
+
+  if($out =~ /<MasterVolume><value>(--|-?(?:\d+|\d*\.\d+))<\/value><\/MasterVolume>/){
+    my $volDB = $1;
+    $volDB = "-80" if $volDB eq "--"; #-80dB is volume 0, and has a special value of '--'
+    my $vol = $volDB + 80;
+    if($vol < 0){
+      die "ERROR: vol dB below min (-80) - \"$volDB\"\n";
+    }
+    $$info{vol} = $vol;
+  }else{
+    die "ERROR: could not get volume from $URL_GET_MAINZONE\n";
+  }
+
+  if($out =~ /<Mute><value>(on|off)<\/value><\/Mute>/i){
+    $$info{mute} = lc $1;
+  }else{
+    die "ERROR: could not get mute status from $URL_GET_MAINZONE\n";
+  }
+
+  return $info;
+}
+
+&main(@ARGV);
