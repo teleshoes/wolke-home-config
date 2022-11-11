@@ -17,6 +17,28 @@ my $URL_GET_MAINZONE = "http://$IP:8080/goform/formMainZone_MainZoneXmlStatusLit
 
 my $EXEC = basename $0;
 
+my $INPUT_ARR = [
+  [main      => "SISAT/CBL"  => [qw(main cbl cbl/sat sat sat/cbl)]],
+  [bluray    => "SIBD"       => [qw(bluray bd)]],
+  [dvd       => "SIDVD"      => [qw(dvd)]],
+  [game      => "SIGAME"     => [qw(game)]],
+  [bluetooth => "SIBT"       => [qw(bluetooth bt)]],
+  [aux       => "SIAUX1"     => [qw(aux aux1)]],
+  [radio     => "SITUNER"    => [qw(tuner radio)]],
+];
+
+my @INPUT_NAMES = map {$$_[0]}           @$INPUT_ARR;
+my %INPUT_CMDS  = map {$$_[0] => $$_[1]} @$INPUT_ARR;
+my %INPUT_SYNS  = map {$$_[0] => $$_[2]} @$INPUT_ARR;
+
+my %INPUT_BY_SYN = map {my $name = $_; map {$_ => $name} @{$INPUT_SYNS{$_}}} @INPUT_NAMES;
+my $INPUT_SYN_REGEX = join "|", sort keys %INPUT_BY_SYN;
+
+my $INPUT_FMT = join '', map {
+  sprintf "      %-10s: %-40s = %-8s\n",
+    $_, join(" | ", @{$INPUT_SYNS{$_}}), $INPUT_CMDS{$_}
+} @INPUT_NAMES;
+
 my $USAGE = "Usage:
   Denon AVR http port 8080 interface wrapper
 
@@ -54,6 +76,11 @@ my $USAGE = "Usage:
     -get the current volume as in `$EXEC --get`
     -add or subtract VOL
     -set the volume as in `$EXEC =VOL`
+
+  $EXEC INPUT_SYN
+    switch to input using INPUT_CMD
+      INPUT_NAME: INPUT_SYN                                = INPUT_CMD\n"
+      . $INPUT_FMT . "
 ";
 
 my $MODE_GET_VOL = "get-vol";
@@ -91,6 +118,10 @@ sub main(@){
     }elsif($arg =~ /^(down|voldown|--down|--voldown)$/){
       $mode = $MODE_RUN_CMD;
       $commandToRun = "MVDOWN";
+    }elsif($arg =~ /^($INPUT_SYN_REGEX)$/i){
+      my $inputName = $INPUT_BY_SYN{lc $arg};
+      $mode = $MODE_RUN_CMD;
+      $commandToRun = $INPUT_CMDS{$inputName};
     }else{
       die "ERROR: unknown arg $arg\n";
     }
