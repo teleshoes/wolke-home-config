@@ -32,7 +32,7 @@ clickR = return $ Just killCmd
 
 getImage :: Int -> IORef Bool -> IO String
 getImage h flashToggle = do
-  pipeFile <- getHomeFile ".purple/plugins/pipe"
+  pipeFile <- getHomeFile ".purple/plugins/pidgin-pipe-status-pipe-status"
 
   pipe <- chompFile pipeFile
   let status = if null pipe then "off" else map toLower pipe
@@ -56,8 +56,8 @@ nextToggle toggle = do
   return nextVal
 
 imgName status isFlash = case status of
-  "off"            -> "not-running"
-  "new message"    -> if isFlash then "pidgin-tray-pending-flash" else "pidgin-tray-pending"
+  "off"            -> "off"
+  "new"            -> if isFlash then "new-other-invert" else "new-other"
   "available"      -> "pidgin-tray-available"
   "away"           -> "pidgin-tray-away"
   "do not disturb" -> "pidgin-tray-busy"
