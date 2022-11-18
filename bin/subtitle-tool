@@ -4,8 +4,12 @@ use warnings;
 use JSON qw(from_json);
 use Time::HiRes qw(time);
 
-my $OK_EXTS_REGEX = join "|", qw(
+my $OK_VIDEO_EXTS_REGEX = join "|", qw(
   avi m2ts mts mov mkv mpeg mpg mp4
+);
+
+my $OK_SUB_EXTS_REGEX = join "|", qw(
+  srt
 );
 
 my $BACKUP_DIR = "$ENV{HOME}/.cache/subtitle-tool";
@@ -22,23 +26,32 @@ sub nowMillis();
 sub run(@);
 
 my $USAGE = "Usage:
-  $0 [OPTS] --extract VIDEO_FILE [VIDEO_FILE ..]
+  $0 [OPTS] --extract VIDEO_OR_SRT_FILE [VIDEO_OR_SRT_FILE ..]
+    -obtain SRT_FILE from VIDEO_OR_SRT_FILE
+      -if VIDEO_OR_SRT_FILE ext is $OK_VIDEO_EXTS_REGEX
+        replace ext with 'srt' and use as SRT_FILE
+      -if VIDEO_OR_SRT_FILE ext is $OK_SUB_EXTS_REGEX
+        use as SRT_FILE
     -if SRT_FILE exists, do nothing
-    -if VIDEO_FILE is an MKV file:
+    -if VIDEO_OR_SRT_FILE is an MKV file:
       -extract SRT track using `mkvextract`, and write to SRT_FILE
-    -otherwise, fail with an error
+    -otherwise:
+      -fail with an error
 
-  $0 [OPTS] --edit VIDEO_FILE [VIDEO_FILE ..]
-  $0 [OPTS] --oneline VIDEO_FILE [VIDEO_FILE ..]
+  $0 [OPTS] --edit VIDEO_OR_SRT_FILE [VIDEO_OR_SRT_FILE ..]
+  $0 [OPTS] --oneline VIDEO_OR_SRT_FILE [VIDEO_OR_SRT_FILE ..]
+    -obtain SRT_FILE from VIDEO_OR_SRT_FILE
+      -if VIDEO_OR_SRT_FILE ext is $OK_VIDEO_EXTS_REGEX
+        replace ext with 'srt' and use as SRT_FILE
+      -if VIDEO_OR_SRT_FILE ext is $OK_SUB_EXTS_REGEX
+        use as SRT_FILE
+    -if SRT_FILE does not exist, fail
     -edit the existing SRT_FILE, ensuring that each subtitle is on one line
       -replace all newlines with a single space char
     -if the SRT_FILE is changed, move original SRT_FILE to BACKUP_SRT_FILE
 
-  $0 [OPTS] VIDEO_FILE [VIDEO_FILE ..]
-    same as: $0 --extract VIDEO_FILE && $0 --edit VIDEO_FILE
-
-  SRT_FILE
-    same as VIDEO_FILE, with '.<EXT>' suffix replaced with '.srt', case-insensitive
+  $0 [OPTS] VIDEO_OR_SRT_FILE [VIDEO_OR_SRT_FILE ..]
+    same as: $0 --extract VIDEO_OR_SRT_FILE && $0 --edit VIDEO_OR_SRT_FILE
 
   BACKUP_SRT_FILE
     backup file for SRT_FILE: $BACKUP_DIR/subtitle-fix-<SRT_FILE_BOING>-<MILLIS>
@@ -50,6 +63,7 @@ my $USAGE = "Usage:
   OPTS
     --replace
       when extracting subtitles, first move the existing SRT_FILE to BACKUP_SRT_FILE
+      (only affects .mkv files)
 
     --eng
       choose the first english lang subtitle track
@@ -82,7 +96,7 @@ my $CMD_EDIT = "edit";
 
 sub main(@){
   my $cmd = $CMD_EXTRACT_AND_EDIT;
-  my @videoFiles;
+  my @videoOrSubFiles;
   my $subArgCSV = "ENG1,1";
   my $replace = 0;
   while(@_ > 0){
@@ -102,40 +116,48 @@ sub main(@){
       $subArgCSV = "ENG2,ENG1,1";
     }elsif($arg =~ /^--priority=(.+)$/){
       $subArgCSV = $1;
-    }elsif(-f $arg and $arg =~ /\.($OK_EXTS_REGEX)$/i){
-      push @videoFiles, $arg;
+    }elsif(-f $arg and $arg =~ /\.($OK_VIDEO_EXTS_REGEX)$/i){
+      push @videoOrSubFiles, $arg;
+    }elsif(-f $arg and $arg =~ /\.($OK_SUB_EXTS_REGEX)$/i){
+      push @videoOrSubFiles, $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
-  die "$USAGE\nERROR: no VIDEO_FILE give\n" if @videoFiles == 0;
+  die "$USAGE\nERROR: no VIDEO_OR_SUB_FILE give\n" if @videoOrSubFiles == 0;
 
-  for my $videoFile(@videoFiles){
+  for my $videoOrSubFile(@videoOrSubFiles){
     if($cmd =~ /^($CMD_EXTRACT|$CMD_EXTRACT_AND_EDIT)$/){
-      if($replace){
-        removeSRT($videoFile);
+      if($replace and $videoOrSubFile =~ /\.mkv$/){
+        removeSRT($videoOrSubFile);
       }
-      ensureSRT($videoFile, $subArgCSV);
+      ensureSRT($videoOrSubFile, $subArgCSV);
     }
     if($cmd =~ /^($CMD_EDIT|$CMD_EXTRACT_AND_EDIT)$/){
-      editSRT($videoFile);
+      editSRT($videoOrSubFile);
     }
   }
 }
 
 sub getSRTFile($){
-  my ($videoFile) = @_;
-  my $srtFile = $videoFile;
-  if($srtFile !~ s/\.($OK_EXTS_REGEX)/.srt/i){
-    die "ERROR: malformed VIDEO_FILE $videoFile, <EXT> must be one of: $OK_EXTS_REGEX\n";
+  my ($videoOrSubFile) = @_;
+  my $srtFile = $videoOrSubFile;
+
+  $srtFile =~ s/\.($OK_VIDEO_EXTS_REGEX)$/.srt/i;
+
+  if($srtFile =~ /\.($OK_SUB_EXTS_REGEX)$/i){
+    return $srtFile;
+  }else{
+    die "ERROR: malformed VIDEO_OR_SUB_FILE $videoOrSubFile\n"
+      . "<EXT> must be one of: $OK_VIDEO_EXTS_REGEX or $OK_SUB_EXTS_REGEX\n";
   }
   return $srtFile;
 }
 
 sub editSRT($){
-  my ($videoFile) = @_;
-  my $srtFile = getSRTFile($videoFile);
+  my ($videoOrSubFile) = @_;
+  my $srtFile = getSRTFile($videoOrSubFile);
   die "ERROR: SRT_FILE does not exist\n" if not -f $srtFile;
 
   my $contents = readFile($srtFile);
@@ -179,18 +201,18 @@ sub editSRT($){
   }
 
   if($contents ne $newContents){
-    removeSRT($videoFile);
+    removeSRT($videoOrSubFile);
     writeFile($srtFile, $newContents);
   }
 }
 
 sub ensureSRT($$){
-  my ($videoFile, $subArgCSV) = @_;
-  my $srtFile = getSRTFile($videoFile);
+  my ($videoOrSubFile, $subArgCSV) = @_;
+  my $srtFile = getSRTFile($videoOrSubFile);
   if(-e $srtFile){
     return;
   }
-  my $mkvFile = $videoFile;
+  my $mkvFile = $videoOrSubFile;
   if($mkvFile !~ /\.mkv/i){
     die "ERROR: malformed MKV_FILE $mkvFile, must end in .mkv\n";
   }
@@ -203,8 +225,8 @@ sub ensureSRT($$){
 }
 
 sub removeSRT($){
-  my ($videoFile) = @_;
-  my $srtFile = getSRTFile($videoFile);
+  my ($videoOrSubFile) = @_;
+  my $srtFile = getSRTFile($videoOrSubFile);
   if(-f $srtFile){
     my $boingSrtFile = $srtFile;
     $boingSrtFile =~ s/[^a-zA-Z0-9_]/%/g;
