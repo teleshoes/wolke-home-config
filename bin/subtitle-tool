@@ -36,8 +36,8 @@ my $USAGE = "Usage:
       -if VIDEO_OR_SRT_FILE ext is $OK_SUB_EXTS_REGEX
         use as SRT_FILE
     -if SRT_FILE exists, do nothing
-    -if VIDEO_OR_SRT_FILE is an MKV file:
-      -extract SRT track using `mkvextract`, and write to SRT_FILE
+    -if VIDEO_OR_SRT_FILE is a video file ($OK_VIDEO_EXTS_REGEX):
+      -extract SRT track using `ffprobe` and `ffmpeg`, and write to SRT_FILE
     -otherwise:
       -fail with an error
 
@@ -70,7 +70,7 @@ my $USAGE = "Usage:
   OPTS
     --replace
       when extracting subtitles, first move the existing SRT_FILE to BACKUP_SRT_FILE
-      (only affects .mkv files)
+      (only affects video files, not srt files)
 
     --eng
       choose the first english lang subtitle track
@@ -205,7 +205,7 @@ sub main(@){
 
   for my $videoOrSubFile(@videoOrSubFiles){
     if($cmd =~ /^($CMD_EXTRACT|$CMD_EXTRACT_AND_EDIT)$/){
-      if($replace and $videoOrSubFile =~ /\.mkv$/){
+      if($replace and $videoOrSubFile =~ /\.($OK_VIDEO_EXTS_REGEX)$/){
         removeSRT($videoOrSubFile);
       }
       ensureSRT($videoOrSubFile, $subArgCSV);
@@ -329,15 +329,18 @@ sub ensureSRT($$){
   if(-e $srtFile){
     return;
   }
-  my $mkvFile = $videoOrSubFile;
-  if($mkvFile !~ /\.mkv/i){
-    die "ERROR: malformed MKV_FILE $mkvFile, must end in .mkv\n";
+  my $videoFile = $videoOrSubFile;
+  my $trackID = selectSubTrackID($videoFile, $subArgCSV);
+  if(not defined $trackID){
+    die "ERROR: could not find subtitle track in $videoFile\n";
   }
 
-  my $trackID = selectSubTrackID($mkvFile, $subArgCSV);
-  die "ERROR: could not find subtitle tracks in $mkvFile\n" if not defined $trackID;
-
-  my @cmd = ("mkvextract", $mkvFile, "tracks", "$trackID:$srtFile");
+  my @cmd = ("ffmpeg",
+    "-loglevel", "warning",
+    "-stats",
+    "-i", $videoFile,
+    "-map", "0:$trackID", $srtFile
+  );
   run @cmd;
 }
 
@@ -386,8 +389,8 @@ sub timestampToMillis($){
 }
 
 sub selectSubTrackID($$){
-  my ($mkvFile, $subArgCSV) = @_;
-  my @tracks = getTracks($mkvFile);
+  my ($videoFile, $subArgCSV) = @_;
+  my @tracks = getTracks($videoFile);
   for my $subArg(split(/,/, $subArgCSV)){
     my ($lang, $langIdx, $idx);
     if($subArg =~ /^\s*([a-z]+)(\d+)\s*$/i){
@@ -403,10 +406,10 @@ sub selectSubTrackID($$){
     my $curLangIdx = 0;
     my $curSubIdx = 0;
     for my $track(@tracks){
-      next if $$track{type} ne "subtitles";
-      next if $$track{codec} !~ /SRT/i;
+      #skip non-text/unknown codecs like dvd_subtitle
+      next if $$track{codec} !~ /^(mov_text|subrip|ass)$/i;
 
-      my $subLang = $$track{properties}{language};
+      my $subLang = $$track{lang};
       $subLang = "" if not defined $subLang;
       if(defined $lang and lc $lang eq lc $subLang){
         $curLangIdx++;
@@ -425,15 +428,30 @@ sub selectSubTrackID($$){
 }
 
 sub getTracks($){
-  my ($mkvFile) = @_;
-  my @cmd = ("mkvmerge", "-J", $mkvFile);
+  my ($videoFile) = @_;
+  my @cmd = ("ffprobe",
+    "-loglevel", "error",
+    "-select_streams", "s",
+    "-show_entries", "stream=index,codec_name:stream_tags=language",
+    "-of", "csv=p=0",
+    $videoFile);
   open CMD, "-|", @cmd or die "ERROR: could not run @cmd\n";
-  my $json = join '', <CMD>;
+  my @lines = <CMD>;
   close CMD;
 
-  my $obj = from_json($json);
-  my @tracks = @{$$obj{tracks}};
-  die "ERROR: could not fetch tracks with @cmd\n" if @tracks == 0;
+  my @tracks;
+  for my $line(@lines){
+    if($line =~ /^(\d+),([^,]*),(.*)$/){
+      my ($trackNum, $codec, $lang) = ($1, $2, $3);
+      push @tracks, {
+        id    => $trackNum,
+        codec => $codec,
+        lang  => $lang,
+      };
+    }else{
+      die "ERROR: malformed ffprobe output\n";
+    }
+  }
   return @tracks;
 }
 
