@@ -46,6 +46,7 @@ my $USAGE = "Usage:
         use as SRT_FILE
     -if SRT_FILE does not exist, fail
     -edit the existing SRT_FILE:
+      -OPTIONALLY sort subtitle entries by starting timestamp (with --sort)
       -OPTIONALLY remove <font> tags (with --remove-font)
       -ensure each subtitle index is sequential (unless --no-renumber)
       -replace all newlines with a single space char (unless --no-single-line)
@@ -96,6 +97,15 @@ my $USAGE = "Usage:
       do not remove <font> or </font> tags
       (this is the default)
 
+    --sort | --sort-timestamp | --sort-timestamps
+      sort subtitle entries by starting timestamp
+        (with ending timestamp as tie-breaker, preserving order if both equal)
+      useful for interleaving two subtitle files
+      best used with --renumber
+    --no-sort
+      do not sort subtitle entries
+      (this is the default)
+
     SUB_CSV
       comma-separated list of <SUB>s
       e.g.:   'ENG1,ENG2,1'   'SPA2'
@@ -122,6 +132,7 @@ sub main(@){
     renumber       => 1,
     singleLine     => 1,
     removeFont     => 0,
+    sortTimestamps => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -152,6 +163,10 @@ sub main(@){
       $$editOpts{removeFont} = 1;
     }elsif($arg =~ /^(--no-remove-font)$/){
       $$editOpts{removeFont} = 0;
+    }elsif($arg =~ /^(--sort|--sort-timestamp|--sort-timestamps)$/){
+      $$editOpts{sortTimestamps} = 1;
+    }elsif($arg =~ /^(--no-sort)$/){
+      $$editOpts{sortTimestamps} = 0;
     }elsif(-f $arg and $arg =~ /\.($OK_VIDEO_EXTS_REGEX)$/i){
       push @videoOrSubFiles, $arg;
     }elsif(-f $arg and $arg =~ /\.($OK_SUB_EXTS_REGEX)$/i){
@@ -218,6 +233,10 @@ sub editSRT($$){
     }else{
       push @prefixLines, $line;
     }
+  }
+
+  if($$editOpts{sortTimestamps}){
+    @subs = sort {$$a{timestampLine} cmp $$b{timestampLine}} @subs;
   }
 
   my $newContents = join '', @prefixLines;
