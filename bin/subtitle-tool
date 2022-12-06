@@ -50,6 +50,7 @@ my $USAGE = "Usage:
     -if SRT_FILE does not exist, fail
     -edit the existing SRT_FILE:
       -OPTIONALLY sort subtitle entries by starting timestamp (with --sort)
+      -OPTIONALLY remove duplicate subtitle entries (with --remove-dupes)
       -OPTIONALLY add an offset to all timestamps (with --offset-millis)
       -OPTIONALLY remove <font> tags (with --remove-font)
       -ensure each subtitle index is sequential (unless --no-renumber)
@@ -108,6 +109,11 @@ my $USAGE = "Usage:
       best used with --renumber
     --no-sort
       do not sort subtitle entries
+      (this is the default)
+
+    --remove-dupes
+      if multiple subtitles have the same text and the same start+end time, remove all but one
+    --no-remove-dupes
       (this is the default)
 
     --offset-millis=OFFSET_MILLIS
@@ -180,6 +186,10 @@ sub main(@){
       $$editOpts{sortTimestamps} = 1;
     }elsif($arg =~ /^(--no-sort)$/){
       $$editOpts{sortTimestamps} = 0;
+    }elsif($arg =~ /^(--remove-dupes)$/){
+      $$editOpts{removeDupes} = 1;
+    }elsif($arg =~ /^(--no-sort)$/){
+      $$editOpts{removeDupes} = 0;
     }elsif($arg =~ /^--offset-millis=(-?\d+)$/){
       $$editOpts{offsetMillis} = $1;
     }elsif(-f $arg and $arg =~ /\.($OK_VIDEO_EXTS_REGEX)$/i){
@@ -254,13 +264,15 @@ sub editSRT($$){
     @subs = sort {$$a{timestampLine} cmp $$b{timestampLine}} @subs;
   }
 
+  my $index = 1;
+  my %seenSubs;
+
   my $newContents = join '', @prefixLines;
-  for(my $idx=0; $idx<@subs; $idx++){
-    my $sub = $subs[$idx];
+  for my $sub(@subs){
 
     my $numLine = $$sub{numLine};
     if($$editOpts{renumber}){
-      $numLine = ($idx+1) . "\n";
+      $numLine = "$index\n";
     }
 
     my $timestampLine = $$sub{timestampLine};
@@ -288,9 +300,21 @@ sub editSRT($$){
       $text =~ s/<\/?font([^>]|\n|\r)*>//g;
     }
 
-    $newContents .= $numLine;
-    $newContents .= $timestampLine;
-    $newContents .= $text;
+    my $includeEntry = 1;
+    if($$editOpts{removeDupes}){
+      my $key = "$timestampLine$text";
+      if(defined $seenSubs{$key}){
+        $includeEntry = 0;
+      }
+      $seenSubs{$key} = 1;
+    }
+
+    if($includeEntry){
+      $index++;
+      $newContents .= $numLine;
+      $newContents .= $timestampLine;
+      $newContents .= $text;
+    }
   }
 
   if($contents ne $newContents){
