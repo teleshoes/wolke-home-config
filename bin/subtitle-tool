@@ -46,6 +46,7 @@ my $USAGE = "Usage:
         use as SRT_FILE
     -if SRT_FILE does not exist, fail
     -edit the existing SRT_FILE:
+      -OPTIONALLY remove <font> tags (with --remove-font)
       -ensure each subtitle index is sequential (unless --no-renumber)
       -replace all newlines with a single space char (unless --no-single-line)
     -if the SRT_FILE is changed, move original SRT_FILE to BACKUP_SRT_FILE
@@ -89,6 +90,12 @@ my $USAGE = "Usage:
     --no-single-line
       do not remove newlines
 
+    --remove-font
+      remove all <font> and </font> HTML tags
+    --no-remove-font
+      do not remove <font> or </font> tags
+      (this is the default)
+
     SUB_CSV
       comma-separated list of <SUB>s
       e.g.:   'ENG1,ENG2,1'   'SPA2'
@@ -114,6 +121,7 @@ sub main(@){
   my $editOpts = {
     renumber       => 1,
     singleLine     => 1,
+    removeFont     => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -140,6 +148,10 @@ sub main(@){
       $$editOpts{singleLine} = 1;
     }elsif($arg =~ /^(--no-single-line)$/){
       $$editOpts{singleLine} = 0;
+    }elsif($arg =~ /^(--remove-font)$/){
+      $$editOpts{removeFont} = 1;
+    }elsif($arg =~ /^(--no-remove-font)$/){
+      $$editOpts{removeFont} = 0;
     }elsif(-f $arg and $arg =~ /\.($OK_VIDEO_EXTS_REGEX)$/i){
       push @videoOrSubFiles, $arg;
     }elsif(-f $arg and $arg =~ /\.($OK_SUB_EXTS_REGEX)$/i){
@@ -232,6 +244,10 @@ sub editSRT($$){
         }
         $text .= $line;
       }
+    }
+
+    if($$editOpts{removeFont}){
+      $text =~ s/<\/?font([^>]|\n|\r)*>//g;
     }
 
     $newContents .= $numLine;
