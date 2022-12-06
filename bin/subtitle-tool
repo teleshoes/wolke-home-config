@@ -18,6 +18,9 @@ sub getSRTFile($);
 sub editSRT($$);
 sub ensureSRT($$);
 sub removeSRT($);
+sub applyTimestampOffsetMillis($$);
+sub millisToTimestamp($);
+sub timestampToMillis($);
 sub selectSubTrackID($$);
 sub getTracks($);
 sub readFile($);
@@ -47,6 +50,7 @@ my $USAGE = "Usage:
     -if SRT_FILE does not exist, fail
     -edit the existing SRT_FILE:
       -OPTIONALLY sort subtitle entries by starting timestamp (with --sort)
+      -OPTIONALLY add an offset to all timestamps (with --offset-millis)
       -OPTIONALLY remove <font> tags (with --remove-font)
       -ensure each subtitle index is sequential (unless --no-renumber)
       -replace all newlines with a single space char (unless --no-single-line)
@@ -106,6 +110,14 @@ my $USAGE = "Usage:
       do not sort subtitle entries
       (this is the default)
 
+    --offset-millis=OFFSET_MILLIS
+      add OFFSET_MILLIS to start-timestamp and end-timestamp of all subtitle entries
+
+    OFFSET_MILLIS
+      any integer
+        negative numbers make subtitles appear earlier
+        positive numbers make subtitles appear later
+        zero means do not edit timestamps
     SUB_CSV
       comma-separated list of <SUB>s
       e.g.:   'ENG1,ENG2,1'   'SPA2'
@@ -133,6 +145,7 @@ sub main(@){
     singleLine     => 1,
     removeFont     => 0,
     sortTimestamps => 0,
+    offsetMillis   => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -167,6 +180,8 @@ sub main(@){
       $$editOpts{sortTimestamps} = 1;
     }elsif($arg =~ /^(--no-sort)$/){
       $$editOpts{sortTimestamps} = 0;
+    }elsif($arg =~ /^--offset-millis=(-?\d+)$/){
+      $$editOpts{offsetMillis} = $1;
     }elsif(-f $arg and $arg =~ /\.($OK_VIDEO_EXTS_REGEX)$/i){
       push @videoOrSubFiles, $arg;
     }elsif(-f $arg and $arg =~ /\.($OK_SUB_EXTS_REGEX)$/i){
@@ -249,6 +264,10 @@ sub editSRT($$){
     }
 
     my $timestampLine = $$sub{timestampLine};
+    if($$editOpts{offsetMillis} != 0){
+      $timestampLine = applyTimestampOffsetMillis($timestampLine, $$editOpts{offsetMillis});
+    }
+
     my @textLines = @{$$sub{textLines}};
 
     my $text = join "", @textLines;
@@ -313,6 +332,34 @@ sub removeSRT($){
   }
 }
 
+sub applyTimestampOffsetMillis($$){
+  my ($timestampLine, $offsetMillis) = @_;
+  if($timestampLine !~ /^(\d+:\d+:\d+,\d+) --> (\d+:\d+:\d+,\d+)$/){
+    die "malformed timestamp line $timestampLine\n";
+  }
+
+  my ($start, $end) = ($1, $2);
+  $start = millisToTimestamp($offsetMillis + timestampToMillis($start));
+  $end = millisToTimestamp($offsetMillis + timestampToMillis($end));
+  return "$start --> $end\n";
+}
+sub millisToTimestamp($){
+  my ($millis) = @_;
+  my $fracS = $millis % 1000;
+  my $s = int($millis / 1000) % 60;
+  my $m = int($millis / 1000 / 60) % 60;
+  my $h = int($millis / 1000 / 60 / 60);
+
+  return sprintf "%02d:%02d:%02d,%03d", $h, $m, $s, $fracS;
+}
+sub timestampToMillis($){
+  my ($timestamp) = @_;
+  if($timestamp !~ /^(\d+):(\d+):(\d+),(\d+)$/){
+    die "malformed time: $timestamp\n";
+  }
+  my ($h, $m, $s, $fracS) = ($1, $2, $3, $4);
+  return $h*60*60*1000 + $m*60*1000 + $s*1000 + $fracS;
+}
 
 sub selectSubTrackID($$){
   my ($mkvFile, $subArgCSV) = @_;
