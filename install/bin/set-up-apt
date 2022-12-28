@@ -8,6 +8,8 @@ my $KEY_SERVER = "pool.sks-keyservers.net";
 #my $KEY_SERVER = "pgpkeys.mit.edu";
 #my $KEY_SERVER = "keyserver.ubuntu.com";
 
+my $TRUSTED_GPG_DIR = "/etc/apt/trusted.gpg.d";
+
 sub addKeys();
 sub fetchKeyFileFromLocalKeyring($);
 
@@ -75,10 +77,24 @@ sub addKeys(){
             $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
         }
 
-        if(defined $keyFile){
-            print "adding $gpgKeyId to apt:\n";
-            run "sudo", "apt-key", "add", $keyFile;
+        my $destKeyFile = "$TRUSTED_GPG_DIR/$repo.gpg";
+        if(defined $keyFile and -f $keyFile){
+          if(not -e $destKeyFile){
+            print "installing new GPG key for $repo\n";
+            run "sudo", "cp", $keyFile, $destKeyFile;
             run "rm", $keyFile;
+          }else{
+            if(md5sum $keyFile eq md5sum $destKeyFile){
+              print "skipping unchanged GPG key for $repo\n";
+            }else{
+              my $bakKeyFile = "/tmp/gpg-key-backup-$repo";
+              print "WARNING: GPG key changed for $repo\n";
+              print "backing up old to $bakKeyFile\n";
+              run "sudo", "mv", $destKeyFile, $bakKeyFile;
+              run "sudo", "cp", $keyFile, $destKeyFile;
+              run "rm", $keyFile;
+            }
+          }
         }else{
             print STDERR "\n\n\n";
             print STDERR "=====\n";
@@ -91,15 +107,15 @@ sub addKeys(){
 
 sub fetchKeyFileFromLocalKeyring($){
     my ($gpgKeyId) = @_;
-    my $tmpFile = "/tmp/gpg-key-$gpgKeyId.gpg";
+    my $tmpFile = "/tmp/gpg-dearmor-key-$gpgKeyId.gpg";
     run "rm", "-f", $tmpFile;
-    runUser "gpg", "--armor", "--output", $tmpFile, "--export", $gpgKeyId;
-    my $contents = tryReadFile $tmpFile;
-    if($contents =~ /BEGIN PGP PUBLIC KEY BLOCK/){
-        return $tmpFile;
+    runUser "gpg", "--output", $tmpFile, "--export", $gpgKeyId;
+    my $fileInfo = `file '$tmpFile'`;
+    if($fileInfo =~ /OpenPGP Public Key/){
+      return $tmpFile;
     }else{
-        run "rm", "-f", $tmpFile;
-        return undef;
+      print "WARNING: $tmpFile is not an OpenPGP key, ignoring\n";
+      return undef;
     }
 }
 
