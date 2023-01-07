@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 FILE FILE [FILE FILE ..]
+    -calculate the md5sum for each FILE given
+    -if all FILEs exactly match md5sum:
+      print nothing and exit with a status code of 0
+    -if any FILE does not match the md5sum of all preceding files:
+      print \"mismatch: FILE\" to STDERR and exit with a status code of 1
+    -if any FILE could not be found or md5sum failed:
+      print an error to STDERR and exit with a status code of -1
+";
+
+sub main(@){
+  my @files;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^-h|--help$/){
+      print $USAGE;
+      exit 0;
+    }else{
+      @files = ($arg, @_);
+      @_ = ();
+    }
+  }
+
+  my %md5;
+  for my $file(@files){
+    if(not -f $file){
+      print STDERR "ERROR: not a file $file\n";
+      exit -1;
+    }
+    my $fileMD5 = md5($file);
+    if(not defined $fileMD5){
+      print STDERR "ERROR: could not calculate md5 for: $file\n";
+      exit -1;
+    }
+    $md5{$file} = md5($file);
+  }
+
+  my $okMD5;
+  for my $file(@files){
+    if(not defined $okMD5){
+      $okMD5 = $md5{$file};
+    }
+    if($okMD5 ne $md5{$file}){
+      print STDERR "mismatch: $file\n";
+      exit 1;
+    }
+  }
+}
+
+sub md5($){
+  open CMD, "-|", "md5sum $_[0]" or die "ERROR: could not run md5sum\n$!\n";
+  my $out = <CMD>;
+  close CMD;
+
+  if($out =~ /^([0-9a-f]{32})\s*/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+&main(@ARGV);
