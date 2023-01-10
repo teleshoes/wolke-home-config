@@ -17,6 +17,10 @@ sub globOrFail($);
 sub globMaybe($);
 sub placesBackup();
 sub placesRestore();
+sub getAddonIds();
+sub getAddonUUIDs();
+sub addonBackup();
+sub addonRestore();
 sub removeProfile();
 sub removeCache();
 sub getAddonXpiCache($);
@@ -99,6 +103,8 @@ my $prefs = {
   "browser.urlbar.suggest.searches"                             => "false", #dont show suggs in urlbar
   "browser.urlbar.userMadeSearchSuggestionsChoice"              => "true",  #firstrun hint
   "browser.tabs.warnOnClose"                                    => "false", #closing multiple tabs warning
+
+  "browser.tabs.firefox-view"                                   => "false", #disable annoying firefox-view button
 
   "widget.non-native-theme.enabled"                             => "true",  #true is default, used to need false
   "widget.non-native-theme.gtk.scrollbar.allow-buttons"         => "true",  #add scrollbar buttons if style=gtk
@@ -185,6 +191,7 @@ my $usage = "Usage:
   $0 --full
     same as:
       placesbackup
+      addonbackup
       removeprofile
       removecache
       prefs
@@ -193,6 +200,7 @@ my $usage = "Usage:
       greasemonkey
       xulstore
       placesrestore
+      addonrestore
 
   $0 COMMAND [COMMAND COMMAND ..]
     perform the indicated command(s) to set up firefox addons/prefs/etc
@@ -280,6 +288,10 @@ sub main(@){
       placesBackup();
     }elsif($cmd =~ /^(placesrestore)$/){
       placesRestore();
+    }elsif($cmd =~ /^(addonbackup)$/){
+      addonBackup();
+    }elsif($cmd =~ /^(addonrestore)$/){
+      addonRestore();
     }elsif($cmd =~ /^(removeprofile)$/){
       removeProfile();
     }elsif($cmd =~ /^(removecache)$/){
@@ -371,7 +383,7 @@ sub setPrefs(){
 sub setupLeptonChrome(){
   installFromGit $LEPTON_GITHUB_REPO, "
     mkdir -p $PROFILE_DIR/chrome/
-    cp -ar userContent.css userChrome.css icons $PROFILE_DIR/chrome/
+    rsync -avP userContent.css userChrome.css css icons $PROFILE_DIR/chrome/
   ";
 }
 
@@ -397,6 +409,7 @@ sub globMaybe($){
   my @files = glob($pattern);
   return grep {-e $_} @files;
 }
+
 
 sub placesBackup(){
   print "\n\n\n##### backing up places/logins files\n";
@@ -434,6 +447,106 @@ sub placesRestore(){
   }
 
   run "cp", "-a", "--reflink=auto", @backupFiles, $PROFILE_DIR;
+}
+
+sub getAddonIds(){
+  my $addonIds = {};
+  for my $addonName(sort keys %$addons){
+    my $xpiFile = getAddonXpiCache($addonName);
+    die "ERROR: no XPI found for $addonName\n" if not defined $xpiFile;
+    my $addonInfo = extractXpiInfo $xpiFile;
+    $$addonIds{$addonName} = $$addonInfo{id};
+  }
+  return $addonIds;
+}
+
+sub getAddonUUIDs(){
+  my $addonIds = getAddonIds();
+  open FH, "< $PROFILE_DIR/prefs.js" or die "ERROR: could not read prefs.js\n$!\n";
+  my $uuidJson;
+  while(my $line = <FH>){
+    if($line =~ /^
+        \s* user_pref \s* \( \s*
+        "extensions\.webextensions\.uuids"
+        \s* , \s*
+        "(.*)" \s* \) \s* ; \s*
+    $/x){
+      $uuidJson = $1;
+      last;
+    }
+  }
+  close FH;
+  die "ERROR: could not find UUIDs in prefs.js\n" if not defined $uuidJson;
+  $uuidJson =~ s/\\"/"/g;
+
+  my $h4 = "[0-9a-f]{4}";
+  my $uuidRegex = "$h4$h4-$h4-$h4-$h4-$h4$h4$h4";
+
+  my $addonUUIDs = {};
+  for my $addonName(sort keys %$addons){
+    my $addonId = $$addonIds{$addonName};
+    if($uuidJson =~ /"\Q$addonId\E":"($uuidRegex)"/){
+      $$addonUUIDs{$addonName} = $1;
+    }else{
+      die "ERROR: could not UUID in prefs.js for $addonName ($addonId)\n";
+    }
+  }
+
+  return $addonUUIDs;
+}
+
+sub addonBackup(){
+  my $backupDir = "$PROFILE_DIR/../addons-backup";
+  run "rm", "-rf", "$backupDir/";
+  run "mkdir", "-p", "$backupDir/";
+
+  my $addonUUIDs = getAddonUUIDs();
+  for my $addonName(sort keys %$addonUUIDs){
+    my $addonUUID = $$addonUUIDs{$addonName};
+    my @localStorageDirs = glob "$PROFILE_DIR/storage/default/moz-extension+++$addonUUID*/";
+    if(@localStorageDirs == 0){
+      print "SKIPPING $addonName\n";
+      next;
+    }else{
+      print "backing up $addonName local storage dirs\n";
+    }
+
+    for my $dir(@localStorageDirs){
+      my $destName = $dir;
+      $destName =~ s/\/*$//;
+      $destName =~ s/^.*\///;
+
+      if($destName !~ s/^moz-extension\+\+\+$addonUUID/=$addonName=/){
+        die "ERROR: malformed $addonName local storage dir $dir\n";
+      }
+      run "cp", "-ar", "--reflink=auto", "$dir/", "$backupDir/$destName/";
+    }
+  }
+}
+sub addonRestore(){
+  my $backupDir = "$PROFILE_DIR/../addons-backup";
+  my $addonUUIDs = getAddonUUIDs();
+
+  my $tmpDir = "/tmp/firefox-addons-restore-bak-" . int(time*1000);
+  run "mkdir", "-p", $tmpDir;
+
+  for my $backupDir(glob "$backupDir/*/"){
+    if($backupDir =~ /\/=(\w+)=(.*)$/){
+      my ($addonName, $suffix) = ($1, $2);
+      my $addonUUID = $$addonUUIDs{$addonName};
+      if(not defined $addonUUID){
+        die "ERROR: unknown addonName $addonName (remove '$backupDir' to continue)\n";
+      }
+      my $destDir = "$PROFILE_DIR/storage/default/moz-extension+++$addonUUID$suffix";
+
+      if(-e $destDir){
+        run "mv", $destDir, "$tmpDir/";
+      }
+      run "cp", "-ar", "--reflink=auto", $backupDir, $destDir;
+    }else{
+      die "ERROR: malformed addon backup dir $backupDir\n";
+    }
+  }
 }
 
 sub removeProfile(){
