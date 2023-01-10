@@ -256,6 +256,9 @@ sub runProtoIPC($@) {
         <$slave>;
     }
     IPC::Run::finish $h;
+    close $pty;
+    close $slave;
+
     system "rm", "-f", $progFile;
     deathWithDishonor if $$cfg{fatal} and $h->result != 0;
     return $h->result == 0;
