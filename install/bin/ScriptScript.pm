@@ -259,9 +259,11 @@ sub runProtoIPC($@) {
     close $pty;
     close $slave;
 
+    my $result = $h->result;
+
     system "rm", "-f", $progFile;
-    deathWithDishonor if $$cfg{fatal} and $h->result != 0;
-    return $h->result == 0;
+    deathWithDishonor if $$cfg{fatal} and $result != 0;
+    return $result == 0;
 }
 sub runProtoNoIPC($@) {
     my $cfg = shift;
