@@ -38,8 +38,8 @@ getActiveWinTitle = do
     Nothing -> return ""
 
 formatTitle :: Int -> Int -> String -> Text
-formatTitle len lineCount title = pack $ intercalate "\n" $ map (padTrim len) $ lines
-  where lines = take lineCount $ chunkStr len (cleanTitle title) ++ repeat ""
+formatTitle len lineCount title = pack $ cleanTitle $ intercalate "\n" $ map (padTrim len) $ lines
+  where lines = take lineCount $ chunkStr len title ++ repeat ""
 
 cleanTitle = escapeMarkup . replace "—" "-"
 
