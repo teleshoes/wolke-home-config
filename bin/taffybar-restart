@@ -10,6 +10,8 @@ my $FAILURE_CMD = "alarm -s failure";
 my $TAFFYBAR_CMD_EXEC = "taffybar";
 my $TAFFYBAR_USER_EXEC = "$ENV{HOME}/.cache/taffybar/taffybar-linux-x86_64";
 
+my $AUTO_RERUN_MIN_MILLIS = 10000;
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -28,6 +30,10 @@ my $USAGE = "Usage:
         `$EXEC --daemon ARG ARG ARG ..`
           =>
         `daemon -- $EXEC ARG ARG ARG ..`
+
+    -a | --auto-rerun | --auto-restart
+      if taffybar exits, after successful run lasting at least ${AUTO_RERUN_MIN_MILLIS}ms:
+        restart taffybar (as in with --quiet)
 
     -q|--quiet
       never run '$SUCCESS_CMD' or '$FAILURE_CMD'
@@ -51,6 +57,7 @@ sub main(@){
   my $isQuiet = 0;
   my $isUserExec = 0;
   my $execArgs;
+  my $autoRerun = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -67,6 +74,8 @@ sub main(@){
       $execArgs = shift @_;
     }elsif($arg =~ /^(-n|--no-recompile|--user-exec)$/){
       $isUserExec = 1;
+    }elsif($arg =~ /^(-a|--auto-rerun|--auto-restart)$/){
+      $autoRerun = 1;
     }else{
       die "$USAGE\nunknown arg: $arg\n";
     }
@@ -85,8 +94,30 @@ sub main(@){
   system "rm", "/tmp/taffybar-log-latest";
   system "ln", "-s", $logFile, "/tmp/taffybar-log-latest";
 
-  system "killall $TAFFYBAR_USER_EXEC 2>/dev/null";
-  runTaffybar($taffybarShellCmd, $logFile, $isQuiet);
+  if($autoRerun){
+    my $currentIsQuiet = $isQuiet;
+    while(1){
+      system "killall $TAFFYBAR_USER_EXEC 2>/dev/null";
+      my $startMillis = nowMillis();
+      my $ok = runTaffybar($taffybarShellCmd, $logFile, $currentIsQuiet);
+      my $endMillis = nowMillis();
+
+      print "\n\n\n\n\nTAFFYBAR EXITED\n";
+      sleep 1;
+
+      $currentIsQuiet = 1; #rerun quietly
+
+      if(not $ok){
+        die "ERROR: taffybar failed to start, not rerunning\n";
+      }
+      if($endMillis - $startMillis < $AUTO_RERUN_MIN_MILLIS){
+        die "ERROR: taffybar exited too quickly, not rerunning\n";
+      }
+    }
+  }else{
+    system "killall $TAFFYBAR_USER_EXEC 2>/dev/null";
+    runTaffybar($taffybarShellCmd, $logFile, $isQuiet);
+  }
 }
 
 sub runTaffybar($$$){
