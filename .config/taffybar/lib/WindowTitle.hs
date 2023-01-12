@@ -1,6 +1,6 @@
 module WindowTitle (windowTitleW) where
 import Width (widthCharScreenDPIWrapW)
-import Utils (sleep, chunkStr, trimR, padR)
+import Utils (escapeMarkup, sleep, chunkStr, trimR, padR)
 import Control.Monad (forever)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -41,7 +41,7 @@ formatTitle :: Int -> Int -> String -> Text
 formatTitle len lineCount title = pack $ intercalate "\n" $ map (padTrim len) $ lines
   where lines = take lineCount $ chunkStr len (cleanTitle title) ++ repeat ""
 
-cleanTitle = replace "—" "-"
+cleanTitle = escapeMarkup . replace "—" "-"
 
 padTrim :: Int -> String -> String
 padTrim n x = padR ' ' n $ trimR n x
