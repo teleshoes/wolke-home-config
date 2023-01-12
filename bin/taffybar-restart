@@ -6,81 +6,88 @@ use File::Basename qw(basename);
 my $SUCCESS_CMD = "alarm -s success";
 my $FAILURE_CMD = "alarm -s failure";
 
-my $EXEC_NAME = "taffybar-linux-x86_64";
+my $TAFFYBAR_CMD_EXEC = "taffybar";
+my $TAFFYBAR_USER_EXEC = "$ENV{HOME}/.cache/taffybar/taffybar-linux-x86_64";
 
-my $TAFFYBAR_USER_EXEC = "$ENV{HOME}/.cache/taffybar/$EXEC_NAME";
-
-my $NAME = basename $0;
+my $EXEC = basename $0;
 
 my $USAGE = "Usage:
-  $NAME -h|--help
+  $EXEC -h|--help
     show this message
 
-  $NAME [OPTS]
+  $EXEC [OPTS]
     kill taffybar exec and run `taffybar` (recompiles and runs)
-    run '$SUCCESS_CMD' on success
-    run '$FAILURE_CMD' on failure
+    run '$SUCCESS_CMD' on recompile success
+    run '$FAILURE_CMD' on recompile failure
     open a terminal with compilation errors on failure
 
-  $NAME [OPTS] --exec [ARG ARG ARG ..]
-    kill taffybar exec and run:
-      `$TAFFYBAR_USER_EXEC ARG ARG ARG ..` (no recompile)
-
   OPTS
-    -d|--daemon
+    -d | --daemon
       re-run this script + args with `daemon`, removing `-d` and `--daemon`
-        `$NAME --daemon ARG ARG ARG ..`
+        `$EXEC --daemon ARG ARG ARG ..`
           =>
-        `daemon -- $NAME ARG ARG ARG ..`
+        `daemon -- $EXEC ARG ARG ARG ..`
 
     -q|--quiet
       never run '$SUCCESS_CMD' or '$FAILURE_CMD'
+
+    --exec CMD_ARGS
+      same as: --user-exec --args CMD_ARGS
+
+    -n | --no-recompile | --user-exec
+      -use $TAFFYBAR_USER_EXEC instead of $TAFFYBAR_CMD_EXEC
+      (skips recompile, implies --quiet)
+
+    --args CMD_ARGS
+      append 'CMD_ARGS' to taffybar shell command line
+      CMD_ARGS is shell-interpreted
+        e.g.: $EXEC --args '-x -y --foo=\"apple sauce\"'
+              => $TAFFYBAR_CMD_EXEC -x -y --foo=\"apple sauce\"
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $USAGE;
-    exit 0;
-  }
-
-  for my $arg(@_){
-    if($arg =~ /^(-d|--daemon)$/){
-      my @args = grep {$_ !~ /^(-d|--daemon)/} @_;
-      exec "daemon", "--", $0, @args;
-    }
-  }
-
+  my $daemonize = 0;
   my $isQuiet = 0;
   my $isUserExec = 0;
-  my @userExecArgs;
+  my $execArgs;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-d|--daemon)$/){
+      $daemonize = 1;
     }elsif($arg =~ /^(-q|--quiet)$/){
       $isQuiet= 1;
-    }elsif($arg =~ /^(--exec)$/){
+    }elsif($arg =~ /^(--exec)$/ and @_ > 0){
+      $execArgs = shift @_;
       $isUserExec = 1;
-      @userExecArgs = @_;
-      @_ = ();
-      last;
+    }elsif($arg =~ /^(--args)$/ and @_ > 0){
+      $execArgs = shift @_;
+    }elsif($arg =~ /^(-n|--no-recompile|--user-exec)$/){
+      $isUserExec = 1;
     }else{
       die "$USAGE\nunknown arg: $arg\n";
     }
   }
   die $USAGE if @_ != 0;
 
+  if($daemonize){
+    my @args = grep {$_ !~ /^(-d|--daemon)$/} @ARGV;
+    exec "daemon", "--", $0, @args;
+  }
+
   system "killall $TAFFYBAR_USER_EXEC 2>/dev/null";
 
-  if($isUserExec){
-    exec $TAFFYBAR_USER_EXEC, @userExecArgs;
-  }
+  my $shellCmd = $isUserExec ? $TAFFYBAR_USER_EXEC : $TAFFYBAR_CMD_EXEC;
+  $shellCmd = "$shellCmd $execArgs" if defined $execArgs;
 
   my $log = "/tmp/taffybar-log-" . time;
   system "rm", "/tmp/taffybar-log-latest";
   system "ln", "-s", $log, "/tmp/taffybar-log-latest";
 
   my $ok = 1;
-  open TB, "-|", "unbuffer taffybar 2>&1 | tee $log";
+  open TB, "-|", "unbuffer $shellCmd 2>&1 | tee $log";
   my $line;
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
