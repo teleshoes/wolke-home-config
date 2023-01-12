@@ -79,15 +79,20 @@ sub main(@){
 
   system "killall $TAFFYBAR_USER_EXEC 2>/dev/null";
 
-  my $shellCmd = $isUserExec ? $TAFFYBAR_USER_EXEC : $TAFFYBAR_CMD_EXEC;
-  $shellCmd = "$shellCmd $execArgs" if defined $execArgs;
+  my $taffybarShellCmd = $isUserExec ? $TAFFYBAR_USER_EXEC : $TAFFYBAR_CMD_EXEC;
+  $taffybarShellCmd = "$taffybarShellCmd $execArgs" if defined $execArgs;
 
-  my $log = "/tmp/taffybar-log-" . time;
+  my $logFile = "/tmp/taffybar-log-" . time;
   system "rm", "/tmp/taffybar-log-latest";
-  system "ln", "-s", $log, "/tmp/taffybar-log-latest";
+  system "ln", "-s", $logFile, "/tmp/taffybar-log-latest";
 
+  runTaffybar($taffybarShellCmd, $logFile, $isQuiet);
+}
+
+sub runTaffybar($$$){
+  my ($taffybarShellCmd, $logFile, $isQuiet) = @_;
   my $ok = 1;
-  open TB, "-|", "unbuffer $shellCmd 2>&1 | tee $log";
+  open TB, "-|", "unbuffer $taffybarShellCmd 2>&1 | tee $logFile";
   my $line;
   while($line = <TB>){
     if($line =~ /^Error occurred while loading configuration file\.$/){
@@ -101,7 +106,7 @@ sub main(@){
   close TB;
 
   if(not $ok){
-    system "term", "-r", "cat", $log;
+    system "term", "-r", "cat", $logFile;
   }
 }
 
