@@ -63,6 +63,8 @@ my $delayBeforeGUIOpenCmdWindowMillis = int(10 * 1000);
 my $delayBeforeGUIKeyboardCmdMillis = int(10 * 1000);
 my $delayBeforeGUICloseMillis = int(5 * 1000);
 
+my $autoLoginConfigCheckAttempts = 50;
+
 my $recentLogMillis = int(18 * 60 * 60 * 1000); #18hr
 my $backupLimitMillis = int(2.5 * 60 * 60 * 1000); #2.5hr
 my $checkCompleteIntervalMillis = int(30 * 1000);
@@ -96,8 +98,10 @@ my $usage = "Usage:
   $0
   $0 -g|--gui|gui
     -start GUI, skipping some warnings with grep
-    -sleep ${delayBeforeGUICheckAutoLoginMillis}ms
-    -check autoLogin config. if false:
+    -sleep ${delayBeforeGUICheckAutoLoginMillis}ms and check autoLogin config
+      -check autoLogin config from $appLogFile
+      -repeat up to $autoLoginConfigCheckAttempts
+    -if autoLogin is false:
       -sleep ${delayBeforeGUITypePasswordQuickMillis}ms
       -enter password
 
@@ -183,7 +187,12 @@ sub main(@){
   }elsif($cmd =~ /^(-p)$/ and @_ == 0){
     typePassword(getGuiWindowId());
   }elsif($cmd =~ /^(--is-auto-login)$/ and @_ == 0){
-    print isAutoLoginConfig() ? "true\n" : "false\n";
+    my $autoLogin = isAutoLoginConfig();
+    if(defined $autoLogin){
+      print $autoLogin ? "true\n" : "false\n";
+    }else{
+      print "undefined\n";
+    }
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
     my $logfile = $historyLogFile;
@@ -288,7 +297,7 @@ sub isAutoLoginConfig(){
   }elsif($autoLogin =~ /false/){
     return 0;
   }else{
-    die "ERROR: could not read autoLogin config from $appLogFile\n";
+    return undef;
   }
 }
 
@@ -312,8 +321,23 @@ sub closeGui($$){
 
 sub startGuiWithPassword(){
   startGui();
-  sleepMillis $delayBeforeGUICheckAutoLoginMillis, "before checking autologin";
-  if(isAutoLoginConfig()){
+
+  my $autoLogin = undef;
+  my $attempts = $autoLoginConfigCheckAttempts;
+  while(not defined $autoLogin){
+    sleepMillis $delayBeforeGUICheckAutoLoginMillis, "before checking autologin";
+    $autoLogin = isAutoLoginConfig();
+    $attempts--;
+    if(not defined $autoLogin){
+      if($attempts <= 0){
+        die "ERROR: could not read autoLogin config from $appLogFile\n";
+      }else{
+        print "autoLogin not found, trying again (attempts remaining: $attempts)\n";
+      }
+    }
+  }
+
+  if($autoLogin){
     print "autologin is enabled, skipping password\n";
   }else{
     print "autologin is disabled, typing password\n";
