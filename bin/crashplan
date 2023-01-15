@@ -13,6 +13,7 @@ sub startGui();
 sub getGuiWindowId();
 sub getCmdWindowId();
 sub typePassword($);
+sub isAutoLoginConfig();
 sub openCmdWindow($);
 sub typeCommand($$);
 sub closeGui($$);
@@ -49,6 +50,7 @@ my $engineExec = "$dir/bin/service.sh";
 my $crashplanJar = "lib/com.backup42.desktop.jar";
 my $historyLogFile = "$dir/log/history.log";
 my $serviceLogFile = "$dir/log/service.log";
+my $appLogFile = "$dir/log/app.log";
 my $logBackupDir = "/media/stuff/logs/crashplan";
 my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
@@ -101,6 +103,10 @@ my $usage = "Usage:
 
   $0 -p
     -enter password
+
+  $0 --is-auto-login
+    read '<autoLogin>' config from $appLogFile
+    print 'true' or 'false'
 
   $0 -l|--log|log [--date=DATE] [--logfile=LOGFILE] [BACKUP_NAME]
     format recent info from $historyLogFile
@@ -173,6 +179,8 @@ sub main(@){
     startGui();
   }elsif($cmd =~ /^(-p)$/ and @_ == 0){
     typePassword(getGuiWindowId());
+  }elsif($cmd =~ /^(--is-auto-login)$/ and @_ == 0){
+    print isAutoLoginConfig() ? "true\n" : "false\n";
   }elsif($cmd =~ /^(-l|--log|log)$/){
     my $date = "recent";
     my $logfile = $historyLogFile;
@@ -268,6 +276,17 @@ sub typePassword($){
   run "wmctrl", "-i", "-a", $guiWindowId;
   print "xdotool type --window $guiWindowId <PASSWORD_REDACTED>\n";
   runQuiet "xdotool", "type", "--window", $guiWindowId, "$password\n";
+}
+
+sub isAutoLoginConfig(){
+  my $autoLogin = `grep '<autoLogin>\\(true\\|false\\)</autoLogin>' '$appLogFile'`;
+  if($autoLogin =~ /true/){
+    return 1;
+  }elsif($autoLogin =~ /false/){
+    return 0;
+  }else{
+    die "ERROR: could not read autoLogin config from $appLogFile\n";
+  }
 }
 
 sub openCmdWindow($){
@@ -1063,6 +1082,7 @@ sub bashComplete($$){
   if(@words == 0){
     return (
       "-g", "--gui",
+      "--is-auto-login",
       "-l", "--log", "log",
       @serviceCmds,
       @engineCmds,
