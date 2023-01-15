@@ -56,6 +56,7 @@ my $backupLogFile = "/tmp/crashplan-backup-" . int(time*1000) . ".log";
 my $curStatusFile = "/tmp/crashplan-backup-" . int(time*1000) . ".status";
 
 my $delayBeforeGUIStartMillis = int(5 * 1000);
+my $delayBeforeGUICheckAutoLoginMillis = int(0.5 * 1000);
 my $delayBeforeGUITypePasswordMillis = int(60 * 1000);
 my $delayBeforeGUITypePasswordQuickMillis = int(5 * 1000);
 my $delayBeforeGUIOpenCmdWindowMillis = int(10 * 1000);
@@ -95,8 +96,10 @@ my $usage = "Usage:
   $0
   $0 -g|--gui|gui
     -start GUI, skipping some warnings with grep
-    -sleep ${delayBeforeGUITypePasswordQuickMillis}ms
-    -enter password
+    -sleep ${delayBeforeGUICheckAutoLoginMillis}ms
+    -check autoLogin config. if false:
+      -sleep ${delayBeforeGUITypePasswordQuickMillis}ms
+      -enter password
 
   $0 --gui-only
     -start GUI, skipping some warnings with grep
@@ -309,8 +312,14 @@ sub closeGui($$){
 
 sub startGuiWithPassword(){
   startGui();
-  sleepMillis $delayBeforeGUITypePasswordQuickMillis, "before typing password";
-  typePassword(getGuiWindowId());
+  sleepMillis $delayBeforeGUICheckAutoLoginMillis, "before checking autologin";
+  if(isAutoLoginConfig()){
+    print "autologin is enabled, skipping password\n";
+  }else{
+    print "autologin is disabled, typing password\n";
+    sleepMillis $delayBeforeGUITypePasswordQuickMillis, "before typing password";
+    typePassword(getGuiWindowId());
+  }
 }
 
 sub runCommandInCommandsGui($){
