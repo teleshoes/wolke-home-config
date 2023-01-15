@@ -21,7 +21,10 @@ pingMonitorW display url = do
   widgetSetClassGI label $ pack "PingMonitor"
   return label
 
-char = "●"
+charU2B24 = "⬤"
+charU25CF = "●"
+
+char = charU2B24
 upColor = "green"
 downColor = "red"
 toggleColorTrue = "white"
