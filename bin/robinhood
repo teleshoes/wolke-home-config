@@ -10,6 +10,7 @@ my $EXEC = basename $0;
 my $JSON_ORDERS_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
 my $JSON_QUOTES_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/quotes-json";
 my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
+my $EXTRA_ORDERS_CACHE = "$ENV{HOME}/.cache/robinhood/extra-orders";
 
 my $API_INSTRUMENT_URL_PREFIX = "https://api.robinhood.com/instruments";
 my $API_CURRENCY_PAIRS_URL_PREFIX = "https://nummus.robinhood.com/currency_pairs";
@@ -406,6 +407,51 @@ sub parseJsonOrders(){
       push @orders, $order;
     }
   }
+
+  if(-e $EXTRA_ORDERS_CACHE){
+    my @extraOrderLines = split /\n/, readFile $EXTRA_ORDERS_CACHE;
+    for my $line(@extraOrderLines){
+      chomp $line;
+      $line =~ s/#.*//;
+      next if $line =~ /^\s*$/;
+
+      if($line !~ /
+        ^
+        \s*       ([a-z]+)
+        \s*,\s*   ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})
+        \s*,\s*   (true|false)
+        \s*,\s*   \$(\d+\.\d+)
+        \s*,\s*   (\d+\.\d+)
+        \s*,\s*   (\d\d\d\d-\d\d-\d\d_\d\d:\d\d:\d\d)
+        \s*,\s*   (buy|sell)
+        $
+      /xi){
+        die "ERROR: malformed line in $EXTRA_ORDERS_CACHE:\n$line\n";
+      }
+      my ($symbol, $instId, $isCrypto, $price, $amount, $time, $buySell) =
+        ($1, $2, $3, $4, $5, $6, $7);
+
+      $isCrypto = $isCrypto =~ /true/i ? 1 : 0;
+
+      $buySell = lc $buySell;
+
+      $time =~ s/_/T/;
+      $time = `date --date="$time" +%s.%N`;
+      chomp $time;
+
+      my $order = {
+        symbol       => $symbol,
+        instrumentId => $instId,
+        isCrypto     => $isCrypto,
+        price        => $price,
+        amount       => $amount,
+        time         => $time,
+        buySell      => $buySell,
+      };
+      push @orders, $order;
+    }
+  }
+
   if($updateInstrumentCache){
     writeInstrumentCache $instrumentCache;
   }
