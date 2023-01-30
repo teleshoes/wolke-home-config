@@ -1,21 +1,38 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 use Time::HiRes qw(sleep time);
 
-my $USAGE = "
-  $0 -h|--help
+my $DEFAULT_DUR_MILLIS = 30000;
+my $SET_SEP_MILLIS = 3000;
+
+my $CMD_SET_BEGIN = "alarm -s success";
+my $CMD_SET_SEP = "alarm -s failure";
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
     show this message
 
-  $0 [OPTS] [DURATION_SECONDS]
-    wait DURATION_SECONDS
+  $EXEC [OPTS] [DURATION_SECONDS]
+    -set CURRENT_SET to 0
+    -run this forever:
+      -increment CURRENT_SET
+      -print CURRENT_SET to terminal and notify/notify-send
+      -run $CMD_SET_SEP
+      -sleep " . $SET_SEP_MILLIS/1000.0 . "s
+      -run $CMD_SET_BEGIN
+      -sleep DURATION_SECONDS (default is " . $DEFAULT_DUR_MILLIS/1000.0 . "s)
+        -sleep in 1s chunks, printing time remaining
 ";
 
 sub execExists($);
 sub nowMillis();
 
 sub main(@){
-  my $durMillis = 30000;
+  my $durMillis = $DEFAULT_DUR_MILLIS;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -41,7 +58,7 @@ sub main(@){
       system "notify-send", "-t", 1000, "SET: $count";
     }
 
-    sleep 3;
+    sleep $SET_SEP_MILLIS/1000.0;
     system "alarm -s success";
 
     my $startMillis = nowMillis();
