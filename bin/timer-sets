@@ -6,9 +6,13 @@ use Time::HiRes qw(sleep time);
 
 my $DEFAULT_DUR_MILLIS = 30000;
 my $SET_SEP_MILLIS = 3000;
+my $GROUP_SEP_MILLIS = 10000;
+
+my $DEFAULT_GROUP_SET_COUNT = 3;
 
 my $CMD_SET_BEGIN = "alarm -s success";
 my $CMD_SET_SEP = "alarm -s failure";
+my $CMD_GROUP_COMPLETE = "alarm -s soothing/bloom";
 
 my $EXEC = basename $0;
 
@@ -16,7 +20,7 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC [OPTS] [DURATION_SECONDS]
+  $EXEC [OPTS] [DURATION_SECONDS] [GROUP_SET_COUNT]
     -set CURRENT_SET to 0
     -run this forever:
       -increment CURRENT_SET
@@ -26,6 +30,10 @@ my $USAGE = "Usage:
       -run $CMD_SET_BEGIN
       -sleep DURATION_SECONDS (default is " . $DEFAULT_DUR_MILLIS/1000.0 . "s)
         -sleep in 1s chunks, printing time remaining
+      -if CURRENT_SET = GROUP_SET_COUNT (default is $DEFAULT_GROUP_SET_COUNT)
+        -set CURRENT_SET to 0
+        -run $CMD_GROUP_COMPLETE
+        -sleep " . $GROUP_SEP_MILLIS/1000.0 . "s
 ";
 
 sub execExists($);
@@ -33,6 +41,7 @@ sub nowMillis();
 
 sub main(@){
   my $durMillis = $DEFAULT_DUR_MILLIS;
+  my $groupSetCount = $DEFAULT_GROUP_SET_COUNT;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -75,6 +84,12 @@ sub main(@){
       print " $elapsedS";
     }
     print "\n";
+
+    if($count >= $groupSetCount){
+      $count = 0;
+      system $CMD_GROUP_COMPLETE;
+      sleep $GROUP_SEP_MILLIS/1000.0;
+    }
   }
 }
 
