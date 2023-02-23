@@ -141,6 +141,7 @@ done
 #override existing aliases
 unalias ls l ll ld grep find 2>/dev/null
 
+function hc           { history -c; }
 function e            { email-summary "$@" 2>&1 | less -S; }
 function eu           { email.pl --update "$@"; }
 function ds           { zenius-ddrsonglist --search "$@"; }
