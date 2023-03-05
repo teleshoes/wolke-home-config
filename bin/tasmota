@@ -6,6 +6,7 @@ use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 sub readDevicesConfig();
+sub appendLog($$);
 sub extractDevicesByAlias($$);
 sub sortAliasesByFirstDevice($$);
 sub extractTemplateJSONByDevType($);
@@ -19,6 +20,7 @@ sub parseVersion($);
 sub cmpVersion($$);
 
 my $DEVICES_CONFIG_FILE = "$ENV{HOME}/.config/tasmota.conf";
+my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
 my $MAX_TIMEOUT_MILLIS = 1200;
 my $MAX_COMMAND_ATTEMPTS = 2;
 
@@ -186,6 +188,9 @@ my $USAGE = "Usage:
     -run 'STATUS 10' (show connected sensor information)
     -parse out JSON result: StatusSNS.ENERGY.Power
     -print integer power in Watts, one per line, for each DEVICE, in order given
+    -write the date and value in W for each DEVICE
+      -write to file: $LOG_DIR/power-<DEVICE>.txt
+      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> - <WATTS> W
 
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -362,14 +367,20 @@ sub main(@){
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_POWER){
     my $outputByDevice = runCommandOnDevices("Status 10", @devices);
+    my $date = `date '+%Y-%m-%d %H:%M:%S'`;
+    chomp $date;
     for my $device(@devices){
       my $json = $$outputByDevice{$device};
       my $power;
-      if($json =~ /^{"StatusSNS".*"ENERGY":.*"Power":(\d+|\d*\.\d+)/){
+      if($json =~ /^{"StatusSNS".*"ENERGY":.*"Power":(\d+|\d*\.\d+),/){
         $power = $1;
       }
-      $power = "???" if not defined $power;
-      print "$power\n";
+      if(defined $power){
+        appendLog("power-$device.txt", "$date - $power W\n");
+        print "$device: $power W\n";
+      }else{
+        print "$device: ???\n";
+      }
     }
   }elsif($mode eq $MODE_MAC){
     my $outputByDevice = runCommandOnDevices("STATUS 0", @devices);
@@ -472,6 +483,16 @@ sub readDevicesConfig(){
     }
   }
   return @devicesArr;
+}
+
+sub appendLog($$){
+  my ($logFileName, $msg) = @_;
+  system "mkdir", "-p", $LOG_DIR;
+  my $logFile = "$LOG_DIR/$logFileName";
+  open FH, ">>", $logFile
+    or die "ERROR: could not write to $logFile\n$!\n";
+  print FH $msg;
+  close FH;
 }
 
 sub extractDevicesByAlias($$){
