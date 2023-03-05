@@ -232,6 +232,7 @@ function sm           { sheetmusic "$@"; }
 function pl           { play-show "$@"; }
 
 function ts           { tasmota "$@"; }
+function ts-pump      { tasmota-pump "$@"; }
 
 function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           command igcmd "$@";
