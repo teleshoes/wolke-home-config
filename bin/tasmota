@@ -29,10 +29,12 @@ my @DEVICES_ARR = readDevicesConfig();
 my %DEVICES = @DEVICES_ARR;
 my @DEVICE_NAMES = map {$DEVICES_ARR[$_]} grep {$_ % 2 == 0} (0..$#DEVICES_ARR);
 my $DEVICES_REGEX = join "|", @DEVICE_NAMES;
-my %DEVICE_IPS             = map {$_ => ${$DEVICES{$_}}[0]} @DEVICE_NAMES;
-my %DEVICE_SSIDS           = map {$_ => ${$DEVICES{$_}}[1]} @DEVICE_NAMES;
-my %DEVICE_TYPES           = map {$_ => ${$DEVICES{$_}}[2]} @DEVICE_NAMES;
-my %DEVICE_ALIASES         = map {$_ => ${$DEVICES{$_}}[3]} @DEVICE_NAMES;
+my %DEVICE_HOSTNAMES       = map {$_ => ${$DEVICES{$_}}[0]} @DEVICE_NAMES;
+my %DEVICE_MACS            = map {$_ => ${$DEVICES{$_}}[1]} @DEVICE_NAMES;
+my %DEVICE_IPS             = map {$_ => ${$DEVICES{$_}}[2]} @DEVICE_NAMES;
+my %DEVICE_SSIDS           = map {$_ => ${$DEVICES{$_}}[3]} @DEVICE_NAMES;
+my %DEVICE_TYPES           = map {$_ => ${$DEVICES{$_}}[4]} @DEVICE_NAMES;
+my %DEVICE_ALIASES         = map {$_ => ${$DEVICES{$_}}[5]} @DEVICE_NAMES;
 
 my %DEVICES_BY_ALIAS = extractDevicesByAlias([@DEVICE_NAMES], {%DEVICE_ALIASES});
 my @DEVICE_ALIAS_NAMES = sortAliasesByFirstDevice([@DEVICE_NAMES], {%DEVICES_BY_ALIAS});
@@ -421,6 +423,8 @@ sub readDevicesConfig(){
     return ();
   }
 
+  my $byte = "[0-9a-fA-f][0-9a-fA-F]";
+
   my @lines = `cat $DEVICES_CONFIG_FILE`;
   my @devicesArr;
   for my $line(@lines){
@@ -431,17 +435,19 @@ sub readDevicesConfig(){
     next if $line eq "";
     if($line =~ /
        ^      \s* (\w+)
+       \s* \| \s* ([^|]+?)
+       \s* \| \s* ($byte:$byte:$byte:$byte:$byte:$byte)
        \s* \| \s* (\d+\.\d+\.\d+\.\d+)
        \s* \| \s* ([^|]+?)
        \s* \| \s* (\w+)
        \s* \| \s* ([a-zA-Z0-9_\-\ ,]+)
       $/x
     ){
-      my ($dev, $targetIP4, $targetSSID, $devType, $aliasNamesStr) =
-        ($1, $2, $3, $4, $5);
+      my ($dev, $hostname, $mac, $targetIP4, $targetSSID, $devType, $aliasNamesStr) =
+        ($1, $2, $3, $4, $5, $6, $7);
       my @aliasNames = split /[ ,]+/, $aliasNamesStr;
       push @devicesArr, $dev;
-      push @devicesArr, [$targetIP4, $targetSSID, $devType, [@aliasNames]];
+      push @devicesArr, [$hostname, $mac, $targetIP4, $targetSSID, $devType, [@aliasNames]];
     }else{
       print STDERR "WARNING: malformed line in $DEVICES_CONFIG_FILE:\n$line\n";
     }
