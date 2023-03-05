@@ -23,6 +23,7 @@ if [ $MACHINE_TYPE = "main" ]; then
 
   screen-daemon lenovo_fix --start
   screen-daemon email --start
+  screen-daemon ts-pump --start
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
