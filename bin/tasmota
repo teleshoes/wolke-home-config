@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use List::Util qw(first);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
+sub readDevicesConfig();
 sub extractDevicesByAlias($$);
 sub sortAliasesByFirstDevice($$);
 sub extractTemplateJSONByDevType($);
@@ -17,24 +18,14 @@ sub cmd($$);
 sub parseVersion($);
 sub cmpVersion($$);
 
+my $DEVICES_CONFIG_FILE = "$ENV{HOME}/.config/tasmota.conf";
 my $MAX_TIMEOUT_MILLIS = 1200;
 my $MAX_COMMAND_ATTEMPTS = 2;
 
 my $INITIAL_DEVICE_IP = "192.168.4.1";
 my $DEFAULT_DEVICE = "outlet1";
 
-my @DEVICES_ARR = (
-  #DEV    => [IP4_ADDRESS,     SSID,        DEV_TYPE,       ALIAS_NAMES]
-  bulb1   => ["192.168.11.93", "FlipsAFad", "athom_7w",     [qw(b1 all b bulbs)]],
-  bulb2   => ["192.168.11.94", "FlipsAFad", "athom_7w",     [qw(b2 all b bulbs)]],
-  bulb3   => ["192.168.11.95", "FlipsAFad", "athom_7w",     [qw(b3 all b bulbs)]],
-  bulb4   => ["192.168.11.30", "FlipsAFad", "athom_7w",     [qw(b4 all b bulbs)]],
-  bulb5   => ["192.168.11.31", "FlipsAFad", "kauf_10w",     [qw(b5 all b bulbs)]],
-  outlet1 => ["192.168.11.96", "FlipsAFad", "athom_outlet", [qw(o1 all        )]],
-  outlet2 => ["192.168.11.97", "FlipsAFad", "athom_outlet", [qw(o2 all        )]],
-  outlet3 => ["192.168.11.98", "FlipsAFad", "athom_outlet", [qw(o3 all        )]],
-  outlet4 => ["192.168.11.99", "FlipsAFad", "athom_outlet", [qw(o4 all        )]],
-);
+my @DEVICES_ARR = readDevicesConfig();
 my %DEVICES = @DEVICES_ARR;
 my @DEVICE_NAMES = map {$DEVICES_ARR[$_]} grep {$_ % 2 == 0} (0..$#DEVICES_ARR);
 my $DEVICES_REGEX = join "|", @DEVICE_NAMES;
@@ -422,6 +413,40 @@ sub main(@){
   }else{
     die "ERROR: unknown mode \"$mode\"\n";
   }
+}
+
+sub readDevicesConfig(){
+  if(not -f $DEVICES_CONFIG_FILE){
+    print STDERR "WARNING: missing config file $DEVICES_CONFIG_FILE\n";
+    return ();
+  }
+
+  my @lines = `cat $DEVICES_CONFIG_FILE`;
+  my @devicesArr;
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    $line =~ s/^\s*//;
+    $line =~ s/\s*$//;
+    $line =~ s/[\r\n]//g;
+    next if $line eq "";
+    if($line =~ /
+       ^      \s* (\w+)
+       \s* \| \s* (\d+\.\d+\.\d+\.\d+)
+       \s* \| \s* ([^|]+?)
+       \s* \| \s* (\w+)
+       \s* \| \s* ([a-zA-Z0-9_\-\ ,]+)
+      $/x
+    ){
+      my ($dev, $targetIP4, $targetSSID, $devType, $aliasNamesStr) =
+        ($1, $2, $3, $4, $5);
+      my @aliasNames = split /[ ,]+/, $aliasNamesStr;
+      push @devicesArr, $dev;
+      push @devicesArr, [$targetIP4, $targetSSID, $devType, [@aliasNames]];
+    }else{
+      print STDERR "WARNING: malformed line in $DEVICES_CONFIG_FILE:\n$line\n";
+    }
+  }
+  return @devicesArr;
 }
 
 sub extractDevicesByAlias($$){
