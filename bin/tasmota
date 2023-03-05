@@ -101,6 +101,7 @@ my $MODE_TOGGLE_ALL = "toggle-all";
 my $MODE_DIMMER = "dimmer";
 my $MODE_POWER = "power";
 my $MODE_MAC = "mac";
+my $MODE_DDWRT = "ddwrt";
 my $MODE_SETUP_WIFI = "setup-wifi";
 my $MODE_CONFIG_DEVICE = "config-device";
 my $MODE_SET_TEMPLATE = "set-template";
@@ -188,6 +189,10 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
+  $EXEC [OPTS] --ddwrt [DEVICE DEVICE ..]
+    print config format for DDWRT config file
+    if no device given, prints all
+
   DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
     name or IP or both of a single device, or named alias for a list of devices
 
@@ -268,6 +273,8 @@ sub main(@){
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
+    }elsif($arg =~ /^(--ddwrt)$/){
+      $mode = $MODE_DDWRT;
     }elsif($arg =~ /^(--init)$/){
       $forceInitIP = 1;
       $autoInitIP = 0;
@@ -293,6 +300,9 @@ sub main(@){
 
   if(@devices == 0 and $mode =~ /^($MODE_COMMAND|$MODE_TOGGLE_ALL)$/){
     @devices = ($DEFAULT_DEVICE);
+  }
+  if(@devices == 0 and $mode =~ /^($MODE_DDWRT)$/){
+    @devices = @DEVICE_NAMES;
   }
 
   if(@devices == 0){
@@ -367,6 +377,13 @@ sub main(@){
       my $mac = $1 if $out =~ /"Mac":"([^"]+)"/;
       $mac = "?" if not defined $mac;
       print "$device - $mac\n";
+    }
+  }elsif($mode eq $MODE_DDWRT){
+    for my $dev(@devices){
+      my $ip = $DEVICE_IPS{$dev};
+      my $mac = $DEVICE_MACS{$dev};
+      my $ipSuffix = $1 if $ip =~ /\.(\d+)$/;
+      print "  $ipSuffix = $mac ts-$dev\n";
     }
   }elsif($mode eq $MODE_SETUP_WIFI){
     for my $device(@devices){
