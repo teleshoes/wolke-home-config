@@ -2,20 +2,28 @@
 use strict;
 use warnings;
 
-my $usage = "Usage: $0 CONF_FILE\n";
+my $usage = "Usage:
+  $0 CONF_FILE [KEY_REGEX]
+";
 
 sub main(@){
-  die $usage if @_ != 1 or not -f $_[0];
   my $confFile = shift;
+  my $keyRegex = shift;
+  die $usage if @_ != 0 or not defined $confFile or not -f $confFile;
   my @lines = `cat $confFile`;
   for my $line(@lines){
-    if($line =~ /^([^=]+\s*=\s*)(!h!.+!f!)$/){
-      my ($prefix, $val) = ($1, $2);
-      $val = `gpg-sym '$val'`;
-      chomp $val;
-      print "$prefix$val\n";
+    if($line =~ /^([^=]+?)\s*=\s*(.+)$/){
+      my ($key, $val) = ($1, $2);
+      if(defined $keyRegex and $key !~ /$keyRegex/i){
+        next;
+      }
+      if($val =~ /^!h!.+!f!$/){
+        $val = `gpg-sym '$val'`;
+        chomp $val;
+      }
+      print "$key = $val\n";
     }else{
-      print $line;
+      print $line unless defined $keyRegex;
     }
   }
 }
