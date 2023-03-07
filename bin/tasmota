@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use List::Util qw(first);
+use JSON qw(from_json);
 my $FORKMGR_LIB = eval {require Parallel::ForkManager};
 
 sub readDevicesConfig();
@@ -12,6 +13,8 @@ sub sortAliasesByFirstDevice($$);
 sub extractTemplateJSONByDevType($);
 sub formatTemplateJSON($);
 
+sub parseStatusJson($);
+sub getNestedMapVal($@);
 sub getSSID();
 sub readMinDimmer(@);
 sub runCommandOnDevices($@);
@@ -102,8 +105,7 @@ my @COMMAND_ALIAS_NAMES = map {$COMMAND_ALIASES_ARR[$_]}
 my $MODE_COMMAND = "command";
 my $MODE_TOGGLE_ALL = "toggle-all";
 my $MODE_DIMMER = "dimmer";
-my $MODE_POWER = "power";
-my $MODE_ENERGY = "energy";
+my $MODE_INFO = "info";
 my $MODE_MAC = "mac";
 my $MODE_DDWRT = "ddwrt";
 my $MODE_SETUP_WIFI = "setup-wifi";
@@ -185,21 +187,21 @@ my $USAGE = "Usage:
         $EXEC --dimmer bed 33 66 100     #DIMMER 33  => 66
         $EXEC --dimmer bed 33 66 100     #DIMMER 66  => 100
 
-  $EXEC [OPTS] --power|power|pow|-p|--watts|watts|watt DEVICE [DEVICE DEVICE ..]
-    -run 'STATUS 10' (show connected sensor information)
-    -parse out JSON result: StatusSNS.ENERGY.Power
-    -print integer power in Watts, one per line, for each DEVICE, in order given
-    -write the date and value in W for each DEVICE
-      -write to file: $LOG_DIR/power-<DEVICE>.txt
-      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> - <WATTS> W
-
-  $EXEC [OPTS] --energy|energy|-e DEVICE [DEVICE DEVICE ..]
-    -run 'EnergyTotal'
-    -extract the value for 'Total', in fractional kWh
-    -print the value in kWh, one per line, for each DEVICE, in order given
-    -write the date and value in kWh for each DEVICE
-      -write to file: $LOG_DIR/energy-total-<DEVICE>.txt
-      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> - <KILOWATT_HOURS> kWh
+  $EXEC [OPTS] --info|info|-i DEVICE [DEVICE DEVICE ..]
+    -run 'STATUS 0' (show connected sensor information)
+    -parse out JSON results:
+      state           = Status.Power (formatted as 'on ', 'off', or '???')
+      power           = StatusSNS.ENERGY.Power (integer power in watts)
+      energyTotal     = StatusSNS.ENERGY.Total (fractional energy in kWh)
+      energyYesterday = StatusSNS.ENERGY.Yesterday (fractional energy in kWh)
+      energyToday     = StatusSNS.ENERGY.Today (fractional energy in kWh)
+      color           = StatusSTS.Color (hex color, usually RRGGBBCWWW)
+    -print info for ecah DEVICE, one per line, in order given, formatted:
+      <DEVICE>: <state> <energyTotal>kWh <power>W color=<color>
+      (omit power/energyTotal/color if missing)
+    -write date and info for each DEVICE
+      -write to file: $LOG_DIR/info-<DEVICE>.txt
+      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> | energyTotal=<energyTotal> | power=<power> | color=<color>
 
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -282,11 +284,8 @@ sub main(@){
     }elsif($arg =~ /^(\d+)$/){
       push @dimmerArgs, $1;
       $mode = $MODE_DIMMER;
-    }elsif($arg =~ /^(--power|power|pow|-p|--watts|watts|watt)$/){
-      $mode = $MODE_POWER;
-      $cmd = undef;
-    }elsif($arg =~ /^(--energy|-e|energy)$/){
-      $mode = $MODE_ENERGY;
+    }elsif($arg =~ /^(--info|info|-i)$/){
+      $mode = $MODE_INFO;
       $cmd = undef;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
@@ -377,38 +376,30 @@ sub main(@){
     print "dimmer $curDimmer => $targetDimmerVal\n";
     my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
-  }elsif($mode eq $MODE_POWER){
-    my $outputByDevice = runCommandOnDevices("Status 10", @devices);
+  }elsif($mode eq $MODE_INFO){
+    my $outputByDevice = runCommandOnDevices("Status 0", @devices);
     my $date = `date '+%Y-%m-%d %H:%M:%S'`;
     chomp $date;
     for my $device(@devices){
       my $json = $$outputByDevice{$device};
-      my $power;
-      if($json =~ /^{"StatusSNS".*"ENERGY":.*"Power":(\d+|\d*\.\d+),/){
-        $power = $1;
-      }
-      if(defined $power){
-        appendLog("power-$device.txt", "$date - $power W\n");
-        print "$device: $power W\n";
-      }else{
-        print "$device: ???\n";
-      }
-    }
-  }elsif($mode eq $MODE_ENERGY){
-    my $outputByDevice = runCommandOnDevices("EnergyTotal", @devices);
-    my $date = `date '+%Y-%m-%d %H:%M:%S'`;
-    chomp $date;
-    for my $device(@devices){
-      my $json = $$outputByDevice{$device};
-      my $energy;
-      if($json =~ /^{"EnergyTotal".*"Total":(\d+|\d*\.\d+),/){
-        $energy = $1;
-      }
-      if(defined $energy){
-        appendLog("energy-$device.txt", "$date - $energy\n");
-        print "$device: $energy kWh\n";
-      }else{
-        print "$device: ???\n";
+      my $info = parseStatusJson($json);
+      my $state = $$info{state};
+      $state = "???" if not defined $state;
+      $state = "on " if $state eq 1;
+      $state = "off" if $state eq 0;
+
+      my $fmt = "$device: $state";
+      $fmt .= sprintf " %11.5fkWh", $$info{energyTotal} if defined $$info{energyTotal};
+      $fmt .= sprintf " %4dW", $$info{power} if defined $$info{power};
+      $fmt .= " color=$$info{color}" if defined $$info{color};
+      print "$fmt\n";
+
+      my $logFmt = "$date | $state";
+      $logFmt .= sprintf " | energyTotal=%11.5f", $$info{energyTotal} if defined $$info{energyTotal};
+      $logFmt .= sprintf " | power=%4d", $$info{power} if defined $$info{power};
+      $logFmt .= " | color=$$info{color}" if defined $$info{color};
+      if(defined $$info{state}){
+        appendLog("info-$device.txt", "$logFmt\n");
       }
     }
   }elsif($mode eq $MODE_MAC){
@@ -598,6 +589,33 @@ sub formatTemplateJSON($){
   $fmt .= " }";
 
   return $fmt;
+}
+
+sub parseStatusJson($){
+  my ($json) = @_;
+  my $obj = eval {
+    from_json($json);
+  };
+
+  return {
+    state           => getNestedMapVal($obj, ("Status" => "Power")),
+    power           => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Power")),
+    energyTotal     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Total")),
+    energyToday     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Today")),
+    energyYesterday => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Yesterday")),
+    color           => getNestedMapVal($obj, ("StatusSTS" => "Color")),
+  };
+}
+
+sub getNestedMapVal($@){
+  my ($map, @keys) = @_;
+  my $val = $map;
+  while(@keys > 0){
+    return undef if not defined $val or ref($val) ne 'HASH';
+    my $key = shift @keys;
+    $val = $$val{$key};
+  }
+  return $val;
 }
 
 sub getSSID(){
