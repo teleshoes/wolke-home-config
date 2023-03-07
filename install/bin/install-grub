@@ -1,0 +1,94 @@
+#!/bin/sh
+DEV_EFI="/dev/nvme0n1p1"
+DEV_ROOT="/dev/nvme0n1p2"
+TARGET_DIR_ROOT="/mnt/@"
+TARGET_DIR_EFI="/media/EFI"
+
+if [ "$USER" != "root" ]; then
+  echo "ERROR: must be run as root"
+  exit 1
+fi
+
+echo
+echo "====="
+echo "#mounting / to where grub will mount btrfs main subvol: $TARGET_DIR_ROOT"
+if [ -d $TARGET_DIR_ROOT ]; then
+  umount -l $TARGET_DIR_ROOT
+  rmdir $TARGET_DIR_ROOT
+fi
+if [ -e $TARGET_DIR_ROOT ]; then
+  echo "ERROR: $TARGET_DIR_ROOT already exists and is not removeable"
+  exit 1
+fi
+
+mkdir -p $TARGET_DIR_ROOT
+
+mount | grep "^$DEV_ROOT on" >/dev/null
+if [ $? -eq 0 ]; then
+  mount | grep "^$DEV_ROOT on / type btrfs" >/dev/null
+  if [ $? -eq 0 ]; then
+    echo "#bind-mounting already mounted root partition"
+    (set -x ; mount -B / /mnt/@)
+  else
+    echo "ERROR: could not mount/re-mount root partition"
+    exit 1
+  fi
+else
+  echo "$DEV_ROOT not mounted anywhere, mounting directly to $TARGET_DIR_ROOT"
+  (set -x ; mount -t btrfs $DEV_ROOT $TARGET_DIR_ROOT -o 'subvol=/@')
+fi
+
+mount | grep "^$DEV_ROOT on $TARGET_DIR_ROOT type btrfs" >/dev/null
+if [ $? -ne 0 ]; then
+  echo "ERROR: $DEV_ROOT not mounted on $TARGET_DIR_ROOT"
+  exit 1
+fi
+
+if [ ! -d "$TARGET_DIR_ROOT" ]; then
+  echo "ERROR: boot dir must be in place already on $TARGET_DIR_ROOT"
+  exit 1
+fi
+
+
+echo
+echo "====="
+echo "#mounting EFI to $TARGET_DIR_EFI (any dir is fine)"
+if [ -d $TARGET_DIR_EFI ]; then
+  umount $TARGET_DIR_EFI
+  rmdir $TARGET_DIR_EFI
+fi
+if [ -e $TARGET_DIR_EFI ]; then
+  echo "ERROR: $TARGET_DIR_EFI already exists and is not removeable"
+  exit 1
+fi
+
+mkdir -p $TARGET_DIR_EFI
+(set -x ; mount -t vfat $DEV_EFI $TARGET_DIR_EFI)
+
+mount | grep "^$DEV_EFI on $TARGET_DIR_EFI type vfat" >/dev/null
+if [ $? -ne 0 ]; then
+  echo "ERROR: $DEV_EFI not mounted on $TARGET_DIR_EFI"
+  exit 1
+fi
+
+
+
+echo
+echo "====="
+echo "installing grub"
+CMD="grub-install \\
+  --efi-directory=$TARGET_DIR_EFI \\
+  --boot-directory=$TARGET_DIR_ROOT/boot \\
+  --recheck \\
+  --no-rs-codes \\
+  --modules=\"btrfs zstd part_gpt part_msdos\" \\
+;
+"
+echo
+echo "run this command?"
+echo "sh -c \"$CMD\""
+echo "y/N"
+read REPLY
+if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
+  (set -x ; sh -c "$CMD")
+fi
