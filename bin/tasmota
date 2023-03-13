@@ -24,6 +24,8 @@ sub runCommandOnDevices($@);
 sub cmd($$);
 sub parseVersion($);
 sub cmpVersion($$);
+sub readFile($);
+sub writeFile($$);
 sub nowMillis();
 
 my $DEVICES_CONFIG_FILE = "$ENV{HOME}/.config/tasmota.conf";
@@ -476,7 +478,7 @@ sub readDevicesConfig(){
 
   my $byte = "[0-9a-fA-f][0-9a-fA-F]";
 
-  my @lines = `cat $DEVICES_CONFIG_FILE`;
+  my @lines = split /\n/, readFile $DEVICES_CONFIG_FILE;
   my @devicesArr;
   for my $line(@lines){
     $line =~ s/#.*//;
@@ -789,6 +791,21 @@ sub cmpVersion($$){
   my ($maj1, $min1, $pt1) = parseVersion($v1);
   my ($maj2, $min2, $pt2) = parseVersion($v2);
   return ($maj1 <=> $maj2) || ($min1 <=> $min2) || ($pt1 <=> $pt2);
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $contents = join '', <FH>;
+  close FH;
+  return $contents;
+}
+
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
 }
 
 sub nowMillis(){
