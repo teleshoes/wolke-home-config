@@ -131,9 +131,7 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --ssid=WIFI_SSID DEVICE [DEVICE DEVICE ..]
     -fetch WIFI_PASSWORD using `winfo --key WIFI_ROUTER_SSID`
     -run the command \"BACKLOG SSID1 <WIFI_SSID>; Password1 <WIFI_PASSWORD>\" on each DEVICE
-    -if current SSID starts with 'tasmota', IP address to $INITIAL_DEVICE_IP
-      -this is the IP for newly flashed/reset tasmota devices
-      -see --auto-init
+    -use --force-ip=$INITIAL_DEVICE_IP to force initial device IP
 
   $EXEC --ssid DEVICE [DEVICE DEVICE ..]
     -for each DEVICE:
@@ -143,9 +141,9 @@ my $USAGE = "Usage:
     NOTE: to set up a new device named 'KITCHEN1':
         -add device entry (name, desired IP, router SSID, device type, aliases)
         -connect to SSID (looks like: tasmota_FFFFFF-9999)
-        -run `$EXEC --mac KITCHEN1`
+        -run `$EXEC --mac KITCHEN1 --force-ip=$INITIAL_DEVICE_IP`
           -add a static DHCP entry for MAC to local router to desired IP
-        -run `$EXEC --setup-wifi KITCHEN1`
+        -run `$EXEC --setup-wifi KITCHEN1 --force-ip=$INITIAL_DEVICE_IP`
           -restart router, and wait for device to be pingable again
         -run `$EXEC --template KITCHEN1`
           -wait for it be pingable again
@@ -232,18 +230,14 @@ my $USAGE = "Usage:
       -insert all devices between '#TASMOTA_START#' and '#TASMOTA_END#', one per line, indented
       -indent '#TASMOTA_END#'
 
-  DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
-    name or IP or both of a single device, or named alias for a list of devices
+  DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_ALIAS
+    name or IP of a single device, or named alias for a list of devices
 
     DEVICE_NAME
       $DEVICES_REGEX
 
     DEVICE_IP4
       IPv4 address of device
-
-    DEVICE_IP4_OVERRIDE
-      <DEVICE_NAME>=<DEVICE_IP4>
-      set the DEVICE_IP4 for the DEVICE_NAME, e.g.: outlet1=192.168.11.105
 
     DEVICE_ALIAS"
       . "\n" . join("",
@@ -257,25 +251,14 @@ my $USAGE = "Usage:
     . "
 
   OPTS
-    --init
-      always override all IP addresses with $INITIAL_DEVICE_IP
-
-    --auto-init
-      (this is the default, see --no-auto-init)
-      -if EXACTLY ONE device is specified on the command line:
-        -get SSID with `wstatus --ssid`
-        -if SSID starts with \"tasmota\"
-        -override device IP with $INITIAL_DEVICE_IP
-
-    --no-auto-init | --no-init
-      do not automatically override IP address
+    --force-ip=IP4_ADDRESS
+      override all IP addresses with IP4_ADDRESS
 ";
 
 sub main(@){
   my $mode = $MODE_TOGGLE;
   my $ssidOverride = undef;
-  my $forceInitIP = 0;
-  my $autoInitIP = 1;
+  my $forceIP = undef;
   my (@devices, $cmd, @dimmerArgs);
   while(@_ > 0){
     my $arg = shift;
@@ -298,10 +281,6 @@ sub main(@){
       @devices = (@devices, @{$DEVICES_BY_ALIAS{$arg}});
     }elsif($arg =~ /^(\d+\.\d+\.\d+\.\d+)$/){
       push @devices, $arg;
-    }elsif($arg =~ /^($DEVICES_REGEX)=(\d+\.\d+\.\d+\.\d+)$/){
-      my ($device, $ip) = ($1, $2);
-      $DEVICE_IPS{$device} = $ip;
-      push @devices, $device;
     }elsif($arg =~ /^(-t|--toggle|toggle)$/){
       $mode = $MODE_TOGGLE;
       $cmd = undef;
@@ -325,15 +304,8 @@ sub main(@){
       $cmd = undef;
     }elsif($arg =~ /^(--ddwrt)$/){
       $mode = $MODE_DDWRT;
-    }elsif($arg =~ /^(--init)$/){
-      $forceInitIP = 1;
-      $autoInitIP = 0;
-    }elsif($arg =~ /^(--auto-init)$/){
-      $autoInitIP = 1;
-      $forceInitIP = 0;
-    }elsif($arg =~ /^(--no-auto-init|--no-init)$/){
-      $autoInitIP = 0;
-      $forceInitIP = 0;
+    }elsif($arg =~ /^--force-ip=(\d+\.\d+\.\d+\.\d+)$/){
+      $forceIP = $1;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
       $cmd = $COMMAND_ALIASES{lc $arg};
@@ -345,9 +317,6 @@ sub main(@){
     }
   }
 
-  my $initIP = 0;
-  $initIP = 1 if $forceInitIP or ($autoInitIP and @devices == 1 and getSSID() =~ /^tasmota/);
-
   if($mode =~ /^($MODE_INFO)$/ and @devices == 0){
     @devices = @DEVICE_NAMES;
   }
@@ -358,10 +327,10 @@ sub main(@){
     die "$USAGE\nERROR: at least one DEVICE must be given for mode=$mode\n" if @devices == 0;
   }
 
-  if($initIP){
-    print "using IP $INITIAL_DEVICE_IP\n";
+  if(defined $forceIP){
+    print "using IP $forceIP for all devices\n";
     for my $device(@devices){
-      $DEVICE_IPS{$device} = $INITIAL_DEVICE_IP;
+      $DEVICE_IPS{$device} = $forceIP;
     }
   }
 
