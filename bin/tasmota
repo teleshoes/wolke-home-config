@@ -135,8 +135,13 @@ my $USAGE = "Usage:
 
   $EXEC --ssid DEVICE [DEVICE DEVICE ..]
     -for each DEVICE:
-      -fetch TARGET_SSID from $DEVICES_CONFIG_FILE
-      -same as: $EXEC --ssid=TARGET_SSID
+      -if DEVICE is a named device in $DEVICES_CONFIG_FILE
+        -use TARGET_SSID for that device as WIFI_SSID
+      -if DEVICE is not a named device:
+        -get the CURRENT_SSID with `wstatus --ssid`
+        -if CURRENT_SSID matches the HOSTNAME of a device:
+          -use the TARGET_SSID for that device
+      -same as: $EXEC --ssid=WIFI_SSID
 
     NOTE: to set up a new device named 'KITCHEN1':
         -add device entry (name, desired IP, router SSID, device type, aliases)
@@ -494,9 +499,21 @@ sub main(@){
       }
 
       if(not defined $ssid){
+        my $currentSSID = getSSID();
+        for my $namedDevice(@DEVICE_NAMES){
+          if($DEVICE_HOSTNAMES{$namedDevice} eq $currentSSID){
+            print "$namedDevice hostname matches current SSID $currentSSID\n";
+            $ssid = $DEVICE_SSIDS{$namedDevice};
+          }
+        }
+      }
+
+      if(not defined $ssid){
         print "ERROR: no SSID configured for $device and no --ssid specified\n";
         next;
       }
+
+      print "using SSID=$ssid\n";
 
       my $key = `winfo --key $ssid`;
       chomp $key;
