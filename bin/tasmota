@@ -184,6 +184,7 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] on | --on DEVICE [DEVICE DEVICE ..]
     send 'POWER ON' to each DEVICE given
+    send POWER_ON_CMDS to each device given
 
   $EXEC [OPTS] off | --off DEVICE [DEVICE DEVICE ..]
     send 'POWER OFF' to each DEVICE given
@@ -362,6 +363,20 @@ sub main(@){
   }elsif($mode eq $MODE_ON){
     my $outputByDevice = runCommandOnDevices("POWER ON", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    for my $device(@devices){
+      my $devType = $DEVICE_TYPES{$device};
+      my $cmds = $DEV_TYPE_POWER_ON_CMDS{$devType};
+      if(not defined $cmds){
+        next;
+      }
+      for my $cmd(@$cmds){
+        if(defined $COMMAND_ALIASES{$cmd}){
+          $cmd = $COMMAND_ALIASES{$cmd};
+        }
+        my $out = cmd($device, $cmd);
+        print "$device - $cmd - $out\n";
+      }
+    }
   }elsif($mode eq $MODE_OFF){
     my $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
