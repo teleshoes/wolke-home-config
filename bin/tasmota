@@ -53,19 +53,20 @@ my $DEVICE_ALIASES_REGEX = join "|", @DEVICE_ALIAS_NAMES;
 
 
 my @DEV_TYPES_ARR = (
-  #DEV_TYPE    => [INIT_CMDS,                      TEMPLATE_GPIO_CONFIG]
-  athom_7w     => [[qw(starton dimnopow normal)],  [ GPIO => '[0,0,0,0,37,40,0,0,38,41,39,0,0]']],
-  athom_15w    => [[qw(starton dimnopow normal)],  [ GPIO => '[0,0,0,0,416,419,0,0,417,452,418,0,0,0]']],
-  kauf_10w     => [[qw(starton dimnopow normal)],  [ GPIO => '[0,0,0,0,416,419,0,0,417,420,418,0,0,0]',
-                                                     CMND => '"SO105 1|RGBWWTable 204,204,122,153,153"']],
-  athom_outlet => [[qw(startlast energyres tz_ny)],[ GPIO => '[0,0,0,32,2720,2656,0,0,2624,320,224,0,0,1]']],
-  cf_switch    => [[qw(startlast)],                [ GPIO => '[0,224,0,32,320,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]']],
-  athom_switch => [[qw(startlast)],                [ GPIO => '[576,0,0,32,0,0,0,0,0,224,320,0,0,0']],
+  #DEV_TYPE    => [INIT_CMDS,                       POWER_ON_CMDS, TEMPLATE_GPIO_CONFIG]
+  athom_7w     => [[qw(starton dimnopow normal)],   [qw(normal)],  [ GPIO => '[0,0,0,0,37,40,0,0,38,41,39,0,0]']],
+  athom_15w    => [[qw(starton dimnopow normal)],   [qw(normal)],  [ GPIO => '[0,0,0,0,416,419,0,0,417,452,418,0,0,0]']],
+  kauf_10w     => [[qw(starton dimnopow normal)],   [qw(normal)],  [ GPIO => '[0,0,0,0,416,419,0,0,417,420,418,0,0,0]',
+                                                                     CMND => '"SO105 1|RGBWWTable 204,204,122,153,153"']],
+  athom_outlet => [[qw(startlast energyres tz_ny)], [qw(normal)],  [ GPIO => '[0,0,0,32,2720,2656,0,0,2624,320,224,0,0,1]']],
+  cf_switch    => [[qw(startlast)],                 [qw(normal)],  [ GPIO => '[0,224,0,32,320,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]']],
+  athom_switch => [[qw(startlast)],                 [qw(normal)],  [ GPIO => '[576,0,0,32,0,0,0,0,0,224,320,0,0,0']],
 );
 my %DEV_TYPES = @DEV_TYPES_ARR;
 my @DEV_TYPE_NAMES = map {$DEV_TYPES_ARR[$_]} grep {$_ % 2 == 0} (0..$#DEV_TYPES_ARR);
 my %DEV_TYPE_INIT_CMDS         = map {$_ => ${$DEV_TYPES{$_}}[0]} @DEV_TYPE_NAMES;
-my %DEV_TYPE_TEMPLATE_GPIO_CFG = map {$_ => ${$DEV_TYPES{$_}}[1]} @DEV_TYPE_NAMES;
+my %DEV_TYPE_POWER_ON_CMDS     = map {$_ => ${$DEV_TYPES{$_}}[1]} @DEV_TYPE_NAMES;
+my %DEV_TYPE_TEMPLATE_GPIO_CFG = map {$_ => ${$DEV_TYPES{$_}}[2]} @DEV_TYPE_NAMES;
 
 my %DEV_TYPE_TEMPLATE_JSON = extractTemplateJSONByDevType({%DEV_TYPE_TEMPLATE_GPIO_CFG});
 
@@ -182,6 +183,7 @@ my $USAGE = "Usage:
       -ignore all devices that did not respond at all
       -check the current power status of all devices that did toggle
       -if at least one turned OFF, send 'off' to any that turned ON
+      -otherwise, send POWER_ON_CMDS to devices that turned ON
 
   $EXEC [OPTS] --dimmer DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
   $EXEC [OPTS] DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
@@ -376,9 +378,21 @@ sub main(@){
     }
 
     if(@devsTurnedOn > 0){
-      print "\nrunning default power-on commands\n";
-      $outputByDevice = runCommandOnDevices($COMMAND_ALIASES{normal}, @devsTurnedOn);
-      print "$_ - $$outputByDevice{$_}\n" foreach @devsTurnedOn;
+      print "\nrunning POWER_ON_CMDS commands\n";
+      for my $device(@devsTurnedOn){
+        my $devType = $DEVICE_TYPES{$device};
+        my $cmds = $DEV_TYPE_POWER_ON_CMDS{$devType};
+        if(not defined $cmds){
+          next;
+        }
+        for my $cmd(@$cmds){
+          if(defined $COMMAND_ALIASES{$cmd}){
+            $cmd = $COMMAND_ALIASES{$cmd};
+          }
+          my $out = cmd($device, $cmd);
+          print "$device - $cmd - $out\n";
+        }
+      }
     }
 
     print "\n";
