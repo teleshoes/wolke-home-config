@@ -30,6 +30,7 @@ sub nowMillis();
 
 my $DEVICES_CONFIG_FILE = "$ENV{HOME}/.config/tasmota.conf";
 my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
+my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
 my $MAX_TIMEOUT_MILLIS = 1200;
 my $MAX_COMMAND_ATTEMPTS = 2;
 
@@ -214,6 +215,11 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --ddwrt
     -generate IP, mac, and device name in DDWRT config file format for all devices
+    -edit $DDWRT_CONFIG_FILE
+      -remove all content between '#TASMOTA_START#' and '#TASMOTA_END#'
+      -get whitespace indent from the line '#TASMOTA_START#'
+      -insert all devices between '#TASMOTA_START#' and '#TASMOTA_END#', one per line, indented
+      -indent '#TASMOTA_END#'
 
   DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
     name or IP or both of a single device, or named alias for a list of devices
@@ -411,11 +417,34 @@ sub main(@){
       print "$device - $mac\n";
     }
   }elsif($mode eq $MODE_DDWRT){
+    my $contents = readFile $DDWRT_CONFIG_FILE;
+    my $indent = "";
+    if($contents =~ /(?:^|\n)([ \t]*)#TASMOTA_START#/){
+      $indent = $1;
+    }
+
+    my $fmt = "#TASMOTA_START#";
     for my $dev(@DEVICE_NAMES){
       my $ip = $DEVICE_IPS{$dev};
       my $mac = $DEVICE_MACS{$dev};
       my $ipSuffix = $1 if $ip =~ /\.(\d+)$/;
-      print "  $ipSuffix = $mac ts-$dev\n";
+      $fmt .= "\n$indent$ipSuffix = $mac ts-$dev";
+    }
+    $fmt .= "\n$indent#TASMOTA_END#";
+
+    print "$indent$fmt\n";
+
+    my $oldContents = $contents;
+
+    if($contents =~ s/(#TASMOTA_START#).*(#TASMOTA_END#)/$fmt/s){
+      if($oldContents eq $contents){
+        print "\nskipping unchanged $DDWRT_CONFIG_FILE\n";
+      }else{
+        writeFile $DDWRT_CONFIG_FILE, $contents;
+        print "\nSUCCESS, updated $DDWRT_CONFIG_FILE\n";
+      }
+    }else{
+      die "\nERROR: could not edit tasmota block in $DDWRT_CONFIG_FILE\n";
     }
   }elsif($mode eq $MODE_SETUP_WIFI){
     for my $device(@devices){
