@@ -117,7 +117,7 @@ my $MODE_DIMMER = "dimmer";
 my $MODE_INFO = "info";
 my $MODE_MAC = "mac";
 my $MODE_DDWRT = "ddwrt";
-my $MODE_SETUP_WIFI = "setup-wifi";
+my $MODE_SET_SSID = "set-ssid";
 my $MODE_CONFIG_DEVICE = "config-device";
 my $MODE_SET_TEMPLATE = "set-template";
 
@@ -128,14 +128,17 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC [OPTS] -s | --setup-wifi DEVICE [DEVICE DEVICE ..]
-    -set the SSID1 and Password1 for each named DEVICE, using BACKLOG command:
-      SSID1=WIFI_SSID
-      Password1=`winfo --key WIFI_SSID`
-    -WIFI_SSID is configured for the named DEVICE
+  $EXEC [OPTS] --ssid=WIFI_SSID DEVICE [DEVICE DEVICE ..]
+    -fetch WIFI_PASSWORD using `winfo --key WIFI_ROUTER_SSID`
+    -run the command \"BACKLOG SSID1 <WIFI_SSID>; Password1 <WIFI_PASSWORD>\" on each DEVICE
     -if current SSID starts with 'tasmota', IP address to $INITIAL_DEVICE_IP
       -this is the IP for newly flashed/reset tasmota devices
       -see --auto-init
+
+  $EXEC --ssid DEVICE [DEVICE DEVICE ..]
+    -for each DEVICE:
+      -fetch TARGET_SSID from $DEVICES_CONFIG_FILE
+      -same as: $EXEC --ssid=TARGET_SSID
 
     NOTE: to set up a new device named 'KITCHEN1':
         -add device entry (name, desired IP, router SSID, device type, aliases)
@@ -270,6 +273,7 @@ my $USAGE = "Usage:
 
 sub main(@){
   my $mode = $MODE_TOGGLE;
+  my $ssidOverride = undef;
   my $forceInitIP = 0;
   my $autoInitIP = 1;
   my (@devices, $cmd, @dimmerArgs);
@@ -278,8 +282,12 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^(-s|--setup-wifi)$/){
-      $mode = $MODE_SETUP_WIFI;
+    }elsif($arg =~ /^(--ssid)$/){
+      $mode = $MODE_SET_SSID;
+      $ssidOverride = undef;
+    }elsif($arg =~ /^--ssid=(.+)$/){
+      $mode = $MODE_SET_SSID;
+      $ssidOverride = $1;
     }elsif($arg =~ /^(--config)$/){
       $mode = $MODE_CONFIG_DEVICE;
     }elsif($arg =~ /^(--template)$/){
@@ -508,9 +516,14 @@ sub main(@){
     }else{
       die "\nERROR: could not edit tasmota block in $DDWRT_CONFIG_FILE\n";
     }
-  }elsif($mode eq $MODE_SETUP_WIFI){
+  }elsif($mode eq $MODE_SET_SSID){
     for my $device(@devices){
-      my $ssid = $DEVICE_SSIDS{$device};
+      my $ssid = $ssidOverride;
+
+      if(not defined $ssid and defined $DEVICE_SSIDS{$device}){
+        $ssid = $DEVICE_SSIDS{$device};
+      }
+
       if(not defined $ssid){
         die "ERROR: no SSID configured for $device\n";
       }
