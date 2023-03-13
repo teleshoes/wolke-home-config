@@ -131,7 +131,7 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --ssid=WIFI_SSID DEVICE [DEVICE DEVICE ..]
     -fetch WIFI_PASSWORD using `winfo --key WIFI_ROUTER_SSID`
     -run the command \"BACKLOG SSID1 <WIFI_SSID>; Password1 <WIFI_PASSWORD>\" on each DEVICE
-    -use --force-ip=$INITIAL_DEVICE_IP to force initial device IP
+      -use 'init' for DEVICE if connected to tasmota initial wifi network
 
   $EXEC --ssid DEVICE [DEVICE DEVICE ..]
     -for each DEVICE:
@@ -143,16 +143,28 @@ my $USAGE = "Usage:
           -use the TARGET_SSID for that device
       -same as: $EXEC --ssid=WIFI_SSID
 
-    NOTE: to set up a new device named 'KITCHEN1':
-        -add device entry (name, desired IP, router SSID, device type, aliases)
-        -connect to SSID (looks like: tasmota_FFFFFF-9999)
-        -run `$EXEC --mac KITCHEN1 --force-ip=$INITIAL_DEVICE_IP`
-          -add a static DHCP entry for MAC to local router to desired IP
-        -run `$EXEC --setup-wifi KITCHEN1 --force-ip=$INITIAL_DEVICE_IP`
-          -restart router, and wait for device to be pingable again
+    NOTE: to set up a new tasmota device named 'KITCHEN1':
+        -connect to tasmota SSID, e.g.: tasmota_123FED-9922
+        -run `$EXEC --mac init`
+        -run `$EXEC --ssid=DESIRED_WIFI_SSID init`
+        -add device entry to $DEVICES_CONFIG_FILE with:
+           desired name
+           ACTUAL  device hostname/SSID (e.g.: tasmota_123FED-9922)
+           ACTUAL  device MAC
+           desired IP on local network
+           desired local network SSID
+           ACTUAL  device type (one of: @DEV_TYPE_NAMES)
+           desired device aliases
+         e.g.:
+            KITCHEN1 | tasmota_123FED-9922 | 12:34:56:78:9A:BC | 192.168.11.99 | MyNetwork | cf_switch | k1
+        -run `$EXEC --ddwrt` to populate MAC and desired IP in ddwrt config
+        -run `ddwrt --restore` to setup+restart router
+        -wait for device to be pingable on the desired IP address
         -run `$EXEC --template KITCHEN1`
           -wait for it be pingable again
         -run `$EXEC --config KITCHEN1`
+          -should still be pingable
+
     TO FLASH TASMOTA ON KAUF:
         -change ROUTER ssid + wpa => initial_ap2 + asdfasdfasdfasdf
         -plug in device, will flash when connected (try 'initial_ap' if not)
