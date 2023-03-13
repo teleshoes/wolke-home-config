@@ -210,9 +210,8 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
-  $EXEC [OPTS] --ddwrt [DEVICE DEVICE ..]
-    print config format for DDWRT config file
-    if no device given, prints all
+  $EXEC [OPTS] --ddwrt
+    -generate IP, mac, and device name in DDWRT config file format for all devices
 
   DEVICE = DEVICE_NAME | DEVICE_IP4 | DEVICE_IP4_OVERRIDE | DEVICE_ALIAS
     name or IP or both of a single device, or named alias for a list of devices
@@ -319,12 +318,10 @@ sub main(@){
   my $initIP = 0;
   $initIP = 1 if $forceInitIP or ($autoInitIP and @devices == 1 and getSSID() =~ /^tasmota/);
 
-  if(@devices == 0 and $mode =~ /^($MODE_DDWRT)$/){
-    @devices = @DEVICE_NAMES;
-  }
-
-  if(@devices == 0){
-    die "$USAGE\nERROR: at least one DEVICE must be given for $mode\n";
+  if($mode =~ /^($MODE_DDWRT)$/){
+    die "$USAGE\nERROR: canonot specify DEVICE for mode=$mode\n" if @devices > 0;
+  }else{
+    die "$USAGE\nERROR: at least one DEVICE must be given for mode=$mode\n" if @devices == 0;
   }
 
   if($initIP){
@@ -412,7 +409,7 @@ sub main(@){
       print "$device - $mac\n";
     }
   }elsif($mode eq $MODE_DDWRT){
-    for my $dev(@devices){
+    for my $dev(@DEVICE_NAMES){
       my $ip = $DEVICE_IPS{$dev};
       my $mac = $DEVICE_MACS{$dev};
       my $ipSuffix = $1 if $ip =~ /\.(\d+)$/;
