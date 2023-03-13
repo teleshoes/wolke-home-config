@@ -177,11 +177,11 @@ my $USAGE = "Usage:
   $EXEC [OPTS] DEVICE [DEVICE ..]
   $EXEC [OPTS] --toggle-all DEVICE [DEVICE ..]
   $EXEC [OPTS] -t DEVICE [DEVICE ..]
-    either turn on all devices, or turn off all devices,
-      by toggling all and then turning off stragglers
-    -send 'POWER TOGGLE' to all devices
-    -check the current power status after toggling
-    -if at least one is 'OFF' and at least one is 'ON', send 'off' to all
+    toggle devices - if all are OFF, turn all ON, otherwise turn all OFF
+      -send 'POWER TOGGLE' to all devices
+      -ignore all devices that did not respond at all
+      -check the current power status of all devices that did toggle
+      -if at least one turned OFF, send 'off' to any that turned ON
 
   $EXEC [OPTS] --dimmer DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
   $EXEC [OPTS] DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
@@ -352,27 +352,39 @@ sub main(@){
     print "toggling all =>\n";
     my $outputByDevice = runCommandOnDevices("POWER TOGGLE", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
-    my $someOff = 0;
-    my $someOn = 0;
+    my @devsTurnedOn;
+    my @devsTurnedOff;
+    my @devsIgnored;
     for my $device(@devices){
       my $output = $$outputByDevice{$device};
       $output = "" if not defined $output;
       if($output =~ /{"POWER":"OFF"}/i){
-        $someOff = 1;
+        push @devsTurnedOff, $device;
       }elsif($output =~ /{"POWER":"ON"}/i){
-        $someOn = 1;
+        push @devsTurnedOn, $device;
+      }else{
+        push @devsIgnored, $device;
       }
     }
-    if($someOff and $someOn){
-      print "\nsome devices off, some devices on, turning all off =>\n";
-      $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
-      print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+
+    if(@devsTurnedOff > 0 and @devsTurnedOn > 0){
+      print "\nsome devices off, some devices on, turning OFF\n";
+      $outputByDevice = runCommandOnDevices("POWER OFF", @devsTurnedOn);
+      print "$_ - $$outputByDevice{$_}\n" foreach @devsTurnedOn;
+      @devsTurnedOff = (@devsTurnedOff, @devsTurnedOn);
+      @devsTurnedOn = ();
     }
-    #if toggled on, also run default cmd
-    if(not $someOff){
-      $outputByDevice = runCommandOnDevices($COMMAND_ALIASES{default}, @devices);
-      print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+
+    if(@devsTurnedOn > 0){
+      print "\nrunning default power-on commands\n";
+      $outputByDevice = runCommandOnDevices($COMMAND_ALIASES{default}, @devsTurnedOn);
+      print "$_ - $$outputByDevice{$_}\n" foreach @devsTurnedOn;
     }
+
+    print "\n";
+    print "IGNORED: @devsIgnored\n" if @devsIgnored > 0;
+    print "ON: @devsTurnedOn\n" if @devsTurnedOn > 0;
+    print "OFF: @devsTurnedOff\n" if @devsTurnedOff > 0;
   }elsif($mode eq $MODE_DIMMER){
     die "ERROR: no DIMMER_PCT_ARG given\n" if @dimmerArgs == 0;
     my $curDimmer = readMinDimmer(@devices);
