@@ -73,10 +73,6 @@ my %DEV_TYPE_TEMPLATE_JSON = extractTemplateJSONByDevType({%DEV_TYPE_TEMPLATE_GP
 
 my @COMMAND_ALIASES_ARR = (
   #ALIAS    => COMMAND
-  on        => 'POWER ON',
-  off       => 'POWER OFF',
-  toggle    => 'POWER TOGGLE',
-
   starton   => 'PowerOnState 1',
   startoff  => 'PowerOnState 0',
   startlast => 'PowerOnState 3',
@@ -114,7 +110,9 @@ my @COMMAND_ALIAS_NAMES = map {$COMMAND_ALIASES_ARR[$_]}
 
 
 my $MODE_COMMAND = "command";
-my $MODE_TOGGLE_ALL = "toggle-all";
+my $MODE_TOGGLE = "toggle";
+my $MODE_ON = "on";
+my $MODE_OFF = "off";
 my $MODE_DIMMER = "dimmer";
 my $MODE_INFO = "info";
 my $MODE_MAC = "mac";
@@ -176,14 +174,19 @@ my $USAGE = "Usage:
     same as: $EXEC DEVICE DEVICE .. COMMAND
 
   $EXEC [OPTS] DEVICE [DEVICE ..]
-  $EXEC [OPTS] --toggle-all DEVICE [DEVICE ..]
-  $EXEC [OPTS] -t DEVICE [DEVICE ..]
+  $EXEC [OPTS] -t|--toggle|toggle DEVICE [DEVICE ..]
     toggle devices - if all are OFF, turn all ON, otherwise turn all OFF
       -send 'POWER TOGGLE' to all devices
       -ignore all devices that did not respond at all
       -check the current power status of all devices that did toggle
-      -if at least one turned OFF, send 'off' to any that turned ON
+      -if at least one turned OFF, send 'POWER OFF' to any that turned ON
       -otherwise, send POWER_ON_CMDS to devices that turned ON
+
+  $EXEC [OPTS] on | --on DEVICE [DEVICE DEVICE ..]
+    send 'POWER ON' to each DEVICE given
+
+  $EXEC [OPTS] off | --off DEVICE [DEVICE DEVICE ..]
+    send 'POWER OFF' to each DEVICE given
 
   $EXEC [OPTS] --dimmer DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
   $EXEC [OPTS] DEVICE [DEVICE DEVICE ..] DIMMER_PCT_ARG [DIMMER_PCT_ARG DIMMER_PCT_ARG]
@@ -265,7 +268,7 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  my $mode = $MODE_TOGGLE_ALL;
+  my $mode = $MODE_TOGGLE;
   my $forceInitIP = 0;
   my $autoInitIP = 1;
   my (@devices, $cmd, @dimmerArgs);
@@ -290,8 +293,14 @@ sub main(@){
       my ($device, $ip) = ($1, $2);
       $DEVICE_IPS{$device} = $ip;
       push @devices, $device;
-    }elsif($arg =~ /^(--toggle-all|-t)$/){
-      $mode = $MODE_TOGGLE_ALL;
+    }elsif($arg =~ /^(-t|--toggle|toggle)$/){
+      $mode = $MODE_TOGGLE;
+      $cmd = undef;
+    }elsif($arg =~ /^(on|--on)$/){
+      $mode = $MODE_ON;
+      $cmd = undef;
+    }elsif($arg =~ /^(off|--off)$/){
+      $mode = $MODE_OFF;
       $cmd = undef;
     }elsif($arg =~ /^(--dimmer)$/){
       $mode = $MODE_DIMMER;
@@ -350,7 +359,13 @@ sub main(@){
   if($mode eq $MODE_COMMAND){
     my $outputByDevice = runCommandOnDevices($cmd, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
-  }elsif($mode eq $MODE_TOGGLE_ALL){
+  }elsif($mode eq $MODE_ON){
+    my $outputByDevice = runCommandOnDevices("POWER ON", @devices);
+    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($mode eq $MODE_OFF){
+    my $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
+    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($mode eq $MODE_TOGGLE){
     print "toggling all =>\n";
     my $outputByDevice = runCommandOnDevices("POWER TOGGLE", @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
