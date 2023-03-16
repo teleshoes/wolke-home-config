@@ -1,0 +1,319 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(time);
+
+sub readSecrets();
+sub decrypt($);
+sub updateTokenConf($$$);
+sub readFile($);
+sub writeFile($$);
+sub nowMillis();
+sub run(@);
+
+my $CONF_FILE = "$ENV{HOME}/.config/midea.conf";
+my $EXEC_CLI = "$ENV{HOME}/.local/bin/midea-beautiful-air-cli";
+my $LOG_DIR = "$ENV{HOME}/.cache/logs/midea-cube";
+
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_PREFIX = "midea";
+my $SECRETS_KEYS_REGEX = join "|", qw(app_key email password);
+my %SECRETS_ENC_KEYS = map {$_ => 1} qw(password);
+
+my $DEV_MODE_IP = "ip";
+my $DEV_MODE_ID = "id";
+my $AUTH_MODE_TOKEN = "token";
+my $AUTH_MODE_LOGIN = "login";
+
+my $MODE_STATUS = "status";
+my $MODE_SET = "set";
+my $MODE_FETCH_TOKEN = "fetch-token";
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS]
+  $EXEC [OPTS] --status | status
+    -run `$EXEC_CLI status --credentials --ip IP --token TOKEN --key KEY`
+    -log the full status to $LOG_DIR/<YYYY-MM-DD_HHMMSS>_<MILLIS>_<DEV_NAME>.log
+    -parse the status and print summary
+
+  $EXEC [OPTS] --on | on
+    -same as: $EXEC [OPTS] --set --running true
+  $EXEC [OPTS] --off | off
+    -same as: $EXEC [OPTS] --set --running fa;se
+
+  $EXEC [OPTS] --set|set [SET_ARG SET_ARG ..]
+    -run `$EXEC_CLI set --ip IP --token TOKEN --key KEY SET_ARG SET_ARG`
+
+  $EXEC [OPTS] -f | --fetch | --fetch-token | fetch
+    -get status as in $EXEC --status --login
+      -implies --login
+    -store token in $CONF_FILE
+      -if file contains a line starting with \"DEV_NAME.token = \", replace that line
+      -otherwise, append to the end of the file
+    -store key in $CONF_FILE
+      -if file contains a line starting with \"DEV_NAME.key = \", replace that line
+      -otherwise, append to the end of the file
+
+  OPTS
+    --dev=DEVICE_NAME | --DEVICE_NAME | DEVICE_NAME
+      use DEVICE_NAME from $CONF_FILE
+      (default is first device in $CONF_FILE)
+
+    --id
+      use `--id` instead of `--ip`
+
+    --ip
+      use `--ip` instead of `--id`
+      (this is the default)
+
+    --login | --account | --email
+      use `--account EMAIL --password PASSWORD`
+      instead of `--token TOKEN --key KEY`
+
+    --no-login | --token
+      use `--token TOKEN --key KEY`
+      instead of `--account EMAIL --password PASSWORD`
+      (this is the default)
+
+    --cloud
+      pass '--cloud' to $EXEC_CLI
+
+    --no-cloud
+      do not pass '--cloud' to $EXEC_CLI
+      (this is the default)
+";
+
+sub main(@){
+  my $conf = readConf();
+  my $mode = $MODE_STATUS;
+  my $devMode = $DEV_MODE_IP;
+  my $authMode = $AUTH_MODE_TOKEN;
+  my $devName = undef;
+  my $useCloud = 0;
+  my @setArgs;
+
+  my $devNameRegex = join "|", @{$$conf{deviceOrder}};
+
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-s|--status|status)$/){
+      $mode = $MODE_STATUS;
+    }elsif($arg =~ /^(-f|--fetch|--fetch-token|fetch)$/){
+      $mode = $MODE_FETCH_TOKEN;
+      $authMode = $AUTH_MODE_LOGIN;
+    }elsif($arg =~ /^(--set|set)$/){
+      $mode = $MODE_SET;
+      @setArgs = @_;
+      @_ = ();
+    }elsif($arg =~ /^(--on|on)$/){
+      $mode = $MODE_SET;
+      @setArgs = ("--running", "true");
+    }elsif($arg =~ /^(--off|off)$/){
+      $mode = $MODE_SET;
+      @setArgs = ("--running", "false");
+    }elsif($arg =~ /^--dev=($devNameRegex)$/){
+      $devName = $1;
+    }elsif($arg =~ /^(?:--)?($devNameRegex)$/){
+      $devName = $1;
+    }elsif($arg =~ /^(--id)$/){
+      $devMode = $DEV_MODE_ID;
+    }elsif($arg =~ /^(--ip)$/){
+      $devMode = $DEV_MODE_IP;
+    }elsif($arg =~ /^(--no-login|--token)$/){
+      $authMode = $AUTH_MODE_TOKEN;
+    }elsif($arg =~ /^(--login|--account|--email)$/){
+      $authMode = $AUTH_MODE_LOGIN;
+    }elsif($arg =~ /^(--cloud)$/){
+      $useCloud = 1;
+    }elsif($arg =~ /^(--no-cloud)$/){
+      $useCloud = 0;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  my @deviceNames = @{$$conf{deviceOrder}};
+  if(@deviceNames == 0){
+    die "ERROR: no devices found in $CONF_FILE\n";
+  }
+  $devName = $deviceNames[0] if not defined $devName;
+  my $device = $$conf{devices}{$devName};
+
+  my @devArgs;
+  if($devMode eq $DEV_MODE_IP){
+    @devArgs = ("--ip", $$device{ip});
+  }elsif($devMode eq $DEV_MODE_ID){
+    @devArgs = ("--id", $$device{id});
+  }
+
+  my @authArgs;
+  if($authMode eq $AUTH_MODE_TOKEN){
+    @authArgs = (
+      "--token", $$device{token},
+      "--key", $$device{key},
+    );
+  }elsif($authMode eq $AUTH_MODE_LOGIN){
+    my $secrets = readSecrets();
+    @authArgs = (
+      "--account", $$secrets{email},
+      "--password", $$secrets{password},
+    );
+  }
+
+  if($mode eq $MODE_STATUS){
+    my @cmd = ($EXEC_CLI, "status", "--credentials", @devArgs, @authArgs);
+    push @cmd, "--cloud" if $useCloud;
+
+    my $dtm = `date +%Y-%m-%d_%H%M%S`;
+    chomp $dtm;
+    my $nowMillis = nowMillis();
+
+    my $logFile = "$LOG_DIR/${dtm}_${nowMillis}_${devName}.log";
+
+    my $status = `@cmd`;
+    writeFile($logFile, $status);
+
+    my $running = $1 if $status =~ /^\s*running\s*=\s*(.+)$/m;
+    my $humidity = $1 if $status =~ /^\s*humid%\s*=\s*(.+)$/m;
+    my $targetHumidity = $1 if $status =~ /^\s*target%\s*=\s*(.+)$/m;
+    my $fanSpeed = $1 if $status =~ /^\s*fan\s*=\s*(.+)$/m;
+    my $tempC = $1 if $status =~ /^\s*temp\s*=\s*(.+)$/m;
+
+    my $tempF = sprintf "%.1f", $tempC*9/5+32;
+
+    my $pwr;
+    $pwr = "on" if $running =~ /true/i;
+    $pwr = "of" if $running =~ /false/i;
+    $pwr = "???" if not defined $pwr;
+
+    print "$devName: $pwr  ${tempF}F $humidity%   (=> $targetHumidity%)\n";
+  }elsif($mode eq $MODE_SET){
+    my @cmd = ($EXEC_CLI, "set", @devArgs, @authArgs);
+    push @cmd, "--cloud" if $useCloud;
+    @cmd = (@cmd, @setArgs);
+
+    system @cmd;
+  }elsif($mode eq $MODE_FETCH_TOKEN){
+    my @cmd = ($EXEC_CLI, "status", "--credentials", @devArgs, @authArgs);
+    push @cmd, "--cloud" if $useCloud;
+
+    my $status = `@cmd`;
+
+    my $token;
+    if($status =~ /^\s*token\s*=\s*([0-9a-fA-F]+)$/m){
+      $token = $1;
+    }
+    my $key;
+    if($status =~ /^\s*key\s*=\s*([0-9a-fA-F]+)$/m){
+      $key = $1;
+    }
+
+    if(defined $token and defined $key){
+      updateTokenConf($devName, $token, $key);
+      print "updated $devName token+key:\ntoken=$token\nkey=$key\n";
+    }else{
+      die "ERROR: could not parse token/key in status:\n$status\n";
+    }
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub readConf(){
+  open FH, "< $CONF_FILE" or die "ERROR: could not read $CONF_FILE\n$!\n";
+  my @lines = <FH>;
+  close FH;
+
+  my $conf = {
+    devices => {},
+    deviceOrder => [],
+  };
+
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^(\w+).(\w+)\s*=\s*(\S.*)$/){
+      my ($dev, $key, $val) = ($1, $2, $3);
+      if(not defined $$conf{devices}{$dev}){
+        $$conf{devices}{$dev} = {};
+        push @{$$conf{deviceOrder}}, $dev,
+      }
+      $$conf{devices}{$dev}{$key} = $val;
+    }
+  }
+
+  return $conf;
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $secrets = {};
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_PREFIX\.($SECRETS_KEYS_REGEX)\s*=\s*(.+)$/){
+      $$secrets{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$secrets){
+    $$secrets{$key} = decrypt $$secrets{$key} if defined $SECRETS_ENC_KEYS{$key};
+  }
+  return $secrets;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
+}
+
+sub updateTokenConf($$$){
+  my ($devName, $token, $key) = @_;
+  my $conf = readFile $CONF_FILE;
+  if($conf !~ s/^(\s*$devName\.token\s*=\s*).*/$1$token/m){
+    $conf .= "$devName.token = $token\n";
+  }
+  if($conf !~ s/^(\s*$devName\.key\s*=\s*).*/$1$key/m){
+    $conf .= "$devName.key = $key\n";
+  }
+
+  writeFile($CONF_FILE, $conf);
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $contents = join '', <FH>;
+  close FH;
+  return $contents;
+}
+
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
