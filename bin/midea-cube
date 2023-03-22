@@ -6,6 +6,7 @@ use Time::HiRes qw(time);
 
 sub readSecrets();
 sub decrypt($);
+sub rotateLogs();
 sub updateTokenConf($$$);
 sub readFile($);
 sub writeFile($$);
@@ -29,6 +30,7 @@ my $AUTH_MODE_LOGIN = "login";
 my $MODE_STATUS = "status";
 my $MODE_SET = "set";
 my $MODE_FETCH_TOKEN = "fetch-token";
+my $MODE_ROTATE_LOGS = "rotate-logs";
 
 my $EXEC = basename $0;
 
@@ -59,6 +61,15 @@ my $USAGE = "Usage:
     -store key in $CONF_FILE
       -if file contains a line starting with \"DEV_NAME.key = \", replace that line
       -otherwise, append to the end of the file
+
+  $EXEC --rotate-logs
+    -find all log files named $LOG_DIR/<YYYY-MM-DD>_<MILLIS>_<DEV_NAME>.log
+    -for each date <YYYY-MM-DD> and <DEV_NAME> in log files:
+      -if date is yesterday, today, or a future date, skip that date
+      -parse each log file with that date+device, and obtain humid%, ignoring unparseable logs
+      -calculate the mean average AVG_HUMID_PCT, rounded to the nearest percent
+      -create a LZMA-compressed tar file:
+        $LOG_DIR/<YYYY-MM-DD>_<DEV_NAME>_<AVG_HUMD_PCT>rh.tar.xz
 
   OPTS
     --dev=DEVICE_NAME | --DEVICE_NAME | DEVICE_NAME
@@ -120,6 +131,8 @@ sub main(@){
     }elsif($arg =~ /^(--off|off)$/){
       $mode = $MODE_SET;
       @setArgs = ("--running", "false");
+    }elsif($arg =~ /^--rotate-logs$/){
+      $mode = $MODE_ROTATE_LOGS;
     }elsif($arg =~ /^--dev=($devNameRegex)$/){
       $devName = $1;
     }elsif($arg =~ /^(?:--)?($devNameRegex)$/){
@@ -223,6 +236,8 @@ sub main(@){
     }else{
       die "ERROR: could not parse token/key in status:\n$status\n";
     }
+  }elsif($mode eq $MODE_ROTATE_LOGS){
+    rotateLogs();
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -277,6 +292,71 @@ sub decrypt($){
   my $value = join '', @contents;
   chomp $value;
   return $value;
+}
+
+sub rotateLogs(){
+  my @logFiles = grep {-f $_} glob "$LOG_DIR/*.log";
+  s/^$LOG_DIR\/// foreach @logFiles;
+
+  my %logs;
+  my $yday = `date --date=yesterday +%Y-%m-%d`;
+  chomp $yday;
+  for my $log(@logFiles){
+    if(not -f "$LOG_DIR/$log"){
+      die "ERROR: could not find log file $log\n";
+    }
+
+    if($log =~ /^(\d\d\d\d-\d\d-\d\d)_(\d\d\d\d\d\d)_(\d+)_(\w+)\.log$/){
+      my ($date, $time, $millis, $devName) = ($1, $2, $3, $4);
+      if($date ge $yday){
+        next;
+      }
+      $logs{$devName} = {} if not defined $logs{$devName};
+      $logs{$devName}{$date} = [] if not defined $logs{$devName}{$date};
+      push @{$logs{$devName}{$date}}, $log;
+    }else{
+      die "ERROR: malformed log file name $log\n";
+    }
+  }
+
+  chdir $LOG_DIR;
+  $ENV{PWD} = $LOG_DIR;
+
+  for my $devName(sort keys %logs){
+    for my $date(sort keys %{$logs{$devName}}){
+      my @dateLogs = @{$logs{$devName}{$date}};
+      my $totalHumid = 0;
+      my $countHumid = 0;
+      for my $log(@dateLogs){
+        my $contents = readFile $log;
+        if($contents =~ /^\s*humid%\s*=\s*(\d+|\d*\.\d+)\s*$/m){
+          $totalHumid += $1;
+          $countHumid += 1;
+        }
+      }
+      my $avgHumid = $countHumid > 0 ? int($totalHumid/$countHumid + 0.5) : 0;
+      my $tarFile = "$LOG_DIR/${date}_${devName}_${avgHumid}rh.tar.xz";
+      if(-e $tarFile){
+        die "ERROR: $tarFile already exists\n";
+      }
+
+      system "tar",
+        "--xz",
+        "-c",
+        "-f", $tarFile,
+        @dateLogs,
+      ;
+
+      my $fileCount = `tar --list -f \"$tarFile\" | wc -l`;
+      chomp $fileCount;
+      if($fileCount != @dateLogs){
+        die "ERROR: mismatched logfile count\n";
+      }
+      print "created $tarFile with $fileCount logs\n";
+      print "deleting $fileCount logs\n";
+      system "rm", @dateLogs;
+    }
+  }
 }
 
 sub updateTokenConf($$$){
