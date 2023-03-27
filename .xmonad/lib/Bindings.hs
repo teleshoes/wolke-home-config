@@ -233,10 +233,10 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "tasmota"         @@ do
-        "ts-outlet1"    @@ mC    xK_PgDn #! "tasmota outlet1 'POWER TOGGLE'"
-        "ts-outlet2"    @@ mCS   xK_PgDn #! "tasmota outlet2 'POWER TOGGLE'"
-        "ts-bulbs"      @@ mC    xK_PgUp #! "tasmota liv --toggle-all"
-        "ts-dimmer"     @@ mCS   xK_PgUp #! "tasmota liv --dimmer 33 66 100"
+        "ts-lamp1"      @@ mC    xK_PgDn #! "tasmota lamp1"
+        "ts-ddr"        @@ mCS   xK_PgDn #! "tasmota ddr"
+        "ts-liv"        @@ mC    xK_PgUp #! "tasmota liv"
+        "ts-liv-dim"    @@ mCS   xK_PgUp #! "tasmota b6 b7 --dimmer 33 66 100"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
