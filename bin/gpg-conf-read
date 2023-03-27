@@ -2,14 +2,31 @@
 use strict;
 use warnings;
 
-my $usage = "Usage:
-  $0 CONF_FILE [KEY_REGEX]
+my $USAGE = "Usage:
+  $0 CONF_FILE [KEY_REGEX] [--key=EXACT_KEY]
 ";
 
 sub main(@){
-  my $confFile = shift;
-  my $keyRegex = shift;
-  die $usage if @_ != 0 or not defined $confFile or not -f $confFile;
+  my $confFile;
+  my $keyRegex = undef;
+  my $exactKey = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^--key=(.+)$/){
+      $exactKey = $1;
+    }elsif(-f $arg and not defined $confFile){
+      $confFile = $arg;
+    }elsif(not defined $keyRegex){
+      $keyRegex = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+  die "$USAGE\nERROR: missing CONF_FILE\n" if not defined $confFile;
+
   my @lines = `cat $confFile`;
   for my $line(@lines){
     if($line =~ /^([^=]+?)\s*=\s*(.+)$/){
@@ -17,13 +34,20 @@ sub main(@){
       if(defined $keyRegex and $key !~ /$keyRegex/i){
         next;
       }
+      if(defined $exactKey and $key ne $exactKey){
+        next;
+      }
       if($val =~ /^!h!.+!f!$/){
         $val = `gpg-sym '$val'`;
         chomp $val;
       }
-      print "$key = $val\n";
+      if(defined $exactKey){
+        print "$val\n";
+      }else{
+        print "$key = $val\n";
+      }
     }else{
-      print $line unless defined $keyRegex;
+      print $line unless defined $keyRegex or defined $exactKey;
     }
   }
 }
