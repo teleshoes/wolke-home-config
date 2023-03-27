@@ -1,0 +1,173 @@
+#!/usr/bin/python3
+import argparse
+import asyncio
+import logging
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from pyeconet import EcoNetApiInterface
+from pyeconet.equipment import EquipmentType
+from pyeconet.equipment.water_heater import WaterHeaterOperationMode
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--email", type=str,
+                        help="econet account email")
+    parser.add_argument("--password", type=str,
+                        help="econet account password")
+    parser.add_argument("-v", "--verbose", "--debug", action='store_true',
+                        help="set log level to DEBUG")
+    parser.add_argument("-s", "--set", dest="TEMP_SET_POINT", type=int,
+                        help="temperature set point (probably °F, 110-140)")
+    parser.add_argument("-g", "--get", action='store_true',
+                        help="print one-line summary of device (this is the default)")
+    parser.add_argument("-i", "--info", action='store_true',
+                        help="print detailed information for device")
+    parser.add_argument("-m", "--monitor", action='store_true',
+                        help="log device info every 60s to a new file in log dir")
+    parser.add_argument("--delay", type=int, dest="MONITOR_DELAY_S", default=60,
+                        help="monitor delay in seconds (default is 60)")
+    parser.add_argument("-e", "--energy", action="store_true",
+                        help="include energy usage (requires extra API call)")
+    parser.add_argument("-d", "--device", dest="DEVICE_NUM", type=int, default=1,
+                        help="for multiple devices: first=1, second=2, etc")
+
+    args = parser.parse_args()
+
+    email = args.email
+    if email == None:
+      email = os.environ.get("ECONET_EMAIL")
+    if args.email == None:
+      email = readProc(["gpg-conf-read", str(Path.home()) + "/.secrets", "--key=econet.email"])
+
+    password = args.password
+    if args.password == None:
+      password = os.environ.get("ECONET_PASSWORD")
+    if args.password == None:
+      password = readProc(["gpg-conf-read", str(Path.home()) + "/.secrets", "--key=econet.password"])
+
+    if email == None or password == None or email == "" or password == "":
+      die(parser.format_help()
+        + "\nERROR: missing email and/or password"
+        + "\n  (can be given with --email/--password command line args,"
+        + "\n   or ECONET_EMAIL/ECONET_PASSWORD environment variables)"
+        + "\n")
+
+    if args.verbose:
+      logging.basicConfig()
+      logging.getLogger().setLevel(logging.DEBUG)
+
+    api = await EcoNetApiInterface.login(email, password)
+    all_equipment = await api.get_equipment_by_type(
+      [EquipmentType.WATER_HEATER, EquipmentType.THERMOSTAT])
+    api.subscribe()
+
+    dev = getDevice(all_equipment, args.DEVICE_NUM)
+
+    if args.TEMP_SET_POINT != None:
+      old_temp = dev.set_point
+      await asyncio.sleep(1)
+      dev.set_set_point(args.TEMP_SET_POINT)
+      await api.refresh_equipment()
+      new_temp = dev.set_point
+      print(f"success: {old_temp} => {new_temp}")
+    elif args.info:
+      if args.energy:
+        await dev.get_energy_usage()
+      print(formatDetails(dev), end='')
+    elif args.monitor:
+      logDir = str(Path.home()) + "/.cache/logs/pyeconet"
+      if not os.path.isdir(logDir):
+        os.mkdir(logDir)
+
+      while True:
+        nowFmt = time.strftime("%Y-%m-%d_%H%M%S_%s")
+        logFile = logDir + "/" + nowFmt + ".log"
+        print("\n\n" + logFile)
+        print(formatDetails(dev), end='')
+        with open(logFile, "w") as fh:
+          fh.write(formatDetails(dev))
+        await asyncio.sleep(args.MONITOR_DELAY_S)
+        await api.refresh_equipment()
+    else:
+      print(formatSummary(dev), end='')
+
+    api.unsubscribe()
+
+def getDevice(equipment, devNumber):
+  devicesList = []
+  for devList in equipment.values():
+    devicesList.extend(devList)
+  devicesList.sort(key=lambda dev: dev.serial_number)
+
+  if devNumber <= 0:
+    die(f"ERROR: invalid device number {devNumber} (first device is #1)")
+  elif devNumber > len(devicesList):
+    die(f"ERROR: could not find device#{devNumber} for econet account")
+  else:
+    return devicesList[devNumber - 1]
+
+def formatSummary(dev):
+  alertMsg = ""
+  if dev.alert_count != 0:
+    alertMsg += f"   WARNING:alert_count={dev.alert_count}"
+  if not dev.shutoff_valve_open:
+    alertmsg += f"   ERROR:shutoff_valve_open=False"
+
+  return (""
+    + ""    + f"temp:{dev.set_point}"
+    + "   " + f"avail:{dev.tank_hot_water_availability}%"
+    + "   " + f"heating:{dev.running}"
+    + alertMsg
+    + "\n")
+
+def formatDetails(dev):
+  return (""
+    + f"device_id: {dev.device_id}\n"
+    + f"device_name: {dev.device_name}\n"
+    + f"serial_number: {dev.serial_number}\n"
+    + f"type: {dev.type}\n"
+    + f"generic_type: {dev.generic_type}\n"
+    + f"active: {dev.active}\n"
+    + f"connected: {dev.connected}\n"
+    + f"set_point: {dev.set_point}\n"
+    + f"set_point_limits: {dev.set_point_limits}\n"
+    + f"away: {dev.away}\n"
+    + f"supports_away: {dev.supports_away}\n"
+    + f"vacation: {dev.vacation}\n"
+    + f"alert_count: {dev.alert_count}\n"
+    + f"wifi_signal: {dev.wifi_signal}\n"
+    + ""
+    + f"enabled: {dev.enabled}\n"
+    + f"tank_hot_water_availability: {dev.tank_hot_water_availability}\n"
+    + f"tank_health: {dev.tank_health}\n"
+    + f"compressor_health: {dev.compressor_health}\n"
+    + f"leak_installed: {dev.leak_installed}\n"
+    + f"shutoff_valve_open: {dev.shutoff_valve_open}\n"
+    + f"has_shutoff_valve: {dev.has_shutoff_valve}\n"
+    + f"running: {dev.running}\n"
+    + f"running_state: {dev.running_state}\n"
+    + f"demand_response_over: {dev.demand_response_over}\n"
+    + f"mode: {dev.mode}\n"
+    + f"modes: {dev.modes}\n"
+    + f"override_status: {dev.override_status}\n"
+    + f"energy_usage: {dev.energy_usage}\n"
+    + f"historical_energy_usage: {dev.historical_energy_usage}\n"
+    + f"energy_type: {dev.energy_type}\n"
+    + f"todays_energy_usage: {dev.todays_energy_usage}\n"
+    + f"todays_water_usage: {dev.todays_water_usage}\n"
+  )
+
+def readProc(cmd):
+  return subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').rstrip()
+
+def die(msg):
+  print(msg, file=sys.stderr)
+  os._exit(1)
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
