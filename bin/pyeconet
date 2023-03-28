@@ -27,10 +27,8 @@ async def main():
                         help="print one-line summary of device (this is the default)")
     parser.add_argument("-i", "--info", action='store_true',
                         help="print detailed information for device")
-    parser.add_argument("-m", "--monitor", action='store_true',
-                        help="log device info every 60s to a new file in log dir")
-    parser.add_argument("--delay", type=int, dest="MONITOR_DELAY_S", default=60,
-                        help="monitor delay in seconds (default is 60)")
+    parser.add_argument("-l", "--log", action='store_true',
+                        help="log device info to a file in log dir")
     parser.add_argument("-e", "--energy", action="store_true",
                         help="include energy usage (requires extra API call)")
     parser.add_argument("-d", "--device", dest="DEVICE_NUM", type=int, default=1,
@@ -97,24 +95,21 @@ async def main():
       if args.energy:
         await dev.get_energy_usage()
       print(formatDetails(dev), end='')
-    elif args.monitor:
+    elif args.log:
       logDir = str(Path.home()) + "/.cache/logs/pyeconet"
       if not os.path.isdir(logDir):
         os.mkdir(logDir)
 
-      while True:
-        nowFmt = time.strftime("%Y-%m-%d_%H%M%S_%s")
-        logFileName = nowFmt + ".log"
-        logFile = logDir + "/" + logFileName
-        if args.energy:
-          await dev.get_energy_usage()
-        print("\n\n" + logFile)
-        print(formatDetails(dev), end='')
-        with open(logFile, "w") as fh:
-          fh.write(formatDetails(dev))
-        os.system(f"cd {logDir} && rm -f latest && ln -s {logFileName} latest");
-        await asyncio.sleep(args.MONITOR_DELAY_S)
-        await api.refresh_equipment()
+      nowFmt = time.strftime("%Y-%m-%d_%H%M%S_%s")
+      logFileName = nowFmt + ".log"
+      logFile = logDir + "/" + logFileName
+      if args.energy:
+        await dev.get_energy_usage()
+      print("\n\n" + logFile)
+      print(formatDetails(dev), end='')
+      with open(logFile, "w") as fh:
+        fh.write(formatDetails(dev))
+      os.system(f"cd {logDir} && rm -f latest && ln -s {logFileName} latest");
     else:
       print(formatSummary(dev), end='')
 
