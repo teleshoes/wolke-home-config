@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -60,9 +61,27 @@ async def main():
       logging.basicConfig()
       logging.getLogger().setLevel(logging.DEBUG)
 
-    api = await EcoNetApiInterface.login(email, password)
-    all_equipment = await api.get_equipment_by_type(
-      [EquipmentType.WATER_HEATER, EquipmentType.THERMOSTAT])
+    api = None
+    all_equipment = None
+    try:
+      token = readToken(email)
+      if token != None:
+        api = EcoNetApiInterface(email=None, password=None,
+          account_id=token["account_id"],
+          user_token=token["user_token"],
+        )
+        all_equipment = await api.get_equipment_by_type(
+          [EquipmentType.WATER_HEATER, EquipmentType.THERMOSTAT])
+    except:
+      api = None
+      all_equipment = None
+
+    if api == None:
+      api = await EcoNetApiInterface.login(email, password)
+      writeToken(email, api.account_id, api.user_token)
+      all_equipment = await api.get_equipment_by_type(
+        [EquipmentType.WATER_HEATER, EquipmentType.THERMOSTAT])
+
     api.subscribe()
 
     dev = getDevice(all_equipment, args.DEVICE_NUM)
@@ -164,6 +183,34 @@ def formatDetails(dev):
     + f"todays_energy_usage: {dev.todays_energy_usage}\n"
     + f"todays_water_usage: {dev.todays_water_usage}\n"
   )
+
+def readToken(email):
+  tokenFileDir = str(Path.home()) + "/.cache/pyeconet-tokens/"
+  try:
+    lines = []
+    with open(tokenFileDir + "/" + email, "r") as fh:
+      lines = fh.readlines()
+    for line in lines:
+      m = re.match('^\s*(account_id|user_token)\s*=\s*(\S.*)$', line)
+      if m and m.group(1) == "account_id":
+        account_id = m.group(2)
+      elif m and m.group(1) == "user_token":
+        user_token = m.group(2)
+    if account_id == None or user_token == None:
+      return None
+    else:
+      return {"account_id": account_id, "user_token": user_token}
+  except:
+    return None
+
+def writeToken(email, account_id, user_token):
+  tokenFileDir = str(Path.home()) + "/.cache/pyeconet-tokens/"
+  if not os.path.isdir(tokenFileDir):
+    os.mkdir(tokenFileDir)
+
+  with open(tokenFileDir + "/" + email, "w") as fh:
+    fh.write(f"account_id={account_id}\n")
+    fh.write(f"user_token={user_token}\n")
 
 def readProc(cmd):
   return subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').rstrip()
