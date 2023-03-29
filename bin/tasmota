@@ -31,8 +31,8 @@ sub nowMillis();
 my $DEVICES_CONFIG_FILE = "$ENV{HOME}/.config/tasmota.conf";
 my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
 my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
-my $MAX_TIMEOUT_MILLIS = 1200;
-my $MAX_COMMAND_ATTEMPTS = 2;
+my $DEFAULT_MAX_TIMEOUT_MILLIS = 1200;
+my $DEFAULT_MAX_COMMAND_ATTEMPTS = 2;
 
 my $INITIAL_DEVICE_IP = "192.168.4.1";
 
@@ -270,6 +270,12 @@ my $USAGE = "Usage:
   OPTS
     --force-ip=IP4_ADDRESS
       override all IP addresses with IP4_ADDRESS
+
+    --timeout=TIMEOUT_MILLIS
+      override device timeout millis (default=${DEFAULT_MAX_TIMEOUT_MILLIS}ms)
+
+    --attempts=COMMAND_ATTEMPTS
+      override device command attempts (default=${DEFAULT_MAX_COMMAND_ATTEMPTS} attempts)
 ";
 
 sub main(@){
@@ -278,6 +284,8 @@ sub main(@){
   my $forceIP = undef;
   my (@devices, $cmd, @dimmerArgs);
   my $opts = {
+    maxTimeoutMillis   => $DEFAULT_MAX_TIMEOUT_MILLIS,
+    maxCommandAttempts => $DEFAULT_MAX_COMMAND_ATTEMPTS,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -327,6 +335,10 @@ sub main(@){
       $mode = $MODE_DDWRT;
     }elsif($arg =~ /^--force-ip=(\d+\.\d+\.\d+\.\d+)$/){
       $forceIP = $1;
+    }elsif($arg =~ /^--timeout=(\d+)$/){
+      $$opts{maxTimeoutMillis} = $1;
+    }elsif($arg =~ /^--attempts=(\d+)$/){
+      $$opts{maxCommandAttempts} = $1;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
       $cmd = $COMMAND_ALIASES{lc $arg};
@@ -849,12 +861,12 @@ sub cmd($$$){
   $cmd =~ s/\]/%5D/g;
   $cmd =~ s/'/'\\''/g;
 
-  my $timeout = sprintf "%.3f", ($MAX_TIMEOUT_MILLIS / 1000.0);
+  my $timeout = sprintf "%.3f", ($$opts{maxTimeoutMillis} / 1000.0);
   my $curlCmd = "curl -m $timeout -s 'http://$deviceIP/cm?cmnd=$cmd'";
 
   my ($out, $exitCode);
   my $success = 0;
-  my $attemptsRemaining = $MAX_COMMAND_ATTEMPTS;
+  my $attemptsRemaining = $$opts{maxCommandAttempts};
   while(not $success and $attemptsRemaining > 0){
     $out = `$curlCmd`;
     $exitCode = $? >> 8;
@@ -868,7 +880,7 @@ sub cmd($$$){
       if($timeout =~ /\./ and cmpVersion($v, "7.32.0") < 0){
         $attemptsRemaining++;
         print STDERR "WARNING: curl version $v, changing timeout to integral seconds\n";
-        $timeout = sprintf "%d", ($MAX_TIMEOUT_MILLIS / 1000.0);
+        $timeout = sprintf "%d", ($$opts{maxTimeoutMillis} / 1000.0);
         $curlCmd = "curl -m $timeout -s 'http://$deviceIP/cm?cmnd=$cmd'";
       }
       $success = 0;
