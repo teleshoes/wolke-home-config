@@ -19,9 +19,9 @@ sub formatTemplateJSON($);
 sub parseStatusJson($);
 sub getNestedMapVal($@);
 sub getSSID();
-sub readMinDimmer(@);
-sub runCommandOnDevices($@);
-sub cmd($$);
+sub readMinDimmer($@);
+sub runCommandOnDevices($$@);
+sub cmd($$$);
 sub parseVersion($);
 sub cmpVersion($$);
 sub readFile($);
@@ -277,6 +277,8 @@ sub main(@){
   my $ssidOverride = undef;
   my $forceIP = undef;
   my (@devices, $cmd, @dimmerArgs);
+  my $opts = {
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -354,10 +356,10 @@ sub main(@){
   }
 
   if($mode eq $MODE_COMMAND){
-    my $outputByDevice = runCommandOnDevices($cmd, @devices);
+    my $outputByDevice = runCommandOnDevices($cmd, $opts, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_ON){
-    my $outputByDevice = runCommandOnDevices("POWER ON", @devices);
+    my $outputByDevice = runCommandOnDevices("POWER ON", $opts, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
     for my $device(@devices){
       my $devType = $DEVICE_TYPES{$device};
@@ -368,16 +370,16 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($cmd, $device);
+        my $out = cmd($cmd, $opts, $device);
         print "$device - $cmd - $out\n";
       }
     }
   }elsif($mode eq $MODE_OFF){
-    my $outputByDevice = runCommandOnDevices("POWER OFF", @devices);
+    my $outputByDevice = runCommandOnDevices("POWER OFF", $opts, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_TOGGLE){
     print "toggling all =>\n";
-    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", @devices);
+    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", $opts, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
     my @devsTurnedOn;
     my @devsTurnedOff;
@@ -396,7 +398,7 @@ sub main(@){
 
     if(@devsTurnedOff > 0 and @devsTurnedOn > 0){
       print "\nsome devices off, some devices on, turning OFF\n";
-      $outputByDevice = runCommandOnDevices("POWER OFF", @devsTurnedOn);
+      $outputByDevice = runCommandOnDevices("POWER OFF", $opts, @devsTurnedOn);
       print "$_ - $$outputByDevice{$_}\n" foreach @devsTurnedOn;
       @devsTurnedOff = (@devsTurnedOff, @devsTurnedOn);
       @devsTurnedOn = ();
@@ -413,7 +415,7 @@ sub main(@){
           if(defined $COMMAND_ALIASES{$cmd}){
             $cmd = $COMMAND_ALIASES{$cmd};
           }
-          my $out = cmd($cmd, $device);
+          my $out = cmd($cmd, $opts, $device);
           print "$device - $cmd - $out\n";
         }
       }
@@ -425,7 +427,7 @@ sub main(@){
     print "OFF: @devsTurnedOff\n" if @devsTurnedOff > 0;
   }elsif($mode eq $MODE_DIMMER){
     die "ERROR: no DIMMER_PCT_ARG given\n" if @dimmerArgs == 0;
-    my $curDimmer = readMinDimmer(@devices);
+    my $curDimmer = readMinDimmer($opts, @devices);
     @dimmerArgs = sort {$a <=> $b} @dimmerArgs;
     my $targetDimmerVal = undef;
     for my $dimmerArg(@dimmerArgs){
@@ -436,10 +438,10 @@ sub main(@){
     }
     $targetDimmerVal = $dimmerArgs[0] if not defined $targetDimmerVal;
     print "dimmer $curDimmer => $targetDimmerVal\n";
-    my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", @devices);
+    my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", $opts, @devices);
     print "$_ - $$outputByDevice{$_}\n" foreach @devices;
   }elsif($mode eq $MODE_INFO){
-    my $outputByDevice = runCommandOnDevices("Status 0", @devices);
+    my $outputByDevice = runCommandOnDevices("Status 0", $opts, @devices);
     my $date = `date '+%Y-%m-%d %H:%M:%S'`;
     chomp $date;
     for my $device(@devices){
@@ -465,7 +467,7 @@ sub main(@){
       }
     }
   }elsif($mode eq $MODE_MAC){
-    my $outputByDevice = runCommandOnDevices("STATUS 0", @devices);
+    my $outputByDevice = runCommandOnDevices("STATUS 0", $opts, @devices);
     for my $device(@devices){
       my $out = $$outputByDevice{$device};
       my $mac = $1 if $out =~ /"Mac":"([^"]+)"/;
@@ -537,7 +539,7 @@ sub main(@){
       my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
       my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
       print "$device ($deviceIP) => $wifiCmd\n";
-      cmd($wifiCmd, $device);
+      cmd($wifiCmd, $opts, $device);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
@@ -555,7 +557,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($cmd, $device);
+        my $out = cmd($cmd, $opts, $device);
         print "$device - $cmd - $out\n";
       }
     }
@@ -573,8 +575,8 @@ sub main(@){
       }
       my $cmd = "TEMPLATE $templateJSON";
       my $out = "";
-      $out .= cmd($cmd, $device);
-      $out .= cmd("Module 0", $device);
+      $out .= cmd($cmd, $opts, $device);
+      $out .= cmd("Module 0", $opts, $device);
       print "$device - $out\n";
     }
   }else{
@@ -776,9 +778,9 @@ sub getSSID(){
   return $ssid;
 }
 
-sub readMinDimmer(@){
-  my (@devices) = @_;
-  my $outputByDevice = runCommandOnDevices("DIMMER", @devices);
+sub readMinDimmer($@){
+  my ($opts, @devices) = @_;
+  my $outputByDevice = runCommandOnDevices("DIMMER", $opts, @devices);
   my $minDimmer = 100;
   for my $device(@devices){
     my $output = $$outputByDevice{$device};
@@ -793,8 +795,8 @@ sub readMinDimmer(@){
   return $minDimmer;
 }
 
-sub runCommandOnDevices($@){
-  my ($cmd, @devices) = @_;
+sub runCommandOnDevices($$@){
+  my ($cmd, $opts, @devices) = @_;
   my $outputByDevice = {};
   if($FORKMGR_LIB){
     my $tmpDir = "/tmp/$EXEC-perl-storable";
@@ -822,21 +824,21 @@ sub runCommandOnDevices($@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = cmd $cmd, $device;
+      my $out = cmd $cmd, $opts, $device;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = cmd $cmd, $device;
+      my $out = cmd $cmd, $opts, $device;
       $$outputByDevice{$device} = $out;
     }
   }
   return $outputByDevice;
 }
 
-sub cmd($$){
-  my ($cmd, $device) = @_;
+sub cmd($$$){
+  my ($cmd, $opts, $device) = @_;
   my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
 
   $cmd =~ s/ /%20/g;
