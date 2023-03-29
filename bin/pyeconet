@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import asyncio
+import glob
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from pyeconet import EcoNetApiInterface
 from pyeconet.equipment import EquipmentType
@@ -29,6 +31,8 @@ async def main():
                         help="print detailed information for device")
     parser.add_argument("-l", "--log", action='store_true',
                         help="log device info to a file in log dir")
+    parser.add_argument("--rotate-logs", dest="ROTATE_LOGS", action='store_true',
+                        help="before logging device info, rotate logs older than yesterday")
     parser.add_argument("-e", "--energy", action="store_true",
                         help="include energy usage (requires extra API call)")
     parser.add_argument("-d", "--device", dest="DEVICE_NUM", type=int, default=1,
@@ -96,6 +100,8 @@ async def main():
         await dev.get_energy_usage()
       print(formatDetails(dev), end='')
     elif args.log:
+      if args.ROTATE_LOGS:
+        rotateLogs()
       logDir = str(Path.home()) + "/.cache/logs/pyeconet"
       if not os.path.isdir(logDir):
         os.mkdir(logDir)
@@ -176,6 +182,113 @@ def formatDetails(dev):
     + f"todays_energy_usage: {dev.todays_energy_usage}\n"
     + f"todays_water_usage: {dev.todays_water_usage}\n"
   )
+
+def rotateLogs():
+  logDir = str(Path.home()) + "/.cache/logs/pyeconet"
+  logFiles = glob.glob(logDir + "/" + "*.log")
+
+  logFileNamesByDate = {}
+  for logFile in logFiles:
+    m = re.match(f"^{logDir}/(\d\d\d\d-\d\d-\d\d)(_\d+_\d+.log)$", logFile)
+    if m:
+      date = m.group(1)
+      fileName = m.group(1) + m.group(2)
+      if date not in logFileNamesByDate:
+        logFileNamesByDate[date] = []
+      logFileNamesByDate[date].append(fileName)
+
+  yday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+  for date in sorted(logFileNamesByDate.keys()):
+    if date >= yday:
+      #do not rotate today or yesterday
+      continue
+    mtimeMax = None
+    tempMax = 0
+    kwhMax = 0
+    logFileNames = logFileNamesByDate[date]
+    for logFileName in logFileNames:
+      mtime = os.path.getmtime(logDir + "/" + logFileName)
+      info = parseLogFile(logDir + "/" + logFileName)
+      temp = maybeApply(int, info.get("set_point"))
+      unit = maybeApply(str.upper, info.get("energy_type"))
+      kwh = maybeApply(float, info.get("todays_energy_usage"))
+      if mtimeMax == None or mtime > mtimeMax:
+        mtimeMax = mtime
+      if unit == "KWH" and kwh != None and kwh > kwhMax:
+        kwhMax = kwh
+      if temp != None and temp > tempMax:
+        tempMax = temp
+    whMax = int(1000 * kwhMax + 0.5)
+
+    tarFileName = f"{date}_{tempMax}F_{whMax}Wh.tar.xz"
+    tarFile = logDir + "/" + tarFileName
+
+    print(f"compressing {len(logFileNames)} files in {tarFile}")
+    subprocess.call(
+       ["tar",
+        "--xz",
+        "-c",
+        "--remove-files",
+        "-f", tarFile,
+       ] + logFileNames,
+       cwd=logDir
+    )
+    subprocess.call(["touch", tarFile, f"--date=@{mtimeMax}"])
+
+def maybeApply(fct, val):
+  try:
+    return fct(val)
+  except:
+    return None
+
+def parseLogFile(logFile):
+  atts = [ "device_id"
+         , "device_name"
+         , "serial_number"
+         , "type"
+         , "generic_type"
+         , "active"
+         , "connected"
+         , "set_point"
+         , "set_point_limits"
+         , "away"
+         , "supports_away"
+         , "vacation"
+         , "alert_count"
+         , "wifi_signal"
+         , "enabled"
+         , "tank_hot_water_availability"
+         , "tank_health"
+         , "compressor_health"
+         , "leak_installed"
+         , "shutoff_valve_open"
+         , "has_shutoff_valve"
+         , "running"
+         , "running_state"
+         , "demand_response_over"
+         , "mode"
+         , "modes"
+         , "override_status"
+         , "energy_usage"
+         , "historical_energy_usage"
+         , "energy_type"
+         , "todays_energy_usage"
+         , "todays_water_usage"
+         ]
+  attRegex = "|".join(atts)
+  lines = []
+  with open(logFile, "r") as fh:
+    lines = fh.readlines()
+
+  info = {}
+  for line in lines:
+    m = re.match("^(" + attRegex + ")\s*:\s*(.*)$", line)
+    if m:
+      attName = m.group(1)
+      attVal = m.group(2)
+      info[attName] = attVal
+  return info
 
 def readToken(email):
   tokenFileDir = str(Path.home()) + "/.cache/pyeconet-tokens/"
