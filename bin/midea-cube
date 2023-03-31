@@ -32,6 +32,9 @@ my $MODE_SET = "set";
 my $MODE_FETCH_TOKEN = "fetch-token";
 my $MODE_ROTATE_LOGS = "rotate-logs";
 
+my $FORMAT_SUMMARY = "summary";
+my $FORMAT_FULL = "full";
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -39,10 +42,15 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC [OPTS]
+  $EXEC [OPTS] -g | --get
+    -run `$EXEC_CLI status --credentials --ip IP --token TOKEN --key KEY`
+    -log the full status to $LOG_DIR/<YYYY-MM-DD_HHMMSS>_<MILLIS>_<DEV_NAME>.log
+    -print a one-line summary of status
+
   $EXEC [OPTS] --status | status
     -run `$EXEC_CLI status --credentials --ip IP --token TOKEN --key KEY`
     -log the full status to $LOG_DIR/<YYYY-MM-DD_HHMMSS>_<MILLIS>_<DEV_NAME>.log
-    -parse the status and print summary
+    -print the full status
 
   $EXEC [OPTS] --on | on
     -same as: $EXEC [OPTS] --set --running true
@@ -112,6 +120,7 @@ sub main(@){
   my $authMode = $AUTH_MODE_TOKEN;
   my $devName = undef;
   my $useCloud = 0;
+  my $statusFmt = $FORMAT_SUMMARY;
   my @setArgs;
 
   my $devNameRegex = join "|", @{$$conf{deviceOrder}};
@@ -121,8 +130,12 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-g|--get)$/){
+      $mode = $MODE_STATUS;
+      $statusFmt = $FORMAT_SUMMARY;
     }elsif($arg =~ /^(-s|--status|status)$/){
       $mode = $MODE_STATUS;
+      $statusFmt = $FORMAT_FULL;
     }elsif($arg =~ /^(-f|--fetch|--fetch-token|fetch)$/){
       $mode = $MODE_FETCH_TOKEN;
       $authMode = $AUTH_MODE_LOGIN;
@@ -206,20 +219,24 @@ sub main(@){
     my $status = `@cmd`;
     writeFile($logFile, $status);
 
-    my $running = $1 if $status =~ /^\s*running\s*=\s*(.+)$/m;
-    my $humidity = $1 if $status =~ /^\s*humid%\s*=\s*(.+)$/m;
-    my $targetHumidity = $1 if $status =~ /^\s*target%\s*=\s*(.+)$/m;
-    my $fanSpeed = $1 if $status =~ /^\s*fan\s*=\s*(.+)$/m;
-    my $tempC = $1 if $status =~ /^\s*temp\s*=\s*(.+)$/m;
+    if($statusFmt eq $FORMAT_SUMMARY){
+      my $running = $1 if $status =~ /^\s*running\s*=\s*(.+)$/m;
+      my $humidity = $1 if $status =~ /^\s*humid%\s*=\s*(.+)$/m;
+      my $targetHumidity = $1 if $status =~ /^\s*target%\s*=\s*(.+)$/m;
+      my $fanSpeed = $1 if $status =~ /^\s*fan\s*=\s*(.+)$/m;
+      my $tempC = $1 if $status =~ /^\s*temp\s*=\s*(.+)$/m;
 
-    my $tempF = sprintf "%.1f", $tempC*9/5+32;
+      my $tempF = sprintf "%.1f", $tempC*9/5+32;
 
-    my $pwr;
-    $pwr = "on " if $running =~ /true/i;
-    $pwr = "off" if $running =~ /false/i;
-    $pwr = "???" if not defined $pwr;
+      my $pwr;
+      $pwr = "on " if $running =~ /true/i;
+      $pwr = "off" if $running =~ /false/i;
+      $pwr = "???" if not defined $pwr;
 
-    print "$devName: $pwr  ${tempF}F $humidity%   (=> $targetHumidity%)\n";
+      print "$devName: $pwr  ${tempF}F $humidity%   (=> $targetHumidity%)\n";
+    }elsif($statusFmt eq $FORMAT_FULL){
+      print $status;
+    }
   }elsif($mode eq $MODE_SET){
     my @cmd = ($EXEC_CLI, "set", @devArgs, @authArgs);
     push @cmd, "--cloud" if $useCloud;
