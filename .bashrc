@@ -218,7 +218,8 @@ function sbs          { seedbox -s "$@"; }
 function sbr          { seedbox -r "$@"; }
 function sbw          { seedbox -r ssh wolke@192.168.11.50 "$@"; }
 function sbrsync      { seedbox --rsync-revtun "$@"; }
-function sbstatus     { sb-rt-status "$@"; }
+function sbstatus     { sb -s rt-status "$@"; }
+function sb-rt-status { sb -s rt-status "$@"; }
 function sd           { screen-daemon "$@"; }
 function sbd          { screen-daemon sb-daemon "$@"; }
 function sb-daemon    { screen-daemon sb-daemon "$@"; }
