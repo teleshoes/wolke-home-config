@@ -20,7 +20,7 @@ my $PEERS_NONE = "NONE";
 my $PEERS_UNKNOWN = "UNKNOWN";
 my @PEERS_BUCKET_ORDER = ($PEERS_ALL, $PEERS_HALF, $PEERS_LITTLE, $PEERS_NONE, $PEERS_UNKNOWN);
 
-sub filterTorrents($$);
+sub filterTorrents($@);
 sub formatTimeS($);
 sub formatTorrent($$);
 sub getTorrents($$$$);
@@ -32,12 +32,13 @@ my $usage = "Usage:
   $0 -h | --help
     show this message
 
-  $0 [OPTS] [TORRENT TORRENT ..]
+  $0 [OPTS] [FILTER_REGEX]
     use `rtxmlrpc` to print download+peer status of torrents in local rtorrent
 
-  TORRENT:
-    optional torrent hash or torrent name (cannot start with '-')
-    if given, skip all torrents except for the listed torrents
+  FILTER_REGEX:
+    optional regex to match against torrent name, magnet name, or hash
+      (case insensitive)
+    if given, skip all torrents except for the matching torrents
 
   OPTS:
     --rtview RTVIEW
@@ -68,7 +69,8 @@ sub main(@){
   my $skipSeeds = 1;
   my $fetchPeers = 1;
   my $format = $FORMAT_DEFAULT;
-  while(@_ > 0 and $_[0] =~ /^-/){
+  my $filterRegex = undef;
+  while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
@@ -87,6 +89,8 @@ sub main(@){
       $format = $FORMAT_DETAIL;
     }elsif($arg =~ /^(--oneline)$/){
       $format = $FORMAT_ONELINE;
+    }elsif(not defined $filterRegex){
+      $filterRegex = $arg;
     }else{
       die $usage;
     }
@@ -94,9 +98,7 @@ sub main(@){
 
   my $host = "";
 
-  my @torrentFilters = @_;
-
-  my @torrents = getTorrents($rtView, $skipSeeds, $fetchPeers, [@torrentFilters]);
+  my @torrents = getTorrents($rtView, $skipSeeds, $fetchPeers, $filterRegex);
 
   print "showing " . (0+@torrents) . " torrents\n";
   @torrents = sort {
@@ -107,24 +109,20 @@ sub main(@){
   }
 }
 
-sub filterTorrents($$){
-  my @filters = @{$_[0]};
-  my @torrents = @{$_[1]};
+sub filterTorrents($@){
+  my ($filterRegex, @torrents) = @_;
 
   my @okTorrents;
   for my $t(@torrents){
-    my $match = 0;
-    for my $filter(@filters){
-      if($$t{name} =~ /$filter/i){
-        $match = 1;
-        last;
-      }elsif(defined $$t{magnetName} and $$t{magnetName} =~ /$filter/i){
-        $match = 1;
-        last;
-      }elsif($$t{hash} =~ /^$filter$/i){
-        $match = 1;
-        last;
-      }
+    my $match;
+    if($$t{name} =~ /$filterRegex/i){
+      $match = 1;
+    }elsif(defined $$t{magnetName} and $$t{magnetName} =~ /$filterRegex/i){
+      $match = 1;
+    }elsif($$t{hash} =~ /$filterRegex/i){
+      $match = 1;
+    }else{
+      $match = 0;
     }
     push @okTorrents, $t if $match;
   }
@@ -201,7 +199,7 @@ sub formatTorrent($$){
 }
 
 sub getTorrents($$$$){
-  my ($rtView, $skipSeeds, $fetchPeers, $torrentFilters) = @_;
+  my ($rtView, $skipSeeds, $fetchPeers, $torrentRegex) = @_;
 
   my @infoCmd = ("rtxmlrpc", "d.multicall", $rtView,
      "d.get_hash=",
@@ -238,8 +236,8 @@ sub getTorrents($$$$){
 
   @torrents = grep {$$_{dir} !~ /$SKIP_SEEDS_REGEX/} @torrents if $skipSeeds;
 
-  if(@$torrentFilters > 0){
-    @torrents = filterTorrents $torrentFilters, [@torrents];
+  if(defined $torrentRegex){
+    @torrents = filterTorrents $torrentRegex, @torrents;
   }
 
   for my $torrent(@torrents){
