@@ -1,0 +1,145 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Time::HiRes qw(time);
+
+my $REMOTE_SESSION_DIR = "~/.config/rtorrent/session/";
+
+my $LOCAL_TORRENT_DIR = "$ENV{HOME}/.cache/rt-torrent-cache";
+my $LOCAL_DOWNLOAD_DIR = "/media/seedbox";
+
+sub checkTorrent($);
+sub run(@);
+
+my $usage = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 [FILTER_REGEX]
+    -fetch all TORRENT_FILE files from `seedbox`:$REMOTE_SESSION_DIR/*.torrent
+    -parse TORRENT_NAME using `torrent-info TORRENT_FILE`
+    -filter torrents by TORRENT_NAME using FILTER_REGEX, if given
+    -check if $LOCAL_DOWNLOAD_DIR/TORRENT_NAME exists
+    -if it exists:
+      -run `check-torrent TORRENT_FILE`
+      -print VERIFIED or CORRUPTED for each torrent
+    -otherwise:
+      -skip TORRENT_FILE
+";
+
+sub main(@){
+  my $filterRegex = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif(not defined $filterRegex){
+      $filterRegex = $arg;
+    }else{
+      die $usage;
+    }
+  }
+
+  my $host = `seedbox --host`;
+  chomp $host;
+  die "ERROR: invalid `seedbox --host`\n" if $host !~ /\w/;
+
+  print "fetching torrent files\n";
+  run "rsync", "-avP", "--del", "$host:$REMOTE_SESSION_DIR/*.torrent", $LOCAL_TORRENT_DIR;
+
+  my @torrentFiles = sort grep {-f $_} glob "$LOCAL_TORRENT_DIR/*.torrent";
+
+  my %torrentNames;
+  for my $t(@torrentFiles){
+    my $info = `torrent-info "$t"`;
+    if($info =~ /^name:(.+)/){
+      my $name = $1;
+      $torrentNames{$t} = $name;
+    }
+  }
+
+  if(defined $filterRegex){
+    @torrentFiles = grep {$torrentNames{$_} =~ /$filterRegex/i} @torrentFiles;
+  }
+
+  print "\nfetched " . (0+@torrentFiles) . " matching torrent files\n";
+
+  die "missing download dir: $LOCAL_DOWNLOAD_DIR\n" if not -d $LOCAL_DOWNLOAD_DIR;
+  $ENV{PWD} = $LOCAL_DOWNLOAD_DIR;
+  chdir $LOCAL_DOWNLOAD_DIR;
+
+  my @verified;
+  my @corrupted;
+  my @skipped;
+
+  my %downloadSizes;
+
+  for my $t(@torrentFiles){
+    my $name = $torrentNames{$t};
+    my $download = "$LOCAL_DOWNLOAD_DIR/$name";
+    if(not -e $download){
+      $downloadSizes{$t} = 0;
+      push @skipped, $t;
+      next;
+    }
+
+    my $du = `du -bs \"$download\"`;
+    $downloadSizes{$t} = $du =~ /^(\d+)\s+\Q$download\E$/ ? $1 : 0;
+
+    my $verified = checkTorrent $t;
+    if($verified){
+      push @verified, $t;
+    }else{
+      push @corrupted, $t;
+    }
+  }
+
+  my %downloadSizesFmt;
+  for my $t(@torrentFiles){
+    $downloadSizesFmt{$t} = sprintf "%.3fMiB", $downloadSizes{$t}/1024/1024;
+  }
+
+  @verified = sort {$torrentNames{$a} cmp $torrentNames{$b}} @verified;
+  @corrupted = sort {$torrentNames{$a} cmp $torrentNames{$b}} @corrupted;
+
+  print "\n\n\n";
+  print "" . (0+@skipped) . " skipped torrents\n";
+  print "" . (0+@verified) . " verified torrents\n";
+  print "" . (0+@corrupted) . " corrupted torrents\n";
+
+  print "\n\n";
+  for my $t(@verified){
+    print "VERIFIED: $torrentNames{$t} ($downloadSizesFmt{$t})\n";
+  }
+  print "\n\n";
+  for my $t(@corrupted){
+    print "CORRUPTED: $torrentNames{$t} ($downloadSizesFmt{$t})\n";
+  }
+}
+
+sub checkTorrent($){
+  my ($torrentFile) = shift;
+  open CMD, "-|", "check-torrent", $torrentFile
+    or die "Could not run check-torrent\n";
+  my $line;
+  my $verified = 0;
+  while($line = <CMD>){
+    if($line =~ /^VERIFIED$/){
+      $verified = 1;
+    }
+    print $line;
+  }
+  close CMD;
+  if($? != 0){
+    $verified = 0;
+  }
+  return $verified;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
