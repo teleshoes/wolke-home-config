@@ -1,0 +1,44 @@
+#!/usr/bin/python
+import sys, os, bencodepy
+
+def main():
+  torrentPath = sys.argv[1]
+  info = readTorrentInfo(torrentPath)
+  name = toStr(info[b'name'])
+  print(f"name:{name}")
+  for file in getFileInfo(info):
+    print(f"  file:{file['path']} | {file['size']}b")
+
+def readTorrentInfo(torrentPath):
+  f = open(torrentPath, "rb")
+  metaInfo = bencodepy.decode(f.read())
+  f.close
+  return metaInfo[b'info']
+
+def getFileInfo(info):
+  fileInfo = []
+  if b'files' in info:
+    for torrentFileInfo in info[b'files']:
+      torrentName = info[b'name']
+      pathSegs = [torrentName] + torrentFileInfo[b'path']
+
+      path = os.sep.join(map(toStr, pathSegs))
+      size = int(toStr(torrentFileInfo[b'length']))
+      fileInfo.append({'path': path, 'size': size})
+  else:
+    path = info[b'name']
+    size = info[b'length']
+    fileInfo.append({'path': path, 'size': size})
+  return fileInfo
+
+def toStr(string):
+  if type(string) == str:
+    return string
+  else:
+    try:
+      return string.decode("utf-8")
+    except:
+      return str(string)
+
+if __name__ == "__main__":
+  main()
