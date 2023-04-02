@@ -3,22 +3,11 @@ use strict;
 use warnings;
 use Time::HiRes qw(time);
 
-my $rtViews = {
-  default => "main",
-  all => "main",
-};
+my $DEFAULT_RT_VIEW = "main";
 
-my $remoteStatusDir = "~/rt-status";
-my $remoteTorrentDir = "~/rt-torrents";
-my $remoteSessionDir = "~/.config/rtorrent/session/";
+my $RTORRENT_SESSION_DIR = "~/.config/rtorrent/session/";
 
-my $localStatusDir = "$ENV{HOME}/.cache/rt-status-cache";
-my $localTorrentDir = "$ENV{HOME}/.cache/rt-torrent-cache";
-my $localDownloadDir = "/media/seedbox";
-
-my $skipSeedsRegex = "/seeds/";
-
-my $logFile = "/tmp/rt-status-" . int(time*1000) . ".log";
+my $SKIP_SEEDS_REGEX = "/seeds/";
 
 my $FORMAT_DETAIL = "detail";
 my $FORMAT_ONELINE = "oneline";
@@ -31,14 +20,10 @@ my $PEERS_NONE = "NONE";
 my $PEERS_UNKNOWN = "UNKNOWN";
 my @PEERS_BUCKET_ORDER = ($PEERS_ALL, $PEERS_HALF, $PEERS_LITTLE, $PEERS_NONE, $PEERS_UNKNOWN);
 
-sub openLog();
-sub printLog($);
-sub closeLog();
 sub filterTorrents($$);
-sub checkTorrent($);
 sub formatTimeS($);
 sub formatTorrent($$);
-sub parseTorrents();
+sub getTorrents($$$$);
 sub parsePeers($);
 sub parsePythonStr($);
 sub run(@);
@@ -48,38 +33,28 @@ my $usage = "Usage:
     show this message
 
   $0 [OPTS] [TORRENT TORRENT ..]
-    use `rtxmlrpc` to print download+peer status of torrents on `seedbox`
+    use `rtxmlrpc` to print download+peer status of torrents in local rtorrent
 
   TORRENT:
     optional torrent hash or torrent name (cannot start with '-')
     if given, skip all torrents except for the listed torrents
 
   OPTS:
-    --all
-      same as: --rtview-all --no-skip-seeds
-
-    --rtview-default
-      same as: --rtview=$$rtViews{default}
-    --rtview-all
-      same as: --rtview=$$rtViews{all}
     --rtview RTVIEW
       use RTVIEW in 'rtxmlrpc d.multicall'
-      default is '$$rtViews{default}')
+      default is '$DEFAULT_RT_VIEW'
 
     --skip-seeds
-      exclude torrents that match the regex '$skipSeedsRegex'
+      exclude torrents that match the regex '$SKIP_SEEDS_REGEX'
       (this is the default)
     --no-skip-seeds
-      include torrents that match the regex '$skipSeedsRegex'
-      (excluded by default)
+      include torrents that match the regex '$SKIP_SEEDS_REGEX'
 
-    --check
-      instead of printing status, use `check-torrent` to verify local download
-      implies --quick
-      download dir: `$localDownloadDir
-
-    --quick
-      skip checking peers (implied by --check)
+    --quick | --no-fetch-peers
+      skip checking peers
+    --fetch-peers
+      check peers and include peer info in summary
+      (this is the default)
 
     --detail
       print details about each torrent in multiple lines, separated with --- lines
@@ -89,34 +64,25 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  my $rtView = $$rtViews{default};
+  my $rtView = $DEFAULT_RT_VIEW;
   my $skipSeeds = 1;
-  my $check = 0;
-  my $quick = 0;
+  my $fetchPeers = 1;
   my $format = $FORMAT_DEFAULT;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
-    }elsif($arg =~ /^(--all)$/){
-      $rtView = $$rtViews{all};
-      $skipSeeds = 0;
-    }elsif($arg =~ /^(--rtview-default)$/){
-      $rtView = $$rtViews{default};
-    }elsif($arg =~ /^(--rtview-all)$/){
-      $rtView = $$rtViews{all};
     }elsif($arg =~ /^(--rtview=(.+))$/){
       $rtView = $1;
     }elsif($arg =~ /^(--skip-seeds)$/){
       $skipSeeds = 1;
     }elsif($arg =~ /^(--no-skip-seeds)$/){
       $skipSeeds = 0;
-    }elsif($arg =~ /^(--check)$/){
-      $check = 1;
-      $quick = 1;
-    }elsif($arg =~ /^(--quick)$/){
-      $quick = 1;
+    }elsif($arg =~ /^(--fetch-peers)$/){
+      $fetchPeers = 1;
+    }elsif($arg =~ /^(--quick|--no-fetch-peers)$/){
+      $fetchPeers = 0;
     }elsif($arg =~ /^(--detail)$/){
       $format = $FORMAT_DETAIL;
     }elsif($arg =~ /^(--oneline)$/){
@@ -126,227 +92,44 @@ sub main(@){
     }
   }
 
-  my $host = `seedbox --host`;
-  chomp $host;
-  die "ERROR: invalid `seedbox --host`\n" if $host !~ /\w/;
+  my $host = "";
 
   my @torrentFilters = @_;
 
-  my $copyTorrents = "no";
-  my $fetchPeers = "yes";
+  my @torrents = getTorrents($rtView, $skipSeeds, $fetchPeers, [@torrentFilters]);
 
-  if($check){
-    $copyTorrents = "yes";
+  print "showing " . (0+@torrents) . " torrents\n";
+  @torrents = sort {
+    $$b{percent} <=> $$a{percent} || $$a{name} cmp $$b{name}
+  } @torrents;
+  for my $t(@torrents){
+    print formatTorrent $t, $format;
   }
-  if($quick){
-    $fetchPeers = "no";
-  }
-
-  run "ssh", $host, "
-    rm -rf $remoteStatusDir
-    mkdir $remoteStatusDir
-
-    rtxmlrpc d.multicall $rtView \\
-      d.get_hash=                \\
-      d.get_name=                \\
-      d.get_directory=           \\
-      d.get_completed_bytes=     \\
-      d.get_size_bytes=          \\
-      d.get_down_rate=           \\
-      > $remoteStatusDir/info
-    hashes=`grep -oP \"^\\[\\'[A-F0-9]{40}\" $remoteStatusDir/info | cut -c3-`
-    echo found \$(echo \$hashes | wc -w) torrents
-
-    touch $remoteStatusDir/magnet_names
-    for h in \$hashes; do
-      magnet_name=` \\
-        grep --text -o '&dn=[^&]*' $remoteSessionDir/\$h.torrent \\
-        | sed s/'^&dn='// \\
-      `
-      if \\[ -n \"\$magnet_name\" \\]; then
-        echo \"\$h \$magnet_name\" >> $remoteStatusDir/magnet_names
-      fi
-    done
-
-    if \\[ \"$copyTorrents\" == \"yes\" \\]; then
-      echo copying .torrent files
-      rm -rf $remoteTorrentDir
-      mkdir $remoteTorrentDir
-      cp -ar $remoteSessionDir/*.torrent $remoteTorrentDir
-    else
-      echo not copying .torrent files
-    fi
-    if \\[ \"$fetchPeers\" == \"yes\" \\]; then
-      echo fetching peers
-      for h in \$hashes; do
-        echo \"  \$h\"
-        rtxmlrpc p.multicall \$h '' \\
-          p.get_completed_percent=  \\
-          p.get_down_rate=          \\
-          p.get_down_total=         \\
-          > $remoteStatusDir/peers-\$h
-      done
-    else
-      echo not fetching peers
-    fi
-
-    echo -ne \"finished\\n\\n\"
-  ";
-
-  run "mkdir", "-p", $localStatusDir;
-  run "rsync", "-avP", "--del", "$host:$remoteStatusDir/", $localStatusDir;
-
-  if($copyTorrents eq "yes"){
-    run "mkdir", "-p", $localStatusDir;
-    run "rsync", "-avP", "--del", "$host:$remoteTorrentDir/", $localTorrentDir;
-  }
-
-  openLog();
-
-  my @torrents = parseTorrents();
-
-  my @okTorrents = @torrents;
-  @okTorrents = grep {$$_{dir} !~ /$skipSeedsRegex/} @okTorrents if $skipSeeds;
-
-  if(@torrentFilters > 0){
-    @okTorrents = filterTorrents [@torrentFilters], [@okTorrents];
-  }
-
-  printLog "\n\n\nshowing " . (0+@okTorrents) . " torrents\n";
-  if($check){
-    die "missing download dir: $localDownloadDir\n" if not -d $localDownloadDir;
-    $ENV{PWD} = $localDownloadDir;
-    chdir $localDownloadDir;
-    my @verified;
-    my @corrupted;
-
-    for my $t(@okTorrents){
-      my $verified = checkTorrent $t;
-      if($verified){
-        push @verified, $t;
-      }else{
-        push @corrupted, $t;
-      }
-    }
-    printLog "\n\n" . (0+@corrupted) . " corrupted torrents\n";
-    @verified = sort {$$a{name} cmp $$b{name}} @verified;
-    @corrupted = sort {$$a{name} cmp $$b{name}} @corrupted;
-    for my $t(@verified){
-      printLog "VERIFIED: $$t{name} ($$t{localDownloadSize})\n";
-    }
-    printLog "\n\n";
-    for my $t(@corrupted){
-      printLog "CORRUPTED: $$t{name} ($$t{localDownloadSize})\n";
-    }
-  }else{
-    @okTorrents = sort {
-      $$b{percent} <=> $$a{percent} || $$a{name} cmp $$b{name}
-    } @okTorrents;
-    for my $t(@okTorrents){
-      printLog formatTorrent $t, $format;
-    }
-  }
-
-  closeLog;
-}
-
-sub openLog(){
-  print STDOUT "\nstart logging to: $logFile\n";
-  open LOG, "> $logFile" or die "Could not log to $logFile\n$!\n";
-}
-sub printLog($){
-  print STDOUT $_[0];
-  print LOG $_[0];
-}
-sub closeLog(){
-  print STDOUT "\nstop logging to: $logFile\n";
-  close LOG;
 }
 
 sub filterTorrents($$){
   my @filters = @{$_[0]};
   my @torrents = @{$_[1]};
 
-  #verify each filter hits at least one torrent
-  for my $filter(@filters){
-    my $found = 0;
-    for my $t(@torrents){
-      if(lc $$t{name} eq lc $filter or lc $$t{hash} eq lc $filter){
-        $found = 1;
-        last;
-      }
-    }
-    die "unknown torrent hash or torrent name: $filter\n" if not $found;
-  }
-
-  #filter torrent list
-  my @filteredTorrents;
-  my @skippedTorrents;
+  my @okTorrents;
   for my $t(@torrents){
-    my $found = 0;
+    my $match = 0;
     for my $filter(@filters){
-      if(lc $$t{name} eq lc $filter or lc $$t{hash} eq lc $filter){
-        $found = 1;
+      if($$t{name} =~ /$filter/i){
+        $match = 1;
+        last;
+      }elsif(defined $$t{magnetName} and $$t{magnetName} =~ /$filter/i){
+        $match = 1;
+        last;
+      }elsif($$t{hash} =~ /^$filter$/i){
+        $match = 1;
         last;
       }
     }
-    if($found){
-      push @filteredTorrents, $t;
-    }else{
-      push @skippedTorrents, $t;
-    }
+    push @okTorrents, $t if $match;
   }
 
-  #print skipped/checking
-  printLog "="x30 . "\n" . "SKIPPING " . (0+@skippedTorrents) . " TORRENTS:\n";
-  for my $t (@skippedTorrents){
-    printLog "$$t{hash}\n  $$t{name}\n";
-  }
-
-  printLog "="x30 . "\n" . "HANDLING " . (0+@filteredTorrents) . " TORRENTS:\n";
-  for my $t (@filteredTorrents){
-    printLog "$$t{hash}\n  $$t{name}\n";
-  }
-
-  return @filteredTorrents;
-}
-
-sub checkTorrent($){
-  my $t = shift;
-  printLog "="x30 . "\n" . "checking $$t{name}\n$$t{hash}\n";
-  my $torrentFile = "$localTorrentDir/$$t{hash}.torrent";
-  if(not -f $torrentFile){
-    die "MISSING TORRENT FILE for $$t{name}:\n$torrentFile\n"
-  }
-  my $file = "$localDownloadDir/$$t{name}";
-  my $size = "size unknown";
-  if(-e $file){
-    open CMD, "-|", "du", "-hs", $file or die "Could not run du -hs on $file\n";
-    $size = <CMD>;
-    close CMD;
-    if($size =~ /^(\d+(?:\.\d+)?[A-Z]+)\s*/){
-      $size = $1;
-    }
-  }else{
-    printLog "\n\n$file does not exist\n";
-  }
-  $$t{localDownloadSize} = $size;
-
-  open CMD, "-|", "check-torrent", $torrentFile
-    or die "Could not run check-torrent\n";
-  my $line;
-  my $verified = 0;
-  while($line = <CMD>){
-    printLog $line;
-    if($line =~ /^VERIFIED$/){
-      $verified = 1;
-    }
-  }
-  close CMD;
-  if($? != 0){
-    $verified = 0;
-  }
-  return $verified;
+  return @okTorrents;
 }
 
 sub formatTimeS($){
@@ -417,22 +200,19 @@ sub formatTorrent($$){
   }
 }
 
-sub parseTorrents(){
-  my $infoFile = "$localStatusDir/info";
-  my $magnetNamesFile = "$localStatusDir/magnet_names";
-  die "'$infoFile' does not exist\n" if not -f $infoFile;
-  die "'$magnetNamesFile' does not exist\n" if not -f $magnetNamesFile;
+sub getTorrents($$$$){
+  my ($rtView, $skipSeeds, $fetchPeers, $torrentFilters) = @_;
 
-  my %magnetNames;
-  for my $line(`cat "$magnetNamesFile"`){
-    if($line =~ /^([0-9A-F]{40})\s*(.+)$/){
-      $magnetNames{lc $1} = $2;
-    }else{
-      die "invalid magnet name line: $line";
-    }
-  }
+  my @infoCmd = ("rtxmlrpc", "d.multicall", $rtView,
+     "d.get_hash=",
+     "d.get_name=",
+     "d.get_directory=",
+     "d.get_completed_bytes=",
+     "d.get_size_bytes=",
+     "d.get_down_rate=",
+  );
+  my $info = `@infoCmd`;
 
-  my $info = `cat "$infoFile"`;
   my @torrents;
   while($info =~ /
     ^\[ '([0-9A-F]{40})',\n
@@ -450,18 +230,36 @@ sub parseTorrents(){
       sizeBytes => $5,
       downRate => $6,
       percent => sprintf("%5.2f", 100 * $4/$5),
-      magnetName => $magnetNames{lc $1},
     };
     $$t{name} = parsePythonStr $$t{name};
     $$t{dir} = parsePythonStr $$t{dir};
     push @torrents, $t;
   }
 
-  for my $t(@torrents){
-    my $peersFile = "$localStatusDir/peers-$$t{hash}";
-    if(-f $peersFile){
-      my $peersInfo = `cat "$localStatusDir/peers-$$t{hash}"`;
-      $$t{peerCounts} = parsePeers $peersInfo;
+  @torrents = grep {$$_{dir} !~ /$SKIP_SEEDS_REGEX/} @torrents if $skipSeeds;
+
+  if(@$torrentFilters > 0){
+    @torrents = filterTorrents $torrentFilters, [@torrents];
+  }
+
+  for my $torrent(@torrents){
+    my $h = $$torrent{hash};
+    my $magnetName = `grep --text -o '&dn=[^&]*' $RTORRENT_SESSION_DIR/$h.torrent`;
+    $magnetName =~ s/^&dn=//;
+    $$torrent{magnetName} = $magnetName;
+  }
+
+  if($fetchPeers){
+    for my $torrent(@torrents){
+      my $h = $$torrent{hash};
+      my @peersCmd = ("rtxmlrpc", "p.multicall", $h, '""',
+        "p.get_completed_percent=",
+        "p.get_down_rate=",
+        "p.get_down_total=",
+      );
+      my $peersInfo = `@peersCmd`;
+
+      $$torrent{peerCounts} = parsePeers $peersInfo;
     }
   }
 
@@ -469,7 +267,7 @@ sub parseTorrents(){
 }
 
 sub parsePeers($){
-  my $peersInfo = shift;
+  my ($peersInfo) = @_;
 
   my $peerCounts = {};
   for my $peer(split /\n/, $peersInfo){
