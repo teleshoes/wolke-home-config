@@ -8,6 +8,7 @@ sub getDiskUsageVariables($$$$);
 sub formatDiskUsage($$);
 sub listMountpoints();
 sub formatBytes($$$$);
+sub formatDurationS($);
 sub readProcLines(@);
 
 my $EXEC = basename $0;
@@ -49,6 +50,15 @@ my $usage = "Usage:
          <MOUNTPOINT>, <DEVICE>
       -format, on one line:
         <MOUNTPOINT> <USED_HUMAN> / <SIZE_HUMAN>  (<USED_BYTES> / <SIZE_BYTES>)
+
+  $0 [OPTS] -w      [FILE FILE FILE ..]
+  $0 [OPTS] --watch [FILE FILE FILE ..]
+    -run df as in `$0 FILE FILE FILE` to get the initial value
+    -every 5 seconds:
+      -run df again
+      -print the time with `date`, and the elapsed time
+      -print the initial value
+      -print the new value
 
   OPTS
     --si | --pow1000
@@ -107,11 +117,14 @@ sub main(@){
   my $siUnits = 0;
   my $minPower = undef;
   my $maxPower = undef;
+  my $watch = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(-w|--watch)$/){
+      $watch = 1;
     }elsif($arg =~ /^(--si|--pow1000)$/){
       $siUnits = 1;
     }elsif($arg =~ /^(-m|--force-mb|--force-mib)$/){
@@ -147,7 +160,29 @@ sub main(@){
   my @diskUsageVars = map {getDiskUsageVariables($siUnits, $minPower, $maxPower, $_)} @dfs;
   my @formats = map {formatDiskUsage($formatSpec, $_)} @diskUsageVars;
   my $fmt = join "", map {"$_\n"} @formats;
-  print $fmt;
+
+  if($watch){
+    my $initFmt = $fmt;
+    my $startTime = time;
+    while(1){
+      @dfs = map {df $_} @files;
+      @diskUsageVars = map {getDiskUsageVariables($siUnits, $minPower, $maxPower, $_)} @dfs;
+      @formats = map {formatDiskUsage($formatSpec, $_)} @diskUsageVars;
+      $fmt = join "", map {"$_\n"} @formats;
+
+      my $elapsed = time - $startTime;
+      my $elapsedFmt = formatDurationS $elapsed;
+
+      my $date = `date`;
+      chomp $date;
+      print "\n$date     ($elapsedFmt)\n";
+      print $initFmt;
+      print $fmt;
+      sleep 5;
+    }
+  }else{
+    print $fmt;
+  }
 }
 
 sub df($){
@@ -251,6 +286,14 @@ sub formatBytes($$$$){
   return sprintf "%.1f%s",
     $bytes / $base**($targetPow),
     $units[$targetPow];
+}
+
+sub formatDurationS($){
+  my ($seconds) = @_;
+  my $s = int($seconds) % 60;
+  my $m = int($seconds / 60) % 60;
+  my $h = int($seconds / 60 / 60) % 60;
+  return sprintf "%dh%02dm%02ds", $h, $m, $s;
 }
 
 sub readProcLines(@){
