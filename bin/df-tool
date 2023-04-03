@@ -4,6 +4,8 @@ use warnings;
 use File::Basename qw(basename);
 
 sub df($);
+sub getDiskUsageVariables($$$$);
+sub formatDiskUsage($$);
 sub listMountpoints();
 sub formatBytes($$$$);
 sub readProcLines(@);
@@ -134,50 +136,11 @@ sub main(@){
     @files = listMountpoints();
   }
 
-  my @entries;
-  for my $file(@files){
-    my $df = df($file);
-    push @entries, {
-      SIZE_BYTES  => $$df{size},
-      USED_BYTES  => $$df{used},
-      AVAIL_BYTES => $$df{avail},
-      SIZE_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{size}),
-      USED_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{used}),
-      AVAIL_HUMAN => formatBytes($siUnits, $minPower, $maxPower, $$df{avail}),
-      PERCENT     => sprintf("%.1f", $$df{used} / $$df{size} * 100.0),
-      MOUNTPOINT  => $$df{mountpoint},
-      DEVICE      => $$df{dev},
-    };
-  }
-
-  my %maxVarLen;
-  for my $entry(@entries){
-    for my $var(sort keys %$entry){
-      my $val = $$entry{$var};
-      $maxVarLen{$var} = 0 if not defined $maxVarLen{$var};
-      $maxVarLen{$var} = length $val if length $val > $maxVarLen{$var};
-    }
-  }
-
-  for my $entry(@entries){
-    my $fmt = $formatSpec;
-    $fmt =~ s/&/&amp;/g;
-    $fmt =~ s/%%/&boing;/g;
-    for my $var(sort keys %$entry){
-      my $val = $$entry{$var};
-      my $len = $maxVarLen{$var};
-      if($var =~ /^(MOUNTPOINT|DEVICE)$/){
-        $val = sprintf "%-${len}s", $val;
-      }else{
-        $val = sprintf "%${len}s", $val;
-      }
-      $fmt =~ s/%$var/$val/g;
-    }
-    $fmt =~ s/&boing;/%/g;
-    $fmt =~ s/&amp;/&/g;
-    $fmt =~ s/[\r\n]//g;
-    print "$fmt\n";
-  }
+  my @dfs = map {df $_} @files;
+  my @diskUsageVars = map {getDiskUsageVariables($siUnits, $minPower, $maxPower, $_)} @dfs;
+  my @formats = map {formatDiskUsage($formatSpec, $_)} @diskUsageVars;
+  my $fmt = join "", map {"$_\n"} @formats;
+  print $fmt;
 }
 
 sub df($){
@@ -200,6 +163,51 @@ sub df($){
   }else{
     die "ERROR: malformed df line: $content";
   }
+}
+
+sub getDiskUsageVariables($$$$){
+  my ($siUnits, $minPower, $maxPower, $df) = @_;
+  return {
+      SIZE_BYTES  => $$df{size},
+      USED_BYTES  => $$df{used},
+      AVAIL_BYTES => $$df{avail},
+      SIZE_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{size}),
+      USED_HUMAN  => formatBytes($siUnits, $minPower, $maxPower, $$df{used}),
+      AVAIL_HUMAN => formatBytes($siUnits, $minPower, $maxPower, $$df{avail}),
+      PERCENT     => sprintf("%.1f", $$df{used} / $$df{size} * 100.0),
+      MOUNTPOINT  => $$df{mountpoint},
+      DEVICE      => $$df{dev},
+  };
+}
+
+sub formatDiskUsage($$){
+  my ($formatSpec, $diskUsageVars) = @_;
+
+  my %maxVarLen;
+  for my $var(sort keys %$diskUsageVars){
+    my $val = $$diskUsageVars{$var};
+    $maxVarLen{$var} = 0 if not defined $maxVarLen{$var};
+    $maxVarLen{$var} = length $val if length $val > $maxVarLen{$var};
+  }
+
+  my $fmt = $formatSpec;
+  $fmt =~ s/&/&amp;/g;
+  $fmt =~ s/%%/&boing;/g;
+  for my $var(sort keys %$diskUsageVars){
+    my $val = $$diskUsageVars{$var};
+    my $len = $maxVarLen{$var};
+    if($var =~ /^(MOUNTPOINT|DEVICE)$/){
+      $val = sprintf "%-${len}s", $val;
+    }else{
+      $val = sprintf "%${len}s", $val;
+    }
+    $fmt =~ s/%$var/$val/g;
+  }
+  $fmt =~ s/&boing;/%/g;
+  $fmt =~ s/&amp;/&/g;
+  $fmt =~ s/[\r\n]//g;
+
+  return $fmt;
 }
 
 sub listMountpoints(){
