@@ -1,0 +1,194 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $PORT = 8101;
+my $HOST = "localhost";
+my $USER = "openhab";
+
+my $ITEMS_ARR = [
+  temp             => 'ZWave_Node_003_CT100_ZWave_Thermostat_Sensor_temperature',
+  humidity         => 'ZWave_Node_003_CT100_ZWave_Thermostat_Relative_Humidity',
+
+  state            => 'ZWave_Node_003_CT100_ZWave_Thermostat_Thermostat_Operating_State',
+  setpoint_heating => 'ZWave_Node_003_CT100_ZWave_Thermostat_Setpoint_heating',
+  setpoint_cooling => 'ZWave_Node_003_CT100_ZWave_Thermostat_Setpoint_cooling',
+
+  battery          => 'ZWave_Node_003_CT100_ZWave_Thermostat_Battery_Level',
+  mode             => 'ZWave_Node_003_CT100_ZWave_Thermostat_Thermostat_mode',
+  temp_alt         => 'ZWave_Node_003_CT100_ZWave_Thermostat_Sensor_temperature_1',
+  fan_mode         => 'ZWave_Node_003_CT100_ZWave_Thermostat_Thermostat_fan_mode',
+  fan_state        => 'ZWave_Node_003_CT100_ZWave_Thermostat_Thermostat_fan_state',
+  time_offset      => 'ZWave_Node_003_CT100_ZWave_Thermostat_Time_Offset',
+];
+my %ITEMS = @$ITEMS_ARR;
+my @ITEM_NAMES = map {$$ITEMS_ARR[$_]} grep {$_ % 2 == 0} (0..$#$ITEMS_ARR);
+my $OK_ITEM_REGEX = join "|", @ITEM_NAMES;
+
+sub readItem($);
+sub readItems(@);
+sub writeItem($$);
+sub getStateFmt($);
+
+my $USAGE = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0
+  $0 --status
+    -get TEMP as in: $0 --get temp
+    -get RUNNING_STATE as in: $0 --running
+    -get SETPOINT as in: $0 --get setpoint_heating
+    -remove spaces between values and units
+    -print: -->SETPOINT  =TEMP  RUNNING_STATE
+      e.g.:  -->70°F  =68°F  heating
+
+  $0 -g|--get
+    -same as: $0 --status
+
+  $0 -g|--get ITEM_NAME
+    -get OPENHAB_ITEM_ID for ITEM_NAME
+    -run: ssh -p $PORT $USER\@$HOST openhab:status <OPENHAB_ITEM_ID>
+
+  $0 --read | --read-all | --dump
+    print, one per line, ITEM_NAME=VALUE, for all ITEM_NAMEs
+
+  $0 -s|--set ITEM_NAME VALUE
+    -get OPENHAB_ITEM_ID for ITEM_NAME
+    -run: ssh -p $PORT $USER\@$HOST openhab:status <OPENHAB_ITEM_ID>
+
+  $0 -s|--set TEMP_SETPOINT
+    same as: $0 --set setpoint_heating TEMP_SETPOINT
+
+  $0 --running | --radiators
+    -get status as in: $0 --get state
+    -if 0, print \"off\"
+    -if 1, print \"heating\"
+    -if 2, print \"cooling\"
+
+  TEMP_SETPOINT
+    integer temperature in either °F or °C, depending on openhab locale
+    (if not an integer, thermostat takes the floor)
+
+  ITEM_NAME
+    one of: @ITEM_NAMES
+";
+
+my $MODE_STATUS = "status";
+my $MODE_GET = "get";
+my $MODE_READ_ALL = "read-all";
+my $MODE_SET = "set";
+my $MODE_RUNNING_STATE = "running-state";
+
+sub main(@){
+  my $mode = $MODE_STATUS;
+  my $itemName = undef;
+  my $value = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--status)$/){
+      $mode = $MODE_STATUS;
+    }elsif($arg =~ /^(-g|--get)$/){
+      $mode = $MODE_GET;
+    }elsif($arg =~ /^(--read|--read-all|--dump)$/){
+      $mode = $MODE_READ_ALL;
+    }elsif($arg =~ /^(-s|--set)$/){
+      $mode = $MODE_SET;
+    }elsif($arg =~ /^(--running|--radiators)$/){
+      $mode = $MODE_RUNNING_STATE;
+    }elsif($arg =~ /^($OK_ITEM_REGEX)$/){
+      $itemName = $arg;
+    }elsif($mode eq $MODE_SET and not defined $value){
+      $value = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($mode eq $MODE_GET and not defined $itemName){
+    $mode = $MODE_STATUS;
+  }
+
+  if($mode eq $MODE_STATUS){
+    my $vals = readItems(qw(temp state setpoint_heating));
+    for my $itemName(sort keys %$vals){
+      $$vals{$itemName} =~ s/\s+(°(?:F|C))/$1/;
+    }
+
+    my $stateFmt = getStateFmt($$vals{state});
+    print "-->$$vals{setpoint_heating}  =$$vals{temp}  $stateFmt\n";
+  }elsif($mode eq $MODE_GET){
+    print readItem($itemName) . "\n";
+  }elsif($mode eq $MODE_READ_ALL){
+    my $vals = readItems(@ITEM_NAMES);
+    for my $itemName(@ITEM_NAMES){
+      print "$itemName=$$vals{$itemName}\n";
+    }
+  }elsif($mode eq $MODE_SET){
+    if(not defined $itemName){
+      $itemName = "setpoint_heating";
+    }
+    if(not defined $value){
+      die "$USAGE\nERROR: missing value for $itemName\n";
+    }
+    my $oldVal = readItem($itemName);
+    writeItem $itemName, $value;
+    my $newVal = readItem($itemName);
+    print "$oldVal => $newVal\n";
+  }elsif($mode eq $MODE_RUNNING_STATE){
+    print getStateFmt(readItem("state")) . "\n";
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub readItem($){
+  my ($itemName) = @_;
+  my $vals = readItems($itemName);
+  return $$vals{$itemName};
+}
+
+sub readItems(@){
+  my @itemNames = @_;
+  my $cmd = join ";", map {"openhab:status $ITEMS{$_}"} @itemNames;
+  open CMD, "-|", "ssh", "-p", $PORT, "$USER\@$HOST", $cmd
+    or die "ERROR: could not run command on openhand\n";
+  my @lines = <CMD>;
+  close CMD;
+  if(@lines != @itemNames){
+    die "ERROR: could not parse output of openhab:status - @lines";
+  }
+
+  my $values = {};
+  for(my $i=0; $i<@itemNames; $i++){
+    my $itemName = $itemNames[$i];
+    my $val = $lines[$i];
+    chomp $val;
+
+    $$values{$itemName} = $val;
+  }
+
+  return $values;
+}
+sub writeItem($$){
+  my ($itemName, $value) = @_;
+  system "ssh", "-p", $PORT, "$USER\@$HOST", "openhab:send $ITEMS{$itemName} $value";
+}
+
+sub getStateFmt($){
+  my ($state) = @_;
+  if($state == 0){
+    return "off";
+  }elsif($state == 1){
+    return "heating";
+  }elsif($state == 2){
+    return "cooling";
+  }else{
+    die "ERROR: could not parse running state $state\n";
+  }
+}
+
+&main(@ARGV);
