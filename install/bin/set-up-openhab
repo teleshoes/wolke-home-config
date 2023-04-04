@@ -1,0 +1,28 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $HOST = "wolke-nuc";
+my $SSH_PUBKEY = getHome() . "/.ssh/$HOST.pub";
+my $OPENHAB_SSHKEY_FILE = "/var/lib/openhab/etc/keys.properties";
+
+sub main(@) {
+  getRoot @_;
+
+  my $key = `cat $SSH_PUBKEY`;
+  chomp $key;
+  if($key !~ s/^ssh-\w+\s+//){
+    die "ERROR: could not get pubkey from $SSH_PUBKEY\n";
+  }
+  if($key !~ s/\s+\w+\@$HOST$//){
+    die "ERROR: could not get pubkey from $SSH_PUBKEY\n";
+  }
+
+  editSimpleConf $OPENHAB_SSHKEY_FILE, "ssh-key-login", {
+    "openhab" => "$key,_g_:admingroup",
+  };
+}
+
+&main(@ARGV);
