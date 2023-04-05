@@ -7,6 +7,8 @@ use ScriptScript;
 my $HOST = "wolke-nuc";
 my $SSH_PUBKEY = getHome() . "/.ssh/$HOST.pub";
 my $OPENHAB_SSHKEY_FILE = "/var/lib/openhab/etc/keys.properties";
+my $JSONDB_CONF_DIR = getHome() . "/.config/openhab-jsondb";
+my $OPENHAB_JSONDB_DIR = "/var/lib/openhab/jsondb";
 
 sub main(@) {
   getRoot @_;
@@ -23,6 +25,13 @@ sub main(@) {
   editSimpleConf $OPENHAB_SSHKEY_FILE, "ssh-key-login", {
     "openhab" => "$key,_g_:admingroup",
   };
+
+  my $tmpDir = "/tmp/openhab-jsondb-backup-" . time;
+  print "backing up jsondb to $tmpDir\n";
+  system "rsync", "-avP", $OPENHAB_JSONDB_DIR, "$tmpDir/";
+
+  system "rsync", "-avP", "$JSONDB_CONF_DIR/", "$OPENHAB_JSONDB_DIR/";
+  system "chown", "-R", "openhab:openhab", $OPENHAB_JSONDB_DIR;
 }
 
 &main(@ARGV);
