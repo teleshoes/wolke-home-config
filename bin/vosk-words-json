@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+import argparse
+import wave
+import json
+from pathlib import Path
+
+from vosk import Model, KaldiRecognizer
+
+DEFAULT_MODEL_LANG = "en-us"
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--model-path", type=str, dest="MODEL_PATH",
+                      help=f"full path to a vosk model folder")
+  parser.add_argument("--model-name", type=str, dest="MODEL_NAME",
+                      help="model name to use")
+  parser.add_argument("--model-lang", type=str, dest="MODEL_LANG",
+                      help="language to select model")
+  parser.add_argument("-o", "--output", type=str, dest="OUTPUT_FILE",
+                      help="output file, in addition to printing to console")
+  parser.add_argument("AUDIO_FILE")
+
+  args = parser.parse_args()
+
+  model = None
+  if args.MODEL_PATH:
+    model = Model(model_path=args.MODEL_PATH)
+  elif args.MODEL_NAME:
+    model = Model(model_name=args.MODEL_NAME)
+  else:
+    if args.MODEL_LANG:
+      lang = args.MODEL_LANG
+    else:
+      lang = DEFAULT_MODEL_LANG
+    model_path = Model.get_model_by_lang(None, lang)
+    model = Model(model_path=str(model_path))
+
+  voskJSON = VoskJSON(model, args.AUDIO_FILE, args.OUTPUT_FILE)
+  try:
+    voskJSON.start()
+
+    while voskJSON.isWaveDataAvailable:
+      result = voskJSON.getNextResult()
+      if result != None:
+        voskJSON.writeResult(result)
+  finally:
+    voskJSON.finish()
+
+class VoskJSON:
+  def __init__(self, voskModel, waveFilePath, outputFilePath=None):
+    self.voskModel = voskModel
+    self.waveFilePath = waveFilePath
+    self.waveFile = None
+    self.outputFilePath = outputFilePath
+    self.outputFile = None
+    self.kaldi = None
+    self.isWaveDataAvailable = False
+    self.resultCount = 0
+
+  def start(self):
+    self.waveFile = wave.open(self.waveFilePath, "rb")
+    self.kaldi = KaldiRecognizer(self.voskModel, self.waveFile.getframerate())
+    self.kaldi.SetWords(True)
+
+    if self.outputFilePath != None:
+      try:
+        self.outputFile = open(self.outputFilePath, "w")
+      except:
+        print(f"WARNING: could not write to {self.outputFilePath}", sys.stderr)
+        self.outputFile = None
+    else:
+      self.outputFile = None
+    self.isWaveDataAvailable = True
+    self.resultCount = 0
+    self.writeMsg("[")
+
+  def finish(self):
+    self.writeMsg("]\n")
+    self.waveFile.close()
+    if self.outputFile != None:
+      self.outputFile.close()
+
+  def getNextResult(self):
+    waveData = self.waveFile.readframes(4000)
+    if len(waveData) == 0:
+      self.isWaveDataAvailable = False
+      result = self.kaldi.FinalResult()
+      if "result" in result:
+        self.resultCount += 1
+        return result
+      else:
+        return None
+    elif self.kaldi.AcceptWaveform(waveData):
+      result = self.kaldi.Result()
+      if "result" in result:
+        self.resultCount += 1
+        return result
+      else:
+        return None
+    else:
+      return None
+
+  def writeResult(self, result):
+    msg = str(result)
+    if self.resultCount > 1:
+      msg = "," + msg
+    self.writeMsg(msg + "\n")
+
+  def writeMsg(self, msg):
+    if self.outputFile != None:
+      print(msg, file=self.outputFile, end="")
+    print(msg, end="")
+
+if __name__ == "__main__":
+  main()
