@@ -1,10 +1,16 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Cwd qw(abs_path);
+use File::Basename qw(basename);
 use JSON qw(from_json);
 use Time::HiRes qw(time);
 
-my $VOSK_WORDS_CACHE_DIR = "$ENV{HOME}/.cache/vosk-words";
+my $CACHE_BASE_DIR = "$ENV{HOME}/.cache/ebook-vosk";
+my $CACHE_DIR_VOSK_WORDS = "$CACHE_BASE_DIR/vosk-words";
+my $CACHE_DIR_EBOOK_TEXT = "$CACHE_BASE_DIR/ebook-text";
+
+my $FILE_INFO_CACHE = "$CACHE_BASE_DIR/file-info";
 
 my $USAGE = "Usage:
   $0 -h | --help
@@ -36,11 +42,21 @@ my $USAGE = "Usage:
       write the final ebook words + audiobook start times to OUTPUT_FILE in addition to the console
 ";
 
-sub ensureVoskWordsCacheFile($);
+sub getEbookWordFile($);
+sub getAudiobookWordFile(@);
+sub ensureEbookTextCacheFile($$);
+sub ensureVoskWordsCacheFile($$);
+sub getEbookWordFileTimestamps($$@);
 sub getCleanFileName($);
 sub globFirst($);
+sub ensureFileInfoCache($$);
+sub readFileInfoCache();
+sub appendFileInfoCache($$);
+sub getRelFile($);
+sub getMountpointOfFile($);
 sub md5sum($);
 sub readFile($);
+sub readFileXZ($);
 sub writeFile($$);
 sub nowMillis();
 sub run(@);
@@ -69,11 +85,14 @@ sub main(@){
   die "ERROR: missing EBOOK_FILE\n" if not defined $ebookFile;
   die "ERROR: missing AUDIOBOOK_FILE(s)\n" if @audiobookFiles == 0;
 
+  my $fileInfoCache = readFileInfoCache();
+
   my @audiobookWordInfo;
 
   for my $audioFile(@audiobookFiles){
-    my $cacheFile = ensureVoskWordsCacheFile($audioFile);
-    my $json = `xz --decompress --keep --stdout "$cacheFile"`;
+    my $cacheFile = ensureVoskWordsCacheFile($audioFile, $fileInfoCache);
+    my $json = readFileXZ($cacheFile);
+    my $fileName = basename $audioFile;
 
     my $sentences = from_json $json;
     my @words;
@@ -85,30 +104,30 @@ sub main(@){
       push @audiobookWordInfo, {
         word  => $$word{word},
         start => $$word{start},
-        file  => $audioFile,
+        file  => $fileName,
       };
     }
   }
   my $audiobookWordFile = getAudiobookWordFile(@audiobookWordInfo);
 
-  my $ebookWordFile = getEbookWordFile($ebookFile);
+  my $ebookTextCacheFile = ensureEbookTextCacheFile($ebookFile, $fileInfoCache);
+  my $ebookWordFile = getEbookWordFile($ebookTextCacheFile);
 
-  my $fmt = compare($ebookWordFile, $audiobookWordFile, @audiobookWordInfo);
+  my $fmt = getEbookWordFileTimestamps($ebookWordFile, $audiobookWordFile, @audiobookWordInfo);
   print $fmt;
   if(defined $outputFile){
     writeFile $outputFile, $fmt;
   }
 }
 
+
 sub getEbookWordFile($){
-  my ($ebookFile) = @_;
+  my ($ebookTextCacheFile) = @_;
+
   my $nowMillis = nowMillis();
-  my $tmpEbookTextFile = "/tmp/ebook-text-$nowMillis.txt";
   my $tmpEbookWordsFile = "/tmp/ebook-words-$nowMillis.txt";
 
-  run "pandoc", "-t", "plain", $ebookFile, "-o", $tmpEbookTextFile;
-
-  my $content = readFile $tmpEbookTextFile;
+  my $content = readFileXZ $ebookTextCacheFile;
   $content =~ s/’/'/g;
 
   my $wordContent = "";
@@ -123,7 +142,7 @@ sub getEbookWordFile($){
   return $tmpEbookWordsFile;
 }
 
-sub getAudiobookWordFile($){
+sub getAudiobookWordFile(@){
   my @wordInfo = @_;
   my $nowMillis = nowMillis();
   my $tmpAudiobookWordsFile = "/tmp/audiobook-words-$nowMillis.txt";
@@ -136,56 +155,86 @@ sub getAudiobookWordFile($){
   return $tmpAudiobookWordsFile;
 }
 
-sub ensureVoskWordsCacheFile($){
-  my ($audioFile) = @_;
-  die "ERROR: $audioFile not found\n" if not -f $audioFile;
-  my $md5 = md5sum($audioFile);
-  my $cacheFile = globFirst "$VOSK_WORDS_CACHE_DIR/*-$md5.json*";
-  if(defined $cacheFile){
-    return $cacheFile;
+sub ensureEbookTextCacheFile($$){
+  my ($ebookFile, $fileInfoCache) = @_;
+  my $fileInfo = ensureFileInfoCache($ebookFile, $fileInfoCache);
+  my $md5 = $$fileInfo{md5};
+  my $ebookTextCacheFile = globFirst "$CACHE_DIR_EBOOK_TEXT/*-$md5.txt*";
+  if(defined $ebookTextCacheFile){
+    return $ebookTextCacheFile;
   }
 
-  if(not -d $VOSK_WORDS_CACHE_DIR){
-    run "mkdir", "-p", $VOSK_WORDS_CACHE_DIR;
+  if(not -d $CACHE_DIR_EBOOK_TEXT){
+    run "mkdir", "-p", $CACHE_DIR_EBOOK_TEXT;
   }
-  if(not -d $VOSK_WORDS_CACHE_DIR){
-    die "ERROR: $VOSK_WORDS_CACHE_DIR does not exist\n";
+  if(not -d $CACHE_DIR_EBOOK_TEXT){
+    die "ERROR: $CACHE_DIR_EBOOK_TEXT does not exist\n";
+  }
+  my $cleanFileName = getCleanFileName($ebookFile);
+  $ebookTextCacheFile = "$CACHE_DIR_EBOOK_TEXT/$cleanFileName-$md5.txt";
+
+
+  run "pandoc", "-t", "plain", $ebookFile, "-o", $ebookTextCacheFile;
+  run "xz", $ebookTextCacheFile;
+  $ebookTextCacheFile = "$ebookTextCacheFile.xz";
+  if(not -f $ebookTextCacheFile){
+    die "ERROR: cache file $ebookTextCacheFile does not exist\n";
+  }
+
+  return $ebookTextCacheFile;
+}
+
+sub ensureVoskWordsCacheFile($$){
+  my ($audioFile, $fileInfoCache) = @_;
+  die "ERROR: $audioFile not found\n" if not -f $audioFile;
+  my $fileInfo = ensureFileInfoCache($audioFile, $fileInfoCache);
+  my $md5 = $$fileInfo{md5};
+  my $voskWordsCacheFile = globFirst "$CACHE_DIR_VOSK_WORDS/*-$md5.json*";
+  if(defined $voskWordsCacheFile){
+    return $voskWordsCacheFile;
+  }
+
+  if(not -d $CACHE_DIR_VOSK_WORDS){
+    run "mkdir", "-p", $CACHE_DIR_VOSK_WORDS;
+  }
+  if(not -d $CACHE_DIR_VOSK_WORDS){
+    die "ERROR: $CACHE_DIR_VOSK_WORDS does not exist\n";
   }
   my $cleanFileName = getCleanFileName($audioFile);
-  $cacheFile = "$VOSK_WORDS_CACHE_DIR/$cleanFileName-$md5.json";
+  $voskWordsCacheFile = "$CACHE_DIR_VOSK_WORDS/$cleanFileName-$md5.json";
 
   my $tmpWaveFile = undef;
 
-  my $fileInfo = `file "$audioFile"`;
-  if($fileInfo !~ /WAVE.*\bmono\b/){
+  my $fileType = `file "$audioFile"`;
+  if($fileType !~ /WAVE.*\bmono\b/){
     $tmpWaveFile = "/tmp/vosk-wav-file-" . nowMillis() . ".wav";
     system "ffmpeg", "-i", $audioFile, "-ac", "1", $tmpWaveFile;
     if(not -f $tmpWaveFile){
       die "ERROR: failed to create mono WAVE for $audioFile\n";
     }
     $audioFile = $tmpWaveFile;
-    $fileInfo = `file "$audioFile"`;
+    $fileType = `file "$audioFile"`;
   }
 
-  if($fileInfo !~ /WAVE.*\bmono\b/){
+  if($fileType !~ /WAVE.*\bmono\b/){
     die "ERROR: $audioFile is not a mono WAVE\n";
   }
 
-  run "vosk-words-json", $audioFile, "--output=$cacheFile";
-  run "xz", $cacheFile;
-  $cacheFile = "$cacheFile.xz";
-  if(not -f $cacheFile){
-    die "ERROR: cache file $cacheFile does not exist\n";
+  run "vosk-words-json", $audioFile, "--output=$voskWordsCacheFile";
+  run "xz", $voskWordsCacheFile;
+  $voskWordsCacheFile = "$voskWordsCacheFile.xz";
+  if(not -f $voskWordsCacheFile){
+    die "ERROR: cache file $voskWordsCacheFile does not exist\n";
   }
 
   if(defined $tmpWaveFile){
     run "rm", $tmpWaveFile;
   }
 
-  return $cacheFile
+  return $voskWordsCacheFile
 }
 
-sub compare($$@){
+sub getEbookWordFileTimestamps($$@){
   my ($ebookWordFile, $audiobookWordFile, @wordInfo) = @_;
 
   my $fmt = "";
@@ -220,10 +269,8 @@ sub compare($$@){
 
 sub getCleanFileName($){
   my ($file) = @_;
-  my $cleanFileName = $file;
-  $cleanFileName =~ s/.*\///;
+  my $cleanFileName = lc basename $file;
   $cleanFileName =~ s/\.\w+$//;
-  $cleanFileName = lc $cleanFileName;
   $cleanFileName =~ s/\W+/_/g;
   $cleanFileName =~ s/__+/_/g;
   $cleanFileName =~ s/^_+//g;
@@ -242,6 +289,87 @@ sub globFirst($){
   }
 }
 
+sub ensureFileInfoCache($$){
+  my ($file, $fileInfoCache) = @_;
+  my $absFile = abs_path $file;
+  my $relFile = getRelFile($absFile);
+
+  my @stat = stat $absFile;
+  my $size = $stat[7];
+  my $mtime = $stat[9];
+
+  if(defined $$fileInfoCache{$relFile}){
+    my $fileInfo = $$fileInfoCache{$relFile};
+    my $oldSize = $$fileInfo{size};
+    my $oldMtime = $$fileInfo{mtime};
+    if($mtime == $oldMtime and $size == $oldSize){
+      return $fileInfo;
+    }
+  }
+
+  my $md5 = md5sum $absFile;
+
+  my $fileInfo = {
+    size => $size,
+    mtime => $mtime,
+    md5 => $md5,
+  };
+  $$fileInfoCache{$relFile} = $fileInfo;
+
+  appendFileInfoCache $relFile, $fileInfo;
+
+  return $fileInfo;
+}
+
+sub readFileInfoCache(){
+  my $fileInfoCache = {};
+  if(not -f $FILE_INFO_CACHE){
+    return $fileInfoCache;
+  }
+
+  my @lines = readFile $FILE_INFO_CACHE;
+  for my $line(@lines){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^(\d+),(\d+),([0-9a-f]{32}),(.+)$/){
+      my ($size, $mtime, $md5, $relFile) = ($1, $2, $3, $4);
+      $$fileInfoCache{$relFile} = {
+        size => $size,
+        mtime => $mtime,
+        md5 => $md5,
+      };
+    }else{
+      die "ERROR: malformed line in $FILE_INFO_CACHE\n$line";
+    }
+  }
+
+  return $fileInfoCache;
+}
+sub appendFileInfoCache($$){
+  my ($relFile, $fileInfo) = @_;
+  my $line = "$$fileInfo{size},$$fileInfo{mtime},$$fileInfo{md5},$relFile\n";
+  open FH, ">> $FILE_INFO_CACHE" or die "ERROR: could not append $FILE_INFO_CACHE\n$!\n";
+  print  FH $line;
+  close FH;
+}
+
+sub getRelFile($){
+  my ($absFile) = @_;
+  my $relFile = $absFile;
+  my $mountpoint = getMountpointOfFile($absFile);
+  $relFile =~ s/^$mountpoint\///;
+  return $relFile;
+}
+
+sub getMountpointOfFile($){
+  my ($file) = @_;
+  my $mountpoint = `stat -c %m \"$file\"`;
+  chomp $mountpoint;
+  if($mountpoint !~ /^\//){
+    die "ERROR: invalid mountpoint \"$mountpoint\" for file \"$file\"\n";
+  }
+  return $mountpoint;
+}
+
 sub md5sum($){
   open CMD, "-|", "md5sum", $_[0];
   my $md5sum = <CMD>;
@@ -257,9 +385,16 @@ sub md5sum($){
 sub readFile($){
   my ($file) = @_;
   open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
-  my $contents = join '', <FH>;
+  my @lines = <FH>;
   close FH;
-  return $contents;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
+}
+sub readFileXZ($){
+  return `xz --decompress --keep --stdout "$_[0]"`;
 }
 
 sub writeFile($$){
