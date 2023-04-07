@@ -1,0 +1,284 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use JSON qw(from_json);
+use Time::HiRes qw(time);
+
+my $VOSK_WORDS_CACHE_DIR = "$ENV{HOME}/.cache/vosk-words";
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 [OPTS] EBOOK_FILE AUDIOBOOK_FILE [AUDIOBOOK_FILE AUDIOBOOK_FILE]
+    -for each AUDIOBOOK_FILE:
+      -check for cached Vosk data
+        -if cached, use cached VOSK_DATA
+        -otherwise:
+          -convert AUDIOBOOK_FILE to mono WAVE
+          -generate Vosk result data, with timing for each word, with `vosk-words-json`
+          -compress and store resut in cache (about 100KiB, compressed, per hour of audiobook)
+    -create an AUDIOBOOK_WORDS_FILE
+      -write all words from all AUDIOBOOK_FILEs, one word per line
+      -store an array with the source file and start time
+    -create an EBOOK_WORDS_FILE
+      -parse EBOOK_FILE into plaintext with `pandoc`
+      -replace some unicode quote characters
+      -parse all segments of letters/numbers/single-quotes
+      -convert all words to lowercase and write to EBOOK_WORDS_FILE, one word per line
+    -diff EBOOK_WORDS_FILE and AUDIOBOOK_WORDS_FILE with `diff -y`
+      -write a file with one line per word from EBOOK_WORDS_FILE, formated:
+        START_TIME_SECONDS,WORD,FILE_BASE_NAME
+      -where START_TIME_SECONDS and FILE_BASE_NAME is from the closest matching audiobook word
+
+  OPTS
+    -o OUTPUT_FILE | --output=OUTPUT_FILE
+      write the final ebook words + audiobook start times to OUTPUT_FILE in addition to the console
+";
+
+sub ensureVoskWordsCacheFile($);
+sub getCleanFileName($);
+sub globFirst($);
+sub md5sum($);
+sub readFile($);
+sub writeFile($$);
+sub nowMillis();
+sub run(@);
+
+sub main(@){
+  my $ebookFile;
+  my @audiobookFiles;
+  my $outputFile;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-o|--output)$/ and @_ > 0){
+      $outputFile = shift @_;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputFile = $1;
+    }elsif(-f $arg and not defined $ebookFile){
+      $ebookFile = $arg;
+    }elsif(-f $arg){
+      push @audiobookFiles, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+  die "ERROR: missing EBOOK_FILE\n" if not defined $ebookFile;
+  die "ERROR: missing AUDIOBOOK_FILE(s)\n" if @audiobookFiles == 0;
+
+  my @audiobookWordInfo;
+
+  for my $audioFile(@audiobookFiles){
+    my $cacheFile = ensureVoskWordsCacheFile($audioFile);
+    my $json = `xz --decompress --keep --stdout "$cacheFile"`;
+
+    my $sentences = from_json $json;
+    my @words;
+    for my $s(@$sentences){
+      @words = (@words, @{$$s{result}});
+    }
+
+    for my $word(@words){
+      push @audiobookWordInfo, {
+        word  => $$word{word},
+        start => $$word{start},
+        file  => $audioFile,
+      };
+    }
+  }
+  my $audiobookWordFile = getAudiobookWordFile(@audiobookWordInfo);
+
+  my $ebookWordFile = getEbookWordFile($ebookFile);
+
+  my $fmt = compare($ebookWordFile, $audiobookWordFile, @audiobookWordInfo);
+  print $fmt;
+  if(defined $outputFile){
+    writeFile $outputFile, $fmt;
+  }
+}
+
+sub getEbookWordFile($){
+  my ($ebookFile) = @_;
+  my $nowMillis = nowMillis();
+  my $tmpEbookTextFile = "/tmp/ebook-text-$nowMillis.txt";
+  my $tmpEbookWordsFile = "/tmp/ebook-words-$nowMillis.txt";
+
+  run "pandoc", "-t", "plain", $ebookFile, "-o", $tmpEbookTextFile;
+
+  my $content = readFile $tmpEbookTextFile;
+  $content =~ s/’/'/g;
+
+  my $wordContent = "";
+  my @sentences = split /(\.|\n\n+|;)/, $content;
+  for my $sentence(@sentences){
+    my @words = grep {/\w/} split /[^a-z0-9']/, lc $sentence;
+    for my $word(@words){
+      $wordContent .= "$word\n";
+    }
+  }
+  writeFile $tmpEbookWordsFile, $wordContent;
+  return $tmpEbookWordsFile;
+}
+
+sub getAudiobookWordFile($){
+  my @wordInfo = @_;
+  my $nowMillis = nowMillis();
+  my $tmpAudiobookWordsFile = "/tmp/audiobook-words-$nowMillis.txt";
+
+  my $wordContent = "";
+  for my $w(@wordInfo){
+    $wordContent .= "$$w{word}\n";
+  }
+  writeFile $tmpAudiobookWordsFile, $wordContent;
+  return $tmpAudiobookWordsFile;
+}
+
+sub ensureVoskWordsCacheFile($){
+  my ($audioFile) = @_;
+  die "ERROR: $audioFile not found\n" if not -f $audioFile;
+  my $md5 = md5sum($audioFile);
+  my $cacheFile = globFirst "$VOSK_WORDS_CACHE_DIR/*-$md5.json*";
+  if(defined $cacheFile){
+    return $cacheFile;
+  }
+
+  if(not -d $VOSK_WORDS_CACHE_DIR){
+    run "mkdir", "-p", $VOSK_WORDS_CACHE_DIR;
+  }
+  if(not -d $VOSK_WORDS_CACHE_DIR){
+    die "ERROR: $VOSK_WORDS_CACHE_DIR does not exist\n";
+  }
+  my $cleanFileName = getCleanFileName($audioFile);
+  $cacheFile = "$VOSK_WORDS_CACHE_DIR/$cleanFileName-$md5.json";
+
+  my $tmpWaveFile = undef;
+
+  my $fileInfo = `file "$audioFile"`;
+  if($fileInfo !~ /WAVE.*\bmono\b/){
+    $tmpWaveFile = "/tmp/vosk-wav-file-" . nowMillis() . ".wav";
+    system "ffmpeg", "-i", $audioFile, "-ac", "1", $tmpWaveFile;
+    if(not -f $tmpWaveFile){
+      die "ERROR: failed to create mono WAVE for $audioFile\n";
+    }
+    $audioFile = $tmpWaveFile;
+    $fileInfo = `file "$audioFile"`;
+  }
+
+  if($fileInfo !~ /WAVE.*\bmono\b/){
+    die "ERROR: $audioFile is not a mono WAVE\n";
+  }
+
+  run "vosk-words-json", $audioFile, "--output=$cacheFile";
+  run "xz", $cacheFile;
+  $cacheFile = "$cacheFile.xz";
+  if(not -f $cacheFile){
+    die "ERROR: cache file $cacheFile does not exist\n";
+  }
+
+  if(defined $tmpWaveFile){
+    run "rm", $tmpWaveFile;
+  }
+
+  return $cacheFile
+}
+
+sub compare($$@){
+  my ($ebookWordFile, $audiobookWordFile, @wordInfo) = @_;
+
+  my $fmt = "";
+  my @diffLines = `diff -y $ebookWordFile $audiobookWordFile`;
+  my $audiobookWordIndex=0;
+  for my $diffLine(@diffLines){
+    $audiobookWordIndex = $#wordInfo if $audiobookWordIndex > $#wordInfo;
+    my $wordInfo = $wordInfo[$audiobookWordIndex];
+    my $start = $$wordInfo{start};
+    my $file = $$wordInfo{file};
+    if($diffLine =~ /^(\S+)\s+(\1)$/){
+      #exact match
+      $fmt .= "$start,$1,$file\n";
+      $audiobookWordIndex++;
+    }elsif($diffLine =~ /^(\S+)\s+\|\s+(\S+)$/){
+      #fuzzy match
+      $fmt .= "$start,$1,$file\n";
+      $audiobookWordIndex++;
+    }elsif($diffLine =~ /^(\S+)\s+<$/){
+      #word in ebook not in audiobook
+      $fmt .= "$start,$1,$file\n";
+    }elsif($diffLine =~ /^\s+>\s+(\S+)$/){
+      #word in audiobook not in ebook
+      $audiobookWordIndex++;
+    }else{
+      die "ERROR: could not parse diff line:\n$diffLine";
+    }
+  }
+
+  return $fmt;
+}
+
+sub getCleanFileName($){
+  my ($file) = @_;
+  my $cleanFileName = $file;
+  $cleanFileName =~ s/.*\///;
+  $cleanFileName =~ s/\.\w+$//;
+  $cleanFileName = lc $cleanFileName;
+  $cleanFileName =~ s/\W+/_/g;
+  $cleanFileName =~ s/__+/_/g;
+  $cleanFileName =~ s/^_+//g;
+  $cleanFileName =~ s/_+$//g;
+  return $cleanFileName;
+}
+
+sub globFirst($){
+  my ($ptrn) = @_;
+  my @files = glob $ptrn;
+  @files = grep {-e $_} @files;
+  if(@files > 0){
+    return $files[0];
+  }else{
+    return undef;
+  }
+}
+
+sub md5sum($){
+  open CMD, "-|", "md5sum", $_[0];
+  my $md5sum = <CMD>;
+  close CMD;
+  chomp $md5sum;
+  if($md5sum =~ /^([0-9a-f]{32})(\s.*|$)$/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $contents = join '', <FH>;
+  close FH;
+  return $contents;
+}
+
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  if($? != 0){
+    die "ERROR: command failed\n@_\n";
+  }
+}
+
+&main(@ARGV);
