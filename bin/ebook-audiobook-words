@@ -13,6 +13,7 @@ my $CACHE_DIR_EBOOK_TEXT = "$CACHE_BASE_DIR/ebook-text";
 
 my $FILE_INFO_CACHE = "$CACHE_BASE_DIR/file-info";
 my $MODE_CALC = "calc";
+my $MODE_CACHE = "cache";
 
 my $USAGE = "Usage:
   $0 -h | --help
@@ -20,13 +21,10 @@ my $USAGE = "Usage:
 
   $0 [OPTS] EBOOK_FILE AUDIOBOOK_FILE [AUDIOBOOK_FILE AUDIOBOOK_FILE]
     -for each AUDIOBOOK_FILE:
-      -check for cached Vosk data
-        -if cached, use cached VOSK_DATA
-        -otherwise:
-          -convert AUDIOBOOK_FILE to mono WAVE
-          -generate Vosk result data, with timing for each word, with `vosk-words-json`
-          -compress and store resut in cache (about 100KiB, compressed, per hour of audiobook)
-    -create an AUDIOBOOK_WORDS_FILE
+      -ensure VOSK_DATA cache exists as in:
+        $0 --cache AUDIOBOOK_FILE
+      -read VOSK_DATA from cache
+    -create an AUDIOBOOK_WORDS_FILE from VOSK_DATA
       -write all words from all AUDIOBOOK_FILEs, one word per line
       -store an array with the source file and start time
     -create an EBOOK_WORDS_FILE
@@ -38,6 +36,14 @@ my $USAGE = "Usage:
       -write a file with one line per word from EBOOK_WORDS_FILE, formated:
         START_TIME_SECONDS,WORD,FILE_BASE_NAME
       -where START_TIME_SECONDS and FILE_BASE_NAME is from the closest matching audiobook word
+
+  $0 [OPTS] --cache AUDIOBOOK_FILE [AUDIOBOOK_FILE AUDIOBOOK_FILE]
+    -for each AUDIOBOOK_FILE:
+      -check for cached Vosk data
+        -if not cached:
+          -convert AUDIOBOOK_FILE to mono WAVE (if it is not already)
+          -generate Vosk result data, with timing for each word, with `vosk-words-json`
+          -compress and store resut in cache (about 100KiB, compressed, per hour of audiobook)
 
   OPTS
     -o OUTPUT_FILE | --output=OUTPUT_FILE
@@ -77,7 +83,9 @@ sub main(@){
       $outputFile = shift @_;
     }elsif($arg =~ /^--output=(.+)$/){
       $outputFile = $1;
-    }elsif(-f $arg and not defined $ebookFile){
+    }elsif($arg =~ /^(--cache)$/){
+      $mode = $MODE_CACHE;
+    }elsif(-f $arg and not defined $ebookFile and not $mode eq $MODE_CACHE){
       $ebookFile = $arg;
     }elsif(-f $arg){
       push @audiobookFiles, $arg;
@@ -85,7 +93,13 @@ sub main(@){
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
-  die "ERROR: missing EBOOK_FILE\n" if not defined $ebookFile;
+
+  if($mode eq $MODE_CACHE){
+    die "ERROR: cannot specify EBOOK_FILE with --cache\n" if defined $ebookFile;
+  }else{
+    die "ERROR: missing EBOOK_FILE\n" if not defined $ebookFile;
+  }
+
   die "ERROR: missing AUDIOBOOK_FILE(s)\n" if @audiobookFiles == 0;
 
   if($mode eq $MODE_CALC){
@@ -121,6 +135,12 @@ sub main(@){
     print $fmt;
     if(defined $outputFile){
       writeFile $outputFile, $fmt;
+    }
+  }elsif($mode eq $MODE_CACHE){
+    my $fileInfoCache = readFileInfoCache();
+    for my $audioFile(@audiobookFiles){
+      my $cacheFile = ensureVoskWordsCacheFile($audioFile, $fileInfoCache);
+      print "cached $audioFile => $cacheFile\n";
     }
   }else{
     die "ERROR: unknown mode $mode\n";
