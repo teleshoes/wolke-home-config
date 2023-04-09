@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use Data::UUID;
 use File::Basename qw(basename);
 use JSON qw(from_json);
 use Time::HiRes qw(time);
@@ -125,7 +126,8 @@ sub getEbookWordFile($){
   my ($ebookTextCacheFile) = @_;
 
   my $nowMillis = nowMillis();
-  my $tmpEbookWordsFile = "/tmp/ebook-words-$nowMillis.txt";
+  my $uuid = getUUID();
+  my $tmpEbookWordsFile = "/tmp/ebook-words-$nowMillis-$uuid.txt";
 
   my $content = readFileXZ $ebookTextCacheFile;
   $content =~ s/’/'/g;
@@ -145,7 +147,8 @@ sub getEbookWordFile($){
 sub getAudiobookWordFile(@){
   my @wordInfo = @_;
   my $nowMillis = nowMillis();
-  my $tmpAudiobookWordsFile = "/tmp/audiobook-words-$nowMillis.txt";
+  my $uuid = getUUID();
+  my $tmpAudiobookWordsFile = "/tmp/audiobook-words-$nowMillis-$uuid.txt";
 
   my $wordContent = "";
   for my $w(@wordInfo){
@@ -207,7 +210,9 @@ sub ensureVoskWordsCacheFile($$){
 
   my $fileType = `file "$audioFile"`;
   if($fileType !~ /WAVE.*\bmono\b/){
-    $tmpWaveFile = "/tmp/vosk-wav-file-" . nowMillis() . ".wav";
+    my $nowMillis = nowMillis();
+    my $uuid = getUUID();
+    $tmpWaveFile = "/tmp/vosk-wav-file-$nowMillis-$uuid.wav";
     system "ffmpeg", "-i", $audioFile, "-ac", "1", $tmpWaveFile;
     if(not -f $tmpWaveFile){
       die "ERROR: failed to create mono WAVE for $audioFile\n";
@@ -406,6 +411,10 @@ sub writeFile($$){
 
 sub nowMillis(){
   return int(time * 1000.0 + 0.5);
+}
+
+sub getUUID(){
+  return Data::UUID->new->create_str();
 }
 
 sub run(@){
