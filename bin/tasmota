@@ -116,6 +116,7 @@ my $MODE_OFF = "off";
 my $MODE_DIMMER = "dimmer";
 my $MODE_INFO = "info";
 my $MODE_MAC = "mac";
+my $MODE_HOSTNAME = "hostname";
 my $MODE_DDWRT = "ddwrt";
 my $MODE_SET_SSID = "set-ssid";
 my $MODE_CONFIG_DEVICE = "config-device";
@@ -239,6 +240,9 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
 
+  $EXEC [OPTS] --host|--hostname DEVICE [DEVICE DEVICE ..]
+    send 'Status 0' command and parse the output to get the MAC address
+
   $EXEC [OPTS] --ddwrt
     -generate IP, mac, and device name in DDWRT config file format for all devices
     -edit $DDWRT_CONFIG_FILE
@@ -336,6 +340,9 @@ sub main(@){
       $cmd = undef;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
+      $cmd = undef;
+    }elsif($arg =~ /^(--host|--hostname)$/){
+      $mode = $MODE_HOSTNAME;
       $cmd = undef;
     }elsif($arg =~ /^(--ddwrt)$/){
       $mode = $MODE_DDWRT;
@@ -500,6 +507,14 @@ sub main(@){
     for my $device(@devices){
       my $out = $$outputByDevice{$device};
       my $mac = $1 if $out =~ /"Mac":"([^"]+)"/;
+      $mac = "?" if not defined $mac;
+      print "$device - $mac\n";
+    }
+  }elsif($mode eq $MODE_HOSTNAME){
+    my $outputByDevice = runCommandOnDevices("STATUS 0", $opts, @devices);
+    for my $device(@devices){
+      my $out = $$outputByDevice{$device};
+      my $mac = $1 if $out =~ /"Hostname":"([^"]+)"/;
       $mac = "?" if not defined $mac;
       print "$device - $mac\n";
     }
