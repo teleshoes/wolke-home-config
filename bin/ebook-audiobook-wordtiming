@@ -74,8 +74,7 @@ sub nowMillis();
 sub run(@);
 
 sub main(@){
-  my $ebookFile;
-  my @audiobookFiles;
+  my @files;
   my $outputFile;
   my $meld = 0;
   my $mode = $MODE_CALC;
@@ -92,24 +91,21 @@ sub main(@){
       $mode = $MODE_CACHE;
     }elsif($arg =~ /^(--meld)$/){
       $meld = 1;
-    }elsif(-f $arg and not defined $ebookFile and not $mode eq $MODE_CACHE){
-      $ebookFile = $arg;
     }elsif(-f $arg){
-      push @audiobookFiles, $arg;
+      push @files, $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
-  if($mode eq $MODE_CACHE){
-    die "ERROR: cannot specify EBOOK_FILE with --cache\n" if defined $ebookFile;
-  }else{
-    die "ERROR: missing EBOOK_FILE\n" if not defined $ebookFile;
-  }
-
-  die "ERROR: missing AUDIOBOOK_FILE(s)\n" if @audiobookFiles == 0;
-
   if($mode eq $MODE_CALC){
+    my ($ebookFile, @audiobookFiles) = @files;
+    if(not defined $ebookFile){
+      die "ERROR: missing EBOOK_FILE(s)\n";
+    }
+    if(@audiobookFiles == 0){
+      die "ERROR: missing AUDIOBOOK_FILE(s)\n";
+    }
     my $fileInfoCache = readFileInfoCache();
 
     my @audiobookWordInfo;
@@ -148,6 +144,10 @@ sub main(@){
       writeFile $outputFile, $fmt;
     }
   }elsif($mode eq $MODE_CACHE){
+    my @audiobookFiles = @files;
+    if(@audiobookFiles == 0){
+      die "ERROR: missing AUDIOBOOK_FILE(s)\n";
+    }
     my $fileInfoCache = readFileInfoCache();
     for my $audioFile(@audiobookFiles){
       my $cacheFile = ensureVoskWordsCacheFile($audioFile, $fileInfoCache);
