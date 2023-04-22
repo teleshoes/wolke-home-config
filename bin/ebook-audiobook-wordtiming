@@ -56,7 +56,7 @@ my $USAGE = "Usage:
 
 sub getEbookWordFile($);
 sub getAudiobookWordFile(@);
-sub ensureEbookTextCacheFile($$);
+sub ensureEbookPandocPlaintextCacheFile($$);
 sub ensureVoskWordsCacheFile($$);
 sub getEbookWordFileTimestamps($$@);
 sub getCleanFileName($);
@@ -135,8 +135,8 @@ sub main(@){
     }
     my $audiobookWordFile = getAudiobookWordFile(@audiobookWordInfo);
 
-    my $ebookTextCacheFile = ensureEbookTextCacheFile($ebookFile, $fileInfoCache);
-    my $ebookWordFile = getEbookWordFile($ebookTextCacheFile);
+    my $ebookPandocPlaintextCacheFile = ensureEbookPandocPlaintextCacheFile($ebookFile, $fileInfoCache);
+    my $ebookWordFile = getEbookWordFile($ebookPandocPlaintextCacheFile);
 
     if($meld){
       system "meld", $ebookWordFile, $audiobookWordFile;
@@ -160,13 +160,13 @@ sub main(@){
 
 
 sub getEbookWordFile($){
-  my ($ebookTextCacheFile) = @_;
+  my ($ebookPandocPlaintextCacheFile) = @_;
 
   my $nowMillis = nowMillis();
   my $uuid = getUUID();
   my $tmpEbookWordsFile = "/tmp/ebook-words-$nowMillis-$uuid.txt";
 
-  my $content = readFileXZ $ebookTextCacheFile;
+  my $content = readFileXZ $ebookPandocPlaintextCacheFile;
   $content =~ s/’/'/g;
 
   my $wordContent = "";
@@ -195,13 +195,13 @@ sub getAudiobookWordFile(@){
   return $tmpAudiobookWordsFile;
 }
 
-sub ensureEbookTextCacheFile($$){
+sub ensureEbookPandocPlaintextCacheFile($$){
   my ($ebookFile, $fileInfoCache) = @_;
   my $fileInfo = ensureFileInfoCache($ebookFile, $fileInfoCache);
   my $md5 = $$fileInfo{md5};
-  my $ebookTextCacheFile = globFirst "$CACHE_DIR_EBOOK_PANDOC_PLAINTEXT/*-$md5.txt*";
-  if(defined $ebookTextCacheFile){
-    return $ebookTextCacheFile;
+  my $ebookPandocPlaintextCacheFile = globFirst "$CACHE_DIR_EBOOK_PANDOC_PLAINTEXT/*-$md5.txt*";
+  if(defined $ebookPandocPlaintextCacheFile){
+    return $ebookPandocPlaintextCacheFile;
   }
 
   if(not -d $CACHE_DIR_EBOOK_PANDOC_PLAINTEXT){
@@ -211,17 +211,17 @@ sub ensureEbookTextCacheFile($$){
     die "ERROR: $CACHE_DIR_EBOOK_PANDOC_PLAINTEXT does not exist\n";
   }
   my $cleanFileName = getCleanFileName($ebookFile);
-  $ebookTextCacheFile = "$CACHE_DIR_EBOOK_PANDOC_PLAINTEXT/$cleanFileName-$md5.txt";
+  $ebookPandocPlaintextCacheFile = "$CACHE_DIR_EBOOK_PANDOC_PLAINTEXT/$cleanFileName-$md5.txt";
 
 
-  run "pandoc", "-t", "plain", $ebookFile, "-o", $ebookTextCacheFile;
-  run "xz", $ebookTextCacheFile;
-  $ebookTextCacheFile = "$ebookTextCacheFile.xz";
-  if(not -f $ebookTextCacheFile){
-    die "ERROR: cache file $ebookTextCacheFile does not exist\n";
+  run "pandoc", "-t", "plain", $ebookFile, "-o", $ebookPandocPlaintextCacheFile;
+  run "xz", $ebookPandocPlaintextCacheFile;
+  $ebookPandocPlaintextCacheFile = "$ebookPandocPlaintextCacheFile.xz";
+  if(not -f $ebookPandocPlaintextCacheFile){
+    die "ERROR: cache file $ebookPandocPlaintextCacheFile does not exist\n";
   }
 
-  return $ebookTextCacheFile;
+  return $ebookPandocPlaintextCacheFile;
 }
 
 sub ensureVoskWordsCacheFile($$){
