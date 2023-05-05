@@ -13,6 +13,8 @@ DEVICE_GLOB = "/dev/input/js*"
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument("--buttons", dest="BUTTONS", type=str,
+                        help="CSV of buttonId=buttonName, e.g.: --buttons 0=A,1=B,5=select")
   parser.add_argument("-n", "--no-bigtext", dest="NO_BIGTEXT", action="store_true",
                         help="do not run bigtext")
   parser.add_argument("-d", "--device", dest="DEVICE_PATH", type=str,
@@ -30,6 +32,19 @@ def main():
     print(parser.format_help() + "\nERROR: no device found\n", file=sys.stderr)
     os._exit(1)
 
+  buttonOrder = []
+  buttonNames = dict()
+  if args.BUTTONS:
+    for idNamePair in args.BUTTONS.split(","):
+      arr = idNamePair.split("=")
+      if len(arr) != 2 or not re.match('^\d+$', arr[0]):
+        print(parser.format_help() + "\nERROR: invalid --buttons CSV\n", file=sys.stderr)
+        os._exit(1)
+      btnId = int(arr[0])
+      btnName = arr[1]
+      buttonOrder.append(btnId)
+      buttonNames[btnId] = btnName
+
   useBigtext = True
   if args.NO_BIGTEXT:
     useBigtext = False
@@ -44,8 +59,16 @@ def main():
   while jstestProc.poll() == None:
     buttons = readBtns(jstestProc)
 
-    playerStates = list(map(lambda p: False, players))
+    buttonIds = []
+    for btnId in buttonOrder:
+      if btnId in buttons and btnId not in buttonIds:
+        buttonIds.append(btnId)
     for btnId in buttons:
+      if btnId not in buttonIds:
+        buttonIds.append(btnId)
+
+    playerStates = list(map(lambda p: False, players))
+    for btnId in buttonIds:
       playerStates[btnId % len(playerStates)] = buttons[btnId]
 
     for i in range(len(players)):
@@ -56,14 +79,23 @@ def main():
 
     termFmt = ""
     bigtextFmt = ""
-    for btnId in buttons:
-      termFmt += f" {btnId:-3d}:"
+
+    for btnId in buttonIds:
+      if btnId in buttonNames:
+        buttonName = buttonNames[btnId]
+      else:
+        buttonName = f"{btnId:-2d}"
+      termFmt += " "
+      bigtextFmt += " "
+
+      termFmt += buttonName + ":"
       if buttons[btnId]:
         termFmt += "#ON#"
-        bigtextFmt += f" {btnId:-02d}"
+        bigtextFmt += buttonName
       else:
         termFmt += "off_"
-        bigtextFmt += " __"
+        spacer = re.sub('.', '_', buttonName)
+        bigtextFmt += spacer
     print(termFmt + "\r", end="")
     if useBigtext and len(bigtextFmt) > 0:
       os.system("bigtext " + bigtextFmt + " >/dev/null 2>/dev/null")
