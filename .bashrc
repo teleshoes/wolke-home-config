@@ -148,6 +148,7 @@ function ds           { zenius-ddrsonglist --search "$@"; }
 function ddr-search   { zenius-ddrsonglist --search "$@"; }
 function ddr-banners  { image-flash $(zenius-ddrsonglist --banners "$@"); }
 function ddredit      { ddrname --edit-names --fast "$@"; }
+function ddr-pad-test { jstest-tone --buttons '2=--,5=UU,3=--,4=LL,1=DD,0=RR' "$@"; }
 function j            { fcron-job-toggle "$@"; }
 function f            { feh "$@"; }
 function p            { pushup "$@"; }
