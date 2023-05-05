@@ -1,19 +1,32 @@
 #!/usr/bin/env python
 import argparse
 import audioplayer
+import glob
 import os
 import re
 import subprocess
+import sys
 
 SIN_DIR = "/usr/share/sounds/custom/sin"
 NOTES = ["C4", "Eb4", "Gb4", "A4", "Db5", "E5", "G5", "Bb5", "D6", "F6", "Ab6", "B6"]
+DEVICE_GLOB = "/dev/input/js*"
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument("-d", "--device", dest="DEVICE_PATH", type=str,
+                        help=f"device path - default is first path that matches\n{DEVICE_GLOB}")
 
   args = parser.parse_args()
 
-  device = "/dev/input/js0"
+  device = args.DEVICE_PATH
+  if device == None:
+    devices = glob.glob("/dev/input/js*")
+    if len(devices) > 0:
+      device = devices[0]
+
+  if device == None:
+    print(parser.format_help() + "\nERROR: no device found\n", file=sys.stderr)
+    os._exit(1)
 
   players = list(map(
     lambda note: audioplayer.AudioPlayer(SIN_DIR + "/sin-" + note + ".flac"),
