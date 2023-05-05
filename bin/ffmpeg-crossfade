@@ -11,27 +11,58 @@ my $DEFAULT_FADE_LEN = "2.00";
 
 my $USAGE = "Usage:
   take a bunch of videos and concatenate them with ffmpeg,
-    overlapping them by ${DEFAULT_FADE_LEN}s with a fade transition
+    using xfade+acrossfade,
+    with a fade transition lasting FADE_LEN_SECONDS (${DEFAULT_FADE_LEN}s)
   input videos must all have the exact same codecs,
-    filetypes, and bitrates (and maybe other things)
+    filetypes, bitrates, etc
+  input videos must be the same resolution,
+    OR use --scale to first perform 'scale' in filter_complex
+  input videos must all be at least FADE_LEN_SECONDS in duration
 
   $EXEC -h|--help
     show this message
 
   $EXEC [OPTS] INPUT_VID INPUT_VID [INPUT_VID ..]
-    -generate video-only crossfade of ${DEFAULT_FADE_LEN}s between each input
-       <OUTPUT_VIDEO>-tmp-video.<EXT>
-    -genearte audio-only crossfade of ${DEFAULT_FADE_LEN}-0.2s (???) between each input
-       <OUTPUT_VIDEO>-tmp-audio.<EXT>
-    -combine the files with -c copy
+    -combine the video stream of each file, using filter_complex with xfade
+      -for the first file, use video stream as-is for VIDEO_RESULT
+      -for each subsequent file, use xfade to create VIDEO_RESULT:
+        -use previous VIDEO_RESULT for XFADE_FIRST_ARG
+        -if --scale is given:
+          -scale video stream and use result as XFADE_SECOND_ARG
+        -otherwise:
+          -use video stream as-is for XFADE_SECOND_ARG
+        -calculate XFADE_OFFSET
+          XFADE_OFFSET = PREVIOUS_TOTAL_DURATION - (FADE_LEN_SECONDS * PREVIOUS_VIDEO_COUNT)
+            where to start the fade transition
+          PREVIOUS_TOTAL_DURATION
+            the duration of all previous videos
+          PREVIOUS_DURATION
+            the number of previous videos
+        -add xfade filter to filters
+            [XFADE_FIRST_ARG][XFADE_SECOND_ARG]
+            xfade=transition=fade:duration=FADE_LEN_SECONDS:offset=XFADE_OFFSET
+            [VIDEO_RESULT]
+    -combine the audio stream of each file, using filter_complex with acrossfade
+      -for the first file, use audio stream as-is for AUDIO_RESULT
+      -for each subsequent file, use acrossfade to create AUDIO_RESULT:
+        -use previous AUDIO_RESULT for ACROSSFADE_FIRST_ARG
+        -use audio stream as-is for ACROSSFADE_SECOND_ARG
+        -add acrossfade to filters
+            [ACROSSFADE_FIRST_ARG][ACROSSFADE_SECOND_ARG]
+            acrossfade=d=FADE_LEN
+            [AUDIO_RESULT]
+    -run ffmpeg, writing output to OUTPUT_VID_FILE
+      -extract <EXT> from first INPUT_VID_FILE (alphanumeric chars after final dot char)
+      -use EXT=mp4 if no <EXT> is present
+      -use out.<EXT> for OUTPUT_VID_FILE, unless --output given
 
   OPTS
-    -o OUTPUT_VIDEO | --output OUTPUT_VIDEO | --output=OUTPUT_VIDEO
+    -o OUTPUT_VID_FILE | --output OUTPUT_VID_FILE | --output=OUTPUT_VID_FILE
       default is out.<EXT>
 
-    --len DURATION_SECONDS | --fade-len DURATION_SECONDS
-    --len=DURATION_SECONDS | --fade-len=DURATION_SECONDS
-      make the duration of the crossfade DURATION_SECONDS (default is 2.00)
+    --len FADE_LEN_SECONDS | --fade-len FADE_LEN_SECONDS
+    --len=FADE_LEN_SECONDS | --fade-len=FADE_LEN_SECONDS
+      make the duration of the crossfade FADE_LEN_SECONDS (default is 2.00)
 
     --resolution WIDTHxHEIGHT | --res WIDTHxHEIGHT | --scale WIDTHxHEIGHT
     --resolution=WIDTHxHEIGHT | --res=WIDTHxHEIGHT | --scale=WIDTHxHEIGHT
