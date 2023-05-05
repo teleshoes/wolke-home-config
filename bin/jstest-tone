@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+import audioplayer
+import os
+import re
+import subprocess
+
+SIN_DIR = "/usr/share/sounds/custom/sin"
+NOTES = ["C4", "Eb4", "Gb4", "A4", "Db5", "E5", "G5", "Bb5", "D6", "F6", "Ab6", "B6"]
+
+def main():
+  players = list(map(
+    lambda note: audioplayer.AudioPlayer(SIN_DIR + "/sin-" + note + ".flac"),
+    NOTES
+  ))
+
+  device = "/dev/input/js0"
+
+  jstestProc = subprocess.Popen(["jstest", device], stdout=subprocess.PIPE, bufsize=0)
+  while jstestProc.poll() == None:
+    buttons = readBtns(jstestProc)
+
+    playerStates = list(map(lambda p: False, players))
+    for btnId in buttons:
+      playerStates[btnId % len(playerStates)] = buttons[btnId]
+
+    for i in range(len(players)):
+      if playerStates[i]:
+        players[i].play(loop=True)
+      else:
+        players[i].stop()
+
+    termFmt = ""
+    for btnId in buttons:
+      termFmt += f" {btnId:-3d}:"
+      if buttons[btnId]:
+        termFmt += "#ON#"
+      else:
+        termFmt += "off_"
+    print(termFmt + "\r", end="")
+
+def readBtns(proc):
+  output = proc.stdout.read(1024)
+  lines = output.strip().splitlines()
+  if len(lines) > 0:
+    lastLine = lines[-1].decode()
+  else:
+    lastLine = ""
+  buttons = {}
+  if re.match('^Buttons:', lastLine):
+    btnStrs = re.findall('\d+:(?:on|off)', lastLine)
+    for btnStr in btnStrs:
+      btnArr = btnStr.split(':')
+      btnId = int(btnArr[0])
+      btnState = btnArr[1] == "on"
+      buttons[btnId] = btnState
+  return buttons
+
+if __name__ == "__main__":
+  main()
