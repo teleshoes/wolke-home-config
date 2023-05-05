@@ -6,7 +6,6 @@ use Cwd qw(abs_path);
 sub getHtml($@);
 
 my $DEFAULT_AUTOSCROLL_DELAY_MILLIS = 1000;
-my $DEFAULT_AUTOSCROLL_BY_PX = 800;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -38,15 +37,12 @@ my $usage = "Usage:
       set CSS property of <img> tag \"min-height:<PX>px\"
 
     -a|--autoscroll
-      scroll page slowly when you click on an image, click again to toggle
+      click on an image to start autoscrolling, and click again to disable
+      every ${DEFAULT_AUTOSCROLL_DELAY_MILLIS}ms, scroll the next image into view
 
     --autoscroll-delay=DELAY_MILLIS
       if --autoscroll is given, scroll page every <DELAY_MILLIS> millis
       (default is $DEFAULT_AUTOSCROLL_DELAY_MILLIS)
-
-    --autoscroll-px=PX
-      if --autoscroll is given, scroll page by <PX> px
-      (default is $DEFAULT_AUTOSCROLL_BY_PX)
 
     --clickbox
       include a textbox at the bottom
@@ -64,7 +60,6 @@ sub main(@){
     minHeight => undef,
     autoScroll => 0,
     autoScrollDelayMillis => $DEFAULT_AUTOSCROLL_DELAY_MILLIS,
-    autoScrollByPx => $DEFAULT_AUTOSCROLL_BY_PX,
     includeClickBox => 0,
   };
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -89,9 +84,6 @@ sub main(@){
     }elsif($arg =~ /^--autoscroll-delay=(\d+)$/){
       die "invalid autoscroll delay: $1\n" if $1 <= 0;
       $$config{autoScrollDelayMillis} = $1;
-    }elsif($arg =~ /^--autoscroll-px=(\d+)$/){
-      die "invalid autoscroll scroll-by px: $1\n" if $1 <= 0;
-      $$config{autoScrollByPx} = $1;
     }elsif($arg =~ /^(--clickbox)$/){
       $$config{includeClickBox} = 1;
     }else{
@@ -143,6 +135,7 @@ sub getHtml($@){
     <script>
     var scrollEnabled = false;
     var singleColEnabled = false;
+    var nextImgID = null;
     function addText(event) {
       var targ = event.target || event.srcElement;
       document.getElementById(\"clicked\").value += targ.src + \"\\n\";
@@ -156,33 +149,30 @@ sub getHtml($@){
         c.classList.remove('container-single-column');
       }
     }
-    function toggleScroll(){
+    function toggleScroll(imgID){
       scrollEnabled = !scrollEnabled;
       if(scrollEnabled){
-        pageScroll();
+        nextImgID = imgID;
+        scrollNextImg();
+      }else{
+        nextImgID = null;
       }
     }
-    function pageScroll() {
+    function scrollNextImg() {
       if(scrollEnabled){
-        window.scrollBy({
-          behavior: 'smooth',
-          top: $$config{autoScrollByPx}
-        });
-        scrolldelay = setTimeout(
-          'pageScroll()',
-          $$config{autoScrollDelayMillis});
-      }else{
-        window.scrollBy({
-          behavior: 'instant',
-          top: 0
-        });
+        var imgElem = document.getElementById('img'+nextImgID);
+        if(imgElem == null){
+          scrollEnabled = false;
+          nextImgID = null;
+        }else{
+          imgElem.scrollIntoView({behavior: \"smooth\", block: \"start\", inline: \"nearest\"});
+          nextImgID++;
+          setTimeout('scrollNextImg()', $$config{autoScrollDelayMillis});
+        }
       }
     }
     </script>
   ";
-  my $onclick = "";
-  $onclick .= "addText(event); " if $$config{includeClickBox};
-  $onclick .= "toggleScroll(); " if $$config{autoScroll};
   $html .= "<body>";
   $html .= ""
            . "<button"
@@ -197,9 +187,13 @@ sub getHtml($@){
   $css .= "min-width: $$config{minWidth}px; " if defined $$config{minWidth};
   $css .= "max-height: $$config{maxHeight}px; " if defined $$config{maxHeight};
   $css .= "min-height: $$config{minHeight}px; " if defined $$config{minHeight};
-  for my $img(@imgAbsPaths){
+  for(my $imgID=0; $imgID<@imgAbsPaths; $imgID++){
+    my $img = $imgAbsPaths[$imgID];
     my $fileUrl = "file://$img";
-    $html .= "<img style=\"$css\" src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
+    my $onclick = "";
+    $onclick .= "addText(event); " if $$config{includeClickBox};
+    $onclick .= "toggleScroll($imgID); " if $$config{autoScroll};
+    $html .= "<img id=\"img$imgID\" style=\"$css\" src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
   }
   if($$config{includeClickBox}){
     $html .= "<textarea id=\"clicked\" rows=\"5\" cols=\"80\"></textarea>\n";
