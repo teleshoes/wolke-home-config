@@ -9,6 +9,7 @@ use Time::HiRes qw(time);
 my $EXEC = basename $0;
 my $JSON_ORDERS_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
 my $JSON_QUOTES_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/quotes-json";
+my $BEARER_TOKEN_CACHE = "$ENV{HOME}/.cache/robinhood/bearer-token";
 my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
 my $EXTRA_ORDERS_CACHE = "$ENV{HOME}/.cache/robinhood/extra-orders";
 
@@ -72,6 +73,8 @@ my $USAGE = "Usage:
 sub apiCallCurl($$);
 sub getInstrumentSummary(@);
 sub getReadonlyBearerToken();
+sub fetchReadonlyBearerToken();
+sub testBearerToken($);
 sub fetchAndCacheQuote($$$$$$);
 sub readCachedQuote($);
 sub parseJsonOrders();
@@ -346,6 +349,20 @@ sub fetchAndCacheQuote($$$$$$){
 }
 
 sub getReadonlyBearerToken(){
+  my $bearerToken = undef;
+  if(-e $BEARER_TOKEN_CACHE){
+    $bearerToken = readFile $BEARER_TOKEN_CACHE;
+    chomp $bearerToken;
+    if(testBearerToken($bearerToken)){
+      return $bearerToken;
+    }
+  }
+  $bearerToken = fetchReadonlyBearerToken();
+  writeFile $BEARER_TOKEN_CACHE, "$bearerToken\n";
+  return $bearerToken;
+}
+
+sub fetchReadonlyBearerToken(){
   my $cmd = "wget -q -O - https://robinhood.com/stocks/IBM";
   my $attempts = 5;
   while($attempts > 0){
@@ -359,6 +376,17 @@ sub getReadonlyBearerToken(){
     $attempts--;
   }
   die "ERROR: failed to fetch read-only bearer token with $cmd\n";
+}
+
+sub testBearerToken($){
+  my ($bearerToken) = @_;
+  my $url = "$API_QUOTES_STOCKS_URL/IBM/";
+  my $out = apiCallCurl($url, $bearerToken);
+  if($out =~ /ask_price/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub parseJsonOrders(){
