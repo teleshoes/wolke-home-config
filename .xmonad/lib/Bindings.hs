@@ -210,7 +210,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Firefox"       @@ mCA   xK_f    #! "firefox"
         "Firefox 24"    @@ mCAS  xK_f    #! "ff24"
         "Chrome Incog"  @@ mCA   xK_c    #! "chromium --incognito"
-        "Chrome"        @@ mCAS  xK_c    #! "chromium"
+        "Chrome"        @@ mCAS  xK_c    #! "google-chrome --simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT'"
         "steam"         @@ mCA   xK_t    #! "term steam"
         "jitsi-meet"    @@ mCA   xK_j    #! "jitsi-meet"
         "zoom"          @@ mCA   xK_z    #! "zoom-run"
