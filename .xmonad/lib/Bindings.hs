@@ -90,6 +90,7 @@ restartXmonad msg force = do
 xmoKeys conf = "XMonad" @@ do
     "Restart Taffybar"  @@ mCA   xK_Home #! "taffybar-restart"
     "Recompile Xmonad"  @@ mCA   xK_End  #  restartXmonad "xmonad recompile" True
+    "Restart Xmonad"    @@ mCAS  xK_End  #  restartXmonad "xmonad restart" False
     "Edit Keys"         @@ mCA   xK_Del  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
 machineKeys machineType conf = "Machine" @@ do
