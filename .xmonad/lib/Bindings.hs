@@ -223,7 +223,7 @@ shortcuts conf = "Shortcuts" @@ do
         "FBreader"      @@ mCA   xK_r    #! "fbreader"
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
-        "stepmania -i"  @@ mCA   xK_i    #! "stepmania -r -i"
+        "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
     "tv"           @@ do
