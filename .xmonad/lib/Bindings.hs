@@ -22,13 +22,13 @@ import Bindings.Writer
 
 main = putStr . prettyBindingsIndented $ keyBinds testConfig
 
-tryWriteKeyBindingsPrettyCache file = writeKeyBindingsPrettyCache file `catchIOError` print
-writeKeyBindingsPrettyCache = flip writeFile $ cols 4 $ lines $
-    renameWorkspaces $ prettyBindingsFlat $ keyBinds testConfig
+tryWriteKeyBindingsCache pretty file = writeKeyBindingsCache pretty file `catchIOError` print
 
-tryWriteKeyBindingsCache file = writeKeyBindingsCache file `catchIOError` print
-writeKeyBindingsCache = flip writeFile $
-    renameWorkspaces $ prettyBindingsFlatHex $ keyBinds testConfig
+writeKeyBindingsCache pretty file = writeFile file contents
+  where fmt = if pretty then cols 4 . lines else id
+        prettyBindings = if pretty then prettyBindingsFlat else prettyBindingsFlatHex
+        binds = keyBinds testConfig
+        contents = fmt $ renameWorkspaces $ prettyBindings $ binds
 
 renameWorkspaces = unlines . map rename . lines
   where
