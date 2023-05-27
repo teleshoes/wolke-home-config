@@ -4,7 +4,7 @@ import Bindings (
   tryWriteKeyBindingsCache)
 import StaticAssert (staticAssert)
 import Utils (
-  relToHomeDir)
+  readMachineType, relToHomeDir)
 
 import XMonad (
   xmonad,
@@ -49,6 +49,7 @@ ffExec = "iceweasel"
 ffName = "Iceweasel"
 
 main = do
+  machineType <- readMachineType
   xmonad . ewmh . pagerHints . docks $ def
     { focusFollowsMouse  = False
     , modMask            = mod1Mask
