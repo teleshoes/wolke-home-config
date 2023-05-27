@@ -11,6 +11,7 @@ my $EXEC_STEPMANIA_CURSONG_INFO = "stepmania-cursong-info";
 
 my $DDR_ALL_PLAYERS_FILE = "/tmp/ddr-all-players";
 my $DDR_PLAYER_FILE = "/tmp/ddr-player";
+my $DDR_WORDS_FILE = "/tmp/ddr-words";
 my $DDR_CURSONG_FILE = "/tmp/ddr-cursong";
 
 my $EXEC = basename $0;
@@ -24,6 +25,9 @@ my $usage = "USAGE:
     -calculated screen scaling factor, relative to 1080p
     -run qtbtn with scaling factor for $QTBTN_CONF_FILE
 
+  $EXEC -w | --words WORD [WORD WORD ..]
+    write each WORD to $DDR_WORDS_FILE, separated by a space
+
   $EXEC -p | -s | --set-players PLAYER [PLAYER ..]
     -write each PLAYER to $DDR_ALL_PLAYERS_FILE, separated by a space
 
@@ -35,11 +39,13 @@ my $usage = "USAGE:
 ";
 
 my $MODE_START_UI = "start-ui";
+my $MODE_SET_WORDS = "set-words";
 my $MODE_SET_PLAYERS = "set-players";
 my $MODE_CYCLE_PLAYER = "cycle-player";
 
 sub main(@){
   my $mode = $MODE_START_UI;
+  my @words;
   my @players;
   while(@_ > 0){
     my $arg = shift;
@@ -48,10 +54,14 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--start-ui)$/){
       $mode = $MODE_START_UI;
+    }elsif($arg =~ /^(-w|--words)$/){
+      $mode = $MODE_SET_WORDS;
     }elsif($arg =~ /^(-p|-s|--set-players)$/){
       $mode = $MODE_SET_PLAYERS;
     }elsif($arg =~ /^--cycle-player$/){
       $mode = $MODE_CYCLE_PLAYER;
+    }elsif($mode eq $MODE_SET_WORDS and $arg =~ /^(\w+)$/){
+      push @words, $1;
     }elsif($mode eq $MODE_SET_PLAYERS and $arg =~ /^([A-Z]+)$/i){
       push @players, $1;
     }else{
@@ -80,6 +90,9 @@ sub main(@){
 
     system "$EXEC_STEPMANIA_CURSONG_INFO --kill";
     waitpid(-1, WNOHANG);
+  }elsif($mode eq $MODE_SET_WORDS){
+    system "rm", "-f", $DDR_WORDS_FILE;
+    system "echo @words > $DDR_WORDS_FILE";
   }elsif($mode eq $MODE_SET_PLAYERS){
     system "rm", "-f", $DDR_PLAYER_FILE;
     system "rm", "-f", $DDR_ALL_PLAYERS_FILE;
