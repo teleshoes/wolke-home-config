@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use POSIX ":sys_wait_h";
 
 my $DEFAULT_SCREEN_HEIGHT = 1080;
 my $QTBTN_CONF_FILE = "$ENV{HOME}/.config/qtbtn-ddr.conf";
@@ -55,12 +56,17 @@ sub main(@){
     my $scale = $screenHeight / $DEFAULT_SCREEN_HEIGHT;
     $scale = 0.25 if $scale < 0.25;
     $scale = 8 if $scale > 8;
-    if(not fork()){
-      system "$EXEC_STEPMANIA_CURSONG_INFO --monitor --qml --file=$DDR_CURSONG_FILE";
-      exit 0;
+
+    my $pid = fork();
+    if(not defined $pid){
+      die "ERROR: fork failed\n";
+    }
+    if($pid == 0){
+      exec "$EXEC_STEPMANIA_CURSONG_INFO --monitor --qml --file=$DDR_CURSONG_FILE";
     }
 
     system "qtbtn.py --scale=$scale -w --left --bg $QTBTN_CONF_FILE >/dev/null";
+    waitpid(-1, WNOHANG);
   }elsif($mode eq $MODE_CYCLE_PLAYER){
     my @allPlayers = split /[ \t\r\n]+/, `cat $DDR_ALL_PLAYERS_FILE 2>/dev/null`;
     @allPlayers = grep {/\w/} @allPlayers;
