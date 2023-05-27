@@ -95,6 +95,8 @@ xmoKeys conf = "XMonad" @@ do
 machineKeys machineType conf = "Machine" @@ do
   machine "main" $ do
     emptyKeys
+  machine "ddr" $ do
+    "ddr-player"    @@ m_    xK_Ins  #! "ddr-ui --cycle-player"
   machine "aux" $ do
     emptyKeys
   machine "tv" $ do
@@ -241,7 +243,6 @@ shortcuts conf = "Shortcuts" @@ do
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
         "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
---      "ddr-player"    @@ m_    xK_Ins  #! "ddr-ui --cycle-player"
         "smbc"          @@ mCA   xK_m    #! "smbc"
 
     "tv"           @@ do
