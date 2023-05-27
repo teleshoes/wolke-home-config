@@ -19,11 +19,13 @@ my $usage = "USAGE:
   $EXEC -h|--help
     show this message
 
-  $EXEC [PLAYER PLAYER ..]
-  $EXEC --start-ui [PLAYER PLAYER ..]
-    -write each PLAYER to $DDR_ALL_PLAYERS_FILE, one per line
+  $EXEC
+  $EXEC --start-ui
     -calculated screen scaling factor, relative to 1080p
     -run qtbtn with scaling factor for $QTBTN_CONF_FILE
+
+  $EXEC -p | -s | --set-players PLAYER [PLAYER ..]
+    -write each PLAYER to $DDR_ALL_PLAYERS_FILE, separated by a space
 
   $EXEC --cycle-player
     -read PLAYER from $DDR_PLAYER_FILE
@@ -33,6 +35,7 @@ my $usage = "USAGE:
 ";
 
 my $MODE_START_UI = "start-ui";
+my $MODE_SET_PLAYERS = "set-players";
 my $MODE_CYCLE_PLAYER = "cycle-player";
 
 sub main(@){
@@ -45,9 +48,11 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--start-ui)$/){
       $mode = $MODE_START_UI;
+    }elsif($arg =~ /^(-p|-s|--set-players)$/){
+      $mode = $MODE_SET_PLAYERS;
     }elsif($arg =~ /^--cycle-player$/){
       $mode = $MODE_CYCLE_PLAYER;
-    }elsif($arg =~ /^([A-Z]+)$/){
+    }elsif($mode eq $MODE_SET_PLAYERS and $arg =~ /^([A-Z]+)$/){
       push @players, $1;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
@@ -56,7 +61,6 @@ sub main(@){
 
   if($mode eq $MODE_START_UI){
     system "rm /tmp/ddr-*";
-    system "echo @players > $DDR_ALL_PLAYERS_FILE";
     my $screenHeight = `res -h`;
     chomp $screenHeight;
     my $scale = $screenHeight / $DEFAULT_SCREEN_HEIGHT;
@@ -76,6 +80,10 @@ sub main(@){
 
     system "$EXEC_STEPMANIA_CURSONG_INFO --kill";
     waitpid(-1, WNOHANG);
+  }elsif($mode eq $MODE_SET_PLAYERS){
+    system "rm", "-f", $DDR_PLAYER_FILE;
+    system "rm", "-f", $DDR_ALL_PLAYERS_FILE;
+    system "echo @players > $DDR_ALL_PLAYERS_FILE";
   }elsif($mode eq $MODE_CYCLE_PLAYER){
     my @allPlayers = split /[ \t\r\n]+/, `cat $DDR_ALL_PLAYERS_FILE 2>/dev/null`;
     @allPlayers = grep {/\w/} @allPlayers;
