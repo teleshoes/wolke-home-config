@@ -63,8 +63,8 @@ main = do
     , manageHook         = myManageHook <+> manageDocks
 
     , workspaces         = workspaceNames
-    , keys               = myKeyBindings
-    , mouseBindings      = myMouseBindings
+    , keys               = myKeyBindings machineType
+    , mouseBindings      = myMouseBindings machineType
     }
 
 myStartupHook = do

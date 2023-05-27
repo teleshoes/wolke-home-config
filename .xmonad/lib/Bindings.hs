@@ -1,4 +1,7 @@
 module Bindings where
+import Utils (
+  readMachineType)
+
 import XMonad
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 import XMonad.Actions.FloatKeys (keysMoveWindow, keysResizeWindow)
@@ -20,15 +23,17 @@ import System.IO.Error (catchIOError)
 import Bindings.Keys
 import Bindings.Writer
 
-main = putStr . prettyBindingsIndented $ keyBinds testConfig
+main = do
+  machineType <- readMachineType
+  putStr . prettyBindingsIndented $ keyBinds machineType testConfig
 
 tryWriteKeyBindingsCache pretty file = writeKeyBindingsCache pretty file `catchIOError` print
 
-writeKeyBindingsCache pretty file = writeFile file contents
+writeKeyBindingsCache pretty file = writeFile file <$> contents =<< readMachineType
   where fmt = if pretty then cols 4 . lines else id
         prettyBindings = if pretty then prettyBindingsFlat else prettyBindingsFlatHex
-        binds = keyBinds testConfig
-        contents = fmt $ renameWorkspaces $ prettyBindings $ binds
+        binds machineType = keyBinds machineType testConfig
+        contents machineType = fmt $ renameWorkspaces $ prettyBindings $ binds machineType
 
 renameWorkspaces = unlines . map rename . lines
   where
@@ -40,15 +45,15 @@ renameWorkspaces = unlines . map rename . lines
         findWorkspaceName = find ((`isInfixOf` line) . fst) $
             map (first $ show . show) $ zip [1..] workspaceNames
 
-myMouseBindings = M.fromList . bwBindList . mouseBinds
-myKeyBindings   = M.fromList . bwBindList . keyBinds
+myMouseBindings machineType = M.fromList . bwBindList . mouseBinds machineType
+myKeyBindings machineType  = M.fromList . bwBindList . keyBinds machineType
 
 workspaceNames = ["A", "B", "D", "G"] ++ map show [5..9]
 testConfig = def{ layoutHook = Layout $ layoutHook def
                 , workspaces = workspaceNames }
 
-mouseOverlaps = bwFindOverlap $ mouseBinds testConfig
-keyOverlaps   = bwFindOverlap $ keyBinds   testConfig
+mouseOverlaps = bwFindOverlap $ mouseBinds Nothing testConfig
+keyOverlaps   = bwFindOverlap $ keyBinds   Nothing testConfig
 
 cols colCount lines = unlines $ map concat $ transpose cols
   where
@@ -63,14 +68,14 @@ a ## b = a # windows b
 a #^ b = a # withFocused b
 a #> b = a # sendMessage b
 
-mouseBinds conf = "Mouse Bindings" @@ do
+mouseBinds machineType conf = "Mouse Bindings" @@ do
     "Move Window"   @@ mW button1 # select >=> mouseMoveWindow
     "Raise Window"  @@ mW button2 # void . select
     "Resize Window" @@ mW button3 # select >=> mouseResizeWindow
   where
     select w = focus w >> windows shiftMaster >> return w
 
-keyBinds conf = "Key Bindings" @@ mapM_ ($ conf)
+keyBinds machineType conf = "Key Bindings" @@ mapM_ ($ conf)
     [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
 
 restartXmonad = do
