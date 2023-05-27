@@ -3,7 +3,7 @@ import XMonad
 import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 import XMonad.Actions.FloatKeys (keysMoveWindow, keysResizeWindow)
 import XMonad.Actions.NoBorders (toggleBorder)
-import XMonad.Actions.SinkAll
+import XMonad.Actions.SinkAll (sinkAll)
 import XMonad.Hooks.ManageDocks (ToggleStruts(..))
 import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.StackSet hiding (focus, workspaces, filter)
