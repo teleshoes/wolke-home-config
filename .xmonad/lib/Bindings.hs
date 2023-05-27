@@ -76,7 +76,7 @@ mouseBinds machineType conf = "Mouse Bindings" @@ do
     select w = focus w >> windows shiftMaster >> return w
 
 keyBinds machineType conf = "Key Bindings" @@ mapM_ ($ conf)
-    [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys]
+    [xmoKeys, shortcuts, windowKeys, layoutKeys, workspaceKeys, machineKeys machineType]
 
 restartXmonad = do
   spawn $ "notify-send -t 1000 xmonad recompile"
@@ -92,6 +92,18 @@ xmoKeys conf = "XMonad" @@ do
     "Recompile Xmonad"  @@ mCA   xK_End  #  restartXmonad
     "Edit Keys"         @@ mCA   xK_Del  #! "term vim ~/.xmonad/lib/Bindings.hs"
 
+machineKeys machineType conf = "Machine" @@ do
+  machine "main" $ do
+    emptyKeys
+  machine "aux" $ do
+    emptyKeys
+  machine "tv" $ do
+    emptyKeys
+  machine "bed" $ do
+    emptyKeys
+  where machine targetMachine binds = if matches targetMachine then targetMachine @@ binds else return ()
+        matches targetMachine | isNothing machineType = True --include all for missing machine
+        matches targetMachine = fromJust machineType == targetMachine
 
 shortcuts conf = "Shortcuts" @@ do
     "off"               @@ mA    xK_Esc  #! "off g"

@@ -10,6 +10,7 @@ module Bindings.Writer
     , (@@), (#)
     , bwBindList, bwFindOverlap
     , prettyBindingsIndented, prettyBindingsFlat, prettyBindingsFlatHex
+    , emptyKeys
     ) where
 
 import XMonad
@@ -34,6 +35,9 @@ data Bindings a
 
 type BW a = Writer (Bindings a) ()
 type LW a = Writer [a] ()
+
+emptyKeys :: BW ((KeyMask, KeySym), b)
+emptyKeys = return ()
 
 flattenBW :: BW a -> [(Int, (String, Maybe [a]))]
 flattenBW = go 0 . execWriter
