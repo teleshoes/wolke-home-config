@@ -48,22 +48,23 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 ffExec = "iceweasel"
 ffName = "Iceweasel"
 
-main = xmonad . ewmh . pagerHints . docks $ def
-  { focusFollowsMouse  = False
-  , modMask            = mod1Mask
-  , normalBorderColor  = "#dddddd"
-  , focusedBorderColor = "#ff0000"
-  , borderWidth        = 3
+main = do
+  xmonad . ewmh . pagerHints . docks $ def
+    { focusFollowsMouse  = False
+    , modMask            = mod1Mask
+    , normalBorderColor  = "#dddddd"
+    , focusedBorderColor = "#ff0000"
+    , borderWidth        = 3
 
-  , handleEventHook    = myEventHook
-  , startupHook        = myStartupHook
-  , layoutHook         = myLayoutHook & avoidStruts
-  , manageHook         = myManageHook <+> manageDocks
+    , handleEventHook    = myEventHook
+    , startupHook        = myStartupHook
+    , layoutHook         = myLayoutHook & avoidStruts
+    , manageHook         = myManageHook <+> manageDocks
 
-  , workspaces         = workspaceNames
-  , keys               = myKeyBindings
-  , mouseBindings      = myMouseBindings
-  }
+    , workspaces         = workspaceNames
+    , keys               = myKeyBindings
+    , mouseBindings      = myMouseBindings
+    }
 
 myStartupHook = do
   spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
