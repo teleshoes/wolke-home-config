@@ -3,6 +3,8 @@ import Bindings (
   workspaceNames, myKeyBindings, myMouseBindings, keyOverlaps, mouseOverlaps,
   tryWriteKeyBindingsCache, tryWriteKeyBindingsPrettyCache)
 import StaticAssert (staticAssert)
+import Utils (
+  relToHomeDir)
 
 import XMonad (
   xmonad,
@@ -36,8 +38,6 @@ import Control.Monad.Writer (execWriter, tell)
 import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Monoid (All(..))
 import Data.Function ((&))
-import System.FilePath ((</>))
-import System.Directory (getHomeDirectory)
 
 staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
     tell "Error: Overlap in bindings\n"
@@ -47,8 +47,6 @@ staticAssert (null mouseOverlaps && null keyOverlaps) . execWriter $ do
 
 ffExec = "iceweasel"
 ffName = "Iceweasel"
-
-relToHomeDir file = (</> file) <$> getHomeDirectory
 
 main = xmonad . ewmh . pagerHints . docks $ def
   { focusFollowsMouse  = False
