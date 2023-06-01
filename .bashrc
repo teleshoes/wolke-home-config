@@ -174,7 +174,6 @@ function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
 function g            { git "$@"; }
 function gs           { git s "$@"; }
 function gss          { git ss "$@"; }
-function yt           { yt-dlp "$@"; }
 function youtube-dl   { echo "YOU WANT TO RUN: yt => yt-dlp"; }
 function mp           { mpv "$@"; }
 function mpu          {
