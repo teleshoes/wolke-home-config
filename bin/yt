@@ -27,9 +27,16 @@ my $USAGE = "Usage:
     -x | --extract-audio
       prepend to YTDLP_ARGS: \"-x\"
         implies: --no-res
+        implies: --no-subs
 
     -p | --pl | --playlist
       prepend to YTDLP_ARGS: \"@PLAYLIST_ARGS\"
+
+    --subs | --write-subs
+      prepend to YTDLP_ARGS: \"--write-subs\"
+      (this is the default)
+    --no-subs
+      do NOT prepend \"--write-subs\" to YTDLP_ARGS
 ";
 
 
@@ -37,6 +44,7 @@ sub main(@){
   my $res = $DEFAULT_RES;
   my $isAudioOnly = 0;
   my $isPlaylist = 0;
+  my $writeSubs = 1;
   my @ytdlpArgs;
   for my $arg(@_){
     if($arg =~ /^(-h|--help)$/){
@@ -51,6 +59,10 @@ sub main(@){
       $isAudioOnly = 1;
     }elsif($arg =~ /^(-p|--pl|--playlist)$/){
       $isPlaylist = 1;
+    }elsif($arg =~ /^(--subs|--write-subs)$/){
+      $writeSubs = 1;
+    }elsif($arg =~ /^(--no-subs)$/){
+      $writeSubs = 0;
     }else{
       push @ytdlpArgs, $arg;
     }
@@ -59,6 +71,7 @@ sub main(@){
   @ytdlpArgs = ("-f", "bv*[height=$res]+ba", @ytdlpArgs) if defined $res and not $isAudioOnly;
   @ytdlpArgs = ("-x", @ytdlpArgs) if $isAudioOnly;
   @ytdlpArgs = (@PLAYLIST_ARGS, @ytdlpArgs) if $isPlaylist;
+  @ytdlpArgs = ("--write-subs", @ytdlpArgs) if $writeSubs and not $isAudioOnly;
 
   exec "yt-dlp", @ytdlpArgs;
 }
