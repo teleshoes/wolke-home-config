@@ -4,8 +4,9 @@ import asyncio
 import logging
 import os
 import re
+import subprocess
 import sys
-from configfile import (USERNAME, PASSWORD, REGION, MAC)
+from configfile import (MAC)
 from pathlib import Path
 
 ### suppress slimxpp warning:
@@ -26,6 +27,7 @@ from gehomesdk import (
 )
 
 TOKEN_CACHE_DIR = str(Path.home()) + "/.cache/gehomesdk-tokens/"
+SECRETS_FILE = str(Path.home()) + "/.secrets"
 
 
 async def handle(appliance: GeAppliance):
@@ -39,11 +41,15 @@ async def handle(appliance: GeAppliance):
     os._exit(0)
 
 async def main():
-  client = GeWebsocketClient(USERNAME, PASSWORD, REGION, asyncio.get_running_loop())
+  username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.username"])
+  password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
+  region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
+
+  client = GeWebsocketClient(username, password, region, asyncio.get_running_loop())
   client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, handle)
 
   session = aiohttp.ClientSession()
-  credentials = readToken(USERNAME)
+  credentials = readToken(username)
   if credentials != None:
     try:
       client._session = session
@@ -85,6 +91,9 @@ def writeToken(email, credentials):
     fh.write(f"endpoint={credentials['endpoint']}\n")
     fh.write(f"userId={credentials['userId']}\n")
     fh.write(f"kind={credentials['kind']}\n")
+
+def readProc(cmd):
+  return subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').rstrip()
 
 if __name__ == "__main__":
   asyncio.get_event_loop().run_until_complete(main())
