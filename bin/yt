@@ -1,23 +1,56 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $DEFAULT_RES = 1080;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] YTDLP_ARGS
+    -append to YTDLP_ARGS based on OPTS
+    -run 'yt-dlp YTDLP_ARGS'
+
+  OPTS
+    --res=RES
+      prepend to YTDLP_ARGS: \"-f bv*[height=RES]+ba\"
+      (default is --res=1080)
+    --no-res
+      do NOT prepend \"-f\" args to YTDLP_ARGS
+
+    -x | --extract-audio
+      prepend to YTDLP_ARGS: \"-x\"
+        implies: --no-res
+";
 
 sub main(@){
-  my $audioOnly = 0;
-  my @ytArgs;
+  my $res = $DEFAULT_RES;
+  my $isAudioOnly = 0;
+  my @ytdlpArgs;
   for my $arg(@_){
-    if($arg =~ /^(-x|--extract-audio)$/){
-      $audioOnly = 1;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^--res=(.+)$/){
+      $res = $1;
+      die "$USAGE\nERROR: --res=RES must be a number\n" if $res !~ /^\d+$/;
+    }elsif($arg =~ /^(--no-res)$/){
+      $res = undef;
+    }elsif($arg =~ /^(-x|--extract-audio)$/){
+      $isAudioOnly = 1;
     }else{
-      push @ytArgs, $arg;
+      push @ytdlpArgs, $arg;
     }
   }
 
-  if($audioOnly){
-    exec "yt-dlp", "-x", @ytArgs;
-  }else{
-    exec "yt-dlp", "-f", "bv*[height=1080]+ba", @ytArgs;
-  }
+  @ytdlpArgs = ("-f", "bv*[height=$res]+ba", @ytdlpArgs) if defined $res and not $isAudioOnly;
+  @ytdlpArgs = ("-x", @ytdlpArgs) if $isAudioOnly;
+
+  exec "yt-dlp", @ytdlpArgs;
 }
 
 &main(@ARGV);
