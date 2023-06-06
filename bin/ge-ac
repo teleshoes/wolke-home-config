@@ -3,8 +3,10 @@ import aiohttp
 import asyncio
 import logging
 import os
+import re
 import sys
 from configfile import (USERNAME, PASSWORD, REGION, MAC)
+from pathlib import Path
 
 ### suppress slimxpp warning:
 ###   Using slower stringprep, consider compiling the faster cython/libidn one.
@@ -23,6 +25,8 @@ from gehomesdk import (
     GeWebsocketClient,
 )
 
+TOKEN_CACHE_DIR = str(Path.home()) + "/.cache/gehomesdk-tokens/"
+
 
 async def handle(appliance: GeAppliance):
   if appliance.mac_addr == MAC:
@@ -31,6 +35,7 @@ async def handle(appliance: GeAppliance):
     print(appliance.get_erd_value(ErdCode.AC_FAN_SETTING))
     print(appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE))
 
+    writeToken(appliance.client.account_username, appliance.client._credentials)
     os._exit(0)
 
 async def main():
@@ -38,7 +43,48 @@ async def main():
   client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, handle)
 
   session = aiohttp.ClientSession()
-  await client.async_get_credentials_and_run(session)
+  credentials = readToken(USERNAME)
+  if credentials != None:
+    try:
+      client._session = session
+      client.credentials = credentials
+      await client._async_run_client()
+    except:
+      await client.async_get_credentials_and_run(session)
+  else:
+    await client.async_get_credentials_and_run(session)
+
+def readToken(email):
+  try:
+    lines = []
+    with open(TOKEN_CACHE_DIR + "/" + email, "r") as fh:
+      lines = fh.readlines()
+    endpoint = None
+    userId = None
+    kind = None
+    for line in lines:
+      m = re.match('^\s*(endpoint|userId|kind)\s*=\s*(\S.*)$', line)
+      if m and m.group(1) == "endpoint":
+        endpoint = m.group(2)
+      elif m and m.group(1) == "userId":
+        userId = m.group(2)
+      elif m and m.group(1) == "kind":
+        kind = m.group(2)
+    if endpoint == None:
+      return None
+    else:
+      return {"endpoint": endpoint, "userId": userId, "kind": kind}
+  except:
+    return None
+
+def writeToken(email, credentials):
+  if not os.path.isdir(TOKEN_CACHE_DIR):
+    os.mkdir(TOKEN_CACHE_DIR)
+
+  with open(TOKEN_CACHE_DIR + "/" + email, "w") as fh:
+    fh.write(f"endpoint={credentials['endpoint']}\n")
+    fh.write(f"userId={credentials['userId']}\n")
+    fh.write(f"kind={credentials['kind']}\n")
 
 if __name__ == "__main__":
   asyncio.get_event_loop().run_until_complete(main())
