@@ -2,6 +2,7 @@
 import aiohttp
 import asyncio
 import logging
+import os
 import sys
 from configfile import (USERNAME, PASSWORD, REGION, MAC)
 
@@ -22,8 +23,6 @@ from gehomesdk import (
     GeWebsocketClient,
 )
 
-EVENT_LOOP = asyncio.get_event_loop()
-
 
 async def handle(appliance: GeAppliance):
   if appliance.mac_addr == MAC:
@@ -31,15 +30,15 @@ async def handle(appliance: GeAppliance):
     print(appliance.get_erd_value(ErdCode.AC_OPERATION_MODE))
     print(appliance.get_erd_value(ErdCode.AC_FAN_SETTING))
     print(appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE))
-    EVENT_LOOP.stop()
+
+    os._exit(0)
 
 async def main():
-  client = GeWebsocketClient(USERNAME, PASSWORD, REGION, EVENT_LOOP)
+  client = GeWebsocketClient(USERNAME, PASSWORD, REGION, asyncio.get_running_loop())
   client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, handle)
 
   session = aiohttp.ClientSession()
-  asyncio.ensure_future(client.async_get_credentials_and_run(session), loop=EVENT_LOOP)
+  await client.async_get_credentials_and_run(session)
 
 if __name__ == "__main__":
-  EVENT_LOOP.run_until_complete(main())
-  EVENT_LOOP.run_forever()
+  asyncio.get_event_loop().run_until_complete(main())
