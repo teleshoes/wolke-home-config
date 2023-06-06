@@ -5,6 +5,8 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my @PLAYLIST_ARGS = ('--output', '%(autonumber)s-%(title)s.%(ext)s');
+
 my $DEFAULT_RES = 1080;
 
 my $USAGE = "Usage:
@@ -25,11 +27,16 @@ my $USAGE = "Usage:
     -x | --extract-audio
       prepend to YTDLP_ARGS: \"-x\"
         implies: --no-res
+
+    -p | --pl | --playlist
+      prepend to YTDLP_ARGS: \"@PLAYLIST_ARGS\"
 ";
+
 
 sub main(@){
   my $res = $DEFAULT_RES;
   my $isAudioOnly = 0;
+  my $isPlaylist = 0;
   my @ytdlpArgs;
   for my $arg(@_){
     if($arg =~ /^(-h|--help)$/){
@@ -42,6 +49,8 @@ sub main(@){
       $res = undef;
     }elsif($arg =~ /^(-x|--extract-audio)$/){
       $isAudioOnly = 1;
+    }elsif($arg =~ /^(-p|--pl|--playlist)$/){
+      $isPlaylist = 1;
     }else{
       push @ytdlpArgs, $arg;
     }
@@ -49,6 +58,7 @@ sub main(@){
 
   @ytdlpArgs = ("-f", "bv*[height=$res]+ba", @ytdlpArgs) if defined $res and not $isAudioOnly;
   @ytdlpArgs = ("-x", @ytdlpArgs) if $isAudioOnly;
+  @ytdlpArgs = (@PLAYLIST_ARGS, @ytdlpArgs) if $isPlaylist;
 
   exec "yt-dlp", @ytdlpArgs;
 }
