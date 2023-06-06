@@ -6,7 +6,6 @@ import os
 import re
 import subprocess
 import sys
-from configfile import (MAC)
 from pathlib import Path
 
 ### suppress slimxpp warning:
@@ -28,13 +27,23 @@ from gehomesdk import (
 
 TOKEN_CACHE_DIR = str(Path.home()) + "/.cache/gehomesdk-tokens/"
 SECRETS_FILE = str(Path.home()) + "/.secrets"
+CONFIG_FILE = str(Path.home()) + "/.config/gehomesdk.config"
 
 class ACHandler():
-  def __init__(self):
-    pass
+  def __init__(self, config, targetDeviceName):
+    self.config = config
+    self.targetDeviceName = targetDeviceName
 
-  async def handle(self, appliance: GeAppliance):
-    if getMacSuffix(appliance.mac_addr) == getMacSuffix(MAC):
+    self.targetMac = None
+    for entry in self.config:
+      if entry['name'] == targetDeviceName:
+        self.targetMac = entry['mac']
+
+  async def handle(self, appliance):
+    if self.targetMac == None:
+      return
+
+    if getMacSuffix(appliance.mac_addr) == getMacSuffix(self.targetMac):
       print(appliance.get_erd_value(ErdCode.AC_POWER_STATUS))
       print(appliance.get_erd_value(ErdCode.AC_OPERATION_MODE))
       print(appliance.get_erd_value(ErdCode.AC_FAN_SETTING))
@@ -49,7 +58,9 @@ async def main():
   password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
   region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
 
-  acHandler = ACHandler()
+  targetDeviceName = "bed1"
+
+  acHandler = ACHandler(readConfig(CONFIG_FILE), targetDeviceName)
 
   client = GeWebsocketClient(username, password, region, asyncio.get_running_loop())
   client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, acHandler.handle)
@@ -65,6 +76,22 @@ async def main():
       await client.async_get_credentials_and_run(session)
   else:
     await client.async_get_credentials_and_run(session)
+
+def readConfig(configFile):
+  with open(CONFIG_FILE, "r") as fh:
+    lines = fh.readlines()
+
+  devices = []
+
+  hh = "[0-9a-fA-F][0-9a-fA-F]"
+  c = ":?"
+  macRe = hh + c + hh + c + hh + c + hh + c + hh + c + hh
+  for line in lines:
+    m = re.match('^\s*(\w+)\s*=\s*(' + macRe + ')\s*$', line)
+    if m:
+      devices.append({"name": m.group(1), "mac": m.group(2)})
+
+  return devices
 
 def readToken(email):
   try:
