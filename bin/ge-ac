@@ -30,6 +30,14 @@ SECRETS_FILE = str(Path.home()) + "/.secrets"
 CONFIG_FILE = str(Path.home()) + "/.config/gehomesdk.config"
 
 COMMAND_GET = 'get'
+COMMAND_SET_POWER = 'set-power'
+COMMAND_SET_MODE = 'set-mode'
+COMMAND_SET_TEMP = 'set-temp'
+COMMAND_SET_FAN = 'set-fan'
+
+POWER_ON = "on"
+POWER_OFF = "off"
+POWER_TOGGLE = "toggle"
 
 class ACHandler():
   def __init__(self, config, targetDeviceName, commands):
@@ -50,6 +58,7 @@ class ACHandler():
       await self.applyCommands(appliance)
 
   async def applyCommands(self, appliance):
+    isChanged = False
     for cmd in self.commands:
       cmdName = cmd['name']
       cmdVal = cmd['val']
@@ -58,9 +67,41 @@ class ACHandler():
         print(appliance.get_erd_value(ErdCode.AC_OPERATION_MODE))
         print(appliance.get_erd_value(ErdCode.AC_FAN_SETTING))
         print(appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE))
+      elif cmdName == COMMAND_SET_POWER:
+        curPwr = appliance.get_erd_value(ErdCode.AC_POWER_STATUS)
+        if cmdVal == POWER_ON or (cmdVal == POWER_TOGGLE and curPwr == ErdOnOff.OFF):
+          targetPwr = ErdOnOff.ON
+        else:
+          targetPwr = ErdOnOff.OFF
+
+        if curPwr != targetPwr:
+          await appliance.async_set_erd_value(ErdCode.AC_POWER_STATUS, targetPwr)
+          isChanged = True
+      elif cmdName == COMMAND_SET_MODE:
+        curMode = appliance.get_erd_value(ErdCode.AC_OPERATION_MODE)
+        targetMode = cmdVal
+        if curMode != targetMode:
+          await appliance.async_set_erd_value(ErdCode.AC_OPERATION_MODE, targetMode)
+          isChanged = True
+      elif cmdName == COMMAND_SET_TEMP:
+        curTemp = appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE)
+        targetTemp = cmdVal
+        if curTemp != targetTemp:
+          await appliance.async_set_erd_value(ErdCode.AC_TARGET_TEMPERATURE, targetTemp)
+          isChanged = True
+      elif cmdName == COMMAND_SET_FAN:
+        curFan = appliance.get_erd_value(ErdCode.AC_FAN_SETTING)
+        targetFan = cmdVal
+        if curFan != targetFan:
+          await appliance.async_set_erd_value(ErdCode.AC_FAN_SETTING, targetFan)
       else:
         die("ERROR: unknown command " + cmd)
 
+    if isChanged:
+      print("AC updated\n")
+      await asyncio.sleep(0.1)
+    else:
+      print("(no change)\n")
 
     writeToken(appliance.client.account_username, appliance.client._credentials)
     os._exit(0)
@@ -75,6 +116,10 @@ async def main():
 
   commands = [
     {"name": COMMAND_GET, "val": None},
+    {"name": COMMAND_SET_TEMP, "val": 72},
+    {"name": COMMAND_SET_MODE, "val": ErdAcOperationMode.COOL},
+    {"name": COMMAND_SET_FAN, "val": ErdAcFanSetting.LOW},
+  ]
 
   acHandler = ACHandler(readConfig(CONFIG_FILE), targetDeviceName, commands)
 
