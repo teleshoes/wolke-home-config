@@ -39,6 +39,39 @@ POWER_ON = "on"
 POWER_OFF = "off"
 POWER_TOGGLE = "toggle"
 
+
+async def main():
+  username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.username"])
+  password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
+  region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
+
+  targetDeviceName = "bed1"
+
+  commands = [
+    {"name": COMMAND_GET, "val": None},
+    {"name": COMMAND_SET_TEMP, "val": 72},
+    {"name": COMMAND_SET_MODE, "val": ErdAcOperationMode.COOL},
+    {"name": COMMAND_SET_FAN, "val": ErdAcFanSetting.LOW},
+  ]
+
+  acHandler = ACHandler(readConfig(CONFIG_FILE), targetDeviceName, commands)
+
+  client = GeWebsocketClient(username, password, region, asyncio.get_running_loop())
+  client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, acHandler.handle)
+
+  session = aiohttp.ClientSession()
+  credentials = readToken(username)
+  if credentials != None:
+    try:
+      client._session = session
+      client.credentials = credentials
+      await client._async_run_client()
+    except:
+      await client.async_get_credentials_and_run(session)
+  else:
+    await client.async_get_credentials_and_run(session)
+
+
 class ACHandler():
   def __init__(self, config, targetDeviceName, commands):
     self.config = config
@@ -109,38 +142,6 @@ class ACHandler():
 
     writeToken(appliance.client.account_username, appliance.client._credentials)
     os._exit(0)
-
-
-async def main():
-  username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.username"])
-  password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
-  region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
-
-  targetDeviceName = "bed1"
-
-  commands = [
-    {"name": COMMAND_GET, "val": None},
-    {"name": COMMAND_SET_TEMP, "val": 72},
-    {"name": COMMAND_SET_MODE, "val": ErdAcOperationMode.COOL},
-    {"name": COMMAND_SET_FAN, "val": ErdAcFanSetting.LOW},
-  ]
-
-  acHandler = ACHandler(readConfig(CONFIG_FILE), targetDeviceName, commands)
-
-  client = GeWebsocketClient(username, password, region, asyncio.get_running_loop())
-  client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, acHandler.handle)
-
-  session = aiohttp.ClientSession()
-  credentials = readToken(username)
-  if credentials != None:
-    try:
-      client._session = session
-      client.credentials = credentials
-      await client._async_run_client()
-    except:
-      await client.async_get_credentials_and_run(session)
-  else:
-    await client.async_get_credentials_and_run(session)
 
 def readConfig(configFile):
   with open(CONFIG_FILE, "r") as fh:
