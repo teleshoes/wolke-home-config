@@ -87,6 +87,10 @@ async def main():
   if username == None or password == None or username == "" or password == "":
     die(parser.format_help() + "\nERROR: missing username and/or password\n")
 
+  deviceConfig = readConfig(CONFIG_FILE)
+  if not deviceConfig:
+    die("ERROR: no devices found in " + CONFIG_FILE + "\n")
+
   targetDeviceName = "bed1"
 
   commands = [
@@ -99,7 +103,7 @@ async def main():
   if args.debug:
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)-8s %(message)s')
 
-  acHandler = ACHandler(readConfig(CONFIG_FILE), targetDeviceName, commands)
+  acHandler = ACHandler(deviceConfig, targetDeviceName, commands)
 
   client = GeWebsocketClient(username, password, region, asyncio.get_running_loop())
   client.add_event_handler(EVENT_APPLIANCE_INITIAL_UPDATE, acHandler.handle)
@@ -207,8 +211,11 @@ class ACHandler():
     os._exit(0)
 
 def readConfig(configFile):
-  with open(CONFIG_FILE, "r") as fh:
-    lines = fh.readlines()
+  try:
+    with open(CONFIG_FILE, "r") as fh:
+      lines = fh.readlines()
+  except:
+    return None
 
   devices = []
 
