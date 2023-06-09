@@ -44,10 +44,40 @@ POWER_TOGGLE = "toggle"
 async def main():
   parser = argparse.ArgumentParser()
 
+  parser.add_argument("--username", type=str,
+                      help=("SmartHQ account username\n"
+                              + "(smarthq.username in secrets, or SMARTHQ_USERNAME env var)"))
+  parser.add_argument("--password", type=str,
+                      help=("SmartHQ account password\n"
+                              + "(smarthq.password in secrets, or SMARTHQ_PASSWORD env var)"))
+  parser.add_argument("--region", type=str,
+                      help=("SmartHQ region (US or EU, defaults to US)\n"
+                              + "(smarthq.region in secrets, or SMARTHQ_REGION env var)"))
+
   args = parser.parse_args()
-  username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.username"])
-  password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
-  region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
+
+  username = args.username
+  if username == None:
+    username = os.environ.get("SMARTHQ_USERNAME")
+  if username == None:
+    username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.username"])
+
+  password = args.password
+  if password == None:
+    password = os.environ.get("SMARTHQ_PASSWORD")
+  if password == None:
+    password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.password"])
+
+  region = args.region
+  if region == None:
+    region = os.environ.get("SMARTHQ_REGION")
+  if region == None:
+    region = readProc(["gpg-conf-read", SECRETS_FILE, "--key=smarthq.region"])
+  if region == None:
+    region = "US"
+
+  if username == None or password == None or username == "" or password == "":
+    die(parser.format_help() + "\nERROR: missing username and/or password\n")
 
   targetDeviceName = "bed1"
 
