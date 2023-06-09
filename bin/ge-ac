@@ -131,6 +131,7 @@ class ACHandler():
       await self.applyCommands(appliance)
 
   async def applyCommands(self, appliance):
+    isUpdate = False
     isChanged = False
     for cmd in self.commands:
       cmdName = cmd.cmdName
@@ -155,6 +156,7 @@ class ACHandler():
 
         print(fmt)
       elif cmdName == COMMAND_SET_POWER:
+        isUpdate = True
         curPwr = appliance.get_erd_value(ErdCode.AC_POWER_STATUS)
         if cmdVal == POWER_ON or (cmdVal == POWER_TOGGLE and curPwr == ErdOnOff.OFF):
           targetPwr = ErdOnOff.ON
@@ -165,18 +167,21 @@ class ACHandler():
           await appliance.async_set_erd_value(ErdCode.AC_POWER_STATUS, targetPwr)
           isChanged = True
       elif cmdName == COMMAND_SET_MODE:
+        isUpdate = True
         curMode = appliance.get_erd_value(ErdCode.AC_OPERATION_MODE)
         targetMode = cmdVal
         if curMode != targetMode:
           await appliance.async_set_erd_value(ErdCode.AC_OPERATION_MODE, targetMode)
           isChanged = True
       elif cmdName == COMMAND_SET_TEMP:
+        isUpdate = True
         curTemp = appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE)
         targetTemp = cmdVal
         if curTemp != targetTemp:
           await appliance.async_set_erd_value(ErdCode.AC_TARGET_TEMPERATURE, targetTemp)
           isChanged = True
       elif cmdName == COMMAND_SET_FAN:
+        isUpdate = True
         curFan = appliance.get_erd_value(ErdCode.AC_FAN_SETTING)
         targetFan = cmdVal
         if curFan != targetFan:
@@ -185,10 +190,10 @@ class ACHandler():
         die("ERROR: unknown command " + cmd)
 
     if isChanged:
-      print("AC updated\n")
+      print("AC updated")
       await asyncio.sleep(0.1)
-    else:
-      print("(no change)\n")
+    elif isUpdate:
+      print("(no change)")
 
     writeToken(appliance.client.account_username, appliance.client._credentials)
     os._exit(0)
