@@ -30,11 +30,11 @@ TOKEN_CACHE_DIR = str(Path.home()) + "/.cache/gehomesdk-tokens/"
 SECRETS_FILE = str(Path.home()) + "/.secrets"
 CONFIG_FILE = str(Path.home()) + "/.config/gehomesdk.config"
 
-COMMAND_GET = 'get'
-COMMAND_SET_POWER = 'set-power'
-COMMAND_SET_MODE = 'set-mode'
-COMMAND_SET_TEMP = 'set-temp'
-COMMAND_SET_FAN = 'set-fan'
+COMMAND_GET = '--get'
+COMMAND_SET_POWER = '--power'
+COMMAND_SET_MODE = '--mode'
+COMMAND_SET_TEMP = '--temp'
+COMMAND_SET_FAN = '--fan'
 
 POWER_ON = "on"
 POWER_OFF = "off"
@@ -63,6 +63,16 @@ async def main():
                       help="enable debug logging in gehomesdk")
   parser.add_argument("-d", "--device", dest="DEVICE_NAME", type=str,
                       help="name of device in config (default is first device)")
+  parser.add_argument("-g", "--get", dest="GET", action='store_true',
+                      help="print one-line summary of device (this is the default)")
+  parser.add_argument("-p", "--power", dest="POWER", type=str,
+                      help="set power, one of: on, off, toggle")
+  parser.add_argument("-m", "--mode", dest="MODE", type=str,
+                      help="set mode, one of: auto, cool, dry, eco/energysaver, fan")
+  parser.add_argument("-t", "--temp", dest="TEMP", type=int,
+                      help="target temperature in °F, 64-86")
+  parser.add_argument("-f", "--fan", dest="FAN", type=str,
+                      help="set fan speed, one of: auto, high, med/medium, low")
 
   args = parser.parse_args()
 
@@ -99,12 +109,62 @@ async def main():
   elif targetDeviceName not in [cfg['name'] for cfg in deviceConfig]:
     die(parser.format_help() + "\nERROR: unknown device " + targetDeviceName)
 
-  commands = [
-    GeCmd(COMMAND_GET),
-    GeCmd(COMMAND_SET_TEMP, 72),
-    GeCmd(COMMAND_SET_MODE, ErdAcOperationMode.COOL),
-    GeCmd(COMMAND_SET_FAN, ErdAcFanSetting.LOW),
-  ]
+  commands = []
+
+  if args.GET:
+    commands.append(GeCmd(COMMAND_GET))
+
+  if args.POWER:
+    powerArg = args.POWER.lower()
+    powerVal = None
+    if powerArg == "on":
+      powerVal = POWER_ON
+    elif powerArg == "off":
+      powerVal = POWER_OFF
+    elif powerArg == "toggle":
+      powerVal = POWER_TOGGLE
+    else:
+      die(parser.format_help()+ "\nERROR: invalid --power\n")
+
+    commands.append(GeCmd(COMMAND_SET_POWER, powerVal))
+
+  if args.MODE:
+    modeArg = args.MODE.lower()
+    modeVal = None
+    if modeArg == "auto":
+      modeVal = ErdAcOperationMode.AUTO
+    elif modeArg == "cool":
+      modeVal = ErdAcOperationMode.COOL
+    elif modeArg == "dry":
+      modeVal = ErdAcOperationMode.DRY
+    elif modeArg == "eco" or modeArg == "energysaver":
+      modeVal = ErdAcOperationMode.ENERGY_SAVER
+    elif modeArg == "fan":
+      modeVal = ErdAcOperationMode.FAN
+    else:
+      die(parser.format_help()+ "\nERROR: invalid --mode\n")
+    commands.append(GeCmd(COMMAND_SET_MODE, modeVal))
+
+  if args.TEMP:
+    commands.append(GeCmd(COMMAND_SET_TEMP, args.TEMP))
+
+  if args.FAN:
+    fanArg = args.FAN.lower()
+    fanVal = None
+    if fanArg == "auto":
+      fanVal = ErdAcFanSetting.AUTO
+    elif fanArg == "high":
+      fanVal = ErdAcFanSetting.HIGH
+    elif fanArg == "medium" or fanArg == "med":
+      fanVal = ErdAcFanSetting.MED
+    elif fanArg == "low":
+      fanVal = ErdAcFanSetting.LOW
+    else:
+      die(parser.format_help() + "\nERROR: invalid --fan\n")
+    commands.append(GeCmd(COMMAND_SET_FAN, fanVal))
+
+  if not commands:
+    commands.append(GeCmd(COMMAND_GET))
 
   if args.debug:
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)-8s %(message)s')
