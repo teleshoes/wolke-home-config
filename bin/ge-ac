@@ -40,6 +40,10 @@ POWER_ON = "on"
 POWER_OFF = "off"
 POWER_TOGGLE = "toggle"
 
+class ArgParseFormatter(argparse.HelpFormatter):
+  def _split_lines(self, text, width):
+    return text.splitlines()
+
 class GeCmd:
   def __init__(self, cmdName, cmdVal=None):
     self.cmdName = cmdName
@@ -47,9 +51,17 @@ class GeCmd:
   def __str__(self):
     return self.cmdName + ("="+str(self.cmdVal) if self.cmdVal else "")
 
-async def main():
-  parser = argparse.ArgumentParser()
+COMMAND_SYNONYMS = {
+}
 
+COMMAND_SYNONYM_FORMAT = "".join([""
+  + synName + "\n"
+  + "".join(["  " + str(cmd) + "\n" for cmd in cmdList])
+  for synName, cmdList in sorted(COMMAND_SYNONYMS.items())
+])
+
+async def main():
+  parser = argparse.ArgumentParser(formatter_class=ArgParseFormatter)
   parser.add_argument("--username", type=str,
                       help=("SmartHQ account username\n"
                               + "(smarthq.username in secrets, or SMARTHQ_USERNAME env var)"))
@@ -73,6 +85,8 @@ async def main():
                       help="target temperature in °F, 64-86")
   parser.add_argument("-f", "--fan", dest="FAN", type=str,
                       help="set fan speed, one of: auto, high, med/medium, low")
+  parser.add_argument('synonyms', metavar='COMMAND_SYNONYM', type=str, nargs='*',
+                      help=COMMAND_SYNONYM_FORMAT)
 
   args = parser.parse_args()
 
@@ -162,6 +176,12 @@ async def main():
     else:
       die(parser.format_help() + "\nERROR: invalid --fan\n")
     commands.append(GeCmd(COMMAND_SET_FAN, fanVal))
+
+  if args.synonyms:
+    for syn in args.synonyms:
+      if not syn in COMMAND_SYNONYMS:
+        die(parser.format_help() + "\nERROR: unknown arg " + syn)
+      commands.extend(COMMAND_SYNONYMS[syn])
 
   if not commands:
     commands.append(GeCmd(COMMAND_GET))
