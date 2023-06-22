@@ -276,6 +276,9 @@ function ac2fan_down  { igcmd ac2-fan_down "$@"; }
 function ac2power     { igcmd ac2-power "$@"; }
 function ac2          { igcmd ac2-power "$@"; }
 
+function rheem        { pyeconet "$@"; }
+function econet       { pyeconet "$@"; }
+
 function dft          { df-tool "$@"; }
 function dfavail      { df-tool avail "$@"; }
 function dfused       { df-tool used "$@"; }
