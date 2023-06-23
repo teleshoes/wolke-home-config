@@ -11,14 +11,14 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     print this message
 
-  $EXEC DIR NAME
-  $EXEC --rename-and-touch DIR NAME
+  $EXEC [OPTS] DIR NAME
+  $EXEC [OPTS] --rename-and-touch DIR NAME
     -print info: two newlines, followed by '#rename+touch DIR'
     -update mtime similar to: $EXEC --touch DIR
     -rename similar to: $EXEC --rename DIR NAME
 
-  $EXEC --rename DIR NAME
-  $EXEC --rename-only DIR NAME
+  $EXEC [OPTS] --rename DIR NAME
+  $EXEC [OPTS] --rename-only DIR NAME
     -print info: two newlines, followed by '#rename DIR'
     -get OLDEST_FILE: find the oldest file by mtime in DIR (recursive)
     -calculate NEW_DIR_NAME = <YYYY-MM-DD>_<NAME>
@@ -32,8 +32,8 @@ my $USAGE = "Usage:
     -otherwise:
       -print info: '#dir name unchanged'
 
-  $EXEC --touch DIR [DIR DIR ..]
-  $EXEC --touch-only DIR [DIR DIR ..]
+  $EXEC [OPTS] --touch DIR [DIR DIR ..]
+  $EXEC [OPTS] --touch-only DIR [DIR DIR ..]
     -for each DIR:
       -print info: two newlines, followed by '#touch DIR'
       -find OLDEST_FILE = the oldest file by mtime in DIR (recursive)
@@ -44,7 +44,7 @@ my $USAGE = "Usage:
       -otherwise:
         -print '#mtime unchanged'
 
-  $EXEC --check DIR [DIR DIR ..]
+  $EXEC [OPTS] --check DIR [DIR DIR ..]
     do not set mtimes, do not rename DIRs
     -for each DIR:
       -print info: two newlines, followed by '#check DIR'
@@ -57,11 +57,13 @@ my $USAGE = "Usage:
           NAME contains only alphanumeric, dash, underscore chars
       -ensure that mtime of DIR is the same as oldest file
       -print info: '#ok <DIR>'
+
+  OPTS
 ";
 
-sub renameDir($$$);
-sub touchDir($$$);
-sub checkDir($$$);
+sub renameDir($$$$);
+sub touchDir($$$$);
+sub checkDir($$$$);
 sub formatDateYYYYMMDD($);
 sub formatTimeHHMMSS($);
 sub getOldestFile(@);
@@ -73,6 +75,8 @@ sub main(@){
   my $rename = 1;
   my $touch = 1;
   my $check = 0;
+  my $opts = {
+  };
   my @dirs;
   my $targetName = undef;
   while(@_ > 0){
@@ -137,20 +141,19 @@ sub main(@){
     my ($minMtime, $minFile) = getOldestFile @files;
 
     if($check){
-      checkDir($dir, $minMtime, $minFile);
+      checkDir($opts, $dir, $minMtime, $minFile);
     }
     if($touch){
-      touchDir($dir, $minMtime, $minFile);
+      touchDir($opts, $dir, $minMtime, $minFile);
     }
     if($rename){
-      renameDir($dir, $targetName, $minMtime);
+      renameDir($opts, $dir, $targetName, $minMtime);
     }
   }
 }
 
-sub renameDir($$$){
-  my ($dir, $targetName, $targetDatetime) = @_;
-
+sub renameDir($$$$){
+  my ($opts, $dir, $targetName, $targetDatetime) = @_;
   my $date = formatDateYYYYMMDD $targetDatetime;
   my $time = formatTimeHHMMSS $targetDatetime;
 
@@ -183,8 +186,8 @@ sub renameDir($$$){
   }
 }
 
-sub touchDir($$$){
-  my ($dir, $targetMtime, $targetRefFile) = @_;
+sub touchDir($$$$){
+  my ($opts, $dir, $targetMtime, $targetRefFile) = @_;
 
   my $oldMtime = mtime $dir;
   if($oldMtime != $targetMtime){
@@ -195,8 +198,8 @@ sub touchDir($$$){
   }
 }
 
-sub checkDir($$$){
-  my ($dir, $targetDatetime, $targetRefFile) = @_;
+sub checkDir($$$$){
+  my ($opts, $dir, $targetDatetime, $targetRefFile) = @_;
   my $date = formatDateYYYYMMDD $targetDatetime;
 
   if($dir !~ /^(\d\d\d\d-\d\d-\d\d)_(.+)$/){
