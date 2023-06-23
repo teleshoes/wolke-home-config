@@ -27,11 +27,8 @@ my $USAGE = "Usage:
     do not rename the indicated <DIR>s, only set mtimes as above
 ";
 
-my $MODE_RENAME_TOUCH = "rename-and-touch";
-my $MODE_RENAME_ONLY = "rename-only";
-my $MODE_TOUCH_ONLY = "touch-only";
-
-sub nameDir($$$);
+sub renameDir($$$);
+sub touchDir($$$);
 sub formatDateYYYYMMDD($);
 sub formatTimeHHMMSS($);
 sub getOldestFile(@);
@@ -80,37 +77,38 @@ sub main(@){
 
   for my $dir(@dirs){
     $dir =~ s/\/$//;
-    if($rename and $touch){
-      nameDir $MODE_RENAME_TOUCH, $dir, $targetName;
-    }elsif($rename){
-      nameDir $MODE_RENAME_ONLY, $dir, $targetName;
-    }elsif($touch){
-      nameDir $MODE_TOUCH_ONLY, $dir, $dir;
-    }else{
-      die "ERROR: unknown rename/touch mode\n";
+
+    $dir =~ s/^\.\///;
+    die "dir must be in the current directory\n" if $dir =~ /\//;
+
+    my $msg = "";
+    $msg = "rename-and-touch" if $rename and $touch;
+    $msg = "rename-only" if $rename and not $touch;
+    $msg = "touch-only" if not $rename and $touch;
+    print "\n\n#$msg: $dir\n";
+
+    my @files = `find $dir/ -type f`;
+    die "no files found: $dir\n" if @files == 0;
+    my ($minMtime, $minFile) = getOldestFile @files;
+
+    if($touch){
+      touchDir($dir, $minMtime, $minFile);
+    }
+    if($rename){
+      renameDir($dir, $targetName, $minMtime);
     }
   }
 }
 
-sub nameDir($$$){
-  my ($mode, $dir, $name) = @_;
-  $dir =~ s/^\.\///;
-  die "dir must be in the current directory\n" if $dir =~ /\//;
-
-  print "\n\n#$mode: $dir\n";
-
-  my @files = `find $dir/ -type f`;
-  die "no files found: $dir\n" if @files == 0;
-  my ($minMtime, $minFile) = getOldestFile @files;
+sub renameDir($$$){
+  my ($dir, $name, $minMtime) = @_;
 
   my $date = formatDateYYYYMMDD $minMtime;
   my $time = formatTimeHHMMSS $minMtime;
 
   if($name =~ s/^${date}_//){
-    if($mode =~ /^($MODE_RENAME_TOUCH|$MODE_RENAME_ONLY)$/){
-      print "\n\n#WARNING: removing date prefix '$date'"
-        . " (same as date prefix to be appended)\n\n";
-    }
+    print "\n\n#WARNING: removing date prefix '$date'"
+      . " (same as date prefix to be appended)\n\n";
   }
 
   my $len = length $name;
@@ -120,23 +118,23 @@ sub nameDir($$$){
 
   print "#earliest file is $date $time\n";
 
-  if($mode =~ /^($MODE_RENAME_TOUCH|$MODE_TOUCH_ONLY)$/){
-    my $oldMtime = mtime $dir;
-    my $newMtime = mtime $minFile;
-    if($oldMtime != $newMtime){
-      print "#mtime $oldMtime => $newMtime\n";
-      run 'touch', '-r', $minFile, $dir;
-    }else{
-      print "#mtime unchanged!\n";
-    }
+  if($dir ne $newDir){
+    run 'mv', $dir, $newDir;
+  }else{
+    print "#dir name unchanged!\n";
   }
+}
 
-  if($mode =~ /^($MODE_RENAME_TOUCH|$MODE_RENAME_ONLY)$/){
-    if($dir ne $newDir){
-      run 'mv', $dir, $newDir;
-    }else{
-      print "#dir name unchanged!\n";
-    }
+sub touchDir($$$){
+  my ($dir, $minMtime, $minFile) = @_;
+
+  my $oldMtime = mtime $dir;
+  my $newMtime = mtime $minFile;
+  if($oldMtime != $newMtime){
+    print "#mtime $oldMtime => $newMtime\n";
+    run 'touch', '-r', $minFile, $dir;
+  }else{
+    print "#mtime unchanged!\n";
   }
 }
 
