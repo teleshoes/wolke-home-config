@@ -43,10 +43,25 @@ my $USAGE = "Usage:
         -run cmd:   touch --reference-file=OLDEST_FILE DIR
       -otherwise:
         -print '#mtime unchanged'
+
+  $EXEC --check DIR [DIR DIR ..]
+    do not set mtimes, do not rename DIRs
+    -for each DIR:
+      -print info: two newlines, followed by '#check DIR'
+      -find the oldest file by mtime
+      -ensure that DIR is named:
+        <YYYY-MM-DD>_<NAME>
+        where:
+          YYYY-MM-DD matches the mtime of the oldest file
+          NAME is $MAX_NAME_LEN chars or less
+          NAME contains only alphanumeric, dash, underscore chars
+      -ensure that mtime of DIR is the same as oldest file
+      -print info: '#ok <DIR>'
 ";
 
 sub renameDir($$$);
 sub touchDir($$$);
+sub checkDir($$$);
 sub formatDateYYYYMMDD($);
 sub formatTimeHHMMSS($);
 sub getOldestFile(@);
@@ -57,6 +72,7 @@ sub pad2($);
 sub main(@){
   my $rename = 1;
   my $touch = 1;
+  my $check = 0;
   my @dirs;
   my $targetName = undef;
   while(@_ > 0){
@@ -67,12 +83,19 @@ sub main(@){
     }elsif($arg =~ /^(--rename-and-touch)$/){
       $rename = 1;
       $touch = 1;
+      $check = 0;
     }elsif($arg =~ /^(--rename|--rename-only)$/){
       $rename = 1;
       $touch = 0;
+      $check = 0;
     }elsif($arg =~ /^(--touch|--touch-only)$/){
       $rename = 0;
       $touch = 1;
+      $check = 0;
+    }elsif($arg =~ /^(--check)$/){
+      $rename = 0;
+      $touch = 0;
+      $check = 1;
     }elsif(-d $arg){
       push @dirs, $arg;
     }elsif(not defined $targetName and @dirs == 1){
@@ -104,6 +127,7 @@ sub main(@){
     my $msg = "";
     $msg .= (length $msg > 0 ? "+" : "") . "rename" if $rename;
     $msg .= (length $msg > 0 ? "+" : "") . "touch" if $touch;
+    $msg .= (length $msg > 0 ? "+" : "") . "check" if $check;
 
     print "\n\n";
     print "#$msg: $dir\n";
@@ -112,6 +136,9 @@ sub main(@){
     die "ERROR: no files found: $dir\n" if @files == 0;
     my ($minMtime, $minFile) = getOldestFile @files;
 
+    if($check){
+      checkDir($dir, $minMtime, $minFile);
+    }
     if($touch){
       touchDir($dir, $minMtime, $minFile);
     }
@@ -166,6 +193,32 @@ sub touchDir($$$){
   }else{
     print "#mtime unchanged\n";
   }
+}
+
+sub checkDir($$$){
+  my ($dir, $targetDatetime, $targetRefFile) = @_;
+  my $date = formatDateYYYYMMDD $targetDatetime;
+
+  if($dir !~ /^(\d\d\d\d-\d\d-\d\d)_(.+)$/){
+    die "ERROR: $dir is not formatted <YYYY-MM-DD>_<NAME>\n";
+  }
+  my ($curDate, $curName) = ($1, $2);
+
+  if($curDate ne $date){
+    die "ERROR: $dir date mismatch $curDate != $date\n";
+  }
+
+  my $len = length $curName;
+  if($len > $MAX_NAME_LEN){
+    die "ERROR: $dir max chars exceeded ($len > $MAX_NAME_LEN) '$curName'\n";
+  }
+
+  my $oldMtime = mtime $dir;
+  if($oldMtime != $targetDatetime){
+    die "ERROR: $dir mtime does not match $targetRefFile\n";
+  }
+
+  print "#ok\n";
 }
 
 sub formatDateYYYYMMDD($){
