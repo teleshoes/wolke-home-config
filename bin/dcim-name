@@ -42,7 +42,7 @@ my $USAGE = "Usage:
         -print cmd: touch --reference-file=OLDEST_FILE DIR
         -run cmd:   touch --reference-file=OLDEST_FILE DIR
       -otherwise:
-        -print '#mtime unchanged'
+        -print info: '#mtime unchanged'
 
   $EXEC [OPTS] --check DIR [DIR DIR ..]
     do not set mtimes, do not rename DIRs
@@ -59,6 +59,9 @@ my $USAGE = "Usage:
       -print info: '#ok <DIR>'
 
   OPTS
+    -q | --quiet
+      -do not print info lines starting with '#' or info empty lines
+      -still print cmd lines
 ";
 
 sub renameDir($$$$);
@@ -100,6 +103,8 @@ sub main(@){
       $rename = 0;
       $touch = 0;
       $check = 1;
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $$opts{quiet} = 1;
     }elsif(-d $arg){
       push @dirs, $arg;
     }elsif(not defined $targetName and @dirs == 1){
@@ -133,8 +138,8 @@ sub main(@){
     $msg .= (length $msg > 0 ? "+" : "") . "touch" if $touch;
     $msg .= (length $msg > 0 ? "+" : "") . "check" if $check;
 
-    print "\n\n";
-    print "#$msg: $dir\n";
+    print "\n\n" unless $$opts{quiet};
+    print "#$msg: $dir\n" unless $$opts{quiet};
 
     my @files = `find $dir/ -type f`;
     die "ERROR: no files found: $dir\n" if @files == 0;
@@ -177,12 +182,12 @@ sub renameDir($$$$){
 
   my $newDir = "${date}_${name}";
 
-  print "#earliest file is $date $time\n";
+  print "#earliest file is $date $time\n" unless $$opts{quiet};
 
   if($dir ne $newDir){
     run "mv", $dir, $newDir;
   }else{
-    print "#dir name unchanged\n";
+    print "#dir name unchanged\n" unless $$opts{quiet};
   }
 }
 
@@ -191,10 +196,10 @@ sub touchDir($$$$){
 
   my $oldMtime = mtime $dir;
   if($oldMtime != $targetMtime){
-    print "#mtime $oldMtime => $targetMtime\n";
+    print "#mtime $oldMtime => $targetMtime\n" unless $$opts{quiet};
     run "touch", "--reference=$targetRefFile", $dir;
   }else{
-    print "#mtime unchanged\n";
+    print "#mtime unchanged\n" unless $$opts{quiet};
   }
 }
 
@@ -221,7 +226,7 @@ sub checkDir($$$$){
     die "ERROR: $dir mtime does not match $targetRefFile\n";
   }
 
-  print "#ok\n";
+  print "#ok\n" unless $$opts{quiet};
 }
 
 sub formatDateYYYYMMDD($){
