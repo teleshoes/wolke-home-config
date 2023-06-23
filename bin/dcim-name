@@ -13,21 +13,36 @@ my $USAGE = "Usage:
 
   $EXEC DIR NAME
   $EXEC --rename-and-touch DIR NAME
-    rename <DIR> to <YYYY-MM-DD>_<NAME>
-    where <YYYY-MM-DD> is the mtime of the oldest file in the dir
+    -print info: two newlines, followed by '#rename+touch DIR'
+    -update mtime similar to: $EXEC --touch DIR
+    -rename similar to: $EXEC --rename DIR NAME
 
-    if <NAME> starts with \"<YYYY-MM-DD>_\", the prefix is removed
-      (prevents double-prefixing)
-
-    set the newly renamed dir's mtime to the oldest file in the dir
-
-  $EXEC --rename-only DIR NAME
   $EXEC --rename DIR NAME
-    do not set mtimes, only rename as above
+  $EXEC --rename-only DIR NAME
+    -print info: two newlines, followed by '#rename DIR'
+    -get OLDEST_FILE: find the oldest file by mtime in DIR (recursive)
+    -calculate NEW_DIR_NAME = <YYYY-MM-DD>_<NAME>
+      -<YYYY-MM-DD> is the mtime of OLDEST_FILE
+      -if <NAME> starts with the same date \"<YYYY-MM-DD>_\", remove the prefix
+    -print info: '#earliest file is MTIME_FMT => NEW_DIR_NAME'
+      -<MTIME_FMT> is formatted like: date +'%Y-%m-%d %H:%M:%S'
+    -if <DIR> does not match <NEW_DIR_NAME>:
+      -print cmd: mv DIR NEW_DIR_NAME
+      -run cmd:   mv DIR NEW_DIR_NAME
+    -otherwise:
+      -print info: '#dir name unchanged'
 
-  $EXEC --touch-only DIR [DIR DIR ..]
   $EXEC --touch DIR [DIR DIR ..]
-    do not rename the indicated <DIR>s, only set mtimes as above
+  $EXEC --touch-only DIR [DIR DIR ..]
+    -for each DIR:
+      -print info: two newlines, followed by '#touch DIR'
+      -find OLDEST_FILE = the oldest file by mtime in DIR (recursive)
+      -print info: '#mtime OLD => NEW'
+      -if mtimes do not match:
+        -print cmd: touch --reference-file=OLDEST_FILE DIR
+        -run cmd:   touch --reference-file=OLDEST_FILE DIR
+      -otherwise:
+        -print '#mtime unchanged'
 ";
 
 sub renameDir($$$);
