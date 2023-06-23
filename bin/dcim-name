@@ -40,29 +40,56 @@ sub run(@);
 sub pad2($);
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $USAGE;
-    exit 0;
-  }elsif(@_ == 2 and -d $_[0]){
-    my ($dir, $name) = @_;
-    $dir =~ s/\/$//;
-
-    nameDir $MODE_RENAME_TOUCH, $dir, $name;
-  }elsif(@_ == 3 and $_[0] =~ /^(--rename-only)/ and -d $_[1]){
-    my ($cmd, $dir, $name) = @_;
-    $dir =~ s/\/$//;
-
-    nameDir $MODE_RENAME_ONLY, $dir, $name;
-  }elsif(@_ >= 2 and $_[0] =~ /^(--touch-only)$/){
-    my ($cmd, @dirs) = @_;
-    for my $dir(@dirs){
-      $dir =~ s/\/$//;
-      nameDir $MODE_TOUCH_ONLY, $dir, $dir;
+  my $rename = 1;
+  my $touch = 1;
+  my @dirs;
+  my $targetName = undef;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--rename-only)$/){
+      $rename = 1;
+      $touch = 0;
+    }elsif($arg =~ /^(--touch-only)$/){
+      $rename = 0;
+      $touch = 1;
+    }elsif(-d $arg){
+      push @dirs, $arg;
+    }elsif(not defined $targetName and @dirs == 1){
+      $targetName = $arg
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
-  }else{
-    die $USAGE;
   }
 
+  if($rename and @dirs == 2 and not defined $targetName){
+    $targetName = pop @dirs;
+  }
+
+  if(@dirs == 0){
+    die "$USAGE\nERROR: at least one DIR is required\n";
+  }elsif($rename and not defined $targetName){
+    die "$USAGE\nERROR: NAME must be given for rename\n"
+  }elsif(not $rename and defined $targetName){
+    die "$USAGE\nERROR: NAME can only be given for rename\n";
+  }elsif($rename and @dirs != 1){
+    die "USAGE\nERROR: exactly one DIR must be given for rename\n";
+  }
+
+  for my $dir(@dirs){
+    $dir =~ s/\/$//;
+    if($rename and $touch){
+      nameDir $MODE_RENAME_TOUCH, $dir, $targetName;
+    }elsif($rename){
+      nameDir $MODE_RENAME_ONLY, $dir, $targetName;
+    }elsif($touch){
+      nameDir $MODE_TOUCH_ONLY, $dir, $dir;
+    }else{
+      die "ERROR: unknown rename/touch mode\n";
+    }
+  }
 }
 
 sub nameDir($$$){
