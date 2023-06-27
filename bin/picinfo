@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(time);
+
+my $EXEC = basename $0;
+
+my $FEH_EXEC = "/usr/bin/feh";
+my @FEH_ARGS = qw(--auto-rotate --scale-down);
+
+sub nowMills();
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS] FILE [FILE FILE..]
+    -read DISPLAY_HEIGHT_PX height with `res -h`
+    -calculate VIEWER_GEOMETRY as a square:
+      -WIDTH = HEIGHT = 90% * DISPLAY_HEIGHT_PX
+      -OFFSET_LEFT = OFFSET_TOP = 5% * DISPLAY_HEIGHT_PX
+      -e.g: for 1920x1080 screens, use \"972x972+54+54\"
+    -for each FILE:
+      -run: focus-lock --lock
+      -fork and as child:
+         $FEH_EXEC @FEH_ARGS -g VIEWER_GEOMETRY FILE
+      -read one line of INPUT from terminal
+      -focus-lock --unlock
+      -kill child process
+      -append 'FILE: INPUT' to OUT_FILE
+
+  OPTS
+    -o OUT_FILE
+    -f OUT_FILE
+      write to OUT_FILE
+      (default is ./$EXEC-<EPOCH_MILLIS>)
+
+    -g VIEWER_GEOMETRY
+      pass VIEWER_GEOMETRY instead of calculating with DISPLAY_HEIGHT_PX
+";
+
+sub main(@){
+  my @files;
+  my $outFile;
+  my $geometry;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-o|-f)$/ and @_ > 0){
+      $outFile = shift @_;
+    }elsif($arg =~ /^(-g)$/ and @_ > 0){
+      $geometry = shift @_;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $outFile){
+    $outFile = "$EXEC-" . nowMillis();
+  }
+
+  if(not defined $geometry){
+    my $displayHeight = `res -h`;
+    chomp $displayHeight;
+    die "could not read display height from `res -h`\n" if $displayHeight !~ /^\d+$/;
+    die "screen too small (height=$displayHeight)\n" if $displayHeight < 100;
+    my $size = int(0.90 * $displayHeight + 0.5);
+    my $offset = int(0.05 * $displayHeight + 0.5);
+    $geometry = "${size}x${size}+${offset}+${offset}";
+  }
+
+  for my $file(@files){
+    system "focus-lock", "--quiet", "--lock";
+
+    my $pid = fork();
+    if(not $pid){
+      open STDOUT, "/dev/null";
+      open STDERR, "/dev/null";
+      open STDIN, "/dev/null";
+      exec $FEH_EXEC, @FEH_ARGS, "-g", $geometry, $file;
+    }
+
+    print "$file: ";
+    my $input = <STDIN>;
+    chomp $input;
+
+    system "focus-lock", "--quiet", "--unlock";
+    system "kill", "-9", $pid;
+    waitpid $pid, 0;
+
+    open FH, ">> $outFile" or die "ERROR: could not write to $outFile\n";
+    print FH "$file: $input\n";
+    close FH;
+  }
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
