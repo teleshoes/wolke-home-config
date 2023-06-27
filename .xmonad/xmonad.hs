@@ -18,7 +18,7 @@ import XMonad (
   sendMessage, io, spawn, killWindow, liftX, refresh, windows)
 import XMonad.Hooks.EwmhDesktops (ewmh)
 import XMonad.Hooks.Focus (
-  FocusHook(..), manageFocus, switchFocus)
+  FocusHook(..), focused, keepFocus, manageFocus, switchFocus)
 import XMonad.Hooks.ManageHelpers ((-?>), doFullFloat, isFullscreen, composeOne)
 import XMonad.Hooks.ManageDocks (
   SetStruts(..),
@@ -71,7 +71,8 @@ main = do
 
 myNewFocusHook :: FocusHook
 myNewFocusHook = composeOne
-  [ return True -?> switchFocus --default
+  [ focused (className =? "xmonad-keep-focus") -?> keepFocus
+  , return True -?> switchFocus --default
   ]
 
 myStartupHook = do
