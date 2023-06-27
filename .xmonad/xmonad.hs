@@ -17,7 +17,9 @@ import XMonad (
   getAtom, runQuery, changeProperty32, propModeReplace,
   sendMessage, io, spawn, killWindow, liftX, refresh, windows)
 import XMonad.Hooks.EwmhDesktops (ewmh)
-import XMonad.Hooks.ManageHelpers (doFullFloat, isFullscreen)
+import XMonad.Hooks.Focus (
+  FocusHook(..), manageFocus, switchFocus)
+import XMonad.Hooks.ManageHelpers ((-?>), doFullFloat, isFullscreen, composeOne)
 import XMonad.Hooks.ManageDocks (
   SetStruts(..),
   avoidStruts, docks, manageDocks)
@@ -60,12 +62,17 @@ main = do
     , handleEventHook    = myEventHook
     , startupHook        = myStartupHook
     , layoutHook         = myLayoutHook & avoidStruts
-    , manageHook         = myManageHook <+> manageDocks
+    , manageHook         = myManageHook <+> manageDocks <+> manageFocus myNewFocusHook
 
     , workspaces         = workspaceNames
     , keys               = myKeyBindings machineType
     , mouseBindings      = myMouseBindings machineType
     }
+
+myNewFocusHook :: FocusHook
+myNewFocusHook = composeOne
+  [ return True -?> switchFocus --default
+  ]
 
 myStartupHook = do
   spawn "find $HOME/.xmonad/ -regex '.*\\.\\(hi\\|o\\)' -delete"
