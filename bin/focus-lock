@@ -47,6 +47,10 @@ my $USAGE = "Usage:
     -w WINDOW_ID
     --window WINDOW_ID | --window=WINDOW_ID
       use WINDOW_ID instead of activewindow
+
+    -q | --quiet
+      do not print successful lock/unlock message
+      do not print warning when focus is already locked/unlocked
 ";
 
 my $CMD_TOGGLE = "toggle";
@@ -56,6 +60,7 @@ my $CMD_UNLOCK = "unlock";
 sub main(@){
   my $cmd = $CMD_TOGGLE;
   my $windowId;
+  my $quiet = 0;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -71,6 +76,8 @@ sub main(@){
       $windowId = shift @_;
     }elsif($arg =~ /^--window=(.+)$/){
       $windowId = $1;
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $quiet = 1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -88,15 +95,15 @@ sub main(@){
 
   if($cmd eq $CMD_LOCK){
     if($curClass eq $FOCUS_LOCK_CLASS){
-      print "  (focus is already locked)\n";
+      print "  (focus is already locked)\n" unless $quiet;
     }else{
       writeClassCache($windowId, $curClass);
       setWindowClass($windowId, $FOCUS_LOCK_CLASS);
-      print "focus locked\n";
+      print "focus locked\n" unless $quiet;
     }
   }elsif($cmd eq $CMD_UNLOCK){
     if($curClass ne $FOCUS_LOCK_CLASS){
-      print "  (focus is already unlocked)\n";
+      print "  (focus is already unlocked)\n" unless $quiet;
     }else{
       my $prevClass = readClassCache($windowId);
       if(not defined $prevClass){
@@ -104,7 +111,7 @@ sub main(@){
       }
       setWindowClass($windowId, $prevClass);
       writeClassCache($windowId, undef);
-      print "focus unlocked\n";
+      print "focus unlocked\n" unless $quiet;
     }
   }else{
     die "ERROR: unknown cmd $cmd\n";
