@@ -1,0 +1,165 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $WM_CLASS_TOOL = "wm-class-tool";
+my $FOCUS_LOCK_CLASS = "xmonad-keep-focus";
+
+sub getWindowClass($);
+sub setWindowClass($$);
+sub getActiveWindowId();
+sub readClassCache($);
+sub writeClassCache($$);
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS]
+  $EXEC [OPTS] t | -t | toggle | --toggle
+    -get WM_CLASS and WINDOW_ID of activewindow
+    -if WM_CLASS = $FOCUS_LOCK_CLASS:
+      -same as: $EXEC OPTS --unlock
+    -otherwise:
+      -same as: $EXEC OPTS --lock
+
+  $EXEC [OPTS] l | -l | lock | --lock
+    -get WM_CLASS and WINDOW_ID of activewindow
+    -if WM_CLASS = $FOCUS_LOCK_CLASS:
+      -do nothing
+    -otherwise:
+      -write WM_CLASS to /tmp/focus-lock-wm-class-<WINDOW_ID>
+      -set WM_CLASS to $FOCUS_LOCK_CLASS
+
+  $EXEC [OPTS] u | -u | unlock | --unlock
+    -get WM_CLASS and WINDOW_ID of activewindow
+    -if WM_CLASS = $FOCUS_LOCK_CLASS:
+      -read PREV_WM_CLASS from /tmp/focus-lock-wm-class-<WINDOW_ID>
+      -remove /tmp/focus-lock-wm-class-<WINDOW_ID>
+      -set WM_CLASS to PREV_WM_CLASS, or 'unknown' if not set
+    -otherwise:
+      -do nothing
+
+  OPTS
+    -w WINDOW_ID
+    --window WINDOW_ID | --window=WINDOW_ID
+      use WINDOW_ID instead of activewindow
+";
+
+my $CMD_TOGGLE = "toggle";
+my $CMD_LOCK = "lock";
+my $CMD_UNLOCK = "unlock";
+
+sub main(@){
+  my $cmd = $CMD_TOGGLE;
+  my $windowId;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(t|-t|toggle|--toggle)$/){
+      $cmd = $CMD_TOGGLE;
+    }elsif($arg =~ /^(l|-l|lock|--lock)$/){
+      $cmd = $CMD_LOCK;
+    }elsif($arg =~ /^(u|-u|unlock|--unlock)$/){
+      $cmd = $CMD_UNLOCK;
+    }elsif($arg =~ /^(-w|--window)$/ and @_ > 0){
+      $windowId = shift @_;
+    }elsif($arg =~ /^--window=(.+)$/){
+      $windowId = $1;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $windowId){
+    $windowId = getActiveWindowId();
+  }
+
+  my $curClass = getWindowClass $windowId;
+
+  if($cmd eq $CMD_TOGGLE){
+    $cmd = $curClass eq $FOCUS_LOCK_CLASS ? $CMD_UNLOCK : $CMD_LOCK;
+  }
+
+  if($cmd eq $CMD_LOCK){
+    if($curClass eq $FOCUS_LOCK_CLASS){
+      print "  (focus is already locked)\n";
+    }else{
+      writeClassCache($windowId, $curClass);
+      setWindowClass($windowId, $FOCUS_LOCK_CLASS);
+    }
+  }elsif($cmd eq $CMD_UNLOCK){
+    if($curClass ne $FOCUS_LOCK_CLASS){
+      print "  (focus is already unlocked)\n";
+    }else{
+      my $prevClass = readClassCache($windowId);
+      if(not defined $prevClass){
+        $prevClass = "none";
+      }
+      setWindowClass($windowId, $prevClass);
+      writeClassCache($windowId, undef);
+    }
+  }else{
+    die "ERROR: unknown cmd $cmd\n";
+  }
+}
+
+sub getWindowClass($){
+  my ($windowId) = @_;
+  open CMD, "-|", $WM_CLASS_TOOL, "-g", $windowId
+    or die "ERROR: could not run $WM_CLASS_TOOL\n";
+  my $out = join "", <CMD>;
+  close CMD;
+
+  chomp $out;
+  return $out;
+}
+sub setWindowClass($$){
+  my ($windowId, $class) = @_;
+  open CMD, "-|", $WM_CLASS_TOOL, "-s", $windowId, $class
+    or die "ERROR: could not run $WM_CLASS_TOOL\n";
+  my $out = join "", <CMD>;
+  close CMD;
+
+  if($out !~ /$windowId .*=> "$class"$/){
+    die "ERROR: malformed $WM_CLASS_TOOL output\n$out\n";
+  }
+}
+
+sub getActiveWindowId(){
+  my $xprop = `xprop -root`;
+  if($xprop =~ /_NET_ACTIVE_WINDOW.*(0x[0-9a-f]+)/){
+    return $1;
+  }
+  return undef;
+}
+
+sub readClassCache($){
+  my ($windowId) = @_;
+  my $cacheFile = "/tmp/$EXEC-$windowId";
+  if(not -f $cacheFile){
+    return undef;
+  }
+  open FH, "< $cacheFile" or die "ERROR: could not read $cacheFile\n$!\n";
+  my $class = <FH>;
+  close FH;
+  chomp $class;
+  return $class;
+}
+sub writeClassCache($$){
+  my ($windowId, $class) = @_;
+  my $cacheFile = "/tmp/$EXEC-$windowId";
+  system "rm", "-f", $cacheFile;
+  if(defined $class){
+    open FH, "> $cacheFile" or die "ERROR: could not write $cacheFile\n$!\n";
+    print FH "$class\n";
+    close FH;
+  }
+}
+
+&main(@ARGV);
