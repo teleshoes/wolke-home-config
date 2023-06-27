@@ -7,6 +7,7 @@ import XMonad.Actions.CopyWindow (copyToAll, killAllOtherCopies)
 import XMonad.Actions.FloatKeys (keysMoveWindow, keysResizeWindow)
 import XMonad.Actions.NoBorders (toggleBorder)
 import XMonad.Actions.SinkAll (sinkAll)
+import XMonad.Hooks.Focus (toggleLock)
 import XMonad.Hooks.ManageDocks (ToggleStruts(..))
 import XMonad.Layout.LayoutCombinators (JumpToLayout(..))
 import XMonad.StackSet hiding (focus, workspaces, filter)
@@ -316,6 +317,7 @@ windowKeys conf = "Windows" @@ do
         "To Master"     @@ mAS   xK_Enter## swapMaster
         "Down/Up"   @@  do mAS   xK_j    ## swapDown
                            mAS   xK_k    ## swapUp
+    "Lock Focus"        @@ mAS   xK_l    # toggleLock
     "Move Focus"    @@  do
         "To Master"     @@ mA    xK_Enter## focusMaster
         "Down/Up"   @@  do mA    xK_j    ## focusDown
