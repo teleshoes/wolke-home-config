@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename dirname);
+
+my $EXEC = basename $0;
+my $GAS_DATA_DIR = "$ENV{HOME}/DCIM/xgas/data";
+
+sub main(@){
+  my @files = grep {-f $_} glob "$GAS_DATA_DIR/*";
+
+  my @groups;
+  my $group = undef;
+  my $groupMtime = undef;
+  for my $file(@files){
+    my $mtime = (stat $file)[9];
+
+    my $diff = defined $groupMtime ? $mtime - $groupMtime : 0;
+    $diff = 0 - $diff if $diff < 0;
+    if(not defined $group or $diff > 3600){
+      $group = [];
+      $groupMtime = $mtime;
+      push @groups, $group;
+    }
+
+    push @$group, $file;
+  }
+
+  my $prevOdo = undef;
+  for my $group(@groups){
+    my $info = {};
+    for my $file(@$group){
+      my $infoStr = basename $file;
+      $infoStr =~ s/\.\w+$//;
+
+      if($infoStr =~ s/^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)//){
+        my $date = "$1-$2-$3";
+        my $time = "$4:$5:$6";
+        my $epoch = `date --date="${date}T${time}" +%s`;
+        chomp $epoch;
+        if(not defined $$info{epoch} or $epoch < $$info{epoch}){
+          $$info{date} = $date;
+          $$info{time} = $time;
+          $$info{epoch} = $epoch;
+        }
+      }else{
+        die "ERROR: malformed file $file\n";
+      }
+
+      if($infoStr =~ s/_rem_(\w+)$//){
+        my $reminder = $1;
+        if(defined $$info{reminder}){
+          $$info{reminder} .= "_$reminder";
+        }else{
+          $$info{reminder} = $reminder;
+        }
+      }
+
+      # remove _ placeholders
+      $infoStr =~ s/(?:^|_)(_+)(odo|mg|c)(?:_|$)//;
+
+      if($infoStr =~ s/(?:^|_)(\d+)odo(?:_|$)//){
+        my $odo = $1;
+        die "ERROR: duplicate odo $file\n" if defined $$info{odo};
+        $$info{odo} = $odo;
+      }
+      if($infoStr =~ s/(?:^|_)(\d+)mg(?:_|$)//){
+        my $gallons = $1 / 1000.0;
+        if(defined $$info{gallons}){
+          $$info{gallons} += $gallons;
+        }else{
+          $$info{gallons} = $gallons;
+        }
+      }
+      if($infoStr =~ s/(?:^|_)(\d+)c(?:_|$)//){
+        my $usd = $1 / 100.0;
+        if(defined $$info{usd}){
+          $$info{usd} += $usd;
+        }else{
+          $$info{usd} = $usd;
+        }
+      }
+
+      if($infoStr ne ""){
+        die "ERROR: malformed file $file\n";
+      }
+    }
+
+    my $dateFmt = "$$info{date} $$info{time}";
+    my $remFmt = defined $$info{reminder} ? $$info{reminder} : "";
+    my $odoFmt =     defined $$info{odo}      ? sprintf("%06d", $$info{odo}) : "??????";
+    my $gallonsFmt = defined $$info{gallons}  ? sprintf("%06.3fg", $$info{gallons}) : "??.???g";
+    my $usdFmt =     defined $$info{usd}      ? sprintf("\$%05.2f", $$info{usd}) : "\$??.??";
+
+    my $usdPerGFmt = "\$?.???/g";
+    if(defined $$info{usd} and defined $$info{gallons}){
+      $usdPerGFmt = sprintf "\$%5.3f/g", $$info{usd}/$$info{gallons};
+    }
+
+    if($remFmt =~ /(^|_)car(_|$)/){
+      $prevOdo = undef;
+    }
+
+    my $milesFmt = "???mi";
+    my $mpgFmt = "??mpg";
+    my $gpcmiFmt = "?.?g/100mi";
+    if(defined $$info{odo} and defined $$info{gallons} and defined $prevOdo){
+      my $miles = $$info{odo} - $prevOdo;
+      if($miles > 0){
+        $milesFmt = sprintf "%03dmi", $miles;
+        $mpgFmt = sprintf "%02dmpg", $miles/$$info{gallons};
+        $gpcmiFmt = sprintf "%03.1fg/100mi", 100.0*$$info{gallons}/$miles;
+      }
+    }
+
+
+    print "$dateFmt  $odoFmt  $gallonsFmt  $usdFmt  $usdPerGFmt  $milesFmt  $mpgFmt  $gpcmiFmt  $remFmt\n";
+    $prevOdo = $$info{odo};
+  }
+}
+
+&main(@ARGV);
