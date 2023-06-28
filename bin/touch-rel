@@ -1,0 +1,160 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(stat);
+
+my $EXEC = basename $0;
+my $DATE_FORMAT = '+%Y-%m-%dT%H:%M:%S.%3N';
+
+sub formatDateEpoch($);
+sub parseOffsetStrToMillis($);
+sub mtimeMillis($);
+
+my $USAGE = "Usage:
+  $EXEC --help
+    show this message
+
+  $EXEC [OPTS] TIME_OFFSET FILE [FILE FILE ..]
+    touch every FILE, adding TIME_OFFSET to FILE's current mtime
+      -calculate TIME_OFFSET as positive or nevative OFFSET_MILLIS
+      -for each FILE:
+        -get mtime CURRENT_MTIME_MILLIS time in milliseconds
+        -calculate TARGET_MTIME_MILLIS = CURRENT_MTIME_MILLIS + OFFSET_MILLIS
+        -format TARGET_MTIME_FRAC_S in fractional seconds = TARGET_MTIME_MILLIS/1000
+        -print \"# CURRENT_MTIME_FMT => TARGET_MTIME_FMT  FILE\"
+          where CURRENT_MTIME_FMT is CURRENT_MTIME_MILLIS, formatted $DATE_FORMAT
+          where TARGET_MTIME_FMT is TARGET_MTIME_MILLIS,, formatted $DATE_FORMAT
+        -run `touch <TOUCH_OPTS> --date=@<TARGET_MTIME_FRAC_S> FILE`
+
+    TIME_OFFSET = <OFFSET_SIGN><VAL_UNIT_PAIRS>
+      OFFSET_SIGN = + | -
+        plus or minus sign
+      VAL_UNIT_PAIRS = <VAL><UNIT> | <VAL><UNIT><VAL_UNIT_PAIRS>
+        one or more value/unit pairs, e.g.: 5h30m2s50ms
+      VAL
+        any non-negative integer (OFFSET_SIGN controls sign)
+      UNIT = ms | s | m | h
+        unit of time VAL represents
+          ms  => millisecond  = 1ms
+          s   => second       = 1000ms
+          m   => minute       = 60000ms
+          h   => hour         = 3600000ms
+
+    e.g.:
+      +4h        add four hours                         (same as +240m)
+      -1m30s     subtract one minute and thirty seconds (same as -90s)
+      +1h2ms1h1h add three hours and two milliseconds   (same as +10800002ms)
+      +5ms       add five milliseconds                  (same as +1ms1ms1ms1ms1ms)
+      +0s        use the same mtime                     (same as -0ms)
+
+  OPTS
+    -n | -s | --dry-run | --simulate | --no-act
+      -do not modify any files
+      -print touch commands without running them
+
+    -q | --quiet
+      do not print \"# CURRENT_MTIME_FMT => TARGET_MTIME_FMT  FILE\"
+
+    --dereference | --follow-symlinks
+      do not add '--no-dereference' to TOUCH_OPTS
+    -h | --no-dereference
+      add '--no-dereference' to TOUCH_OPTS
+      (THIS IS THE DEFAULT)
+";
+
+sub main(@){
+  my $opts = {
+    simulate => 0,
+    symlinkDereference => 0, #default is `touch --no-dereference`
+    quiet => 0,
+  };
+  my @files;
+  my $timeOffsetStr;
+  my $offsetSign;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-n|-s|--dry-run|--simulate|--no-act)$/){
+      $$opts{simulate} = 1;
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $$opts{quiet} = 1;
+    }elsif($arg =~ /^(--dereference|--follow-symlinks)$/){
+      $$opts{symlinkDereference} = 1;
+    }elsif($arg =~ /^(-h|--no-dereference)$/){
+      $$opts{symlinkDereference} = 0;
+    }elsif($arg =~ /^(\+|-)((?:\d+(?:ms|s|m|h))+)$/){
+      ($offsetSign, $timeOffsetStr) = ($1, $2);
+    }elsif(-e $arg){
+      push @files, $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $timeOffsetStr){
+    die "$USAGE\nERROR: TIME_OFFSET is required\n";
+  }
+  if(@files == 0){
+    die "$USAGE\nERROR: no files given\n";
+  }
+
+  my $timeOffsetMillis = parseOffsetStrToMillis($timeOffsetStr);
+  $timeOffsetMillis = 0 - $timeOffsetMillis if $offsetSign =~ /-/;
+
+  my @touchOpts;
+  push @touchOpts, "--no-dereference" if not $$opts{symlinkDereference};
+
+  for my $file(@files){
+    my $origMtimeMillis = mtimeMillis($file);
+    my $targetMtimeMillis = $origMtimeMillis + $timeOffsetMillis;
+    my $targetMtimeFracS = sprintf "%.3f", $targetMtimeMillis/1000.0;
+
+    my @cmd = ("touch", @touchOpts, "--date=\@$targetMtimeFracS", $file);
+    my $origDtm = formatDateEpoch $origMtimeMillis/1000.0;
+    my $targetDtm = formatDateEpoch $targetMtimeMillis/1000.0;
+    print "# $origDtm => $targetDtm  $file\n" unless $$opts{quiet};
+    if($$opts{simulate}){
+      print "@cmd\n";
+    }else{
+      system @cmd;
+    }
+  }
+}
+
+sub formatDateEpoch($){
+  my ($epoch) = @_;
+  my $fmt = `date --date=\@$epoch '$DATE_FORMAT'`;
+  chomp $fmt;
+  return $fmt;
+}
+
+sub parseOffsetStrToMillis($){
+  my ($str) = @_;
+  my %unitMs = (
+    ms => 1,
+    s  => 1000,
+    m  => 60*1000,
+    h  => 60*60*1000,
+  );
+  my $millis = 0;
+  while(length $str > 0){
+    if($str !~ s/^(\d+)(ms|s|m|h)//){
+      die "ERROR: malformed TIME_OFFSET $str\n";
+    }
+    my ($val, $unit) = ($1, $2);
+    $millis += $val*$unitMs{$unit};
+  }
+  return $millis;
+}
+
+sub mtimeMillis($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  my $mtime = $stat[9];
+  return int($mtime * 1000.0 + 0.5);
+}
+
+&main(@ARGV);
