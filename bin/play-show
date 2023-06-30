@@ -2,7 +2,9 @@
 use strict;
 use warnings;
 
-my $SHOW_BASE_DIR = "$ENV{HOME}/Music/sheet_music/shows/music";
+my @MUSIC_BASE_DIRS = (
+  "$ENV{HOME}/Music/sheet_music/shows/music",
+);
 my $PLAY_DIR = "$ENV{HOME}/play";
 my $SHOW_FILE = "$ENV{HOME}/show";
 
@@ -22,10 +24,10 @@ my $usage = "Usage:
   $0 [SHOW_NAME] SONG_NUM POS
   $0 [SHOW_NAME] SONG_NUM LOOP_POS_START LOOP_POS_END
     find the first song <FILE> matching <SONG_NUM> in one of:
-      $SHOW_BASE_DIR/<SHOW_NAME>
+      " . join("\n      ", map {"$_/<SHOW_NAME>"} @MUSIC_BASE_DIRS) . "
       \$PWD/
       $PLAY_DIR/
-      $SHOW_BASE_DIR/`cat $SHOW_FILE`
+      " . join("\n      ", map {"$_/`cat $SHOW_FILE`"} @MUSIC_BASE_DIRS) . "
     play song <FILE> with mpv
     `mpv OPTS <FILE>` or `mpv OPTS <FILE> -ss <POS>`
 
@@ -109,7 +111,7 @@ sub main(@){
   my @dirs;
 
   if(defined $showNameArg){
-    @dirs = (@dirs, "$SHOW_BASE_DIR/$showNameArg");
+    @dirs = (@dirs, map {"$_/$showNameArg"} @MUSIC_BASE_DIRS);
   }
 
   @dirs = (@dirs, ".");
@@ -117,7 +119,7 @@ sub main(@){
   @dirs = (@dirs, $PLAY_DIR);
 
   if(defined $showFileContents){
-    @dirs = (@dirs, "$SHOW_BASE_DIR/$showFileContents");
+    @dirs = (@dirs, map {"$_/$showFileContents"} @MUSIC_BASE_DIRS);
   }
 
 
@@ -151,10 +153,14 @@ sub main(@){
 }
 
 sub getShowDirs(){
-  my @dirs = `cd $SHOW_BASE_DIR/ && ls`;
-  chomp foreach @dirs;
-  @dirs = grep {-d "$SHOW_BASE_DIR/$_/"} @dirs;
-  return @dirs;
+  my @showDirs;
+  for my $baseDir(@MUSIC_BASE_DIRS){
+    my @dirs = `cd $baseDir/ && ls`;
+    chomp foreach @dirs;
+    @dirs = grep {-d "$baseDir/$_/"} @dirs;
+    @showDirs = (@showDirs, @dirs);
+  }
+  return @showDirs;
 }
 
 sub bashComplete($$){
