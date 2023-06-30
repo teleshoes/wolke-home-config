@@ -1,13 +1,42 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
-for my $file(@ARGV){
-  $file =~ s/"/\\"/g;
-  my $info = `identify -verbose "$file"`;
-  if($info =~ /^\s*Geometry: (\d+x\d+)/m){
-    print "$1\n";
-  }else{
-    print STDERR "Could not find HxW using imagemagick for $file\n";
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC FILE [FILE FILE..]
+    -for each file:
+      -use imagemagick `identify` to get pixel geometry as WxH
+      -print geometry, one per line
+";
+
+sub main(@){
+  my @files;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+  for my $file(@files){
+    $file =~ s/"/\\"/g;
+    my $info = `identify -verbose "$file"`;
+    if($info =~ /^\s*Geometry: (\d+x\d+)/m){
+      print "$1\n";
+    }else{
+      print STDERR "Could not find HxW using imagemagick for $file\n";
+    }
   }
 }
+
+&main(@ARGV);
