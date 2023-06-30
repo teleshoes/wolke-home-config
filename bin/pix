@@ -9,19 +9,43 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC FILE [FILE FILE..]
+  $EXEC [OPTS] FILE [FILE FILE..]
     -for each file:
       -use imagemagick `identify` to get pixel geometry as WxH
       -print geometry, one per line
+
+  OPTS:
+    -a | --filename-always
+      always print filenames after GEOMETRY, formatted:
+        \"GEOMETRY FILE\"
+
+    -n | --filename-never
+      never print filenames
+      (this is the default)
+
+    --filename-multi
+      if exactly one FILE is given, same as --filename-always
+      otherwise, same as --filename-never
 ";
+
+my $FILENAME_ALWAYS = "always";
+my $FILENAME_NEVER = "never";
+my $FILENAME_MULTI = "multi";
 
 sub main(@){
   my @files;
+  my $filenameMode = $FILENAME_NEVER;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-a|--filename-always)$/){
+      $filenameMode = $FILENAME_ALWAYS;
+    }elsif($arg =~ /^(-n|--filename-never)$/){
+      $filenameMode = $FILENAME_NEVER;
+    }elsif($arg =~ /^(--filename-multi)$/){
+      $filenameMode = $FILENAME_MULTI;
     }elsif(-f $arg){
       push @files, $arg;
     }else{
@@ -29,16 +53,28 @@ sub main(@){
     }
   }
 
+  my $includeFilenames = 0;
+  $includeFilenames = 1 if $filenameMode eq $FILENAME_ALWAYS;
+  $includeFilenames = 1 if $filenameMode eq $FILENAME_MULTI and @files > 1;
+
   for my $file(@files){
     open CMD, "-|", "identify", "-verbose", $file
       or die "ERROR: identify failed on $file\n$!\n";
     my $info = join '', <CMD>;
     close CMD;
 
+    my $geometry;
     if($info =~ /^\s*Geometry: (\d+x\d+)/m){
-      print "$1\n";
+      $geometry = $1;
     }else{
       print STDERR "Could not find HxW using imagemagick for $file\n";
+      $geometry = "?";
+    }
+
+    if($includeFilenames){
+      print "$geometry $file\n";
+    }else{
+      print "$geometry\n";
     }
   }
 }
