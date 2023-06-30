@@ -96,26 +96,31 @@ sub main(@){
   $songNum =~ s/^0+//;
   $songNum =~ s/_+$//;
 
-  my $showNameArgDir = defined $showNameArg ? "$SHOW_BASE_DIR/$showNameArg" : undef;
-
-  my $showFileDir;
-  my $show = `cat $SHOW_FILE 2>/dev/null`;
-  chomp $show;
-
-  if($show =~ /^([a-zA-Z0-9_\-]+)$/){
-    $showFileDir = "$SHOW_BASE_DIR/$1";
-  }elsif($show ne ""){
-    die "invalid $SHOW_FILE (must be letters/numbers/dashes/underscore): $show\n";
+  my $showFileContents = `cat $SHOW_FILE 2>/dev/null`;
+  if($showFileContents =~ /^\s*$/){
+    $showFileContents = undef;
+  }elsif($showFileContents =~ /^([a-zA-Z0-9_\-]+)$/){
+    $showFileContents = $1;
   }else{
-    $showFileDir = undef;
+    die "invalid $SHOW_FILE (must be letters/numbers/dashes/underscore): $showFileContents\n";
   }
+
 
   my @dirs;
-  if(defined $showNameArgDir){
-    @dirs = ($showNameArgDir);
-  }else{
-    @dirs = (".", $PLAY_DIR, $showFileDir);
+
+  if(defined $showNameArg){
+    @dirs = (@dirs, "$SHOW_BASE_DIR/$showNameArg");
   }
+
+  @dirs = (@dirs, ".");
+
+  @dirs = (@dirs, $PLAY_DIR);
+
+  if(defined $showFileContents){
+    @dirs = (@dirs, "$SHOW_BASE_DIR/$showFileContents");
+  }
+
+
   @dirs = grep {defined $_ and -d $_} @dirs;
 
   my @files;
