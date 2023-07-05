@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ### suppress slimxpp warning:
@@ -39,6 +40,8 @@ COMMAND_SET_FAN = '--fan'
 POWER_ON = "on"
 POWER_OFF = "off"
 POWER_TOGGLE = "toggle"
+
+TIMEOUT_MILLIS = 10000
 
 class ArgParseFormatter(argparse.HelpFormatter):
   def _split_lines(self, text, width):
@@ -246,13 +249,19 @@ class ACHandler():
     await asyncio.sleep(0.2)
     curVal = appliance.get_erd_value(erdCode)
 
+    startMillis = int(time.time() * 1000.0 + 0.5)
     while curVal != targetVal:
+      nowMillis = int(time.time() * 1000.0 + 0.5)
+      if nowMillis - startMillis > TIMEOUT_MILLIS:
+        break
       print(".", end="", flush=True)
       await asyncio.sleep(0.2)
       curVal = appliance.get_erd_value(erdCode)
 
     if curVal == targetVal:
       print(" - OK", flush=True)
+    else:
+      print(" - ERROR\nERROR: could not set " + str(erdCode), flush=True)
 
     return previousVal != curVal
 
