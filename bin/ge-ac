@@ -238,6 +238,14 @@ class ACHandler():
     if getMacSuffix(appliance.mac_addr) == getMacSuffix(self.targetMac):
       await self.applyCommands(appliance)
 
+  async def setErdVal(self, appliance, erdCode, targetVal):
+    previousVal = appliance.get_erd_value(erdCode)
+    if previousVal != targetVal:
+      await appliance.async_set_erd_value(erdCode, targetVal)
+      return True
+    else:
+      return False
+
   async def applyCommands(self, appliance):
     isUpdate = False
     isChanged = False
@@ -271,29 +279,20 @@ class ACHandler():
         else:
           targetPwr = ErdOnOff.OFF
 
-        if curPwr != targetPwr:
-          await appliance.async_set_erd_value(ErdCode.AC_POWER_STATUS, targetPwr)
+        if await self.setErdVal(appliance, ErdCode.AC_POWER_STATUS, targetPwr):
           isChanged = True
       elif cmdName == COMMAND_SET_MODE:
         isUpdate = True
-        curMode = appliance.get_erd_value(ErdCode.AC_OPERATION_MODE)
-        targetMode = cmdVal
-        if curMode != targetMode:
-          await appliance.async_set_erd_value(ErdCode.AC_OPERATION_MODE, targetMode)
+        if await self.setErdVal(appliance, ErdCode.AC_OPERATION_MODE, cmdVal):
           isChanged = True
       elif cmdName == COMMAND_SET_TEMP:
         isUpdate = True
-        curTemp = appliance.get_erd_value(ErdCode.AC_TARGET_TEMPERATURE)
-        targetTemp = cmdVal
-        if curTemp != targetTemp:
-          await appliance.async_set_erd_value(ErdCode.AC_TARGET_TEMPERATURE, targetTemp)
+        if await self.setErdVal(appliance, ErdCode.AC_TARGET_TEMPERATURE, cmdVal):
           isChanged = True
       elif cmdName == COMMAND_SET_FAN:
         isUpdate = True
-        curFan = appliance.get_erd_value(ErdCode.AC_FAN_SETTING)
-        targetFan = cmdVal
-        if curFan != targetFan:
-          await appliance.async_set_erd_value(ErdCode.AC_FAN_SETTING, targetFan)
+        if await self.setErdVal(appliance, ErdCode.AC_FAN_SETTING, cmdVal):
+          isChanged = True
       else:
         die("ERROR: unknown command " + cmd)
 
