@@ -240,11 +240,21 @@ class ACHandler():
 
   async def setErdVal(self, appliance, erdCode, targetVal):
     previousVal = appliance.get_erd_value(erdCode)
-    if previousVal != targetVal:
-      await appliance.async_set_erd_value(erdCode, targetVal)
-      return True
-    else:
-      return False
+    print("SETTING: " + str(erdCode) + " => " + str(targetVal) + " ", end="", flush=True)
+
+    await appliance.async_set_erd_value(erdCode, targetVal)
+    await asyncio.sleep(0.2)
+    curVal = appliance.get_erd_value(erdCode)
+
+    while curVal != targetVal:
+      print(".", end="", flush=True)
+      await asyncio.sleep(0.2)
+      curVal = appliance.get_erd_value(erdCode)
+
+    if curVal == targetVal:
+      print(" - OK", flush=True)
+
+    return previousVal != curVal
 
   async def applyCommands(self, appliance):
     isUpdate = False
