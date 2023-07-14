@@ -276,6 +276,8 @@ function ac2fan_down  { igcmd ac2-fan_down "$@"; }
 function ac2power     { igcmd ac2-power "$@"; }
 function ac2          { igcmd ac2-power "$@"; }
 
+function lcd          { pico-lcd-msg "$@"; }
+
 function rheem        { pyeconet "$@"; }
 function econet       { pyeconet "$@"; }
 
