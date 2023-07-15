@@ -26,7 +26,7 @@ if [ $MACHINE_TYPE = "main" ]; then
   screen-daemon midea-cube --start
   screen-daemon ts-pump --start
   screen-daemon pyeconet-monitor --start
-  screen-daemon pyeconet-lcd --start
+  screen-daemon lcd-monitor --start
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
