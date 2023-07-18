@@ -32,30 +32,28 @@ sub runQuiet(@);
 sub readFile($);
 sub globOne($);
 
-my $GAME = "kingdom-two-crowns";
-
 my $GAMES = {
-  "kingdom-two-crowns" => "noio/KingdomTwoCrowns",
-  "kingdom-80s" => "RawFury/Kingdom Eighties",
+  "kingdom-two-crowns" => "noio/KingdomTwoCrowns/Release",
+  "kingdom-80s" => "RawFury/Kingdom Eighties/Release",
 };
+my $OK_GAME_NAME_REGEX = join "|", sort keys %$GAMES;
+
+my $DEFAULT_KINGDOM_GAME_NAME = "kingdom-two-crowns";
+
+my $PROTON_BASE_DIR_PATTERN = "$ENV{HOME}/.steam/steam/"
+  . "steamapps/compatdata/"
+  . "*/" #app ID, e.g.: 701160
+  . "pfx/drive_c/users/steamuser/"
+  . "AppData/LocalLow"
+;
+my $LINUX_BASE_DIR_PATTERN = "$ENV{HOME}/.config/unity3d";
+
+my $CACHE_BASE_DIR = "$ENV{HOME}/.cache";
+
+
 
 my $DEFAULT_LIST_LIMIT = 10;
 my $NOTIFY_SEND_MILLIS = 1500;
-
-my $SAVE_DIR_LINUX = "$ENV{HOME}/.config/unity3d/$$GAMES{$GAME}/Release";
-
-my $SAVE_DIR_PROTON_PATTERN = ""
-  . "$ENV{HOME}/.steam/steam/"
-  . "steamapps/compatdata/"
-  . "*/" #app ID, should be: 701160
-  . "pfx/drive_c/users/steamuser/"
-  . "AppData/LocalLow/$$GAMES{$GAME}/Release"
-;
-my $SAVE_DIR_PROTON = globOne("'$SAVE_DIR_PROTON_PATTERN'");
-
-my $DEFAULT_SAVE_DIR = $SAVE_DIR_LINUX;
-
-my $CACHE_DIR = "$ENV{HOME}/.cache/$GAME-saves";
 
 my $CHALLENGE_ISLANDS = {
   1 => {id=>1, name=>'SKULL',  shortName=>'SKUL', maxLand=>'1'},
@@ -112,61 +110,74 @@ my $usage = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC
-  $EXEC --backup|--save [SAVE_DIR]
-    take files from <SAVE_DIR>/* and make an xz'd tar file in $CACHE_DIR
-      skips storing the tar file if an identical one already exists
-    (default <SAVE_DIR> is $DEFAULT_SAVE_DIR)
+  $EXEC [OPTS]
+  $EXEC [OPTS] --backup|--save
+    take files from <KINGDOM_GAME_SAVE_DIR>/*
+      and make an xz'd tar file in <CACHE_DIR>
+    skips storing the tar file if an identical one already exists
 
-
-  $EXEC --restore TAR_FILE [SAVE_DIR]
+  $EXEC [OPTS] --restore TAR_FILE
     move current game save files to a tmp dir
     takes a (compressed or uncompressed) tar file
-      and extracts it to the save dir, after backing up the contents
+      and extracts it to <KINGDOM_GAME_SAVE_DIR>, after backing up the contents
 
       -MOVE files from
-        $DEFAULT_SAVE_DIR/
+        <KINGDOM_GAME_SAVE_DIR>/
         to
         /tmp/kingdom-save-backup-<MILLIS>
       -extract <TAR_FILE> to
-        $DEFAULT_SAVE_DIR
+        <KINGDOM_GAME_SAVE_DIR>
 
-  $EXEC --restore INDEX [SAVE_DIR]
-    same as: $EXEC --restore \$($EXEC --get-tar INDEX) SAVE_DIR
+  $EXEC [OPTS] --restore INDEX
+    same as: $EXEC --restore \$($EXEC --get-tar INDEX) KINGDOM_GAME_SAVE_DIR
 
 
-  $EXEC --get-tar INDEX_ARG [INDEX_ARG INDEX_ARG...]
+  $EXEC [OPTS] --get-tar INDEX_ARG [INDEX_ARG INDEX_ARG...]
     parse each <INDEX_ARG> as a list of <INDEX>s,
-    and print the <TAR_FILE> for each save at index <INDEX>, one per line
+    and print the <TAR_FILE> for each save in <CACHE_DIR> at index <INDEX>, one per line
     (0 is the most recent save, 1 is the second most recent)
 
-  $EXEC --get-tar TAR_FILE [TAR_FILE TAR_FILE...]
-    print each <TAR_FILE>, one per line
+  $EXEC [OPTS] --get-tar TAR_FILE [TAR_FILE TAR_FILE...]
+    print each <TAR_FILE> in <CACHE_DIR>, one per line
 
 
-  $EXEC --info [FORMAT_OPTS] TAR_FILE [TAR_FILE TAR_FILE...]
-    for each <TAR_FILE>, print a summary of the save using FORMAT_SUMMARY_SPEC
+  $EXEC [OPTS] --info [FORMAT_OPTS] TAR_FILE [TAR_FILE TAR_FILE...]
+    for each <TAR_FILE> in <CACHE_DIR>, print a summary of the save using FORMAT_SUMMARY_SPEC
       followed by detailed info for each land, each formatted using FORMAT_LAND_SPEC
 
-  $EXEC --info [FORMAT_OPTS] INDEX_ARG [INDEX_ARG INDEX_ARG...]
+  $EXEC [OPTS] --info [FORMAT_OPTS] INDEX_ARG [INDEX_ARG INDEX_ARG...]
     same as: $EXEC --info \$($EXEC --get-tar INDEX_ARG...)
 
-  $EXEC --info [FORMAT_OPTS]
+  $EXEC [OPTS] --info [FORMAT_OPTS]
     same as: $EXEC --info 0
 
 
-  $EXEC --list TAR_FILE [TAR_FILE TAR_FILE...]
+  $EXEC [OPTS] --list TAR_FILE [TAR_FILE TAR_FILE...]
     same as: $EXEC --info --no-lands --reverse TAR_FILE...
 
-  $EXEC --list INDEX_ARG [INDEX_ARG INDEX_ARG...]
+  $EXEC [OPTS] --list INDEX_ARG [INDEX_ARG INDEX_ARG...]
     same as: $EXEC --info --no-lands --reverse INDEX_ARG...
 
-  $EXEC --list
+  $EXEC [OPTS] --list
     same as: $EXEC --info --no-lands --reverse 0-9
 
-  $EXEC --dire
+  $EXEC [OPTS] --dire
     same as: $EXEC --info 0 --no-lands \\
              --format='$DIRE_FORMAT_SUMMARY_SPEC'
+
+  OPTS
+    --game=KINGDOM_GAME_NAME
+      -use CACHE_DIR=$CACHE_BASE_DIR/<KINGDOM_GAME_NAME>-saves
+      -use KINGDOM_GAME_SAVE_DIR that matches glob:"
+        . (join "", map {
+            "\n        $_ => <SAVE_BASE_DIR_PTRN>/$$GAMES{$_}"
+          } sort keys %$GAMES) . "
+      (the default is $DEFAULT_KINGDOM_GAME_NAME)
+    --proton
+      use SAVE_BASE_DIR_PTRN=$PROTON_BASE_DIR_PATTERN
+    --no-proton
+      use SAVE_BASE_DIR_PTRN=$LINUX_BASE_DIR_PATTERN
+      (this is the default)
 
   FORMAT_OPTS
     --format=FORMAT_SUMMARY_SPEC
@@ -188,7 +199,7 @@ my $usage = "Usage:
           INDEX          = the game save index, 0 for the most recent, 1 for next
                               0 for the most recent
                               1 for the next most recent, etc.
-                              -1 for <TAR_FILE>s not backed up in the cache dir
+                              -1 for <TAR_FILE>s not backed up in <CACHE_DIR>
           TAR_FILE       = filename of the (possibly compressed) tar file
           DATE_TIME      = save backup datetime, formatted like `date '+%Y-%m-%d %H:%M:%S'`
           MTIME          = save backup datetime, formatted like `date '+%s'`
@@ -288,8 +299,15 @@ my $usage = "Usage:
       print the saves in the reverse order given,
       so that the first appears at the bottom
 
-  SAVE_DIR
-    use SAVE_DIR instead of $DEFAULT_SAVE_DIR
+  KINGDOM_GAME_SAVE_DIR
+    determined by --game=KINGDOM_GAME_NAME and --proton/--no-proton
+    default is:
+      $LINUX_BASE_DIR_PATTERN/$$GAMES{$DEFAULT_KINGDOM_GAME_NAME}
+
+  CACHE_DIR
+    determined by --game=KINGDOM_GAME_NAME
+    default is:
+      $CACHE_BASE_DIR/$DEFAULT_KINGDOM_GAME_NAME-saves
 
   INDEX_ARG
     either an INDEX or an INDEX_RANGE
@@ -306,7 +324,9 @@ my $usage = "Usage:
 
 sub main(@){
   my $cmd = $CMD_BACKUP;
-  my $saveDir = $DEFAULT_SAVE_DIR;
+  my $kingdomGameName = $DEFAULT_KINGDOM_GAME_NAME;
+  my $isProton = 0;
+
   my @saveArgs;
   my $formatSummarySpec = $DEFAULT_FORMAT_SUMMARY_SPEC;
   my $formatLandSpec = $DEFAULT_FORMAT_LAND_SPEC;
@@ -318,6 +338,12 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^--game=($OK_GAME_NAME_REGEX)$/){
+      $kingdomGameName = $1;
+    }elsif($arg =~ /^(--proton)$/){
+      $isProton = 1;
+    }elsif($arg =~ /^(--no-proton)$/){
+      $isProton = 0;
     }elsif($arg =~ /^(--backup|--save)$/){
       $cmd = $CMD_BACKUP;
     }elsif($arg =~ /^(--restore)$/){
@@ -354,19 +380,25 @@ sub main(@){
       @saveArgs = (@saveArgs, ($minIndex..$maxIndex));
     }elsif(-f $arg){
       push @saveArgs, $arg;
-    }elsif(-d $arg){
-      $saveDir = $arg;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
   }
 
+  my $saveDirPtrn = $isProton ? $PROTON_BASE_DIR_PATTERN : $LINUX_BASE_DIR_PATTERN;
+  $saveDirPtrn .= "/" . $$GAMES{$kingdomGameName};
+  my $saveDir = globOne "'$saveDirPtrn'";
+  if(not defined $saveDir or not -d $saveDir){
+    die "ERROR: SAVE_DIR '$saveDirPtrn' does not exist\n";
+  }
+
+  my $cacheDir = "$CACHE_BASE_DIR/$kingdomGameName-saves";
+
   if($cmd eq $CMD_BACKUP){
-    die "ERROR: SAVE_DIR \"$saveDir\" does not exist\n" if not -d $saveDir;
     die "ERROR: cannot specify saves by TAR_FILE or INDEX for $cmd\n" if @saveArgs > 0;
-    ensureSaveCached($saveDir, $CACHE_DIR);
+    ensureSaveCached($saveDir, $cacheDir);
   }elsif($cmd eq $CMD_RESTORE){
-    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+    my @saves = getSavesFromSaveArgs($cacheDir, @saveArgs);
     if(@saves != 1){
       die "ERROR: must specify exactly one save by TAR_FILE or INDEX for $cmd\n";
     }
@@ -378,7 +410,7 @@ sub main(@){
     print "\nEXTRACTING NEW SAVE:\n";
     extractTarToSaveDir($tarFile, $saveDir);
   }elsif($cmd eq $CMD_GET_TAR){
-    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+    my @saves = getSavesFromSaveArgs($cacheDir, @saveArgs);
     for my $save(@saves){
       print "$$save{file}\n";
     }
@@ -386,7 +418,7 @@ sub main(@){
     if(@saveArgs == 0){
       @saveArgs = $includeLands ? qw(0) : qw(0 1 2 3 4 5 6 7 8 9);
     }
-    my @saves = getSavesFromSaveArgs($CACHE_DIR, @saveArgs);
+    my @saves = getSavesFromSaveArgs($cacheDir, @saveArgs);
 
     @saves = reverse @saves if $reverseSaves;
 
