@@ -215,6 +215,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "games"         @@ do
         "kingdom-save"  @@ mAW   xK_F7   #! "kingdom-save"
+        "kingdom-pause" @@ mAW   xK_F8   #! "kingdom-pause"
 
     "alarms"        @@ do
         "coffee!"       @@ mW    xK_c    #! "fcron-job-toggle co toggle"
