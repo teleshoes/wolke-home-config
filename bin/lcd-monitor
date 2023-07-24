@@ -2,6 +2,13 @@
 use strict;
 use warnings;
 
+my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
+
+sub pyeconet($);
+sub pyeconetMarkup($);
+sub date();
+sub mtime($);
+
 my $DEVS = {
   lcd1 => [
     \&pyeconet,
@@ -40,7 +47,20 @@ sub pyeconet($){
 
 sub pyeconetMarkup($){
   my ($tick) = @_;
-  my $info = `pyeconet --info`;
+
+  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
+  if(@logFiles == 0){
+    return "!size=4!!color=red!ERROR:!n!!size=2!ECONET!n!NO LOGS";
+  }
+  my $logFile = $logFiles[0];
+
+  my $mtime = mtime $logFile;
+  my $elapsedS = time - $mtime;
+  if($elapsedS < 0 or $elapsedS > 60){
+    return "!size=4!!color=red!ERROR:!n!!size=2!ECONET!n!OUT OF!n!DATE";
+  }
+
+  my $info = `cat '$logFile'`;
   my $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
   my $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
   my $running = $1 if $info =~ /^running: (\w+)$/m;
@@ -78,6 +98,12 @@ sub pyeconetMarkup($){
 
   my $markup = "$availFmt!n!$tempFmt$tickFmt!n!$dateFmt";
   return $markup;
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
 }
 
 &main(@ARGV);
