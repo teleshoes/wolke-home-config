@@ -23,10 +23,6 @@ if [ $MACHINE_TYPE = "main" ]; then
 
   screen-daemon lenovo_fix --start
   screen-daemon email --start
-  screen-daemon midea-cube --start
-  screen-daemon ts-pump --start
-  screen-daemon pyeconet-monitor --start
-  screen-daemon lcd-monitor --start
 elif [ $MACHINE_TYPE = "aux" ]; then
   sudo wauto -p &
   brightness 100 &
@@ -85,6 +81,10 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   screen-daemon sb --start
   screen-daemon revtun-ensure --start
+  screen-daemon midea-cube --start
+  screen-daemon ts-pump --start
+  screen-daemon pyeconet-monitor --start
+  screen-daemon lcd-monitor --start
 fi
 
 exec xmonad
