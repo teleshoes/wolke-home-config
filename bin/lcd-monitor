@@ -9,6 +9,13 @@ my $DEVS = {
 };
 
 sub main(@){
+  my $count = `cat /tmp/lcd-monitor-count 2>/dev/null`;
+  $count = 0 if $count !~ /^\d+$/;
+  $count++;
+  system "echo $count > /tmp/lcd-monitor-count";
+  my $tick = $count % 2 == 0 ? 1 : 0;
+
+
   my @btnStrs = split /,/, `pico-lcd-msg --buttons`;
   my %btnCounts;
   for my $btnStr(@btnStrs){
@@ -22,14 +29,17 @@ sub main(@){
   my @modes = @{$$DEVS{lcd1}};
   my $modeIndex = $modeCount % @modes;
   my $cmd = $modes[$modeIndex];
-  &$cmd();
+  &{$cmd}($tick);
 }
 
-sub pyeconet(){
-  system "pico-lcd-msg", "--quiet", pyeconetMarkup();
+sub pyeconet($){
+  my ($tick) = @_;
+  my $markup = pyeconetMarkup($tick);
+  system "pico-lcd-msg", $markup;
 }
 
-sub pyeconetMarkup(){
+sub pyeconetMarkup($){
+  my ($tick) = @_;
   my $info = `pyeconet --info`;
   my $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
   my $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
@@ -57,9 +67,16 @@ sub pyeconetMarkup(){
 
   $tempFmt .= '!size=5!!color=green! *' if $running =~ /true/i;
 
+  my $tickFmt;
+  if($tick){
+    $tickFmt = " !size=2!!color=blue!~!size=prev!";
+  }else{
+    $tickFmt = " !size=2!!color=white!~!size=prev!";
+  }
+
   my $dateFmt = "!color=white!!size=1!!hr!!n!!size=4!!hspace=0.5!$date!n!$time";
 
-  my $markup = "$availFmt!n!$tempFmt!n!$dateFmt";
+  my $markup = "$availFmt!n!$tempFmt$tickFmt!n!$dateFmt";
   return $markup;
 }
 
