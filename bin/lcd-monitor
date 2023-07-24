@@ -4,7 +4,7 @@ use warnings;
 
 my $DEVS = {
   lcd1 => [
-    "pyeconet-lcd",
+    \&pyeconet,
   ],
 };
 
@@ -22,7 +22,45 @@ sub main(@){
   my @modes = @{$$DEVS{lcd1}};
   my $modeIndex = $modeCount % @modes;
   my $cmd = $modes[$modeIndex];
-  system $cmd;
+  &$cmd();
+}
+
+sub pyeconet(){
+  system "pico-lcd-msg", "--quiet", pyeconetMarkup();
+}
+
+sub pyeconetMarkup(){
+  my $info = `pyeconet --info`;
+  my $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
+  my $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
+  my $running = $1 if $info =~ /^running: (\w+)$/m;
+
+  my $date = `date '+%a %b %d'`;
+  chomp $date;
+  my $time = `date '+%I:%M:%S %p'`;
+  chomp $time;
+
+  $time =~ s/^0/ /; #'03:05' => ' 3:05'
+
+
+  my $availFmt = "";
+  $availFmt .= "!size=10!";
+  $availFmt .= $avail == 100 ? "!color=white!" : "!color=red!";
+  $availFmt .= sprintf "%3s", $avail;
+  $availFmt .= "%";
+
+  my $tempFmt = "";
+  $tempFmt .= "!size=7!";
+  $tempFmt .= "!color=white!";
+  $tempFmt .= sprintf "%3s", $targetTemp;
+  $tempFmt .= "F";
+
+  $tempFmt .= '!size=5!!color=green! *' if $running =~ /true/i;
+
+  my $dateFmt = "!color=white!!size=1!!hr!!n!!size=4!!hspace=0.5!$date!n!$time";
+
+  my $markup = "$availFmt!n!$tempFmt!n!$dateFmt";
+  return $markup;
 }
 
 &main(@ARGV);
