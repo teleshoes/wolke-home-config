@@ -2,7 +2,8 @@
 use strict;
 use warnings;
 
-sub pyeconet($$);
+sub pyeconet($$$$$);
+
 sub calculateFramebuf($$$$);
 sub parseDevInfo($);
 sub mtime($);
@@ -45,7 +46,11 @@ sub main(@){
     #move the next display over
     $$devInfo{curWidthPercent} += $$displayInfo{widthPercent};
 
-    my @markupArgs = &{$$displayInfo{markupArgsSub}}($modeBtnCount, $runCount);
+
+    my ($w, $h) = ($1, $2) if $framebuf =~ /^(\d+)x(\d+)/;
+
+    my @markupArgs = &{$$displayInfo{markupArgsSub}}(
+      $w, $h, $isLandscape, $modeBtnCount, $runCount);
 
     system "pico-lcd-msg",
       @markupArgs,
@@ -55,8 +60,8 @@ sub main(@){
   }
 }
 
-sub pyeconet($$){
-  my ($modeBtnCount, $runCount) = @_;
+sub pyeconet($$$$$){
+  my ($w, $h, $isLandscape, $modeBtnCount, $runCount) = @_;
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
   my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
