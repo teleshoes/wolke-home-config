@@ -3,13 +3,14 @@ use strict;
 use warnings;
 
 sub pyeconet($$);
+sub calculateFramebuf($$$$);
 sub parseDevInfo($);
 sub mtime($);
 
 my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
 
 my $DISPLAYS = [
-  {devName=>"lcd1", markupArgsSub=>\&pyeconet},
+  {devName=>"lcd1", markupArgsSub=>\&pyeconet, widthPercent=>100},
 ];
 
 sub main(@){
@@ -24,6 +25,7 @@ sub main(@){
     if(not defined $$devices{$devName}){
       my $devInfoStr = `pico-lcd-msg --dev=$devName info`;
       $$devices{$devName} = parseDevInfo $devInfoStr;
+      $$devices{$devName}{curWidthPercent} = 0;
     }
   }
 
@@ -35,12 +37,20 @@ sub main(@){
     my $modeBtnCount = 0;
     $modeBtnCount = $btnCounts{B1} if defined $btnCounts{B1};
     $modeBtnCount = $btnCounts{Y} if defined $btnCounts{Y};
+    my $isLandscape = $$devInfo{degrees} % 180 == 0;
+
+    my $framebuf = calculateFramebuf(
+      $$displayInfo{widthPercent}, $$devInfo{curWidthPercent}, $$devInfo{lcd}, $isLandscape);
+
+    #move the next display over
+    $$devInfo{curWidthPercent} += $$displayInfo{widthPercent};
 
     my @markupArgs = &{$$displayInfo{markupArgsSub}}($modeBtnCount, $runCount);
 
     system "pico-lcd-msg",
       @markupArgs,
       "--dev=$devName",
+      "--framebuf=$framebuf",
     ;
   }
 }
@@ -101,6 +111,23 @@ sub pyeconet($$){
   return $markup;
 }
 
+sub calculateFramebuf($$$$){
+  my ($widthPct, $curWidthPct, $lcdGeometry, $isLandscape) = @_;
+
+  my ($w, $h) = ($1, $2) if $lcdGeometry =~ /^(\d+)x(\d+)$/;
+  if(not $isLandscape){
+    ($w, $h) = ($h, $w);
+  }
+
+  my $fbW = int($w * $widthPct / 100.0);
+  my $fbH = $h;
+
+  my $fbX = int($w * $curWidthPct / 100.0);
+  my $fbY = 0;
+
+  return "${fbW}x${fbH}+${fbX}+${fbY}";
+}
+
 sub parseDevInfo($){
   my ($devInfoStr) = @_;
   my $devInfo = {};
@@ -110,6 +137,12 @@ sub parseDevInfo($){
     for my $btnStr(@btnStrs){
       $$devInfo{btnCounts}{$1} = $2 if $btnStr =~ /^\s*(\w+)\s*=\s*(\d+)\s*$/;
     }
+  }
+  if($devInfoStr =~ /lcd: (\d+x\d+)/){
+    $$devInfo{lcd} = $1;
+  }
+  if($devInfoStr =~ /^orientation: (\d+) degrees$/m){
+    $$devInfo{degrees} = $1;
   }
 
   return $devInfo;
