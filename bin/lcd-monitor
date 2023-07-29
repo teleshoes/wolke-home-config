@@ -14,11 +14,10 @@ my $DISPLAYS = [
 ];
 
 sub main(@){
-  my $count = `cat /tmp/lcd-monitor-count 2>/dev/null`;
-  $count = 0 if $count !~ /^\d+$/;
-  $count++;
-  system "echo $count > /tmp/lcd-monitor-count";
-  my $tick = $count % 2 == 0 ? 1 : 0;
+  my $runCount = `cat /tmp/lcd-monitor-count 2>/dev/null`;
+  $runCount = 0 if $runCount !~ /^\d+$/;
+  $runCount++;
+  system "echo $runCount > /tmp/lcd-monitor-count";
 
 
   my @btnStrs = split /,/, `pico-lcd-msg --buttons`;
@@ -34,17 +33,19 @@ sub main(@){
   my @modes = @$DISPLAYS;
   my $modeIndex = $modeCount % @modes;
   my $display = $modes[$modeIndex];
-  &{$$display{action}}($tick);
+  &{$$display{action}}($runCount);
 }
 
 sub pyeconet($){
-  my ($tick) = @_;
-  my $markup = pyeconetMarkup($tick);
+  my ($runCount) = @_;
+  my $markup = pyeconetMarkup($runCount);
   system "pico-lcd-msg", $markup;
 }
 
 sub pyeconetMarkup($){
-  my ($tick) = @_;
+  my ($runCount) = @_;
+
+  my $tick = $runCount % 2 == 0 ? 1 : 0;
 
   my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
   if(@logFiles == 0){
