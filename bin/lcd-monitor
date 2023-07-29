@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 sub pyeconet($$);
+sub parseDevInfo($);
 sub mtime($);
 
 my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
@@ -20,11 +21,9 @@ sub main(@){
 
   for my $displayInfo(@$DISPLAYS){
     my $devName = $$displayInfo{devName};
-    my @btnStrs = split /,/, `pico-lcd-msg --dev=$devName --buttons`;
-    my %btnCounts;
-    for my $btnStr(@btnStrs){
-      $btnCounts{$1} = $2 if $btnStr =~ /^\s*(\w+)\s*=\s*(\d+)\s*$/;
-    }
+    my $devInfoStr = `pico-lcd-msg --dev=$devName info`;
+    my $devInfo = parseDevInfo $devInfoStr;
+    my %btnCounts = %{$$devInfo{btnCounts}};
 
     my $modeBtnCount = 0;
     $modeBtnCount = $btnCounts{B1} if defined $btnCounts{B1};
@@ -90,6 +89,20 @@ sub pyeconet($$){
 
   my $markup = "$availFmt!n!$tempFmt$tickFmt!n!$dateFmt";
   return $markup;
+}
+
+sub parseDevInfo($){
+  my ($devInfoStr) = @_;
+  my $devInfo = {};
+  if($devInfoStr =~ /^buttons: (.+)$/m){
+    my @btnStrs = split /,/, $1;
+    $$devInfo{btnCounts} = {};
+    for my $btnStr(@btnStrs){
+      $$devInfo{btnCounts}{$1} = $2 if $btnStr =~ /^\s*(\w+)\s*=\s*(\d+)\s*$/;
+    }
+  }
+
+  return $devInfo;
 }
 
 sub mtime($){
