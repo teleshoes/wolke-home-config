@@ -3,14 +3,13 @@ use strict;
 use warnings;
 
 sub pyeconet($);
-sub pyeconetMarkup($);
 sub date();
 sub mtime($);
 
 my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
 
 my $DISPLAYS = [
-  {devName=>"lcd1", action=>\&pyeconet},
+  {devName=>"lcd1", markupArgsSub=>\&pyeconet},
 ];
 
 sub main(@){
@@ -33,16 +32,12 @@ sub main(@){
   my @modes = @$DISPLAYS;
   my $modeIndex = $modeCount % @modes;
   my $display = $modes[$modeIndex];
-  &{$$display{action}}($runCount);
+  my @markupArgs = &{$$display{markupArgsSub}}($runCount);
+
+  system "pico-lcd-msg", @markupArgs;
 }
 
 sub pyeconet($){
-  my ($runCount) = @_;
-  my $markup = pyeconetMarkup($runCount);
-  system "pico-lcd-msg", $markup;
-}
-
-sub pyeconetMarkup($){
   my ($runCount) = @_;
 
   my $tick = $runCount % 2 == 0 ? 1 : 0;
