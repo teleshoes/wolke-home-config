@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-sub pyeconet($);
+sub pyeconet($$);
 sub date();
 sub mtime($);
 
@@ -19,27 +19,25 @@ sub main(@){
   system "echo $runCount > /tmp/lcd-monitor-count";
 
 
-  my @btnStrs = split /,/, `pico-lcd-msg --buttons`;
-  my %btnCounts;
-  for my $btnStr(@btnStrs){
-    $btnCounts{$1} = $2 if $btnStr =~ /^\s*(\w+)\s*=\s*(\d+)\s*$/;
+  for my $display(@$DISPLAYS){
+    my @btnStrs = split /,/, `pico-lcd-msg --buttons`;
+    my %btnCounts;
+    for my $btnStr(@btnStrs){
+      $btnCounts{$1} = $2 if $btnStr =~ /^\s*(\w+)\s*=\s*(\d+)\s*$/;
+    }
+
+    my $modeCount = 0;
+    $modeCount = $btnCounts{B1} if defined $btnCounts{B1};
+    $modeCount = $btnCounts{Y} if defined $btnCounts{Y};
+
+    my @markupArgs = &{$$display{markupArgsSub}}($runCount, $modeCount);
+
+    system "pico-lcd-msg", "--dev=$$display{devName}", @markupArgs;
   }
-
-  my $modeCount = 0;
-  $modeCount = $btnCounts{B1} if defined $btnCounts{B1};
-  $modeCount = $btnCounts{Y} if defined $btnCounts{Y};
-
-  my @modes = @$DISPLAYS;
-  my $modeIndex = $modeCount % @modes;
-  my $display = $modes[$modeIndex];
-  my @markupArgs = &{$$display{markupArgsSub}}($runCount);
-
-  system "pico-lcd-msg", "--dev=$$display{devName}", @markupArgs;
 }
 
-sub pyeconet($){
-  my ($runCount) = @_;
-
+sub pyeconet($$){
+  my ($runCount, $modeCount) = @_;
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
   my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
