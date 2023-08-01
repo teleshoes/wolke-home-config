@@ -29,6 +29,7 @@ my $AUTH_MODE_TOKEN = "token";
 my $AUTH_MODE_LOGIN = "login";
 
 my $MODE_STATUS = "status";
+my $MODE_DISCOVER = "discover";
 my $MODE_SET = "set";
 my $MODE_FETCH_TOKEN = "fetch-token";
 my $MODE_ROTATE_LOGS = "rotate-logs";
@@ -52,6 +53,10 @@ my $USAGE = "Usage:
     -run `$EXEC_CLI status --credentials --ip IP --token TOKEN --key KEY`
     -log the full status to $LOG_DIR/<YYYY-MM-DD_HHMMSS>_<MILLIS>_<DEV_NAME>.log
     -print the full status
+
+  $EXEC [OPTS] --discover | discover
+    -run `$EXEC_CLI discover`
+    -format each device as in config file
 
   $EXEC [OPTS] --on | on
     -same as: $EXEC [OPTS] --set --running true
@@ -143,6 +148,8 @@ sub main(@){
     }elsif($arg =~ /^(-s|--status|status)$/){
       $mode = $MODE_STATUS;
       $statusFmt = $FORMAT_FULL;
+    }elsif($arg =~ /^(--discover|discover)$/){
+      $mode = $MODE_DISCOVER;
     }elsif($arg =~ /^(-f|--fetch|--fetch-token|fetch)$/){
       $mode = $MODE_FETCH_TOKEN;
       $authMode = $AUTH_MODE_LOGIN;
@@ -268,6 +275,44 @@ sub main(@){
       }
     }elsif($statusFmt eq $FORMAT_FULL){
       print $status;
+    }
+  }elsif($mode eq $MODE_DISCOVER){
+    my @cmd = ($EXEC_CLI, "discover");
+    my @lines = `@cmd`;
+
+    my $curDev = undef;
+    my @devices;
+    for my $line(@lines){
+      if($line =~ /^id/){
+        $curDev = {};
+        push @devices, $curDev;
+      }elsif($line =~ /^\s+(id|addr|s\/n|model|ssid|)\s*=\s*(\S.*)$/){
+        die "ERROR: missing device start line\n" if not defined $curDev;
+        my ($key, $val) = ($1, $2);
+        if($key =~ /^(model)$/){
+          $$curDev{type} = lc $val;
+        }elsif($key =~ /^(id)$/){
+          $$curDev{id} = $val;
+        }elsif($key =~ /^(addr)$/){
+          $$curDev{ip} = $val;
+        }elsif($key =~ /^(ssid)$/){
+          $$curDev{ap_ssid} = $val;
+        }elsif($key =~ /^(s\/n)$/){
+          $$curDev{serial} = $val;
+        }else{
+          die "ERROR: malformed device field $key=$val\n";
+        }
+      }
+    }
+    my $devNum = 1;
+    for my $dev(@devices){
+      for my $key(qw(type id ip ap_ssid serial)){
+        print "dev$devNum.$key = $$dev{$key}\n";
+      }
+      print "dev$devNum.token = RUN_FETCH\n";
+      print "dev$devNum.key = RUN_FETCH\n";
+      print "\n";
+      $devNum++;
     }
   }elsif($mode eq $MODE_SET){
     my @cmd = ($EXEC_CLI, "set", @devArgs, @authArgs);
