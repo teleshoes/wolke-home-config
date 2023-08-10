@@ -1,4 +1,36 @@
-for x in "$*"; do
-  echo pdftoppm "$x" "$x".png -jpeg -rx 600 -ry 600
-       pdftoppm "$x" "$x".png -jpeg -rx 600 -ry 600
-done
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 PDF PDF PDF ..
+    for each PDF, run `pdftoppm` with jpeg at 600 DPI
+";
+
+sub main(@){
+  my @files;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  for my $pdfFile(@files){
+    my $jpgFile = $pdfFile;
+    $jpgFile =~ s/\.pdf$//i;
+    my @cmd = ("pdftoppm", $pdfFile, $jpgFile, "-jpeg", "-rx", 600, "-ry", 600);
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+&main(@ARGV);
