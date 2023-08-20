@@ -18,12 +18,16 @@ my $usage = "Usage:
     -o OUTPUT_FILE | --output=OUTPUT_FILE
       use OUTPUT_FILE instead of out.<EXT>
       where EXT is the extension of the first input file
+
+    --no-copy
+      do not prepend '@CODEC_COPY_ARGS' to FFMPEG_ARGS
 ";
 
 sub main(@){
   my @inputFiles;
   my $outputFile = undef;
   my @ffmpegArgs;
+  my $includeCopy = 1;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -33,6 +37,8 @@ sub main(@){
       $outputFile = shift @_;
     }elsif($arg =~ /^--output=(.+)$/){
       $outputFile = $1;
+    }elsif($arg =~ /^(--no-copy)$/){
+      $includeCopy = 0;
     }elsif(-f $arg){
       push @inputFiles, $arg;
     }else{
@@ -42,7 +48,9 @@ sub main(@){
 
   die "$usage\nERROR: no input files\n" if @inputFiles == 0;
 
-  @ffmpegArgs = (@CODEC_COPY_ARGS, @ffmpegArgs);
+  if($includeCopy){
+    @ffmpegArgs = (@CODEC_COPY_ARGS, @ffmpegArgs);
+  }
 
   if(not defined $outputFile){
     my $ext = $1 if $inputFiles[0] =~ /\.(\w+)$/;
