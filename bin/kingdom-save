@@ -7,9 +7,9 @@ use JSON;
 
 sub getSavesFromSaveArgs($@);
 sub formatSave($$$$$);
-sub getMaxLand($$$);
+sub getMaxLand($$$$);
 sub formatGame($$$);
-sub formatLand($$$$$);
+sub formatLand($$$$$$);
 sub parseSaveInfo($$);
 sub parseGlobalSaveFileJSON($);
 sub parseIslandSaveFileJSON($);
@@ -269,6 +269,7 @@ my $usage = "Usage:
           LAND_MAX   = the maximum number of islands for the game mode
                          '1' for all games except K2C
                          '5' for K2C base/shogun/deadlands campaign
+                         '6' for K2C norselands campaign
                          '2' for K2C TRADE
                          '1' for K2C SKULL+PLAGUE
                          '?' for K2C DIRE or unknown
@@ -518,9 +519,9 @@ sub formatSave($$$$$){
     CUR_GAME        => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 0),
     CUR_GAME_SHORT  => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 1),
     CUR_LAND_NUM    => $$g{curLandIndex} + 1,
-    CUR_LAND_MAX    => getMaxLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}),
-    CUR_LAND        => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
-    CUR_LAND_SHORT  => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
+    CUR_LAND_MAX    => getMaxLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curBiomeIndex}, $$g{curChallengeId}),
+    CUR_LAND        => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curBiomeIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
+    CUR_LAND_SHORT  => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curBiomeIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
   };
   my @stats = @{$$g{curStats}};
   for(my $statIndex=0; $statIndex<@stats; $statIndex++){
@@ -536,9 +537,9 @@ sub formatSave($$$$$){
     GAME       => formatGame($$_{campaignIndex}, $$_{challengeId}, 0),
     GAME_SHORT => formatGame($$_{campaignIndex}, $$_{challengeId}, 1),
     LAND_NUM   => $$_{landIndex} + 1,
-    LAND_MAX   => getMaxLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}),
-    LAND       => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
-    LAND_SHORT => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    LAND_MAX   => getMaxLand($kingdomGameName, $$_{campaignIndex}, $$_{biomeIndex}, $$_{challengeId}),
+    LAND       => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{biomeIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    LAND_SHORT => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{biomeIndex}, $$_{challengeId}, $$_{landIndex}, 0),
     ARCHER     => $$_{objectCounts}{Archer},
     WORKER     => $$_{objectCounts}{Worker},
     FARMER     => $$_{objectCounts}{Farmer},
@@ -584,12 +585,16 @@ sub applyFormatVars($$){
 }
 
 sub getMaxLand($$$$){
-  my ($kingdomGameName, $campaignIndex, $challengeId) = @_;
+  my ($kingdomGameName, $campaignIndex, $biomeIndex, $challengeId) = @_;
   if($kingdomGameName ne "kingdom-two-crowns"){
     return 1;
   }
   if(defined $campaignIndex){
-    return '5';
+    if($biomeIndex == 3){
+      return '6'; #norselands
+    }else{
+      return '5';
+    }
   }elsif(defined $challengeId){
     my $chal = $$CHALLENGE_ISLANDS{$challengeId};
     if(defined $chal){
@@ -618,12 +623,12 @@ sub formatGame($$$){
   }
 }
 
-sub formatLand($$$$$){
-  my ($kingdomGameName, $campaignIndex, $challengeId, $landIndex, $formatShort) = @_;
+sub formatLand($$$$$$){
+  my ($kingdomGameName, $campaignIndex, $biomeIndex, $challengeId, $landIndex, $formatShort) = @_;
 
   my $landNum = $landIndex + 1;
 
-  my $maxLand = getMaxLand($kingdomGameName, $campaignIndex, $challengeId);
+  my $maxLand = getMaxLand($kingdomGameName, $campaignIndex, $biomeIndex, $challengeId);
 
   if($landNum < 10){
     return $formatShort ? "L$landNum/$maxLand" : "LAND  $landNum/$maxLand";
@@ -674,7 +679,7 @@ sub parseGlobalSaveFileJSON($){
   my ($globalFile) = @_;
   my $globalJson = readFile $globalFile;
 
-  my ($curPlayTimeDays, $curCampaignIndex, $curChallengeId, $curLandIndex, $curStats);
+  my ($curPlayTimeDays, $curCampaignIndex, $curBiomeIndex, $curChallengeId, $curLandIndex, $curStats);
 
   my ($campaigns, $challenges, $currentCampaign, $currentChallenge);
   my $obj = JSON->new->decode($globalJson);
