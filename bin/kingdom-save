@@ -58,10 +58,12 @@ my $DEFAULT_LIST_LIMIT = 10;
 my $NOTIFY_SEND_MILLIS = 1500;
 
 my $CHALLENGE_ISLANDS = {
-  1 => {id=>1, name=>'SKULL',  shortName=>'SKUL', maxLand=>'1'},
-  2 => {id=>2, name=>'PLAGUE', shortName=>'PLAG', maxLand=>'1'},
-  4 => {id=>4, name=>'DIRE',   shortName=>'DIRE', maxLand=>'?'},
-  8 => {id=>8, name=>'TRADE',  shortName=>'TRAD', maxLand=>'2'},
+  "kingdom-two-crowns" => {
+    1 => {id=>1, name=>'SKULL',  shortName=>'SKUL', maxLand=>'1'},
+    2 => {id=>2, name=>'PLAGUE', shortName=>'PLAG', maxLand=>'1'},
+    4 => {id=>4, name=>'DIRE',   shortName=>'DIRE', maxLand=>'?'},
+    8 => {id=>8, name=>'TRADE',  shortName=>'TRAD', maxLand=>'2'},
+  },
 };
 
 my $DEFAULT_FORMAT_SUMMARY_SPEC = ''
@@ -212,14 +214,14 @@ my $usage = "Usage:
                            for campaign:
                               'SLOT <SLOT>/3'  where <SLOT> is 1, 2, or 3
                            for challenge:
-                              'SKULL', 'PLAGUE', 'DIRE', 'TRADE',
-                               or 'CHLNG#<CHLNG_ID>' where <CHLNG_ID> is an integer
+                              <CUR_CHLNG_NAME>
           CUR_GAME_SHORT = the current game mode, for campaign+challenges
                            for campaign:
                               'SLT<SLOT>'  where <SLOT> is 1, 2, or 3
                            for challenge:
-                              'SKUL', 'PLAG', 'DIRE', 'TRAD',
-                               or 'CH<CHLNG_ID>' where <CHLNG_ID> is an integer
+                              <CUR_CHLNG_SHRT>
+          CUR_CHLNG_NAME = current long challenge name, formatted same as CHLNG_NAME
+          CUR_CHLNG_SHRT = current short challenge name, formatted same as CHLNG_SHRT
           CUR_LAND_NUM   = current island number, with 1 being the first
           CUR_LAND_MAX   = the maximum number of islands for the current game mode
                            (same values as LAND_MAX)
@@ -257,14 +259,16 @@ my $usage = "Usage:
                        for campaign:
                           'SLOT <SLOT>/3'  where <SLOT> is 1, 2, or 3
                        for challenge:
-                          'SKULL', 'PLAGUE', 'DIRE', 'TRADE',
-                           or 'CHLNG#<CHLNG_ID>' where <CHLNG_ID> is an integer
+                          <CHLNG_NAME>
           GAME_SHORT = the current game mode, for campaign+challenges
                        for campaign:
                           'SLT<SLOT>'  where <SLOT> is 1, 2, or 3
                        for challenge:
-                          'SKUL', 'PLAG', 'DIRE', 'TRAD',
-                           or 'CH<CHLNG_ID>' where <CHLNG_ID> is an integer
+                          <CHLNG_SHRT>
+          CHLNG_NAME = long name of the challenge (e.g.: SKULL/TRADE/PLAGUE/DIRE/LOST),
+                         or 'CHLNG#<CHLNG_ID>' if unknown, where <CHLNG_ID> is an integer
+          CHLNG_SHRT = short name of the challenge (e.g.: SKUL/TRAD/PLAG/DIRE/LOST),
+                         or 'CH<CHLNG_ID>' if unknown, where <CHLNG_ID> is an integer
           LAND_NUM   = island number, with 1 being the first
           LAND_MAX   = the maximum number of islands for the game mode
                          '1' for all games except K2C
@@ -596,7 +600,11 @@ sub getMaxLand($$$$){
       return '5';
     }
   }elsif(defined $challengeId){
-    my $chal = $$CHALLENGE_ISLANDS{$challengeId};
+    my $chal;
+    my $gameChgs = $$CHALLENGE_ISLANDS{$kingdomGameName};
+    if(defined $gameChgs and defined $$gameChgs{$challengeId}){
+      $chal = $$gameChgs{$challengeId};
+    }
     if(defined $chal){
       return $$chal{maxLand};
     }else{
@@ -612,7 +620,11 @@ sub formatGame($$$$){
     my $slot = $campaignIndex + 1;
     return $formatShort ? "SLT$slot" : "SLOT $slot/3";
   }elsif(defined $challengeId){
-    my $chal = $$CHALLENGE_ISLANDS{$challengeId};
+    my $chal;
+    my $gameChgs = $$CHALLENGE_ISLANDS{$kingdomGameName};
+    if(defined $gameChgs and defined $$gameChgs{$challengeId}){
+      $chal = $$gameChgs{$challengeId};
+    }
     if($formatShort){
       return defined $chal ? $$chal{shortName} : "CH$challengeId";
     }else{
