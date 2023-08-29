@@ -6,16 +6,16 @@ use Time::HiRes qw(time);
 use JSON;
 
 sub getSavesFromSaveArgs($@);
-sub formatSave($$$$);
-sub getMaxLand($$);
+sub formatSave($$$$$);
+sub getMaxLand($$$);
 sub formatGame($$$);
-sub formatLand($$$$);
+sub formatLand($$$$$);
 sub parseSaveInfo($$);
 sub parseGlobalSaveFileJSON($);
 sub parseIslandSaveFileJSON($);
 sub extractTarToSaveDir($$);
 sub removeCurrentSave($);
-sub ensureSaveCached($$);
+sub ensureSaveCached($$$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
 sub readCacheDirSavesInfo($);
@@ -430,7 +430,7 @@ sub main(@){
 
   if($cmd eq $CMD_BACKUP){
     die "ERROR: cannot specify saves by TAR_FILE or INDEX for $cmd\n" if @saveArgs > 0;
-    ensureSaveCached($saveDir, $cacheDir);
+    ensureSaveCached($kingdomGameName, $saveDir, $cacheDir);
   }elsif($cmd eq $CMD_RESTORE){
     my @saves = getSavesFromSaveArgs($cacheDir, @saveArgs);
     if(@saves != 1){
@@ -457,7 +457,7 @@ sub main(@){
     @saves = reverse @saves if $reverseSaves;
 
     for my $save(@saves){
-      my $fmt = formatSave($save, $formatSummarySpec, $formatLandSpec, $includeLands);
+      my $fmt = formatSave($save, $kingdomGameName, $formatSummarySpec, $formatLandSpec, $includeLands);
       print $fmt;
     }
   }else{
@@ -503,8 +503,8 @@ sub getSavesFromSaveArgs($@){
   return @saves;
 }
 
-sub formatSave($$$$){
-  my ($save, $formatSummarySpec, $formatLandSpec, $includeLands) = @_;
+sub formatSave($$$$$){
+  my ($save, $kingdomGameName, $formatSummarySpec, $formatLandSpec, $includeLands) = @_;
 
   my $jsonInfo = parseSaveInfo($$save{file}, $includeLands);
 
@@ -520,9 +520,9 @@ sub formatSave($$$$){
     CUR_GAME        => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 0),
     CUR_GAME_SHORT  => formatGame($$g{curCampaignIndex}, $$g{curChallengeId}, 1),
     CUR_LAND_NUM    => $$g{curLandIndex} + 1,
-    CUR_LAND_MAX    => getMaxLand($$g{curCampaignIndex}, $$g{curChallengeId}),
-    CUR_LAND        => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
-    CUR_LAND_SHORT  => formatLand($$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
+    CUR_LAND_MAX    => getMaxLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}),
+    CUR_LAND        => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 0),
+    CUR_LAND_SHORT  => formatLand($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, $$g{curLandIndex}, 1),
   };
   my @stats = @{$$g{curStats}};
   for(my $statIndex=0; $statIndex<@stats; $statIndex++){
@@ -538,9 +538,9 @@ sub formatSave($$$$){
     GAME       => formatGame($$_{campaignIndex}, $$_{challengeId}, 0),
     GAME_SHORT => formatGame($$_{campaignIndex}, $$_{challengeId}, 1),
     LAND_NUM   => $$_{landIndex} + 1,
-    LAND_MAX   => getMaxLand($$_{campaignIndex}, $$_{challengeId}),
-    LAND       => formatLand($$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
-    LAND_SHORT => formatLand($$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    LAND_MAX   => getMaxLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}),
+    LAND       => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
+    LAND_SHORT => formatLand($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, $$_{landIndex}, 0),
     ARCHER     => $$_{objectCounts}{Archer},
     WORKER     => $$_{objectCounts}{Worker},
     FARMER     => $$_{objectCounts}{Farmer},
@@ -585,8 +585,8 @@ sub applyFormatVars($$){
   return $spec;
 }
 
-sub getMaxLand($$){
-  my ($campaignIndex, $challengeId) = @_;
+sub getMaxLand($$$$){
+  my ($kingdomGameName, $campaignIndex, $challengeId) = @_;
   if(defined $campaignIndex){
     return '5';
   }elsif(defined $challengeId){
@@ -617,12 +617,12 @@ sub formatGame($$$){
   }
 }
 
-sub formatLand($$$$){
-  my ($campaignIndex, $challengeId, $landIndex, $formatShort) = @_;
+sub formatLand($$$$$){
+  my ($kingdomGameName, $campaignIndex, $challengeId, $landIndex, $formatShort) = @_;
 
   my $landNum = $landIndex + 1;
 
-  my $maxLand = getMaxLand($campaignIndex, $challengeId);
+  my $maxLand = getMaxLand($kingdomGameName, $campaignIndex, $challengeId);
 
   if($landNum < 10){
     return $formatShort ? "L$landNum/$maxLand" : "LAND  $landNum/$maxLand";
@@ -819,8 +819,8 @@ sub removeCurrentSave($){
   }
 }
 
-sub ensureSaveCached($$){
-  my ($saveDir, $cacheDir) = @_;
+sub ensureSaveCached($$$){
+  my ($kingdomGameName, $saveDir, $cacheDir) = @_;
   if(not defined $saveDir or not -d $saveDir){
     $saveDir = "";
     my $msg = "ERROR: save dir does not exist: $saveDir";
@@ -869,7 +869,7 @@ sub ensureSaveCached($$){
     my $save = getSaveInfoFromTarFile($saveFileCachePath);
     $$save{index} = 0;
 
-    my $msg = formatSave($save, $NEW_SAVE_FORMAT_SUMMARY_SPEC, '', 0);
+    my $msg = formatSave($save, $kingdomGameName, $NEW_SAVE_FORMAT_SUMMARY_SPEC, '', 0);
     notifySend $msg;
     print "$msg\n";
   }
