@@ -30,6 +30,7 @@ sub nowMillis();
 sub run(@);
 sub runQuiet(@);
 sub readFile($);
+sub writeFile($$);
 sub globOne($);
 
 my $GAMES = {
@@ -49,7 +50,7 @@ my $LINUX_BASE_DIR_PATTERN = "$ENV{HOME}/.config/unity3d";
 
 my $CACHE_BASE_DIR = "$ENV{HOME}/.cache";
 
-
+my $LAST_KINGDOM_GAME_NAME_FILE = "$CACHE_BASE_DIR/kingdom-saves/last-game";
 
 my $DEFAULT_LIST_LIMIT = 10;
 my $NOTIFY_SEND_MILLIS = 1500;
@@ -171,6 +172,10 @@ my $usage = "Usage:
         . (join "", map {
             "\n        $_ => <SAVE_BASE_DIR_PTRN>/$$GAMES{$_}"
           } sort keys %$GAMES) . "
+    --game-last
+      -read LAST_KINGDOM_GAME_NAME from $LAST_KINGDOM_GAME_NAME_FILE
+      -same as --game=LAST_KINGDOM_GAME_NAME
+      (this is the default)
     --proton
       use SAVE_BASE_DIR_PTRN=$PROTON_BASE_DIR_PATTERN
     --no-proton
@@ -336,6 +341,7 @@ sub main(@){
   my $formatLandSpec = $DEFAULT_FORMAT_LAND_SPEC;
   my $includeLands = 1;
   my $reverseSaves = 0;
+  my $useLastGame = 1;
 
   while(@_ > 0){
     my $arg = shift @_;
@@ -344,6 +350,10 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^--game=($OK_GAME_NAME_REGEX)$/){
       $kingdomGameName = $1;
+      $useLastGame = 0;
+    }elsif($arg =~ /^(--game-last)$/){
+      $kingdomGameName = undef;
+      $useLastGame = 1;
     }elsif($arg =~ /^(--proton)$/){
       $isProton = 1;
     }elsif($arg =~ /^(--no-proton)$/){
@@ -389,11 +399,22 @@ sub main(@){
     }
   }
 
+  if($useLastGame and -f $LAST_KINGDOM_GAME_NAME_FILE){
+    $kingdomGameName = readFile $LAST_KINGDOM_GAME_NAME_FILE;
+    chomp $kingdomGameName;
+  }
+
   if(not defined $kingdomGameName){
     die "$usage\nERROR: missing KINGDOM_GAME_NAME (use --game)\n";
   }
   if(not defined $$GAMES{$kingdomGameName}){
     die "$usage\nERROR: unknown KINGDOM_GAME_NAME\n";
+  }
+  if(not $useLastGame){
+    if(not -d "$CACHE_BASE_DIR/kingdom-saves/"){
+      system "mkdir", "-p", "$CACHE_BASE_DIR/kingdom-saves/";
+    }
+    writeFile $LAST_KINGDOM_GAME_NAME_FILE, "$kingdomGameName\n";
   }
 
   my $saveDirPtrn = $isProton ? $PROTON_BASE_DIR_PATTERN : $LINUX_BASE_DIR_PATTERN;
@@ -1014,6 +1035,12 @@ sub readFile($){
   my $contents = join '', <FH>;
   close FH;
   return $contents;
+}
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open FH, ">", $file or die "could not write $file\n$!\n";
+  print FH $contents;
+  close FH;
 }
 
 sub globOne($){
