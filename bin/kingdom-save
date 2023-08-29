@@ -34,14 +34,18 @@ sub writeFile($$);
 sub globOne($);
 
 my $GAMES = {
-  "kingdom-two-crowns" => ["K2C",  "noio/KingdomTwoCrowns/Release"],
-  "kingdom-80s"        => ["K80s", "RawFury/Kingdom Eighties/Release"],
-  "kingdom-classic"    => ["KC",   "noio/Kingdom"],
+  "kingdom-two-crowns" => ["K2C",  [qw(k2c two-crowns)],  "noio/KingdomTwoCrowns/Release"],
+  "kingdom-80s"        => ["K80s", [qw(k80s k80 80 80s)], "RawFury/Kingdom Eighties/Release"],
+  "kingdom-classic"    => ["KC",   [qw(kingdom classic)], "noio/Kingdom"],
 };
 my $GAME_SHORT_NAMES =  {map {$_ => ${$$GAMES{$_}}[0]} sort keys %$GAMES};
-my $GAME_SAVE_SUBDIRS = {map {$_ => ${$$GAMES{$_}}[1]} sort keys %$GAMES};
+my $GAME_ALIASES =      {map {$_ => ${$$GAMES{$_}}[1]} sort keys %$GAMES};
+my $GAME_SAVE_SUBDIRS = {map {$_ => ${$$GAMES{$_}}[2]} sort keys %$GAMES};
 
-my $OK_GAME_NAME_REGEX = join "|", sort keys %$GAMES;
+my $GAME_NAME_BY_ALIAS = {map {
+  my $gameName = $_;
+  map {$_ => $gameName} ($gameName, @{$$GAME_ALIASES{$gameName}})
+} sort keys %$GAMES};
 
 my $PROTON_BASE_DIR_PATTERN = "$ENV{HOME}/.steam/steam/"
   . "steamapps/compatdata/"
@@ -176,7 +180,10 @@ my $usage = "Usage:
   OPTS
     --game=KINGDOM_GAME_NAME
       -use CACHE_DIR=$CACHE_BASE_DIR/kingdom-saves/<KINGDOM_GAME_NAME>/
-      -calculate KINGDOM_GAME_SAVE_DIR using SAVE_BASE_DIR_PTRN and KINGDOM_GAME_NAME
+      -calculate KINGDOM_GAME_SAVE_DIR using SAVE_BASE_DIR_PTRN and KINGDOM_GAME_NAME"
+        . join("",
+            map {"\n        $_: " . join("|", ($_, @{$$GAME_ALIASES{$_}}))}
+            sort keys %$GAME_ALIASES) . "
     --game-last
       -read LAST_KINGDOM_GAME_NAME from $LAST_KINGDOM_GAME_NAME_FILE
       -same as --game=LAST_KINGDOM_GAME_NAME
@@ -357,8 +364,12 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
-    }elsif($arg =~ /^--game=($OK_GAME_NAME_REGEX)$/){
-      $kingdomGameName = $1;
+    }elsif($arg =~ /^--game=(.+)$/){
+      my $alias = lc $1;
+      if(not defined $$GAME_NAME_BY_ALIAS{$alias}){
+        die "$usage\nERROR: unknown game $alias\n";
+      }
+      $kingdomGameName = $$GAME_NAME_BY_ALIAS{$alias};
       $useLastGame = 0;
     }elsif($arg =~ /^(--game-last)$/){
       $kingdomGameName = undef;
