@@ -34,10 +34,12 @@ sub writeFile($$);
 sub globOne($);
 
 my $GAMES = {
-  "kingdom-two-crowns" => "noio/KingdomTwoCrowns/Release",
-  "kingdom-80s"        => "RawFury/Kingdom Eighties/Release",
-  "kingdom-classic"    => "noio/Kingdom",
+  "kingdom-two-crowns" => ["noio/KingdomTwoCrowns/Release"],
+  "kingdom-80s"        => ["RawFury/Kingdom Eighties/Release"],
+  "kingdom-classic"    => ["noio/Kingdom"],
 };
+my $GAME_SAVE_SUBDIRS = {map {$_ => ${$$GAMES{$_}}[0]} sort keys %$GAMES};
+
 my $OK_GAME_NAME_REGEX = join "|", sort keys %$GAMES;
 
 my $PROTON_BASE_DIR_PATTERN = "$ENV{HOME}/.steam/steam/"
@@ -168,10 +170,7 @@ my $usage = "Usage:
   OPTS
     --game=KINGDOM_GAME_NAME
       -use CACHE_DIR=$CACHE_BASE_DIR/kingdom-saves/<KINGDOM_GAME_NAME>/
-      -use KINGDOM_GAME_SAVE_DIR that matches glob:"
-        . (join "", map {
-            "\n        $_ => <SAVE_BASE_DIR_PTRN>/$$GAMES{$_}"
-          } sort keys %$GAMES) . "
+      -calculate KINGDOM_GAME_SAVE_DIR using SAVE_BASE_DIR_PTRN and KINGDOM_GAME_NAME
     --game-last
       -read LAST_KINGDOM_GAME_NAME from $LAST_KINGDOM_GAME_NAME_FILE
       -same as --game=LAST_KINGDOM_GAME_NAME
@@ -310,7 +309,10 @@ my $usage = "Usage:
         $LINUX_BASE_DIR_PATTERN
       -get KINGDOM_GAME_NAME from --game
       -use GAME_SUB_DIR based on KINGDOM_GAME_NAME:"
-        . join("", map {"\n        $_ => $$GAMES{$_}"} sort keys %$GAMES) . "
+        . join("",
+            map {"\n        $_ => $$GAME_SAVE_SUBDIRS{$_}"}
+            sort keys %$GAME_SAVE_SUBDIRS
+          ) . "
       -use KINGDOM_GAME_SAVE_DIR=<BASE_SAVE_DIR>/<GAME_SUB_DIR>
 
   CACHE_DIR
@@ -407,7 +409,7 @@ sub main(@){
   if(not defined $kingdomGameName){
     die "$usage\nERROR: missing KINGDOM_GAME_NAME (use --game)\n";
   }
-  if(not defined $$GAMES{$kingdomGameName}){
+  if(not defined $$GAME_SAVE_SUBDIRS{$kingdomGameName}){
     die "$usage\nERROR: unknown KINGDOM_GAME_NAME\n";
   }
   if(not $useLastGame){
@@ -418,7 +420,7 @@ sub main(@){
   }
 
   my $saveDirPtrn = $isProton ? $PROTON_BASE_DIR_PATTERN : $LINUX_BASE_DIR_PATTERN;
-  $saveDirPtrn .= "/" . $$GAMES{$kingdomGameName};
+  $saveDirPtrn .= "/" . $$GAME_SAVE_SUBDIRS{$kingdomGameName};
   my $saveDir = globOne "'$saveDirPtrn'";
   if(not defined $saveDir or not -d $saveDir){
     die "ERROR: SAVE_DIR '$saveDirPtrn' does not exist\n";
