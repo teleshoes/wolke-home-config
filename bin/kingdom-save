@@ -650,6 +650,18 @@ sub parseSaveInfo($$){
     @islandSaveInfos = map {parseIslandSaveFileJSON $_} @islandFiles;
   }
 
+  for my $islandInfo(@islandSaveInfos){
+    if(defined $islandInfo and defined $$islandInfo{campaignIndex}){
+      my $campaignIndex = $$islandInfo{campaignIndex};
+      if(defined ${$$globalSaveInfo{campaigns}}[$campaignIndex]){
+        my $campaign = ${$$globalSaveInfo{campaigns}}[$campaignIndex];
+        if(defined $campaign and defined $$campaign{biomeIndex}){
+          $$islandInfo{biomeIndex} = $$campaign{biomeIndex};
+        }
+      }
+    }
+  }
+
   runQuiet "rm", "-rf", $workDir;
 
   return {
@@ -682,6 +694,7 @@ sub parseGlobalSaveFileJSON($){
     my $cur = $$campaigns[$currentCampaign];
     if(ref $cur eq "HASH"){
       $curCampaignIndex = $currentCampaign;
+      $curBiomeIndex = $$cur{biomeIndex};
       $curChallengeId = undef;
       $curPlayTimeDays = $$cur{playTimeDays};
       $curLandIndex = $$cur{currentLand};
@@ -699,6 +712,7 @@ sub parseGlobalSaveFileJSON($){
           my $cur = $challenge;
           if(ref $cur eq "HASH"){
             $curCampaignIndex = undef;
+            $curBiomeIndex = undef;
             $curChallengeId = $currentChallenge;
             $curPlayTimeDays = $$cur{playTimeDays};
             $curLandIndex = $$cur{currentLand};
@@ -734,10 +748,13 @@ sub parseGlobalSaveFileJSON($){
 
   return {
     curCampaignIndex => $curCampaignIndex,
+    curBiomeIndex    => $curBiomeIndex,
     curChallengeId   => $curChallengeId,
     curPlayTimeDays  => $curPlayTimeDays,
     curLandIndex     => $curLandIndex,
     curStats         => $curStats,
+    campaigns        => $campaigns,
+    challenges       => $challenges,
   }
 }
 
