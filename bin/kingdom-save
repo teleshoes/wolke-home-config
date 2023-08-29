@@ -90,7 +90,9 @@ my $DEFAULT_FORMAT_LAND_SPEC = ''
   . '%n'
   ;
 my $NEW_SAVE_FORMAT_SUMMARY_SPEC = ''
-  . 'SAVED:%19s:DATE_TIME:'
+  . 'SAVED:'
+  . ' %4s:GAME_NAME_SHORT:'
+  . ' %19s:DATE_TIME:'
   . ' %03d:CUR_DAY:'
   . ' %4s:CUR_GAME_SHORT:'
   . ' %4s:CUR_LAND_SHORT:'
@@ -522,6 +524,8 @@ sub formatSave($$$$$){
     MTIME           => $$save{mtime},
     SHA1SUM         => $$save{sha1},
     CUR_DAY         => int($$g{curPlayTimeDays} + 1),
+    GAME_NAME       => $kingdomGameName,
+    GAME_NAME_SHORT => $$GAME_SHORT_NAMES{$kingdomGameName},
     CUR_GAME        => formatGame($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, 0),
     CUR_GAME_SHORT  => formatGame($kingdomGameName, $$g{curCampaignIndex}, $$g{curChallengeId}, 1),
     CUR_LAND_NUM    => $$g{curLandIndex} + 1,
@@ -880,14 +884,16 @@ sub ensureSaveCached($$$){
 
   my $cachedSave = $$cacheDirSavesInfo{savesBySha1}{$currentSaveSha1};
 
+  my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
+  chomp $datetimeFmt;
+
   if(defined $cachedSave){
     my $file = $$cachedSave{file};
     my $msg = "save already cached: $file\n";
-    notifySend $msg;
+    my $gameShortName = $$GAME_SHORT_NAMES{$kingdomGameName};
+    notifySend "CACHED: $gameShortName - $datetimeFmt";
     print "$msg\n";
   }else{
-    my $datetimeFmt = `date --date \@$currentSaveMtime +%Y%m%d_%H%M%S`;
-    chomp $datetimeFmt;
     my $cacheFileName = "${datetimeFmt}_${currentSaveSha1}.tar.xz";
 
     my $saveFileCachePath = "$cacheDir/$cacheFileName";
