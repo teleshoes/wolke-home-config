@@ -555,6 +555,7 @@ sub formatSave($$$$$){
 
   my @landVarSets = map { {
     DAY        => int($$_{playTimeDays} + 1),
+    ISLAND_DAY => int($$_{islandDays}),
     GAME       => formatGame($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, 0),
     GAME_SHORT => formatGame($kingdomGameName, $$_{campaignIndex}, $$_{challengeId}, 1),
     LAND_NUM   => $$_{landIndex} + 1,
@@ -796,7 +797,7 @@ sub parseIslandSaveFileJSON($){
   my ($islandFile) = @_;
 
   my ($campaignIndex, $challengeId, $landIndex,
-    $playTimeDays, $objectCounts, $bankCount);
+    $playTimeDays, $islandDays, $objectCounts, $bankCount);
 
   if($islandFile =~ /(?:^|\/)island(?:-v\d+)?-c([012])-l([012345])$/){
     ($campaignIndex, $landIndex) = ($1, $2);
@@ -807,6 +808,7 @@ sub parseIslandSaveFileJSON($){
   }
 
   my $json = `gzip --force --decompress --stdout $islandFile`;
+  $json =~ s/\\"/"/g;
   if($? != 0){
     die "ERROR: could not gzip decompress $islandFile\n";
   }
@@ -817,10 +819,14 @@ sub parseIslandSaveFileJSON($){
     $bankCount = 0;
   }
 
-  if($json =~ /"playTimeDays":(\d*\.\d*)/){
+  if($json =~ /"playTimeDays":(\d+|\d*\.\d+)/){
     $playTimeDays = $1;
   }else{
     die "ERROR: could not file playTimeDays for island $islandFile\n";
+  }
+
+  if($json =~ /"islandDays":(\d+|\d*\.\d+)/){
+    $islandDays = $1;
   }
 
   $objectCounts = {
@@ -847,6 +853,7 @@ sub parseIslandSaveFileJSON($){
     campaignIndex => $campaignIndex,
     challengeId   => $challengeId,
     landIndex     => $landIndex,
+    islandDays    => $islandDays,
     playTimeDays  => $playTimeDays,
     objectCounts  => $objectCounts,
     bankCount     => $bankCount,
