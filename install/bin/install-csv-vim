@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib `dirname $0 | tr -d '\n'`;
+use ScriptScript;
+
+my $VIM_DIR = "$ENV{HOME}/.vim";
+my $GIT_REPO = "https://github.com/chrisbra/csv.vim";
+
+my @FILES = qw(
+  autoload/csv.vim
+  doc/ft-csv.txt
+  ftdetect/csv.vim
+  ftplugin/csv.vim
+  plugin/csv.vim
+  syntax/csv.vim
+);
+
+my $USAGE = "Usage:
+  $0
+    -remove csv.vim files from $VIM_DIR
+    -install latest csv.vim files from $GIT_REPO
+    -disable automatic CSV syntax and filetype detection
+";
+
+sub main(@) {
+  my @cmds;
+
+  push @cmds, "echo INSTALLING csv.vim";
+
+  my @dirs = grep {/\//} @FILES;
+  s/\/.*// foreach @dirs;
+
+  push @cmds, "echo REMOVING FILES";
+  for my $file(@FILES){
+    push @cmds, "rm -f $VIM_DIR/$file";
+  }
+
+  push @cmds, "rmdir --ignore-fail-on-non-empty $VIM_DIR/*/";
+
+  for my $dir(@dirs){
+    push @cmds, "mkdir -p $VIM_DIR/$dir";
+  }
+
+  for my $file(@FILES){
+    push @cmds, "cp $file $VIM_DIR/$file";
+  }
+
+  push @cmds, "mv $VIM_DIR/syntax/csv.vim $VIM_DIR/csv-syntax.vim";
+  push @cmds, "sed -i 's/^au/\"au/' $VIM_DIR/ftdetect/csv.vim";
+
+  my $cmd = join " \\\n && ", @cmds;
+
+  installFromGit $GIT_REPO, $cmd;
+}
+
+&main(@ARGV);
