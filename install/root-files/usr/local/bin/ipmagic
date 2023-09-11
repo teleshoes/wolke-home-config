@@ -138,6 +138,15 @@ my $usage = "Usage:
                               =>
                               rsync -e 'ssh $defaultSSHArgs' /tmp/abc user\@dev1:/tmp/
 
+        --scp [ARG ARG..] copy files to/from remote server with scp
+                              -find the first ARG that starts with a ':' (if none, fail)
+                              -prefix this ARG with 'USER\@HOST'
+                              -run: `scp SSH_ARGS ... ARG ARG..
+                            e.g.:
+                              $EXEC lab3 -u root --scp :/tmp/abc /opt/
+                              =>
+                              scp $defaultSSHArgs root\@lab3:/tmp/abc /opt/
+
         -p|--proxy|--socks  run ssh with `-N -D $SOCKS_PORT` to act as a SOCKS server
                             on port $SOCKS_PORT
 
@@ -317,10 +326,10 @@ sub main(@){
     exit 0;
   }
 
-  my ($isVnc, $isSsh, $isRsync) = (0, 0, 0);
+  my ($isVnc, $isSsh, $isRsync, $isScp) = (0, 0, 0, 0);
   my $vncCmd;
   my @sshCmd;
-  my @rsyncArgs;
+  my @rsyncScpArgs;
   if(@_ > 0 and $_[0] eq '-vnc'){
     $isVnc = shift;
     if(defined $config{vncCommand}){
@@ -346,7 +355,11 @@ sub main(@){
   }elsif(@_ > 0 and $_[0] eq '--rsync'){
     shift;
     $isRsync = 1;
-    @rsyncArgs = @_;
+    @rsyncScpArgs = @_;
+  }elsif(@_ > 0 and $_[0] eq '--scp'){
+    shift;
+    $isScp = 1;
+    @rsyncScpArgs = @_;
   }elsif(@_ > 0){
     shift if $_[0] eq '-b';
     $isSsh = 1;
@@ -422,7 +435,7 @@ sub main(@){
     my @cmd = ("ssh", @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
-  }elsif($isRsync){
+  }elsif($isRsync or $isScp){
     ensureFingerprint $config{hostname}, $ip if defined $ip;
 
     my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
@@ -431,9 +444,15 @@ sub main(@){
       @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
     }
 
-    my @cmd = ("rsync", "-e", "ssh @sshCmdOpts");
+    my @cmd;
+    if($isRsync){
+      @cmd = ("rsync", "-e", "ssh @sshCmdOpts");
+    }elsif($isScp){
+      @cmd = ("scp", @sshCmdOpts);
+    }
+
     my $remoteFileFound = 0;
-    for my $arg(@rsyncArgs){
+    for my $arg(@rsyncScpArgs){
       if(not $remoteFileFound and $arg =~ /^:/){
         push @cmd, "$opts{user}\@$config{hostname}$arg";
         $remoteFileFound = 1;
@@ -442,7 +461,7 @@ sub main(@){
       }
     }
     if(not $remoteFileFound){
-      die "ERROR: no remote file found in rsync args \"@rsyncArgs\"\n";
+      die "ERROR: no remote file found in rsync/scp args \"@rsyncScpArgs\"\n";
     }
 
     print "@cmd\n" if $opts{verbose};
