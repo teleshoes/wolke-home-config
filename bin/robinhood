@@ -58,6 +58,24 @@ my $USAGE = "Usage:
       -store the quote in:
         $JSON_QUOTES_CACHE_DIR/YYYYMMDD_HHMMSS_MILLIS_SYMBOL.json
 
+  $EXEC [OPTS] --cleanup-quotes
+    -get all QUOTE_FILEs in $JSON_QUOTES_CACHE_DIR
+    -get the date DATE_YYYYMMDD for each QUOTE_FILE, formatted as YYYY-mm-dd
+    -group QUOTE_FILEs by DATE_YYYYMMDD
+    -for each DATE_YYYYMMDD:
+      -for each QUOTE_FILE with DATE_YYYYMMDD:
+        -get quote INSTRUMENT for the QUOTE_FILE
+        -get the LATEST_QUOTE_FILE for that INSTRUMENT
+        -skip QUOTE_FILE if QUOTE_FILE is the LATEST_QUOTE_FILE
+        -if the LATEST_QUOTE_FILE has a valid price:
+          -include QUOTE_FILE as OBSOLETE_QUOTE_FILE
+      -select the OLDEST_OBSOLETE_QUOTE_FILE
+      -obtain mtime in millis TIME_MILLIS of OLDEST_OBSOLETE_QUOTE_FILE
+      -create a tar file named <DATE_YYYYMMDD>_<TIMEMILLIS>_quotes.json
+        -add each OBSOLETE_QUOTE_FILE
+        -compress with xz
+        -delete each OBSOLETE_QUOTE_FILE
+
    OPTS
     --color
       use Term::ANSIColor to output text formatted with ANSI color escapes
@@ -91,6 +109,7 @@ sub colorText($$);
 sub usdFmt($$$$);
 sub dateFmt($$);
 sub nowMillis();
+sub mtime($);
 sub run(@);
 sub runQuiet(@);
 
@@ -99,6 +118,7 @@ my $COMMAND_SUMMARY = "summary";
 my $COMMAND_ORDERS = "orders";
 my $COMMAND_FETCH_ORDERS = "fetch-orders";
 my $COMMAND_FETCH_QUOTES = "fetch-quotes";
+my $COMMAND_CLEANUP_QUOTES = "cleanup-quotes";
 
 my $IS_TERM = -t STDOUT;
 
@@ -121,6 +141,8 @@ sub main(@){
       $cmd = $COMMAND_FETCH_ORDERS;
     }elsif($arg =~ /^(--fetch-quotes)$/){
       $cmd = $COMMAND_FETCH_QUOTES;
+    }elsif($arg =~ /^(--cleanup-quotes)$/){
+      $cmd = $COMMAND_CLEANUP_QUOTES;
     }elsif($arg =~ /^(--color)$/){
       $$opts{useColor} = 1;
     }elsif($arg =~ /^(--no-color)$/){
@@ -153,6 +175,9 @@ sub main(@){
   }elsif($cmd eq $COMMAND_FETCH_QUOTES){
     die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
     cmdFetchQuotes($opts);
+  }elsif($cmd eq $COMMAND_CLEANUP_QUOTES){
+    die "$USAGE\nERROR: unknown args @cmdArgs\n" if @cmdArgs > 0;
+    cmdCleanupQuotes($opts);
   }else{
     die $USAGE;
   }
@@ -265,6 +290,73 @@ sub cmdFetchQuotes($){
     for my $symbol(sort keys %seenSymbols){
       printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
     }
+  }
+}
+sub cmdCleanupQuotes($){
+  my ($opts) = @_;
+  my @quoteFiles = sort glob "$JSON_QUOTES_CACHE_DIR/*.json";
+  my $latestQuoteByInstrument = {};
+  my $quotesByDate = {};
+  my $maxDate;
+  for my $quoteFile(@quoteFiles){
+    if($quoteFile =~ /^(?:.*\/)?(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)_(\d+)_(\w+).json$/){
+      my ($date, $time, $millis, $instrument) = ($1, $2, $3, $4);
+      my $quote = {
+        date       => $date,
+        time       => $time,
+        millis     => $millis,
+        instrument => $instrument,
+        file       => $quoteFile,
+      };
+
+      $maxDate = $date if not defined $maxDate or $date >= $maxDate;
+
+      my $prevMillis = 0;
+      if(defined $$latestQuoteByInstrument{$instrument}){
+        $prevMillis = $$latestQuoteByInstrument{$instrument}{millis};
+      }
+      if($millis > $prevMillis){
+        $$latestQuoteByInstrument{$instrument} = $quote;
+      }
+      $$quotesByDate{$date} = [] if not defined $$quotesByDate{$date};
+      push @{$$quotesByDate{$date}}, $quote;
+    }
+  }
+
+  for my $date(sort keys %$quotesByDate){
+    next if $date eq $maxDate;
+    my @archiveFiles;
+    my @quotes = @{$$quotesByDate{$date}};
+    my $oldestMillis = ${$quotes[0]}{millis};
+    my $newestMtime = mtime ${$quotes[-1]}{file};
+    for my $quote(@quotes){
+      my $instrument = $$quote{instrument};
+      my $latestQuote = $$latestQuoteByInstrument{$instrument};
+      if($$latestQuote{file} eq $$quote{file}){
+        next;
+      }
+
+      my $latestPrice = readCachedQuoteFile($instrument, $$latestQuote{file});
+      if(defined $latestPrice){
+        print "archiving: $$quote{file}\n";
+        push @archiveFiles, $$quote{file};
+      }else{
+        print "NOT archiving $$quote{file}\n";
+      }
+    }
+
+    my $tarFile = "$JSON_QUOTES_CACHE_DIR/${date}_${oldestMillis}_quotes.tar.xz";
+
+    my @cmd = ("tar",
+      "--remove-files",
+      "--xform", "s:^.*/::", #flatten dirs
+      "-cJf", $tarFile,
+      @archiveFiles,
+    );
+    print "@cmd\n";
+    system @cmd;
+    system "touch", $tarFile, "--date=\@$newestMtime";
+    print "\n";
   }
 }
 
@@ -596,6 +688,12 @@ sub dateFmt($$){
 
 sub nowMillis(){
   return int(time*1000.0 + 0.5)
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
 }
 
 sub run(@){
