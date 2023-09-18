@@ -18,7 +18,9 @@ my @BROWSER_CMD_CHROME = ("google-chrome",
   "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT");
 my @BROWSER_CMD_CHROMIUM = ("chromium");
 
-my $URL_PATTERN_JITSI = "https://meet.jit.si/<ROOM>#config.startWithVideoMuted=true";
+my $URL_PATTERNS = {
+  $APP_JITSI      => "https://meet.jit.si/<ROOM>#config.startWithVideoMuted=true",
+};
 
 my $MODE_LAUNCH = "launch";
 my $MODE_URL = "url";
@@ -38,9 +40,13 @@ my $USAGE = "Usage:
     -open URL in BROWSER (or print the URL or ROOM_NAME)
 
   $EXEC [OPTS] --name
-    -same as: $EXEC --username
+    -same as: $EXEC --jitsi --username
 
   OPTS
+    --jitsi
+      use jitsi
+      (this is the default)
+
     --launch
       open the URL in browser
       (this is the default)
@@ -65,7 +71,10 @@ my $USAGE = "Usage:
       use ROOM_NAME instead of room name in secrets
 ";
 
+sub readSecrets($);
+
 sub main(@){
+  my $app = $APP_JITSI;
   my $mode = $MODE_LAUNCH;
   my @browserCmd = @BROWSER_CMD_CHROMIUM;
   my $roomOverride = undef;
@@ -74,6 +83,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--jitsi)$/){
+      $app = $APP_JITSI;
     }elsif($arg =~ /^(--launch)$/){
       $mode = $MODE_LAUNCH;
     }elsif($arg =~ /^(--print-url|--url)$/){
@@ -84,6 +95,7 @@ sub main(@){
       $mode = $MODE_USERNAME;
     }elsif($arg =~ /^(--name)$/){
       $mode = $MODE_USERNAME;
+      $app = $APP_JITSI;
     }elsif($arg =~ /^(--firefox|--ff)$/){
       @browserCmd = @BROWSER_CMD_FF;
     }elsif($arg =~ /^(--chrome)$/){
@@ -97,12 +109,12 @@ sub main(@){
     }
   }
 
-  my $secrets = readSecrets();
+  my $secrets = readSecrets($app);
   my $room = $$secrets{$ROOM_KEY};
   $room = $roomOverride if defined $roomOverride;
   my $username = $$secrets{$USERNAME_KEY};
 
-  my $url = $URL_PATTERN_JITSI;
+  my $url = $$URL_PATTERNS{$app};
   $url =~ s/<ROOM>/$room/g;
 
   if($mode eq $MODE_LAUNCH){
@@ -112,23 +124,25 @@ sub main(@){
   }elsif($mode eq $MODE_ROOM){
     print "$room\n";
   }elsif($mode eq $MODE_USERNAME){
+    die "ERROR: no username for $app\n" if not defined $username;
     print "$username\n";
   }else{
     die "ERROR: unknown mode $mode\n";
   }
 }
 
-sub readSecrets(){
+sub readSecrets($){
+  my ($app) = @_;
   my @lines = `cat $SECRETS_FILE 2>/dev/null`;
   my $cfg = {};
   my $okConfigKeys = join "|", @SECRETS_CONFIG_KEYS;
   for my $line(@lines){
-    if($line =~ /^$APP_JITSI\.($okConfigKeys)\s*=\s*(.+)$/){
+    if($line =~ /^$app\.($okConfigKeys)\s*=\s*(.+)$/){
       $$cfg{$1} = $2;
     }
   }
   for my $key(sort @SECRETS_REQUIRED_KEYS){
-    die "Missing config '$APP_JITSI.$key' in $SECRETS_FILE\n" if not defined $$cfg{$key};
+    die "Missing config '$app.$key' in $SECRETS_FILE\n" if not defined $$cfg{$key};
   }
   return $cfg;
 }
