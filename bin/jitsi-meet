@@ -13,6 +13,11 @@ my @REQUIRED_KEYS = ($ROOM_KEY);
 
 my @BROWSER_CMD = ("google-chrome", "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT");
 
+my $MODE_LAUNCH = "launch";
+my $MODE_URL = "url";
+my $MODE_ROOM = "room";
+my $MODE_USERNAME = "username";
+
 my $EXEC = basename $0;
 
 my $usage = "Usage:
@@ -36,25 +41,41 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
-  }elsif(@_ == 1 and $_[0] =~ /^(--url)$/){
-    my $secrets = readSecrets();
-    print "https://meet.jit.si/$$secrets{$ROOM_KEY}#config.startWithVideoMuted=true\n";
-  }elsif(@_ == 1 and $_[0] =~ /^(--room)$/){
-    my $secrets = readSecrets();
-    print "$$secrets{$ROOM_KEY}\n";
-  }elsif(@_ == 1 and $_[0] =~ /^(--name)$/){
-    my $secrets = readSecrets();
-    print "$$secrets{$NAME_KEY}\n";
-  }elsif(@_ == 1){
-    my $room = $_[0];
+  my $mode = $MODE_LAUNCH;
+  my $roomOverride = undef;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--url)$/){
+      $mode = $MODE_URL;
+    }elsif($arg =~ /^(--room)$/){
+      $mode = $MODE_ROOM;
+    }elsif($arg =~ /^(--name)$/){
+      $mode = $MODE_USERNAME;
+    }elsif($arg =~ /^(.+)$/){
+      $roomOverride = $1;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  my $secrets = readSecrets();
+  my $room = $$secrets{$ROOM_KEY};
+  $room = $roomOverride if defined $roomOverride;
+  my $username = $$secrets{$NAME_KEY};
+
+  if($mode eq $MODE_LAUNCH){
     exec @BROWSER_CMD, "https://meet.jit.si/$room#config.startWithVideoMuted=true";
-  }elsif(@_ == 0){
-    my $secrets = readSecrets();
-    exec @BROWSER_CMD, "https://meet.jit.si/$$secrets{$ROOM_KEY}#config.startWithVideoMuted=true";
+  }elsif($mode eq $MODE_URL){
+    print "https://meet.jit.si/$room#config.startWithVideoMuted=true\n";
+  }elsif($mode eq $MODE_ROOM){
+    print "$room\n";
+  }elsif($mode eq $MODE_USERNAME){
+    print "$username\n";
   }else{
-    die $usage;
+    die "ERROR: unknown mode $mode\n";
   }
 }
 
