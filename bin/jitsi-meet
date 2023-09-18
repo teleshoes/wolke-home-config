@@ -3,13 +3,15 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-my $ROOM_KEY = "dailystandup";
-my $NAME_KEY = "name";
-
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
-my $SECRETS_APP = "jitsi";
-my @CONFIG_KEYS = ($ROOM_KEY, $NAME_KEY);
-my @REQUIRED_KEYS = ($ROOM_KEY);
+
+my $APP_JITSI = "jitsi";
+
+my $ROOM_KEY = "dailystandup";
+my $USERNAME_KEY = "name";
+
+my @SECRETS_CONFIG_KEYS = ($ROOM_KEY, $USERNAME_KEY);
+my @SECRETS_REQUIRED_KEYS = ($ROOM_KEY);
 
 my @BROWSER_CMD = ("google-chrome", "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT");
 
@@ -34,7 +36,7 @@ my $USAGE = "Usage:
     print room name at jitsi.$ROOM_KEY in secrets
 
   $EXEC [OPTS] --name
-    print name at jitsi.$NAME_KEY in secrets
+    print name at jitsi.$USERNAME_KEY in secrets
 
   OPTS
     --room=ROOM_NAME
@@ -65,7 +67,7 @@ sub main(@){
   my $secrets = readSecrets();
   my $room = $$secrets{$ROOM_KEY};
   $room = $roomOverride if defined $roomOverride;
-  my $username = $$secrets{$NAME_KEY};
+  my $username = $$secrets{$USERNAME_KEY};
 
   if($mode eq $MODE_LAUNCH){
     exec @BROWSER_CMD, "https://meet.jit.si/$room#config.startWithVideoMuted=true";
@@ -83,14 +85,14 @@ sub main(@){
 sub readSecrets(){
   my @lines = `cat $SECRETS_FILE 2>/dev/null`;
   my $cfg = {};
-  my $okConfigKeys = join "|", @CONFIG_KEYS;
+  my $okConfigKeys = join "|", @SECRETS_CONFIG_KEYS;
   for my $line(@lines){
-    if($line =~ /^$SECRETS_APP\.($okConfigKeys)\s*=\s*(.+)$/){
+    if($line =~ /^$APP_JITSI\.($okConfigKeys)\s*=\s*(.+)$/){
       $$cfg{$1} = $2;
     }
   }
-  for my $key(sort @REQUIRED_KEYS){
-    die "Missing config '$key' in $SECRETS_FILE\n" if not defined $$cfg{$key};
+  for my $key(sort @SECRETS_REQUIRED_KEYS){
+    die "Missing config '$APP_JITSI.$key' in $SECRETS_FILE\n" if not defined $$cfg{$key};
   }
   return $cfg;
 }
