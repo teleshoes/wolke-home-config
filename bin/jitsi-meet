@@ -13,7 +13,10 @@ my $USERNAME_KEY = "name";
 my @SECRETS_CONFIG_KEYS = ($ROOM_KEY, $USERNAME_KEY);
 my @SECRETS_REQUIRED_KEYS = ($ROOM_KEY);
 
-my @BROWSER_CMD = ("google-chrome", "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT");
+my @BROWSER_CMD_FF = ("firefox");
+my @BROWSER_CMD_CHROME = ("google-chrome",
+  "--simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT");
+my @BROWSER_CMD_CHROMIUM = ("chromium");
 
 my $MODE_LAUNCH = "launch";
 my $MODE_URL = "url";
@@ -48,12 +51,21 @@ my $USAGE = "Usage:
         $APP_JITSI.$USERNAME_KEY
       print USER_NAME instead of launching browser
 
+    --firefox | --ff
+      use BROWSER=@BROWSER_CMD_FF
+    --chrome
+      use BROWSER=@BROWSER_CMD_CHROME
+    --chromium
+      use BROWSER=@BROWSER_CMD_CHROMIUM
+      (this is the default)
+
     --room=ROOM_NAME
       use ROOM_NAME instead of room name in secrets
 ";
 
 sub main(@){
   my $mode = $MODE_LAUNCH;
+  my @browserCmd = @BROWSER_CMD_CHROMIUM;
   my $roomOverride = undef;
   while(@_ > 0){
     my $arg = shift @_;
@@ -70,6 +82,12 @@ sub main(@){
       $mode = $MODE_USERNAME;
     }elsif($arg =~ /^(--name)$/){
       $mode = $MODE_USERNAME;
+    }elsif($arg =~ /^(--firefox|--ff)$/){
+      @browserCmd = @BROWSER_CMD_FF;
+    }elsif($arg =~ /^(--chrome)$/){
+      @browserCmd = @BROWSER_CMD_CHROME;
+    }elsif($arg =~ /^(--chromium)$/){
+      @browserCmd = @BROWSER_CMD_CHROMIUM;
     }elsif($arg =~ /^--room=(.+)$/){
       $roomOverride = $1;
     }else{
@@ -82,8 +100,9 @@ sub main(@){
   $room = $roomOverride if defined $roomOverride;
   my $username = $$secrets{$USERNAME_KEY};
 
+
   if($mode eq $MODE_LAUNCH){
-    exec @BROWSER_CMD, "https://meet.jit.si/$room#config.startWithVideoMuted=true";
+    exec @browserCmd, "https://meet.jit.si/$room#config.startWithVideoMuted=true";
   }elsif($mode eq $MODE_URL){
     print "https://meet.jit.si/$room#config.startWithVideoMuted=true\n";
   }elsif($mode eq $MODE_ROOM){
