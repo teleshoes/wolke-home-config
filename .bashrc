@@ -154,7 +154,6 @@ function f            { feh "$@"; }
 function p            { pushup "$@"; }
 function snapshot     { backup --snapshot "$@"; }
 function qgroups-info { backup --info --quick --sort-by=size "$@"; }
-function dus          { du -s * | sort -g "$@"; }
 function killjobs     { kill -9 `jobs -p` 2>/dev/null; sleep 0.1; echo; }
 function gvim         { term vim "$@"; }
 function cx           { chmod +x "$@"; }
