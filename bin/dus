@@ -1,0 +1,144 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my @DEFAULT_EXCLUDES = qw(SUBVOL);
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS]
+    same as: $EXEC OPTS *" . join('', map {" -x $_"} @DEFAULT_EXCLUDES) . "
+
+  $EXEC [OPTS] FILE FILE..
+    -run `du -bs` on FILEs to obtain SIZE_BYTES
+    -sort FILEs in increasing order of SIZE_BYTES
+    -format SIZE_BYTES as SIZE for each FILE
+      -optionally convert SIZE_BYTES to human readable size
+    -prepend spaces to SIZE to right-align the least significant digit of each SIZE
+    -format each FILE and SIZE as 'SIZE   FILE', and print one per line
+
+  OPTS
+    -x FILE | --exclude=FILE | --exclude FILE
+      exclude FILE, even if given on cmdline
+
+    -b
+      keep apparent size of files in bytes: `du -b`
+
+    -h
+      convert apparent size of files in bytes to human readable sizes, e.g.: 152.1K
+        -choose the smallest power of 1024 that is smller than the size in bytes
+          -or the smallest power of 1000 if --si is given
+        -format the value to the tenth, i.e.: %.1f
+        -append a suffix B/K/M/G/T/P/E/Z/Y
+          -or B/KB/MB/GB/TB/PB/EB/ZB/YB if --si is given
+      (this is the default)
+
+    --si
+      use powers of 1000 instead of 1024, and append 'B' to suffix (e.g.: M => MB)
+";
+
+sub main(@){
+  my $useHuman = 1;
+  my $useSIUnits = 0;
+  my @files;
+  my @excludes;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-e $arg or -l $arg){
+      push @files, $arg;
+    }elsif($arg =~ /^(-x|--exclude)$/ and @_ > 1){
+      push @excludes, shift @_;
+    }elsif($arg =~ /^--exclude=(.+)$/){
+      push @excludes, $1;
+    }elsif($arg =~ /^(-b)$/){
+      $useHuman = 0;
+    }elsif($arg =~ /^(-h)$/){
+      $useHuman = 1;
+    }elsif($arg =~ /^(--si)$/){
+      $useSIUnits = 1;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(@files == 0){
+    @files = glob "*" if @files == 0;
+    @excludes = (@excludes, @DEFAULT_EXCLUDES);
+  }
+
+  my @duCmd = ("du", "-bs", @files);
+
+  open my $fh, "-|", @duCmd or die "ERROR: du failed\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
+
+  my %sizeBytes;
+  for my $line(@lines){
+    if($line =~ /^(\d+)\t(.+)$/){
+      $sizeBytes{$2} = $1;
+    }else{
+      die "ERROR: malformed `du` output line $line";
+    }
+  }
+
+  my @fileOrder = sort {$sizeBytes{$a} <=> $sizeBytes{$b}} sort keys %sizeBytes;
+
+  my %sizeFmt;
+  if($useHuman){
+    %sizeFmt = map {$_ => formatBytes($useSIUnits, undef, undef, $sizeBytes{$_})}
+               sort keys %sizeBytes;
+  }else{
+    %sizeFmt = %sizeBytes;
+  }
+
+  my $maxSizeLen = 0;
+  for my $file(@fileOrder){
+    my $size = $sizeFmt{$file};
+    $maxSizeLen = length $size if length $size > $maxSizeLen;
+  }
+
+  for my $file(@fileOrder){
+    my $size = $sizeFmt{$file};
+    $size = sprintf "%${maxSizeLen}s", $size;
+    print "$size   $file\n";
+  }
+}
+
+sub formatBytes($$$$){
+  my ($siUnits, $minPower, $maxPower, $bytes) = @_;
+  my ($base, @units);
+  if($siUnits){
+    $base = 10**3;
+    @units = qw(B KB MB GB TB PB EB ZB YB);
+  }else{
+    $base = 2**10;
+    @units = qw(B K M G T P E Z Y);
+  }
+
+  my $targetPow = 0;
+  for(my $pow = 0; $pow < @units; $pow++){
+    if($bytes / $base**($pow) >= 1){
+      $targetPow = $pow;
+    }else{
+      last;
+    }
+  }
+
+  $targetPow = $maxPower if defined $maxPower and $targetPow > $maxPower;
+  $targetPow = $minPower if defined $minPower and $targetPow < $minPower;
+  $targetPow = @units - 1 if $targetPow > @units - 1;
+
+  return sprintf "%.1f%s",
+    $bytes / $base**($targetPow),
+    $units[$targetPow];
+}
+
+&main(@ARGV);
