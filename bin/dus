@@ -26,6 +26,9 @@ my $USAGE = "Usage:
     -x FILE | --exclude=FILE | --exclude FILE
       exclude FILE, even if given on cmdline
 
+    -c | -t | --total
+      display an extra line with a grand total with FILE='TOTAL'
+
     -b
       keep apparent size of files in bytes: `du -b`
 
@@ -45,6 +48,7 @@ my $USAGE = "Usage:
 sub main(@){
   my $useHuman = 1;
   my $useSIUnits = 0;
+  my $useTotal = 0;
   my @files;
   my @excludes;
   while(@_ > 0){
@@ -58,6 +62,8 @@ sub main(@){
       push @excludes, shift @_;
     }elsif($arg =~ /^--exclude=(.+)$/){
       push @excludes, $1;
+    }elsif($arg =~ /^(-c|-t|--total)$/){
+      $useTotal = 1;
     }elsif($arg =~ /^(-b)$/){
       $useHuman = 0;
     }elsif($arg =~ /^(-h)$/){
@@ -84,9 +90,11 @@ sub main(@){
   close $fh;
 
   my %sizeBytes;
+  my $totalBytes = 0;
   for my $line(@lines){
     if($line =~ /^(\d+)\t(.+)$/){
       $sizeBytes{$2} = $1;
+      $totalBytes += $1;
     }else{
       die "ERROR: malformed `du` output line $line";
     }
@@ -112,6 +120,12 @@ sub main(@){
     my $size = $sizeFmt{$file};
     $size = sprintf "%${maxSizeLen}s", $size;
     print "$size   $file\n";
+  }
+
+  if($useTotal){
+    my $size = $useHuman ? formatBytes($useSIUnits, undef, undef, $totalBytes) : $totalBytes;
+    $size = sprintf "%${maxSizeLen}s", $size;
+    print "$size   TOTAL\n";
   }
 }
 
