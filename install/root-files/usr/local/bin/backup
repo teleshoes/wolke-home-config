@@ -39,6 +39,14 @@ my $COMMAND_DELETE = "delete";
 my $COMMAND_INFO = "info";
 my $COMMAND_BASH_COMPLETE = "bash-complete";
 
+my $DF_USED_BYTES = "usedBytes";
+my $DF_AVAIL_BYTES = "availBytes";
+my $DF_SIZE_BYTES = "sizeBytes";
+my $DF_USED_GIB = "usedGiB";
+my $DF_AVAIL_GIB = "availGiB";
+my $DF_SIZE_GIB = "sizeGiB";
+my $DF_PERCENT = "percent";
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     print this message
@@ -287,10 +295,8 @@ sub readBackupConf($);
 sub readBackupNames($);
 
 sub sync($);
-sub dfPercent($$);
-sub dfSizeBytes($$);
-sub dfUsedGiB($$);
-sub dfBytes($$$);
+sub df($$);
+sub dfGet($$$);
 sub formatBytes($$$$);
 sub getUsers();
 sub createLogFile($$$);
@@ -562,7 +568,7 @@ sub main(@){
     my ($mountpoint) = @commandArgs;
     ensureRoot();
 
-    my $fsSizeBytes = dfSizeBytes($ipmagicName, $mountpoint);
+    my $fsSizeBytes = dfGet($ipmagicName, $mountpoint, $DF_SIZE_BYTES);
 
     if($infoRescan){
       print "(re-)enabling quota and rescanning:\n";
@@ -654,7 +660,7 @@ sub backupRsync($$$){
 
   my $logHandle = startLogging($logFile);
 
-  my $dfUsedStart = dfUsedGiB $ipmagicName, $destMountpoint;
+  my $dfUsedStart = dfGet($ipmagicName, $destMountpoint, $DF_USED_GIB);
 
   print "INITIAL DF:\n";
   run $ipmagicName, "df", $destMountpoint;
@@ -675,8 +681,8 @@ sub backupRsync($$$){
   print "FINAL DF:\n";
   run $ipmagicName, "df", $destMountpoint;
 
-  my $dfUsedEnd = dfUsedGiB $ipmagicName, $destMountpoint;
-  my $dfPercent = dfPercent $ipmagicName, $destMountpoint;
+  my $dfUsedEnd = dfGet($ipmagicName, $destMountpoint, $DF_USED_GIB);
+  my $dfPercent = dfGet($ipmagicName, $destMountpoint, $DF_PERCENT);
 
   print "\ndf used: $dfUsedStart => $dfUsedEnd ($dfPercent%)\n";
 
@@ -1183,38 +1189,37 @@ sub sync($){
   run $ipmagicName, "sync";
 }
 
-sub dfPercent($$){
+sub df($$){
   my ($ipmagicName, $mountpoint) = @_;
-  my $dfOut = readProc $ipmagicName, "df --output=pcent \"$mountpoint\"";
-  my $percent;
-  if($dfOut =~ /^Use%\n\s*(\d+)\s*%$/){
-    $percent = $1;
+  my $dfOut = readProc $ipmagicName, "df -B1 --output=used,avail,size \"$mountpoint\"";
+  my ($usedBytes, $availBytes, $sizeBytes);
+  if($dfOut =~ /^\s*Used\s+Avail\s+\w+-blocks\s*\n\s*(\d+)\s+(\d+)\s+(\d+)\s*$/){
+    ($usedBytes, $availBytes, $sizeBytes) = ($1, $2, $3);
+  }else{
+    my $location = defined $ipmagicName ? "ipmagic=$ipmagicName" : "localhost";
+    die "ERROR: could not parse output of `df` for $mountpoint on $location\n";
   }
-  die "ERROR: could not parse percent in df\n" if $percent !~ /^\d+$/;
-  return $percent;
+
+  return {
+    $DF_USED_BYTES  => $usedBytes,
+    $DF_AVAIL_BYTES => $availBytes,
+    $DF_SIZE_BYTES  => $sizeBytes,
+
+    $DF_USED_GIB    => formatBytes(0, 3, 3, $usedBytes),
+    $DF_AVAIL_GIB   => formatBytes(0, 3, 3, $availBytes),
+    $DF_SIZE_GIB    => formatBytes(0, 3, 3, $sizeBytes),
+
+    $DF_PERCENT     => int(($sizeBytes-$availBytes)/$sizeBytes*100.0 + 0.5),
+  };
 }
 
-sub dfSizeBytes($$){
-  my ($ipmagicName, $mountpoint) = @_;
-  return dfBytes($ipmagicName, $mountpoint, "size");
-}
-sub dfUsedGiB($$){
-  my ($ipmagicName, $mountpoint) = @_;
-  my $bytes = dfBytes($ipmagicName, $mountpoint, "used");
-  return formatBytes(0, 3, 3, $bytes);
-}
-sub dfBytes($$$){
+sub dfGet($$$){
   my ($ipmagicName, $mountpoint, $dfField) = @_;
-
-  my $bytes = 0;
-  my $dfOut = readProc $ipmagicName, "df -B1 --output=$dfField \"$mountpoint\"";
-  if($dfOut =~ /^(?:.*\n)?(\d+)$/){
-    $bytes = $1;
-  }
-  #positive integer only
-  die "ERROR: df failed for $mountpoint\n" if $bytes !~ /^[1-9]\d*$/;
-  return $bytes;
+  my $df = df($ipmagicName, $mountpoint);
+  die "ERROR: unknown df field $dfField\n" if not defined $$df{$dfField};
+  return $$df{$dfField};
 }
+
 sub formatBytes($$$$){
   my ($siUnits, $minPower, $maxPower, $bytes) = @_;
   my ($base, @units);
