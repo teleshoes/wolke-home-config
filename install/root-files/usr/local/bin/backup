@@ -46,6 +46,8 @@ my $DF_USED_GIB = "usedGiB";
 my $DF_AVAIL_GIB = "availGiB";
 my $DF_SIZE_GIB = "sizeGiB";
 my $DF_PERCENT = "percent";
+my $DF_MOUNTPOINT = "mountpoint";
+my $DF_HOST = "host";
 
 my $USAGE = "Usage:
   $EXEC -h|--help
@@ -1192,12 +1194,20 @@ sub sync($){
 sub df($$){
   my ($ipmagicName, $mountpoint) = @_;
   my $dfOut = readProc $ipmagicName, "df -B1 --output=used,avail,size \"$mountpoint\"";
+
+  my $host;
+  if(defined $ipmagicName){
+    $host = readProc undef, "ipmagic", $ipmagicName, "--host";
+    chomp $host;
+  }else{
+    $host = "localhost";
+  }
+
   my ($usedBytes, $availBytes, $sizeBytes);
   if($dfOut =~ /^\s*Used\s+Avail\s+\w+-blocks\s*\n\s*(\d+)\s+(\d+)\s+(\d+)\s*$/){
     ($usedBytes, $availBytes, $sizeBytes) = ($1, $2, $3);
   }else{
-    my $location = defined $ipmagicName ? "ipmagic=$ipmagicName" : "localhost";
-    die "ERROR: could not parse output of `df` for $mountpoint on $location\n";
+    die "ERROR: could not parse output of `df` for $mountpoint on $host\n";
   }
 
   return {
@@ -1210,6 +1220,8 @@ sub df($$){
     $DF_SIZE_GIB    => formatBytes(0, 3, 3, $sizeBytes),
 
     $DF_PERCENT     => int(($sizeBytes-$availBytes)/$sizeBytes*100.0 + 0.5),
+    $DF_MOUNTPOINT  => $mountpoint,
+    $DF_HOST        => $host,
   };
 }
 
