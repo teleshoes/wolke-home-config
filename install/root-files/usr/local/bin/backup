@@ -299,6 +299,7 @@ sub readBackupNames($);
 sub sync($);
 sub df($$);
 sub dfGet($$$);
+sub formatDF($);
 sub formatBytes($$$$);
 sub getUsers();
 sub createLogFile($$$);
@@ -662,10 +663,12 @@ sub backupRsync($$$){
 
   my $logHandle = startLogging($logFile);
 
-  my $dfUsedStart = dfGet($ipmagicName, $destMountpoint, $DF_USED_GIB);
+  my $srcDF = df(undef, $srcMountpoint);
+  my $destDFStart = df($ipmagicName, $destMountpoint);
 
   print "INITIAL DF:\n";
-  run $ipmagicName, "df", $destMountpoint;
+  print formatDF($srcDF) . " (initial)" . "\n";
+  print formatDF($destDFStart) . " (initial)" . "\n";
   print "\n";
 
   my $rsyncStartMillis = nowMillis();
@@ -680,13 +683,13 @@ sub backupRsync($$$){
   printf "  elapsed: %s\n", formatMillisHHMMSSFFF($syncEndMillis - $syncStartMillis);
   print "\n";
 
+  my $destDFEnd = df($ipmagicName, $destMountpoint);
+
   print "FINAL DF:\n";
-  run $ipmagicName, "df", $destMountpoint;
-
-  my $dfUsedEnd = dfGet($ipmagicName, $destMountpoint, $DF_USED_GIB);
-  my $dfPercent = dfGet($ipmagicName, $destMountpoint, $DF_PERCENT);
-
-  print "\ndf used: $dfUsedStart => $dfUsedEnd ($dfPercent%)\n";
+  print formatDF($srcDF) . " (initial)" . "\n";
+  print formatDF($destDFStart) . " (initial)" . "\n";
+  print formatDF($destDFEnd) . " (final)" . "\n";
+  print "\n";
 
   stopLogging($logHandle);
 
@@ -1230,6 +1233,18 @@ sub dfGet($$$){
   my $df = df($ipmagicName, $mountpoint);
   die "ERROR: unknown df field $dfField\n" if not defined $$df{$dfField};
   return $$df{$dfField};
+}
+
+sub formatDF($){
+  my ($df) = @_;
+  return sprintf("%s / %s   %d%%   avail=%db %-22s   %s",
+    $$df{$DF_USED_GIB},
+    $$df{$DF_SIZE_GIB},
+    $$df{$DF_PERCENT},
+    $$df{$DF_AVAIL_BYTES},
+    $$df{$DF_MOUNTPOINT},
+    $$df{$DF_HOST},
+  );
 }
 
 sub formatBytes($$$$){
