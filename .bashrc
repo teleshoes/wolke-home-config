@@ -6,6 +6,8 @@
 shopt -s dotglob
 shopt -s extglob
 
+bind 'set enable-bracketed-paste off'
+
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 
 # allow <C-S> in vim
