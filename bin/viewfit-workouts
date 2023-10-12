@@ -1,0 +1,172 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use JSON qw(from_json);
+use Time::HiRes qw(time);
+
+my $EXEC = basename $0;
+my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/viewfit/workouts-json";
+
+my $VIEWFIT_EXERCISER_BASE_URL = 'https://www.viewfit.com/exerciser/exerciser';
+
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_PREFIX = "viewfit";
+my $SECRETS_KEYS_REGEX = join "|", qw(exerciser);
+my %SECRETS_ENC_KEYS = map {$_ => 1} qw();
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC [OPTS]
+  $EXEC [OPTS] -g | --get
+    parse workouts in $WORKOUTS_JSON_CACHE_DIR
+
+  $EXEC [OPTS] -f | --fetch
+    fetch workouts from:
+      $VIEWFIT_EXERCISER_BASE_URL/<UUID>/workouts
+    and store them in $WORKOUTS_JSON_CACHE_DIR
+
+  OPTS
+";
+
+sub readCachedWorkouts();
+sub fetchViewfitWorkouts();
+sub readFile($);
+sub writeFile($$);
+sub getExerciserUUID();
+sub readSecrets();
+sub decrypt($);
+sub dateFmt($$);
+sub nowMillis();
+sub run(@);
+sub runQuiet(@);
+
+my $COMMAND_GET = "get";
+my $COMMAND_FETCH = "fetch";
+
+sub main(@){
+  my $cmd = $COMMAND_GET;
+  my $opts = {};
+  my @cmdArgs;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-g|--get)$/){
+      $cmd = $COMMAND_GET;
+    }elsif($arg =~ /^(-f|--fetch)$/){
+      $cmd = $COMMAND_FETCH;
+    }else{
+      push @cmdArgs, $arg;
+    }
+  }
+
+  if($cmd eq $COMMAND_GET){
+    readCachedWorkouts();
+  }elsif($cmd eq $COMMAND_FETCH){
+    fetchViewfitWorkouts();
+  }else{
+    die $USAGE;
+  }
+}
+
+sub readCachedWorkouts(){
+  my @jsonFiles = sort glob "$WORKOUTS_JSON_CACHE_DIR/workouts_*.json";
+  die "ERROR: could not find any workout json files in cache\n" if @jsonFiles == 0;
+  my $latestJsonFile = $jsonFiles[-1];
+  my $json = from_json(readFile($latestJsonFile));
+  my @workouts = @{$$json{workouts}};
+  die 0+@workouts;
+  die sort keys %$json;
+}
+
+sub fetchViewfitWorkouts(){
+  my $exerciserUUID = getExerciserUUID();
+  my $url = "$VIEWFIT_EXERCISER_BASE_URL/$exerciserUUID/workouts";
+
+  my $nowMillis = nowMillis();
+  my $nowEpoch = $nowMillis / 1000.0;
+  my $nowFmt = dateFmt($nowEpoch, "%Y-%m-%d_%H%M%S");
+  my $cacheFile = "$WORKOUTS_JSON_CACHE_DIR/workouts_${nowFmt}_$nowMillis.json";
+
+  my @cmd = ("curl",
+    "--silent",
+    $url,
+    "--output", $cacheFile,
+  );
+  run @cmd;
+  die "ERROR: curl failed\n$!\n" if $? != 0;
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $content = join '', <FH>;
+  close FH;
+  return $content;
+}
+
+sub writeFile($$){
+  my ($file, $content) = @_;
+  open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print FH $content;
+  close FH;
+}
+
+sub getExerciserUUID(){
+  my $secrets = readSecrets();
+  if(not defined $$secrets{exerciser}){
+    die "ERROR: could not read $SECRETS_PREFIX.excerciser in secrets\n"
+  }
+  return $$secrets{exerciser};
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $secrets = {};
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_PREFIX\.($SECRETS_KEYS_REGEX)\s*=\s*(.+)$/){
+      $$secrets{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$secrets){
+    $$secrets{$key} = decrypt $$secrets{$key} if defined $SECRETS_ENC_KEYS{$key};
+  }
+  return $secrets;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
+}
+
+sub dateFmt($$){
+  my ($epoch, $fmt) = @_;
+  my $dateFmt = `date --date=\@$epoch +'$fmt'`;
+  chomp $dateFmt;
+  return $dateFmt;
+}
+
+sub nowMillis(){
+  return int(time*1000.0 + 0.5)
+}
+
+sub run(@){
+  print "@_\n";
+  runQuiet(@_);
+}
+
+sub runQuiet(@){
+  system @_;
+}
+
+&main(@ARGV);
