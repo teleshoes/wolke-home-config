@@ -1,0 +1,188 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub mtime($);
+
+my $WORKOUT_DCIM_BASE_DIR = "$ENV{HOME}/DCIM/xhealth";
+
+sub main(@){
+  my ($infoFile) = @_;
+  die "USAGE: $0 INFO_FILE\n" if not defined $infoFile or not -f $infoFile;
+  my $fileInfo = {};
+  for my $line(`cat $infoFile`){
+    if($line !~ /^([^\/]*)\/([a-zA-Z0-9_\-]+)\.(jpg|png): (.+)$/){
+      die "ERROR: malformed line $line";
+    }
+    my ($dirBaseName, $fileBaseName, $ext, $infoStr) = ($1, $2, $3, $4);
+    next if $infoStr =~ /^\s*trash\s*$/;
+    my @infoVals = split /\s+/, $infoStr;
+
+    if($dirBaseName =~ /^(?:\.\/)?(\d\d\d\d-\d\d-\d\d)(?:_\w+)?$/){
+      $dirBaseName = $1;
+    }else{
+      die "ERROR: invalid dirname $dirBaseName\n";
+    }
+    if($fileBaseName =~ /^(?:IMG_)?(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d)(?:_[a-zA-Z0-9_\-]+)?$/){
+      $fileBaseName = $1;
+    }else{
+      die "ERROR: invalid filename $fileBaseName\n";
+    }
+
+    my $ptrn = "$WORKOUT_DCIM_BASE_DIR/$dirBaseName*/*$fileBaseName*.$ext";
+    my @files = glob $ptrn;
+    die "ERROR: could not find $ptrn\n" if @files == 0;
+    die "ERROR: too many files match $ptrn\n" if @files > 1;
+    my $file = $files[0];
+
+    my ($dirName, $fileName);
+    if(-f $file and $file =~ /^(.+)\/([^\/]+)$/){
+      ($dirName, $fileName) = ($1, $2);
+    }else{
+      die "ERROR: invalid file $file\n";
+    }
+
+    my $info = {};
+    $$fileInfo{$file} = $info;
+
+    $$info{mtime} = mtime "$file";
+    $$info{dirName} = $dirName;
+    $$info{fileBaseName} = $fileBaseName;
+    $$info{fileExt} = $ext;
+    $$info{file} = $file;
+    $$info{infoStr} = $infoStr;
+    for my $val(@infoVals){
+      if($val =~ /^(\d+):(\d+)$/){
+        $$info{time} = $1*60 + $2;
+      }elsif($val =~ /^(\d+)s$/){
+        $$info{time} = $1;
+      }elsif($val =~ /^(\d+)m$/){
+        $$info{m} = $1;
+      }elsif($val =~ /^offset(\d+):(\d+)$/){
+        $$info{offset} = 300 - ($1*60 + $2);
+      }elsif($val =~ /^(run|bike)$/){
+        $$info{type} = $val;
+      }elsif($val =~ /^(\d+|\d*\.\d+)mi$/){
+        $$info{mi} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)cmi$/){
+        $$info{mi} = sprintf "%.2f", $1/100.0;
+      }elsif($val =~ /^(\d+|\d*\.\d+)mph$/){
+        $$info{mph} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)rpm$/){
+        $$info{rpm} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)rpmavg$/){
+        $$info{rpmavg} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)cal$/){
+        $$info{cal} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)hr$/){
+        $$info{hr} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)v$/){
+        $$info{level} = $1;
+      }elsif($val =~ /^(\d+|\d*\.\d+)lbs$/){
+        $$info{weight} = $1;
+      }elsif($val =~ /^(reminder_\w+)$/){
+        $$info{reminder} = $1;
+      }else{
+        die "malformed val $val\n";
+      }
+    }
+
+    $$info{realMPH} = $$info{mi}/$$info{time}*60*60 if defined $$info{mi} and defined $$info{time};
+
+    if(defined $$info{rpm} or defined $$info{level} or defined $$info{rpmavg}){
+      $$info{type} = "bike";
+    }
+    if(defined $$info{mph}){
+      $$info{type} = "run";
+    }
+    if(not defined $$info{type} and defined $$info{realMPH} and $$info{realMPH} > 12){
+      $$info{type} = "bike";
+    }
+    if(not defined $$info{type} and defined $$info{mi} and $$info{mi} < 2.2 and defined $$info{realMPH} and $$info{realMPH} < 11){
+      $$info{type} = "run";
+    }
+    if(defined $$info{reminder}){
+      $$info{type} = "reminder";
+    }
+    if(defined $$info{weight}){
+      $$info{type} = "weight";
+    }
+    if(not defined $$info{type} and $infoStr =~ /^\d+hr$/){
+      $$info{type} = "run";
+    }
+  }
+
+  for my $file(sort keys %$fileInfo){
+    my $info = $$fileInfo{$file};
+    my $closestDiff;
+    my $closestInfo;
+    my $mtime = $$info{mtime};
+    for my $otherFile(sort keys %$fileInfo){
+      next if $file eq $otherFile;
+      my $otherInfo = $$fileInfo{$otherFile};
+      my $otherMtime = $$otherInfo{mtime};
+      my $diff = $mtime - $otherMtime;
+      $diff = 0 - $diff if $diff < 0;
+      if(not defined $closestDiff or $closestDiff > $diff){
+        $closestDiff = $diff;
+        $closestInfo = $otherInfo;
+      }
+    }
+
+    if(not defined $$info{type}){
+      print "$$info{file} = $$info{infoStr}\n";
+    }
+
+    my $infoFmt;
+    if($$info{type} eq "reminder"){
+      $infoFmt = $$info{reminder};
+    }elsif($$info{type} eq "weight"){
+      $infoFmt = "weight-" . sprintf("%05.1flbs", $$info{weight});
+    }elsif($$info{type} eq "bike"){
+      $infoFmt = "bike";
+      $infoFmt .= defined $$info{time} ? sprintf "-%04ds", $$info{time} : "-____s";
+      $infoFmt .= defined $$info{level} ? "-$$info{level}v" : "-14v";
+      $infoFmt .= defined $$info{mi} ? sprintf "-%03dcmi", $$info{mi}*100.0 : "-___cmi";
+      if(defined $$info{rpm}){
+        $infoFmt .= sprintf "-%03drpm", $$info{rpm};
+      }elsif(defined $$info{rpmavg}){
+        $infoFmt .= sprintf "-%03drpmavg", $$info{rpmavg};
+      }else{
+        $infoFmt .= "-___rpm";
+      }
+      $infoFmt .= defined $$info{cal} ? sprintf("-%03dcal", $$info{cal}) : "-___cal";
+      $infoFmt .= defined $$info{hr} ? sprintf("-%03dhr", $$info{hr}) : "-___hr";
+    }elsif($$info{type} eq "run"){
+      $infoFmt = "run";
+      if(defined $$info{m} and defined $$info{mph} and not defined $$info{time}){
+        $infoFmt .= sprintf "-%dm", $$info{m};
+        $infoFmt .= sprintf "-%dmph", $$info{mph};
+      }else{
+        $infoFmt .= defined $$info{time} ? sprintf "-%04ds", $$info{time} : "-____s";
+        $infoFmt .= defined $$info{mi} ? sprintf "-%03dcmi", $$info{mi}*100.0 : "-___cmi";
+        $infoFmt .= defined $$info{mph} ? sprintf("-%04.1fmph", $$info{mph}) : "-____mph";
+        $infoFmt .= defined $$info{cal} ? sprintf("-%03dcal", $$info{cal}) : "";
+        $infoFmt .= defined $$info{hr} ? sprintf("-%03dhr", $$info{hr}) : "-___hr";
+        $infoFmt .= defined $$info{offset} ? sprintf("-%doffset", $$info{offset}) : "";
+      }
+    }else{
+      die "ERROR: $$info{infoStr}\n";
+    }
+    my $newFileName = "$$info{fileBaseName}_$infoFmt.$$info{fileExt}";
+    my $newFile = "$$info{dirName}/$newFileName";
+    if($file ne $newFile){
+      print "#$file\n";
+      print "#$newFile\n";
+      print "mv -n $file $newFile\n";
+      print "\n";
+    }
+  }
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
+}
+
+&main(@ARGV);
