@@ -137,6 +137,7 @@ shortcuts conf = "Shortcuts" @@ do
     "Screen On/Off"     @@ mCW   xK_s    #! "screenpwr"
     "touchclick toggle" @@ mC    xK_Menu #! "touchClick toggle"
     "htop"              @@ mCA   xK_space#! "term htop"
+    "ramfix-inodes"     @@ mCA   xK_m    #! "ramfix-inodes; notify-send -t 1000 'RAN ramfix-inodes'"
 
     "Network"       @@ do
         "wauto"         @@ mW    xK_grave#! "sudo wauto"
