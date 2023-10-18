@@ -136,7 +136,7 @@ shortcuts conf = "Shortcuts" @@ do
     "Screen Off Idle"   @@ mW    xK_s    #! "sleep 0.5; screenOff"
     "Screen On/Off"     @@ mCW   xK_s    #! "screenpwr"
     "touchclick toggle" @@ mC    xK_Menu #! "touchClick toggle"
-    "htop"              @@ mCA   (xK ' ')#! "term htop"
+    "htop"              @@ mCA   xK_space#! "term htop"
 
     "Network"       @@ do
         "wauto"         @@ mW    xK_grave#! "sudo wauto"
@@ -266,7 +266,7 @@ shortcuts conf = "Shortcuts" @@ do
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
 
     "Klomp"         @@ do
-        "pause"       @@ mW    (xK ' ')#! "klomp-cmd pause"
+        "pause"       @@ mW    xK_space#! "klomp-cmd pause"
         "prev"        @@ mW    xK_z    #! "klomp-cmd prev"
         "next"        @@ mW    xK_x    #! "klomp-cmd next"
         "books pl"    @@ mW    xK_b    #! "klomp-cmd playlist books"
@@ -288,7 +288,7 @@ shortcuts conf = "Shortcuts" @@ do
         "prev"        @@ m_    xK_APrev#! "audio-key prev"
 
     "Klomp tv"     @@ do
-        "pause"       @@ mCAW  (xK ' ')#! "ipmagic tv klomp-cmd pause"
+        "pause"       @@ mCAW  xK_space#! "ipmagic tv klomp-cmd pause"
         "prev"        @@ mCAW  xK_z    #! "ipmagic tv klomp-cmd prev"
         "next"        @@ mCAW  xK_x    #! "ipmagic tv klomp-cmd next"
         "books pl"    @@ mCAW  xK_b    #! "ipmagic tv klomp-cmd playlist books"
@@ -299,7 +299,7 @@ shortcuts conf = "Shortcuts" @@ do
         "stop"        @@ mCAW  xK_c    #! "ipmagic tv klomp-cmd stop"
 
     "Klomp sx"      @@ do
-        "pause"       @@ mCW   (xK ' ')#! "ipmagic sx klomp-coolreader --play-pause"
+        "pause"       @@ mCW   xK_space#! "ipmagic sx klomp-coolreader --play-pause"
         "prev"        @@ mCW   xK_z    #! "ipmagic sx klomp-cmd prev"
         "next"        @@ mCW   xK_x    #! "ipmagic sx klomp-cmd next"
         "books pl"    @@ mCW   xK_b    #! "ipmagic sx klomp-cmd playlist books"
@@ -347,7 +347,7 @@ windowKeys conf = "Windows" @@ do
     winPx = 22
 
 layoutKeys conf = "Layout" @@ do
-    "Restore Default"   @@ mAS   (xK ' ')#  do sinkAll
+    "Restore Default"   @@ mAS   xK_space#  do sinkAll
                                                setLayout $ layoutHook conf
     "Toggle Struts"     @@ mA    xK_f    #> ToggleStruts
     "Left"              @@ mA    xK_a    #> JumpToLayout "left"
