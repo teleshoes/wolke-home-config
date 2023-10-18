@@ -246,7 +246,6 @@ shortcuts conf = "Shortcuts" @@ do
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
         "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
-        "smbc"          @@ mCA   xK_m    #! "smbc"
 
     "tv"           @@ do
         "vnc"           @@ mC    xK_F9   #! "ipmagic tv -vnc"
