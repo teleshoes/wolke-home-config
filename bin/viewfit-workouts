@@ -94,11 +94,15 @@ sub main(@){
 }
 
 sub readCachedWorkouts(){
-  my @jsonFiles = sort glob "$WORKOUTS_JSON_CACHE_DIR/workouts_*.json";
+  my @jsonFiles = sort (
+    glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json"),
+    glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json.gz"),
+  );
   die "ERROR: could not find any workout json files in cache\n" if @jsonFiles == 0;
   my $latestJsonFile = $jsonFiles[-1];
-  my $json = from_json(readFile($latestJsonFile));
-  return @{$$json{workouts}};
+  my $json = $latestJsonFile =~ /\.gz$/i ? readFileGZ($latestJsonFile) : readFile($latestJsonFile);
+  my $jsonObj = from_json($json);
+  return @{$$jsonObj{workouts}};
 }
 
 sub readExtraInfo(){
@@ -145,6 +149,14 @@ sub fetchViewfitWorkouts(){
 sub readFile($){
   my ($file) = @_;
   open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my $content = join '', <FH>;
+  close FH;
+  return $content;
+}
+sub readFileGZ($){
+  my ($file) = @_;
+  open FH, "-|", "gzip -d --stdout $file"
+    or die "ERROR: could not gunzip $file\n$!\n";
   my $content = join '', <FH>;
   close FH;
   return $content;
