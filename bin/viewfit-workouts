@@ -7,6 +7,7 @@ use Time::HiRes qw(time);
 
 my $EXEC = basename $0;
 my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json";
+my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 
 my $VIEWFIT_EXERCISER_BASE_URL = 'https://www.viewfit.com/exerciser/exerciser';
 
@@ -34,6 +35,8 @@ my $USAGE = "Usage:
 ";
 
 sub readCachedWorkouts();
+sub readExtraInfo();
+sub insertExtraInfo($$);
 sub fetchViewfitWorkouts();
 sub readFile($);
 sub writeFile($$);
@@ -68,7 +71,9 @@ sub main(@){
 
   if($cmd eq $COMMAND_GET){
     my @workouts = readCachedWorkouts();
+    my $extraInfo = readExtraInfo();
     for my $w(@workouts){
+      insertExtraInfo($w, $extraInfo);
       my $timeUTC = $$w{workout_time};
       my $timeEpochFracS = `date --date='$timeUTC' +%s.%3N`;
       chomp $timeEpochFracS;
@@ -94,6 +99,28 @@ sub readCachedWorkouts(){
   my $latestJsonFile = $jsonFiles[-1];
   my $json = from_json(readFile($latestJsonFile));
   return @{$$json{workouts}};
+}
+
+sub readExtraInfo(){
+  my @lines = `cat $WORKOUTS_EXTRA_INFO_FILE 2>/dev/null`;
+  my $extraInfo = {};
+  for my $line(@lines){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^(\w+)\.(\w+)\s*=\s*(.*)$/){
+      my ($id, $key, $val) = ($1, $2, $3);
+      $$extraInfo{$id} = {} if not defined $$extraInfo{$id};
+      $$extraInfo{$id}{$key} = $val;
+    }
+  }
+  return $extraInfo;
+}
+sub insertExtraInfo($$){
+  my ($workout, $extraInfo) = @_;
+  my $info = $$extraInfo{$$workout{workout_id}};
+  if(defined $info){
+    for my $key(sort keys %$info){
+      $$workout{$key} = $$info{$key};
+    }
   }
 }
 
