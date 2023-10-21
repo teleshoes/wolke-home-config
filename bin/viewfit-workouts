@@ -15,6 +15,8 @@ my $SECRETS_PREFIX = "viewfit";
 my $SECRETS_KEYS_REGEX = join "|", qw(exerciser);
 my %SECRETS_ENC_KEYS = map {$_ => 1} qw();
 
+my $MILES_PER_KM = 0.62137119;
+
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
@@ -65,7 +67,20 @@ sub main(@){
   }
 
   if($cmd eq $COMMAND_GET){
-    readCachedWorkouts();
+    my @workouts = readCachedWorkouts();
+    for my $w(@workouts){
+      my $timeUTC = $$w{workout_time};
+      my $timeEpochFracS = `date --date='$timeUTC' +%s.%3N`;
+      chomp $timeEpochFracS;
+
+      my $timeFmt = dateFmt($timeEpochFracS, "%Y-%m-%d %H:%M:%S");
+      my $maxHR = $$w{max_heart_rate};
+      my $durS = $$w{duration};
+      next if $durS < 10;
+      my $durFmt = sprintf "%3d:%02d", int($durS/60), $durS%60;
+      my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
+      print "$$w{workout_id}   $timeFmt  $distanceMiles  $durFmt  $maxHR\n";
+    }
   }elsif($cmd eq $COMMAND_FETCH){
     fetchViewfitWorkouts();
   }else{
@@ -78,9 +93,8 @@ sub readCachedWorkouts(){
   die "ERROR: could not find any workout json files in cache\n" if @jsonFiles == 0;
   my $latestJsonFile = $jsonFiles[-1];
   my $json = from_json(readFile($latestJsonFile));
-  my @workouts = @{$$json{workouts}};
-  die 0+@workouts;
-  die sort keys %$json;
+  return @{$$json{workouts}};
+  }
 }
 
 sub fetchViewfitWorkouts(){
