@@ -7,18 +7,23 @@ my $PROC_PTRN = "Kingdom.*x86";
 sub main(@){
   my @pids = `pgrep '$PROC_PTRN'`;
   chomp foreach @pids;
-  @pids = map {/^(\d+)$/; $1} @pids;
 
+  my $isPaused = 0;
+  for my $pid(@pids){
+    die "ERROR: malformed pid $pid\n" if $pid !~ /^\d+$/;
+    my $status = `ps -o state= -p $pid`;
+    if($status =~ /^T$/){
+      $isPaused = 1;
+      last;
+    }
+  }
 
-  my $pid = $pids[0];
-  my $status = `ps -o state= -p $pid`;
-  chomp $status;
-
-  my $isPaused = $status =~ /^T$/;
-  if($isPaused){
-    system "kill", "-CONT", $pid;
-  }else{
-    system "kill", "-STOP", $pid;
+  for my $pid(@pids){
+    if($isPaused){
+      system "kill", "-CONT", $pid;
+    }else{
+      system "kill", "-STOP", $pid;
+    }
   }
 }
 
