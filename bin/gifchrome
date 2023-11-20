@@ -4,8 +4,10 @@ use warnings;
 use Cwd qw(abs_path);
 
 sub getHtml($@);
+sub getGifDuration($);
 
-my $DEFAULT_AUTOSCROLL_DELAY_MILLIS = 1000;
+my $DEFAULT_AUTOSCROLL_DELAY_MILLIS_MIN = 1000;
+my $DEFAULT_AUTOSCROLL_DELAY_MILLIS_MAX = 10000;
 
 my $tmpHtmlFile = "/tmp/gifchrome.html";
 
@@ -37,12 +39,25 @@ my $usage = "Usage:
       set CSS property of <img> tag \"min-height:<PX>px\"
 
     -a|--autoscroll
-      click on an image to start autoscrolling, and click again to disable
-      every ${DEFAULT_AUTOSCROLL_DELAY_MILLIS}ms, scroll the next image into view
+      enable autoscroll-on-click
+        -click on any image to start autoscrolling, starting with that image
+          -click again on any image disable
+        -each image is displayed for twice the duration of the animation
+          -if img is not an animated gif or the duration cannot be read, duration is 1000ms
+          -duration cannot exceed min/max
+            see: --autoscroll-delay-millis-min / --autoscroll-delay-millis-max
+        -then the next image is scrolled into view
+        -autoscroll is disabled when no next image is available
 
-    --autoscroll-delay=DELAY_MILLIS
-      if --autoscroll is given, scroll page every <DELAY_MILLIS> millis
-      (default is $DEFAULT_AUTOSCROLL_DELAY_MILLIS)
+    --autoscroll-delay-millis-min=DELAY_MILLIS
+      when autoscroll is enabled:
+        show each image for at least <DELAY_MILLIS> millis, regardless of animation duration
+        default is ${DEFAULT_AUTOSCROLL_DELAY_MILLIS_MIN}ms
+
+    --autoscroll-delay-millis-max=DELAY_MILLIS
+      when autoscroll is enabled:
+        show each image for at most <DELAY_MILLIS> millis, regardless of animation duration
+        default is ${DEFAULT_AUTOSCROLL_DELAY_MILLIS_MIN}ms
 
     --clickbox
       include a textbox at the bottom
@@ -59,7 +74,8 @@ sub main(@){
     maxHeight => undef,
     minHeight => undef,
     autoScroll => 0,
-    autoScrollDelayMillis => $DEFAULT_AUTOSCROLL_DELAY_MILLIS,
+    autoScrollDelayMillisMin => $DEFAULT_AUTOSCROLL_DELAY_MILLIS_MIN,
+    autoScrollDelayMillisMax => $DEFAULT_AUTOSCROLL_DELAY_MILLIS_MAX,
     includeClickBox => 0,
   };
   while(@_ > 0 and $_[0] =~ /^-/){
@@ -81,14 +97,22 @@ sub main(@){
       $$config{minHeight} = $1;
     }elsif($arg =~ /^(-a|--autoscroll)$/){
       $$config{autoScroll} = 1;
-    }elsif($arg =~ /^--autoscroll-delay=(\d+)$/){
-      die "invalid autoscroll delay: $1\n" if $1 <= 0;
-      $$config{autoScrollDelayMillis} = $1;
+    }elsif($arg =~ /^--autoscroll-delay-millis-min=(.+)$/){
+      $$config{autoScrollDelayMillisMin} = $1;
+    }elsif($arg =~ /^--autoscroll-delay-millis-max=(.+)$/){
+      $$config{autoScrollDelayMillisMax} = $1;
     }elsif($arg =~ /^(--clickbox)$/){
       $$config{includeClickBox} = 1;
     }else{
       die $usage;
     }
+  }
+
+  if($$config{autoScrollDelayMillisMin} !~ /^(\d+)$/){
+    die "ERROR: invalid min autoscroll delay millis: $$config{autoScrollDelayMillisMin}\n";
+  }
+  if($$config{autoScrollDelayMillisMax} !~ /^(\d+)$/){
+    die "ERROR: invalid max autoscroll delay millis: $$config{autoScrollDelayMillisMax}\n";
   }
 
   my @gifs = @_;
@@ -167,7 +191,15 @@ sub getHtml($@){
         }else{
           imgElem.scrollIntoView({behavior: \"smooth\", block: \"start\", inline: \"nearest\"});
           nextImgID++;
-          setTimeout('scrollNextImg()', $$config{autoScrollDelayMillis});
+          var durS = imgElem.getAttribute('data-duration-seconds');
+          var delayMillis = durS * 2.0 * 1000.0;
+          if(delayMillis < $$config{autoScrollDelayMillisMin}){
+            delayMillis = $$config{autoScrollDelayMillisMin};
+          }
+          if(delayMillis > $$config{autoScrollDelayMillisMax}){
+            delayMillis = $$config{autoScrollDelayMillisMax};
+          }
+          setTimeout('scrollNextImg()', delayMillis);
         }
       }
     }
@@ -189,11 +221,21 @@ sub getHtml($@){
   $css .= "min-height: $$config{minHeight}px; " if defined $$config{minHeight};
   for(my $imgID=0; $imgID<@imgAbsPaths; $imgID++){
     my $img = $imgAbsPaths[$imgID];
+    my $durS;
+    if($$config{autoScroll}){
+      $durS = getGifDuration $img;
+      if(not defined $durS){
+        $durS = 1.0;
+      }
+    }else{
+      $durS = "";
+    }
+
     my $fileUrl = "file://$img";
     my $onclick = "";
     $onclick .= "addText(event); " if $$config{includeClickBox};
     $onclick .= "toggleScroll($imgID); " if $$config{autoScroll};
-    $html .= "<img id=\"img$imgID\" style=\"$css\" src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
+    $html .= "<img id=\"img$imgID\" data-duration-seconds=\"$durS\" style=\"$css\" src=\"$fileUrl\" onclick=\"$onclick\"/>\n";
   }
   if($$config{includeClickBox}){
     $html .= "<textarea id=\"clicked\" rows=\"5\" cols=\"80\"></textarea>\n";
@@ -201,6 +243,21 @@ sub getHtml($@){
   $html .= "</body>";
   $html .= "</head>";
   return $html;
+}
+
+sub getGifDuration($){
+  my ($img) = @_;
+  my @cmd = ("exiftool", "-Duration", $img);
+  open my $cmdFH, "-|", @cmd or die "ERROR: could not run @cmd\n$!\n";
+  my $out = join '', <$cmdFH>;
+  close $cmdFH;
+
+  if($out =~ /^Duration\s*:\s*(\d+|\d*\.\d+)\s*s$/m){
+    my $durS = $1;
+    return $durS;
+  }else{
+    return undef;
+  }
 }
 
 &main(@ARGV);
