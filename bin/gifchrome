@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+#  if --autoscroll: require Image::ExifTool;
 
 sub getHtml($@);
 sub getGifDuration($);
@@ -250,14 +251,12 @@ sub getHtml($@){
 
 sub getGifDuration($){
   my ($img) = @_;
-  my @cmd = ("exiftool", "-Duration", $img);
-  open my $cmdFH, "-|", @cmd or die "ERROR: could not run @cmd\n$!\n";
-  my $out = join '', <$cmdFH>;
-  close $cmdFH;
 
-  if($out =~ /^Duration\s*:\s*(\d+|\d*\.\d+)\s*s$/m){
-    my $durS = $1;
-    return $durS;
+  require Image::ExifTool;
+  my $exif = Image::ExifTool::ImageInfo($img);
+  my $exifDur = $$exif{Duration};
+  if(defined $exifDur and $exifDur =~ /^(\d+|\d*\.\d+)\s*s$/){
+    return $1;
   }else{
     return undef;
   }
