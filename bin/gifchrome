@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 
-sub getHtml($@);
+sub getHtml($$@);
 sub getGifDuration($);
 
 my $DEFAULT_AUTOSCROLL_DELAY_MILLIS_MIN = 1000;
@@ -122,15 +122,7 @@ sub main(@){
     die "$usage\nFile not found: $gif\n" if not -f $gif;
   }
 
-  my @imgPaths;
-  if(defined $prefixDir){
-    $prefixDir =~ s/\/$//;
-    @imgPaths = map {"$prefixDir/$_"} @gifs;
-  }else{
-    @imgPaths = map {abs_path($_)} @gifs;
-  }
-
-  my $html = getHtml $config, @imgPaths;
+  my $html = getHtml $config, $prefixDir, @gifs;
 
   if($noBrowser){
     print $html;
@@ -144,8 +136,12 @@ sub main(@){
   }
 }
 
-sub getHtml($@){
-  my ($config, @imgAbsPaths) = @_;
+sub getHtml($$@){
+  my ($config, $prefixDir, @imgPaths) = @_;
+
+  if(defined $prefixDir){
+    $prefixDir =~ s/\/$//;
+  }
 
   my $html = '';
   $html .= "<html>";
@@ -219,11 +215,19 @@ sub getHtml($@){
   $css .= "min-width: $$config{minWidth}px; " if defined $$config{minWidth};
   $css .= "max-height: $$config{maxHeight}px; " if defined $$config{maxHeight};
   $css .= "min-height: $$config{minHeight}px; " if defined $$config{minHeight};
-  for(my $imgID=0; $imgID<@imgAbsPaths; $imgID++){
-    my $img = $imgAbsPaths[$imgID];
+  for(my $imgID=0; $imgID<@imgPaths; $imgID++){
+    my $imgFile = $imgPaths[$imgID];
+
+    my $imgAbsPath;
+    if(defined $prefixDir){
+      $imgAbsPath = "$prefixDir/$imgFile";
+    }else{
+      $imgAbsPath = abs_path($imgFile);
+    }
+
     my $durS;
     if($$config{autoScroll}){
-      $durS = getGifDuration $img;
+      $durS = getGifDuration $imgFile;
       if(not defined $durS){
         $durS = 1.0;
       }
@@ -231,7 +235,7 @@ sub getHtml($@){
       $durS = "";
     }
 
-    my $fileUrl = "file://$img";
+    my $fileUrl = "file://$imgAbsPath";
     my $onclick = "";
     $onclick .= "addText(event); " if $$config{includeClickBox};
     $onclick .= "toggleScroll($imgID); " if $$config{autoScroll};
