@@ -5,7 +5,7 @@ use Text::CSV;
 use Time::HiRes qw(sleep time);
 use utf8;
 
-sub formatKlompInfoLine($$);
+sub formatKlompInfoLine($$$);
 sub getIpmagicCommand($$@);
 sub klompInfo(@);
 sub offset($$$);
@@ -36,6 +36,9 @@ my $usage = "Usage:
          time to sleep in milliseconds after subsequent klomp displays
          default is $defaultDelayMillis
 
+       --rhythmbox
+         use rhythmbox-client instead of klomp-info
+
        --once
          run once and quit
 
@@ -65,6 +68,7 @@ sub main(@){
   my $ipmagic;
   my $ipmagicUser;
   my $delay = $defaultDelayMillis;
+  my $useRhythmbox = 0;
   my $once = 0;
   my $window = 0;
   my $height;
@@ -80,6 +84,8 @@ sub main(@){
       $ipmagicUser = $1;
     }elsif($arg =~ /^--delay=(\d+)$/){
       $delay = $1;
+    }elsif($arg =~ /^(--rhythmbox)$/){
+      $useRhythmbox = 1;
     }elsif($arg =~ /^--once$/){
       $once = 1;
     }elsif($arg =~ /^(-w|--window)$/){
@@ -144,7 +150,7 @@ sub main(@){
     for my $extraCmd(@extraCmds){
       run getIpmagicCommand($ipmagic, $ipmagicUser, @$extraCmd);
     }
-    print FH formatKlompInfoLine($ipmagic, $ipmagicUser);
+    print FH formatKlompInfoLine($ipmagic, $ipmagicUser, $useRhythmbox);
     last if $once;
 
     my $toWait = ($delay/1000) - (time - $now);
@@ -155,10 +161,16 @@ sub main(@){
   close FH;
 }
 
-sub formatKlompInfoLine($$){
+sub formatKlompInfoLine($$$){
   my $ipmagic = shift;
   my $ipmagicUser = shift;
-  my $info = klompInfo(qw(pos len title artist album number));
+  my $useRhythmbox = shift;
+  my $info;
+  if($useRhythmbox){
+    $info = rhythmboxInfo(qw(pos len title artist album number));
+  }else{
+    $info = klompInfo(qw(pos len title artist album number));
+  }
 
   my $fmt = ''
     . "$$info{pos} / $$info{len}  #$$info{number}\n"
@@ -199,6 +211,59 @@ sub klompInfo(@){
 
   my @vals = $csv->fields();
   die "Error parsing klomp-info CSV\n" if @cols != @vals;
+
+  my $info = {};
+  for(my $i=0; $i<@cols; $i++){
+    my $col = $cols[$i];
+    my $val = $vals[$i];
+    $$info{$col} = $val;
+  }
+  return $info;
+}
+
+sub rhythmboxInfo(@){
+  my @cols = @_;
+
+  #    %at    album title
+  #    %aa    album artist
+  #    %aA    album artist (lowercase)
+  #    %as    album artist sortname
+  #    %aS    album artist sortname (lowercase)
+  #    %ay    album year
+  #    %ag    album genre
+  #    %aG    album genre (lowercase)
+  #    %an    album disc number
+  #    %aN    album disc number, zero padded
+  #    %st    stream title
+  #    %tn    track number (i.e 8)
+  #    %tN    track number, zero padded (i.e 08)
+  #    %tt    track title
+  #    %ta    track artist
+  #    %tA    track artist (lowercase)
+  #    %ts    track artist sortname
+  #    %tS    track artist sortname (lowercase)
+  #    %td    track duration
+  #    %te    track elapsed time
+
+  my %klompToRboxCols = (
+    pos    => '%te',
+    len    => '%td',
+    title  => '%tt',
+    artist => '%ta',
+    album  => '%tt',
+    number => '%tn',
+  );
+
+  my $fmt = join "###", map {$klompToRboxCols{$_}} @cols;
+
+  my $infoStr = `rhythmbox-client --print-playing-format '$fmt'`;
+  chomp $infoStr;
+
+  my @vals = split /###/, $infoStr;
+
+  if(@cols != @vals){
+    die "ERROR: could not parse rhythmbox-client output\n";
+  }
 
   my $info = {};
   for(my $i=0; $i<@cols; $i++){
