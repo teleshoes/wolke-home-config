@@ -5,8 +5,8 @@ use Text::CSV;
 use Time::HiRes qw(sleep time);
 use utf8;
 
-sub formatKlompInfoLine($$$);
-sub getIpmagicCommand($$@);
+sub formatKlompInfoLine($);
+sub getIpmagicCommand($@);
 sub klompInfo(@);
 sub offset($$$);
 sub run(@);
@@ -64,68 +64,77 @@ my $usage = "Usage:
            start bigtext normally (this option has no effect if not running)
 ";
 
+my $MODE_ON = "on";
+my $MODE_OFF = "off";
+my $MODE_TOGGLE = "toggle";
+
 sub main(@){
-  my $ipmagic;
-  my $ipmagicUser;
-  my $delay = $defaultDelayMillis;
-  my $useRhythmbox = 0;
-  my $once = 0;
-  my $window = 0;
-  my $height;
-  my $width;
-  my $off = 0;
-  my $toggle = 0;
+  my $mode = $MODE_ON;
+  my $opts = {
+    ipmagic      => undef,
+    ipmagicUser  => undef,
+    delay        => $defaultDelayMillis,
+    useRhythmbox => 0,
+    once         => 0,
+    window       => 0,
+    height       => undef,
+    width        => undef,
+  };
 
   while(@_ > 0){
     my $arg=shift;
     if($arg =~ /^--ipmagic=(.*)$/){
-      $ipmagic = $1;
+      $$opts{ipmagic} = $1;
     }elsif($arg =~ /^--ipmagic-user=(.*)$/){
-      $ipmagicUser = $1;
+      $$opts{ipmagicUser} = $1;
     }elsif($arg =~ /^--delay=(\d+)$/){
-      $delay = $1;
+      $$opts{delay} = $1;
     }elsif($arg =~ /^(--rhythmbox)$/){
-      $useRhythmbox = 1;
+      $$opts{useRhythmbox} = 1;
     }elsif($arg =~ /^--once$/){
-      $once = 1;
+      $$opts{once} = 1;
     }elsif($arg =~ /^(-w|--window)$/){
-      $window = 1;
+      $$opts{window} = 1;
     }elsif($arg =~ /^--height=(\d+)$/){
-      $height = $1;
+      $$opts{height} = $1;
     }elsif($arg =~ /^--width=(\d+)$/){
-      $width = $1;
+      $$opts{width} = $1;
     }elsif($arg =~ /^--off$/){
-      $off = 1;
+      $mode = $MODE_OFF;
     }elsif($arg =~ /^--toggle$/){
-      $toggle = 1;
+      $mode = $MODE_TOGGLE;
     }else{
       die $usage;
     }
   }
 
-  if($toggle and not $off){
-    my @pgrepCmd = getIpmagicCommand($ipmagic, $ipmagicUser, 'pgrep', '^bigtext$');
+  if($mode eq $MODE_TOGGLE){
+    my @pgrepCmd = getIpmagicCommand($opts, 'pgrep', '^bigtext$');
     open FH, "-|", @pgrepCmd
       or die "could not run @pgrepCmd\n$!\n";
     my @procs = <FH>;
     close FH;
     if(@procs > 0 and $procs[0] =~ /^\d+$/){
-      $off = 1;
+      $mode = $MODE_OFF;
+    }else{
+      $mode = $MODE_ON;
     }
   }
 
-  if($off){
-    system getIpmagicCommand($ipmagic, $ipmagicUser, 'pkill', '^bigtext$');
-    system getIpmagicCommand($ipmagic, $ipmagicUser, 'bigtext', '-k');
+  if($mode eq $MODE_OFF){
+    system getIpmagicCommand($opts, 'pkill', '^bigtext$');
+    system getIpmagicCommand($opts, 'bigtext', '-k');
     exit;
+  }elsif($mode ne $MODE_ON){
+    die "ERROR: unknown mode $mode\n";
   }
 
   my @bigtextOpts;
-  push @bigtextOpts, "--fullScreen=false" if $window;
-  push @bigtextOpts, "--forceHeight=$height" if defined $height;
-  push @bigtextOpts, "--forceWidth=$width" if defined $width;
+  push @bigtextOpts, "--fullScreen=false"           if $$opts{window};
+  push @bigtextOpts, "--forceHeight=$$opts{height}" if defined $$opts{height};
+  push @bigtextOpts, "--forceWidth=$$opts{width}"   if defined $$opts{width};
 
-  my @bigtextCmd = getIpmagicCommand($ipmagic, $ipmagicUser,
+  my @bigtextCmd = getIpmagicCommand($opts,
     "bigtext",
       "--lineSeparator=true",
       @bigtextOpts,
@@ -133,7 +142,7 @@ sub main(@){
 
   my @extraCmds;
   for my $exec(sort keys %$extraCmdsByExec){
-    my @whichCmd = getIpmagicCommand($ipmagic, $ipmagicUser, "which $exec");
+    my @whichCmd = getIpmagicCommand($opts, "which $exec");
     my $res = `@whichCmd 2>/dev/null`;
     chomp $res;
     if($res =~ /\/$exec$/){
@@ -148,12 +157,12 @@ sub main(@){
     my $now = time;
 
     for my $extraCmd(@extraCmds){
-      run getIpmagicCommand($ipmagic, $ipmagicUser, @$extraCmd);
+      run getIpmagicCommand($opts, @$extraCmd);
     }
-    print FH formatKlompInfoLine($ipmagic, $ipmagicUser, $useRhythmbox);
-    last if $once;
+    print FH formatKlompInfoLine($opts);
+    last if $$opts{once};
 
-    my $toWait = ($delay/1000) - (time - $now);
+    my $toWait = ($$opts{delay}/1000) - (time - $now);
     sleep $toWait if $toWait > 0;
     print "\n";
   }
@@ -161,12 +170,10 @@ sub main(@){
   close FH;
 }
 
-sub formatKlompInfoLine($$$){
-  my $ipmagic = shift;
-  my $ipmagicUser = shift;
-  my $useRhythmbox = shift;
+sub formatKlompInfoLine($){
+  my ($opts) = @_;
   my $info;
-  if($useRhythmbox){
+  if($$opts{useRhythmbox}){
     $info = rhythmboxInfo(qw(pos len title artist album number));
   }else{
     $info = klompInfo(qw(pos len title artist album number));
@@ -188,10 +195,10 @@ sub formatKlompInfoLine($$$){
   return $fmt;
 }
 
-sub getIpmagicCommand($$@){
-  my $ipmagic = shift;
-  my $ipmagicUser = shift;
-  my @cmd = @_;
+sub getIpmagicCommand($@){
+  my ($opts, @cmd) = @_;
+  my $ipmagic = $$opts{ipmagic};
+  my $ipmagicUser = $$opts{ipmagicUser};
   if(defined $ipmagic){
     @cmd = map {$_ =~ s/'/'\\''/g; "'$_'"} @cmd;
     if(defined $ipmagicUser){
