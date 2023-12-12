@@ -2,26 +2,74 @@
 use strict;
 use warnings;
 
-my $IPMAGIC_NAME = "raspi";
-my $IPMAGIC_USER = "pi";
-
 sub checkIpmagic();
 sub run(@);
 
+my $IPMAGIC_NAME = "raspi";
+my $IPMAGIC_USER = "pi";
+
+my $USAGE = "Usage:
+  $0 -h|--help
+    show this message
+
+  $0 --on
+    -stop klomp-bigtext
+    -ensure `ipmagic $IPMAGIC_NAME` is reachable
+    -on $IPMAGIC_NAME:
+      -run: tv-gpio on
+      -kill bigtext
+      -run: xscreensaver-command -activate
+    -start klomp-bigtext with --ipmagic=$IPMAGIC_NAME
+
+  $0 --off
+    -stop klomp-bigtext
+    -ensure `ipmagic $IPMAGIC_NAME` is reachable
+    -on $IPMAGIC_NAME:
+      -run: tv-gpio off
+      -kill bigtext
+
+  $0
+  $0 --toggle
+    -if klomplayer is running:
+      -same as $0 --off
+    -othwesie:
+      -same as $0 --on
+";
+
+my $MODE_ON = "on";
+my $MODE_OFF = "off";
+my $MODE_TOGGLE = "toggle";
+
 sub main(@){
-  my $arg = "--toggle";
-  $arg = shift if @_ == 1;
-  if(@_ != 0 or $arg !~ /^(--on|--off|--toggle)$/){
-    die "Usage: $0 [--on|--off|--toggle]  {default is --toggle}\n";
+  my $mode = $MODE_TOGGLE;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--on)$/){
+      $mode = $MODE_ON;
+    }elsif($arg =~ /^(--off)$/){
+      $mode = $MODE_OFF;
+    }elsif($arg =~ /^(--toggle)$/){
+      $mode = $MODE_TOGGLE;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
   }
 
-  if($arg eq "--toggle"){
+  if($mode eq $MODE_TOGGLE){
     system "pkill", "-0", "klomplayer";
-    $arg = ($? == 0) ? "--off" : "--on";
-    print "$0 $arg\n"
+    if($? == 0){
+      print "$0 --off\n";
+      $mode = $MODE_OFF;
+    }else{
+      print "$0 --on\n";
+      $mode = $MODE_ON;
+    }
   }
 
-  if($arg eq "--off"){
+  if($mode eq $MODE_OFF){
     run "pkill", "-9", "-f", "klomp-bigtext";
     if(checkIpmagic()){
       system "ipmagic", $IPMAGIC_NAME, "-u", $IPMAGIC_USER, "
@@ -32,7 +80,7 @@ sub main(@){
         xscreensaver-command -activate
       ";
     }
-  }elsif($arg eq "--on"){
+  }elsif($mode eq $MODE_ON){
     run "pkill", "-9", "-f", "klomp-bigtext";
     if(checkIpmagic()){
       system "ipmagic", $IPMAGIC_NAME, "-u", $IPMAGIC_USER, "
@@ -43,6 +91,8 @@ sub main(@){
       ";
       run "nohup klomp-bigtext --ipmagic=$IPMAGIC_NAME --ipmagic-user=$IPMAGIC_USER >/dev/null 2>/dev/null &";
     }
+  }else{
+    die "ERROR: unknown mode $mode\n";
   }
 }
 
