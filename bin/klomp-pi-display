@@ -51,7 +51,6 @@ my $USAGE = "Usage:
       -for --ensure, check if rhythmbox is playing:
         -use MediaPlayer2 dbus interface with `qdbus`
         @QDBUS_RHYTHMBOX_CMD
-
     --klomp
       do not use rhythmbox (this is the default)
 
@@ -66,9 +65,12 @@ my $MODE_ON = "on";
 my $MODE_OFF = "off";
 my $MODE_ENSURE = "ensure";
 
+my $PLAYER_KLOMP = "klomp";
+my $PLAYER_RHYTHMBOX = "rhythmbox";
+
 sub main(@){
   my $mode = $MODE_ENSURE;
-  my $useRhythmbox = 0;
+  my $player = $PLAYER_KLOMP;
   my $allowRestart = 1;
   while(@_ > 0){
     my $arg = shift @_;
@@ -82,9 +84,9 @@ sub main(@){
     }elsif($arg =~ /^(--ensure)$/){
       $mode = $MODE_ENSURE;
     }elsif($arg =~ /^(--rhythmbox)$/){
-      $useRhythmbox = 1;
+      $player = $PLAYER_RHYTHMBOX;
     }elsif($arg =~ /^(--klomp)$/){
-      $useRhythmbox = 0;
+      $player = $PLAYER_KLOMP;
     }elsif($arg =~ /^(--no-restart)$/){
       $allowRestart = 0;
     }elsif($arg =~ /^(--restart)$/){
@@ -95,12 +97,16 @@ sub main(@){
   }
 
   if($mode eq $MODE_ENSURE){
-    if(checkPlayerRunning($useRhythmbox)){
-      my $msg = $useRhythmbox ? "rhythmbox playing" : "klomplayer running";
+    if(checkPlayerRunning($player)){
+      my $msg = "";
+      $msg = "klomplayer running" if $player eq $PLAYER_KLOMP;
+      $msg = "rhythmbox playing" if $player eq $PLAYER_RHYTHMBOX;
       print "#$msg: $0 --on\n";
       $mode = $MODE_ON;
     }else{
-      my $msg = $useRhythmbox ? "rhythmbox not playing" : "klomplayer not running";
+      my $msg = "";
+      $msg = "klomplayer not running" if $player eq $PLAYER_KLOMP;
+      $msg = "rhythmbox not playing" if $player eq $PLAYER_RHYTHMBOX;
       print "#$msg: $0 --off\n";
       $mode = $MODE_OFF;
     }
@@ -130,9 +136,12 @@ sub main(@){
         pkill '^/usr/bin/perl /usr/bin/bigtext' -f
         bigtext -k
       ";
+      my $player = "";
+      $player = "--klomp" if $player eq $PLAYER_KLOMP;
+      $player = "--rhythmbox" if $player eq $PLAYER_RHYTHMBOX;
       my $cmd = ""
         . "nohup klomp-bigtext"
-        . " " . ($useRhythmbox ? "--rhythmbox" : "--klomp")
+        . " $player"
         . " --ipmagic=$IPMAGIC_NAME --ipmagic-user=$IPMAGIC_USER"
         . " >/dev/null 2>/dev/null"
         . " &";
@@ -144,8 +153,15 @@ sub main(@){
 }
 
 sub checkPlayerRunning($){
-  my ($useRhythmbox) = @_;
-  if($useRhythmbox){
+  my ($player) = @_;
+  if($player eq $PLAYER_KLOMP){
+    system "pkill", "-0", "klomplayer";
+    if($? == 0){
+      return 1;
+    }else{
+      return 0;
+    }
+  }elsif($player eq $PLAYER_RHYTHMBOX){
     my $status = `@QDBUS_RHYTHMBOX_CMD 2>&1`;
     my $exitCode = $? >> 8;
     chomp $status;
@@ -163,12 +179,7 @@ sub checkPlayerRunning($){
       return 0;
     }
   }else{
-    system "pkill", "-0", "klomplayer";
-    if($? == 0){
-      return 1;
-    }else{
-      return 0;
-    }
+    die "ERROR: unknown player $player\n";
   }
 }
 
