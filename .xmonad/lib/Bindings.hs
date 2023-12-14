@@ -243,7 +243,7 @@ shortcuts conf = "Shortcuts" @@ do
         "sabnzbd"       @@ mCA   xK_b    #! "sabnzbd"
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
-        "FBreader"      @@ mCA   xK_r    #! "fbreader"
+        "Rhythmbox"     @@ mCA   xK_r    #! "rhythmbox"
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
         "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
