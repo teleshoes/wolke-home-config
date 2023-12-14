@@ -85,6 +85,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   screen-daemon ts-pump --start
   screen-daemon pyeconet-monitor --start
   screen-daemon lcd-monitor --start
+  screen-daemon klomp-pi-display --start
 fi
 
 exec xmonad
