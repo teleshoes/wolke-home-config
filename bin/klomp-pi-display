@@ -2,7 +2,8 @@
 use strict;
 use warnings;
 
-sub checkRunning($);
+sub checkPlayerRunning($);
+sub checkBigtextRunning();
 sub checkIpmagic();
 sub run(@);
 
@@ -53,6 +54,12 @@ my $USAGE = "Usage:
 
     --klomp
       do not use rhythmbox (this is the default)
+
+    --no-restart
+      for --on (or --ensure when klomplayer is running):
+        if bigtext is already running, do nothing
+    --restart
+      allow restart if bigtext already running (this is the default)
 ";
 
 my $MODE_ON = "on";
@@ -62,6 +69,7 @@ my $MODE_ENSURE = "ensure";
 sub main(@){
   my $mode = $MODE_ENSURE;
   my $useRhythmbox = 0;
+  my $allowRestart = 1;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -77,13 +85,17 @@ sub main(@){
       $useRhythmbox = 1;
     }elsif($arg =~ /^(--klomp)$/){
       $useRhythmbox = 0;
+    }elsif($arg =~ /^(--no-restart)$/){
+      $allowRestart = 0;
+    }elsif($arg =~ /^(--restart)$/){
+      $allowRestart = 1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
   if($mode eq $MODE_ENSURE){
-    if(checkRunning($useRhythmbox)){
+    if(checkPlayerRunning($useRhythmbox)){
       my $msg = $useRhythmbox ? "rhythmbox playing" : "klomplayer running";
       print "#$msg: $0 --on\n";
       $mode = $MODE_ON;
@@ -108,6 +120,10 @@ sub main(@){
   }elsif($mode eq $MODE_ON){
     run "pkill", "-9", "-f", "klomp-bigtext";
     if(checkIpmagic()){
+      if(not $allowRestart and checkBigtextRunning()){
+        print "bigtext already running\n";
+        exit 0;
+      }
       system "ipmagic", $IPMAGIC_NAME, "-u", $IPMAGIC_USER, "
         set -x
         tv-gpio on
@@ -127,7 +143,7 @@ sub main(@){
   }
 }
 
-sub checkRunning($){
+sub checkPlayerRunning($){
   my ($useRhythmbox) = @_;
   if($useRhythmbox){
     my $status = `@QDBUS_RHYTHMBOX_CMD 2>&1`;
@@ -154,6 +170,13 @@ sub checkRunning($){
       return 0;
     }
   }
+}
+
+sub checkBigtextRunning(){
+  system "ipmagic", $IPMAGIC_NAME, "-u", $IPMAGIC_USER,
+    "pgrep -x bigtext >/dev/null 2>/dev/null";
+  my $exitCode = $? >> 8;
+  return $exitCode == 0 ? 1 : 0;
 }
 
 sub checkIpmagic(){
