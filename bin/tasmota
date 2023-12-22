@@ -20,8 +20,8 @@ sub parseStatusJson($);
 sub getNestedMapVal($@);
 sub getSSID();
 sub readMinDimmer($@);
-sub runCommandOnDevices($$@);
-sub runCmd($$$);
+sub runCommandOnDevices($$$@);
+sub runCmd($$$$);
 sub parseVersion($);
 sub cmpVersion($$);
 sub readFile($);
@@ -125,6 +125,9 @@ my $MODE_SET_SSID = "set-ssid";
 my $MODE_CONFIG_DEVICE = "config-device";
 my $MODE_SET_TEMPLATE = "set-template";
 
+my $PRINT_DEV_CMD_OUT = "dev-cmd-out";
+my $PRINT_DEV_OUT = "dev-out";
+my $PRINT_NONE = "none";
 
 my $EXEC = basename $0;
 
@@ -395,11 +398,9 @@ sub main(@){
   }
 
   if($mode eq $MODE_COMMAND){
-    my $outputByDevice = runCommandOnDevices($cmd, $opts, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    runCommandOnDevices($cmd, $PRINT_DEV_OUT, $opts, @devices);
   }elsif($mode eq $MODE_ON){
-    my $outputByDevice = runCommandOnDevices("POWER ON", $opts, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    runCommandOnDevices("POWER ON", $PRINT_DEV_OUT, $opts, @devices);
     for my $device(@devices){
       my $devType = $DEVICE_TYPES{$device};
       next if not defined $devType;
@@ -409,17 +410,14 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = runCmd($cmd, $opts, $device);
-        print "$device - $cmd - $out\n";
+        runCmd($cmd, $PRINT_DEV_CMD_OUT, $opts, $device);
       }
     }
   }elsif($mode eq $MODE_OFF){
-    my $outputByDevice = runCommandOnDevices("POWER OFF", $opts, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    runCommandOnDevices("POWER OFF", $PRINT_DEV_OUT, $opts, @devices);
   }elsif($mode eq $MODE_TOGGLE){
     print "toggling all =>\n";
-    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", $opts, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", $PRINT_DEV_OUT, $opts, @devices);
     my @devsTurnedOn;
     my @devsTurnedOff;
     my @devsIgnored;
@@ -437,8 +435,7 @@ sub main(@){
 
     if(@devsTurnedOff > 0 and @devsTurnedOn > 0){
       print "\nsome devices off, some devices on, turning OFF\n";
-      $outputByDevice = runCommandOnDevices("POWER OFF", $opts, @devsTurnedOn);
-      print "$_ - $$outputByDevice{$_}\n" foreach @devsTurnedOn;
+      runCommandOnDevices("POWER OFF", $PRINT_DEV_OUT, $opts, @devsTurnedOn);
       @devsTurnedOff = (@devsTurnedOff, @devsTurnedOn);
       @devsTurnedOn = ();
     }
@@ -454,8 +451,7 @@ sub main(@){
           if(defined $COMMAND_ALIASES{$cmd}){
             $cmd = $COMMAND_ALIASES{$cmd};
           }
-          my $out = runCmd($cmd, $opts, $device);
-          print "$device - $cmd - $out\n";
+          runCmd($cmd, $PRINT_DEV_CMD_OUT, $opts, $device);
         }
       }
     }
@@ -477,10 +473,9 @@ sub main(@){
     }
     $targetDimmerVal = $dimmerArgs[0] if not defined $targetDimmerVal;
     print "dimmer $curDimmer => $targetDimmerVal\n";
-    my $outputByDevice = runCommandOnDevices("Dimmer $targetDimmerVal", $opts, @devices);
-    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+    runCommandOnDevices("Dimmer $targetDimmerVal", $PRINT_DEV_OUT, $opts, @devices);
   }elsif($mode eq $MODE_INFO){
-    my $outputByDevice = runCommandOnDevices("Status 0", $opts, @devices);
+    my $outputByDevice = runCommandOnDevices("Status 0", $PRINT_NONE, $opts, @devices);
     my $date = `date '+%Y-%m-%d %H:%M:%S'`;
     chomp $date;
     for my $device(@devices){
@@ -506,7 +501,7 @@ sub main(@){
       }
     }
   }elsif($mode eq $MODE_MAC){
-    my $outputByDevice = runCommandOnDevices("STATUS 0", $opts, @devices);
+    my $outputByDevice = runCommandOnDevices("STATUS 0", $PRINT_NONE, $opts, @devices);
     for my $device(@devices){
       my $out = $$outputByDevice{$device};
       my $mac = $1 if $out =~ /"Mac":"([^"]+)"/;
@@ -514,7 +509,7 @@ sub main(@){
       print "$device - $mac\n";
     }
   }elsif($mode eq $MODE_HOSTNAME){
-    my $outputByDevice = runCommandOnDevices("STATUS 0", $opts, @devices);
+    my $outputByDevice = runCommandOnDevices("STATUS 0", $PRINT_NONE, $opts, @devices);
     for my $device(@devices){
       my $out = $$outputByDevice{$device};
       my $hostname = $1 if $out =~ /"Hostname":"([^"]+)"/;
@@ -586,7 +581,7 @@ sub main(@){
       my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
       my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
       print "$device ($deviceIP) => $wifiCmd\n";
-      runCmd($wifiCmd, $opts, $device);
+      runCmd($wifiCmd, $PRINT_NONE, $opts, $device);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
@@ -594,8 +589,7 @@ sub main(@){
       my ($cmd, $out);
 
       $cmd = "DeviceName $device";
-      $out = runCmd($cmd, $opts, $device);
-      print "$device - $cmd - $out\n";
+      runCmd($cmd, $PRINT_DEV_CMD_OUT, $opts, $device);
 
       my $devType = $DEVICE_TYPES{$device};
       if(not defined $devType){
@@ -612,8 +606,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = runCmd($cmd, $opts, $device);
-        print "$device - $cmd - $out\n";
+        runCmd($cmd, $PRINT_DEV_CMD_OUT, $opts, $device);
       }
 
       my $timers = $DEVICE_TIMERS{$device};
@@ -672,8 +665,7 @@ sub main(@){
         $idx++;
       }
 
-      $out = runCmd($cmd, $opts, $device);
-      print "$device - $cmd - $out\n";
+      runCmd($cmd, $PRINT_DEV_CMD_OUT, $opts, $device);
     }
   }elsif($mode eq $MODE_SET_TEMPLATE){
     for my $device(@devices){
@@ -689,8 +681,8 @@ sub main(@){
       }
       my $cmd = "TEMPLATE $templateJSON";
       my $out = "";
-      $out .= runCmd($cmd, $opts, $device);
-      $out .= runCmd("Module 0", $opts, $device);
+      $out .= runCmd($cmd, $PRINT_NONE, $opts, $device);
+      $out .= runCmd("Module 0", $PRINT_NONE, $opts, $device);
       print "$device - $out\n";
     }
   }else{
@@ -896,7 +888,7 @@ sub getSSID(){
 
 sub readMinDimmer($@){
   my ($opts, @devices) = @_;
-  my $outputByDevice = runCommandOnDevices("DIMMER", $opts, @devices);
+  my $outputByDevice = runCommandOnDevices("DIMMER", $PRINT_NONE, $opts, @devices);
   my $minDimmer = 100;
   for my $device(@devices){
     my $output = $$outputByDevice{$device};
@@ -911,8 +903,8 @@ sub readMinDimmer($@){
   return $minDimmer;
 }
 
-sub runCommandOnDevices($$@){
-  my ($cmd, $opts, @devices) = @_;
+sub runCommandOnDevices($$$@){
+  my ($cmd, $printMode, $opts, @devices) = @_;
   my $outputByDevice = {};
   if($FORKMGR_LIB){
     my $tmpDir = "/tmp/$EXEC-perl-storable";
@@ -940,21 +932,32 @@ sub runCommandOnDevices($$@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = runCmd $cmd, $opts, $device;
+      my $out = runCmd $cmd, $PRINT_NONE, $opts, $device;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = runCmd $cmd, $opts, $device;
+      my $out = runCmd $cmd, $PRINT_NONE, $opts, $device;
       $$outputByDevice{$device} = $out;
     }
   }
+
+  if($printMode eq $PRINT_DEV_CMD_OUT){
+    print "$_ - $cmd - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($printMode eq $PRINT_DEV_OUT){
+    print "$_ - $$outputByDevice{$_}\n" foreach @devices;
+  }elsif($printMode eq $PRINT_NONE){
+    #print nothing
+  }else{
+    die "ERROR: unknown print mode $printMode\n";
+  }
+
   return $outputByDevice;
 }
 
-sub runCmd($$$){
-  my ($cmd, $opts, $device) = @_;
+sub runCmd($$$$){
+  my ($cmd, $printMode, $opts, $device) = @_;
   my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
 
   $cmd =~ s/ /%20/g;
@@ -994,6 +997,16 @@ sub runCmd($$$){
       #treat any other exit code as failure
       $success = 0;
     }
+  }
+
+  if($printMode eq $PRINT_DEV_CMD_OUT){
+    print "$device - $cmd - $out\n";
+  }elsif($printMode eq $PRINT_DEV_OUT){
+    print "$device - $out\n";
+  }elsif($printMode eq $PRINT_NONE){
+    #print nothing
+  }else{
+    die "ERROR: unknown print mode $printMode\n";
   }
 
   return $out;
