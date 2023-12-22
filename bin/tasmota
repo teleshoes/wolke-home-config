@@ -21,7 +21,7 @@ sub getNestedMapVal($@);
 sub getSSID();
 sub readMinDimmer($@);
 sub runCommandOnDevices($$@);
-sub cmd($$$);
+sub runCmd($$$);
 sub parseVersion($);
 sub cmpVersion($$);
 sub readFile($);
@@ -409,7 +409,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($cmd, $opts, $device);
+        my $out = runCmd($cmd, $opts, $device);
         print "$device - $cmd - $out\n";
       }
     }
@@ -454,7 +454,7 @@ sub main(@){
           if(defined $COMMAND_ALIASES{$cmd}){
             $cmd = $COMMAND_ALIASES{$cmd};
           }
-          my $out = cmd($cmd, $opts, $device);
+          my $out = runCmd($cmd, $opts, $device);
           print "$device - $cmd - $out\n";
         }
       }
@@ -586,7 +586,7 @@ sub main(@){
       my $wifiCmd = "BACKLOG SSID1 $ssid; Password1 $key";
       my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
       print "$device ($deviceIP) => $wifiCmd\n";
-      cmd($wifiCmd, $opts, $device);
+      runCmd($wifiCmd, $opts, $device);
     }
   }elsif($mode eq $MODE_CONFIG_DEVICE){
     for my $device(@devices){
@@ -594,7 +594,7 @@ sub main(@){
       my ($cmd, $out);
 
       $cmd = "DeviceName $device";
-      $out = cmd($cmd, $opts, $device);
+      $out = runCmd($cmd, $opts, $device);
       print "$device - $cmd - $out\n";
 
       my $devType = $DEVICE_TYPES{$device};
@@ -612,7 +612,7 @@ sub main(@){
         if(defined $COMMAND_ALIASES{$cmd}){
           $cmd = $COMMAND_ALIASES{$cmd};
         }
-        my $out = cmd($cmd, $opts, $device);
+        my $out = runCmd($cmd, $opts, $device);
         print "$device - $cmd - $out\n";
       }
 
@@ -672,7 +672,7 @@ sub main(@){
         $idx++;
       }
 
-      $out = cmd($cmd, $opts, $device);
+      $out = runCmd($cmd, $opts, $device);
       print "$device - $cmd - $out\n";
     }
   }elsif($mode eq $MODE_SET_TEMPLATE){
@@ -689,8 +689,8 @@ sub main(@){
       }
       my $cmd = "TEMPLATE $templateJSON";
       my $out = "";
-      $out .= cmd($cmd, $opts, $device);
-      $out .= cmd("Module 0", $opts, $device);
+      $out .= runCmd($cmd, $opts, $device);
+      $out .= runCmd("Module 0", $opts, $device);
       print "$device - $out\n";
     }
   }else{
@@ -940,20 +940,20 @@ sub runCommandOnDevices($$@){
       my $pid = $pm->start($device);
       next if $pid;
 
-      my $out = cmd $cmd, $opts, $device;
+      my $out = runCmd $cmd, $opts, $device;
       $pm->finish(0, \$out);
     }
     $pm->wait_all_children();
   }else{
     for my $device(@devices){
-      my $out = cmd $cmd, $opts, $device;
+      my $out = runCmd $cmd, $opts, $device;
       $$outputByDevice{$device} = $out;
     }
   }
   return $outputByDevice;
 }
 
-sub cmd($$$){
+sub runCmd($$$){
   my ($cmd, $opts, $device) = @_;
   my $deviceIP = $device =~ /^\d+\.\d+\.\d+\.\d+$/ ? $device : $DEVICE_IPS{$device};
 
