@@ -46,6 +46,7 @@ my %DEVICE_IPS             = map {$_ => ${$DEVICES{$_}}[2]} @DEVICE_NAMES;
 my %DEVICE_SSIDS           = map {$_ => ${$DEVICES{$_}}[3]} @DEVICE_NAMES;
 my %DEVICE_TYPES           = map {$_ => ${$DEVICES{$_}}[4]} @DEVICE_NAMES;
 my %DEVICE_ALIASES         = map {$_ => ${$DEVICES{$_}}[5]} @DEVICE_NAMES;
+my %DEVICE_TIMERS          = map {$_ => ${$DEVICES{$_}}[6]} @DEVICE_NAMES;
 
 my %DEVICES_BY_ALIAS = extractDevicesByAlias([@DEVICE_NAMES], {%DEVICE_ALIASES});
 my @DEVICE_ALIAS_NAMES = sortAliasesByFirstDevice([@DEVICE_NAMES], {%DEVICES_BY_ALIAS});
@@ -614,6 +615,65 @@ sub main(@){
         my $out = cmd($cmd, $opts, $device);
         print "$device - $cmd - $out\n";
       }
+
+      my $timers = $DEVICE_TIMERS{$device};
+
+      $cmd = "Backlog";
+
+      #global enable/disable timers
+      if(@$timers == 0){
+        $cmd .= " Timers 0;";
+      }else{
+        $cmd .= " Timers 1;";
+      }
+
+      my $idx = 1;
+      for my $timer(@$timers){
+        if($timer =~ /^(on|off|toggle)=(sunrise|sunset|\d\d:\d\d)$/i){
+          my ($actionArg, $timeArg) = ($1, $2);
+
+          my $action = undef;
+          $action = 0 if $actionArg =~ /^off$/i;
+          $action = 1 if $actionArg =~ /^on$/i;
+          $action = 2 if $actionArg =~ /^toggle$/i;
+
+          my $mode = 0;
+          $mode = 1 if $timeArg =~ /sunrise/i;
+          $mode = 2 if $timeArg =~ /sunset/i;
+
+          my $time = $timeArg if $timeArg =~ /^\d\d:\d\d$/;
+          $time = "00:00" if $timeArg =~ /^(sunrise|sunset)$/i;
+
+          if(not defined $action or not defined $time){
+            print "WARNING: malformed timer $timer\n";
+            next;
+          }
+
+          $cmd .= " Timer$idx "
+            . "{\"Enable\":" . "1"
+            . ",\"Mode\":"   . "$mode"
+            . ",\"Time\":"   . "\"$time\""
+            . ",\"Window\""  . ":0"
+            . ",\"Days\":"   . "\"SMTWTFS\""  #7-char mask with - or 0 for disabled
+            . ",\"Repeat\":" . "1"
+            . ",\"Output\":" . "1"
+            . ",\"Action\":" . "$action"
+            . "};";
+          $idx++;
+        }else{
+          print "WARNING: malformed timer $timer\n";
+          next;
+        }
+      }
+
+      #clear remaining timers
+      while($idx <= 16){
+        $cmd .= " Timer$idx 0;";
+        $idx++;
+      }
+
+      $out = cmd($cmd, $opts, $device);
+      print "$device - $cmd - $out\n";
     }
   }elsif($mode eq $MODE_SET_TEMPLATE){
     for my $device(@devices){
@@ -662,13 +722,15 @@ sub readDevicesConfig(){
        \s* \| \s* ([^|]+?)
        \s* \| \s* (\w+)
        \s* \| \s* ([a-zA-Z0-9_\-\ ,]*)
+       \s* \| \s* ([a-zA-Z0-9_\-\ ,:=]*)
       $/x
     ){
-      my ($dev, $hostname, $mac, $targetIP4, $targetSSID, $devType, $aliasNamesStr) =
-        ($1, $2, $3, $4, $5, $6, $7);
+      my ($dev, $hostname, $mac, $targetIP4, $targetSSID, $devType, $aliasNamesStr, $timersStr) =
+        ($1, $2, $3, $4, $5, $6, $7, $8);
       my @aliasNames = split /[ ,]+/, $aliasNamesStr;
+      my @timers = split /[ ,]+/, $timersStr;
       push @devicesArr, $dev;
-      push @devicesArr, [$hostname, $mac, $targetIP4, $targetSSID, $devType, [@aliasNames]];
+      push @devicesArr, [$hostname, $mac, $targetIP4, $targetSSID, $devType, [@aliasNames], [@timers]];
     }else{
       print STDERR "WARNING: malformed line in $DEVICES_CONFIG_FILE:\n$line\n";
     }
