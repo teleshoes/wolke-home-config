@@ -6,7 +6,10 @@
 shopt -s dotglob
 shopt -s extglob
 
-bind 'set enable-bracketed-paste off'
+if [[ "$-" = *i* ]]; then
+  #interactive shell
+  bind 'set enable-bracketed-paste off'
+fi
 
 shopt -s checkwinsize # update LINES and COLUMNS based on window size
 
