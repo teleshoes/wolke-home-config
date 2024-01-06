@@ -13,7 +13,8 @@ import Data.Time
 import Utils (regexGroups, regexFirstGroup)
 
 main = mainLabel fcrondynReader
-fcrondynW = clickableLeft cmd =<< labelW fcrondynReader
+--fcrondynW = clickableLeft cmd =<< labelW fcrondynReader
+fcrondynW = labelW fcrondynReader
 
 fcrondynReader = do
   now <- getCurrentTime
