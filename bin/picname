@@ -266,13 +266,19 @@ sub handleFile($$$$$$$$){
   $namePrefix = "${namePrefix}_" if length $namePrefix > 0;
   $nameSuffix = "_${nameSuffix}" if length $nameSuffix > 0;
 
-  my $newFile = "${dir}${namePrefix}${dateFmt}${nameSuffix}${ext}";
+  my $newFile;
   my $count = 0;
-  my $countFmt = "";
-  while(-f $newFile and $file ne $newFile){
-    $count++;
-    $countFmt = "_$count";
+  while(1){
+    my $countFmt = $count == 0 ? "" : "_$count";
     $newFile = "${dir}${namePrefix}${dateFmt}${nameSuffix}${countFmt}${ext}";
+
+    if(not -e $newFile or $file eq $newFile){
+      #ensure file does not exist, unless its unchanged from original file
+      last;
+    }else{
+      #otherwise, append an incremental index until file does not exist
+      $count++;
+    }
   }
 
   if($action eq $ACTION_RENAME){
