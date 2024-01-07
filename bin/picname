@@ -78,6 +78,7 @@ my $usage = "Usage:
 
 sub handleFile($$$$$$$$);
 sub exifEpoch($);
+sub exifCmdGetDateAsEpoch($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
 sub run(@);
@@ -341,10 +342,25 @@ sub handleFile($$$$$$$$){
 
 sub exifEpoch($){
   my ($file) = @_;
-  open EXIF, "-|", "exif", "-m", $file;
+  my $epoch = undef;
+  $epoch = exifCmdGetDateAsEpoch($file) if not defined $epoch;
+  if(not defined $epoch){
+    die "ERROR: could not get EXIF date/time with exif for $file\n";
+  }
+  return $epoch;
+}
+
+sub exifCmdGetDateAsEpoch($){
+  my ($file) = @_;
+  my @cmd = ("exif", "-m", $file);
+  open EXIF, "-|", @cmd or die "ERROR: could not run @cmd\n$!\n";
   my @lines = <EXIF>;
   close EXIF;
-  die "error running exif on $file\n" if $? != 0;
+
+  if($? != 0){
+    print STDERR "WARNING: error running '@cmd'\n";
+  }
+
   my @dates;
   for my $line(@lines){
     if($line =~ /^Date and Time[^\t]*\t(.+)$/){
@@ -354,30 +370,32 @@ sub exifEpoch($){
         my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
         chomp $s;
         if($s !~ /^\d+$/){
-          print STDERR "ERROR: malformed date output $s\n";
+          print STDERR "WARNING: malformed date output $s\n";
           return undef;
         }
         push @dates, $s;
       }else{
-        print STDERR "ERROR: malformed date line: $line\n";
+        print STDERR "WARNING: malformed date line: $line\n";
         return undef;
       }
     }
   }
+
   if(@dates == 0){
-    print STDERR "ERROR: no EXIF date time found for: $file\n";
+    print STDERR "WARNING: no date/time found for '@cmd'\n";
     return undef;
   }
-  my $date = $dates[0];
+
+  my $minDate = $dates[0];
   for my $d(@dates){
-    if($d != $date){
-      print STDERR "WARNING: mismatched date tags for $file: $d != $date\n";
-      if($d < $date){
-        $date = $d;
+    if($d != $minDate){
+      print STDERR "WARNING: mismatched date tags for $file: $d != $minDate\n";
+      if($d < $minDate){
+        $minDate = $d;
       }
     }
   }
-  return $date;
+  return $minDate;
 }
 
 sub mtimeEpoch($){
