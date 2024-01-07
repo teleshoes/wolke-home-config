@@ -79,6 +79,7 @@ my $usage = "Usage:
 sub handleFile($$$$$$$$);
 sub exifEpoch($);
 sub exifCmdGetDateAsEpoch($);
+sub exiftoolCmdDateFieldAsEpoch($$);
 sub mtimeEpoch($);
 sub filenameEpoch($);
 sub run(@);
@@ -344,8 +345,10 @@ sub exifEpoch($){
   my ($file) = @_;
   my $epoch = undef;
   $epoch = exifCmdGetDateAsEpoch($file) if not defined $epoch;
+  $epoch = exiftoolCmdDateFieldAsEpoch($file, "CreateDate") if not defined $epoch;
+  $epoch = exiftoolCmdDateFieldAsEpoch($file, "DateTimeOriginal") if not defined $epoch;
   if(not defined $epoch){
-    die "ERROR: could not get EXIF date/time with exif for $file\n";
+    die "ERROR: could not get EXIF date/time with exif/exiftool for $file\n";
   }
   return $epoch;
 }
@@ -396,6 +399,31 @@ sub exifCmdGetDateAsEpoch($){
     }
   }
   return $minDate;
+}
+
+sub exiftoolCmdDateFieldAsEpoch($$){
+  my ($file, $exifField) = @_;
+  my @exifToolCmd = ("exiftool",
+    "-ignoreMinorErrors",
+    "-p", "\$$exifField",
+    "-d", "%s",
+    "-fast2",
+    $file,
+  );
+  open EXIF, "-|", @exifToolCmd
+    or die "ERROR: could not run @exifToolCmd\n$!\n";
+  my $out = <EXIF>;
+  close EXIF;
+  die "ERROR: command '@exifToolCmd' failed\n" if $? != 0;
+  chomp $out;
+
+  if($out =~ /^(\d+)$/){
+    return $1;
+  }elsif($out eq ""){
+    return undef;
+  }else{
+    die "ERROR: malformed output '$out' for '@exifToolCmd'\n";
+  }
 }
 
 sub mtimeEpoch($){
