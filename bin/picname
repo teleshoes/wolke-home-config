@@ -215,9 +215,19 @@ sub handleFile($$$$$$$$){
     die "ERROR: malformed output of `date` \"$dateFmt\"\n";
   }
 
-  my $typePrefix = "";
-  if($fileName =~ /^(VID_)?\d\d\d\d\d\d\d\d_\d\d\d\d\d\d(?:_\d+)?_(.*)/){
-    my ($vidPrefix, $unprefixedFileName) = ($1, $2);
+  my ($namePrefix, $nameSuffix);
+
+  #extract prefix+suffix from file
+  if($fileName =~ /^(VID_)(.*)$/){
+    $namePrefix = $1;
+    $nameSuffix = $2;
+  }else{
+    $namePrefix = "";
+    $nameSuffix = $fileName;
+  }
+
+  if($nameSuffix =~ /^\d\d\d\d\d\d\d\d_\d\d\d\d\d\d(?:_\d+)?_(.*)/){
+    my ($trimmedNameSuffix) = ($1);
 
     my $oldFileNameEpoch = filenameEpoch $file;
     my $diff = $epoch - $oldFileNameEpoch;
@@ -227,31 +237,30 @@ sub handleFile($$$$$$$$){
         . "WARNING: old date prefix disagrees by more than a day"
         . " for $file ($oldFileNameEpoch vs $epoch)\n";
     }
-    $typePrefix = "VID_" if defined $vidPrefix and $vidPrefix =~ /VID_/;
 
-    $fileName = $unprefixedFileName;
+    $nameSuffix = $trimmedNameSuffix;
   }
 
 
-  if($fileName =~ /^${ymd}_(\d+)$/){
+  if($nameSuffix =~ /^${ymd}_(\d+)$/){
     my $index = $1;
     #remove duplicate YYYYMMDD from files that start out named <YYYYMMDD>_<INDEX><EXT>
     #e.g.: 20181031_001.png => 20181031_153022_20181031_001.png => 20181031_153022_001.png
-    $fileName = "$index";
+    $nameSuffix = "$index";
   }
 
-  if(defined $tag and $fileName =~ /^${tag}(_\d+)?$/){
+  if(defined $tag and $nameSuffix =~ /^${tag}(_\d+)?$/){
     #remove <TAG> if filename is <TAG> or <TAG>_<INDEX>
     $tag = undef;
   }
 
   my $maybeTag = defined $tag ? "_$tag" : "";
 
-  my $newFile = "${typePrefix}${dir}${dateFmt}${maybeTag}_${fileName}${ext}";
+  my $newFile = "${namePrefix}${dir}${dateFmt}${maybeTag}_${nameSuffix}${ext}";
   my $count = 0;
   while(-f $newFile and $file ne $newFile){
     $count++;
-    $newFile = "$dir${dateFmt}_${fileName}_${count}${ext}";
+    $newFile = "$dir${dateFmt}_${nameSuffix}_${count}${ext}";
   }
 
   if($action eq $ACTION_RENAME){
