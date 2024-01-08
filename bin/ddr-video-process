@@ -9,6 +9,7 @@ my @INITIAL_OPTS;
 my @EXTRA_OPTS = qw(-bitexact);
 
 sub isFile($);
+sub getVideoHeight($);
 sub ffmpeg($@);
 
 my $usage = "Usage:
@@ -269,13 +270,25 @@ sub main(@){
   }
 
   if(isFile($screenFile)){
+    my $height = getVideoHeight($screenFile);
+    my @cropScaleFilter;
+    if($height < 1080){
+      @cropScaleFilter = (
+        "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
+        "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
+      );
+    }else{
+      @cropScaleFilter = (
+        "crop=1312:1080:0:0",        #1920x1080 => 1312x1080  (crop room for camera)
+      );
+    }
+
     #trim screen-video to start of camera-video, trim+resize for stacking
     ffmpeg("tmp-screen-trim-crop-scale-fps.$ext",
       "-i", $screenFile,
       "-ss", sprintf("%.2f", $screenVideoStartPos),
       "-filter_complex", join(",",
-        "crop=875:720:0:0",           #1280x720 => 875x720     (crop room for camera)
-        "scale=1312:1080",            #875x720  => 1312x1080   (720p => 1080p)
+        @cropScaleFilter,
         "fps=fps=60",                 #force 60fps
       ),
       "-an",
@@ -353,6 +366,27 @@ sub main(@){
 sub isFile($){
   return 0 if not defined $_[0];
   return -f $_[0] ? 1 : 0;
+}
+
+sub getVideoHeight($){
+  my ($file) = @_;
+  my @cmd = (
+    "ffprobe",
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries",
+      "stream=height",
+      "-of", "csv=s=x:p=0",
+      $file
+  );
+  open my $fh, "-|", @cmd or die "ERROR: could not run @cmd\n$!\n";
+  my $out = join '', <$fh>;
+  close $fh;
+  if($out =~ /^(\d+)$/){
+    return $1;
+  }else{
+    die "ERROR: could not read height with @cmd\n";
+  }
 }
 
 sub ffmpeg($@){
