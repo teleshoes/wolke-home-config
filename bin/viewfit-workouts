@@ -32,6 +32,8 @@ my $USAGE = "Usage:
     and store them in $WORKOUTS_JSON_CACHE_DIR
 
   OPTS
+    --id=WORKOUT_ID
+      show only workouts that match WORKOUT_ID
 ";
 
 sub readCachedWorkouts();
@@ -53,7 +55,9 @@ my $COMMAND_FETCH = "fetch";
 
 sub main(@){
   my $cmd = $COMMAND_GET;
-  my $opts = {};
+  my $opts = {
+    workoutIdFilter => undef,
+  };
   my @cmdArgs;
   while(@_ > 0){
     my $arg = shift;
@@ -64,6 +68,8 @@ sub main(@){
       $cmd = $COMMAND_GET;
     }elsif($arg =~ /^(-f|--fetch)$/){
       $cmd = $COMMAND_FETCH;
+    }elsif($arg =~ /^--id=(.+)$/){
+      $$opts{workoutIdFilter} = $1;
     }else{
       push @cmdArgs, $arg;
     }
@@ -72,6 +78,10 @@ sub main(@){
   if($cmd eq $COMMAND_GET){
     my @workouts = readCachedWorkouts();
     my $extraInfo = readExtraInfo();
+
+    if(defined $$opts{workoutIdFilter}){
+      @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
+    }
 
     @workouts = sort {
       $$a{workout_time} cmp $$b{workout_time}
