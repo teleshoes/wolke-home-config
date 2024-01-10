@@ -171,7 +171,7 @@ function ld           { command ls -dAl --color=auto "$@"; }
 function perms        { stat -c %a "$@"; }
 function glxgears     { vblank_mode=0 glxgears "$@"; }
 function mnto         { sudo mnt --other --no-usb --no-card "$@"; }
-function gparted      { spawnexsudo gparted "$@"; }
+function gparted      { sudo gparted "$@"; }
 function escape-pod   { ~/Code/escapepod/escape-pod-tool --escapepod "$@"; }
 function podcastle    { ~/Code/escapepod/escape-pod-tool --podcastle "$@"; }
 function pseudopod    { ~/Code/escapepod/escape-pod-tool --pseudopod "$@"; }
@@ -299,11 +299,6 @@ function tvg          { tv-gpio "$@" ; }
 
 function so           { screenOff "$@" ; }
 function soa          { screenOff all ; }
-
-function s            { "$@" & disown; }
-function spawn        { "$@" & disown; }
-function spawnex      { "$@" & disown && exit 0; }
-function spawnexsudo  { gksudo "$@" & disown && exit 0; }
 
 function m            { maven -Psdm -Pdev -Dgwt.compiler.skip=true install "$@"; }
 function mdebug       { mavenDebug -Psdm -Pdev -Dgwt.compiler.skip=true "$@"; }
