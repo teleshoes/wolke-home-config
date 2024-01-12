@@ -39,6 +39,8 @@ my @confNames = sort map {/^$confDir\/([^\/]+)\.conf$/; $1} @confFiles;
 
 my $defaultSSHArgs = "-o StrictHostKeyChecking=no";
 
+my $defaultSSHExec = "ssh";
+
 my $defaultPreBashCommand = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
 my $methods = join "|", qw(any tmp usb wifi guess);
@@ -209,6 +211,7 @@ my $usage = "Usage:
         -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
                             (number of total attempts is 1+<RETRIES>)
                             {default is $defaultRetries}
+        --ssh-exec SSH_EXEC use SSH_EXEC instead of `$defaultSSHExec`
         --ssh-args SSH_ARGS extra SSH args for -s and -b
                             e.g.: --ssh-args '-L 80:localhost:81'
 ";
@@ -259,7 +262,7 @@ sub main(@){
   die "hostname not defined in conf\n" if not defined $config{hostname};
 
   my $optRegex = join "|", qw(
-    -v --verbose -u --user -m --method -r --retries --ssh-args
+    -v --verbose -u --user -m --method -r --retries --ssh-exec --ssh-args
     -n --no-guess-ping -g --guess
   );
 
@@ -280,6 +283,8 @@ sub main(@){
       $opts{no_guess_ping} = 1;
     }elsif(@_ > 0 and $arg =~ /^(-r|--retries)$/){
       $opts{retries} = shift;
+    }elsif(@_ > 0 and $arg =~ /^(--ssh-exec)$/){
+      $opts{sshExec} = shift;
     }elsif(@_ > 0 and $arg =~ /^(--ssh-args)$/){
       $opts{extraSSHArgs} = shift;
     }else{
@@ -420,6 +425,8 @@ sub main(@){
     die "ERROR: no IP found\n";
   }
 
+  my $sshExec = defined $opts{sshExec} ? $opts{sshExec} : $defaultSSHExec;
+
   if($isVnc){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
@@ -432,7 +439,7 @@ sub main(@){
       @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
     }
 
-    my @cmd = ("ssh", @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
+    my @cmd = ($sshExec, @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
   }elsif($isRsync or $isScp){
@@ -446,7 +453,7 @@ sub main(@){
 
     my @cmd;
     if($isRsync){
-      @cmd = ("rsync", "-e", "ssh @sshCmdOpts");
+      @cmd = ("rsync", "-e", "$sshExec @sshCmdOpts");
     }elsif($isScp){
       @cmd = ("scp", @sshCmdOpts);
     }
