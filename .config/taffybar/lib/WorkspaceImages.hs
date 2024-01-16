@@ -94,7 +94,7 @@ loadFilePixbuf (Just file) = pixbufNewFromFile file
 getOverrideIconName :: String -> String -> Maybe IconName
 getOverrideIconName winTitle winClass
   | null winTitle && null winClass              = Just "blank"
-  | winTitle =~ "Riot.*\\|.* - Mozilla Firefox"  = Just "riot"
+  | winTitle =~ "Riot.*\\|.* - Mozilla Firefox" = Just "riot"
   | winTitle == "..." && winClass == "..."      = Just "blank"
   | winTitle `endsWith` " - VIM"                = Just "vim"
   | winTitle `contains` "| Jitsi Meet -"        = Just "jitsi"
