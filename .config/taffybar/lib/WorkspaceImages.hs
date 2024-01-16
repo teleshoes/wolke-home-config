@@ -107,6 +107,7 @@ getOverrideIconName winTitle winClass
   | dotClass == "Navigator.Firefox"             = Just "firefox"
   | dotClass == "Pidgin.Pidgin"                 = Just "pidgin"
   | dotClass == "urxvt.URxvt"                   = Just "terminal"
+  | winTitle == "Project OutFox"                = Just "stepmania"
   | otherwise = Nothing
   where ffPage s pageName = s `startsWith` pageName && s `endsWith` "MozillaFirefox"
         dotClass = classJoinDot winClass
