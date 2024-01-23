@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use IPC::Run qw(run);
 
 my @FFMPEG_OPTS = qw(
   -v quiet -f f32le -ac 1 -c:a pcm_f32le -ar 44100 pipe:1
@@ -32,10 +33,10 @@ sub main(@){
 
   die "$USAGE\nERROR: no file specified\n" if not defined $file;
 
-  $file =~ s/\\/\\\\/g;
-  $file =~ s/"/\\"/g;
+  my @ffmpegCmd = ("ffmpeg", "-i", $file, @FFMPEG_OPTS);
+  my @bpmCmd = ("bpm", @bpmOpts);
 
-  exec "ffmpeg -i \"$file\" @FFMPEG_OPTS | bpm @bpmOpts";
+  run \@ffmpegCmd, "|", \@bpmCmd;
 }
 
 &main(@ARGV);
