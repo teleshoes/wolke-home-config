@@ -10,24 +10,37 @@ my $USAGE = "USAGE:
   $0 -h | --help
     show this message
 
-  $0 [BPM_OPTS] SONG_FILE
+  $0 [OPTS] SONG_FILE
     wrapper around `bpm` using `ffmpeg` to convert to the format `bpm` needs
     roughly the same as:
       ffmpeg -i SONG_FILE @FFMPEG_OPTS \
         | bpm BPM_OPTS
+
+  OPTS
+    BPM_OPTS
+      -g <path>  Output autodifference data to file
+      -e <path>  Output energy data to file
+      -f <str>   Print format for final BPM value (default \"
+      -m <f>     Minimum detected BPM (default 84)
+      -x <f>     Maximum detected BPM (default 146)
+      -i <i>     Scanning interval in millis (default 128)
 ";
 
 sub main(@){
   my $file = undef;
   my @bpmOpts;
-  while(my $arg = shift @_){
+  while(@_ > 0){
+    my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
     }elsif(-f $arg){
       $file = $arg;
+    }elsif($arg =~ /^(-g|-e|-f|-m|-x|-i)$/ and @_ > 0){
+      my $param = shift @_;
+      @bpmOpts = (@bpmOpts, $arg, $param);
     }else{
-      push @bpmOpts, $arg;
+      die "ERROR: unknown arg $arg\n";
     }
   }
 
