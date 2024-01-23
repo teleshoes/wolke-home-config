@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use IPC::Run qw(run);
 
-my @FFMPEG_OPTS = qw(
+my @FFMPEG_FMT_OPTS = qw(
   -v quiet -f f32le -ac 1 -c:a pcm_f32le -ar 44100 pipe:1
 );
 my $USAGE = "USAGE:
@@ -13,7 +13,7 @@ my $USAGE = "USAGE:
   $0 [OPTS] SONG_FILE
     wrapper around `bpm` using `ffmpeg` to convert to the format `bpm` needs
     roughly the same as:
-      ffmpeg -i SONG_FILE @FFMPEG_OPTS \
+      ffmpeg -i SONG_FILE FFMPEG_OPTS @FFMPEG_FMT_OPTS \\
         | bpm BPM_OPTS
 
   OPTS
@@ -24,11 +24,17 @@ my $USAGE = "USAGE:
       -m <f>     Minimum detected BPM (default 84)
       -x <f>     Maximum detected BPM (default 146)
       -i <i>     Scanning interval in millis (default 128)
+
+    FFMPEG_OPTS
+      -ss POSITION    start position
+      -t  DURATION    duration (overrides -to)
+      -to POSITION    end position
 ";
 
 sub main(@){
   my $file = undef;
   my @bpmOpts;
+  my @ffmpegOpts;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -39,6 +45,9 @@ sub main(@){
     }elsif($arg =~ /^(-g|-e|-f|-m|-x|-i)$/ and @_ > 0){
       my $param = shift @_;
       @bpmOpts = (@bpmOpts, $arg, $param);
+    }elsif($arg =~ /^(-ss|-t|-to)$/ and @_ > 0){
+      my $param = shift @_;
+      @ffmpegOpts = ($arg, $param, @ffmpegOpts);
     }else{
       die "ERROR: unknown arg $arg\n";
     }
@@ -46,7 +55,7 @@ sub main(@){
 
   die "$USAGE\nERROR: no file specified\n" if not defined $file;
 
-  my @ffmpegCmd = ("ffmpeg", "-i", $file, @FFMPEG_OPTS);
+  my @ffmpegCmd = ("ffmpeg", "-i", $file, @ffmpegOpts, @FFMPEG_FMT_OPTS);
   my @bpmCmd = ("bpm", @bpmOpts);
 
   run \@ffmpegCmd, "|", \@bpmCmd;
