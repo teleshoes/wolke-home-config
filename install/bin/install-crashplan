@@ -4,12 +4,12 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-my $gpgSymCmd = getHome() . "/bin/gpg-sym";
-my $secretsFile = getHome() . "/.secrets";
-my $installerGlob = "/media/stuff/Images/installers/CrashPlan*.tgz";
-my $libuawSrc = "/media/stuff/Images/installers/crashplan-missing-libs/libuaw.so";
-my $libuawDest = "/usr/local/crashplan/nlib/libuaw.so";
-my @initFiles = grep {-e $_ or -l $_} (
+my $GPG_SYM_CMD = getHome() . "/bin/gpg-sym";
+my $SECRETS_FILE = getHome() . "/.secrets";
+my $INSTALLER_GLOB = "/media/stuff/Images/installers/CrashPlan*.tgz";
+my $LIBUAW_SRC = "/media/stuff/Images/installers/crashplan-missing-libs/libuaw.so";
+my $LIBUAW_DEST = "/usr/local/crashplan/nlib/libuaw.so";
+my @INIT_FILES = grep {-e $_ or -l $_} (
   glob("/etc/init.d/*crashplan*"),
   glob("/etc/rc*.d/*crashplan*"),
   glob("/etc/init.d/*code42*"),
@@ -24,48 +24,48 @@ my @initFiles = grep {-e $_ or -l $_} (
 
 sub main(@) {
   getRoot();
-  my $installer = globOne $installerGlob;
+  my $installer = globOne $INSTALLER_GLOB;
 
   print "\n\nopen firefox and download and install crashplan\n";
   if(defined $installer){
     print "  maybe use this if its not too old:\n  $installer\n";
   }else{
-    print "  hmm, no local file at:\n  $installerGlob\n";
+    print "  hmm, no local file at:\n  $INSTALLER_GLOB\n";
   }
   print "\n\npress enter to continue\n";
   <STDIN>;
 
   my $contents = "";
-  $contents = `cat $secretsFile` if defined $secretsFile and -f $secretsFile;
-  if($contents =~ /^\s*crashplan\.secret\s*=\s*(.+)$/m and -x $gpgSymCmd){
+  $contents = `cat $SECRETS_FILE` if defined $SECRETS_FILE and -f $SECRETS_FILE;
+  if($contents =~ /^\s*crashplan\.secret\s*=\s*(.+)$/m and -x $GPG_SYM_CMD){
     my $val = $1;
-    my $gpgSym = procUser $gpgSymCmd, $val;
+    my $gpgSym = procUser $GPG_SYM_CMD, $val;
     print "crashplan:\n$gpgSym\n";
   }else{
     print "no crashplan secret found, hope its in your car\n";
   }
 
   print "\n\ndeleting init files\n";
-  if(@initFiles > 0){
-    run "rm", @initFiles;
+  if(@INIT_FILES > 0){
+    run "rm", @INIT_FILES;
   }else{
     print "no init files to delete\n";
   }
 
   print "\n\nchecking uaw installed\n";
-  my $srcMd5 = md5sum($libuawSrc);
-  my $destMd5 = md5sum($libuawDest);
-  my $libuawBak = "$libuawDest.bak." . nowMillis();
+  my $srcMd5 = md5sum($LIBUAW_SRC);
+  my $destMd5 = md5sum($LIBUAW_DEST);
+  my $libuawBak = "$LIBUAW_DEST.bak." . nowMillis();
 
   if(defined $srcMd5 and defined $destMd5 and $srcMd5 ne $destMd5){
     print "libuaw mismatch, backing up current to $libuawBak\n";
-    run "mv", $libuawDest, $libuawBak;
+    run "mv", $LIBUAW_DEST, $libuawBak;
   }
 
-  if(not -e $libuawDest){
+  if(not -e $LIBUAW_DEST){
     print "copying libuaw.so (installer is stupid)\n";
-    run "cp", "-ar", $libuawSrc, $libuawDest;
-    run "chown", "root.root", $libuawDest;
+    run "cp", "-ar", $LIBUAW_SRC, $LIBUAW_DEST;
+    run "chown", "root.root", $LIBUAW_DEST;
   }else{
     print "libuaw.so is already in place\n";
   }
