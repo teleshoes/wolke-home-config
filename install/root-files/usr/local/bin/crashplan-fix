@@ -2,9 +2,6 @@
 use strict;
 use warnings;
 
-my $LIBUAW_SRC = "/media/stuff/Images/crashplan/crashplan-missing-libs/libuaw.so";
-my $LIBUAW_DEST = "/usr/local/crashplan/nlib/libuaw.so";
-
 my @INIT_FILES = grep {-e $_ or -l $_} (
   glob("/etc/init.d/*crashplan*"),
   glob("/etc/rc*.d/*crashplan*"),
@@ -25,7 +22,8 @@ my $USAGE = "Usage:
   $0
     -stop systemd services
     -remove init and service files for crashplan
-    -replace broken libuaw.so
+
+    NOTE: pre-installed libuaw.so works now
 ";
 
 sub nowMillis();
@@ -57,25 +55,6 @@ sub main(@){
     run "systemctl", "daemon-reload";
   }else{
     print "no init files to delete\n";
-  }
-
-
-  print "\n\nchecking uaw installed\n";
-  my $srcMd5 = md5sum($LIBUAW_SRC);
-  my $destMd5 = md5sum($LIBUAW_DEST);
-  my $libuawBak = "$LIBUAW_DEST.bak." . nowMillis();
-
-  if(defined $srcMd5 and defined $destMd5 and $srcMd5 ne $destMd5){
-    print "libuaw mismatch, backing up current to $libuawBak\n";
-    run "mv", $LIBUAW_DEST, $libuawBak;
-  }
-
-  if(not -e $LIBUAW_DEST){
-    print "copying libuaw.so (installer is stupid)\n";
-    run "cp", "-ar", $LIBUAW_SRC, $LIBUAW_DEST;
-    run "chown", "root:root", $LIBUAW_DEST;
-  }else{
-    print "libuaw.so is already in place\n";
   }
 }
 
