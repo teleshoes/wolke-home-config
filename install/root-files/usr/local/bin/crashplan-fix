@@ -2,17 +2,17 @@
 use strict;
 use warnings;
 
-my @INIT_FILES = grep {-e $_ or -l $_} (
-  glob("/etc/init.d/*crashplan*"),
-  glob("/etc/rc*.d/*crashplan*"),
-  glob("/etc/init.d/*code42*"),
-  glob("/etc/rc*.d/*code42*"),
-  glob("/etc/systemd/system/crashplan.service"),
-  glob("/etc/systemd/system/multi-user.target.wants/crashplan.service"),
-  glob("/etc/systemd/system/multi-user.target.wants/code42.service"),
-  glob("/usr/local/crashplan/etc/crashplan.service"),
-  glob("/usr/lib/systemd/system/crashplan.service"),
-  glob("/usr/lib/systemd/system/code42.service"),
+my @INIT_FILE_PATTERNS = (
+  "/etc/init.d/*crashplan*",
+  "/etc/rc*.d/*crashplan*",
+  "/etc/init.d/*code42*",
+  "/etc/rc*.d/*code42*",
+  "/etc/systemd/system/crashplan.service",
+  "/etc/systemd/system/multi-user.target.wants/crashplan.service",
+  "/etc/systemd/system/multi-user.target.wants/code42.service",
+  "/usr/local/crashplan/etc/crashplan.service",
+  "/usr/lib/systemd/system/crashplan.service",
+  "/usr/lib/systemd/system/code42.service",
 );
 
 my $USAGE = "Usage:
@@ -43,6 +43,8 @@ sub main(@){
   }
   getRoot();
 
+  my @initFiles = grep {-e $_ or -l $_} (map {glob($_)} @INIT_FILE_PATTERNS);
+
   print "\n\nstop+disable systemd services\n";
   run "systemctl --no-pager stop crashplan.service 2>&1; echo ok";
   run "systemctl --no-pager disable crashplan.service 2>&1; echo ok";
@@ -50,8 +52,8 @@ sub main(@){
   run "systemctl --no-pager disable code42.service 2>&1; echo ok";
 
   print "\n\ndeleting init files\n";
-  if(@INIT_FILES > 0){
-    run "rm", @INIT_FILES;
+  if(@initFiles > 0){
+    run "rm", @initFiles;
     run "systemctl", "daemon-reload";
   }else{
     print "no init files to delete\n";
