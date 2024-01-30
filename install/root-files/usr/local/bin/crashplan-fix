@@ -5,11 +5,25 @@ use warnings;
 my $LIBUAW_SRC = "/media/stuff/Images/installers/crashplan-missing-libs/libuaw.so";
 my $LIBUAW_DEST = "/usr/local/crashplan/nlib/libuaw.so";
 
+my @INIT_FILES = grep {-e $_ or -l $_} (
+  glob("/etc/init.d/*crashplan*"),
+  glob("/etc/rc*.d/*crashplan*"),
+  glob("/etc/init.d/*code42*"),
+  glob("/etc/rc*.d/*code42*"),
+  glob("/etc/systemd/system/crashplan.service"),
+  glob("/etc/systemd/system/multi-user.target.wants/crashplan.service"),
+  glob("/etc/systemd/system/multi-user.target.wants/code42.service"),
+  glob("/usr/local/crashplan/etc/crashplan.service"),
+  glob("/usr/lib/systemd/system/crashplan.service"),
+  glob("/usr/lib/systemd/system/code42.service"),
+);
+
 my $USAGE = "Usage:
   $0 -h | --help
     show this message
 
   $0
+    -remove init and service files for crashplan
     -replace broken libuaw.so
 ";
 
@@ -29,6 +43,14 @@ sub main(@){
     }
   }
   getRoot();
+
+  print "\n\ndeleting init files\n";
+  if(@INIT_FILES > 0){
+    run "rm", @INIT_FILES;
+  }else{
+    print "no init files to delete\n";
+  }
+
 
   print "\n\nchecking uaw installed\n";
   my $srcMd5 = md5sum($LIBUAW_SRC);
