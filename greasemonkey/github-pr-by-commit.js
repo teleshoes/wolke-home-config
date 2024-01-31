@@ -6,11 +6,15 @@
 
 var onclickFct = ""
 
-var commitAnchors = document.getElementsByClassName("BtnGroup-item");
-for(var i = commitAnchors.length - 1; i>=0; i--){
-  var link = commitAnchors[i].href;
-  if(link != null && link.includes("/pull")){
-    onclickFct += "window.open('" + link + "', '_blank');\n"
+var allAnchors = document.getElementsByTagName("a");
+commitsSeen = {};
+for(var i = allAnchors.length - 1; i>=0; i--){
+  var link = allAnchors[i].href;
+  m = link ? link.match("/pull/[0-9]+/commits/([0-9a-f]+)") : null;
+  commit = m ? m[1] : null;
+  if(commit && !(commit in commitsSeen)){
+    onclickFct += "window.open('" + link + "', '_blank');\n";
+    commitsSeen[commit] = 1;
   }
 }
 
