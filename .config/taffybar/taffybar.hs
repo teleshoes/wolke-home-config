@@ -86,7 +86,7 @@ main = do
   dpi <- getScreenDPI
   isBot <- elem "--bottom" <$> getArgs
   klompWidthPx <- screenPctToPx $ music profile
-  let cfg = defaultSimpleTaffyConfig { barHeight = barHeightNotStrut
+  let cfg = defaultSimpleTaffyConfig { barHeight = barHeightStrut
                                      , widgetSpacing = space profile
                                      , barPosition = if isBot then Bottom else Top
                                      }
