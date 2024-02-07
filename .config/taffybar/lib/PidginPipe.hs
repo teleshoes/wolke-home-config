@@ -65,5 +65,5 @@ imgName status isFlash = case status of
   "do not disturb" -> "pidgin-tray-busy"
   "invisible"      -> "pidgin-tray-invisible"
   "offline"        -> "pidgin-tray-offline"
-  _                -> "pidgin-tray-xa"
+  _                -> "pidgin-tray-available"
 
