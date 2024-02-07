@@ -979,9 +979,27 @@ sub getSnapshots($$$){
   }
   @subs = @sortedSubs;
 
+  my $testDirCmd = "";
   for my $sub(@subs){
-    die "$dir/$sub is not a dir\n" if not tryrun($ipmagicName, "test", "-d", "$dir/$sub");
+    $testDirCmd .= "echo -n '$dir/$sub: '; test -d '$dir/$sub' && echo ok || echo FAIL;";
   }
+  my @lines = readProcLines $ipmagicName, $testDirCmd;
+  my %isDir;
+  for my $line(@lines){
+    if($line =~ /^(.+): (ok|FAIL)$/){
+      $isDir{$1} = $2 eq "ok" ? 1 : 0;
+    }else{
+      die "ERROR: failed to test if subvols exist\nfailed line: $line\ncmd: $testDirCmd";
+    }
+  }
+  for my $sub(@subs){
+    if(not defined $isDir{"$dir/$sub"}){
+      die "ERROR: failed to test if subvol '$sub' is a dir\n";
+    }elsif(not $isDir{"$dir/$sub"}){
+      die "ERROR: '$dir/$sub' is not a dir\n";
+    }
+  }
+
 
   return @subs;
 }
