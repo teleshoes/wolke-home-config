@@ -18,11 +18,11 @@ my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
 
 my $CMD_SET_FREQ_MIN_MAX = "set-freq-min-max";
-my $CMD_SET_GOV = "set-gov";
 my $CMD_SET_FREQ_MIN = "set-freq-min";
 my $CMD_SET_FREQ_MAX = "set-freq-max";
 my $CMD_GET_MIN_PCT = "get-min-pct";
 my $CMD_GET_MAX_PCT = "get-max-pct";
+my $CMD_SET_GOV = "set-gov";
 
 my $CPUINFO_MIN_FREQ = "cpuinfo_min_freq";
 my $CPUINFO_MAX_FREQ = "cpuinfo_max_freq";
@@ -37,9 +37,6 @@ my $USAGE = "Usage:
       $EXEC --set-min MIN_FREQ_PCT
       $EXEC --set-max MAX_FREQ_PCT
 
-  $EXEC [OPTS] --gov|--governor GOVERNOR
-    set governor to GOVERNOR for selected cpus (or all)
-    (e.g: performance, powersave, ondemand, userspace)
   $EXEC [OPTS] --min FREQ_PCT
     -for selected cpus (default is all):
       -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
@@ -48,6 +45,10 @@ my $USAGE = "Usage:
     -for selected cpus (default is all):
       -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
       -set $SCALING_MAX_FREQ to FREQ_KHZ for selected cpus
+
+  $EXEC [OPTS] --gov|--governor GOVERNOR
+  $EXEC [OPTS] --set-gov|--set-governor GOVERNOR
+    set governor to GOVERNOR for selected cpus (default is all)
 
   $EXEC [OPTS] --get-min-pct
     read $SCALING_MIN_FREQ as FREQ_KHZ for selected cpus (or all),
@@ -68,6 +69,8 @@ my $USAGE = "Usage:
       e.g.: -c 0,2,4
             --cpu=3
 
+  GOVERNOR
+    scaling governor, e.g.: performance, powersave
   CPU_MIN_KHZ
     value of:
       $BASE_DIR/cpu<CPU_NUM>/cpufreq/$CPUINFO_MIN_FREQ
@@ -97,12 +100,12 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--set)$/){
       $cmd = $CMD_SET_FREQ_MIN_MAX;
-    }elsif($arg =~ /^(--gov|--governor)$/){
-      $cmd = $CMD_SET_GOV;
     }elsif($arg =~ /^(--min)$/){
       $cmd = $CMD_SET_FREQ_MIN;
     }elsif($arg =~ /^(--max)$/){
       $cmd = $CMD_SET_FREQ_MAX;
+    }elsif($arg =~ /^(--gov|--governor|--set-gov|--set-governor)$/){
+      $cmd = $CMD_SET_GOV;
     }elsif($arg =~ /^(--get-min-pct)$/){
       $cmd = $CMD_GET_MIN_PCT;
     }elsif($arg =~ /^(--get-max-pct)$/){
@@ -122,7 +125,7 @@ sub main(@){
       }else{
         die "$USAGE\nERROR: too many FREQ_PCT for cmd $cmd\n";
       }
-    }elsif($cmd =~ /^($CMD_SET_GOV)$/ and not defined $gov){
+    }elsif(defined $cmd and $cmd =~ /^($CMD_SET_GOV)$/ and not defined $gov){
       $gov = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
@@ -137,16 +140,16 @@ sub main(@){
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
     setMinMaxFreq $minFreqPct, $SCALING_MIN_FREQ, \@cpus;
     setMinMaxFreq $maxFreqPct, $SCALING_MAX_FREQ, \@cpus;
-  }elsif($cmd eq $CMD_SET_GOV){
-    for my $cpu(@cpus){
-      setGovernor($cpu, $gov);
-    }
   }elsif($cmd =~ $CMD_SET_FREQ_MIN){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
     setMinMaxFreq $minFreqPct, $SCALING_MIN_FREQ, \@cpus;
   }elsif($cmd =~ $CMD_SET_FREQ_MAX){
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
     setMinMaxFreq $maxFreqPct, $SCALING_MAX_FREQ, \@cpus;
+  }elsif($cmd eq $CMD_SET_GOV){
+    for my $cpu(@cpus){
+      setGovernor($cpu, $gov);
+    }
   }elsif($cmd eq $CMD_GET_MIN_PCT){
     my $pct = getAvgMinMaxFreqPct $SCALING_MIN_FREQ, \@cpus;
     print "$pct\n";
