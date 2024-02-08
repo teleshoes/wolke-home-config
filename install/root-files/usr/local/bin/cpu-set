@@ -22,6 +22,13 @@ sub writeDev($$$);
 
 my $EXEC = basename $0;
 
+my $CMD_ONDEMAND = "ondemand";
+my $CMD_SET_GOV = "set-gov";
+my $CMD_SET_FREQ_MIN = "set-freq-min";
+my $CMD_SET_FREQ_MAX = "set-freq-max";
+my $CMD_GET_MIN_PCT = "get-min-pct";
+my $CMD_GET_MAX_PCT = "get-max-pct";
+
 my $USAGE = "Usage:
   $EXEC [OPTS] --ondemand MIN_FREQ MAX_FREQ
     same as:
@@ -75,48 +82,65 @@ my $USAGE = "Usage:
       0%      => 1200000
 ";
 
-my $OK_COMMANDS = join "|",
-  qw(--ondemand --gov --governor --min --max --get-min-pct --get-max-pct);
-
 sub main(@){
-  my $cmd;
+  my $cmd = undef;
+  my $minFreq = undef;
+  my $maxFreq = undef;
+  my $gov = undef;
   my @cpus;
-  while(@_ > 0 and $_[0] =~ /^-/){
-    my $opt = shift;
-    if(@_ > 0 and $opt =~ /^(-c)$/){
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--ondemand)$/){
+      $cmd = $CMD_ONDEMAND;
+      $gov = "ondemand";
+    }elsif($arg =~ /^(--gov|--governor)$/){
+      $cmd = $CMD_SET_GOV;
+    }elsif($arg =~ /^(--min)$/){
+      $cmd = $CMD_SET_FREQ_MIN;
+    }elsif($arg =~ /^(--max)$/){
+      $cmd = $CMD_SET_FREQ_MAX;
+    }elsif($arg =~ /^(--get-min-pct)$/){
+      $cmd = $CMD_GET_MIN_PCT;
+    }elsif($arg =~ /^(--get-max-pct)$/){
+      $cmd = $CMD_GET_MAX_PCT;
+    }elsif($arg =~ /^(-c)$/ and @_ > 0){
       my $cpuArg = shift;
       die "malformed cpu arg: $cpuArg\n" if $cpuArg !~ /^(\d+,)*\d+$/;
       @cpus = (@cpus, split /,/, $cpuArg);
-    }elsif($opt =~ /^(-h|--help)$/){
-      print $USAGE;
-      exit 0;
-    }elsif($opt =~ /^($OK_COMMANDS)$/){
-      $cmd = $opt;
+    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MIN)$/ and not defined $minFreq){
+      $minFreq = $arg;
+    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MAX)$/ and not defined $maxFreq){
+      $maxFreq = $arg;
+    }elsif($cmd =~ /^($CMD_SET_GOV)$/ and not defined $gov){
+      $gov = $arg;
     }else{
-      die "$USAGE\nERROR: unknown option: $opt\n";
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
   @cpus = @cpus == 0 ? getAllCpus() : sortUniq @cpus;
 
-  if($cmd =~ /^(--ondemand)$/ and @_ == 2){
-    my ($minFreq, $maxFreq) = @_;
+  if($cmd eq $CMD_ONDEMAND){
+    die "ERROR: missing MIN_FREQ\n" if not defined $minFreq;
+    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreq;
     setGovernor "ondemand", \@cpus;
     setMinMaxFreq $minFreq, "scaling_min_freq", \@cpus;
     setMinMaxFreq $maxFreq, "scaling_max_freq", \@cpus;
-  }elsif($cmd =~ /^(--gov|--governor)$/ and @_ == 1){
-    my $gov = $_[0];
+  }elsif($cmd eq $CMD_SET_GOV){
     setGovernor $gov, \@cpus;
-  }elsif($cmd =~ /^(--min)$/ and @_ == 1){
-    my $freq = $_[0];
-    setMinMaxFreq $freq, "scaling_min_freq", \@cpus;
-  }elsif($cmd =~ /^(--max)$/ and @_ == 1){
-    my $freq = $_[0];
-    setMinMaxFreq $freq, "scaling_max_freq", \@cpus;
-  }elsif($cmd =~ /^(--get-min-pct)$/){
+  }elsif($cmd =~ $CMD_SET_FREQ_MIN){
+    die "ERROR: missing MIN_FREQ\n" if not defined $minFreq;
+    setMinMaxFreq $minFreq, "scaling_min_freq", \@cpus;
+  }elsif($cmd =~ $CMD_SET_FREQ_MAX){
+    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreq;
+    setMinMaxFreq $maxFreq, "scaling_max_freq", \@cpus;
+  }elsif($cmd eq $CMD_GET_MIN_PCT){
     my $pct = getAvgMinMaxFreqPct "scaling_min_freq", \@cpus;
     print "$pct\n";
-  }elsif($cmd =~ /^(--get-max-pct)$/){
+  }elsif($cmd eq $CMD_GET_MAX_PCT){
     my $pct = getAvgMinMaxFreqPct "scaling_max_freq", \@cpus;
     print "$pct\n";
   }else{
