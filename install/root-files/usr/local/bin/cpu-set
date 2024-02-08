@@ -3,14 +3,12 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub setGovernor($$);
 sub setMinMaxFreq($$$);
 sub getAvgMinMaxFreqPct($$);
 sub freqPctToKHz($$);
 sub freqKHzToPct($$);
 sub getAllCpus();
-sub getSharedAvailGovernors($);
-sub getCommonElems(@);
+sub setGovernor($$);
 sub sortUniq(@);
 sub readDev($$);
 sub readDevList($$);
@@ -124,7 +122,9 @@ sub main(@){
     setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
     setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
   }elsif($cmd eq $CMD_SET_GOV){
-    setGovernor $gov, \@cpus;
+    for my $cpu(@cpus){
+      setGovernor($cpu, $gov);
+    }
   }elsif($cmd =~ $CMD_SET_FREQ_MIN){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
     setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
@@ -139,16 +139,6 @@ sub main(@){
     print "$pct\n";
   }else{
     die $USAGE;
-  }
-}
-
-sub setGovernor($$){
-  my ($gov, $cpus) = @_;
-  my $availGovs = getSharedAvailGovernors $cpus;
-  my %okGovs = map {$_ => 1} @$availGovs;
-  die "unknown governor: $gov\n" if not defined $okGovs{$gov};
-  for my $cpu(@$cpus){
-    writeDev $cpu, "scaling_governor", $gov;
   }
 }
 
@@ -196,25 +186,13 @@ sub getAllCpus(){
   return @cpus;
 }
 
-#gets all governors available to ALL the specified cpus
-sub getSharedAvailGovernors($){
-  my ($cpus) = @_;
-  my @elemLists = map {readDevList $_, "scaling_available_governors"} @$cpus;
-  my $elems = getCommonElems @elemLists;
-  $elems = [sort @$elems];
-  return $elems;
-}
-
-#return a list containing all the elems in every list passed in
-sub getCommonElems(@){
-  my @lists = @_;
-  my @common;
-  @common = (@{$lists[0]}) if @lists > 0;
-  for my $list(@lists){
-    my %elems = map {$_ => 1} @$list;
-    @common = grep {defined $elems{$_}} @common;
+sub setGovernor($$){
+  my ($cpu, $gov) = @_;
+  my %okGovs = map {$_ => 1} readDevList $cpu, "scaling_available_governors";
+  if(not defined $okGovs{$gov}){
+    die "ERROR: unknown governor $gov\n";
   }
-  return [@common];
+  writeDev($cpu, "scaling_governor", $gov);
 }
 
 sub sortUniq(@){
@@ -236,7 +214,7 @@ sub readDevList($$){
   my ($cpu, $dev) = @_;
   my $val = readDev $cpu, $dev;
   my @values = split / /, $val;
-  return [@values];
+  return @values;
 }
 
 sub writeDev($$$){
