@@ -24,6 +24,13 @@ my $CMD_SET_FREQ_MAX = "set-freq-max";
 my $CMD_GET_MIN_PCT = "get-min-pct";
 my $CMD_GET_MAX_PCT = "get-max-pct";
 
+my $CPUINFO_MIN_FREQ = "cpuinfo_min_freq";
+my $CPUINFO_MAX_FREQ = "cpuinfo_max_freq";
+my $SCALING_MIN_FREQ = "scaling_min_freq";
+my $SCALING_MAX_FREQ = "scaling_max_freq";
+my $SCALING_GOVERNOR = "scaling_governor";
+my $SCALING_AVAILABLE_GOVERNORS = "scaling_available_governors";
+
 my $USAGE = "Usage:
   $EXEC [OPTS] --set MIN_FREQ_PCT MAX_FREQ_PCT
     same as:
@@ -36,14 +43,14 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --min FREQ_PCT
     -for selected cpus (default is all):
       -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
-      -set scaling_min_freq to FREQ_KHZ for selected cpus
+      -set $SCALING_MIN_FREQ to FREQ_KHZ for selected cpus
   $EXEC [OPTS] --max FREQ_PCT
     -for selected cpus (default is all):
       -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
-      -set scaling_max_freq to FREQ_KHZ for selected cpus
+      -set $SCALING_MAX_FREQ to FREQ_KHZ for selected cpus
 
   $EXEC [OPTS] --get-min-pct
-    read scaling_min_freq as FREQ_KHZ for selected cpus (or all),
+    read $SCALING_MIN_FREQ as FREQ_KHZ for selected cpus (or all),
       calculate FREQ_PCT for selected cpus,
       and take the average
   $EXEC [OPTS] --get-max-pct
@@ -59,10 +66,10 @@ my $USAGE = "Usage:
 
   CPU_MIN_KHZ
     value of:
-      $BASE_DIR/cpu<CPU_NUM>/cpufreq/cpuinfo_min_freq
+      $BASE_DIR/cpu<CPU_NUM>/cpufreq/$CPUINFO_MIN_FREQ
   CPU_MIN_KHZ
     value of:
-      $BASE_DIR/cpu<CPU_NUM>/cpufreq/cpuinfo_max_freq
+      $BASE_DIR/cpu<CPU_NUM>/cpufreq/$CPUINFO_MAX_FREQ
   FREQ_PCT
     cpu frequency as a percentage between the min and max of the cpu
       FREQ_KHZ = FREQ_PCT / 100 * (CPU_MAX_KHZ - CPU_MIN_KHZ) + CPU_MIN_KHZ
@@ -119,23 +126,23 @@ sub main(@){
   if($cmd eq $CMD_SET_FREQ_MIN_MAX){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
-    setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
-    setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
+    setMinMaxFreq $minFreqPct, $SCALING_MIN_FREQ, \@cpus;
+    setMinMaxFreq $maxFreqPct, $SCALING_MAX_FREQ, \@cpus;
   }elsif($cmd eq $CMD_SET_GOV){
     for my $cpu(@cpus){
       setGovernor($cpu, $gov);
     }
   }elsif($cmd =~ $CMD_SET_FREQ_MIN){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
-    setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
+    setMinMaxFreq $minFreqPct, $SCALING_MIN_FREQ, \@cpus;
   }elsif($cmd =~ $CMD_SET_FREQ_MAX){
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
-    setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
+    setMinMaxFreq $maxFreqPct, $SCALING_MAX_FREQ, \@cpus;
   }elsif($cmd eq $CMD_GET_MIN_PCT){
-    my $pct = getAvgMinMaxFreqPct "scaling_min_freq", \@cpus;
+    my $pct = getAvgMinMaxFreqPct $SCALING_MIN_FREQ, \@cpus;
     print "$pct\n";
   }elsif($cmd eq $CMD_GET_MAX_PCT){
-    my $pct = getAvgMinMaxFreqPct "scaling_max_freq", \@cpus;
+    my $pct = getAvgMinMaxFreqPct $SCALING_MAX_FREQ, \@cpus;
     print "$pct\n";
   }else{
     die $USAGE;
@@ -164,16 +171,16 @@ sub getAvgMinMaxFreqPct($$){
 
 sub freqPctToKHz($$){
   my ($cpu, $freqPct) = @_;
-  my $min = readDev $cpu, "cpuinfo_min_freq";
-  my $max = readDev $cpu, "cpuinfo_max_freq";
+  my $min = readDev $cpu, $CPUINFO_MIN_FREQ;
+  my $max = readDev $cpu, $CPUINFO_MAX_FREQ;
   return $freqPct/100.0 * ($max - $min) + $min;
 }
 
 #return percentage between min and max frequency
 sub freqKHzToPct($$){
   my ($cpu, $freqKHz) = @_;
-  my $min = readDev $cpu, "cpuinfo_min_freq";
-  my $max = readDev $cpu, "cpuinfo_max_freq";
+  my $min = readDev $cpu, $CPUINFO_MIN_FREQ;
+  my $max = readDev $cpu, $CPUINFO_MAX_FREQ;
   return 100.0 * ($freqKHz - $min) / ($max - $min);
 }
 
@@ -188,11 +195,11 @@ sub getAllCpus(){
 
 sub setGovernor($$){
   my ($cpu, $gov) = @_;
-  my %okGovs = map {$_ => 1} readDevList $cpu, "scaling_available_governors";
+  my %okGovs = map {$_ => 1} readDevList $cpu, $SCALING_AVAILABLE_GOVERNORS;
   if(not defined $okGovs{$gov}){
     die "ERROR: unknown governor $gov\n";
   }
-  writeDev($cpu, "scaling_governor", $gov);
+  writeDev($cpu, $SCALING_GOVERNOR, $gov);
 }
 
 sub sortUniq(@){
