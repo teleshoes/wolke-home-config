@@ -18,6 +18,7 @@ my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
 
 my $CMD_GET = "get";
+my $CMD_INFO = "info";
 my $CMD_SET_FREQ_MIN_MAX = "set-freq-min-max";
 my $CMD_SET_FREQ_MIN = "set-freq-min";
 my $CMD_SET_FREQ_MAX = "set-freq-max";
@@ -41,6 +42,16 @@ my $USAGE = "Usage:
       -if all selected cpus have the same value, use that value
       -otherwise, use '???'
     -print: SHARED_MIN_FREQ_PCT% - SHARED_MAX_FREQ_PCT% [SHARED_GOVERNOR]
+
+  $EXEC [OPTS] -i
+  $EXEC [OPTS] --info
+    -read scaling_min_freq and scaling_max_freq for selected cpus (default is all)
+    -calulate MIN_FREQ_KHZ, MIN_FREQ_PCT, MAX_FREQ_KHZ, and MAX_FREQ_PCT
+    -calculate MIN_FREQ_GHZ=MIN_FREQ_KHZ/1000/1000
+    -calculate MAX_FREQ_GHZ=MAX_FREQ_KHZ/1000/1000
+    -read GOVERNOR for all selected cpus
+    -print, one cpu per line:
+      CPU_NUM | MIN_FREQ_GHZ GHz - MAX_FREQ_GHZ GHz | MIN_FREQ_PCT% - MAX_FREQ_PCT% | GOVERNOR
 
   $EXEC [OPTS] MIN_FREQ_PCT MAX_FREQ_PCT
   $EXEC [OPTS] --set MIN_FREQ_PCT MAX_FREQ_PCT
@@ -105,6 +116,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--get)$/){
       $cmd = $CMD_GET;
+    }elsif($arg =~ /^(-i|--info)$/){
+      $cmd = $CMD_INFO;
     }elsif($arg =~ /^(--set)$/){
       $cmd = $CMD_SET_FREQ_MIN_MAX;
     }elsif($arg =~ /^(--min|--set-min)$/){
@@ -153,6 +166,22 @@ sub main(@){
     $sharedGovernor = "???" if not defined $sharedGovernor;
 
     printf "%s%% - %s%% [%s]\n", $sharedMinFreqPct, $sharedMaxFreqPct, $sharedGovernor;
+  }elsif($cmd eq $CMD_INFO){
+    for my $cpu(@cpus){
+      my $cpuMinFreqKHz = readDev($cpu, $SCALING_MIN_FREQ);
+      my $cpuMaxFreqKHz = readDev($cpu, $SCALING_MAX_FREQ);
+      my $cpuGov = readDev($cpu, $SCALING_GOVERNOR);
+      my $cpuMinFreqPct = freqKHzToPct($cpu, $cpuMinFreqKHz);
+      my $cpuMaxFreqPct = freqKHzToPct($cpu, $cpuMaxFreqKHz);
+      printf "%-2d | %5.3f GHz - %5.3f GHz | %3d%% - %3d%% | %s\n",
+        $cpu,
+        ($cpuMinFreqKHz/1000/1000),
+        ($cpuMaxFreqKHz/1000/1000),
+        $cpuMinFreqPct,
+        $cpuMaxFreqPct,
+        $cpuGov,
+      ;
+    }
   }elsif($cmd =~ /^$CMD_SET_FREQ_MIN|$CMD_SET_FREQ_MAX|$CMD_SET_FREQ_MIN_MAX$/){
     if(defined $minFreqPct and $cmd =~ /^($CMD_SET_FREQ_MAX)$/){
       die "$USAGE\nERROR: cannot give MIN_FREQ_PCT for $cmd\n";
