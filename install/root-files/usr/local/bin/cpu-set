@@ -80,13 +80,13 @@ my $OK_COMMANDS = join "|",
 
 sub main(@){
   my $cmd;
-  my $cpus = [];
+  my @cpus;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if(@_ > 0 and $opt =~ /^(-c)$/){
       my $cpuArg = shift;
       die "malformed cpu arg: $cpuArg\n" if $cpuArg !~ /^(\d+,)*\d+$/;
-      $cpus = [@$cpus, split /,/, $cpuArg];
+      @cpus = (@cpus, split /,/, $cpuArg);
     }elsif($opt =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
@@ -97,27 +97,27 @@ sub main(@){
     }
   }
 
-  $cpus = [@$cpus == 0 ? getAllCpus() : sortUniq @$cpus];
+  @cpus = @cpus == 0 ? getAllCpus() : sortUniq @cpus;
 
   if($cmd =~ /^(--ondemand)$/ and @_ == 2){
     my ($minFreq, $maxFreq) = @_;
-    setGovernor "ondemand", $cpus;
-    setMinMaxFreq $minFreq, "scaling_min_freq", $cpus;
-    setMinMaxFreq $maxFreq, "scaling_max_freq", $cpus;
+    setGovernor "ondemand", \@cpus;
+    setMinMaxFreq $minFreq, "scaling_min_freq", \@cpus;
+    setMinMaxFreq $maxFreq, "scaling_max_freq", \@cpus;
   }elsif($cmd =~ /^(--gov|--governor)$/ and @_ == 1){
     my $gov = $_[0];
-    setGovernor $gov, $cpus;
+    setGovernor $gov, \@cpus;
   }elsif($cmd =~ /^(--min)$/ and @_ == 1){
     my $freq = $_[0];
-    setMinMaxFreq $freq, "scaling_min_freq", $cpus;
+    setMinMaxFreq $freq, "scaling_min_freq", \@cpus;
   }elsif($cmd =~ /^(--max)$/ and @_ == 1){
     my $freq = $_[0];
-    setMinMaxFreq $freq, "scaling_max_freq", $cpus;
+    setMinMaxFreq $freq, "scaling_max_freq", \@cpus;
   }elsif($cmd =~ /^(--get-min-pct)$/){
-    my $pct = getAvgMinMaxFreqPct "scaling_min_freq", $cpus;
+    my $pct = getAvgMinMaxFreqPct "scaling_min_freq", \@cpus;
     print "$pct\n";
   }elsif($cmd =~ /^(--get-max-pct)$/){
-    my $pct = getAvgMinMaxFreqPct "scaling_max_freq", $cpus;
+    my $pct = getAvgMinMaxFreqPct "scaling_max_freq", \@cpus;
     print "$pct\n";
   }else{
     die $USAGE;
