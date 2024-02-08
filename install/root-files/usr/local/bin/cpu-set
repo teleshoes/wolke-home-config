@@ -4,7 +4,6 @@ use warnings;
 use File::Basename qw(basename);
 
 sub setMinMaxFreq($$$);
-sub getAvgMinMaxFreqPct($$);
 sub freqPctToKHz($$);
 sub freqKHzToPct($$);
 sub getAllCpus();
@@ -13,15 +12,16 @@ sub readDev($$);
 sub readDevList($$);
 sub writeDev($$$);
 sub uniq(@);
+sub firstElem(@);
+sub isAllSame(@);
 
 my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
 
+my $CMD_GET = "get";
 my $CMD_SET_FREQ_MIN_MAX = "set-freq-min-max";
 my $CMD_SET_FREQ_MIN = "set-freq-min";
 my $CMD_SET_FREQ_MAX = "set-freq-max";
-my $CMD_GET_MIN_PCT = "get-min-pct";
-my $CMD_GET_MAX_PCT = "get-max-pct";
 my $CMD_SET_GOV = "set-gov";
 
 my $CPUINFO_MIN_FREQ = "cpuinfo_min_freq";
@@ -32,6 +32,14 @@ my $SCALING_GOVERNOR = "scaling_governor";
 my $SCALING_AVAILABLE_GOVERNORS = "scaling_available_governors";
 
 my $USAGE = "Usage:
+  $EXEC [OPTS] --get
+    -read MIN_FREQ_KHZ, MAX_FREQ_KHZ, and GOVERNOR for selected cpus (default is all)
+    -calculate MIN_FREQ_PCT and MAX_FREQ_PCT for selected cpus
+    -get SHARED_MIN_FREQ_PCT, SHARED_MAX_FREQ_PCT, and SHARED_GOVERNOR
+      -if all selected cpus have the same value, use that value
+      -otherwise, use '???'
+    -print: SHARED_MIN_FREQ_PCT% - SHARED_MAX_FREQ_PCT% [SHARED_GOVERNOR]
+
   $EXEC [OPTS] --set MIN_FREQ_PCT MAX_FREQ_PCT
     same as:
       $EXEC --set-min MIN_FREQ_PCT
@@ -49,15 +57,6 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --gov|--governor GOVERNOR
   $EXEC [OPTS] --set-gov|--set-governor GOVERNOR
     set governor to GOVERNOR for selected cpus (default is all)
-
-  $EXEC [OPTS] --get-min-pct
-    read $SCALING_MIN_FREQ as FREQ_KHZ for selected cpus (or all),
-      calculate FREQ_PCT for selected cpus,
-      and take the average
-  $EXEC [OPTS] --get-max-pct
-    read scaling_max_freq as FREQ_KHZ for selected cpus (or all),
-      calculate FREQ_PCT for selected cpus,
-      and take the average
 
   OPTS
     -c CPU_NUM,CPU_NUM,CPU_NUM,...
@@ -98,6 +97,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--get)$/){
+      $cmd = $CMD_GET;
     }elsif($arg =~ /^(--set)$/){
       $cmd = $CMD_SET_FREQ_MIN_MAX;
     }elsif($arg =~ /^(--min)$/){
@@ -106,10 +107,6 @@ sub main(@){
       $cmd = $CMD_SET_FREQ_MAX;
     }elsif($arg =~ /^(--gov|--governor|--set-gov|--set-governor)$/){
       $cmd = $CMD_SET_GOV;
-    }elsif($arg =~ /^(--get-min-pct)$/){
-      $cmd = $CMD_GET_MIN_PCT;
-    }elsif($arg =~ /^(--get-max-pct)$/){
-      $cmd = $CMD_GET_MAX_PCT;
     }elsif($arg =~ /^--cpus?=((?:\d+,)*\d+)$/){
       my $cpuCsv = $1;
       @cpus = split /,/, $cpuCsv;
@@ -135,7 +132,21 @@ sub main(@){
   @cpus = getAllCpus() if @cpus == 0;
   @cpus = sort {$a <=> $b} uniq @cpus;
 
-  if($cmd eq $CMD_SET_FREQ_MIN_MAX){
+  if($cmd eq $CMD_GET){
+    my @minFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MIN_FREQ))} @cpus;
+    my @maxFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MAX_FREQ))} @cpus;
+    my @governors = map {readDev($_, $SCALING_GOVERNOR)} @cpus;
+
+    my $sharedMinFreqPct = firstElem @minFreqPcts if isAllSame @minFreqPcts;
+    my $sharedMaxFreqPct = firstElem @maxFreqPcts if isAllSame @maxFreqPcts;
+    my $sharedGovernor = firstElem @governors if isAllSame @governors;
+
+    $sharedMinFreqPct = "???" if not defined $sharedMinFreqPct;
+    $sharedMaxFreqPct = "???" if not defined $sharedMaxFreqPct;
+    $sharedGovernor = "???" if not defined $sharedGovernor;
+
+    printf "%s%% - %s%% [%s]\n", $sharedMinFreqPct, $sharedMaxFreqPct, $sharedGovernor;
+  }elsif($cmd eq $CMD_SET_FREQ_MIN_MAX){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
     setMinMaxFreq $minFreqPct, $SCALING_MIN_FREQ, \@cpus;
@@ -150,12 +161,6 @@ sub main(@){
     for my $cpu(@cpus){
       setGovernor($cpu, $gov);
     }
-  }elsif($cmd eq $CMD_GET_MIN_PCT){
-    my $pct = getAvgMinMaxFreqPct $SCALING_MIN_FREQ, \@cpus;
-    print "$pct\n";
-  }elsif($cmd eq $CMD_GET_MAX_PCT){
-    my $pct = getAvgMinMaxFreqPct $SCALING_MAX_FREQ, \@cpus;
-    print "$pct\n";
   }else{
     die $USAGE;
   }
@@ -169,18 +174,6 @@ sub setMinMaxFreq($$$){
   }
 }
 
-#convert KHz to percentage of (max-min) freq, take mean across all cpus
-sub getAvgMinMaxFreqPct($$){
-  my ($scalingMinMaxFreqDev, $cpus) = @_;
-  my $totalPcts = 0;
-  for my $cpu(@$cpus){
-    my $freqKHz = readDev $cpu, $scalingMinMaxFreqDev;
-    my $pct = freqKHzToPct $cpu, $freqKHz;
-    $totalPcts += $pct;
-  }
-  return sprintf "%d", $totalPcts/@$cpus;
-}
-
 sub freqPctToKHz($$){
   my ($cpu, $freqPct) = @_;
   my $min = readDev $cpu, $CPUINFO_MIN_FREQ;
@@ -188,7 +181,6 @@ sub freqPctToKHz($$){
   return $freqPct/100.0 * ($max - $min) + $min;
 }
 
-#return percentage between min and max frequency
 sub freqKHzToPct($$){
   my ($cpu, $freqKHz) = @_;
   my $min = readDev $cpu, $CPUINFO_MIN_FREQ;
@@ -241,6 +233,21 @@ sub writeDev($$$){
 sub uniq(@){
   my %okElems = map {$_ => 1} @_;
   return keys %okElems;
+}
+
+sub firstElem(@){
+  return @_ > 0 ? $_[0] : undef;
+}
+
+sub isAllSame(@){
+  my @arr = @_;
+  my $elem = $arr[0] if @arr > 0;
+  for my $otherElem(@arr){
+    if($elem ne $otherElem){
+      return 0;
+    }
+  }
+  return 1;
 }
 
 &main(@ARGV);
