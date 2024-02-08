@@ -9,10 +9,10 @@ sub freqPctToKHz($$);
 sub freqKHzToPct($$);
 sub getAllCpus();
 sub setGovernor($$);
-sub sortUniq(@);
 sub readDev($$);
 sub readDevList($$);
 sub writeDev($$$);
+sub uniq(@);
 
 my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
@@ -60,9 +60,13 @@ my $USAGE = "Usage:
 
   OPTS
     -c CPU_NUM,CPU_NUM,CPU_NUM,...
+    --cpu CPU_NUM,CPU_NUM,CPU_NUM,...
+    --cpus CPU_NUM,CPU_NUM,CPU_NUM,...
+    --cpu=CPU_NUM,CPU_NUM,CPU_NUM
+    --cpus=CPU_NUM,CPU_NUM,CPU_NUM
       comma-separated list of cpu indexes to include (default is to include all)
       e.g.: -c 0,2,4
-            -c 3
+            --cpu=3
 
   CPU_MIN_KHZ
     value of:
@@ -76,6 +80,8 @@ my $USAGE = "Usage:
   FREQ_KHZ
     cpu frequency in kHz
       FREQ_PCT = 100 * (FREQ_KHZ - CPU_MIN_KHZ) / (CPU_MAX_KHZ - CPU_MIN_KHZ)
+  CPU_NUM
+    integer index of cpu at $BASE_DIR/cpu<CPU_NUM>
 ";
 
 sub main(@){
@@ -101,10 +107,12 @@ sub main(@){
       $cmd = $CMD_GET_MIN_PCT;
     }elsif($arg =~ /^(--get-max-pct)$/){
       $cmd = $CMD_GET_MAX_PCT;
-    }elsif($arg =~ /^(-c)$/ and @_ > 0){
-      my $cpuArg = shift;
-      die "malformed cpu arg: $cpuArg\n" if $cpuArg !~ /^(\d+,)*\d+$/;
-      @cpus = (@cpus, split /,/, $cpuArg);
+    }elsif($arg =~ /^--cpus?=((?:\d+,)*\d+)$/){
+      my $cpuCsv = $1;
+      @cpus = split /,/, $cpuCsv;
+    }elsif($arg =~ /^(-c|--cpus?)$/ and @_ > 0 and $_[0] =~ /^((?:\d+,)*\d+)$/){
+      my $cpuCsv = shift @_;
+      @cpus = split /,/, $cpuCsv;
     }elsif($arg =~ /^(\d+|\d*\.\d+)%?$/){
       my $freqPct = $1;
       if($cmd =~ /^($CMD_SET_FREQ_MIN|$CMD_SET_FREQ_MIN_MAX)$/ and not defined $minFreqPct){
@@ -121,7 +129,8 @@ sub main(@){
     }
   }
 
-  @cpus = @cpus == 0 ? getAllCpus() : sortUniq @cpus;
+  @cpus = getAllCpus() if @cpus == 0;
+  @cpus = sort {$a <=> $b} uniq @cpus;
 
   if($cmd eq $CMD_SET_FREQ_MIN_MAX){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
@@ -184,11 +193,10 @@ sub freqKHzToPct($$){
   return 100.0 * ($freqKHz - $min) / ($max - $min);
 }
 
-#returns the number from all dirs named cpu# in the base dir
 sub getAllCpus(){
   my @cpus;
   for my $cpudir(glob "$BASE_DIR/cpu*"){
-    push @cpus, $1 if $cpudir =~ /(\d+)$/;
+    push @cpus, $1 if $cpudir =~ /cpu(\d+)$/;
   }
   return @cpus;
 }
@@ -200,11 +208,6 @@ sub setGovernor($$){
     die "ERROR: unknown governor $gov\n";
   }
   writeDev($cpu, $SCALING_GOVERNOR, $gov);
-}
-
-sub sortUniq(@){
-  my %okElems = map {$_ => 1} @_;
-  return sort keys %okElems;
 }
 
 sub readDev($$){
@@ -230,6 +233,11 @@ sub writeDev($$$){
   open FH, "> $devPath" or die "Could not open $devPath for writing\n$!\n";
   print FH "$val\n";
   close FH;
+}
+
+sub uniq(@){
+  my %okElems = map {$_ => 1} @_;
+  return keys %okElems;
 }
 
 &main(@ARGV);
