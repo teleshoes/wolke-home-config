@@ -9,10 +9,8 @@ sub getAvgMinMaxFreqPct($$);
 sub freqPctToKHz($$);
 sub freqKHzToPct($$);
 sub getAllCpus();
-sub getSharedAvailFreqsKHz($);
 sub getSharedAvailGovernors($);
 sub getCommonElems(@);
-sub parseFreq($$);
 sub sortUniq(@);
 sub readDev($$);
 sub readDevList($$);
@@ -29,27 +27,31 @@ my $CMD_GET_MIN_PCT = "get-min-pct";
 my $CMD_GET_MAX_PCT = "get-max-pct";
 
 my $USAGE = "Usage:
-  $EXEC [OPTS] --ondemand MIN_FREQ MAX_FREQ
+  $EXEC [OPTS] --ondemand MIN_FREQ_PCT MAX_FREQ_PCT
     same as:
     $EXEC [OPTS] --governor ondemand
-    $EXEC [OPTS] --min MIN_FREQ
-    $EXEC [OPTS] --max MAX_FREQ
+    $EXEC [OPTS] --min MIN_FREQ_PCT
+    $EXEC [OPTS] --max MAX_FREQ_PCT
 
   $EXEC [OPTS] --gov|--governor GOVERNOR
     set governor to GOVERNOR for selected cpus (or all)
     (e.g: performance, powersave, ondemand, userspace)
-  $EXEC [OPTS] --min FREQ
-    set scaling_min_freq to FREQ for selected cpus (or all)
-  $EXEC [OPTS] --max FREQ
-    set scaling_max_freq to FREQ for selected cpus (or all)
+  $EXEC [OPTS] --min FREQ_PCT
+    -for selected cpus (default is all):
+      -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
+      -set scaling_min_freq to FREQ_KHZ for selected cpus
+  $EXEC [OPTS] --max FREQ_PCT
+    -for selected cpus (default is all):
+      -calculate FREQ_KHZ from CPU_MIN_KHZ, CPU_MAX_KHZ, FREQ_PCT
+      -set scaling_max_freq to FREQ_KHZ for selected cpus
 
   $EXEC [OPTS] --get-min-pct
-    read scaling_min_freq for selected cpus (or all),
-      calculate the percentage based on avail freqs,
+    read scaling_min_freq as FREQ_KHZ for selected cpus (or all),
+      calculate FREQ_PCT for selected cpus,
       and take the average
   $EXEC [OPTS] --get-max-pct
-    read scaling_max_freq for selected cpus (or all),
-      calculate the percentage based on avail freqs,
+    read scaling_max_freq as FREQ_KHZ for selected cpus (or all),
+      calculate FREQ_PCT for selected cpus,
       and take the average
 
   OPTS
@@ -58,33 +60,24 @@ my $USAGE = "Usage:
       e.g.: -c 0,2,4
             -c 3
 
-  FREQ
-    either 'min', 'max' 'maxnt', or a percentage, or a freq in KHz, MHz, or GHz
-      <NUMBER>   => frequency in KHz, MHz, or GHz
-      <NUMBER>%  => percent of the index of the available frequencies
-      min        => smallest frequency available
-      max        => largest frequency available
-      maxnt      => the second-largest frequency available, if its within 10MHz
-                    otherwise, the largest frequency available
-    e.g.:
-      assuming avail frequencies in KHz are:
-        (1200000,1400000,1600000,1800000,2000000,2200000,2400000,2600000,2601000)
-      1.4     => 1400000
-      1400    => 1400000
-      1400000 => 1400000
-      min     => 1200000
-      max     => 2601000
-      maxnt   => 2600000
-      100%    => 2601000
-      50%     => 2000000
-      30%     => 1600000
-      0%      => 1200000
+  CPU_MIN_KHZ
+    value of:
+      $BASE_DIR/cpu<CPU_NUM>/cpufreq/cpuinfo_min_freq
+  CPU_MIN_KHZ
+    value of:
+      $BASE_DIR/cpu<CPU_NUM>/cpufreq/cpuinfo_max_freq
+  FREQ_PCT
+    cpu frequency as a percentage between the min and max of the cpu
+      FREQ_KHZ = FREQ_PCT / 100 * (CPU_MAX_KHZ - CPU_MIN_KHZ) + CPU_MIN_KHZ
+  FREQ_KHZ
+    cpu frequency in kHz
+      FREQ_PCT = 100 * (FREQ_KHZ - CPU_MIN_KHZ) / (CPU_MAX_KHZ - CPU_MIN_KHZ)
 ";
 
 sub main(@){
   my $cmd = undef;
-  my $minFreq = undef;
-  my $maxFreq = undef;
+  my $minFreqPct = undef;
+  my $maxFreqPct = undef;
   my $gov = undef;
   my @cpus;
   while(@_ > 0){
@@ -109,10 +102,10 @@ sub main(@){
       my $cpuArg = shift;
       die "malformed cpu arg: $cpuArg\n" if $cpuArg !~ /^(\d+,)*\d+$/;
       @cpus = (@cpus, split /,/, $cpuArg);
-    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MIN)$/ and not defined $minFreq){
-      $minFreq = $arg;
-    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MAX)$/ and not defined $maxFreq){
-      $maxFreq = $arg;
+    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MIN)$/ and not defined $minFreqPct){
+      $minFreqPct = $arg;
+    }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MAX)$/ and not defined $maxFreqPct){
+      $maxFreqPct = $arg;
     }elsif($cmd =~ /^($CMD_SET_GOV)$/ and not defined $gov){
       $gov = $arg;
     }else{
@@ -123,19 +116,19 @@ sub main(@){
   @cpus = @cpus == 0 ? getAllCpus() : sortUniq @cpus;
 
   if($cmd eq $CMD_ONDEMAND){
-    die "ERROR: missing MIN_FREQ\n" if not defined $minFreq;
-    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreq;
+    die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
+    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
     setGovernor "ondemand", \@cpus;
-    setMinMaxFreq $minFreq, "scaling_min_freq", \@cpus;
-    setMinMaxFreq $maxFreq, "scaling_max_freq", \@cpus;
+    setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
+    setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
   }elsif($cmd eq $CMD_SET_GOV){
     setGovernor $gov, \@cpus;
   }elsif($cmd =~ $CMD_SET_FREQ_MIN){
-    die "ERROR: missing MIN_FREQ\n" if not defined $minFreq;
-    setMinMaxFreq $minFreq, "scaling_min_freq", \@cpus;
+    die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
+    setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
   }elsif($cmd =~ $CMD_SET_FREQ_MAX){
-    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreq;
-    setMinMaxFreq $maxFreq, "scaling_max_freq", \@cpus;
+    die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
+    setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
   }elsif($cmd eq $CMD_GET_MIN_PCT){
     my $pct = getAvgMinMaxFreqPct "scaling_min_freq", \@cpus;
     print "$pct\n";
@@ -158,11 +151,9 @@ sub setGovernor($$){
 }
 
 sub setMinMaxFreq($$$){
-  my ($freq, $scalingMinMaxFreqDev, $cpus) = @_;
-  my $availFreqsKHz = getSharedAvailFreqsKHz $cpus;
-  my $freqKHz = parseFreq $freq, $availFreqsKHz;
-  die "malformed freq: $freq\n" if not defined $freqKHz;
+  my ($freqPct, $scalingMinMaxFreqDev, $cpus) = @_;
   for my $cpu(@$cpus){
+    my $freqKHz = freqPctToKHz $cpu, $freqPct;
     writeDev $cpu, $scalingMinMaxFreqDev, $freqKHz;
   }
 }
@@ -170,46 +161,28 @@ sub setMinMaxFreq($$$){
 #convert KHz to percentage of (max-min) freq, take mean across all cpus
 sub getAvgMinMaxFreqPct($$){
   my ($scalingMinMaxFreqDev, $cpus) = @_;
-  my $availFreqsKHz = getSharedAvailFreqsKHz $cpus;
   my $totalPcts = 0;
   for my $cpu(@$cpus){
     my $freqKHz = readDev $cpu, $scalingMinMaxFreqDev;
-    my $pct = freqKHzToPct $freqKHz, $availFreqsKHz;
+    my $pct = freqKHzToPct $cpu, $freqKHz;
     $totalPcts += $pct;
   }
   return sprintf "%d", $totalPcts/@$cpus;
 }
 
-#return closest avail freq to pct*(max-min)+min
 sub freqPctToKHz($$){
-  my ($freqPct, $availFreqsKHz) = @_;
-  my $min = $$availFreqsKHz[0];
-  my $max = $$availFreqsKHz[-1];
-  $freqPct =~ s/%$//;
-  my $targetFreqKHz = $freqPct/100.0*($max-$min) + $min;
-
-  my $closestFreqKHz;
-  my $smallestDelta;
-  for my $freqKHz(@$availFreqsKHz){
-    my $delta = $targetFreqKHz - $freqKHz;
-    $delta = 0-$delta if $delta < 0;
-    if(not defined $smallestDelta or $delta < $smallestDelta){
-      $smallestDelta = $delta;
-      $closestFreqKHz = $freqKHz;
-    }
-  }
-
-  return $closestFreqKHz;
+  my ($cpu, $freqPct) = @_;
+  my $min = readDev $cpu, "cpuinfo_min_freq";
+  my $max = readDev $cpu, "cpuinfo_max_freq";
+  return $freqPct/100.0 * ($max - $min) + $min;
 }
 
 #return percentage between min and max frequency
 sub freqKHzToPct($$){
-  my ($freqKHz, $availFreqsKHz) = @_;
-  my $min = $$availFreqsKHz[0];
-  my $max = $$availFreqsKHz[-1];
-  die "invalid avail freqs\n" if not defined $min or not defined $max or not $min < $max;
-
-  return ($freqKHz-$min)/($max-$min)*100.0;
+  my ($cpu, $freqKHz) = @_;
+  my $min = readDev $cpu, "cpuinfo_min_freq";
+  my $max = readDev $cpu, "cpuinfo_max_freq";
+  return 100.0 * ($freqKHz - $min) / ($max - $min);
 }
 
 #returns the number from all dirs named cpu# in the base dir
@@ -219,15 +192,6 @@ sub getAllCpus(){
     push @cpus, $1 if $cpudir =~ /(\d+)$/;
   }
   return @cpus;
-}
-
-#gets all frequencies available to ALL the specified cpus, in KHz
-sub getSharedAvailFreqsKHz($){
-  my ($cpus) = @_;
-  my @elemLists = map {readDevList $_, "scaling_available_frequencies"} @$cpus;
-  my $elems = getCommonElems @elemLists;
-  $elems = [sort @$elems];
-  return $elems;
 }
 
 #gets all governors available to ALL the specified cpus
@@ -249,49 +213,6 @@ sub getCommonElems(@){
     @common = grep {defined $elems{$_}} @common;
   }
   return [@common];
-}
-
-#takes a target value and a list of freqs in kHz
-#target value must be:
-#  a freq in kHz, MHz or GHz
-#  OR min for smallest
-#  OR max for largest
-#  OR maxnt for largest or second largest if largest is only a smidgen more
-#    smidgen is a technical term for less than 10 MHz
-#  OR a percent (e.g.: '80%') of the indices of the list of freqs
-#returns a freq in kHz if its in the list, or undefined
-sub parseFreq($$){
-  my ($freq, $availFreqsKHz) = @_;
-  if($freq eq 'min'){
-    return $$availFreqsKHz[0];
-  }elsif($freq eq 'max'){
-    return $$availFreqsKHz[-1];
-  }elsif($freq eq 'maxnt'){
-    my $last = $$availFreqsKHz[-1];
-    my $penu = $$availFreqsKHz[-2];
-    #if penultimate is within 10MHz of last, use penultimate
-    if($last - $penu <= 10000){
-      return $penu;
-    }else{
-      return $last;
-    }
-  }elsif($freq =~ /^\d+%$/){
-    my $freqKHz = freqPctToKHz $freq, $availFreqsKHz;
-    return $freqKHz;
-  }elsif($freq =~ /^\d+(\.\d+)?$/){
-    my %okFreqsKHz = map {$_ => 1} @$availFreqsKHz;
-    if($okFreqsKHz{int($freq * 1)}){
-      return int($freq * 1); #was kHz
-    }elsif($okFreqsKHz{int($freq * 1000)}){
-      return int($freq * 1000); #was MHz
-    }elsif($okFreqsKHz{int($freq * 1000 * 1000)}){
-      return int($freq * 1000 * 1000); #was GHz
-    }else{
-      return undef;
-    }
-  }else{
-    return undef;
-  }
 }
 
 sub sortUniq(@){
