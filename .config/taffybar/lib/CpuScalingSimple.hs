@@ -9,7 +9,7 @@ cpuScalingSimpleReader = do
   pct <- get
   return $ format pct
 
-get = fmap toPct $ readProc ["sudo", "cpu-set", "-g"]
+get = fmap toPct $ readProc ["sudo", "cpu-set", "--get-max"]
 
 format :: Integer -> String
 format pct = color $ fmt pct
