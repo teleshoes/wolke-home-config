@@ -19,7 +19,7 @@ sub writeDev($$$);
 my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
 
-my $CMD_ONDEMAND = "ondemand";
+my $CMD_SET_FREQ_MIN_MAX = "set-freq-min-max";
 my $CMD_SET_GOV = "set-gov";
 my $CMD_SET_FREQ_MIN = "set-freq-min";
 my $CMD_SET_FREQ_MAX = "set-freq-max";
@@ -27,11 +27,10 @@ my $CMD_GET_MIN_PCT = "get-min-pct";
 my $CMD_GET_MAX_PCT = "get-max-pct";
 
 my $USAGE = "Usage:
-  $EXEC [OPTS] --ondemand MIN_FREQ_PCT MAX_FREQ_PCT
+  $EXEC [OPTS] --set MIN_FREQ_PCT MAX_FREQ_PCT
     same as:
-    $EXEC [OPTS] --governor ondemand
-    $EXEC [OPTS] --min MIN_FREQ_PCT
-    $EXEC [OPTS] --max MAX_FREQ_PCT
+      $EXEC --set-min MIN_FREQ_PCT
+      $EXEC --set-max MAX_FREQ_PCT
 
   $EXEC [OPTS] --gov|--governor GOVERNOR
     set governor to GOVERNOR for selected cpus (or all)
@@ -85,9 +84,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^(--ondemand)$/){
-      $cmd = $CMD_ONDEMAND;
-      $gov = "ondemand";
+    }elsif($arg =~ /^(--set)$/){
+      $cmd = $CMD_SET_FREQ_MIN_MAX;
     }elsif($arg =~ /^(--gov|--governor)$/){
       $cmd = $CMD_SET_GOV;
     }elsif($arg =~ /^(--min)$/){
@@ -104,9 +102,9 @@ sub main(@){
       @cpus = (@cpus, split /,/, $cpuArg);
     }elsif($arg =~ /^(\d+|\d*\.\d+)%?$/){
       my $freqPct = $1;
-      if($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MIN)$/ and not defined $minFreqPct){
+      if($cmd =~ /^($CMD_SET_FREQ_MIN|$CMD_SET_FREQ_MIN_MAX)$/ and not defined $minFreqPct){
         $minFreqPct = $freqPct;
-      }elsif($cmd =~ /^($CMD_ONDEMAND|$CMD_SET_FREQ_MAX)$/ and not defined $maxFreqPct){
+      }elsif($cmd =~ /^($CMD_SET_FREQ_MAX|$CMD_SET_FREQ_MIN_MAX)$/ and not defined $maxFreqPct){
         $maxFreqPct = $freqPct;
       }else{
         die "$USAGE\nERROR: too many FREQ_PCT for cmd $cmd\n";
@@ -120,10 +118,9 @@ sub main(@){
 
   @cpus = @cpus == 0 ? getAllCpus() : sortUniq @cpus;
 
-  if($cmd eq $CMD_ONDEMAND){
+  if($cmd eq $CMD_SET_FREQ_MIN_MAX){
     die "ERROR: missing MIN_FREQ\n" if not defined $minFreqPct;
     die "ERROR: missing MAX_FREQ\n" if not defined $maxFreqPct;
-    setGovernor "ondemand", \@cpus;
     setMinMaxFreq $minFreqPct, "scaling_min_freq", \@cpus;
     setMinMaxFreq $maxFreqPct, "scaling_max_freq", \@cpus;
   }elsif($cmd eq $CMD_SET_GOV){
