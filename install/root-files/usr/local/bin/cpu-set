@@ -18,6 +18,9 @@ my $EXEC = basename $0;
 my $BASE_DIR='/sys/devices/system/cpu';
 
 my $CMD_GET = "get";
+my $CMD_GET_MIN = "get-min";
+my $CMD_GET_MAX = "get-max";
+my $CMD_GET_GOV = "get-gov";
 my $CMD_INFO = "info";
 my $CMD_SET_FREQ_MIN_MAX = "set-freq-min-max";
 my $CMD_SET_FREQ_MIN = "set-freq-min";
@@ -117,6 +120,12 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--get)$/){
       $cmd = $CMD_GET;
+    }elsif($arg =~ /^(--get-min)$/){
+      $cmd = $CMD_GET_MIN;
+    }elsif($arg =~ /^(--get-max)$/){
+      $cmd = $CMD_GET_MAX;
+    }elsif($arg =~ /^(--get-gov)$/){
+      $cmd = $CMD_GET_GOV;
     }elsif($arg =~ /^(-i|--info)$/){
       $cmd = $CMD_INFO;
     }elsif($arg =~ /^(--set)$/){
@@ -155,20 +164,35 @@ sub main(@){
   @cpus = getAllCpus() if @cpus == 0;
   @cpus = sort {$a <=> $b} uniq @cpus;
 
-  if($cmd eq $CMD_GET){
-    my @minFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MIN_FREQ))} @cpus;
-    my @maxFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MAX_FREQ))} @cpus;
-    my @governors = map {readDev($_, $SCALING_GOVERNOR)} @cpus;
+  if($cmd =~ /^($CMD_GET|$CMD_GET_MIN|$CMD_GET_MAX|$CMD_GET_GOV)$/){
+    my ($sharedMinFreqPct, $sharedMaxFreqPct, $sharedGovernor);
+    if($cmd =~ /^($CMD_GET|$CMD_GET_MIN)$/){
+      my @minFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MIN_FREQ))} @cpus;
+      $sharedMinFreqPct = firstElem @minFreqPcts if isAllSame @minFreqPcts;
+      $sharedMinFreqPct = "???" if not defined $sharedMinFreqPct;
+    }
+    if($cmd =~ /^($CMD_GET|$CMD_GET_MAX)$/){
+      my @maxFreqPcts = map {freqKHzToPct($_, readDev($_, $SCALING_MAX_FREQ))} @cpus;
+      $sharedMaxFreqPct = firstElem @maxFreqPcts if isAllSame @maxFreqPcts;
+      $sharedMaxFreqPct = "???" if not defined $sharedMaxFreqPct;
+    }
+    if($cmd =~ /^($CMD_GET|$CMD_GET_GOV)$/){
+      my @governors = map {readDev($_, $SCALING_GOVERNOR)} @cpus;
+      $sharedGovernor = firstElem @governors if isAllSame @governors;
+      $sharedGovernor = "???" if not defined $sharedGovernor;
+    }
 
-    my $sharedMinFreqPct = firstElem @minFreqPcts if isAllSame @minFreqPcts;
-    my $sharedMaxFreqPct = firstElem @maxFreqPcts if isAllSame @maxFreqPcts;
-    my $sharedGovernor = firstElem @governors if isAllSame @governors;
-
-    $sharedMinFreqPct = "???" if not defined $sharedMinFreqPct;
-    $sharedMaxFreqPct = "???" if not defined $sharedMaxFreqPct;
-    $sharedGovernor = "???" if not defined $sharedGovernor;
-
-    printf "%s%% - %s%% [%s]\n", $sharedMinFreqPct, $sharedMaxFreqPct, $sharedGovernor;
+     if($cmd eq $CMD_GET){
+       printf "%s%% - %s%% [%s]\n", $sharedMinFreqPct, $sharedMaxFreqPct, $sharedGovernor;
+     }elsif($cmd eq $CMD_GET_MIN){
+       printf "%s\n", $sharedMinFreqPct;
+     }elsif($cmd eq $CMD_GET_MAX){
+       printf "%s\n", $sharedMaxFreqPct;
+     }elsif($cmd eq $CMD_GET_GOV){
+       printf "%s\n", $sharedGovernor;
+     }else{
+       die "$USAGE\nERROR: unknown cmd $cmd\n";
+     }
   }elsif($cmd eq $CMD_INFO){
     for my $cpu(@cpus){
       my $cpuMinFreqKHz = readDev($cpu, $SCALING_MIN_FREQ);
