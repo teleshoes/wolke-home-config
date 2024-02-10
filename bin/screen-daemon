@@ -5,27 +5,27 @@ use File::Basename qw(basename);
 use IO::Handle;
 use Time::HiRes qw(time sleep);
 
-my $screenDaemonConf = "$ENV{HOME}/.config/screen-daemon.conf";
-my $logBaseDir = "$ENV{HOME}/.cache/logs";
+my $SCREEN_DAEMON_CONF_FILE = "$ENV{HOME}/.config/screen-daemon.conf";
+my $LOG_BASE_DIR = "$ENV{HOME}/.cache/logs";
 
 my $EXEC = basename $0;
 
 my $PRINT_TO_STDOUT = 1;
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
   $EXEC
   $EXEC --list
-    -read entries from config file $screenDaemonConf
+    -read entries from config file $SCREEN_DAEMON_CONF_FILE
     -read screen sessions from `screen -list`
     -for each entry in the config:
       -print \"NAME on\" if a screen session named NAME exists
       -print \"NAME off\" otherwise
 
   $EXEC --list-names
-    -read entries from config file $screenDaemonConf
+    -read entries from config file $SCREEN_DAEMON_CONF_FILE
     -print \"NAME\" for each entry in the config
 
   $EXEC NAME
@@ -43,7 +43,7 @@ my $usage = "Usage:
       -run `$EXEC NAME --stop
 
   $EXEC NAME --start
-    read $screenDaemonConf and find a line of the form:
+    read $SCREEN_DAEMON_CONF_FILE and find a line of the form:
       NAME DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
     invoke $EXEC NAME --start DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
 
@@ -58,13 +58,13 @@ my $usage = "Usage:
   $0 NAME --run DELAY_INTERVAL TIMEOUT_INTERVAL CMD [ARG ARG ..]
     -generate <LOG_FILE>
     -invoke `daemon-run` with CMD, TIMEOUT_INTERVAL, NAME, and LOG_FILE
-      -create symlink to LOG_FILE at $logBaseDir/<NAME>/latest
+      -create symlink to LOG_FILE at $LOG_BASE_DIR/<NAME>/latest
       -run 'CMD [ARG ARG ..]', appending STDOUT/STDERR to LOG_FILE
       -if CMD takes longer than TIMEOUT_INTERVAl, kill it (never kill it if TIMEOUT_INTERVAL is 0)
     -wait DELAY_INTERVAL and re-run `daemon-run`, forever
       (if DELAY_INTERVAL == 0, exit after first run)
 
-      LOG_FILE = $logBaseDir/<NAME>/<START_MILLIS>.log
+      LOG_FILE = $LOG_BASE_DIR/<NAME>/<START_MILLIS>.log
       START_MILLIS = time in milliseconds at initial start
 
   $EXEC NAME --ensure
@@ -82,7 +82,7 @@ my $usage = "Usage:
 
   $EXEC NAME --tail
     -tail the 'latest' log file symlink for NAME
-      tail -F $logBaseDir/NAME/latest
+      tail -F $LOG_BASE_DIR/NAME/latest
 
   $EXEC --bash-complete COMP_LINE COMP_POINT
     print a list of words for bash completion, one per line
@@ -131,7 +131,7 @@ sub main(@){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
+    print $USAGE;
     exit 0;
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^--list$/)){
     my @configNames = sort keys %{parseScreenDaemonConf()};
@@ -154,7 +154,7 @@ sub main(@){
     print "$status\n";
   }elsif(@_ == 1){
     my ($name) = @_;
-    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
     system $0, $name, "--ensure";
     exec $0, $name, "--attach";
   }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(--ensure)$/)){
@@ -180,7 +180,7 @@ sub main(@){
     my ($name, $startArg) = @_;
     my $conf = ${parseScreenDaemonConf()}{$name};
     if(not defined $conf){
-      die "no entry in $screenDaemonConf found for $name\n";
+      die "no entry in $SCREEN_DAEMON_CONF_FILE found for $name\n";
     }
     my $delayInterval = $$conf{delayInterval};
     my $timeoutInterval = $$conf{timeoutInterval};
@@ -206,25 +206,25 @@ sub main(@){
     daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
   }elsif(@_ == 2 and $_[1] =~ /^(--tail)$/){
     my ($name) = @_;
-    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
-    exec "tail", "-F", "$logBaseDir/$name/latest";
+    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    exec "tail", "-F", "$LOG_BASE_DIR/$name/latest";
   }elsif(@_ == 2 and $_[1] =~ /^(--stop|--exit|--quit|--kill)$/){
     my ($name) = @_;
-    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
     system "screen", "-S", $name, "-X", "quit";
   }elsif(@_ == 2 and $_[1] =~ /^(--attach)$/){
     my ($name) = @_;
-    die "$usage\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
     system "screen", "-S", $name, "-d", "-r"
   }else{
-    die $usage;
+    die $USAGE;
   }
 }
 
 sub parseScreenDaemonConf(){
   my $confs = {};
-  return $confs if not -f $screenDaemonConf;
-  for my $line(`cat $screenDaemonConf`){
+  return $confs if not -f $SCREEN_DAEMON_CONF_FILE;
+  for my $line(`cat $SCREEN_DAEMON_CONF_FILE`){
     chomp $line;
     next if $line =~ /^\s*(#.*)?$/; #skip empty or comment-only lines
     if($line =~ /^([a-zA-Z0-9_\-]+)\s+(\d+\w*)\s+(\d+\w*)\s+(.+)$/){
@@ -290,13 +290,13 @@ sub getIntervalMillis($){
 sub checkRunArgs($$$@){
   my ($name, $delayInterval, $timeoutInterval, @cmd) = @_;
   if($name !~ /^[a-zA-Z0-9_\-]+$/){
-    die "$usage\ninvalid name: $name\n";
+    die "$USAGE\ninvalid name: $name\n";
   }elsif(not defined getIntervalMillis($delayInterval)){
-    die "$usage\ninvalid delayInterval: $delayInterval\n"
+    die "$USAGE\ninvalid delayInterval: $delayInterval\n"
   }elsif(not defined getIntervalMillis($delayInterval)){
-    die "$usage\ninvalid timeoutInterval: $timeoutInterval\n"
+    die "$USAGE\ninvalid timeoutInterval: $timeoutInterval\n"
   }elsif(@cmd == 0){
-    die "$usage\nmissing CMD\n";
+    die "$USAGE\nmissing CMD\n";
   }
 }
 
