@@ -142,6 +142,7 @@ sub toggle($);
 sub ensure($);
 sub start($);
 sub startRun($$$@);
+sub run($$$@);
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
@@ -255,11 +256,7 @@ sub main(@){
   }elsif($cmd eq $CMD_START_RUN){
     startRun($name, $runDelayInterval, $runTimeoutInterval, @runCmd);
   }elsif($cmd eq $CMD_RUN){
-    checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
-
-    my $delayMillis = getIntervalMillis $runDelayInterval;
-    my $timeoutMillis = getIntervalMillis $runTimeoutInterval;
-    daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @runCmd;
+    run($name, $runDelayInterval, $runTimeoutInterval, @runCmd);
   }elsif($cmd eq $CMD_TAIL){
     exec "tail", "-F", "$LOG_BASE_DIR/$name/latest";
   }elsif($cmd eq $CMD_STOP){
@@ -340,6 +337,16 @@ sub startRun($$$@){
   system "screen -S $name -X quit >/dev/null";
   system "screen", "-S", $name, "-d", "-m",
     $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
+}
+
+sub run($$$@){
+  my ($name, $delayInterval, $timeoutInterval, @cmd) = @_;
+
+  checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+
+  my $delayMillis = getIntervalMillis $delayInterval;
+  my $timeoutMillis = getIntervalMillis $timeoutInterval;
+  daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
 }
 
 sub parseScreenDaemonConf(){
