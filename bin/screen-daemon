@@ -12,6 +12,10 @@ my $EXEC = basename $0;
 
 my $PRINT_TO_STDOUT = 1;
 
+my @INTERVAL_TIME_UNITS = qw(ms s m min h d);
+my $INTERVAL_TIME_UNIT_REGEX = join("|", @INTERVAL_TIME_UNITS);
+my $INTERVAL_REGEX = "(0|\\d+($INTERVAL_TIME_UNIT_REGEX))";
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -118,6 +122,19 @@ my $USAGE = "Usage:
     d   => days (24 hours)
 ";
 
+my $CMD_LIST = "list";
+my $CMD_LIST_NAMES = "list-names";
+my $CMD_ENSURE_ATTACH = "ensure-attach";
+my $CMD_STATUS = "status";
+my $CMD_TOGGLE = "toggle";
+my $CMD_START = "start";
+my $CMD_START_RUN = "start-run";
+my $CMD_RUN = "run";
+my $CMD_ENSURE = "ensure";
+my $CMD_ATTACH = "attach";
+my $CMD_STOP = "stop";
+my $CMD_TAIL = "tail";
+
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
@@ -132,10 +149,85 @@ sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
-  }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $USAGE;
-    exit 0;
-  }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^--list$/)){
+  }
+
+  my $cmd = undef;
+  my $name = undef;
+  my $runDelayInterval = undef;
+  my $runTimeoutInterval = undef;
+  my @runCmd;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if(not defined $cmd and $arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(not defined $cmd and $arg =~ /^(--list)$/){
+      $cmd = $CMD_LIST;
+    }elsif(not defined $cmd and $arg =~ /^(--list-names)$/){
+      $cmd = $CMD_LIST_NAMES;
+    }elsif(not defined $cmd and $arg =~ /^(--ensure-attach)$/){
+      $cmd = $CMD_ENSURE_ATTACH;
+    }elsif(not defined $cmd and $arg =~ /^(--status)$/){
+      $cmd = $CMD_STATUS;
+    }elsif(not defined $cmd and $arg =~ /^(--toggle)$/){
+      $cmd = $CMD_TOGGLE;
+    }elsif(not defined $cmd and $arg =~ /^(--start)$/){
+      $cmd = $CMD_START;
+    }elsif(not defined $cmd and $arg =~ /^(--start-run)$/){
+      $cmd = $CMD_START_RUN;
+    }elsif(not defined $cmd and $arg =~ /^(--run)$/){
+      $cmd = $CMD_RUN;
+    }elsif(not defined $cmd and $arg =~ /^(--ensure)$/){
+      $cmd = $CMD_ENSURE;
+    }elsif(not defined $cmd and $arg =~ /^(--attach)$/){
+      $cmd = $CMD_ATTACH;
+    }elsif(not defined $cmd and $arg =~ /^(--stop|--exit|--quit|--kill)$/){
+      $cmd = $CMD_STOP;
+    }elsif(not defined $cmd and $arg =~ /^(--tail)$/){
+      $cmd = $CMD_TAIL;
+    }elsif(not defined $name and $arg =~ /^[a-zA-Z0-9_\-]+$/){
+      $name = $arg;
+    }elsif(not defined $runDelayInterval and $arg =~ /^($INTERVAL_REGEX)$/){
+      $runDelayInterval = $arg;
+      $cmd = $CMD_START_RUN if defined $cmd and $cmd eq $CMD_START;
+    }elsif(not defined $runTimeoutInterval and $arg =~ /^($INTERVAL_REGEX)$/){
+      $runTimeoutInterval = $arg;
+      $cmd = $CMD_START_RUN if defined $cmd and $cmd eq $CMD_START;
+    }elsif(defined $runDelayInterval and defined $runTimeoutInterval){
+      push @runCmd, $arg;
+      $cmd = $CMD_START_RUN if defined $cmd and $cmd eq $CMD_START;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $cmd){
+    if(defined $name){
+      $cmd = $CMD_ENSURE_ATTACH;
+    }else{
+      $cmd = $CMD_LIST;
+    }
+  }
+
+  if($cmd =~ /^($CMD_LIST|$CMD_LIST_NAMES)$/){
+    die "$USAGE\nERROR: cannot give NAME for cmd $cmd\n" if defined $name;
+  }else{
+    die "$USAGE\nERROR: missing NAME for cmd $cmd\n" if not defined $name;
+  }
+
+  if(defined $runDelayInterval or defined $runTimeoutInterval or @runCmd > 0){
+    if($cmd !~ /^($CMD_START_RUN|$CMD_RUN)$/){
+      die "$USAGE\nERROR: cannot specify DELAY_INTERVAL/TIMEOUT_INTERVAL/CMD for $cmd\n";
+    }elsif(not defined $runDelayInterval){
+      die "$USAGE\nERROR: missing DELAY_INTERVAL for $cmd\n";
+    }elsif(not defined $runTimeoutInterval){
+      die "$USAGE\nERROR: missing TIMEOUT_INTERVAL for $cmd\n";
+    }elsif(@runCmd == 0){
+      die "$USAGE\nERROR: missing CMD for $cmd\n";
+    }
+  }
+
+  if($cmd eq $CMD_LIST){
     my @configNames = sort keys %{parseScreenDaemonConf()};
     my @screenNames = getRunningScreenNames();
     my %okScreenNames = map {$_ => 1} @screenNames;
@@ -143,24 +235,20 @@ sub main(@){
       my $status = defined $okScreenNames{$name} ? "on" : "off";
       print "$name $status\n";
     }
-  }elsif(@_ == 1 and $_[0] =~ /^--list-names$/){
+  }elsif($cmd eq $CMD_LIST_NAMES){
     my @configNames = sort keys %{parseScreenDaemonConf()};
     for my $name(@configNames){
       print "$name\n";
     }
-  }elsif(@_ == 2 and $_[1] =~ /^--status$/){
-    my ($name, $statusArg) = @_;
+  }elsif($cmd eq $CMD_STATUS){
     my @screenNames = getRunningScreenNames();
     my %okScreenNames = map {$_ => 1} @screenNames;
     my $status = defined $okScreenNames{$name} ? "on" : "off";
     print "$status\n";
-  }elsif(@_ == 1 or (@_ == 2 and $_[1] =~ /^(--ensure-attach)$/)){
-    my ($name) = @_;
-    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+  }elsif($cmd eq $CMD_ENSURE_ATTACH){
     system $0, $name, "--ensure";
     exec $0, $name, "--attach";
-  }elsif(@_ == 2 and $_[1] =~ /^(--ensure)$/){
-    my ($name, $toggleArg) = @_;
+  }elsif($cmd eq $CMD_ENSURE){
     my $status = `$0 $name --status`;
     if($status =~ /off/){
       print "starting\n";
@@ -168,8 +256,7 @@ sub main(@){
     }else{
       print "already running\n";
     }
-  }elsif(@_ == 2 and $_[1] =~ /^--toggle$/){
-    my ($name, $toggleArg) = @_;
+  }elsif($cmd eq $CMD_TOGGLE){
     my $status = `$0 $name --status`;
     if($status =~ /off/){
       print "starting\n";
@@ -178,8 +265,7 @@ sub main(@){
       print "stopping\n";
       exec $0, $name, "--stop";
     }
-  }elsif(@_ == 2 and $_[1] =~ /^--start$/){
-    my ($name, $startArg) = @_;
+  }elsif($cmd eq $CMD_START){
     my $conf = ${parseScreenDaemonConf()}{$name};
     if(not defined $conf){
       die "no entry in $SCREEN_DAEMON_CONF_FILE found for $name\n";
@@ -193,33 +279,25 @@ sub main(@){
     system "screen -S $name -X quit >/dev/null";
     system "screen", "-S", $name, "-d", "-m",
       $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
-  }elsif(@_ > 4 and $_[1] =~ /^(--start|--start-run)$/){
-    my ($name, $startArg, $delayInterval, $timeoutInterval, @cmd) = @_;
-    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+  }elsif($cmd eq $CMD_START_RUN){
+    checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
     system "screen -S $name -X quit >/dev/null";
     system "screen", "-S", $name, "-d", "-m",
-      $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
-  }elsif(@_ > 4 and $_[1] =~ /^--run$/){
-    my ($name, $runArg, $delayInterval, $timeoutInterval, @cmd) = @_;
-    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+      $0, $name, "--run", $runDelayInterval, $runTimeoutInterval, @runCmd;
+  }elsif($cmd eq $CMD_RUN){
+    checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
 
-    my $delayMillis = getIntervalMillis $delayInterval;
-    my $timeoutMillis = getIntervalMillis $timeoutInterval;
-    daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @cmd;
-  }elsif(@_ == 2 and $_[1] =~ /^(--tail)$/){
-    my ($name) = @_;
-    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+    my $delayMillis = getIntervalMillis $runDelayInterval;
+    my $timeoutMillis = getIntervalMillis $runTimeoutInterval;
+    daemonRunCommandForever $name, $delayMillis, $timeoutMillis, @runCmd;
+  }elsif($cmd eq $CMD_TAIL){
     exec "tail", "-F", "$LOG_BASE_DIR/$name/latest";
-  }elsif(@_ == 2 and $_[1] =~ /^(--stop|--exit|--quit|--kill)$/){
-    my ($name) = @_;
-    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+  }elsif($cmd eq $CMD_STOP){
     system "screen", "-S", $name, "-X", "quit";
-  }elsif(@_ == 2 and $_[1] =~ /^(--attach)$/){
-    my ($name) = @_;
-    die "$USAGE\ninvalid name: $name\n" if $name !~ /^[a-zA-Z0-9_\-]+$/;
+  }elsif($cmd eq $CMD_ATTACH){
     system "screen", "-S", $name, "-d", "-r"
   }else{
-    die $USAGE;
+    die "$USAGE\nERROR: unknown command $cmd\n";
   }
 }
 
