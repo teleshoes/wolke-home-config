@@ -135,6 +135,7 @@ my $CMD_ATTACH = "attach";
 my $CMD_STOP = "stop";
 my $CMD_TAIL = "tail";
 
+sub getAllStatusesByName();
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
@@ -228,12 +229,9 @@ sub main(@){
   }
 
   if($cmd eq $CMD_LIST){
-    my @configNames = sort keys %{parseScreenDaemonConf()};
-    my @screenNames = getRunningScreenNames();
-    my %okScreenNames = map {$_ => 1} @screenNames;
-    for my $name(@configNames){
-      my $status = defined $okScreenNames{$name} ? "on" : "off";
-      print "$name $status\n";
+    my $allStatusesByName = getAllStatusesByName();
+    for my $name(sort keys %$allStatusesByName){
+      print "$name $$allStatusesByName{$name}\n";
     }
   }elsif($cmd eq $CMD_LIST_NAMES){
     my @configNames = sort keys %{parseScreenDaemonConf()};
@@ -299,6 +297,18 @@ sub main(@){
   }else{
     die "$USAGE\nERROR: unknown command $cmd\n";
   }
+}
+
+sub getAllStatusesByName(){
+  my @configNames = sort keys %{parseScreenDaemonConf()};
+  my @screenNames = getRunningScreenNames();
+  my %okScreenNames = map {$_ => 1} @screenNames;
+  my $statusesByName = {};
+  for my $name(@configNames){
+    my $status = defined $okScreenNames{$name} ? "on" : "off";
+    $$statusesByName{$name} = $status;
+  }
+  return $statusesByName;
 }
 
 sub parseScreenDaemonConf(){
