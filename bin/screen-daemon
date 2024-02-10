@@ -141,6 +141,7 @@ sub getNames();
 sub toggle($);
 sub ensure($);
 sub start($);
+sub startRun($$$@);
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
@@ -252,10 +253,7 @@ sub main(@){
   }elsif($cmd eq $CMD_START){
     start($name);
   }elsif($cmd eq $CMD_START_RUN){
-    checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
-    system "screen -S $name -X quit >/dev/null";
-    system "screen", "-S", $name, "-d", "-m",
-      $0, $name, "--run", $runDelayInterval, $runTimeoutInterval, @runCmd;
+    startRun($name, $runDelayInterval, $runTimeoutInterval, @runCmd);
   }elsif($cmd eq $CMD_RUN){
     checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
 
@@ -330,6 +328,14 @@ sub start($){
   my @cmd = shellParse $$conf{cmdStr};
   print "$name --start $delayInterval $timeoutInterval @cmd\n";
 
+  checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+  system "screen -S $name -X quit >/dev/null";
+  system "screen", "-S", $name, "-d", "-m",
+    $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
+}
+
+sub startRun($$$@){
+  my ($name, $delayInterval, $timeoutInterval, @cmd) = @_;
   checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
   system "screen -S $name -X quit >/dev/null";
   system "screen", "-S", $name, "-d", "-m",
