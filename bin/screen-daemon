@@ -140,6 +140,7 @@ sub getStatus($);
 sub getNames();
 sub toggle($);
 sub ensure($);
+sub start($);
 sub parseScreenDaemonConf();
 sub getRunningScreenNames();
 sub getIntervalMillis($);
@@ -249,19 +250,7 @@ sub main(@){
   }elsif($cmd eq $CMD_TOGGLE){
     toggle($name);
   }elsif($cmd eq $CMD_START){
-    my $conf = ${parseScreenDaemonConf()}{$name};
-    if(not defined $conf){
-      die "no entry in $SCREEN_DAEMON_CONF_FILE found for $name\n";
-    }
-    my $delayInterval = $$conf{delayInterval};
-    my $timeoutInterval = $$conf{timeoutInterval};
-    my @cmd = shellParse $$conf{cmdStr};
-    print "$name --start $delayInterval $timeoutInterval @cmd\n";
-
-    checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
-    system "screen -S $name -X quit >/dev/null";
-    system "screen", "-S", $name, "-d", "-m",
-      $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
+    start($name);
   }elsif($cmd eq $CMD_START_RUN){
     checkRunArgs $name, $runDelayInterval, $runTimeoutInterval, @runCmd;
     system "screen -S $name -X quit >/dev/null";
@@ -328,6 +317,23 @@ sub ensure($){
   }else{
     print "already running\n";
   }
+}
+
+sub start($){
+  my ($name) = @_;
+  my $conf = ${parseScreenDaemonConf()}{$name};
+  if(not defined $conf){
+    die "no entry in $SCREEN_DAEMON_CONF_FILE found for $name\n";
+  }
+  my $delayInterval = $$conf{delayInterval};
+  my $timeoutInterval = $$conf{timeoutInterval};
+  my @cmd = shellParse $$conf{cmdStr};
+  print "$name --start $delayInterval $timeoutInterval @cmd\n";
+
+  checkRunArgs $name, $delayInterval, $timeoutInterval, @cmd;
+  system "screen -S $name -X quit >/dev/null";
+  system "screen", "-S", $name, "-d", "-m",
+    $0, $name, "--run", $delayInterval, $timeoutInterval, @cmd;
 }
 
 sub parseScreenDaemonConf(){
