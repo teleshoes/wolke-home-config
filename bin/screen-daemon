@@ -22,11 +22,23 @@ my $USAGE = "Usage:
 
   $EXEC
   $EXEC --list
-    -read entries from config file $SCREEN_DAEMON_CONF_FILE
-    -read screen sessions from `screen -list`
-    -for each entry in the config:
-      -print \"NAME on\" if a screen session named NAME exists
-      -print \"NAME off\" otherwise
+    -read all CONF_NAME entries from config file $SCREEN_DAEMON_CONF_FILE
+    -read all SCREEN_NAME entries from named screen sessions with `screen -list`
+    -print CONF_NAME entries that match a SCREEN_NAME, one per line, as:
+      CONF_NAME on
+    -print a separator '---'
+    -print CONF_NAME entries that do NOT match a SCREEN_NAME, one per line, as:
+      CONF_NAME off
+    -print a separator '---'
+    -print SCREEN_NAME entries that do NOT match a CONF_NAME, one per line, as:
+      SCREEN_NAME on
+    e.g.:
+      daemon1 on
+      daemon3 on
+      ---
+      daemon2 on
+      ---
+      some-other-named-screen-session on
 
   $EXEC --list-names
     -read entries from config file $SCREEN_DAEMON_CONF_FILE
@@ -239,10 +251,17 @@ sub main(@){
   }
 
   if($cmd eq $CMD_LIST){
-    my $allStatusesByName = getAllStatusesByName();
-    for my $name(sort keys %$allStatusesByName){
-      my $onOff = $$allStatusesByName{$name}{running} ? "on" : "off";
-      print "$name $onOff\n";
+    my $stat = getAllStatusesByName();
+    for my $name(sort keys %$stat){
+      print "$name $$stat{$name}{onOff}\n" if $$stat{$name}{conf} and $$stat{$name}{running};
+    }
+    print "---\n";
+    for my $name(sort keys %$stat){
+      print "$name $$stat{$name}{onOff}\n" if $$stat{$name}{conf} and not $$stat{$name}{running};
+    }
+    print "---\n";
+    for my $name(sort keys %$stat){
+      print "$name $$stat{$name}{onOff}\n" if not $$stat{$name}{conf};
     }
   }elsif($cmd eq $CMD_LIST_NAMES){
     print "$_\n" foreach getNames();
@@ -290,6 +309,9 @@ sub getAllStatusesByName(){
       };
     }
     $$statusesByName{$configName}{conf} = 1;
+  }
+  for my $name(sort keys %$statusesByName){
+    $$statusesByName{$name}{onOff} = $$statusesByName{$name}{running} ? "on" : "off";
   }
   return $statusesByName;
 }
