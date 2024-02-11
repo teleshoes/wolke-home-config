@@ -241,12 +241,13 @@ sub main(@){
   if($cmd eq $CMD_LIST){
     my $allStatusesByName = getAllStatusesByName();
     for my $name(sort keys %$allStatusesByName){
-      print "$name $$allStatusesByName{$name}\n";
+      my $onOff = $$allStatusesByName{$name}{running} ? "on" : "off";
+      print "$name $onOff\n";
     }
   }elsif($cmd eq $CMD_LIST_NAMES){
     print "$_\n" foreach getNames();
   }elsif($cmd eq $CMD_STATUS){
-    print getStatus($name) . "\n";
+    print isRunning($name) ? "on\n" : "off\n";
   }elsif($cmd eq $CMD_ENSURE_ATTACH){
     ensure($name);
     attach($name);
@@ -276,18 +277,31 @@ sub getAllStatusesByName(){
   my @screenNames = getRunningScreenNames();
   my $statusesByName = {};
   for my $screenName(@screenNames){
-    $$statusesByName{$screenName} = "on";
+    $$statusesByName{$screenName} = {
+      conf    => 0,
+      running => 1,
+    };
   }
   for my $configName(@configNames){
-    $$statusesByName{$configName} = "off" if not defined $$statusesByName{$configName};
+    if(not defined $$statusesByName{$configName}){
+      $$statusesByName{$configName} = {
+        conf    => 1,
+        running => 0,
+      };
+    }
+    $$statusesByName{$configName}{conf} = 1;
   }
   return $statusesByName;
 }
 
-sub getStatus($){
+sub isRunning($){
   my ($name) = @_;
   my $statusesByName = getAllStatusesByName();
-  return defined $$statusesByName{$name} ? $$statusesByName{$name} : "off";
+  if(defined $$statusesByName{$name}){
+    return $$statusesByName{$name}{running};
+  }else{
+    return 0;
+  }
 }
 
 sub getNames(){
@@ -296,24 +310,22 @@ sub getNames(){
 
 sub toggle($){
   my ($name) = @_;
-  my $status = getStatus($name);
-  if($status =~ /off/){
-    print "starting\n";
-    start($name);
-  }elsif($status =~ /on/){
+  if(isRunning($name)){
     print "stopping\n";
     stop($name);
+  }else{
+    print "starting\n";
+    start($name);
   }
 }
 
 sub ensure($){
   my ($name) = @_;
-  my $status = getStatus($name);
-  if($status =~ /off/){
+  if(isRunning($name)){
+    print "already running\n";
+  }else{
     print "starting\n";
     start($name);
-  }else{
-    print "already running\n";
   }
 }
 sub attach($){
