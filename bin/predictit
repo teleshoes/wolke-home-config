@@ -2,24 +2,25 @@
 use strict;
 use warnings;
 
-my $API_URL = "https://www.predictit.org/api/marketdata/markets";
-
-my $MARKETS_ARR = [
-];
-my @MARKET_ORDER = map {$$_[0]} @$MARKETS_ARR;
-my $MARKETS = { map {$$_[0] => $$_[1]} @$MARKETS_ARR };
-
+sub parseMarketsConf($);
 sub parseMarketJson($);
 
+my $API_URL = "https://www.predictit.org/api/marketdata/markets";
+my $MARKETS_CONF_FILE = "$ENV{HOME}/.config/predictit-markets.conf";
+
 sub main(@){
-  for my $marketLabel(@MARKET_ORDER){
-    my $marketId = $$MARKETS{$marketLabel}{id};
+  my $marketsConf = parseMarketsConf($MARKETS_CONF_FILE);
+  for my $marketLabel(@{$$marketsConf{labelOrder}}){
+    my $conf = $$marketsConf{marketByLabel}{$marketLabel};
+    my $marketId = $$conf{id};
+    my $targetContracts = $$conf{targetContracts};
+
     my $json = `wget -O - $API_URL/$marketId 2>/dev/null`;
     my $market = parseMarketJson $json;
     my $marketName = $$market{name};
     my $fmt = "$marketLabel:";
-    for my $contractLabel(sort keys %{$$MARKETS{$marketLabel}{contracts}}){
-      my $contractName = $$MARKETS{$marketLabel}{contracts}{$contractLabel};
+    for my $contractLabel(sort keys %$targetContracts){
+      my $contractName = $$targetContracts{$contractLabel};
       my $lastTradePrice = $$market{contracts}{$contractName};
       if(not defined $lastTradePrice){
         die "ERROR: contract not found \"$marketName\" - \"$contractName\"\n";
@@ -28,6 +29,52 @@ sub main(@){
     }
     print "$fmt\n";
   }
+}
+
+sub parseMarketsConf($){
+  my ($confFile) = @_;
+  my $marketsConf = {
+    labelOrder    => [],
+    marketByLabel => {},
+  };
+
+  if(not -f $confFile){
+    print STDERR "WARNING: $confFile not found\n";
+    return $marketsConf;
+  }
+
+  open my $fh, "< $confFile" or die "ERROR: could not read $confFile\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
+
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^\s*(\w+)\s*\|\s*(\d+)\s*\|(.*?)$/){
+      my ($label, $id, $contractCsv) = ($1, $2, $3);
+      my $market = {
+        id => $id,
+        label => $label,
+        targetContracts => {},
+      };
+      push @{$$marketsConf{labelOrder}}, $label;
+      $$marketsConf{marketByLabel}{$label} = $market;
+
+      my @contractPairs = split /,/, $contractCsv, -1;
+      for my $contractPair(@contractPairs){
+        next if $contractPair =~ /^\s*$/;
+        if($contractPair =~ /^\s*(\w+)="([^"]+)"$/){
+          $$market{targetContracts}{$1} = $2;
+        }else{
+          die "ERROR: malformed contract in $confFile\n$line";
+        }
+      }
+    }else{
+      die "ERROR: malformed market line in $confFile\n$line";
+    }
+  }
+
+  return $marketsConf;
 }
 
 sub parseMarketJson($){
