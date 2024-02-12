@@ -6,7 +6,7 @@ sudo display-manager-tool --check
 
 sudo bluetooth off &
 sudo fan default &
-taffybar-restart --daemon --quiet
+taffybar-restart --auto-rerun --daemon --quiet
 parcellite-start
 sudo sbox-umount &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
@@ -46,7 +46,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     pulse-enable on ;
     sleep 1 ;
 
-    speaker -s hdmi surround ;
+    speaker -s hdmi surround-extra1 ;
     pulse-vol mic mute ;
     screen-daemon silence --start ;
   ) &
