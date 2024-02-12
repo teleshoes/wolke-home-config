@@ -33,7 +33,22 @@ sub main(@){
 
   my $contents = join '', map {"$_\n"} @lines;
 
+  my $nowMillis = nowMillis();
+  my $bakFstabFile = "$FSTAB_FILE.bak.$nowMillis";
+
+  run "mv", $FSTAB_FILE, $bakFstabFile;
+
   writeFile $FSTAB_FILE, $contents;
+
+  my $oldMd5 = md5sum $bakFstabFile;
+  my $newMd5 = md5sum $FSTAB_FILE;
+  if($oldMd5 ne $newMd5){
+    print "\n\nFSTAB EDITED\ndiff $FSTAB_FILE $bakFstabFile\n";
+    system "diff $bakFstabFile $FSTAB_FILE";
+  }else{
+    print "no change\n";
+    run "touch", $FSTAB_FILE, "-r", $bakFstabFile;
+  }
 }
 
 &main(@ARGV);
