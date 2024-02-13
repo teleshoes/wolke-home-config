@@ -113,12 +113,11 @@ my $opts = {
   };
 
 sub getScriptNames(){
-    my $bin = getInstallPath "bin";
-    my @scripts = `ls $bin/`;
-    chomp foreach @scripts;
-    @scripts = grep {/^[a-zA-Z0-9_\-]+$/} @scripts;
-    @scripts = grep { -f "$bin/$_" } @scripts;
-    return \@scripts;
+  my $bin = getInstallPath "bin";
+  my @scripts = grep {-f $_} glob "$bin/*";
+  s/$bin\/// foreach @scripts;
+  @scripts = grep {/^[a-zA-Z0-9_\-]+$/} @scripts;
+  return \@scripts;
 }
 sub getSubNames(){
     my @subs = @EXPORT;
