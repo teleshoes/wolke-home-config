@@ -120,25 +120,25 @@ sub getScriptNames(){
   return \@scripts;
 }
 sub getSubNames(){
-    my @subs = @EXPORT;
-    @subs = grep {/^[a-zA-Z0-9_\-]+$/} @subs;
-    return \@subs;
+  my @subs = @EXPORT;
+  @subs = grep {/^[a-zA-Z0-9_\-]+$/} @subs;
+  return \@subs;
 }
 sub getInstallNames(){
-    my @installNames = (
-      @{getInstallScriptNames()},
-      @{getInstallSrcNames()},
-      @{getInstallPipNames()},
-    );
-    return \@installNames;
+  my @installNames = (
+    @{getInstallScriptNames()},
+    @{getInstallSrcNames()},
+    @{getInstallPipNames()},
+  );
+  return \@installNames;
 }
 sub getInstallScriptNames(){
-    my @installScriptNames;
-    my $scriptNames = getScriptNames;
-    for my $scriptName(@$scriptNames){
-      push @installScriptNames, $1 if $scriptName =~ /install-(.*)/;
-    }
-    return \@installScriptNames;
+  my @installScriptNames;
+  my $scriptNames = getScriptNames;
+  for my $scriptName(@$scriptNames){
+    push @installScriptNames, $1 if $scriptName =~ /install-(.*)/;
+  }
+  return \@installScriptNames;
 }
 sub getInstallSrcNames(){
   my $installSrcCmd = getInstallPath "bin/install-src";
@@ -156,19 +156,19 @@ sub getInstallPipNames(){
 }
 
 sub setOpts($) {
-    my %new = (%$opts, %{$_[0]});
-    $opts = \%new;
+  my %new = (%$opts, %{$_[0]});
+  $opts = \%new;
 }
 
 sub deathWithDishonor(;$) {
-    my $msg = shift;
-    $msg = "command failed" if not defined $msg or $msg eq "";
-    chomp $msg;
-    $msg .= "\n";
-    $msg = "## $msg" if $$opts{prependComment};
+  my $msg = shift;
+  $msg = "command failed" if not defined $msg or $msg eq "";
+  chomp $msg;
+  $msg .= "\n";
+  $msg = "## $msg" if $$opts{prependComment};
 
-    print STDERR $msg;
-    exit 1;
+  print STDERR $msg;
+  exit 1;
 }
 
 sub withOpenHandle($$$){
@@ -212,84 +212,84 @@ sub assertDef($@){
 }
 
 sub runProto($@){
-    return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
+  return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
 }
 sub runProtoIPC($@) {
-    my $cfg = shift;
-    assertDef $cfg, qw(esc fatal ansi);
+  my $cfg = shift;
+  assertDef $cfg, qw(esc fatal ansi);
 
-    my @cmd = &{$$cfg{esc}}(@_);
+  my @cmd = &{$$cfg{esc}}(@_);
 
-    system "rm -f /tmp/progress-bar-*";
+  system "rm -f /tmp/progress-bar-*";
 
-    print "@cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
+  print "@cmd\n" if $opts->{putCommand};
+  return     unless $opts->{runCommand};
 
-    my $pty = new IO::Pty();
-    my $slave = $pty->slave;
-    $pty->blocking(0);
-    $slave->blocking(0);
-    my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
-    if($$cfg{fatal}){
-        $h->start;
-    }else{
-        $h = eval {$h->start};
-        return if not defined $h;
+  my $pty = new IO::Pty();
+  my $slave = $pty->slave;
+  $pty->blocking(0);
+  $slave->blocking(0);
+  my $h = IPC::Run::harness(["sh", "-c", "@cmd"], ">", $slave, $pty);
+  if($$cfg{fatal}){
+    $h->start;
+  }else{
+    $h = eval {$h->start};
+    return if not defined $h;
+  }
+  my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+
+  while($h->pumpable){
+    eval { $h->pump_nb }; #eval because pumpable doesnt really work
+    my $out = <$pty>;
+    if(defined $out and $out ne ""){
+      if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
+        open my $fh, "> $progFile";
+        print $fh "$1\n";
+        close $fh;
+      }
+      $out = "# $out" if $opts->{prependComment};
+      $out = parseAnsiSequences $out if $$cfg{ansi};
+      chomp $out;
+      print "$out\n" if defined $opts->{verbose};
     }
-    my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+    <$slave>;
+  }
+  IPC::Run::finish $h;
+  close $pty;
+  close $slave;
 
-    while($h->pumpable){
-        eval { $h->pump_nb }; #eval because pumpable doesnt really work
-        my $out = <$pty>;
-        if(defined $out and $out ne ""){
-            if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
-                open my $fh, "> $progFile";
-                print $fh "$1\n";
-                close $fh;
-            }
-            $out = "# $out" if $opts->{prependComment};
-            $out = parseAnsiSequences $out if $$cfg{ansi};
-            chomp $out;
-            print "$out\n" if defined $opts->{verbose};
-        }
-        <$slave>;
-    }
-    IPC::Run::finish $h;
-    close $pty;
-    close $slave;
+  my $result = $h->result;
 
-    my $result = $h->result;
-
-    system "rm", "-f", $progFile;
-    deathWithDishonor if $$cfg{fatal} and $result != 0;
-    return $result == 0;
+  system "rm", "-f", $progFile;
+  deathWithDishonor if $$cfg{fatal} and $result != 0;
+  return $result == 0;
 }
 sub runProtoNoIPC($@) {
-    my $cfg = shift;
-    assertDef $cfg, qw(esc fatal ansi);
+  my $cfg = shift;
+  assertDef $cfg, qw(esc fatal ansi);
 
-    my $cmd = join ' ', &{$$cfg{esc}}(@_);
+  my $cmd = join ' ', &{$$cfg{esc}}(@_);
 
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
+  print "$cmd\n" if $opts->{putCommand};
+  return     unless $opts->{runCommand};
 
-    my $pid = open my $fh, "-|";
-    if(not $pid) {
-        open(STDERR, ">&STDOUT");
-        exec $cmd or deathWithDishonor;
-    } else {
-        if($opts->{verbose}) {
-            while(my $line = <$fh>) {
-                chomp $line;
-                $line = "# $line" if $opts->{prependComment};
-                $line = parseAnsiSequences $line if $$cfg{ansi};
-                print "$line\n";
-            }
-        }
-        close $fh;
-        deathWithDishonor if $? != 0 and $$cfg{fatal};
-        return $? == 0;
+  my $pid = open my $fh, "-|";
+  if(not $pid) {
+    open(STDERR, ">&STDOUT");
+    exec $cmd or deathWithDishonor;
+  } else {
+    if($opts->{verbose}) {
+      while(my $line = <$fh>) {
+        chomp $line;
+        $line = "# $line" if $opts->{prependComment};
+        $line = parseAnsiSequences $line if $$cfg{ansi};
+        print "$line\n";
+      }
     }
+    close $fh;
+    deathWithDishonor if $? != 0 and $$cfg{fatal};
+    return $? == 0;
+  }
 }
 
 sub id(@){@_}
@@ -313,48 +313,48 @@ sub tryrunAptGet(@){
 }
 
 sub wrapUserCommand(@) {
-    return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
+  return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
 }
 
 sub proc(@) {
-    my @lines = readProcessLines @_;
-    my $out = join '', @lines;
-    chomp $out;
-    return $out;
+  my @lines = readProcessLines @_;
+  my $out = join '', @lines;
+  chomp $out;
+  return $out;
 }
 sub procLines(@) {
-    my @lines = readProcessLines @_;
-    chomp foreach @lines;
-    return @lines;
+  my @lines = readProcessLines @_;
+  chomp foreach @lines;
+  return @lines;
 }
 sub procUser(@) {
-    return proc(wrapUserCommand(@_));
+  return proc(wrapUserCommand(@_));
 }
 sub tryproc(@) {
-    my @lines = tryreadProcessLines @_;
-    my $out = join '', @lines;
-    chomp $out;
-    return $out;
+  my @lines = tryreadProcessLines @_;
+  my $out = join '', @lines;
+  chomp $out;
+  return $out;
 }
 
 sub readProcessLines(@){
-    my @cmd = @_;
-    open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
-    my @lines = <PROC_FH>;
-    close PROC_FH;
-    die "error running cmd: @cmd\n" if $? != 0;
-    chomp foreach @lines;
-    return @lines;
+  my @cmd = @_;
+  open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
+  my @lines = <PROC_FH>;
+  close PROC_FH;
+  die "error running cmd: @cmd\n" if $? != 0;
+  chomp foreach @lines;
+  return @lines;
 }
 sub tryreadProcessLines(@){
-    my @cmd = @_;
-    my @lines;
-    if(open PROC_FH, "-|", @cmd){
-      @lines = <PROC_FH>;
-      close PROC_FH;
-    }
-    chomp foreach @lines;
-    return @lines;
+  my @cmd = @_;
+  my @lines;
+  if(open PROC_FH, "-|", @cmd){
+    @lines = <PROC_FH>;
+    close PROC_FH;
+  }
+  chomp foreach @lines;
+  return @lines;
 }
 
 
@@ -365,23 +365,23 @@ sub runScript($@){
 }
 
 sub getUsername() {
-    my $user = $ENV{SUDO_USER} || $ENV{USER};
-    if(not $user or $user eq "root") {
-        deathWithDishonor "ERROR: USER or SUDO_USER must be set and not root";
-    }
-    $user
+  my $user = $ENV{SUDO_USER} || $ENV{USER};
+  if(not $user or $user eq "root") {
+    deathWithDishonor "ERROR: USER or SUDO_USER must be set and not root";
+  }
+  $user
 }
 
 sub getMachineType() {
-    my $machineType = tryReadFile(getHome() . "/machine-type");
-    $machineType = "" if not defined $machineType;
-    chomp $machineType;
-    my %machineTypes = map {basename($_) => 1} glob(getHome() . "/machine-types/*");
-    if(defined $machineTypes{$machineType}){
-        return $machineType;
-    }else{
-        return undef;
-    }
+  my $machineType = tryReadFile(getHome() . "/machine-type");
+  $machineType = "" if not defined $machineType;
+  chomp $machineType;
+  my %machineTypes = map {basename($_) => 1} glob(getHome() . "/machine-types/*");
+  if(defined $machineTypes{$machineType}){
+    return $machineType;
+  }else{
+    return undef;
+  }
 }
 
 sub getResconfigScale(){
@@ -396,76 +396,76 @@ sub getResconfigScale(){
 }
 
 sub getHome() {
-    if(not isRoot()) {
-        return $ENV{HOME};
-    }else {
-        return "/home/" . getUsername();
-    }
+  if(not isRoot()) {
+    return $ENV{HOME};
+  }else {
+    return "/home/" . getUsername();
+  }
 }
 
 sub getInstallPath($) {
-    return getHome() . "/install/$_[0]";
+  return getHome() . "/install/$_[0]";
 }
 
 sub getSrcCache() {
-    return getHome() . "/.src-cache";
+  return getHome() . "/.src-cache";
 }
 
 sub which($) {
-    return proc "which", @_;
+  return proc "which", @_;
 }
 
 sub cd($) {
-    my $path = shift;
-    my $escpath = shell_quote $path;
-    my $cmd = "cd $escpath";
+  my $path = shift;
+  my $escpath = shell_quote $path;
+  my $cmd = "cd $escpath";
 
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
+  print "$cmd\n" if $opts->{putCommand};
+  return     unless $opts->{runCommand};
 
-    chdir $path or deathWithDishonor;
+  chdir $path or deathWithDishonor;
 }
 
 sub symlinkFileProto($$;$$) {
-    my ($srcPath, $destFile, $convertToRelPath, $useSudo) = @_;
-    $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile) if $convertToRelPath;
-    my @sudo = $useSudo ? ("sudo") : ();
+  my ($srcPath, $destFile, $convertToRelPath, $useSudo) = @_;
+  $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile) if $convertToRelPath;
+  my @sudo = $useSudo ? ("sudo") : ();
 
-    if(-l $destFile){
-        my $oldPath = readlink $destFile;
-        if($oldPath eq $srcPath){
-            print "  symlink unchanged $srcPath => $destFile\n";
-            return;
-        }else{
-            run @sudo, "rm", $destFile;
-            print "  symlink $destFile: $oldPath => $srcPath\n";
-        }
-    }elsif(-d $destFile){
-        run @sudo, "rmdir", $destFile;
-        print "  dir=>symlink: $destFile\n";
+  if(-l $destFile){
+    my $oldPath = readlink $destFile;
+    if($oldPath eq $srcPath){
+      print "  symlink unchanged $srcPath => $destFile\n";
+      return;
+    }else{
+      run @sudo, "rm", $destFile;
+      print "  symlink $destFile: $oldPath => $srcPath\n";
     }
-    deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
-    run @sudo, "ln", "-s", $srcPath, $destFile;
-    deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
+  }elsif(-d $destFile){
+    run @sudo, "rmdir", $destFile;
+    print "  dir=>symlink: $destFile\n";
+  }
+  deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
+  run @sudo, "ln", "-s", $srcPath, $destFile;
+  deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
 }
 sub symlinkFile($$) {
-    symlinkFileProto($_[0], $_[1], 0, 0);
+  symlinkFileProto($_[0], $_[1], 0, 0);
 }
 sub symlinkFileRel($$) {
-    symlinkFileProto($_[0], $_[1], 1, 0);
+  symlinkFileProto($_[0], $_[1], 1, 0);
 }
 sub symlinkFileSudo($$) {
-    symlinkFileProto($_[0], $_[1], 0, 1);
+  symlinkFileProto($_[0], $_[1], 0, 1);
 }
 sub symlinkFileRelSudo($$) {
-    symlinkFileProto($_[0], $_[1], 1, 1);
+  symlinkFileProto($_[0], $_[1], 1, 1);
 }
 
 sub hereDoc($){
   my $s = shift;
   my $delim = "EOF";
   while($s =~ /^$delim$/m){
-      $delim .= "F";
+    $delim .= "F";
   }
   return "<< \"$delim\"\n"
     . "$s\n"
@@ -482,37 +482,37 @@ sub globOne($){
 }
 
 sub writeFileProto($@) {
-    my $cfg = shift;
-    assertDef $cfg, qw(sudo fatal quiet);
+  my $cfg = shift;
+  assertDef $cfg, qw(sudo fatal quiet);
 
-    my ($file, $contents) = @_;
+  my ($file, $contents) = @_;
 
-    $$cfg{sudo} = 0 if isRoot();
+  $$cfg{sudo} = 0 if isRoot();
 
-    my $escFile = shell_quote $file;
+  my $escFile = shell_quote $file;
 
-    if($opts->{putCommand}){
-      my $hereDoc = hereDoc $contents;
-      my $cmd = "( cat $hereDoc )";
+  if($opts->{putCommand}){
+    my $hereDoc = hereDoc $contents;
+    my $cmd = "( cat $hereDoc )";
 
-      if($$cfg{sudo}){
-          $cmd .= " | sudo tee $escFile >/dev/null";
-      }else{
-          $cmd .= " > $escFile";
-      }
-      print "$cmd\n" unless $$cfg{quiet};
+    if($$cfg{sudo}){
+      $cmd .= " | sudo tee $escFile >/dev/null";
+    }else{
+      $cmd .= " > $escFile";
     }
+    print "$cmd\n" unless $$cfg{quiet};
+  }
 
-    return if not $opts->{runCommand};
+  return if not $opts->{runCommand};
 
-    my $cmd = $$cfg{sudo} ?
-      ["|-", "sudo tee $escFile >/dev/null"] : [">", $file];
+  my $cmd = $$cfg{sudo} ?
+    ["|-", "sudo tee $escFile >/dev/null"] : [">", $file];
 
-    withOpenHandle $cmd, $$cfg{fatal}, sub($){
-        my $fh = shift;
-        print $fh $contents;
-        close $fh;
-    };
+  withOpenHandle $cmd, $$cfg{fatal}, sub($){
+      my $fh = shift;
+      print $fh $contents;
+      close $fh;
+  };
 }
 sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 0}, @_ }
 sub writeFileQuiet($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 1}, @_ }
@@ -520,134 +520,134 @@ sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0, quiet => 0}, @_ 
 sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1, quiet => 0}, @_ }
 
 sub readFileProto($@) {
-    my $cfg = shift;
-    assertDef $cfg, qw(sudo fatal);
+  my $cfg = shift;
+  assertDef $cfg, qw(sudo fatal);
 
-    my ($file) = @_;
+  my ($file) = @_;
 
-    $$cfg{sudo} = 0 if isRoot();
+  $$cfg{sudo} = 0 if isRoot();
 
-    my $escFile = shell_quote $file;
+  my $escFile = shell_quote $file;
 
-    my $cmd = $$cfg{sudo} ? ["-|", "sudo cat $escFile"] : ["<", $file];
+  my $cmd = $$cfg{sudo} ? ["-|", "sudo cat $escFile"] : ["<", $file];
 
-    my @lines = withOpenHandle $cmd, $$cfg{fatal}, sub($){
-        my $fh = shift;
-        my @lines = <$fh>;
-        close $fh;
-        return @lines;
-    };
-    return wantarray ? @lines : join '', @lines;
+  my @lines = withOpenHandle $cmd, $$cfg{fatal}, sub($){
+    my $fh = shift;
+    my @lines = <$fh>;
+    close $fh;
+    return @lines;
+  };
+  return wantarray ? @lines : join '', @lines;
 }
 sub readFile     ($) { readFileProto {sudo => 0, fatal => 1}, @_ }
 sub tryReadFile  ($) { readFileProto {sudo => 0, fatal => 0}, @_ }
 sub readFileSudo ($) { readFileProto {sudo => 1, fatal => 1}, @_ }
 
 sub replaceLine($$$) {
-    my ($s, $startRegex, $lineReplacement) = @_;
-    chomp $lineReplacement;
-    if($s =~ s/(^|\n+)(# ?)?$startRegex.*/$1$lineReplacement/){
-        $_[0] = $s; #update in place
-        return 1;
-    }
-    return 0;
+  my ($s, $startRegex, $lineReplacement) = @_;
+  chomp $lineReplacement;
+  if($s =~ s/(^|\n+)(# ?)?$startRegex.*/$1$lineReplacement/){
+    $_[0] = $s; #update in place
+    return 1;
+  }
+  return 0;
 }
 
 sub replaceOrAddLine($$$) {
-    my ($s, $startRegex, $lineReplacement) = @_;
-    chomp $lineReplacement;
-    if(not replaceLine $s, $startRegex, $lineReplacement){
-      if(length $s > 0 and $s !~ /\n$/){
-        $s .= "\n";
-      }
-      my $trailingEmptyLines = "";
-      if($s =~ s/\n(\n*)$/\n/){
-        $trailingEmptyLines = $1;
-      }
-      $s .= "$lineReplacement\n$trailingEmptyLines";
+  my ($s, $startRegex, $lineReplacement) = @_;
+  chomp $lineReplacement;
+  if(not replaceLine $s, $startRegex, $lineReplacement){
+    if(length $s > 0 and $s !~ /\n$/){
+      $s .= "\n";
     }
-    $_[0] = $s;
+    my $trailingEmptyLines = "";
+    if($s =~ s/\n(\n*)$/\n/){
+      $trailingEmptyLines = $1;
+    }
+    $s .= "$lineReplacement\n$trailingEmptyLines";
+  }
+  $_[0] = $s;
 }
 
 sub editFile($$;$) {
-    my ($name, $patchname, $edit);
-    ($name, $patchname, $edit) = ($_[0], undef, $_[1]) if @_ == 2;
-    ($name, $patchname, $edit) = ($_[0], $_[1], $_[2]) if @_ == 3;
+  my ($name, $patchname, $edit);
+  ($name, $patchname, $edit) = ($_[0], undef, $_[1]) if @_ == 2;
+  ($name, $patchname, $edit) = ($_[0], $_[1], $_[2]) if @_ == 3;
 
-    my @patchcmd = ("patch", "-fr", "-", "$name");
-    my $patchfile = "$name.$patchname.patch" if defined $patchname;
-    my @revcmd = (@patchcmd, $patchfile, "--reverse");
+  my @patchcmd = ("patch", "-fr", "-", "$name");
+  my $patchfile = "$name.$patchname.patch" if defined $patchname;
+  my @revcmd = (@patchcmd, $patchfile, "--reverse");
 
-    my $escpatchcmd = join ' ', shell_quote(@patchcmd);
-    my $escrevcmd   = join ' ', shell_quote(@revcmd);
+  my $escpatchcmd = join ' ', shell_quote(@patchcmd);
+  my $escrevcmd   = join ' ', shell_quote(@revcmd);
 
-    my $read;
-    if (defined $patchfile and -f $patchfile) {
-        if(system("$escrevcmd --dry-run >/dev/null 2>&1") != 0) {
-            run @revcmd, "--dry-run";
-        }
+  my $read;
+  if (defined $patchfile and -f $patchfile) {
+    if(system("$escrevcmd --dry-run >/dev/null 2>&1") != 0) {
+      run @revcmd, "--dry-run";
+    }
 
-        open my $fh, "-|", @revcmd, "-s", "-o", "-";
-        local $/;
-        $read = <$fh>;
-        close $fh;
+    open my $fh, "-|", @revcmd, "-s", "-o", "-";
+    local $/;
+    $read = <$fh>;
+    close $fh;
+  } else {
+    $read = readFile $name;
+  }
+
+  my $tmp = $read;
+  my $write = &$edit($tmp);
+  unless(defined $write) {
+    my $msg = shell_quote $name;
+    $msg .= " " . shell_quote $patchname if defined $patchname;
+    deathWithDishonor "ERROR: edit file $msg";
+  }
+
+  if($write eq $read) {
+    if(defined $patchfile and -f $patchfile) {
+      run @revcmd;
+      run "rm", $patchfile;
+    }
+    return;
+  }
+
+  my $oldpatch = "";
+  if (defined $patchfile and -f $patchfile) {
+    $oldpatch = readFile $patchfile;
+  }
+
+  my $newpatch;
+  my $pid = open my $in, "-|";
+  if(not $pid) {
+    open(STDERR, ">&STDOUT");
+
+    my ($fh, $tmp) = tempfile;
+    print $fh $read;
+    close $fh;
+
+    open my $out, "|-", "diff", $tmp, "-";
+    print $out $write;
+    close $out;
+    system "rm", $tmp;
+    exit;
+  } else {
+    local $/;
+    $newpatch = <$in>;
+    close $in;
+  }
+
+  if($newpatch ne $oldpatch) {
+    if(defined $patchfile) {
+      run @revcmd if -f $patchfile;
+      writeFile $patchfile, $newpatch;
+      run @patchcmd, $patchfile;
     } else {
-        $read = readFile $name;
+      chomp $newpatch;
+      my $hereDoc = hereDoc $newpatch;
+      my $cmd = "$escpatchcmd - $hereDoc";
+      shell $cmd;
     }
-
-    my $tmp = $read;
-    my $write = &$edit($tmp);
-    unless(defined $write) {
-        my $msg = shell_quote $name;
-        $msg .= " " . shell_quote $patchname if defined $patchname;
-        deathWithDishonor "ERROR: edit file $msg";
-    }
-
-    if($write eq $read) {
-        if(defined $patchfile and -f $patchfile) {
-            run @revcmd;
-            run "rm", $patchfile;
-        }
-        return;
-    }
-
-    my $oldpatch = "";
-    if (defined $patchfile and -f $patchfile) {
-        $oldpatch = readFile $patchfile;
-    }
-
-    my $newpatch;
-    my $pid = open my $in, "-|";
-    if(not $pid) {
-        open(STDERR, ">&STDOUT");
-
-        my ($fh, $tmp) = tempfile;
-        print $fh $read;
-        close $fh;
-
-        open my $out, "|-", "diff", $tmp, "-";
-        print $out $write;
-        close $out;
-        system "rm", $tmp;
-        exit;
-    } else {
-        local $/;
-        $newpatch = <$in>;
-        close $in;
-    }
-
-    if($newpatch ne $oldpatch) {
-        if(defined $patchfile) {
-            run @revcmd if -f $patchfile;
-            writeFile $patchfile, $newpatch;
-            run @patchcmd, $patchfile;
-        } else {
-            chomp $newpatch;
-            my $hereDoc = hereDoc $newpatch;
-            my $cmd = "$escpatchcmd - $hereDoc";
-            shell $cmd;
-        }
-    }
+  }
 }
 
 sub editFileLines($$;$) {
@@ -667,214 +667,214 @@ sub editFileLines($$;$) {
 }
 
 sub editSimpleConf($$$) {
-    my ($name, $patchname, $config) = @_;
-    editFile $name, $patchname, sub {
-        my $cnts = shift;
-        for my $key(sort keys %$config){
-            replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
-        }
-        $cnts
-    };
+  my ($name, $patchname, $config) = @_;
+  editFile $name, $patchname, sub {
+    my $cnts = shift;
+    for my $key(sort keys %$config){
+      replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
+    }
+    $cnts
+  };
 }
 
 sub editIni($$$) {
-    my ($name, $patchname, $sectionConfig) = @_;
-    editFile $name, $patchname, sub {
-        my $cnts = shift;
+  my ($name, $patchname, $sectionConfig) = @_;
+  editFile $name, $patchname, sub {
+    my $cnts = shift;
 
-        my $curSectionName = undef;
-        my $curSectionLines = undef;
-        my @sectionNames;
-        my %sectionLines;
+    my $curSectionName = undef;
+    my $curSectionLines = undef;
+    my @sectionNames;
+    my %sectionLines;
 
-        #parse out existing sections
-        for my $line(split /^/, $cnts){
-          if($line =~ /^\s*\[(.+)\]\s*$/){
-            $curSectionName = $1;
-            $curSectionLines = undef;
-          }
-          if(not defined $curSectionLines){
-            $curSectionName = "" if not defined $curSectionName;
-            $curSectionLines = [];
-            if(defined $sectionLines{$curSectionName}){
-              die "duplicate INI section name: \"$curSectionName\"\n";
-            }
-            $sectionLines{$curSectionName} = $curSectionLines;
-            push @sectionNames, $curSectionName;
-          }
-          push @{$curSectionLines}, $line;
+    #parse out existing sections
+    for my $line(split /^/, $cnts){
+      if($line =~ /^\s*\[(.+)\]\s*$/){
+        $curSectionName = $1;
+        $curSectionLines = undef;
+      }
+      if(not defined $curSectionLines){
+        $curSectionName = "" if not defined $curSectionName;
+        $curSectionLines = [];
+        if(defined $sectionLines{$curSectionName}){
+          die "duplicate INI section name: \"$curSectionName\"\n";
         }
+        $sectionLines{$curSectionName} = $curSectionLines;
+        push @sectionNames, $curSectionName;
+      }
+      push @{$curSectionLines}, $line;
+    }
 
-        #add new empty sections to the parsed sections
-        for my $cfgSectionName(sort keys %$sectionConfig){
-          if(not defined $sectionLines{$cfgSectionName}){
-            push @sectionNames, $cfgSectionName;
-            my $cfgSectionLines = [];
-            push @$cfgSectionLines, "[$cfgSectionName]\n";
-            push @$cfgSectionLines, "\n";
-            $sectionLines{$cfgSectionName} = $cfgSectionLines;
-          }
-        }
+    #add new empty sections to the parsed sections
+    for my $cfgSectionName(sort keys %$sectionConfig){
+      if(not defined $sectionLines{$cfgSectionName}){
+        push @sectionNames, $cfgSectionName;
+        my $cfgSectionLines = [];
+        push @$cfgSectionLines, "[$cfgSectionName]\n";
+        push @$cfgSectionLines, "\n";
+        $sectionLines{$cfgSectionName} = $cfgSectionLines;
+      }
+    }
 
-        #modify the parsed sections
-        $cnts = "";
-        for my $sectionName(@sectionNames){
-          my @lines = @{$sectionLines{$sectionName}};
-          my $sectionContents = join "", @lines;
-          my $cfg = $$sectionConfig{$sectionName};
-          if(defined $cfg){
-            for my $key(sort keys %$cfg){
-              my $val = $$cfg{$key};
-              replaceOrAddLine $sectionContents, $key, "$key=$val";
-            }
-          }
-          $cnts .= $sectionContents;
+    #modify the parsed sections
+    $cnts = "";
+    for my $sectionName(@sectionNames){
+      my @lines = @{$sectionLines{$sectionName}};
+      my $sectionContents = join "", @lines;
+      my $cfg = $$sectionConfig{$sectionName};
+      if(defined $cfg){
+        for my $key(sort keys %$cfg){
+          my $val = $$cfg{$key};
+          replaceOrAddLine $sectionContents, $key, "$key=$val";
         }
-        return $cnts;
-    };
+      }
+      $cnts .= $sectionContents;
+    }
+    return $cnts;
+  };
 }
 
 sub isRoot(){
-    return `whoami` eq "root\n";
+  return `whoami` eq "root\n";
 }
 
 sub getRoot(@) {
-    if(not isRoot()) {
-        print "## rerunning as root\n";
+  if(not isRoot()) {
+    print "## rerunning as root\n";
 
-        my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
+    my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
 
-        print "$cmd\n" if $opts->{putCommand};
-        return     unless $opts->{runCommand};
+    print "$cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
 
-        exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
-    }
+    exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
+  }
 }
 
 sub getRootSu(@) {
-    if(not isRoot()) {
-        print "## rerunning as root\n";
+  if(not isRoot()) {
+    print "## rerunning as root\n";
 
-        my $user = getUsername();
-        my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
-        print "$innercmd\n";
-        my $cmd = ""
-          . "if [ `whoami` != \"root\" ]; then "
-          .   "exec su -c " . (shell_quote $innercmd) . " ; "
-          . "fi"
-          ;
+    my $user = getUsername();
+    my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
+    print "$innercmd\n";
+    my $cmd = ""
+      . "if [ `whoami` != \"root\" ]; then "
+      .   "exec su -c " . (shell_quote $innercmd) . " ; "
+      . "fi"
+      ;
 
-        print "$cmd\n" if $opts->{putCommand};
-        return     unless $opts->{runCommand};
+    print "$cmd\n" if $opts->{putCommand};
+    return     unless $opts->{runCommand};
 
-        exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
-    }
+    exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
+  }
 }
 
 sub guessBackupDir() {
-    my $user = getUsername;
-    my @dirs = sort { (stat($b))[9] <=> (stat($a))[9] }
-               grep { -d $_}
-               map {"/media/$_/$user"}
-               split "\n", `ls -1 /media`;
-    $dirs[0]
+  my $user = getUsername;
+  my @dirs = sort { (stat($b))[9] <=> (stat($a))[9] }
+             grep { -d $_}
+             map {"/media/$_/$user"}
+             split "\n", `ls -1 /media`;
+  $dirs[0]
 }
 
 sub readConf($) {
-    my ($file) = @_;
+  my ($file) = @_;
 
-    my @lines = readFile($file);
-    chomp @lines;
-    @lines
+  my @lines = readFile($file);
+  chomp @lines;
+  @lines
 }
 
 sub readConfDir($) {
-    my ($dir) = @_;
+  my ($dir) = @_;
 
-    my @filenames = split "\n", `ls -A1 $dir`;
+  my @filenames = split "\n", `ls -A1 $dir`;
 
-    my %confs = ();
-    for my $name (@filenames) {
-        my @lines = readFile "$dir/$name";
-        chomp @lines;
-        $confs{$name} = \@lines;
-    }
-    %confs
+  my %confs = ();
+  for my $name (@filenames) {
+    my @lines = readFile "$dir/$name";
+    chomp @lines;
+    $confs{$name} = \@lines;
+  }
+  %confs
 }
 
 sub installFromDir($;$$) {
-    my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
-    if(not -d $dir and defined $gitUrl){
-        runUser "mkdir", "-p", $dir;
-        cd $dir;
-        runUser "git", "clone", $gitUrl, ".";
-    }
+  my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
+  if(not -d $dir and defined $gitUrl){
+    runUser "mkdir", "-p", $dir;
     cd $dir;
-    tryrunUser qw(git pull) if -d ".git";
+    runUser "git", "clone", $gitUrl, ".";
+  }
+  cd $dir;
+  tryrunUser qw(git pull) if -d ".git";
 
-    if(defined $cmd){
-      shell $cmd;
-    }else{
-      my @ls = split "\n", `ls -1`;
-      if(grep {/\.cabal$/} @ls) {
-          runUser "cabal", "install", "-j";
-      } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-          runUser "make", "-j", "all";
-          shell "sudo make install";
-      } elsif(system("make -n >/dev/null 2>&1") == 0) {
-          runUser "make", "-j";
-          shell "sudo make install";
-      } elsif(grep {/^install/} @ls) {
-          shell "./install*";
-      } else {
-          deathWithDishonor "### no install file in $dir";
-      }
+  if(defined $cmd){
+    shell $cmd;
+  }else{
+    my @ls = split "\n", `ls -1`;
+    if(grep {/\.cabal$/} @ls) {
+      runUser "cabal", "install", "-j";
+    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
+      runUser "make", "-j", "all";
+      shell "sudo make install";
+    } elsif(system("make -n >/dev/null 2>&1") == 0) {
+      runUser "make", "-j";
+      shell "sudo make install";
+    } elsif(grep {/^install/} @ls) {
+      shell "./install*";
+    } else {
+      deathWithDishonor "### no install file in $dir";
     }
+  }
 }
 
 sub aptSrcInstall($$) {
-    my ($package, $whichdeb) = @_;
-    runAptGet "-y", "build-dep", $package;
-    my $srcCache = getSrcCache();
-    my $pkgSrcDir = "$srcCache/.src-cache/$package";
-    shell "mkdir -p $pkgSrcDir" unless -d $pkgSrcDir;
-    cd $pkgSrcDir;
-    runAptGet "-b", "source", $package;
-    for my $file (split "\n", `ls -1`) {
-        if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
-            shell "sudo dpkg -i $file";
-        }
+  my ($package, $whichdeb) = @_;
+  runAptGet "-y", "build-dep", $package;
+  my $srcCache = getSrcCache();
+  my $pkgSrcDir = "$srcCache/.src-cache/$package";
+  shell "mkdir -p $pkgSrcDir" unless -d $pkgSrcDir;
+  cd $pkgSrcDir;
+  runAptGet "-b", "source", $package;
+  for my $file (split "\n", `ls -1`) {
+    if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
+      shell "sudo dpkg -i $file";
     }
+  }
 }
 
 sub removeSrcCache($) {
-    my ($name) = (@_);
-    my $srcCache = getSrcCache();
-    run "rm", "-rf", "$srcCache/$name";
+  my ($name) = (@_);
+  my $srcCache = getSrcCache();
+  run "rm", "-rf", "$srcCache/$name";
 }
 
 sub installFromGit($;$) {
-    my ($gitUrl, $cmd) = (@_, undef);
-    my $name = extractNameFromGitUrl $gitUrl;
-    my $srcCache = getSrcCache();
-    installFromDir "$srcCache/$name", $gitUrl, $cmd;
+  my ($gitUrl, $cmd) = (@_, undef);
+  my $name = extractNameFromGitUrl $gitUrl;
+  my $srcCache = getSrcCache();
+  installFromDir "$srcCache/$name", $gitUrl, $cmd;
 }
 
 sub removeGitSrcCache($) {
-    my ($gitUrl) = (@_);
-    my $name = extractNameFromGitUrl $gitUrl;
-    removeSrcCache $name;
+  my ($gitUrl) = (@_);
+  my $name = extractNameFromGitUrl $gitUrl;
+  removeSrcCache $name;
 }
 
 sub extractNameFromGitUrl($){
-    my ($gitUrl) = (@_);
-    my $name;
-    if($gitUrl =~ /(?:^|\/)   ([a-zA-Z0-9_\.\-]+)   (?:\.git)?$/x){
-      $name = $1;
-    }else{
-      die "could not parse repo name from last element of git URL:\n$gitUrl\n";
-    }
-    return $name;
+  my ($gitUrl) = (@_);
+  my $name;
+  if($gitUrl =~ /(?:^|\/)   ([a-zA-Z0-9_\.\-]+)   (?:\.git)?$/x){
+    $name = $1;
+  }else{
+    die "could not parse repo name from last element of git URL:\n$gitUrl\n";
+  }
+  return $name;
 }
 
 sub md5sum($){
