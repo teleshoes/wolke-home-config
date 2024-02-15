@@ -95,6 +95,9 @@ myLayoutHook = smartBorders
              ||| ( named "grid"
                    $ (Grid)
                  )
+             ||| ( named "cols"
+                   $ (Mirror $ Tall 10 incr ratio)
+                 )
   where incr = 3/100
         ratio = 55/100
         ratioWide = 80/100

@@ -354,6 +354,7 @@ layoutKeys conf = "Layout" @@ do
     "Top"               @@ mA    xK_s    #> JumpToLayout "top"
     "Full"              @@ mA    xK_d    #> JumpToLayout "full"
     "Grid"              @@ mA    xK_g    #> JumpToLayout "grid"
+    "Cols"              @@ mA    xK_c    #> JumpToLayout "cols"
     "Shrink/Expand" @@  do mA    xK_h    #> Shrink
                            mA    xK_l    #> Expand
     "+/- Master"    @@  do mA    (xK ',')#> IncMasterN 1
