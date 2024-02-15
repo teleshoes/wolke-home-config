@@ -120,9 +120,7 @@ sub getScriptNames(){
   return \@scripts;
 }
 sub getSubNames(){
-  my @subs = @EXPORT;
-  @subs = grep {/^[a-zA-Z0-9_\-]+$/} @subs;
-  return \@subs;
+  return \@EXPORT;
 }
 sub getInstallNames(){
   my @installNames = (
