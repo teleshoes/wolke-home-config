@@ -16,6 +16,7 @@ layoutConfig = defaultLayoutConfig
                        "left" -> return $ pack "[]="
                        "top"  -> return $ pack "TTT"
                        "grid" -> return $ pack "###"
+                       "cols" -> return $ pack "|||"
                        "full" -> fmap formatWindowCount windowCount
                        otherwise -> return $ pack "???"
   }
