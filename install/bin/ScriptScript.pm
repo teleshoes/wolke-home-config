@@ -231,10 +231,15 @@ sub runProtoIPC($@) {
   }
   my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
 
-  while($h->pumpable){
-    eval { $h->pump_nb }; #eval because pumpable doesnt really work
-    my $out = <$pty>;
-    if(defined $out and $out ne ""){
+  my $out;
+  while($h->pumpable() or $out = <$pty>){
+    if($h->pumpable()){
+      eval { $h->pump_nb }; #eval because pumpable doesn't actually guarantee no error
+    }
+    if(not defined $out or length $out == 0){
+      $out = <$pty>;
+    }
+    if(defined $out and length $out > 0){
       if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
         open my $fh, "> $progFile";
         print $fh "$1\n";
@@ -244,6 +249,8 @@ sub runProtoIPC($@) {
       $out = parseAnsiSequences $out if $$cfg{ansi};
       chomp $out;
       print "$out\n" if defined $opts->{verbose};
+
+      $out = undef;
     }
     <$slave>;
   }
