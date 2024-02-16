@@ -245,10 +245,10 @@ sub runProtoIPC($@) {
         print $fh "$1\n";
         close $fh;
       }
-      $out = "# $out" if $opts->{prependComment};
+
       $out = parseAnsiSequences $out if $$cfg{ansi};
-      chomp $out;
-      print "$out\n" if defined $opts->{verbose};
+      $out = "# $out" if $opts->{prependComment};
+      print $out if defined $opts->{verbose};
 
       $out = undef;
     }else{
