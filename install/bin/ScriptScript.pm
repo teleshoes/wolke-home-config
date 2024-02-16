@@ -193,10 +193,12 @@ sub runProto($@){
   return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
 }
 sub runProtoIPC($@) {
-  my $cfg = shift;
-  assertDef $cfg, qw(esc fatal);
+  my ($cfg, @cmd) = @_;
+  assertDef $cfg, qw(shell fatal);
 
-  my @cmd = &{$$cfg{esc}}(@_);
+  if($$cfg{shell}){
+    @cmd = ("sh", "-c", "@cmd");
+  }
 
   system "rm -f /tmp/progress-bar-*";
 
@@ -207,7 +209,7 @@ sub runProtoIPC($@) {
   my $slave = $pty->slave;
   $pty->blocking(0);
   $slave->blocking(0);
-  my $h = IPC::Run::harness(["sh", "-c", "@cmd"], "&>", $slave);
+  my $h = IPC::Run::harness(\@cmd, "&>", $slave);
   if($$cfg{fatal}){
     $h->start;
   }else{
@@ -256,18 +258,20 @@ sub runProtoIPC($@) {
   return $result == 0;
 }
 sub runProtoNoIPC($@) {
-  my $cfg = shift;
-  assertDef $cfg, qw(esc fatal);
+  my ($cfg, @cmd) = @_;
+  assertDef $cfg, qw(shell fatal);
 
-  my $cmd = join ' ', &{$$cfg{esc}}(@_);
+  if($$cfg{shell}){
+    @cmd = ("sh", "-c", "@cmd");
+  }
 
-  print "$cmd\n" if $opts->{putCommand};
+  print "@cmd\n" if $opts->{putCommand};
   return     unless $opts->{runCommand};
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
     open(STDERR, ">&STDOUT");
-    exec $cmd or deathWithDishonor;
+    exec @cmd or deathWithDishonor;
   } else {
     if($opts->{verbose}) {
       while(my $line = <$fh>) {
@@ -284,10 +288,10 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {esc => \&shell_quote, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0}, @_ }
-sub shell     (@) { runProto {esc => \&id         , fatal => 1}, @_ }
-sub tryshell  (@) { runProto {esc => \&id         , fatal => 0}, @_ }
+sub run       (@) { runProto {shell => 0, fatal => 1}, @_ }
+sub tryrun    (@) { runProto {shell => 0, fatal => 0}, @_ }
+sub shell     (@) { runProto {shell => 1, fatal => 1}, @_ }
+sub tryshell  (@) { runProto {shell => 1, fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
