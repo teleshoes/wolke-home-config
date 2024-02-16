@@ -808,10 +808,10 @@ sub installFromDir($;$$) {
       runUser "cabal", "install", "-j";
     } elsif(system("make -n all >/dev/null 2>&1") == 0) {
       runUser "make", "-j", "all";
-      shell "sudo make install";
+      run "sudo", "make", "install";
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
       runUser "make", "-j";
-      shell "sudo make install";
+      run "sudo", "make", "install";
     } elsif(grep {/^install/} @ls) {
       shell "./install*";
     } else {
@@ -825,12 +825,12 @@ sub aptSrcInstall($$) {
   runAptGet "-y", "build-dep", $package;
   my $srcCache = getSrcCache();
   my $pkgSrcDir = "$srcCache/.src-cache/$package";
-  shell "mkdir -p $pkgSrcDir" unless -d $pkgSrcDir;
+  run "mkdir", "-p", "$pkgSrcDir" unless -d $pkgSrcDir;
   cd $pkgSrcDir;
   runAptGet "-b", "source", $package;
   for my $file (split "\n", `ls -1`) {
     if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
-      shell "sudo dpkg -i $file";
+      run "sudo", "dpkg", "-i", $file;
     }
   }
 }
