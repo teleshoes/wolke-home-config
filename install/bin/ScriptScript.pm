@@ -16,7 +16,6 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
                   shell tryshell
-                  runANSI tryrunANSI
                   runUser tryrunUser wrapUserCommand
                   runAptGet tryrunAptGet
                   proc procLines procUser tryproc
@@ -47,7 +46,6 @@ sub getSubNames();
 sub setOpts($);
 sub deathWithDishonor(;$);
 sub withOpenHandle($$$);
-sub parseAnsiSequences($);
 sub assertDef($@);
 sub runProto($@);
 sub runProtoIPC($@);
@@ -175,26 +173,6 @@ sub withOpenHandle($$$){
   }
 }
 
-sub parseAnsiSequences($){
-  my ($str) = @_;
-  #re-encode text modes
-  $str =~ s/
-    \^\[            #escape char
-    \[              #bracket char
-    ([0-9;]*)       #list of semi-colon separated integers
-    m               #m
-    /\e\[$1m/gx;
-  #strip out all other sequences
-  $str =~ s/
-    \^\[            #escape char
-    \[              #bracket char
-    [?(]?           #optional question mark or parens
-    [0-9;]*         #list of semi-colon separated integers
-    [a-zA-Z]        #control character
-    //gx;
-  return $str;
-}
-
 sub assertDef($@){
   my ($hash, @targetKeys) = @_;
   my @keys = keys %$hash;
@@ -216,7 +194,7 @@ sub runProto($@){
 }
 sub runProtoIPC($@) {
   my $cfg = shift;
-  assertDef $cfg, qw(esc fatal ansi);
+  assertDef $cfg, qw(esc fatal);
 
   my @cmd = &{$$cfg{esc}}(@_);
 
@@ -253,7 +231,6 @@ sub runProtoIPC($@) {
         close $fh;
       }
 
-      $out = parseAnsiSequences $out if $$cfg{ansi};
       $out = "# $out" if $opts->{prependComment};
       if($$opts{verbose}){
         print $out;
@@ -280,7 +257,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
   my $cfg = shift;
-  assertDef $cfg, qw(esc fatal ansi);
+  assertDef $cfg, qw(esc fatal);
 
   my $cmd = join ' ', &{$$cfg{esc}}(@_);
 
@@ -296,7 +273,6 @@ sub runProtoNoIPC($@) {
       while(my $line = <$fh>) {
         chomp $line;
         $line = "# $line" if $opts->{prependComment};
-        $line = parseAnsiSequences $line if $$cfg{ansi};
         print "$line\n";
       }
     }
@@ -308,22 +284,20 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {esc => \&shell_quote, fatal => 1, ansi => 0}, @_ }
-sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0, ansi => 0}, @_ }
-sub shell     (@) { runProto {esc => \&id         , fatal => 1, ansi => 0}, @_ }
-sub tryshell  (@) { runProto {esc => \&id         , fatal => 0, ansi => 0}, @_ }
-sub runANSI   (@) { runProto {esc => \&shell_quote, fatal => 1, ansi => 1}, @_ }
-sub tryrunANSI(@) { runProto {esc => \&shell_quote, fatal => 0, ansi => 1}, @_ }
+sub run       (@) { runProto {esc => \&shell_quote, fatal => 1}, @_ }
+sub tryrun    (@) { runProto {esc => \&shell_quote, fatal => 0}, @_ }
+sub shell     (@) { runProto {esc => \&id         , fatal => 1}, @_ }
+sub tryshell  (@) { runProto {esc => \&id         , fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
-  runANSI @cmd;
+  run @cmd;
 }
 sub tryrunAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
-  tryrunANSI @cmd;
+  tryrun @cmd;
 }
 
 sub wrapUserCommand(@) {
