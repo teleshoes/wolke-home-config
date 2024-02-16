@@ -179,12 +179,12 @@ sub assertDef($@){
   my $targetHash = {map {$_ => 1} @targetKeys};
   for my $key(@keys){
     if(not defined $$targetHash{$key}){
-      deathWithDishonor "ERROR: extra arg '$key' (expected: @targetKeys)\n";
+      deathWithDishonor "ERROR: extra arg '$key' (expected: @targetKeys, actual: @keys)\n";
     }
   }
   for my $key(@targetKeys){
     if(not defined $$hash{$key}){
-      deathWithDishonor "ERROR: missing arg '$key' (expected: @targetKeys)\n";
+      deathWithDishonor "ERROR: missing arg '$key' (expected: @targetKeys, actual: @keys)\n";
     }
   }
 }
