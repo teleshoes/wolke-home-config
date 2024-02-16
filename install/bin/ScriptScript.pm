@@ -5,7 +5,7 @@ use String::ShellQuote;
 use File::Basename qw(basename dirname);
 use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
-use Time::HiRes qw(time);
+use Time::HiRes qw(sleep time);
 require Exporter;
 my $IPC_RUN = eval{require IPC::Run};
 my $IO_PTY = eval{require IO::Pty};
@@ -251,9 +251,13 @@ sub runProtoIPC($@) {
       print "$out\n" if defined $opts->{verbose};
 
       $out = undef;
+    }else{
+      sleep 0.01; #small delay to decrease busy-wait on input
     }
+
     <$slave>;
   }
+
   IPC::Run::finish $h;
   close $pty;
   close $slave;
