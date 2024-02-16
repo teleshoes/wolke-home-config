@@ -196,12 +196,19 @@ sub parseAnsiSequences($){
 }
 
 sub assertDef($@){
-  my $h = shift;
-  foreach my $key(@_){
-    deathWithDishonor "missing arg $key" if not defined $$h{$key};
+  my ($hash, @targetKeys) = @_;
+  my @keys = keys %$hash;
+  my $targetHash = {map {$_ => 1} @targetKeys};
+  for my $key(@keys){
+    if(not defined $$targetHash{$key}){
+      deathWithDishonor "ERROR: extra arg '$key' (expected: @targetKeys)\n";
+    }
   }
-  my $size = keys %$h;
-  deathWithDishonor "too many args" if @_ != $size;
+  for my $key(@targetKeys){
+    if(not defined $$hash{$key}){
+      deathWithDishonor "ERROR: missing arg '$key' (expected: @targetKeys)\n";
+    }
+  }
 }
 
 sub runProto($@){
