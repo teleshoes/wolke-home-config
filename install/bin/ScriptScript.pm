@@ -643,7 +643,7 @@ sub editFile($$;$) {
       chomp $newpatch;
       my $hereDoc = hereDoc $newpatch;
       my $cmd = "$escpatchcmd - $hereDoc";
-      shell $cmd;
+      run $cmd;
     }
   }
 }
@@ -811,7 +811,7 @@ sub installFromDir($;$$) {
   tryrunUser qw(git pull) if -d ".git";
 
   if(defined $cmd){
-    shell $cmd;
+    run $cmd;
   }else{
     my @ls = split "\n", `ls -1`;
     if(grep {/\.cabal$/} @ls) {
@@ -823,7 +823,7 @@ sub installFromDir($;$$) {
       runUser "make", "-j";
       run "sudo", "make", "install";
     } elsif(grep {/^install/} @ls) {
-      shell "./install*";
+      run "./install*";
     } else {
       deathWithDishonor "### no install file in $dir";
     }
