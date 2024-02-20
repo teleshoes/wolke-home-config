@@ -104,7 +104,8 @@ $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
 
 my @SHELL_METACHAR_LIST = (
   "|", "&", ";", "<", ">", "(", ")", "\$", "`",
-  "\\", "'", "\"", "\n", " ", "\t"
+  "\\", "'", "\"", "\n", " ", "\t",
+  "=", "*", "#",
 );
 my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
