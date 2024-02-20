@@ -102,6 +102,12 @@ sub md5sum($);
 
 $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
 
+my @SHELL_METACHAR_LIST = (
+  "|", "&", ";", "<", ">", "(", ")", "\$", "`",
+  "\\", "'", "\"", "\n", " ", "\t"
+);
+my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
+
 my $opts = {
   putCommand     => 1,
   runCommand     => 1,
@@ -196,8 +202,8 @@ sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
   assertDef $cfg, qw(shell fatal);
 
-  if($$cfg{shell}){
-    @cmd = ("sh", "-c", "@cmd");
+  if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
+    @cmd = ("/bin/sh", "-c", "@cmd");
   }
 
   system "rm -f /tmp/progress-bar-*";
@@ -261,8 +267,8 @@ sub runProtoNoIPC($@) {
   my ($cfg, @cmd) = @_;
   assertDef $cfg, qw(shell fatal);
 
-  if($$cfg{shell}){
-    @cmd = ("sh", "-c", "@cmd");
+  if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
+    @cmd = ("/bin/sh", "-c", "@cmd");
   }
 
   print "@cmd\n" if $opts->{putCommand};
