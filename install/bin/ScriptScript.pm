@@ -278,6 +278,9 @@ sub runProtoNoIPC($@) {
     return;
   }
 
+  system "rm -f /tmp/progress-bar-*";
+  my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+
   my $pid = open my $fh, "-|";
   if(not $pid) {
     if($$cfg{includeErr}){
@@ -287,6 +290,11 @@ sub runProtoNoIPC($@) {
   } else {
     while(my $line = <$fh>) {
       chomp $line;
+      if($opts->{progressBar} and $line =~ /(100|\d\d|\d)%/){
+        open my $fh, "> $progFile";
+        print $fh "$1\n";
+        close $fh;
+      }
       if($$cfg{printOut}){
         print "$line\n";
       }
@@ -296,6 +304,9 @@ sub runProtoNoIPC($@) {
     if($result != 0 and $$cfg{fatal}){
       die "ERROR: cmd '@cmd' failed\n";
     }
+
+    system "rm", "-f", $progFile;
+
     return $? == 0;
   }
 }
