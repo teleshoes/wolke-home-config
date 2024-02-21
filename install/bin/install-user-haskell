@@ -17,13 +17,15 @@ sub main(@) {
 
   run "mkdir", $SRC_CACHE_DIR unless -e $SRC_CACHE_DIR;
 
-  unless(-e $GHC_INSTALL_DIR) {
-    cd $SRC_CACHE_DIR;
-    unless(-e "$GHC_INSTALL_DIR.tar.bz2") {
-      run "wget", "http://www.haskell.org/ghc/dist/$GHC_VERSION/ghc-$GHC_VERSION-x86_64-unknown-linux.tar.bz2";
-    }
-    run "tar", "-xf", "$GHC_INSTALL_DIR.tar.bz2";
+  if(not -d $GHC_INSTALL_DIR){
+    run "wget", "-P", "/tmp",
+      "http://www.haskell.org/ghc/dist/$GHC_VERSION/"
+        . "ghc-$GHC_VERSION-x86_64-unknown-linux.tar.bz2";
+    my $ghcTar = globOne "/tmp/ghc-$GHC_VERSION*.tar*";
+    run "tar", "--one-top-level=$SRC_CACHE_DIR", "-x", "-f", $ghcTar;
+    run "rm", $ghcTar;
   }
+
   cd $GHC_INSTALL_DIR;
   run "./configure", "--prefix=$prefix";
   run "make install";
