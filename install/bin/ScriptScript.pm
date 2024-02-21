@@ -818,19 +818,19 @@ sub installFromDir($;$$) {
   cd $dir;
 
   if(defined $cmd){
-    run $cmd;
+    runUser $cmd;
   }else{
     my @ls = split "\n", `ls -1`;
     if(grep {/\.cabal$/} @ls) {
       runUser "cabal", "install", "-j";
     } elsif(system("make -n all >/dev/null 2>&1") == 0) {
       runUser "make", "-j", "all";
-      run "sudo", "make", "install";
+      runUser "sudo", "make", "install";
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
       runUser "make", "-j";
-      run "sudo", "make", "install";
+      runUser "sudo", "make", "install";
     } elsif(grep {/^install/} @ls) {
-      run "./install*";
+      runUser "./install*";
     } else {
       deathWithDishonor "### no install file in $dir";
     }
