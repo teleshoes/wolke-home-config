@@ -108,8 +108,9 @@ my @SHELL_METACHAR_LIST = (
 );
 my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
+my $SIMULATE = 0;
+
 my $opts = {
-  runCommand     => 1,
   verbose        => 1,
   progressBar    => 1,
   prependComment => 1,
@@ -211,10 +212,13 @@ sub runProtoIPC($@) {
     @cmd = ("/bin/sh", "-c", "@cmd");
   }
 
-  system "rm -f /tmp/progress-bar-*";
-
   print "@cmd\n";
-  return unless $opts->{runCommand};
+
+  if($SIMULATE){
+    return;
+  }
+
+  system "rm -f /tmp/progress-bar-*";
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
@@ -277,7 +281,10 @@ sub runProtoNoIPC($@) {
   }
 
   print "@cmd\n";
-  return unless $opts->{runCommand};
+
+  if($SIMULATE){
+    return;
+  }
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -493,7 +500,9 @@ sub writeFileProto($@) {
     print "$cmd\n";
   }
 
-  return if not $opts->{runCommand};
+  if($SIMULATE){
+    return;
+  }
 
   my $cmd = $$cfg{sudo} ?
     ["|-", "sudo tee $escFile >/dev/null"] : [">", $file];
@@ -735,7 +744,9 @@ sub getRoot(@) {
     my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
 
     print "$cmd\n";
-    return unless $opts->{runCommand};
+    if($SIMULATE){
+      return;
+    }
 
     exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
   }
@@ -755,7 +766,9 @@ sub getRootSu(@) {
       ;
 
     print "$cmd\n";
-    return unless $opts->{runCommand};
+    if($SIMULATE){
+      return;
+    }
 
     exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
   }
