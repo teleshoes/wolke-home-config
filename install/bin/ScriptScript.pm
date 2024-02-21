@@ -820,8 +820,10 @@ sub installFromDir($;$$) {
   if(defined $cmd){
     runUser $cmd;
   }else{
-    my @ls = split "\n", `ls -1`;
-    if(grep {/\.cabal$/} @ls) {
+    my @files = grep {-e $_} glob "$dir/*";
+    my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
+    my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
+    if(@cabalFiles > 0) {
       runUser "cabal", "install", "-j";
     } elsif(system("make -n all >/dev/null 2>&1") == 0) {
       runUser "make", "-j", "all";
@@ -829,7 +831,7 @@ sub installFromDir($;$$) {
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
       runUser "make", "-j";
       runUser "sudo", "make", "install";
-    } elsif(grep {/^install/} @ls) {
+    } elsif(@installCmds > 0) {
       runUser "./install*";
     } else {
       deathWithDishonor "### no install file in $dir";
