@@ -817,24 +817,24 @@ sub installFromDir($;$$) {
   }
   cd $dir;
 
-  if(defined $cmd){
-    runUser $cmd;
-  }else{
+  if(not defined $cmd){
     my @files = grep {-e $_} glob "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0) {
-      runUser "cabal install -j";
+      $cmd = "cabal install -j";
     } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-      runUser "make -j all && sudo make install";
+      $cmd = "make -j all && sudo make install";
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
-      runUser "make -j && sudo make install";
+      $cmd = "make -j && sudo make install";
     } elsif(@installCmds == 1) {
-      runUser $installCmds[0];
+      $cmd = $installCmds[0];
     } else {
       deathWithDishonor "### no install file in $dir";
     }
   }
+
+  runUser $cmd;
 }
 
 sub removeSrcCache($) {
