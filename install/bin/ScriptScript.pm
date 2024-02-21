@@ -193,7 +193,7 @@ sub runProto($@){
 
 sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd fatal);
+  assertDef $cfg, qw(printCmd printOut fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -236,8 +236,10 @@ sub runProtoIPC($@) {
       }
 
       $out = "# $out" if $opts->{prependComment};
-      print $out;
-      STDOUT->flush();
+      if($$cfg{printOut}){
+        print $out;
+        STDOUT->flush();
+      }
 
       $out = undef;
     }else{
@@ -263,7 +265,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd fatal);
+  assertDef $cfg, qw(printCmd printOut fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -283,7 +285,9 @@ sub runProtoNoIPC($@) {
     while(my $line = <$fh>) {
       chomp $line;
       $line = "# $line" if $opts->{prependComment};
-      print "$line\n";
+      if($$cfg{printOut}){
+        print "$line\n";
+      }
     }
     close $fh;
     my $result = $?;
@@ -296,8 +300,8 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {printCmd => 1, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {printCmd => 1, fatal => 0}, @_ }
+sub run       (@) { runProto {printCmd => 1, printOut => 1, fatal => 1}, @_ }
+sub tryrun    (@) { runProto {printCmd => 1, printOut => 1, fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
