@@ -1,7 +1,6 @@
 package ScriptScript;
 use warnings;
 use strict;
-use String::ShellQuote;
 use File::Basename qw(basename dirname);
 use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
@@ -11,6 +10,7 @@ require Exporter;
 my $MODULE_AVAIL = {
   'IO::Pty'              => defined eval{require IO::Pty},
   'IPC::Run'             => defined eval{require IPC::Run},
+  'String::ShellQuote'   => defined eval{require String::ShellQuote},
 };
 
 our @ISA = qw(Exporter);
@@ -883,7 +883,17 @@ sub extractNameFromGitUrl($){
 }
 
 sub shellQuote(@){
-  return String::ShellQuote::shell_quote(@_);
+  if($$MODULE_AVAIL{'String::ShellQuote'}){
+    return String::ShellQuote::shell_quote(@_);
+  }else{
+    return join " ", map {
+      my $str = $_;
+      $str =~ s/\\/\\\\/g;
+      $str =~ s/'/'\\''/g;
+      $str = "'$str'";
+      $str;
+    } @_;
+  }
 }
 
 sub md5sum($){
