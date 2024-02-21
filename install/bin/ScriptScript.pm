@@ -824,13 +824,11 @@ sub installFromDir($;$$) {
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0) {
-      runUser "cabal", "install", "-j";
+      runUser "cabal install -j";
     } elsif(system("make -n all >/dev/null 2>&1") == 0) {
-      runUser "make", "-j", "all";
-      runUser "sudo", "make", "install";
+      runUser "make -j all && sudo make install";
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
-      runUser "make", "-j";
-      runUser "sudo", "make", "install";
+      runUser "make -j && sudo make install";
     } elsif(@installCmds == 1) {
       runUser $installCmds[0];
     } else {
