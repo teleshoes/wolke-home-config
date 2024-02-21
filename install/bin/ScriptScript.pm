@@ -110,7 +110,6 @@ my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 my $SIMULATE = 0;
 
 my $opts = {
-  progressBar    => 1,
   };
 
 sub getScriptNames(){
@@ -192,7 +191,7 @@ sub runProto($@){
 
 sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd printOut includeErr fatal);
+  assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -231,7 +230,7 @@ sub runProtoIPC($@) {
       $out = <$pty>;
     }
     if(defined $out and length $out > 0){
-      if($opts->{progressBar} and $out =~ /(100|\d\d|\d)%/){
+      if($$cfg{progressBar} and $out =~ /(100|\d\d|\d)%/){
         open my $fh, "> $progFile";
         print $fh "$1\n";
         close $fh;
@@ -266,7 +265,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd printOut includeErr fatal);
+  assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -290,7 +289,7 @@ sub runProtoNoIPC($@) {
   } else {
     while(my $line = <$fh>) {
       chomp $line;
-      if($opts->{progressBar} and $line =~ /(100|\d\d|\d)%/){
+      if($$cfg{progressBar} and $line =~ /(100|\d\d|\d)%/){
         open my $fh, "> $progFile";
         print $fh "$1\n";
         close $fh;
@@ -312,10 +311,10 @@ sub runProtoNoIPC($@) {
 }
 
 sub run(@){
-  return runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 1}, @_;
+  return runProto {printCmd => 1, printOut => 1, includeErr => 1, progressBar => 1, fatal => 1}, @_;
 }
 sub tryrun(@){
-  return runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 0}, @_;
+  return runProto {printCmd => 1, printOut => 1, includeErr => 1, progressBar => 1, fatal => 0}, @_;
 }
 sub runUser(@){
   return run wrapUserCommand(@_);
