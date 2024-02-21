@@ -817,7 +817,7 @@ sub installFromDir($;$$) {
   }
   cd $dir;
 
-  if(not defined $cmd){
+  if(not defined $cmd or $cmd eq ""){
     my @files = grep {-e $_} glob "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
