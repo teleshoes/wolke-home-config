@@ -297,7 +297,7 @@ sub runProtoNoIPC($@) {
 
     system "rm", "-f", $progFile;
 
-    return $? == 0;
+    return $result == 0;
   }
 }
 
