@@ -110,7 +110,6 @@ my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 my $SIMULATE = 0;
 
 my $opts = {
-  verbose        => 1,
   progressBar    => 1,
   prependComment => 1,
   };
@@ -237,10 +236,8 @@ sub runProtoIPC($@) {
       }
 
       $out = "# $out" if $opts->{prependComment};
-      if($$opts{verbose}){
-        print $out;
-        STDOUT->flush();
-      }
+      print $out;
+      STDOUT->flush();
 
       $out = undef;
     }else{
@@ -283,12 +280,10 @@ sub runProtoNoIPC($@) {
     open(STDERR, ">&STDOUT");
     exec @cmd or die "ERROR: cmd '@cmd' failed\n";
   } else {
-    if($opts->{verbose}) {
-      while(my $line = <$fh>) {
-        chomp $line;
-        $line = "# $line" if $opts->{prependComment};
-        print "$line\n";
-      }
+    while(my $line = <$fh>) {
+      chomp $line;
+      $line = "# $line" if $opts->{prependComment};
+      print "$line\n";
     }
     close $fh;
     my $result = $?;
