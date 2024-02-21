@@ -311,10 +311,18 @@ sub runProtoNoIPC($@) {
   }
 }
 
-sub run       (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 0}, @_ }
-sub runUser   (@) { run wrapUserCommand(@_) }
-sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
+sub run(@){
+  return runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 1}, @_;
+}
+sub tryrun(@){
+  return runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 0}, @_;
+}
+sub runUser(@){
+  return run wrapUserCommand(@_);
+}
+sub tryrunUser(@){
+  return tryrun wrapUserCommand(@_);
+}
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
