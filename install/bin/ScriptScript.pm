@@ -46,7 +46,6 @@ our @EXPORT = qw( getScriptNames getSubNames
 sub getScriptNames();
 sub getSubNames();
 sub setOpts($);
-sub deathWithDishonor(;$);
 sub withOpenHandle($$$);
 sub assertDef($@);
 sub runProto($@);
@@ -157,17 +156,6 @@ sub setOpts($) {
   $opts = \%new;
 }
 
-sub deathWithDishonor(;$) {
-  my $msg = shift;
-  $msg = "command failed" if not defined $msg or $msg eq "";
-  chomp $msg;
-  $msg .= "\n";
-  $msg = "## $msg" if $$opts{prependComment};
-
-  print STDERR $msg;
-  exit 1;
-}
-
 sub withOpenHandle($$$){
   my ($openCmd, $fatal, $withFHSub) = @_;
   my ($mode, @openList) = @$openCmd;
@@ -175,7 +163,7 @@ sub withOpenHandle($$$){
   if(open $fh, $mode, @openList){
     return &$withFHSub($fh);
   }elsif($fatal){
-    deathWithDishonor "open failed: open @$openCmd";
+    die "ERROR: open failed: open @$openCmd";
   }
 }
 
@@ -185,12 +173,12 @@ sub assertDef($@){
   my $targetHash = {map {$_ => 1} @targetKeys};
   for my $key(@keys){
     if(not defined $$targetHash{$key}){
-      deathWithDishonor "ERROR: extra arg '$key' (expected: @targetKeys, actual: @keys)\n";
+      die "ERROR: extra arg '$key' (expected: @targetKeys, actual: @keys)\n";
     }
   }
   for my $key(@targetKeys){
     if(not defined $$hash{$key}){
-      deathWithDishonor "ERROR: missing arg '$key' (expected: @targetKeys, actual: @keys)\n";
+      die "ERROR: missing arg '$key' (expected: @targetKeys, actual: @keys)\n";
     }
   }
 }
@@ -271,7 +259,7 @@ sub runProtoIPC($@) {
   system "rm", "-f", $progFile;
 
   if($result != 0 and $$cfg{fatal}){
-    deathWithDishonor "ERROR: cmd '@cmd' failed\n";
+    die "ERROR: cmd '@cmd' failed\n";
   }
 
   return $result == 0;
@@ -293,7 +281,7 @@ sub runProtoNoIPC($@) {
   my $pid = open my $fh, "-|";
   if(not $pid) {
     open(STDERR, ">&STDOUT");
-    exec @cmd or deathWithDishonor "ERROR: cmd '@cmd' failed\n";
+    exec @cmd or die "ERROR: cmd '@cmd' failed\n";
   } else {
     if($opts->{verbose}) {
       while(my $line = <$fh>) {
@@ -305,7 +293,7 @@ sub runProtoNoIPC($@) {
     close $fh;
     my $result = $?;
     if($result != 0 and $$cfg{fatal}){
-      deathWithDishonor "ERROR: cmd '@cmd' failed\n";
+      die "ERROR: cmd '@cmd' failed\n";
     }
     return $? == 0;
   }
@@ -382,7 +370,7 @@ sub runScript($@){
 sub getUsername() {
   my $user = $ENV{SUDO_USER} || $ENV{USER};
   if(not $user or $user eq "root") {
-    deathWithDishonor "ERROR: USER or SUDO_USER must be set, and cannot be root";
+    die "ERROR: USER or SUDO_USER must be set, and cannot be root";
   }
   $user
 }
@@ -448,9 +436,9 @@ sub symlinkFileProto($$;$$) {
     run @sudo, "rmdir", $destFile;
     print "  dir=>symlink: $destFile\n";
   }
-  deathWithDishonor "Error creating symlink file $destFile\n" if -e $destFile;
+  die "Error creating symlink file $destFile\n" if -e $destFile;
   run @sudo, "ln", "-s", $srcPath, $destFile;
-  deathWithDishonor "Error creating symlink file $destFile\n" if not -e $destFile;
+  die "Error creating symlink file $destFile\n" if not -e $destFile;
 }
 sub symlinkFile($$) {
   symlinkFileProto($_[0], $_[1], 0, 0);
@@ -606,7 +594,7 @@ sub editFile($$;$) {
   unless(defined $write) {
     my $msg = shellQuote $name;
     $msg .= " " . shellQuote $patchname if defined $patchname;
-    deathWithDishonor "ERROR: edit file $msg";
+    die "ERROR: edit file $msg";
   }
 
   if($write eq $read) {
@@ -755,7 +743,7 @@ sub getRoot(@) {
       return;
     }
 
-    exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
+    exec "sudo", $0, @_ or die "failed to sudo";
   }
 }
 
@@ -777,7 +765,7 @@ sub getRootSu(@) {
       return;
     }
 
-    exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
+    exec "su", "-c", $innercmd or die "failed to su";
   }
 }
 
@@ -835,7 +823,7 @@ sub installFromDir($;$$) {
     } elsif(@installCmds == 1) {
       $cmd = $installCmds[0];
     } else {
-      deathWithDishonor "### no install file in $dir";
+      die "### no install file in $dir";
     }
   }
 
