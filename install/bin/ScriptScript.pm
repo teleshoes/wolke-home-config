@@ -831,8 +831,8 @@ sub installFromDir($;$$) {
     } elsif(system("make -n >/dev/null 2>&1") == 0) {
       runUser "make", "-j";
       runUser "sudo", "make", "install";
-    } elsif(@installCmds > 0) {
-      runUser "./install*";
+    } elsif(@installCmds == 1) {
+      runUser $installCmds[0];
     } else {
       deathWithDishonor "### no install file in $dir";
     }
