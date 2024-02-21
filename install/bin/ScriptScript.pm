@@ -7,8 +7,11 @@ use File::Spec qw(abs2rel);
 use File::Temp 'tempfile';
 use Time::HiRes qw(sleep time);
 require Exporter;
-my $IPC_RUN = eval{require IPC::Run};
-my $IO_PTY = eval{require IO::Pty};
+
+my $MODULE_AVAIL = {
+  'IO::Pty'              => defined eval{require IO::Pty},
+  'IPC::Run'             => defined eval{require IPC::Run},
+};
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(setOpts);
@@ -194,8 +197,14 @@ sub assertDef($@){
 }
 
 sub runProto($@){
-  return &{$IPC_RUN && $IO_PTY ? \&runProtoIPC : \&runProtoNoIPC }(@_)
+  my ($cfg, @cmd) = @_;
+  if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
+    return runProtoIPC($cfg, @cmd);
+  }else{
+    return runProtoNoIPC($cfg, @cmd);
+  }
 }
+
 sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
   assertDef $cfg, qw(fatal);
