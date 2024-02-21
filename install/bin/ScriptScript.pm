@@ -810,11 +810,12 @@ sub installFromDir($;$$) {
   my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
   if(not -d $dir and defined $gitUrl){
     runUser "mkdir", "-p", $dir;
-    cd $dir;
-    runUser "git", "clone", $gitUrl, ".";
+    runUser "git", "-C", $dir, "clone", $gitUrl, ".";
+  }
+  if(-d "$dir/.git"){
+    tryrunUser "git", "-C", $dir, "pull";
   }
   cd $dir;
-  tryrunUser qw(git pull) if -d ".git";
 
   if(defined $cmd){
     run $cmd;
