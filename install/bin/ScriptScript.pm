@@ -193,7 +193,7 @@ sub runProto($@){
 
 sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd printOut fatal);
+  assertDef $cfg, qw(printCmd printOut includeErr fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -211,7 +211,10 @@ sub runProtoIPC($@) {
   my $slave = $pty->slave;
   $pty->blocking(0);
   $slave->blocking(0);
-  my $h = IPC::Run::harness(\@cmd, "&>", $slave);
+
+  my $pipeOp = $$cfg{includeErr} ? "&>" : ">";
+
+  my $h = IPC::Run::harness(\@cmd, $pipeOp, $slave);
   if($$cfg{fatal}){
     $h->start;
   }else{
@@ -265,7 +268,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd printOut fatal);
+  assertDef $cfg, qw(printCmd printOut includeErr fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -279,7 +282,9 @@ sub runProtoNoIPC($@) {
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
-    open(STDERR, ">&STDOUT");
+    if($$cfg{includeErr}){
+      open(STDERR, ">&STDOUT");
+    }
     exec @cmd or die "ERROR: cmd '@cmd' failed\n";
   } else {
     while(my $line = <$fh>) {
@@ -300,8 +305,8 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {printCmd => 1, printOut => 1, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {printCmd => 1, printOut => 1, fatal => 0}, @_ }
+sub run       (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 1}, @_ }
+sub tryrun    (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
