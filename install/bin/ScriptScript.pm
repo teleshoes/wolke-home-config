@@ -833,8 +833,7 @@ sub installFromDir($;$$) {
     }
   }
 
-  cd $dir;
-  runUser $cmd;
+  runUser "cd '$dir' && $cmd";
 }
 
 sub removeSrcCache($) {
