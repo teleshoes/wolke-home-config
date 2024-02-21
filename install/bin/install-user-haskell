@@ -7,23 +7,30 @@ use ScriptScript;
 my $GHC_VERSION = "7.6.3";
 my $HP_VERSION  = "2013.2.0.0";
 
+my $IMG_DIR = "/media/stuff/Images/haskell";
+
 my $SRC_CACHE_DIR = "$ENV{HOME}/.src-cache";
 
 my $GHC_INSTALL_DIR = "$SRC_CACHE_DIR/ghc-$GHC_VERSION";
 my $HP_INSTALL_DIR = "$ENV{HOME}/.src-cache/haskell-platform-$HP_VERSION";
 
+sub ensureDownloadFile($$$);
+
 sub main(@) {
   my $prefix = "$ENV{HOME}/.ghc-$GHC_VERSION";
+
+  run "mkdir", "-p", $IMG_DIR;
 
   run "mkdir", $SRC_CACHE_DIR unless -e $SRC_CACHE_DIR;
 
   if(not -d $GHC_INSTALL_DIR){
-    run "wget", "-P", "/tmp",
+    my $ghcTar = ensureDownloadFile(
       "http://www.haskell.org/ghc/dist/$GHC_VERSION/"
-        . "ghc-$GHC_VERSION-x86_64-unknown-linux.tar.bz2";
-    my $ghcTar = globOne "/tmp/ghc-$GHC_VERSION*.tar*";
+        . "ghc-$GHC_VERSION-x86_64-unknown-linux.tar.bz2",
+      $IMG_DIR,
+      "ghc-$GHC_VERSION*.tar*",
+    );
     run "tar", "--one-top-level=$SRC_CACHE_DIR", "-x", "-f", $ghcTar;
-    run "rm", $ghcTar;
   }
 
   cd $GHC_INSTALL_DIR;
@@ -31,12 +38,13 @@ sub main(@) {
   run "make install";
 
   if(not -d $HP_INSTALL_DIR) {
-    run "wget", "-P", "/tmp",
-       "https://downloads.haskell.org/platform/$HP_VERSION/"
-         . "haskell-platform-$HP_VERSION.tar.gz";
-    my $hpTar = globOne "/tmp/haskell-platform-$HP_VERSION.tar.gz";
+    my $hpTar = ensureDownloadFile(
+      "https://downloads.haskell.org/platform/$HP_VERSION/"
+        . "haskell-platform-$HP_VERSION.tar.gz",
+      $IMG_DIR,
+      "haskell-platform-$HP_VERSION.tar.gz",
+    );
     run "tar", "--one-top-level=$SRC_CACHE_DIR", "-x", "-f", $hpTar;
-    run "rm", $hpTar;
   }
   cd $HP_INSTALL_DIR;
   $ENV{PATH} = "$prefix:$ENV{PATH}" unless $ENV{PATH} =~ /\Q.ghc-$GHC_VERSION\E/;
@@ -61,6 +69,19 @@ sub main(@) {
       $config
     };
   }
+}
+
+sub ensureDownloadFile($$$){
+  my ($url, $destDir, $ptrn) = @_;
+  my $file = globOne("$destDir/$ptrn");
+  if(not defined $file or not -f $file){
+    run "wget", "-P", $destDir, $url;
+    $file = globOne("$destDir/$ptrn");
+  }
+  if(not defined $file or not -f $file){
+    die "ERROR: could not download '$url' to $destDir/$ptrn\n";
+  }
+  return $file;
 }
 
 &main(@ARGV);
