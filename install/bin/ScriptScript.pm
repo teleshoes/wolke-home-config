@@ -815,7 +815,6 @@ sub installFromDir($;$$) {
   if(-d "$dir/.git"){
     tryrunUser "git", "-C", $dir, "pull";
   }
-  cd $dir;
 
   if(not defined $cmd or $cmd eq ""){
     my @files = grep {-e $_} glob "$dir/*";
@@ -823,9 +822,9 @@ sub installFromDir($;$$) {
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0) {
       $cmd = "cabal install -j";
-    } elsif(system("make -n all >/dev/null 2>&1") == 0) {
+    } elsif(system("make -C '$dir' -n all >/dev/null 2>&1") == 0) {
       $cmd = "make -j all && sudo make install";
-    } elsif(system("make -n >/dev/null 2>&1") == 0) {
+    } elsif(system("make -C '$dir' -n >/dev/null 2>&1") == 0) {
       $cmd = "make -j && sudo make install";
     } elsif(@installCmds == 1) {
       $cmd = $installCmds[0];
@@ -834,6 +833,7 @@ sub installFromDir($;$$) {
     }
   }
 
+  cd $dir;
   runUser $cmd;
 }
 
