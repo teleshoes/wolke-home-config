@@ -109,7 +109,6 @@ my @SHELL_METACHAR_LIST = (
 my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
 my $opts = {
-  putCommand     => 1,
   runCommand     => 1,
   verbose        => 1,
   progressBar    => 1,
@@ -214,8 +213,8 @@ sub runProtoIPC($@) {
 
   system "rm -f /tmp/progress-bar-*";
 
-  print "@cmd\n" if $opts->{putCommand};
-  return     unless $opts->{runCommand};
+  print "@cmd\n";
+  return unless $opts->{runCommand};
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
@@ -277,8 +276,8 @@ sub runProtoNoIPC($@) {
     @cmd = ("/bin/sh", "-c", "@cmd");
   }
 
-  print "@cmd\n" if $opts->{putCommand};
-  return     unless $opts->{runCommand};
+  print "@cmd\n";
+  return unless $opts->{runCommand};
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -482,7 +481,7 @@ sub writeFileProto($@) {
 
   my $escFile = shellQuote $file;
 
-  if($opts->{putCommand}){
+  if(not $$cfg{quiet}){
     my $hereDoc = hereDoc $contents;
     my $cmd = "( cat $hereDoc )";
 
@@ -491,7 +490,7 @@ sub writeFileProto($@) {
     }else{
       $cmd .= " > $escFile";
     }
-    print "$cmd\n" unless $$cfg{quiet};
+    print "$cmd\n";
   }
 
   return if not $opts->{runCommand};
@@ -735,8 +734,8 @@ sub getRoot(@) {
 
     my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
 
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
+    print "$cmd\n";
+    return unless $opts->{runCommand};
 
     exec "sudo", $0, @_ or deathWithDishonor "failed to sudo";
   }
@@ -755,8 +754,8 @@ sub getRootSu(@) {
       . "fi"
       ;
 
-    print "$cmd\n" if $opts->{putCommand};
-    return     unless $opts->{runCommand};
+    print "$cmd\n";
+    return unless $opts->{runCommand};
 
     exec "su", "-c", $innercmd or deathWithDishonor "failed to su";
   }
