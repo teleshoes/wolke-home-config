@@ -39,6 +39,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   readConf readConfDir
                   installFromDir aptSrcInstall removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
+                  shellQuote
                   md5sum
                   nowMillis
                 );
@@ -98,6 +99,7 @@ sub removeSrcCache($);
 sub installFromGit($;$);
 sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
+sub shellQuote(@);
 sub md5sum($);
 
 $SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
@@ -316,7 +318,7 @@ sub tryrunAptGet(@){
 }
 
 sub wrapUserCommand(@) {
-  return isRoot() ? ("su", getUsername(), "-c", (join ' ', shell_quote @_)) : @_;
+  return isRoot() ? ("su", getUsername(), "-c", (join ' ', shellQuote @_)) : @_;
 }
 
 sub proc(@) {
@@ -420,7 +422,7 @@ sub which($) {
 
 sub cd($) {
   my $path = shift;
-  my $escpath = shell_quote $path;
+  my $escpath = shellQuote $path;
   my $cmd = "cd $escpath";
 
   print "$cmd\n" if $opts->{putCommand};
@@ -492,7 +494,7 @@ sub writeFileProto($@) {
 
   $$cfg{sudo} = 0 if isRoot();
 
-  my $escFile = shell_quote $file;
+  my $escFile = shellQuote $file;
 
   if($opts->{putCommand}){
     my $hereDoc = hereDoc $contents;
@@ -530,7 +532,7 @@ sub readFileProto($@) {
 
   $$cfg{sudo} = 0 if isRoot();
 
-  my $escFile = shell_quote $file;
+  my $escFile = shellQuote $file;
 
   my $cmd = $$cfg{sudo} ? ["-|", "sudo cat $escFile"] : ["<", $file];
 
@@ -581,8 +583,8 @@ sub editFile($$;$) {
   my $patchfile = "$name.$patchname.patch" if defined $patchname;
   my @revcmd = (@patchcmd, $patchfile, "--reverse");
 
-  my $escpatchcmd = join ' ', shell_quote(@patchcmd);
-  my $escrevcmd   = join ' ', shell_quote(@revcmd);
+  my $escpatchcmd = join ' ', shellQuote(@patchcmd);
+  my $escrevcmd   = join ' ', shellQuote(@revcmd);
 
   my $read;
   if (defined $patchfile and -f $patchfile) {
@@ -601,8 +603,8 @@ sub editFile($$;$) {
   my $tmp = $read;
   my $write = &$edit($tmp);
   unless(defined $write) {
-    my $msg = shell_quote $name;
-    $msg .= " " . shell_quote $patchname if defined $patchname;
+    my $msg = shellQuote $name;
+    $msg .= " " . shellQuote $patchname if defined $patchname;
     deathWithDishonor "ERROR: edit file $msg";
   }
 
@@ -759,11 +761,11 @@ sub getRootSu(@) {
     print "## rerunning as root\n";
 
     my $user = getUsername();
-    my $innercmd = join ' ', "SUDO_USER=$user", (shell_quote $0, @_);
+    my $innercmd = join ' ', "SUDO_USER=$user", (shellQuote $0, @_);
     print "$innercmd\n";
     my $cmd = ""
       . "if [ `whoami` != \"root\" ]; then "
-      .   "exec su -c " . (shell_quote $innercmd) . " ; "
+      .   "exec su -c " . (shellQuote $innercmd) . " ; "
       . "fi"
       ;
 
@@ -878,6 +880,10 @@ sub extractNameFromGitUrl($){
     die "could not parse repo name from last element of git URL:\n$gitUrl\n";
   }
   return $name;
+}
+
+sub shellQuote(@){
+  return String::ShellQuote::shell_quote(@_);
 }
 
 sub md5sum($){
