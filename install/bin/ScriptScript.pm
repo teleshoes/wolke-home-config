@@ -269,7 +269,11 @@ sub runProtoIPC($@) {
   my $result = $h->result;
 
   system "rm", "-f", $progFile;
-  deathWithDishonor if $$cfg{fatal} and $result != 0;
+
+  if($result != 0 and $$cfg{fatal}){
+    deathWithDishonor "ERROR: cmd '@cmd' failed\n";
+  }
+
   return $result == 0;
 }
 sub runProtoNoIPC($@) {
@@ -289,7 +293,7 @@ sub runProtoNoIPC($@) {
   my $pid = open my $fh, "-|";
   if(not $pid) {
     open(STDERR, ">&STDOUT");
-    exec @cmd or deathWithDishonor;
+    exec @cmd or deathWithDishonor "ERROR: cmd '@cmd' failed\n";
   } else {
     if($opts->{verbose}) {
       while(my $line = <$fh>) {
@@ -299,7 +303,10 @@ sub runProtoNoIPC($@) {
       }
     }
     close $fh;
-    deathWithDishonor if $? != 0 and $$cfg{fatal};
+    my $result = $?;
+    if($result != 0 and $$cfg{fatal}){
+      deathWithDishonor "ERROR: cmd '@cmd' failed\n";
+    }
     return $? == 0;
   }
 }
