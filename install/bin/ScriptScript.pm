@@ -37,7 +37,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getUsername
                   guessBackupDir
                   readConf readConfDir
-                  installFromDir aptSrcInstall removeSrcCache
+                  installFromDir removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
                   shellQuote
                   md5sum
@@ -94,7 +94,6 @@ sub guessBackupDir();
 sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
-sub aptSrcInstall($$);
 sub removeSrcCache($);
 sub installFromGit($;$);
 sub removeGitSrcCache($);
@@ -833,21 +832,6 @@ sub installFromDir($;$$) {
       run "./install*";
     } else {
       deathWithDishonor "### no install file in $dir";
-    }
-  }
-}
-
-sub aptSrcInstall($$) {
-  my ($package, $whichdeb) = @_;
-  runAptGet "-y", "build-dep", $package;
-  my $srcCache = getSrcCache();
-  my $pkgSrcDir = "$srcCache/.src-cache/$package";
-  run "mkdir", "-p", "$pkgSrcDir" unless -d $pkgSrcDir;
-  cd $pkgSrcDir;
-  runAptGet "-b", "source", $package;
-  for my $file (split "\n", `ls -1`) {
-    if($file =~ /\.deb$/ && $file =~ /$whichdeb/) {
-      run "sudo", "dpkg", "-i", $file;
     }
   }
 }
