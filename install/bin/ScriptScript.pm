@@ -311,8 +311,6 @@ sub runProtoNoIPC($@) {
   }
 }
 
-sub id(@){@_}
-
 sub run       (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 1}, @_ }
 sub tryrun    (@) { runProto {printCmd => 1, printOut => 1, includeErr => 1, fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
