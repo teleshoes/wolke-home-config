@@ -5,36 +5,36 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
 sub userfile($) {
-    my ($user) = @_;
-    join "\n"
-      , "Defaults\tenv_keep += HOME"
-      , "Defaults\tenv_keep += SSH_AUTH_SOCK"
-      , "$user\tALL=(ALL) ALL"
-      , ""
+  my ($user) = @_;
+  join "\n"
+    , "Defaults\tenv_keep += HOME"
+    , "Defaults\tenv_keep += SSH_AUTH_SOCK"
+    , "$user\tALL=(ALL) ALL"
+    , ""
 }
 
 sub nopasswdFileCnts($@) {
-    my ($user, @conf) = @_;
-    join "\n", ((map {"$user\tALL=(ALL) NOPASSWD: $_"} @conf), "")
+  my ($user, @conf) = @_;
+  join "\n", ((map {"$user\tALL=(ALL) NOPASSWD: $_"} @conf), "")
 }
 
 sub main(@) {
-    getRootSu @_;
+  getRootSu @_;
 
-    my $user = getUsername;
+  my $user = getUsername;
 
-    tryrun "rm /etc/sudoers.d/*";
+  tryrun "rm /etc/sudoers.d/*";
 
-    writeFile "/etc/sudoers.d/$user", userfile $user;
+  writeFile "/etc/sudoers.d/$user", userfile $user;
 
-    my $confDir = getInstallPath "sudo-nopasswd";
-    my %confs = readConfDir $confDir;
-    for my $sufix (sort keys %confs) {
-        my $cnts = nopasswdFileCnts $user, @{$confs{$sufix}};
-        writeFile "/etc/sudoers.d/$user-$sufix", "$cnts";
-    }
+  my $confDir = getInstallPath "sudo-nopasswd";
+  my %confs = readConfDir $confDir;
+  for my $sufix (sort keys %confs) {
+    my $cnts = nopasswdFileCnts $user, @{$confs{$sufix}};
+    writeFile "/etc/sudoers.d/$user-$sufix", "$cnts";
+  }
 
-    run "chmod 440 /etc/sudoers.d/*";
+  run "chmod 440 /etc/sudoers.d/*";
 }
 
 &main(@ARGV);

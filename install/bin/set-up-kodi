@@ -62,87 +62,87 @@ my $keyConfigVideo = [
 sub formatKeyEntryXml($$$);
 
 sub main(@) {
-    getRoot @_;
+  getRoot @_;
 
-    for my $addonId(@disabledAddonIds){
-      my $intId = `sqlite3 $addonsDb "select id from addons where addonId='$addonId'"`;
-      chomp $intId;
-      die "error getting integer id for addonId=$addonId\n" if $intId !~ /^\d+$/;
-      print "disabling $addonId(id=$intId) in addons database\n";
-      my $sql = "
-        delete from blacklist where id=$intId or addonID='$addonId';
-        insert into blacklist(id, addonID) values($intId, '$addonId');
-      ";
-      system "sqlite3", $addonsDb, $sql;
+  for my $addonId(@disabledAddonIds){
+    my $intId = `sqlite3 $addonsDb "select id from addons where addonId='$addonId'"`;
+    chomp $intId;
+    die "error getting integer id for addonId=$addonId\n" if $intId !~ /^\d+$/;
+    print "disabling $addonId(id=$intId) in addons database\n";
+    my $sql = "
+      delete from blacklist where id=$intId or addonID='$addonId';
+      insert into blacklist(id, addonID) values($intId, '$addonId');
+    ";
+    system "sqlite3", $addonsDb, $sql;
+  }
+
+  editFile $skinSettingsFile, sub {
+    my $c = shift;
+    for my $key(sort keys %$skinSettings){
+      my $val = $$skinSettings{$key};
+      my $type = $val =~ /^(true|false)$/ ? "bool" : "string";
+
+      my $idAtt = "id=\"$key\"";
+      my $typeAtt = "type=\"$type\"";
+
+      my $prefix = "\\s*<setting\\s*$idAtt\\s*$typeAtt>";
+      my $line = "    <setting $idAtt $typeAtt>$val</setting>";
+
+      if(not replaceLine $c, $prefix, $line){
+        die "could not update skin setting $key = $val\n";
+      }
     }
+    return $c;
+  };
 
-    editFile $skinSettingsFile, sub {
+  editFile $guisettingsFile, sub {
+    my $c = shift;
+    for my $key(sort keys %$guisettings){
+      my $val = $$guisettings{$key};
+      my $prefix = "\\s*<$key( [^>]*)?";
+      my $line = "        <$key>$val</$key>";
+      if(not replaceLine $c, $prefix, $line){
+        die "could not update gui setting $key = $val\n";
+      }
+    }
+    return $c;
+  };
+
+  if(defined $cecConfigFile){
+    editFile $cecConfigFile, sub {
       my $c = shift;
-      for my $key(sort keys %$skinSettings){
-        my $val = $$skinSettings{$key};
-        my $type = $val =~ /^(true|false)$/ ? "bool" : "string";
-
-        my $idAtt = "id=\"$key\"";
-        my $typeAtt = "type=\"$type\"";
-
-        my $prefix = "\\s*<setting\\s*$idAtt\\s*$typeAtt>";
-        my $line = "    <setting $idAtt $typeAtt>$val</setting>";
-
-        if(not replaceLine $c, $prefix, $line){
-          die "could not update skin setting $key = $val\n";
-        }
+      for my $key(sort keys %$cecConfig){
+        my $val = $$cecConfig{$key};
+        $c =~ s/^(\s*)<setting\s*id="$key".*$/$1<setting id="$key" value="$val" \/\>/m;
       }
       return $c;
     };
+  }
 
-    editFile $guisettingsFile, sub {
-      my $c = shift;
-      for my $key(sort keys %$guisettings){
-        my $val = $$guisettings{$key};
-        my $prefix = "\\s*<$key( [^>]*)?";
-        my $line = "        <$key>$val</$key>";
-        if(not replaceLine $c, $prefix, $line){
-          die "could not update gui setting $key = $val\n";
-        }
-      }
-      return $c;
-    };
+  my $keymapXml = "";
+  $keymapXml .= "<keymap>\n";
 
-    if(defined $cecConfigFile){
-      editFile $cecConfigFile, sub {
-        my $c = shift;
-        for my $key(sort keys %$cecConfig){
-          my $val = $$cecConfig{$key};
-          $c =~ s/^(\s*)<setting\s*id="$key".*$/$1<setting id="$key" value="$val" \/\>/m;
-        }
-        return $c;
-      };
-    }
+  $keymapXml .= "  <global>\n";
+  $keymapXml .= "    <keyboard>\n";
+  for my $keyEntry(@$keyConfigGlobal){
+    my ($key, $mod, $action) = @$keyEntry;
+    $keymapXml .= formatKeyEntryXml $key, $mod, $action;
+  }
+  $keymapXml .= "    </keyboard>\n";
+  $keymapXml .= "  </global>\n";
 
-    my $keymapXml = "";
-    $keymapXml .= "<keymap>\n";
+  $keymapXml .= "  <FullscreenVideo>\n";
+  $keymapXml .= "    <keyboard>\n";
+  for my $keyEntry(@$keyConfigVideo){
+    my ($key, $mod, $action) = @$keyEntry;
+    $keymapXml .= formatKeyEntryXml $key, $mod, $action;
+  }
+  $keymapXml .= "    </keyboard>\n";
+  $keymapXml .= "  </FullscreenVideo>\n";
 
-    $keymapXml .= "  <global>\n";
-    $keymapXml .= "    <keyboard>\n";
-    for my $keyEntry(@$keyConfigGlobal){
-      my ($key, $mod, $action) = @$keyEntry;
-      $keymapXml .= formatKeyEntryXml $key, $mod, $action;
-    }
-    $keymapXml .= "    </keyboard>\n";
-    $keymapXml .= "  </global>\n";
-
-    $keymapXml .= "  <FullscreenVideo>\n";
-    $keymapXml .= "    <keyboard>\n";
-    for my $keyEntry(@$keyConfigVideo){
-      my ($key, $mod, $action) = @$keyEntry;
-      $keymapXml .= formatKeyEntryXml $key, $mod, $action;
-    }
-    $keymapXml .= "    </keyboard>\n";
-    $keymapXml .= "  </FullscreenVideo>\n";
-
-    $keymapXml .= "</keymap>\n";
-    writeFile $keyboardConfigFile, $keymapXml;
-    run "chown", getUsername() . ".", $keyboardConfigFile;
+  $keymapXml .= "</keymap>\n";
+  writeFile $keyboardConfigFile, $keymapXml;
+  run "chown", getUsername() . ".", $keyboardConfigFile;
 }
 
 sub formatKeyEntryXml($$$){

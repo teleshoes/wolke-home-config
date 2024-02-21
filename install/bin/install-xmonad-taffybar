@@ -16,106 +16,106 @@ my $taffybarGitUrl = "git://github.com/teleshoes/taffybar.git";
 my @corePkgs = qw(ghc cabal-install haskell-stack xmonad);
 
 my @taffybarDeps = qw(
-    libgtk-3-dev
-    libcairo2-dev libglib2.0-dev libgtk2.0-dev libpango1.0-dev libxml2-dev
-    libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksourceview-3.0-dev
-    libdbusmenu-gtk3-dev libgirepository1.0-dev
-    libasound2-dev
-    c2hs
-    dbus-user-session
+  libgtk-3-dev
+  libcairo2-dev libglib2.0-dev libgtk2.0-dev libpango1.0-dev libxml2-dev
+  libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksourceview-3.0-dev
+  libdbusmenu-gtk3-dev libgirepository1.0-dev
+  libasound2-dev
+  c2hs
+  dbus-user-session
 );
 
 
 my @cabalPkgs = qw(
-    runghc
-    posix-timer
+  runghc
+  posix-timer
 );
 
 my @cabalDebPkgs = map {"libghc-" . lc($_) . "-dev"} qw(
-    strict
-    hlint either
-    cassava filemanip
-    hxt-unicode
-    regex-pcre unixutils utf8-string monad-loops json errors
-    cmdargs pureMD5 tagged semigroups data-default dlist
-    entropy cereal X11 syb split
-    hashtables cond
-    time-locale-compat
+  strict
+  hlint either
+  cassava filemanip
+  hxt-unicode
+  regex-pcre unixutils utf8-string monad-loops json errors
+  cmdargs pureMD5 tagged semigroups data-default dlist
+  entropy cereal X11 syb split
+  hashtables cond
+  time-locale-compat
 );
 
 my @taffybarCabalDebDeps = map {"libghc-" . lc($_) . "-dev"} qw(
-    cairo dyre HStringTemplate xmonad-contrib
-    xdg-basedir enclosed-exceptions
-    gtk3 gi-gtk gtk-traymanager
+  cairo dyre HStringTemplate xmonad-contrib
+  xdg-basedir enclosed-exceptions
+  gtk3 gi-gtk gtk-traymanager
 
-    configfile x11 x11-xft dbus dbus-hslogger
-    gi-dbusmenu gi-dbusmenugtk3 gi-gdk gi-gdkpixbuf gi-gdkx11
-    gi-gio gi-glib gi-gtk gi-gtk-hs gi-pango gi-xlib
-    gio gtk-sni-tray gtk-strut
-    haskell-gi haskell-gi-base libxml-sax rate-limit spool
-    status-notifier-item time-units xml-helpers xmonad
+  configfile x11 x11-xft dbus dbus-hslogger
+  gi-dbusmenu gi-dbusmenugtk3 gi-gdk gi-gdkpixbuf gi-gdkx11
+  gi-gio gi-glib gi-gtk gi-gtk-hs gi-pango gi-xlib
+  gio gtk-sni-tray gtk-strut
+  haskell-gi haskell-gi-base libxml-sax rate-limit spool
+  status-notifier-item time-units xml-helpers xmonad
 );
 
 sub main(@) {
-    getRoot @_;
+  getRoot @_;
 
-    if(@_ == 1 and $_[0] =~ /--destroy/){
-      runAptGet "remove", @corePkgs;
-      runAptGet "remove", "taffybar";
-      removeGitSrcCache $taffybarGitUrl;
-      run "rm", "-rf", getHome() . "/.cabal/";
-      run "rm", "-rf", getHome() . "/.ghc/";
-      run "rm", "-rf", getHome() . "/.stack/";
-      run "rm", "-rf", getHome() . "/.cache/taffybar/";
-      exit 0;
-    }elsif(@_ > 0){
-      die "Usage: $0 [--destroy]\n";
-    }
+  if(@_ == 1 and $_[0] =~ /--destroy/){
+    runAptGet "remove", @corePkgs;
+    runAptGet "remove", "taffybar";
+    removeGitSrcCache $taffybarGitUrl;
+    run "rm", "-rf", getHome() . "/.cabal/";
+    run "rm", "-rf", getHome() . "/.ghc/";
+    run "rm", "-rf", getHome() . "/.stack/";
+    run "rm", "-rf", getHome() . "/.cache/taffybar/";
+    exit 0;
+  }elsif(@_ > 0){
+    die "Usage: $0 [--destroy]\n";
+  }
 
-    my @aptGetInstall = qw(apt-get install -y);
-    if(defined $DEBIAN_TARGET_OVERRIDE){
-      @aptGetInstall = (@aptGetInstall, "-t", $DEBIAN_TARGET_OVERRIDE);
-    }
+  my @aptGetInstall = qw(apt-get install -y);
+  if(defined $DEBIAN_TARGET_OVERRIDE){
+    @aptGetInstall = (@aptGetInstall, "-t", $DEBIAN_TARGET_OVERRIDE);
+  }
 
-    run (@aptGetInstall, @corePkgs);
-    run (@aptGetInstall, @taffybarDeps);
+  run (@aptGetInstall, @corePkgs);
+  run (@aptGetInstall, @taffybarDeps);
 
-    run (@aptGetInstall, @cabalDebPkgs);
-    run (@aptGetInstall, @taffybarCabalDebDeps);
+  run (@aptGetInstall, @cabalDebPkgs);
+  run (@aptGetInstall, @taffybarCabalDebDeps);
 
-    my @allDebs = (@corePkgs, @taffybarDeps, @cabalDebPkgs, @taffybarCabalDebDeps);
-    if(defined $DEBIAN_TARGET_OVERRIDE){
-      run "apt-mark", "hold", @allDebs;
-    }else{
-      run "apt-mark", "unhold", @allDebs;
-    }
+  my @allDebs = (@corePkgs, @taffybarDeps, @cabalDebPkgs, @taffybarCabalDebDeps);
+  if(defined $DEBIAN_TARGET_OVERRIDE){
+    run "apt-mark", "hold", @allDebs;
+  }else{
+    run "apt-mark", "unhold", @allDebs;
+  }
 
-    runUser "cabal", "v2-update";
-    runUser "cabal", "v1-install", "-j", @cabalPkgs;
+  runUser "cabal", "v2-update";
+  runUser "cabal", "v1-install", "-j", @cabalPkgs;
 
-    my $notInstallTypes = join " OR ", grep {$_ ne $TAFFYBAR_INSTALL_TYPE} (
-      $INSTALL_TYPE_GIT, $INSTALL_TYPE_DEBIAN, $INSTALL_TYPE_CABAL
-    );
+  my $notInstallTypes = join " OR ", grep {$_ ne $TAFFYBAR_INSTALL_TYPE} (
+    $INSTALL_TYPE_GIT, $INSTALL_TYPE_DEBIAN, $INSTALL_TYPE_CABAL
+  );
 
-    print "\n\n\n";
-    print "=====\n=====\n====\n";
-    print "INSTALLING TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
-    if($INSTALL_TYPE_GIT eq $TAFFYBAR_INSTALL_TYPE){
-      installFromGit $taffybarGitUrl, "cabal v1-install";
-    }elsif($INSTALL_TYPE_DEBIAN eq $TAFFYBAR_INSTALL_TYPE){
-      run @aptGetInstall, "taffybar";
-    }elsif($INSTALL_TYPE_CABAL eq $TAFFYBAR_INSTALL_TYPE){
-      runUser "cabal", "v1-install", "-j", "taffybar";
-    }else{
-      die "ERROR: no installation method for taffybar found\n";
-    }
-    print "\n\n\n";
-    print "INSTALLED TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
-    print "=====\n=====\n====\n";
+  print "\n\n\n";
+  print "=====\n=====\n====\n";
+  print "INSTALLING TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
+  if($INSTALL_TYPE_GIT eq $TAFFYBAR_INSTALL_TYPE){
+    installFromGit $taffybarGitUrl, "cabal v1-install";
+  }elsif($INSTALL_TYPE_DEBIAN eq $TAFFYBAR_INSTALL_TYPE){
+    run @aptGetInstall, "taffybar";
+  }elsif($INSTALL_TYPE_CABAL eq $TAFFYBAR_INSTALL_TYPE){
+    runUser "cabal", "v1-install", "-j", "taffybar";
+  }else{
+    die "ERROR: no installation method for taffybar found\n";
+  }
+  print "\n\n\n";
+  print "INSTALLED TAFFYBAR FROM $TAFFYBAR_INSTALL_TYPE (NOT $notInstallTypes)\n";
+  print "=====\n=====\n====\n";
 
-    editSimpleConf "/etc/environment", getUsername, {
-      "_JAVA_AWT_WM_NONREPARENTING" => "1 #xmonad java reparenting bug",
-    };
+  editSimpleConf "/etc/environment", getUsername, {
+    "_JAVA_AWT_WM_NONREPARENTING" => "1 #xmonad java reparenting bug",
+  };
 }
 
 &main(@ARGV);

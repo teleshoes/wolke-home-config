@@ -9,30 +9,30 @@ my $minVersion = "1.8.1";
 sub versionCmp($$);
 
 sub main(@) {
-    runAptGet qw(install git);
-    my $v = `git --version`;
-    chomp $v;
-    if(versionCmp($minVersion, $v) > 0){
-      print "skipping: $v >= $minVersion\n";
-      exit 0;
-    }
+  runAptGet qw(install git);
+  my $v = `git --version`;
+  chomp $v;
+  if(versionCmp($minVersion, $v) > 0){
+    print "skipping: $v >= $minVersion\n";
+    exit 0;
+  }
 
-    runAptGet qw(-y build-dep git);
-    my $srcdir = "$ENV{HOME}/.src-cache/git";
+  runAptGet qw(-y build-dep git);
+  my $srcdir = "$ENV{HOME}/.src-cache/git";
 
-    my $conf = "$ENV{HOME}/.gitconfig";
-    my $ignore = "$conf.ignore";
-    run "mv", $conf, $ignore if -e $conf;
-    if (-d $srcdir) {
-        run "git", "-C", $srcdir, "pull";
-    } else {
-        run "git", "clone", "https://github.com/git/git.git", $srcdir;
-    }
-    run "mv", $ignore, $conf if -e $ignore;
+  my $conf = "$ENV{HOME}/.gitconfig";
+  my $ignore = "$conf.ignore";
+  run "mv", $conf, $ignore if -e $conf;
+  if (-d $srcdir) {
+    run "git", "-C", $srcdir, "pull";
+  } else {
+    run "git", "clone", "https://github.com/git/git.git", $srcdir;
+  }
+  run "mv", $ignore, $conf if -e $ignore;
 
-    run "make", "-C", $srcdir, "-j", "all";
-    run "sudo", "make", "-C", $srcdir, "install";
-    tryrun qw(sudo rm /etc/bash_completion.d/git-prompt);
+  run "make", "-C", $srcdir, "-j", "all";
+  run "sudo", "make", "-C", $srcdir, "install";
+  tryrun qw(sudo rm /etc/bash_completion.d/git-prompt);
 }
 
 sub versionCmp($$){

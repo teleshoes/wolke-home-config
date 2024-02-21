@@ -53,45 +53,45 @@ my $customMenuEntriesByMachineType = {
 };
 
 sub main(@) {
-    getRoot @_;
+  getRoot @_;
 
-    my $machineType = getMachineType();
-    my $machineTypeEntries = $$customMenuEntriesByMachineType{$machineType};
-    if(defined $machineTypeEntries){
-      for my $entry(@$machineTypeEntries){
-        push @customMenuEntries, $entry;
-      }
+  my $machineType = getMachineType();
+  my $machineTypeEntries = $$customMenuEntriesByMachineType{$machineType};
+  if(defined $machineTypeEntries){
+    for my $entry(@$machineTypeEntries){
+      push @customMenuEntries, $entry;
     }
+  }
 
-    ### grub config
-    my $bgDir = $backgroundDest;
-    $bgDir =~ s/\/[^\/]*$//;
-    run "mkdir", "-p", $bgDir;
-    run "cp", $backgroundSrc, $backgroundDest;
+  ### grub config
+  my $bgDir = $backgroundDest;
+  $bgDir =~ s/\/[^\/]*$//;
+  run "mkdir", "-p", $bgDir;
+  run "cp", $backgroundSrc, $backgroundDest;
 
-    run "touch", $grubCfgFile;
-    editSimpleConf $grubCfgFile, getUsername, $grubConfig;
+  run "touch", $grubCfgFile;
+  editSimpleConf $grubCfgFile, getUsername, $grubConfig;
 
-    ### menu config
-    writeFile $menuCfgFile, formatMenuConfig($menuConfig);
-    run "chmod", "755", $menuCfgFile;
+  ### menu config
+  writeFile $menuCfgFile, formatMenuConfig($menuConfig);
+  run "chmod", "755", $menuCfgFile;
 
-    ### linux menu entries
-    editFile $linuxMenuFile, "add-kernel-to-simple", sub {
-      my $config = shift;
-      for my $replacementPair(getLinuxMenuReplacements()){
-        my ($regex, $replacement) = @$replacementPair;
-        replaceLine $config, $regex, $replacement;
-      }
-      $config;
-    };
+  ### linux menu entries
+  editFile $linuxMenuFile, "add-kernel-to-simple", sub {
+    my $config = shift;
+    for my $replacementPair(getLinuxMenuReplacements()){
+      my ($regex, $replacement) = @$replacementPair;
+      replaceLine $config, $regex, $replacement;
+    }
+    $config;
+  };
 
-    ### custom menu entries
-    writeFile $customMenuFile, formatCustomMenuEntries(@customMenuEntries);
-    run "chmod", "755", $customMenuFile;
+  ### custom menu entries
+  writeFile $customMenuFile, formatCustomMenuEntries(@customMenuEntries);
+  run "chmod", "755", $customMenuFile;
 
-    ### update grub
-    run "update-grub";
+  ### update grub
+  run "update-grub";
 }
 
 sub getLinuxMenuReplacements(){

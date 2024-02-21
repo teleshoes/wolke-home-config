@@ -19,104 +19,104 @@ my $needrestartCmd = "needrestart -u NeedRestart::UI::stdio -q -r l | tee";
 my @packagesToRemove = qw(guake ksshaskpass kwalletmanager alsa-ucm-conf snapper);
 
 sub main(@) {
-    getRoot @_;
+  getRoot @_;
 
-    print "\n### Adding architectures.\n";
-    run qw(dpkg --add-architecture i386);
+  print "\n### Adding architectures.\n";
+  run qw(dpkg --add-architecture i386);
 
-    print "\n### Adding keys.\n";
-    addKeys();
+  print "\n### Adding keys.\n";
+  addKeys();
 
-    my $repos = getInstallPath "repos";
-    my $sources = "/etc/apt/sources.list.d";
-    my $now = `date +%Y-%m-%dT%H%M%S`; chomp $now;
-    my $backup = "$sources.$now";
+  my $repos = getInstallPath "repos";
+  my $sources = "/etc/apt/sources.list.d";
+  my $now = `date +%Y-%m-%dT%H%M%S`; chomp $now;
+  my $backup = "$sources.$now";
 
-    my @rsyncLines = procLines "rsync", "-n", "--del", "-rlptDv", "$repos/", "$sources";
-    my $cnt = @rsyncLines;
-    @rsyncLines = map {"$_\n"} @rsyncLines;
-    if (@rsyncLines != 4) {
-        print "\n### Updating repo lists.\n";
-        run "mv", $sources, $backup;
-        run "mkdir", $sources;
-        run "rsync", "--del", "-rlptDv", "$repos/", $sources;
-    } else {
-        print "\n### sources lists have not changed.\n";
-    }
-    print "\n\n";
+  my @rsyncLines = procLines "rsync", "-n", "--del", "-rlptDv", "$repos/", "$sources";
+  my $cnt = @rsyncLines;
+  @rsyncLines = map {"$_\n"} @rsyncLines;
+  if (@rsyncLines != 4) {
+    print "\n### Updating repo lists.\n";
+    run "mv", $sources, $backup;
+    run "mkdir", $sources;
+    run "rsync", "--del", "-rlptDv", "$repos/", $sources;
+  } else {
+    print "\n### sources lists have not changed.\n";
+  }
+  print "\n\n";
 
-    run "sudo", "update-command-not-found";
-    print "\n\n";
+  run "sudo", "update-command-not-found";
+  print "\n\n";
 
-    run "sudo", "apt-get", "-qq", "remove", "needrestart";
+  run "sudo", "apt-get", "-qq", "remove", "needrestart";
 
-    run "sudo", "apt-get", "remove", @packagesToRemove;
+  run "sudo", "apt-get", "remove", @packagesToRemove;
 
-    if(-f $needrestartAptFile){
-      print "making needrestart non-interactive:\npatching $needrestartAptFile\n";
-      editFileLines $needrestartAptFile, sub {
-          my $line = shift;
-          $line =~ s/^(\s*)exec(\s+.*\/)needrestart(\s+.*)?$/$1exec$2$needrestartCmd/;
-          return $line;
-      };
-    }else{
-      print "skipping needrestart non-interactive $needrestartAptFile not found (not installed?)\n";
-    }
+  if(-f $needrestartAptFile){
+    print "making needrestart non-interactive:\npatching $needrestartAptFile\n";
+    editFileLines $needrestartAptFile, sub {
+      my $line = shift;
+      $line =~ s/^(\s*)exec(\s+.*\/)needrestart(\s+.*)?$/$1exec$2$needrestartCmd/;
+      return $line;
+    };
+  }else{
+    print "skipping needrestart non-interactive $needrestartAptFile not found (not installed?)\n";
+  }
 }
 
 sub addKeys(){
-    my %gpgKeys = readConfDir getInstallPath("gpgkeys");
-    for my $repo(keys %gpgKeys){
-        my $gpgKeyId = ${$gpgKeys{$repo}}[0];
-        print "\n### installing gpg key $repo => $gpgKeyId\n";
+  my %gpgKeys = readConfDir getInstallPath("gpgkeys");
+  for my $repo(keys %gpgKeys){
+    my $gpgKeyId = ${$gpgKeys{$repo}}[0];
+    print "\n### installing gpg key $repo => $gpgKeyId\n";
 
-        my $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
-        if(not defined $keyFile){
-            print "gpg key $gpgKeyId missing, fetching from keyserver $KEY_SERVER\n";
-            tryrunUser "gpg", "--keyserver", $KEY_SERVER, "--recv-key", $gpgKeyId;
-            $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
-        }
-
-        my $destKeyFile = "$TRUSTED_GPG_DIR/$repo.gpg";
-        if(defined $keyFile and -f $keyFile){
-          if(not -e $destKeyFile){
-            print "installing new GPG key for $repo\n";
-            run "sudo", "cp", $keyFile, $destKeyFile;
-            run "rm", $keyFile;
-          }else{
-            if(md5sum $keyFile eq md5sum $destKeyFile){
-              print "skipping unchanged GPG key for $repo\n";
-            }else{
-              my $bakKeyFile = "/tmp/gpg-key-backup-$repo";
-              print "WARNING: GPG key changed for $repo\n";
-              print "backing up old to $bakKeyFile\n";
-              run "sudo", "mv", $destKeyFile, $bakKeyFile;
-              run "sudo", "cp", $keyFile, $destKeyFile;
-              run "rm", $keyFile;
-            }
-          }
-        }else{
-            print STDERR "\n\n\n";
-            print STDERR "=====\n";
-            print "WARNING: error fetching key $gpgKeyId for $repo\n";
-            print STDERR "=====\n";
-            print STDERR "\n\n\n";
-        }
+    my $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
+    if(not defined $keyFile){
+      print "gpg key $gpgKeyId missing, fetching from keyserver $KEY_SERVER\n";
+      tryrunUser "gpg", "--keyserver", $KEY_SERVER, "--recv-key", $gpgKeyId;
+      $keyFile = fetchKeyFileFromLocalKeyring $gpgKeyId;
     }
+
+    my $destKeyFile = "$TRUSTED_GPG_DIR/$repo.gpg";
+    if(defined $keyFile and -f $keyFile){
+      if(not -e $destKeyFile){
+        print "installing new GPG key for $repo\n";
+        run "sudo", "cp", $keyFile, $destKeyFile;
+        run "rm", $keyFile;
+      }else{
+        if(md5sum $keyFile eq md5sum $destKeyFile){
+          print "skipping unchanged GPG key for $repo\n";
+        }else{
+          my $bakKeyFile = "/tmp/gpg-key-backup-$repo";
+          print "WARNING: GPG key changed for $repo\n";
+          print "backing up old to $bakKeyFile\n";
+          run "sudo", "mv", $destKeyFile, $bakKeyFile;
+          run "sudo", "cp", $keyFile, $destKeyFile;
+          run "rm", $keyFile;
+        }
+      }
+    }else{
+      print STDERR "\n\n\n";
+      print STDERR "=====\n";
+      print "WARNING: error fetching key $gpgKeyId for $repo\n";
+      print STDERR "=====\n";
+      print STDERR "\n\n\n";
+    }
+  }
 }
 
 sub fetchKeyFileFromLocalKeyring($){
-    my ($gpgKeyId) = @_;
-    my $tmpFile = "/tmp/gpg-dearmor-key-$gpgKeyId.gpg";
-    run "rm", "-f", $tmpFile;
-    runUser "gpg", "--output", $tmpFile, "--export", $gpgKeyId;
-    my $fileInfo = `file '$tmpFile'`;
-    if($fileInfo =~ /OpenPGP Public Key/){
-      return $tmpFile;
-    }else{
-      print "WARNING: $tmpFile is not an OpenPGP key, ignoring\n";
-      return undef;
-    }
+  my ($gpgKeyId) = @_;
+  my $tmpFile = "/tmp/gpg-dearmor-key-$gpgKeyId.gpg";
+  run "rm", "-f", $tmpFile;
+  runUser "gpg", "--output", $tmpFile, "--export", $gpgKeyId;
+  my $fileInfo = `file '$tmpFile'`;
+  if($fileInfo =~ /OpenPGP Public Key/){
+    return $tmpFile;
+  }else{
+    print "WARNING: $tmpFile is not an OpenPGP key, ignoring\n";
+    return undef;
+  }
 }
 
 &main(@ARGV);
