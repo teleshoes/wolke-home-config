@@ -14,7 +14,7 @@ my $MODULE_AVAIL = {
 };
 
 our @ISA = qw(Exporter);
-our @EXPORT_OK = qw(setOpts);
+our @EXPORT_OK = qw();
 our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
@@ -45,7 +45,6 @@ our @EXPORT = qw( getScriptNames getSubNames
 
 sub getScriptNames();
 sub getSubNames();
-sub setOpts($);
 sub withOpenHandle($$$);
 sub assertDef($@);
 sub runProto($@);
@@ -109,9 +108,6 @@ my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
 my $SIMULATE = 0;
 
-my $opts = {
-  };
-
 sub getScriptNames(){
   my $bin = getInstallPath "bin";
   my @scripts = grep {-f $_} glob "$bin/*";
@@ -146,11 +142,6 @@ sub getInstallPipNames(){
   my @installPipNames = `$installPipCmd --list`;
   chomp foreach @installPipNames;
   return \@installPipNames;
-}
-
-sub setOpts($) {
-  my %new = (%$opts, %{$_[0]});
-  $opts = \%new;
 }
 
 sub withOpenHandle($$$){
