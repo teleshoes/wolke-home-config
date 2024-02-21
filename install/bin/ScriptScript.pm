@@ -382,7 +382,7 @@ sub runScript($@){
 sub getUsername() {
   my $user = $ENV{SUDO_USER} || $ENV{USER};
   if(not $user or $user eq "root") {
-    deathWithDishonor "ERROR: USER or SUDO_USER must be set and not root";
+    deathWithDishonor "ERROR: USER or SUDO_USER must be set, and cannot be root";
   }
   $user
 }
