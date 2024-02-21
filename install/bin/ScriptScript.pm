@@ -25,7 +25,6 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getHome getInstallPath getSrcCache
                   getMachineType
                   getResconfigScale
-                  cd
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
                   globOne
@@ -68,7 +67,6 @@ sub runScript($@);
 sub getUsername();
 sub getInstallPath($);
 sub which($);
-sub cd($);
 sub symlinkFileProto($$;$$);
 sub symlinkFile($$);
 sub symlinkFileSudo($$);
@@ -417,17 +415,6 @@ sub getSrcCache() {
 
 sub which($) {
   return proc "which", @_;
-}
-
-sub cd($) {
-  my $path = shift;
-  my $escpath = shellQuote $path;
-  my $cmd = "cd $escpath";
-
-  print "$cmd\n" if $opts->{putCommand};
-  return     unless $opts->{runCommand};
-
-  chdir $path or deathWithDishonor;
 }
 
 sub symlinkFileProto($$;$$) {
