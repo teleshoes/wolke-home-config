@@ -97,7 +97,12 @@ sub extractNameFromGitUrl($);
 sub shellQuote(@);
 sub md5sum($);
 
-$SIG{INT} = sub{ system "rm -f /tmp/progress-bar-*"; exit 130 };
+my $FILES_TO_DELETE = {};
+
+$SIG{INT} = sub{
+  system "rm", "-f", $_ foreach keys %$FILES_TO_DELETE;
+  exit 130;
+};
 
 my @SHELL_METACHAR_LIST = (
   "|", "&", ";", "<", ">", "(", ")", "\$", "`",
@@ -211,6 +216,7 @@ sub runProtoIPC($@) {
     return if not defined $h;
   }
   my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+  $$FILES_TO_DELETE{$progFile} = 1;
 
   my $out;
   while($h->pumpable() or $out = <$pty>){
@@ -247,6 +253,7 @@ sub runProtoIPC($@) {
   my $result = $h->result;
 
   system "rm", "-f", $progFile;
+  delete $$FILES_TO_DELETE{$progFile};
 
   if($result != 0 and $$cfg{fatal}){
     die "ERROR: cmd '@cmd' failed\n";
@@ -270,6 +277,7 @@ sub runProtoNoIPC($@) {
 
   system "rm -f /tmp/progress-bar-*";
   my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+  $$FILES_TO_DELETE{$progFile} = 1;
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -296,6 +304,7 @@ sub runProtoNoIPC($@) {
     }
 
     system "rm", "-f", $progFile;
+    delete $$FILES_TO_DELETE{$progFile};
 
     return $result == 0;
   }
