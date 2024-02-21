@@ -111,7 +111,6 @@ my $SIMULATE = 0;
 
 my $opts = {
   progressBar    => 1,
-  prependComment => 1,
   };
 
 sub getScriptNames(){
@@ -238,7 +237,6 @@ sub runProtoIPC($@) {
         close $fh;
       }
 
-      $out = "# $out" if $opts->{prependComment};
       if($$cfg{printOut}){
         print $out;
         STDOUT->flush();
@@ -289,7 +287,6 @@ sub runProtoNoIPC($@) {
   } else {
     while(my $line = <$fh>) {
       chomp $line;
-      $line = "# $line" if $opts->{prependComment};
       if($$cfg{printOut}){
         print "$line\n";
       }
