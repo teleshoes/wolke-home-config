@@ -15,7 +15,6 @@ our @EXPORT_OK = qw(setOpts);
 our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
-                  shell tryshell
                   runUser tryrunUser wrapUserCommand
                   runAptGet tryrunAptGet
                   proc procLines procUser tryproc
@@ -52,8 +51,6 @@ sub runProtoIPC($@);
 sub runProtoNoIPC($@);
 sub run(@);
 sub tryrun(@);
-sub shell(@);
-sub tryshell(@);
 sub runUser(@);
 sub tryrunUser(@);
 sub wrapUserCommand(@);
@@ -201,7 +198,7 @@ sub runProto($@){
 }
 sub runProtoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(shell fatal);
+  assertDef $cfg, qw(fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -266,7 +263,7 @@ sub runProtoIPC($@) {
 }
 sub runProtoNoIPC($@) {
   my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(shell fatal);
+  assertDef $cfg, qw(fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -295,10 +292,8 @@ sub runProtoNoIPC($@) {
 
 sub id(@){@_}
 
-sub run       (@) { runProto {shell => 0, fatal => 1}, @_ }
-sub tryrun    (@) { runProto {shell => 0, fatal => 0}, @_ }
-sub shell     (@) { runProto {shell => 1, fatal => 1}, @_ }
-sub tryshell  (@) { runProto {shell => 1, fatal => 0}, @_ }
+sub run       (@) { runProto {fatal => 1}, @_ }
+sub tryrun    (@) { runProto {fatal => 0}, @_ }
 sub runUser   (@) { run wrapUserCommand(@_) }
 sub tryrunUser(@) { tryrun wrapUserCommand(@_) }
 
