@@ -4,6 +4,8 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub getMathopsPatch();
+
 my $GIT_REPO = "https://github.com/anthwlock/untrunc";
 
 my $UNTRUNC_EXEC_DEST = "/usr/local/bin/untrunc";
@@ -25,11 +27,65 @@ sub main(@) {
       "-x",
       "--one-top-level=$dir",
       "-f", $FFMPEG_TAR;
+
+    #patch mathops.h for newer binutils
+    my $mathopsFile = "$dir/ffmpeg-$FFMPEG_VERSION/libavcodec/x86/mathops.h";
+    if(not -f $mathopsFile){
+      die "ERROR: could not patch $mathopsFile\n";
+    }
+
+    my $patchFile = "/tmp/untrunc-patch-" . nowMillis();
+    writeFile $patchFile, getMathopsPatch();
+    run "patch", $mathopsFile, $patchFile;
+    run "rm", $patchFile;
   }
 
   run "make", "-C", $dir, "FF_VER=$FFMPEG_VERSION", "-j", "all";
   run "sudo", "rm", "-f", $UNTRUNC_EXEC_DEST;
   run "sudo", "cp", "-a", "$dir/untrunc", $UNTRUNC_EXEC_DEST;
+}
+
+sub getMathopsPatch(){
+return '37a38
+>     if (__builtin_constant_p(shift))
+42,43c43,51
+<         :"a"(a), "rm"(b), "ci"((uint8_t)shift)
+<     );
+---
+>         :"a"(a), "rm"(b), "i"(shift & 0x1F)
+>     )
+>     else
+>         __asm__ (
+>             "imull %3               \n\t"
+>             "shrdl %4, %%edx, %%eax \n\t"
+>             :"=a"(rt), "=d"(dummy)
+>             :"a"(a), "rm"(b), "c"((uint8_t)shift)
+>         );;
+115a124
+>     if (__builtin_constant_p(s))
+118c127
+<          : "ic" ((uint8_t)(-s))
+---
+>          : "i" (-s & 0x1F)
+119a129,133
+>     else
+>         __asm__ ("sarl %1, %0\n\t"
+>                : "+r" (a)
+>                : "c" ((uint8_t)(-s))
+>         );
+124a139
+>     if (__builtin_constant_p(s))
+127c142
+<          : "ic" ((uint8_t)(-s))
+---
+>          : "i" (-s & 0x1F)
+128a144,148
+>     else
+>         __asm__ ("shrl %1, %0\n\t"
+>                : "+r" (a)
+>                : "c" ((uint8_t)(-s))
+>         );
+';
 }
 
 &main(@ARGV);
