@@ -12,26 +12,13 @@ sub main(@) {
   runAptGet "install", "dnsmasq";
   runAptGet "remove", "resolvconf";
 
-
-  my $listenAdd = "listen-address=127.0.0.1\n";
-
-  open IN, "< $DNSMASQ_CONF_FILE" or die "Could not open $DNSMASQ_CONF_FILE for reading: $!";
-  my @lines = <IN>;
-  close IN;
-
-  my $new = '';
-  for(my $i=0; $i<@lines; $i++){
-    my $line = $lines[$i];
+  editFileLines($DNSMASQ_CONF_FILE, undef, sub {
+    my $line = shift;
     if($line =~ /^\#?listen-address=/){
-      $new .= $listenAdd;
-    }else{
-      $new .= $line;
+      $line = "listen-address=127.0.0.1\n";
     }
-  }
-
-  open OUT, "> $DNSMASQ_CONF_FILE" or die "Could not open $DNSMASQ_CONF_FILE for writing: $!";
-  print OUT $new;
-  close OUT;
+    return $line;
+  });
 
   system "sudo /etc/init.d/dnsmasq restart";
 }
