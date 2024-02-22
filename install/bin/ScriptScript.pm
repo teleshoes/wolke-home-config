@@ -602,6 +602,7 @@ sub editFile($$$) {
 
   if($oldContents eq $newContents){
     print "file unchanged: $file\n";
+    return 0;
   }else{
     if($SIMULATE){
       print "# file would be changed: $file\n$newContents\n";
@@ -620,6 +621,7 @@ sub editFile($$$) {
 
       tryrun "diff", $bakFile, $file;
     }
+    return 1;
   }
 }
 
