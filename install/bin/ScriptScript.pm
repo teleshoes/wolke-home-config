@@ -492,25 +492,13 @@ sub globOne($){
 
 sub writeFileProto($@) {
   my $cfg = shift;
-  assertDef $cfg, qw(sudo fatal quiet);
+  assertDef $cfg, qw(sudo fatal);
 
   my ($file, $contents) = @_;
 
   $$cfg{sudo} = 0 if isRoot();
 
   my $escFile = shellQuote $file;
-
-  if(not $$cfg{quiet}){
-    my $hereDoc = hereDoc $contents;
-    my $cmd = "( cat $hereDoc )";
-
-    if($$cfg{sudo}){
-      $cmd .= " | sudo tee $escFile >/dev/null";
-    }else{
-      $cmd .= " > $escFile";
-    }
-    print "$cmd\n";
-  }
 
   if($SIMULATE){
     return;
@@ -525,10 +513,10 @@ sub writeFileProto($@) {
       close $fh;
   };
 }
-sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 0}, @_ }
-sub writeFileQuiet($$) { writeFileProto {sudo => 0, fatal => 1, quiet => 1}, @_ }
-sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0, quiet => 0}, @_ }
-sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1, quiet => 0}, @_ }
+sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
+sub writeFileQuiet($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
+sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
+sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1}, @_ }
 
 sub readFileProto($@) {
   my $cfg = shift;
