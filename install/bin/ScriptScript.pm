@@ -68,7 +68,7 @@ sub getResconfigScale();
 sub getHome();
 sub getInstallPath($);
 sub getSrcCache();
-sub symlinkFileProto($$;$$);
+sub symlinkFileProto($$$);
 sub symlinkFile($$);
 sub symlinkFileRel($$);
 sub symlinkFileSudo($$);
@@ -412,10 +412,21 @@ sub getSrcCache() {
   return getHome() . "/.src-cache";
 }
 
-sub symlinkFileProto($$;$$) {
-  my ($srcPath, $destFile, $convertToRelPath, $useSudo) = @_;
-  $srcPath = File::Spec->abs2rel($srcPath, dirname $destFile) if $convertToRelPath;
-  my @sudo = $useSudo ? ("sudo") : ();
+sub symlinkFileProto($$$) {
+  my ($cfg, $srcPath, $destFile) = @_;
+  $cfg = {
+    relPath => 0,
+    sudo    => 0,
+    %$cfg,
+  };
+  assertDef $cfg, qw(relPath sudo);
+
+  if($$cfg{relPath}){
+    my $destDir = dirname $destFile;
+    $srcPath = File::Spec->abs2rel($srcPath, $destDir);
+  }
+
+  my @sudo = $$cfg{sudo} ? ("sudo") : ();
 
   if(-l $destFile){
     my $oldPath = readlink $destFile;
@@ -434,18 +445,10 @@ sub symlinkFileProto($$;$$) {
   run @sudo, "ln", "-s", $srcPath, $destFile;
   die "Error creating symlink file $destFile\n" if not -e $destFile;
 }
-sub symlinkFile($$) {
-  symlinkFileProto($_[0], $_[1], 0, 0);
-}
-sub symlinkFileRel($$) {
-  symlinkFileProto($_[0], $_[1], 1, 0);
-}
-sub symlinkFileSudo($$) {
-  symlinkFileProto($_[0], $_[1], 0, 1);
-}
-sub symlinkFileRelSudo($$) {
-  symlinkFileProto($_[0], $_[1], 1, 1);
-}
+sub symlinkFile($$)        { symlinkFileProto({},                        $_[0], $_[1]); }
+sub symlinkFileRel($$)     { symlinkFileProto({relPath => 1},            $_[0], $_[1]); }
+sub symlinkFileSudo($$)    { symlinkFileProto({sudo => 1},               $_[0], $_[1]); }
+sub symlinkFileRelSudo($$) { symlinkFileProto({relPath => 1, sudo => 1}, $_[0], $_[1]); }
 
 sub hereDoc($){
   my $s = shift;
