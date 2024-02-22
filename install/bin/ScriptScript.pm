@@ -581,80 +581,39 @@ sub replaceOrAddLine($$$) {
 }
 
 sub editFile($$$) {
-  my ($file, $patchname, $edit) = @_;
+  my ($file, $backupName, $editSub) = @_;
 
-  my @patchcmd = ("patch", "-fr", "-", "$file");
-  my $patchfile = "$file.$patchname.patch" if defined $patchname;
-  my @revcmd = (@patchcmd, $patchfile, "--reverse");
-
-  my $escpatchcmd = join ' ', shellQuote(@patchcmd);
-  my $escrevcmd   = join ' ', shellQuote(@revcmd);
-
-  my $read;
-  if (defined $patchfile and -f $patchfile) {
-    if(system("$escrevcmd --dry-run >/dev/null 2>&1") != 0) {
-      run @revcmd, "--dry-run";
-    }
-
-    open my $fh, "-|", @revcmd, "-s", "-o", "-";
-    local $/;
-    $read = <$fh>;
-    close $fh;
-  } else {
-    $read = readFile $file;
+  #dereference non-broken symlink to file
+  my $symlinkLevel = 0;
+  while(-f $file and -l $file){
+    die "ERROR: symlink level too high\n" if $symlinkLevel > 10;
+    $file = readlink $file;
+    $symlinkLevel++;
   }
 
-  my $tmp = $read;
-  my $write = &$edit($tmp);
-  unless(defined $write) {
-    my $msg = shellQuote $file;
-    $msg .= " " . shellQuote $patchname if defined $patchname;
-    die "ERROR: edit file $msg";
+  if(not -f $file){
+    die "ERROR: $file does not exist or is not a file\n";
+  }elsif(-l $file){
+    die "ERROR: $file is a symlink after dereferencing, not editing\n";
   }
 
-  if($write eq $read) {
-    if(defined $patchfile and -f $patchfile) {
-      run @revcmd;
-      run "rm", $patchfile;
-    }
-    return;
-  }
+  my $oldContents = readFile $file;
+  my $newContents = &$editSub($oldContents);
 
-  my $oldpatch = "";
-  if (defined $patchfile and -f $patchfile) {
-    $oldpatch = readFile $patchfile;
-  }
+  if($oldContents eq $newContents){
+    print "file unchanged: $file\n";
+  }else{
+    if($SIMULATE){
+      print "# file would be changed: $file\n$newContents\n";
+    }else{
+      my $bakFile = join ".", grep {defined $_} ($file, "bak", $backupName, nowMillis());
+      run "cp", "-a", $file, $bakFile;
+      if(not -f $bakFile){
+        die "ERROR: could not create backup file $bakFile\n";
+      }
+      writeFileQuiet $file, $newContents;
 
-  my $newpatch;
-  my $pid = open my $in, "-|";
-  if(not $pid) {
-    open(STDERR, ">&STDOUT");
-
-    my ($fh, $tmp) = tempfile;
-    print $fh $read;
-    close $fh;
-
-    open my $out, "|-", "diff", $tmp, "-";
-    print $out $write;
-    close $out;
-    system "rm", $tmp;
-    exit;
-  } else {
-    local $/;
-    $newpatch = <$in>;
-    close $in;
-  }
-
-  if($newpatch ne $oldpatch) {
-    if(defined $patchfile) {
-      run @revcmd if -f $patchfile;
-      writeFile $patchfile, $newpatch;
-      run @patchcmd, $patchfile;
-    } else {
-      chomp $newpatch;
-      my $hereDoc = hereDoc $newpatch;
-      my $cmd = "$escpatchcmd - $hereDoc";
-      run $cmd;
+      tryrun "diff", $bakFile, $file;
     }
   }
 }
