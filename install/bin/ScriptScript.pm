@@ -706,37 +706,27 @@ sub isRoot(){
 sub getRoot(@) {
   if(not isRoot()) {
     print "## rerunning as root\n";
-
-    my $cmd = "if [ `whoami` != \"root\" ]; then exec sudo $0 @_; fi";
-
-    print "$cmd\n";
     if($SIMULATE){
       return;
+    }else{
+      exec "sudo", $0, @_ or die "ERROR: exec sudo failed\n";
     }
-
-    exec "sudo", $0, @_ or die "failed to sudo";
   }
 }
 
 sub getRootSu(@) {
   if(not isRoot()) {
-    print "## rerunning as root\n";
+    print "## rerunning as root with su\n";
 
     my $user = getUsername();
-    my $innercmd = join ' ', "SUDO_USER=$user", (shellQuote $0, @_);
-    print "$innercmd\n";
-    my $cmd = ""
-      . "if [ `whoami` != \"root\" ]; then "
-      .   "exec su -c " . (shellQuote $innercmd) . " ; "
-      . "fi"
-      ;
+    my $cmd = shellQuote($0, @_);
+    $cmd = "SUDO_USER=$user $cmd";
 
-    print "$cmd\n";
     if($SIMULATE){
       return;
+    }else{
+      exec "su", "-c", $cmd or die "ERROR: exec su failed\n";
     }
-
-    exec "su", "-c", $innercmd or die "failed to su";
   }
 }
 
