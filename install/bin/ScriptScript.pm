@@ -167,6 +167,7 @@ sub assertDef($@){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
+    wrapUserCmd => 0,
     printCmd    => 1,
     printOut    => 1,
     includeErr  => 1,
@@ -174,7 +175,11 @@ sub runProto($@){
     fatal       => 1,
     %$cfg,
   };
-  assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
+  assertDef $cfg, qw(wrapUserCmd printCmd printOut includeErr progressBar fatal);
+
+  if($$cfg{wrapUserCmd}){
+    @cmd = wrapUserCommand(@cmd);
+  }
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -315,12 +320,8 @@ sub runProtoNoIPC($$@) {
 
 sub run(@)       { return runProto({},                             @_); }
 sub tryrun(@)    { return runProto({fatal => 0},                   @_); }
-sub runUser(@){
-  return run wrapUserCommand(@_);
-}
-sub tryrunUser(@){
-  return tryrun wrapUserCommand(@_);
-}
+sub runUser(@)   { return runProto({wrapUserCmd => 1},             @_); }
+sub tryrunUser(@){ return runProto({wrapUserCmd => 1, fatal => 0}, @_); }
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
