@@ -238,7 +238,8 @@ sub runProto($@){
   if(not $$result{success}){
     if($$cfg{fatal}){
       die "ERROR: cmd '@cmd' failed\n$$result{exception}\n";
-    }else{
+    }elsif(length $$result{exception} > 0){
+      #warn only if $! or $@ was set
       print STDERR "WARNING: cmd '@cmd' failed\n$$result{exception}\n";
     }
   }
