@@ -30,7 +30,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
-                  editFile editSimpleConf editIni editFileLines
+                  editFile editSimpleConf editFileIni editFileLines
                   getRoot getRootSu
                   getUsername
                   guessBackupDir
@@ -88,7 +88,7 @@ sub replaceOrAddLine($$$);
 sub editFile($$);
 sub editFileLines($$);
 sub editSimpleConf($$);
-sub editIni($$);
+sub editFileIni($$);
 sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
@@ -649,7 +649,7 @@ sub editSimpleConf($$) {
   };
 }
 
-sub editIni($$) {
+sub editFileIni($$) {
   my ($file, $sectionConfig) = @_;
   editFile $file, sub {
     my $cnts = shift;
