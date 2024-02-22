@@ -619,33 +619,32 @@ sub editFile($$$) {
 }
 
 sub editFileLines($$$) {
-  my ($name, $patchname, $editLine) = @_;
-  my $editFile = sub {
+  my ($file, $backupName, $editLineSub) = @_;
+  editFile $file, $backupName, sub {
     my $cnts = shift;
     my @lines = split /(?<=\n)/, $cnts;
     for my $line(@lines){
-      $line = &$editLine($line);
+      $line = &$editLineSub($line);
     }
-    return join '', @lines;
+    $cnts = join '', @lines;
+    $cnts;
   };
-
-  editFile $name, $patchname, $editFile;
 }
 
 sub editSimpleConf($$$) {
-  my ($name, $patchname, $config) = @_;
-  editFile $name, $patchname, sub {
+  my ($file, $backupName, $config) = @_;
+  editFile $file, $backupName, sub {
     my $cnts = shift;
     for my $key(sort keys %$config){
       replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
     }
-    $cnts
+    $cnts;
   };
 }
 
 sub editIni($$$) {
-  my ($name, $patchname, $sectionConfig) = @_;
-  editFile $name, $patchname, sub {
+  my ($file, $backupName, $sectionConfig) = @_;
+  editFile $file, $backupName, sub {
     my $cnts = shift;
 
     my $curSectionName = undef;
@@ -696,7 +695,7 @@ sub editIni($$$) {
       }
       $cnts .= $sectionContents;
     }
-    return $cnts;
+    $cnts;
   };
 }
 
