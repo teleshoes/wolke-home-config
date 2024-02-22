@@ -437,9 +437,6 @@ sub symlinkFileProto($$$) {
       run @sudo, "rm", $destFile;
       print "  symlink $destFile: $oldPath => $srcPath\n";
     }
-  }elsif(-d $destFile){
-    run @sudo, "rmdir", $destFile;
-    print "  dir=>symlink: $destFile\n";
   }
   die "Error creating symlink file $destFile\n" if -e $destFile;
   run @sudo, "ln", "-s", $srcPath, $destFile;
