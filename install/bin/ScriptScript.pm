@@ -167,6 +167,7 @@ sub assertDef($@){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
+    returnOutput=> 0,
     wrapUserCmd => 0,
     printCmd    => 1,
     printOut    => 1,
@@ -175,7 +176,7 @@ sub runProto($@){
     fatal       => 1,
     %$cfg,
   };
-  assertDef $cfg, qw(wrapUserCmd printCmd printOut includeErr progressBar fatal);
+  assertDef $cfg, qw(returnOutput wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -232,7 +233,11 @@ sub runProto($@){
     }
   }
 
-  return $$result{success};
+  if($$cfg{returnOutput}){
+    return $$result{output};
+  }else{
+    return $$result{success};
+  }
 }
 sub runProtoIPC($$@) {
   my ($includeErr, $outputAction, @cmd) = @_;
