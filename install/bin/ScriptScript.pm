@@ -296,7 +296,7 @@ sub runProtoNoIPC($$@) {
     }
     close $fh;
 
-    my $exitCode = $?;
+    my $exitCode = $? >> 8;
     $$result{success} = $exitCode == 0 ? 1 : 0;
     $$result{exitCode} = $exitCode;
     $$result{exception} = $! if $exitCode != 0 and defined $!;
