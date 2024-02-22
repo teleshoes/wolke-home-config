@@ -185,11 +185,25 @@ sub runProto($@){
     $$FILES_TO_DELETE{$progressBarFile} = 1;
   }
 
+  my $outputAction = sub {
+    my $output = shift;
+    if(defined $progressBarFile and $output =~ /(100|\d\d|\d)%/){
+      open my $fh, "> $progressBarFile";
+      print $fh "$1\n";
+      close $fh;
+    }
+
+    if($$cfg{printOut}){
+      print $output;
+      STDOUT->flush();
+    }
+  };
+
   my $result;
   if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
-    $result = runProtoIPC($cfg, $progressBarFile, @cmd);
+    $result = runProtoIPC($cfg, $outputAction, @cmd);
   }else{
-    $result = runProtoNoIPC($cfg, $progressBarFile, @cmd);
+    $result = runProtoNoIPC($cfg, $outputAction, @cmd);
   }
 
   if($$cfg{progressBar}){
@@ -204,7 +218,7 @@ sub runProto($@){
   return $result == 0;
 }
 sub runProtoIPC($$@) {
-  my ($cfg, $progressBarFile, @cmd) = @_;
+  my ($cfg, $outputAction, @cmd) = @_;
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
@@ -230,17 +244,7 @@ sub runProtoIPC($$@) {
       $out = <$pty>;
     }
     if(defined $out and length $out > 0){
-      if(defined $progressBarFile and $out =~ /(100|\d\d|\d)%/){
-        open my $fh, "> $progressBarFile";
-        print $fh "$1\n";
-        close $fh;
-      }
-
-      if($$cfg{printOut}){
-        print $out;
-        STDOUT->flush();
-      }
-
+      &$outputAction($out);
       $out = undef;
     }else{
       sleep 0.01; #small delay to decrease busy-wait on input
@@ -257,7 +261,7 @@ sub runProtoIPC($$@) {
   return $result;
 }
 sub runProtoNoIPC($$@) {
-  my ($cfg, $progressBarFile, @cmd) = @_;
+  my ($cfg, $outputAction, @cmd) = @_;
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -268,14 +272,8 @@ sub runProtoNoIPC($$@) {
   } else {
     while(my $line = <$fh>) {
       chomp $line;
-      if(defined $progressBarFile and $line =~ /(100|\d\d|\d)%/){
-        open my $fh, "> $progressBarFile";
-        print $fh "$1\n";
-        close $fh;
-      }
-      if($$cfg{printOut}){
-        print "$line\n";
-      }
+      $line = "$line\n";
+      &$outputAction($line);
     }
     close $fh;
     my $result = $?;
