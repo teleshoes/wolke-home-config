@@ -352,7 +352,6 @@ sub wrapUserCommand(@) {
 sub proc(@) {
   my @lines = readProcessLines @_;
   if(wantarray){
-    chomp foreach @lines;
     return @lines;
   }else{
     my $out = join '', @lines;
