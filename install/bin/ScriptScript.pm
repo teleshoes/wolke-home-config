@@ -581,10 +581,10 @@ sub replaceOrAddLine($$$) {
 }
 
 sub editFile($$$) {
-  my ($name, $patchname, $edit) = @_;
+  my ($file, $patchname, $edit) = @_;
 
-  my @patchcmd = ("patch", "-fr", "-", "$name");
-  my $patchfile = "$name.$patchname.patch" if defined $patchname;
+  my @patchcmd = ("patch", "-fr", "-", "$file");
+  my $patchfile = "$file.$patchname.patch" if defined $patchname;
   my @revcmd = (@patchcmd, $patchfile, "--reverse");
 
   my $escpatchcmd = join ' ', shellQuote(@patchcmd);
@@ -601,13 +601,13 @@ sub editFile($$$) {
     $read = <$fh>;
     close $fh;
   } else {
-    $read = readFile $name;
+    $read = readFile $file;
   }
 
   my $tmp = $read;
   my $write = &$edit($tmp);
   unless(defined $write) {
-    my $msg = shellQuote $name;
+    my $msg = shellQuote $file;
     $msg .= " " . shellQuote $patchname if defined $patchname;
     die "ERROR: edit file $msg";
   }
