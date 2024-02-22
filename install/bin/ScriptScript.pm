@@ -333,7 +333,12 @@ sub tryrunAptGet(@){
 }
 
 sub wrapUserCommand(@) {
-  return isRoot() ? ("su", getUsername(), "-c", (join ' ', shellQuote @_)) : @_;
+  my @cmd = @_;
+  if(isRoot()){
+    return ("sudo", "-u", getUsername(), @cmd);
+  }else{
+    return @cmd;
+  }
 }
 
 sub proc(@) {
