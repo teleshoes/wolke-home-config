@@ -56,8 +56,6 @@ sub tryrunUser(@);
 sub proc(@);
 sub procUser(@);
 sub tryproc(@);
-sub readProcessLines(@);
-sub tryreadProcessLines(@);
 sub runScript($@);
 sub getUsername();
 sub getInstallPath($);
@@ -347,26 +345,6 @@ sub tryrunAptGet(@){
 sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
 sub procUser(@) { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
 sub tryproc(@)  { return runProto({returnOutput => 1, fatal => 0},       @_); }
-
-sub readProcessLines(@){
-  my @cmd = @_;
-  open PROC_FH, "-|", @cmd or die "could not run @cmd\n";
-  my @lines = <PROC_FH>;
-  close PROC_FH;
-  die "error running cmd: @cmd\n" if $? != 0;
-  chomp foreach @lines;
-  return @lines;
-}
-sub tryreadProcessLines(@){
-  my @cmd = @_;
-  my @lines;
-  if(open PROC_FH, "-|", @cmd){
-    @lines = <PROC_FH>;
-    close PROC_FH;
-  }
-  chomp foreach @lines;
-  return @lines;
-}
 
 
 sub runScript($@){
