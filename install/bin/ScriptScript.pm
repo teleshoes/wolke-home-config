@@ -202,7 +202,9 @@ sub runProto($@){
 
   my $progressBarFile = undef;
   if($$cfg{progressBar}){
-    system "rm -f /tmp/progress-bar-*";
+    my @progBarFiles = grep {-e $_} glob "/tmp/progress-bar-*";
+    run "rm", @progBarFiles if @progBarFiles > 0;
+
     $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
     $$FILES_TO_DELETE{$progressBarFile} = 1;
   }
