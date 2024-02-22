@@ -175,13 +175,13 @@ sub assertDef($@){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
-    returnOutput=> 0,
-    wrapUserCmd => 0,
-    printCmd    => 1,
-    printOut    => 1,
-    includeErr  => 1,
-    progressBar => 1,
-    fatal       => 1,
+    returnOutput => 0,
+    wrapUserCmd  => 0,
+    printCmd     => 1,
+    printOut     => 1,
+    includeErr   => 1,
+    progressBar  => 1,
+    fatal        => 1,
     %$cfg,
   };
   assertDef $cfg, qw(returnOutput wrapUserCmd printCmd printOut includeErr progressBar fatal);
