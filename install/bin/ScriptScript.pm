@@ -421,6 +421,12 @@ sub symlinkFileProto($$$) {
   };
   assertDef $cfg, qw(relPath sudo);
 
+  #optionally relativize target to the symlink's dir
+  #  e.g.:
+  #    1)    ln -s /var/log/app/app.log /var/log/app-log
+  #       => ln -s          app/app.log /var/log/app-log
+  #    2)    ln -s /usr/lib/a.so /usr/lib/linux/a.so
+  #       => ln -s       ../a.so /usr/lib/linux/a.so
   if($$cfg{relPath}){
     my $destDir = dirname $destFile;
     $srcPath = File::Spec->abs2rel($srcPath, $destDir);
@@ -428,6 +434,7 @@ sub symlinkFileProto($$$) {
 
   my @sudo = $$cfg{sudo} ? ("sudo") : ();
 
+  #allow replacing existing symlinks
   if(-l $destFile){
     my $oldPath = readlink $destFile;
     if($oldPath eq $srcPath){
@@ -438,9 +445,16 @@ sub symlinkFileProto($$$) {
       print "  symlink $destFile: $oldPath => $srcPath\n";
     }
   }
-  die "Error creating symlink file $destFile\n" if -e $destFile;
+
+  if(-e $destFile){
+    die "ERROR: symlink file $destFile already exists\n";
+  }
+
   run @sudo, "ln", "-s", $srcPath, $destFile;
-  die "Error creating symlink file $destFile\n" if not -e $destFile;
+
+  if(not -l $destFile){
+    die "ERROR: symlink file $destFile does not exist after creation\n";
+  }
 }
 sub symlinkFile($$)        { symlinkFileProto({},                        $_[0], $_[1]); }
 sub symlinkFileRel($$)     { symlinkFileProto({relPath => 1},            $_[0], $_[1]); }
