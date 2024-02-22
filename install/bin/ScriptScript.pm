@@ -213,9 +213,9 @@ sub runProto($@){
 
   if(not $$result{success}){
     if($$cfg{fatal}){
-      die "ERROR: cmd '@cmd' failed\n";
+      die "ERROR: cmd '@cmd' failed\n$$result{exception}\n";
     }else{
-      print STDERR "WARNING: cmd '@cmd' failed\n";
+      print STDERR "WARNING: cmd '@cmd' failed\n$$result{exception}\n";
     }
   }
 
@@ -234,6 +234,7 @@ sub runProtoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
+    exception => "",
   };
 
   my $h = IPC::Run::harness(\@cmd, $pipeOp, $slave);
@@ -243,6 +244,7 @@ sub runProtoIPC($$@) {
     $h = eval {$h->start};
     if(not defined $h){
       $$result{success} = 0;
+      $$result{exception} = $@;
       return $result;
     }
   }
@@ -281,6 +283,7 @@ sub runProtoNoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
+    exception => "",
   };
 
   my $pid = open my $fh, "-|";
@@ -288,7 +291,7 @@ sub runProtoNoIPC($$@) {
     if($$cfg{includeErr}){
       open(STDERR, ">&STDOUT");
     }
-    exec @cmd or die "ERROR: cmd '@cmd' failed\n";
+    exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
   } else {
     while(my $line = <$fh>) {
       chomp $line;
@@ -300,6 +303,7 @@ sub runProtoNoIPC($$@) {
     my $exitCode = $?;
     $$result{success} = $exitCode == 0 ? 1 : 0;
     $$result{exitCode} = $exitCode;
+    $$result{exception} = $! if $exitCode != 0 and defined $!;
 
     return $result;
   }
