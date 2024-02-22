@@ -474,7 +474,7 @@ sub hereDoc($){
 }
 
 sub globOne($){
-  my @files = glob $_[0];
+  my @files = grep {-e $_} glob $_[0];
   if(@files == 1){
     return $files[0];
   }else{
