@@ -45,7 +45,6 @@ our @EXPORT = qw( getScriptNames getSubNames
 
 sub getScriptNames();
 sub getSubNames();
-sub withOpenHandle($$$);
 sub assertDef($@);
 sub runProto($@);
 sub runProtoIPC($@);
@@ -147,17 +146,6 @@ sub getInstallPipNames(){
   my @installPipNames = `$installPipCmd --list`;
   chomp foreach @installPipNames;
   return \@installPipNames;
-}
-
-sub withOpenHandle($$$){
-  my ($openCmd, $fatal, $withFHSub) = @_;
-  my ($mode, @openList) = @$openCmd;
-  my $fh;
-  if(open $fh, $mode, @openList){
-    return &$withFHSub($fh);
-  }elsif($fatal){
-    die "ERROR: open failed: open @$openCmd";
-  }
 }
 
 sub assertDef($@){
