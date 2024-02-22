@@ -81,7 +81,7 @@ sub tryReadFile($);
 sub readFileSudo($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
-sub editFile($$;$);
+sub editFile($$$);
 sub editSimpleConf($$$);
 sub editIni($$$);
 sub getRoot(@);
@@ -580,10 +580,8 @@ sub replaceOrAddLine($$$) {
   $_[0] = $s;
 }
 
-sub editFile($$;$) {
-  my ($name, $patchname, $edit);
-  ($name, $patchname, $edit) = ($_[0], undef, $_[1]) if @_ == 2;
-  ($name, $patchname, $edit) = ($_[0], $_[1], $_[2]) if @_ == 3;
+sub editFile($$$) {
+  my ($name, $patchname, $edit) = @_;
 
   my @patchcmd = ("patch", "-fr", "-", "$name");
   my $patchfile = "$name.$patchname.patch" if defined $patchname;
@@ -661,10 +659,8 @@ sub editFile($$;$) {
   }
 }
 
-sub editFileLines($$;$) {
-  my ($name, $patchname, $editLine);
-  ($name, $patchname, $editLine) = ($_[0], undef, $_[1]) if @_ == 2;
-  ($name, $patchname, $editLine) = ($_[0], $_[1], $_[2]) if @_ == 3;
+sub editFileLines($$$) {
+  my ($name, $patchname, $editLine) = @_;
   my $editFile = sub {
     my $cnts = shift;
     my @lines = split /(?<=\n)/, $cnts;
