@@ -354,25 +354,9 @@ sub wrapUserCommand(@) {
   }
 }
 
-sub proc(@) {
-  my @lines = readProcessLines @_;
-  if(wantarray){
-    return @lines;
-  }else{
-    my $out = join '', @lines;
-    chomp $out;
-    return $out;
-  }
-}
-sub procUser(@) {
-  return proc(wrapUserCommand(@_));
-}
-sub tryproc(@) {
-  my @lines = tryreadProcessLines @_;
-  my $out = join '', @lines;
-  chomp $out;
-  return $out;
-}
+sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
+sub procUser(@) { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
+sub tryproc(@)  { return runProto({returnOutput => 1, fatal => 0},       @_); }
 
 sub readProcessLines(@){
   my @cmd = @_;
