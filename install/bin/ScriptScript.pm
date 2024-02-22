@@ -47,8 +47,8 @@ sub getScriptNames();
 sub getSubNames();
 sub assertDef($@);
 sub runProto($@);
-sub runProtoIPC($@);
-sub runProtoNoIPC($@);
+sub runProtoIPC($$@);
+sub runProtoNoIPC($$@);
 sub run(@);
 sub tryrun(@);
 sub runUser(@);
@@ -166,15 +166,6 @@ sub assertDef($@){
 
 sub runProto($@){
   my ($cfg, @cmd) = @_;
-  if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
-    return runProtoIPC($cfg, @cmd);
-  }else{
-    return runProtoNoIPC($cfg, @cmd);
-  }
-}
-
-sub runProtoIPC($@) {
-  my ($cfg, @cmd) = @_;
   assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
@@ -188,6 +179,27 @@ sub runProtoIPC($@) {
   }
 
   system "rm -f /tmp/progress-bar-*";
+  my $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+  $$FILES_TO_DELETE{$progressBarFile} = 1;
+
+  my $result;
+  if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
+    $result = runProtoIPC($cfg, $progressBarFile, @cmd);
+  }else{
+    $result = runProtoNoIPC($cfg, $progressBarFile, @cmd);
+  }
+
+  system "rm", "-f", $progressBarFile;
+  delete $$FILES_TO_DELETE{$progressBarFile};
+
+  if($result != 0 and $$cfg{fatal}){
+    die "ERROR: cmd '@cmd' failed\n";
+  }
+
+  return $result == 0;
+}
+sub runProtoIPC($$@) {
+  my ($cfg, $progressBarFile, @cmd) = @_;
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
@@ -203,8 +215,6 @@ sub runProtoIPC($@) {
     $h = eval {$h->start};
     return if not defined $h;
   }
-  my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
-  $$FILES_TO_DELETE{$progFile} = 1;
 
   my $out;
   while($h->pumpable() or $out = <$pty>){
@@ -216,7 +226,7 @@ sub runProtoIPC($@) {
     }
     if(defined $out and length $out > 0){
       if($$cfg{progressBar} and $out =~ /(100|\d\d|\d)%/){
-        open my $fh, "> $progFile";
+        open my $fh, "> $progressBarFile";
         print $fh "$1\n";
         close $fh;
       }
@@ -239,33 +249,10 @@ sub runProtoIPC($@) {
   close $slave;
 
   my $result = $h->result;
-
-  system "rm", "-f", $progFile;
-  delete $$FILES_TO_DELETE{$progFile};
-
-  if($result != 0 and $$cfg{fatal}){
-    die "ERROR: cmd '@cmd' failed\n";
-  }
-
-  return $result == 0;
+  return $result;
 }
-sub runProtoNoIPC($@) {
-  my ($cfg, @cmd) = @_;
-  assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
-
-  if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
-    @cmd = ("/bin/sh", "-c", "@cmd");
-  }
-
-  print "@cmd\n" if $$cfg{printCmd};
-
-  if($SIMULATE){
-    return;
-  }
-
-  system "rm -f /tmp/progress-bar-*";
-  my $progFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
-  $$FILES_TO_DELETE{$progFile} = 1;
+sub runProtoNoIPC($$@) {
+  my ($cfg, $progressBarFile, @cmd) = @_;
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -277,7 +264,7 @@ sub runProtoNoIPC($@) {
     while(my $line = <$fh>) {
       chomp $line;
       if($$cfg{progressBar} and $line =~ /(100|\d\d|\d)%/){
-        open my $fh, "> $progFile";
+        open my $fh, "> $progressBarFile";
         print $fh "$1\n";
         close $fh;
       }
@@ -287,14 +274,7 @@ sub runProtoNoIPC($@) {
     }
     close $fh;
     my $result = $?;
-    if($result != 0 and $$cfg{fatal}){
-      die "ERROR: cmd '@cmd' failed\n";
-    }
-
-    system "rm", "-f", $progFile;
-    delete $$FILES_TO_DELETE{$progFile};
-
-    return $result == 0;
+    return $result;
   }
 }
 
