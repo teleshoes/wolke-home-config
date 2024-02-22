@@ -606,6 +606,11 @@ sub editFile($$$) {
     if($SIMULATE){
       print "# file would be changed: $file\n$newContents\n";
     }else{
+      my $secondPassContents = &$editSub($newContents);
+      if($newContents ne $secondPassContents){
+        print STDERR "WARNING: non-idempotent edit for file $file\n";
+      }
+
       my $bakFile = join ".", grep {defined $_} ($file, "bak", $backupName, nowMillis());
       run "cp", "-a", $file, $bakFile;
       if(not -f $bakFile){
