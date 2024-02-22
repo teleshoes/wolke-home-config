@@ -342,14 +342,14 @@ sub runProtoNoIPC($$@) {
   }
 }
 
-sub run(@)       { return runProto({},                             @_); }
-sub tryrun(@)    { return runProto({fatal => 0},                   @_); }
-sub runUser(@)   { return runProto({wrapUserCmd => 1},             @_); }
-sub tryrunUser(@){ return runProto({wrapUserCmd => 1, fatal => 0}, @_); }
+sub run(@)       { return runProto({},                                    @_); }
+sub tryrun(@)    { return runProto({fatal => 0},                          @_); }
+sub runUser(@)   { return runProto({wrapUserCmd => 1},                    @_); }
+sub tryrunUser(@){ return runProto({wrapUserCmd => 1, fatal => 0},        @_); }
 
-sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
-sub procUser(@) { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
-sub tryproc(@)  { return runProto({returnOutput => 1, fatal => 0},       @_); }
+sub proc(@)      { return runProto({returnOutput => 1},                   @_); }
+sub procUser(@)  { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
+sub tryproc(@)   { return runProto({returnOutput => 1, fatal => 0},       @_); }
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
