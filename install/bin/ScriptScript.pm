@@ -166,6 +166,14 @@ sub assertDef($@){
 
 sub runProto($@){
   my ($cfg, @cmd) = @_;
+  $cfg = {
+    printCmd    => 1,
+    printOut    => 1,
+    includeErr  => 1,
+    progressBar => 1,
+    fatal       => 1,
+    %$cfg,
+  };
   assertDef $cfg, qw(printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
@@ -305,12 +313,8 @@ sub runProtoNoIPC($$@) {
   }
 }
 
-sub run(@){
-  return runProto {printCmd => 1, printOut => 1, includeErr => 1, progressBar => 1, fatal => 1}, @_;
-}
-sub tryrun(@){
-  return runProto {printCmd => 1, printOut => 1, includeErr => 1, progressBar => 1, fatal => 0}, @_;
-}
+sub run(@)    { return runProto({},           @_); }
+sub tryrun(@) { return runProto({fatal => 0}, @_); }
 sub runUser(@){
   return run wrapUserCommand(@_);
 }
@@ -487,6 +491,11 @@ sub globOne($){
 
 sub writeFileProto($$$) {
   my ($cfg, $file, $contents) = @_;
+  $cfg = {
+    sudo  => 0,
+    fatal => 1,
+    %$cfg,
+  };
   assertDef $cfg, qw(sudo fatal);
 
   if($SIMULATE){
@@ -513,12 +522,17 @@ sub writeFileProto($$$) {
   print $fh $contents;
   close $fh;
 }
-sub writeFile     ($$) { writeFileProto({sudo => 0, fatal => 1}, $_[0], $_[1]); }
-sub tryWriteFile  ($$) { writeFileProto({sudo => 0, fatal => 0}, $_[0], $_[1]); }
-sub writeFileSudo ($$) { writeFileProto({sudo => 1, fatal => 1}, $_[0], $_[1]); }
+sub writeFile     ($$) { writeFileProto({},           $_[0], $_[1]); }
+sub tryWriteFile  ($$) { writeFileProto({fatal => 0}, $_[0], $_[1]); }
+sub writeFileSudo ($$) { writeFileProto({sudo => 1},  $_[0], $_[1]); }
 
 sub readFileProto($$) {
   my ($cfg, $file) = @_;
+  $cfg = {
+    sudo  => 0,
+    fatal => 1,
+    %$cfg,
+  };
   assertDef $cfg, qw(sudo fatal);
 
   my $fh;
@@ -542,9 +556,9 @@ sub readFileProto($$) {
 
   return wantarray ? @lines : join '', @lines;
 }
-sub readFile     ($) { readFileProto({sudo => 0, fatal => 1}, $_[0]); }
-sub tryReadFile  ($) { readFileProto({sudo => 0, fatal => 0}, $_[0]); }
-sub readFileSudo ($) { readFileProto({sudo => 1, fatal => 1}, $_[0]); }
+sub readFile     ($) { readFileProto({},           $_[0]); }
+sub tryReadFile  ($) { readFileProto({fatal => 0}, $_[0]); }
+sub readFileSudo ($) { readFileProto({sudo => 1},  $_[0]); }
 
 sub replaceLine($$$) {
   my ($s, $startRegex, $lineReplacement) = @_;
