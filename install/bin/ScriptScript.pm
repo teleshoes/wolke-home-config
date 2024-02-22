@@ -605,7 +605,7 @@ sub editFile($$$) {
       if(not -f $bakFile){
         die "ERROR: could not create backup file $bakFile\n";
       }
-      writeFileQuiet $file, $newContents;
+      writeFile $file, $newContents;
 
       tryrun "diff", $bakFile, $file;
     }
