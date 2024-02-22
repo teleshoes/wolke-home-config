@@ -71,7 +71,7 @@ sub symlinkFileSudo($$);
 sub symlinkFileRel($$);
 sub symlinkFileRelSudo($$);
 sub globOne($);
-sub writeFileProto($@);
+sub writeFileProto($$$);
 sub writeFile($$);
 sub tryWriteFile($$);
 sub writeFileSudo($$);
@@ -490,32 +490,37 @@ sub globOne($){
   }
 }
 
-sub writeFileProto($@) {
-  my $cfg = shift;
+sub writeFileProto($$$) {
+  my ($cfg, $file, $contents) = @_;
   assertDef $cfg, qw(sudo fatal);
 
-  my ($file, $contents) = @_;
-
-  $$cfg{sudo} = 0 if isRoot();
-
-  my $escFile = shellQuote $file;
-
   if($SIMULATE){
+    print "## write $file:\n$contents\n";
     return;
   }
 
-  my $cmd = $$cfg{sudo} ?
-    ["|-", "sudo tee $escFile >/dev/null"] : [">", $file];
-
-  withOpenHandle $cmd, $$cfg{fatal}, sub($){
-      my $fh = shift;
-      print $fh $contents;
+  my $fh;
+  my $status;
+  if($$cfg{sudo} and not isRoot()){
+    $status = open $fh, "|-", "sudo", "tee", $file;
+  }else{
+    $status = open $fh, ">", $file;
+  }
+  if(not $status){
+    if($$cfg{fatal}){
+      die "ERROR: could not write $file\n$!\n";
+    }else{
+      print STDERR "WARNING: could not write $file\n$!\n";
       close $fh;
-  };
+      return;
+    }
+  }
+  print $fh $contents;
+  close $fh;
 }
-sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
-sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
-sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1}, @_ }
+sub writeFile     ($$) { writeFileProto({sudo => 0, fatal => 1}, $_[0], $_[1]); }
+sub tryWriteFile  ($$) { writeFileProto({sudo => 0, fatal => 0}, $_[0], $_[1]); }
+sub writeFileSudo ($$) { writeFileProto({sudo => 1, fatal => 1}, $_[0], $_[1]); }
 
 sub readFileProto($@) {
   my $cfg = shift;
