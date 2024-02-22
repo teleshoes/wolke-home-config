@@ -201,9 +201,9 @@ sub runProto($@){
 
   my $result;
   if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
-    $result = runProtoIPC($cfg, $outputAction, @cmd);
+    $result = runProtoIPC($$cfg{includeErr}, $outputAction, @cmd);
   }else{
-    $result = runProtoNoIPC($cfg, $outputAction, @cmd);
+    $result = runProtoNoIPC($$cfg{includeErr}, $outputAction, @cmd);
   }
 
   if($$cfg{progressBar}){
@@ -222,14 +222,14 @@ sub runProto($@){
   return $$result{success};
 }
 sub runProtoIPC($$@) {
-  my ($cfg, $outputAction, @cmd) = @_;
+  my ($includeErr, $outputAction, @cmd) = @_;
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
   $pty->blocking(0);
   $slave->blocking(0);
 
-  my $pipeOp = $$cfg{includeErr} ? "&>" : ">";
+  my $pipeOp = $includeErr ? "&>" : ">";
 
   my $result = {
     success   => undef,
@@ -274,7 +274,7 @@ sub runProtoIPC($$@) {
   return $result;
 }
 sub runProtoNoIPC($$@) {
-  my ($cfg, $outputAction, @cmd) = @_;
+  my ($includeErr, $outputAction, @cmd) = @_;
 
   my $result = {
     success   => undef,
@@ -284,7 +284,7 @@ sub runProtoNoIPC($$@) {
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
-    if($$cfg{includeErr}){
+    if($includeErr){
       open(STDERR, ">&STDOUT");
     }
     exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
