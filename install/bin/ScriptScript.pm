@@ -238,15 +238,11 @@ sub runProtoIPC($$@) {
   };
 
   my $h = IPC::Run::harness(\@cmd, $pipeOp, $slave);
-  if($$cfg{fatal}){
-    $h->start;
-  }else{
-    $h = eval {$h->start};
-    if(not defined $h){
-      $$result{success} = 0;
-      $$result{exception} = $@;
-      return $result;
-    }
+  $h = eval {$h->start};
+  if(not defined $h){
+    $$result{success} = 0;
+    $$result{exception} = $@;
+    return $result;
   }
 
   my $out;
