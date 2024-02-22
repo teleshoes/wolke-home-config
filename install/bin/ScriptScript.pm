@@ -73,7 +73,6 @@ sub symlinkFile($$);
 sub symlinkFileRel($$);
 sub symlinkFileSudo($$);
 sub symlinkFileRelSudo($$);
-sub hereDoc($);
 sub globOne($);
 sub writeFileProto($$$);
 sub writeFile($$);
@@ -461,17 +460,6 @@ sub symlinkFile($$)        { symlinkFileProto({},                        $_[0], 
 sub symlinkFileRel($$)     { symlinkFileProto({relPath => 1},            $_[0], $_[1]); }
 sub symlinkFileSudo($$)    { symlinkFileProto({sudo => 1},               $_[0], $_[1]); }
 sub symlinkFileRelSudo($$) { symlinkFileProto({relPath => 1, sudo => 1}, $_[0], $_[1]); }
-
-sub hereDoc($){
-  my $s = shift;
-  my $delim = "EOF";
-  while($s =~ /^$delim$/m){
-    $delim .= "F";
-  }
-  return "<< \"$delim\"\n"
-    . "$s\n"
-    . "$delim\n";
-}
 
 sub globOne($){
   my @files = grep {-e $_} glob $_[0];
