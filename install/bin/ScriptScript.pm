@@ -75,7 +75,7 @@ sub writeFileProto($$$);
 sub writeFile($$);
 sub tryWriteFile($$);
 sub writeFileSudo($$);
-sub readFileProto($@);
+sub readFileProto($$);
 sub readFile($);
 sub tryReadFile($);
 sub readFileSudo($);
@@ -522,29 +522,34 @@ sub writeFile     ($$) { writeFileProto({sudo => 0, fatal => 1}, $_[0], $_[1]); 
 sub tryWriteFile  ($$) { writeFileProto({sudo => 0, fatal => 0}, $_[0], $_[1]); }
 sub writeFileSudo ($$) { writeFileProto({sudo => 1, fatal => 1}, $_[0], $_[1]); }
 
-sub readFileProto($@) {
-  my $cfg = shift;
+sub readFileProto($$) {
+  my ($cfg, $file) = @_;
   assertDef $cfg, qw(sudo fatal);
 
-  my ($file) = @_;
+  my $fh;
+  my $status;
+  if($$cfg{sudo} and not isRoot()){
+    $status = open $fh, "-|", "sudo", "cat", $file;
+  }else{
+    $status = open $fh, "<", $file;
+  }
+  if(not $status){
+    if($$cfg{fatal}){
+      die "ERROR: could not read $file\n$!\n";
+    }else{
+      print STDERR "WARNING: could not read $file\n$!\n";
+      close $fh;
+      return;
+    }
+  }
+  my @lines = <$fh>;
+  close $fh;
 
-  $$cfg{sudo} = 0 if isRoot();
-
-  my $escFile = shellQuote $file;
-
-  my $cmd = $$cfg{sudo} ? ["-|", "sudo cat $escFile"] : ["<", $file];
-
-  my @lines = withOpenHandle $cmd, $$cfg{fatal}, sub($){
-    my $fh = shift;
-    my @lines = <$fh>;
-    close $fh;
-    return @lines;
-  };
   return wantarray ? @lines : join '', @lines;
 }
-sub readFile     ($) { readFileProto {sudo => 0, fatal => 1}, @_ }
-sub tryReadFile  ($) { readFileProto {sudo => 0, fatal => 0}, @_ }
-sub readFileSudo ($) { readFileProto {sudo => 1, fatal => 1}, @_ }
+sub readFile     ($) { readFileProto({sudo => 0, fatal => 1}, $_[0]); }
+sub tryReadFile  ($) { readFileProto({sudo => 0, fatal => 0}, $_[0]); }
+sub readFileSudo ($) { readFileProto({sudo => 1, fatal => 1}, $_[0]); }
 
 sub replaceLine($$$) {
   my ($s, $startRegex, $lineReplacement) = @_;
