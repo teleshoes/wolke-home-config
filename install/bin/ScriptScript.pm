@@ -33,7 +33,6 @@ our @EXPORT = qw( getScriptNames getSubNames
                   editFile editFileSimpleConf editFileIni editFileLines
                   getRoot getRootSu
                   getUsername
-                  guessBackupDir
                   readConf readConfDir
                   installFromDir removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
@@ -91,7 +90,6 @@ sub editFileIni($$);
 sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
-sub guessBackupDir();
 sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
@@ -722,15 +720,6 @@ sub getRootSu(@) {
       exec "su", "-c", $cmd or die "ERROR: exec su failed\n";
     }
   }
-}
-
-sub guessBackupDir() {
-  my $user = getUsername;
-  my @dirs = sort { (stat($b))[9] <=> (stat($a))[9] }
-             grep { -d $_}
-             map {"/media/$_/$user"}
-             split "\n", `ls -1 /media`;
-  $dirs[0]
 }
 
 sub readConf($) {
