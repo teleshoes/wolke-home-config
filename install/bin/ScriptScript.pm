@@ -177,12 +177,12 @@ sub runProto($@){
   };
   assertDef $cfg, qw(wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
-  if($$cfg{wrapUserCmd}){
-    @cmd = wrapUserCommand(@cmd);
-  }
-
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
+  }
+
+  if($$cfg{wrapUserCmd} and isRoot()){
+    @cmd = wrapUserCommand(@cmd);
   }
 
   print "@cmd\n" if $$cfg{printCmd};
