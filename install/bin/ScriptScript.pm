@@ -19,8 +19,8 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
                   runUser tryrunUser
-                  runAptGet tryrunAptGet
                   proc procUser tryproc
+                  runAptGet tryrunAptGet
                   runScript
                   getHome getInstallPath getSrcCache
                   getMachineType
@@ -57,10 +57,10 @@ sub run(@);
 sub tryrun(@);
 sub runUser(@);
 sub tryrunUser(@);
-sub runAptGet(@);
-sub tryrunAptGet(@);
 sub proc(@);
 sub procUser(@);
+sub runAptGet(@);
+sub tryrunAptGet(@);
 sub tryproc(@);
 sub runScript($@);
 sub getUsername();
@@ -347,6 +347,10 @@ sub tryrun(@)    { return runProto({fatal => 0},                   @_); }
 sub runUser(@)   { return runProto({wrapUserCmd => 1},             @_); }
 sub tryrunUser(@){ return runProto({wrapUserCmd => 1, fatal => 0}, @_); }
 
+sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
+sub procUser(@) { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
+sub tryproc(@)  { return runProto({returnOutput => 1, fatal => 0},       @_); }
+
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
   run @cmd;
@@ -355,10 +359,6 @@ sub tryrunAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
   tryrun @cmd;
 }
-
-sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
-sub procUser(@) { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
-sub tryproc(@)  { return runProto({returnOutput => 1, fatal => 0},       @_); }
 
 
 sub runScript($@){
