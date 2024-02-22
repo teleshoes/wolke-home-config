@@ -18,7 +18,7 @@ our @EXPORT_OK = qw();
 our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun
-                  runUser tryrunUser wrapUserCommand
+                  runUser tryrunUser
                   runAptGet tryrunAptGet
                   proc procUser tryproc
                   runScript
@@ -53,7 +53,6 @@ sub run(@);
 sub tryrun(@);
 sub runUser(@);
 sub tryrunUser(@);
-sub wrapUserCommand(@);
 sub proc(@);
 sub procUser(@);
 sub tryproc(@);
@@ -182,7 +181,7 @@ sub runProto($@){
   }
 
   if($$cfg{wrapUserCmd} and isRoot()){
-    @cmd = wrapUserCommand(@cmd);
+    @cmd = ("sudo", "-u", getUsername(), @cmd);
   }
 
   print "@cmd\n" if $$cfg{printCmd};
@@ -343,15 +342,6 @@ sub runAptGet(@){
 sub tryrunAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
   tryrun @cmd;
-}
-
-sub wrapUserCommand(@) {
-  my @cmd = @_;
-  if(isRoot()){
-    return ("sudo", "-u", getUsername(), @cmd);
-  }else{
-    return @cmd;
-  }
 }
 
 sub proc(@)     { return runProto({returnOutput => 1},                   @_); }
