@@ -451,7 +451,8 @@ sub getSrcCache() {
 }
 
 sub which($) {
-  return proc "which", @_;
+  my $which = proc "which", @_;
+  return $which;
 }
 
 sub symlinkFileProto($$;$$) {
