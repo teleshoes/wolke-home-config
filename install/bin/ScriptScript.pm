@@ -313,8 +313,8 @@ sub runProtoNoIPC($$@) {
   }
 }
 
-sub run(@)    { return runProto({},           @_); }
-sub tryrun(@) { return runProto({fatal => 0}, @_); }
+sub run(@)       { return runProto({},                             @_); }
+sub tryrun(@)    { return runProto({fatal => 0},                   @_); }
 sub runUser(@){
   return run wrapUserCommand(@_);
 }
