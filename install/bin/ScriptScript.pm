@@ -326,10 +326,8 @@ sub runProtoNoIPC($$@) {
     exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
   } else {
     while(my $line = <$fh>) {
-      $$result{output} .= $line;
-      chomp $line;
-      $line = "$line\n";
       &$outputAction($line);
+      $$result{output} .= $line;
     }
     close $fh;
 
