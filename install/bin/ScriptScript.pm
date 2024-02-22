@@ -211,8 +211,12 @@ sub runProto($@){
     delete $$FILES_TO_DELETE{$progressBarFile};
   }
 
-  if($result != 0 and $$cfg{fatal}){
-    die "ERROR: cmd '@cmd' failed\n";
+  if($result != 0){
+    if($$cfg{fatal}){
+      die "ERROR: cmd '@cmd' failed\n";
+    }else{
+      print STDERR "WARNING: cmd '@cmd' failed\n";
+    }
   }
 
   return $result == 0;
