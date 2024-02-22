@@ -247,6 +247,7 @@ sub runProtoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
+    output    => "",
     exception => "",
   };
 
@@ -268,6 +269,7 @@ sub runProtoIPC($$@) {
     }
     if(defined $out and length $out > 0){
       &$outputAction($out);
+      $$result{output} .= $out;
       $out = undef;
     }else{
       sleep 0.01; #small delay to decrease busy-wait on input
@@ -292,6 +294,7 @@ sub runProtoNoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
+    output    => "",
     exception => "",
   };
 
@@ -303,6 +306,7 @@ sub runProtoNoIPC($$@) {
     exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
   } else {
     while(my $line = <$fh>) {
+      $$result{output} .= $line;
       chomp $line;
       $line = "$line\n";
       &$outputAction($line);
