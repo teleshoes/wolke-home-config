@@ -26,7 +26,6 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getMachineType
                   getResconfigScale
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
-                  which
                   globOne
                   writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
@@ -69,7 +68,6 @@ sub getResconfigScale();
 sub getHome();
 sub getInstallPath($);
 sub getSrcCache();
-sub which($);
 sub symlinkFileProto($$;$$);
 sub symlinkFile($$);
 sub symlinkFileRel($$);
@@ -412,11 +410,6 @@ sub getInstallPath($) {
 
 sub getSrcCache() {
   return getHome() . "/.src-cache";
-}
-
-sub which($) {
-  my $which = proc "which", @_;
-  return $which;
 }
 
 sub symlinkFileProto($$;$$) {
