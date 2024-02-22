@@ -33,7 +33,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   editFile editFileSimpleConf editFileIni editFileLines
                   getRoot getRootSu
                   getUsername
-                  readConf readConfDir
+                  readConfDir
                   installFromDir removeSrcCache
                   installFromGit removeGitSrcCache extractNameFromGitUrl
                   shellQuote
@@ -90,7 +90,6 @@ sub editFileIni($$);
 sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
-sub readConf($);
 sub readConfDir($);
 sub installFromDir($;$$);
 sub removeSrcCache($);
@@ -720,14 +719,6 @@ sub getRootSu(@) {
       exec "su", "-c", $cmd or die "ERROR: exec su failed\n";
     }
   }
-}
-
-sub readConf($) {
-  my ($file) = @_;
-
-  my @lines = readFile($file);
-  chomp @lines;
-  @lines
 }
 
 sub readConfDir($) {
