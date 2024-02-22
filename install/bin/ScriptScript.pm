@@ -28,7 +28,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   which
                   globOne
-                  writeFile writeFileQuiet tryWriteFile writeFileSudo
+                  writeFile tryWriteFile writeFileSudo
                   readFile tryReadFile readFileSudo
                   replaceLine replaceOrAddLine
                   editFile editSimpleConf editIni editFileLines
@@ -514,7 +514,6 @@ sub writeFileProto($@) {
   };
 }
 sub writeFile     ($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
-sub writeFileQuiet($$) { writeFileProto {sudo => 0, fatal => 1}, @_ }
 sub tryWriteFile  ($$) { writeFileProto {sudo => 0, fatal => 0}, @_ }
 sub writeFileSudo ($$) { writeFileProto {sudo => 1, fatal => 1}, @_ }
 
