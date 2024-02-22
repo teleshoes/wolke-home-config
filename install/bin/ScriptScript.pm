@@ -211,7 +211,7 @@ sub runProto($@){
     delete $$FILES_TO_DELETE{$progressBarFile};
   }
 
-  if($result != 0){
+  if(not $$result{success}){
     if($$cfg{fatal}){
       die "ERROR: cmd '@cmd' failed\n";
     }else{
@@ -219,7 +219,7 @@ sub runProto($@){
     }
   }
 
-  return $result == 0;
+  return $$result{success};
 }
 sub runProtoIPC($$@) {
   my ($cfg, $outputAction, @cmd) = @_;
@@ -231,12 +231,20 @@ sub runProtoIPC($$@) {
 
   my $pipeOp = $$cfg{includeErr} ? "&>" : ">";
 
+  my $result = {
+    success   => undef,
+    exitCode  => undef,
+  };
+
   my $h = IPC::Run::harness(\@cmd, $pipeOp, $slave);
   if($$cfg{fatal}){
     $h->start;
   }else{
     $h = eval {$h->start};
-    return if not defined $h;
+    if(not defined $h){
+      $$result{success} = 0;
+      return $result;
+    }
   }
 
   my $out;
@@ -261,11 +269,19 @@ sub runProtoIPC($$@) {
   close $pty;
   close $slave;
 
-  my $result = $h->result;
+  my $exitCode = $h->result;
+  $$result{success} = $exitCode == 0 ? 1 : 0;
+  $$result{exitCode} = $exitCode;
+
   return $result;
 }
 sub runProtoNoIPC($$@) {
   my ($cfg, $outputAction, @cmd) = @_;
+
+  my $result = {
+    success   => undef,
+    exitCode  => undef,
+  };
 
   my $pid = open my $fh, "-|";
   if(not $pid) {
@@ -280,7 +296,11 @@ sub runProtoNoIPC($$@) {
       &$outputAction($line);
     }
     close $fh;
-    my $result = $?;
+
+    my $exitCode = $?;
+    $$result{success} = $exitCode == 0 ? 1 : 0;
+    $$result{exitCode} = $exitCode;
+
     return $result;
   }
 }
