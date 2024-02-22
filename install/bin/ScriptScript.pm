@@ -20,7 +20,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   run tryrun
                   runUser tryrunUser wrapUserCommand
                   runAptGet tryrunAptGet
-                  proc procLines procUser tryproc
+                  proc procUser tryproc
                   runScript
                   getHome getInstallPath getSrcCache
                   getMachineType
@@ -55,7 +55,6 @@ sub runUser(@);
 sub tryrunUser(@);
 sub wrapUserCommand(@);
 sub proc(@);
-sub procLines(@);
 sub procUser(@);
 sub tryproc(@);
 sub readProcessLines(@);
@@ -360,11 +359,6 @@ sub proc(@) {
     chomp $out;
     return $out;
   }
-}
-sub procLines(@) {
-  my @lines = readProcessLines @_;
-  chomp foreach @lines;
-  return @lines;
 }
 sub procUser(@) {
   return proc(wrapUserCommand(@_));
