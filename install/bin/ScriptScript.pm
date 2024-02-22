@@ -178,9 +178,12 @@ sub runProto($@){
     return;
   }
 
-  system "rm -f /tmp/progress-bar-*";
-  my $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
-  $$FILES_TO_DELETE{$progressBarFile} = 1;
+  my $progressBarFile = undef;
+  if($$cfg{progressBar}){
+    system "rm -f /tmp/progress-bar-*";
+    $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
+    $$FILES_TO_DELETE{$progressBarFile} = 1;
+  }
 
   my $result;
   if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
@@ -189,8 +192,10 @@ sub runProto($@){
     $result = runProtoNoIPC($cfg, $progressBarFile, @cmd);
   }
 
-  system "rm", "-f", $progressBarFile;
-  delete $$FILES_TO_DELETE{$progressBarFile};
+  if($$cfg{progressBar}){
+    system "rm", "-f", $progressBarFile;
+    delete $$FILES_TO_DELETE{$progressBarFile};
+  }
 
   if($result != 0 and $$cfg{fatal}){
     die "ERROR: cmd '@cmd' failed\n";
@@ -225,7 +230,7 @@ sub runProtoIPC($$@) {
       $out = <$pty>;
     }
     if(defined $out and length $out > 0){
-      if($$cfg{progressBar} and $out =~ /(100|\d\d|\d)%/){
+      if(defined $progressBarFile and $out =~ /(100|\d\d|\d)%/){
         open my $fh, "> $progressBarFile";
         print $fh "$1\n";
         close $fh;
@@ -263,7 +268,7 @@ sub runProtoNoIPC($$@) {
   } else {
     while(my $line = <$fh>) {
       chomp $line;
-      if($$cfg{progressBar} and $line =~ /(100|\d\d|\d)%/){
+      if(defined $progressBarFile and $line =~ /(100|\d\d|\d)%/){
         open my $fh, "> $progressBarFile";
         print $fh "$1\n";
         close $fh;
