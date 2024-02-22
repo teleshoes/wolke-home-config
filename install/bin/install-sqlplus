@@ -42,13 +42,6 @@ sub main(@) {
   run "dpkg", "-i", $basicDeb;
   run "dpkg", "-i", $sqlplusDeb;
 
-  my $sqlplus = "/usr/bin/sqlplus";
-  my $sqlplus64 = "/usr/bin/sqlplus64";
-  if(-l $sqlplus and -e $sqlplus64){
-    run "rm", $sqlplus;
-    run "ln", "-s", $sqlplus64, $sqlplus;
-  }
-
   my $gloginFile = "$libDir/glogin.sql";
   print "Overwriting $gloginFile\n";
   open FH, "> $gloginFile" or die "Could not write $gloginFile\n";
@@ -61,8 +54,16 @@ sub main(@) {
 
   run "ldconfig";
 
-  if(not -e "/usr/bin/sqlplus" and -e "/usr/bin/sqlplus64"){
-    run "ln", "-s". "sqlplus64", "/usr/bin/sqlplus";
+  my $sqlplus = "/usr/bin/sqlplus";
+  my $sqlplus64 = "/usr/bin/sqlplus64";
+
+  if(-e $sqlplus64){
+    if(-l $sqlplus){
+      run "rm", $sqlplus;
+    }
+    if(not -e $sqlplus){
+      run "ln", "-s". "sqlplus64", "/usr/bin/sqlplus";
+    }
   }
 }
 
