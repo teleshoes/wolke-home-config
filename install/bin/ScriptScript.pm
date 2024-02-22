@@ -85,10 +85,10 @@ sub tryReadFile($);
 sub readFileSudo($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
-sub editFile($$$);
-sub editFileLines($$$);
-sub editSimpleConf($$$);
-sub editIni($$$);
+sub editFile($$);
+sub editFileLines($$);
+sub editSimpleConf($$);
+sub editIni($$);
 sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
@@ -580,8 +580,8 @@ sub replaceOrAddLine($$$) {
   $_[0] = $s;
 }
 
-sub editFile($$$) {
-  my ($file, $backupName, $editSub) = @_;
+sub editFile($$) {
+  my ($file, $editSub) = @_;
 
   #dereference non-broken symlink to file
   my $symlinkLevel = 0;
@@ -612,7 +612,7 @@ sub editFile($$$) {
         print STDERR "WARNING: non-idempotent edit for file $file\n";
       }
 
-      my $bakFile = join ".", grep {defined $_} ($file, "bak", $backupName, nowMillis());
+      my $bakFile = "$file.bak." . nowMillis();
       run "cp", "-a", $file, $bakFile;
       if(not -f $bakFile){
         die "ERROR: could not create backup file $bakFile\n";
@@ -625,9 +625,9 @@ sub editFile($$$) {
   }
 }
 
-sub editFileLines($$$) {
-  my ($file, $backupName, $editLineSub) = @_;
-  editFile $file, $backupName, sub {
+sub editFileLines($$) {
+  my ($file, $editLineSub) = @_;
+  editFile $file, sub {
     my $cnts = shift;
     my @lines = split /(?<=\n)/, $cnts;
     for my $line(@lines){
@@ -638,9 +638,9 @@ sub editFileLines($$$) {
   };
 }
 
-sub editSimpleConf($$$) {
-  my ($file, $backupName, $config) = @_;
-  editFile $file, $backupName, sub {
+sub editSimpleConf($$) {
+  my ($file, $config) = @_;
+  editFile $file, sub {
     my $cnts = shift;
     for my $key(sort keys %$config){
       replaceOrAddLine $cnts, $key, "$key=$$config{$key}";
@@ -649,9 +649,9 @@ sub editSimpleConf($$$) {
   };
 }
 
-sub editIni($$$) {
-  my ($file, $backupName, $sectionConfig) = @_;
-  editFile $file, $backupName, sub {
+sub editIni($$) {
+  my ($file, $sectionConfig) = @_;
+  editFile $file, sub {
     my $cnts = shift;
 
     my $curSectionName = undef;
