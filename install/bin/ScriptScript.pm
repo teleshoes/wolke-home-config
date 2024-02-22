@@ -233,7 +233,12 @@ sub runProto($@){
   }
 
   if($$cfg{returnOutput}){
-    return $$result{output};
+    if(wantarray){
+      my @lines = split /(?<=\n)/, $$result{output};
+      return @lines;
+    }else{
+      return $$result{output};
+    }
   }else{
     return $$result{success};
   }
