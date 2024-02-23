@@ -188,6 +188,7 @@ sub wantarrayToContext($){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
+    chomp         => 0,
     returnSuccess => 1,
     wrapUserCmd   => 0,
     printCmd      => 1,
@@ -198,7 +199,7 @@ sub runProto($@){
     %$cfg,
   };
   assertDef $cfg, qw(
-    returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
+    chomp returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -272,9 +273,16 @@ sub runProto($@){
     return;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
     my @lines = split /(?<=\n)/, $resultOutput;
+    if($$cfg{chomp}){
+      s/[\r\n]+$// foreach @lines;
+    }
     return @lines;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_SCALAR){
-    return $resultOutput;
+    my $output = $resultOutput;
+    if($$cfg{chomp}){
+      $output =~ s/[\r\n]+$//;
+    }
+    return $output;
   }else{
     die "ERROR: could not parse wantarray context\n";
   }
