@@ -187,7 +187,7 @@ sub wantarrayToContext($){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
-    returnOutput => 0,
+    returnSuccess => 1,
     wrapUserCmd  => 0,
     printCmd     => 1,
     printOut     => 1,
@@ -196,7 +196,7 @@ sub runProto($@){
     fatal        => 1,
     %$cfg,
   };
-  assertDef $cfg, qw(returnOutput wrapUserCmd printCmd printOut includeErr progressBar fatal);
+  assertDef $cfg, qw(returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -256,7 +256,7 @@ sub runProto($@){
     }
   }
 
-  if($$cfg{returnOutput}){
+  if(not $$cfg{returnSuccess}){
     if(wantarray){
       my @lines = split /(?<=\n)/, $$result{output};
       return @lines;
@@ -358,9 +358,9 @@ sub tryrun(@)    { return runProto({fatal => 0},                          @_); }
 sub runUser(@)   { return runProto({wrapUserCmd => 1},                    @_); }
 sub tryrunUser(@){ return runProto({wrapUserCmd => 1, fatal => 0},        @_); }
 
-sub proc(@)      { return runProto({returnOutput => 1},                   @_); }
-sub procUser(@)  { return runProto({returnOutput => 1, wrapUserCmd => 1}, @_); }
-sub tryproc(@)   { return runProto({returnOutput => 1, fatal => 0},       @_); }
+sub proc(@)      { return runProto({returnSuccess => 0},                   @_); }
+sub procUser(@)  { return runProto({returnSuccess => 0, wrapUserCmd => 1}, @_); }
+sub tryproc(@)   { return runProto({returnSuccess => 0, fatal => 0},       @_); }
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
