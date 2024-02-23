@@ -48,6 +48,7 @@ sub getInstallScriptNames();
 sub getInstallSrcNames();
 sub getInstallPipNames();
 sub assertDef($@);
+sub wantarrayToContext($);
 sub runProto($@);
 sub runProtoIPC($$@);
 sub runProtoNoIPC($$@);
@@ -99,6 +100,10 @@ sub extractNameFromGitUrl($);
 sub shellQuote(@);
 sub md5sum($);
 sub nowMillis();
+
+my $WANTARRAY_CONTEXT_VOID = "void";
+my $WANTARRAY_CONTEXT_LIST = "list";
+my $WANTARRAY_CONTEXT_SCALAR = "scalar";
 
 my $FILES_TO_DELETE = {};
 
@@ -165,6 +170,17 @@ sub assertDef($@){
     if(not defined $$hash{$key}){
       die "ERROR: missing arg '$key' (expected: @targetKeys, actual: @keys)\n";
     }
+  }
+}
+
+sub wantarrayToContext($){
+  my ($wantarrayValue) = @_;
+  if(not defined $wantarrayValue){
+    return $WANTARRAY_CONTEXT_VOID;
+  }elsif($wantarrayValue){
+    return $WANTARRAY_CONTEXT_LIST;
+  }else{
+    return $WANTARRAY_CONTEXT_SCALAR;
   }
 }
 
