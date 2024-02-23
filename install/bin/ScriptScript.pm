@@ -34,8 +34,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getRoot getRootSu
                   getUsername
                   readConfDir
-                  installFromDir removeSrcCache
-                  installFromGit removeGitSrcCache extractNameFromGitUrl
+                  installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
                   shellQuote
                   md5sum
                   nowMillis
@@ -93,9 +92,8 @@ sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
 sub readConfDir($);
-sub installFromDir($;$$);
-sub removeSrcCache($);
 sub installFromGit($;$);
+sub removeSrcCache($);
 sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
 sub shellQuote(@);
@@ -780,8 +778,12 @@ sub readConfDir($) {
   return %conf;
 }
 
-sub installFromDir($;$$) {
-  my ($dir, $gitUrl, $cmd) = (@_, undef, undef);
+sub installFromGit($;$) {
+  my ($gitUrl, $cmd) = (@_, undef);
+  my $name = extractNameFromGitUrl $gitUrl;
+
+  my $dir = getSrcCache() . "/$name";
+
   if(not -d $dir and defined $gitUrl){
     runUser "mkdir", "-p", $dir;
     runUser "git", "-C", $dir, "clone", $gitUrl, ".";
@@ -814,13 +816,6 @@ sub removeSrcCache($) {
   my ($name) = (@_);
   my $srcCache = getSrcCache();
   run "rm", "-rf", "$srcCache/$name";
-}
-
-sub installFromGit($;$) {
-  my ($gitUrl, $cmd) = (@_, undef);
-  my $name = extractNameFromGitUrl $gitUrl;
-  my $srcCache = getSrcCache();
-  installFromDir "$srcCache/$name", $gitUrl, $cmd;
 }
 
 sub removeGitSrcCache($) {
