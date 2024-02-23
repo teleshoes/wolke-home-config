@@ -784,7 +784,7 @@ sub installFromGit($;$) {
 
   my $dir = getSrcCache() . "/$name";
 
-  if(not -d $dir and defined $gitUrl){
+  if(not -d $dir){
     runUser "mkdir", "-p", $dir;
     runUser "git", "-C", $dir, "clone", $gitUrl, ".";
   }
