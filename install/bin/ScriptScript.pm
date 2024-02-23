@@ -776,13 +776,8 @@ sub readConfDir($) {
   my ($confDir) = @_;
 
   my @files = grep {-f $_} glob "$confDir/*";
-
-  my %confs = ();
-  for my $file(@files) {
-    my @lines = readFileChomp $file;
-    $confs{basename($file)} = \@lines;
-  }
-  %confs
+  my %conf = map {basename($_) => [readFileChomp($_)]} @files;
+  return %conf;
 }
 
 sub installFromDir($;$$) {
