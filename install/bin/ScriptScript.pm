@@ -788,8 +788,11 @@ sub installFromGit($;$) {
     runUser "mkdir", "-p", $dir;
     runUser "git", "-C", $dir, "clone", $gitUrl, ".";
   }
+
   if(-d "$dir/.git"){
-    tryrunUser "git", "-C", $dir, "pull";
+    runUser "git", "-C", $dir, "pull";
+  }else{
+    die "ERROR: $dir exists but is not a git repo\n";
   }
 
   if(not defined $cmd or $cmd eq ""){
