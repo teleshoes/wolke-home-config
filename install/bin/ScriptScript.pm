@@ -550,10 +550,14 @@ sub readFileProto($$) {
 
   my $wantarrayContext = wantarrayToContext(wantarray);
 
-  if($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
+  if($wantarrayContext eq $WANTARRAY_CONTEXT_VOID){
+    return;
+  }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
     return @lines;
-  }else{
+  }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_SCALAR){
     return join '', @lines;
+  }else{
+    die "ERROR: could not parse wantarray context\n";
   }
 }
 sub readFile     ($) { readFileProto({},           $_[0]); }
