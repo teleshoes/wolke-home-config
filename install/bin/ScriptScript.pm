@@ -92,7 +92,7 @@ sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
 sub readConfDir($);
-sub installFromGit($;$);
+sub installFromGit($$);
 sub removeSrcCache($);
 sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
@@ -778,8 +778,8 @@ sub readConfDir($) {
   return %conf;
 }
 
-sub installFromGit($;$) {
-  my ($gitUrl, $cmd) = (@_, undef);
+sub installFromGit($$) {
+  my ($gitUrl, $cmd) = @_;
   my $name = extractNameFromGitUrl $gitUrl;
 
   my $dir = getSrcCache() . "/$name";
