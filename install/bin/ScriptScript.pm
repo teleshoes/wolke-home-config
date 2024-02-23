@@ -126,7 +126,7 @@ sub getScriptNames(){
   return [map {basename $_} grep {-f $_} glob(getInstallPath("bin/*"))];
 }
 sub getSubNames(){
-  return \@EXPORT;
+  return [@EXPORT];
 }
 sub getInstallNames(){
   my @installNames = (
