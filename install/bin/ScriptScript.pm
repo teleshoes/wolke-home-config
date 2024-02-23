@@ -404,7 +404,9 @@ sub getUsername() {
 }
 
 sub getMachineType() {
-  my $machineType = tryReadFile(getHome() . "/machine-type");
+  my $file = getHome() . "/machine-type";
+  return undef if not -f $file;
+  my $machineType = readFile(getHome() . "/machine-type");
   $machineType = "" if not defined $machineType;
   chomp $machineType;
   my %machineTypes = map {basename($_) => 1} glob(getHome() . "/machine-types/*");
