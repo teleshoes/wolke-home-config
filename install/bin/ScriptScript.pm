@@ -142,10 +142,7 @@ sub getInstallSrcNames(){
   return [procChomp(getInstallPath("bin/install-src"), "--list")];
 }
 sub getInstallPipNames(){
-  my $installPipCmd = getInstallPath "bin/install-pip-packages";
-
-  my @installPipNames = procChomp $installPipCmd, "--list";
-  return \@installPipNames;
+  return [procChomp(getInstallPath("bin/install-pip-packages"), "--list")];
 }
 
 sub assertDef($@){
