@@ -779,8 +779,7 @@ sub readConfDir($) {
 
   my %confs = ();
   for my $file(@files) {
-    my @lines = readFile $file;
-    chomp @lines;
+    my @lines = readFileChomp $file;
     $confs{basename($file)} = \@lines;
   }
   %confs
