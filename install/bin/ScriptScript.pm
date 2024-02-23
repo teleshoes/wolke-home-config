@@ -414,7 +414,7 @@ sub getMachineType() {
 
 sub getResconfigScale(){
   my $defaultWidthPx = 1920;
-  my $resconfigWidthPx = `resconfig --width-px 2>/dev/null`;
+  my $resconfigWidthPx = proc "resconfig", "--width-px";
   chomp $resconfigWidthPx;
   if($resconfigWidthPx =~ /^\d+$/){
     return $resconfigWidthPx / $defaultWidthPx;
