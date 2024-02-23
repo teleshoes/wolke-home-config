@@ -188,15 +188,16 @@ sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
     returnSuccess => 1,
-    wrapUserCmd  => 0,
-    printCmd     => 1,
-    printOut     => 1,
-    includeErr   => 1,
-    progressBar  => 1,
-    fatal        => 1,
+    wrapUserCmd   => 0,
+    printCmd      => 1,
+    printOut      => 1,
+    includeErr    => 1,
+    progressBar   => 1,
+    fatal         => 1,
     %$cfg,
   };
-  assertDef $cfg, qw(returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
+  assertDef $cfg, qw(
+    returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
