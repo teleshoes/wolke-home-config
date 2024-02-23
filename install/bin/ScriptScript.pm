@@ -144,14 +144,14 @@ sub getInstallScriptNames(){
 sub getInstallSrcNames(){
   my $installSrcCmd = getInstallPath "bin/install-src";
 
-  my @installSrcNames = `$installSrcCmd --list`;
+  my @installSrcNames = proc $installSrcCmd, "--list";
   chomp foreach @installSrcNames;
   return \@installSrcNames;
 }
 sub getInstallPipNames(){
   my $installPipCmd = getInstallPath "bin/install-pip-packages";
 
-  my @installPipNames = `$installPipCmd --list`;
+  my @installPipNames = proc $installPipCmd, "--list";
   chomp foreach @installPipNames;
   return \@installPipNames;
 }
@@ -740,7 +740,7 @@ sub editFileIni($$) {
 }
 
 sub isRoot(){
-  return `whoami` eq "root\n";
+  return proc("whoami") eq "root\n";
 }
 
 sub getRoot(@) {
