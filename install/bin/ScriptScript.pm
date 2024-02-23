@@ -69,8 +69,8 @@ sub getInstallPipNames();
 sub assertDef($@);
 sub wantarrayToContext($);
 sub runProto($@);
-sub runProtoIPC($$@);
-sub runProtoNoIPC($$@);
+sub runCommandPty($$@);
+sub runCommandNoPty($$@);
 sub run(@);
 sub tryrun(@);
 sub tryrunSilent(@);
@@ -247,9 +247,9 @@ sub runProto($@){
 
   my $result;
   if($$cfg{pty} and $$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
-    $result = runProtoIPC($$cfg{includeErr}, $outputAction, @cmd);
+    $result = runCommandPty($$cfg{includeErr}, $outputAction, @cmd);
   }else{
-    $result = runProtoNoIPC($$cfg{includeErr}, $outputAction, @cmd);
+    $result = runCommandNoPty($$cfg{includeErr}, $outputAction, @cmd);
   }
 
   if($$cfg{progressBar}){
@@ -286,7 +286,7 @@ sub runProto($@){
     die "ERROR: could not parse wantarray context\n";
   }
 }
-sub runProtoIPC($$@) {
+sub runCommandPty($$@) {
   my ($includeErr, $outputAction, @cmd) = @_;
 
   my $pty = new IO::Pty();
@@ -338,7 +338,7 @@ sub runProtoIPC($$@) {
 
   return $result;
 }
-sub runProtoNoIPC($$@) {
+sub runCommandNoPty($$@) {
   my ($includeErr, $outputAction, @cmd) = @_;
 
   my $result = {
