@@ -146,15 +146,13 @@ sub getInstallScriptNames(){
 sub getInstallSrcNames(){
   my $installSrcCmd = getInstallPath "bin/install-src";
 
-  my @installSrcNames = proc $installSrcCmd, "--list";
-  chomp foreach @installSrcNames;
+  my @installSrcNames = procChomp $installSrcCmd, "--list";
   return \@installSrcNames;
 }
 sub getInstallPipNames(){
   my $installPipCmd = getInstallPath "bin/install-pip-packages";
 
-  my @installPipNames = proc $installPipCmd, "--list";
-  chomp foreach @installPipNames;
+  my @installPipNames = procChomp $installPipCmd, "--list";
   return \@installPipNames;
 }
 
@@ -418,8 +416,7 @@ sub getMachineType() {
 
 sub getResconfigScale(){
   my $defaultWidthPx = 1920;
-  my $resconfigWidthPx = proc "resconfig", "--width-px";
-  chomp $resconfigWidthPx;
+  my $resconfigWidthPx = procChomp "resconfig", "--width-px";
   if($resconfigWidthPx =~ /^\d+$/){
     return $resconfigWidthPx / $defaultWidthPx;
   }else{
