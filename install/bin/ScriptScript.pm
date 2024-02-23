@@ -123,10 +123,7 @@ sub md5sum($);
 sub nowMillis();
 
 sub getScriptNames(){
-  my $bin = getInstallPath "bin";
-  my @scripts = grep {-f $_} glob "$bin/*";
-  @scripts = map {basename($_)} @scripts;
-  return \@scripts;
+  return [map {basename $_} grep {-f $_} glob(getInstallPath("bin/*"))];
 }
 sub getSubNames(){
   return \@EXPORT;
