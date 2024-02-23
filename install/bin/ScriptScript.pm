@@ -775,13 +775,13 @@ sub getRootSu(@) {
 sub readConfDir($) {
   my ($confDir) = @_;
 
-  my @files = split "\n", `ls -A1 $confDir`;
+  my @files = grep {-f $_} glob "$confDir/*";
 
   my %confs = ();
   for my $file(@files) {
-    my @lines = readFile "$confDir/$file";
+    my @lines = readFile $file;
     chomp @lines;
-    $confs{$file} = \@lines;
+    $confs{basename($file)} = \@lines;
   }
   %confs
 }
