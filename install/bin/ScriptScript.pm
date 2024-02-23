@@ -256,15 +256,13 @@ sub runProto($@){
     }
   }
 
-  if(not $$cfg{returnSuccess}){
-    if(wantarray){
-      my @lines = split /(?<=\n)/, $$result{output};
-      return @lines;
-    }else{
-      return $$result{output};
-    }
-  }else{
+  if($$cfg{returnSuccess}){
     return $$result{success};
+  }elsif(wantarray){
+    my @lines = split /(?<=\n)/, $$result{output};
+    return @lines;
+  }else{
+    return $$result{output};
   }
 }
 sub runProtoIPC($$@) {
