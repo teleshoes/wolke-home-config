@@ -773,15 +773,15 @@ sub getRootSu(@) {
 }
 
 sub readConfDir($) {
-  my ($dir) = @_;
+  my ($confDir) = @_;
 
-  my @filenames = split "\n", `ls -A1 $dir`;
+  my @files = split "\n", `ls -A1 $confDir`;
 
   my %confs = ();
-  for my $name (@filenames) {
-    my @lines = readFile "$dir/$name";
+  for my $file(@files) {
+    my @lines = readFile "$confDir/$file";
     chomp @lines;
-    $confs{$name} = \@lines;
+    $confs{$file} = \@lines;
   }
   %confs
 }
