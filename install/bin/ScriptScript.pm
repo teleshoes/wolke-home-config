@@ -186,6 +186,7 @@ sub wantarrayToContext($){
 sub runProto($@){
   my ($cfg, @cmd) = @_;
   $cfg = {
+    pty           => 1,
     chomp         => 0,
     returnSuccess => 1,
     wrapUserCmd   => 0,
@@ -197,7 +198,7 @@ sub runProto($@){
     %$cfg,
   };
   assertDef $cfg, qw(
-    chomp returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
+    pty chomp returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -245,7 +246,7 @@ sub runProto($@){
   };
 
   my $result;
-  if($$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
+  if($$cfg{pty} and $$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
     $result = runProtoIPC($$cfg{includeErr}, $outputAction, @cmd);
   }else{
     $result = runProtoNoIPC($$cfg{includeErr}, $outputAction, @cmd);
