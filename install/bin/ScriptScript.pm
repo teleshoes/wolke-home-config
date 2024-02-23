@@ -28,7 +28,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
                   globOne
                   writeFile tryWriteFile writeFileSudo
-                  readFile tryReadFile readFileSudo
+                  readFile  tryReadFile  readFileSudo  readFileChomp
                   replaceLine replaceOrAddLine
                   editFile editFileSimpleConf editFileIni editFileLines
                   getRoot getRootSu
@@ -82,6 +82,7 @@ sub readFileProto($$);
 sub readFile($);
 sub tryReadFile($);
 sub readFileSudo($);
+sub readFileChomp($);
 sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$);
@@ -532,9 +533,10 @@ sub readFileProto($$) {
   $cfg = {
     sudo  => 0,
     fatal => 1,
+    chomp => 0,
     %$cfg,
   };
-  assertDef $cfg, qw(sudo fatal);
+  assertDef $cfg, qw(sudo fatal chomp);
 
   my $fh;
   my $status;
@@ -560,9 +562,16 @@ sub readFileProto($$) {
   if($wantarrayContext eq $WANTARRAY_CONTEXT_VOID){
     return;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
+    if($$cfg{chomp}){
+      s/[\r\n]+$// foreach @lines;
+    }
     return @lines;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_SCALAR){
-    return join '', @lines;
+    my $content = join '', @lines;
+    if($$cfg{chomp}){
+      $content =~ s/[\r\n]+$//;
+    }
+    return $content;
   }else{
     die "ERROR: could not parse wantarray context\n";
   }
@@ -570,6 +579,7 @@ sub readFileProto($$) {
 sub readFile     ($) { readFileProto({},           $_[0]); }
 sub tryReadFile  ($) { readFileProto({fatal => 0}, $_[0]); }
 sub readFileSudo ($) { readFileProto({sudo => 1},  $_[0]); }
+sub readFileChomp($) { readFileProto({chomp => 1}, $_[0]); }
 
 sub replaceLine($$$) {
   my ($s, $startRegex, $lineReplacement) = @_;
