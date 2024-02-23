@@ -803,9 +803,9 @@ sub installFromGit($$) {
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0) {
       $cmd = "cabal install -j";
-    } elsif(system("make -C '$dir' -n all >/dev/null 2>&1") == 0) {
+    } elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
       $cmd = "make -j all && sudo make install";
-    } elsif(system("make -C '$dir' -n >/dev/null 2>&1") == 0) {
+    } elsif(tryrunSilent("make", "-C", $dir, "-n")){
       $cmd = "make -j && sudo make install";
     } elsif(@installCmds == 1) {
       $cmd = $installCmds[0];
