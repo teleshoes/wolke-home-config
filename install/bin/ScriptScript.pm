@@ -40,6 +40,26 @@ our @EXPORT = qw( getScriptNames getSubNames
                   nowMillis
                 );
 
+my $WANTARRAY_CONTEXT_VOID = "void";
+my $WANTARRAY_CONTEXT_LIST = "list";
+my $WANTARRAY_CONTEXT_SCALAR = "scalar";
+
+my $FILES_TO_DELETE = {};
+
+$SIG{INT} = sub{
+  system "rm", "-f", $_ foreach keys %$FILES_TO_DELETE;
+  exit 130;
+};
+
+my @SHELL_METACHAR_LIST = (
+  "|", "&", ";", "<", ">", "(", ")", "\$", "`",
+  "\\", "'", "\"", "\n", " ", "\t",
+  "=", "*", "#",
+);
+my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
+
+my $SIMULATE = 0;
+
 sub getScriptNames();
 sub getSubNames();
 sub getInstallNames();
@@ -101,26 +121,6 @@ sub extractNameFromGitUrl($);
 sub shellQuote(@);
 sub md5sum($);
 sub nowMillis();
-
-my $WANTARRAY_CONTEXT_VOID = "void";
-my $WANTARRAY_CONTEXT_LIST = "list";
-my $WANTARRAY_CONTEXT_SCALAR = "scalar";
-
-my $FILES_TO_DELETE = {};
-
-$SIG{INT} = sub{
-  system "rm", "-f", $_ foreach keys %$FILES_TO_DELETE;
-  exit 130;
-};
-
-my @SHELL_METACHAR_LIST = (
-  "|", "&", ";", "<", ">", "(", ")", "\$", "`",
-  "\\", "'", "\"", "\n", " ", "\t",
-  "=", "*", "#",
-);
-my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
-
-my $SIMULATE = 0;
 
 sub getScriptNames(){
   my $bin = getInstallPath "bin";
