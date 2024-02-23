@@ -221,6 +221,8 @@ sub runProto($@){
     $$FILES_TO_DELETE{$progressBarFile} = 1;
   }
 
+  my $wantarrayContext = wantarrayToContext(wantarray);
+
   my $resultOutput = "";
 
   my $outputAction = sub {
@@ -236,7 +238,7 @@ sub runProto($@){
       STDOUT->flush();
     }
 
-    if(not $$cfg{returnSuccess}){
+    if(not $$cfg{returnSuccess} and $wantarrayContext ne $WANTARRAY_CONTEXT_VOID){
       $resultOutput .= $output;
     }
   };
@@ -261,8 +263,6 @@ sub runProto($@){
       print STDERR "WARNING: cmd '@cmd' failed\n$$result{exception}\n";
     }
   }
-
-  my $wantarrayContext = wantarrayToContext(wantarray);
 
   if($$cfg{returnSuccess}){
     return $$result{success};
