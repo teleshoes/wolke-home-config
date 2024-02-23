@@ -125,7 +125,7 @@ sub nowMillis();
 sub getScriptNames(){
   my $bin = getInstallPath "bin";
   my @scripts = grep {-f $_} glob "$bin/*";
-  s/$bin\/// foreach @scripts;
+  @scripts = map {basename($_)} @scripts;
   return \@scripts;
 }
 sub getSubNames(){
