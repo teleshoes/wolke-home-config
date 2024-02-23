@@ -123,26 +123,26 @@ sub md5sum($);
 sub nowMillis();
 
 sub getScriptNames(){
-  return [map {basename $_} grep {-f $_} glob(getInstallPath("bin/*"))];
+  return map {basename $_} grep {-f $_} glob(getInstallPath("bin/*"));
 }
 sub getSubNames(){
-  return [@EXPORT];
+  return @EXPORT;
 }
 sub getInstallNames(){
-  return [
-    @{getInstallScriptNames()},
-    @{getInstallSrcNames()},
-    @{getInstallPipNames()},
-  ];
+  return (
+    getInstallScriptNames(),
+    getInstallSrcNames(),
+    getInstallPipNames(),
+  );
 }
 sub getInstallScriptNames(){
-  return [grep {defined $_} map {/^install-(.+)/ ? $1 : undef} @{getScriptNames()}];
+  return grep {defined $_} map {/^install-(.+)/ ? $1 : undef} getScriptNames();
 }
 sub getInstallSrcNames(){
-  return [procChomp(getInstallPath("bin/install-src"), "--list")];
+  return (procChomp(getInstallPath("bin/install-src"), "--list"));
 }
 sub getInstallPipNames(){
-  return [procChomp(getInstallPath("bin/install-pip-packages"), "--list")];
+  return (procChomp(getInstallPath("bin/install-pip-packages"), "--list"));
 }
 
 sub assertDef($@){
