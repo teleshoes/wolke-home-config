@@ -19,7 +19,7 @@ our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
                   run tryrun tryrunSilent
                   runUser tryrunUser
-                  proc procUser tryproc
+                  proc procChomp procUser tryproc
                   runAptGet tryrunAptGet
                   runScript
                   getHome getInstallPath getSrcCache
@@ -57,6 +57,7 @@ sub tryrunSilent(@);
 sub runUser(@);
 sub tryrunUser(@);
 sub proc(@);
+sub procChomp(@);
 sub procUser(@);
 sub runAptGet(@);
 sub tryrunAptGet(@);
@@ -375,6 +376,7 @@ sub runUser(@)      { return runProto({wrapUserCmd => 1},                       
 sub tryrunUser(@)   { return runProto({wrapUserCmd => 1, fatal => 0},             @_); }
 
 sub proc(@)         { return runProto({returnSuccess => 0},                       @_); }
+sub procChomp(@)    { return runProto({returnSuccess => 0, chomp => 1},           @_); }
 sub procUser(@)     { return runProto({returnSuccess => 0, wrapUserCmd => 1},     @_); }
 sub tryproc(@)      { return runProto({returnSuccess => 0, fatal => 0},           @_); }
 
