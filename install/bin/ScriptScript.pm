@@ -260,11 +260,15 @@ sub runProto($@){
 
   if($$cfg{returnSuccess}){
     return $$result{success};
+  }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_VOID){
+    return;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
     my @lines = split /(?<=\n)/, $$result{output};
     return @lines;
-  }else{
+  }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_SCALAR){
     return $$result{output};
+  }else{
+    die "ERROR: could not parse wantarray context\n";
   }
 }
 sub runProtoIPC($$@) {
