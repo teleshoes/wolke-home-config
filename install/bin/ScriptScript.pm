@@ -236,7 +236,9 @@ sub runProto($@){
       STDOUT->flush();
     }
 
-    $resultOutput .= $output;
+    if(not $$cfg{returnSuccess}){
+      $resultOutput .= $output;
+    }
   };
 
   my $result;
