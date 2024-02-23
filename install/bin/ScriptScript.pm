@@ -126,7 +126,6 @@ sub getScriptNames(){
   my $bin = getInstallPath "bin";
   my @scripts = grep {-f $_} glob "$bin/*";
   s/$bin\/// foreach @scripts;
-  @scripts = grep {/^[a-zA-Z0-9_\-]+$/} @scripts;
   return \@scripts;
 }
 sub getSubNames(){
