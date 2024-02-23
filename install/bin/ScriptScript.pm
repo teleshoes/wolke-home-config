@@ -374,10 +374,10 @@ sub tryrunSilent(@) { return runProto({fatal => 0, printOut => 0, printCmd => 0}
 sub runUser(@)      { return runProto({wrapUserCmd => 1},                         @_); }
 sub tryrunUser(@)   { return runProto({wrapUserCmd => 1, fatal => 0},             @_); }
 
-sub proc(@)         { return runProto({returnSuccess => 0, printOut => 0},                   @_); }
-sub procChomp(@)    { return runProto({returnSuccess => 0, printOut => 0, chomp => 1},       @_); }
-sub procUser(@)     { return runProto({returnSuccess => 0, printOut => 0, wrapUserCmd => 1}, @_); }
-sub tryproc(@)      { return runProto({returnSuccess => 0, printOut => 0, fatal => 0},       @_); }
+sub proc(@)         { return runProto({returnSuccess => 0, printOut => 0, pty => 0},                   @_); }
+sub procChomp(@)    { return runProto({returnSuccess => 0, printOut => 0, pty => 0, chomp => 1},       @_); }
+sub procUser(@)     { return runProto({returnSuccess => 0, printOut => 0, pty => 0, wrapUserCmd => 1}, @_); }
+sub tryproc(@)      { return runProto({returnSuccess => 0, printOut => 0, pty => 0, fatal => 0},       @_); }
 
 sub runAptGet(@){
   my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
