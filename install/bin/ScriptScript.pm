@@ -256,9 +256,11 @@ sub runProto($@){
     }
   }
 
+  my $wantarrayContext = wantarrayToContext(wantarray);
+
   if($$cfg{returnSuccess}){
     return $$result{success};
-  }elsif(wantarray){
+  }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
     my @lines = split /(?<=\n)/, $$result{output};
     return @lines;
   }else{
@@ -546,7 +548,13 @@ sub readFileProto($$) {
   my @lines = <$fh>;
   close $fh;
 
-  return wantarray ? @lines : join '', @lines;
+  my $wantarrayContext = wantarrayToContext(wantarray);
+
+  if($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
 }
 sub readFile     ($) { readFileProto({},           $_[0]); }
 sub tryReadFile  ($) { readFileProto({fatal => 0}, $_[0]); }
