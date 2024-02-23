@@ -17,7 +17,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw();
 our @EXPORT = qw( getScriptNames getSubNames
                   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
-                  run tryrun
+                  run tryrun tryrunSilent
                   runUser tryrunUser
                   proc procUser tryproc
                   runAptGet tryrunAptGet
@@ -53,6 +53,7 @@ sub runProtoIPC($$@);
 sub runProtoNoIPC($$@);
 sub run(@);
 sub tryrun(@);
+sub tryrunSilent(@);
 sub runUser(@);
 sub tryrunUser(@);
 sub proc(@);
@@ -369,6 +370,7 @@ sub runProtoNoIPC($$@) {
 
 sub run(@)          { return runProto({},                                         @_); }
 sub tryrun(@)       { return runProto({fatal => 0},                               @_); }
+sub tryrunSilent(@) { return runProto({fatal => 0, printOut => 0, printCmd => 0}, @_); }
 sub runUser(@)      { return runProto({wrapUserCmd => 1},                         @_); }
 sub tryrunUser(@)   { return runProto({wrapUserCmd => 1, fatal => 0},             @_); }
 
