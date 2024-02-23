@@ -141,7 +141,7 @@ sub getInstallNames(){
   return \@installNames;
 }
 sub getInstallScriptNames(){
-  return [grep {defined $_} map {s/^install-(.+)//; $1} @{getScriptNames()}];
+  return [grep {defined $_} map {/^install-(.+)/ ? $1 : undef} @{getScriptNames()}];
 }
 sub getInstallSrcNames(){
   my $installSrcCmd = getInstallPath "bin/install-src";
