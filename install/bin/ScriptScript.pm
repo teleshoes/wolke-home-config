@@ -139,10 +139,7 @@ sub getInstallScriptNames(){
   return [grep {defined $_} map {/^install-(.+)/ ? $1 : undef} @{getScriptNames()}];
 }
 sub getInstallSrcNames(){
-  my $installSrcCmd = getInstallPath "bin/install-src";
-
-  my @installSrcNames = procChomp $installSrcCmd, "--list";
-  return \@installSrcNames;
+  return [procChomp(getInstallPath("bin/install-src"), "--list")];
 }
 sub getInstallPipNames(){
   my $installPipCmd = getInstallPath "bin/install-pip-packages";
