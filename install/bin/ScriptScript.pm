@@ -129,12 +129,11 @@ sub getSubNames(){
   return [@EXPORT];
 }
 sub getInstallNames(){
-  my @installNames = (
+  return [
     @{getInstallScriptNames()},
     @{getInstallSrcNames()},
     @{getInstallPipNames()},
-  );
-  return \@installNames;
+  ];
 }
 sub getInstallScriptNames(){
   return [grep {defined $_} map {/^install-(.+)/ ? $1 : undef} @{getScriptNames()}];
