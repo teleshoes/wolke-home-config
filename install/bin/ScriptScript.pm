@@ -221,6 +221,8 @@ sub runProto($@){
     $$FILES_TO_DELETE{$progressBarFile} = 1;
   }
 
+  my $resultOutput = "";
+
   my $outputAction = sub {
     my $output = shift;
     if(defined $progressBarFile and $output =~ /(100|\d\d|\d)%/){
@@ -233,6 +235,8 @@ sub runProto($@){
       print $output;
       STDOUT->flush();
     }
+
+    $resultOutput .= $output;
   };
 
   my $result;
@@ -263,10 +267,10 @@ sub runProto($@){
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_VOID){
     return;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_LIST){
-    my @lines = split /(?<=\n)/, $$result{output};
+    my @lines = split /(?<=\n)/, $resultOutput;
     return @lines;
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_SCALAR){
-    return $$result{output};
+    return $resultOutput;
   }else{
     die "ERROR: could not parse wantarray context\n";
   }
@@ -284,7 +288,6 @@ sub runProtoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
-    output    => "",
     exception => "",
   };
 
@@ -306,7 +309,6 @@ sub runProtoIPC($$@) {
     }
     if(defined $out and length $out > 0){
       &$outputAction($out);
-      $$result{output} .= $out;
       $out = undef;
     }else{
       sleep 0.01; #small delay to decrease busy-wait on input
@@ -331,7 +333,6 @@ sub runProtoNoIPC($$@) {
   my $result = {
     success   => undef,
     exitCode  => undef,
-    output    => "",
     exception => "",
   };
 
@@ -344,7 +345,6 @@ sub runProtoNoIPC($$@) {
   } else {
     while(my $line = <$fh>) {
       &$outputAction($line);
-      $$result{output} .= $line;
     }
     close $fh;
 
