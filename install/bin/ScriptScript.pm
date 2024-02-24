@@ -15,30 +15,31 @@ my $MODULE_AVAIL = {
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw();
-our @EXPORT = qw( getScriptNames getSubNames
-                  getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
-                  run tryrun tryrunSilent
-                  runUser tryrunUser
-                  proc procChomp procUser tryproc
-                  runAptGet tryrunAptGet
-                  runScript
-                  getHome getInstallPath getSrcCache
-                  getMachineType
-                  getResconfigScale
-                  symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
-                  globOne
-                  writeFile tryWriteFile writeFileSudo
-                  readFile  tryReadFile  readFileSudo  readFileChomp
-                  replaceLine replaceOrAddLine
-                  editFile editFileSimpleConf editFileIni editFileLines
-                  getRoot getRootSu
-                  getUsername
-                  readConfDir
-                  installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
-                  shellQuote
-                  md5sum
-                  nowMillis
-                );
+our @EXPORT = qw(
+  getScriptNames getSubNames
+  getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
+  run tryrun tryrunSilent
+  runUser tryrunUser
+  proc procChomp procUser tryproc
+  runAptGet tryrunAptGet
+  runScript
+  getHome getInstallPath getSrcCache
+  getMachineType
+  getResconfigScale
+  symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
+  globOne
+  writeFile tryWriteFile writeFileSudo
+  readFile tryReadFile readFileSudo readFileChomp
+  replaceLine replaceOrAddLine
+  editFile editFileSimpleConf editFileIni editFileLines
+  getRoot getRootSu
+  getUsername
+  readConfDir
+  installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
+  shellQuote
+  md5sum
+  nowMillis
+);
 
 my $WANTARRAY_CONTEXT_VOID = "void";
 my $WANTARRAY_CONTEXT_LIST = "list";
