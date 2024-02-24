@@ -211,7 +211,7 @@ sub runProto($@){
 
   my $progressBarFile = undef;
   if($$cfg{progressBar}){
-    my @progBarFiles = grep {-f $_} glob "/tmp/progress-bar-*";
+    my @progBarFiles = globFiles "/tmp/progress-bar-*";
     system "rm", @progBarFiles if @progBarFiles > 0;
 
     $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
@@ -824,7 +824,7 @@ sub getRootSu(@){
 sub readConfDir($){
   my ($confDir) = @_;
 
-  my @files = grep {-f $_} glob "$confDir/*";
+  my @files = globFiles "$confDir/*";
   my %conf = map {basename($_) => [readFileChomp($_)]} @files;
   return %conf;
 }
@@ -847,7 +847,7 @@ sub installFromGit($$){
   }
 
   if(not defined $cmd or $cmd eq ""){
-    my @files = grep {-f $_} glob "$dir/*";
+    my @files = globFiles "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0){
