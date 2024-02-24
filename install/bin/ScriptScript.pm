@@ -849,7 +849,7 @@ sub installFromGit($$){
   if(not defined $cmd or $cmd eq ""){
     my @files = grep {-f $_} glob "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
-    my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
+    my @installCmds = grep {-x $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0){
       $cmd = "cabal install -j";
     }elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
