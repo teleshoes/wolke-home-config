@@ -275,7 +275,7 @@ sub runProto($@){
     die "ERROR: could not parse wantarray context\n";
   }
 }
-sub runCommandPty($$@) {
+sub runCommandPty($$@){
   my ($includeErr, $outputAction, @cmd) = @_;
 
   my $pty = new IO::Pty();
@@ -327,7 +327,7 @@ sub runCommandPty($$@) {
 
   return $result;
 }
-sub runCommandNoPty($$@) {
+sub runCommandNoPty($$@){
   my ($includeErr, $outputAction, @cmd) = @_;
 
   my $result = {
@@ -337,13 +337,13 @@ sub runCommandNoPty($$@) {
   };
 
   my $pid = open my $fh, "-|";
-  if(not $pid) {
+  if(not $pid){
     if($includeErr){
       open(STDERR, ">&STDOUT");
     }
     exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
-  } else {
-    while(my $line = <$fh>) {
+  }else{
+    while(my $line = <$fh>){
       &$outputAction($line);
     }
     close $fh;
@@ -402,15 +402,15 @@ sub runScript($@){
   run $script, @_;
 }
 
-sub getUsername() {
+sub getUsername(){
   my $user = $ENV{SUDO_USER} || $ENV{USER};
-  if(not $user or $user eq "root") {
+  if(not $user or $user eq "root"){
     die "ERROR: USER or SUDO_USER must be set, and cannot be root";
   }
   $user
 }
 
-sub getMachineType() {
+sub getMachineType(){
   my $file = getHome() . "/machine-type";
   return undef if not -f $file;
   my $machineType = readFileChomp(getHome() . "/machine-type");
@@ -432,23 +432,23 @@ sub getResconfigScale(){
   }
 }
 
-sub getHome() {
-  if(not isRoot()) {
+sub getHome(){
+  if(not isRoot()){
     return $ENV{HOME};
-  }else {
+  }else{
     return "/home/" . getUsername();
   }
 }
 
-sub getInstallPath($) {
+sub getInstallPath($){
   return getHome() . "/install/$_[0]";
 }
 
-sub getSrcCache() {
+sub getSrcCache(){
   return getHome() . "/.src-cache";
 }
 
-sub symlinkFileProto($$$) {
+sub symlinkFileProto($$$){
   my ($cfg, $srcPath, $destFile) = @_;
   $cfg = {
     relPath => 0,
@@ -514,7 +514,7 @@ sub globOne($){
   }
 }
 
-sub writeFileProto($$$) {
+sub writeFileProto($$$){
   my ($cfg, $file, $contents) = @_;
   $cfg = {
     sudo  => 0,
@@ -557,7 +557,7 @@ sub writeFileSudo($$){
   writeFileProto({sudo => 1}, $_[0], $_[1]);
 }
 
-sub readFileProto($$) {
+sub readFileProto($$){
   my ($cfg, $file) = @_;
   $cfg = {
     sudo  => 0,
@@ -618,7 +618,7 @@ sub readFileChomp($){
   readFileProto({chomp => 1}, $_[0]);
 }
 
-sub replaceLine($$$) {
+sub replaceLine($$$){
   my ($s, $startRegex, $lineReplacement) = @_;
   chomp $lineReplacement;
   if($s =~ s/(^|\n+)(# ?)?$startRegex.*/$1$lineReplacement/){
@@ -628,7 +628,7 @@ sub replaceLine($$$) {
   return 0;
 }
 
-sub replaceOrAddLine($$$) {
+sub replaceOrAddLine($$$){
   my ($s, $startRegex, $lineReplacement) = @_;
   chomp $lineReplacement;
   if(not replaceLine $s, $startRegex, $lineReplacement){
@@ -644,7 +644,7 @@ sub replaceOrAddLine($$$) {
   $_[0] = $s;
 }
 
-sub editFile($$) {
+sub editFile($$){
   my ($file, $editSub) = @_;
 
   #dereference non-broken symlink to file
@@ -689,7 +689,7 @@ sub editFile($$) {
   }
 }
 
-sub editFileLines($$) {
+sub editFileLines($$){
   my ($file, $editLineSub) = @_;
   editFile $file, sub {
     my $cnts = shift;
@@ -702,7 +702,7 @@ sub editFileLines($$) {
   };
 }
 
-sub editFileSimpleConf($$) {
+sub editFileSimpleConf($$){
   my ($file, $config) = @_;
   editFile $file, sub {
     my $cnts = shift;
@@ -713,7 +713,7 @@ sub editFileSimpleConf($$) {
   };
 }
 
-sub editFileIni($$) {
+sub editFileIni($$){
   my ($file, $sectionConfig) = @_;
   editFile $file, sub {
     my $cnts = shift;
@@ -774,8 +774,8 @@ sub isRoot(){
   return proc("whoami") eq "root\n";
 }
 
-sub getRoot(@) {
-  if(not isRoot()) {
+sub getRoot(@){
+  if(not isRoot()){
     print "## rerunning as root\n";
     if($SIMULATE){
       return;
@@ -785,8 +785,8 @@ sub getRoot(@) {
   }
 }
 
-sub getRootSu(@) {
-  if(not isRoot()) {
+sub getRootSu(@){
+  if(not isRoot()){
     print "## rerunning as root with su\n";
 
     my $user = getUsername();
@@ -801,7 +801,7 @@ sub getRootSu(@) {
   }
 }
 
-sub readConfDir($) {
+sub readConfDir($){
   my ($confDir) = @_;
 
   my @files = grep {-f $_} glob "$confDir/*";
@@ -809,7 +809,7 @@ sub readConfDir($) {
   return %conf;
 }
 
-sub installFromGit($$) {
+sub installFromGit($$){
   my ($gitUrl, $cmd) = @_;
   my $name = extractNameFromGitUrl $gitUrl;
 
@@ -830,15 +830,15 @@ sub installFromGit($$) {
     my @files = grep {-e $_} glob "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and -f $_ and $_ =~ /^$dir\/install/} @files;
-    if(@cabalFiles > 0) {
+    if(@cabalFiles > 0){
       $cmd = "cabal install -j";
-    } elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
-      $cmd = "make -j all && sudo make install";
-    } elsif(tryrunSilent("make", "-C", $dir, "-n")){
-      $cmd = "make -j && sudo make install";
-    } elsif(@installCmds == 1) {
-      $cmd = $installCmds[0];
-    } else {
+    }elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
+     $cmd = "make -j all && sudo make install";
+    }elsif(tryrunSilent("make", "-C", $dir, "-n")){
+     $cmd = "make -j && sudo make install";
+    }elsif(@installCmds == 1){
+     $cmd = $installCmds[0];
+    }else{
       die "### no install file in $dir";
     }
   }
@@ -846,13 +846,13 @@ sub installFromGit($$) {
   runUser "cd '$dir' && $cmd";
 }
 
-sub removeSrcCache($) {
+sub removeSrcCache($){
   my ($name) = (@_);
   my $srcCache = getSrcCache();
   run "rm", "-rf", "$srcCache/$name";
 }
 
-sub removeGitSrcCache($) {
+sub removeGitSrcCache($){
   my ($gitUrl) = (@_);
   my $name = extractNameFromGitUrl $gitUrl;
   removeSrcCache $name;
