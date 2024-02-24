@@ -28,6 +28,7 @@ our @EXPORT = qw(
   getHome getInstallPath getSrcCache
   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
   globAll globFiles globDirs
+  globFilesBasename
   globOne
   writeFile tryWriteFile writeFileSudo
   readFile tryReadFile readFileSudo readFileChomp
@@ -98,6 +99,7 @@ sub symlinkFileRelSudo($$);
 sub globAll($);
 sub globFiles($);
 sub globDirs($);
+sub globFilesBasename($);
 sub globOne($);
 sub writeFileProto($$$);
 sub writeFile($$);
@@ -517,6 +519,10 @@ sub globFiles($){
 }
 sub globDirs($){
   return grep {-d $_} glob $_[0];
+}
+
+sub globFilesBasename($){
+  return map {basename($_)} globFiles $_[0];
 }
 
 sub globOne($){
