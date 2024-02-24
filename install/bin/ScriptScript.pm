@@ -547,9 +547,15 @@ sub writeFileProto($$$) {
   print $fh $contents;
   close $fh;
 }
-sub writeFile     ($$) { writeFileProto({},           $_[0], $_[1]); }
-sub tryWriteFile  ($$) { writeFileProto({fatal => 0}, $_[0], $_[1]); }
-sub writeFileSudo ($$) { writeFileProto({sudo => 1},  $_[0], $_[1]); }
+sub writeFile($$){
+  writeFileProto({}, $_[0], $_[1]);
+}
+sub tryWriteFile($$){
+  writeFileProto({fatal => 0}, $_[0], $_[1]);
+}
+sub writeFileSudo($$){
+  writeFileProto({sudo => 1}, $_[0], $_[1]);
+}
 
 sub readFileProto($$) {
   my ($cfg, $file) = @_;
