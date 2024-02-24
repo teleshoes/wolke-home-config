@@ -605,10 +605,18 @@ sub readFileProto($$) {
     die "ERROR: could not parse wantarray context\n";
   }
 }
-sub readFile     ($) { readFileProto({},           $_[0]); }
-sub tryReadFile  ($) { readFileProto({fatal => 0}, $_[0]); }
-sub readFileSudo ($) { readFileProto({sudo => 1},  $_[0]); }
-sub readFileChomp($) { readFileProto({chomp => 1}, $_[0]); }
+sub readFile($){
+  readFileProto({}, $_[0]);
+}
+sub tryReadFile($){
+  readFileProto({fatal => 0}, $_[0]);
+}
+sub readFileSudo($){
+  readFileProto({sudo => 1}, $_[0]);
+}
+sub readFileChomp($){
+  readFileProto({chomp => 1}, $_[0]);
+}
 
 sub replaceLine($$$) {
   my ($s, $startRegex, $lineReplacement) = @_;
