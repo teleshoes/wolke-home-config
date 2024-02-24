@@ -38,6 +38,7 @@ our @EXPORT = qw(
   readConfDir
   installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
   shellQuote
+  joinLines
   md5sum
   nowMillis
 );
@@ -901,6 +902,10 @@ sub shellQuote(@){
       $str;
     } @_;
   }
+}
+
+sub joinLines(@){
+  return join '', map {$_ =~ s/[\r\n]+$//; "$_\n"} @_;
 }
 
 sub md5sum($){
