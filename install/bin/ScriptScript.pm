@@ -771,7 +771,7 @@ sub editFileIni($$){
 }
 
 sub isRoot(){
-  return proc("whoami") eq "root\n";
+  return procChomp("whoami") eq "root" ? 1 : 0;
 }
 
 sub getRoot(@){
