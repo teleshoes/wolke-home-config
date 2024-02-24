@@ -129,7 +129,7 @@ sub md5sum($);
 sub nowMillis();
 
 sub getScriptNames(){
-  return map {basename $_} grep {-f $_} glob(getInstallPath("bin/*"));
+  return globFilesBasename(getInstallPath("bin/*"));
 }
 sub getSubNames(){
   return @EXPORT;
@@ -420,7 +420,7 @@ sub getMachineType(){
   my $file = getHome() . "/machine-type";
   return undef if not -f $file;
   my $machineType = readFileChomp(getHome() . "/machine-type");
-  my %machineTypes = map {basename($_) => 1} grep {-f $_} glob(getHome() . "/machine-types/*");
+  my %machineTypes = globFilesBasename(getHome() . "/machine-types/*");
   if(defined $machineTypes{$machineType}){
     return $machineType;
   }else{
