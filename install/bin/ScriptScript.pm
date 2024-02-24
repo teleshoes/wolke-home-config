@@ -177,7 +177,7 @@ sub runProto($@){
   $cfg = {
     pty           => 1,
     chomp         => 0,
-    returnSuccess => 1,
+    returnOut     => 0,
     wrapUserCmd   => 0,
     printCmd      => 1,
     printOut      => 1,
@@ -187,7 +187,7 @@ sub runProto($@){
     %$cfg,
   };
   assertDef $cfg, qw(
-    pty chomp returnSuccess wrapUserCmd printCmd printOut includeErr progressBar fatal);
+    pty chomp returnOut wrapUserCmd printCmd printOut includeErr progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -229,7 +229,7 @@ sub runProto($@){
       STDOUT->flush();
     }
 
-    if(not $$cfg{returnSuccess} and $wantarrayContext ne $WANTARRAY_CONTEXT_VOID){
+    if($$cfg{returnOut} and $wantarrayContext ne $WANTARRAY_CONTEXT_VOID){
       $resultOutput .= $output;
     }
   };
@@ -255,7 +255,7 @@ sub runProto($@){
     }
   }
 
-  if($$cfg{returnSuccess}){
+  if(not $$cfg{returnOut}){
     return $$result{success};
   }elsif($wantarrayContext eq $WANTARRAY_CONTEXT_VOID){
     return;
@@ -374,16 +374,16 @@ sub tryrunUser(@){
 }
 
 sub proc(@){
-  return runProto({returnSuccess=>0, printOut=>0, printCmd=>0, pty=>0}, @_);
+  return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0}, @_);
 }
 sub procChomp(@){
-  return runProto({returnSuccess=>0, printOut=>0, printCmd=>0, pty=>0, chomp=>1}, @_);
+  return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, chomp=>1}, @_);
 }
 sub procUser(@){
-  return runProto({returnSuccess=>0, printOut=>0, printCmd=>0, pty=>0, wrapUserCmd=>1}, @_);
+  return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, wrapUserCmd=>1}, @_);
 }
 sub tryproc(@){
-  return runProto({returnSuccess=>0, printOut=>0, printCmd=>0, pty=>0, fatal=>0}, @_);
+  return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, fatal=>0}, @_);
 }
 
 sub runAptGet(@){
