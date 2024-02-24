@@ -211,7 +211,7 @@ sub runProto($@){
 
   my $progressBarFile = undef;
   if($$cfg{progressBar}){
-    my @progBarFiles = grep {-e $_} glob "/tmp/progress-bar-*";
+    my @progBarFiles = grep {-f $_} glob "/tmp/progress-bar-*";
     system "rm", @progBarFiles if @progBarFiles > 0;
 
     $progressBarFile = "/tmp/progress-bar-" . nowMillis() . ".txt";
