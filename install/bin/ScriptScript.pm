@@ -492,10 +492,18 @@ sub symlinkFileProto($$$) {
     die "ERROR: symlink file $destFile does not exist after creation\n";
   }
 }
-sub symlinkFile($$)        { symlinkFileProto({},                        $_[0], $_[1]); }
-sub symlinkFileRel($$)     { symlinkFileProto({relPath => 1},            $_[0], $_[1]); }
-sub symlinkFileSudo($$)    { symlinkFileProto({sudo => 1},               $_[0], $_[1]); }
-sub symlinkFileRelSudo($$) { symlinkFileProto({relPath => 1, sudo => 1}, $_[0], $_[1]); }
+sub symlinkFile($$){
+  symlinkFileProto({}, $_[0], $_[1]);
+}
+sub symlinkFileRel($$){
+  symlinkFileProto({relPath => 1}, $_[0], $_[1]);
+}
+sub symlinkFileSudo($$){
+  symlinkFileProto({sudo => 1}, $_[0], $_[1]);
+}
+sub symlinkFileRelSudo($$){
+  symlinkFileProto({relPath => 1, sudo => 1}, $_[0], $_[1]);
+}
 
 sub globOne($){
   my @files = grep {-e $_} glob $_[0];
