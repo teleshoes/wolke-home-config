@@ -13,7 +13,6 @@ sub installAddons();
 sub greasemonkeySymlink();
 sub setPrefs();
 sub writeXulStore();
-sub globOrFail($);
 sub globMaybe($);
 sub placesBackup();
 sub placesRestore();
@@ -393,14 +392,6 @@ sub writeXulStore(){
   writeFile $xulStoreFile, $xulStoreJson;
 }
 
-sub globOrFail($){
-  my ($pattern) = @_;
-  my @files = grep {-e $_} glob($pattern);
-  if(@files == 0){
-    die "ERROR: could not find files matching $pattern\n";
-  }
-  return @files;
-}
 sub globMaybe($){
   my ($pattern) = @_;
   my @files = glob($pattern);
@@ -412,7 +403,9 @@ sub placesBackup(){
   print "\n\n\n##### backing up places/logins files\n";
   my @files;
   for my $pattern(@PLACES_PROFILE_FILE_PATTERNS){
-    @files = (@files, globOrFail("$PROFILE_DIR/$pattern"));
+    my @ptrnFiles = grep {-e $_} glob($pattern);
+    die "ERROR: could not find files matching $pattern\n" if @ptrnFiles == 0;
+    @files = (@files, @ptrnFiles);
   }
 
   my $backupDir = "$PROFILE_DIR/../places-backup/";
