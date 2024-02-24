@@ -27,6 +27,7 @@ our @EXPORT = qw(
   getMachineType getResconfigScale
   getHome getInstallPath getSrcCache
   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
+  globAll globFiles globDirs
   globOne
   writeFile tryWriteFile writeFileSudo
   readFile tryReadFile readFileSudo readFileChomp
@@ -94,6 +95,9 @@ sub symlinkFile($$);
 sub symlinkFileRel($$);
 sub symlinkFileSudo($$);
 sub symlinkFileRelSudo($$);
+sub globAll($);
+sub globFiles($);
+sub globDirs($);
 sub globOne($);
 sub writeFileProto($$$);
 sub writeFile($$);
@@ -503,6 +507,16 @@ sub symlinkFileSudo($$){
 }
 sub symlinkFileRelSudo($$){
   symlinkFileProto({relPath => 1, sudo => 1}, $_[0], $_[1]);
+}
+
+sub globAll($){
+  return grep {-e $_} glob $_[0];
+}
+sub globFiles($){
+  return grep {-f $_} glob $_[0];
+}
+sub globDirs($){
+  return grep {-d $_} glob $_[0];
 }
 
 sub globOne($){
