@@ -833,11 +833,11 @@ sub installFromGit($$){
     if(@cabalFiles > 0){
       $cmd = "cabal install -j";
     }elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
-     $cmd = "make -j all && sudo make install";
+      $cmd = "make -j all && sudo make install";
     }elsif(tryrunSilent("make", "-C", $dir, "-n")){
-     $cmd = "make -j && sudo make install";
+      $cmd = "make -j && sudo make install";
     }elsif(@installCmds == 1){
-     $cmd = $installCmds[0];
+      $cmd = $installCmds[0];
     }else{
       die "### no install file in $dir";
     }
