@@ -23,17 +23,16 @@ our @EXPORT = qw(
   proc procChomp procUser tryproc
   runAptGet tryrunAptGet
   runScript
+  getUsername
+  getMachineType getResconfigScale
   getHome getInstallPath getSrcCache
-  getMachineType
-  getResconfigScale
   symlinkFile symlinkFileRel symlinkFileSudo symlinkFileRelSudo
   globOne
   writeFile tryWriteFile writeFileSudo
   readFile tryReadFile readFileSudo readFileChomp
   replaceLine replaceOrAddLine
-  editFile editFileSimpleConf editFileIni editFileLines
+  editFile editFileLines editFileSimpleConf editFileIni
   getRoot getRootSu
-  getUsername
   readConfDir
   installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
   shellQuote
