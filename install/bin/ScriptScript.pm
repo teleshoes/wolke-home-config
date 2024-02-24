@@ -109,7 +109,7 @@ sub replaceLine($$$);
 sub replaceOrAddLine($$$);
 sub editFile($$);
 sub editFileLines($$);
-sub editSimpleConf($$);
+sub editFileSimpleConf($$);
 sub editFileIni($$);
 sub isRoot();
 sub getRoot(@);
