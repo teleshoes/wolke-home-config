@@ -117,6 +117,7 @@ sub editFile($$);
 sub editFileLines($$);
 sub editFileSimpleConf($$);
 sub editFileIni($$);
+sub isSimulate();
 sub isRoot();
 sub getRoot(@);
 sub getRootSu(@);
@@ -206,7 +207,7 @@ sub runProto($@){
 
   print "@cmd\n" if $$cfg{printCmd};
 
-  if($SIMULATE){
+  if(isSimulate()){
     return;
   }
 
@@ -485,13 +486,13 @@ sub symlinkFileProto($$$){
       return;
     }else{
       print "  symlink $destFile: $oldPath => $srcPath\n";
-      if(not $SIMULATE){
+      if(not isSimulate()){
         run @sudo, "rm", $destFile;
       }
     }
   }
 
-  if($SIMULATE){
+  if(isSimulate()){
     print "  symlink $srcPath => $destFile\n";
     return;
   }
@@ -551,7 +552,7 @@ sub writeFileProto($$$){
   };
   assertDef $cfg, qw(sudo fatal);
 
-  if($SIMULATE){
+  if(isSimulate()){
     print "## write $file:\n$contents\n";
     return;
   }
@@ -696,7 +697,7 @@ sub editFile($$){
     print "file unchanged: $file\n";
     return 0;
   }else{
-    if($SIMULATE){
+    if(isSimulate()){
       print "# file would be changed: $file\n$newContents\n";
     }else{
       my $secondPassContents = &$editSub($newContents);
@@ -798,8 +799,12 @@ sub editFileIni($$){
   };
 }
 
+sub isSimulate(){
+  return $SIMULATE;
+}
+
 sub isRoot(){
-  if($SIMULATE){
+  if(isSimulate()){
     return $ENV{USER} eq "root" ? 1 : 0;
   }else{
     return procChomp("whoami") eq "root" ? 1 : 0;
@@ -809,7 +814,7 @@ sub isRoot(){
 sub getRoot(@){
   if(not isRoot()){
     print "## rerunning as root\n";
-    if($SIMULATE){
+    if(isSimulate()){
       return;
     }else{
       exec "sudo", $0, @_ or die "ERROR: exec sudo failed\n";
@@ -825,7 +830,7 @@ sub getRootSu(@){
     my $cmd = shellQuote($0, @_);
     $cmd = "SUDO_USER=$user $cmd";
 
-    if($SIMULATE){
+    if(isSimulate()){
       return;
     }else{
       exec "su", "-c", $cmd or die "ERROR: exec su failed\n";
@@ -847,7 +852,7 @@ sub installFromGit($$){
 
   my $dir = getSrcCache() . "/$name";
 
-  if($SIMULATE){
+  if(isSimulate()){
     print " install: $gitUrl\n";
     return;
   }
