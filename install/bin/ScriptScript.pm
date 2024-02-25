@@ -843,6 +843,11 @@ sub installFromGit($$){
 
   my $dir = getSrcCache() . "/$name";
 
+  if($SIMULATE){
+    print " install: $gitUrl\n";
+    return;
+  }
+
   if(not -d $dir){
     runUser "mkdir", "-p", $dir;
     runUser "git", "-C", $dir, "clone", $gitUrl, ".";
