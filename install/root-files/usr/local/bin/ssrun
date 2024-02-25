@@ -2,30 +2,47 @@
 use strict;
 use warnings;
 
-my $ssDir = "$ENV{HOME}/install/bin";
+sub globFirstFile($);
 
-sub getScript($);
+my $USAGE = "Usage:
+  $0
+  $0 -h | --help
+    show this message
 
-my $dir = "$ENV{HOME}/install/bin";
-
-my $usage = "Usage:
   $0 SCRIPT_NAME ARGS
-    run '$ssDir/SCRIPT_NAME ARGS'
+    run: ~/install/bin/SCRIPT_NAME ARGS'
 ";
 
 sub main(@){
-  if(@_ > 0){
-    my $scriptName = shift;
-    my @args = @_;
-
-    exec getScript($scriptName), @args;
-  }else{
-    die $usage;
+  if(@_ == 0 or (@_ == 1 and $_[0] =~ /^(-h|--help)$/)){
+    print $USAGE;
+    exit 0;
   }
+  my ($scriptName, @args) = @_;
+
+  my $user = defined $ENV{SUDO_USER} ? $ENV{SUDO_USER} : $ENV{USER};
+  my @ptrns = (
+    "$ENV{HOME}/install/bin/$scriptName",
+    "/home/$user/install/bin/$scriptName",
+    "/home/*/install/bin/$scriptName",
+  );
+
+  my $scriptExec;
+  for my $ptrn(@ptrns){
+    $scriptExec = globFirstFile $ptrn;
+    last if defined $scriptExec;
+  }
+
+  if(not defined $scriptExec){
+    die "ERROR: could not find ~/install/bin/$scriptName\n";
+  }
+
+  exec $scriptExec, @args;
 }
 
-sub getScript($){
-  return "$ssDir/$_[0]";
+sub globFirstFile($){
+  my @files = grep {-f $_} glob $_[0];
+  return @files > 0 ? $files[0] : undef;
 }
 
 &main(@ARGV);
