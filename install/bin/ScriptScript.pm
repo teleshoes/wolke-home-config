@@ -38,6 +38,7 @@ our @EXPORT = qw(
   readConfDir
   installFromGit removeSrcCache removeGitSrcCache extractNameFromGitUrl
   shellQuote
+  versionCmp
   joinLines
   md5sum
   nowMillis
@@ -932,6 +933,38 @@ sub shellQuote(@){
       $str;
     } @_;
   }
+}
+
+sub versionCmp($$){
+  my ($v1, $v2) = @_;
+  if(not defined $v1 and not defined $v2){
+    return 0;
+  }elsif(not defined $v1){
+    return -1;
+  }elsif(not defined $v2){
+    return 1;
+  }
+  my @segmentsV1 = split /\./, $v1;
+  my @segmentsV2 = split /\./, $v2;
+  my $maxSegments = 0+@segmentsV1 > 0+@segmentsV2 ? 0+@segmentsV1 : 0+@segmentsV2;
+
+  for(my $i=0; $i<$maxSegments; $i++){
+    my $segV1 = $i <= $#segmentsV1 ? $segmentsV1[$i] : 0;
+    my $segV2 = $i <= $#segmentsV2 ? $segmentsV2[$i] : 0;
+    my $numV1 = $segV1 =~ /^(\d+)/ ? $1 : 0;
+    my $numV2 = $segV2 =~ /^(\d+)/ ? $1 : 0;
+
+    my $numCmp = $numV1 <=> $numV2;
+    if($numCmp != 0){
+      return $numCmp;
+    }
+    my $strCmp = $segV1 cmp $segV2;
+    if($strCmp != 0){
+      return $strCmp;
+    }
+  }
+
+  return 0;
 }
 
 sub joinLines(@){
