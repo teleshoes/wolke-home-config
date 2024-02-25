@@ -799,7 +799,11 @@ sub editFileIni($$){
 }
 
 sub isRoot(){
-  return procChomp("whoami") eq "root" ? 1 : 0;
+  if($SIMULATE){
+    return $ENV{USER} eq "root" ? 1 : 0;
+  }else{
+    return procChomp("whoami") eq "root" ? 1 : 0;
+  }
 }
 
 sub getRoot(@){
