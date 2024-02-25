@@ -484,9 +484,16 @@ sub symlinkFileProto($$$){
       print "  symlink unchanged $srcPath => $destFile\n";
       return;
     }else{
-      run @sudo, "rm", $destFile;
       print "  symlink $destFile: $oldPath => $srcPath\n";
+      if(not $SIMULATE){
+        run @sudo, "rm", $destFile;
+      }
     }
+  }
+
+  if($SIMULATE){
+    print "  symlink $srcPath => $destFile\n";
+    return;
   }
 
   if(-e $destFile){
