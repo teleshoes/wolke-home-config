@@ -61,7 +61,7 @@ my @SHELL_METACHAR_LIST = (
 );
 my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
-my $SIMULATE = 0;
+my $FORCE_SIMULATE = 0; #or env var SS_SIMULATE=true
 
 sub getScriptNames();
 sub getSubNames();
@@ -800,7 +800,16 @@ sub editFileIni($$){
 }
 
 sub isSimulate(){
-  return $SIMULATE;
+  if($FORCE_SIMULATE){
+    return 1;
+  }
+  my $simulate = $ENV{SS_SIMULATE};
+  $simulate = "" if not defined $simulate;
+  if($simulate eq "" or $simulate =~ /^(0|no|false)$/i){
+    return 0;
+  }else{
+    return 1;
+  }
 }
 
 sub isRoot(){
