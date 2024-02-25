@@ -863,7 +863,7 @@ sub installFromGit($$){
   my $dir = getSrcCache() . "/$name";
 
   if(isSimulate()){
-    print " install: $gitUrl\n";
+    print " install: $gitUrl\n$cmd\n";
     return;
   }
 
