@@ -7,6 +7,8 @@ use ScriptScript;
 my $PREFIX = "/usr/local";
 my $IMAGE_DIR = "/media/stuff/Images/awscli";
 
+my $MIN_VERSION = "2.4.13";
+
 sub main(@) {
   die "Usage: $0\n" if @_ > 0;
 
@@ -16,6 +18,20 @@ sub main(@) {
     "$PREFIX/bin/aws_completer",
     "$PREFIX/aws-cli",
   );
+
+  runAptGet "install", "awscli";
+  my $versionStr = procChomp "aws", "--version";
+  if($versionStr =~ /^aws-cli\/([0-9\.]+)/){
+    my $awsCliVersion = $1;
+    if(versionCmp($awsCliVersion, $MIN_VERSION) >= 0){
+      print "installed with apt ($awsCliVersion >= $MIN_VERSION):\n$versionStr\n";
+      return;
+    }
+  }
+
+  ### version in debian too old, install from amazon
+
+  runAptGet "remove", "awscli";
 
   my $zip = globOne "$IMAGE_DIR/awscli*.zip";
   if(not defined $zip){
