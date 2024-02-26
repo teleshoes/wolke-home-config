@@ -31,7 +31,6 @@ my $GLOGIN_SQL_CONTENTS = ""
 
 
 sub main(@) {
-  getRoot @_;
   print "\n\ninstalling sqlplus deps\n";
   runAptGet "install", "libaio1", "libncurses-dev", "libreadline-dev";
 
@@ -43,15 +42,15 @@ sub main(@) {
 
   print "\n\nremoving and re-installing oracle deb pkgs\n";
   tryrunAptGet "remove", "oracle-instantclient.*";
-  run "dpkg", "-i", $basicDeb;
-  run "dpkg", "-i", $sqlplusDeb;
+  run "sudo", "dpkg", "-i", $basicDeb;
+  run "sudo", "dpkg", "-i", $sqlplusDeb;
 
   print "\n\noverwriting $SQLPLUS_GLOGIN_SQL_FILE\n";
-  writeFile $SQLPLUS_GLOGIN_SQL_FILE, $GLOGIN_SQL_CONTENTS;
+  writeFileSudo $SQLPLUS_GLOGIN_SQL_FILE, $GLOGIN_SQL_CONTENTS;
 
   print "\n\noverwriting $ORACLE_LD_CONF_FILE and running ldconfig\n";
-  writeFile $ORACLE_LD_CONF_FILE, "$SQLPLUS_LIB_DIR/\n";
-  run "ldconfig";
+  writeFileSudo $ORACLE_LD_CONF_FILE, "$SQLPLUS_LIB_DIR/\n";
+  run "sudo", "ldconfig";
 
   print "\n\nupdating sqlplus => sqlplus64 symlink\n";
   my $sqlplus = "/usr/bin/sqlplus";
@@ -59,7 +58,7 @@ sub main(@) {
 
   if(-e $sqlplus64){
     if(not -e $sqlplus or -l $sqlplus){
-      symlinkFile $sqlplus64, $sqlplus;
+      symlinkFileSudo $sqlplus64, $sqlplus;
     }
   }
 }
