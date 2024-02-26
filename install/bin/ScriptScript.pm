@@ -457,11 +457,16 @@ sub getResconfigScale(){
 }
 
 sub getHome(){
-  if(not isRoot()){
-    return $ENV{HOME};
+  my $home;
+  if(not isRoot() && $ENV{HOME} =~ /^\/home/){
+    $home = $ENV{HOME};
   }else{
-    return "/home/" . getUsername();
+    $home = "/home/" . getUsername();
   }
+  if(not -d $home){
+    die "ERROR: $home is not a dir\n";
+  }
+  return $home;
 }
 
 sub getInstallPath($){
