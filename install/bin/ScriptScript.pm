@@ -317,6 +317,7 @@ sub runCommandPty($$@){
       eval { $h->pump_nb }; #eval because pumpable doesn't actually guarantee no error
     }
     if(not defined $out or length $out == 0){
+      $pty->blocking(0);
       $out = <$pty>;
     }
     if(defined $out and length $out > 0){
@@ -326,6 +327,7 @@ sub runCommandPty($$@){
       sleep 0.01; #small delay to decrease busy-wait on input
     }
 
+    $slave->blocking(0);
     <$slave>;
   }
 
