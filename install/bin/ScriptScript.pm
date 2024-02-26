@@ -18,7 +18,7 @@ our @EXPORT_OK = qw();
 our @EXPORT = qw(
   getScriptNames getSubNames
   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
-  run tryrun tryrunSilent
+  run tryrun tryrunSilent runWithStderr
   runUser tryrunUser
   proc procChomp procUser tryproc
   runAptGet tryrunAptGet
@@ -380,6 +380,9 @@ sub runUser(@){
 }
 sub tryrunUser(@){
   return runProto({wrapUserCmd=>1, fatal=>0}, @_);
+}
+sub runWithStderr(@){
+  return runProto({stderrToOut=>0}, @_);
 }
 
 sub proc(@){
