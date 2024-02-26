@@ -31,25 +31,30 @@ set sqlprompt \"&CUSTOM_PROMPT\"
 
 sub main(@) {
   getRoot @_;
+  print "\n\ninstalling sqlplus deps\n";
   runAptGet "install", "libaio1", "libncurses-dev", "libreadline-dev";
 
+  print "\n\ninstalling gqlplus\n";
   runScript "install-src", "gqlplus";
 
   my $basicDeb = getDebAlien "basic", $version;
   my $sqlplusDeb = getDebAlien "sqlplus", $version;
 
+  print "\n\nremoving and re-installing oracle deb pkgs\n";
   tryrunAptGet "remove", "oracle-instantclient.*";
   run "dpkg", "-i", $basicDeb;
   run "dpkg", "-i", $sqlplusDeb;
 
   my $gloginFile = "$libDir/glogin.sql";
-  print "Overwriting $gloginFile\n";
+
+  print "\n\noverwriting $gloginFile\n";
   writeFile $gloginFile, $gloginConf;
 
+  print "\n\noverwriting $ldConf and running ldconfig\n";
   writeFile $ldConf, "$libDir/\n";
-
   run "ldconfig";
 
+  print "\n\nupdating sqlplus => sqlplus64 symlink\n";
   my $sqlplus = "/usr/bin/sqlplus";
   my $sqlplus64 = "/usr/bin/sqlplus64";
 
