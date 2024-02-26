@@ -190,13 +190,13 @@ sub runProto($@){
     wrapUserCmd   => 0,
     printCmd      => 1,
     printOut      => 1,
-    includeErr    => 1,
+    stderrToOut   => 1,
     progressBar   => 1,
     fatal         => 1,
     %$cfg,
   };
   assertDef $cfg, qw(
-    pty chomp returnOut wrapUserCmd printCmd printOut includeErr progressBar fatal);
+    pty chomp returnOut wrapUserCmd printCmd printOut stderrToOut progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
@@ -245,9 +245,9 @@ sub runProto($@){
 
   my $result;
   if($$cfg{pty} and $$MODULE_AVAIL{'IPC::Run'} and $$MODULE_AVAIL{'IO::Pty'}){
-    $result = runCommandPty($$cfg{includeErr}, $outputAction, @cmd);
+    $result = runCommandPty($$cfg{stderrToOut}, $outputAction, @cmd);
   }else{
-    $result = runCommandNoPty($$cfg{includeErr}, $outputAction, @cmd);
+    $result = runCommandNoPty($$cfg{stderrToOut}, $outputAction, @cmd);
   }
 
   if($$cfg{progressBar}){
@@ -285,14 +285,14 @@ sub runProto($@){
   }
 }
 sub runCommandPty($$@){
-  my ($includeErr, $outputAction, @cmd) = @_;
+  my ($stderrToOut, $outputAction, @cmd) = @_;
 
   my $pty = new IO::Pty();
   my $slave = $pty->slave;
   $pty->blocking(0);
   $slave->blocking(0);
 
-  my $pipeOp = $includeErr ? "&>" : ">";
+  my $pipeOp = $stderrToOut ? "&>" : ">";
 
   my $result = {
     success   => undef,
@@ -337,7 +337,7 @@ sub runCommandPty($$@){
   return $result;
 }
 sub runCommandNoPty($$@){
-  my ($includeErr, $outputAction, @cmd) = @_;
+  my ($stderrToOut, $outputAction, @cmd) = @_;
 
   my $result = {
     success   => undef,
@@ -347,7 +347,7 @@ sub runCommandNoPty($$@){
 
   my $pid = open my $fh, "-|";
   if(not $pid){
-    if($includeErr){
+    if($stderrToOut){
       open(STDERR, ">&STDOUT");
     }
     exec @cmd or die "ERROR: cmd '@cmd' failed\n$!\n";
