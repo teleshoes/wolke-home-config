@@ -411,7 +411,7 @@ sub tryrunAptGet(@){
 sub runScript($@){
   my $scriptName = shift;
   my $script = getInstallPath "bin/$scriptName";
-  run $script, @_;
+  runWithStderr $script, @_;
 }
 
 sub getUsername(){
