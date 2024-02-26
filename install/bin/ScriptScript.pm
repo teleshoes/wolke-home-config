@@ -431,7 +431,7 @@ sub getUsername(){
   if(not $user or $user eq "root"){
     die "ERROR: USER or SUDO_USER must be set, and cannot be root";
   }
-  $user
+  return $user;
 }
 
 sub getMachineType(){
