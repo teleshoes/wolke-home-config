@@ -295,9 +295,12 @@ sub runCommandPty($$@){
   my $pipeOp = $stderrToOut ? "&>" : ">";
 
   my $result = {
-    success   => undef,
-    exitCode  => undef,
-    exception => "",
+    success        => undef,
+    exception      => "",
+    exitStatusFull => undef,
+    exitCode       => undef,
+    exitSignalNum  => undef,
+    exitDumpedCore => undef,
   };
 
   my $h = IPC::Run::harness(\@cmd, $pipeOp, $slave);
@@ -330,9 +333,12 @@ sub runCommandPty($$@){
   close $pty;
   close $slave;
 
-  my $exitCode = $h->result;
-  $$result{success} = $exitCode == 0 ? 1 : 0;
-  $$result{exitCode} = $exitCode;
+  $$result{exitStatusFull} = $h->full_result();
+
+  $$result{success} = $$result{exitStatusFull} == 0 ? 1 : 0;
+  $$result{exitCode} = $$result{exitStatusFull} >> 8;
+  $$result{exitSignalNum} = $$result{exitStatusFull} & 127;
+  $$result{exitDumpedCore} = $$result{exitStatusFull} & 128;
 
   return $result;
 }
@@ -340,9 +346,12 @@ sub runCommandNoPty($$@){
   my ($stderrToOut, $outputAction, @cmd) = @_;
 
   my $result = {
-    success   => undef,
-    exitCode  => undef,
-    exception => "",
+    success        => undef,
+    exception      => "",
+    exitStatusFull => undef,
+    exitCode       => undef,
+    exitSignalNum  => undef,
+    exitDumpedCore => undef,
   };
 
   my $pid = open my $fh, "-|";
@@ -357,10 +366,13 @@ sub runCommandNoPty($$@){
     }
     close $fh;
 
-    my $exitCode = $? >> 8;
-    $$result{success} = $exitCode == 0 ? 1 : 0;
-    $$result{exitCode} = $exitCode;
-    $$result{exception} = $! if $exitCode != 0 and defined $!;
+    $$result{exitStatusFull} = $?;
+    $$result{exception} = $! if $$result{exitStatusFull} != 0 and defined $!;
+
+    $$result{success} = $$result{exitStatusFull} == 0 ? 1 : 0;
+    $$result{exitCode} = $$result{exitStatusFull} >> 8;
+    $$result{exitSignalNum} = $$result{exitStatusFull} & 127;
+    $$result{exitDumpedCore} = $$result{exitStatusFull} & 128;
 
     return $result;
   }
