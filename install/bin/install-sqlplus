@@ -7,16 +7,16 @@ use ScriptScript;
 sub getDebAlien($$);
 sub getPkg($$$);
 
-my $version = '19.9.0.0.0';
-my $majMinVersion = $version;
-$majMinVersion =~ s/^(\d+\.\d+).*/$1/;
+my $VERSION = '19.9.0.0.0';
+my $MAJ_MIN_VERSION = $VERSION;
+$MAJ_MIN_VERSION =~ s/^(\d+\.\d+).*/$1/;
 
-my $pkgDir = "/media/stuff/Images/sqlplus";
-my $ldConf = "/etc/ld.so.conf.d/oracle.conf";
-my $libDir = "/usr/lib/oracle/$majMinVersion/client64/lib";
-my $gloginFile = "$libDir/glogin.sql";
+my $PKG_DIR = "/media/stuff/Images/sqlplus";
+my $LD_CONF = "/etc/ld.so.conf.d/oracle.conf";
+my $LIB_DIR = "/usr/lib/oracle/$MAJ_MIN_VERSION/client64/lib";
+my $GLOGIN_FILE = "$LIB_DIR/glogin.sql";
 
-my $gloginConf = "--created by $0
+my $GLOGIN_CONF = "--created by $0
 set pagesize 50000
 set linesize 200
 set timing on
@@ -38,19 +38,19 @@ sub main(@) {
   print "\n\ninstalling gqlplus\n";
   runScript "install-src", "gqlplus";
 
-  my $basicDeb = getDebAlien "basic", $version;
-  my $sqlplusDeb = getDebAlien "sqlplus", $version;
+  my $basicDeb = getDebAlien "basic", $VERSION;
+  my $sqlplusDeb = getDebAlien "sqlplus", $VERSION;
 
   print "\n\nremoving and re-installing oracle deb pkgs\n";
   tryrunAptGet "remove", "oracle-instantclient.*";
   run "dpkg", "-i", $basicDeb;
   run "dpkg", "-i", $sqlplusDeb;
 
-  print "\n\noverwriting $gloginFile\n";
-  writeFile $gloginFile, $gloginConf;
+  print "\n\noverwriting $GLOGIN_FILE\n";
+  writeFile $GLOGIN_FILE, $GLOGIN_CONF;
 
-  print "\n\noverwriting $ldConf and running ldconfig\n";
-  writeFile $ldConf, "$libDir/\n";
+  print "\n\noverwriting $LD_CONF and running ldconfig\n";
+  writeFile $LD_CONF, "$LIB_DIR/\n";
   run "ldconfig";
 
   print "\n\nupdating sqlplus => sqlplus64 symlink\n";
@@ -66,18 +66,18 @@ sub main(@) {
 
 sub getDebAlien($$){
   my ($name, $version) = @_;
-  my $rpm = globOne "$pkgDir/oracle-*-$name*$version-*.rpm";
+  my $rpm = globOne "$PKG_DIR/oracle-*-$name*$version-*.rpm";
   die "Missing shitty oracle instantclient garbage $name v$version\n" if not defined $rpm;
 
-  my $deb = globOne "$pkgDir/oracle-*-$name*$version-*.deb";
+  my $deb = globOne "$PKG_DIR/oracle-*-$name*$version-*.deb";
   if(not defined $deb){
     print "making alien deb for $rpm\n";
-    chdir $pkgDir;
-    $ENV{PWD} = $pkgDir;
+    chdir $PKG_DIR;
+    $ENV{PWD} = $PKG_DIR;
 
     run "alien", "--to-deb", $rpm;
 
-    $deb = globOne "$pkgDir/oracle-*-$name*$version-*.deb";
+    $deb = globOne "$PKG_DIR/oracle-*-$name*$version-*.deb";
 
     run "chown", getUsername() . ".", $deb;
   }
