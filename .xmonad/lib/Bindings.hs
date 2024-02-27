@@ -195,10 +195,10 @@ shortcuts conf = "Shortcuts" @@ do
         "TV pwr toggle" @@ mCA   xK_Ins  #! "ipmagic tv cec-cmd --tv togglestandby"
 
     "CPU"           @@ do
-        "100%"          @@ mCWS  xK_F1   #! "sudo cpu-set 100%"
-        "66%"           @@ mCWS  xK_F2   #! "sudo cpu-set 66%"
-        "33%"           @@ mCWS  xK_F3   #! "sudo cpu-set 33%"
-        "0%"            @@ mCWS  xK_F4   #! "sudo cpu-set 0%"
+        "100%"          @@ mCWS  xK_F1   #! "sudo cpu-set 0% 100%"
+        "66%"           @@ mCWS  xK_F2   #! "sudo cpu-set 0% 66%"
+        "33%"           @@ mCWS  xK_F3   #! "sudo cpu-set 0% 33%"
+        "0%"            @@ mCWS  xK_F4   #! "sudo cpu-set 0% 0%"
 
     "Fan"           @@ do
         "auto"          @@ mW    xK_F5   #! "screen-daemon fan --start && sudo fan default"
