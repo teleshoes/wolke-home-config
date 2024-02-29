@@ -12,6 +12,42 @@ my $INSTALLER_TAR_FILE_GLOB = "/media/stuff/Images/crashplan/CrashPlan*.tgz";
 my $CONSOLE_DOWNLOADS_URL = "https://console.us2.crashplanpro.com/app/#/console/app-downloads";
 my $SERVICE_FILE = "/usr/local/crashplan/bin/CrashPlanService";
 
+sub main(@) {
+  my $installerTarFile = globOne $INSTALLER_TAR_FILE_GLOB;
+
+  my $wantInstall = askUserIfWantInstall($installerTarFile);
+
+  if($wantInstall and defined $installerTarFile){
+    my $tmpDir = "/tmp/crashplan-install-" . nowMillis();
+    run "rm", "-rf", $tmpDir;
+    run "mkdir", "-p", $tmpDir;
+    run "tar", "-C", $tmpDir, "-xf", $installerTarFile;
+
+    print "\n\nNOTE:\n"
+      . "  use location '/usr/local', should be the default\n"
+      . "  should prompt '/usr/local/crashplan', which is correct\n"
+      . "  upgrading works fine\n"
+      ;
+    run "cd $tmpDir/crashplan-install; sudo ./install.sh";
+    run "rm", "-rf", $tmpDir;
+  }
+
+  print "\n\n";
+  my $contents = "";
+  $contents = readFile($SECRETS_FILE) if defined $SECRETS_FILE and -f $SECRETS_FILE;
+  if($contents =~ /^\s*crashplan\.secret\s*=\s*(.+)$/m and -x $GPG_SYM_CMD){
+    my $val = $1;
+    my $gpgSym = procUser $GPG_SYM_CMD, $val;
+    print "crashplan:\n$gpgSym\n";
+  }else{
+    print "no crashplan secret found, hope its in your car\n";
+  }
+
+  run "sudo", "crashplan-fix";
+
+  print "\n\nREMEMBER TO CHANGE THE NAME OF THE FIRST BACKUP SET...\n";
+}
+
 sub askUserIfWantInstall($){
   my ($installerTarFile) = @_;
 
@@ -51,42 +87,6 @@ sub askUserIfWantInstall($){
   }
 
   return $wantInstall;
-}
-
-sub main(@) {
-  my $installerTarFile = globOne $INSTALLER_TAR_FILE_GLOB;
-
-  my $wantInstall = askUserIfWantInstall($installerTarFile);
-
-  if($wantInstall and defined $installerTarFile){
-    my $tmpDir = "/tmp/crashplan-install-" . nowMillis();
-    run "rm", "-rf", $tmpDir;
-    run "mkdir", "-p", $tmpDir;
-    run "tar", "-C", $tmpDir, "-xf", $installerTarFile;
-
-    print "\n\nNOTE:\n"
-      . "  use location '/usr/local', should be the default\n"
-      . "  should prompt '/usr/local/crashplan', which is correct\n"
-      . "  upgrading works fine\n"
-      ;
-    run "cd $tmpDir/crashplan-install; sudo ./install.sh";
-    run "rm", "-rf", $tmpDir;
-  }
-
-  print "\n\n";
-  my $contents = "";
-  $contents = readFile($SECRETS_FILE) if defined $SECRETS_FILE and -f $SECRETS_FILE;
-  if($contents =~ /^\s*crashplan\.secret\s*=\s*(.+)$/m and -x $GPG_SYM_CMD){
-    my $val = $1;
-    my $gpgSym = procUser $GPG_SYM_CMD, $val;
-    print "crashplan:\n$gpgSym\n";
-  }else{
-    print "no crashplan secret found, hope its in your car\n";
-  }
-
-  run "sudo", "crashplan-fix";
-
-  print "\n\nREMEMBER TO CHANGE THE NAME OF THE FIRST BACKUP SET...\n";
 }
 
 &main(@ARGV);
