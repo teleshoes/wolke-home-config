@@ -116,7 +116,7 @@ fi
 # aliases
 for cmd in wconnect wauto tether resolv \
            mnt optimus xorg-conf bluetooth fan intel-pstate flasher \
-           tpacpi-bat sbox-umount
+           sbox-umount
 do alias $cmd="sudo $cmd"; done
 
 for sudoTypo in suod sudp
@@ -183,6 +183,10 @@ function mp           { mpv "$@"; }
 function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
   livestreamer "$@" $default_quality
+}
+
+function tpacpi-bat {
+  thinkpad-acpi-charge "$@";
 }
 
 function gimp         { flatpak run org.gimp.GIMP "$@"; }
