@@ -23,11 +23,14 @@ sub main(@) {
   my $defaultsConfContents = getDefaultsSudoersConfForUser $user;
   writeFile $defaultsConfFile, $defaultsConfContents;
 
-  my $confDir = getInstallPath "sudo-nopasswd";
-  my %confs = readConfDir $confDir;
-  for my $sufix (sort keys %confs) {
-    my $cnts = getNoPasswdSudoersConfForUser($user, @{$confs{$sufix}});
-    writeFile "$SUDOERS_CONF_DIR/$user-nopasswd-$sufix", "$cnts";
+  my $nopasswdEntriesDir = getInstallPath "sudo-nopasswd";
+  my %entriesByName = readConfDir $nopasswdEntriesDir;
+  for my $name(sort keys %entriesByName){
+    my @entries = @{$entriesByName{$name}};
+    my $nopasswdConfFile = "$SUDOERS_CONF_DIR/$user-nopasswd-$name";
+    my $nopasswdConfContents = getNoPasswdSudoersConfForUser($user, @entries);
+
+    writeFile $nopasswdConfFile, $nopasswdConfContents;
   }
 
   run "chmod 440 /etc/sudoers.d/*";
