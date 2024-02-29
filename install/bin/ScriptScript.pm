@@ -460,7 +460,7 @@ sub getResconfigScale(){
 
 sub getHome(){
   my $home;
-  if(not isRoot() && $ENV{HOME} =~ /^\/home/){
+  if(not isRoot() and $ENV{HOME} =~ /^\/home/){
     $home = $ENV{HOME};
   }else{
     $home = "/home/" . getUsername();
