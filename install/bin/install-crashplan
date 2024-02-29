@@ -5,6 +5,7 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
 sub askUserIfWantInstall($);
+sub installCrashplanFromTar($);
 
 my $GPG_SYM_CMD = getHome() . "/bin/gpg-sym";
 my $SECRETS_FILE = getHome() . "/.secrets";
@@ -18,18 +19,7 @@ sub main(@) {
   my $wantInstall = askUserIfWantInstall($installerTarFile);
 
   if($wantInstall and defined $installerTarFile){
-    my $tmpDir = "/tmp/crashplan-install-" . nowMillis();
-    run "rm", "-rf", $tmpDir;
-    run "mkdir", "-p", $tmpDir;
-    run "tar", "-C", $tmpDir, "-xf", $installerTarFile;
-
-    print "\n\nNOTE:\n"
-      . "  use location '/usr/local', should be the default\n"
-      . "  should prompt '/usr/local/crashplan', which is correct\n"
-      . "  upgrading works fine\n"
-      ;
-    run "cd $tmpDir/crashplan-install; sudo ./install.sh";
-    run "rm", "-rf", $tmpDir;
+    installFromTar($installerTarFile);
   }
 
   print "\n\n";
@@ -87,6 +77,23 @@ sub askUserIfWantInstall($){
   }
 
   return $wantInstall;
+}
+
+sub installCrashplanFromTar($){
+  my ($installerTarFile) = @_;
+
+  my $tmpDir = "/tmp/crashplan-install-" . nowMillis();
+  run "rm", "-rf", $tmpDir;
+  run "mkdir", "-p", $tmpDir;
+  run "tar", "-C", $tmpDir, "-xf", $installerTarFile;
+
+  print "\n\nNOTE:\n"
+    . "  use location '/usr/local', should be the default\n"
+    . "  should prompt '/usr/local/crashplan', which is correct\n"
+    . "  upgrading works fine\n"
+    ;
+  run "cd $tmpDir/crashplan-install; sudo ./install.sh";
+  run "rm", "-rf", $tmpDir;
 }
 
 &main(@ARGV);
