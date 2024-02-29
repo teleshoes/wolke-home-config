@@ -935,8 +935,11 @@ sub removeGitSrcCache($){
 sub extractNameFromGitUrl($){
   my ($gitUrl) = (@_);
   my $name;
-  if($gitUrl =~ /(?:^|\/)   ([a-zA-Z0-9_\.\-]+)   (?:\.git)?$/x){
+  if($gitUrl =~ /(?:^|\/)   ([a-zA-Z0-9_\.\-]+)$/x){
     $name = $1;
+    if($name =~ /^(.+)\.git$/){
+      $name = $1;
+    }
   }else{
     die "could not parse repo name from last element of git URL:\n$gitUrl\n";
   }
