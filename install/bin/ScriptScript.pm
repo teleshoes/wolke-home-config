@@ -879,13 +879,13 @@ sub readConfDir($){
 }
 
 sub installFromGit($$){
-  my ($gitUrl, $cmd) = @_;
+  my ($gitUrl, $installActionSub) = @_;
   my $name = extractNameFromGitUrl $gitUrl;
 
   my $dir = getSrcCache() . "/$name";
 
   if(isSimulate()){
-    print " install: $gitUrl\n$cmd\n";
+    print " install: $gitUrl\n";
     return;
   }
 
@@ -900,24 +900,47 @@ sub installFromGit($$){
     die "ERROR: $dir exists but is not a git repo\n";
   }
 
-  if(not defined $cmd or $cmd eq ""){
+  #allow passing in a string command instead of a CODE ref
+  if(defined $installActionSub and ref $installActionSub ne "CODE"){
+    my $cmd = $installActionSub;
+    $installActionSub = sub{
+      my ($dir) = @_;
+      runUser "cd '$dir' && $cmd";
+    };
+  }
+
+  if(not defined $installActionSub){
     my @files = globFiles "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and $_ =~ /^$dir\/install/} @files;
     if(@cabalFiles > 0){
-      $cmd = "cabal install -j";
+      $installActionSub = sub{
+        my ($dir) = @_;
+        runUser("sh", "-c", "cd $dir && cabal install -j");
+      };
     }elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
-      $cmd = "make -j all && sudo make install";
+      $installActionSub = sub{
+        my ($dir) = @_;
+        runUser("make", "-C", $dir, "-j", "all");
+        run("sudo", "make", "-C", $dir, "install");
+      };
     }elsif(tryrunSilent("make", "-C", $dir, "-n")){
-      $cmd = "make -j && sudo make install";
+      $installActionSub = sub{
+        my ($dir) = @_;
+        runUser("make", "-C", $dir, "-j");
+        run("sudo", "make", "-C", $dir, "install");
+      };
     }elsif(@installCmds == 1){
-      $cmd = $installCmds[0];
+      $installActionSub = sub{
+        my ($dir) = @_;
+        runUser("sh", "-c", "cd $dir && $installCmds[0]")
+      };
     }else{
       die "### no install file in $dir";
     }
   }
 
-  runUser "cd '$dir' && $cmd";
+  &$installActionSub($dir);
 }
 
 sub removeSrcCache($){
