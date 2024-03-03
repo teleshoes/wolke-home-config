@@ -7,139 +7,176 @@ use ScriptScript;
 sub install($);
 
 my @INSTALLS_ARR = (
-  ['arduino-cli' => "https://github.com/arduino/arduino-cli" => ''
-      . " rm -f ~/.cache/go-build/trim.txt; "
-      . " go build && sudo GOBIN=/usr/local/bin go install; "
-  ],
+  ['arduino-cli' => "https://github.com/arduino/arduino-cli" => sub{
+    my ($dir) = @_;
+    runUser "rm", "-f", getHome() . "/.cache/go-build/trim.txt";
+    runUser "go", "build", "-C", $dir;
+    runUser "sudo GOBIN=/usr/local/bin go install -C '$dir'";
+  }],
 
-  ['git-filter-repo' => "https://github.com/newren/git-filter-repo" => ''
-      . " sudo cp git-filter-repo /usr/local/bin"
-  ],
+  ['git-filter-repo' => "https://github.com/newren/git-filter-repo" => sub{
+    my ($dir) = @_;
+    run "sudo", "cp", "$dir/git-filter-repo", "/usr/local/bin";
+  }],
 
-  ['coolreader' => "https://github.com/teleshoes/coolreader" => ''
-      . " sudo apt install build-essential git cmake curl pkg-config zlib1g-dev libpng-dev"
-      . "   libjpeg-dev libfreetype6-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev"
-      . "   libunibreak-dev libzstd-dev libutf8proc-dev"
-      . " ;"
-      . " sudo apt install qtbase5-dev qttools5-dev;"
-      . " mkdir qtbuild;"
-      . " cmake"
-      . "   -B qtbuild"
-      . "   -D GUI=QT5"
-      . "   -D CMAKE_BUILD_TYPE=Release"
-      . "   -D MAX_IMAGE_SCALE_MUL=2"
-      . "   -D DOC_DATA_COMPRESSION_LEVEL=3"
-      . "   -D DOC_BUFFER_SIZE=0x1400000"
-      . "   -D CMAKE_INSTALL_PREFIX=/usr"
-      . "   ."
-      . " &&"
-      . " make -C qtbuild && sudo make -C qtbuild install"
-  ],
+  ['coolreader' => "https://github.com/teleshoes/coolreader" => sub{
+    my ($dir) = @_;
+    runAptGet "install", qw(
+      build-essential git cmake curl pkg-config zlib1g-dev libpng-dev
+      libjpeg-dev libfreetype6-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev
+      libunibreak-dev libzstd-dev libutf8proc-dev);
+    runAptGet "install", "qtbase5-dev", "qttools5-dev";
+    runUser "mkdir", "-p", "$dir/qtbuild";
+    runUser "cmake",
+      "-B", "$dir/qtbuild",
+      "-D", "GUI=QT5",
+      "-D", "CMAKE_BUILD_TYPE=Release",
+      "-D", "MAX_IMAGE_SCALE_MUL=2",
+      "-D", "DOC_DATA_COMPRESSION_LEVEL=3",
+      "-D", "DOC_BUFFER_SIZE=0x1400000",
+      "-D", "CMAKE_INSTALL_PREFIX=/usr",
+      "$dir";
+    runUser "make", "-C", "$dir/qtbuild";
+    run "sudo", "make", "-C", "$dir/qtbuild", "install";
+  }],
 
-  ['pico-lcd-msg' => "https://github.com/teleshoes/pico-lcd" => ''
-      . " sudo ./install-pico-lcd-msg.sh;"
-  ],
+  ['pico-lcd-msg' => "https://github.com/teleshoes/pico-lcd" => sub{
+    my ($dir) = @_;
+    run "cd '$dir' && sudo ./install-pico-lcd-msg.sh";
+  }],
 
   ['wm-class-tool' => "https://github.com/teleshoes/wm-class-tool" => undef],
 
   ['lazygit' => "https://github.com/jesseduffield/lazygit" => undef],
 
-  ['lenovo-throttling-fix' => "https://github.com/erpalma/lenovo-throttling-fix" => ''
-      . " sudo ./install.sh;"
-      . " echo; echo; echo 'attempting disable systemctl';"
-      . " sudo systemctl stop lenovo_fix || echo ok;"
-      . " sudo systemctl disable lenovo_fix || echo ok;"
-  ],
+  ['lenovo-throttling-fix' => "https://github.com/erpalma/lenovo-throttling-fix" => sub{
+    my ($dir) = @_;
+    run "cd $dir && sudo ./install.sh";
+    print "\n\nattempting disable systemctl\n";
+    tryrun "sudo", "systemctl", "stop", "lenovo_fix";
+    tryrun "sudo", "systemctl", "disable", "lenovo_fix";
+    print "ok\n";
+  }],
 
-  ['pidgin-hide-chat-on-join' => "https://github.com/kgraefe/pidgin-hide-chat-on-join" => ''
-      . " sudo apt-get install pidgin-dev intltool;"
-      . " ./autogen.sh;"
-      . " ./configure --prefix=/usr;"
-      . " make;"
-      . " sudo make install;"
-  ],
+  ['pidgin-hide-chat-on-join' => "https://github.com/kgraefe/pidgin-hide-chat-on-join" => sub{
+    my ($dir) = @_;
+    runAptGet "install", "pidgin-dev", "intltool";
+    runUser "cd $dir && ./autogen.sh";
+    runUser "cd $dir && ./configure --prefix=/usr";
+    runUser "make", "-C", $dir;
+    run "sudo", "make", "-C", $dir, "install";
+  }],
 
   ['pidgin-pipe-status' => "https://github.com/teleshoes/pidgin-pipe-status" => undef],
 
-  ['purple-matrix' => "https://github.com/teleshoes/purple-matrix" => ''
-      . " sudo apt-get install"
-      . "    libpurple-dev libjson-glib-dev libglib2.0-dev libhttp-parser-dev"
-      . "    libsqlite3-dev libolm-dev libgcrypt20-dev"
-      . " ;"
-      . " make clean && make -j8 && sudo make install;"
-  ],
+  ['purple-matrix' => "https://github.com/teleshoes/purple-matrix" => sub{
+    my ($dir) = @_;
+    runAptGet "install", qw(
+      libpurple-dev libjson-glib-dev libglib2.0-dev libhttp-parser-dev
+      libsqlite3-dev libolm-dev libgcrypt20-dev
+    );
+    runUser "make", "-C", $dir, "clean";
+    runUser "make", "-C", $dir, "-j", "8";
+    run "sudo", "make", "-C", $dir, "install";
+  }],
 
-  ['gqlplus' => "https://github.com/teleshoes/gqlplus" => ''
-      . " ./configure && make && sudo cp gqlplus /usr/bin"
-  ],
+  ['gqlplus' => "https://github.com/teleshoes/gqlplus" => sub{
+    my ($dir) = @_;
+    runUser "cd $dir && ./configure";
+    runUser "make", "-C", $dir;
+    run "sudo", "cp", "$dir/gqlplus", "/usr/bin";
+  }],
 
   ['chatpop-pidgin' => "https://github.com/teleshoes/chatpop-pidgin" => undef],
 
-  ['qtemail' => "https://github.com/teleshoes/qtemail" => ''
-      . " ./dependencies-install.pl;"
-      . " ./encodings-install.sh;"
-      . " ./install.sh;"
-  ],
+  ['qtemail' => "https://github.com/teleshoes/qtemail" => sub{
+    my ($dir) = @_;
+    runUser "cd $dir && ./dependencies-install.pl";
+    runUser "cd $dir && ./encodings-install.sh";
+    runUser "cd $dir && ./install.sh";
+  }],
 
-  ['mhonarc' => "https://github.com/sympa-community/MHonArc" => ''
-      . " perl Makefile.PL"
-      . " && make"
-      . " && sudo make install"
-  ],
+  ['mhonarc' => "https://github.com/sympa-community/MHonArc" => sub{
+    my ($dir) = @_;
+    runUser "cd $dir && perl Makefile.PL";
+    runUser "make", "-C", $dir;
+    run "sudo", "make", "-C", $dir, "install";
+  }],
 
-  ['feh' => "https://github.com/derf/feh" => ''
-      . " sudo apt-get install libexif-dev libimlib2-dev libcurl4-openssl-dev;"
-      . " make clean && make -j all PREFIX=/usr exif=1 && sudo make install PREFIX=/usr;"
-  ],
+  ['feh' => "https://github.com/derf/feh" => sub{
+    my ($dir) = @_;
+    runAptGet "install", qw(libexif-dev libimlib2-dev libcurl4-openssl-dev);
+    runUser "make", "-C", $dir, "clean";
+    runUser "make", "-C", $dir, "-j", "all", "PREFIX=/usr", "exif=1";
+    run "sudo", "make", "-C", $dir, "install", "PREFIX=/usr";
+  }],
 
-  ['ddwrt-nvram-tools' => "https://github.com/tknarr/ddwrt-nvram-tools" => ''
-      . " make && sudo cp nvram_build nvram_dump /usr/bin/;"
-  ],
+  ['ddwrt-nvram-tools' => "https://github.com/tknarr/ddwrt-nvram-tools" => sub{
+    my ($dir) = @_;
+    runUser "make", "-C", $dir;
+    run "sudo", "cp", "$dir/nvram_build", "$dir/nvram_dump", "/usr/bin/";
+  }],
 
-  ['pyeconet' => "https://github.com/teleshoes/pyeconet" => ''
-      . "pip install --break-system-packages ."
-  ],
+  ['pyeconet' => "https://github.com/teleshoes/pyeconet" => sub{
+    my ($dir) = @_;
+    runUser "pip", "install", "--break-system-packages", $dir;
+  }],
 
-  ['midea-beautiful-air' => "https://github.com/teleshoes/midea-beautiful-air" => ''
-      . "pip install --break-system-packages ."
-  ],
+  ['midea-beautiful-air' => "https://github.com/teleshoes/midea-beautiful-air" => sub{
+    my ($dir) = @_;
+    runUser "pip", "install", "--break-system-packages", $dir;
+  }],
 
-  ['iguanair' => "https://github.com/iguanaworks/iguanair" => ''
-      . " sudo apt-get install libusb-1.0-0-dev swig;"
-      . " cd software/usb_ir;"
-      . " cmake -B software/usb_ir software/usb_ir;"
+  ['iguanair' => "https://github.com/iguanaworks/iguanair" => sub{
+    my ($dir) = @_;
+    runAptGet "install", "libusb-1.0-0-dev", "swig";
+    my $usbIRDir = "$dir/software/usb_ir";
+    runUser "cmake",
+      "-B", $usbIRDir,
+      $usbIRDir;
+
     #concurrent build fails sometimes with:
     #  iguanair/software/usb_ir/logging.c:16:10: fatal error: version.h:
     #    No such file or directory
-      . " make -C software/usb_ir -j 1;"
-      . " sudo make -C software/usb_ir install;"
-  ],
+    runUser "make", "-C", $usbIRDir, "-j", 1;
 
-  ['hexahopscoredump' => "https://github.com/teleshoes/hex-a-hop" => ''
-      . " git checkout scoredump;"
-      . " sudo apt-get install hex-a-hop libsdl-pango-dev libsdl-ttf2.0-dev libsdl-mixer1.2-dev libsdl-image1.2-dev;"
+    run "sudo", "make", "-C", $usbIRDir, "install";
+  }],
+
+  ['hexahopscoredump' => "https://github.com/teleshoes/hex-a-hop" => sub{
+    my ($dir) = @_;
+    runAptGet "install", qw(
+      hex-a-hop libsdl-pango-dev libsdl-ttf2.0-dev libsdl-mixer1.2-dev libsdl-image1.2-dev
+    );
+    runUser "git", "-C", $dir, "checkout", "scoredump";
+    runUser "cd $dir && ./autogen.sh";
+    runUser "cd $dir && ./configure";
+
     #concurrent build fails sometimes
-      . " ./autogen.sh && ./configure && make -j 1;"
-      . " sudo cp src/hex-a-hop-scoredump /usr/bin"
-  ],
+    runUser "make", "-C", $dir, "-j", 1;
+
+    run "sudo", "cp", "$dir/src/hex-a-hop-scoredump", "/usr/bin";
+  }],
 
   ['tvchan' => "https://github.com/teleshoes/tvchan" => undef],
 
   ['net' => "https://github.com/teleshoes/net" => undef],
 
-  ['klomp' => "https://github.com/teleshoes/klomp" => ''
-      . " ./dependency-install.pl;"
-      . " ./install.pl;"
-  ],
+  ['klomp' => "https://github.com/teleshoes/klomp" => sub{
+    my ($dir) = @_;
+    runUser "cd $dir && ./dependency-install.pl";
+    runUser "cd $dir && ./install.pl";
+  }],
 
   ['qtbtn' => "https://github.com/teleshoes/qtbtn" => undef],
 
   ['qtbigtext' => "https://github.com/teleshoes/qtbigtext" => undef],
 
-  ['hhpc' => "https://github.com/aktau/hhpc" => ''
-      . " make;"
-      . " sudo cp hhpc /usr/local/bin;"
-  ],
+  ['hhpc' => "https://github.com/aktau/hhpc" => sub{
+    my ($dir) = @_;
+    runUser "make", "-C", $dir;
+    run "sudo", "cp", "$dir/hhpc", "/usr/local/bin";
+  }],
 );
 
 my @INSTALL_NAMES = map {$$_[0]} @INSTALLS_ARR;
