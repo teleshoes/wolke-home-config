@@ -11,6 +11,7 @@ my $MODULE_AVAIL = {
   'IO::Pty'              => defined eval{require IO::Pty},
   'IPC::Run'             => defined eval{require IPC::Run},
   'String::ShellQuote'   => defined eval{require String::ShellQuote},
+  'B::Deparse'           => defined eval{require B::Deparse},
 };
 
 our @ISA = qw(Exporter);
@@ -886,6 +887,23 @@ sub installFromGit($$){
 
   if(isSimulate()){
     print " install: $gitUrl\n";
+    if(defined $installActionSub and $$MODULE_AVAIL{'B::Deparse'}){
+      my $str;
+      if(ref $installActionSub eq "CODE"){
+        $str = B::Deparse->new()->coderef2text($installActionSub);
+      }else{
+        $str = $installActionSub;
+      }
+      my @lines = split /[\r\n]+/, $str;
+      if($lines[0] =~ /^{$/ and $lines[-1] =~ /^}$/){
+        shift @lines;
+        pop @lines;
+      }
+      @lines = grep {$_ !~ /^\s*use (warnings|strict);$/} @lines;
+      @lines = map {s/^    /   # /; $_} @lines;
+      $str = join '', map {"$_\n"} @lines;
+      print $str;
+    }
     return;
   }
 
