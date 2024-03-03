@@ -965,7 +965,7 @@ sub installFromGit($$){
     }elsif(@installCmds == 1){
       $installActionSub = sub{
         my ($dir) = @_;
-        runUser("sh", "-c", "cd $dir && $installCmds[0]")
+        runUserNoPty("sh", "-c", "cd $dir && $installCmds[0]")
       };
     }else{
       die "### no install file in $dir";
