@@ -931,10 +931,16 @@ sub installFromGit($$){
     my @files = globFiles "$dir/*";
     my @cabalFiles = grep {/^$dir\/.*\.cabal$/} @files;
     my @installCmds = grep {-x $_ and $_ =~ /^$dir\/install/} @files;
+    my @goModFiles = grep {/^$dir\/go\.mod$/} @files;
     if(@cabalFiles > 0){
       $installActionSub = sub{
         my ($dir) = @_;
         runUser("sh", "-c", "cd $dir && cabal install -j");
+      };
+    }elsif(@goModFiles > 0){
+      $installActionSub = sub{
+        my ($dir) = @_;
+        runUser "go", "install", "-C", $dir;
       };
     }elsif(tryrunSilent("make", "-C", $dir, "-n", "all")){
       $installActionSub = sub{
