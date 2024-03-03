@@ -19,7 +19,7 @@ our @EXPORT_OK = qw();
 our @EXPORT = qw(
   getScriptNames getSubNames
   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
-  run tryrun tryrunSilent runWithStderr runNoPty
+  run tryrun runSudo tryrunSudo tryrunSilent runWithStderr runNoPty
   runUser tryrunUser runUserNoPty
   proc procChomp procUser tryproc
   runAptGet tryrunAptGet
@@ -78,6 +78,8 @@ sub runCommandPty($$@);
 sub runCommandNoPty($$@);
 sub run(@);
 sub tryrun(@);
+sub runSudo(@);
+sub tryrunSudo(@);
 sub runNoPty(@);
 sub tryrunSilent(@);
 sub runUser(@);
@@ -190,6 +192,7 @@ sub runProto($@){
     pty           => 1,
     chomp         => 0,
     returnOut     => 0,
+    wrapSudoCmd   => 0,
     wrapUserCmd   => 0,
     printCmd      => 1,
     printOut      => 1,
@@ -199,10 +202,14 @@ sub runProto($@){
     %$cfg,
   };
   assertDef $cfg, qw(
-    pty chomp returnOut wrapUserCmd printCmd printOut stderrToOut progressBar fatal);
+    pty chomp returnOut wrapSudoCmd wrapUserCmd printCmd printOut stderrToOut progressBar fatal);
 
   if(@cmd == 1 and $cmd[0] =~ /$SHELL_METACHAR_REGEX/){
     @cmd = ("/bin/sh", "-c", "@cmd");
+  }
+
+  if($$cfg{wrapSudoCmd} and not isRoot()){
+    @cmd = ("sudo", @cmd);
   }
 
   if($$cfg{wrapUserCmd} and isRoot()){
@@ -388,6 +395,12 @@ sub run(@){
 }
 sub tryrun(@){
   return runProto({fatal=>0}, @_);
+}
+sub runSudo(@){
+  return runProto({wrapSudoCmd=>1}, @_);
+}
+sub tryrunSudo(@){
+  return runProto({wrapSudoCmd=>1, fatal=>0}, @_);
 }
 sub runNoPty(@){
   return runProto({pty=>0}, @_);
