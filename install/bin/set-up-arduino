@@ -3,13 +3,14 @@ use strict;
 use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
+use File::Basename qw(basename);
 
 sub main(@){
 #  run "sudo", "apt-get", "install", "arduino";
 
   my $home = getHome();
   my $user = getUsername();
-  my $libDir = "$home/Arduino/libraries";
+  my $destLibDir = "$home/Arduino/libraries";
 
   runScript "install-src", "arduino-cli";
 
@@ -17,11 +18,15 @@ sub main(@){
 
   run "arduino-cli", "core", "install", "arduino:avr";
 
-  run "mkdir", "-p", $libDir;
+  run "mkdir", "-p", $destLibDir;
 
-  installFromGit("https://github.com/cyborg5/IRLib2",
-    "rsync -avP ./IRLib* $libDir"
-  );
+  installFromGit("https://github.com/cyborg5/IRLib2", sub{
+    my ($dir) = @_;
+    my @libDirNames = map {basename $_} globDirs "$dir/IRLib*";
+    for my $name(@libDirNames){
+      runUser "rsync", "-avP", "$dir/$name/", "$destLibDir/$name/";
+    }
+  });
 }
 
 &main(@ARGV);
