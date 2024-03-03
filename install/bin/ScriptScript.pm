@@ -896,12 +896,7 @@ sub installFromGit($$){
   if(isSimulate()){
     print " install: $gitUrl\n";
     if(defined $installActionSub and $$MODULE_AVAIL{'B::Deparse'}){
-      my $str;
-      if(ref $installActionSub eq "CODE"){
-        $str = B::Deparse->new()->coderef2text($installActionSub);
-      }else{
-        $str = $installActionSub;
-      }
+      my $str = B::Deparse->new()->coderef2text($installActionSub);
       my @lines = split /[\r\n]+/, $str;
       if($lines[0] =~ /^{$/ and $lines[-1] =~ /^}$/){
         shift @lines;
@@ -924,15 +919,6 @@ sub installFromGit($$){
     runUser "git", "-C", $dir, "pull";
   }else{
     die "ERROR: $dir exists but is not a git repo\n";
-  }
-
-  #allow passing in a string command instead of a CODE ref
-  if(defined $installActionSub and ref $installActionSub ne "CODE"){
-    my $cmd = $installActionSub;
-    $installActionSub = sub{
-      my ($dir) = @_;
-      runUser "cd '$dir' && $cmd";
-    };
   }
 
   if(not defined $installActionSub){
