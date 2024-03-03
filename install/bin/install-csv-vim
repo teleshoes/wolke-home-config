@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
+use File::Basename qw(dirname);
 
 my $VIM_DIR = "$ENV{HOME}/.vim";
 my $GIT_REPO = "https://github.com/chrisbra/csv.vim";
@@ -24,36 +25,34 @@ my $USAGE = "Usage:
 ";
 
 sub main(@) {
-  my @cmds;
-
-  push @cmds, "echo INSTALLING csv.vim";
-
+  print "\nINSTALLING csv.vim\n";
   my @dirs = grep {/\//} @FILES;
   s/\/.*// foreach @dirs;
 
-  push @cmds, "echo REMOVING FILES";
+  print "\nREMOVING FILES\n";
   for my $file(@FILES){
-    push @cmds, "rm -f $VIM_DIR/$file";
+    runUser "rm", "-f", "$VIM_DIR/$file";
   }
 
-  for my $dir(@dirs){
-    push @cmds, "mkdir -p $VIM_DIR/$dir";
-  }
+  installFromGit $GIT_REPO, sub{
+    my ($dir) = @_;
+    print "\nCOPYING FILES\n";
+    for my $file(@FILES){
+      if($file =~ /\//){
+        my $dir = $file;
+        $dir = dirname $dir;
+        runUser "mkdir", "-p", "$VIM_DIR/$dir";
+      }
+      runUser "cp", "-a", "$dir/$file", "$VIM_DIR/$file";
+    }
+  };
 
-  push @cmds, "echo COPYING FILES";
-  for my $file(@FILES){
-    push @cmds, "cp $file $VIM_DIR/$file";
-  }
+  print "\nDISABLING AUTO-SYNTAX AND FILETYPE DETECTION\n";
+  runUser "mv", "$VIM_DIR/syntax/csv.vim", "$VIM_DIR/csv-syntax.vim";
+  runUser "sed", "-i", "s/^au/\"au/", "$VIM_DIR/ftdetect/csv.vim";
 
-  push @cmds, "echo DISABLING AUTO-SYNTAX AND FILETYPE DETECTION";
-  push @cmds, "mv $VIM_DIR/syntax/csv.vim $VIM_DIR/csv-syntax.vim";
-  push @cmds, "sed -i 's/^au/\"au/' $VIM_DIR/ftdetect/csv.vim";
-
-  push @cmds, "rmdir --ignore-fail-on-non-empty $VIM_DIR/*/";
-
-  my $cmd = join " \\\n && ", @cmds;
-
-  installFromGit $GIT_REPO, $cmd;
+  print "\n";
+  runUser "rmdir --ignore-fail-on-non-empty $VIM_DIR/*/";
 
   print "\n";
 
