@@ -523,7 +523,7 @@ sub symlinkFileProto($$$){
     $srcPath = File::Spec->abs2rel($srcPath, $destDir);
   }
 
-  my @sudo = $$cfg{sudo} ? ("sudo") : ();
+  my @sudoMaybe = $$cfg{sudo} ? @SUDO_CMD : ();
 
   #allow replacing existing symlinks
   if(-l $destFile){
@@ -534,7 +534,7 @@ sub symlinkFileProto($$$){
     }else{
       print "  symlink $destFile: $oldPath => $srcPath\n";
       if(not isSimulate()){
-        run @sudo, "rm", $destFile;
+        run @sudoMaybe, "rm", $destFile;
       }
     }
   }
@@ -548,7 +548,7 @@ sub symlinkFileProto($$$){
     die "ERROR: symlink file $destFile already exists\n";
   }
 
-  run @sudo, "ln", "-s", $srcPath, $destFile;
+  run @sudoMaybe, "ln", "-s", $srcPath, $destFile;
 
   if(not -l $destFile){
     die "ERROR: symlink file $destFile does not exist after creation\n";
