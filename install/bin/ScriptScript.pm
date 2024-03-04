@@ -607,7 +607,7 @@ sub writeFileProto($$$){
   my $fh;
   my $status;
   if($$cfg{sudo} and not isRoot()){
-    $status = open $fh, "|-", "sudo", "tee", $file;
+    $status = open $fh, "|-", @SUDO_CMD, "tee", $file;
   }else{
     $status = open $fh, ">", $file;
   }
@@ -646,7 +646,7 @@ sub readFileProto($$){
   my $fh;
   my $status;
   if($$cfg{sudo} and not isRoot()){
-    $status = open $fh, "-|", "sudo", "cat", $file;
+    $status = open $fh, "-|", @SUDO_CMD, "cat", $file;
   }else{
     $status = open $fh, "<", $file;
   }
