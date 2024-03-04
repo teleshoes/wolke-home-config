@@ -65,7 +65,7 @@ my $SHELL_METACHAR_REGEX = "[" . join("", @SHELL_METACHAR_LIST) . "]";
 
 my $FORCE_SIMULATE = 0; #or env var SS_SIMULATE=true
 
-my @SUDO_CMD = ("sudo");
+my @SUDO_CMD = ("sudo", "-S");
 
 sub getScriptNames();
 sub getSubNames();
