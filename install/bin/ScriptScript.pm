@@ -873,7 +873,7 @@ sub getRoot(@){
     if(isSimulate()){
       return;
     }else{
-      exec "sudo", $0, @_ or die "ERROR: exec sudo failed\n";
+      exec @SUDO_CMD, $0, @_ or die "ERROR: exec sudo failed\n";
     }
   }
 }
