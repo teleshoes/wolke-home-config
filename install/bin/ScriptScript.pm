@@ -211,11 +211,11 @@ sub runProto($@){
   }
 
   if($$cfg{wrapSudoCmd} and not isRoot()){
-    @cmd = ("sudo", @cmd);
+    @cmd = (@SUDO_CMD, @cmd);
   }
 
   if($$cfg{wrapUserCmd} and isRoot()){
-    @cmd = ("sudo", "-u", getUsername(), @cmd);
+    @cmd = (@SUDO_CMD, "-u", getUsername(), @cmd);
   }
 
   print "@cmd\n" if $$cfg{printCmd};
