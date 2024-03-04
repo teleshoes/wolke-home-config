@@ -435,12 +435,12 @@ sub tryproc(@){
 }
 
 sub runAptGet(@){
-  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
-  run @cmd;
+  my @cmd = ("apt-get", @_);
+  runSudo @cmd;
 }
 sub tryrunAptGet(@){
-  my @cmd = isRoot() ? ("apt-get", @_) : ("sudo", "apt-get", @_);
-  tryrun @cmd;
+  my @cmd = ("apt-get", @_);
+  tryrunSudo @cmd;
 }
 
 
@@ -953,13 +953,13 @@ sub installFromGit($$){
       $installActionSub = sub{
         my ($dir) = @_;
         runUser("make", "-C", $dir, "-j", "all");
-        run("sudo", "make", "-C", $dir, "install");
+        runSudo("make", "-C", $dir, "install");
       };
     }elsif(tryrunSilent("make", "-C", $dir, "-n")){
       $installActionSub = sub{
         my ($dir) = @_;
         runUser("make", "-C", $dir, "-j");
-        run("sudo", "make", "-C", $dir, "install");
+        runSudo("make", "-C", $dir, "install");
       };
     }elsif(@installCmds == 1){
       $installActionSub = sub{
