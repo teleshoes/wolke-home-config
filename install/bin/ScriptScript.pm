@@ -21,7 +21,7 @@ our @EXPORT = qw(
   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
   run tryrun runSudo tryrunSudo tryrunSilent runWithStderr runNoPty
   runUser tryrunUser runUserNoPty
-  proc procChomp procUser tryproc
+  proc procChomp procSudo procUser tryproc
   runAptGet tryrunAptGet
   runScript
   getUsername
@@ -428,6 +428,9 @@ sub proc(@){
 }
 sub procChomp(@){
   return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, chomp=>1}, @_);
+}
+sub procSudo(@){
+  return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, wrapSudoCmd=>1}, @_);
 }
 sub procUser(@){
   return runProto({returnOut=>1, printOut=>0, printCmd=>0, pty=>0, wrapUserCmd=>1}, @_);
