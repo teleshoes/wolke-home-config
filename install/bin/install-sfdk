@@ -4,8 +4,33 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+sub removeSFDKDocker();
+
+my $SAILFISH_OS_DIR = getHome() . "/SailfishOS";
+
 sub main(@){
   runScript "install-docker";
+
+  removeSFDKDocker();
+}
+
+sub removeSFDKDocker(){
+  #remove docker container
+  my $containerName = "sailfish-sdk-build-engine_" . getUsername();
+  tryrunSudo "docker", "stop", $containerName;
+  tryrunSudo "docker", "rm", $containerName;
+
+  #remove docker images
+  my @dockerImgs = procSudoChomp(
+    "docker", "images", "-q", "--filter", "label=SharedInstall=$SAILFISH_OS_DIR",
+  );
+  if(@dockerImgs > 0){
+    runSudo "docker", "rmi", @dockerImgs;
+  }
+
+  #remove docker network
+  my $networkName = "sailfish-sdk:" . getUsername();
+  tryrunSudo "docker", "network", "rm", $networkName;
 }
 
 &main(@ARGV);
