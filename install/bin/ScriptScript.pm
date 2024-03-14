@@ -473,7 +473,7 @@ sub getMachineType(){
   my $file = getHome() . "/machine-type";
   return undef if not -f $file;
   my $machineType = readFileChomp(getHome() . "/machine-type");
-  my %machineTypes = globFilesBasename(getHome() . "/machine-types/*");
+  my %machineTypes = map {$_ => 1} globFilesBasename(getHome() . "/machine-types/*");
   if(defined $machineTypes{$machineType}){
     return $machineType;
   }else{
