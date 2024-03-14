@@ -4,22 +4,33 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $CONF_DIR = getHome() . "/conf";
+
+my $SYMLINKS_BY_DEST_FILE = {
+  #timezone
+  "/etc/localtime"     => "/usr/share/zoneinfo/America/New_York",
+
+  "/opt/escribe"       => "$CONF_DIR/opt/escribe",
+  "/var/opt/escribe"   => "$CONF_DIR/var-opt/escribe",
+
+  #use python3 for python
+  "/usr/bin/python"    => "python3",
+
+  #fake perl-5.10 symlink to modern perl
+  "/usr/bin/perl-5.10" => "perl",
+};
+
+
+
 sub main(@){
   getRoot();
 
-  #timezone
-  symlinkFile "/usr/share/zoneinfo/America/New_York", "/etc/localtime";
+  runUser "mkdir", "-p", $CONF_DIR;
 
-  my $confDir = getHome() . "/conf";
-  runUser "mkdir", "-p", $confDir;
-  symlinkFile "$confDir/opt/escribe", "/opt/escribe";
-  symlinkFile "$confDir/var-opt/escribe", "/var/opt/escribe";
-
-  #use python3 for python
-  symlinkFile "python3", "/usr/bin/python";
-
-  #fake perl-5.10 executable that runs modern perl
-  symlinkFile "perl", "/usr/bin/perl-5.10";
+  for my $destFile(sort keys %$SYMLINKS_BY_DEST_FILE){
+    my $srcPath = $$SYMLINKS_BY_DEST_FILE{$destFile};
+    symlinkFile $srcPath, $destFile;
+  }
 }
 
 &main(@ARGV);
