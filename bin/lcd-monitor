@@ -31,15 +31,20 @@ my $USAGE = "Usage:
       if not given, all are used
 
   OPTS
+    --dev=LCD_DEV_NAME
+      override LCD device for all display events
 ";
 
 sub main(@){
   my @displayEventNames;
+  my $overrideDevName = undef;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^--dev=(\w+)$/){
+      $overrideDevName = $1;
     }elsif(defined $DISPLAYS_BY_NAME{$arg}){
       push @displayEventNames, $arg;
     }else{
@@ -60,6 +65,7 @@ sub main(@){
   for my $name(@displayEventNames){
     my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
+    $devName = $overrideDevName if defined $overrideDevName;
     if(not defined $$devices{$devName}){
       my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
       $$devices{$devName} = parseDevInfo $devInfoStr;
@@ -70,6 +76,7 @@ sub main(@){
   for my $name(@displayEventNames){
     my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
+    $devName = $overrideDevName if defined $overrideDevName;
     my $devInfo = $$devices{$devName};
     my %btnCounts = %{$$devInfo{btnCounts}};
 
