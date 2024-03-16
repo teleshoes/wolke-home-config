@@ -23,22 +23,32 @@ my $USAGE = "Usage:
   $0 -h | --help
     show this message
 
-  $0 [OPTS]
+  $0 [OPTS] [DISPLAY_EVENT_NAME DISPLAY_EVENT_NAME ..]
     -run pico-lcd-msg for configured displays
     -update /tmp-lcd-monitor-count
+
+    DISPLAY_EVENT_NAME = " . join(" | ", @DISPLAY_NAMES) . "
+      if not given, all are used
 
   OPTS
 ";
 
 sub main(@){
+  my @displayEventNames;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif(defined $DISPLAYS_BY_NAME{$arg}){
+      push @displayEventNames, $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
+  }
+
+  if(@displayEventNames == 0){
+    @displayEventNames = @DISPLAY_NAMES;
   }
 
   my $runCount = `cat /tmp/lcd-monitor-count 2>/dev/null`;
@@ -47,7 +57,8 @@ sub main(@){
   system "echo $runCount > /tmp/lcd-monitor-count";
 
   my $devices = {};
-  for my $displayInfo(@$DISPLAYS){
+  for my $name(@displayEventNames){
+    my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
     if(not defined $$devices{$devName}){
       my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
@@ -56,7 +67,8 @@ sub main(@){
     }
   }
 
-  for my $displayInfo(@$DISPLAYS){
+  for my $name(@displayEventNames){
+    my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
     my $devInfo = $$devices{$devName};
     my %btnCounts = %{$$devInfo{btnCounts}};
