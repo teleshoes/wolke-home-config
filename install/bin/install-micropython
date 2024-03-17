@@ -5,12 +5,19 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 use File::Basename qw(basename);
 
+sub handleGitInstallMicroPython($);
+
 my $EXEC = basename $0;
+my $GIT_URL_MICROPYTHON = "https://github.com/teleshoes/micropython";
 my $GIT_URL_PICO_LCD = "https://github.com/teleshoes/pico-lcd";
 
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
+
+  $EXEC -b | uf2 | firmware | build | --uf2 | --firmware | --build
+    -build micropython RPI_PICO_W firmware
+      from $GIT_URL_MICROPYTHON
 
   $EXEC
   $EXEC -p | msg | lcd-msg | pico-lcd-msg | --msg | --lcd-msg | --pico-lcd-msg
@@ -18,6 +25,7 @@ my $USAGE = "Usage:
       from $GIT_URL_PICO_LCD
 ";
 
+my $MODE_BUILD_FIRMWARE = "build-firmware";
 my $MODE_LCD_MSG = "lcd-msg";
 
 sub main(@) {
@@ -27,6 +35,8 @@ sub main(@) {
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-b|((--)?(uf2|firmware|build)))$/){
+      $mode = $MODE_BUILD_FIRMWARE;
     }elsif($arg =~ /^(-p|((--)?(msg|lcd-msg|pico-lcd-msg)))$/){
       $mode = $MODE_LCD_MSG;
     }else{
@@ -34,7 +44,9 @@ sub main(@) {
     }
   }
 
-  if($mode eq $MODE_LCD_MSG){
+  if($mode eq $MODE_BUILD_FIRMWARE){
+    installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMicroPython;
+  }elsif($mode eq $MODE_LCD_MSG){
     #copy pico-lcd-msg tool out of pico-lcd
     installFromGit $GIT_URL_PICO_LCD, sub{
       my ($dir) = @_;
@@ -43,6 +55,10 @@ sub main(@) {
   }else{
     die "ERROR: unknown mode $mode\n";
   }
+}
+
+sub handleGitInstallMicroPython($){
+  my ($dir) = @_;
 }
 
 &main(@ARGV);
