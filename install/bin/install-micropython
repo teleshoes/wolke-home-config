@@ -16,6 +16,7 @@ my $DIR_FIRMWARE_IMG = "/media/stuff/Images/micropython/RPI_PICO_W";
 my $LATEST_FIRMWARE_SYMLINK = "$DIR_FIRMWARE_IMG/latest.uf2";
 
 my $BOOTLOADER_DISK_LABEL = "RPI-RP2";
+my $BOOTLOADER_DISK_SIZE_BYTES = 134217216;
 
 my $USAGE = "Usage:
   $EXEC -h | --help
@@ -31,6 +32,8 @@ my $USAGE = "Usage:
     -run `mpremote bootloader`
     -wait until device shows up
     -look for device /dev/disk/by-label/$BOOTLOADER_DISK_LABEL
+    -check device size in bytes
+      -ensure exactly matches $BOOTLOADER_DISK_SIZE_BYTES bytes
     -confirm interactively before running dd
     -run: dd \\
             if=$LATEST_FIRMWARE_SYMLINK \\
@@ -143,6 +146,14 @@ sub flashFirmware(){
   if(not -e $dev){
     die "ERROR: $dev not found\n";
   }
+  my $devSize = procChomp "lsblk", $dev, "-o", "SIZE", "--bytes", "--noheadings";
+  die "ERROR: could not fetch device size with lsblk\n" if $devSize !~ /^\d+$/;
+  print "$dev size: $devSize\n";
+
+  if($devSize ne $BOOTLOADER_DISK_SIZE_BYTES){
+    die "ERROR: aborting, unexpected size in bytes of bootloader dev $dev\n";
+  }
+
   my @ddCmd = ("dd",
     "if=$LATEST_FIRMWARE_SYMLINK",
     "of=$dev",
