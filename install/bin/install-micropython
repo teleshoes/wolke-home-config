@@ -28,6 +28,8 @@ my $USAGE = "Usage:
     -create/replace symlink $DIR_FIRMWARE_IMG/latest.uf2
 
   $EXEC -f | flash | --flash
+    -run `mpremote bootloader`
+    -wait until device shows up
     -look for device /dev/disk/by-label/$BOOTLOADER_DISK_LABEL
     -confirm interactively before running dd
     -run: dd \\
@@ -125,7 +127,19 @@ sub flashFirmware(){
   if(not -f $LATEST_FIRMWARE_SYMLINK){
     die "ERROR: missing firmware file to flash $LATEST_FIRMWARE_SYMLINK\n";
   }
+
   my $dev = "/dev/disk/by-label/$BOOTLOADER_DISK_LABEL";
+  if(not -e $dev){
+    print "$dev not found, running mpremote bootloader\n";
+    system "mpremote", "bootloader";
+    my $maxAttempts = 10;
+    my $attempts = 1;
+    while(not -e $dev){
+      print "$dev not found, waiting 1s and retrying $attempts/$maxAttempts\n";
+      sleep 1;
+      $attempts++;
+    }
+  }
   if(not -e $dev){
     die "ERROR: $dev not found\n";
   }
