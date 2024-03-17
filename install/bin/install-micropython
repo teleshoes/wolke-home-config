@@ -19,7 +19,7 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC -b | uf2 | firmware | build | --uf2 | --firmware | --build
-    -build micropython RPI_PICO_W firmware
+    -build micropython RPI_PICO_W firmware and install mpy-cross
       from $GIT_URL_MICROPYTHON
     -copy built image to $DIR_FIRMWARE_IMG
     -create/replace symlink $DIR_FIRMWARE_IMG/latest.uf2
@@ -70,9 +70,15 @@ sub handleGitInstallMicroPython($){
   if(-e "$dir/firmware.uf2"){
     runUser "rm", "$dir/firmware.uf2";
   }
+  if(-e "$dir/mpy-cross/build/mpy-cross"){
+    runUser "rm", "$dir/mpy-cross/build/mpy-cross";
+  }
 
   if(-e "$dir/firmware.uf2"){
     die "ERROR: RPI_PICO_W firmware exists\n";
+  }
+  if(-e "$dir/mpy-cross/build/mpy-cross"){
+    die "ERROR: mpy-cross exists\n";
   }
 
   runUser "cd '$dir' && ./build-pico-w.sh";
@@ -90,6 +96,11 @@ sub handleGitInstallMicroPython($){
   runUser "cp", "$dir/firmware.uf2", "$DIR_FIRMWARE_IMG/$fileName";
 
   symlinkFile $fileName, $LATEST_FIRMWARE_SYMLINK;
+
+  if(not -e "$dir/mpy-cross/build/mpy-cross"){
+    die "ERROR: mpy-cross does not exist\n";
+  }
+  runSudo "cp", "-a", "$dir/mpy-cross/build/mpy-cross", "/usr/local/bin/";
 }
 
 &main(@ARGV);
