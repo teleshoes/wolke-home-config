@@ -21,10 +21,10 @@ my $h12Re = "(?:0?[0-9]|1[0-2])";
 my $h24Re = "(?:0?[0-9]|1[0-9]|2[0-4])";
 my $minRe = "(?:[0-5][0-9])";
 my $amRe = "(?:[aApP][mM])";
-my $absTimeRe = "^(?:$h24Re:$minRe|$h12Re:$minRe$amRe|$h12Re$amRe)\$";
 
-my $valUnitRe = "(?:[0-9]+[dhmsDHMS])";
-my $relTimeRe = "^(?:[0-9]+|$valUnitRe+)\$";
+my $absTimeRe = "^(?:$h24Re:$minRe|$h12Re:$minRe$amRe|$h12Re$amRe)\$";
+my $relTimeRe = "^(?:[0-9]+[dhmsDHMS])+\$";
+my $minTimeRe = "^(?:[0-9]+)\$";
 
 my $usage = "Usage:
   Update $FCRONTAB_ALARM, and reload as current user's fcrontab.
@@ -60,17 +60,16 @@ my $usage = "Usage:
       default='$DEFAULT_ALARM_NAME'
 
     TIME
-      either absolute (hours and minutes) or relative
+      either absolute (hours and minutes), relative time-units, or relative minutes
       absolute: next wall clock time, added as 'MM HH * * *'
         HH24:MM       00-23hr 00-59min            e.g.: 15:30  => '30 15 * * *'
         HH12:MMa      1-12hr  00-59min  AM or PM  e.g.: 3:30pm => '30 15 * * *'
         HH12a         1-12hr            AM or PM  e.g.: 3pm    => '0 15 * * *'
 
-      relative: elapsed time, re-formatted to an fcron relative time:
+      relative time-units: elapsed time, re-formatted to an fcron relative time:
         '@ <DAYS>d<HOURS>h<SECONDS>s<MINUTES>'
 
       time is a list of numbers followed by units (e.g.: 2d4h30m20s)
-        OR just a single integer for minutes (e.g.: 30)
       all values are added together, and reformatted as day-hr-sec-min
 
       units are case insensitive. allowed units:
@@ -80,11 +79,14 @@ my $usage = "Usage:
         s:    seconds
 
       e.g.:
-        5              =>  5m             => '@ 5'
+        5m             =>  5m             => '@ 5'
         10s            =>  10s            => '@ 10s'
         1m30s          =>  1m 30s         => '@ 30s1'
         1d6h30m20s     =>  1d 6h 30m 20s  => '@ 1d6h20s30'
         5m1h1h1h20s    =>  3h 5m 20s      => '@ 3h20s5'
+
+      relative minutes: just a single integer for minutes
+        5              =>  5m             => '@ 5'
 ";
 
 sub main(@){
@@ -116,7 +118,7 @@ sub main(@){
   }
 
   my $time;
-  if(@_ > 0 and $_[0] =~ /$absTimeRe|$relTimeRe/){
+  if(@_ > 0 and $_[0] =~ /$absTimeRe|$relTimeRe|$minTimeRe/){
     $time = shift @_;
   }
 
@@ -169,18 +171,14 @@ sub parseAlarmTime($){
     return "$m $h * * *";
   }elsif($time =~ /$relTimeRe/){
     my $seconds = 0;
-    if($time =~ /^(\d+)$/){
-      $seconds = $time * 60;
-    }else{
-      while($time =~ s/^(\d+)([dhmsDHMS])//){
-        my ($val, $unit) = ($1, $2);
-        $seconds += $val if $unit =~ /[sS]/;
-        $seconds += $val * 60 if $unit =~ /[mM]/;
-        $seconds += $val * 60 * 60 if $unit =~ /[hH]/;
-        $seconds += $val * 60 * 60 * 24 if $unit =~ /[dD]/;
-      }
-      die "error parsing RELTIME: $time\n" if length($time) != 0;
+    while($time =~ s/^(\d+)([dhmsDHMS])//){
+      my ($val, $unit) = ($1, $2);
+      $seconds += $val if $unit =~ /[sS]/;
+      $seconds += $val * 60 if $unit =~ /[mM]/;
+      $seconds += $val * 60 * 60 if $unit =~ /[hH]/;
+      $seconds += $val * 60 * 60 * 24 if $unit =~ /[dD]/;
     }
+    die "error parsing RELTIME: $time\n" if length($time) != 0;
     my $s = int($seconds)       % 60;
     my $m = int($seconds/60)    % 60;
     my $h = int($seconds/60/60) % 24;
@@ -192,6 +190,8 @@ sub parseAlarmTime($){
     $fmt .= "${m}" if $m > 0;
 
     return "@ $fmt";
+  }elsif($time =~ /$minTimeRe/){
+    return "@ $time";
   }else{
     die "malformed time: $time\n";
   }
