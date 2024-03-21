@@ -3,20 +3,20 @@ use strict;
 use warnings;
 
 my $FCRONTAB_ALARM = "$ENV{HOME}/.fcrontab-alarm";
-my $DEFAULT_JOB_NAME = 'XX';
+my $DEFAULT_ALARM_NAME = 'XX';
 
 sub reloadFcron();
-sub getDefaultJobLine($$);
-sub parseJobTime($);
-sub appendJobLine($);
-sub listNamedJobs();
-sub removeJobName($);
+sub getDefaultAlarmLine($$);
+sub parseAlarmTime($);
+sub appendAlarmLine($);
+sub listNamedAlarms();
+sub removeAlarmName($);
 sub readFcronLines();
 sub writeFcronLines($);
 sub run(@);
 sub wrap($);
 
-my $jobRe = "^[a-zA-Z][a-zA-Z0-9]\$";
+my $alarmRe = "^[a-zA-Z][a-zA-Z0-9]\$";
 
 my $h12Re = "(?:0?[0-9]|1[0-2])";
 my $h24Re = "(?:0?[0-9]|1[0-9]|2[0-4])";
@@ -34,30 +34,30 @@ my $usage = "Usage:
     print this message
 
   $0
-    list all named jobs
+    list all named alarms
 
-  $0 --remove [JOB_NAME]
-    delete any existing fcrontab lines ending in #JOB_NAME
+  $0 --remove [ALARM_NAME]
+    delete any existing fcrontab lines ending in #ALARM_NAME
 
-  $0 [JOB_NAME] TIME
-  $0 --add [JOB_NAME] TIME
-    first deletes the job, as in '$0 --remove JOB_NAME'
-    then adds a new fcrontab line: '<job_time> <job_cmd> #JOB_NAME'
-      job_time: calculated from TIME, either relative or absolute
-      job_cmd: 'alarm-fcron JOB_NAME del'
+  $0 [ALARM_NAME] TIME
+  $0 --add [ALARM_NAME] TIME
+    first deletes the alarm, as in '$0 --remove ALARM_NAME'
+    then adds a new fcrontab line: '<alarm_time> <alarm_cmd> #ALARM_NAME'
+      alarm_time: calculated from TIME, either relative or absolute
+      alarm_cmd: 'alarm-fcron ALARM_NAME del'
 
-    e.g.:   '$0 14:45'   => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '14:45') . "'
-            '$0 5pm'     => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '5pm') . "'
-            '$0 12:30am' => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '12:30am') . "'
+    e.g.:   '$0 14:45'   => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '14:45') . "'
+            '$0 5pm'     => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '5pm') . "'
+            '$0 12:30am' => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '12:30am') . "'
 
-            '$0 30s'     => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '30s') . "'
-            '$0 5'       => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '5') . "'
-            '$0 1m30s'   => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '1m30s') . "'
-            '$0 2d12h3m  => '" . getDefaultJobLine($DEFAULT_JOB_NAME, '2d12h3m') . "'
+            '$0 30s'     => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '30s') . "'
+            '$0 5'       => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '5') . "'
+            '$0 1m30s'   => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '1m30s') . "'
+            '$0 2d12h3m  => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '2d12h3m') . "'
 
-    JOB_NAME
+    ALARM_NAME
       exactly 2 characters, first must be alpha, second must be alphanumeric
-      default='$DEFAULT_JOB_NAME'
+      default='$DEFAULT_ALARM_NAME'
 
     TIME
       either absolute (hours and minutes) or relative
@@ -96,7 +96,7 @@ sub main(@){
 
   my $action = "add";
   if(@_ == 0){
-    $action = "listNamedJobs";
+    $action = "listNamedAlarms";
   }elsif($_[0] =~ /^(--add)$/){
     shift @_;
     $action = "add";
@@ -105,11 +105,11 @@ sub main(@){
     $action = "remove";
   }
 
-  my $jobName;
-  if(@_ > 0 and $_[0] =~ /$jobRe/){
-    $jobName = shift @_;
+  my $alarmName;
+  if(@_ > 0 and $_[0] =~ /$alarmRe/){
+    $alarmName = shift @_;
   }else{
-    $jobName = $DEFAULT_JOB_NAME;
+    $alarmName = $DEFAULT_ALARM_NAME;
   }
 
   my $time;
@@ -119,17 +119,17 @@ sub main(@){
 
   die $usage if @_ > 0;
 
-  if($action =~ /^(listNamedJobs)$/){
-    listNamedJobs();
+  if($action =~ /^(listNamedAlarms)$/){
+    listNamedAlarms();
   }elsif($action eq "remove"){
-    if(not removeJobName $jobName){
-      die "Job $jobName not found\n";
+    if(not removeAlarmName $alarmName){
+      die "Alarm $alarmName not found\n";
     }
     reloadFcron();
   }elsif($action eq "add" and defined $time){
-    removeJobName $jobName;
+    removeAlarmName $alarmName;
     reloadFcron();
-    appendJobLine getDefaultJobLine($jobName, $time);
+    appendAlarmLine getDefaultAlarmLine($alarmName, $time);
     reloadFcron();
   }else{
     die $usage;
@@ -140,13 +140,13 @@ sub reloadFcron(){
   system "fcrontab", $FCRONTAB_ALARM;
 }
 
-sub getDefaultJobLine($$){
-  my ($jobName, $time) = @_;
-  my $jobTime = parseJobTime $time;
-  my $cmd = "alarm-fcron $jobName del";
-  return "$jobTime $cmd #$jobName";
+sub getDefaultAlarmLine($$){
+  my ($alarmName, $time) = @_;
+  my $alarmTime = parseAlarmTime $time;
+  my $cmd = "alarm-fcron $alarmName del";
+  return "$alarmTime $cmd #$alarmName";
 }
-sub parseJobTime($){
+sub parseAlarmTime($){
   my $time = shift;
   if($time =~ /$absTimeRe/){
     my ($h, $m, $am);
@@ -191,7 +191,7 @@ sub parseJobTime($){
     die "malformed time: $time\n";
   }
 }
-sub appendJobLine($){
+sub appendAlarmLine($){
   my $line = shift;
   chomp $line;
   $line .= "\n";
@@ -200,13 +200,13 @@ sub appendJobLine($){
   writeFcronLines \@lines;
 }
 
-sub removeJobName($){
-  my $jobName = shift;
+sub removeAlarmName($){
+  my $alarmName = shift;
 
   my $modified = 0;
   my @lines = readFcronLines();
   for my $line(@lines){
-    if($line =~ /#$jobName\s*$/){
+    if($line =~ /#$alarmName\s*$/){
       $line = "";
       $modified = 1;
     }
@@ -217,7 +217,7 @@ sub removeJobName($){
   return $modified;
 }
 
-sub listNamedJobs(){
+sub listNamedAlarms(){
   my(@active, @inactive);
   for my $line(readFcronLines){
     if($line =~ /^\s*(?!##).*#([0-9A-Za-z]{2})$/){
