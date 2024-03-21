@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my $tab = "/etc/fcrontab";
+my $FCRONTAB_ALARM = "$ENV{HOME}/.fcrontab-alarm";
 my $defJob = 'XX';
 
 sub reloadFcron();
@@ -14,9 +14,7 @@ sub setJobState($$$);
 sub readFcronLines();
 sub writeFcronLines($);
 sub modifyLine($$);
-sub ensureRoot();
 sub run(@);
-sub runUser(@);
 sub wrap($);
 
 my @commands = qw(on off toggle del);
@@ -34,10 +32,7 @@ my $valUnitRe = "(?:[0-9]+[dhmsDHMS])";
 my $relTimeRe = "^(?:[0-9]+|$valUnitRe+)\$";
 
 my $usage = "Usage:
-  Update $tab programmatically and safely, and reload fcrontab.
-  Re-runs with sudo if not run as root.
-  After any job changes, 'fcron-tool --load' is called.
-  If SUDO_USER is set, also runs 'fcron-tool --get' as SUDO_USER.
+  Update $FCRONTAB_ALARM, and reload as current user's fcrontab.
 
   $0 -h|--help
     print this message
@@ -108,7 +103,10 @@ my $usage = "Usage:
 
 sub main(@){
   die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
-  ensureRoot();
+
+  if(`whoami` =~ /^root$/){
+    die "ERROR: cannot run $0 as root\n";
+  }
 
   my ($jobName, $action);
   if(@_ == 0){
@@ -142,8 +140,7 @@ sub main(@){
 }
 
 sub reloadFcron(){
-  system "fcron-tool", "--load";
-  runUser "fcron-tool", "--get";
+  system "fcrontab", $FCRONTAB_ALARM;
 }
 
 sub getDefaultJobLine($$){
@@ -244,14 +241,17 @@ sub listNamedJobs(){
 }
 
 sub readFcronLines(){
-  open FH, "< $tab" or die "Could not read $tab\n";
+  if(not -e $FCRONTAB_ALARM){
+    return ();
+  }
+  open FH, "< $FCRONTAB_ALARM" or die "Could not read $FCRONTAB_ALARM\n";
   my @lines = <FH>;
   close FH;
   return @lines;
 }
 sub writeFcronLines($){
   my @lines = @{shift()};
-  open FH, "> $tab" or die "Could not write $tab\n";
+  open FH, "> $FCRONTAB_ALARM" or die "Could not write $FCRONTAB_ALARM\n";
   print FH @lines;
   close FH;
 }
@@ -274,30 +274,10 @@ sub modifyLine($$){
   return $line;
 }
 
-sub ensureRoot(){
-  if(`whoami` ne "root\n"){
-    print "rerunning as root\n";
-    exec "sudo", $0, @ARGV;
-  }
-}
-
 sub run(@){
   print "@_\n";
   system @_;
   die "Error running @_\n" if $? != 0;
-}
-sub runUser(@){
-  if(`whoami` eq "root\n"){
-    if(defined $ENV{SUDO_USER}){
-      my @args = map {wrap $_} @_;
-      print "run as root, rerunning as $ENV{SUDO_USER}\n";
-      run "su", $ENV{SUDO_USER}, "sh", "-c", "@args";
-    }else{
-      die "Error: should not run '@_' as root\n";
-    }
-  }else{
-    run @_;
-  }
 }
 sub wrap($){
   my $s = shift;
