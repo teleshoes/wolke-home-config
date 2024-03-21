@@ -9,7 +9,6 @@ sub reloadFcron();
 sub getDefaultAlarmLine($$);
 sub parseAlarmTime($);
 sub appendAlarmLine($);
-sub listNamedAlarms();
 sub removeAlarmName($);
 sub readFcronLines();
 sub writeFcronLines($);
@@ -32,9 +31,6 @@ my $usage = "Usage:
 
   $0 -h|--help
     print this message
-
-  $0
-    list all named alarms
 
   $0 --run [ALARM_NAME]
     first deletes the alarm, as in '$0 --remove ALARM_NAME'
@@ -100,7 +96,7 @@ sub main(@){
 
   my $action = "add";
   if(@_ == 0){
-    $action = "listNamedAlarms";
+    die $usage;
   }elsif($_[0] =~ /^(--run)$/){
     shift @_;
     $action = "run";
@@ -126,9 +122,7 @@ sub main(@){
 
   die $usage if @_ > 0;
 
-  if($action =~ /^(listNamedAlarms)$/){
-    listNamedAlarms();
-  }elsif($action eq "run"){
+  if($action eq "run"){
     removeAlarmName $alarmName;
     reloadFcron();
     exec "alarm", "-g", $alarmName;
@@ -226,22 +220,6 @@ sub removeAlarmName($){
     writeFcronLines(\@lines);
   }
   return $modified;
-}
-
-sub listNamedAlarms(){
-  my(@active, @inactive);
-  for my $line(readFcronLines){
-    if($line =~ /^\s*(?!##).*#([0-9A-Za-z]{2})$/){
-      my $name = $1;
-      if($line =~ /^\s*#[^#]/){
-        push @inactive, "$name => $line";
-      }else{
-        push @active, "$name => $line";
-      }
-    }
-  }
-  print @active;
-  print "\ninactive:\n  " . join "  ", @inactive;
 }
 
 sub readFcronLines(){
