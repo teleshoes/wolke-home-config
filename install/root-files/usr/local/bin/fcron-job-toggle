@@ -5,6 +5,7 @@ use warnings;
 my $tab = "/etc/fcrontab";
 my $defJob = 'XX';
 
+sub reloadFcron();
 sub getDefaultJobLine($$);
 sub parseJobTime($);
 sub appendJobLine($);
@@ -123,26 +124,25 @@ sub main(@){
     die $usage;
   }
 
-  my $reloadFcron = 0;
   if($action =~ /^(listNamedJobs)$/){
     listNamedJobs();
   }elsif($action =~ /^($okCmds)/){
     my $cmd = $action;
     setJobState $jobName, $cmd, 0;
-    $reloadFcron = 1;
+    reloadFcron();
   }elsif($action =~ /$absTimeRe/ or $action =~ /$relTimeRe/){
     my $time = $action;
     setJobState $jobName, 'del', 1;
     appendJobLine getDefaultJobLine($jobName, $time);
-    $reloadFcron = 1;
+    reloadFcron();
   }else{
     die $usage;
   }
+}
 
-  if($reloadFcron){
-    system "fcron-tool", "--load";
-    runUser "fcron-tool", "--get";
-  }
+sub reloadFcron(){
+  system "fcron-tool", "--load";
+  runUser "fcron-tool", "--get";
 }
 
 sub getDefaultJobLine($$){
