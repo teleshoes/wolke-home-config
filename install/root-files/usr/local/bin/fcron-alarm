@@ -17,9 +17,6 @@ sub modifyLine($$);
 sub run(@);
 sub wrap($);
 
-my @commands = qw(on off toggle del);
-my $okCmds = join "|", @commands;
-
 my $jobRe = "^[a-zA-Z][a-zA-Z0-9]\$";
 
 my $h12Re = "(?:0?[0-9]|1[0-2])";
@@ -40,16 +37,12 @@ my $usage = "Usage:
   $0
     list all named jobs
 
-  $0 [JOBNAME] CMD
-    comment, uncomment, or delete an existing fcrontab line ending in #JOBNAME
-
-    e.g.: '$0 UP on'  => ensure job 'UP' is uncommented
-          '$0 UP'     => toggle job 'UP'
-          '$0 x2 del' => completely remove job 'x2'
-
+  $0 --remove [JOBNAME]
+    delete any existing fcrontab lines ending in #JOBNAME
 
   $0 [JOBNAME] TIME
-    first deletes the job, as in '$0 JOBNAME del'
+  $0 --add [JOBNAME] TIME
+    first deletes the job, as in '$0 --remove JOBNAME'
     then adds a new fcrontab line: '<jobtime> <jobcmd> #JOBNAME'
       jobtime: calculated from TIME, either relative or absolute
       jobcmd: 'alarm-fcron JOBNAME del'
@@ -66,12 +59,6 @@ my $usage = "Usage:
     JOBNAME
       exactly 2 characters, first must be alpha, second must be alphanumeric
       default='$defJob'
-
-    CMD
-      on:        ensure uncommented
-      off:       ensure commented
-      toggle:    toggle comment
-      del:       completed remove JOBNAME line, even if commented
 
     TIME
       either absolute (hours and minutes) or relative
@@ -108,28 +95,37 @@ sub main(@){
     die "ERROR: cannot run $0 as root\n";
   }
 
-  my ($jobName, $action);
+  my $action = "add";
   if(@_ == 0){
-    $jobName = undef;
     $action = "listNamedJobs";
-  }elsif(@_ == 1){
-    $jobName = $defJob;
-    $action = $_[0];
-  }elsif(@_ == 2 and $_[0] =~ /$jobRe/){
-    $jobName = $_[0];
-    $action = $_[1];
-  }else{
-    die $usage;
+  }elsif($_[0] =~ /^(--add)$/){
+    shift @_;
+    $action = "add";
+  }elsif($_[0] =~ /^(--remove)$/){
+    shift @_;
+    $action = "remove";
   }
+
+  my $jobName;
+  if(@_ > 0 and $_[0] =~ /$jobRe/){
+    $jobName = shift @_;
+  }else{
+    $jobName = $defJob;
+  }
+
+  my $time;
+  if(@_ > 0 and $_[0] =~ /$absTimeRe|$relTimeRe/){
+    $time = shift @_;
+  }
+
+  die $usage if @_ > 0;
 
   if($action =~ /^(listNamedJobs)$/){
     listNamedJobs();
-  }elsif($action =~ /^($okCmds)/){
-    my $cmd = $action;
-    setJobState $jobName, $cmd, 0;
+  }elsif($action eq "remove"){
+    setJobState $jobName, 'del', 0;
     reloadFcron();
-  }elsif($action =~ /$absTimeRe/ or $action =~ /$relTimeRe/){
-    my $time = $action;
+  }elsif($action eq "add" and defined $time){
     setJobState $jobName, 'del', 1;
     reloadFcron();
     appendJobLine getDefaultJobLine($jobName, $time);
