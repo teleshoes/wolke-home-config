@@ -10,10 +10,9 @@ sub getDefaultJobLine($$);
 sub parseJobTime($);
 sub appendJobLine($);
 sub listNamedJobs();
-sub setJobState($$$);
+sub removeJobName($);
 sub readFcronLines();
 sub writeFcronLines($);
-sub modifyLine($$);
 sub run(@);
 sub wrap($);
 
@@ -123,10 +122,12 @@ sub main(@){
   if($action =~ /^(listNamedJobs)$/){
     listNamedJobs();
   }elsif($action eq "remove"){
-    setJobState $jobName, 'del', 0;
+    if(not removeJobName $jobName){
+      die "Job $jobName not found\n";
+    }
     reloadFcron();
   }elsif($action eq "add" and defined $time){
-    setJobState $jobName, 'del', 1;
+    removeJobName $jobName;
     reloadFcron();
     appendJobLine getDefaultJobLine($jobName, $time);
     reloadFcron();
@@ -199,25 +200,21 @@ sub appendJobLine($){
   writeFcronLines \@lines;
 }
 
-sub setJobState($$$){
+sub removeJobName($){
   my $jobName = shift;
-  my $state = shift;
-  my $force = shift;
 
   my $modified = 0;
   my @lines = readFcronLines();
   for my $line(@lines){
-    if($line =~ /^\s*(?!##).*#$jobName\s*$/){
-      $line = modifyLine $line, $state;
+    if($line =~ /#$jobName\s*$/){
+      $line = "";
       $modified = 1;
-      last if not $force;
     }
   }
   if($modified){
     writeFcronLines(\@lines);
-  }else{
-    die "Job $jobName not found\n" if not $force;
   }
+  return $modified;
 }
 
 sub listNamedJobs(){
@@ -250,24 +247,6 @@ sub writeFcronLines($){
   open FH, "> $FCRONTAB_ALARM" or die "Could not write $FCRONTAB_ALARM\n";
   print FH @lines;
   close FH;
-}
-
-sub modifyLine($$){
-  my $line = shift;
-  my $state = shift;
-
-  print "OLD: $line";
-  if($state eq 'del'){
-    $line = '';
-    print "<deleted>\n";
-  }else{
-    my $commented = ($line =~ s/^\s*#([^#])/$1/);
-    if($state eq 'off' or ($state eq 'toggle' and not $commented)){
-      $line = "#$line";
-    }
-    print "NEW: $line";
-  }
-  return $line;
 }
 
 sub run(@){
