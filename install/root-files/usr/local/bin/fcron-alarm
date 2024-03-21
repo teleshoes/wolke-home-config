@@ -36,6 +36,10 @@ my $usage = "Usage:
   $0
     list all named alarms
 
+  $0 --run [ALARM_NAME]
+    first deletes the alarm, as in '$0 --remove ALARM_NAME'
+    then runs: 'alarm -g ALARM_NAME'
+
   $0 --remove [ALARM_NAME]
     delete any existing fcrontab lines ending in #ALARM_NAME
 
@@ -44,7 +48,7 @@ my $usage = "Usage:
     first deletes the alarm, as in '$0 --remove ALARM_NAME'
     then adds a new fcrontab line: '<alarm_time> <alarm_cmd> #ALARM_NAME'
       alarm_time: calculated from TIME, either relative or absolute
-      alarm_cmd: 'alarm-fcron ALARM_NAME del'
+      alarm_cmd: '$0 --run ALARM_NAME'
 
     e.g.:   '$0 14:45'   => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '14:45') . "'
             '$0 5pm'     => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '5pm') . "'
@@ -97,6 +101,9 @@ sub main(@){
   my $action = "add";
   if(@_ == 0){
     $action = "listNamedAlarms";
+  }elsif($_[0] =~ /^(--run)$/){
+    shift @_;
+    $action = "run";
   }elsif($_[0] =~ /^(--add)$/){
     shift @_;
     $action = "add";
@@ -121,6 +128,10 @@ sub main(@){
 
   if($action =~ /^(listNamedAlarms)$/){
     listNamedAlarms();
+  }elsif($action eq "run"){
+    removeAlarmName $alarmName;
+    reloadFcron();
+    exec "alarm", "-g", $alarmName;
   }elsif($action eq "remove"){
     if(not removeAlarmName $alarmName){
       die "Alarm $alarmName not found\n";
@@ -143,7 +154,7 @@ sub reloadFcron(){
 sub getDefaultAlarmLine($$){
   my ($alarmName, $time) = @_;
   my $alarmTime = parseAlarmTime $time;
-  my $cmd = "alarm-fcron $alarmName";
+  my $cmd = "$0 --run $alarmName";
   return "$alarmTime $cmd #$alarmName";
 }
 sub parseAlarmTime($){
