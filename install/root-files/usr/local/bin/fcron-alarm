@@ -24,9 +24,9 @@ my $MODE_RUN = "run";
 
 my $REGEX_ALARM_NAME = "^[a-zA-Z][a-zA-Z0-9]\$";
 
-my $absTimeRe = '^(?:\d+:\d+|\d+:\d+(?:am|pm)|\d+(?:am|pm))$';
-my $relTimeRe = "^(?:[0-9]+[dhmsDHMS])+\$";
-my $minTimeRe = "^(?:[0-9]+)\$";
+my $REGEX_TIMESPEC_ABS = '^(?:\d+:\d+|\d+:\d+(?:am|pm)|\d+(?:am|pm))$';
+my $REGEX_TIMESPEC_REL = "^(?:[0-9]+[dhmsDHMS])+\$";
+my $REGEX_TIMESPEC_MINUTES = "^(?:[0-9]+)\$";
 
 my $usage = "Usage:
   Update $FCRONTAB_ALARM, and reload as current user's fcrontab.
@@ -120,11 +120,11 @@ sub main(@){
       $mode = $MODE_RUN;
     }elsif($arg =~ /^$REGEX_ALARM_NAME$/i and not defined $alarmName){
       $alarmName = $arg;
-    }elsif($arg =~ /^($absTimeRe)$/i and not defined $alarmTime){
+    }elsif($arg =~ /^($REGEX_TIMESPEC_ABS)$/i and not defined $alarmTime){
       $alarmTime = $arg;
-    }elsif($arg =~ /^($relTimeRe)$/i and not defined $alarmTime){
+    }elsif($arg =~ /^($REGEX_TIMESPEC_REL)$/i and not defined $alarmTime){
       $alarmTime = $arg;
-    }elsif($arg =~ /^($minTimeRe)$/i and not defined $alarmTime){
+    }elsif($arg =~ /^($REGEX_TIMESPEC_MINUTES)$/i and not defined $alarmTime){
       $alarmTime = $arg;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
@@ -175,7 +175,7 @@ sub getDefaultAlarmLine($$){
 }
 sub parseAlarmTime($){
   my $time = shift;
-  if($time =~ /$absTimeRe/){
+  if($time =~ /$REGEX_TIMESPEC_ABS/){
     my ($h, $m, $am);
     if($time =~ /^(\d+):(\d+)$/){
       ($h, $m, $am) = ($1, $2, undef);
@@ -197,7 +197,7 @@ sub parseAlarmTime($){
     }
 
     return "$m $h * * *";
-  }elsif($time =~ /$relTimeRe/){
+  }elsif($time =~ /$REGEX_TIMESPEC_REL/){
     my $seconds = 0;
     while($time =~ s/^(\d+)([dhmsDHMS])//){
       my ($val, $unit) = ($1, $2);
@@ -218,7 +218,7 @@ sub parseAlarmTime($){
     $fmt .= "${m}" if $m > 0;
 
     return "@ $fmt";
-  }elsif($time =~ /$minTimeRe/){
+  }elsif($time =~ /$REGEX_TIMESPEC_MINUTES/){
     return "@ $time";
   }else{
     die "malformed time: $time\n";
