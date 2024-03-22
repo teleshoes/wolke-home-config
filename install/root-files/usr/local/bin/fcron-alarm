@@ -161,7 +161,7 @@ sub main(@){
     $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
     die "$USAGE\nERROR: missing ALARM_TIME for mode=$mode\n" if not defined $alarmTime;
 
-    removeAlarmName $alarmName;
+    removeAlarmName($alarmName);
     reloadFcron();
     appendAlarmLine formatFcrontabLine($alarmName, $alarmTime);
     reloadFcron();
@@ -169,9 +169,11 @@ sub main(@){
     $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
     die "$USAGE\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
 
-    if(not removeAlarmName $alarmName){
-      die "Alarm $alarmName not found\n";
+    my $modified = removeAlarmName($alarmName);
+    if(not $modified){
+      die "ERROR: alarm $alarmName not found\n";
     }
+
     reloadFcron();
   }elsif($mode eq $MODE_RELOAD){
     die "$USAGE\nERROR: cannot give ALARM_NAME for mode=$mode\n" if defined $alarmName;
@@ -188,7 +190,7 @@ sub main(@){
     $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
     die "$USAGE\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
 
-    removeAlarmName $alarmName;
+    removeAlarmName($alarmName);
     reloadFcron();
     exec "alarm", "-g", $alarmName;
   }else{
@@ -206,20 +208,17 @@ sub appendAlarmLine($){
 }
 
 sub removeAlarmName($){
-  my $alarmName = shift;
-
-  my $modified = 0;
+  my ($alarmName) = @_;
   my @lines = readFileLines($FCRONTAB_ALARM);
-  for my $line(@lines){
-    if($line =~ /#$alarmName\s*$/){
-      $line = "";
-      $modified = 1;
-    }
-  }
-  if($modified){
+  my $oldLineCount = @lines;
+  @lines = grep {$_ !~ /#$alarmName$/} @lines;
+  my $newLineCount = @lines;
+  if($oldLineCount == $newLineCount){
+    return 0;
+  }else{
     writeFileLines($FCRONTAB_ALARM, @lines);
+    return 1;
   }
-  return $modified;
 }
 
 sub reloadFcron(){
