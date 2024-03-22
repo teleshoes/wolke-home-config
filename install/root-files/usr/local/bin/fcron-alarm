@@ -6,6 +6,9 @@ use Cwd qw(abs_path);
 sub reloadFcron();
 sub formatFcrontabLine($$);
 sub parseAlarmTime($);
+sub parseTimeSpecAbs($);
+sub parseTimeSpecRel($);
+sub parseTimeSpecMinutes($);
 sub appendAlarmLine($);
 sub removeAlarmName($);
 sub readFcronLines();
@@ -172,57 +175,78 @@ sub formatFcrontabLine($$){
   my $cmd = "$FCRON_ALARM_EXEC --run $alarmName";
   return "$alarmTime $cmd #$alarmName";
 }
+
+
 sub parseAlarmTime($){
-  my $time = shift;
-  if($time =~ /$REGEX_TIMESPEC_ABS/){
-    my ($h, $m, $am);
-    if($time =~ /^(\d+):(\d+)$/){
-      ($h, $m, $am) = ($1, $2, undef);
-    }elsif($time =~ /^(\d+):(\d+)(am|pm)$/i){
-      ($h, $m, $am) = ($1, $2, $3);
-    }elsif($time =~ /^(\d+)(am|pm)$/i){
-      ($h, $m, $am) = ($1, 0, $2);
-    }
-    $h = 0+$h;
-    $m = 0+$m;
-
-    if(defined $am){
-      $h = 0 if $h == 12;
-      $h += 12 if lc $am eq "pm";
-    }
-
-    if($h > 24 or $m > 59){
-      die "ERROR: malformed absolute time $time\n";
-    }
-
-    return "$m $h * * *";
-  }elsif($time =~ /$REGEX_TIMESPEC_REL/){
-    my $seconds = 0;
-    while($time =~ s/^(\d+)([dhmsDHMS])//){
-      my ($val, $unit) = ($1, $2);
-      $seconds += $val if $unit =~ /[sS]/;
-      $seconds += $val * 60 if $unit =~ /[mM]/;
-      $seconds += $val * 60 * 60 if $unit =~ /[hH]/;
-      $seconds += $val * 60 * 60 * 24 if $unit =~ /[dD]/;
-    }
-    die "error parsing RELTIME: $time\n" if length($time) != 0;
-    my $s = int($seconds)       % 60;
-    my $m = int($seconds/60)    % 60;
-    my $h = int($seconds/60/60) % 24;
-    my $d = int($seconds/60/60/24);
-    my $fmt = "";
-    $fmt .= "${d}d" if $d > 0;
-    $fmt .= "${h}h" if $h > 0;
-    $fmt .= "${s}s" if $s > 0;
-    $fmt .= "${m}" if $m > 0;
-
-    return "@ $fmt";
-  }elsif($time =~ /$REGEX_TIMESPEC_MINUTES/){
-    return "@ $time";
+  my ($alarmTime) = @_;
+  if($alarmTime =~ /^($REGEX_TIMESPEC_ABS)$/i){
+    return parseTimeSpecAbs($alarmTime);
+  }elsif($alarmTime =~ /^($REGEX_TIMESPEC_REL)$/i){
+    return parseTimeSpecRel($alarmTime);
+  }elsif($alarmTime =~ /^($REGEX_TIMESPEC_MINUTES)$/i){
+    return parseTimeSpecMinutes($alarmTime);
   }else{
-    die "malformed time: $time\n";
+    die "ERROR: malformed ALARM_TIME $alarmTime\n";
   }
 }
+
+sub parseTimeSpecAbs($){
+  my ($timeSpecAbs) = @_;
+  my ($h, $m, $am);
+  if($timeSpecAbs =~ /^(\d+):(\d+)$/){
+    ($h, $m, $am) = ($1, $2, undef);
+  }elsif($timeSpecAbs =~ /^(\d+):(\d+)(am|pm)$/i){
+    ($h, $m, $am) = ($1, $2, $3);
+  }elsif($timeSpecAbs =~ /^(\d+)(am|pm)$/i){
+    ($h, $m, $am) = ($1, 0, $2);
+  }
+  $h = 0+$h;
+  $m = 0+$m;
+
+  if(defined $am){
+    $h = 0 if $h == 12;
+    $h += 12 if lc $am eq "pm";
+  }
+
+  if($h > 24 or $m > 59){
+    die "ERROR: malformed absolute time $timeSpecAbs\n";
+  }
+
+  return "$m $h * * *";
+}
+
+sub parseTimeSpecRel($){
+  my ($timeSpecRel) = @_;
+  my $seconds = 0;
+  while($timeSpecRel =~ s/^(\d+)([dhmsDHMS])//){
+    my ($val, $unit) = ($1, $2);
+    $seconds += $val if $unit =~ /[sS]/;
+    $seconds += $val * 60 if $unit =~ /[mM]/;
+    $seconds += $val * 60 * 60 if $unit =~ /[hH]/;
+    $seconds += $val * 60 * 60 * 24 if $unit =~ /[dD]/;
+  }
+  die "error parsing RELTIME: $timeSpecRel\n" if length($timeSpecRel) != 0;
+  my $s = int($seconds)       % 60;
+  my $m = int($seconds/60)    % 60;
+  my $h = int($seconds/60/60) % 24;
+  my $d = int($seconds/60/60/24);
+  my $fmt = "";
+  $fmt .= "${d}d" if $d > 0;
+  $fmt .= "${h}h" if $h > 0;
+  $fmt .= "${s}s" if $s > 0;
+  $fmt .= "${m}" if $m > 0;
+
+  return "@ $fmt";
+}
+
+sub parseTimeSpecMinutes($){
+  my ($timeSpecMinutes) = @_;
+  if($timeSpecMinutes !~ /^\d+$/){
+    die "ERROR: malformed TIMESPEC_MINUTES $timeSpecMinutes\n";
+  }
+  return "@ $timeSpecMinutes";
+}
+
 sub appendAlarmLine($){
   my $line = shift;
   chomp $line;
