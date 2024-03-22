@@ -23,6 +23,7 @@ my $DEFAULT_ALARM_NAME = 'XX';
 
 my $MODE_ADD = "add";
 my $MODE_REMOVE = "remove";
+my $MODE_RELOAD = "reload";
 my $MODE_RUN = "run";
 
 my $REGEX_ALARM_NAME = '(?:[A-Z][0-9A-Z])';
@@ -55,6 +56,9 @@ my $USAGE = "Usage:
 
   $0 --remove [ALARM_NAME]
     delete any existing fcrontab lines ending in #ALARM_NAME
+
+  $0 --reload
+    -run: fcrontab $FCRONTAB_ALARM
 
   $0 --run [ALARM_NAME]
     first deletes the alarm, as in '$0 --remove ALARM_NAME'
@@ -119,6 +123,8 @@ sub main(@){
       $mode = $MODE_ADD;
     }elsif($arg =~ /^(--remove)$/){
       $mode = $MODE_REMOVE;
+    }elsif($arg =~ /^(--reload)$/){
+      $mode = $MODE_RELOAD;
     }elsif($arg =~ /^(--run)$/){
       $mode = $MODE_RUN;
     }elsif($arg =~ /^$REGEX_ALARM_NAME$/i and not defined $alarmName){
@@ -149,6 +155,11 @@ sub main(@){
     if(not removeAlarmName $alarmName){
       die "Alarm $alarmName not found\n";
     }
+    reloadFcron();
+  }elsif($mode eq $MODE_RELOAD){
+    die "$USAGE\nERROR: cannot give ALARM_NAME for mode=$mode\n" if defined $alarmName;
+    die "$USAGE\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
+
     reloadFcron();
   }elsif($mode eq $MODE_RUN){
     $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
