@@ -3,14 +3,14 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 
+sub appendAlarmLine($);
+sub removeAlarmName($);
 sub reloadFcron();
 sub formatFcrontabLine($$);
 sub parseAlarmTime($);
 sub parseTimeSpecAbs($);
 sub parseTimeSpecRel($);
 sub parseTimeSpecMinutes($);
-sub appendAlarmLine($);
-sub removeAlarmName($);
 sub readFcronLines();
 sub writeFcronLines($);
 sub run(@);
@@ -198,6 +198,32 @@ sub main(@){
   }
 }
 
+sub appendAlarmLine($){
+  my $line = shift;
+  chomp $line;
+  $line .= "\n";
+  print "appending:\n$line";
+  my @lines = (readFcronLines(), $line);
+  writeFcronLines \@lines;
+}
+
+sub removeAlarmName($){
+  my $alarmName = shift;
+
+  my $modified = 0;
+  my @lines = readFcronLines();
+  for my $line(@lines){
+    if($line =~ /#$alarmName\s*$/){
+      $line = "";
+      $modified = 1;
+    }
+  }
+  if($modified){
+    writeFcronLines(\@lines);
+  }
+  return $modified;
+}
+
 sub reloadFcron(){
   system "fcrontab", $FCRONTAB_ALARM;
 }
@@ -281,32 +307,6 @@ sub parseTimeSpecMinutes($){
     die "ERROR: malformed TIMESPEC_MINUTES $timeSpecMinutes\n";
   }
   return "@ $timeSpecMinutes";
-}
-
-sub appendAlarmLine($){
-  my $line = shift;
-  chomp $line;
-  $line .= "\n";
-  print "appending:\n$line";
-  my @lines = (readFcronLines(), $line);
-  writeFcronLines \@lines;
-}
-
-sub removeAlarmName($){
-  my $alarmName = shift;
-
-  my $modified = 0;
-  my @lines = readFcronLines();
-  for my $line(@lines){
-    if($line =~ /#$alarmName\s*$/){
-      $line = "";
-      $modified = 1;
-    }
-  }
-  if($modified){
-    writeFcronLines(\@lines);
-  }
-  return $modified;
 }
 
 sub readFcronLines(){
