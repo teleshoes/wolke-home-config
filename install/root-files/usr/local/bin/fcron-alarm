@@ -18,6 +18,10 @@ my $FCRON_ALARM_EXEC = abs_path $0;
 my $FCRONTAB_ALARM = "$ENV{HOME}/.fcrontab-alarm";
 my $DEFAULT_ALARM_NAME = 'XX';
 
+my $MODE_ADD = "add";
+my $MODE_REMOVE = "remove";
+my $MODE_RUN = "run";
+
 my $REGEX_ALARM_NAME = "^[a-zA-Z][a-zA-Z0-9]\$";
 
 my $absTimeRe = '^(?:\d+:\d+|\d+:\d+(?:am|pm)|\d+(?:am|pm))$';
@@ -100,56 +104,62 @@ my $usage = "Usage:
 ";
 
 sub main(@){
-  die $usage if @_ > 0 and $_[0] =~ /^(-h|--help)$/;
+  my $mode = $MODE_ADD;
+  my $alarmName = undef;
+  my $alarmTime = undef;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $usage;
+      exit 0;
+    }elsif($arg =~ /^(--add)$/){
+      $mode = $MODE_ADD;
+    }elsif($arg =~ /^(--remove)$/){
+      $mode = $MODE_REMOVE;
+    }elsif($arg =~ /^(--run)$/){
+      $mode = $MODE_RUN;
+    }elsif($arg =~ /^$REGEX_ALARM_NAME$/i and not defined $alarmName){
+      $alarmName = $arg;
+    }elsif($arg =~ /^($absTimeRe)$/i and not defined $alarmTime){
+      $alarmTime = $arg;
+    }elsif($arg =~ /^($relTimeRe)$/i and not defined $alarmTime){
+      $alarmTime = $arg;
+    }elsif($arg =~ /^($minTimeRe)$/i and not defined $alarmTime){
+      $alarmTime = $arg;
+    }else{
+      die "$usage\nERROR: unknown arg $arg\n";
+    }
+  }
 
   if(`whoami` =~ /^root$/){
     die "ERROR: cannot run $0 as root\n";
   }
 
-  my $action = "add";
-  if(@_ == 0){
-    die $usage;
-  }elsif($_[0] =~ /^(--add)$/){
-    shift @_;
-    $action = "add";
-  }elsif($_[0] =~ /^(--remove)$/){
-    shift @_;
-    $action = "remove";
-  }elsif($_[0] =~ /^(--run)$/){
-    shift @_;
-    $action = "run";
-  }
+  if($mode eq $MODE_ADD){
+    $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
+    die "$usage\nERROR: missing ALARM_TIME for mode=$mode\n" if not defined $alarmTime;
 
-  my $alarmName;
-  if(@_ > 0 and $_[0] =~ /$REGEX_ALARM_NAME/){
-    $alarmName = shift @_;
-  }else{
-    $alarmName = $DEFAULT_ALARM_NAME;
-  }
-
-  my $time;
-  if(@_ > 0 and $_[0] =~ /$absTimeRe|$relTimeRe|$minTimeRe/){
-    $time = shift @_;
-  }
-
-  die $usage if @_ > 0;
-
-  if($action eq "add" and defined $time){
     removeAlarmName $alarmName;
     reloadFcron();
-    appendAlarmLine getDefaultAlarmLine($alarmName, $time);
+    appendAlarmLine getDefaultAlarmLine($alarmName, $alarmTime);
     reloadFcron();
-  }elsif($action eq "remove"){
+  }elsif($mode eq $MODE_REMOVE){
+    $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
+    die "$usage\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
+
     if(not removeAlarmName $alarmName){
       die "Alarm $alarmName not found\n";
     }
     reloadFcron();
-  }elsif($action eq "run"){
+  }elsif($mode eq $MODE_RUN){
+    $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
+    die "$usage\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
+
     removeAlarmName $alarmName;
     reloadFcron();
     exec "alarm", "-g", $alarmName;
   }else{
-    die $usage;
+    die "ERROR: unknown mode $mode\n";
   }
 }
 
