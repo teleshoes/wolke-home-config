@@ -24,6 +24,7 @@ my $DEFAULT_ALARM_NAME = 'XX';
 my $MODE_ADD = "add";
 my $MODE_REMOVE = "remove";
 my $MODE_RELOAD = "reload";
+my $MODE_PARSE_TIME = "parse-time";
 my $MODE_RUN = "run";
 
 my $REGEX_ALARM_NAME = '(?:[A-Z][0-9A-Z])';
@@ -59,6 +60,9 @@ my $USAGE = "Usage:
 
   $0 --reload
     -run: fcrontab $FCRONTAB_ALARM
+
+  $0 --parse-time ALARM_TIME
+    parse ALARM_TIME into FCRON_SCHEDULE and print it
 
   $0 --run [ALARM_NAME]
     first deletes the alarm, as in '$0 --remove ALARM_NAME'
@@ -125,6 +129,8 @@ sub main(@){
       $mode = $MODE_REMOVE;
     }elsif($arg =~ /^(--reload)$/){
       $mode = $MODE_RELOAD;
+    }elsif($arg =~ /^(--parse-time)$/){
+      $mode = $MODE_PARSE_TIME;
     }elsif($arg =~ /^(--run)$/){
       $mode = $MODE_RUN;
     }elsif($arg =~ /^$REGEX_ALARM_NAME$/i and not defined $alarmName){
@@ -161,6 +167,12 @@ sub main(@){
     die "$USAGE\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
 
     reloadFcron();
+  }elsif($mode eq $MODE_PARSE_TIME){
+    die "$USAGE\nERROR: cannot give ALARM_NAME for mode=$mode\n" if defined $alarmName;
+    die "$USAGE\nERROR: missing ALARM_TIME for mode=$mode\n" if not defined $alarmTime;
+
+    my $fcronSched = parseAlarmTime($alarmTime);
+    print "$fcronSched\n";
   }elsif($mode eq $MODE_RUN){
     $alarmName = $DEFAULT_ALARM_NAME if not defined $alarmName;
     die "$USAGE\nERROR: cannot give ALARM_TIME for mode=$mode\n" if defined $alarmTime;
