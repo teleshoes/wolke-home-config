@@ -30,13 +30,6 @@ my $usage = "Usage:
   $0 -h|--help
     print this message
 
-  $0 --run [ALARM_NAME]
-    first deletes the alarm, as in '$0 --remove ALARM_NAME'
-    then runs: 'alarm -g ALARM_NAME'
-
-  $0 --remove [ALARM_NAME]
-    delete any existing fcrontab lines ending in #ALARM_NAME
-
   $0 [ALARM_NAME] ALARM_TIME
   $0 --add [ALARM_NAME] ALARM_TIME
     first deletes the alarm, as in '$0 --remove ALARM_NAME'
@@ -52,6 +45,13 @@ my $usage = "Usage:
             '$0 5'       => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '5') . "'
             '$0 1m30s'   => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '1m30s') . "'
             '$0 2d12h3m  => '" . getDefaultAlarmLine($DEFAULT_ALARM_NAME, '2d12h3m') . "'
+
+  $0 --remove [ALARM_NAME]
+    delete any existing fcrontab lines ending in #ALARM_NAME
+
+  $0 --run [ALARM_NAME]
+    first deletes the alarm, as in '$0 --remove ALARM_NAME'
+    then runs: 'alarm -g ALARM_NAME'
 
   ALARM_NAME
     exactly two characters, the first is alpha-only, and the second is alphanumeric
@@ -109,15 +109,15 @@ sub main(@){
   my $action = "add";
   if(@_ == 0){
     die $usage;
-  }elsif($_[0] =~ /^(--run)$/){
-    shift @_;
-    $action = "run";
   }elsif($_[0] =~ /^(--add)$/){
     shift @_;
     $action = "add";
   }elsif($_[0] =~ /^(--remove)$/){
     shift @_;
     $action = "remove";
+  }elsif($_[0] =~ /^(--run)$/){
+    shift @_;
+    $action = "run";
   }
 
   my $alarmName;
@@ -134,20 +134,20 @@ sub main(@){
 
   die $usage if @_ > 0;
 
-  if($action eq "run"){
+  if($action eq "add" and defined $time){
     removeAlarmName $alarmName;
     reloadFcron();
-    exec "alarm", "-g", $alarmName;
+    appendAlarmLine getDefaultAlarmLine($alarmName, $time);
+    reloadFcron();
   }elsif($action eq "remove"){
     if(not removeAlarmName $alarmName){
       die "Alarm $alarmName not found\n";
     }
     reloadFcron();
-  }elsif($action eq "add" and defined $time){
+  }elsif($action eq "run"){
     removeAlarmName $alarmName;
     reloadFcron();
-    appendAlarmLine getDefaultAlarmLine($alarmName, $time);
-    reloadFcron();
+    exec "alarm", "-g", $alarmName;
   }else{
     die $usage;
   }
