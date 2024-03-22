@@ -11,8 +11,8 @@ sub parseAlarmTime($);
 sub parseTimeSpecAbs($);
 sub parseTimeSpecRel($);
 sub parseTimeSpecMinutes($);
-sub readFcronLines();
-sub writeFcronLines($);
+sub readFileLines($);
+sub writeFileLines($@);
 sub run(@);
 sub wrap($);
 
@@ -203,15 +203,15 @@ sub appendAlarmLine($){
   chomp $line;
   $line .= "\n";
   print "appending:\n$line";
-  my @lines = (readFcronLines(), $line);
-  writeFcronLines \@lines;
+  my @lines = (readFileLines($FCRONTAB_ALARM), $line);
+  writeFileLines($FCRONTAB_ALARM, @lines);
 }
 
 sub removeAlarmName($){
   my $alarmName = shift;
 
   my $modified = 0;
-  my @lines = readFcronLines();
+  my @lines = readFileLines($FCRONTAB_ALARM);
   for my $line(@lines){
     if($line =~ /#$alarmName\s*$/){
       $line = "";
@@ -219,7 +219,7 @@ sub removeAlarmName($){
     }
   }
   if($modified){
-    writeFcronLines(\@lines);
+    writeFileLines($FCRONTAB_ALARM, @lines);
   }
   return $modified;
 }
@@ -309,21 +309,25 @@ sub parseTimeSpecMinutes($){
   return "@ $timeSpecMinutes";
 }
 
-sub readFcronLines(){
-  if(not -e $FCRONTAB_ALARM){
+sub readFileLines($){
+  my ($file) = @_;
+  if(not -e $file){
     return ();
   }
-  open FH, "< $FCRONTAB_ALARM" or die "Could not read $FCRONTAB_ALARM\n";
-  my @lines = <FH>;
-  close FH;
+
+  open my $fh, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
   return @lines;
 }
-sub writeFcronLines($){
-  my @lines = @{shift()};
-  open FH, "> $FCRONTAB_ALARM" or die "Could not write $FCRONTAB_ALARM\n";
-  print FH @lines;
-  close FH;
+
+sub writeFileLines($@){
+  my ($file, @lines) = @_;
+  open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print $fh @lines;
+  close $fh;
 }
+
 
 sub run(@){
   print "@_\n";
