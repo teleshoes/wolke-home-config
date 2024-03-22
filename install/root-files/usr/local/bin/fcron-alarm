@@ -37,14 +37,19 @@ my $USAGE = "Usage:
   Update $FCRONTAB_ALARM, and reload as current user's fcrontab.
 
   $0 -h|--help
-    print this message
+    show this message
 
-  $0 [ALARM_NAME] ALARM_TIME
-  $0 --add|add [ALARM_NAME] ALARM_TIME
-    first deletes the alarm, as in '$0 --remove ALARM_NAME'
-    then adds a new fcrontab line: '<FCRON_SCHEDULE> <alarm_cmd> #ALARM_NAME'
-      FCRON_SCHEDULE: calculated from ALARM_TIME, either relative or absolute
-      alarm_cmd: '$0 --run ALARM_NAME'
+  $0 ALARM_TIME
+  $0 ALARM_NAME ALARM_TIME
+  $0 --add|add ALARM_TIME
+  $0 --add|add ALARM_NAME ALARM_TIME
+    add an alarm to $FCRONTAB_ALARM and reload fcron
+    (ALARM_NAME defaults to '$DEFAULT_ALARM_NAME' if not given)
+      -run: $0 --remove ALARM_NAME
+      -run: FCRON_SCHEDULE=`$0 --parse-time ALARM_TIME`
+      -append line to $FCRONTAB_ALARM:
+        'FCRON_SCHEDULE fcron-alarm --run ALARM_NAME #ALARM_NAME'
+      -run: $0 --reload
 
     e.g.:   '$0 14:45'   => '" . formatFcrontabLine($DEFAULT_ALARM_NAME, '14:45') . "'
             '$0 5pm'     => '" . formatFcrontabLine($DEFAULT_ALARM_NAME, '5pm') . "'
@@ -55,8 +60,13 @@ my $USAGE = "Usage:
             '$0 1m30s'   => '" . formatFcrontabLine($DEFAULT_ALARM_NAME, '1m30s') . "'
             '$0 2d12h3m  => '" . formatFcrontabLine($DEFAULT_ALARM_NAME, '2d12h3m') . "'
 
-  $0 --remove|remove|--delete|delete|--del|del [ALARM_NAME]
-    delete any existing fcrontab lines ending in #ALARM_NAME
+  $0 --remove|remove|--delete|delete|--del|del
+  $0 --remove|remove|--delete|delete|--del|del ALARM_NAME
+    remove an alarm from $FCRONTAB_ALARM and reload fcron
+    (ALARM_NAME defaults to '$DEFAULT_ALARM_NAME' if not given)
+      -remove all lines ending in '#ALARM_NAME' from $FCRONTAB_ALARM
+      -run: $0 --reload
+
 
   $0 --reload
     -run: fcrontab $FCRONTAB_ALARM
@@ -65,8 +75,11 @@ my $USAGE = "Usage:
     parse ALARM_TIME into FCRON_SCHEDULE and print it
 
   $0 --run [ALARM_NAME]
-    first deletes the alarm, as in '$0 --remove ALARM_NAME'
-    then runs: 'alarm -g ALARM_NAME'
+    run the `alarm` command and remove the ALARM_NAME alarm
+    (ALARM_NAME defaults to '$DEFAULT_ALARM_NAME' if not given)
+      -run: alarm -g ALARM_NAME
+      -run: $0 --remove ALARM_NAME
+
 
   ALARM_NAME
     exactly two characters, the first is alpha-only, and the second is alphanumeric
