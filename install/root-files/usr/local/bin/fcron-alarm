@@ -20,12 +20,7 @@ my $DEFAULT_ALARM_NAME = 'XX';
 
 my $REGEX_ALARM_NAME = "^[a-zA-Z][a-zA-Z0-9]\$";
 
-my $h12Re = "(?:0?[0-9]|1[0-2])";
-my $h24Re = "(?:0?[0-9]|1[0-9]|2[0-4])";
-my $minRe = "(?:[0-5][0-9])";
-my $amRe = "(?:[aApP][mM])";
-
-my $absTimeRe = "^(?:$h24Re:$minRe|$h12Re:$minRe$amRe|$h12Re$amRe)\$";
+my $absTimeRe = '^(?:\d+:\d+|\d+:\d+(?:am|pm)|\d+(?:am|pm))$';
 my $relTimeRe = "^(?:[0-9]+[dhmsDHMS])+\$";
 my $minTimeRe = "^(?:[0-9]+)\$";
 
@@ -160,17 +155,25 @@ sub parseAlarmTime($){
   my $time = shift;
   if($time =~ /$absTimeRe/){
     my ($h, $m, $am);
-    if($time =~ /^($h24Re):($minRe)$/){
+    if($time =~ /^(\d+):(\d+)$/){
       ($h, $m, $am) = ($1, $2, undef);
-    }elsif($time =~ /^($h12Re):($minRe)($amRe)$/){
+    }elsif($time =~ /^(\d+):(\d+)(am|pm)$/i){
       ($h, $m, $am) = ($1, $2, $3);
-    }elsif($time =~ /^($h12Re)($amRe)$/){
+    }elsif($time =~ /^(\d+)(am|pm)$/i){
       ($h, $m, $am) = ($1, 0, $2);
     }
+    $h = 0+$h;
+    $m = 0+$m;
+
     if(defined $am){
-      $h %= 12;
+      $h = 0 if $h == 12;
       $h += 12 if lc $am eq "pm";
     }
+
+    if($h > 24 or $m > 59){
+      die "ERROR: malformed absolute time $time\n";
+    }
+
     return "$m $h * * *";
   }elsif($time =~ /$relTimeRe/){
     my $seconds = 0;
