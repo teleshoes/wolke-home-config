@@ -24,6 +24,10 @@ my $usage = "Usage:
 
   $0 FILE
     play FILE
+
+  $0
+    -read $LAST_DIR_FILE
+    -if a directory, same as: $0 DIR
 ";
 
 sub playNextFileInDir($$$);
@@ -40,6 +44,7 @@ sub parseHistory();
 sub readHistForFiles($);
 sub readHistEntries();
 sub appendHist($);
+sub readLastDir();
 sub writeLastDir($);
 sub mtime($);
 sub filesize($);
@@ -55,6 +60,13 @@ sub main(@){
     $dir = abs_path $dir;
     die "not a dir: $dir\n" if not -d $dir;
     playNextFileInDir 0, $dir, [@mpvArgs];
+  }elsif(@_ == 0){
+    my $dir = readLastDir();
+    if(not defined $dir or $dir eq "" or not -d $dir){
+      die "ERROR: could not dir from $LAST_DIR_FILE\n";
+    }
+    $dir = abs_path $dir;
+    playNextFileInDir 0, $dir, [];
   }elsif(@_ >= 2 and $_[0] =~ /^(-p|--playlist)$/ and -d $_[1]){
     my ($cmdType, $dir, @mpvArgs) = @_;
     $dir = abs_path $dir;
@@ -342,6 +354,18 @@ sub appendHist($){
   open FH, ">> $HIST_FILE" or die "could not write $HIST_FILE\n";
   print FH $line;
   close FH;
+}
+
+sub readLastDir(){
+  if(not -f $LAST_DIR_FILE){
+    return undef;
+  }
+
+  open my $fh, "< $LAST_DIR_FILE" or die "ERROR: could not read $LAST_DIR_FILE\n$!\n";
+  my $contents = join '', <$fh>;
+  close $fh;
+  chomp $contents;
+  return $contents;
 }
 
 sub writeLastDir($){
