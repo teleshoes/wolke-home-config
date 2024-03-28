@@ -7,6 +7,7 @@ my $BITRATE_GUESS = 2.0 * 1000.0 * 1000.0; #2 Mbps
 my $DURATION_MIN_GUESS = 60.0;
 
 my $HIST_FILE = "$ENV{HOME}/.cache/ep/hist";
+my $LAST_DIR_FILE = "$ENV{HOME}/.cache/ep/last-dir";
 
 my @FILE_SUFFIXES = qw(
   mkv avi mp4 mpg
@@ -39,6 +40,7 @@ sub parseHistory();
 sub readHistForFiles($);
 sub readHistEntries();
 sub appendHist($);
+sub writeLastDir($);
 sub mtime($);
 sub filesize($);
 sub duration($);
@@ -69,6 +71,7 @@ sub main(@){
 
 sub playNextFileInDir($$$){
   my ($usePlaylist, $dir, $mpvArgs) = @_;
+  writeLastDir $dir;
 
   my $files = getFilesForDir $dir;
   my $fileHist = readHistForFiles $files;
@@ -339,6 +342,14 @@ sub appendHist($){
   open FH, ">> $HIST_FILE" or die "could not write $HIST_FILE\n";
   print FH $line;
   close FH;
+}
+
+sub writeLastDir($){
+  my ($dir) = @_;
+  chomp $dir;
+  open my $fh, "> $LAST_DIR_FILE" or die "ERROR: could not write $LAST_DIR_FILE\n$!\n";
+  print $fh "$dir\n";
+  close $fh;
 }
 
 sub mtime($){
