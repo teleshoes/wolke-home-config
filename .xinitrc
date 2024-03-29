@@ -10,6 +10,7 @@ taffybar-restart --auto-rerun --daemon --quiet
 parcellite-start
 sudo sbox-umount &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
+sudo fcron-start &
 
 mnt --other &
 
