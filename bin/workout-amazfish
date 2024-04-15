@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use XML::LibXML;
+use Date::Parse qw(str2time);
 
 sub parseTcxFile($);
 sub formatWorkout($);
@@ -42,12 +44,41 @@ sub main(@){
 
 sub parseTcxFile($){
   my ($filename) = @_;
-  return undef;
+
+  my $workout = {
+    hrByEpoch  => {},
+    startEpoch => undef,
+  };
+
+  my $dom = XML::LibXML->load_xml(location => $filename);
+  $dom->getDocumentElement->setNamespace(
+    "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2",
+    "tcd");
+
+  for my $act($dom->findnodes("/tcd:TrainingCenterDatabase/tcd:Activities/tcd:Activity")){
+    for my $lap($act->findnodes("tcd:Lap")){
+      if(defined $$workout{startEpoch}){
+        die "ERROR: mutiple Lap elements found in $filename\n";
+      }
+      my $lapStart = $lap->getAttribute("StartTime");
+      $$workout{startEpoch} = str2time($lapStart);
+      for my $tp($lap->findnodes("tcd:Track/tcd:Trackpoint")){
+        my $t = $tp->findvalue("./tcd:Time");
+        my $hr = $tp->findvalue("./tcd:HeartRateBpm/tcd:Value");
+        my $epoch = str2time($t);
+        $$workout{hrByEpoch}{$epoch} = $hr;
+      }
+    }
+  }
+
+  return $workout;
 }
 
 sub formatWorkout($){
   my ($workout) = @_;
-  return "";
+
+  my @epochs = sort keys %{$$workout{hrByEpoch}};
+  return $$workout{startEpoch} . ": " . $$workout{hrByEpoch}{$epochs[0]} . " - " . $$workout{hrByEpoch}{$epochs[-1]} . "\n";
 }
 
 &main(@ARGV);
