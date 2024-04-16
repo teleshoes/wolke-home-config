@@ -4,9 +4,11 @@ use warnings;
 use File::Basename qw(basename);
 use XML::LibXML;
 use Date::Parse qw(str2time);
+use Time::Local qw(timegm_posix);
 
 sub parseTcxFile($);
 sub formatWorkout($$);
+sub dtmStrToEpoch($);
 
 my $EXEC = basename $0;
 
@@ -76,11 +78,11 @@ sub parseTcxFile($){
         die "ERROR: mutiple Lap elements found in $filename\n";
       }
       my $lapStart = $lap->getAttribute("StartTime");
-      $$workout{startEpoch} = str2time($lapStart);
+      $$workout{startEpoch} = dtmStrToEpoch($lapStart);
       for my $tp($lap->findnodes("tcd:Track/tcd:Trackpoint")){
         my $t = $tp->findvalue("./tcd:Time");
         my $hr = $tp->findvalue("./tcd:HeartRateBpm/tcd:Value");
-        my $epoch = str2time($t);
+        my $epoch = dtmStrToEpoch($t);
         $$workout{hrByEpoch}{$epoch} = $hr;
       }
     }
@@ -107,6 +109,24 @@ sub formatWorkout($$){
   }else{
     die "ERROR: unknown format $format\n";
   }
+}
+
+sub dtmStrToEpoch($){
+  my ($dtm) = @_;
+
+  my $epoch;
+  if($dtm =~ /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/){
+    #faster (~2x) conversion for xsd:dateTime with timezone=UTC
+    $epoch = timegm_posix($6, $5, $4, $3, $2-1, $1-1900);
+  }else{
+    $epoch = str2time($dtm);
+  }
+
+  if(not defined $epoch or $epoch !~ /^-?\d+$/){
+    die "ERROR: failed to convert $dtm to epoch\n";
+  }
+
+  return $epoch;
 }
 
 &main(@ARGV);
