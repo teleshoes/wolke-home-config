@@ -65,6 +65,7 @@ sub parseTcxFile($){
   my $workout = {
     hrByEpoch  => {},
     startEpoch => undef,
+    hrPeak     => undef,
   };
 
   my $dom = XML::LibXML->load_xml(location => $filename);
@@ -84,6 +85,9 @@ sub parseTcxFile($){
         my $hr = $tp->findvalue("./tcd:HeartRateBpm/tcd:Value");
         my $epoch = dtmStrToEpoch($t);
         $$workout{hrByEpoch}{$epoch} = $hr;
+        if(not defined $$workout{hrPeak} or $$workout{hrPeak} < $hr){
+          $$workout{hrPeak} = $hr;
+        }
       }
     }
   }
@@ -97,7 +101,7 @@ sub formatWorkout($$){
   my @epochs = sort keys %{$$workout{hrByEpoch}};
   my $summaryLine = $$workout{startEpoch} . ": "
     . $$workout{hrByEpoch}{$epochs[0]} . " - "
-    . $$workout{hrByEpoch}{$epochs[-1]} . "\n";
+    . $$workout{hrPeak} . "\n";
 
   if($format eq $FORMAT_SUMMARY){
     return $summaryLine;
