@@ -71,6 +71,7 @@ sub parseTcxFile($){
     endEpoch   => undef,
     durSeconds => undef,
     hrPeak     => undef,
+    hrSegments => [],
   };
 
   my $dom = XML::LibXML->load_xml(location => $filename);
@@ -99,16 +100,36 @@ sub parseTcxFile($){
       }
     }
   }
+  my @epochs = sort keys %{$$workout{hrByEpoch}};
+
   if(not defined $$workout{startEpoch}){
     die "ERROR: could not parse any laps in $filename\n";
   }
-  if(not defined $$workout{endEpoch}){
+  if(not defined $$workout{endEpoch} or @epochs == 0){
     die "ERROR: could not parse any trackpoints in $filename\n";
   }
 
   $$workout{durSeconds} = $$workout{endEpoch} - $$workout{startEpoch};
   if($$workout{durSeconds} <= 0){
     die "ERROR: invalid lap duration in $filename\n";
+  }
+
+  my @targetPcts = qw(0 20 40 60 80 100);
+  for(my $i=0; $i<@epochs; $i++){
+    my $epoch = $epochs[$i];
+    my $isLastEpoch = $i == $#epochs ? 1 : 0;
+
+    my $elapsed = $epoch - $$workout{startEpoch};
+    if($elapsed < 0){
+      die "ERROR: lap contains trackpoint before lap start in $filename\n";
+    }
+
+    my $pct = 100.0 * ($elapsed/$$workout{durSeconds});
+    while(@targetPcts > 0 and ($pct >= $targetPcts[0] || $isLastEpoch)){
+      my $hr = $$workout{hrByEpoch}{$epoch};
+      push @{$$workout{hrSegments}}, $hr;
+      shift @targetPcts;
+    }
   }
 
   return $workout;
