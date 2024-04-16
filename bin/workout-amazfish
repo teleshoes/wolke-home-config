@@ -6,7 +6,7 @@ use XML::LibXML;
 use Date::Parse qw(str2time);
 
 sub parseTcxFile($);
-sub formatWorkout($);
+sub formatWorkout($$);
 
 my $EXEC = basename $0;
 
@@ -14,17 +14,27 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC TCX_FILE [TCX_FILE ..]
+  $EXEC [OPTS] TCX_FILE [TCX_FILE ..]
     print info about each TCX_FILE
+
+  OPTS
+    --details
+      print detailed list of each trackpoint for each TCX_FILE
 ";
+
+my $FORMAT_SUMMARY = "summary";
+my $FORMAT_DETAILS= "details";
 
 sub main(@){
   my @tcxFiles;
+  my $format = $FORMAT_SUMMARY;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--details)$/){
+      $format = $FORMAT_DETAILS;
     }elsif(-f $arg){
       push @tcxFiles, $arg;
     }else{
@@ -38,7 +48,7 @@ sub main(@){
 
   for my $file(@tcxFiles){
     my $workout = parseTcxFile($file);
-    print formatWorkout($workout);
+    print formatWorkout($format, $workout);
   }
 }
 
@@ -74,11 +84,24 @@ sub parseTcxFile($){
   return $workout;
 }
 
-sub formatWorkout($){
-  my ($workout) = @_;
+sub formatWorkout($$){
+  my ($format, $workout) = @_;
 
   my @epochs = sort keys %{$$workout{hrByEpoch}};
-  return $$workout{startEpoch} . ": " . $$workout{hrByEpoch}{$epochs[0]} . " - " . $$workout{hrByEpoch}{$epochs[-1]} . "\n";
+  my $summaryLine = $$workout{startEpoch} . ": "
+    . $$workout{hrByEpoch}{$epochs[0]} . " - "
+    . $$workout{hrByEpoch}{$epochs[-1]} . "\n";
+
+  if($format eq $FORMAT_SUMMARY){
+    return $summaryLine;
+  }elsif($format eq $FORMAT_DETAILS){
+    my @trackpointLines = map {
+      "  " . $_ . " = $$workout{hrByEpoch}{$_}\n"
+    } @epochs;
+    return join("", $summaryLine, @trackpointLines);
+  }else{
+    die "ERROR: unknown format $format\n";
+  }
 }
 
 &main(@ARGV);
