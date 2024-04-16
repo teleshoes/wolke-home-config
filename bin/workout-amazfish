@@ -4,11 +4,13 @@ use warnings;
 use File::Basename qw(basename);
 use XML::LibXML;
 use Date::Parse qw(str2time);
+use Date::Format qw(time2str);
 use Time::Local qw(timegm_posix);
 
 sub parseTcxFile($);
 sub formatWorkout($$);
 sub dtmStrToEpoch($);
+sub formatDatetime($);
 
 my $EXEC = basename $0;
 
@@ -99,7 +101,7 @@ sub formatWorkout($$){
   my ($format, $workout) = @_;
 
   my @epochs = sort keys %{$$workout{hrByEpoch}};
-  my $summaryLine = $$workout{startEpoch} . ": "
+  my $summaryLine = formatDatetime($$workout{startEpoch}) . ": "
     . $$workout{hrByEpoch}{$epochs[0]} . " - "
     . $$workout{hrPeak} . "\n";
 
@@ -107,7 +109,7 @@ sub formatWorkout($$){
     return $summaryLine;
   }elsif($format eq $FORMAT_DETAILS){
     my @trackpointLines = map {
-      "  " . $_ . " = $$workout{hrByEpoch}{$_}\n"
+      "  " . formatDatetime($_) . " = $$workout{hrByEpoch}{$_}\n"
     } @epochs;
     return join("", $summaryLine, @trackpointLines);
   }else{
@@ -131,6 +133,11 @@ sub dtmStrToEpoch($){
   }
 
   return $epoch;
+}
+
+sub formatDatetime($){
+  my ($epoch) = @_;
+  return time2str("%Y-%m-%d %H:%M:%S", $epoch);
 }
 
 &main(@ARGV);
