@@ -28,6 +28,10 @@ my $USAGE = "Usage:
     roughly the same as:
       $EXEC OPTS $DIR_AMAZFISH_WORKOUTS/*.tcx
 
+  $EXEC [OPTS] DATE_YYYY_MM_DD
+    -remove any dashes from DATE_YYYY_MM_DD (e.g. 1970-01-01 => 19700101)
+    -roughly the same as: $EXEC OPTS $DIR_AMAZFISH_WORKOUTS/*DATE_YYYY_MM_DD*.tcx
+
   OPTS
     --summary
       (this is the default)
@@ -70,6 +74,13 @@ sub main(@){
       $format = $FORMAT_SUMMARY;
     }elsif($arg =~ /^(--details)$/){
       $format = $FORMAT_DETAILS;
+    }elsif($arg =~ /^(\d\d\d\d)-?(\d\d)-?(\d\d)$/){
+      my $ymd = "$1$2$3";
+      my @dateTcxFiles = grep {-f $_} grep {/\.tcx$/} glob "$DIR_AMAZFISH_WORKOUTS/*$ymd*";
+      if(@dateTcxFiles == 0){
+        die "ERROR: could not find any TCX files for date=$arg\n";
+      }
+      @tcxFiles = (@tcxFiles, @dateTcxFiles);
     }elsif(-f $arg){
       push @tcxFiles, $arg;
     }else{
