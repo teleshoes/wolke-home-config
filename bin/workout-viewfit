@@ -41,7 +41,7 @@ my $USAGE = "Usage:
 
 sub readCachedWorkouts();
 sub readExtraInfo();
-sub insertExtraInfo($$);
+sub insertExtraInfo($@);
 sub fetchViewfitWorkouts();
 sub readFile($);
 sub writeFile($$);
@@ -84,6 +84,8 @@ sub main(@){
     my @workouts = readCachedWorkouts();
     my $extraInfo = readExtraInfo();
 
+    insertExtraInfo($extraInfo, @workouts);
+
     if(defined $$opts{workoutIdFilter}){
       @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
     }
@@ -96,7 +98,6 @@ sub main(@){
     } @workouts;
 
     for my $w(@workouts){
-      insertExtraInfo($w, $extraInfo);
       my $timeUTC = $$w{workout_time};
       my $timeEpochFracS = `date --date='$timeUTC' +%s.%3N`;
       chomp $timeEpochFracS;
@@ -142,12 +143,22 @@ sub readExtraInfo(){
   }
   return $extraInfo;
 }
-sub insertExtraInfo($$){
-  my ($workout, $extraInfo) = @_;
-  my $info = $$extraInfo{$$workout{workout_id}};
-  if(defined $info){
-    for my $key(sort keys %$info){
-      $$workout{$key} = $$info{$key};
+sub insertExtraInfo($@){
+  my ($extraInfo, @workouts) = @_;
+  for my $workoutID(sort keys %$extraInfo){
+    my $info = $$extraInfo{$workoutID};
+    my $found = 0;
+    for my $workout(@workouts){
+      if($workoutID eq $$workout{workout_id}){
+        for my $key(sort keys %$info){
+          $$workout{$key} = $$info{$key};
+        }
+        $found = 1;
+        last;
+      }
+    }
+    if(not $found){
+      die "ERROR: could not insert extra info for workout $workoutID\n";
     }
   }
 }
