@@ -8,6 +8,7 @@ use Time::HiRes qw(time);
 my $EXEC = basename $0;
 my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json";
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
+my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 
 my $VIEWFIT_EXERCISER_BASE_URL = 'https://www.viewfit.com/exerciser/exerciser';
 
@@ -42,6 +43,9 @@ my $USAGE = "Usage:
 sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
+sub readWorkoutsCombine();
+sub applyAndFilterCombinedWorkouts($@);
+sub getCombinedWorkout($$);
 sub fetchViewfitWorkouts();
 sub readFile($);
 sub writeFile($$);
@@ -84,7 +88,9 @@ sub main(@){
   if($cmd eq $COMMAND_GET){
     my @workouts = readCachedWorkouts();
     my $extraInfo = readExtraInfo();
+    my $workoutsCombineInfo = readWorkoutsCombine();
 
+    @workouts = applyAndFilterCombinedWorkouts($workoutsCombineInfo, @workouts);
     insertExtraInfo($extraInfo, @workouts);
 
     if(defined $$opts{workoutIdFilter}){
@@ -164,6 +170,66 @@ sub insertExtraInfo($@){
       die "ERROR: could not insert extra info for workout $workoutID\n";
     }
   }
+}
+
+sub readWorkoutsCombine(){
+  my @lines = `cat $WORKOUTS_COMBINE_FILE 2>/dev/null`;
+  my $workoutsCombineInfo = {};
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^(\w+)\s*=\s*((?:\w+\s*,\s*)*\w+)\s*$/){
+      my ($mainID, $combinedIDsCsv) = ($1, $2);
+      my @combinedIDs = split /,/, $combinedIDsCsv;
+      s/^\s*// foreach @combinedIDs;
+      s/\s*$// foreach @combinedIDs;
+      for my $id(@combinedIDs){
+        if($id !~ /^\w+$/){
+          die "ERROR: invalid ID in $WORKOUTS_COMBINE_FILE\n$line\n";
+        }
+      }
+      $$workoutsCombineInfo{$mainID} = [@combinedIDs];
+    }else{
+      die "ERROR: invalid line in $WORKOUTS_COMBINE_FILE\n$line\n";
+    }
+  }
+  return $workoutsCombineInfo;
+}
+sub applyAndFilterCombinedWorkouts($@){
+  my ($workoutsCombineInfo, @workouts) = @_;
+  my %workoutsByID = map {$$_{workout_id} => $_} @workouts;
+  my %workoutIDsToExclude = map {$_ => 1} (map {@$_} values %$workoutsCombineInfo);
+
+  my @combinedWorkouts;
+  for my $workout(@workouts){
+    my $workoutID = $$workout{workout_id};
+    if(defined $$workoutsCombineInfo{$workoutID}){
+      my @addtlWorkoutIDs = @{$$workoutsCombineInfo{$workoutID}};
+      my @workoutsToCombine = ($workout, map {$workoutsByID{$_}} @addtlWorkoutIDs);
+      @workoutsToCombine = sort {
+        $$a{workout_time} cmp $$b{workout_time}
+      } @workoutsToCombine;
+
+      #foldl
+      while(@workoutsToCombine > 1){
+        my $w1 = shift @workoutsToCombine;
+        my $w2 = shift @workoutsToCombine;
+        @workoutsToCombine = (getCombinedWorkout($w1, $w2), @workoutsToCombine);
+      }
+      die "ERROR: combine workouts failed\n" if @workoutsToCombine != 1;
+      push @combinedWorkouts, $workoutsToCombine[0];
+    }elsif(not defined $workoutIDsToExclude{$workoutID}){
+      push @combinedWorkouts, $workout;
+    }else{
+      #omit workout
+    }
+  }
+  return @combinedWorkouts;
+}
+
+sub getCombinedWorkout($$){
+  my ($w1, $w2) = @_;
+  return $w1;
 }
 
 sub fetchViewfitWorkouts(){
