@@ -3,7 +3,8 @@ import Clickable (clickableActions)
 import Label (labelW, mainLabel)
 import Utils(chompFile, padL, readInt, readProc, millisTime)
 
-import Control.Concurrent (forkIO, threadDelay, readChan, writeChan, newChan)
+import Control.Concurrent (forkIO, threadDelay,
+  MVar, newMVar, putMVar, takeMVar)
 import Control.Monad (when, void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
@@ -21,19 +22,17 @@ overrideFile = "/tmp/screen-saver-override"
 
 -- screensaver timeout
 idleTimeoutMillis = 10 * 60 * 1000
--- delay between runs
-checkDelayMillis = 1 * 1000
 -- minimum amount of time to run screensaver when forcibly turning it on
 minRunningMillis = 2 * 1000
 
 screenSaverReader :: IO (IO String)
 screenSaverReader = do
-  chan <- newChan
-  writeChan chan $ "????"
-  forkIO $ checkScreenSaver chan False 0 Nothing
-  return $ readChan chan
+  stateMVar <- newMVar (False, 0, Nothing)
+  return $ checkScreenSaver stateMVar
 
-checkScreenSaver chan prevState prevXidle prevStartTimeMillis = do
+checkScreenSaver :: MVar (Bool, Integer, Maybe Integer) -> IO String
+checkScreenSaver stateMVar = do
+  (prevState, prevXidle, prevStartTimeMillis) <- takeMVar stateMVar
   xidle <- getXidle
   override <- getOverride
   nowMillis <- millisTime
@@ -53,14 +52,13 @@ checkScreenSaver chan prevState prevXidle prevStartTimeMillis = do
                             "on"  -> "on"
                             _     -> if state then "SCRN" else show timeoutS
 
-  writeChan chan $ msg ++ "\nidle"
   if state && not prevState then screenSaverOn else return ()
   if not state && prevState then screenSaverOff else return ()
 
   if override == "on" && not state then writeOverride "" else return ()
 
-  threadDelay $ checkDelayMillis * 10^3
-  checkScreenSaver chan state xidle startTime
+  putMVar stateMVar (state, xidle, startTime)
+  return $ msg ++ "\nidle"
 
 
 getOverride = chompFile overrideFile
