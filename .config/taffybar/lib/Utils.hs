@@ -22,7 +22,7 @@ import ProcUtil ( readProcessWithExitCode' )
 
 import Control.Concurrent (
   forkIO, threadDelay,
-  Chan, writeChan, writeList2Chan, newChan)
+  Chan, writeChan, newChan)
 import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad ((<=<), forever, join, void)
 
