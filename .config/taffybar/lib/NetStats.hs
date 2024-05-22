@@ -87,7 +87,7 @@ updateScans scans = do
   return updatedScans
 
 filterScans nanoTime secondsAgo scans = filter ok scans
-  where 
+  where
     targetTime = nanoTime - (secondsAgo * 10^9)
     ok scan = scanTime scan >= targetTime
 
