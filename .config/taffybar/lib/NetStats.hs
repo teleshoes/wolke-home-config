@@ -2,7 +2,8 @@ module NetStats(netStatsW) where
 import Utils (nanoTime, fg, chompFile, regexMatch, regexGroups)
 import Label (labelW, mainLabel)
 
-import Control.Concurrent (threadDelay, forkIO, readChan, writeChan, newChan)
+import Control.Concurrent (threadDelay, forkIO,
+  MVar, newMVar, putMVar, takeMVar)
 import Control.Monad (forever)
 import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
@@ -14,9 +15,8 @@ netStatsW = labelW =<< netStatsReader
 
 netStatsReader :: IO (IO String)
 netStatsReader = do
-  chan <- newChan
-  forkIO $ scanLoop chan []
-  return $ readChan chan
+  prevScansMVar <- newMVar []
+  return $ readScan prevScansMVar
 
 ignoredInterfacesRegex = "^(lo|tun\\d+)$"
 
@@ -47,13 +47,14 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
     packStats [bytes,packets,errs,drop,fifo,frame,compressed,multicast] =
       NetStats bytes packets errs drop fifo frame compressed multicast
 
-scanLoop chan prevScans = do
+readScan :: MVar [NetScan] -> IO String
+readScan prevScansMVar = do
+  prevScans <- takeMVar prevScansMVar
   curScans <- updateScans prevScans
+  putMVar prevScansMVar curScans
   let oldest = minimumBy (comparing scanTime) curScans
   let newest = maximumBy (comparing scanTime) curScans
-  writeChan chan $ format oldest newest
-  threadDelay $ 1*10^6
-  scanLoop chan curScans
+  return $ format oldest newest
 
 showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
   where
