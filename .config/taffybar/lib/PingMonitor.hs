@@ -44,7 +44,7 @@ pingMonitorReader display url = do
 ping :: Chan String -> String -> String -> Int -> Bool -> IO ()
 ping chan display url timeout toggle = do
   isUp <- isPingable url timeout
-  let wait = if isUp then 3 else 1
+  let wait = 1
 
   let color = if isUp then "green" else "red"
   let toggleColor = if toggle then toggleColorTrue else toggleColorFalse
