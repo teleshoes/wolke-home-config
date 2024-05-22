@@ -5,7 +5,8 @@ import Utils (defaultDelay, fg, bg, procSuccess)
 import Data.Text (pack)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import System.Environment (getArgs, getEnv)
-import Control.Concurrent (Chan, forkIO, threadDelay, readChan, writeChan, newChan)
+import Control.Concurrent (forkIO, threadDelay,
+  MVar, newMVar, putMVar, takeMVar)
 import Control.Monad (when)
 import GI.Gtk.Objects.Widget (Widget)
 
@@ -35,20 +36,18 @@ isPingable url timeout = procSuccess ["ping", url, "-c", "1", "-w", show timeout
 
 pingMonitorReader :: String -> String -> IO (IO String)
 pingMonitorReader display url = do
-  chan <- newChan
-  writeChan chan $ "?" ++ display
-  let toggle = cycle [True, False]
-  forkIO $ mapM_ (ping chan display url (round defaultDelay)) toggle
-  return $ readChan chan
+  toggleMVar <- newMVar False
+  let timeout = round defaultDelay
+  return $ ping display url timeout toggleMVar
 
-ping :: Chan String -> String -> String -> Int -> Bool -> IO ()
-ping chan display url timeout toggle = do
+ping :: String -> String -> Int -> MVar Bool -> IO String
+ping display url timeout toggleMVar = do
+  isToggle <- takeMVar toggleMVar
+  putMVar toggleMVar $ not isToggle
+
   isUp <- isPingable url timeout
-  let wait = 1
 
   let color = if isUp then "green" else "red"
-  let toggleColor = if toggle then toggleColorTrue else toggleColorFalse
+  let toggleColor = if isToggle then toggleColorTrue else toggleColorFalse
 
-  writeChan chan $ bg "black" $ fg color char ++ fg toggleColor display
-
-  threadDelay $ wait * 10^6
+  return $ bg "black" $ fg color char ++ fg toggleColor display
