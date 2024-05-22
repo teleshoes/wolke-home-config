@@ -15,7 +15,7 @@ module Utils(
   tryMaybe, millisTime, nanoTime, isRunning, chompFile, findName,
   isSymlink, attemptCreateSymlink,
   systemReadLines, readProc, chompProc, procSuccess,
-  procToChan, actToChanDelay, listToChan
+  procToChan
 ) where
 
 import ProcUtil ( readProcessWithExitCode' )
@@ -361,17 +361,3 @@ procToChan cmdarr = do
   chan <- newChan
   forkIO . forever $ writeChan chan =<< hGetLine out
   return chan
-
-actToChanDelay :: Int -> IO a -> IO (Chan a)
-actToChanDelay delayMicro act = do
-  chan <- newChan
-  forkIO $ forever $ do
-    start <- nanoTime
-    act >>= writeChan chan
-    end <- nanoTime
-    let elapsedMicro = (fromIntegral $ end - start) `div` 10^3
-    threadDelay $ delayMicro - elapsedMicro
-  return chan
-
-listToChan :: [a] -> IO (Chan a)
-listToChan xs = newChan >>= (\c -> forkIO (writeList2Chan c xs) >> return c)
