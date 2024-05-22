@@ -47,13 +47,13 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
     packStats [bytes,packets,errs,drop,fifo,frame,compressed,multicast] =
       NetStats bytes packets errs drop fifo frame compressed multicast
 
-scanLoop chan scans = do
-  updatedScans <- updateScans scans
-  let oldest = minimumBy (comparing scanTime) updatedScans
-  let newest = maximumBy (comparing scanTime) updatedScans
+scanLoop chan prevScans = do
+  curScans <- updateScans prevScans
+  let oldest = minimumBy (comparing scanTime) curScans
+  let newest = maximumBy (comparing scanTime) curScans
   writeChan chan $ format oldest newest
   threadDelay $ 1*10^6
-  scanLoop chan updatedScans
+  scanLoop chan curScans
 
 showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
   where
@@ -81,10 +81,10 @@ statDiff rxTx stat f i = (totalStat rxTx stat f) - (totalStat rxTx stat i)
 totalStat rxTx stat scan = sum $ map (stat.rxTx) $ devs scan
 
 updateScans :: [NetScan] -> IO [NetScan]
-updateScans scans = do
+updateScans prevScans = do
   latestScan <- netScan
-  let updatedScans = latestScan : (filterScans (scanTime latestScan) 5 scans)
-  return updatedScans
+  let curScans = latestScan : (filterScans (scanTime latestScan) 5 prevScans)
+  return curScans
 
 filterScans nanoTime secondsAgo scans = filter ok scans
   where
