@@ -1,12 +1,11 @@
-module CpuFreqsProc (getFreqsChanProc) where
-import Control.Concurrent (Chan)
+module CpuFreqsProc (getFreqsProc) where
 import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Process (system)
-import Utils (regexAllSubmatches, chompFile, actToChanDelay)
+import Utils (regexAllSubmatches, chompFile)
 
-getFreqsChanProc :: IO (Chan [Int])
-getFreqsChanProc = actToChanDelay (10^6) (fmap parseCpuInfo readCpuInfo)
+getFreqsProc :: IO (IO [Int])
+getFreqsProc = return $ fmap parseCpuInfo readCpuInfo
   where readCpuInfo = chompFile "/proc/cpuinfo"
         parseCpuInfo = map snd . removeHTDupes . getCpus
 

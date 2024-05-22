@@ -1,28 +1,30 @@
 module CpuFreqs (cpuFreqsW) where
 import Label (labelW, mainLabel)
 
-import CpuFreqsI7z (getFreqsChanI7z)
-import CpuFreqsProc (getFreqsChanProc)
-import Control.Concurrent (newMVar, modifyMVar, readChan)
+import CpuFreqsI7z (getFreqsI7z)
+import CpuFreqsProc (getFreqsProc)
+import Control.Concurrent (newMVar, modifyMVar)
 import Control.Monad (forever)
 import Data.List (intercalate)
 
 main = mainLabel =<< cpuFreqsReader
 cpuFreqsW = labelW =<< cpuFreqsReader
 
-getFreqsChan = getFreqsChanProc
+getFreqs :: IO (IO [Int])
+getFreqs = getFreqsProc
+--getFreqs = getFreqsI7z
 
 cpuFreqsReader :: IO (IO String)
 cpuFreqsReader = do
-  freqsChan <- getFreqsChan
   maxLenVar <- newMVar 0
-  return $ readCpuFreqs freqsChan maxLenVar
+  getFreqsAct <- getFreqs
+  return $ readCpuFreqs maxLenVar getFreqsAct
 
 maxMVar mvar test = modifyMVar mvar maxTest
   where maxTest old = let new = max old test in return (new, new)
 
-readCpuFreqs freqsChan maxLenVar = do
-  freqs <- readChan freqsChan
+readCpuFreqs maxLenVar getFreqsAct = do
+  freqs <- getFreqsAct
   maxLen <- maxMVar maxLenVar $ length freqs
   return $ formatFreqs freqs maxLen
 

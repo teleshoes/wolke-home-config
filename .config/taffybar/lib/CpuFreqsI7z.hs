@@ -1,24 +1,29 @@
-module CpuFreqsI7z (getFreqsChanI7z) where
+module CpuFreqsI7z (getFreqsI7z) where
 import Control.Monad (forever, void)
 import Control.Concurrent (
-  forkIO, myThreadId, killThread, Chan)
+  forkIO, myThreadId, killThread)
+import Safe (headDef)
 import System.Process (system, readProcess)
 import System.Posix.Process (getProcessID)
-import Utils (regexAllSubmatches, systemReadLines, readProc, listToChan)
+import Utils (regexAllSubmatches, systemReadLines, readProc)
 import System.Directory (setCurrentDirectory)
 
-getFreqsChanI7z :: IO (Chan [Int])
-getFreqsChanI7z = do
+getFreqsI7z :: IO (IO [Int])
+getFreqsI7z = do
   system "sudo i7z-kill"
   system "pkill -f 'tail -n 0 -F /tmp/i7z'"
   pid <- getProcessID
   let logFile = "/tmp/i7z_" ++ show pid ++ ".log"
 
   execAndThenDie $ i7zCmdArr logFile
-  i7zLogLines <- fmap (map parseI7zLog) $ tailFile logFile
-  listToChan i7zLogLines
+  return $ readI7zLogFile logFile
 
 i7zCmdArr log = ["sudo", "i7z", "--nogui", "-w", "a", "--logfile", log]
+
+readI7zLogFile :: String -> IO [Int]
+readI7zLogFile logFile = do
+  line <- tailFile logFile
+  return $ parseI7zLog line
 
 execAndThenDie cmdArr = do
   parentThreadId <- myThreadId
@@ -27,8 +32,8 @@ execAndThenDie cmdArr = do
     void $ readProc cmdArr
     killThread parentThreadId
 
-tailFile :: String -> IO [String]
-tailFile f = systemReadLines $ "tail -n 0 -F " ++ f ++ " 2>/dev/null"
+tailFile :: String -> IO String
+tailFile f = do fmap (headDef "") $ systemReadLines $ "tail -n 1 " ++ f ++ " 2>/dev/null"
 
 numbers s = concat groupSets
   where groupSets = map tail (regexAllSubmatches p s)
