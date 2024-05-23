@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use POSIX qw(floor);
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
@@ -10,6 +11,9 @@ sub rotateLogs();
 sub updateTokenConf($$$);
 sub readFile($);
 sub writeFile($$);
+sub roundToNearestHalf($);
+sub fahrenheitToCelsius($);
+sub halfIntFloor($);
 sub nowMillis();
 sub run(@);
 
@@ -69,6 +73,15 @@ my $USAGE = "Usage:
     -same as: $EXEC [OPTS] --set --fan-speed 40
   $EXEC [OPTS] --fan-auto
     -same as: $EXEC [OPTS] --set --fan-speed 102
+
+  $EXEC [OPTS] --temp TEMP_F
+  $EXEC [OPTS] --temp=TEMP_F
+    -same as:
+      TEMP_C=`perl -e \"printf '%.1f', int(((\$TEMP_F-32)*5/9)*2)/2\"`
+      $EXEC [OPTS] --set --fahrenheit true --target-temperature \$TEMP_C
+    NOTE: to set half-integer celsius temperatures like 21.5C,
+          the arg to --target-temperature must be an integer plus EXACTLY 0.5
+          e.g.: '21.6' becomes '21', not '21.5'
 
   $EXEC [OPTS] --humidity=TARGET_HUMIDITY_PERCENT
   $EXEC [OPTS] --target-humidity=TARGET_HUMIDITY_PERCENT
@@ -172,6 +185,16 @@ sub main(@){
     }elsif($arg =~ /^(--fan-auto)$/){
       $mode = $MODE_SET;
       @setArgs = ("--fan-speed", "102");
+    }elsif($arg =~ /^(--temp)$/ and @_ > 0 and $_[0] =~ /^(\d+)$/){
+      my $tempF = shift @_;
+      my $tempC = halfIntFloor(fahrenheitToCelsius($tempF));
+      $mode = $MODE_SET;
+      @setArgs = ("--fahrenheit", "true", "--target-temperature", $tempC);
+    }elsif($arg =~ /^--temp=(\d+)$/){
+      my $tempF = $1;
+      my $tempC = halfIntFloor(fahrenheitToCelsius($tempF));
+      $mode = $MODE_SET;
+      @setArgs = ("--fahrenheit", "true", "--target-temperature", $tempC);
     }elsif($arg =~ /^(--humidity|--target-humidity)=(\d+)$/){
       $mode = $MODE_SET;
       @setArgs = ("--target-humidity", $2);
@@ -490,6 +513,20 @@ sub writeFile($$){
   open FH, "> $file" or die "ERROR: could not write $file\n$!\n";
   print FH $contents;
   close FH;
+}
+
+sub fahrenheitToCelsius($){
+  my ($tempF) = @_;
+  return ($tempF-32)*5/9;
+}
+
+#output the greatest half-integer that is less than or equal to the input
+#  e.g.: 2.6     =>  2.5
+#        3.49999 =>  3.0
+#        -1.5    => -2.0
+sub halfIntFloor($){
+  my ($val) = @_;
+  return sprintf "%.1f", floor($val * 2) / 2.0;
 }
 
 sub nowMillis(){
