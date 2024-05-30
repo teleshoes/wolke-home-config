@@ -45,12 +45,14 @@ my $MODE_IDS_AC = {
   HEAT => 4,
   FAN  => 5,
 };
+my $MODE_NAMES_AC = { map {$$MODE_IDS_AC{$_} => $_} sort keys %$MODE_IDS_AC };
 
 my $MODE_IDS_DH = {
   SET  => 1,
   CONT => 2,
   MAX  => 4,
 };
+my $MODE_NAMES_DH = { map {$$MODE_IDS_DH{$_} => $_} sort keys %$MODE_IDS_DH };
 
 my $FORMAT_SUMMARY = "summary";
 my $FORMAT_FULL = "full";
@@ -336,6 +338,8 @@ sub main(@){
       my $tempC = $1 if $status =~ /^\s*temp\s*=\s*(.+)$/m;
       my $tempF = sprintf "%.1f", $tempC*9/5+32 if defined $tempC;
 
+      my $mode = $1 if $status =~ /^\s*mode\s*=\s*(\d+)$/m;
+
       my $tempTargetC = $1 if $status =~ /^\s*target\s*=\s*(.+)$/m;
       my $tempTargetF = sprintf "%.1f", $tempTargetC*9/5+32 if defined $tempTargetC;
       my $tempIndoorC = $1 if $status =~ /^\s*indoor\s*=\s*(.+)$/m;
@@ -350,9 +354,13 @@ sub main(@){
       $pwr = "???" if not defined $pwr;
 
       if($$device{type} =~ /(^dh$)|(de.*humidifier)/i){
-        print "$devName: $pwr  ${tempF}F $humidity%   (=> $targetHumidity%) fan=$fanSpeed\n";
+        my $modeName = $$MODE_NAMES_DH{$mode} if defined $mode;
+        $modeName = "?" if not defined $modeName;
+        print "$devName: $pwr  ${tempF}F $humidity%   (=> $targetHumidity%) mode=$modeName fan=$fanSpeed\n";
       }elsif($$device{type} =~ /(^ac$)|(air.*conditioner)/i){
-        print "$devName: $pwr  => ${tempTargetF}F  (${tempIndoorF}F/${tempOutdoorF}F) fan=$fanSpeed\n";
+        my $modeName = $$MODE_NAMES_AC{$mode} if defined $mode;
+        $modeName = "?" if not defined $modeName;
+        print "$devName: $pwr  => ${tempTargetF}F  (${tempIndoorF}F/${tempOutdoorF}F) mode=$modeName fan=$fanSpeed\n";
       }else{
         die "ERROR: unknown device type $$device{type}\n";
       }
