@@ -2,15 +2,49 @@
 use strict;
 use warnings;
 
+sub isAcEnabled();
+sub getACByName($);
+sub readAC($);
+sub writeAC($$);
+sub toggleAC($);
+sub readMideaRuby($);
+sub writeMideaIR($$);
+sub readTasmota($);
+sub writeTasmota($$);
+sub run(@);
+
+my $ACS = [
+  {
+    names    => [qw(midea_ir_ruby)],
+    readDev  => 1,
+    readSub  => \&readMideaRuby,
+    writeDev => "/dev/ttyUSB0",
+    writeSub => \&writeMideaIR,
+  },
+  {
+    names    => [qw(fan1)],
+    readDev  => "fan1",
+    readSub  => \&readTasmota,
+    writeDev => "fan1",
+    writeSub => \&writeTasmota,
+  },
+];
+my @ALL_AC_NAMES = (map {@{$$_{names}}} @$ACS);
+
 my $AC_ENABLED_FILE = "$ENV{HOME}/.config/ac-enabled";
 
 my $IPMAGIC_NAME = "raspi";
 
-my $CMD_TOGGLE_AC = "ipmagic $IPMAGIC_NAME --sshc midea-ir-ruby-wrapper --toggle";
-my $CMD_TOGGLE_FAN = "tasmota fan1";
+my $MODE_AUTO = "mode-auto";
+my $MODE_COOL = "mode-cool";
+my $MODE_DRY = "mode-dry";
+my $MODE_FAN = "mode-fan";
+my $MODE_ECO = "mode-eco";
 
-sub isAcEnabled();
-sub run(@);
+my $FAN_AUTO = "fan-auto";
+my $FAN_HIGH = "fan-high";
+my $FAN_MED = "fan-med";
+my $FAN_LOW = "fan-low";
 
 my $usage = "Usage:
   $0 -h|--help
@@ -30,9 +64,9 @@ sub main(@){
     exit 0;
   }elsif(@_ == 0){
     if(isAcEnabled()){
-      run $CMD_TOGGLE_AC;
+      toggleAC(getACByName("midea_ir_ruby"));
     }else{
-      run $CMD_TOGGLE_FAN;
+      toggleAC(getACByName("fan1"));
     }
   }else{
     die $usage;
@@ -46,6 +80,164 @@ sub isAcEnabled(){
   }else{
     return 0;
   }
+}
+
+sub getACByName($){
+  my ($targetName) = @_;
+  for my $ac(@$ACS){
+    for my $name(sort @{$$ac{names}}){
+      if($name eq $targetName){
+        return $ac;
+      }
+    }
+  }
+  return undef;
+}
+
+sub readAC($){
+  my ($ac) = @_;
+  return &{$$ac{readSub}}($$ac{readDev});
+}
+
+sub writeAC($$){
+  my ($ac, $info) = @_;
+  &{$$ac{writeSub}}($$ac{writeDev}, $info);
+}
+
+sub toggleAC($){
+  my ($ac) = @_;
+  my $info = readAC($ac);
+  if(defined $info and defined $$info{power}){
+    $$info{power} = $$info{power} ? 0 : 1;
+    writeAC($ac, $info);
+  }
+}
+
+sub readMideaRuby($){
+  my ($dev) = @_; #dev == acNum
+
+  my $modes = {
+    auto => $MODE_AUTO,
+    cool => $MODE_COOL,
+    dry => $MODE_DRY,
+    fan => $MODE_FAN,
+  };
+  my $okModes = join "|", sort keys %$modes;
+
+  my $fans = {
+    102 => $FAN_AUTO,
+    100 => $FAN_HIGH,
+    60  => $FAN_MED,
+    40  => $FAN_LOW,
+  };
+
+  my $out = `midea-ruby --ac=$dev --read`;
+  if($out =~ /
+    ^
+    \s* (on|off) \s*
+    \s* ($okModes) \s*
+    \s* (\d+)% \s*
+    \s* (\d+)F \s*
+    \(
+      \s* (\d+)F \s*
+      \/
+      \s* (\d+)F \s*
+    \)
+    .*
+  $/x){
+    my ($powerStr, $modeStr, $fanNum, $temp, $insideTemp, $outsideTemp) = (
+      $1, $2, $3, $4, $5, $6);
+    my $fanName = "?";
+    for my $namedFanSpeed(sort keys %$fans){
+      if($namedFanSpeed >= $fanNum){
+        $fanName = $$fans{$namedFanSpeed};
+        last;
+      }
+    }
+
+    return {
+      power       => $powerStr =~ /on/i ? 1 : 0,
+      mode        => $$modes{$modeStr},
+      temp        => $temp,
+      fan         => $fanName,
+      eco         => 0,
+      insideTemp  => $insideTemp,
+      outsideTemp => $outsideTemp,
+    };
+  }else{
+    return undef;
+  }
+}
+
+sub writeMideaIR($$){
+  my ($dev, $info) = @_; #dev == /dev/ttyUSB0
+
+  my @cmd = ("ipmagic", $IPMAGIC_NAME, "--sshc", "midea-ir-cmd");
+
+  if(not $$info{power}){
+    @cmd = (@cmd, "off");
+  }
+
+  if($$info{mode} eq $MODE_AUTO){
+    @cmd = (@cmd, "mode-auto");
+  }elsif($$info{mode} eq $MODE_COOL){
+    @cmd = (@cmd, "cool");
+  }elsif($$info{mode} eq $MODE_DRY){
+    @cmd = (@cmd, "dry");
+  }elsif($$info{mode} eq $MODE_FAN){
+    @cmd = (@cmd, "fan-only");
+  }elsif($$info{mode} eq $MODE_ECO){
+    @cmd = (@cmd, "mode-auto");
+    #eco can only be toggled with IR, not explicitly set
+    print STDERR "WARNING: not toggling eco with midea-ir-cmd\n";
+  }
+
+  if(defined $$info{temp}){
+    @cmd = (@cmd, $$info{temp});
+  }
+
+  if($$info{fan} eq $FAN_AUTO){
+    @cmd = (@cmd, "fan-auto");
+  }elsif($$info{fan} eq $FAN_HIGH){
+    @cmd = (@cmd, "high");
+  }elsif($$info{fan} eq $FAN_MED){
+    @cmd = (@cmd, "med");
+  }elsif($$info{fan} eq $FAN_LOW){
+    @cmd = (@cmd, "low");
+  }
+
+  system @cmd;
+}
+
+sub readTasmota($){
+  my ($dev) = @_;
+  my $info = `tasmota --info $dev`;
+  if($info =~ /^\w+:\s*(on|off)\s*/){
+    my ($powerStr) = ($1);
+    return {
+      power       => ($powerStr =~ /on/ ? 1 : 0),
+      mode        => undef,
+      temp        => undef,
+      fan         => undef,
+      eco         => undef,
+      insideTemp  => undef,
+      outsideTemp => undef,
+    };
+  }else{
+    return undef;
+  }
+}
+sub writeTasmota($$){
+  my ($dev, $info) = @_;
+
+  my @cmd = ("tasmota", $dev);
+  if($$info{power}){
+    @cmd = (@cmd, "on");
+  }else{
+    @cmd = (@cmd, "off");
+  }
+
+  system @cmd;
 }
 
 sub run(@){
