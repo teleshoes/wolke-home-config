@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub getACByName($);
+sub formatACInfo($);
 sub readAC($);
 sub writeAC($$);
 sub readMideaCube($);
@@ -63,6 +64,7 @@ my $FAN_MED = "fan-med";
 my $FAN_LOW = "fan-low";
 
 my $CMD_TOGGLE = "toggle";
+my $CMD_GET = "get";
 
 my $EXEC = basename $0;
 
@@ -77,6 +79,11 @@ my $USAGE = "Usage:
       set power=on, mode=cool, temp=72, fan=low
     -if AC is on:
       set power=off
+
+  $EXEC [AC_NAME] -g | --get | get
+    read POWER/MODE/TEMP/FAN/INSIDE_TEMP/OUTSIDE_TEMP from AC
+    print as: <POWER> mode:<MODE> <TEMP>F fan:<FAN> (<INSIDE_TEMP>F / <OUTSIDE_TEMP>F)
+      -any missing info is formatted as '??'
 
   AC_NAME
     one of: @ALL_AC_NAMES
@@ -95,6 +102,8 @@ sub main(@){
       $acName = $arg;
     }elsif($arg =~ /^(-t|--toggle|toggle)$/){
       $cmd = $CMD_TOGGLE;
+    }elsif($arg =~ /^(-g|--get|get)$/){
+      $cmd = $CMD_GET;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -121,6 +130,9 @@ sub main(@){
         fan   => $FAN_LOW,
       });
     }
+  }elsif($cmd eq $CMD_GET){
+    my $curInfo = readAC($ac);
+    print formatACInfo($curInfo) . "\n";
   }else{
     die "ERROR: unknown command $cmd\n";
   }
@@ -136,6 +148,35 @@ sub getACByName($){
     }
   }
   return undef;
+}
+
+sub formatACInfo($){
+  my ($info) = @_;
+  $info = {} if not defined $info;
+
+  my $modeFmts = {
+    $MODE_AUTO => "auto",
+    $MODE_COOL => "cool",
+    $MODE_DRY  => "dry",
+    $MODE_FAN  => "fan",
+  };
+
+  my $fanFmts = {
+    $FAN_AUTO => "auto",
+    $FAN_HIGH => "high",
+    $FAN_MED  => "med",
+    $FAN_LOW  => "low",
+  };
+
+  return sprintf("%-3s %2sF mode:%-4s fan:%-4s (%3sF / %3sF)%s",
+    (defined $$info{power} ? ($$info{power} ? "on" : "off") : "???"),
+    (defined $$info{temp} ? $$info{temp} : "???"),
+    (defined $$info{mode} ? $$modeFmts{$$info{mode}} : "???"),
+    (defined $$info{fan} ? $$fanFmts{$$info{fan}} : "???"),
+    (defined $$info{insideTemp} ? $$info{insideTemp} : "???"),
+    (defined $$info{outsideTemp} ? $$info{outsideTemp} : "???"),
+    (defined $$info{eco} and $$info{eco} ? " (eco)" : ""),
+  );
 }
 
 sub readAC($){
