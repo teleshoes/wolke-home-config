@@ -65,6 +65,7 @@ my $FAN_LOW = "fan-low";
 
 my $CMD_TOGGLE = "toggle";
 my $CMD_GET = "get";
+my $CMD_SET = "set";
 
 my $EXEC = basename $0;
 
@@ -85,14 +86,63 @@ my $USAGE = "Usage:
     print as: <POWER> mode:<MODE> <TEMP>F fan:<FAN> (<INSIDE_TEMP>F / <OUTSIDE_TEMP>F)
       -any missing info is formatted as '??'
 
+  $EXEC [AC_NAME] AC_SET_ARG [AC_SET_ARG AC_SET_ARG ..]
+  $EXEC [AC_NAME] -s | --set | set AC_SET_ARG [AC_SET_ARG AC_SET_ARG ..]
+
   AC_NAME
     one of: @ALL_AC_NAMES
     default is: $DEFAULT_AC_NAME
+
+  AC_SET_ARG = AC_PRESET | AC_POWER_OFF | AC_MODE | AC_FAN | AC_TEMP | AC_ECO
+    set power+mode+temp+fan for AC
+    NOTE: any arg, except 'off', will implicitly set power=on
+          'off' must be the last arg to turn AC off
+
+  AC_PRESET
+    on | default | normal
+      same as: mode-cool fan-low 72F
+    cold
+      same as: mode-cool fan-high 70F
+
+  AC_POWER_OFF
+    off
+      set power=off
+
+  AC_MODE
+    mode-auto
+      set mode to auto
+    cool | mode-cool
+      set mode to cool
+    dry | mode-dry
+      set mode to dry
+    fan | mode-fan
+      set mode to fan
+
+  AC_TEMP
+    <TEMP_F>F | <TEMP_F>
+      set temp to TEMP_F
+    TEMP_F
+      an integer between 50 and 99, inclusive
+
+  AC_FAN
+    fan-auto
+      set fan to auto
+    low | fan-low
+      set fan to low
+    med | fan-med
+      set fan to med
+    high | fan-high
+      set fan to high
+
+  AC_ECO
+    eco
+      set eco to true, or use mode eco
 ";
 
 sub main(@){
   my $cmd = undef;
   my $acName = $DEFAULT_AC_NAME;
+  my $acSetInfo = {};
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -104,6 +154,63 @@ sub main(@){
       $cmd = $CMD_TOGGLE;
     }elsif($arg =~ /^(-g|--get|get)$/){
       $cmd = $CMD_GET;
+    }elsif($arg =~ /^(-s|--set|set)$/){
+      $cmd = $CMD_SET;
+    }elsif($arg =~ /^(on|default|normal)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_COOL;
+      $$acSetInfo{temp} = 72;
+      $$acSetInfo{fan} = $FAN_LOW;
+    }elsif($arg =~ /^(cold)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_COOL;
+      $$acSetInfo{temp} = 70;
+      $$acSetInfo{fan} = $FAN_HIGH;
+    }elsif($arg =~ /^(off)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 0;
+    }elsif($arg =~ /^(mode-auto)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_AUTO;
+    }elsif($arg =~ /^(cool|mode-cool)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_COOL;
+    }elsif($arg =~ /^(dry|mode-dry)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_DRY;
+    }elsif($arg =~ /^(fan|mode-fan)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{mode} = $MODE_FAN;
+    }elsif($arg =~ /^([56789]\d)F?$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{temp} = $1;
+    }elsif($arg =~ /^(fan-auto)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{fan} = $FAN_AUTO;
+    }elsif($arg =~ /^(low|fan-low)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{fan} = $FAN_LOW;
+    }elsif($arg =~ /^(med|fan-med)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{fan} = $FAN_MED;
+    }elsif($arg =~ /^(high|fan-high)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{fan} = $FAN_HIGH;
+    }elsif($arg =~ /^(eco)$/i and (not defined $cmd or $cmd eq $CMD_SET)){
+      $cmd = $CMD_SET;
+      $$acSetInfo{power} = 1;
+      $$acSetInfo{eco} = 1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -133,6 +240,8 @@ sub main(@){
   }elsif($cmd eq $CMD_GET){
     my $curInfo = readAC($ac);
     print formatACInfo($curInfo) . "\n";
+  }elsif($cmd eq $CMD_SET){
+    writeAC($ac, $acSetInfo);
   }else{
     die "ERROR: unknown command $cmd\n";
   }
