@@ -6,7 +6,6 @@ use File::Basename qw(basename);
 sub getACByName($);
 sub readAC($);
 sub writeAC($$);
-sub toggleAC($);
 sub readMideaCube($);
 sub writeMideaCube($$);
 sub readGEAC($);
@@ -74,7 +73,7 @@ my $USAGE = "Usage:
   $EXEC [AC_NAME]
     -get power info for AC
     -if AC is off:
-      set power=on
+      set power=on, mode=cool, temp=72, fan=low
     -if AC is on:
       set power=off
 
@@ -106,7 +105,19 @@ sub main(@){
   }
 
   if($cmd eq $CMD_TOGGLE){
-    toggleAC($ac);
+    my $curInfo = readAC($ac);
+    if(defined $curInfo and $$curInfo{power}){
+      writeAC($ac, {
+        power => 0,
+      });
+    }else{
+      writeAC($ac, {
+        power => 1,
+        mode  => $MODE_COOL,
+        temp  => 72,
+        fan   => $FAN_LOW,
+      });
+    }
   }else{
     die "ERROR: unknown command $cmd\n";
   }
@@ -132,15 +143,6 @@ sub readAC($){
 sub writeAC($$){
   my ($ac, $info) = @_;
   &{$$ac{writeSub}}($$ac{writeDev}, $info);
-}
-
-sub toggleAC($){
-  my ($ac) = @_;
-  my $info = readAC($ac);
-  if(defined $info and defined $$info{power}){
-    $$info{power} = $$info{power} ? 0 : 1;
-    writeAC($ac, $info);
-  }
 }
 
 sub readMideaCube($){
