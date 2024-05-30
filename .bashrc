@@ -271,7 +271,6 @@ function ac-midea     { if [[ "$(hostname)" == "raspberrypi" ]]; then
                         fi
                       }
 function ig           { igcmd "$@"; }
-function acts         { ac-tasmota "$@"; }
 
 function lcd          { pico-lcd-msg "$@"; }
 
