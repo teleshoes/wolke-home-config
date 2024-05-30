@@ -7,6 +7,8 @@ sub getACByName($);
 sub readAC($);
 sub writeAC($$);
 sub toggleAC($);
+sub readMideaCube($);
+sub writeMideaCube($$);
 sub readMideaRuby($);
 sub writeMideaIR($$);
 sub readTasmota($);
@@ -14,6 +16,13 @@ sub writeTasmota($$);
 sub run(@);
 
 my $ACS = [
+  {
+    names    => [qw(1 ac1 liv liv1 midea)],
+    readDev  => "ac",
+    writeDev => "ac",
+    readSub  => \&readMideaCube,
+    writeSub => \&writeMideaCube,
+  },
   {
     names    => [qw(midea_ir_ruby)],
     readDev  => 1,
@@ -111,6 +120,113 @@ sub toggleAC($){
     $$info{power} = $$info{power} ? 0 : 1;
     writeAC($ac, $info);
   }
+}
+
+sub readMideaCube($){
+  my ($dev) = @_;
+
+  my $modes = {
+    AUTO => $MODE_AUTO,
+    COOL => $MODE_COOL,
+    DRY => $MODE_DRY,
+    FAN => $MODE_FAN,
+  };
+  my $okModes = join "|", sort keys %$modes;
+
+  my $fans = {
+    102 => $FAN_AUTO,
+    100 => $FAN_HIGH,
+    60  => $FAN_MED,
+    40  => $FAN_LOW,
+  };
+
+  my $numRe = '\d+|\d*\.\d+';
+
+  my $out = `midea-cube --dev='$dev' --get`;
+  if($out =~ /
+    ^
+    \w+:
+    \s* (on|off) \s+
+    \s* => \s*
+    \s* ($numRe)F\s*
+    \(
+      \s* ($numRe)F \s*
+      \/
+      \s* ($numRe)F \s*
+    \)
+    \s* mode=($okModes) \s*
+    \s* fan=(\d+) \s*
+    \s* eco=(True|False) \s*
+  $/x){
+    my ($powerStr, $temp, $insideTemp, $outsideTemp, $modeStr, $fanNum, $isEco) = (
+      $1, $2, $3, $4, $5, $6, $7);
+    my $fanName = "?";
+    for my $namedFanSpeed(sort keys %$fans){
+      if($namedFanSpeed >= $fanNum){
+        $fanName = $$fans{$namedFanSpeed};
+        last;
+      }
+    }
+
+    return {
+      power       => $powerStr =~ /on/i ? 1 : 0,
+      mode        => $$modes{$modeStr},
+      temp        => int($temp + 0.5),
+      fan         => $fanName,
+      eco         => ($isEco =~ /True/i ? 1 : 0),
+      insideTemp  => int($insideTemp + 0.5),
+      outsideTemp => int($outsideTemp + 0.5),
+    };
+  }else{
+    return undef;
+  }
+}
+
+sub writeMideaCube($$){
+  my ($dev, $info) = @_;
+  my @cmd = ("midea-cube");
+
+  @cmd = (@cmd, "--dev=$dev") if defined $dev;
+
+  if($$info{power}){
+    @cmd = (@cmd, "--on");
+  }else{
+    @cmd = (@cmd, "--off");
+  }
+
+  if($$info{mode} eq $MODE_AUTO){
+    @cmd = (@cmd, "--mode-auto");
+  }elsif($$info{mode} eq $MODE_COOL){
+    @cmd = (@cmd, "--mode-cool");
+  }elsif($$info{mode} eq $MODE_DRY){
+    @cmd = (@cmd, "--mode-dry");
+  }elsif($$info{mode} eq $MODE_FAN){
+    @cmd = (@cmd, "--mode-fan");
+  }elsif($$info{mode} eq $MODE_ECO){
+    @cmd = (@cmd, "--mode-auto");
+  }
+
+  if(defined $$info{temp}){
+    @cmd = (@cmd, "--temp", $$info{temp});
+  }
+
+  if($$info{fan} eq $FAN_AUTO){
+    @cmd = (@cmd, "--fan-auto");
+  }elsif($$info{fan} eq $FAN_HIGH){
+    @cmd = (@cmd, "--fan-high");
+  }elsif($$info{fan} eq $FAN_MED){
+    @cmd = (@cmd, "--fan-med");
+  }elsif($$info{fan} eq $FAN_LOW){
+    @cmd = (@cmd, "--fan-low");
+  }
+
+  if($$info{mode} eq $MODE_ECO){
+    @cmd = (@cmd, "--set", "--eco-mode", "on");
+  }else{
+    @cmd = (@cmd, "--set", "--eco-mode", "off");
+  }
+
+  system @cmd;
 }
 
 sub readMideaRuby($){
