@@ -9,6 +9,8 @@ sub writeAC($$);
 sub toggleAC($);
 sub readMideaCube($);
 sub writeMideaCube($$);
+sub readGEAC($);
+sub writeGEAC($$);
 sub readMideaRuby($);
 sub writeMideaIR($$);
 sub readTasmota($);
@@ -22,6 +24,13 @@ my $ACS = [
     writeDev => "ac",
     readSub  => \&readMideaCube,
     writeSub => \&writeMideaCube,
+  },
+  {
+    names    => [qw(2 ac2 bed bed1 ge)],
+    readDev  => "bed1",
+    writeDev => "bed1",
+    readSub  => \&readGEAC,
+    writeSub => \&writeGEAC,
   },
   {
     names    => [qw(midea_ir_ruby)],
@@ -224,6 +233,84 @@ sub writeMideaCube($$){
     @cmd = (@cmd, "--set", "--eco-mode", "on");
   }else{
     @cmd = (@cmd, "--set", "--eco-mode", "off");
+  }
+
+  system @cmd;
+}
+
+sub readGEAC($){
+  my ($dev) = @_;
+  my $modes = {
+    AUTO         => $MODE_AUTO,
+    COOL         => $MODE_COOL,
+    DRY          => $MODE_DRY,
+    FAN_ONLY     => $MODE_FAN,
+    ENERGY_SAVER => $MODE_ECO,
+  };
+  my $okModes = join "|", sort keys %$modes;
+  my $fans = {
+    AUTO => $FAN_AUTO,
+    HIGH => $FAN_HIGH,
+    MED  => $FAN_MED,
+    LOW  => $FAN_LOW,
+  };
+  my $okFans = join "|", sort keys %$fans;
+
+  my $out = `ge-ac --dev '$dev' --get`;
+  if($out =~ /^(OFF\s*-\s*)?(\d+)°F\s*\(cur=(\d+)°F\)\s+($okModes)\s+($okFans)$/){
+    my ($powerStr, $temp, $curTemp, $modeStr, $fanStr) = ($1, $2, $3, $4, $5);
+    $powerStr = "" if not defined $powerStr;
+
+    return {
+      power       => $powerStr =~ /OFF/i ? 0 : 1,
+      mode        => $$modes{$modeStr},
+      temp        => $temp,
+      fan         => $$fans{$fanStr},
+      eco         => ($$modes{$modeStr} eq $MODE_ECO ? 1 : 0),
+      insideTemp  => $curTemp,
+      outsideTemp => undef,
+    };
+  }else{
+    return undef;
+  }
+}
+
+sub writeGEAC($$){
+  my ($dev, $info) = @_;
+  my @cmd = ("ge-ac");
+
+  @cmd = (@cmd, "--device", $dev) if defined $dev;
+  if($$info{power}){
+    @cmd = (@cmd, "--power", "on");
+  }else{
+    @cmd = (@cmd, "--power", "off");
+  }
+
+
+  if($$info{mode} eq $MODE_AUTO){
+    @cmd = (@cmd, "--mode", "auto");
+  }elsif($$info{mode} eq $MODE_COOL){
+    @cmd = (@cmd, "--mode", "cool");
+  }elsif($$info{mode} eq $MODE_DRY){
+    @cmd = (@cmd, "--mode", "dry");
+  }elsif($$info{mode} eq $MODE_FAN){
+    @cmd = (@cmd, "--mode", "fan");
+  }elsif($$info{mode} eq $MODE_ECO){
+    @cmd = (@cmd, "--mode", "eco");
+  }
+
+  if(defined $$info{temp}){
+    @cmd = (@cmd, "--temp", $$info{temp});
+  }
+
+  if($$info{fan} eq $FAN_AUTO){
+    @cmd = (@cmd, "--fan", "auto");
+  }elsif($$info{fan} eq $FAN_HIGH){
+    @cmd = (@cmd, "--fan", "high");
+  }elsif($$info{fan} eq $FAN_MED){
+    @cmd = (@cmd, "--fan", "med");
+  }elsif($$info{fan} eq $FAN_LOW){
+    @cmd = (@cmd, "--fan", "low");
   }
 
   system @cmd;
