@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub isAcEnabled();
 sub getACByName($);
 sub readAC($);
 sub writeAC($$);
@@ -49,8 +48,8 @@ my $ACS = [
   },
 ];
 my @ALL_AC_NAMES = (map {@{$$_{names}}} @$ACS);
-
-my $AC_ENABLED_FILE = "$ENV{HOME}/.config/ac-enabled";
+my %OK_AC_NAMES = map {$_ => 1} @ALL_AC_NAMES;
+my $DEFAULT_AC_NAME = "liv1";
 
 my $IPMAGIC_NAME = "raspi";
 
@@ -72,21 +71,28 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC
-    -check $AC_ENABLED_FILE
-    -if file exists and starts with \"enabled\":
-      -toggle ac 'midea_ir_ruby'
-    -otherwise:
-      -toggle ac 'fan1'
+  $EXEC [AC_NAME]
+    -get power info for AC
+    -if AC is off:
+      set power=on
+    -if AC is on:
+      set power=off
+
+  AC_NAME
+    one of: @ALL_AC_NAMES
+    default is: $DEFAULT_AC_NAME
 ";
 
 sub main(@){
   my $cmd = undef;
+  my $acName = $DEFAULT_AC_NAME;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif(defined $OK_AC_NAMES{$arg}){
+      $acName = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -94,23 +100,15 @@ sub main(@){
 
   $cmd = $CMD_TOGGLE if not defined $cmd;
 
+  my $ac = getACByName($acName);
+  if(not defined $ac){
+    die "ERROR: could not find ac $acName\n";
+  }
+
   if($cmd eq $CMD_TOGGLE){
-    if(isAcEnabled()){
-      toggleAC(getACByName("midea_ir_ruby"));
-    }else{
-      toggleAC(getACByName("fan1"));
-    }
+    toggleAC($ac);
   }else{
     die "ERROR: unknown command $cmd\n";
-  }
-}
-
-sub isAcEnabled(){
-  my $val = `cat $AC_ENABLED_FILE 2>/dev/null`;
-  if($val =~ /^\s*enabled/i){
-    return 1;
-  }else{
-    return 0;
   }
 }
 
