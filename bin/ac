@@ -57,7 +57,6 @@ my $MODE_AUTO = "mode-auto";
 my $MODE_COOL = "mode-cool";
 my $MODE_DRY = "mode-dry";
 my $MODE_FAN = "mode-fan";
-my $MODE_ECO = "mode-eco";
 
 my $FAN_AUTO = "fan-auto";
 my $FAN_HIGH = "fan-high";
@@ -211,8 +210,6 @@ sub writeMideaCube($$){
     @cmd = (@cmd, "--mode-dry");
   }elsif($$info{mode} eq $MODE_FAN){
     @cmd = (@cmd, "--mode-fan");
-  }elsif($$info{mode} eq $MODE_ECO){
-    @cmd = (@cmd, "--mode-auto");
   }
 
   if(defined $$info{temp}){
@@ -229,7 +226,7 @@ sub writeMideaCube($$){
     @cmd = (@cmd, "--fan-low");
   }
 
-  if($$info{mode} eq $MODE_ECO){
+  if($$info{eco}){
     @cmd = (@cmd, "--set", "--eco-mode", "on");
   }else{
     @cmd = (@cmd, "--set", "--eco-mode", "off");
@@ -245,7 +242,7 @@ sub readGEAC($){
     COOL         => $MODE_COOL,
     DRY          => $MODE_DRY,
     FAN_ONLY     => $MODE_FAN,
-    ENERGY_SAVER => $MODE_ECO,
+    ENERGY_SAVER => $MODE_AUTO, #ENERGY_SAVER => mode=auto + eco=True
   };
   my $okModes = join "|", sort keys %$modes;
   my $fans = {
@@ -266,7 +263,7 @@ sub readGEAC($){
       mode        => $$modes{$modeStr},
       temp        => $temp,
       fan         => $$fans{$fanStr},
-      eco         => ($$modes{$modeStr} eq $MODE_ECO ? 1 : 0),
+      eco         => ($modeStr =~ /ENERGY_SAVER/ ? 1 : 0),
       insideTemp  => $curTemp,
       outsideTemp => undef,
     };
@@ -288,15 +285,17 @@ sub writeGEAC($$){
 
 
   if($$info{mode} eq $MODE_AUTO){
-    @cmd = (@cmd, "--mode", "auto");
+    if($$info{eco}){
+      @cmd = (@cmd, "--mode", "eco");
+    }else{
+      @cmd = (@cmd, "--mode", "auto");
+    }
   }elsif($$info{mode} eq $MODE_COOL){
     @cmd = (@cmd, "--mode", "cool");
   }elsif($$info{mode} eq $MODE_DRY){
     @cmd = (@cmd, "--mode", "dry");
   }elsif($$info{mode} eq $MODE_FAN){
     @cmd = (@cmd, "--mode", "fan");
-  }elsif($$info{mode} eq $MODE_ECO){
-    @cmd = (@cmd, "--mode", "eco");
   }
 
   if(defined $$info{temp}){
@@ -389,10 +388,6 @@ sub writeMideaIR($$){
     @cmd = (@cmd, "dry");
   }elsif($$info{mode} eq $MODE_FAN){
     @cmd = (@cmd, "fan-only");
-  }elsif($$info{mode} eq $MODE_ECO){
-    @cmd = (@cmd, "mode-auto");
-    #eco can only be toggled with IR, not explicitly set
-    print STDERR "WARNING: not toggling eco with midea-ir-cmd\n";
   }
 
   if(defined $$info{temp}){
@@ -407,6 +402,10 @@ sub writeMideaIR($$){
     @cmd = (@cmd, "med");
   }elsif($$info{fan} eq $FAN_LOW){
     @cmd = (@cmd, "low");
+  }
+
+  if($$info{eco}){
+    print STDERR "WARNING: not setting eco with midea-ir-cmd, can only toggle with IR\n";
   }
 
   system @cmd;
