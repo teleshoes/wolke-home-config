@@ -19,6 +19,17 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw();
 
 my $MILES_PER_KM = 0.62137119;
 
+my %NAMED_TARGETS = (
+  "10.0km" => 1000 * 10,
+  "5.0km"  => 1000 * 5,
+  "1.5mi"  => 1000 * (1.5 / $MILES_PER_KM),
+  "1.0mi"  => 1000 * (1.0 / $MILES_PER_KM),
+  "0.5mi"  => 1000 * (0.5 / $MILES_PER_KM),
+);
+my @SORTED_TARGET_NAMES =
+  sort {$NAMED_TARGETS{$b} <=> $NAMED_TARGETS{$a}}
+  keys %NAMED_TARGETS;
+
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
@@ -43,6 +54,7 @@ my $USAGE = "Usage:
 sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
+sub calculateDistanceTargets(@);
 sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
@@ -93,6 +105,8 @@ sub main(@){
     @workouts = applyAndFilterCombinedWorkouts($workoutsCombineInfo, @workouts);
     insertExtraInfo($extraInfo, @workouts);
 
+    calculateDistanceTargets(@workouts);
+
     if(defined $$opts{workoutIdFilter}){
       @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
     }
@@ -114,7 +128,15 @@ sub main(@){
       next if $durS < 10;
       my $durFmt = sprintf "%3d:%02d", int($durS/60), $durS%60;
       my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
-      print "$$w{workout_id}   $timeFmt  $distanceMiles  $durFmt  $maxHR\n";
+      my $targetFmt = sprintf "%12s", "";
+      for my $targetName(@SORTED_TARGET_NAMES){
+        if(defined $$w{targets}{$targetName}){
+          my $durS = $$w{targets}{$targetName};
+          $targetFmt = sprintf "%6s=%02d:%02d", $targetName, int($durS/60), $durS%60;
+          last;
+        }
+      }
+      print "$$w{workout_id}   $timeFmt  $distanceMiles  $durFmt  $maxHR  $targetFmt\n";
     }
   }elsif($cmd eq $COMMAND_FETCH){
     fetchViewfitWorkouts();
@@ -168,6 +190,57 @@ sub insertExtraInfo($@){
     }
     if(not $found){
       die "ERROR: could not insert extra info for workout $workoutID\n";
+    }
+  }
+}
+
+sub calculateDistanceTargets(@){
+  my (@workouts) = @_;
+
+  #the 'distance' value in interval does not correlate well to average_distance,
+  #  and average_distance correlates much better with workout total distance,
+  #  so: re-calculate distance from average_distance
+  for my $workout(@workouts){
+    my @intervals = @{$$workout{intervals}};
+    my $curElapsedS = 0;
+    my $prevAvgDistance = 0;
+    for my $interval(@intervals){
+      $$interval{calculatedDistance} = $$interval{average_distance} - $prevAvgDistance;
+      $prevAvgDistance = $$interval{average_distance};
+    }
+  }
+
+  for my $workout(@workouts){
+    $$workout{targets} = {};
+    my @intervals = @{$$workout{intervals}};
+    for my $targetName(@SORTED_TARGET_NAMES){
+      my $targetDist = $NAMED_TARGETS{$targetName};
+      my $startIdx = -1;
+      my $endIdx = -1;
+      my $curDist = 0;
+      my $curDur = 0;
+      my $bestDur = undef;
+      while($startIdx <= $endIdx){
+        #shift start to the right exactly one interval, and subtract the removed interval (if any)
+        $startIdx++;
+        if($startIdx-1 >= 0){
+          $curDist -= ${$intervals[$startIdx-1]}{calculatedDistance};
+          $curDur -= ${$intervals[$startIdx-1]}{duration};
+        }
+
+        #shift end to the right until target min distance is reached, and add each added interval
+        while($curDist < $targetDist and $endIdx+1 < @intervals){
+          $endIdx++;
+          $curDist += ${$intervals[$endIdx]}{calculatedDistance};
+          $curDur += ${$intervals[$endIdx]}{duration};
+        }
+
+        #if target distance is reached, check if it is the best duration set for target
+        if($curDist >= $targetDist and (not defined $bestDur or $curDur < $bestDur)){
+          $bestDur = $curDur;
+          $$workout{targets}{$targetName} = $bestDur;
+        }
+      }
     }
   }
 }
