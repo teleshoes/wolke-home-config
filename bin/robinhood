@@ -275,13 +275,13 @@ sub cmdFetchQuotes($){
   my $filePrefix = "${nowFmt}_${nowMillis}";
 
   print "fetching read-only bearer token\n" unless $$opts{quiet};
-  my $bearerToken = getReadonlyBearerToken();
+  my $bearerTokenReadOnly = getReadonlyBearerToken();
 
   my %seenSymbols;
   for my $order(@orders){
     next if defined $seenSymbols{$$order{symbol}};
     $seenSymbols{$$order{symbol}} = 1;
-    fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerToken,
+    fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerTokenReadOnly,
       $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
   }
 
@@ -441,7 +441,7 @@ sub readCachedQuoteFile($$){
 }
 
 sub fetchAndCacheQuote($$$$$$){
-  my ($quiet, $filePrefix, $bearerToken, $symbol, $instrumentId, $isCrypto) = @_;
+  my ($quiet, $filePrefix, $bearerTokenReadOnly, $symbol, $instrumentId, $isCrypto) = @_;
   my $url;
   if($isCrypto){
     $url = "$API_QUOTES_CRYPTO_URL/$instrumentId/";
@@ -452,21 +452,21 @@ sub fetchAndCacheQuote($$$$$$){
   runQuiet "mkdir", "-p", $JSON_QUOTES_CACHE_DIR;
   print "fetching quote for $symbol\n" unless $quiet;
   writeFile "${JSON_QUOTES_CACHE_DIR}/${filePrefix}_$symbol.json",
-    apiCallCurl($url, $bearerToken) . "\n";
+    apiCallCurl($url, $bearerTokenReadOnly) . "\n";
 }
 
 sub getReadonlyBearerToken(){
-  my $bearerToken = undef;
+  my $bearerTokenReadOnly = undef;
   if(-e $BEARER_TOKEN_READONLY_CACHE){
-    $bearerToken = readFile $BEARER_TOKEN_READONLY_CACHE;
-    chomp $bearerToken;
-    if(testBearerToken($bearerToken)){
-      return $bearerToken;
+    $bearerTokenReadOnly = readFile $BEARER_TOKEN_READONLY_CACHE;
+    chomp $bearerTokenReadOnly;
+    if(testBearerToken($bearerTokenReadOnly)){
+      return $bearerTokenReadOnly;
     }
   }
-  $bearerToken = fetchReadonlyBearerToken();
-  writeFile $BEARER_TOKEN_READONLY_CACHE, "$bearerToken\n";
-  return $bearerToken;
+  $bearerTokenReadOnly = fetchReadonlyBearerToken();
+  writeFile $BEARER_TOKEN_READONLY_CACHE, "$bearerTokenReadOnly\n";
+  return $bearerTokenReadOnly;
 }
 
 sub fetchReadonlyBearerToken(){
