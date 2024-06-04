@@ -9,7 +9,7 @@ import Utils (
   isRunning, chompFile, readProc, readInt, readDouble)
 
 import Data.Csv (DefaultOrdered, FromRecord, FromNamedRecord, ToNamedRecord)
-import Data.Either (fromLeft, fromRight)
+import Data.Either (fromLeft, fromRight, isLeft)
 import GHC.Generics (Generic)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
@@ -77,12 +77,11 @@ emptyKlompInfo = KlompInfo { title = "", artist = "", album = "", number = ""
                            }
 
 parseKlompInfo :: String -> Either String KlompInfo
-parseKlompInfo klompInfoStr | noSongFound = Left "(no song info found)"
-                            | otherwise   = res
+parseKlompInfo klompInfoStr | noSongFound   = Left "(no song info found)"
+                            | isLeft csvRes = Left errMsg
+                            | otherwise     = csvRes
   where noSongFound = regexMatch "^No song info found" (decodeString klompInfoStr)
-        res = case csvRes of
-                Left csvParseErr -> Left $ "(ERROR: klomp-info " ++ csvParseErr ++ ")"
-                Right klompInfo  -> Right klompInfo
+        errMsg = "(ERROR: klomp-info " ++ (fromLeft "" csvRes) ++ ")"
         csvRes = decodeSingleRowCsv klompInfoStr :: Either String KlompInfo
 
 formatKlompInfo :: (Either String KlompInfo) -> Int -> Maybe String -> Bool -> String
