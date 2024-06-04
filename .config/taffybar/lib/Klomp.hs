@@ -8,7 +8,7 @@ import Utils (
   fgbg, escapeMarkup,
   isRunning, chompFile, readProc, readInt, readDouble)
 
-import Data.Csv (DefaultOrdered, FromRecord, FromNamedRecord, ToNamedRecord)
+import Data.Csv (FromRecord)
 import Data.Either (fromLeft, fromRight, isLeft)
 import GHC.Generics (Generic)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
@@ -67,9 +67,6 @@ data KlompInfo = KlompInfo { title    :: !String
                            , ended    :: !String
                            } deriving (Generic, Show)
 instance FromRecord KlompInfo
-instance ToNamedRecord KlompInfo
-instance FromNamedRecord KlompInfo
-instance DefaultOrdered KlompInfo
 
 emptyKlompInfo = KlompInfo { title = "", artist = "", album = "", number = ""
                            , pos = 0.0, len = 0.0, percent = 0
