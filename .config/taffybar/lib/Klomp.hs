@@ -79,7 +79,7 @@ emptyKlompInfo = KlompInfo { title = "", artist = "", album = "", number = ""
 parseKlompInfo :: String -> Either String KlompInfo
 parseKlompInfo klompInfoStr | noSongFound = Left "(no song info found)"
                             | otherwise   = res
-  where noSongFound = regexMatch (decodeString klompInfoStr) "^No Song info found"
+  where noSongFound = regexMatch "^No Song info found" (decodeString klompInfoStr)
         res = case csvRes of
                 Left csvParseErr -> Left $ "(ERROR: klomp-info " ++ csvParseErr ++ ")"
                 Right klompInfo  -> Right klompInfo
