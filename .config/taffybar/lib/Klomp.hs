@@ -52,7 +52,7 @@ klompReader rowLength = do
 
 readKlompInfo ipmagicName = do
   str <- readProc $ getKlompInfoCmd ipmagicName
-  let utf8Str = decodeString $ utf8Encode str
+  let utf8Str = utf8Encode str
   return $ parseKlompInfo utf8Str
 
 
@@ -79,7 +79,7 @@ emptyKlompInfo = KlompInfo { title = "", artist = "", album = "", number = ""
 parseKlompInfo :: String -> Either String KlompInfo
 parseKlompInfo klompInfoStr | noSongFound = Left "(no song info found)"
                             | otherwise   = res
-  where noSongFound = regexMatch klompInfoStr "^No Song info found"
+  where noSongFound = regexMatch (decodeString klompInfoStr) "^No Song info found"
         res = case csvRes of
                 Left csvParseErr -> Left $ "(ERROR: klomp-info " ++ csvParseErr ++ ")"
                 Right klompInfo  -> Right klompInfo
