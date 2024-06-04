@@ -1,13 +1,16 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Klomp(klompW, main) where
 import Clickable (clickable)
 import Label (labelW, mainLabel)
 import Utils (
+  decodeSingleRowCsv,
   regexMatch, stringWidth, trimL, trimR, padL, padR,
   fgbg, escapeMarkup,
   isRunning, chompFile, readProc, readInt, readDouble)
 
-import Data.List (intercalate)
-import Data.Maybe (fromMaybe)
+import Data.Csv (DefaultOrdered, FromRecord, FromNamedRecord, ToNamedRecord)
+import Data.Either (fromLeft, fromRight)
+import GHC.Generics (Generic)
 import System.Taffybar.Widget.Util (widgetSetClassGI)
 import Codec.Binary.UTF8.String (utf8Encode, decodeString)
 import qualified Data.Text as T (pack)
@@ -29,9 +32,8 @@ clickL = Just "klomp-term --playlist"
 clickM = Just "klomp-cmd reset"
 clickR = Just "klomp-cmd stop"
 
-klompInfoCmd = ["klomp-info", "-s", "--format=" ++ formatStr] ++ infoColumns
-  where formatStr = intercalate "\\n" $ map (const "%s") infoColumns
-        infoColumns = [ "title", "artist", "album", "number"
+klompInfoCmd = ["klomp-info", "-s", "-c"] ++ infoColumns
+  where infoColumns = [ "title", "artist", "album", "number"
                       , "pos", "len", "percent"
                       , "playlist", "ended"
                       ]
@@ -54,8 +56,7 @@ readKlompInfo ipmagicName = do
   return $ parseKlompInfo utf8Str
 
 
-data KlompInfo = KlompInfo { errorMsg :: !String
-                           , title    :: !String
+data KlompInfo = KlompInfo { title    :: !String
                            , artist   :: !String
                            , album    :: !String
                            , number   :: !String
@@ -64,40 +65,32 @@ data KlompInfo = KlompInfo { errorMsg :: !String
                            , percent  :: !Integer
                            , playlist :: !String
                            , ended    :: !String
-                           } deriving Show
+                           } deriving (Generic, Show)
+instance FromRecord KlompInfo
+instance ToNamedRecord KlompInfo
+instance FromNamedRecord KlompInfo
+instance DefaultOrdered KlompInfo
 
-emptyKlompInfo = KlompInfo { errorMsg = ""
-                           , title = "", artist = "", album = "", number = ""
+emptyKlompInfo = KlompInfo { title = "", artist = "", album = "", number = ""
                            , pos = 0.0, len = 0.0, percent = 0
                            , playlist = "", ended = ""
                            }
 
-parseKlompInfo klompInfoStr | noSongFound    = errKlompInfo "(no song info found)"
-                            | lineCount /= 9 = errKlompInfo "(ERROR: klomp-info)"
-                            | otherwise      = okKlompInfo
-  where noSongFound = lineCount == 1 && regexMatch klompInfoStr "^No Song info found"
-        str lineNum = klompInfoLines !! lineNum
-        dbl lineNum = fromMaybe 0.0 $ readDouble $ klompInfoLines !! lineNum
-        int lineNum = fromMaybe 0 $ readInt $ klompInfoLines !! lineNum
-        klompInfoLines = lines klompInfoStr
-        lineCount = length klompInfoLines
-        errKlompInfo err = emptyKlompInfo { errorMsg = err }
-        okKlompInfo = emptyKlompInfo { title    = str 0
-                                     , artist   = str 1
-                                     , album    = str 2
-                                     , number   = str 3
-                                     , pos      = dbl 4
-                                     , len      = dbl 5
-                                     , percent  = int 6
-                                     , playlist = str 7
-                                     , ended    = str 8
-                                     }
+parseKlompInfo :: String -> Either String KlompInfo
+parseKlompInfo klompInfoStr | noSongFound = Left "(no song info found)"
+                            | otherwise   = res
+  where noSongFound = regexMatch klompInfoStr "^No Song info found"
+        res = case csvRes of
+                Left csvParseErr -> Left $ "(ERROR: klomp-info " ++ csvParseErr ++ ")"
+                Right klompInfo  -> Right klompInfo
+        csvRes = decodeSingleRowCsv klompInfoStr :: Either String KlompInfo
 
-formatKlompInfo :: KlompInfo -> Int -> Maybe String -> Bool -> String
-formatKlompInfo klompInfo rowLength ipmagicName klompRunning = topLine ++ "\n" ++ botLine
+formatKlompInfo :: (Either String KlompInfo) -> Int -> Maybe String -> Bool -> String
+formatKlompInfo klompInfoRes rowLength ipmagicName klompRunning = topLine ++ "\n" ++ botLine
   where [posFmt, lenFmt] = formatTimes $ map round [pos klompInfo, len klompInfo]
+        klompInfo = fromRight emptyKlompInfo klompInfoRes
         endFmt = if null $ ended klompInfo then "" else "*ENDED*"
-        errFmt = errorMsg klompInfo
+        errFmt = fromLeft "" klompInfoRes
         artFmt = artist klompInfo
         titFmt = title klompInfo
         topPrefix = case ipmagicName of
