@@ -6,7 +6,7 @@ module Utils(
   fg, bg, fgbg, escapeMarkup,
   rowW, colW, containerW, eboxStyleWrapW,
   regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
-  readInt, readDouble, printfReal, collectInts,
+  readInt, readDouble, decodeSingleRowCsv, printfReal, collectInts,
   stringWidth, chunkStr, trimL, trimR, padL, padR, padCols, uncols, chompAll,
   fmtSimpleRecord,
   pollingGraphMain,
@@ -27,6 +27,8 @@ import Control.Exception (catch, throwIO, SomeException, try)
 import Control.Monad ((<=<), forever, join, void)
 
 import Data.Char (chr)
+import Data.Csv (decode,
+  FromRecord, HasHeader(..))
 import Data.List (intercalate, partition, sort, transpose)
 import Data.List.Split (keepDelimsL, oneOf, split)
 import Data.List.Utils (replace)
@@ -34,6 +36,8 @@ import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.String.Unicode (unicodeToXmlEntity)
 import Data.Text (pack)
+import qualified Data.ByteString.Lazy.Char8 as BS (pack)
+import qualified Data.Vector as V (head, length, Vector)
 
 import GHC.Clock (getMonotonicTimeNSec)
 
@@ -174,6 +178,15 @@ readDouble :: String -> Maybe Double
 readDouble s = case reads s of
               ((x,_):_) -> Just x
               _ -> Nothing
+
+decodeSingleRowCsv :: FromRecord a => String -> Either String (a)
+decodeSingleRowCsv csvStr = case res of
+    Left errMsg  -> Left errMsg
+    Right csvVec -> toEither csvVec
+  where res = decode NoHeader (BS.pack csvStr)
+        toEither vec | V.length vec == 0 = Left "empty"
+                     | V.length vec >  1 = Left "too many results"
+                     | otherwise         = Right $ V.head vec
 
 printfReal :: Real a => String -> a -> String
 printfReal fmt rat = printf fmt $ (fromRational $ toRational rat :: Double)
