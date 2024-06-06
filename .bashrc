@@ -243,6 +243,9 @@ function pl           { play-show "$@"; }
 function ts           { tasmota "$@"; }
 function ts-pump      { tasmota-pump "$@"; }
 
+function ac1          { ac 1 "$@"; }
+function ac2          { ac 2 "$@"; }
+
 function igcmd        { if [[ "$(hostname)" == "raspberrypi" ]]; then
                           command igcmd "$@";
                         elif [[ "$1" == "--bash-complete" ]]; then
