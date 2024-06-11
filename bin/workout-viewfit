@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
-use JSON qw(from_json);
+use JSON qw(from_json to_json);
 use Time::HiRes qw(time);
 
 my $EXEC = basename $0;
@@ -49,6 +49,10 @@ my $USAGE = "Usage:
 
     --date=YYYY-MM-DD
       show only workouts that match YYYY-MM-DD
+
+    --intervals
+      when printing workouts, print interval information after, one per line
+      (this is large)
 ";
 
 sub readCachedWorkouts();
@@ -77,6 +81,8 @@ sub main(@){
   my $cmd = $COMMAND_GET;
   my $opts = {
     workoutIdFilter => undef,
+    dateFilter => undef,
+    printIntervals => undef,
   };
   my @cmdArgs;
   while(@_ > 0){
@@ -92,6 +98,8 @@ sub main(@){
       $$opts{workoutIdFilter} = $1;
     }elsif($arg =~ /^--date=(\d\d\d\d-\d\d-\d\d)$/){
       $$opts{dateFilter} = $1;
+    }elsif($arg =~ /^(--intervals)$/){
+      $$opts{printIntervals} = $1;
     }else{
       push @cmdArgs, $arg;
     }
@@ -137,6 +145,11 @@ sub main(@){
         }
       }
       print "$$w{workout_id}   $timeFmt  $distanceMiles  $durFmt  $maxHR  $targetFmt\n";
+      if($$opts{printIntervals}){
+        for my $i(@{$$w{intervals}}){
+          print to_json($i) . "\n";
+        }
+      }
     }
   }elsif($cmd eq $COMMAND_FETCH){
     fetchViewfitWorkouts();
