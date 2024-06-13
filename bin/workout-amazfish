@@ -204,8 +204,8 @@ sub parseTcxFile($$){
 
   my $workout = {
     hrByEpoch     => {},
-    startEpoch    => undef,
-    endEpoch      => undef,
+    lapStartEpoch => undef,
+    lapEndEpoch   => undef,
     durSeconds    => undef,
     hrPeak        => undef,
     hrSegments    => [],
@@ -218,18 +218,18 @@ sub parseTcxFile($$){
 
   for my $act($dom->findnodes("/tcd:TrainingCenterDatabase/tcd:Activities/tcd:Activity")){
     for my $lap($act->findnodes("tcd:Lap")){
-      if(defined $$workout{startEpoch}){
+      if(defined $$workout{lapStartEpoch}){
         die "ERROR: mutiple Lap elements found in $filename\n";
       }
       my $lapStart = $lap->getAttribute("StartTime");
-      $$workout{startEpoch} = dtmStrToEpoch($lapStart);
+      $$workout{lapStartEpoch} = dtmStrToEpoch($lapStart);
       for my $tp($lap->findnodes("tcd:Track/tcd:Trackpoint")){
         my $t = $tp->findvalue("./tcd:Time");
         my $hr = $tp->findvalue("./tcd:HeartRateBpm/tcd:Value");
         my $epoch = dtmStrToEpoch($t);
         $$workout{hrByEpoch}{$epoch} = $hr;
-        if(not defined $$workout{endEpoch} or $$workout{endEpoch} < $epoch){
-          $$workout{endEpoch} = $epoch;
+        if(not defined $$workout{lapEndEpoch} or $$workout{lapEndEpoch} < $epoch){
+          $$workout{lapEndEpoch} = $epoch;
         }
         if(not defined $$workout{hrPeak} or $$workout{hrPeak} < $hr){
           $$workout{hrPeak} = $hr;
@@ -239,14 +239,14 @@ sub parseTcxFile($$){
   }
   my @epochs = sort keys %{$$workout{hrByEpoch}};
 
-  if(not defined $$workout{startEpoch}){
+  if(not defined $$workout{lapStartEpoch}){
     die "ERROR: could not parse any laps in $filename\n";
   }
-  if(not defined $$workout{endEpoch} or @epochs == 0){
+  if(not defined $$workout{lapEndEpoch} or @epochs == 0){
     die "ERROR: could not parse any trackpoints in $filename\n";
   }
 
-  $$workout{durSeconds} = $$workout{endEpoch} - $$workout{startEpoch};
+  $$workout{durSeconds} = $$workout{lapEndEpoch} - $$workout{lapStartEpoch};
   if($$workout{durSeconds} <= 0){
     die "ERROR: invalid lap duration in $filename\n";
   }
@@ -256,7 +256,7 @@ sub parseTcxFile($$){
     my $epoch = $epochs[$i];
     my $isLastEpoch = $i == $#epochs ? 1 : 0;
 
-    my $elapsed = $epoch - $$workout{startEpoch};
+    my $elapsed = $epoch - $$workout{lapStartEpoch};
     if($elapsed < 0){
       die "ERROR: lap contains trackpoint before lap start in $filename\n";
     }
@@ -276,7 +276,7 @@ sub formatWorkout($$){
   my ($format, $workout) = @_;
 
   my $durFmt = formatDur($$workout{durSeconds});
-  my $dtmFmt = formatDatetime($$workout{startEpoch});
+  my $dtmFmt = formatDatetime($$workout{lapStartEpoch});
   my $hrSegFmt = join(" ", map {sprintf "%3d", $_} @{$$workout{hrSegments}});
   my $hrPeakFmt = sprintf "%3d", $$workout{hrPeak};
 
