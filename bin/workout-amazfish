@@ -9,7 +9,7 @@ use Time::Local qw(timegm_posix);
 
 sub parseKexiDbDir($);
 sub grepFile($$);
-sub parseTcxFile($);
+sub parseTcxFile($$);
 sub formatWorkout($$);
 sub dtmStrToEpoch($);
 sub formatDatetime($);
@@ -107,7 +107,7 @@ sub main(@){
   my $kexiDbInfo = parseKexiDbDir($kexiDbBakDir);
 
   for my $file(@tcxFiles){
-    my $workout = parseTcxFile($file);
+    my $workout = parseTcxFile($file, $kexiDbInfo);
     print formatWorkout($format, $workout);
   }
 }
@@ -190,8 +190,17 @@ sub grepFile($$){
   return @lines;
 }
 
-sub parseTcxFile($){
-  my ($filename) = @_;
+sub parseTcxFile($$){
+  my ($filename, $kexiDbInfo) = @_;
+
+  my $workoutName = $1 if $filename =~ /(Treadmill-\d+-\d+)/;
+  if(not defined $workoutName){
+    die "ERROR: could not parse workout name in filename=$filename\n";
+  }
+
+  if(not defined $$kexiDbInfo{$workoutName}){
+    die "ERROR: missing kexi-db-info for $workoutName\n";
+  }
 
   my $workout = {
     hrByEpoch  => {},
