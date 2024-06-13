@@ -7,13 +7,17 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use Time::Local qw(timegm_posix);
 
+sub parseKexiDbDir($);
+sub grepFile($$);
 sub parseTcxFile($);
 sub formatWorkout($$);
 sub dtmStrToEpoch($);
 sub formatDatetime($);
 sub formatDur($);
 
-my $DIR_AMAZFISH_WORKOUTS = "$ENV{HOME}/Code/sx/backup/backup-amazfish/workouts";
+my $DIR_AMAZFISH_BASE = "$ENV{HOME}/Code/sx/backup/backup-amazfish";
+my $DIR_AMAZFISH_WORKOUTS = "$DIR_AMAZFISH_BASE/workouts";
+my $DIR_DEFAULT_KEXI_DB_BAK = "$DIR_AMAZFISH_BASE/kexi-db/diffs";
 
 my $EXEC = basename $0;
 
@@ -63,6 +67,7 @@ my $FORMAT_SUMMARY = "summary";
 my $FORMAT_DETAILS= "details";
 
 sub main(@){
+  my $kexiDbBakDir = $DIR_DEFAULT_KEXI_DB_BAK;
   my @tcxFiles;
   my $format = $FORMAT_SUMMARY;
   while(@_ > 0){
@@ -92,10 +97,90 @@ sub main(@){
     @tcxFiles = grep {-f $_} glob "$DIR_AMAZFISH_WORKOUTS/*.tcx";
   }
 
+  my $kexiDbInfo = parseKexiDbDir($kexiDbBakDir);
+
   for my $file(@tcxFiles){
     my $workout = parseTcxFile($file);
     print formatWorkout($format, $workout);
   }
+}
+
+sub parseKexiDbDir($){
+  my ($kexiDbBakDir) = @_;
+  my @files = grep {-f $_ and not -l $_} glob "$kexiDbBakDir/*";
+  my $kexiDbInfo = {};
+  for my $file(@files){
+    my @lines = grepFile $file, "INSERT INTO sports_data";
+    #CREATE TABLE [sports_data] (
+    #  [id] INTEGER PRIMARY KEY,
+    #  [name] Text,
+    #  [version] Integer UNSIGNED,
+    #  [start_timestamp] Integer UNSIGNED,
+    #  [start_timestamp_dt] DateTime,
+    #  [end_timestamp] Integer UNSIGNED,
+    #  [end_timestamp_dt] DateTime,
+    #  [kind] Integer UNSIGNED,
+    #  [base_longitude] Double,
+    #  [base_latitude] Double,
+    #  [base_altitude] Double,
+    #  [device_id] Integer UNSIGNED,
+    #  [user_id] Integer UNSIGNED,
+    #  [gpx] CLOB
+    #);
+    for my $line(@lines){
+      if($line =~ /
+        ^ .*
+        INSERT \s+
+        INTO \s+
+        sports_data \s+
+        VALUES \s* \( \s*
+          [^,]+,
+          '(Treadmill-\d+-\d+)', #workout name
+          [^,]+,
+          (\d+),                 #start epoch
+          '[^']*',
+          (\d+),                 #end epoch
+          '[^']*',
+          \d+,
+          [^,]*,
+          [^,]*,
+          [^,]*,
+          [^,]*,
+          [^,]*,
+          '.*\/(Treadmill-\d+-\d+.tcx)'
+        \s* \) \s* ;
+      /sxi){
+        my ($workoutName, $startEpoch, $endEpoch, $tcxFile) = ($1, $2, $3, $4);
+        $$kexiDbInfo{$workoutName} = {
+          startEpoch => $startEpoch,
+          endEpoch   => $endEpoch,
+        };
+      }
+    }
+  }
+  return $kexiDbInfo;
+}
+
+sub grepFile($$){
+  my ($file, $ptrn) = @_;
+  $file =~ s/'/'\\''/g;
+  $ptrn =~ s/'/'\\''/g;
+  my $cmd;
+  if($file =~ /\.gz$/){
+    $cmd = "zgrep '$ptrn' '$file'";
+  }elsif($file =~ /\.xz$/){
+    $cmd = "xz -d -c '$file' | grep '$ptrn'";
+  }elsif($file =~ /\.bz2$/){
+    $cmd = "bzip2 -d -c '$file' | grep '$ptrn'"
+  }else{
+    $cmd = "grep '$ptrn' '$file'";
+  }
+
+  open my $fh, "-|", "sh", "-c", $cmd;
+  my @lines = <$fh>;
+  close $fh;
+
+  return @lines;
 }
 
 sub parseTcxFile($){
