@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Digest::MD5 qw();
 use File::Basename qw(basename);
 use JSON qw(from_json to_json);
 use Time::HiRes qw(time);
@@ -438,17 +439,27 @@ sub fetchViewfitWorkouts(){
   my $nowMillis = nowMillis();
   my $nowEpoch = $nowMillis / 1000.0;
   my $nowFmt = dateFmt($nowEpoch, "%Y-%m-%d_%H%M%S");
-  my $cacheFile = "$WORKOUTS_JSON_CACHE_DIR/workouts_${nowFmt}_$nowMillis.json";
-
-  system "mkdir", "-p", $WORKOUTS_JSON_CACHE_DIR;
+  my $tmpFile = "/tmp/workout-viewfit-$nowMillis.json";
 
   my @cmd = ("curl",
     "--silent",
     $url,
-    "--output", $cacheFile,
+    "--output", $tmpFile,
   );
   run @cmd;
   die "ERROR: curl failed\n$!\n" if $? != 0;
+
+  my $md5 = md5sumFile($tmpFile);
+
+  my $cacheFile = "$WORKOUTS_JSON_CACHE_DIR/workouts_${nowFmt}_${md5}_${nowMillis}.json";
+
+  system "mkdir", "-p", $WORKOUTS_JSON_CACHE_DIR;
+  system "mv", "--no-clobber", $tmpFile, $cacheFile;
+
+  if(not -f $cacheFile){
+    die "ERROR: failed to created $cacheFile\n";
+  }
+
   run "gzip", $cacheFile;
 }
 
@@ -520,6 +531,16 @@ sub dateFmt($$){
   my $dateFmt = `date --date=\@$epoch +'$fmt'`;
   chomp $dateFmt;
   return $dateFmt;
+}
+
+sub md5sumFile($){
+  my ($file) = @_;
+  my $d = Digest::MD5->new();
+  open my $fh, "<", $file or die "ERROR: could not read $file\n$!\n";
+  $d->addfile($fh);
+  my $digest = $d->hexdigest();
+  close $fh;
+  return $digest;
 }
 
 sub nowMillis(){
