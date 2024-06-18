@@ -10,14 +10,14 @@ my $USAGE = "Usage:
      print this message
 
   $EXEC [OPTS] CMD_ARG [CMD_ARG CMD_ARG ..]
-     -repeatedly run: bash -c 'CMD_ARG CMD_ARG CMD_ARG'
+     -repeatedly run: bash -l -c 'CMD_ARG CMD_ARG CMD_ARG'
 
     e.g.:
       > $EXEC 'ls *.txt'
         #the glob '*' is interpolated each time, and new text files will appear
         #similar to:
         while [ 1 ]; do
-          bash -c 'ls *.txt';
+          bash -l -c 'ls *.txt';
           sleep 1;
         done
       > $EXEC ls *.txt
@@ -25,7 +25,7 @@ my $USAGE = "Usage:
         #similar to:
         files=\$(echo *.txt);
         while [ 1 ]; do
-          bash -c \"ls \$files\";
+          bash -l -c \"ls \$files\";
           sleep 1;
         done
 
@@ -46,6 +46,10 @@ my $USAGE = "Usage:
           /bin/sh will be used to invoke the command
         -otherwise:
           treat the first CMD_ARG as the command to execute and the rest as args
+
+    --no-login
+     do not pass '-l' to bash when wrapping CMD_ARG
+       i.e.: bash -c 'CMD_ARG CMD_ARG CMD_ARG'
 
     -d|--date
       run 'date' before each invokation
@@ -78,6 +82,7 @@ sub main(@){
   my $alarmSuccess = 0;
   my $alarmFailure = 0;
   my $wrapBashCmd = 1;
+  my $useLoginShell = 1;
   while(@_ > 0 and ($_[0] =~ /^-/ or $_[0] =~ /^(\d+|\d*\.\d+)$/)){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -91,6 +96,8 @@ sub main(@){
       $delay = $arg;
     }elsif($arg =~ /^(-e|--no-bash)$/){
       $wrapBashCmd = 0;
+    }elsif($arg =~ /^(--no-login)$/){
+      $useLoginShell = 0;
     }elsif($arg =~ /^(-d|--date)$/){
       $printDate = 1;
     }elsif($arg =~ /^(-s|--success)$/){
@@ -113,7 +120,11 @@ sub main(@){
   my @cmd = @_;
 
   if($wrapBashCmd){
-    @cmd = ("bash", "-c", "@cmd");
+    if($useLoginShell){
+      @cmd = ("bash", "-l", "-c", "@cmd");
+    }else{
+      @cmd = ("bash", "-c", "@cmd");
+    }
   }
 
   while(1){
