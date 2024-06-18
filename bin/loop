@@ -9,19 +9,15 @@ my $USAGE = "Usage:
   $EXEC -h|--help
      print this message
 
-  $EXEC [OPTS] COMMAND
-     run 'COMMAND' with shell interpolation repeatedly
-
-  $EXEC [OPTS] EXEC [ARG ARG ..]
-     run 'EXEC ARG ARG ..' without interpolation repeatedly
-     note that normal shell interpolation still happens when running $EXEC
+  $EXEC [OPTS] CMD_ARG [CMD_ARG CMD_ARG ..]
+     -repeatedly run: bash -c 'CMD_ARG CMD_ARG CMD_ARG'
 
     e.g.:
       > $EXEC 'ls *.txt'
         #the glob '*' is interpolated each time, and new text files will appear
         #similar to:
         while [ 1 ]; do
-          sh -c 'ls *.txt';
+          bash -c 'ls *.txt';
           sleep 1;
         done
       > $EXEC ls *.txt
@@ -29,7 +25,7 @@ my $USAGE = "Usage:
         #similar to:
         files=\$(echo *.txt);
         while [ 1 ]; do
-          sh -c \"ls \$files\";
+          bash -c \"ls \$files\";
           sleep 1;
         done
 
@@ -42,6 +38,14 @@ my $USAGE = "Usage:
 
     DELAY
       same as --delay=DELAY
+
+    -e|--no-bash
+      do not wrap commands in bash shell
+      instead, invoke CMD_ARG CMD_ARG with system()
+        -if only one CMD_ARG is given, and it contains a shell metacharacter:
+          /bin/sh will be used to invoke the command
+        -otherwise:
+          treat the first CMD_ARG as the command to execute and the rest as args
 
     -d|--date
       run 'date' before each invokation
@@ -73,6 +77,7 @@ sub main(@){
   my $alarmOnExit = 0;
   my $alarmSuccess = 0;
   my $alarmFailure = 0;
+  my $wrapBashCmd = 1;
   while(@_ > 0 and ($_[0] =~ /^-/ or $_[0] =~ /^(\d+|\d*\.\d+)$/)){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -84,6 +89,8 @@ sub main(@){
       $delay = shift;
     }elsif($arg =~ /^(\d+|\d*\.\d+)$/){
       $delay = $arg;
+    }elsif($arg =~ /^(-e|--no-bash)$/){
+      $wrapBashCmd = 0;
     }elsif($arg =~ /^(-d|--date)$/){
       $printDate = 1;
     }elsif($arg =~ /^(-s|--success)$/){
@@ -103,10 +110,16 @@ sub main(@){
 
   die $USAGE if @_ == 0;
 
+  my @cmd = @_;
+
+  if($wrapBashCmd){
+    @cmd = ("bash", "-c", "@cmd");
+  }
+
   while(1){
     runOrDie "date" if $printDate;
 
-    system @_;
+    system @cmd;
 
     my $exitCode = $?;
     if($exitCode == 0){
