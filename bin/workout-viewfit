@@ -57,9 +57,12 @@ my $USAGE = "Usage:
     --intervals
       when printing workouts, print interval information after, one per line
       (this is large)
+
+    --quick
+      skip parsing intervals completely
 ";
 
-sub readCachedWorkouts();
+sub readCachedWorkouts($);
 sub readExtraInfo();
 sub insertExtraInfo($@);
 sub calculateDistanceTargets(@);
@@ -87,6 +90,7 @@ sub main(@){
     workoutIdFilter => undef,
     dateFilter => undef,
     printIntervals => undef,
+    quick => 0,
   };
   my @cmdArgs;
   while(@_ > 0){
@@ -104,13 +108,15 @@ sub main(@){
       $$opts{dateFilter} = $1;
     }elsif($arg =~ /^(--intervals)$/){
       $$opts{printIntervals} = $1;
+    }elsif($arg =~ /^(--quick)$/){
+      $$opts{quick} = 1;
     }else{
       push @cmdArgs, $arg;
     }
   }
 
   if($cmd eq $COMMAND_GET){
-    my @workouts = readCachedWorkouts();
+    my @workouts = readCachedWorkouts($$opts{quick});
     my $extraInfo = readExtraInfo();
     my $workoutsCombineInfo = readWorkoutsCombine();
 
@@ -158,7 +164,7 @@ sub main(@){
   }elsif($cmd eq $COMMAND_FETCH){
     fetchViewfitWorkouts();
 
-    my @workouts = readCachedWorkouts();
+    my @workouts = readCachedWorkouts($$opts{quick});
     @workouts = sort {
       $$a{workout_time} cmp $$b{workout_time}
     } @workouts;
@@ -178,7 +184,8 @@ sub main(@){
   }
 }
 
-sub readCachedWorkouts(){
+sub readCachedWorkouts($){
+  my ($quick) = @_;
   my @jsonFiles = (
     glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json"),
     glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json.gz"),
@@ -187,8 +194,17 @@ sub readCachedWorkouts(){
   die "ERROR: could not find any workout json files in cache\n" if @jsonFiles == 0;
   my $latestJsonFile = $jsonFiles[-1];
   my $json = $latestJsonFile =~ /\.gz$/i ? readFileGZ($latestJsonFile) : readFile($latestJsonFile);
+  if($quick){
+    $json =~ s/"intervals":\[[^\]]*\],//g;
+  }
   my $jsonObj = from_json($json);
-  return @{$$jsonObj{workouts}};
+  my @workouts = @{$$jsonObj{workouts}};
+  if($quick){
+    for my $w(@workouts){
+      $$w{intervals} = [];
+    }
+  }
+  return @workouts;
 }
 
 sub readExtraInfo(){
