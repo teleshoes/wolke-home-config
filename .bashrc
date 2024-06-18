@@ -293,6 +293,9 @@ function grepesh      { command grep "$@" \
                       }
 function rebase       { rebase-reltime -e "$@" --same; }
 
+function wv           { workout-viewfit "$@"; }
+function wvf          { workout-viewfit -f "$@"; }
+
 function genservices  { ~/workspace/escribehost/legacy-tools/genservices.pl "$@"; }
 function genibatis    { ~/workspace/escribehost/legacy-tools/genibatis.pl "$@"; }
 function migl         { vim `~/workspace/escribehost/migrations/latest-script "$@"`; }
