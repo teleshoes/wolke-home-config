@@ -62,6 +62,14 @@ my $USAGE = "Usage:
           TRACKPOINT_HEARTRATE
             trackpoint heartrate
 
+    --heartrates
+      for each TCX_FILE
+        -print each Trackpoint as \"TRACKPOINT_EPOCH = TRACKPOINT_HEARTRATE\"
+          TRACKPOINT_EPOCH
+            trackpoint time in seconds since epoch
+          TRACKPOINT_HEARTRATE
+            trackpoint heartrate
+
     --kexi-db-dir=KEXI_DB_DIR
       dir containing files with kexi DB backups, possibly compressed with gzip/bzip2/xz
         parses lines containing 'INSERT INTO sports_data'
@@ -70,6 +78,7 @@ my $USAGE = "Usage:
 
 my $FORMAT_SUMMARY = "summary";
 my $FORMAT_DETAILS = "details";
+my $FORMAT_HEARTRATES = "heartrates";
 
 sub main(@){
   my $kexiDbBakDir = $DIR_DEFAULT_KEXI_DB_BAK;
@@ -84,6 +93,8 @@ sub main(@){
       $format = $FORMAT_SUMMARY;
     }elsif($arg =~ /^(--details)$/){
       $format = $FORMAT_DETAILS;
+    }elsif($arg =~ /^(--heartrates)$/){
+      $format = $FORMAT_HEARTRATES;
     }elsif($arg =~ /^--kexi-db-dir=(.+)$/){
       $kexiDbBakDir = $1;
     }elsif($arg =~ /^(\d\d\d\d)-?(\d\d)-?(\d\d)$/){
@@ -289,6 +300,10 @@ sub formatWorkout($$){
     my %dateFmtByEpoch = map {$_ => formatDatetime($_)} @epochs;
     my @trackpointLines = map {"  $dateFmtByEpoch{$_} = $hrByEpoch{$_}\n"} @epochs;
     return join("", $summaryLine, @trackpointLines);
+  }elsif($format eq $FORMAT_HEARTRATES){
+    my @epochs = sort keys %{$$workout{hrByEpoch}};
+    my @trackpointLines = map {"$_ = $hrByEpoch{$_}\n"} @epochs;
+    return join("", @trackpointLines);
   }else{
     die "ERROR: unknown format $format\n";
   }
