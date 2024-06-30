@@ -7,7 +7,7 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use Time::Local qw(timegm_posix);
 
-sub parseKexiDbDir($);
+sub ensureWorkoutKexiDBInfo($$$);
 sub grepFile($$);
 sub parseTcxFile($$);
 sub formatWorkout($$);
@@ -116,19 +116,29 @@ sub main(@){
     @tcxFiles = grep {-f $_} glob "$DIR_AMAZFISH_WORKOUTS/*.tcx";
   }
 
-  my $kexiDbInfo = parseKexiDbDir($kexiDbBakDir);
+  my $kexiDbInfo = {
+    workouts => {},
+    parsedFiles => {},
+  };
 
   for my $file(@tcxFiles){
+    my $workoutName = $1 if $file =~ /(Treadmill-\d+-\d+)/;
+    if(not defined $workoutName){
+      die "ERROR: could not parse workout name in filename=$file\n";
+    }
+    ensureWorkoutKexiDBInfo($kexiDbInfo, $workoutName, $kexiDbBakDir);
     my $workout = parseTcxFile($file, $kexiDbInfo);
     print formatWorkout($format, $workout);
   }
 }
 
-sub parseKexiDbDir($){
-  my ($kexiDbBakDir) = @_;
+sub ensureWorkoutKexiDBInfo($$$){
+  my ($kexiDbInfo, $targetWorkoutName, $kexiDbBakDir) = @_;
+  return if defined $$kexiDbInfo{workouts}{$targetWorkoutName};
   my @files = grep {-f $_ and not -l $_} glob "$kexiDbBakDir/*";
-  my $kexiDbInfo = {};
   for my $file(@files){
+    next if defined $$kexiDbInfo{parsedFiles}{$file};
+    $$kexiDbInfo{parsedFiles}{$file} = 1;
     my @lines = grepFile $file, "INSERT INTO sports_data";
     #CREATE TABLE [sports_data] (
     #  [id] INTEGER PRIMARY KEY,
@@ -170,14 +180,18 @@ sub parseKexiDbDir($){
         \s* \) \s* ;
       /sxi){
         my ($workoutName, $startEpoch, $endEpoch, $tcxFile) = ($1, $2, $3, $4);
-        $$kexiDbInfo{$workoutName} = {
+        $$kexiDbInfo{workouts}{$workoutName} = {
           startEpoch => $startEpoch,
           endEpoch   => $endEpoch,
         };
+        return if defined $$kexiDbInfo{workouts}{$targetWorkoutName};
       }
     }
   }
-  return $kexiDbInfo;
+
+  if(not defined $$kexiDbInfo{workouts}{$targetWorkoutName}){
+    die "ERROR: could not find $targetWorkoutName in $kexiDbBakDir/*\n";
+  }
 }
 
 sub grepFile($$){
@@ -210,11 +224,11 @@ sub parseTcxFile($$){
     die "ERROR: could not parse workout name in filename=$filename\n";
   }
 
-  if(not defined $$kexiDbInfo{$workoutName}){
+  if(not defined $$kexiDbInfo{workouts}{$workoutName}){
     die "ERROR: missing kexi-db-info for $workoutName\n";
   }
-  my $startEpoch = $$kexiDbInfo{$workoutName}{startEpoch};
-  my $endEpoch = $$kexiDbInfo{$workoutName}{endEpoch};
+  my $startEpoch = $$kexiDbInfo{workouts}{$workoutName}{startEpoch};
+  my $endEpoch = $$kexiDbInfo{workouts}{$workoutName}{endEpoch};
 
   my $workout = {
     hrByEpoch     => {},
