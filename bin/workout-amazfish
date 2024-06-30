@@ -7,6 +7,8 @@ use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
 use Time::Local qw(timegm_posix);
 
+sub readKexiDbInfoCache($);
+sub writeKexiDbInfoCache($);
 sub ensureWorkoutKexiDBInfo($$$);
 sub grepFile($$);
 sub parseTcxFile($$);
@@ -18,6 +20,9 @@ sub formatDur($);
 my $DIR_AMAZFISH_BASE = "$ENV{HOME}/Code/sx/backup/backup-amazfish";
 my $DIR_AMAZFISH_WORKOUTS = "$DIR_AMAZFISH_BASE/workouts";
 my $DIR_DEFAULT_KEXI_DB_BAK = "$DIR_AMAZFISH_BASE/kexi-db/diffs";
+my $DIR_CACHE = "$ENV{HOME}/.cache/workouts";
+
+my $KEXI_DB_CACHE_FILE = "$DIR_CACHE/amazfish-kexi-db.cache";
 
 my $EXEC = basename $0;
 
@@ -121,6 +126,9 @@ sub main(@){
     parsedFiles => {},
   };
 
+  readKexiDbInfoCache $kexiDbInfo;
+  my $oldCacheSize = 0+keys %{$$kexiDbInfo{workouts}};
+
   for my $file(@tcxFiles){
     my $workoutName = $1 if $file =~ /(Treadmill-\d+-\d+)/;
     if(not defined $workoutName){
@@ -130,6 +138,45 @@ sub main(@){
     my $workout = parseTcxFile($file, $kexiDbInfo);
     print formatWorkout($format, $workout);
   }
+
+  my $newCacheSize = 0+keys %{$$kexiDbInfo{workouts}};
+  if($newCacheSize > $oldCacheSize){
+    writeKexiDbInfoCache $kexiDbInfo;
+  }
+}
+
+sub readKexiDbInfoCache($){
+  my ($kexiDbInfo) = @_;
+  return if not -f $KEXI_DB_CACHE_FILE;
+  open my $fh, "<", $KEXI_DB_CACHE_FILE
+    or die "ERROR: could not read $KEXI_DB_CACHE_FILE\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
+
+  for my $line(@lines){
+    next if $line =~ /^\s*(#.*)$/;
+
+    if($line =~ /^\s*(\S+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$/){
+      my ($workoutName, $startEpoch, $endEpoch) = ($1, $2, $3);
+      $$kexiDbInfo{workouts}{$workoutName} = {
+        startEpoch => $startEpoch,
+        endEpoch => $endEpoch,
+      };
+    }else{
+      die "ERROR: malformed kexi db cache line $line";
+    }
+  }
+}
+sub writeKexiDbInfoCache($){
+  my ($kexiDbInfo) = @_;
+  system "mkdir", "-p", $DIR_CACHE;
+  open my $fh, ">", $KEXI_DB_CACHE_FILE
+    or die "ERROR: could not write $KEXI_DB_CACHE_FILE\n$!\n";
+  for my $workoutName(sort keys %{$$kexiDbInfo{workouts}}){
+    my $info = $$kexiDbInfo{workouts}{$workoutName};
+    print $fh "$workoutName,$$info{startEpoch},$$info{endEpoch}\n";
+  }
+  close $fh;
 }
 
 sub ensureWorkoutKexiDBInfo($$$){
