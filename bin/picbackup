@@ -72,11 +72,14 @@ my $usage = "Usage:
        (this is the default)
 ";
 
+my $MTIME_MODE_FUZZY = "fuzzy";
+my $MTIME_MODE_EXACT = "exact";
+
 sub main(@){
   testMtimeFuzzyMatch();
 
   my $simulate = 0;
-  my $fuzzyMtime = 1;
+  my $mtimeMode = $MTIME_MODE_FUZZY;
   my $flatten = 1;
   my ($src, $dest);
   while(@_ > 0){
@@ -87,9 +90,9 @@ sub main(@){
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act)$/){
       $simulate = 1;
     }elsif($arg =~ /^(--fuzzy-mtime)$/){
-      $fuzzyMtime = 1;
+      $mtimeMode = $MTIME_MODE_FUZZY;
     }elsif($arg =~ /^(--exact-mtime)$/){
-      $fuzzyMtime = 0;
+      $mtimeMode = $MTIME_MODE_EXACT;
     }elsif($arg =~ /^(--dirs|--keep-structure|--no-flatten)$/){
       $flatten = 0;
     }elsif($arg =~ /^(--flatten)$/){
@@ -145,12 +148,14 @@ sub main(@){
       @matches = ();
     }
 
-    if($fuzzyMtime){
+    if($mtimeMode eq $MTIME_MODE_FUZZY){
       #fuzzy mtime match
       @matches = grep {mtimeFuzzyMatch($$_{mtime}, $$srcFile{mtime})} @matches;
-    }else{
+    }elsif($mtimeMode eq $MTIME_MODE_EXACT){
       #exact mtime match
       @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
+    }else{
+      die "ERROR: unknown mtime mode $mtimeMode\n";
     }
 
     #fuzzy filename match
