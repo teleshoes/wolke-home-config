@@ -64,6 +64,9 @@ my $usage = "Usage:
      --exact-mtime
        use exact mtime (in integer seconds) instead of fuzzy (+/-24h, +/-3s)
 
+     --ignore-mtime | --no-mtime
+       skip files that match just filesize and approximate filename
+
      --dirs | --keep-structure | --no-flatten
        preserve relative file paths in backup dir
 
@@ -74,6 +77,7 @@ my $usage = "Usage:
 
 my $MTIME_MODE_FUZZY = "fuzzy";
 my $MTIME_MODE_EXACT = "exact";
+my $MTIME_MODE_IGNORE = "ignore";
 
 sub main(@){
   testMtimeFuzzyMatch();
@@ -93,6 +97,8 @@ sub main(@){
       $mtimeMode = $MTIME_MODE_FUZZY;
     }elsif($arg =~ /^(--exact-mtime)$/){
       $mtimeMode = $MTIME_MODE_EXACT;
+    }elsif($arg =~ /^(--ignore-mtime|--no-mtime)$/){
+      $mtimeMode = $MTIME_MODE_IGNORE;
     }elsif($arg =~ /^(--dirs|--keep-structure|--no-flatten)$/){
       $flatten = 0;
     }elsif($arg =~ /^(--flatten)$/){
@@ -153,6 +159,9 @@ sub main(@){
       @matches = grep {mtimeFuzzyMatch($$_{mtime}, $$srcFile{mtime})} @matches;
     }elsif($mtimeMode eq $MTIME_MODE_EXACT){
       @matches = grep {$$_{mtime} == $$srcFile{mtime}} @matches;
+    }elsif($mtimeMode eq $MTIME_MODE_IGNORE){
+      #keep all current matches
+      @matches = @matches;
     }else{
       die "ERROR: unknown mtime mode $mtimeMode\n";
     }
