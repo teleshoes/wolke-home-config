@@ -8,6 +8,7 @@ sub getState($$$);
 sub setState($$$$);
 sub getCurl($$$);
 sub setCurl($$$$);
+sub readConf();
 sub readSecrets();
 sub decrypt($);
 sub readFile($);
@@ -16,6 +17,8 @@ sub nowMillis();
 
 my $DELAY_MILLIS = 150;
 my $MAX_DELAY_MILLIS = 3 * 1000;
+
+my $CONF_FILE = "$ENV{HOME}/.config/ha.conf";
 
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $SECRETS_PREFIX = "homeassistant";
@@ -28,6 +31,21 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
+  HOST
+    read local homeassistant hostname from $CONF_FILE
+    formatted:
+      host = HOST
+
+  DEV_NAME
+    read the homeassistant ENTITY_ID from $CONF_FILE
+    formatted:
+      device.DEV_NAME.entityid = ENTITY_ID
+
+  DEV_SYN
+    read the DEV_NAME from $CONF_FILE
+    formatted:
+      device.DEV_NAME.synonyms = DEV_SYN,DEV_SYN,DEV_SYN
+
   TOKEN
     read the ENCRYPTED_TOKEN from $SECRETS_FILE
     formatted:
@@ -36,7 +54,16 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
+  my $conf = readConf();
   my $token = ${readSecrets()}{token};
+
+  my $devSyns = {};
+  for my $devName(sort keys %{$$conf{devices}}){
+    my @syns = map {lc $_}
+               grep {$_ =~ /^\w+$/}
+               split(/,/, $$conf{devices}{$devName}{synonyms});
+    $$devSyns{$_} = $devName foreach @syns;
+  }
 
   while(@_ > 0){
     my $arg = shift @_;
@@ -116,6 +143,38 @@ sub setCurl($$$$){
   );
 
   #ignore output, there is no guarantee it reflects the set()
+}
+
+sub readConf(){
+  my @lines = readFile($CONF_FILE);
+  my $config = {
+    host => undef,
+    devices => {},
+  };
+  for my $line(@lines){
+    next if $line =~ /^\s*(#.*)?$/;
+    if($line =~ /^\s*([a-zA-Z0-9_\.]+)\s*=\s*(\S(?:.*\S)?)\s*$/){
+      my ($key, $val) = ($1, $2);
+      if($key =~ /^host$/i){
+        $$config{host} = $val;
+      }elsif($key =~ /^device\.(\w+)\.(\w+)$/){
+        my ($devName, $devField) = ($1, $2);
+        $devName = lc $devName;
+        $devField = lc $devField;
+        if($devField =~ /^(entityid|synonyms)$/){
+          $$config{devices}{$devName} = {} if not defined $$config{devices}{$devName};
+          $$config{devices}{$devName}{$devField} = $val;
+        }else{
+          die "ERROR: unknown field $devField for device $devName\n";
+        }
+      }else{
+        die "ERROR: unknown config key $key in line\n$line\n";
+      }
+    }else{
+      die "ERROR: malformed conf line\n$line\n";
+    }
+  }
+  return $config;
 }
 
 sub readSecrets(){
