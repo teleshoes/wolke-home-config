@@ -8,20 +8,36 @@ sub getState($$$);
 sub setState($$$$);
 sub getCurl($$$);
 sub setCurl($$$$);
+sub readSecrets();
+sub decrypt($);
+sub readFile($);
 sub readProc(@);
 sub nowMillis();
 
 my $DELAY_MILLIS = 150;
 my $MAX_DELAY_MILLIS = 3 * 1000;
 
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_PREFIX = "homeassistant";
+my $SECRETS_KEYS_REGEX = join "|", qw(token);
+my %SECRETS_ENC_KEYS = map {$_ => 1} qw(token);
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
+
+  TOKEN
+    read the ENCRYPTED_TOKEN from $SECRETS_FILE
+    formatted:
+      homeassistant.token = ENCRYPTED_TOKEN
+    decrypt to the homeassistant long-lived access TOKEN
 ";
 
 sub main(@){
+  my $token = ${readSecrets()}{token};
+
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -100,6 +116,47 @@ sub setCurl($$$$){
   );
 
   #ignore output, there is no guarantee it reflects the set()
+}
+
+sub readSecrets(){
+  my @lines = readFile($SECRETS_FILE);
+  my $secrets = {};
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_PREFIX\.($SECRETS_KEYS_REGEX)\s*=\s*(.+)$/){
+      $$secrets{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$secrets){
+    $$secrets{$key} = decrypt $$secrets{$key} if defined $SECRETS_ENC_KEYS{$key};
+  }
+  return $secrets;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
+}
+
+sub readFile($){
+  my ($file) = @_;
+  my @lines;
+  if(-f $file){
+    open my $fh, "<", $file
+      or die "ERROR: could not read file $file\n$!\n";
+    @lines = <$fh>;
+    close $fh;
+  }
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
 }
 
 sub readProc(@){
