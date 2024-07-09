@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub getCurl($$$);
+sub setCurl($$$$);
+sub readProc(@);
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -19,6 +23,47 @@ sub main(@){
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
+  }
+}
+
+sub getCurl($$$){
+  my ($host, $token, $entityID) = @_;
+  my $out = readProc("curl",
+    "--silent",
+    "-X", "GET",
+    "-H", "Authorization: Bearer $token",
+    "-H", "Content-Type: application/json",
+    "http://$host:8123/api/states/$entityID",
+  );
+
+  return $out;
+}
+
+sub setCurl($$$$){
+  my ($host, $token, $entityID, $state) = @_;
+  my $domain = "switch";
+  my $service = $state =~ /on/ ? "turn_on" : "turn_off";
+  my $out = readProc("curl",
+    "--silent",
+    "-X", "POST",
+    "-H", "Authorization: Bearer $token",
+    "-H", "Content-Type: application/json",
+    "-d", "{\"entity_id\": \"$entityID\"}",
+    "http://$host:8123/api/services/$domain/$service",
+  );
+
+  #ignore output, there is no guarantee it reflects the set()
+}
+
+sub readProc(@){
+  my @cmd = @_;
+  open CMD, "-|", @cmd or die "ERROR: \"@cmd\" failed\n$!\n";
+  my @lines = <CMD>;
+  close CMD;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
   }
 }
 
