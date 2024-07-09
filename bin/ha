@@ -37,6 +37,23 @@ my $USAGE = "Usage:
       -URL = http://<HOST>:8123/api/states/<ENTITY_ID>
     -print 'on' or 'off'
 
+  $EXEC              DEV_NAME_OR_SYN STATE_ON_OFF
+  $EXEC -s|--set|set DEV_NAME_OR_SYN STATE_ON_OFF
+    -fetch the state as in: $EXEC -g DEV_NAME_OR_SYN
+    -if state matches STATE_ON_OFF:
+      -do nothing
+    -otherwise:
+      -write the homeassistant service
+        -URL = http://<HOST>:8123/api/services/<DOMAIN>/turn_<STATE_ON_OFF>
+        -PARAMS = {\"entity_id\": \"<ENTITY_ID>\"}
+      -re-fetch the state until match, repeatedly for up to $MAX_DELAY_MILLIS ms
+
+  STATE_ON_OFF
+    either 'on' or 'off'
+
+  DOMAIN
+    always 'switch'
+
   DEV_NAME_OR_SYN
     either DEV_NAME or DEV_SYN
 
@@ -63,10 +80,12 @@ my $USAGE = "Usage:
 ";
 
 my $MODE_GET = "get";
+my $MODE_SET = "set";
 
 sub main(@){
   my $mode = $MODE_GET;
   my $devName = undef;
+  my $targetState = undef;
 
   my $conf = readConf();
   my $token = ${readSecrets()}{token};
@@ -86,10 +105,15 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-g|--get|get)$/){
       $mode = $MODE_GET;
+    }elsif($arg =~ /^(-s|--set|set)$/){
+      $mode = $MODE_SET;
     }elsif(defined $$conf{devices}{lc $arg} and not defined $devName){
       $devName = $arg;
     }elsif(defined $$devSyns{lc $arg} and not defined $devName){
       $devName = $$devSyns{lc $arg};
+    }elsif($arg =~ /^(on|off)$/i and not defined $targetState){
+      $mode = $MODE_SET;
+      $targetState = lc $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -99,6 +123,12 @@ sub main(@){
     die "$USAGE\nERROR: missing DEV_NAME\n" if not defined $devName;
     my $state = getState($$conf{host}, $token, $$conf{devices}{$devName}{entityid});
     print "$state\n";
+  }elsif($mode eq $MODE_SET){
+    die "$USAGE\nERROR: missing DEV_NAME\n" if not defined $devName;
+    die "$USAGE\nERROR: missing STATE_ON_OFF\n" if not defined $targetState;
+    my ($oldState, $newState) = setState(
+      $$conf{host}, $token, $$conf{devices}{$devName}{entityid}, $targetState);
+    print "$oldState => $newState\n";
   }else{
     die "ERROR: unknown mode $mode\n";
   }
