@@ -64,6 +64,8 @@ my $USAGE = "Usage:
 sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
+sub isWorkoutNeedsExternalHeartrate($);
+sub insertExternalHeartrates($$);
 sub calculateDistanceTargets(@);
 sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
@@ -76,6 +78,7 @@ sub readSecrets();
 sub decrypt($);
 sub dtmStrToEpoch($);
 sub dateFmt($$);
+sub binarySearchIdx($$$);
 sub nowMillis();
 sub run(@);
 sub runQuiet(@);
@@ -131,6 +134,13 @@ sub main(@){
     @workouts = sort {
       $$a{dtmEpoch} <=> $$b{dtmEpoch}
     } @workouts;
+
+    for my $w(@workouts){
+      if(isWorkoutNeedsExternalHeartrate($w)){
+        my $hrByEpoch = {};
+        insertExternalHeartrates($w, $hrByEpoch);
+      }
+    }
 
     for my $w(@workouts){
       my $maxHR = $$w{max_heart_rate};
@@ -261,6 +271,69 @@ sub insertExtraInfo($@){
     }
     if(not $found){
       die "ERROR: could not insert extra info for workout $workoutID\n";
+    }
+  }
+}
+
+sub isWorkoutNeedsExternalHeartrate($){
+  my ($workout) = @_;
+
+  my @intervals = @{$$workout{intervals}};
+  my $totalHrSeconds = 0;
+  my $totalDur = 0;
+  for my $interval(@intervals){
+    $totalHrSeconds += $$interval{heart_rate} * $$interval{calculatedDuration};
+    $totalDur += $$interval{calculatedDuration};
+  }
+
+  if($totalDur <= 0){
+    #dont add external hr to empty-interval workouts
+    return 0;
+  }
+
+  my $avgHr = $totalHrSeconds/$totalDur;
+
+  if($avgHr > 100){
+    #dont add external hr if hr looks reasonable already
+    return 0;
+  }else{
+    return 1;
+  }
+}
+
+sub insertExternalHeartrates($$){
+  my ($workout, $hrByEpoch) = @_;
+
+  my @intervals = @{$$workout{intervals}};
+
+  my @hrEpochs = sort keys %$hrByEpoch;
+
+  for my $interval(@intervals){
+    my $intervalEpoch = $$interval{calculatedEpoch};
+    my $hrEpochIdx = binarySearchIdx sub{$_[0] <= $_[1]}, $intervalEpoch, \@hrEpochs;
+
+    #NOTE:
+    #  only fill in hr for intervals between
+    #  two separate external measurements < 30s apart
+    #    -viewfit intervals are ~10s apart
+    #    -amazfish trackpoints are ~5s apart
+    #    -hrmon intervals are ~1s apart
+    next if $hrEpochIdx-1 < 0 or $hrEpochIdx > $#hrEpochs;
+    my $startHrEpoch = $hrEpochs[$hrEpochIdx-1];
+    my $endHrEpoch = $hrEpochs[$hrEpochIdx];
+    my $intervalEpochBetweenHrEpochs =
+      $startHrEpoch <= $intervalEpoch && $intervalEpoch <= $endHrEpoch;
+    my $hrEpochsClose = ($endHrEpoch-$startHrEpoch) < 30;
+
+    if($intervalEpochBetweenHrEpochs and $hrEpochsClose){
+      my $startHr = $$hrByEpoch{$startHrEpoch};
+      my $endHr = $$hrByEpoch{$endHrEpoch};
+
+      #linear interpolation of interval
+      my $elapsedRatio = ($intervalEpoch - $startHrEpoch) / ($endHrEpoch - $startHrEpoch);
+      my $hr = $startHr + (($endHr - $startHr)*$elapsedRatio);
+
+      $$interval{heart_rate} = $hr;
     }
   }
 }
@@ -608,6 +681,53 @@ sub dateFmt($$){
   die "ERROR: missing epoch\n" if not defined $epoch;
   die "ERROR: invalid epoch $epoch\n" if $epoch !~ /^-?(\d+|\d*\.\d+)$/;
   return time2str($fmtSpec, $epoch);
+}
+
+#return the smallest index of the element
+#  in the sorted list 'list' that is greater than or equal to 'targetItem',
+#  or -1 if no element in 'list' is greater than or equal to 'targetItem'
+#
+#cmpLTESub is a comparator that returns true if the first arg
+#  is less than or equal to the second, in the same sense as the list is sorted
+#
+#e.g.:
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, -1,  [0, 1, 2, 3, 4, 5]) == 0
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 0,   [0, 1, 2, 3, 4, 5]) == 0
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 0.9, [0, 1, 2, 3, 4, 5]) == 1
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 1,   [0, 1, 2, 3, 4, 5]) == 1
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 1.1, [0, 1, 2, 3, 4, 5]) == 2
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 2,   [0, 1, 2, 3, 4, 5]) == 2
+#  binarySearchIdx(sub{$_[0] <= $_[1]}, 6,   [0, 1, 2, 3, 4, 5]) == -1
+sub binarySearchIdx($$$){
+  my ($cmpLTESub, $targetItem, $list) = @_;
+
+  if(@$list == 0){
+    return -1;
+  }elsif($targetItem > $$list[-1]){
+    return -1;
+  }
+
+  my $min = 0;
+  my $max = $#$list;
+  while(1){
+    my $mid = int(($max+$min) / 2);
+    if($mid < 0 or $mid > $#$list){
+      last;
+    }
+
+    if(&$cmpLTESub($targetItem, $$list[$mid])){
+      #if target <= list[mid]
+      $max = $mid;
+    }else{
+      $min = $mid + 1;
+    }
+
+    if($min == $max){
+      return $min;
+    }
+  }
+
+  return -1;
 }
 
 sub md5sumFile($){
