@@ -13,6 +13,8 @@ my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json"
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 
+my $AMAZFISH_HR_CACHE_DIR = "$ENV{HOME}/.cache/workouts/amazfish-hr-cache";
+
 my $VIEWFIT_EXERCISER_BASE_URL = 'https://www.viewfit.com/exerciser/exerciser';
 
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
@@ -65,6 +67,8 @@ sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
 sub getAmazfishHrByEpoch($);
+sub readAmazfishHrCache($);
+sub writeAmazfishHrCache($$);
 sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
 sub calculateDistanceTargets(@);
@@ -280,17 +284,51 @@ sub insertExtraInfo($@){
 sub getAmazfishHrByEpoch($){
   my ($dateYMD) = @_;
 
-  my $amazfishHrByEpoch = {};
-  $amazfishHrByEpoch = {};
-  my @amazfishHrLines = `workout-amazfish --date=$dateYMD --heartrates`;
-  for my $line(@amazfishHrLines){
-    if($line =~ /^\s*(\d+)\s*=\s*(\d+)\s*$/){
-      my ($epoch, $hr) = ($1, $2);
-      $$amazfishHrByEpoch{$epoch} = $hr;
+  my $amazfishHrByEpoch = readAmazfishHrCache($dateYMD);
+  if(not defined $amazfishHrByEpoch){
+    $amazfishHrByEpoch = {};
+    my @amazfishHrLines = `workout-amazfish --date=$dateYMD --heartrates`;
+    for my $line(@amazfishHrLines){
+      if($line =~ /^\s*(\d+)\s*=\s*(\d+)\s*$/){
+        my ($epoch, $hr) = ($1, $2);
+        $$amazfishHrByEpoch{$epoch} = $hr;
+      }else{
+        die "ERROR: malformed line in workout-amazfish output\n$line\n";
+      }
     }
+    writeAmazfishHrCache($dateYMD, $amazfishHrByEpoch);
   }
 
   return $amazfishHrByEpoch;
+}
+
+sub readAmazfishHrCache($){
+  my ($dateYMD) = @_;
+  my $cacheFile = "$AMAZFISH_HR_CACHE_DIR/$dateYMD";
+  if(-f $cacheFile){
+    my $hrByEpoch = {};
+    my @lines = readFile $cacheFile;
+    for my $line(@lines){
+      if($line =~ /^\s*(\d+)\s*=\s*(\d+)\s*$/){
+        $$hrByEpoch{$1} = $2;
+      }else{
+        die "ERROR: malformed line in workout-amazfish cache\n$line\n";
+      }
+    }
+    return $hrByEpoch;
+  }else{
+    return undef;
+  }
+}
+sub writeAmazfishHrCache($$){
+  my ($dateYMD, $hrByEpoch) = @_;
+  my $cacheFile = "$AMAZFISH_HR_CACHE_DIR/$dateYMD";
+  system "mkdir", "-p", $AMAZFISH_HR_CACHE_DIR;
+  open my $fh, "> $cacheFile" or die "ERROR: could not write $cacheFile\n";
+  for my $epoch(sort keys %$hrByEpoch){
+    print $fh "$epoch=$$hrByEpoch{$epoch}\n";
+  }
+  close $fh;
 }
 
 sub isWorkoutNeedsExternalHeartrate($){
