@@ -362,20 +362,6 @@ sub getAmazfishHrByEpoch($){
 
   my $amazfishHrByEpoch = readAmazfishHrCache($dateYMD);
 
-  #ignore empty cache files if there are no newer non-empty cache files
-  if(defined $amazfishHrByEpoch and keys %$amazfishHrByEpoch == 0){
-    my @nonEmptyCacheFiles = sort grep {-f $_ && not -z $_} glob "$AMAZFISH_HR_CACHE_DIR/*";
-    my $latestCacheFile = @nonEmptyCacheFiles > 0 ? $nonEmptyCacheFiles[-1] : undef;
-    my $latestCacheYMD = undef;
-    if(defined $latestCacheFile){
-      $latestCacheYMD = $1 if $latestCacheFile =~ /^(?:.*\/)?(\d+-\d+-\d+)$/;
-    }
-    if(not defined $latestCacheYMD or $dateYMD gt $latestCacheYMD){
-      #skip cache - this empty cache file is later than the latest non-empty cache file
-      $amazfishHrByEpoch = undef;
-    }
-  }
-
   if(not defined $amazfishHrByEpoch){
     $amazfishHrByEpoch = {};
     my @amazfishHrLines = `workout-amazfish --date=$dateYMD --heartrates`;
@@ -406,6 +392,21 @@ sub readAmazfishHrCache($){
         die "ERROR: malformed line in workout-amazfish cache\n$line\n";
       }
     }
+
+    #ignore empty cache files if there are no newer non-empty cache files
+    if(keys %$hrByEpoch == 0){
+      my @nonEmptyCacheFiles = sort grep {-f $_ && not -z $_} glob "$AMAZFISH_HR_CACHE_DIR/*";
+      my $latestCacheFile = @nonEmptyCacheFiles > 0 ? $nonEmptyCacheFiles[-1] : undef;
+      my $latestCacheYMD = undef;
+      if(defined $latestCacheFile){
+        $latestCacheYMD = $1 if $latestCacheFile =~ /^(?:.*\/)?(\d+-\d+-\d+)$/;
+      }
+      if(not defined $latestCacheYMD or $dateYMD gt $latestCacheYMD){
+        #skip cache - this empty cache file is later than the latest non-empty cache file
+        return undef;
+      }
+    }
+
     return $hrByEpoch;
   }else{
     return undef;
