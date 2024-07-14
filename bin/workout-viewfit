@@ -6,7 +6,7 @@ use Digest::MD5 qw();
 use File::Basename qw(basename);
 use JSON qw(from_json to_json);
 use Time::HiRes qw(time);
-use Time::Local qw(timegm_posix);
+use Time::Local qw(timegm_posix timelocal_posix);
 
 my $EXEC = basename $0;
 my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json";
@@ -86,6 +86,7 @@ sub readSecrets();
 sub decrypt($);
 sub dtmStrToEpoch($);
 sub dateFmt($$);
+sub getEpochFracS($$$$$$$$);
 sub binarySearchIdx($$$);
 sub md5sumFile($);
 sub nowMillis();
@@ -794,19 +795,11 @@ sub dtmStrToEpoch($){
   my ($dtm) = @_;
 
   my $epochFracS;
+  #timegm_posix/timelocal_posix is much faster than str2time
   if($dtm =~ /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d\d\d)Z$/){
     my ($y, $m, $d, $hour, $min, $sec, $millis) = ($1, $2, $3, $4, $5, $6, $7);
-    #timegm_posix is faster than str2time for viewfit workout_time values
-    my $epochS = timegm_posix($sec, $min, $hour, $d, $m-1, $y-1900);
-    if($epochS > 0){
-      #faster
-      $epochFracS = "$epochS.$millis";
-    }else{
-      #e.g.:
-      #  1970-01-01T00:00:00.001Z ==  0.001 == (0  + 001/1000)
-      #  1969-12-31T23:59:59.999Z == -0.001 == (-1 + 999/1000)
-      $epochFracS = sprintf "%.3f", ($epochS + ($millis/1000.0));
-    }
+    my $isUTC = 1;
+    $epochFracS = getEpochFracS($y, $m, $d, $hour, $min, $sec, $millis, $isUTC);
   }else{
     $epochFracS = `date --date='$dtm' +%s.%3N`;
     chomp $epochFracS;
@@ -817,6 +810,26 @@ sub dtmStrToEpoch($){
   }
 
   return $epochFracS;
+}
+
+sub getEpochFracS($$$$$$$$){
+  my ($y, $m, $d, $hour, $min, $sec, $millis, $isUTC) = @_;
+  my $epochS;
+  if($isUTC){
+    $epochS = timegm_posix($sec, $min, $hour, $d, $m-1, $y-1900);
+  }else{
+    $epochS = timelocal_posix($sec, $min, $hour, $d, $m-1, $y-1900);
+  }
+
+  if($epochS > 0){
+    #faster
+    return "$epochS.$millis";
+  }else{
+    #e.g.:
+    #  1970-01-01T00:00:00.001Z ==  0.001 == (0  + 001/1000)
+    #  1969-12-31T23:59:59.999Z == -0.001 == (-1 + 999/1000)
+    return sprintf "%.3f", ($epochS + ($millis/1000.0));
+  }
 }
 
 sub dateFmt($$){
