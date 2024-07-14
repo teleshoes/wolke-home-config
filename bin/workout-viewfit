@@ -69,8 +69,8 @@ sub insertExtraInfo($@);
 sub splitIntervalsIntoSpeedSegments($);
 sub formatSpeedSegment($);
 sub getAmazfishHrByEpoch($);
-sub readAmazfishHrCache($);
-sub writeAmazfishHrCache($$);
+sub readHrCache($$);
+sub writeHrCache($$$);
 sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
 sub calculateScaledTimeAndDistance($);
@@ -360,7 +360,7 @@ sub formatSpeedSegment($){
 sub getAmazfishHrByEpoch($){
   my ($dateYMD) = @_;
 
-  my $hrByEpoch = readAmazfishHrCache($dateYMD);
+  my $hrByEpoch = readHrCache($AMAZFISH_HR_CACHE_DIR, $dateYMD);
 
   if(not defined $hrByEpoch){
     $hrByEpoch = {};
@@ -373,15 +373,15 @@ sub getAmazfishHrByEpoch($){
         die "ERROR: malformed line in workout-amazfish output\n$line\n";
       }
     }
-    writeAmazfishHrCache($dateYMD, $hrByEpoch);
+    writeHrCache($AMAZFISH_HR_CACHE_DIR, $dateYMD, $hrByEpoch);
   }
 
   return $hrByEpoch;
 }
 
-sub readAmazfishHrCache($){
-  my ($dateYMD) = @_;
-  my $cacheFile = "$AMAZFISH_HR_CACHE_DIR/$dateYMD";
+sub readHrCache($$){
+  my ($hrCacheDir, $dateYMD) = @_;
+  my $cacheFile = "$hrCacheDir/$dateYMD";
   if(-f $cacheFile){
     my $hrByEpoch = {};
     my @lines = readFile $cacheFile;
@@ -389,13 +389,13 @@ sub readAmazfishHrCache($){
       if($line =~ /^\s*(\d+)\s*=\s*(\d+)\s*$/){
         $$hrByEpoch{$1} = $2;
       }else{
-        die "ERROR: malformed line in workout-amazfish cache\n$line\n";
+        die "ERROR: malformed line in hr cache file $cacheFile\n$line\n";
       }
     }
 
     #ignore empty cache files if there are no newer non-empty cache files
     if(keys %$hrByEpoch == 0){
-      my @nonEmptyCacheFiles = sort grep {-f $_ && not -z $_} glob "$AMAZFISH_HR_CACHE_DIR/*";
+      my @nonEmptyCacheFiles = sort grep {-f $_ && not -z $_} glob "$hrCacheDir/*";
       my $latestCacheFile = @nonEmptyCacheFiles > 0 ? $nonEmptyCacheFiles[-1] : undef;
       my $latestCacheYMD = undef;
       if(defined $latestCacheFile){
@@ -412,10 +412,10 @@ sub readAmazfishHrCache($){
     return undef;
   }
 }
-sub writeAmazfishHrCache($$){
-  my ($dateYMD, $hrByEpoch) = @_;
-  my $cacheFile = "$AMAZFISH_HR_CACHE_DIR/$dateYMD";
-  system "mkdir", "-p", $AMAZFISH_HR_CACHE_DIR;
+sub writeHrCache($$$){
+  my ($hrCacheDir, $dateYMD, $hrByEpoch) = @_;
+  my $cacheFile = "$hrCacheDir/$dateYMD";
+  system "mkdir", "-p", $hrCacheDir;
   open my $fh, "> $cacheFile" or die "ERROR: could not write $cacheFile\n";
   for my $epoch(sort keys %$hrByEpoch){
     print $fh "$epoch=$$hrByEpoch{$epoch}\n";
