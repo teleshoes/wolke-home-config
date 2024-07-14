@@ -73,7 +73,7 @@ sub readAmazfishHrCache($);
 sub writeAmazfishHrCache($$);
 sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
-sub calculateDistanceTargets(@);
+sub calculateDistanceTargets($);
 sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
@@ -130,7 +130,9 @@ sub main(@){
     @workouts = applyAndFilterCombinedWorkouts($workoutsCombineInfo, @workouts);
     insertExtraInfo($extraInfo, @workouts);
 
-    calculateDistanceTargets(@workouts);
+    for my $workout(@workouts){
+      calculateDistanceTargets($workout);
+    }
 
     if(defined $$opts{workoutIdFilter}){
       @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
@@ -467,99 +469,85 @@ sub insertExternalHeartrates($$){
   }
 }
 
-sub calculateDistanceTargets(@){
-  my (@workouts) = @_;
+sub calculateDistanceTargets($){
+  my ($workout) = @_;
+  my @intervals = @{$$workout{intervals}};
 
   #the 'distance' value in interval does not correlate well to average_distance,
   #  and average_distance correlates much better with workout total distance,
   #  so: re-calculate distance from average_distance
-  for my $workout(@workouts){
-    my @intervals = @{$$workout{intervals}};
-    my $curElapsedS = 0;
-    my $prevAvgDistance = 0;
-    for my $interval(@intervals){
-      $$interval{calculatedDistance} = $$interval{average_distance} - $prevAvgDistance;
-      $prevAvgDistance = $$interval{average_distance};
-    }
+  my $curElapsedS = 0;
+  my $prevAvgDistance = 0;
+  for my $interval(@intervals){
+    $$interval{calculatedDistance} = $$interval{average_distance} - $prevAvgDistance;
+    $prevAvgDistance = $$interval{average_distance};
   }
 
   #copy duration => calculated duration
-  for my $workout(@workouts){
-    my @intervals = @{$$workout{intervals}};
-    for my $interval(@intervals){
-      $$interval{calculatedDuration} = $$interval{duration};
-    }
+  for my $interval(@intervals){
+    $$interval{calculatedDuration} = $$interval{duration};
   }
 
   #scale interval duration+distance to match overall workout duration+distance
-  for my $workout(@workouts){
-    my @intervals = @{$$workout{intervals}};
-    my $totalIntervalDuration = 0;
-    my $totalIntervalDistance = 0;
+  my $totalIntervalDuration = 0;
+  my $totalIntervalDistance = 0;
+  for my $interval(@intervals){
+    $totalIntervalDuration += $$interval{calculatedDuration};
+    $totalIntervalDistance += $$interval{calculatedDistance};
+  }
+
+  if($totalIntervalDuration > 0 and $totalIntervalDistance > 0){
+    my $scalingDuration = $$workout{duration} / $totalIntervalDuration;
+    my $scalingDistance = $$workout{distance} / $totalIntervalDistance;
+    my $elapsed = 0;
+    my $totalDistance = 0;
     for my $interval(@intervals){
-      $totalIntervalDuration += $$interval{calculatedDuration};
-      $totalIntervalDistance += $$interval{calculatedDistance};
-    }
+      $$interval{calculatedDuration} *= $scalingDuration;
+      $$interval{calculatedDistance} *= $scalingDistance;
 
-    if($totalIntervalDuration > 0 and $totalIntervalDistance > 0){
-      my $scalingDuration = $$workout{duration} / $totalIntervalDuration;
-      my $scalingDistance = $$workout{distance} / $totalIntervalDistance;
-      my $elapsed = 0;
-      my $totalDistance = 0;
-      for my $interval(@intervals){
-        $$interval{calculatedDuration} *= $scalingDuration;
-        $$interval{calculatedDistance} *= $scalingDistance;
+      $elapsed += $$interval{calculatedDuration};
+      $totalDistance += $$interval{calculatedDistance};
 
-        $elapsed += $$interval{calculatedDuration};
-        $totalDistance += $$interval{calculatedDistance};
-
-        $$interval{calculatedElapsed} = $elapsed;
-        $$interval{calculatedTotalDistance} = $totalDistance;
-      }
+      $$interval{calculatedElapsed} = $elapsed;
+      $$interval{calculatedTotalDistance} = $totalDistance;
     }
   }
 
   #add epoch
-  for my $workout(@workouts){
-    my $epoch = $$workout{dtmEpoch};
+  my $epoch = $$workout{dtmEpoch};
 
-    my @intervals = @{$$workout{intervals}};
-    for my $interval(@intervals){
-      $epoch += $$interval{calculatedDuration};
-      $$interval{calculatedEpoch} = $epoch;
-    }
+  for my $interval(@intervals){
+    $epoch += $$interval{calculatedDuration};
+    $$interval{calculatedEpoch} = $epoch;
   }
 
-  for my $workout(@workouts){
-    $$workout{targets} = {};
-    my @intervals = @{$$workout{intervals}};
-    for my $targetName(@SORTED_TARGET_NAMES){
-      my $targetDist = $NAMED_TARGETS{$targetName};
-      my $startIdx = -1;
-      my $endIdx = -1;
-      my $curDist = 0;
-      my $curDur = 0;
-      my $bestDur = undef;
-      while($startIdx <= $endIdx){
-        #shift start to the right exactly one interval, and subtract the removed interval (if any)
-        $startIdx++;
-        if($startIdx-1 >= 0){
-          $curDist -= ${$intervals[$startIdx-1]}{calculatedDistance};
-          $curDur -= ${$intervals[$startIdx-1]}{calculatedDuration};
-        }
+  $$workout{targets} = {};
+  for my $targetName(@SORTED_TARGET_NAMES){
+    my $targetDist = $NAMED_TARGETS{$targetName};
+    my $startIdx = -1;
+    my $endIdx = -1;
+    my $curDist = 0;
+    my $curDur = 0;
+    my $bestDur = undef;
+    while($startIdx <= $endIdx){
+      #shift start to the right exactly one interval, and subtract the removed interval (if any)
+      $startIdx++;
+      if($startIdx-1 >= 0){
+        $curDist -= ${$intervals[$startIdx-1]}{calculatedDistance};
+        $curDur -= ${$intervals[$startIdx-1]}{calculatedDuration};
+      }
 
-        #shift end to the right until target min distance is reached, and add each added interval
-        while($curDist < $targetDist and $endIdx+1 < @intervals){
-          $endIdx++;
-          $curDist += ${$intervals[$endIdx]}{calculatedDistance};
-          $curDur += ${$intervals[$endIdx]}{calculatedDuration};
-        }
+      #shift end to the right until target min distance is reached, and add each added interval
+      while($curDist < $targetDist and $endIdx+1 < @intervals){
+        $endIdx++;
+        $curDist += ${$intervals[$endIdx]}{calculatedDistance};
+        $curDur += ${$intervals[$endIdx]}{calculatedDuration};
+      }
 
-        #if target distance is reached, check if it is the best duration set for target
-        if($curDist >= $targetDist and (not defined $bestDur or $curDur < $bestDur)){
-          $bestDur = $curDur;
-          $$workout{targets}{$targetName} = $bestDur;
-        }
+      #if target distance is reached, check if it is the best duration set for target
+      if($curDist >= $targetDist and (not defined $bestDur or $curDur < $bestDur)){
+        $bestDur = $curDur;
+        $$workout{targets}{$targetName} = $bestDur;
       }
     }
   }
