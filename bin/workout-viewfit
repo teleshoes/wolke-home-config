@@ -13,6 +13,7 @@ my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json"
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 
+my $HRMON_HR_CACHE_DIR = "$ENV{HOME}/.cache/workouts/hr-cache-hrmon";
 my $AMAZFISH_HR_CACHE_DIR = "$ENV{HOME}/.cache/workouts/hr-cache-amazfish";
 
 my $VIEWFIT_EXERCISER_BASE_URL = 'https://www.viewfit.com/exerciser/exerciser';
@@ -68,6 +69,7 @@ sub readExtraInfo();
 sub insertExtraInfo($@);
 sub splitIntervalsIntoSpeedSegments($);
 sub formatSpeedSegment($);
+sub getHrmonHrByEpoch($);
 sub getAmazfishHrByEpoch($);
 sub readHrCache($$);
 sub writeHrCache($$$);
@@ -147,6 +149,10 @@ sub main(@){
       calculateScaledTimeAndDistance($w);
       calculateDistanceTargets($w);
 
+      if(isWorkoutNeedsExternalHeartrate($w)){
+        my $hrByEpoch = getHrmonHrByEpoch($$w{dtmYMD});
+        insertExternalHeartrates($w, $hrByEpoch);
+      }
       if(isWorkoutNeedsExternalHeartrate($w)){
         my $hrByEpoch = getAmazfishHrByEpoch($$w{dtmYMD});
         insertExternalHeartrates($w, $hrByEpoch);
@@ -355,6 +361,50 @@ sub formatSpeedSegment($){
     $maxHr,
     $kmFmt,
   ;
+}
+
+sub getHrmonHrByEpoch($){
+  my ($dateYMD) = @_;
+
+  my $hrByEpoch = readHrCache($HRMON_HR_CACHE_DIR, $dateYMD);
+
+  if(not defined $hrByEpoch){
+    #hrmon log start time must be strictly after 00:00:00 on the date
+    #also ignore hrmon logs more than two days later
+    my $minEpochMillis = int(dtmStrToEpoch($dateYMD) * 1000.0 + 0.5);
+    my $maxEpochMillis = $minEpochMillis + 2*24*60*60*1000.0; #two days later
+
+    my @files = grep {-f $_} glob "$ENV{HOME}/Code/sx/backup/backup-hrmon/hrmon*.log*";
+    my @okFiles;
+    for my $file(@files){
+      if($file !~ /hrmon-(\d+)\D/){
+        die "ERROR: hrmon log file missing start millis \"$file\"\n";
+      }
+      my $epochMillis = $1;
+      if($minEpochMillis <= $epochMillis && $epochMillis <= $maxEpochMillis){
+        push @okFiles, $file;
+      }
+    }
+    for my $file(@okFiles){
+      my $grepCmd = "grep";
+      if($file =~ /\.bz2$/){
+        $grepCmd = "bzgrep";
+      }elsif($file =~ /\.gzip$/){
+        $grepCmd = "zgrep";
+      }
+      my @lines = `$grepCmd '$dateYMD .* Heart rate: *[0-9]\\+' $file`;
+      for my $line(@lines){
+        if($line =~ /^-*(\d+-\d+-\d+ \d+:\d+:\d+,\d+)\s*Heart rate:\s*(\d+)$/){
+          my ($dtm, $hr) = ($1, $2);
+          my $epochFracS = dtmStrToEpoch($dtm);
+          $$hrByEpoch{$epochFracS} = $hr;
+        }
+      }
+    }
+    writeHrCache($HRMON_HR_CACHE_DIR, $dateYMD, $hrByEpoch);
+  }
+
+  return $hrByEpoch;
 }
 
 sub getAmazfishHrByEpoch($){
@@ -801,6 +851,14 @@ sub dtmStrToEpoch($){
     my ($y, $m, $d, $hour, $min, $sec, $millis) = ($1, $2, $3, $4, $5, $6, $7);
     my $isUTC = 1;
     $epochFracS = getEpochFracS($y, $m, $d, $hour, $min, $sec, $millis, $isUTC);
+  }elsif($dtm =~ /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}),(\d\d\d)$/){
+    my ($y, $m, $d, $hour, $min, $sec, $millis) = ($1, $2, $3, $4, $5, $6, $7);
+    my $isUTC = 0;
+    $epochFracS = getEpochFracS($y, $m, $d, $hour, $min, $sec, $millis, $isUTC);
+  }elsif($dtm =~ /^(\d{4})-(\d{2})-(\d{2})$/){
+    my ($y, $m, $d) = ($1, $2, $3);
+    my $isUTC = 0;
+    $epochFracS = getEpochFracS($y, $m, $d, 0, 0, 0, 0, $isUTC);
   }else{
     $epochFracS = `date --date='$dtm' +%s.%3N`;
     chomp $epochFracS;
