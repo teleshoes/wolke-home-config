@@ -76,9 +76,10 @@ sub parseWorkoutDirFileInfo($){
       }elsif($infoSeg =~ /^(\d+)min$/){
         $$info{min} = $1;
       }elsif($infoSeg =~ /^(\d+|\d*\.\d+)km$/){
-        $$info{cmi} = ($1/$KILOMETERS_PER_MILE)*100.0;
-      }elsif($infoSeg =~ /^(\d+|\d*\.\d+)cmi$/){
-        $$info{cmi} = $1;
+        $$info{km} = $1;
+      }elsif($infoSeg =~ /^(\d+)cmi$/){
+        #centimiles to km
+        $$info{km} = $1/100.0*$KILOMETERS_PER_MILE;
       }elsif($infoSeg =~ /^(\d+|\d*\.\d+)(mph|hr|hrmax|v|rpm|rpmavg|cal|lbs|offset)$/){
         my ($val, $field) = ($1, $2);
         $$info{$field} = $val;
@@ -91,18 +92,18 @@ sub parseWorkoutDirFileInfo($){
       $$info{type} = "reminder";
     }
 
-    if(defined $$info{cmi} and defined $$info{time}){
-      $$info{realMPH} = $$info{cmi}/$$info{time}*60*60/100;
+    if(defined $$info{km} and defined $$info{time}){
+      $$info{realMPH} = $$info{km}/$$info{time}*60*60/$KILOMETERS_PER_MILE;
     }
 
     if(defined $$info{rpmavg} and not defined $$info{rpm}){
       $$info{rpm} = $$info{rpmavg};
     }
 
-    if(defined $$info{min} and defined $$info{mph} and not defined $$info{time} and not defined $$info{cmi}){
+    if(defined $$info{min} and defined $$info{mph} and not defined $$info{time} and not defined $$info{km}){
       #3min warmup at 2mph, 'min' min workout at 'mph' mph, 3min cooldown at 1.5mph
       $$info{time} = 3*60 + $$info{min}*60 + 3*60;
-      $$info{cmi} = 100 * ( (2*(3/60)) + ($$info{mph}*($$info{min}/60)) + (1.5*(3/60)) );
+      $$info{km} = $KILOMETERS_PER_MILE * ( (2*(3/60)) + ($$info{mph}*($$info{min}/60)) + (1.5*(3/60)) );
       $$info{warmCool} = 1;
     }
   }
@@ -198,9 +199,9 @@ sub getSessionsFromFileInfo(@){
           $$curSession{maxOffset} = $$info{offset};
         }
       }
-      if(defined $$info{cmi}){
-        if(not defined $$curSession{maxCMI} or $$curSession{maxCMI} < $$info{cmi}){
-          $$curSession{maxCMI} = $$info{cmi};
+      if(defined $$info{km}){
+        if(not defined $$curSession{maxKM} or $$curSession{maxKM} < $$info{km}){
+          $$curSession{maxKM} = $$info{km};
         }
       }
       if(defined $$info{warmCool}){
@@ -259,7 +260,7 @@ sub cleanupSession($){
 
   if($$s{type} eq "run" and defined $$s{maxDurS} and $$s{maxDurS} > 12*60){
     #no warm/cool for 5km
-    if($$s{maxCMI} < 305){
+    if($$s{maxKM} < 3.05*$KILOMETERS_PER_MILE){
       $$s{warmCool} = 1;
     }
   }
@@ -267,10 +268,10 @@ sub cleanupSession($){
   if($$s{warmCool}){
     #remove warmup
     $$s{maxDurS} -= 3*60;
-    $$s{maxCMI} -= 100.0 * (2.0*(3/60.0));
+    $$s{maxKM} -= $KILOMETERS_PER_MILE * (2.0*(3/60.0));
     #remove cooldown
     $$s{maxDurS} -= 3*60;
-    $$s{maxCMI} -= 100.0 * (1.5*(3/60.0));
+    $$s{maxKM} -= $KILOMETERS_PER_MILE * (1.5*(3/60.0));
     push @{$$s{reminders}}, "+warm3m+cool3m"
   }
 }
@@ -285,11 +286,11 @@ sub formatSession($){
     $durFmt = sprintf "%d:%02d", int($$s{maxDurS}/60), $$s{maxDurS} % 60;
   }
   my $mph = 0;
-  if(defined $$s{maxDurS} and defined $$s{maxCMI} and $$s{maxDurS} > 0){
-    $mph = ($$s{maxCMI}/100.0)/($$s{maxDurS}/60.0/60.0);
+  if(defined $$s{maxDurS} and defined $$s{maxKM} and $$s{maxDurS} > 0){
+    $mph = ($$s{maxKM}/$KILOMETERS_PER_MILE)/($$s{maxDurS}/60.0/60.0);
   }
 
-  my $maxMI = defined $$s{maxCMI} ? $$s{maxCMI}/100.0 : 0;
+  my $maxMI = defined $$s{maxKM} ? $$s{maxKM}/$KILOMETERS_PER_MILE : 0;
   my $maxHR = defined $$s{maxHR} ? $$s{maxHR} : "???";
 
   my $fmt;
