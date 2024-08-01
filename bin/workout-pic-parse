@@ -70,9 +70,9 @@ sub parseWorkoutDirFileInfo($){
       }elsif($infoSeg =~ /^(reminder_\w+)$/){
         $$info{reminder} = $1;
       }elsif($infoSeg =~ /^(\d+)m(\d+)s$/){
-        $$info{s} = $1*60 + $2;
+        $$info{time} = $1*60 + $2;
       }elsif($infoSeg =~ /^(\d+)s$/){
-        $$info{s} = $1;
+        $$info{time} = $1;
       }elsif($infoSeg =~ /^(\d+|\d*\.\d+)km$/){
         $$info{cmi} = ($1/$KILOMETERS_PER_MILE)*100.0;
       }elsif($infoSeg =~ /^(\d+|\d*\.\d+)(min|cmi|mph|hr|hrmax|v|rpm|rpmavg|cal|lbs|offset)$/){
@@ -87,17 +87,17 @@ sub parseWorkoutDirFileInfo($){
       $$info{type} = "reminder";
     }
 
-    if(defined $$info{cmi} and defined $$info{s}){
-      $$info{realMPH} = $$info{cmi}/$$info{s}*60*60/100;
+    if(defined $$info{cmi} and defined $$info{time}){
+      $$info{realMPH} = $$info{cmi}/$$info{time}*60*60/100;
     }
 
     if(defined $$info{rpmavg} and not defined $$info{rpm}){
       $$info{rpm} = $$info{rpmavg};
     }
 
-    if(defined $$info{min} and defined $$info{mph} and not defined $$info{s} and not defined $$info{cmi}){
+    if(defined $$info{min} and defined $$info{mph} and not defined $$info{time} and not defined $$info{cmi}){
       #3min warmup at 2mph, 'min' min workout at 'mph' mph, 3min cooldown at 1.5mph
-      $$info{s} = 3*60 + $$info{min}*60 + 3*60;
+      $$info{time} = 3*60 + $$info{min}*60 + 3*60;
       $$info{cmi} = 100 * ( (2*(3/60)) + ($$info{mph}*($$info{min}/60)) + (1.5*(3/60)) );
       $$info{warmCool} = 1;
     }
@@ -135,15 +135,15 @@ sub getSessionsFromFileInfo(@){
       #sessions are of different non-reminder types
       $isNewSession = 1;
     }else{
-      if(not defined $$info{s}){
+      if(not defined $$info{time}){
         $isNewSession = 0;
       }else{
         my $elapsedRealTimeS = int(($$info{fileTime} - $$curSession{maxFileTime})/1000.0 + 0.5);
-        my $elapsedMachineTimeS = $$info{s} - $$curSession{maxDurS};
+        my $elapsedMachineTimeS = $$info{time} - $$curSession{maxDurS};
         if($elapsedMachineTimeS < 0){
           #timer is smaller => machine stopped and restarted
           $isNewSession = 1;
-        }elsif($elapsedMachineTimeS < ($elapsedRealTimeS - ($$info{s}/2))){
+        }elsif($elapsedMachineTimeS < ($elapsedRealTimeS - ($$info{time}/2))){
           #timer is larger, but should be MUCH larger because a lot of real time passed
           $isNewSession = 1;
         }
@@ -184,9 +184,9 @@ sub getSessionsFromFileInfo(@){
       if($$info{fileTime} > $$curSession{maxFileTime}){
         $$curSession{maxFileTime} = $$info{fileTime};
       }
-      if(defined $$info{s}){
-        if(not defined $$curSession{maxDurS} or $$curSession{maxDurS} < $$info{s}){
-          $$curSession{maxDurS} = $$info{s};
+      if(defined $$info{time}){
+        if(not defined $$curSession{maxDurS} or $$curSession{maxDurS} < $$info{time}){
+          $$curSession{maxDurS} = $$info{time};
         }
       }
       if(defined $$info{offset}){
