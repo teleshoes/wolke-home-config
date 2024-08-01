@@ -5,6 +5,7 @@ use warnings;
 sub mtime($);
 
 my $WORKOUT_DCIM_BASE_DIR = "$ENV{HOME}/DCIM/xhealth";
+my $KILOMETERS_PER_MILE = 1.609344;
 
 sub main(@){
   my ($infoFile) = @_;
@@ -63,11 +64,11 @@ sub main(@){
       }elsif($val =~ /^(run|bike)$/){
         $$info{type} = $val;
       }elsif($val =~ /^(\d+|\d*\.\d+)mi$/){
-        $$info{mi} = $1;
+        $$info{km} = $1*$KILOMETERS_PER_MILE;
       }elsif($val =~ /^(\d+|\d*\.\d+)cmi$/){
-        $$info{mi} = sprintf "%.2f", $1/100.0;
+        $$info{km} = $1*$KILOMETERS_PER_MILE/100.0;
       }elsif($val =~ /^(\d+|\d*\.\d+)km$/){
-        $$info{mi} = sprintf "%.2f", int($1*0.621371*100.0)/100.0;
+        $$info{km} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)mph$/){
         $$info{mph} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)rpm$/){
@@ -93,7 +94,7 @@ sub main(@){
       }
     }
 
-    $$info{realMPH} = $$info{mi}/$$info{time}*60*60 if defined $$info{mi} and defined $$info{time};
+    $$info{realMPH} = $$info{km}/$KILOMETERS_PER_MILE/$$info{time}*60*60 if defined $$info{km} and defined $$info{time};
 
     if(defined $$info{rpm} or defined $$info{level} or defined $$info{rpmavg}){
       $$info{type} = "bike";
@@ -104,7 +105,7 @@ sub main(@){
     if(not defined $$info{type} and defined $$info{realMPH} and $$info{realMPH} > 12){
       $$info{type} = "bike";
     }
-    if(not defined $$info{type} and defined $$info{mi} and $$info{mi} < 4.0 and defined $$info{realMPH} and $$info{realMPH} < 11){
+    if(not defined $$info{type} and defined $$info{km} and $$info{km} < 4.0*$KILOMETERS_PER_MILE and defined $$info{realMPH} and $$info{realMPH} < 11){
       $$info{type} = "run";
     }
     if(defined $$info{reminder}){
@@ -139,6 +140,8 @@ sub main(@){
       print "$$info{file} = $$info{infoStr}\n";
     }
 
+    my $cmi = defined $$info{km} ? 100.0 * $$info{km}/$KILOMETERS_PER_MILE : undef;
+
     my $infoFmt;
     if($$info{type} eq "reminder"){
       $infoFmt = $$info{reminder};
@@ -148,7 +151,7 @@ sub main(@){
       $infoFmt = "bike";
       $infoFmt .= defined $$info{time} ? sprintf "-%04ds", $$info{time} : "-____s";
       $infoFmt .= defined $$info{level} ? "-$$info{level}v" : "-14v";
-      $infoFmt .= defined $$info{mi} ? sprintf "-%03dcmi", $$info{mi}*100.0 : "-___cmi";
+      $infoFmt .= defined $cmi ? sprintf "-%03dcmi", $cmi : "-___cmi";
       if(defined $$info{rpm}){
         $infoFmt .= sprintf "-%03drpm", $$info{rpm};
       }elsif(defined $$info{rpmavg}){
@@ -165,7 +168,7 @@ sub main(@){
         $infoFmt .= sprintf "-%dmph", $$info{mph};
       }else{
         $infoFmt .= defined $$info{time} ? sprintf "-%04ds", $$info{time} : "-____s";
-        $infoFmt .= defined $$info{mi} ? sprintf "-%03dcmi", $$info{mi}*100.0 : "-___cmi";
+        $infoFmt .= defined $cmi ? sprintf "-%03dcmi", $cmi : "-___cmi";
         $infoFmt .= defined $$info{mph} ? sprintf("-%04.1fmph", $$info{mph}) : "-____mph";
         $infoFmt .= defined $$info{cal} ? sprintf("-%03dcal", $$info{cal}) : "";
         $infoFmt .= defined $$info{hr} ? sprintf("-%03dhr", $$info{hr}) : "-___hr";
