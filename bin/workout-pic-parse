@@ -117,8 +117,39 @@ sub getSessionsFromFileInfo(@){
   my @fileInfoEntries = @_;
 
   my @sessions;
-  my $curSession = undef;
   for my $info(@fileInfoEntries){
+    my $startTime = defined $$info{time} ? $$info{fileTime} - $$info{time} : undef;
+    if(defined $startTime and defined $$info{offset}){
+      $startTime -= $$info{offset};
+    }
+
+    my $curSession = undef;
+    if(not defined $curSession and defined $startTime){
+      #for sessions with time, take the closest by start time
+      my $closestStartTimeDiff = undef;
+      for my $session(@sessions){
+        if(defined $$session{startTime} and $$session{type} eq $$info{type}){
+          my $startTimeDiff = $$session{startTime} - $startTime;
+          $startTimeDiff = 0 - $startTimeDiff if $startTimeDiff < 0;
+          if(not defined $closestStartTimeDiff or $startTimeDiff < $closestStartTimeDiff){
+            $curSession = $session;
+            $closestStartTimeDiff = $startTimeDiff;
+          }
+        }
+      }
+    }
+    if(not defined $curSession){
+      my $closestFileTimeDiff = undef;
+      for my $session(@sessions){
+        my $fileTimeDiff = $$session{maxFileTime} - $$info{fileTime};
+        $fileTimeDiff = 0 - $fileTimeDiff if $fileTimeDiff < 0;
+        if(not defined $closestFileTimeDiff or $fileTimeDiff < $closestFileTimeDiff){
+          $curSession = $session;
+          $closestFileTimeDiff = $fileTimeDiff;
+        }
+      }
+    }
+
     my $isNewSession = 0;
     if(not defined $curSession){
       $isNewSession = 1;
@@ -160,6 +191,7 @@ sub getSessionsFromFileInfo(@){
     if($isNewSession){
       $curSession = {
         type        => $$info{type},
+        startTime   => undef,
         minFileTime    => $$info{fileTime},
         maxFileTime    => $$info{fileTime},
         maxDurS     => 0,
@@ -170,6 +202,12 @@ sub getSessionsFromFileInfo(@){
         reminders   => [],
       };
       push @sessions, $curSession;
+    }
+
+    if(defined $startTime){
+      if(not defined $$curSession{startTime} or $startTime < $$curSession{startTime}){
+        $$curSession{startTime} = $startTime;
+      }
     }
 
     if($$info{type} eq "reminder"){
