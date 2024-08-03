@@ -7,7 +7,7 @@ use JSON qw(from_json);
 use POSIX qw(ceil);
 
 my $EXEC = basename $0;
-my $API_KEY_NAME = "accreadonly";
+my $API_KEY_NAME = "coinbase_readonly";
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $API_HOST = "api.coinbase.com";
 my $API_VERSION = "2017-12-12";
@@ -20,12 +20,12 @@ sub fetchBTCToUSDExchangeRate();
 sub fetchBTCBalance($$);
 sub fetchBTCAccountID($$);
 sub callCoinbaseAPI($$$);
-sub getSignature($$$$$);
+sub createJWT($$$);
 sub readBTCBalanceCache();
 sub writeBTCBalanceCache($);
 sub readBTCTransactionsJSONCache();
 sub writeBTCTransactionsJSONCache($);
-sub readCoinbaseKeyAndSecret();
+sub readCoinbaseKeyIDAndSecret();
 sub readSecrets();
 sub decrypt($);
 
@@ -101,8 +101,8 @@ sub main(@){
     $fetch = 0 if $fetchMode eq $FETCH_MODE_NEVER;
 
     if($fetch){
-      my ($key, $secret) = readCoinbaseKeyAndSecret();
-      $btcBalance = fetchBTCBalance($key, $secret);
+      my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
+      $btcBalance = fetchBTCBalance($keyID, $keySecret);
       writeBTCBalanceCache($btcBalance);
     }else{
       $btcBalance = $cachedBTCBalance;
@@ -129,8 +129,8 @@ sub main(@){
     $fetch = 0 if $fetchMode eq $FETCH_MODE_NEVER;
 
     if($fetch){
-      my ($key, $secret) = readCoinbaseKeyAndSecret();
-      $transactionsJSON = fetchBTCTransactions($key, $secret);
+      my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
+      $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
       writeBTCTransactionsJSONCache($transactionsJSON);
     }else{
       $transactionsJSON = $cachedTransactionsJSON
@@ -163,9 +163,9 @@ sub fetchBTCToUSDExchangeRate(){
 }
 
 sub fetchBTCBalance($$){
-  my ($key, $secret) = @_;
+  my ($keyID, $keySecret) = @_;
 
-  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts");
+  my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts");
   my $btcBalance;
   if($out =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
     $btcBalance = $1;
@@ -176,8 +176,8 @@ sub fetchBTCBalance($$){
 }
 
 sub fetchBTCAccountID($$){
-  my ($key, $secret) = @_;
-  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts");
+  my ($keyID, $keySecret) = @_;
+  my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts");
   my $uuidRegex = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
   if($out =~ /"id":"($uuidRegex)","name":"BTC Wallet"/){
     return $1;
@@ -187,26 +187,20 @@ sub fetchBTCAccountID($$){
 }
 
 sub fetchBTCTransactions($$){
-  my ($key, $secret) = @_;
-  my $accId = fetchBTCAccountID($key, $secret);
-  my $out = callCoinbaseAPI($key, $secret, "/v2/accounts/$accId/transactions");
+  my ($keyID, $keySecret) = @_;
+  my $accId = fetchBTCAccountID($keyID, $keySecret);
+  my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts/$accId/transactions");
   return $out;
 }
 
 sub callCoinbaseAPI($$$){
-  my ($key, $secret, $path) = @_;
-  my $timestamp = time;
-  my $method = "GET";
-  my $body = "";
-  my $sig = getSignature($secret, $timestamp, $method, $path, $body);
+  my ($keyID, $keySecret, $path) = @_;
+  my $jwt = createJWT($keyID, $keySecret, $path);
 
   my @cmd = ("curl",
     "https://$API_HOST$path",
     "--silent",
-    "--header", "CB-VERSION: $API_VERSION",
-    "--header", "CB-ACCESS-KEY: $key",
-    "--header", "CB-ACCESS-SIGN: $sig",
-    "--header", "CB-ACCESS-TIMESTAMP: $timestamp",
+    "--header", "Authorization: Bearer $jwt",
   );
   open CMD, "-|", @cmd or die "error running curl\n";
   my $out = join '', <CMD>;
@@ -215,10 +209,20 @@ sub callCoinbaseAPI($$$){
   return $out;
 }
 
-sub getSignature($$$$$){
-  my ($secret, $timestamp, $method, $path, $body) = @_;
-  my $prehash = $timestamp . $method . $path . $body;
-  return hmac_sha256_hex($prehash, $secret);
+sub createJWT($$$){
+  my ($keyID, $keySecret, $path) = @_;
+  my $uri = "GET $API_HOST$path";
+  open my $cmdH, "-|", "jwt-gen", $keyID, $keySecret, $uri
+    or die "ERROR: cmd `jwt-gen` failed\n$!\n";
+  my $jwt = join '', <$cmdH>;
+  close $cmdH;
+  chomp $jwt;
+
+  if($jwt =~ /^[a-zA-Z0-9\-_\.]+$/){
+    return $jwt;
+  }else{
+    die "ERROR: could not obtain jwt with `jwt-gen`\n";
+  }
 }
 
 sub parseTransactionsJSON($){
@@ -346,27 +350,27 @@ sub writeBTCTransactionsJSONCache($){
   }
 }
 
-sub readCoinbaseKeyAndSecret(){
+sub readCoinbaseKeyIDAndSecret(){
   my $conf = readSecrets();
-  my ($key, $secret);
-  $key = $$conf{"$API_KEY_NAME.key"};
-  $secret = $$conf{"$API_KEY_NAME.secret"};
+  my ($keyID, $keySecret);
+  $keyID = $$conf{"$API_KEY_NAME.key_id"};
+  $keySecret = $$conf{"$API_KEY_NAME.key_secret"};
 
-  if(not defined $key){
-    die "could not find secret 'coinbase.api.$API_KEY_NAME.key\n";
+  if(not defined $keyID){
+    die "could not find 'coinbase.api.$API_KEY_NAME.key_id\n";
   }
-  if(not defined $secret){
-    die "could not find secret 'coinbase.api.$API_KEY_NAME.secret\n";
+  if(not defined $keySecret){
+    die "could not find 'coinbase.api.$API_KEY_NAME.key_secret\n";
   }
 
-  return ($key, $secret);
+  return ($keyID, $keySecret);
 }
 
 sub readSecrets(){
   my @lines = `cat $SECRETS_FILE 2>/dev/null`;
   my $cfg = {};
   for my $line(@lines){
-    if($line =~ /^coinbase\.api\.(.+\.(?:key|secret))=(.+)$/){
+    if($line =~ /^coinbase\.api\.(.+\.(?:key_id|key_secret))=(.+)$/){
       $$cfg{$1} = $2;
     }
   }
