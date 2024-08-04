@@ -398,6 +398,10 @@ function git() {
     command git log --color --decorate --name-status -M "$@"
   elif [[ "$cmd" == log-real ]]; then
     command git log "$@"
+  elif [[ "$cmd" == gui ]]; then
+    command term lazygit
+  elif [[ "$cmd" == gui-real ]]; then
+    command git gui "$@"
   else
     command git "$cmd" "$@"
   fi
