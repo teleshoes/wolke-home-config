@@ -142,8 +142,8 @@ imap <F2> <Esc>:Exec cd %:p:h; meld %:p >/dev/null 2>/dev/null &<CR>
 """"""
 
 """git"""
-nmap <F4>      :Exec cd %:p:h; git gui >/dev/null 2>/dev/null &<CR>
-imap <F4> <Esc>:Exec cd %:p:h; git gui >/dev/null 2>/dev/null &<CR>
+nmap <F4>      :Exec cd %:p:h; bash -l -c 'git gui' >/dev/null 2>/dev/null &<CR>
+imap <F4> <Esc>:Exec cd %:p:h; bash -l -c 'git gui' >/dev/null 2>/dev/null &<CR>
 """"""
 
 """Run"""
