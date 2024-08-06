@@ -69,6 +69,7 @@ my $USAGE = "Usage:
 sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
+sub splitUpLargeIntervals($);
 sub groupIntervalsIntoSpeedSegments($);
 sub formatSpeedSegment($);
 sub getHrmonHrByEpoch($);
@@ -309,6 +310,10 @@ sub insertExtraInfo($@){
             power => 0,
           };
         }
+
+        #expand shorter list of longer intervals
+        #  into longer list of shorter intervals
+        splitUpLargeIntervals($workout);
       }else{
         $$workout{$key} = $val;
       }
@@ -316,6 +321,44 @@ sub insertExtraInfo($@){
   }
 
   return @workouts;
+}
+
+# split large intervals into 10s intervals,
+#    keeping at least 2s in the new smaller intervals
+# i.e.:
+#   -ensure that all intervals are <= 12s
+#   -prefer creating 10s intervals where possible
+#   -ensure that all newly created intervals are > 2s
+#   -pre-existing intervals <= 2s are preserved
+sub splitUpLargeIntervals($){
+  my ($workout) = @_;
+  my $newIntervals = [];
+  for my $interval(@{$$workout{intervals}}){
+    my $curAvgDistance = $$interval{average_distance} - $$interval{distance};
+    $curAvgDistance = 0 if $curAvgDistance < 0;
+
+    while($$interval{duration} > 12.0){
+      #remove 10s from interval and prepend as new interval
+      my $newDuration = 10.0;
+      my $newDistance = $$interval{distance} * ($newDuration / $$interval{duration});
+      $curAvgDistance += $newDistance;
+
+      $$interval{duration} -= $newDuration;
+      $$interval{distance} -= $newDistance;
+
+      my $newInterval = {
+        %$interval,
+        duration         => $newDuration,
+        distance         => $newDistance,
+        average_distance => $curAvgDistance,
+      };
+      push @$newIntervals, $newInterval;
+    }
+
+    push @$newIntervals, $interval;
+  }
+
+  $$workout{intervals} = $newIntervals;
 }
 
 sub groupIntervalsIntoSpeedSegments($){
