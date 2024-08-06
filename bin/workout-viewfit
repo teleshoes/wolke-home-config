@@ -277,7 +277,32 @@ sub insertExtraInfo($@){
     }
 
     if(not defined $workout){
-      die "ERROR: could not insert extra info for workout $workoutID\n";
+      my ($epoch, $duration, $distance) = ($$info{epoch}, $$info{duration}, $$info{distance});
+      if(not defined $epoch or not defined $duration or not defined $distance){
+        my $msg = ""
+          . "ERROR: extra info for $workoutID could not be inserted\n"
+          . "  (epoch+duration+distance are required for adding missing workouts)\n"
+        ;
+        die $msg;
+      }elsif($epoch !~ /^-?\d+(\.\d+)?$/){
+        die "ERROR: invalid epoch=$epoch for extra info $workoutID\n";
+      }elsif($duration !~ /^\d+(\.\d+)?$/){
+        die "ERROR: invalid duration=$duration for extra info $workoutID\n";
+      }elsif($distance !~ /^\d+(\.\d+)?$/){
+        die "ERROR: invalid distance=$distance for extra info $workoutID\n";
+      }
+
+      $workout = {
+        workout_id     => $workoutID,
+        duration       => $duration,
+        distance       => $distance,
+        dtmEpoch       => $epoch,
+        dtmYMD         => dateFmt("%Y-%m-%d", $epoch),
+        dtmYMDHMS      => dateFmt("%Y-%m-%d %H:%M:%S", $epoch),
+        intervals      => [],
+      };
+
+      push @workouts, $workout;
     }
 
     for my $key(sort keys %$info){
