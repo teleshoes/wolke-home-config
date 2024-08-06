@@ -266,49 +266,52 @@ sub insertExtraInfo($@){
   my ($extraInfo, @workouts) = @_;
   for my $workoutID(sort keys %$extraInfo){
     my $info = $$extraInfo{$workoutID};
-    my $found = 0;
-    for my $workout(@workouts){
-      if($workoutID eq $$workout{workout_id}){
-        for my $key(sort keys %$info){
-          my $val = $$info{$key};
-          if($key eq "intervals"){
-            my $intervals = $$workout{intervals};
 
-            my @extraIntervals = split /,/, $val;
-            for my $extraInterval(@extraIntervals){
-              if($extraInterval !~ /^(\d+|\d*\.\d+)s:(\d+|\d*\.\d+)m$/){
-                die "ERROR: malformed $workoutID.$key=$val\n";
-              }
-              my ($duration, $distance) = ($1, $2);
-              if($duration == 0){
-                die "ERROR: duration cannot be 0 in $workoutID.$key=$val\n";
-              }
-              my $speed = ($distance/$duration)*60*60/1000;
-
-              my $prevAvgDistance = 0;
-              if(@$intervals > 0){
-                $prevAvgDistance = ${$$intervals[-1]}{average_distance};
-              }
-
-              push @$intervals, {
-                duration => $duration,
-                distance => $distance,
-                average_distance => $prevAvgDistance + $distance,
-                speed => $speed,
-                heart_rate => 0,
-                power => 0,
-              };
-            }
-          }else{
-            $$workout{$key} = $val;
-          }
-        }
-        $found = 1;
+    my $workout = undef;
+    for my $w(@workouts){
+      if($workoutID eq $$w{workout_id}){
+        $workout = $w;
         last;
       }
     }
-    if(not $found){
+
+    if(not defined $workout){
       die "ERROR: could not insert extra info for workout $workoutID\n";
+    }
+
+    for my $key(sort keys %$info){
+      my $val = $$info{$key};
+      if($key eq "intervals"){
+        my $intervals = $$workout{intervals};
+
+        my @extraIntervals = split /,/, $val;
+        for my $extraInterval(@extraIntervals){
+          if($extraInterval !~ /^(\d+|\d*\.\d+)s:(\d+|\d*\.\d+)m$/){
+            die "ERROR: malformed $workoutID.$key=$val\n";
+          }
+          my ($duration, $distance) = ($1, $2);
+          if($duration == 0){
+            die "ERROR: duration cannot be 0 in $workoutID.$key=$val\n";
+          }
+          my $speed = ($distance/$duration)*60*60/1000;
+
+          my $prevAvgDistance = 0;
+          if(@$intervals > 0){
+            $prevAvgDistance = ${$$intervals[-1]}{average_distance};
+          }
+
+          push @$intervals, {
+            duration => $duration,
+            distance => $distance,
+            average_distance => $prevAvgDistance + $distance,
+            speed => $speed,
+            heart_rate => 0,
+            power => 0,
+          };
+        }
+      }else{
+        $$workout{$key} = $val;
+      }
     }
   }
 
