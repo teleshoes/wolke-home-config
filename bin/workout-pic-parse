@@ -18,17 +18,26 @@ my $USAGE = "Usage:
   $0 -h|--help
     show this message
 
-  $0
+  $0 [OPTS]
     parse and format workout pic info in:
       $WORKOUTS_BASE_DIR/YYYY-MM-DD_NAME/
+
+  OPTS
+    -s | --segments
+      include speed segment info
 ";
 
 sub main(@){
+  my $opts = {
+    includeSegments => 0,
+  };
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-s|--segments)$/){
+      $$opts{includeSegments} = 1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -47,6 +56,23 @@ sub main(@){
 
   for my $session(@sessions){
     print formatSession($session) . "\n";
+
+    if($$opts{includeSegments}){
+      my @segments = @{$$session{segments}};
+      if(@segments > 0){
+        my @segmentsFmt = map {
+          sprintf "%.2fs:%.2fm", $$_{duration}, $$_{distance} * 1000.0
+        } @segments;
+        my $id = $$session{startTime};
+
+        my $maxHR = defined $$session{maxHR} ? $$session{maxHR} : "???";
+        printf "%s.epoch = %.3f\n",         $id, $$session{startTime};
+        printf "%s.distance = %.2f\n",      $id, $$session{maxKM} * 1000.0;
+        printf "%s.duration = %.2f\n",      $id, $$session{maxDurS};
+        printf "%s.max_heart_rate = %3s\n", $id, $maxHR;
+        printf "%s.intervals = %s\n",       $id, join(",", @segmentsFmt);
+      }
+    }
   }
 }
 
