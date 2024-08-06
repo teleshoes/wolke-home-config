@@ -108,6 +108,15 @@ sub parseWorkoutDirFileInfo($){
       $$info{km} = $KILOMETERS_PER_MILE * ( (2*(3/60)) + ($$info{mph}*($$info{min}/60)) + (1.5*(3/60)) );
       $$info{warmCool} = 1;
     }
+
+    if(defined $$info{time}){
+      my $offset = defined $$info{offset} ? $$info{offset} : 0;
+      $$info{timeFmt} = sprintf "%02d:%02d", int($$info{time}/60), int($$info{time})%60;
+      $$info{startTime} = $$info{fileTime} - $$info{time} - $offset;
+    }else{
+      $$info{timeFmt} = undef;
+      $$info{startTime} = undef;
+    }
   }
 
   return sort {$$a{fileTime} <=> $$b{fileTime}} @fileInfoEntries;
@@ -118,10 +127,7 @@ sub getSessionsFromFileInfo(@){
 
   my @sessions;
   for my $info(@fileInfoEntries){
-    my $startTime = defined $$info{time} ? $$info{fileTime} - $$info{time} : undef;
-    if(defined $startTime and defined $$info{offset}){
-      $startTime -= $$info{offset};
-    }
+    my $startTime = $$info{startTime};
 
     my $curSession = undef;
     if(not defined $curSession and defined $startTime){
