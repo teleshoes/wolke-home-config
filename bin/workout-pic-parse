@@ -25,11 +25,16 @@ my $USAGE = "Usage:
   OPTS
     -s | --segments
       include speed segment info
+
+    --date=YYYY-MM-DD
+    YYYY-MM-DD
+      only include workouts on the indicated date
 ";
 
 sub main(@){
   my $opts = {
     includeSegments => 0,
+    dateFilter => undef,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -38,6 +43,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-s|--segments)$/){
       $$opts{includeSegments} = 1;
+    }elsif($arg =~ /^(?:--date=)?(\d\d\d\d-\d\d-\d\d)$/){
+      $$opts{dateFilter} = $1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -55,6 +62,10 @@ sub main(@){
   }
 
   for my $session(@sessions){
+    if(defined $$opts{dateFilter} and $$session{date} ne $$opts{dateFilter}){
+      next;
+    }
+
     print formatSession($session) . "\n";
 
     if($$opts{includeSegments}){
@@ -342,6 +353,10 @@ sub getSessionsFromFileInfo(@){
         $$curSession{lastRPM} = $$info{rpm};
       }
     }
+  }
+
+  for my $session(@sessions){
+    $$session{date} = time2str("%Y-%m-%d", $$session{minFileTime});
   }
 
   for my $session(@sessions){
