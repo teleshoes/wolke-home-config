@@ -10,6 +10,7 @@ use Time::HiRes qw(time);
 use Time::Local qw(timegm_posix timelocal_posix);
 
 sub formatWorkoutDetails($$);
+sub formatWorkoutsSummary($$@);
 sub readCachedWorkouts();
 sub readExtraInfo();
 sub insertExtraInfo($@);
@@ -36,6 +37,7 @@ sub getExerciserUUID();
 sub readSecrets();
 sub decrypt($);
 sub formatTimeMinSec($);
+sub formatTimeHrMinSec($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$);
@@ -285,6 +287,63 @@ sub formatWorkoutDetails($$){
   }
 
   return $fmt;
+}
+
+sub formatWorkoutsSummary($$@){
+  my ($opts, $name, @workouts) = @_;
+
+  my %targets;
+  my $totalDur = 0;
+  my $totalDist = 0;
+  my $sumMaxHR = 0;
+  for my $w(@workouts){
+    $totalDur += $$w{duration};
+    $totalDist += $$w{distance};
+    $sumMaxHR += defined $$w{max_heart_rate} ? $$w{max_heart_rate} : 0;
+
+    for my $targetName(@SORTED_TARGET_NAMES){
+      if(defined $$w{targets}{$targetName}){
+        $targets{$targetName} = [] if not defined $targets{$targetName};
+        my $targetDurS = $$w{targets}{$targetName};
+        push @{$targets{$targetName}}, $targetDurS;
+        last;
+      }
+    }
+  }
+
+  my $avgMaxHR = @workouts > 0 ? sprintf "%d", ($sumMaxHR / @workouts) : 0;
+
+  my $distanceKM = $totalDist/1000.0;
+  my $distanceMiles = $totalDist/1000.0*$MILES_PER_KM;
+
+  my @targetFmts;
+  for my $targetName(@SORTED_TARGET_NAMES){
+    if(defined $targets{$targetName}){
+      my @targetWorkoutDurs = @{$targets{$targetName}};
+      my $count = @targetWorkoutDurs;
+      my $sumTime = 0;
+      my $minTime = undef;
+      for my $durS(@targetWorkoutDurs){
+        $sumTime += $durS;
+        $minTime = $durS if not defined $minTime or $durS < $minTime;
+      }
+      my $avgTime = @targetWorkoutDurs > 0 ? $sumTime / @targetWorkoutDurs : 0;
+      push @targetFmts, sprintf("%2dx%s=%s(%s)",
+        $count,
+        $targetName,
+        formatTimeMinSec($minTime),
+        formatTimeMinSec($avgTime),
+      );
+    }
+  }
+
+  return sprintf "%-10s | %3dkm %3dmi | %8s | %s\n",
+    $name,
+    $distanceKM,
+    $distanceMiles,
+    formatTimeHrMinSec($totalDur),
+    join(" ", map {sprintf "%-14s", $_} @targetFmts),
+  ;
 }
 
 sub readCachedWorkouts(){
@@ -1018,6 +1077,10 @@ sub decrypt($){
 sub formatTimeMinSec($){
   my ($s) = @_;
   return sprintf "%02d:%02d", int($s/60), int($s) % 60;
+}
+sub formatTimeHrMinSec($){
+  my ($s) = @_;
+  return sprintf "%02d:%02d:%02d", int($s/60/60) % 60, int($s/60) % 60, int($s) % 60;
 }
 
 sub dtmStrToEpoch($){
