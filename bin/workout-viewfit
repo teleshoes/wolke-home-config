@@ -106,6 +106,12 @@ my $USAGE = "Usage:
       show details for each workout
       (this is the default)
 
+    -w | --week | --weekly
+      show a summary of each calendar week, Monday-Sunday, with a workout in it
+
+    -m | --month | --monthly
+      show a summary of each calendar month, Monday-Sunday, with a workout in it
+
     --ids | --print-ids
       show ids in format
     --no-ids | --no-print-ids
@@ -132,6 +138,8 @@ my $COMMAND_GET = "get";
 my $COMMAND_FETCH = "fetch";
 
 my $FORMAT_DETAILS = "details";
+my $FORMAT_WEEKLY = "weekly";
+my $FORMAT_MONTHLY = "monthly";
 
 my $DATE_BOUNDARY_WEEK_START = "week-start";
 my $DATE_BOUNDARY_WEEK_END = "week-end";
@@ -163,6 +171,10 @@ sub main(@){
       $$opts{dateFilter} = $1;
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
+    }elsif($arg =~ /^(-w|--week|--weekly)$/){
+      $$opts{format} = $FORMAT_WEEKLY;
+    }elsif($arg =~ /^(-m|--month|--monthly)$/){
+      $$opts{format} = $FORMAT_MONTHLY;
     }elsif($arg =~ /^(--ids|--print-ids)$/){
       $$opts{printIds} = 1;
     }elsif($arg =~ /^(--no-ids|--no-print-ids)$/){
@@ -219,6 +231,18 @@ sub main(@){
     if($$opts{format} eq $FORMAT_DETAILS){
       for my $w(@workouts){
         print formatWorkoutDetails($opts, $w);
+      }
+    }elsif($$opts{format} eq $FORMAT_WEEKLY){
+      my @periods = groupWorkoutsIntoPeriods(
+        $DATE_BOUNDARY_WEEK_START, $DATE_BOUNDARY_WEEK_END, @workouts);
+      for my $period(@periods){
+        print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
+      }
+    }elsif($$opts{format} eq $FORMAT_MONTHLY){
+      my @periods = groupWorkoutsIntoPeriods(
+        $DATE_BOUNDARY_MONTH_START, $DATE_BOUNDARY_MONTH_END, @workouts);
+      for my $period(@periods){
+        print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
       }
     }else{
       die "ERROR: unknown format $$opts{format}\n";
