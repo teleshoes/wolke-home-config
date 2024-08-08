@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use DateTime qw();
 use Date::Format qw(time2str);
 use Digest::MD5 qw();
 use File::Basename qw(basename);
@@ -27,6 +28,7 @@ sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
 sub fetchViewfitWorkouts();
+sub groupWorkoutsIntoPeriods($$@);
 sub readFile($);
 sub readFileGZ($);
 sub writeFile($$);
@@ -37,6 +39,7 @@ sub formatTimeMinSec($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$);
+sub getDateBoundary($$);
 sub binarySearchIdx($$$);
 sub md5sumFile($);
 sub nowMillis();
@@ -127,6 +130,11 @@ my $COMMAND_GET = "get";
 my $COMMAND_FETCH = "fetch";
 
 my $FORMAT_DETAILS = "details";
+
+my $DATE_BOUNDARY_WEEK_START = "week-start";
+my $DATE_BOUNDARY_WEEK_END = "week-end";
+my $DATE_BOUNDARY_MONTH_START = "month-start";
+my $DATE_BOUNDARY_MONTH_END = "month-end";
 
 sub main(@){
   my $cmd = $COMMAND_GET;
@@ -924,6 +932,25 @@ sub fetchViewfitWorkouts(){
   run "gzip", $cacheFile;
 }
 
+sub groupWorkoutsIntoPeriods($$@){
+  my ($dateBoundaryTypeStart, $dateBoundaryTypeEnd, @workouts) = @_;
+  my @periods;
+  my $curPeriod = undef;
+  for my $workout(@workouts){
+    my $date = $$workout{dtmYMD};
+    if(not defined $curPeriod or $date lt $$curPeriod{start} or $date gt $$curPeriod{end}){
+      $curPeriod = {
+        start    => getDateBoundary($date, $dateBoundaryTypeStart),
+        end      => getDateBoundary($date, $dateBoundaryTypeEnd),
+        workouts => [],
+      };
+      push @periods, $curPeriod;
+    }
+    push @{$$curPeriod{workouts}}, $workout;
+  }
+  return @periods;
+}
+
 sub readFile($){
   my ($file) = @_;
   open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
@@ -1047,6 +1074,34 @@ sub dateFmt($$){
   die "ERROR: missing epoch\n" if not defined $epoch;
   die "ERROR: invalid epoch $epoch\n" if $epoch !~ /^-?(\d+|\d*\.\d+)$/;
   return time2str($fmtSpec, $epoch);
+}
+
+sub getDateBoundary($$){
+  my ($dateYMD, $dateBoundaryType) = @_;
+  my ($y, $m, $d) = ($1, $2, $3) if $dateYMD =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
+
+  my $date = DateTime->new(year => $y, month => $m, day => $d);
+  my $dayOfWeek = $date->day_of_week;
+  my $daysToAdd;
+  if($dateBoundaryType eq $DATE_BOUNDARY_WEEK_START){
+    my $targetDOW = 1; #monday
+    my $targetDaysAgo = (7 + ($dayOfWeek - $targetDOW)) % 7;
+    $daysToAdd = 0 - ($targetDaysAgo);
+  }elsif($dateBoundaryType eq $DATE_BOUNDARY_WEEK_END){
+    my $targetDOW = 7; #sunday
+    my $targetDaysUntil = (7 + ($targetDOW - $dayOfWeek)) % 7;
+    $daysToAdd = $targetDaysUntil;
+  }elsif($dateBoundaryType eq $DATE_BOUNDARY_MONTH_START){
+    $daysToAdd = 0 - ($d - 1);
+  }elsif($dateBoundaryType eq $DATE_BOUNDARY_MONTH_END){
+    my $lastDayOfMonth = DateTime->last_day_of_month(year => $y, month => $m)->day_of_month;
+    $daysToAdd = $lastDayOfMonth - $d;
+  }else{
+    die "ERROR: unknown date boundary type $dateBoundaryType\n";
+  }
+
+  $date->add(days => $daysToAdd);
+  return $date->strftime("%Y-%m-%d");
 }
 
 #return the smallest index of the element
