@@ -33,6 +33,7 @@ sub writeFile($$);
 sub getExerciserUUID();
 sub readSecrets();
 sub decrypt($);
+sub formatTimeMinSec($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$);
@@ -225,7 +226,7 @@ sub main(@){
     my $w = $workouts[-1];
     my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
     my $durS = $$w{duration};
-    my $durFmt = sprintf "%02d:%02d", int($durS/60), $durS%60;
+    my $durFmt = formatTimeMinSec($durS);
     print "\nlatest workout: $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
   }else{
     die $USAGE;
@@ -238,13 +239,13 @@ sub formatWorkoutDetails($$){
 
   my $maxHR = defined $$w{max_heart_rate} ? $$w{max_heart_rate} : 0;
   my $durS = $$w{duration};
-  my $durFmt = sprintf "%02d:%02d", int($durS/60), $durS%60;
+  my $durFmt = formatTimeMinSec($durS);
   my $distanceMiles = $$w{distance}/1000.0*$MILES_PER_KM;
   my $targetFmt = sprintf "%12s", "";
   for my $targetName(@SORTED_TARGET_NAMES){
     if(defined $$w{targets}{$targetName}){
       my $targetDurS = $$w{targets}{$targetName};
-      my $targetDurFmt = sprintf "%02d:%02d", int($targetDurS/60), $targetDurS%60;
+      my $targetDurFmt = formatTimeMinSec($targetDurS);
       $targetFmt = sprintf "%6s=%5s", $targetName, $targetDurFmt;
       last;
     }
@@ -494,7 +495,7 @@ sub formatSpeedSegment($){
     $maxHr = 0;
   }
   my $mph = $avgSpeed * $MILES_PER_KM;
-  my $durFmt = sprintf "%02d:%02d", int($segmentDur/60), ($segmentDur%60);
+  my $durFmt = formatTimeMinSec($segmentDur);
   my $kmFmt = $segmentDistance/1000.0;
 
   return sprintf "  %.1fmph %s   %3dhr    %.1fkm\n",
@@ -985,6 +986,11 @@ sub decrypt($){
   my $value = join '', @contents;
   chomp $value;
   return $value;
+}
+
+sub formatTimeMinSec($){
+  my ($s) = @_;
+  return sprintf "%02d:%02d", int($s/60), int($s) % 60;
 }
 
 sub dtmStrToEpoch($){
