@@ -5,7 +5,10 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
-my @PLAYLIST_ARGS = ('--output', '%(autonumber)s-%(title)s.%(ext)s');
+my $OUTPUT_AUTONUMBER = '%(autonumber)s';
+my $OUTPUT_TITLE = '%(title)s';
+my $OUTPUT_EXT = '%(ext)s';
+my $OUTPUT_DEFAULT_FORMAT = "$OUTPUT_TITLE.$OUTPUT_EXT";
 
 my @SUBTITLE_ARGS = qw(--write-subs --write-auto-subs --convert-subs srt);
 
@@ -31,8 +34,15 @@ my $USAGE = "Usage:
         implies: --no-res
         implies: --no-subs
 
+    --output=OUTPUT_ARG
+      pass OUTPUT_ARG to yt-dlp as '--output OUTPUT_ARG'
+      default is: '$OUTPUT_DEFAULT_FORMAT'
+    --no-output
+      do not pass '--output' to yt-dlp
+
     -p | --pl | --playlist
-      prepend to YTDLP_ARGS: \"@PLAYLIST_ARGS\"
+      prepend '$OUTPUT_AUTONUMBER-' to OUTPUT_ARG
+      NOTE: has no effect if used with --no-output
 
     --subs | --write-subs
       prepend to YTDLP_ARGS: \"@SUBTITLE_ARGS\"
@@ -45,6 +55,7 @@ my $USAGE = "Usage:
 sub main(@){
   my $res = $DEFAULT_RES;
   my $isAudioOnly = 0;
+  my $outputFmt = $OUTPUT_DEFAULT_FORMAT;
   my $isPlaylist = 0;
   my $writeSubs = 1;
   my @ytdlpArgs;
@@ -59,6 +70,10 @@ sub main(@){
       $res = undef;
     }elsif($arg =~ /^(-x|--extract-audio)$/){
       $isAudioOnly = 1;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputFmt = $1;
+    }elsif($arg =~ /^--no-output$/){
+      $outputFmt = undef;
     }elsif($arg =~ /^(-p|--pl|--playlist)$/){
       $isPlaylist = 1;
     }elsif($arg =~ /^(--subs|--write-subs)$/){
@@ -70,9 +85,13 @@ sub main(@){
     }
   }
 
+  if($isPlaylist and defined $outputFmt){
+    $outputFmt = "$OUTPUT_AUTONUMBER-$outputFmt";
+  }
+
   @ytdlpArgs = ("-f", "bv*[height=$res]+ba", @ytdlpArgs) if defined $res and not $isAudioOnly;
   @ytdlpArgs = ("-x", @ytdlpArgs) if $isAudioOnly;
-  @ytdlpArgs = (@PLAYLIST_ARGS, @ytdlpArgs) if $isPlaylist;
+  @ytdlpArgs = ("--output", $outputFmt, @ytdlpArgs) if defined $outputFmt;
   @ytdlpArgs = (@SUBTITLE_ARGS, @ytdlpArgs) if $writeSubs and not $isAudioOnly;
 
   exec "yt-dlp", @ytdlpArgs;
