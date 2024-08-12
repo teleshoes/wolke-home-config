@@ -53,6 +53,12 @@ my $USAGE = "Usage:
       (this is the default)
     --no-subs
       do NOT prepend \"--write-subs\" to YTDLP_ARGS
+
+    --rename-subs
+      rename any newly created '*.en.srt' files to remove '.en'
+      (this is the default)
+    --no-rename-subs
+      do not rename any srt files after running yt-dlp
 ";
 
 
@@ -62,6 +68,7 @@ sub main(@){
   my $outputFmt = $OUTPUT_DEFAULT_FORMAT;
   my $isPlaylist = 0;
   my $writeSubs = 1;
+  my $renameSubs = 1;
   my @ytdlpArgs;
   for my $arg(@_){
     if($arg =~ /^(-h|--help)$/){
@@ -100,7 +107,19 @@ sub main(@){
   @ytdlpArgs = ("--output", $outputFmt, @ytdlpArgs) if defined $outputFmt;
   @ytdlpArgs = (@SUBTITLE_ARGS, @ytdlpArgs) if $writeSubs and not $isAudioOnly;
 
-  exec "yt-dlp", @ytdlpArgs;
+  my %subFilesStart = map {$_ => 1} glob "*.srt";
+  system "yt-dlp", @ytdlpArgs;
+
+  if($renameSubs){
+    for my $subFile(glob "*.srt"){
+      if($subFile =~ /^(.+)\.en\.srt$/){
+        my $newSubFile = "$1.srt";
+        if(-f $subFile and not -e $newSubFile){
+          system "mv", "--no-clobber", $subFile, $newSubFile;
+        }
+      }
+    }
+  }
 }
 
 &main(@ARGV);
