@@ -190,15 +190,18 @@ sub cmdSummary($){
   my ($opts) = @_;
   my @orders = parseJsonOrders();
   my $summary = getInstrumentSummary(@orders);
-  my $totalCost = 0;
+  my $totalBuyUSD = 0;
+  my $totalSellUSD = 0;
   my $totalValue = 0;
   for my $sym(sort keys %$summary){
-    my ($cost, $amount) = ($$summary{$sym}{cost}, $$summary{$sym}{amount});
     my $quote = readCachedQuote($sym);
+    my $amount = $$summary{$sym}{netAmount};
+    my $cost = $$summary{$sym}{netUSD};
     my $value = $amount * $quote;
     my $profit = $value - $cost;
 
-    $totalCost += $cost;
+    $totalBuyUSD += $$summary{$sym}{buyUSD};
+    $totalSellUSD += $$summary{$sym}{sellUSD};
     $totalValue += $value;
 
     my $profitSign = $profit > 0 ? "+" : "-";
@@ -210,27 +213,27 @@ sub cmdSummary($){
       next;
     }
 
-    printf "%-5s | %s | %8.3f for %s | %s%s\n",
+    printf "%-5s | %s | %11.6f @ %s | %s%s\n",
       $sym,
-      usdFmt($opts, 10, undef, $value),
+      usdFmt($opts, 9, undef, $value),
       $amount,
-      usdFmt($opts, 10, undef, $cost),
+      usdFmt($opts, 9, undef, $quote),
       $profitSign,
-      usdFmt($opts, 10, $colorProfit, $absProfit),
+      usdFmt($opts, 9, $colorProfit, $absProfit),
     ;
   }
-  my $totalProfit = $totalValue - $totalCost;
+  my $totalProfit = $totalValue - $totalBuyUSD + $totalSellUSD;
   my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
   my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
   my $colorTotalProfit = $totalProfitSign eq "+" ? "green" : "red";
 
-  printf "%-5s | %s | %8s     %s | %s%s\n",
+  printf "%-5s : %s -%s +%s     = %s%s\n",
     "TOTAL",
-    usdFmt($opts, 10, undef, $totalValue),
-    "",
-    usdFmt($opts, 10, undef, $totalCost),
+    usdFmt($opts, 9, undef, $totalValue),
+    usdFmt($opts, 9, undef, $totalBuyUSD),
+    usdFmt($opts, 9, undef, $totalSellUSD),
     $totalProfitSign,
-    usdFmt($opts, 10, $colorTotalProfit, $totalAbsProfit),
+    usdFmt($opts, 9, $colorTotalProfit, $totalAbsProfit),
   ;
 }
 sub cmdOrders($){
@@ -398,21 +401,29 @@ sub getInstrumentSummary(@){
     my ($sym, $price, $amount) = ($$order{symbol}, $$order{price}, $$order{amount});
     if(not defined $$summary{$sym}){
       $$summary{$sym} = {
-        cost => 0,
-        amount => 0,
-        symbol => $sym,
+        buyUSD       => 0,
+        buyAmount    => 0,
+        sellUSD      => 0,
+        sellAmount   => 0,
+        netAmount    => 0,
+        netUSD       => 0,
+        symbol       => $sym,
         instrumentId => $$order{instrumentId},
       };
     }
 
     if(defined $amount and defined $price){
-      my $deltaCost = $price*$amount;
-      my $deltaAmount = $amount;
-      $deltaCost = 0-$deltaCost if $$order{buySell} eq "sell";
-      $deltaAmount = 0-$deltaAmount if $$order{buySell} eq "sell";
-
-      $$summary{$sym}{cost} += $deltaCost;
-      $$summary{$sym}{amount} += $deltaAmount;
+      if($$order{buySell} =~ /sell/i){
+        $$summary{$sym}{sellUSD} += $price*$amount;
+        $$summary{$sym}{sellAmount} += $amount;
+        $$summary{$sym}{netUSD} -= $price*$amount;
+        $$summary{$sym}{netAmount} -= $amount;
+      }else{
+        $$summary{$sym}{buyUSD} += $price*$amount;
+        $$summary{$sym}{buyAmount} += $amount;
+        $$summary{$sym}{netUSD} += $price*$amount;
+        $$summary{$sym}{netAmount} += $amount;
+      }
     }
   }
   return $summary;
