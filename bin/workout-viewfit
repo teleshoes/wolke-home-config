@@ -12,6 +12,7 @@ use Time::Local qw(timegm_posix timelocal_posix);
 sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
 sub readCachedWorkouts();
+sub readCachedWorkoutLatest();
 sub readExtraInfo();
 sub insertExtraInfo($@);
 sub splitUpLargeIntervals($);
@@ -280,14 +281,8 @@ sub main(@){
   }elsif($cmd eq $COMMAND_FETCH){
     fetchViewfitWorkouts();
 
-    my @workouts = readCachedWorkouts();
-    @workouts = sort {
-      $$a{dtmEpoch} <=> $$b{dtmEpoch}
-    } @workouts;
-    if(@workouts == 0){
-      die "ERROR: no workouts found\n";
-    }
-    my $w = $workouts[-1];
+    my $w = readCachedWorkoutLatest();
+    die "ERROR: no workouts found\n" if not defined $w;
     my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
     my $durS = $$w{duration};
     my $durFmt = formatTimeMinSec($durS);
@@ -425,6 +420,18 @@ sub readCachedWorkouts(){
   }
 
   return @workouts;
+}
+
+sub readCachedWorkoutLatest(){
+  my @workouts = readCachedWorkouts();
+  @workouts = sort {
+    $$a{dtmEpoch} <=> $$b{dtmEpoch}
+  } @workouts;
+  if(@workouts == 0){
+    return undef;
+  }else{
+    return $workouts[-1];
+  }
 }
 
 sub readExtraInfo(){
