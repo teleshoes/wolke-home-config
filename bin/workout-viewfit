@@ -95,6 +95,11 @@ my $USAGE = "Usage:
       $WORKOUTS_JSON_CACHE_DIR/workouts_YYYY-MM-DD_HHMMSS_MD5SUM_MILLIS.json
     -read workouts as in --get, and print info for latest workout
 
+  $EXEC [OPTS] -l | --loop | --fetch-loop
+    -fork and read from stdin
+      -if any input received at any time, immediately exit
+    -repeatedly fetch workouts, as in: $EXEC --fetch
+
   OPTS
     --id=WORKOUT_ID
       show only workouts that match WORKOUT_ID
@@ -144,6 +149,7 @@ my $USAGE = "Usage:
 
 my $COMMAND_GET = "get";
 my $COMMAND_FETCH = "fetch";
+my $COMMAND_FETCH_LOOP = "fetch-loop";
 
 my $FORMAT_DETAILS = "details";
 my $FORMAT_WEEKLY = "weekly";
@@ -174,6 +180,8 @@ sub main(@){
       $cmd = $COMMAND_GET;
     }elsif($arg =~ /^(-f|--fetch)$/){
       $cmd = $COMMAND_FETCH;
+    }elsif($arg =~ /^(-l|--loop|--fetch-loop)$/){
+      $cmd = $COMMAND_FETCH_LOOP;
     }elsif($arg =~ /^--id=(.+)$/){
       $$opts{workoutIdFilter} = $1;
     }elsif($arg =~ /^(?:--date=)?(\d\d\d\d-\d\d-\d\d)$/){
@@ -287,6 +295,29 @@ sub main(@){
     my $durS = $$w{duration};
     my $durFmt = formatTimeMinSec($durS);
     print "\nlatest workout: $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
+  }elsif($cmd eq $COMMAND_FETCH_LOOP){
+    my $pid = fork();
+    if($pid == 0){
+      while(1){
+        print "\n\n=====\n";
+        system "date";
+        fetchViewfitWorkouts();
+        my $w = readCachedWorkoutLatest();
+        if(defined $w){
+          my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
+          my $durS = $$w{duration};
+          my $durFmt = formatTimeMinSec($durS);
+          print "\nlatest workout: $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
+        }else{
+          print "\nno workouts\n";
+        }
+      }
+    }else{
+      my $input = <STDIN>;
+      print "\nEXITING\n";
+      kill 1, $pid;
+      waitpid $pid, 0;
+    }
   }else{
     die $USAGE;
   }
