@@ -240,6 +240,8 @@ function sm           { sheetmusic "$@"; }
 
 function pl           { play-show "$@"; }
 
+function h            { ha h1 "$@"; }
+
 function ts           { tasmota "$@"; }
 function ts-pump      { tasmota-pump "$@"; }
 
