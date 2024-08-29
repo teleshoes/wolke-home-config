@@ -48,6 +48,13 @@ my $USAGE = "Usage:
         -PARAMS = {\"entity_id\": \"<ENTITY_ID>\"}
       -re-fetch the state until match, repeatedly for up to $MAX_DELAY_MILLIS ms
 
+  $EXEC -t|--toggle|toggle DEV_NAME_OR_SYN STATE_ON_OFF
+    -fetch the STATE_ON_OFF as in: $EXEC -g DEV_NAME_OR_SYN
+    -if STATE_ON_OFF is off:
+      -same as: $EXEC --set DEV_NAME_OR_SYN on
+    -otherwise:
+      -same as: $EXEC --set DEV_NAME_OR_SYN off
+
   STATE_ON_OFF
     either 'on' or 'off'
 
@@ -81,6 +88,7 @@ my $USAGE = "Usage:
 
 my $MODE_GET = "get";
 my $MODE_SET = "set";
+my $MODE_TOGGLE = "toggle";
 
 sub main(@){
   my $mode = $MODE_GET;
@@ -107,6 +115,8 @@ sub main(@){
       $mode = $MODE_GET;
     }elsif($arg =~ /^(-s|--set|set)$/){
       $mode = $MODE_SET;
+    }elsif($arg =~ /^(-t|--toggle|toggle)$/){
+      $mode = $MODE_TOGGLE;
     }elsif(defined $$conf{devices}{lc $arg} and not defined $devName){
       $devName = $arg;
     }elsif(defined $$devSyns{lc $arg} and not defined $devName){
@@ -129,6 +139,18 @@ sub main(@){
     my ($oldState, $newState) = setState(
       $$conf{host}, $token, $$conf{devices}{$devName}{entityid}, $targetState);
     print "$oldState => $newState\n";
+  }elsif($mode eq $MODE_TOGGLE){
+    die "$USAGE\nERROR: missing DEV_NAME\n" if not defined $devName;
+    my $curState = getState($$conf{host}, $token, $$conf{devices}{$devName}{entityid});
+    if($curState eq "off"){
+      $targetState = "on";
+    }else{
+      $targetState = "off";
+    }
+    my ($oldState, $newState) = setState(
+      $$conf{host}, $token, $$conf{devices}{$devName}{entityid}, $targetState);
+    print "$oldState => $newState\n";
+    die "ERROR: mismatched state after toggle\n" if $oldState ne $curState;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
