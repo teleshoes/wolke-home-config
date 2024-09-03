@@ -422,14 +422,21 @@ sub cleanupSession($){
   }
   $$s{dtm} = $dtm;
 
+  my $allowAutoWarmCool = 1;
 
-  if($$s{type} eq "run" and defined $$s{maxDurS} and $$s{maxDurS} > 12*60){
-    #no warm/cool for 5km
-    if($$s{maxKM} < 3.05*$KILOMETERS_PER_MILE){
-      $$s{warmCool} = 1;
-    }
+  #skip auto-trimming warm/cool segments for 5k+ runs
+  $allowAutoWarmCool = 0 if defined $$s{maxKM} and $$s{maxKM} >= 4.9;
+
+  #skip auto-trimming warm/cool segments for runs under 12min
+  $allowAutoWarmCool = 0 if defined $$s{maxDurS} and $$s{maxDurS} < 12*60;
+
+  #auto-trim warm/cool segments
+  if($allowAutoWarmCool and $$s{type} eq "run" and defined $$s{maxDurS}){
+    $$s{warmCool} = 1;
   }
 
+
+  #apply warm/cool transformations (remove warmup+cooldown, add reminder)
   if($$s{warmCool}){
     #remove warmup
     $$s{maxDurS} -= 3*60;
