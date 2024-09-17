@@ -30,6 +30,7 @@ sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
 sub fetchViewfitWorkouts();
+sub mergeCachedJsonFiles();
 sub groupWorkoutsIntoPeriods($$@);
 sub readFile($);
 sub readFileGZ($);
@@ -52,6 +53,7 @@ sub runQuiet(@);
 
 my $EXEC = basename $0;
 my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json";
+my $WORKOUTS_MERGED_JSON_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-merged.json";
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 
@@ -94,6 +96,8 @@ my $USAGE = "Usage:
     -check if identical JSON already cached by md5sum
     -if not, store in:
       $WORKOUTS_JSON_CACHE_DIR/workouts_YYYY-MM-DD_HHMMSS_MD5SUM_MILLIS.json
+    -parse all workouts from all JSON fetches and merge into one JSON file:
+      $WORKOUTS_MERGED_JSON_FILE
     -read workouts as in --get, and print info for latest workout
 
   $EXEC [OPTS] -l | --loop | --fetch-loop
@@ -1079,6 +1083,32 @@ sub fetchViewfitWorkouts(){
 
     run "gzip", $cacheFile;
   }
+  print "\nmerging all fetched JSON files into $WORKOUTS_MERGED_JSON_FILE\n";
+  mergeCachedJsonFiles();
+}
+
+sub mergeCachedJsonFiles(){
+  my @downloadJsonFiles = (
+    glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json"),
+    glob("$WORKOUTS_JSON_CACHE_DIR/workouts_*.json.gz"),
+  );
+  @downloadJsonFiles = sort @downloadJsonFiles;
+
+  my $workoutsById = {};
+  for my $file(@downloadJsonFiles){
+    my $contents = $file =~ /\.gz$/i ? readFileGZ($file) : readFile($file);
+    my @workoutStrs = $contents =~ /({"workout_id"(?:[^{}]*|{[^}]*})*})/g;
+    for my $workoutStr(@workoutStrs){
+      my $workoutID = $1 if $workoutStr =~ /"workout_id":"([^"]*)"/;
+      die "ERROR: missing workout_id in $file\n" if not defined $workoutID;
+      $$workoutsById{$workoutID} = $workoutStr;
+    }
+  }
+
+  my @workoutStrs = sort values %$workoutsById;
+
+  writeFile($WORKOUTS_MERGED_JSON_FILE,
+    "{\"workouts\":[\n  " . join(",\n  ", @workoutStrs) . "\n]}");
 }
 
 sub groupWorkoutsIntoPeriods($$@){
