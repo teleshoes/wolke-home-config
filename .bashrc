@@ -401,7 +401,7 @@ function git() {
   elif [[ "$cmd" == log-real ]]; then
     command git log "$@"
   elif [[ "$cmd" == gui ]]; then
-    command term lazygit
+    command lazygit
   elif [[ "$cmd" == gui-real ]]; then
     command git gui "$@"
   else
