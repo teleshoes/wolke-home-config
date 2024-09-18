@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub parseChapterInfo($);
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 [OPTS] M4B_FILE
+    losslessly split M4B file into M4A chapters with ffmpeg
+
+  OPTS
+    --prefix=PREFIX
+      output files will be named: <PREFIX>_<CHAPTER_NUMBER>_<CHAPTER_TITLE_NAME>.m4a
+      default is M4B_FILE, with the file extension '.m4b' removed
+
+    -n | -s | --simulate | --dry-run
+      print ffmpeg conversion commands without running them
+";
+
+sub main(@){
+  my $m4bFile = undef;
+  my $opts = {
+    prefix => undef,
+    dryRun => 0,
+  };
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-n|-s|--simulate|--dry-run)$/){
+      $$opts{dryRun} = 1;
+    }elsif(-f $arg and not defined $m4bFile){
+      $m4bFile = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "ERROR: missing M4B_FILE\n" if not defined $m4bFile;
+  die "ERROR: M4B_FILE \"$m4bFile\" must end in .m4b\n" if $m4bFile !~ /\.m4b$/i;
+
+  my @convertCmds;
+
+  my @chapters = parseChapterInfo($m4bFile);
+  my $chNumLen = length (0+@chapters);
+  my $chNum = 1;
+  for my $ch(@chapters){
+    my $titleFmt = $$ch{title};
+    $titleFmt =~ s/'//g;
+    $titleFmt = lc $titleFmt;
+    $titleFmt =~ s/\W+/_/g;
+    my $chNumFmt = sprintf "%0${chNumLen}d", $chNum;
+    $chNum++;
+
+    my $destFile = undef;
+    if(defined $$opts{prefix}){
+      $destFile = $$opts{prefix};
+    }else{
+      $destFile = $m4bFile;
+      $destFile =~ s/\.m4b$//;
+    }
+    $destFile .= "_${chNumFmt}_${titleFmt}.m4a";
+    push @convertCmds, ["ffmpeg", "-bitexact", "-i", $m4bFile, "-c", "copy",
+      "-ss", $$ch{startTime}, "-to", $$ch{endTime},
+      "-bitexact", $destFile];
+  }
+
+  for my $cmd(@convertCmds){
+    print "@$cmd\n";
+    if(not $$opts{dryRun}){
+      system @$cmd;
+    }
+  }
+}
+
+sub parseChapterInfo($){
+  my ($m4bFile) = @_;
+  $m4bFile =~ s/'/'\\''/g;
+  my @infoLines = `ffmpeg -i '$m4bFile' 2>&1`;
+  my @chapters;
+  my $curChapter = undef;
+  for my $line(@infoLines){
+    if($line =~ /^    Chapter #(\d+):(\d+): start (\d+|\d*\.\d+), end (\d+|\d*\.\d+)\s*$/){
+      $curChapter = {
+        streamIdx  => $1,
+        chapterIdx => $2,
+        startTime  => $3,
+        endTime    => $4,
+        title      => undef,
+      };
+      push @chapters, $curChapter;
+    }elsif($line =~ /^        title\s*:\s*(.+)$/){
+      my $title = $1;
+      if(defined $curChapter and not defined $$curChapter{title}){
+        $$curChapter{title} = $title;
+      }
+    }
+  }
+  return @chapters;
+}
+
+&main(@ARGV);
