@@ -316,11 +316,30 @@ function mkdit        { mkdir "$@"; }
 function cim          { vim "$@"; }
 function bim          { vim "$@"; }
 
-# dc DIR => cd DIR
-# dc ARG ARG .. => command dc ARG ARG
+# cd cd DIR => cd DIR
+# cd dc DIR => cd DIR
+# dc DIR    => cd DIR
+# dc cd DIR => cd DIR
+# dc dc DIR => cd DIR
+#
+# cd ...    => command cd ...
+# dc ...    => command dc ...
+function cd {
+  if [[ $# == 2 ]] && [[ "$1" -eq "cd" ]] && [[ -d $2 ]]; then
+    cd "$2"
+  elif [[ $# == 2 ]] && [[ "$1" -eq "dc" ]] && [[ -d $2 ]]; then
+    cd "$2"
+  else
+    command cd "$@"
+  fi
+}
 function dc {
   if [[ $# == 1 ]] && [[ -d $1 ]]; then
     cd "$1"
+  elif [[ $# == 2 ]] && [[ "$1" -eq "cd" ]] && [[ -d $2 ]]; then
+    cd "$2"
+  elif [[ $# == 2 ]] && [[ "$1" -eq "dc" ]] && [[ -d $2 ]]; then
+    cd "$2"
   else
     command dc "$@"
   fi
