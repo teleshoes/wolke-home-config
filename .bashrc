@@ -179,7 +179,13 @@ function g            { git "$@"; }
 function gs           { git s "$@"; }
 function gss          { git ss "$@"; }
 function youtube-dl   { echo "YOU WANT TO RUN: yt => yt-dlp"; }
-function mp           { mpv "$@"; }
+function mp           {
+  if command -v mpv &>/dev/null; then
+    mpv "$@";
+  else
+    command mp "$@";
+  fi
+}
 function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
   livestreamer "$@" $default_quality
