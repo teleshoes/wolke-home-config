@@ -23,7 +23,7 @@ my $USAGE = "USAGE:
            mv a.txt b.txt
            mv aa.txt ba.txt
     NOTE: arguments are NOT actually positional, and can be given in any order
-            -e.g.: `$EXEC file1 s/a/b/` is the same as `$EXEC s/a/b/ file1`
+            -`$EXEC -n file1 s/a/b/` is the same as `$EXEC s/a/b/ file1 -n`
             -PERLEXPR cannot be an existing file on the filesystem
             -neither FILE nor PERLEXPR can be one of the valid OPTS
 
@@ -43,18 +43,33 @@ my $USAGE = "USAGE:
     -cannot be one of the valid OPTS
 
   OPTS
+    -n | -s | --dry-run | --simulate | --no-act
+      do not rename files
+      print `mv` commands, prepended with `#`, but do not run the commands
+
+      WARNING: like `file-rename -n`, PERLEXPR is still run, which may have side effects
+        e.g.: > $EXEC --simulate 'system(\"rm file2\"); \$_=\"file2\"' file1
+              will still delete file2, but it will not rename file1
+    --no-simulate
+      actually run `mv` commands
+      (this is the default)
 ";
 
 sub main(@){
   my $perlExpr = undef;
   my @files;
   my $opts = {
+    simulate => 0,
   };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-n|-s|--dry-run|--simulate|--no-act)$/){
+      $$opts{simulate} = 1;
+    }elsif($arg =~ /^(--no-simulate)$/){
+      $$opts{simulate} = 0;
     }elsif(-e $arg or -l $arg){
       push @files, $arg;
     }elsif(not defined $perlExpr){
@@ -82,9 +97,12 @@ sub main(@){
     push @cmd, $$cmdInfo{dest};
 
     my $cmdFmt = formatCmd(@cmd);
+    $cmdFmt = "#$cmdFmt" if $$opts{simulate};
     print "$cmdFmt\n";
 
-    system @cmd;
+    if(not $$opts{simulate}){
+      system @cmd;
+    }
   }
 }
 
