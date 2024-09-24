@@ -62,6 +62,20 @@ my $USAGE = "USAGE:
       do not run ANY `mv` commands, if ANY destination file already exists
       also, pass '--no-clobber' to mv
       (this is the default)
+
+    --dirs
+      allow parent directory of file/dir to be changed
+        note: this is just about parent directory.
+              directories passed in directly can always be renamed within their parent,
+                e.g.: > $EXEC s/A/B/ directoryA/
+      set '\$_' equal to the full path of each file
+      does NOT create any directories, fails if the target dir does not exist
+        e.g.: > $EXEC --dirs  s/apple/banana/ ./apple/a.txt
+              mv ./apple/a.txt ./banana/a.txt
+    --no-dirs
+      do not allow parent directory to change
+      set '\$_' equal to the basename (last path component) of each file
+      (this is the default)
 ";
 
 sub main(@){
@@ -70,6 +84,7 @@ sub main(@){
   my $opts = {
     simulate => 0,
     clobber  => 0,
+    dirs     => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -84,6 +99,10 @@ sub main(@){
       $$opts{clobber} = 1;
     }elsif($arg =~ /^(--no-clobber)$/){
       $$opts{clobber} = 0;
+    }elsif($arg =~ /^(--dirs)$/){
+      $$opts{dirs} = 1;
+    }elsif($arg =~ /^(--no-dirs)$/){
+      $$opts{dirs} = 0;
     }elsif(-e $arg or -l $arg){
       push @files, $arg;
     }elsif(not defined $perlExpr){
@@ -142,15 +161,21 @@ sub calculateRenameCommandInfo($$$){
     ($dir, $baseName) = ("", $file);
   }
 
-  $_ = $baseName;
+  $_ = $$opts{dirs} ? $file : $baseName;
   eval $perlExpr;
   my $result = $_;
 
-  if($result =~ /\//){
-    die "ERROR: cannot change directory for $file\n";
+  my ($src, $dest);
+  if($$opts{dirs}){
+    $src = $file;
+    $dest = $result;
+  }else{
+    if($result =~ /\//){
+      die "ERROR: must use --dirs to change directory $baseName => $result\n";
+    }
+    $src = "$dir$baseName";
+    $dest = "$dir$result";
   }
-  my $src = "$dir$baseName";
-  my $dest = "$dir$result";
 
   my $absSrc = abs_path($src);
   my $absDest = abs_path($dest);
