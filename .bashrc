@@ -210,21 +210,7 @@ function vol {
 }
 
 function rename       {
-  pastOptArgs=0
-  ok=1
-  for arg in "$@"
-  do
-    if [[ $pastOptArgs == 1 && $arg == -* ]]; then
-      echo "NOT RUNNING RENAME, $arg MUST BE BEFORE PATTERN"
-      ok=0
-    fi
-    if [[ $arg != -* ]]; then
-      pastOptArgs=1
-    fi
-  done
-  if [[ $ok == 1 ]]; then
-    command rename "$@"
-  fi
+  echo 'USE `rn` INSTEAD OF `rename`'
 }
 
 function udotool      { sudo udotool "$@"; }
