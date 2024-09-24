@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub calculateRenameCommandInfo($$$);
+sub formatCmd(@);
 
 my $EXEC = basename $0;
 
@@ -16,8 +17,8 @@ my $USAGE = "USAGE:
     for each file:
       -run PERLEXPR to generate a new filename,
       -generate a `mv` command to rename the file
-      -print the `mv` command
-      -run the `mv` command
+      -print the `mv` command, formatting with quotes for shell interpolation
+      -run the `mv` command (as a direct system call without shell interpolation)
     e.g.:  > $EXEC s/a/b/  a.txt aa.txt
            mv a.txt b.txt
            mv aa.txt ba.txt
@@ -79,7 +80,10 @@ sub main(@){
     my @cmd = ("mv");
     push @cmd, $$cmdInfo{src};
     push @cmd, $$cmdInfo{dest};
-    print "@cmd\n";
+
+    my $cmdFmt = formatCmd(@cmd);
+    print "$cmdFmt\n";
+
     system @cmd;
   }
 }
@@ -107,6 +111,22 @@ sub calculateRenameCommandInfo($$$){
     src     => $src,
     dest    => $dest,
   };
+}
+
+sub formatCmd(@){
+  my @cmd = @_;
+  my @cmdFmt;
+  for my $arg(@cmd){
+    #shell meta: |&;<>()$`\'"\n \t
+    #plus !
+    if($arg =~ /[|&;<>\$`\\'"\n \t!]/){
+      #if arg contains shell meta, wrap in single quotes with replacements
+      $arg =~ s/'/'\\''/g;
+      $arg = "'$arg'";
+    }
+    push @cmdFmt, $arg;
+  }
+  return join(" ", @cmdFmt);
 }
 
 &main(@ARGV);
