@@ -7,6 +7,14 @@ use Cwd qw(abs_path);
 sub calculateRenameCommandInfo($$$);
 sub formatCmd(@);
 
+my $PERLEXPR_WORD_REGEX_REPL = ''
+  . '  s/\.(?!\w+$)/_/g'       #replace '.' chars with '_', keeping '.' before file ext
+  . '; s/[^a-zA-Z0-9_.]/_/g'   #replace non-word chars except '.' with '_'
+  . '; s/_+/_/g'               #join multiple '_' chars into a single '_'
+  . '; s/_+(?=\.\w+$)//g'      #remove '_' chars before file ext
+  . '; s/^_+|_+$//g'           #remove leading/trailing '_' chars
+;
+
 my $EXEC = basename $0;
 
 my $USAGE = "USAGE:
@@ -32,6 +40,17 @@ my $USAGE = "USAGE:
     lower-case file names, same as: $EXEC OPTS '\$_=lc' FILE FILE ...
   $EXEC [OPTS] uc|--uc FILE [FILE ...]
     upper-case file names, same as: $EXEC OPTS '\$_=uc' FILE FILE ...
+
+  $EXEC [OPTS] -w|--word FILE [FILE ...]
+    allow only letters, numbers, underscores, and a single dot before file ext
+      -replace '.' chars with '_', keeping '.' before file ext
+      -replace non-word chars except '.' with '_'
+      -join multiple '_' chars into a single '_'
+      -remove '_' chars before file ext
+      -remove leading/trailing '_' chars
+    e.g.: $EXEC -w '.a.F1le named%%%boing...jP3g'
+          mv '.a.F1le named%%%boing...jP3gG' a_F1le_named_boing.jP3g
+    same as: $EXEC OPTS '$PERLEXPR_WORD_REGEX_REPL' FILE FILE ...
 
   PERLEXPR
     -any perl expression, passed directly and unsanitized to eval()
@@ -114,6 +133,8 @@ sub main(@){
       $perlExpr = '$_=lc';
     }elsif($arg =~ /^(uc|--uc)$/){
       $perlExpr = '$_=uc';
+    }elsif($arg =~ /^(-w|--word)$/){
+      $perlExpr = $PERLEXPR_WORD_REGEX_REPL;
     }elsif(not defined $perlExpr){
       $perlExpr = $arg;
     }else{
