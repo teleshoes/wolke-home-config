@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use Cwd qw(abs_path);
 
 sub calculateRenameCommandInfo($$$);
@@ -205,12 +205,21 @@ sub calculateRenameCommandInfo($$$){
     $dest = "$dir$result";
   }
 
+  my $dirSrc = dirname $src;
+  my $dirDest = dirname $dest;
+
+  if(not -d $dirDest){
+    die "ERROR: dest dir '$dirDest' does not exist for $src => $dest\n";
+  }
+
   my $absSrc = abs_path($src);
   my $absDest = abs_path($dest);
 
   if(0
     or (not defined $absSrc)
     or (not defined $absDest)
+    or (not -d $dirSrc)
+    or (not -d $dirDest)
     or (not -e $src and not -l $src)
     or (not -l $src and not -e $absSrc) #allow broken symlinks as src
   ){
@@ -220,6 +229,8 @@ sub calculateRenameCommandInfo($$$){
   return {
     src     => $src,
     dest    => $dest,
+    dirSrc  => $dirSrc,
+    dirDest => $dirDest,
     absSrc  => abs_path($src),
     absDest => abs_path($dest),
   };
