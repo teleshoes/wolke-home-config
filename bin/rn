@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Cwd qw(abs_path);
 
 sub calculateRenameCommandInfo($$$);
 sub formatCmd(@);
@@ -92,6 +93,15 @@ sub main(@){
   @renameCommandInfos = grep {$$_{src} ne $$_{dest}} @renameCommandInfos;
 
   for my $cmdInfo(@renameCommandInfos){
+    if(-e $$cmdInfo{dest} or -l $$cmdInfo{dest}){
+      die "ERROR: $$cmdInfo{dest} already exists, not running *ANY* renames\n";
+    }
+    if(-e $$cmdInfo{absDest} or -l $$cmdInfo{absDest}){
+      die "ERROR: $$cmdInfo{absDest} already exists, not running *ANY* renames\n";
+    }
+  }
+
+  for my $cmdInfo(@renameCommandInfos){
     my @cmd = ("mv");
     push @cmd, "--no-clobber";
     push @cmd, $$cmdInfo{src};
@@ -126,9 +136,14 @@ sub calculateRenameCommandInfo($$$){
   my $src = "$dir$baseName";
   my $dest = "$dir$result";
 
+  my $absSrc = abs_path($src);
+  my $absDest = abs_path($dest);
+
   return {
     src     => $src,
     dest    => $dest,
+    absSrc  => abs_path($src),
+    absDest => abs_path($dest),
   };
 }
 
