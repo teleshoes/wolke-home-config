@@ -182,6 +182,8 @@ function youtube-dl   { echo "YOU WANT TO RUN: yt => yt-dlp"; }
 function mp           {
   if command -v mpv &>/dev/null; then
     mpv "$@";
+  elif command -v qtcmdplayer &>/dev/null; then
+    qtcmdplayer "$@";
   else
     command mp "$@";
   fi
