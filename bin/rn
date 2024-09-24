@@ -3,23 +3,110 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub calculateRenameCommandInfo($$$);
+
 my $EXEC = basename $0;
 
 my $USAGE = "USAGE:
   $EXEC -h|--help
     show this message
+
+  $EXEC [OPTS] PERLEXPR FILE [FILE ...]
+    similar to `file-rename` command from File::Rename
+    for each file:
+      -run PERLEXPR to generate a new filename,
+      -generate a `mv` command to rename the file
+      -print the `mv` command
+      -run the `mv` command
+    e.g.:  > $EXEC s/a/b/  a.txt aa.txt
+           mv a.txt b.txt
+           mv aa.txt ba.txt
+    NOTE: arguments are NOT actually positional, and can be given in any order
+            -e.g.: `$EXEC file1 s/a/b/` is the same as `$EXEC s/a/b/ file1`
+            -PERLEXPR cannot be an existing file on the filesystem
+            -neither FILE nor PERLEXPR can be one of the valid OPTS
+
+  PERLEXPR
+    -any perl expression, passed directly and unsanitized to eval()
+      -the value of '\$_' at the start of the eval is the basename of the file or dir
+      -the value of '\$_' at the end of the eval is the new filename
+    -cannot be an existing file on the filesystem
+    -cannot be one of the valid OPTS
+
+    WARNING: like in File::Rename, eval() of this expression can have side effects
+             e.g.: > `$EXEC 'system(\"rm file2\"); \$_=\"file2\"' file1`
+                   will delete file2 first, then rename file1 to file2
+
+  FILE
+    -any existing file, directory or symlink (valid or broken)
+    -cannot be one of the valid OPTS
+
+  OPTS
 ";
 
 sub main(@){
+  my $perlExpr = undef;
+  my @files;
+  my $opts = {
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif(-e $arg or -l $arg){
+      push @files, $arg;
+    }elsif(not defined $perlExpr){
+      $perlExpr = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
+
+  die "$USAGE\nERROR: missing FILE\n" if @files == 0;
+  die "$USAGE\nERROR: missing PERLEXPR\n" if not defined $perlExpr;
+
+  my @renameCommandInfos;
+  for my $file(@files){
+    push @renameCommandInfos, calculateRenameCommandInfo($opts, $perlExpr, $file);
+  }
+
+  #skip identical, unchanged files
+  #  skip commands like 'mv file file'
+  @renameCommandInfos = grep {$$_{src} ne $$_{dest}} @renameCommandInfos;
+
+  for my $cmdInfo(@renameCommandInfos){
+    my @cmd = ("mv");
+    push @cmd, $$cmdInfo{src};
+    push @cmd, $$cmdInfo{dest};
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+sub calculateRenameCommandInfo($$$){
+  my ($opts, $perlExpr, $file) = @_;
+  my ($dir, $baseName);
+  if($file =~ /^(.*\/)([^\/]*)$/){
+    ($dir, $baseName) = ($1, $2);
+  }else{
+    ($dir, $baseName) = ("", $file);
+  }
+
+  $_ = $baseName;
+  eval $perlExpr;
+  my $result = $_;
+
+  if($result =~ /\//){
+    die "ERROR: cannot change directory for $file\n";
+  }
+  my $src = "$dir$baseName";
+  my $dest = "$dir$result";
+
+  return {
+    src     => $src,
+    dest    => $dest,
+  };
 }
 
 &main(@ARGV);
