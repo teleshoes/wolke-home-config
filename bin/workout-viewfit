@@ -47,6 +47,7 @@ sub getDateBoundary($$);
 sub binarySearchIdx($$$);
 sub nvl($$);
 sub md5sumFile($);
+sub mtime($);
 sub nowMillis();
 sub run(@);
 sub runQuiet(@);
@@ -1079,7 +1080,23 @@ sub fetchViewfitWorkouts(){
     }
 
     run "gzip", $cacheFile;
+  }
 
+  my $maxJsonMtime = undef;
+  for my $jsonFile(grep {-f $_} glob "$WORKOUTS_JSON_CACHE_DIR/workouts_*.json*"){
+    my $mtime = mtime($jsonFile);
+    $maxJsonMtime = $mtime if not defined $maxJsonMtime or $mtime > $maxJsonMtime;
+  }
+
+  if(-e $WORKOUTS_MERGED_JSON_FILE){
+    my $mergedMtime = mtime($WORKOUTS_MERGED_JSON_FILE);
+    if(not defined $maxJsonMtime or $mergedMtime < $maxJsonMtime){
+      print "\nremoving out-of-date merged JSON\n";
+      run "rm", $WORKOUTS_MERGED_JSON_FILE;
+    }
+  }
+
+  if(not -f $WORKOUTS_MERGED_JSON_FILE){
     print "\nmerging all fetched JSON files into $WORKOUTS_MERGED_JSON_FILE\n";
     mergeCachedJsonFiles();
   }
@@ -1344,6 +1361,12 @@ sub md5sumFile($){
   my $digest = $d->hexdigest();
   close $fh;
   return $digest;
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
 }
 
 sub nowMillis(){
