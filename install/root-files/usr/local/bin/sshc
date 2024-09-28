@@ -5,7 +5,7 @@ use File::Basename qw(basename);
 
 sub getControlPath($);
 sub ensureSSHOpen($$);
-sub ensureSSHClosed($);
+sub ensureSSHClosed($$);
 sub execSSH($$$);
 
 my $EXEC = basename $0;
@@ -145,13 +145,13 @@ sub main(@){
     die "$usage\nERROR: unknown args \"@_\"\n" if @args > 1;
     my $dest = shift @args;
 
-    ensureSSHClosed($dest);
+    ensureSSHClosed($dest, $sshOpts);
   }elsif($mode eq $MODE_CLOSE_ALL){
     die "$usage\nERROR: unknown args \"@args\"\n" if @args > 0;
 
     my @controlPaths = glob "$CONTROL_PATH_DIR/*";
     my @dests = map {$_ =~ s/^.*\///; $_} @controlPaths;
-    ensureSSHClosed($_) foreach @dests;
+    ensureSSHClosed($_, $sshOpts) foreach @dests;
   }elsif($mode eq $MODE_RSYNC){
     my $remote;
     for my $arg(@args){
@@ -211,8 +211,8 @@ sub ensureSSHOpen($$){
   }
 }
 
-sub ensureSSHClosed($){
-  my ($dest) = @_;
+sub ensureSSHClosed($$){
+  my ($dest, $sshOpts) = @_;
   my $controlPath = getControlPath($dest);
   if(-e $controlPath){
     system "ssh -o ControlPath=$controlPath -O check thisArgIsIgnoredSSHBug";
