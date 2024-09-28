@@ -59,8 +59,15 @@ my $usage = "Usage:
 
   DEST
     SSH destination (e.g.: HOSTNAME or USER\@HOSTNAME)
+  LOGIN_USER
+    -if DEST is USER\@HOSTNAME:
+      LOGIN_USER = USER
+    -if \$USER is set:
+      LOGIN_USER = \$USER
+    -otherwise:
+      FAIL with an error
   CONTROL_PATH
-    $CONTROL_PATH_DIR/<DEST>
+    $CONTROL_PATH_DIR/<LOGIN_USER>@<HOSTNAME>
   SSH_OPTS_OPEN
     these options are passed to the master SSH session when opening it
     NOTE: these options are IGNORED if the master SSH session already exists
@@ -189,7 +196,27 @@ sub main(@){
 
 sub getControlPath($){
   my ($dest) = @_;
-  return "$CONTROL_PATH_DIR/$dest";
+  my ($loginUser, $hostname);
+
+  #use USERNAME in USERNAME@hostname
+  if($dest =~ /^(.+)\@(.+)$/){
+    ($loginUser, $hostname) = ($1, $2);
+  }else{
+    $hostname = $dest;
+  }
+
+  #use $USER
+  if(not defined $loginUser){
+    $loginUser = $ENV{USER};
+    $loginUser = undef if $loginUser =~ /^\s*$/;
+  }
+  #fail
+  if(not defined $loginUser){
+    die "ERROR: could not parse LOGIN_USER for $dest, missing ssh config and USER var\n";
+  }
+
+  my $controlPath = "$CONTROL_PATH_DIR/$loginUser\@$hostname";
+  return $controlPath;
 }
 
 sub ensureSSHOpen($$){
