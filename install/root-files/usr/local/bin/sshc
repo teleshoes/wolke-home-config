@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub getControlPath($);
+sub getControlPath($$);
 sub ensureSSHOpen($$);
 sub ensureSSHClosed($$);
 sub execSSH($$$);
@@ -172,7 +172,7 @@ sub main(@){
     if(not defined $remote){
       die "$usage\nERROR: could not find rsync remote src/dest in \"@args\"\n";
     }
-    my $controlPath = getControlPath($remote);
+    my $controlPath = getControlPath($remote, $sshOpts);
 
     ensureSSHOpen($remote, $sshOpts);
     system "rsync", "-e", "ssh -o ControlPath=$controlPath", @args;
@@ -187,7 +187,7 @@ sub main(@){
     if(not defined $remote){
       die "$usage\nERROR: could not find scp remote src/dest in \"@args\"\n";
     }
-    my $controlPath = getControlPath($remote);
+    my $controlPath = getControlPath($remote, $sshOpts);
 
     ensureSSHOpen($remote, $sshOpts);
     system "scp", "-o", "ControlPath=$controlPath", @args;
@@ -196,8 +196,8 @@ sub main(@){
   }
 }
 
-sub getControlPath($){
-  my ($dest) = @_;
+sub getControlPath($$){
+  my ($dest, $sshOpts) = @_;
   my ($loginUser, $hostname);
 
   #use USERNAME in USERNAME@hostname
@@ -229,7 +229,7 @@ sub getControlPath($){
 
 sub ensureSSHOpen($$){
   my ($dest, $sshOpts) = @_;
-  my $controlPath = getControlPath($dest);
+  my $controlPath = getControlPath($dest, $sshOpts);
   system "mkdir", "-p", $CONTROL_PATH_DIR if not -d $CONTROL_PATH_DIR;
   if(not -e $controlPath){
     my @cmd = ("ssh",
@@ -248,7 +248,7 @@ sub ensureSSHOpen($$){
 
 sub ensureSSHClosed($$){
   my ($dest, $sshOpts) = @_;
-  my $controlPath = getControlPath($dest);
+  my $controlPath = getControlPath($dest, $sshOpts);
   if(-e $controlPath){
     system "ssh -o ControlPath=$controlPath -O check thisArgIsIgnoredSSHBug";
     if($? != 0){
@@ -271,7 +271,7 @@ sub ensureSSHClosed($$){
 
 sub execSSH($$$){
   my ($dest, $sshOpts, $command) = @_;
-  my $controlPath = getControlPath($dest);
+  my $controlPath = getControlPath($dest, $sshOpts);
   my @cmd = ("ssh", @$sshOpts, "-S", $controlPath, $dest, @$command);
   exec @cmd;
 }
