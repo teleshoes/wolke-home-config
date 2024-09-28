@@ -64,6 +64,8 @@ my $usage = "Usage:
       LOGIN_USER = USER
     -if `-l login_name` is given in SSH_OPTS:
       LOGIN_USER = login_name
+    -if `ssh -g HOSTNAME` returns 'user DEFAULT_HOST_USER':
+      LOGIN_USER = DEFAULT_HOST_USER
     -if \$USER is set:
       LOGIN_USER = \$USER
     -if `whoami` returns USER
@@ -215,6 +217,19 @@ sub getControlPath($$){
       my $arg = $$sshOpts[$i];
       if($arg eq "-l" and $i+1<@$sshOpts){
         $loginUser = $$sshOpts[$i+1];
+        last;
+      }
+    }
+  }
+
+  #use USERNAME in 'user USERNAME' in `ssh -G hostname`
+  if(not defined $loginUser){
+    open my $cmdH, "-|", "ssh", "-G", $hostname;
+    my @lines = <$cmdH>;
+    close $cmdH;
+    for my $line(@lines){
+      if($line =~ /^user\s+(.+)$/){
+        $loginUser = $1;
         last;
       }
     }
