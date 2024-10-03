@@ -80,6 +80,8 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   sudo igstart &
   cec-cmd start &
 
+  VBoxManage startvm homeassistant --type headless &
+
   screen-daemon sb --start
   screen-daemon revtun-ensure --start
   screen-daemon midea-cube --start
