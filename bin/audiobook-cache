@@ -1,0 +1,156 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use threads;
+use threads::shared;
+
+use File::Basename qw(basename);
+
+sub cacheAllFiles($@);
+sub nowMillis();
+
+my $DEFAULT_MAX_THREADS = 4;
+my $LOG_DIR = "$ENV{HOME}/.cache/logs/ebook-audiobook-cache";
+
+my $EXEC_EBOOK_AUDIOBOOK_WORDTIMING = "ebook-audiobook-wordtiming";
+
+my $USAGE = "Usage:
+  $0 -h|--help
+    show this mesage
+
+  $0 FILE [FILE FILE...]
+    generate vosk wordtiming cache for all audiobook files given
+";
+
+sub main(@){
+  my @files;
+  my $threadCount = $DEFAULT_MAX_THREADS;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$USAGE\nERROR: missing FILE\n" if @files == 0;
+
+  cacheAllFiles($threadCount, @files);
+}
+
+sub cacheAllFiles($@){
+  my ($threadCount, @files) = @_;
+
+  my $statusCheckpointSize = 3;
+
+  my %status;
+  my $count = 0;
+  my $abort = 0;
+  share(%status);
+  share($count);
+  share($abort);
+
+  my $totalFiles = @files;
+
+  my @threadChunks;
+  my $threadChunk = undef;
+  my $size = $totalFiles/$threadCount;
+  for my $file(@files){
+    if(not defined $threadChunk){
+      $threadChunk = [];
+      push @threadChunks, $threadChunk;
+    }
+    push @$threadChunk, $file;
+    if(@threadChunks < $threadCount and @$threadChunk >= $size){
+      $threadChunk = undef;
+    }
+  }
+
+  $SIG{'INT'} = sub {
+    print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
+    $abort = 1;
+  };
+
+
+  my @threads;
+  for(my $chunkIdx=0; $chunkIdx<@threadChunks; $chunkIdx++){
+    my $chunk = $threadChunks[$chunkIdx];
+    my $t = threads->create(sub {
+      my $threadNum = threads->tid();
+      print STDERR "     thread#$threadNum: STARTED\n";
+      $SIG{'INT'} = sub {
+        print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
+        $abort = 1;
+      };
+
+      for(my $fileIdx=0; $fileIdx<@$chunk; $fileIdx++){
+        my $file = $$chunk[$fileIdx];
+        $status{$file} = 0;
+
+        system "mkdir", "-p", $LOG_DIR;
+        my $cleanFileName = lc(basename $file);
+        $cleanFileName =~ s/[^a-zA-Z0-9]+/_/g;
+        $cleanFileName =~ s/^_//g;
+        $cleanFileName =~ s/_$//g;
+
+
+        my $nowMillis = nowMillis();
+        my $logFile = "$LOG_DIR/log-$nowMillis-t$chunkIdx-f$fileIdx-$cleanFileName.log";
+
+        my $quotedFile = $file;
+        $quotedFile =~ s/'/'\\''/g;
+        $quotedFile = "'$quotedFile'";
+
+        my $cmd = ""
+          . "$EXEC_EBOOK_AUDIOBOOK_WORDTIMING"
+          . " --cache-audiobook"
+          . " $quotedFile"
+          . " >$logFile 2>&1"
+          . ";";
+
+        print "$cmd\n";
+        system "$cmd";
+        my $exitCode = $? >> 8;
+
+        system "tail", "-5", $logFile;
+
+        if($exitCode == 0){
+          $status{$file} = 1;
+        }
+
+        if($abort){
+          print STDERR "\n\n\n===== thread#$threadNum: ERROR (aborting)\n";
+          return;
+        }
+
+        {
+          lock($count);
+          $count++;
+          if($count % $statusCheckpointSize == 0){
+            print STDERR "\n\n\n===== ALL: $count / $totalFiles\n";
+          }
+        }
+      }
+      print STDERR "\n\n\n===== thread#$threadNum: FINISHED\n";
+    });
+    push @threads, $t;
+  }
+
+  for my $t(@threads){
+    $t->join();
+  }
+  print STDERR "\n\n\n===== all threads joined\n";
+
+  system "stty", "sane";
+}
+
+sub nowMillis(){
+  return int(time*1000.0 + 0.5);
+}
+
+&main(@ARGV);
