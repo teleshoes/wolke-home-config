@@ -35,6 +35,9 @@ export GTK_OVERLAY_SCROLLING=0
 #rxvt-unicode and rxvt-256color => rxvt {for legacy}
 case "$TERM" in rxvt*) TERM=rxvt ;; esac
 
+#override TERM for `screen`
+case "$TERM" in screen.*rxvt*) TERM=rxvt ;; esac
+
 #use prompt_cmd to set the window title => $WINDOW_TITLE or "Terminal: pwd"
 #only for rxvt* terms
 if [ "$TERM" == "rxvt" ]; then
