@@ -202,6 +202,9 @@ my $usage = "Usage:
     --no-proton
       use SAVE_BASE_DIR_PTRN=$LINUX_BASE_DIR_PATTERN
       (this is the default)
+    --save-dir=KINGDOM_GAME_SAVE_DIR
+      use KINGDOM_GAME_SAVE_DIR,
+      override --game and --proton/--no-proton
 
   FORMAT_OPTS
     --format=FORMAT_SUMMARY_SPEC
@@ -360,6 +363,7 @@ sub main(@){
   my $cmd = $CMD_BACKUP;
   my $kingdomGameName = undef;
   my $isProton = 0;
+  my $overrideKingdomSaveDir = undef;
 
   my @saveArgs;
   my $formatSummarySpec = $DEFAULT_FORMAT_SUMMARY_SPEC;
@@ -387,6 +391,8 @@ sub main(@){
       $isProton = 1;
     }elsif($arg =~ /^(--no-proton)$/){
       $isProton = 0;
+    }elsif($arg =~ /^--save-dir=(.+)$/){
+      $overrideKingdomSaveDir = $1;
     }elsif($arg =~ /^(--backup|--save)$/){
       $cmd = $CMD_BACKUP;
     }elsif($arg =~ /^(--restore)$/){
@@ -447,8 +453,15 @@ sub main(@){
   }
 
   my $saveDirPtrn = $isProton ? $PROTON_BASE_DIR_PATTERN : $LINUX_BASE_DIR_PATTERN;
-  $saveDirPtrn .= "/" . $$GAME_SAVE_SUBDIRS{$kingdomGameName};
-  my $saveDir = globOne "'$saveDirPtrn'";
+
+  my $saveDir;
+  if(defined $overrideKingdomSaveDir){
+    $saveDir = $overrideKingdomSaveDir;
+  }else{
+    $saveDirPtrn .= "/" . $$GAME_SAVE_SUBDIRS{$kingdomGameName};
+    $saveDir = globOne "'$saveDirPtrn'";
+  }
+
   if(not defined $saveDir or not -d $saveDir){
     die "ERROR: SAVE_DIR '$saveDirPtrn' does not exist\n";
   }
