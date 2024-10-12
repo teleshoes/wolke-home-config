@@ -133,6 +133,9 @@ alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 
+function cursorBlink {
+  printf '\x1b[1 q'
+}
 function cursorNoBlink {
   printf '\x1b[2 q'
 }
