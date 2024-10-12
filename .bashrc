@@ -426,6 +426,7 @@ function git() {
     command git log "$@"
   elif [[ "$cmd" == gui ]]; then
     command lazygit
+    cursorNoBlink;
   elif [[ "$cmd" == gui-real ]]; then
     command git gui "$@"
   else
