@@ -132,7 +132,10 @@ alias time="command time"
 alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
-alias r='stty sane'
+
+function r {
+  command stty sane "$@";
+}
 
 IPMAGIC_DIR="$HOME/.config/ipmagic"
 IPMAGIC_CONF_FILES=$(ls $IPMAGIC_DIR/*.conf 2>/dev/null)
