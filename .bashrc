@@ -133,6 +133,10 @@ alias mkdir="mkdir -p"
 alias :q='exit'
 alias :r='. /etc/profile; . ~/.bashrc;'
 
+function cursorNoBlink {
+  printf '\x1b[2 q'
+}
+
 function r {
   command stty sane "$@";
 }
