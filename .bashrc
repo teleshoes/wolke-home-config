@@ -138,6 +138,7 @@ function cursorNoBlink {
 }
 
 function r {
+  cursorNoBlink;
   command stty sane "$@";
 }
 
