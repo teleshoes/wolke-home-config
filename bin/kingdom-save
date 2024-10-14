@@ -49,13 +49,19 @@ my $GAME_NAME_BY_ALIAS = {map {
   map {$_ => $gameName} ($gameName, @{$$GAME_ALIASES{$gameName}})
 } sort keys %$GAMES};
 
-my $PROTON_APP_DATA_DIR_PATTERN = "$ENV{HOME}/.steam/steam/"
+###
+### SAVE_DIR = APP_DATA_HOME_DIR/APP_DATA_DIR_PATTERN/GAME_SAVE_SUBDIR
+###
+
+my $DEFAULT_APP_DATA_HOME_DIR = $ENV{HOME};
+
+my $PROTON_APP_DATA_DIR_PATTERN = ".steam/steam/"
   . "steamapps/compatdata/"
   . "*/" #app ID, e.g.: 701160
   . "pfx/drive_c/users/steamuser/"
   . "AppData/LocalLow"
 ;
-my $LINUX_APP_DATA_DIR_PATTERN = "$ENV{HOME}/.config/unity3d";
+my $LINUX_APP_DATA_DIR_PATTERN = ".config/unity3d";
 
 my $CACHE_BASE_DIR = "$ENV{HOME}/.cache";
 
@@ -198,9 +204,9 @@ my $usage = "Usage:
       -same as --game=LAST_KINGDOM_GAME_NAME
       (this is the default)
     --proton
-      use APP_DATA_DIR_PTRN=$PROTON_APP_DATA_DIR_PATTERN
+      use APP_DATA_DIR_PTRN=\$HOME/$PROTON_APP_DATA_DIR_PATTERN
     --no-proton
-      use APP_DATA_DIR_PTRN=$LINUX_APP_DATA_DIR_PATTERN
+      use APP_DATA_DIR_PTRN=\$HOME/$LINUX_APP_DATA_DIR_PATTERN
       (this is the default)
     --save-dir=KINGDOM_GAME_SAVE_DIR
       use KINGDOM_GAME_SAVE_DIR,
@@ -330,9 +336,9 @@ my $usage = "Usage:
   KINGDOM_GAME_SAVE_DIR
     determined by --game=KINGDOM_GAME_NAME and --proton/--no-proton
       -if --proton, use BASE_SAVE_DIR:
-        $PROTON_APP_DATA_DIR_PATTERN
+        \$HOME/$PROTON_APP_DATA_DIR_PATTERN
       -if --no-proton, use BASE_SAVE_DIR:
-        $LINUX_APP_DATA_DIR_PATTERN
+        \$HOME/$LINUX_APP_DATA_DIR_PATTERN
       -get KINGDOM_GAME_NAME from --game
       -use GAME_SUB_DIR based on KINGDOM_GAME_NAME:"
         . join("",
@@ -456,10 +462,11 @@ sub main(@){
   if(defined $overrideKingdomSaveDir){
     $saveDir = $overrideKingdomSaveDir;
   }else{
-    my $saveDirPtrn = $isProton ? $PROTON_APP_DATA_DIR_PATTERN : $LINUX_APP_DATA_DIR_PATTERN;
-    $saveDirPtrn .= "/" . $$GAME_SAVE_SUBDIRS{$kingdomGameName};
-    $saveDir = globOne "'$saveDirPtrn'";
+    my $appDataHomeDir = $DEFAULT_APP_DATA_HOME_DIR;
+    my $appDataDirPtrn = $isProton ? $PROTON_APP_DATA_DIR_PATTERN : $LINUX_APP_DATA_DIR_PATTERN;
+    my $saveDirPtrn = "$appDataHomeDir/$appDataDirPtrn/$$GAME_SAVE_SUBDIRS{$kingdomGameName}";
 
+    $saveDir = globOne "'$saveDirPtrn'";
     if(not defined $saveDir or not -d $saveDir){
       die "ERROR: SAVE_DIR '$saveDirPtrn' does not exist\n";
     }
