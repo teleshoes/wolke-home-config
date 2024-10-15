@@ -12,35 +12,41 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC
-  $EXEC -g | --get | g | get
+    same as: $EXEC --get
+
+  $EXEC CMD [CMD ..]
+    run each CMD in order
+
+  CMD
+  -g | --get | g | get
     read $BT_DEV
     print 'on' if 'enabled', print 'off' if 'disabled'
 
-  $EXEC --on | on
+  --on | on
     echo 'enable' to $BT_DEV
 
-  $EXEC --off | off
+  --off | off
     echo 'enable' to $BT_DEV
 
-  $EXEC -t | --toggle | t | toggle
+  -t | --toggle | t | toggle
     read $BT_DEV
     if 'enabled': echo 'disable' to $BT_DEV
     if 'disabled': echo 'enable' to $BT_DEV
 
-  $EXEC -b | --block | b | block
+  -b | --block | b | block
     run: rfkill block bluetooth
 
-  $EXEC -u | --unblock | u | unblock
+  -u | --unblock | u | unblock
     run: rfkill unblock bluetooth
 
-  $EXEC --start | start
+  --start | start
     run: systemctl start bluetooth
-  $EXEC --stop | stop
+  --stop | stop
     run: systemctl stop bluetooth
-  $EXEC --restart | restart
+  --restart | restart
     run: systemctl restart bluetooth
 
-  $EXEC -m | --module-reload | m | module-reload | --reload | reload
+  -m | --module-reload | m | module-reload | --reload | reload
     run: modprobe -r btusb; modprobe btusb
 ";
 
@@ -60,60 +66,64 @@ my $CMD_RESTART = "restart";
 my $CMD_MODULE_RELOAD = "module-reload";
 
 sub main(@){
-  my $cmd = $CMD_GET;
+  my @cmds;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
     }elsif($arg =~ /^(-g|--get|g|get)$/){
-      $cmd = $CMD_GET;
+      push @cmds, $CMD_GET;
     }elsif($arg =~ /^(--on|on)$/){
-      $cmd = $CMD_ON;
+      push @cmds, $CMD_ON;
     }elsif($arg =~ /^(--off|off)$/){
-      $cmd = $CMD_OFF;
+      push @cmds, $CMD_OFF;
     }elsif($arg =~ /^(-t|--toggle|t|toggle)$/){
-      $cmd = $CMD_TOGGLE;
+      push @cmds, $CMD_TOGGLE;
     }elsif($arg =~ /^(-b|--block|b|block)$/){
-      $cmd = $CMD_BLOCK;
+      push @cmds, $CMD_BLOCK;
     }elsif($arg =~ /^(-u|--unblock|u|unblock)$/){
-      $cmd = $CMD_UNBLOCK;
+      push @cmds, $CMD_UNBLOCK;
     }elsif($arg =~ /^(--start|start)$/){
-      $cmd = $CMD_START;
+      push @cmds, $CMD_START;
     }elsif($arg =~ /^(--stop|stop)$/){
-      $cmd = $CMD_STOP;
+      push @cmds, $CMD_STOP;
     }elsif($arg =~ /^(--restart|restart)$/){
-      $cmd = $CMD_RESTART;
+      push @cmds, $CMD_RESTART;
     }elsif($arg =~ /^(-m|--module-reload|m|module-reload|--reload|reload)$/){
-      $cmd = $CMD_MODULE_RELOAD;
+      push @cmds, $CMD_MODULE_RELOAD;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
-  if($cmd eq $CMD_GET){
-    print get() ? "on\n" : "off\n";
-  }elsif($cmd eq $CMD_ON){
-    set(1);
-  }elsif($cmd eq $CMD_OFF){
-    set(0);
-  }elsif($cmd eq $CMD_TOGGLE){
-    set(get() ? 0 : 1);
-  }elsif($cmd eq $CMD_BLOCK){
-    run "rfkill block bluetooth";
-  }elsif($cmd eq $CMD_UNBLOCK){
-    run "rfkill unblock bluetooth";
-  }elsif($cmd eq $CMD_START){
-    run "systemctl start bluetooth";
-  }elsif($cmd eq $CMD_STOP){
-    run "systemctl stop bluetooth";
-  }elsif($cmd eq $CMD_RESTART){
-    run "systemctl restart bluetooth";
-  }elsif($cmd eq $CMD_MODULE_RELOAD){
-    run "modprobe -r btusb";
-    run "modprobe btusb";
-  }else{
-    die "ERROR: unknown command $cmd\n";
+  @cmds = ($CMD_GET) if @cmds == 0;
+
+  for my $cmd(@cmds){
+    if($cmd eq $CMD_GET){
+      print get() ? "on\n" : "off\n";
+    }elsif($cmd eq $CMD_ON){
+      set(1);
+    }elsif($cmd eq $CMD_OFF){
+      set(0);
+    }elsif($cmd eq $CMD_TOGGLE){
+      set(get() ? 0 : 1);
+    }elsif($cmd eq $CMD_BLOCK){
+      run "rfkill block bluetooth";
+    }elsif($cmd eq $CMD_UNBLOCK){
+      run "rfkill unblock bluetooth";
+    }elsif($cmd eq $CMD_START){
+      run "systemctl start bluetooth";
+    }elsif($cmd eq $CMD_STOP){
+      run "systemctl stop bluetooth";
+    }elsif($cmd eq $CMD_RESTART){
+      run "systemctl restart bluetooth";
+    }elsif($cmd eq $CMD_MODULE_RELOAD){
+      run "modprobe -r btusb";
+      run "modprobe btusb";
+    }else{
+      die "ERROR: unknown command $cmd\n";
+    }
   }
 }
 
