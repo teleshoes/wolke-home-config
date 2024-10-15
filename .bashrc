@@ -207,6 +207,12 @@ function mpu          {
   livestreamer "$@" $default_quality
 }
 
+function kingdom-save-subvol {
+  for subvolHome in /home/SUBVOL/*/*/wolke; do
+    kingdom-save --home="$subvolHome/";
+  done
+}
+
 function tpacpi-bat {
   thinkpad-acpi-charge "$@";
 }
