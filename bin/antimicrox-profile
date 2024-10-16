@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+sub selectAmgpFile($);
+sub run(@);
+
+my $EXEC = basename($0);
+
+my $ANTIMICROX_DIR = "$ENV{HOME}/.config/antimicrox";
+my @AMGP_PROFILE_FILENAMES = map {basename $_} grep {-f $_} glob "$ANTIMICROX_DIR/*.amgp";
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC AMGP_FILE
+    run: pkill -x -9 antimicrox
+    run: antimicrox --hidden --profile AMGP_FILE
+
+  $EXEC PROFILE_REGEX
+    -find AMGP_PROFILE_FILES that match PROFILE_REGEX in:
+      $ANTIMICROX_DIR/
+    -select the first lexicographically as AMGP_FILE
+    -same as: $EXEC AMGP_FILE
+
+  AMGP_PROFILES" . join("", map {"\n    $_"} @AMGP_PROFILE_FILENAMES) . "
+";
+
+sub main(@){
+  my $amgpFile = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      $amgpFile = $arg;
+    }elsif(not defined $amgpFile){
+      my $regex = $arg;
+      $amgpFile = selectAmgpFile($regex);
+      if(not defined $amgpFile){
+        die "$USAGE\nERROR: could not find profile matching '$regex'\n";
+      }
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$USAGE\nERROR: missing AMGP_FILE\n" if not defined $amgpFile;
+
+  run "pkill", "-x", "-9", "antimicrox";
+  run "antimicrox", "--hidden", "--profile", $amgpFile;
+}
+
+sub selectAmgpFile($){
+  my ($regex) = @_;
+  for my $fileName(sort @AMGP_PROFILE_FILENAMES){
+    if($fileName =~ /$regex/){
+      return "$ANTIMICROX_DIR/$fileName";
+    }
+  }
+  return undef;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
