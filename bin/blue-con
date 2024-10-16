@@ -17,6 +17,11 @@ my @DEVICE_NAMES = map {uc $$_[0]} @DEVICE_CSV_ARR;
 my %DEVICE_MACS = map {uc $$_[0] => $$_[1]} @DEVICE_CSV_ARR;
 my %DEVICE_INIT_CMDS = map {uc $$_[0] => $$_[2]} @DEVICE_CSV_ARR;
 
+my @BLUETOOTHCTL_DEV_CMDS = qw(
+  pair trust untrust block unblock remove connect disconnect info
+);
+my $REGEX_BLUETOOTHCTL_DEV_CMD = join "|", @BLUETOOTHCTL_DEV_CMDS;
+
 my $LOG_PREFIX = "/tmp/bt-scan";
 my $LOG_SYMLINK = $LOG_PREFIX;
 
@@ -44,18 +49,15 @@ my $USAGE = "Usage:
     -obtain DEVICE_INIT_CMD for DEVICE_NAME
     -run: `DEVICE_INIT_CMD`
 
-  $EXEC --pair DEVICE_NAME
+  $EXEC --BLUETOOTHCTL_DEV_CMD DEVICE_NAME
     -obtain DEVICE_MAC for DEVICE_NAME
-    -run: `bluetoothctl pair DEVICE_MAC`
-  $EXEC --remove DEVICE_NAME
-    -obtain DEVICE_MAC for DEVICE_NAME
-    -run: `bluetoothctl remove DEVICE_MAC`
-  $EXEC --connect DEVICE_NAME
-    -obtain DEVICE_MAC for DEVICE_NAME
-    -run: `bluetoothctl connect DEVICE_MAC`
-  $EXEC --disconnect DEVICE_NAME
-    -obtain DEVICE_MAC for DEVICE_NAME
-    -run: `bluetoothctl disconnect DEVICE_MAC`
+    -run: `bluetoothctl BLUETOOTHCTL_CMD DEVICE_MAC`
+      e.g.:
+        $EXEC --pair DEVICE_NAME
+        $EXEC --trust DEVICE_NAME
+
+   BLUETOOTHCTL_DEV_CMD
+     one of: @BLUETOOTHCTL_DEV_CMDS
 
    DEVICE_NAME
      one of: @DEVICE_NAMES
@@ -69,14 +71,12 @@ my $USAGE = "Usage:
 
 my $CMD_SETUP = "setup";
 my $CMD_INIT = "init";
-my $CMD_PAIR = "pair";
-my $CMD_REMOVE = "remove";
-my $CMD_CONNECT = "connect";
-my $CMD_DISCONNECT = "disconnect";
+my $CMD_BLUETOOTHCTL_DEV_CMD = "bluetoothctl-dev-cmd";
 
 sub main(@){
   my $deviceName;
   my $cmd = $CMD_SETUP;
+  my $bluetoothctlDevCmd = undef;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -88,14 +88,9 @@ sub main(@){
       $cmd = $CMD_SETUP;
     }elsif($arg =~ /^(--init)$/){
       $cmd = $CMD_INIT;
-    }elsif($arg =~ /^(--pair)$/){
-      $cmd = $CMD_PAIR;
-    }elsif($arg =~ /^(--remove)$/){
-      $cmd = $CMD_REMOVE;
-    }elsif($arg =~ /^(--connect)$/){
-      $cmd = $CMD_CONNECT;
-    }elsif($arg =~ /^(--disconnect)$/){
-      $cmd = $CMD_DISCONNECT;
+    }elsif($arg =~ /^--($REGEX_BLUETOOTHCTL_DEV_CMD)$/i){
+      $cmd = $CMD_BLUETOOTHCTL_DEV_CMD;
+      $bluetoothctlDevCmd = lc $1;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -145,14 +140,8 @@ sub main(@){
     }
   }elsif($cmd eq $CMD_INIT){
     run "$deviceInitCmd" if defined $deviceInitCmd;
-  }elsif($cmd eq $CMD_PAIR){
-    run "bluetoothctl pair $deviceMac";
-  }elsif($cmd eq $CMD_REMOVE){
-    run "bluetoothctl remove $deviceMac";
-  }elsif($cmd eq $CMD_CONNECT){
-    run "bluetoothctl connect $deviceMac";
-  }elsif($cmd eq $CMD_DISCONNECT){
-    run "bluetoothctl disconnect $deviceMac";
+  }elsif($cmd eq $CMD_BLUETOOTHCTL_DEV_CMD){
+    run "bluetoothctl $bluetoothctlDevCmd $deviceMac";
   }else{
     die "ERROR: unknown command $cmd\n";
   }
