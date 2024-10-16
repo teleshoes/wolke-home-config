@@ -4,20 +4,19 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
+sub parseBluetoothDevicesConf();
 sub run(@);
 sub runOrDie(@);
 sub runUntilSuccess(@);
 sub nowMillis();
 
-my @DEVICE_ARR = (
-  [JBL   => '2C:FD:B3:2B:59:85' => undef],
-  [ZERO2 => 'E4:17:D8:90:0D:08' => "8bitdo-zero-keyboard-map"],
-  [SN30  => 'E4:17:D8:DD:0B:7E' => "antimicrox-profile sn30-kingdom"],
-);
-my @DEVICE_NAMES = map {uc $$_[0]} @DEVICE_ARR;
+my $DEVICE_CSV_FILE = "$ENV{HOME}/.config/bluetooth-devices.conf";
+
+my @DEVICE_CSV_ARR = parseBluetoothDevicesConf();
+my @DEVICE_NAMES = map {uc $$_[0]} @DEVICE_CSV_ARR;
 my $DEFAULT_DEVICE_NAME = @DEVICE_NAMES > 0 ? $DEVICE_NAMES[0] : undef;
-my %DEVICE_MACS = map {uc $$_[0] => $$_[1]} @DEVICE_ARR;
-my %DEVICE_INIT_CMDS = map {uc $$_[0] => $$_[2]} @DEVICE_ARR;
+my %DEVICE_MACS = map {uc $$_[0] => $$_[1]} @DEVICE_CSV_ARR;
+my %DEVICE_INIT_CMDS = map {uc $$_[0] => $$_[2]} @DEVICE_CSV_ARR;
 
 my $LOG_PREFIX = "/tmp/bt-scan";
 my $LOG_SYMLINK = $LOG_PREFIX;
@@ -156,6 +155,39 @@ sub main(@){
   }else{
     die "ERROR: unknown command $cmd\n";
   }
+}
+
+sub parseBluetoothDevicesConf(){
+  my @devicesCsv;
+  if(not -f $DEVICE_CSV_FILE){
+    print STDERR "WARNING: missing $DEVICE_CSV_FILE\n";
+    return @devicesCsv;
+  }
+  open my $fh, "< $DEVICE_CSV_FILE" or die "ERROR: could not read $DEVICE_CSV_FILE\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
+  my $byteRe = '[0-9a-f][0-9a-f]';
+  for my $line(@lines){
+    $line =~ s/#.*//;
+    next if $line =~ /^\s*$/;
+    if($line =~ /^\s*(\w+)\s*,\s*($byteRe:$byteRe:$byteRe:$byteRe:$byteRe:$byteRe)\s*,(.*)$/i){
+      my ($devName, $mac, $initCmd) = ($1, $2, $3);
+      $mac = uc $mac;
+      $initCmd =~ s/^\s*//;
+      $initCmd =~ s/\s*$//;
+      $initCmd = undef if $initCmd eq "";
+
+      push @devicesCsv, [$devName, $mac, $initCmd];
+    }else{
+      print STDERR "WARNING: malformed line in $DEVICE_CSV_FILE\n$line";
+    }
+  }
+
+  if(@devicesCsv == 0){
+    print STDERR "WARNING: no devices in $DEVICE_CSV_FILE\n";
+  }
+
+  return @devicesCsv;
 }
 
 sub run(@){
