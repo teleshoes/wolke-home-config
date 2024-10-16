@@ -8,7 +8,7 @@ sub bluetoothctlDevCmd($$);
 sub setup($);
 sub devInitCmd($);
 sub parseBluetoothDevicesConf();
-sub run(@);
+sub tryrun(@);
 sub runOrDie(@);
 sub runUntilSuccess(@);
 sub nowMillis();
@@ -132,7 +132,7 @@ sub main(@){
 sub bluetoothctlDevCmd($$){
   my ($deviceName, $cmd) = @_;
   my $deviceMac = $DEVICE_MACS{$deviceName};
-  return run "bluetoothctl", $cmd, $deviceMac;
+  return tryrun "bluetoothctl", $cmd, $deviceMac;
 }
 
 sub setup($){
@@ -146,25 +146,25 @@ sub setup($){
 
   my $logFile = "$LOG_PREFIX-" . nowMillis();
   print "\nstarting scan in screen\n";
-  run "rm -f $LOG_PREFIX*";
-  run "ln -s $logFile $LOG_SYMLINK";
+  tryrun "rm -f $LOG_PREFIX*";
+  tryrun "ln -s $logFile $LOG_SYMLINK";
 
   runOrDie "screen-daemon bt-scan --start 0 0 'unbuffer bluetoothctl scan on | tee $logFile'";
   print "logging to $logFile (symlink at $LOG_SYMLINK)\n";
   sleep 3;
 
   print "\ntrying ONCE to connect device\n";
-  my $success = run "bluetoothctl connect $deviceMac";
+  my $success = tryrun "bluetoothctl connect $deviceMac";
   if(not $success){
     print "\nremoving, pairing, and connecting device\n";
-    run "bluetoothctl remove $deviceMac";
+    tryrun "bluetoothctl remove $deviceMac";
     runUntilSuccess "bluetoothctl pair $deviceMac";
     runUntilSuccess "bluetoothctl connect $deviceMac";
   }
 
   runOrDie "screen-daemon bt-scan --stop";
 
-  run "bluetoothctl trust $deviceMac";
+  tryrun "bluetoothctl trust $deviceMac";
 
   devInitCmd($deviceName);
 }
@@ -212,18 +212,18 @@ sub parseBluetoothDevicesConf(){
   return @devicesCsv;
 }
 
-sub run(@){
+sub tryrun(@){
   print "@_\n";
   system @_;
   return $? == 0 ? 1 : 0;
 }
 sub runOrDie(@){
-  run @_ or die "ERROR: @_ failed\n";
+  tryrun @_ or die "ERROR: @_ failed\n";
 }
 sub runUntilSuccess(@){
   my $startTime = nowMillis();
   while(1){
-    my $isSuccess = run @_;
+    my $isSuccess = tryrun @_;
     if($isSuccess){
       last;
     }else{
