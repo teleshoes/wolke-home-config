@@ -6,6 +6,8 @@ use Time::HiRes qw(time);
 
 sub bluetoothctlDevCmd($$);
 sub tryBluetoothctlDevCmd($$);
+sub forceReconnectDevice($);
+sub expectReconnect($);
 sub setup($);
 sub devInitCmd($);
 sub parseBluetoothDevicesConf();
@@ -22,6 +24,8 @@ my @DEVICE_CSV_ARR = parseBluetoothDevicesConf();
 my @DEVICE_NAMES = map {uc $$_[0]} @DEVICE_CSV_ARR;
 my %DEVICE_MACS = map {uc $$_[0] => $$_[1]} @DEVICE_CSV_ARR;
 my %DEVICE_INIT_CMDS = map {uc $$_[0] => $$_[2]} @DEVICE_CSV_ARR;
+
+my $BLUETOOTHCTL_SCAN_TIMEOUT_S = 20;
 
 my @BLUETOOTHCTL_DEV_CMDS = qw(
   pair trust untrust block unblock remove connect disconnect info
@@ -57,6 +61,22 @@ my $USAGE = "Usage:
     restart/reload/unblock bluetooth (modprobe/systemctl/rfkill) with `bluetooth` cmd
     -run: $BLUETOOTH_RESTART_CMD
 
+  $EXEC reconnect DEVICE_NAME
+  $EXEC --reconnect DEVICE_NAME
+    -obtain DEVICE_MAC for DEVICE_NAME
+    -run: $EXEC --restart-bluetooth
+    -run: `bluetoothctl remove DEVICE_MAC`
+    -run `bluetoothctl` with `expect`:
+      -expect: Agent Registered
+      -send:   scan on
+      -expect: [NEW] Device DEVICE_MAC
+      -send:   pair DEVICE_MAC
+      -expect: Pairing successful
+      -send:   connect DEVICE_MAC
+      -expect: Connection successful
+      -send:   trust DEVICE_MAC
+      -expect: Changing DEVICE_MAC trust succeeded
+
   $EXEC init DEVICE_NAME
   $EXEC --init DEVICE_NAME
     -obtain optional DEVICE_INIT_CMD for DEVICE_NAME
@@ -86,6 +106,7 @@ my $USAGE = "Usage:
 
 my $CMD_SETUP = "setup";
 my $CMD_RESTART_BLUETOOTH = "restart-bluetooth";
+my $CMD_RECONNECT = "reconnect";
 my $CMD_INIT = "init";
 my $CMD_BLUETOOTHCTL_DEV_CMD = "bluetoothctl-dev-cmd";
 
@@ -102,6 +123,8 @@ sub main(@){
       $cmd = $CMD_SETUP;
     }elsif($arg =~ /^(restart|--restart)$/){
       $cmd = $CMD_RESTART_BLUETOOTH;
+    }elsif($arg =~ /^(reconnect|--reconnect)$/){
+      $cmd = $CMD_RECONNECT;
     }elsif($arg =~ /^(init|--init)$/){
       $cmd = $CMD_INIT;
     }elsif($arg =~ /^(?:--)?($REGEX_BLUETOOTHCTL_DEV_CMD)$/i){
@@ -119,6 +142,9 @@ sub main(@){
     setup($deviceName);
   }elsif($cmd eq $CMD_RESTART_BLUETOOTH){
     runOrDie $BLUETOOTH_RESTART_CMD;
+  }elsif($cmd eq $CMD_RECONNECT){
+    die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
+    forceReconnectDevice($deviceName);
   }elsif($cmd eq $CMD_INIT){
     die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
     devInitCmd($deviceName);
@@ -139,6 +165,49 @@ sub tryBluetoothctlDevCmd($$){
   my ($deviceName, $cmd) = @_;
   my $deviceMac = $DEVICE_MACS{$deviceName};
   return tryrun "bluetoothctl", $cmd, $deviceMac;
+}
+
+sub forceReconnectDevice($){
+  my ($deviceName) = @_;
+
+  runOrDie $BLUETOOTH_RESTART_CMD;
+  sleep 1;
+  tryBluetoothctlDevCmd($deviceName, "remove");
+
+  expectReconnect($deviceName);
+}
+
+sub expectReconnect($){
+  my ($deviceName) = @_;
+  my $deviceMac = $DEVICE_MACS{$deviceName};
+  my $expectScript = "
+    set timeout $BLUETOOTHCTL_SCAN_TIMEOUT_S
+
+    expect_before {
+      timeout { puts \"ERROR: timeout\"; exit 1 }
+    }
+
+    spawn bluetoothctl
+    expect {Agent registered}
+    send -- \"scan on\\r\"
+    expect -re {NEW.* Device $deviceMac}
+    puts \"\\n\\nDEVICE '$deviceName' $deviceMac FOUND IN SCAN\\n\"
+    send -- \"pair $deviceMac\\r\"
+    expect {Pairing successful}
+    send -- \"connect $deviceMac\\r\"
+    expect {Connection successful}
+    send -- \"trust $deviceMac\\r\"
+    expect {Changing $deviceMac trust succeeded}
+  ";
+
+  print "\n\n";
+  print "running bluetoothctl in expect (timeout=${BLUETOOTHCTL_SCAN_TIMEOUT_S}s)\n";
+  system "expect", "-c", $expectScript;
+  print "\n\n";
+
+  if($? != 0){
+    die "ERROR: expect failed\n";
+  }
 }
 
 sub setup($){
