@@ -41,6 +41,10 @@ my $USAGE = "Usage:
       -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
     -run: `DEVICE_INIT_CMD`
 
+  $EXEC --init [DEVICE_NAME]
+    -obtain DEVICE_INIT_CMD for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
+    -run: `DEVICE_INIT_CMD`
+
   $EXEC --pair [DEVICE_NAME]
     -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
     -run: `bluetoothctl pair DEVICE_MAC`
@@ -53,9 +57,6 @@ my $USAGE = "Usage:
   $EXEC --disconnect [DEVICE_NAME]
     -obtain DEVICE_MAC for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
     -run: `bluetoothctl disconnect DEVICE_MAC`
-  $EXEC --init [DEVICE_NAME]
-    -obtain DEVICE_INIT_CMD for DEVICE_NAME (default is $DEFAULT_DEVICE_NAME)
-    -run: `DEVICE_INIT_CMD`
 
    DEVICE_NAME
      one of: @DEVICE_NAMES
@@ -68,11 +69,11 @@ my $USAGE = "Usage:
 ";
 
 my $CMD_SETUP = "setup";
+my $CMD_INIT = "init";
 my $CMD_PAIR = "pair";
 my $CMD_REMOVE = "remove";
 my $CMD_CONNECT = "connect";
 my $CMD_DISCONNECT = "disconnect";
-my $CMD_INIT = "init";
 
 sub main(@){
   my $deviceName = $DEFAULT_DEVICE_NAME;
@@ -86,6 +87,8 @@ sub main(@){
       $deviceName = uc $arg;
     }elsif($arg =~ /^(--setup)$/){
       $cmd = $CMD_SETUP;
+    }elsif($arg =~ /^(--init)$/){
+      $cmd = $CMD_INIT;
     }elsif($arg =~ /^(--pair)$/){
       $cmd = $CMD_PAIR;
     }elsif($arg =~ /^(--remove)$/){
@@ -94,8 +97,6 @@ sub main(@){
       $cmd = $CMD_CONNECT;
     }elsif($arg =~ /^(--disconnect)$/){
       $cmd = $CMD_DISCONNECT;
-    }elsif($arg =~ /^(--init)$/){
-      $cmd = $CMD_INIT;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -142,6 +143,8 @@ sub main(@){
       sleep 2;
       run $deviceInitCmd;
     }
+  }elsif($cmd eq $CMD_INIT){
+    run "$deviceInitCmd" if defined $deviceInitCmd;
   }elsif($cmd eq $CMD_PAIR){
     run "bluetoothctl pair $deviceMac";
   }elsif($cmd eq $CMD_REMOVE){
@@ -150,8 +153,6 @@ sub main(@){
     run "bluetoothctl connect $deviceMac";
   }elsif($cmd eq $CMD_DISCONNECT){
     run "bluetoothctl disconnect $deviceMac";
-  }elsif($cmd eq $CMD_INIT){
-    run "$deviceInitCmd" if defined $deviceInitCmd;
   }else{
     die "ERROR: unknown command $cmd\n";
   }
