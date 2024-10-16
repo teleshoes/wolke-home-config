@@ -4,6 +4,9 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
+sub bluetoothctlDevCmd($$);
+sub setup($);
+sub devInitCmd($);
 sub parseBluetoothDevicesConf();
 sub run(@);
 sub runOrDie(@);
@@ -100,54 +103,71 @@ sub main(@){
   }
 
   die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
-  my $deviceMac = $DEVICE_MACS{$deviceName};
-  my $deviceInitCmd = $DEVICE_INIT_CMDS{$deviceName};
 
   if($cmd eq $CMD_SETUP){
-    print "\nrestarting/reloading bluetooth\n";
-    runOrDie "sudo", "bluetooth", "--off";
-    runOrDie "sudo", "bluetooth", "--on";
-    runOrDie "sudo", "bluetooth", "--module-reload";
-    runOrDie "sudo", "bluetooth", "--restart";
-    runOrDie "sudo", "bluetooth", "--unblock";
-    sleep 3;
-    runOrDie "bluetoothctl power off";
-    runOrDie "bluetoothctl power on";
-
-    my $logFile = "$LOG_PREFIX-" . nowMillis();
-    print "\nstarting scan in screen\n";
-    run "rm -f $LOG_PREFIX*";
-    run "ln -s $logFile $LOG_SYMLINK";
-
-    runOrDie "screen-daemon bt-scan --start 0 0 'unbuffer bluetoothctl scan on | tee $logFile'";
-    print "logging to $logFile (symlink at $LOG_SYMLINK)\n";
-    sleep 3;
-
-    print "\ntrying ONCE to connect device\n";
-    my $success = run "bluetoothctl connect $deviceMac";
-    if(not $success){
-      print "\nremoving, pairing, and connecting device\n";
-      run "bluetoothctl remove $deviceMac";
-      runUntilSuccess "bluetoothctl pair $deviceMac";
-      runUntilSuccess "bluetoothctl connect $deviceMac";
-    }
-
-    runOrDie "screen-daemon bt-scan --stop";
-
-    run "bluetoothctl trust $deviceMac";
-
-    if(defined $deviceInitCmd){
-      print "\ninit-cmd - waiting 2s and running $deviceInitCmd\n";
-      sleep 2;
-      run $deviceInitCmd;
-    }
+    setup($deviceName);
   }elsif($cmd eq $CMD_INIT){
-    run "$deviceInitCmd" if defined $deviceInitCmd;
+    devInitCmd($deviceName);
   }elsif($cmd eq $CMD_BLUETOOTHCTL_DEV_CMD){
-    run "bluetoothctl $bluetoothctlDevCmd $deviceMac";
+    bluetoothctlDevCmd($deviceName, $bluetoothctlDevCmd);
   }else{
     die "ERROR: unknown command $cmd\n";
   }
+}
+
+sub bluetoothctlDevCmd($$){
+  my ($deviceName, $cmd) = @_;
+  my $deviceMac = $DEVICE_MACS{$deviceName};
+  return run "bluetoothctl", $cmd, $deviceMac;
+}
+
+sub setup($){
+  my ($deviceName) = @_;
+  my $deviceMac = $DEVICE_MACS{$deviceName};
+  my $deviceInitCmd = $DEVICE_INIT_CMDS{$deviceName};
+  print "\nrestarting/reloading bluetooth\n";
+  runOrDie "sudo", "bluetooth", "--off";
+  runOrDie "sudo", "bluetooth", "--on";
+  runOrDie "sudo", "bluetooth", "--module-reload";
+  runOrDie "sudo", "bluetooth", "--restart";
+  runOrDie "sudo", "bluetooth", "--unblock";
+  sleep 3;
+  runOrDie "bluetoothctl power off";
+  runOrDie "bluetoothctl power on";
+
+  my $logFile = "$LOG_PREFIX-" . nowMillis();
+  print "\nstarting scan in screen\n";
+  run "rm -f $LOG_PREFIX*";
+  run "ln -s $logFile $LOG_SYMLINK";
+
+  runOrDie "screen-daemon bt-scan --start 0 0 'unbuffer bluetoothctl scan on | tee $logFile'";
+  print "logging to $logFile (symlink at $LOG_SYMLINK)\n";
+  sleep 3;
+
+  print "\ntrying ONCE to connect device\n";
+  my $success = run "bluetoothctl connect $deviceMac";
+  if(not $success){
+    print "\nremoving, pairing, and connecting device\n";
+    run "bluetoothctl remove $deviceMac";
+    runUntilSuccess "bluetoothctl pair $deviceMac";
+    runUntilSuccess "bluetoothctl connect $deviceMac";
+  }
+
+  runOrDie "screen-daemon bt-scan --stop";
+
+  run "bluetoothctl trust $deviceMac";
+
+  if(defined $deviceInitCmd){
+    print "\ninit-cmd - waiting 2s and running $deviceInitCmd\n";
+    sleep 2;
+    run $deviceInitCmd;
+  }
+}
+
+sub devInitCmd($){
+  my ($deviceName) = @_;
+  my $deviceInitCmd = $DEVICE_INIT_CMDS{$deviceName};
+  run "$deviceInitCmd" if defined $deviceInitCmd;
 }
 
 sub parseBluetoothDevicesConf(){
