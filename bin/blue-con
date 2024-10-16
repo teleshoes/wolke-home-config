@@ -13,6 +13,8 @@ sub runOrDie(@);
 sub runUntilSuccess(@);
 sub nowMillis();
 
+my $BLUETOOTH_RESTART_CMD = "sudo bluetooth unblock off on module-reload restart";
+
 my $DEVICE_CSV_FILE = "$ENV{HOME}/.config/bluetooth-devices.conf";
 
 my @DEVICE_CSV_ARR = parseBluetoothDevicesConf();
@@ -49,6 +51,11 @@ my $USAGE = "Usage:
       -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
     -run: `DEVICE_INIT_CMD`
 
+  $EXEC restart
+  $EXEC --restart
+    restart/reload/unblock bluetooth (modprobe/systemctl/rfkill) with `bluetooth` cmd
+    -run: $BLUETOOTH_RESTART_CMD
+
   $EXEC init DEVICE_NAME
   $EXEC --init DEVICE_NAME
     -obtain DEVICE_INIT_CMD for DEVICE_NAME
@@ -76,6 +83,7 @@ my $USAGE = "Usage:
 ";
 
 my $CMD_SETUP = "setup";
+my $CMD_RESTART_BLUETOOTH = "restart-bluetooth";
 my $CMD_INIT = "init";
 my $CMD_BLUETOOTHCTL_DEV_CMD = "bluetoothctl-dev-cmd";
 
@@ -92,6 +100,8 @@ sub main(@){
       $deviceName = uc $arg;
     }elsif($arg =~ /^(setup|--setup)$/){
       $cmd = $CMD_SETUP;
+    }elsif($arg =~ /^(restart|--restart)$/){
+      $cmd = $CMD_RESTART_BLUETOOTH;
     }elsif($arg =~ /^(init|--init)$/){
       $cmd = $CMD_INIT;
     }elsif($arg =~ /^(?:--)?($REGEX_BLUETOOTHCTL_DEV_CMD)$/i){
@@ -105,6 +115,8 @@ sub main(@){
   if($cmd eq $CMD_SETUP){
     die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
     setup($deviceName);
+  }elsif($cmd eq $CMD_RESTART_BLUETOOTH){
+    runOrDie $BLUETOOTH_RESTART_CMD;
   }elsif($cmd eq $CMD_INIT){
     die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
     devInitCmd($deviceName);
