@@ -8,13 +8,10 @@ sub bluetoothctlDevCmd($$);
 sub tryBluetoothctlDevCmd($$);
 sub forceReconnectDevice($);
 sub expectReconnect($);
-sub setup($);
 sub devInitCmd($);
 sub parseBluetoothDevicesConf();
 sub tryrun(@);
 sub runOrDie(@);
-sub runUntilSuccess(@);
-sub nowMillis();
 
 my $BLUETOOTH_RESTART_CMD = "sudo bluetooth unblock off on module-reload restart";
 
@@ -32,11 +29,6 @@ my @BLUETOOTHCTL_DEV_CMDS = qw(
 );
 my $REGEX_BLUETOOTHCTL_DEV_CMD = join "|", @BLUETOOTHCTL_DEV_CMDS;
 
-my $LOG_PREFIX = "/tmp/bt-scan";
-my $LOG_SYMLINK = $LOG_PREFIX;
-
-my $COMMAND_RERUN_TIMEOUT_MILLIS = 60 * 1000;
-
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -46,15 +38,13 @@ my $USAGE = "Usage:
   $EXEC DEVICE_NAME
   $EXEC setup DEVICE_NAME
   $EXEC --setup DEVICE_NAME
-    -obtain DEVICE_MAC for DEVICE_NAME
-    -restart/reload/unblock bluetooth (modprobe/systemctl/rfkill) with `bluetooth` cmd
-    -start scan with `screen-daemon` and `bluetoothctl`
-    -attempt to connect to DEVICE_MAC once
-    -if connect fails:
-      -remove the DEVICE_MAC
-      -every 3s, until success, run: `bluetoothctl pair DEVICE_MAC`
-      -every 3s, until success, run: `bluetoothctl connect DEVICE_MAC`
-    -run: `DEVICE_INIT_CMD`
+    -run: `$EXEC --connect DEVICE_NAME`
+    -if not successful:
+      -if successful:
+        -run: `$EXEC --init DEVICE_NAME`
+      -otherwise:
+        -run: `$EXEC --reconnect DEVICE_NAME`
+        -run: `$EXEC --init DEVICE_NAME`
 
   $EXEC restart
   $EXEC --restart
@@ -139,7 +129,10 @@ sub main(@){
 
   if($cmd eq $CMD_SETUP){
     die "ERROR: missing DEVICE_NAME\n" if not defined $deviceName;
-    setup($deviceName);
+    if(not tryBluetoothctlDevCmd($deviceName, "connect")){
+      forceReconnectDevice($deviceName);
+    }
+    devInitCmd($deviceName);
   }elsif($cmd eq $CMD_RESTART_BLUETOOTH){
     runOrDie $BLUETOOTH_RESTART_CMD;
   }elsif($cmd eq $CMD_RECONNECT){
@@ -210,40 +203,6 @@ sub expectReconnect($){
   }
 }
 
-sub setup($){
-  my ($deviceName) = @_;
-  my $deviceMac = $DEVICE_MACS{$deviceName};
-  print "\nrestarting/reloading bluetooth\n";
-  runOrDie $BLUETOOTH_RESTART_CMD;
-  sleep 3;
-  runOrDie "bluetoothctl power off";
-  runOrDie "bluetoothctl power on";
-
-  my $logFile = "$LOG_PREFIX-" . nowMillis();
-  print "\nstarting scan in screen\n";
-  tryrun "rm -f $LOG_PREFIX*";
-  tryrun "ln -s $logFile $LOG_SYMLINK";
-
-  runOrDie "screen-daemon bt-scan --start 0 0 'unbuffer bluetoothctl scan on | tee $logFile'";
-  print "logging to $logFile (symlink at $LOG_SYMLINK)\n";
-  sleep 3;
-
-  print "\ntrying ONCE to connect device\n";
-  my $success = tryrun "bluetoothctl connect $deviceMac";
-  if(not $success){
-    print "\nremoving, pairing, and connecting device\n";
-    tryrun "bluetoothctl remove $deviceMac";
-    runUntilSuccess "bluetoothctl pair $deviceMac";
-    runUntilSuccess "bluetoothctl connect $deviceMac";
-  }
-
-  runOrDie "screen-daemon bt-scan --stop";
-
-  tryrun "bluetoothctl trust $deviceMac";
-
-  devInitCmd($deviceName);
-}
-
 sub devInitCmd($){
   my ($deviceName) = @_;
   my $deviceInitCmd = $DEVICE_INIT_CMDS{$deviceName};
@@ -294,26 +253,6 @@ sub tryrun(@){
 }
 sub runOrDie(@){
   tryrun @_ or die "ERROR: @_ failed\n";
-}
-sub runUntilSuccess(@){
-  my $startTime = nowMillis();
-  while(1){
-    my $isSuccess = tryrun @_;
-    if($isSuccess){
-      last;
-    }else{
-      my $elapsedMillis = nowMillis() - $startTime;
-      if($elapsedMillis > $COMMAND_RERUN_TIMEOUT_MILLIS){
-        die "ERROR: command-rerun timeout exceeded for @_\n";
-      }
-      print "@_ failed, waiting 3s and retrying...\n";
-      sleep 3;
-    }
-  }
-}
-
-sub nowMillis(){
-  return int(time() * 1000 + 0.5);
 }
 
 &main(@ARGV);
