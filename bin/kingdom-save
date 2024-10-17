@@ -714,10 +714,13 @@ sub parseSaveInfo($$){
   runQuiet "mkdir", "-p", $workDir;
   runQuiet "tar", "-xf", $tarFile, "-C", $workDir;
 
-  my $globalFile = globOne "$workDir/global*";
-  if(not defined $globalFile or not -f $globalFile){
-    die "ERROR: global save file missing from $tarFile\n";
+  my @globalFiles = grep {-f $_} glob "$workDir/global*";
+  if(@globalFiles == 0){
+    die "ERROR: could not find global save file in $tarFile\n";
+  }elsif(@globalFiles > 1){
+    die "ERROR: more than one global save file in $tarFile\n@globalFiles\n";
   }
+  my $globalFile = $globalFiles[0];
   my @islandFiles = grep {-f $_} glob "$workDir/island-*";
 
   my $globalSaveInfo = parseGlobalSaveFileJSON($globalFile);
