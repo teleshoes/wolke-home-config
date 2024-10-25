@@ -250,7 +250,7 @@ function rsyncsshc    { sshc --rsync "$@"; }
 
 function k            { pkill -9 keys ; keys-to-window; }
 
-function sm           { sheetmusic "$@"; }
+function sm           { sheetmusic --window --daemon --player --player-ipmagic=tv "$@"; }
 
 function pl           { play-show "$@"; }
 
