@@ -89,6 +89,12 @@ my $USAGE = "Usage:
          -run `play-show` as `ipmagic IPMAGIC_NAME --pty -s play-show`
          -get IPMAGIC_HOST with `ipmagic IPMAGIC_NAME --host`
          -add --prompt=IPMAGIC_HOST to `play-show`
+
+     --last-file
+       allow read+write of $LAST_USED_FILE
+       (this is the default)
+     --no-last-file
+       do not read or write $LAST_USED_FILE
 ";
 
 sub main(@){
@@ -104,6 +110,8 @@ sub main(@){
     daemon            => 0,
     player            => 0,
     playerIpmagicName => undef,
+    readLastUsedFile  => 1,
+    writeLastUsedFile => 1,
   );
   while(@_ > 0){
     my $arg = shift @_;
@@ -118,6 +126,12 @@ sub main(@){
       $opts{player} = 1;
     }elsif($arg =~ /^--player-ipmagic=(\w+)$/){
       $opts{playerIpmagicName} = $1;
+    }elsif($arg =~ /^(--last-file)$/){
+      $opts{readLastUsedFile} = 1;
+      $opts{writeLastUsedFile} = 1;
+    }elsif($arg =~ /^(--no-last-file)$/){
+      $opts{readLastUsedFile} = 0;
+      $opts{writeLastUsedFile} = 0;
     }elsif(not defined $name){
       $name = $arg;
     }elsif(not defined $typeArg){
@@ -127,11 +141,15 @@ sub main(@){
     }
   }
 
-  if(not defined $name and not defined $typeArg){
+  if($opts{readLastUsedFile} and not defined $name and not defined $typeArg){
     ($name, $typeArg) = readLastUsedFile();
     if(not defined $name){
       die "$USAGE\nERROR: could not read NAME from $LAST_USED_FILE\n";
     }
+  }
+
+  if(not defined $name){
+    die "$USAGE\nERROR: missing NAME\n";
   }
 
   if(defined $typeArg){
@@ -165,7 +183,9 @@ sub main(@){
     }
   }
 
-  writeLastUsedFile $name, $typeArg;
+  if($opts{writeLastUsedFile}){
+    writeLastUsedFile $name, $typeArg;
+  }
 
   my @cmd;
   if($typeName =~ /^(jpeg|image|single|double)$/){
