@@ -83,6 +83,12 @@ my $USAGE = "Usage:
        run commands before main command
          -run: `wmctrl -s 8`
          -run: `term play-show --show=NAME --interactive`
+
+     --player-ipmagic=IPMAGIC_NAME
+       run play-show remotely using ipmagic in --player mode:
+         -run `play-show` as `ipmagic IPMAGIC_NAME --pty -s play-show`
+         -get IPMAGIC_HOST with `ipmagic IPMAGIC_NAME --host`
+         -add --prompt=IPMAGIC_HOST to `play-show`
 ";
 
 sub main(@){
@@ -97,6 +103,7 @@ sub main(@){
     window            => 0,
     daemon            => 0,
     player            => 0,
+    playerIpmagicName => undef,
   );
   while(@_ > 0){
     my $arg = shift @_;
@@ -109,6 +116,8 @@ sub main(@){
       $opts{daemon} = 1;
     }elsif($arg =~ /^(-p|--player)$/){
       $opts{player} = 1;
+    }elsif($arg =~ /^--player-ipmagic=(\w+)$/){
+      $opts{playerIpmagicName} = $1;
     }elsif(not defined $name){
       $name = $arg;
     }elsif(not defined $typeArg){
@@ -180,6 +189,13 @@ sub main(@){
     system "wmctrl", "-s", 8;
 
     my @playShowCmd = ("play-show", "--show=$name", "--interactive");
+    if(defined $opts{playerIpmagicName}){
+      my $host = `ipmagic $opts{playerIpmagicName} --host`;
+      chomp $host;
+      push @playShowCmd, "--prompt=$host";
+
+      @playShowCmd = ("ipmagic", $opts{playerIpmagicName}, "--pty", "-s", @playShowCmd);
+    }
 
     my $playShowWinTitle = "sheetmusic-play-show";
     system "term", "-t", $playShowWinTitle, @playShowCmd;
