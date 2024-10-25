@@ -69,25 +69,32 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    die $USAGE;
-  }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
   }
 
-  my ($name, $typeArg);
-  if(@_ == 1){
-    $name = $_[0];
-  }elsif(@_ == 2){
-    ($name, $typeArg) = ($_[0], $_[1]);
-  }elsif(@_ == 0){
+  my $name = undef;
+  my $typeArg = undef;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(not defined $name){
+      $name = $arg;
+    }elsif(not defined $typeArg){
+      $typeArg = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $name and not defined $typeArg){
     ($name, $typeArg) = readLastUsedFile();
     if(not defined $name){
       die "$USAGE\nERROR: could not read NAME from $LAST_USED_FILE\n";
     }
-  }else{
-    die $USAGE;
   }
 
   if(defined $typeArg){
