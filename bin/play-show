@@ -34,12 +34,10 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS]
     -collect a list of SONG_DIRS to check:
-      -if --show=SHOW_NAME given:
+      -if --show=SHOW_NAME given, or SHOW_NAME defined in $SHOW_FILE:
         " . join("\n        ", map {"-include: $_/<SHOW_NAME>"} @MUSIC_BASE_DIRS) . "
       -include: \$PWD/
       -include: $PLAY_DIR/
-      -if $SHOW_FILE is present:
-        " . join("\n        ", map {"-include: $_/`cat $SHOW_FILE`"} @MUSIC_BASE_DIRS) . "
     -find the first song <FILE> matching <SONG_NUM> in <SONG_DIRS>
     -play song <FILE> with `mpv MPV_ARGS <FILE>`
     NOTE: --song SONG_NUM is required
@@ -79,8 +77,8 @@ my $USAGE = "Usage:
 
   OPTS
     --show=SHOW_NAME | --show SHOW_NAME
-      -look in sub dir SHOW_NAME of music dirs
-        -SHOW_NAME must start with a letter, followed by any letters/numbers/underscores
+      -override the value in $SHOW_FILE, look in sub dir SHOW_NAME of music dirs
+      -SHOW_NAME must start with a letter, followed by any letters/numbers/underscores
 
     --song=SONG_NUM | --song SONG_NUM
     --num=SONG_NUM | --num SONG_NUM
@@ -170,13 +168,14 @@ sub main(@){
   }
   $songNum =~ s/^0+//;
 
-  my $showFileContents = `cat $SHOW_FILE 2>/dev/null`;
-  if($showFileContents =~ /^\s*$/){
-    $showFileContents = undef;
-  }elsif($showFileContents =~ /^([a-zA-Z0-9_\-]+)$/){
-    $showFileContents = $1;
-  }else{
-    die "invalid $SHOW_FILE (must be letters/numbers/dashes/underscore): $showFileContents\n";
+  if(not defined $showName and -e $SHOW_FILE){
+    $showName = `cat $SHOW_FILE 2>/dev/null`;
+    chomp $showName;
+    $showName =~ s/^\s*//;
+    $showName =~ s/\s*$//;
+    if($showName !~ /^($showNameRegex)$/){
+      die "$USAGE\nERROR: invalid SHOW_NAME in $SHOW_FILE: $showName\n";
+    }
   }
 
 
@@ -189,11 +188,6 @@ sub main(@){
   @dirs = (@dirs, ".");
 
   @dirs = (@dirs, $PLAY_DIR);
-
-  if(defined $showFileContents){
-    @dirs = (@dirs, map {"$_/$showFileContents"} @MUSIC_BASE_DIRS);
-  }
-
 
   @dirs = grep {defined $_ and -d $_} @dirs;
 
