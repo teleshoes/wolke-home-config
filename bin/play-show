@@ -189,7 +189,10 @@ sub main(@){
   }
 
   if($mode eq $MODE_PLAY){
-    play($showName, $songNum, $startPos, $endPos);
+    my $res = play($showName, $songNum, $startPos, $endPos);
+    if($$res{status} eq "FAILED"){
+      die "$USAGE\nERROR: $$res{errorMsg}\n";
+    }
   }elsif($mode eq $MODE_INTERACTIVE){
     my @showNames = getShowDirs();
     my %okShowNames = map {$_ => 1} @showNames;
@@ -245,7 +248,10 @@ sub main(@){
         }
       }
       if(defined $songNum){
-        play($showName, $songNum, $startPos, $endPos);
+        my $res = play($showName, $songNum, $startPos, $endPos);
+        if($$res{status} eq "FAILED"){
+          die "$USAGE\nERROR: $$res{errorMsg}\n";
+        }
       }
     }
   }else{
@@ -255,6 +261,11 @@ sub main(@){
 
 sub play($$$$){
   my ($showName, $songNum, $startPos, $endPos) = @_;
+  my $res = {
+    status   => undef,
+    errorMsg => undef,
+  };
+
   if(defined $songNum){
     $songNum =~ s/^0+//;
   }
@@ -265,7 +276,9 @@ sub play($$$$){
       @showNameDirs = (@showNameDirs, grep {-d $_} glob "$baseDir/$showName/");
     }
     if(@showNameDirs == 0){
-      die "$USAGE\nERROR: unknown SHOW_NAME $showName\n";
+      $$res{status} = "FAILED";
+      $$res{errorMsg} = "unknown SHOW_NAME $showName";
+      return $res;
     }
   }
 
@@ -283,14 +296,16 @@ sub play($$$$){
   }
 
   if(@songFiles == 0){
-    my $errorMsg = "$USAGE\nERROR: no matching song";
+    my $errorMsg = "no matching song";
     if(defined $songNum){
       $errorMsg .= " with SONG_NUM=$songNum";
     }
     $errorMsg .= " found in SONG_DIRS:";
     $errorMsg .= join("", map {"\n  $_"} @dirs);
-    $errorMsg .= "\n";
-    die $errorMsg;
+
+    $$res{status} = "FAILED";
+    $$res{errorMsg} = $errorMsg;
+    return $res;
   }
 
   my @mpvArgs = @DEFAULT_MPV_ARGS;
@@ -305,6 +320,10 @@ sub play($$$$){
   my @cmd = ("mpv", @mpvArgs, @songFiles);
   print "@cmd\n";
   system @cmd;
+
+  $$res{status} = "SUCCESS";
+  $$res{errorMsg} = "";
+  return $res;
 }
 
 sub getShowDirs(){
