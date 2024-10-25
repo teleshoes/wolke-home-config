@@ -20,6 +20,9 @@ my @OTHER_DIRS = (
 
 my $LAST_USED_FILE = "$ENV{HOME}/.cache/last-used-sheetmusic";
 
+my @CMD_FEH_PAGE = qw(feh-page);
+my @CMD_FEH_WINDOW = qw(feh --scale-down --class sheetmusic-feh);
+
 my $TYPE_SYNS = {
   double    => "double",
   d         => "double",
@@ -68,6 +71,10 @@ my $USAGE = "Usage:
      COMP_POINT - the cursor position in the cmdline
 
    OPTS
+     -w | --window
+       use `feh` instead of `feh-page` with options to run windowed
+         run: @CMD_FEH_WINDOW
+         instead of: @CMD_FEH_PAGE
 ";
 
 sub main(@){
@@ -79,12 +86,15 @@ sub main(@){
   my $name = undef;
   my $typeArg = undef;
   my %opts = (
+    window => 0,
   );
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-w|--window)$/){
+      $opts{window} = 1;
     }elsif(not defined $name){
       $name = $arg;
     }elsif(not defined $typeArg){
@@ -136,8 +146,12 @@ sub main(@){
 
   my @cmd;
   if($typeName =~ /^(jpeg|image|single|double)$/){
-    @cmd = ("feh-page");
-    push @cmd, "--double" unless $typeName =~ /^(single)$/;
+    if($opts{window}){
+      @cmd = @CMD_FEH_WINDOW;
+    }else{
+      @cmd = @CMD_FEH_PAGE;
+      push @cmd, "--double" unless $typeName =~ /^(single)$/;
+    }
   }elsif($typeName =~ /^(pdf)$/){
     @cmd = ("evince");
   }elsif($typeName =~ /^(musescore)$/){
@@ -337,6 +351,7 @@ sub bashComplete($$){
     return (
       "-h", "--help",
       "--bash-complete",
+      "-w", "--window",
       @names,
     );
   }
