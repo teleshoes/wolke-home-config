@@ -21,6 +21,17 @@ my $OK_EXTS = join "|", @EXTS;
 
 my @DEFAULT_MPV_ARGS = qw(--no-video --af=@rb:rubberband);
 
+my $REGEX_SHOW_NAME = '[a-zA-Z]\w*';
+my $REGEX_SONG_NUM = '\d+[a-z]?';
+my $REGEX_REAL_NUM = "(?:\\d+|\\d*\\.\\d+)";
+my $REGEX_TIME_HMS_MS_S = "(\\d+:)?(\\d+:)?$REGEX_REAL_NUM";
+my $REGEX_POS_ARG = '(?:'
+  . "(?:[+-]?$REGEX_TIME_HMS_MS_S)"
+  . "|"
+  . "(?:$REGEX_REAL_NUM\%)"
+  . ")"
+;
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -106,17 +117,6 @@ sub main(@){
     exit 0;
   }
 
-  my $showNameRegex = '[a-zA-Z]\w*';
-  my $songNumRegex = '\d+[a-z]?';
-  my $fracRegex = "(?:\\d+|\\d*\\.\\d+)";
-  my $timeRegex = "(\\d+:)?(\\d+:)?$fracRegex";
-  my $posArgRegex = '(?:'
-    . "(?:[+-]?$timeRegex)"
-    . "|"
-    . "(?:$fracRegex\%)"
-    . ")"
-  ;
-
   my $showName = undef;
   my $songNum = undef;
   my $startPos = undef;
@@ -126,29 +126,29 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^(?:--show)=($showNameRegex)$/){
+    }elsif($arg =~ /^(?:--show)=($REGEX_SHOW_NAME)$/){
       $showName = $1;
-    }elsif($arg =~ /^(?:--show)$/ and @_ > 0 and $_[0] =~ /^($showNameRegex)$/){
+    }elsif($arg =~ /^(?:--show)$/ and @_ > 0 and $_[0] =~ /^($REGEX_SHOW_NAME)$/){
       $showName = shift @_;
-    }elsif($arg =~ /^(?:--song|--num)=($songNumRegex)$/){
+    }elsif($arg =~ /^(?:--song|--num)=($REGEX_SONG_NUM)$/){
       $songNum = $1;
-    }elsif($arg =~ /^(?:--song|--num)$/ and @_ > 0 and $_[0] =~ /^($songNumRegex)$/){
+    }elsif($arg =~ /^(?:--song|--num)$/ and @_ > 0 and $_[0] =~ /^($REGEX_SONG_NUM)$/){
       $songNum = shift @_;
-    }elsif($arg =~ /^(?:--start)=($posArgRegex)$/){
+    }elsif($arg =~ /^(?:--start)=($REGEX_POS_ARG)$/){
       $startPos = $1;
-    }elsif($arg =~ /^(?:--start|-ss)$/ and @_ > 0 and $_[0] =~ /^($posArgRegex)$/){
+    }elsif($arg =~ /^(?:--start|-ss)$/ and @_ > 0 and $_[0] =~ /^($REGEX_POS_ARG)$/){
       $startPos = shift @_;
-    }elsif($arg =~ /^(?:--end)=($posArgRegex)$/){
+    }elsif($arg =~ /^(?:--end)=($REGEX_POS_ARG)$/){
       $endPos = $1;
-    }elsif($arg =~ /^(?:--end|-endpos)$/ and @_ > 0 and $_[0] =~ /^($posArgRegex)$/){
+    }elsif($arg =~ /^(?:--end|-endpos)$/ and @_ > 0 and $_[0] =~ /^($REGEX_POS_ARG)$/){
       $endPos = shift @_;
-    }elsif($arg =~ /^($showNameRegex)$/ and not defined $showName){
+    }elsif($arg =~ /^($REGEX_SHOW_NAME)$/ and not defined $showName){
       $showName = $arg;
-    }elsif($arg =~ /^($songNumRegex)$/ and not defined $songNum){
+    }elsif($arg =~ /^($REGEX_SONG_NUM)$/ and not defined $songNum){
       $songNum = $arg;
-    }elsif($arg =~ /^($posArgRegex)$/ and not defined $startPos){
+    }elsif($arg =~ /^($REGEX_POS_ARG)$/ and not defined $startPos){
       $startPos = $arg;
-    }elsif($arg =~ /^($posArgRegex)$/ and not defined $endPos){
+    }elsif($arg =~ /^($REGEX_POS_ARG)$/ and not defined $endPos){
       $endPos = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
@@ -164,7 +164,7 @@ sub main(@){
     chomp $showName;
     $showName =~ s/^\s*//;
     $showName =~ s/\s*$//;
-    if($showName !~ /^($showNameRegex)$/){
+    if($showName !~ /^($REGEX_SHOW_NAME)$/){
       die "$USAGE\nERROR: invalid SHOW_NAME in $SHOW_FILE: $showName\n";
     }
   }
