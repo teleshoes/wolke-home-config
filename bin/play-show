@@ -91,10 +91,7 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $USAGE;
-    exit 0;
-  }elsif(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
+  if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
   }
@@ -108,41 +105,42 @@ sub main(@){
     . ")"
   ;
 
-  my ($showNameArg);
-  if(@_ >= 1 and $_[0] =~ /^[a-zA-Z]\w*$/){
-    $showNameArg = shift @_;
-
-    my %okShowDirs = map {$_ => 1} getShowDirs();
-    if(not defined $okShowDirs{$showNameArg}){
-      die "$USAGE\nERROR: unknown show name $showNameArg\n";
+  my $showNameArg = undef;
+  my $songNum = undef;
+  my $startPos = undef;
+  my $endPos = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-ss)$/ and @_ > 0 and $_[0] =~ /^($posArgRegex)$/){
+      $startPos = shift @_;
+    }elsif($arg =~ /^[a-zA-Z]\w*$/ and not defined $showNameArg){
+      $showNameArg = $arg;
+    }elsif($arg =~ /^(\d+[a-z]?)$/ and not defined $songNum){
+      $songNum = $arg;
+    }elsif($arg =~ /^($posArgRegex)$/ and not defined $startPos){
+      $startPos = $arg;
+    }elsif($arg =~ /^($posArgRegex)$/ and not defined $endPos){
+      $endPos = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
-  my ($songNum, $startPos, $endPos);
-  if(@_ == 1){
-    ($songNum, $startPos) = ($_[0], undef);
-  }elsif(@_ == 2){
-    ($songNum, $startPos) = ($_[0], $_[1]);
-  }elsif(@_ == 3 and $_[1] =~ /^(-ss)$/){
-    ($songNum, $startPos) = ($_[0], $_[2]);
-  }elsif(@_ == 3){
-    ($songNum, $startPos, $endPos) = ($_[0], $_[1], $_[2]);
-  }else{
-    die $USAGE;
+  if(defined $showNameArg){
+    my %okShowDirs = map {$_ => 1} getShowDirs();
+    if(not defined $okShowDirs{$showNameArg}){
+      die "$USAGE\nERROR: unknown SHOW_NAME $showNameArg\n";
+    }
   }
 
-  if($songNum !~ /^(\d+[a-z]?)$/){
-    die "invalid song number: $songNum\n";
+  if(not defined $songNum){
+    die "$USAGE\nERROR: missing SONG_NUM\n";
   }
   $songNum =~ s/^0+//;
   $songNum =~ s/_+$//;
-
-  if(defined $startPos and $startPos !~ /^($posArgRegex)$/){
-    die "$USAGE\nERROR: invalid START_POS $startPos\n";
-  }
-  if(defined $endPos and $endPos !~ /^($posArgRegex)$/){
-    die "$USAGE\nERROR: invalid END_POS $endPos\n";
-  }
 
   my $showFileContents = `cat $SHOW_FILE 2>/dev/null`;
   if($showFileContents =~ /^\s*$/){
