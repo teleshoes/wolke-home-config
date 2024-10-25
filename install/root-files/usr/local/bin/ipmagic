@@ -273,7 +273,7 @@ sub main(@){
     method        => 'any',
     no_guess_ping => 0,
     retries       => $defaultRetries,
-    sshExec       => undef,
+    sshExec       => $defaultSSHExec,
     extraSSHArgs  => undef,
   );
   while(@_ > 0 and $_[0] =~ /^($optRegex)$/){
@@ -430,8 +430,6 @@ sub main(@){
     die "ERROR: no IP found\n";
   }
 
-  my $sshExec = defined $opts{sshExec} ? $opts{sshExec} : $defaultSSHExec;
-
   if($isVnc){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
@@ -444,7 +442,7 @@ sub main(@){
       @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
     }
 
-    my @cmd = ($sshExec, @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
+    my @cmd = ($opts{sshExec}, @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
   }elsif($isRsync or $isScp){
@@ -458,7 +456,7 @@ sub main(@){
 
     my @cmd;
     if($isRsync){
-      @cmd = ("rsync", "-e", "$sshExec @sshCmdOpts");
+      @cmd = ("rsync", "-e", "$opts{sshExec} @sshCmdOpts");
     }elsif($isScp){
       @cmd = ("scp", @sshCmdOpts);
     }
