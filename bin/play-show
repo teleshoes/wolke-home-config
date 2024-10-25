@@ -134,6 +134,10 @@ my $USAGE = "Usage:
         -if START_POS and END_POS are both given:
           -append to MPV_ARGS '--ab-loop-a=START_POS'
           -append to MPV_ARGS '--ab-loop-b=END_POS'
+
+    --prompt=PROMPT | --prompt PROMPT
+      print PROMPT on the line of the interactive prompt
+      (default is \"\")
 ";
 
 sub main(@){
@@ -147,6 +151,7 @@ sub main(@){
   my $songNum = undef;
   my $startPos = undef;
   my $endPos = undef;
+  my $prompt = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -172,6 +177,10 @@ sub main(@){
       $endPos = $1;
     }elsif($arg =~ /^(?:--end|-endpos)$/ and @_ > 0 and $_[0] =~ /^($REGEX_POS_ARG)$/){
       $endPos = shift @_;
+    }elsif($arg =~ /^(?:--prompt)=(.+)$/){
+      $prompt = $1;
+    }elsif($arg =~ /^(?:--prompt)$/ and @_ > 0){
+      $prompt = shift @_;
     }elsif($arg =~ /^($REGEX_SHOW_NAME)$/ and not defined $showName){
       $showName = $arg;
     }elsif($arg =~ /^($REGEX_SONG_NUM)$/ and not defined $songNum){
@@ -205,6 +214,8 @@ sub main(@){
     my %okShowNames = map {$_ => 1} @showNames;
 
     my $term = Term::ReadLine->new($EXEC);
+    $prompt = "" if not defined $prompt;
+    $prompt .= "> ";
 
     while(1){
       $songNum = undef;
@@ -225,7 +236,7 @@ sub main(@){
       print "  quit:                    q | quit | exit\n";
 
       print "============\n";
-      my $line = $term->readline("> ");
+      my $line = $term->readline($prompt);
       if(not defined $line){
         exit 0;
       }
