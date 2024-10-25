@@ -44,11 +44,11 @@ my $USAGE = "Usage:
     same as: $EXEC SHOW_NAME SONG_NUM START_POS
 
     START_POS
-      -any string. if given:
+      -any POSITION_ARG. if given:
         -pass to mpv: `--start=<START_POS>`
 
     END_POS
-      -any string. if START_POS and END_POS are both given:
+      -any POSITION_ARG. if START_POS and END_POS are both given:
         -pass to mpv: `--ab-loop-a=<START_POS>`
         -pass to mpv: `--ab-loop-b=<END_POS>`
 
@@ -67,6 +67,23 @@ my $USAGE = "Usage:
     MPV_ARGS
       default options to mpv: @DEFAULT_MPV_ARGS
 
+  POSITION_ARG
+    one of:
+      -a '+' sign followed by a <POSITION_ARG>
+      -a '-' sign followed by a <POSITION_ARG>
+      -<POSITION_HOUR_ARG>
+      -<POSITION_MINUTE_ARG>
+      -<POSITION_SECOND_ARG>
+      -<POSITION_PERCENT_ARG>
+    POSITION_HOUR_ARG
+      -integer number of hours, followed by ':', followed by <POSITION_MINUTE_ARG>
+    POSITION_MINUTE_ARG
+      -integer number of minutes, followed by ':', followed by <POSITION_SECOND_ARG>
+    POSITION_SECOND_ARG
+      -fractional number of seconds
+    POSITION_PERCENT_ARG
+      -fractional percent, followed by a '%' sign
+
    $EXEC --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
      COMP_LINE  - the full cmdline as a string
@@ -81,6 +98,15 @@ sub main(@){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
   }
+
+  my $fracRegex = "(?:\\d+|\\d*\\.\\d+)";
+  my $timeRegex = "(\\d+:)?(\\d+:)?$fracRegex";
+  my $posArgRegex = '(?:'
+    . "(?:[+-]?$timeRegex)"
+    . "|"
+    . "(?:$fracRegex\%)"
+    . ")"
+  ;
 
   my ($showNameArg);
   if(@_ >= 1 and $_[0] =~ /^[a-zA-Z]\w*$/){
@@ -110,6 +136,13 @@ sub main(@){
   }
   $songNum =~ s/^0+//;
   $songNum =~ s/_+$//;
+
+  if(defined $startPos and $startPos !~ /^($posArgRegex)$/){
+    die "$USAGE\nERROR: invalid START_POS $startPos\n";
+  }
+  if(defined $endPos and $endPos !~ /^($posArgRegex)$/){
+    die "$USAGE\nERROR: invalid END_POS $endPos\n";
+  }
 
   my $showFileContents = `cat $SHOW_FILE 2>/dev/null`;
   if($showFileContents =~ /^\s*$/){
