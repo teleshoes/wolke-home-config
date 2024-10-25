@@ -245,6 +245,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "Rhythmbox"     @@ mCA   xK_r    #! "rhythmbox"
         "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic -w -d -p --player-ipmagic=tv"
+        "sheetmusic lf" @@ mCAS  xK_s    #! "sheetmusic -w -d -p --player-ipmagic=tv --no-last-file little_fugue"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
         "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
 
