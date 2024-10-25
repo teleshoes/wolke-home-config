@@ -6,6 +6,7 @@ use Term::ReadLine;
 
 sub play($$$$);
 sub getShowDirs();
+sub getFilesForShowName($);
 sub bashComplete($$);
 
 my @MUSIC_BASE_DIRS = (
@@ -200,6 +201,10 @@ sub main(@){
       $startPos = undef;
       $endPos = undef;
 
+      my @showNameFiles = getFilesForShowName($showName);
+      @showNameFiles = map {basename $_} @showNameFiles;
+      printf "\n%s\n", join("", map {"  $_\n"} @showNameFiles);
+
       printf "\nshow: %s\n", defined $showName ? $showName : "<none>";
       print "  play song: [SHOW_NAME] [SONG_NUM [START_POS [END_POS]]]\n";
       print "  quit: q quit exit\n";
@@ -300,6 +305,20 @@ sub getShowDirs(){
     @showDirs = (@showDirs, @dirs);
   }
   return @showDirs;
+}
+
+sub getFilesForShowName($){
+  my ($showName) = @_;
+  my @files;
+  if(defined $showName and $showName ne ""){
+    for my $baseDir(@MUSIC_BASE_DIRS){
+      @files = (@files, glob "$baseDir/$showName/*");
+      @files = grep {-f $_} @files;
+      @files = grep {$_ =~ /\.($OK_EXTS)$/i} @files;
+    }
+  }
+  @files = sort @files;
+  return @files;
 }
 
 sub bashComplete($$){
