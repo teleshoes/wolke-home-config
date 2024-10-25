@@ -274,7 +274,7 @@ sub main(@){
     no_guess_ping => 0,
     retries       => $defaultRetries,
     sshExec       => $defaultSSHExec,
-    extraSSHArgs  => undef,
+    extraSSHArgs  => [],
   );
   while(@_ > 0 and $_[0] =~ /^($optRegex)$/){
     my $arg = shift;
@@ -297,7 +297,8 @@ sub main(@){
     }elsif($arg =~ /^(--sshc)$/){
       $opts{sshExec} = "sshc";
     }elsif(@_ > 0 and $arg =~ /^(--ssh-args)$/){
-      $opts{extraSSHArgs} = shift;
+      my $sshArgsStr = shift @_;
+      $opts{extraSSHArgs} = [split /\s+/, $sshArgsStr];
     }else{
       die $usage;
     }
@@ -438,9 +439,7 @@ sub main(@){
 
     my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
     my @sshCmdOpts = split /\s+/, $sshArgs;
-    if(defined $opts{extraSSHArgs}){
-      @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
-    }
+    @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
 
     my @cmd = ($opts{sshExec}, @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
     print "@cmd\n" if $opts{verbose};
@@ -451,7 +450,7 @@ sub main(@){
     my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
     my @sshCmdOpts = split /\s+/, $sshArgs;
     if(defined $opts{extraSSHArgs}){
-      @sshCmdOpts = (@sshCmdOpts, split /\s+/, $opts{extraSSHArgs});
+      @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
     }
 
     my @cmd;
