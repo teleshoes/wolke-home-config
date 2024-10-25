@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Term::ReadLine;
 
 sub play($$$$);
 sub getShowDirs();
@@ -34,6 +35,7 @@ my $REGEX_POS_ARG = '(?:'
 ;
 
 my $MODE_PLAY = "play";
+my $MODE_INTERACTIVE = "interactive";
 
 my $EXEC = basename $0;
 
@@ -90,6 +92,15 @@ my $USAGE = "Usage:
       -fractional percent, followed by a '%' sign
 
   OPTS
+    -i | --interactive
+      -repeatedly:
+        -reset SONG_NUM, START_POS, and END_POS, but preserve SHOW_NAME
+        -read a line of input
+          -if line is q | quit | exit:
+            -exit
+          -if line matches: [SHOW_NAME] [SONG_NUM [START_POS [END_POS]]]
+            -update SHOW_NAME, SONG_NUM, START_POS, and END_POS, if given
+        -play with mpv as in `$EXEC --play`, unless line was malformed
     --play
       play mpv once and exit (this is the default)
 
@@ -135,6 +146,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(?:--play)$/){
       $mode = $MODE_PLAY;
+    }elsif($arg =~ /^(?:-i|--interactive)$/){
+      $mode = $MODE_INTERACTIVE;
     }elsif($arg =~ /^(?:--show)=($REGEX_SHOW_NAME)$/){
       $showName = $1;
     }elsif($arg =~ /^(?:--show)$/ and @_ > 0 and $_[0] =~ /^($REGEX_SHOW_NAME)$/){
@@ -176,6 +189,49 @@ sub main(@){
 
   if($mode eq $MODE_PLAY){
     play($showName, $songNum, $startPos, $endPos);
+  }elsif($mode eq $MODE_INTERACTIVE){
+    my @showNames = getShowDirs();
+    my %okShowNames = map {$_ => 1} @showNames;
+
+    my $term = Term::ReadLine->new($EXEC);
+
+    while(1){
+      $songNum = undef;
+      $startPos = undef;
+      $endPos = undef;
+
+      printf "\nshow: %s\n", defined $showName ? $showName : "<none>";
+      print "  play song: [SHOW_NAME] [SONG_NUM [START_POS [END_POS]]]\n";
+      print "  quit: q quit exit\n";
+
+      my $skipPlay = 0;
+      my $line = $term->readline("> ");
+      if(not defined $line){
+        exit 0;
+      }elsif($line =~ /^(q|quit|exit)$/){
+        exit 0;
+      }else{
+        my @words = split /\s+/, $line;
+        for my $word(@words){
+          if(defined $okShowNames{$word}){
+            $showName = $word;
+          }elsif($word =~ /^($REGEX_SONG_NUM)$/ and not defined $songNum){
+            $songNum = $word;
+          }elsif($word =~ /^($REGEX_POS_ARG)$/ and not defined $startPos){
+            $startPos = $word;
+          }elsif($word =~ /^($REGEX_POS_ARG)$/ and not defined $endPos){
+            $endPos = $word;
+          }else{
+            print "ERROR: unknown arg $word\n";
+            $skipPlay = 1;
+            last;
+          }
+        }
+      }
+      if(not $skipPlay){
+        play($showName, $songNum, $startPos, $endPos);
+      }
+    }
   }else{
     die "ERROR: unknown mode $mode\n";
   }
