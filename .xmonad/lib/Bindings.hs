@@ -244,7 +244,7 @@ shortcuts conf = "Shortcuts" @@ do
         "Pidgin"        @@ mCA   xK_p    #! "pidgin"
         "Eclipse"       @@ mCA   xK_e    #! "eclipse"
         "Rhythmbox"     @@ mCA   xK_r    #! "rhythmbox"
-        "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic"
+        "sheetmusic"    @@ mCA   xK_s    #! "sheetmusic -w -d -p --player-ipmagic=tv"
         "stepmania"     @@ mCA   xK_d    #! "stepmania-launch"
         "jstest-tone"   @@ mCA   xK_i    #! "jstest-tone"
 
