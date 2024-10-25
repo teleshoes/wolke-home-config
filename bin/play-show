@@ -41,8 +41,8 @@ my $USAGE = "Usage:
     -for each SONG_DIR in SONG_DIRS:
       -collect SONG_FILES in SONG_DIR/FILENAME such that:
         -FILENAME ends with '.' followed by one of the allowed EXTS
-        -FILENAME starts with any number of leading 0s followed by SONG_NUM followed by '_'
-          -NOTE: --song SONG_NUM is required
+        -if --song=SONG_NUM is given:
+          -FILENAME starts with any number of leading 0s followed by SONG_NUM followed by '_'
       -i.e.: <SONG_DIR>/00000<SONG_NUM>_*.EXTS
     -play song `mpv <MPV_ARGS> <SONG_FILES>`
 
@@ -82,10 +82,9 @@ my $USAGE = "Usage:
 
     --song=SONG_NUM | --song SONG_NUM
     --num=SONG_NUM | --num SONG_NUM
-      -include only SONG_FILES that start with SONG_NUM
+      -if given, include only SONG_FILES that start with SONG_NUM
         -SONG_NUM is any number of digits, optionally followed by a single letter
         -leading zeros are ignored, in both SONG_NUM and SONG_FILES
-      NOTE: SONG_NUM is required
 
     --start=START_POS | --start START_POS | -ss START_POS
       -run mpv starting at START_POS
@@ -156,10 +155,9 @@ sub main(@){
     }
   }
 
-  if(not defined $songNum){
-    die "$USAGE\nERROR: missing SONG_NUM\n";
+  if(defined $songNum){
+    $songNum =~ s/^0+//;
   }
-  $songNum =~ s/^0+//;
 
   if(not defined $showName and -e $SHOW_FILE){
     $showName = `cat $SHOW_FILE 2>/dev/null`;
@@ -188,7 +186,9 @@ sub main(@){
   for my $dir(@dirs){
     my @files = grep {-f $_} glob "$dir/*";
     @files = grep {$_ =~ /\.($OK_EXTS)$/i} @files;
-    @files = grep {$_ =~ /^(.*\/)0*${songNum}_[^\/]*$/} @files;
+    if(defined $songNum){
+      @files = grep {$_ =~ /^(.*\/)0*${songNum}_[^\/]*$/} @files;
+    }
     @songFiles = (@songFiles, @files);
   }
 
