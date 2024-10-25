@@ -2,7 +2,7 @@ package ScriptScript;
 use warnings;
 use strict;
 use File::Basename qw(basename dirname);
-use File::Spec qw(abs2rel);
+use File::Spec::Functions qw(abs2rel);
 use File::Temp 'tempfile';
 use Time::HiRes qw(sleep time);
 require Exporter;
@@ -529,7 +529,7 @@ sub symlinkFileProto($$$){
   #       => ln -s       ../a.so /usr/lib/linux/a.so
   if($$cfg{relPath}){
     my $destDir = dirname $destFile;
-    $srcPath = File::Spec->abs2rel($srcPath, $destDir);
+    $srcPath = abs2rel($srcPath, $destDir);
   }
 
   my @sudoMaybe = $$cfg{sudo} ? @SUDO_CMD : ();
