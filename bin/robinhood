@@ -96,6 +96,7 @@ my $USAGE = "Usage:
 
 sub apiCallCurl($$);
 sub runCurl($@);
+sub resolveHost($);
 sub getInstrumentSummary(@);
 sub getReadonlyBearerToken();
 sub fetchReadonlyBearerToken();
@@ -390,11 +391,18 @@ sub apiCallCurl($$){
 }
 sub runCurl($@){
   my ($url, @curlArgs) = @_;
+  my $host;
+  if($url =~ /^(?:https?:\/\/)?([^\/]+)/){
+    $host = $1;
+  }else{
+    die "ERROR: could not parse host of $url\n";
+  }
 
   my @cmd = ("curl",
     "-4",
     "--silent",
     "-L",
+    "--resolve", "$host:443:" . resolveHost($host),
     @curlArgs,
     $url,
   );
@@ -402,6 +410,15 @@ sub runCurl($@){
   my $out = join '', <CMD>;
   close CMD;
   return $out;
+}
+sub resolveHost($){
+  my ($host) = @_;
+  my $digOut = `dig -4 +short $host | head -1`;
+  if($digOut =~ /^(\d+\.\d+\.\d+\.\d+)$/){
+    return $1;
+  }else{
+    die "ERROR: could not dig IPv4 addr of $host\n";
+  }
 }
 
 sub getInstrumentSummary(@){
