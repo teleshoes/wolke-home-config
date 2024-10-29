@@ -124,6 +124,12 @@ my $USAGE = "Usage:
     -m | --month | --monthly
       show a summary of each calendar month, Monday-Sunday, with a workout in it
 
+    --target=DISTANCE_TARGET
+      when including targets as in --print-targets,
+        only print the indicated distance target
+        (leave blank if distance is less)
+      one of: @SORTED_TARGET_NAMES
+
     --start-time | --print-start-time
       format workout start datetime as 'YYYY-mm-dd HH:MM:SS'
 
@@ -180,6 +186,7 @@ sub main(@){
     workoutIdFilter => undef,
     dateFilter => undef,
     format => $FORMAT_DETAILS,
+    distanceNamedTarget => undef,
     printStartTime => 0,
     printIds => 0,
     printSpeedSegments => 0,
@@ -207,6 +214,11 @@ sub main(@){
       $$opts{format} = $FORMAT_WEEKLY;
     }elsif($arg =~ /^(-m|--month|--monthly)$/){
       $$opts{format} = $FORMAT_MONTHLY;
+    }elsif($arg =~ /^--target=(.+)$/){
+      $$opts{distanceNamedTarget} = lc $1;
+      if(not defined $NAMED_TARGETS{$$opts{distanceNamedTarget}}){
+        die "$USAGE\nERROR: unknown DISTANCE_TARGET $$opts{distanceNamedTarget}\n";
+      }
     }elsif($arg =~ /^(--start-time|--print-start-time)$/){
       $$opts{printStartTime} = 1;
     }elsif($arg =~ /^(--no-start-time|--no-print-start-time)$/){
@@ -354,6 +366,9 @@ sub formatWorkoutDetails($$){
   if($$opts{printDistanceTargets}){
     $optionalTargetFmt = sprintf "%12s|", "";
     for my $targetName(@SORTED_TARGET_NAMES){
+      if(defined $$opts{distanceNamedTarget}){
+        next if lc $targetName ne lc $$opts{distanceNamedTarget};
+      }
       if(defined $$w{targets}{$targetName}){
         my $targetDurS = $$w{targets}{$targetName};
         my $targetDurFmt = formatTimeMinSec($targetDurS);
