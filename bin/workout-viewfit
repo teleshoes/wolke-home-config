@@ -144,6 +144,14 @@ my $USAGE = "Usage:
       do not print speed segments when printing workouts
       (this is the default)
 
+    --targets | --print-targets
+      include the best time for the largest fixed-distance in a workout from:
+        @SORTED_TARGET_NAMES
+      (this is the default
+
+    --no-targets | --no-print-targets
+      do not include distance targets
+
     --intervals | --print-intervals
       when printing workouts, print interval information after, one per line
       NOTE: this output is very large
@@ -175,6 +183,7 @@ sub main(@){
     printStartTime => 0,
     printIds => 0,
     printSpeedSegments => 0,
+    printDistanceTargets => 1,
     printIntervals => 0,
   };
   while(@_ > 0){
@@ -210,6 +219,10 @@ sub main(@){
       $$opts{printSpeedSegments} = 1;
     }elsif($arg =~ /^(--no-segments|--no-print-segments)$/){
       $$opts{printSpeedSegments} = 0;
+    }elsif($arg =~ /^(--targets|--print-targets)$/){
+      $$opts{printDistanceTargets} = 1;
+    }elsif($arg =~ /^(--no-targets|--no-print-targets)$/){
+      $$opts{printDistanceTargets} = 0;
     }elsif($arg =~ /^(--intervals|--print-intervals)$/){
       $$opts{printIntervals} = 1;
     }elsif($arg =~ /^(--no-intervals|--no-print-intervals)$/){
@@ -337,28 +350,33 @@ sub formatWorkoutDetails($$){
   my $durS = $$w{duration};
   my $durFmt = formatTimeMinSec($durS);
   my $distanceMiles = $$w{distance}/1000.0*$MILES_PER_KM;
-  my $targetFmt = sprintf "%12s", "";
-  for my $targetName(@SORTED_TARGET_NAMES){
-    if(defined $$w{targets}{$targetName}){
-      my $targetDurS = $$w{targets}{$targetName};
-      my $targetDurFmt = formatTimeMinSec($targetDurS);
-      $targetFmt = sprintf "%6s=%5s", $targetName, $targetDurFmt;
-      last;
+  my $optionalTargetFmt;
+  if($$opts{printDistanceTargets}){
+    $optionalTargetFmt = sprintf "%12s|", "";
+    for my $targetName(@SORTED_TARGET_NAMES){
+      if(defined $$w{targets}{$targetName}){
+        my $targetDurS = $$w{targets}{$targetName};
+        my $targetDurFmt = formatTimeMinSec($targetDurS);
+        $optionalTargetFmt = sprintf "%6s=%5s|", $targetName, $targetDurFmt;
+        last;
+      }
     }
+  }else{
+    $optionalTargetFmt = "";
   }
 
   my $idPrefix = $$opts{printIds} ? sprintf("%-24s   ", $$w{workout_id}) : "";
 
   my $dtmFmt = $$opts{printStartTime} ? $$w{dtmYMDHMS} : $$w{dtmYMD};
 
-  $fmt .= sprintf "%s%s | %5.2fkm %4.1fmi | %6s | %3d |%s|\n",
+  $fmt .= sprintf "%s%s | %5.2fkm %4.1fmi | %6s | %3d |%s\n",
     $idPrefix,
     $dtmFmt,
     $$w{distance}/1000.0,
     $distanceMiles,
     $durFmt,
     $maxHR,
-    $targetFmt,
+    $optionalTargetFmt,
   ;
 
   if($$opts{printSpeedSegments}){
