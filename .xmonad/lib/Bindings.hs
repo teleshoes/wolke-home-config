@@ -258,6 +258,7 @@ shortcuts conf = "Shortcuts" @@ do
     "tasmota"         @@ do
         "ts lamp1"      @@ mC    xK_PgDn #! "tasmota lamp1"
         "ts liv"        @@ mC    xK_PgUp #! "tasmota liv"
+        "ts l"          @@ mCS   xK_PgDn #! "tasmota l"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
