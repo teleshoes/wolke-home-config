@@ -256,8 +256,8 @@ shortcuts conf = "Shortcuts" @@ do
         "bgset --prev"  @@ mCAWS xK_w    #! "ipmagic tv bgset --prev"
 
     "tasmota"         @@ do
-        "ts-lamp1"      @@ mC    xK_PgDn #! "tasmota lamp1"
-        "ts-liv"        @@ mC    xK_PgUp #! "tasmota liv"
+        "ts lamp1"      @@ mC    xK_PgDn #! "tasmota lamp1"
+        "ts liv"        @@ mC    xK_PgUp #! "tasmota liv"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
