@@ -257,9 +257,7 @@ shortcuts conf = "Shortcuts" @@ do
 
     "tasmota"         @@ do
         "ts-lamp1"      @@ mC    xK_PgDn #! "tasmota lamp1"
-        "ts-ddr"        @@ mCS   xK_PgDn #! "tasmota ddr"
         "ts-liv"        @@ mC    xK_PgUp #! "tasmota liv"
-        "ts-liv-dim"    @@ mCS   xK_PgUp #! "tasmota b6 b7 --dimmer 33 66 100"
 
     "sx"            @@ do
         "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
