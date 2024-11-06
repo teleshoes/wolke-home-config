@@ -14,6 +14,7 @@ import XMonad.StackSet hiding (focus, workspaces, filter)
 import qualified XMonad.StackSet as SS
 
 import Control.Arrow (first)
+import Control.Monad (void, (>=>))
 import qualified Data.Foldable as F
 import Data.List (find, intercalate, isInfixOf, transpose)
 import Data.List.Split (chunksOf, splitOn)
