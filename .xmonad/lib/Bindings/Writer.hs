@@ -158,11 +158,6 @@ instance TellBs (LW a) a => TellBs [LW a] a where
 instance Monoid (Bindings a) where
     mempty = BList "" []
 
-    mappend (BList "" ls) (BList "" rs) = BList "" (ls ++ rs)
-    mappend (BList "" ls) r             = BList "" (ls ++ [r])
-    mappend l             (BList "" rs) = BList "" (l : rs)
-    mappend l             r             = BList "" [l,r]
-
 instance Semigroup (Bindings a) where
     (BList "" ls) <> (BList "" rs) = BList "" (ls ++ rs)
     (BList "" ls) <> r             = BList "" (ls ++ [r])
