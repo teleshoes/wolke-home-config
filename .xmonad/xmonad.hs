@@ -25,7 +25,7 @@ import XMonad.Hooks.ManageDocks (
   avoidStruts, docks, manageDocks)
 import XMonad.Layout.Grid (Grid(..))
 import XMonad.Layout.LayoutCombinators ((|||), JumpToLayout(..))
-import XMonad.Layout.Named (named)
+import XMonad.Layout.Renamed (named)
 import XMonad.Layout.NoBorders (smartBorders)
 import XMonad.Layout.PerWorkspace (onWorkspace)
 import XMonad.StackSet (
