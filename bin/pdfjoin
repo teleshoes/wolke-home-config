@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 PDF_IN [PDF_IN PDF_IN ..] PDF_OUT
+    simple wrapper around `pdftk PDF_IN PDF_IN PDF_IN output PDF_OUT`
+      -ensure each PDF_IN exists
+      -ensure PDF_OUT does not exist
+      -run: pdftk PDF_IN PDF_IN PDF_IN output PDF_OUT
+";
+
+sub main(@){
+  my @inputFiles;
+  my $outputFile;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg and @_ > 0){
+      push @inputFiles, $arg;
+    }elsif(not defined $outputFile){
+      $outputFile = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(@inputFiles == 0){
+    die "$USAGE\nERROR: at least one PDF_IN is required\n";
+  }elsif(not defined $outputFile){
+    die "$USAGE\nERROR: exactly one PDF_OUT is required\n";
+  }elsif(-e $outputFile){
+    die "$USAGE\nERROR: '$outputFile' already exists\n";
+  }
+
+  exec "pdftk", @inputFiles, "output", $outputFile;
+}
+
+&main(@ARGV);
