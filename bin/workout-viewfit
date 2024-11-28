@@ -318,7 +318,10 @@ sub main(@){
       die "ERROR: unknown format $$opts{format}\n";
     }
   }elsif($cmd eq $COMMAND_FETCH){
-    fetchViewfitWorkouts();
+    if(not fetchViewfitWorkouts()){
+      die "ERROR: fetch viewfit workouts failed\n";
+    }
+
 
     my $w = readCachedWorkoutLatest();
     die "ERROR: no workouts found\n" if not defined $w;
@@ -332,7 +335,9 @@ sub main(@){
       while(1){
         print "\n\n=====\n";
         system "date";
-        fetchViewfitWorkouts();
+        if(not fetchViewfitWorkouts()){
+          print "WARNING: fetch viewfit workouts failed\n";
+        }
         my $w = readCachedWorkoutLatest();
         if(defined $w){
           my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
@@ -1096,7 +1101,11 @@ sub fetchViewfitWorkouts(){
     "--output", $tmpFile,
   );
   run @cmd;
-  die "ERROR: curl failed\n$!\n" if $? != 0;
+  my $exitCode = $? >> 8;
+  if($exitCode != 0){
+    print STDERR "\nWARNING: curl failed with exit code $exitCode\n";
+    return 0;
+  }
 
   my $md5 = md5sumFile($tmpFile);
 
@@ -1137,6 +1146,8 @@ sub fetchViewfitWorkouts(){
     print "\nmerging all fetched JSON files into $WORKOUTS_MERGED_JSON_FILE\n";
     mergeCachedJsonFiles();
   }
+
+  return 1;
 }
 
 sub mergeCachedJsonFiles(){
