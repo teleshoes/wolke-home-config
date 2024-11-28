@@ -58,6 +58,8 @@ my $WORKOUTS_MERGED_JSON_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-mer
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 
+my $CURL_FETCH_MAX_TIME_S = 60;
+
 my $HRMON_LOG_DIR = "$ENV{HOME}/.cache/logs/hrmon";
 
 my $HR_CACHE_DIR_HRMON = "$ENV{HOME}/.cache/workouts/hr-cache-hrmon";
@@ -1097,13 +1099,18 @@ sub fetchViewfitWorkouts(){
 
   my @cmd = ("curl",
     "--silent",
+    "--max-time", $CURL_FETCH_MAX_TIME_S,
     $url,
     "--output", $tmpFile,
   );
   run @cmd;
   my $exitCode = $? >> 8;
   if($exitCode != 0){
-    print STDERR "\nWARNING: curl failed with exit code $exitCode\n";
+    if($exitCode == 28){
+      print STDERR "\nWARNING: curl timeout (60s)\n";
+    }else{
+      print STDERR "\nWARNING: curl failed with exit code $exitCode\n";
+    }
     return 0;
   }
 
