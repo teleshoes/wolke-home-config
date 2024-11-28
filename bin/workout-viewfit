@@ -40,6 +40,7 @@ sub readSecrets();
 sub decrypt($);
 sub formatTimeMinSec($);
 sub formatTimeHrMinSec($);
+sub formatTimeRelative($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$);
@@ -330,7 +331,9 @@ sub main(@){
     my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
     my $durS = $$w{duration};
     my $durFmt = formatTimeMinSec($durS);
-    print "\nlatest workout: $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
+    my $elapsedS = time - $$w{dtmEpoch};
+    my $elapsedFmt = formatTimeRelative($elapsedS) . " ago";
+    print "\nlatest workout: ($elapsedFmt) $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
   }elsif($cmd eq $COMMAND_FETCH_LOOP){
     my $pid = fork();
     if($pid == 0){
@@ -345,7 +348,9 @@ sub main(@){
           my $distanceMiles = sprintf "%.2f", $$w{distance}/1000.0*$MILES_PER_KM;
           my $durS = $$w{duration};
           my $durFmt = formatTimeMinSec($durS);
-          print "\nlatest workout: $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
+          my $elapsedS = time - $$w{dtmEpoch};
+          my $elapsedFmt = formatTimeRelative($elapsedS) . " ago";
+          print "\nlatest workout: ($elapsedFmt) $$w{dtmYMDHMS}   ${distanceMiles}mi  $durFmt\n";
         }else{
           print "\nno workouts\n";
         }
@@ -1271,6 +1276,21 @@ sub formatTimeMinSec($){
 sub formatTimeHrMinSec($){
   my ($s) = @_;
   return sprintf "%02d:%02d:%02d", int($s/60/60), int($s/60) % 60, int($s) % 60;
+}
+sub formatTimeRelative($){
+  my ($s) = @_;
+  my ($day, $hr, $min, $sec) = (
+    int($s/60/60/24), int($s/60/60) % 24, int($s/60) % 60, int($s) % 60
+  );
+  if($day > 0){
+    return sprintf "%dd%02dh%02dm%02ds", $day, $hr, $min, $sec;
+  }elsif($hr > 0){
+    return sprintf "%dh%02dm%02ds", $hr, $min, $sec;
+  }elsif($min > 0){
+    return sprintf "%dm%02ds", $min, $sec;
+  }else{
+    return sprintf "%ds", $sec;
+  }
 }
 
 sub dtmStrToEpoch($){
