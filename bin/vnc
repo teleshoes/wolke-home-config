@@ -12,27 +12,20 @@ my $PORT = '5900';
 my $DELAY_MILLIS = 2500;
 my $SSH_CONTROL_FILE = '/tmp/vncSSH.ctl';
 
-my @SERVER = (
-  "x11vnc",
-    "-safer", "-localhost", "-nopw", "-once",
-    "-noncache",
+my $EXEC_X11VNC = "x11vnc";
+
+my @SERVER_ARGS = qw(
+  -safer -localhost -nopw -once -noncache
 );
 
-my %CLIENTS = (
-  xtigervncviewer => [
-  ],
-  xtightvncviewer => [
-    "-quality", "0",
-    "-compresslevel", "5",
-  ],
-  x2vnc => [
-    "-hotkey", "a-F9",
-    "-edgewidth", "0",
-  ],
+my %CLIENT_ARGS = (
+  xtigervncviewer => [qw()],
+  xtightvncviewer => [qw(-quality 0   -compresslevel 5)],
+  x2vnc           => [qw(-hotkey a-F9 -edgewidth 0)],
 );
 
 my $DEFAULT_CLIENT = "xtigervncviewer";
-my $OK_CLIENTS = join "|", sort keys %CLIENTS;
+my $OK_CLIENTS = join "|", sort keys %CLIENT_ARGS;
 
 my @SSH_BIND = (
   "ssh", "-f",
@@ -113,6 +106,7 @@ sub main(@){
 
 sub startVNC($$$){
   my ($host, $client, $geometry) = @_;
+
   if($geometry eq "res"){
     $geometry = `res`;
     chomp $geometry;
@@ -125,18 +119,29 @@ sub startVNC($$$){
   system @SSH_EXIT;
   system "ssh", $host, "pkill x11vnc";
 
-  @SERVER = (@SERVER, '-display', guessDisplay $host);
+  my @serverGeometryArgs;
   if($geometry =~ /^(\d+x\d+)$/){
-    @SERVER = (@SERVER, "-geometry", $geometry);
+    @serverGeometryArgs = ("-geometry", $geometry);
   }
 
-  system @SSH_BIND, $host, "@SERVER";
+  my @vncServerCmd = ($EXEC_X11VNC,
+    '-display', guessDisplay($host),
+    @serverGeometryArgs,
+    @SERVER_ARGS,
+  );
+
+
+  system @SSH_BIND, $host, "@vncServerCmd";
   exit $? if $? != 0;
 
   sleep($DELAY_MILLIS/1000.0);
 
-  my @clientArgs = @{$CLIENTS{$client}};
-  system $client, @clientArgs, "$LOCALHOST:0";
+  my @vncClientCmd = ($client,
+    @{$CLIENT_ARGS{$client}},
+    "$LOCALHOST:0",
+  );
+
+  system @vncClientCmd;
 }
 
 sub guessDisplay($){
