@@ -76,30 +76,42 @@ my $USAGE = "Usage:
       synonym for --geometry=none (do not pass '-geometry GEOMETRY' to server)
 ";
 
-sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
-    print $USAGE;
-    exit 0;
-  }elsif(@_ == 1 and $_[0] eq 'off'){
-    exec @SSH_EXIT;
-  }
+my $CMD_START_VNC = "start";
+my $CMD_SSH_OFF = "off";
 
-  my $client = $DEFAULT_CLIENT;
-  my $geometry = "res";
-  while(@_ > 0 and $_[0] =~ /^-/){
-    my $arg = shift;
-    if($arg =~ /^--client=($OK_CLIENTS)$/){
-      $client = $1;
+sub main(@){
+  my $cmd = $CMD_START_VNC;
+  my $opts = {
+    client   => $DEFAULT_CLIENT,
+    geometry => "res",
+    host     => undef,
+  };
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(off)$/){
+      $cmd = $CMD_SSH_OFF;
+    }elsif($arg =~ /^--client=($OK_CLIENTS)$/){
+      $$opts{client} = $1;
     }elsif($arg =~ /^--geometry=(res|none|\d+x\d+)$/){
-      $geometry = $1;
+      $$opts{geometry} = $1;
+    }elsif(not defined $$opts{host}){
+      $$opts{host} = $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
-  my $host = shift if @_ > 0;
-
-  die $USAGE if not defined $host or @_ > 0;
-
-  startVNC($host, $client, $geometry);
+  if($cmd eq $CMD_START_VNC){
+    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
+    startVNC($$opts{host}, $$opts{client}, $$opts{geometry});
+  }elsif($cmd eq $CMD_SSH_OFF){
+    exec @SSH_EXIT;
+  }else{
+    die "ERROR: unknown cmd $cmd\n";
+  }
 }
 
 sub startVNC($$$){
