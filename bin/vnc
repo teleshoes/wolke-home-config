@@ -11,10 +11,11 @@ sub guessRemoteDisplay($);
 
 my $DEFAULT_REMOTE_DISPLAY = ":0";
 my $LOCALHOST = "127.0.0.1";
-my $PORT = '5900';
 my $DELAY_MILLIS = 2500;
 
+my $DEFAULT_VNC_PORT = 5900;
 my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
+
 my $EXEC_X11VNC = "x11vnc";
 
 my @SERVER_ARGS = qw(
@@ -121,7 +122,13 @@ sub startVNC($$$){
     @SERVER_ARGS,
   );
 
-  my $exitCode = runCmdSSHBind($host, $PORT, $PORT, @vncServerCmd);
+  my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
+
+  #5900 + 10*otherVNCSessions + random first digit
+  my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
+  my $remotePort = $DEFAULT_VNC_PORT;
+
+  my $exitCode = runCmdSSHBind($host, $localPort, $remotePort, @vncServerCmd);
   if($exitCode != 0){
     die "ERROR: ssh bind failed for vnc server on host\n";
   }
