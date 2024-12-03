@@ -81,7 +81,9 @@ my $GEOMETRY_NONE = "none";
 sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
-    host          => undef,
+    remoteInfo    => {
+      host        => undef,
+    },
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
     isStartServer => 1,
@@ -109,16 +111,16 @@ sub main(@){
       $$opts{geometry} = $GEOMETRY_NONE;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
-    }elsif(not defined $$opts{host}){
-      $$opts{host} = $arg;
+    }elsif(not defined $$opts{remoteInfo}{host}){
+      $$opts{remoteInfo}{host} = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
 
   if($cmd eq $CMD_START_VNC){
-    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
-    startVNC($$opts{host}, $$opts{vncClient}, $$opts{geometry},
+    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
+    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{geometry},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
@@ -128,7 +130,7 @@ sub main(@){
 }
 
 sub startVNC($$$$$){
-  my ($host, $vncClient, $geometry, $isStartServer, $isSSHTunnel) = @_;
+  my ($remoteInfo, $vncClient, $geometry, $isStartServer, $isSSHTunnel) = @_;
 
   my @serverGeometryArgs;
   if($geometry eq $GEOMETRY_RES){
@@ -150,7 +152,7 @@ sub startVNC($$$$$){
   my $vncServer = $DEFAULT_VNC_SERVER;
 
   my @vncServerCmd = ($vncServer,
-    '-display', guessRemoteDisplay($host),
+    '-display', guessRemoteDisplay($remoteInfo),
     @serverGeometryArgs,
     @{$VNC_SERVER_ARGS{$vncServer}},
   );
@@ -162,19 +164,19 @@ sub startVNC($$$$$){
   my $remotePort = $DEFAULT_VNC_PORT;
 
   if($isStartServer and $isSSHTunnel){
-    system "ssh", $host, "pkill $vncServer";
-    runSSHExit($host);
-    runCmdSSHBind($host, $localPort, $remotePort, @vncServerCmd);
+    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
+    runSSHExit($remoteInfo);
+    runCmdSSHBind($remoteInfo, $localPort, $remotePort, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
   }elsif(not $isStartServer and $isSSHTunnel){
-    runSSHExit($host);
-    my $exitCode = runCmdSSHBind($host, $localPort, $remotePort, "-N");
+    runSSHExit($remoteInfo);
+    my $exitCode = runCmdSSHBind($remoteInfo, $localPort, $remotePort, "-N");
     if($exitCode != 0){
-      die "ERROR: ssh bind failed for vnc server on host\n";
+      die "ERROR: ssh bind failed for vnc server on $$remoteInfo{host}\n";
     }
   }elsif($isStartServer and not $isSSHTunnel){
-    system "ssh", $host, "pkill $vncServer";
-    system "ssh", $host, "-f", @vncServerCmd;
+    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
+    system "ssh", $$remoteInfo{host}, "-f", @vncServerCmd;
     sleep($DELAY_MILLIS/1000.0);
   }else{
     #not starting server or creating SSH tunnel
@@ -184,26 +186,27 @@ sub startVNC($$$$$){
   if($isSSHTunnel){
     push @vncClientCmd, sprintf("%s::%s", $LOCALHOST, $localPort);
   }else{
-    push @vncClientCmd, sprintf("%s::%s", $host, $remotePort);
+    push @vncClientCmd, sprintf("%s::%s", $$remoteInfo{host}, $remotePort);
   }
 
   system @vncClientCmd;
 
   if($isStartServer){
-    system "ssh", $host, "pkill $vncServer";
+    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
   }
   if($isSSHTunnel){
-    runSSHExit($host);
+    runSSHExit($remoteInfo);
   }
 }
 
 sub runCmdSSHBind($$$@){
-  my ($host, $localPort, $remotePort, @cmd) = @_;
+  my ($remoteInfo, $localPort, $remotePort, @cmd) = @_;
+  my $host = $$remoteInfo{host};
   my @sshCmd = ("ssh",
     $host,
     "-f",
     "-o", "ControlMaster=yes",
-    "-o", ("ControlPath=" . getSSHControlPath($host)),
+    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
     "-L", "$localPort:$LOCALHOST:$remotePort",
     @cmd,
   );
@@ -215,9 +218,9 @@ sub runCmdSSHBind($$$@){
 }
 
 sub runSSHExit($){
-  my ($host) = @_;
+  my ($remoteInfo) = @_;
   my @sshCmd = ("ssh",
-    "-o", ("ControlPath=" . getSSHControlPath($host)),
+    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
     "-O", "exit",
     "$LOCALHOST",
   );
@@ -225,7 +228,7 @@ sub runSSHExit($){
 }
 
 sub getSSHControlPath($){
-  my ($host) = @_;
+  my ($remoteInfo) = @_;
   if(not -d $SSH_CONTROL_PATH_DIR){
     system "mkdir", "-p", $SSH_CONTROL_PATH_DIR;
   }
@@ -233,7 +236,7 @@ sub getSSHControlPath($){
     die "ERROR: $SSH_CONTROL_PATH_DIR does not exist\n";
   }
 
-  my $baseName = $host;
+  my $baseName = $$remoteInfo{host};
   $baseName =~ s/\W+/_/g;
   $baseName =~ s/^_+//;
   $baseName =~ s/_+$//;
@@ -242,8 +245,8 @@ sub getSSHControlPath($){
 }
 
 sub guessRemoteDisplay($){
-  my $host = shift;
-  my $who = `ssh "$host" who`;
+  my ($remoteInfo) = @_;
+  my $who = `ssh "$$remoteInfo{host}" who`;
   if($who =~ /\s*\((:\d+)\)$/m){
     return $1;
   }
