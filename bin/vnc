@@ -16,10 +16,8 @@ my $DEFAULT_VNC_PORT = 5900;
 my $DEFAULT_REMOTE_DISPLAY = ":0";
 my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
 
-my $EXEC_X11VNC = "x11vnc";
-
-my @VNC_SERVER_ARGS = qw(
-  -safer -localhost -nopw -once -noncache
+my %VNC_SERVER_ARGS = (
+  x11vnc       => [qw(-safer -localhost -nopw -once -noncache)],
 );
 
 my %VNC_CLIENT_ARGS = (
@@ -28,6 +26,7 @@ my %VNC_CLIENT_ARGS = (
   x2vnc           => [qw(-hotkey a-F9       -edgewidth 0)],
 );
 
+my $DEFAULT_VNC_SERVER = "x11vnc";
 my $DEFAULT_VNC_CLIENT = "xtigervncviewer";
 my $OK_VNC_CLIENTS = join "|", sort keys %VNC_CLIENT_ARGS;
 
@@ -148,10 +147,12 @@ sub startVNC($$$$$){
     die "invalid geometry: $geometry\n";
   }
 
-  my @vncServerCmd = ($EXEC_X11VNC,
+  my $vncServer = $DEFAULT_VNC_SERVER;
+
+  my @vncServerCmd = ($vncServer,
     '-display', guessRemoteDisplay($host),
     @serverGeometryArgs,
-    @VNC_SERVER_ARGS,
+    @{$VNC_SERVER_ARGS{$vncServer}},
   );
 
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
@@ -161,7 +162,7 @@ sub startVNC($$$$$){
   my $remotePort = $DEFAULT_VNC_PORT;
 
   if($isStartServer and $isSSHTunnel){
-    system "ssh", $host, "pkill x11vnc";
+    system "ssh", $host, "pkill $vncServer";
     runSSHExit($host);
     runCmdSSHBind($host, $localPort, $remotePort, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
@@ -172,7 +173,7 @@ sub startVNC($$$$$){
       die "ERROR: ssh bind failed for vnc server on host\n";
     }
   }elsif($isStartServer and not $isSSHTunnel){
-    system "ssh", $host, "pkill x11vnc";
+    system "ssh", $host, "pkill $vncServer";
     system "ssh", $host, "-f", @vncServerCmd;
     sleep($DELAY_MILLIS/1000.0);
   }else{
@@ -189,7 +190,7 @@ sub startVNC($$$$$){
   system @vncClientCmd;
 
   if($isStartServer){
-    system "ssh", $host, "pkill x11vnc";
+    system "ssh", $host, "pkill $vncServer";
   }
   if($isSSHTunnel){
     runSSHExit($host);
