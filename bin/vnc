@@ -48,6 +48,9 @@ my $USAGE = "Usage:
     --client=VNC_CLIENT   (default is $DEFAULT_VNC_CLIENT)
       one of: $OK_VNC_CLIENTS
 
+    -u USER | --user=USER
+      -use <USER> for all ssh/ipmagic commands
+
     --no-ssh-tunnel
       -do not select a <LOCAL_PORT>
       -do not create an SSH tunnel
@@ -84,6 +87,7 @@ sub main(@){
   my $opts = {
     remoteInfo    => {
       host        => undef,
+      user        => undef,
     },
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
@@ -112,6 +116,10 @@ sub main(@){
       $$opts{geometry} = $GEOMETRY_NONE;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
+    }elsif($arg =~ /^--user=(.+)$/){
+      $$opts{remoteInfo}{user} = $1;
+    }elsif($arg =~ /^(-u)$/ and @_ > 0){
+      $$opts{remoteInfo}{user} = shift @_;
     }elsif(not defined $$opts{remoteInfo}{host}){
       $$opts{remoteInfo}{host} = $arg;
     }else{
@@ -248,7 +256,11 @@ sub getSSHControlPath($){
 sub runRemoteCmd($$@){
   my ($remoteInfo, $opts, @remoteCmd) = @_;
   my @cmd = ("ssh");
-  @cmd = (@cmd, $$remoteInfo{host});
+  if(defined $$remoteInfo{user}){
+    @cmd = (@cmd, $$remoteInfo{user} . "@" . $$remoteInfo{host});
+  }else{
+    @cmd = (@cmd, $$remoteInfo{host});
+  }
   @cmd = (@cmd, "-f", "-n") if $$opts{background};
   @cmd = (@cmd, @remoteCmd);
 
