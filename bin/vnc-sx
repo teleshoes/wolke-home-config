@@ -157,14 +157,25 @@ sub main(@){
 
   $orientationArg = "" if not defined $orientationArg;
 
-  my $status = `screen-daemon vnc-sx-tunnel --status`;
-  if($status =~ /on/){
-    system "screen-daemon", "vnc-sx-tunnel", "--stop";
+  my $controlFile = "/tmp/vnc-sx-ssh.ctl";
+  if(-e $controlFile){
+    system "ssh", "-o", "ControlPath=$controlFile", "-O", "exit", "localhost";
     system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "systemctl --user stop vnc";
   }
+  die "ERROR: control file $controlFile still exists\n" if -e $controlFile;
 
-  system "screen-daemon", "vnc-sx-tunnel", "--start", "0", "0",
-    "ipmagic $IPMAGIC_NAME -u $USERNAME --ssh-args '-t -t -L 5901:localhost:5900' -s";
+  system "ipmagic", $IPMAGIC_NAME,
+    "-u", $USERNAME,
+    "--ssh-args", join(" ", (
+      "-o", "ControlPath=$controlFile",
+      "-o", "ControlMaster=yes",
+      "-f",
+      "-N",
+      "-n",
+      "-L", "5901:localhost:5900",
+    )),
+    "-s",
+  ;
 
   system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "
     echo \"LIPSTICK2VNC_OPTS=\\\"$orientationArg -k -s $scale\\\"\" \\
@@ -184,7 +195,6 @@ sub main(@){
 
   system $VNC_VIEWER_EXEC, "localhost:5901", @VNC_VIEWER_ARGS;
 
-  system "screen-daemon", "vnc-sx-tunnel", "--stop";
   system "ipmagic", $IPMAGIC_NAME, "-u", $USERNAME, "-s", "systemctl --user stop vnc";
 }
 
