@@ -9,6 +9,7 @@ sub assertIP($);
 sub assertMac($);
 sub fingerprint($);
 sub ensureFingerprint($$);
+sub getConfFilesSymlinksLast();
 sub getLocalIpmagicName();
 sub parseConfig($);
 sub hostsMarker($);
@@ -549,7 +550,7 @@ sub ensureFingerprint($$){
   }
 }
 
-sub getLocalIpmagicName(){
+sub getConfFilesSymlinksLast(){
   my %symlinkDepth;
   for my $confFile(@confFiles){
     $symlinkDepth{$confFile} = 0;
@@ -569,6 +570,12 @@ sub getLocalIpmagicName(){
     or $a cmp $b                            #lexicographically otherwise
   } @confFiles;
 
+  return @sortedConfFiles;
+}
+
+sub getLocalIpmagicName(){
+  my @confFiles = getConfFilesSymlinksLast();
+
   my $hostname = `$hostnameExec`;
   chomp $hostname;
 
@@ -577,7 +584,7 @@ sub getLocalIpmagicName(){
   }
 
   my $matchingConfName = undef;
-  for my $confFile(@sortedConfFiles){
+  for my $confFile(@confFiles){
     my $confName = $1 if $confFile =~ /^(?:.*\/)?([a-zA-Z0-9_\-]+).conf$/i;
     my $config = parseConfig $confFile;
     if($$config{hostname} eq $hostname){
