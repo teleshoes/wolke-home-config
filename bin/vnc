@@ -32,7 +32,8 @@ my $DEFAULT_VNC_CLIENT = "xtigervncviewer";
 my $OK_VNC_CLIENTS = join "|", sort keys %VNC_CLIENT_ARGS;
 
 my $USAGE = "Usage:
-  $0 [OPTS] HOST
+  $0 [OPTS] HOST | IPMAGIC_NAME
+    -if <IPMAGIC_NAME> is given, get <HOST> using `ipmagic IPMAGIC_NAME`
     -choose a <LOCAL_PORT> based on the number of existing SSH sessions
     -start vnc server on <HOST> with port=$DEFAULT_VNC_PORT
     -setup an ssh tunnel to bind $LOCALHOST:<LOCAL_PORT> to <HOST>:$DEFAULT_VNC_PORT
@@ -86,6 +87,7 @@ sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
     remoteInfo    => {
+      ipmagicName => undef,
       host        => undef,
       user        => undef,
     },
@@ -124,6 +126,20 @@ sub main(@){
       $$opts{remoteInfo}{host} = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(defined $$opts{remoteInfo}{host}){
+    my %okIpmagicNames = map{$_ => 1} split /\s+/, `ipmagic --list`;
+    if(defined $okIpmagicNames{$$opts{remoteInfo}{host}}){
+      my $ipmagicName = $$opts{remoteInfo}{host};
+      my $host = `ipmagic $ipmagicName --host`;
+      chomp $host;
+      if($host !~ /\w/){
+        die "ERROR: could not get host for IPMAGIC_NAME=$ipmagicName\n";
+      }
+      $$opts{remoteInfo}{host} = $host;
+      $$opts{remoteInfo}{ipmagicName} = $ipmagicName;
     }
   }
 
@@ -255,14 +271,22 @@ sub getSSHControlPath($){
 
 sub runRemoteCmd($$@){
   my ($remoteInfo, $opts, @remoteCmd) = @_;
-  my @cmd = ("ssh");
-  if(defined $$remoteInfo{user}){
-    @cmd = (@cmd, $$remoteInfo{user} . "@" . $$remoteInfo{host});
+  my @cmd;
+  if(defined $$remoteInfo{ipmagicName}){
+    @cmd = ("ipmagic", $$remoteInfo{ipmagicName});
+    @cmd = (@cmd, "-u", $$remoteInfo{user}) if defined $$remoteInfo{user};
+    @cmd = (@cmd, "--ssh-args", "-f -n") if $$opts{background};
+    @cmd = (@cmd, @remoteCmd);
   }else{
-    @cmd = (@cmd, $$remoteInfo{host});
+    @cmd = ("ssh");
+    if(defined $$remoteInfo{user}){
+      @cmd = (@cmd, $$remoteInfo{user} . "@" . $$remoteInfo{host});
+    }else{
+      @cmd = (@cmd, $$remoteInfo{host});
+    }
+    @cmd = (@cmd, "-f", "-n") if $$opts{background};
+    @cmd = (@cmd, @remoteCmd);
   }
-  @cmd = (@cmd, "-f", "-n") if $$opts{background};
-  @cmd = (@cmd, @remoteCmd);
 
   if($$opts{readProc}){
     open my $cmdH, "-|", @cmd or die "ERROR: command failed @cmd\n$!\n";
