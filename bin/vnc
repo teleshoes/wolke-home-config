@@ -4,16 +4,17 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 sub startVNC($$$);
-sub runCmdSSHBind($$$$@);
+sub runCmdSSHBind($$$@);
 sub runSSHExit($);
+sub getSSHControlFile($);
 sub guessRemoteDisplay($);
 
 my $DEFAULT_REMOTE_DISPLAY = ":0";
 my $LOCALHOST = "127.0.0.1";
 my $PORT = '5900';
 my $DELAY_MILLIS = 2500;
-my $SSH_CONTROL_FILE = '/tmp/vncSSH.ctl';
 
+my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
 my $EXEC_X11VNC = "x11vnc";
 
 my @SERVER_ARGS = qw(
@@ -88,7 +89,7 @@ sub main(@){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
     startVNC($$opts{host}, $$opts{client}, $$opts{geometry});
   }elsif($cmd eq $CMD_SSH_OFF){
-    runSSHExit($SSH_CONTROL_FILE);
+    runSSHExit($$opts{host});
   }else{
     die "ERROR: unknown cmd $cmd\n";
   }
@@ -106,7 +107,7 @@ sub startVNC($$$){
     die "invalid geometry: $geometry\n";
   }
 
-  runSSHExit($SSH_CONTROL_FILE);
+  runSSHExit($host);
   system "ssh", $host, "pkill x11vnc";
 
   my @serverGeometryArgs;
@@ -120,7 +121,7 @@ sub startVNC($$$){
     @SERVER_ARGS,
   );
 
-  my $exitCode = runCmdSSHBind($host, $PORT, $PORT, $SSH_CONTROL_FILE, @vncServerCmd);
+  my $exitCode = runCmdSSHBind($host, $PORT, $PORT, @vncServerCmd);
   if($exitCode != 0){
     die "ERROR: ssh bind failed for vnc server on host\n";
   }
@@ -135,13 +136,13 @@ sub startVNC($$$){
   system @vncClientCmd;
 }
 
-sub runCmdSSHBind($$$$@){
-  my ($host, $localPort, $remotePort, $ctlFile, @cmd) = @_;
+sub runCmdSSHBind($$$@){
+  my ($host, $localPort, $remotePort, @cmd) = @_;
   my @sshCmd = ("ssh",
     $host,
     "-f",
     "-o", "ControlMaster=yes",
-    "-o", "ControlPath=$ctlFile",
+    "-o", ("ControlPath=" . getSSHControlPath($host)),
     "-L", "$localPort:$LOCALHOST:$remotePort",
     @cmd,
   );
@@ -150,13 +151,30 @@ sub runCmdSSHBind($$$$@){
 }
 
 sub runSSHExit($){
-  my ($ctlFile) = @_;
+  my ($host) = @_;
   my @sshCmd = ("ssh",
-    "-o", "ControlPath=$ctlFile",
+    "-o", ("ControlPath=" . getSSHControlPath($host)),
     "-O", "exit",
     "$LOCALHOST",
   );
   system @sshCmd;
+}
+
+sub getSSHControlPath($){
+  my ($host) = @_;
+  if(not -d $SSH_CONTROL_PATH_DIR){
+    system "mkdir", "-p", $SSH_CONTROL_PATH_DIR;
+  }
+  if(not -d $SSH_CONTROL_PATH_DIR){
+    die "ERROR: $SSH_CONTROL_PATH_DIR does not exist\n";
+  }
+
+  my $baseName = $host;
+  $baseName =~ s/\W+/_/g;
+  $baseName =~ s/^_+//;
+  $baseName =~ s/_+$//;
+
+  return "$SSH_CONTROL_PATH_DIR/$baseName.ctl";
 }
 
 sub guessRemoteDisplay($){
