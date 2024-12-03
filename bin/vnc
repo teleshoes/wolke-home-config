@@ -5,6 +5,7 @@ use Time::HiRes qw(sleep);
 
 sub startVNC($$$);
 sub runCmdSSHBind($$$$@);
+sub runSSHExit($);
 sub guessRemoteDisplay($);
 
 my $DEFAULT_REMOTE_DISPLAY = ":0";
@@ -27,13 +28,6 @@ my %CLIENT_ARGS = (
 
 my $DEFAULT_CLIENT = "xtigervncviewer";
 my $OK_CLIENTS = join "|", sort keys %CLIENT_ARGS;
-
-my @SSH_EXIT = (
-  "ssh",
-    "-S", $SSH_CONTROL_FILE,
-    "-O", "exit",
-    "$LOCALHOST",
-);
 
 my $USAGE = "Usage:
   $0 [OPTS] HOST
@@ -94,7 +88,7 @@ sub main(@){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
     startVNC($$opts{host}, $$opts{client}, $$opts{geometry});
   }elsif($cmd eq $CMD_SSH_OFF){
-    exec @SSH_EXIT;
+    runSSHExit($SSH_CONTROL_FILE);
   }else{
     die "ERROR: unknown cmd $cmd\n";
   }
@@ -112,7 +106,7 @@ sub startVNC($$$){
     die "invalid geometry: $geometry\n";
   }
 
-  system @SSH_EXIT;
+  runSSHExit($SSH_CONTROL_FILE);
   system "ssh", $host, "pkill x11vnc";
 
   my @serverGeometryArgs;
@@ -152,6 +146,16 @@ sub runCmdSSHBind($$$$@){
   );
   system @sshCmd;
   return $? >> 8;
+}
+
+sub runSSHExit($){
+  my ($ctlFile) = @_;
+  my @sshCmd = ("ssh",
+    "-S", $ctlFile,
+    "-O", "exit",
+    "$LOCALHOST",
+  );
+  system @sshCmd;
 }
 
 sub guessRemoteDisplay($){
