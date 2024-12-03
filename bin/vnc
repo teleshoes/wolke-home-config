@@ -18,18 +18,18 @@ my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
 
 my $EXEC_X11VNC = "x11vnc";
 
-my @SERVER_ARGS = qw(
+my @VNC_SERVER_ARGS = qw(
   -safer -localhost -nopw -once -noncache
 );
 
-my %CLIENT_ARGS = (
+my %VNC_CLIENT_ARGS = (
   xtigervncviewer => [qw(DotWhenNoCursor=1)],
   xtightvncviewer => [qw(-quality 0         -compresslevel 5)],
   x2vnc           => [qw(-hotkey a-F9       -edgewidth 0)],
 );
 
-my $DEFAULT_CLIENT = "xtigervncviewer";
-my $OK_CLIENTS = join "|", sort keys %CLIENT_ARGS;
+my $DEFAULT_VNC_CLIENT = "xtigervncviewer";
+my $OK_VNC_CLIENTS = join "|", sort keys %VNC_CLIENT_ARGS;
 
 my $USAGE = "Usage:
   $0 [OPTS] HOST
@@ -45,8 +45,8 @@ my $USAGE = "Usage:
     disconnect ssh tunnel
 
   OPTS
-    --client=CLIENT   (default is $DEFAULT_CLIENT)
-      one of: $OK_CLIENTS
+    --client=VNC_CLIENT   (default is $DEFAULT_VNC_CLIENT)
+      one of: $OK_VNC_CLIENTS
 
     --geometry=GEOMETRY    (default is --geometry=res)
       one of 'res', 'none', or <WIDTH>x<HEIGHT>
@@ -71,7 +71,7 @@ my $GEOMETRY_NONE = "none";
 sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
-    client   => $DEFAULT_CLIENT,
+    vncClient   => $DEFAULT_VNC_CLIENT,
     geometry => $GEOMETRY_RES,
     host     => undef,
   };
@@ -82,8 +82,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(off)$/){
       $cmd = $CMD_SSH_OFF;
-    }elsif($arg =~ /^--client=($OK_CLIENTS)$/){
-      $$opts{client} = $1;
+    }elsif($arg =~ /^--client=($OK_VNC_CLIENTS)$/){
+      $$opts{vncClient} = $1;
     }elsif($arg =~ /^--geometry=res$/){
       $$opts{geometry} = $GEOMETRY_RES;
     }elsif($arg =~ /^--geometry=none$/){
@@ -99,7 +99,7 @@ sub main(@){
 
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
-    startVNC($$opts{host}, $$opts{client}, $$opts{geometry});
+    startVNC($$opts{host}, $$opts{vncClient}, $$opts{geometry});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
   }else{
@@ -108,7 +108,7 @@ sub main(@){
 }
 
 sub startVNC($$$){
-  my ($host, $client, $geometry) = @_;
+  my ($host, $vncClient, $geometry) = @_;
 
   my @serverGeometryArgs;
   if($geometry eq $GEOMETRY_RES){
@@ -133,7 +133,7 @@ sub startVNC($$$){
   my @vncServerCmd = ($EXEC_X11VNC,
     '-display', guessRemoteDisplay($host),
     @serverGeometryArgs,
-    @SERVER_ARGS,
+    @VNC_SERVER_ARGS,
   );
 
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
@@ -149,8 +149,8 @@ sub startVNC($$$){
 
   sleep($DELAY_MILLIS/1000.0);
 
-  my @vncClientCmd = ($client,
-    @{$CLIENT_ARGS{$client}},
+  my @vncClientCmd = ($vncClient,
+    @{$VNC_CLIENT_ARGS{$vncClient}},
     sprintf("%s::%s", $LOCALHOST, $localPort),
   );
 
