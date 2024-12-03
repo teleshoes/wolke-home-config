@@ -271,11 +271,20 @@ sub getSSHControlPath($){
 
 sub runRemoteCmd($$@){
   my ($remoteInfo, $opts, @remoteCmd) = @_;
+
+  if(not defined $$opts{sshArgs}){
+    $$opts{sshArgs} = [];
+  }
+  if($$opts{background}){
+    push @{$$opts{sshArgs}}, "-f";
+    push @{$$opts{sshArgs}}, "-n";
+  }
+
   my @cmd;
   if(defined $$remoteInfo{ipmagicName}){
     @cmd = ("ipmagic", $$remoteInfo{ipmagicName});
     @cmd = (@cmd, "-u", $$remoteInfo{user}) if defined $$remoteInfo{user};
-    @cmd = (@cmd, "--ssh-args", "-f -n") if $$opts{background};
+    @cmd = (@cmd, "--ssh-args", join(" ", @{$$opts{sshArgs}}));
     @cmd = (@cmd, @remoteCmd);
   }else{
     @cmd = ("ssh");
@@ -284,7 +293,7 @@ sub runRemoteCmd($$@){
     }else{
       @cmd = (@cmd, $$remoteInfo{host});
     }
-    @cmd = (@cmd, "-f", "-n") if $$opts{background};
+    @cmd = (@cmd, @{$$opts{sshArgs}});
     @cmd = (@cmd, @remoteCmd);
   }
 
