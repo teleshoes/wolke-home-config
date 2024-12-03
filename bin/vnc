@@ -61,11 +61,14 @@ my $USAGE = "Usage:
 my $CMD_START_VNC = "start";
 my $CMD_SSH_OFF = "off";
 
+my $GEOMETRY_RES = "res";
+my $GEOMETRY_NONE = "none";
+
 sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
     client   => $DEFAULT_CLIENT,
-    geometry => "res",
+    geometry => $GEOMETRY_RES,
     host     => undef,
   };
   while(@_ > 0){
@@ -77,7 +80,11 @@ sub main(@){
       $cmd = $CMD_SSH_OFF;
     }elsif($arg =~ /^--client=($OK_CLIENTS)$/){
       $$opts{client} = $1;
-    }elsif($arg =~ /^--geometry=(res|none|\d+x\d+)$/){
+    }elsif($arg =~ /^--geometry=res$/){
+      $$opts{geometry} = $GEOMETRY_RES;
+    }elsif($arg =~ /^--geometry=none$/){
+      $$opts{geometry} = $GEOMETRY_NONE;
+    }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
     }elsif(not defined $$opts{host}){
       $$opts{host} = $arg;
@@ -99,22 +106,25 @@ sub main(@){
 sub startVNC($$$){
   my ($host, $client, $geometry) = @_;
 
-  if($geometry eq "res"){
-    $geometry = `res`;
-    chomp $geometry;
-  }
-
-  if($geometry !~ /^(none|\d+x\d+)$/){
+  my @serverGeometryArgs;
+  if($geometry eq $GEOMETRY_RES){
+    my $res = `res`;
+    chomp $res;
+    if($res =~ /^(\d+x\d+)$/){
+      @serverGeometryArgs = ("-geometry", $res);
+    }else{
+      die "ERROR: invalid geometry returned by `res` - '$res'\n";
+    }
+  }elsif($geometry =~ /^(\d+x\d+)$/){
+    @serverGeometryArgs = ("-geometry", $geometry);
+  }elsif($geometry eq $GEOMETRY_NONE){
+    @serverGeometryArgs = ();
+  }else{
     die "invalid geometry: $geometry\n";
   }
 
   runSSHExit($host);
   system "ssh", $host, "pkill x11vnc";
-
-  my @serverGeometryArgs;
-  if($geometry =~ /^(\d+x\d+)$/){
-    @serverGeometryArgs = ("-geometry", $geometry);
-  }
 
   my @vncServerCmd = ($EXEC_X11VNC,
     '-display', guessRemoteDisplay($host),
