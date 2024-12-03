@@ -7,6 +7,7 @@ sub startVNC($$$$$);
 sub runCmdSSHBind($$$@);
 sub runSSHExit($);
 sub getSSHControlPath($);
+sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
 
 my $DELAY_MILLIS = 300;
@@ -164,7 +165,7 @@ sub startVNC($$$$$){
   my $remotePort = $DEFAULT_VNC_PORT;
 
   if($isStartServer and $isSSHTunnel){
-    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
+    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
     runSSHExit($remoteInfo);
     runCmdSSHBind($remoteInfo, $localPort, $remotePort, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
@@ -175,8 +176,8 @@ sub startVNC($$$$$){
       die "ERROR: ssh bind failed for vnc server on $$remoteInfo{host}\n";
     }
   }elsif($isStartServer and not $isSSHTunnel){
-    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
-    system "ssh", $$remoteInfo{host}, "-f", @vncServerCmd;
+    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
+    runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
   }else{
     #not starting server or creating SSH tunnel
@@ -192,7 +193,7 @@ sub startVNC($$$$$){
   system @vncClientCmd;
 
   if($isStartServer){
-    system "ssh", $$remoteInfo{host}, "pkill $vncServer";
+    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
   }
   if($isSSHTunnel){
     runSSHExit($remoteInfo);
@@ -244,9 +245,30 @@ sub getSSHControlPath($){
   return "$SSH_CONTROL_PATH_DIR/$baseName.ctl";
 }
 
+sub runRemoteCmd($$@){
+  my ($remoteInfo, $opts, @remoteCmd) = @_;
+  my @cmd = ("ssh");
+  @cmd = (@cmd, $$remoteInfo{host});
+  @cmd = (@cmd, "-f", "-n") if $$opts{background};
+  @cmd = (@cmd, @remoteCmd);
+
+  if($$opts{readProc}){
+    open my $cmdH, "-|", @cmd or die "ERROR: command failed @cmd\n$!\n";
+    my @lines = <$cmdH>;
+    close $cmdH;
+    if(wantarray){
+      return @lines;
+    }else{
+      return join "", @lines;
+    }
+  }else{
+    system @cmd;
+  }
+}
+
 sub guessRemoteDisplay($){
   my ($remoteInfo) = @_;
-  my $who = `ssh "$$remoteInfo{host}" who`;
+  my $who = runRemoteCmd($remoteInfo, {readProc=>1}, qw(who));
   if($who =~ /\s*\((:\d+)\)$/m){
     return $1;
   }
