@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 sub startVNC($$$);
+sub runCmdSSHBind($$$$@);
 sub guessRemoteDisplay($);
 
 my $DEFAULT_REMOTE_DISPLAY = ":0";
@@ -27,11 +28,6 @@ my %CLIENT_ARGS = (
 my $DEFAULT_CLIENT = "xtigervncviewer";
 my $OK_CLIENTS = join "|", sort keys %CLIENT_ARGS;
 
-my @SSH_BIND = (
-  "ssh", "-f",
-    "-S", $SSH_CONTROL_FILE,
-    "-L", "$PORT:$LOCALHOST:$PORT",
-);
 my @SSH_EXIT = (
   "ssh",
     "-S", $SSH_CONTROL_FILE,
@@ -130,9 +126,10 @@ sub startVNC($$$){
     @SERVER_ARGS,
   );
 
-
-  system @SSH_BIND, $host, "@vncServerCmd";
-  exit $? if $? != 0;
+  my $exitCode = runCmdSSHBind($host, $PORT, $PORT, $SSH_CONTROL_FILE, @vncServerCmd);
+  if($exitCode != 0){
+    die "ERROR: ssh bind failed for vnc server on host\n";
+  }
 
   sleep($DELAY_MILLIS/1000.0);
 
@@ -142,6 +139,19 @@ sub startVNC($$$){
   );
 
   system @vncClientCmd;
+}
+
+sub runCmdSSHBind($$$$@){
+  my ($host, $localPort, $remotePort, $ctlFile, @cmd) = @_;
+  my @sshCmd = ("ssh",
+    $host,
+    "-f",
+    "-S", $ctlFile,
+    "-L", "$localPort:$LOCALHOST:$remotePort",
+    "@cmd",
+  );
+  system @sshCmd;
+  return $? >> 8;
 }
 
 sub guessRemoteDisplay($){
