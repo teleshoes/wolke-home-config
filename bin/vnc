@@ -5,50 +5,50 @@ use Time::HiRes qw(sleep);
 
 sub guessDisplay($);
 
-my $defaultDisplay = ":0";
-my $localhost = "127.0.0.1";
-my $port = '5900';
-my $delayMillis = 2500;
-my $sshControlFile = '/tmp/vncSSH.ctl';
+my $DEFAULT_DISPLAY = ":0";
+my $LOCALHOST = "127.0.0.1";
+my $PORT = '5900';
+my $DELAY_MILLIS = 2500;
+my $SSH_CONTROL_FILE = '/tmp/vncSSH.ctl';
 
-my @server = (
+my @SERVER = (
   "x11vnc",
     "-safer", "-localhost", "-nopw", "-once",
     "-noncache",
 );
 
-my %clients = (
+my %CLIENTS = (
   xtigervncviewer => [
-    "$localhost:0",
+    "$LOCALHOST:0",
   ],
   xtightvncviewer => [
-    "$localhost:0",
+    "$LOCALHOST:0",
     "-quality", "0",
     "-compresslevel", "5",
   ],
   x2vnc => [
     "-hotkey", "a-F9",
     "-edgewidth", "0",
-    "$localhost:0",
+    "$LOCALHOST:0",
   ],
 );
 
-my $defaultClient = "xtigervncviewer";
-my $okClients = join "|", sort keys %clients;
+my $DEFAULT_CLIENT = "xtigervncviewer";
+my $OK_CLIENTS = join "|", sort keys %CLIENTS;
 
-my @sshBind = (
+my @SSH_BIND = (
   "ssh", "-f",
-    "-S", $sshControlFile,
-    "-L", "$port:$localhost:$port",
+    "-S", $SSH_CONTROL_FILE,
+    "-L", "$PORT:$LOCALHOST:$PORT",
 );
-my @sshExit = (
+my @SSH_EXIT = (
   "ssh",
-    "-S", $sshControlFile,
+    "-S", $SSH_CONTROL_FILE,
     "-O", "exit",
-    "$localhost",
+    "$LOCALHOST",
 );
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 [OPTS] HOST
     start x11vnc on the HOST, setup an ssh tunnel and then connect to it
     if --x2vnc is given, client is x2vnc. otherwise, client is vncviewer
@@ -60,8 +60,8 @@ my $usage = "Usage:
     disconnect ssh tunnel
 
   OPTS
-    --client=CLIENT   (default is $defaultClient)
-      one of: $okClients
+    --client=CLIENT   (default is $DEFAULT_CLIENT)
+      one of: $OK_CLIENTS
     --geometry=GEOMETRY    (default is --geometry=res)
       one of 'res', 'none', or <WIDTH>x<HEIGHT>
         if <GEOMETRY> is 'res':
@@ -77,17 +77,17 @@ my $usage = "Usage:
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)/){
-    print $usage;
+    print $USAGE;
     exit 0;
   }elsif(@_ == 1 and $_[0] eq 'off'){
-    exec @sshExit;
+    exec @SSH_EXIT;
   }
 
-  my $client = $defaultClient;
+  my $client = $DEFAULT_CLIENT;
   my $geometry = "res";
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
-    if($arg =~ /^--client=($okClients)$/){
+    if($arg =~ /^--client=($OK_CLIENTS)$/){
       $client = $1;
     }elsif($arg =~ /^--geometry=(res|none|\d+x\d+)$/){
       $geometry = $1;
@@ -96,7 +96,7 @@ sub main(@){
 
   my $host = shift if @_ > 0;
 
-  die $usage if not defined $host or @_ > 0;
+  die $USAGE if not defined $host or @_ > 0;
 
   if($geometry eq "res"){
     $geometry = `res`;
@@ -107,20 +107,20 @@ sub main(@){
     die "invalid geometry: $geometry\n";
   }
 
-  system @sshExit;
+  system @SSH_EXIT;
   system "ssh", $host, "pkill x11vnc";
 
-  @server = (@server, '-display', guessDisplay $host);
+  @SERVER = (@SERVER, '-display', guessDisplay $host);
   if($geometry =~ /^(\d+x\d+)$/){
-    @server = (@server, "-geometry", $geometry);
+    @SERVER = (@SERVER, "-geometry", $geometry);
   }
 
-  system @sshBind, $host, "@server";
+  system @SSH_BIND, $host, "@SERVER";
   exit $? if $? != 0;
 
-  sleep($delayMillis/1000.0);
+  sleep($DELAY_MILLIS/1000.0);
 
-  my @clientArgs = @{$clients{$client}};
+  my @clientArgs = @{$CLIENTS{$client}};
   system $client, @clientArgs;
 }
 
@@ -130,7 +130,7 @@ sub guessDisplay($){
   if($who =~ /\s*\((:\d+)\)$/m){
     return $1;
   }
-  return $defaultDisplay;
+  return $DEFAULT_DISPLAY;
 }
 
 &main(@ARGV);
