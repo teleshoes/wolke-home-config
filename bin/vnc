@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$);
+sub startVNC($$$$$);
 sub runCmdSSHBind($$$@);
 sub runSSHExit($);
 sub getSSHControlFile($);
@@ -48,6 +48,14 @@ my $USAGE = "Usage:
     --client=VNC_CLIENT   (default is $DEFAULT_VNC_CLIENT)
       one of: $OK_VNC_CLIENTS
 
+    --no-ssh-tunnel
+      -do not select a <LOCAL_PORT>
+      -do not create an SSH tunnel
+      -connect directly to the remote vnc server on <HOST>:$DEFAULT_VNC_PORT
+
+    --no-server
+      -do not start vnc server, assume already running on <HOST>:$DEFAULT_VNC_PORT
+
     --geometry=GEOMETRY    (default is --geometry=res)
       one of 'res', 'none', or <WIDTH>x<HEIGHT>
         if <GEOMETRY> is 'res':
@@ -71,9 +79,11 @@ my $GEOMETRY_NONE = "none";
 sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
-    vncClient   => $DEFAULT_VNC_CLIENT,
-    geometry => $GEOMETRY_RES,
-    host     => undef,
+    host          => undef,
+    vncClient     => $DEFAULT_VNC_CLIENT,
+    geometry      => $GEOMETRY_RES,
+    isStartServer => 1,
+    isSSHTunnel   => 1,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -84,6 +94,10 @@ sub main(@){
       $cmd = $CMD_SSH_OFF;
     }elsif($arg =~ /^--client=($OK_VNC_CLIENTS)$/){
       $$opts{vncClient} = $1;
+    }elsif($arg =~ /^(--no-server)$/){
+      $$opts{isStartServer} = 0;
+    }elsif($arg =~ /^(--no-ssh-tunnel)$/){
+      $$opts{isSSHTunnel} = 0;
     }elsif($arg =~ /^--geometry=res$/){
       $$opts{geometry} = $GEOMETRY_RES;
     }elsif($arg =~ /^--geometry=none$/){
@@ -99,7 +113,8 @@ sub main(@){
 
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
-    startVNC($$opts{host}, $$opts{vncClient}, $$opts{geometry});
+    startVNC($$opts{host}, $$opts{vncClient}, $$opts{geometry},
+      $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
   }else{
@@ -107,8 +122,8 @@ sub main(@){
   }
 }
 
-sub startVNC($$$){
-  my ($host, $vncClient, $geometry) = @_;
+sub startVNC($$$$$){
+  my ($host, $vncClient, $geometry, $isStartServer, $isSSHTunnel) = @_;
 
   my @serverGeometryArgs;
   if($geometry eq $GEOMETRY_RES){
@@ -127,9 +142,6 @@ sub startVNC($$$){
     die "invalid geometry: $geometry\n";
   }
 
-  runSSHExit($host);
-  system "ssh", $host, "pkill x11vnc";
-
   my @vncServerCmd = ($EXEC_X11VNC,
     '-display', guessRemoteDisplay($host),
     @serverGeometryArgs,
@@ -142,16 +154,40 @@ sub startVNC($$$){
   my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
   my $remotePort = $DEFAULT_VNC_PORT;
 
-  runCmdSSHBind($host, $localPort, $remotePort, @vncServerCmd);
+  if($isStartServer and $isSSHTunnel){
+    system "ssh", $host, "pkill x11vnc";
+    runSSHExit($host);
+    runCmdSSHBind($host, $localPort, $remotePort, @vncServerCmd);
+    sleep($DELAY_MILLIS/1000.0);
+  }elsif(not $isStartServer and $isSSHTunnel){
+    runSSHExit($host);
+    my $exitCode = runCmdSSHBind($host, $localPort, $remotePort, "-N");
+    if($exitCode != 0){
+      die "ERROR: ssh bind failed for vnc server on host\n";
+    }
+  }elsif($isStartServer and not $isSSHTunnel){
+    system "ssh", $host, "pkill x11vnc";
+    system "ssh", $host, "-f", @vncServerCmd;
+    sleep($DELAY_MILLIS/1000.0);
+  }else{
+    #not starting server or creating SSH tunnel
+  }
 
-  sleep($DELAY_MILLIS/1000.0);
-
-  my @vncClientCmd = ($vncClient,
-    @{$VNC_CLIENT_ARGS{$vncClient}},
-    sprintf("%s::%s", $LOCALHOST, $localPort),
-  );
+  my @vncClientCmd = ($vncClient, @{$VNC_CLIENT_ARGS{$vncClient}});
+  if($isSSHTunnel){
+    push @vncClientCmd, sprintf("%s::%s", $LOCALHOST, $localPort);
+  }else{
+    push @vncClientCmd, sprintf("%s::%s", $host, $remotePort);
+  }
 
   system @vncClientCmd;
+
+  if($isStartServer){
+    system "ssh", $host, "pkill x11vnc";
+  }
+  if($isSSHTunnel){
+    runSSHExit($host);
+  }
 }
 
 sub runCmdSSHBind($$$@){
