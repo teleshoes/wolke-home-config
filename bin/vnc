@@ -4,9 +4,9 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 sub startVNC($$$$$);
-sub runCmdSSHBind($$$@);
-sub runSSHExit($);
 sub getSSHControlPath($);
+sub startSSHTunnel($$$@);
+sub stopSSHTunnel($);
 sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
 
@@ -184,31 +184,22 @@ sub startVNC($$$$$){
 
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
 
-  #5900 + 10*otherVNCSessions + random first digit
-  my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
-  my $remotePort = $DEFAULT_VNC_PORT;
-
-  if($isStartServer and $isSSHTunnel){
-    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
-    runSSHExit($remoteInfo);
-    runCmdSSHBind($remoteInfo, $localPort, $remotePort, @vncServerCmd);
-    sleep($DELAY_MILLIS/1000.0);
-  }elsif(not $isStartServer and $isSSHTunnel){
-    runSSHExit($remoteInfo);
-    my $exitCode = runCmdSSHBind($remoteInfo, $localPort, $remotePort, "-N");
-    if($exitCode != 0){
-      die "ERROR: ssh bind failed for vnc server on $$remoteInfo{host}\n";
-    }
-  }elsif($isStartServer and not $isSSHTunnel){
+  if($isStartServer){
     runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
     runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
-  }else{
-    #not starting server or creating SSH tunnel
   }
+
+  my $remotePort = $DEFAULT_VNC_PORT;
 
   my @vncClientCmd = ($vncClient, @{$VNC_CLIENT_ARGS{$vncClient}});
   if($isSSHTunnel){
+    #5900 + 10*otherVNCSessions + random first digit
+    my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
+
+    stopSSHTunnel($remoteInfo);
+    startSSHTunnel($remoteInfo, $localPort, $remotePort);
+
     push @vncClientCmd, sprintf("%s::%s", $LOCALHOST, $localPort);
   }else{
     push @vncClientCmd, sprintf("%s::%s", $$remoteInfo{host}, $remotePort);
@@ -220,36 +211,8 @@ sub startVNC($$$$$){
     runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
   }
   if($isSSHTunnel){
-    runSSHExit($remoteInfo);
+    stopSSHTunnel($remoteInfo);
   }
-}
-
-sub runCmdSSHBind($$$@){
-  my ($remoteInfo, $localPort, $remotePort, @cmd) = @_;
-  my $host = $$remoteInfo{host};
-  my @sshCmd = ("ssh",
-    $host,
-    "-f",
-    "-o", "ControlMaster=yes",
-    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
-    "-L", "$localPort:$LOCALHOST:$remotePort",
-    @cmd,
-  );
-  system @sshCmd;
-  my $exitCode = $? >> 8;
-  if($exitCode != 0){
-    die "ERROR: ssh bind failed for $host\n";
-  }
-}
-
-sub runSSHExit($){
-  my ($remoteInfo) = @_;
-  my @sshCmd = ("ssh",
-    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
-    "-O", "exit",
-    "$LOCALHOST",
-  );
-  system @sshCmd;
 }
 
 sub getSSHControlPath($){
@@ -267,6 +230,31 @@ sub getSSHControlPath($){
   $baseName =~ s/_+$//;
 
   return "$SSH_CONTROL_PATH_DIR/$baseName.ctl";
+}
+
+sub startSSHTunnel($$$@){
+  my ($remoteInfo, $localPort, $remotePort) = @_;
+  my @remoteCmd = (); #ssh -N instead of a command
+  runRemoteCmd($remoteInfo, {
+    sshArgs => [
+      "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
+      "-o", "ControlMaster=yes",
+      "-f",
+      "-N",
+      "-n",
+      "-L", "$localPort:$LOCALHOST:$remotePort",
+    ],
+  }, @remoteCmd);
+}
+
+sub stopSSHTunnel($){
+  my ($remoteInfo) = @_;
+  my @sshCmd = ("ssh",
+    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
+    "-O", "exit",
+    $LOCALHOST,
+  );
+  system @sshCmd;
 }
 
 sub runRemoteCmd($$@){
