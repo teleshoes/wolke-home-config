@@ -35,23 +35,16 @@ my $usage = "Usage:
 
   $EXEC [OPTS]
   $EXEC [OPTS] -b | --balance
-    -fetch BTC=>USD conversion rate using API
-    -fetch BTC balance if not cached using API
+    -fetch BTC=>USD conversion rate with public API
     -print balance in USD and BTC
 
   $EXEC [OPTS] -t | --transactions
-    -fetch all BTC transactions if not cached using API
-    -format and print all transactions, one per line
+    -format and print all cached transactions, one per line
+
+  $EXEC [OPTS] -f | --fetch
+    -fetch and cache BTC balance and transactions with API using key+secret
 
   OPTS
-    --fetch-default
-      fetch BTC balance/transactions only if there is no cached value
-      (this is the default)
-    -f | --fetch-always | --fetch
-      always fetch BTC balance/transactions, never use cache
-    --fetch-never
-      never fetch BTC balance/transactions, always use cache
-
     --btc | --no-usd
       -skip fetching exchange rate
       -print only the BTC balance, as a number without units or symbols
@@ -59,17 +52,13 @@ my $usage = "Usage:
 
 my $COMMAND_BALANCE = "balance";
 my $COMMAND_TRANSACTIONS = "transactions";
-
-my $FETCH_MODE_DEFAULT = "default";
-my $FETCH_MODE_ALWAYS = "always";
-my $FETCH_MODE_NEVER = "never";
+my $COMMAND_FETCH = "fetch";
 
 sub main(@){
   my $command = $COMMAND_BALANCE;
   my $opts = {
     btcOnly => 0,
   };
-  my $fetchMode = $FETCH_MODE_DEFAULT;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -79,12 +68,8 @@ sub main(@){
       $command = $COMMAND_BALANCE;
     }elsif($arg =~ /^(-t|--transactions)$/){
       $command = $COMMAND_TRANSACTIONS;
-    }elsif($arg =~ /^(--fetch-default)$/){
-      $fetchMode = $FETCH_MODE_DEFAULT;
-    }elsif($arg =~ /^(-f|--fetch-always|--fetch)$/){
-      $fetchMode = $FETCH_MODE_ALWAYS;
-    }elsif($arg =~ /^(--fetch-never)$/){
-      $fetchMode = $FETCH_MODE_NEVER;
+    }elsif($arg =~ /^(-f|--fetch)$/){
+      $command = $COMMAND_FETCH;
     }elsif($arg =~ /^(--btc|--no-usd)$/){
       $$opts{btcOnly} = 1;
     }else{
@@ -93,23 +78,8 @@ sub main(@){
   }
 
   if($command eq $COMMAND_BALANCE){
-    my $btcBalance = undef;
-    my $cachedBTCBalance = readBTCBalanceCache();
-
-    my $fetch = 0;
-    $fetch = 1 if $fetchMode eq $FETCH_MODE_DEFAULT and not defined $cachedBTCBalance;
-    $fetch = 1 if $fetchMode eq $FETCH_MODE_ALWAYS;
-    $fetch = 0 if $fetchMode eq $FETCH_MODE_NEVER;
-
-    if($fetch){
-      my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
-      $btcBalance = fetchBTCBalance($keyID, $keySecret);
-      writeBTCBalanceCache($btcBalance);
-    }else{
-      $btcBalance = $cachedBTCBalance;
-    }
-
-    die "ERROR: unable to get BTC balance\n" if not defined $btcBalance;
+    my $btcBalance = readBTCBalanceCache();
+    die "ERROR: failed to read BTC balance cache\n" if not defined $btcBalance;
 
     if($$opts{btcOnly}){
       printf "%.8f\n", $btcBalance;
@@ -125,21 +95,8 @@ sub main(@){
         $exRate;
     }
   }elsif($command eq $COMMAND_TRANSACTIONS){
-    my $transactionsJSON = undef;
-    my $cachedTransactionsJSON = readBTCTransactionsJSONCache();
-
-    my $fetch = 0;
-    $fetch = 1 if $fetchMode eq $FETCH_MODE_DEFAULT and not defined $cachedTransactionsJSON;
-    $fetch = 1 if $fetchMode eq $FETCH_MODE_ALWAYS;
-    $fetch = 0 if $fetchMode eq $FETCH_MODE_NEVER;
-
-    if($fetch){
-      my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
-      $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
-      writeBTCTransactionsJSONCache($transactionsJSON);
-    }else{
-      $transactionsJSON = $cachedTransactionsJSON
-    }
+    my $transactionsJSON = readBTCTransactionsJSONCache();
+    die "ERROR: failed to read transactions JSON cache\n" if not defined $transactionsJSON;
 
     my @transactions = parseTransactionsJSON($transactionsJSON);
     for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
@@ -150,6 +107,14 @@ sub main(@){
       printf "%s | %4s | %s | %s | @%-6d | %s\n",
         $dateFmt, $$t{type}, btcFmt(15, $$t{btc}), usdFmt(9, $$t{usd}), $$t{usd_per_btc}, $desc;
     }
+  }elsif($command eq $COMMAND_FETCH){
+    my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
+
+    my $btcBalance = fetchBTCBalance($keyID, $keySecret);
+    writeBTCBalanceCache($btcBalance);
+
+    my $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
+    writeBTCTransactionsJSONCache($transactionsJSON);
   }else{
     die "ERROR: unknown command $command\n";
   }
