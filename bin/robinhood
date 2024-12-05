@@ -116,6 +116,7 @@ sub writeFile($$);
 sub maybeColorText($$$);
 sub colorText($$);
 sub usdFmt($$$$);
+sub usdFmtProfit($$$);
 sub dateFmt($$);
 sub nowMillis();
 sub mtime($);
@@ -210,36 +211,27 @@ sub cmdSummary($){
     $totalSellUSD += $$summary{$sym}{sellUSD};
     $totalValue += $value;
 
-    my $profitSign = $profit > 0 ? "+" : "-";
-    my $absProfit = $profit >= 0 ? $profit : 0-$profit;
-    my $colorProfit = $profitSign eq "+" ? "green" : "red";
-
     if($value == 0 and $amount == 0 and $cost == 0 and $profit == 0){
       #skip rows that are just zero
       next;
     }
 
-    printf "%-5s | %s | %11.6f @ %s | %s%s\n",
+    printf "%-5s | %s | %11.6f @ %s | %s\n",
       $sym,
       usdFmt($opts, 9, undef, $value),
       $amount,
       usdFmt($opts, 9, undef, $quote),
-      $profitSign,
-      usdFmt($opts, 9, $colorProfit, $absProfit),
+      usdFmtProfit($opts, 9, $profit),
     ;
   }
   my $totalProfit = $totalValue - $totalBuyUSD + $totalSellUSD;
-  my $totalProfitSign = $totalProfit > 0 ? "+" : "-";
-  my $totalAbsProfit = $totalProfit >= 0 ? $totalProfit : 0-$totalProfit;
-  my $colorTotalProfit = $totalProfitSign eq "+" ? "green" : "red";
 
-  printf "%-5s : %s -%s +%s     = %s%s\n",
+  printf "%-5s : %s -%s +%s     = %s\n",
     "TOTAL",
     usdFmt($opts, 9, undef, $totalValue),
     usdFmt($opts, 9, undef, $totalBuyUSD),
     usdFmt($opts, 9, undef, $totalSellUSD),
-    $totalProfitSign,
-    usdFmt($opts, 9, $colorTotalProfit, $totalAbsProfit),
+    usdFmtProfit($opts, 9, $totalProfit),
   ;
 }
 sub cmdOrders($){
@@ -734,6 +726,18 @@ sub usdFmt($$$$){
   $fmt = "$sign$fmt";
   $fmt = sprintf "%${len}s", $fmt;
   return maybeColorText($$opts{useColor}, $fmt, $color);
+}
+sub usdFmtProfit($$$){
+  my ($opts, $len, $usd) = @_;
+
+  my ($absUSD, $sign, $color);
+  if($usd < 0){
+    ($absUSD, $sign, $color) = (0-$usd, "-", "red");
+  }else{
+    ($absUSD, $sign, $color) = ($usd, "+", "green");
+  }
+
+  return $sign . usdFmt($opts, $len, $color, $absUSD);
 }
 
 sub dateFmt($$){
