@@ -11,9 +11,9 @@ my $API_KEY_NAME = "coinbase_readonly";
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $API_HOST = "api.coinbase.com";
 my $API_VERSION = "2017-12-12";
-my $CACHE_DIR = "$ENV{HOME}/.cache/coinbase";
-my $CACHE_FILE_BTC_BALANCE= "$CACHE_DIR/btc-balance";
-my $CACHE_FILE_BTC_TRANSACTIONS_JSON = "$CACHE_DIR/transactions.json";
+my $CACHE_BASE_DIR = "$ENV{HOME}/.cache/coinbase";
+my $CACHE_BALANCE_BTC_DIR = "$CACHE_BASE_DIR/balance-btc";
+my $CACHE_TRANSACTIONS_DIR = "$CACHE_BASE_DIR/transactions";
 my $URL_EXCHANGE_RATE = "https://$API_HOST/v2/exchange-rates?currency=BTC";
 
 sub fetchBTCToUSDExchangeRate();
@@ -21,13 +21,13 @@ sub fetchBTCBalance($$);
 sub fetchBTCAccountID($$);
 sub callCoinbaseAPI($$$);
 sub createJWT($$$);
+sub readLatestCacheValue($);
+sub writeCacheValue($$);
 sub readBTCBalanceCache();
-sub writeBTCBalanceCache($);
-sub readBTCTransactionsJSONCache();
-sub writeBTCTransactionsJSONCache($);
 sub readCoinbaseKeyIDAndSecret();
 sub readSecrets();
 sub decrypt($);
+sub getCurrentTimeYMDHMSMillis();
 
 my $usage = "Usage:
   $EXEC -h | --help
@@ -78,7 +78,7 @@ sub main(@){
   }
 
   if($command eq $COMMAND_BALANCE){
-    my $btcBalance = readBTCBalanceCache();
+    my $btcBalance = readLatestCacheValue($CACHE_BALANCE_BTC_DIR);
     die "ERROR: failed to read BTC balance cache\n" if not defined $btcBalance;
 
     if($$opts{btcOnly}){
@@ -95,7 +95,7 @@ sub main(@){
         $exRate;
     }
   }elsif($command eq $COMMAND_TRANSACTIONS){
-    my $transactionsJSON = readBTCTransactionsJSONCache();
+    my $transactionsJSON = readLatestCacheValue($CACHE_TRANSACTIONS_DIR);
     die "ERROR: failed to read transactions JSON cache\n" if not defined $transactionsJSON;
 
     my @transactions = parseTransactionsJSON($transactionsJSON);
@@ -113,7 +113,7 @@ sub main(@){
     print "caching BTC balance..\n";
     my $btcBalance = fetchBTCBalance($keyID, $keySecret);
     if(defined $btcBalance and $btcBalance =~ /^(\d+|\d*\.\d+)$/){
-      writeBTCBalanceCache($btcBalance);
+      writeCacheValue($CACHE_BALANCE_BTC_DIR, $btcBalance);
     }else{
       die "ERROR: cache failed, missing/malformed BTC balance\n$btcBalance\n";
     }
@@ -121,7 +121,7 @@ sub main(@){
     print "caching transactions JSON..\n";
     my $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
     if(defined $transactionsJSON and $transactionsJSON =~ /"data"/){
-      writeBTCTransactionsJSONCache($transactionsJSON);
+      writeCacheValue($CACHE_TRANSACTIONS_DIR, $transactionsJSON);
     }else{
       die "ERROR: missing/malformed transactions JSON\n$transactionsJSON\n";
     }
@@ -279,51 +279,37 @@ sub btcFmt($$){
   return $fmt;
 }
 
-sub readBTCBalanceCache(){
-  if(not -f $CACHE_FILE_BTC_BALANCE){
+sub readLatestCacheValue($){
+  my ($cacheDir) = @_;
+  my @files = sort grep {-f $_} glob "$cacheDir/*";
+  if(@files == 0){
     return undef;
-  }else{
-    my $btcBalance = `cat $CACHE_FILE_BTC_BALANCE`;
-    chomp $btcBalance;
-    if($btcBalance =~ /^(\d+|\d*\.\d+)$/){
-      return $btcBalance;
-    }else{
-      die "ERROR: malformed BTC balance cache: $btcBalance\n";
-    }
   }
-}
-sub writeBTCBalanceCache($){
-  my ($btcBalance) = @_;
-  system "mkdir", "-p", $CACHE_DIR;
+  my $cacheFile = $files[-1];
+  open my $fh, "< $cacheFile" or die "ERROR: could not read $cacheFile\n$!\n";
+  my $value = join '', <$fh>;
+  close $fh;
 
-  if(defined $btcBalance){
-    open FH, "> $CACHE_FILE_BTC_BALANCE"
-      or die "ERROR: could not write $CACHE_FILE_BTC_BALANCE\n$!\n";
-    print FH "$btcBalance\n";
-    close FH;
-  }else{
-    system "rm", "-f", $CACHE_FILE_BTC_BALANCE;
-  }
+  return $value;
 }
+sub writeCacheValue($$){
+  my ($cacheDir, $value) = @_;
 
-sub readBTCTransactionsJSONCache(){
-  if(not -f $CACHE_FILE_BTC_TRANSACTIONS_JSON){
-    return undef;
-  }else{
-    return `cat $CACHE_FILE_BTC_TRANSACTIONS_JSON`;
-  }
-}
-sub writeBTCTransactionsJSONCache($){
-  my ($transactionsJSON) = @_;
-  system "mkdir", "-p", $CACHE_DIR;
+  system "mkdir", "-p", $cacheDir if not -d $cacheDir;
+  die "ERROR: failed to create $cacheDir\n" if not -d $cacheDir;
 
-  if(defined $transactionsJSON){
-    open FH, "> $CACHE_FILE_BTC_TRANSACTIONS_JSON"
-      or die "ERROR: could not write $CACHE_FILE_BTC_TRANSACTIONS_JSON\n$!\n";
-    print FH $transactionsJSON;
-    close FH;
+  my $dtm = getCurrentTimeYMDHMSMillis();
+  my $cacheFile = "$cacheDir/$dtm";
+  die "ERROR: duplicate cache entry $cacheFile\n" if -e $cacheFile;
+
+  open my $fh, "> $cacheFile" or die "ERROR: could not write $cacheFile\n$!\n";
+  print $fh $value;
+  close $fh;
+
+  if($value ne readLatestCacheValue($cacheDir)){
+    die "ERROR: failed to write cache $cacheDir\n";
   }else{
-    system "rm", "-f", $CACHE_FILE_BTC_TRANSACTIONS_JSON;
+    print "  success\n";
   }
 }
 
@@ -366,6 +352,15 @@ sub decrypt($){
   my $value = join '', @contents;
   chomp $value;
   return $value;
+}
+
+sub getCurrentTimeYMDHMSMillis(){
+  my $dtm = `date '+%Y-%m-%d_%H%M%S_%s%3N'`;
+  chomp $dtm;
+  if($dtm !~ /^\d\d\d\d-\d\d-\d\d_\d\d\d\d\d\d_\d+$/){
+    die "ERROR: malformed date/time $dtm\n";
+  }
+  return $dtm;
 }
 
 &main(@ARGV);
