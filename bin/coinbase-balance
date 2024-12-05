@@ -110,11 +110,21 @@ sub main(@){
   }elsif($command eq $COMMAND_FETCH){
     my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
 
+    print "caching BTC balance..\n";
     my $btcBalance = fetchBTCBalance($keyID, $keySecret);
-    writeBTCBalanceCache($btcBalance);
+    if(defined $btcBalance and $btcBalance =~ /^(\d+|\d*\.\d+)$/){
+      writeBTCBalanceCache($btcBalance);
+    }else{
+      die "ERROR: cache failed, missing/malformed BTC balance\n$btcBalance\n";
+    }
 
+    print "caching transactions JSON..\n";
     my $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
-    writeBTCTransactionsJSONCache($transactionsJSON);
+    if(defined $transactionsJSON and $transactionsJSON =~ /"data"/){
+      writeBTCTransactionsJSONCache($transactionsJSON);
+    }else{
+      die "ERROR: missing/malformed transactions JSON\n$transactionsJSON\n";
+    }
   }else{
     die "ERROR: unknown command $command\n";
   }
