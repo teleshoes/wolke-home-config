@@ -197,9 +197,9 @@ sub cmdSummary($){
   my ($opts) = @_;
   my @orders = parseJsonOrders();
   my $summary = getInstrumentSummary(@orders);
-  my $totalBuyUSD = 0;
-  my $totalSellUSD = 0;
-  my $totalValue = 0;
+  my ($totalBuyUSD, $totalSellUSD, $totalValue) = (0, 0, 0, 0);
+  my @skippedInstrumentSyms;
+  my $skippedInstrumentProfit = 0;
   for my $sym(sort keys %$summary){
     my $quote = readCachedQuote($sym);
     my $amount = $$summary{$sym}{netAmountNano} / 10**9;
@@ -213,6 +213,8 @@ sub cmdSummary($){
 
     if($value == 0 and $amount == 0 and $cost == 0 and $profit == 0){
       #skip rows that are just zero
+      push @skippedInstrumentSyms, $sym;
+      $skippedInstrumentProfit += $profit;
       next;
     }
 
@@ -224,8 +226,16 @@ sub cmdSummary($){
       usdFmtProfit($opts, 9, $profit),
     ;
   }
-  my $totalProfit = $totalValue - $totalBuyUSD + $totalSellUSD;
 
+  if(@skippedInstrumentSyms > 0){
+    printf "%-5s : %-35s | %s\n",
+      "sold",
+      join(",", @skippedInstrumentSyms),
+      usdFmtProfit($opts, 9, $skippedInstrumentProfit),
+    ;
+  }
+
+  my $totalProfit = $totalValue - $totalBuyUSD + $totalSellUSD;
   printf "%-5s : %s -%s +%s     = %s\n",
     "TOTAL",
     usdFmt($opts, 9, undef, $totalValue),
