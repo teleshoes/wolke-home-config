@@ -51,6 +51,10 @@ my $usage = "Usage:
       always fetch BTC balance/transactions, never use cache
     --fetch-never
       never fetch BTC balance/transactions, always use cache
+
+    --btc | --no-usd
+      -skip fetching exchange rate
+      -print only the BTC balance, as a number without units or symbols
 ";
 
 my $COMMAND_BALANCE = "balance";
@@ -62,6 +66,9 @@ my $FETCH_MODE_NEVER = "never";
 
 sub main(@){
   my $command = $COMMAND_BALANCE;
+  my $opts = {
+    btcOnly => 0,
+  };
   my $fetchMode = $FETCH_MODE_DEFAULT;
   while(@_ > 0){
     my $arg = shift;
@@ -78,6 +85,8 @@ sub main(@){
       $fetchMode = $FETCH_MODE_ALWAYS;
     }elsif($arg =~ /^(--fetch-never)$/){
       $fetchMode = $FETCH_MODE_NEVER;
+    }elsif($arg =~ /^(--btc|--no-usd)$/){
+      $$opts{btcOnly} = 1;
     }else{
       die "$usage\nERROR: unknown arg $arg\n";
     }
@@ -102,15 +111,19 @@ sub main(@){
 
     die "ERROR: unable to get BTC balance\n" if not defined $btcBalance;
 
-    my $exRate = fetchBTCToUSDExchangeRate();
-    my $usdBalance = $btcBalance*$exRate;
+    if($$opts{btcOnly}){
+      printf "%.8f\n", $btcBalance;
+    }else{
+      my $exRate = fetchBTCToUSDExchangeRate();
+      my $usdBalance = $btcBalance*$exRate;
 
-    printf ""
-      . "%.2fUSD  (%.8fBTC)\n"
-      . "  (1 BTC = %.2f USD)\n",
-      $usdBalance,
-      $btcBalance,
-      $exRate;
+      printf ""
+        . "%.2fUSD  (%.8fBTC)\n"
+        . "  (1 BTC = %.2f USD)\n",
+        $usdBalance,
+        $btcBalance,
+        $exRate;
+    }
   }elsif($command eq $COMMAND_TRANSACTIONS){
     my $transactionsJSON = undef;
     my $cachedTransactionsJSON = readBTCTransactionsJSONCache();
