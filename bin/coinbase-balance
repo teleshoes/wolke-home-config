@@ -104,8 +104,15 @@ sub main(@){
       chomp $dateFmt;
       my $desc = $$t{desc};
       $desc = "" if not defined $desc;
-      printf "%s | %4s | %s | %s | @%-6d | %s\n",
-        $dateFmt, $$t{type}, btcFmt(15, $$t{btc}), usdFmt(9, $$t{usd}), $$t{usd_per_btc}, $desc;
+      printf "%s | %4s | %s | %s | @%-6d | %s | %s\n",
+        $dateFmt,
+        $$t{type},
+        btcFmt(15, $$t{btc}),
+        usdFmt(9, $$t{usd}),
+        $$t{usd_per_btc},
+        usdFmt(6, $$t{fee}),
+        $desc,
+      ;
     }
   }elsif($command eq $COMMAND_FETCH){
     my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
@@ -215,12 +222,28 @@ sub parseTransactionsJSON($){
     die "ERROR: native currency is not USD\n$json" if $$j{native_amount}{currency} ne "USD";
     die "ERROR: could not parse date\n$json" if $date !~ /^\d+$/;
 
+    my ($typeObj, $networkObj, $totalObj, $subtotalObj);
+    $typeObj = $$j{$$j{type}};
+    $networkObj = $$j{network};
+    $totalObj = $$typeObj{total} if defined $typeObj and defined $$typeObj{total};
+    $subtotalObj = $$typeObj{subtotal} if defined $typeObj and defined $$typeObj{subtotal};
+
+    my ($usdNativeAmt, $usdTotal, $usdSubtotal);
+    $usdNativeAmt = $$j{native_amount}{amount} if defined $$j{native_amount};
+    $usdTotal = $$totalObj{amount} if defined $totalObj;
+    $usdSubtotal = $$subtotalObj{amount} if defined $subtotalObj;
+
+    my $btc = $$j{amount}{amount};
+
     my $t = {
       type => $$j{type},
-      btc  => $$j{amount}{amount},
-      usd  => $$j{native_amount}{amount},
+      btc  => $btc,
+      usd  => $usdNativeAmt,
       date => $date,
       desc => $$j{description},
+
+      usd_per_btc => abs($usdNativeAmt / $btc),
+      fee         => undef,
     };
 
     #special buy/sell types
@@ -233,24 +256,25 @@ sub parseTransactionsJSON($){
       $$t{desc} = join " ", grep {defined $_ and $_ ne ""} ($$j{type}, $$t{desc});
     }
 
-    my $usdAbs = $$t{usd} > 0 ? $$t{usd} : 0 - $$t{usd};
-    my $btcAbs = $$t{btc} > 0 ? $$t{btc} : 0 - $$t{btc};
-
-    #guess fee using coinbase's stated 1.49% bank xfer fee
-    my $bankBtcFee = $btcAbs - ($btcAbs * (1 - 0.0149));
-
-    my $btcFee;
-    if($$t{type} =~ /^(buy)$/){
-      $btcFee = $bankBtcFee
-    }elsif($$t{type} =~ /^(sell)$/){
-      $btcFee = 0 - $bankBtcFee;
-    }elsif($$t{type} eq "send"){
-      $btcFee = 0;
-    }else{
-      $btcFee = 0;
+    my $feeObj;
+    if(defined $typeObj and defined $$typeObj{fee}){
+      $feeObj = $$typeObj{fee};
+    }elsif(defined $networkObj and defined $$networkObj{transaction_fee}){
+      $feeObj = $$networkObj{transaction_fee};
     }
 
-    $$t{usd_per_btc} = $usdAbs / ($btcAbs + $btcFee);
+    if(defined $usdSubtotal and defined $usdTotal){
+      $$t{fee} = abs($usdTotal - $usdSubtotal);
+    }elsif(defined $feeObj){
+      if($$feeObj{currency} eq "USD"){
+        $$t{fee} = abs($$feeObj{amount});
+      }elsif($$feeObj{currency} eq "BTC"){
+        $$t{fee} = abs($$t{usd_per_btc} * $$feeObj{amount});
+      }
+    }elsif(defined $typeObj and defined $$typeObj{commission}){
+      #advanced_trade_fill
+      $$t{fee} = abs($$typeObj{commission});
+    }
 
     push @transactions, $t;
   }
