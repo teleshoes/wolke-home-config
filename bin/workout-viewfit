@@ -120,6 +120,11 @@ my $USAGE = "Usage:
     YYYY-MM-DD
       same as: --date=YYYY-MM-DD
 
+    --min-date=YYYY-MM-DD
+      show only workouts with date <= YYYY-MM-DD
+    --max-date=YYYY-MM-DD
+      show only workouts with date >= YYYY-MM-DD
+
     --details
       show details for each workout
       (this is the default)
@@ -194,6 +199,8 @@ sub main(@){
   my $opts = {
     workoutIdFilter => undef,
     dateFilter => undef,
+    minDateFilter => undef,
+    maxDateFilter => undef,
     format => $FORMAT_DETAILS,
     distanceNamedTarget => undef,
     printStartTime => 0,
@@ -217,6 +224,10 @@ sub main(@){
       $$opts{workoutIdFilter} = $1;
     }elsif($arg =~ /^(?:--date=)?(\d\d\d\d-\d\d-\d\d)$/){
       $$opts{dateFilter} = $1;
+    }elsif($arg =~ /^--min-date=(\d\d\d\d-\d\d-\d\d)$/){
+      $$opts{minDateFilter} = $1;
+    }elsif($arg =~ /^--max-date=(\d\d\d\d-\d\d-\d\d)$/){
+      $$opts{maxDateFilter} = $1;
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
     }elsif($arg =~ /^(-w|--week|--weekly)$/){
@@ -267,7 +278,13 @@ sub main(@){
       @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
     }
     if(defined $$opts{dateFilter}){
-      @workouts = grep {$$_{dtmYMD} =~ /^$$opts{dateFilter}/} @workouts;
+      @workouts = grep {$$_{dtmYMD} eq $$opts{dateFilter}} @workouts;
+    }
+    if(defined $$opts{minDateFilter}){
+      @workouts = grep {$$_{dtmYMD} ge $$opts{minDateFilter}} @workouts;
+    }
+    if(defined $$opts{maxDateFilter}){
+      @workouts = grep {$$_{dtmYMD} le $$opts{maxDateFilter}} @workouts;
     }
 
     @workouts = sort {
