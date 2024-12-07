@@ -14,6 +14,7 @@ use POSIX qw(ceil floor);
 sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
 sub gnuplotDurations($$$@);
+sub gnuplotHeartrates($$@);
 sub readCachedWorkouts();
 sub readCachedWorkoutLatest();
 sub readExtraInfo();
@@ -169,6 +170,8 @@ my $USAGE = "Usage:
           -include only workouts at least as long as the indicated distance target
           -calculate the minimum duration for that distance target, as in --target
           -plot workouts as points with x=workout_date_time and y=duration
+        hr | heartrate
+          -plot each workout as a separate plot with x=duration and y=heartrate
 
     --target=DISTANCE_TARGET
       when including targets as in --print-targets,
@@ -420,6 +423,27 @@ sub main(@){
 
         gnuplotDurations($opts, $targetName, $outputFile, @points);
         system "feh", $outputFile;
+      }elsif($plotType =~ /^(hr|heartrate)$/i){
+        my $pointsByPlotName = {};
+        for my $w(@workouts){
+          my $points = [];
+          for my $interval(@{$$w{intervals}}){
+            my $hr = $$interval{heart_rate};
+            if(defined $hr and $hr > 0){
+              push @$points, [$$interval{calculatedElapsed}, $hr];
+            }
+          }
+          if(@$points == 0){
+            #skip workouts with no heartrate data
+            next;
+          }
+
+          my $plotName = $$w{dtmYMDHMS};
+          $$pointsByPlotName{$plotName} = $points;
+        }
+
+        gnuplotHeartrates($opts, $outputFile, $pointsByPlotName);
+        system "feh", $outputFile;
       }else{
         die "ERROR: missing/invalid PLOT_TYPE \"$plotType\"\n";
       }
@@ -654,6 +678,85 @@ sub gnuplotDurations($$$@){
   ;
   writeFile($scriptFile, $scriptContents);
   system "rm", $outputFile;
+  system "gnuplot", "-p", $scriptFile;
+}
+
+sub gnuplotHeartrates($$@){
+  my ($opts, $outputFile, $pointsByPlotName) = @_;
+
+  my $scriptFile = "/tmp/workout-viewfit-gnuplot-script";
+  my $dataFile = "/tmp/workout-viewfit-gnuplot-data";
+
+  my $minDur = undef;
+  my $maxDur = undef;
+  my $minHR = undef;
+  my $maxHR = undef;
+
+  my $dataFmt = "";
+  for my $plotName(sort keys %$pointsByPlotName){
+    my @points = @{$$pointsByPlotName{$plotName}};
+    $dataFmt .= "\"$plotName\"\n";
+
+    for(my $i=0; $i<@points; $i++){
+      my $point = $points[$i];
+      my ($durS, $hr) = @$point;
+
+      if(not defined $minDur or $durS < $minDur){
+        $minDur = $durS;
+      }
+      if(not defined $maxDur or $durS > $maxDur){
+        $maxDur = $durS;
+      }
+      if(not defined $minHR or $hr < $minHR){
+        $minHR = $hr;
+      }
+      if(not defined $maxHR or $hr > $maxHR){
+        $maxHR = $hr;
+      }
+
+      $dataFmt .= sprintf "%d,%d\n",
+        $durS,
+        $hr,
+      ;
+    }
+    $dataFmt .= "\n\n";
+  }
+  writeFile($dataFile, $dataFmt);
+
+  my $workoutCount = 0 + keys %$pointsByPlotName;
+  my $workoutLastIdx = $workoutCount - 1;
+
+  $minHR = 60 if $minHR < 60; #hr below 60 is an error anyway
+  $maxHR += 3;
+
+  my $minMinute = 0; #all workouts start at 0s
+  my $maxMinute = ceil(  ($maxDur+30)/60 ); #smallest minute at least 30s after maxDur
+
+  my ($xRangeMin, $xRangeMax) = ($minMinute*60, $maxMinute*60);
+
+  #x-axis tics at 3min intervals labeled '<MIN>:00'
+  my $xticsCsv = join(", ", map {"\"${_}:00\" " . $_*60} grep {$_ % 3 == 0} $minMinute..$maxMinute);
+
+  my $scriptContents = ""
+    . "set datafile separator comma\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$outputFile\"\n"
+    . "\n"
+    . "set yrange [$minHR:$maxHR]\n"
+    . "set ytics 4\n"
+    . "\n"
+    . "set xrange [$xRangeMin:$xRangeMax]\n"
+    . "set xtics ($xticsCsv)\n"
+    . "\n"
+    . "plot"
+        . " for [WORKOUT=0:$workoutLastIdx]"
+        . " \"$dataFile\" index WORKOUT using (timecolumn(1,\"%s\")):2"
+        . " with lines"
+        . "\n"
+  ;
+  writeFile($scriptFile, $scriptContents);
+  system "rm", "-f", $outputFile;
   system "gnuplot", "-p", $scriptFile;
 }
 
