@@ -378,6 +378,8 @@ sub main(@){
         my $hrByEpoch = getAmazfishHrByEpoch($$w{dtmYMD});
         insertExternalHeartrates($w, $hrByEpoch);
       }
+
+      removeHeartrateErrors($w);
     }
 
     #skip short workouts
@@ -1168,6 +1170,42 @@ sub insertExternalHeartrates($$){
       my $hr = $startHr + (($endHr - $startHr)*$elapsedRatio);
 
       $$interval{heart_rate} = $hr;
+    }
+  }
+}
+
+# zero-out heartrate for intervals that drop by more than 10% for at most 3 intervals
+sub removeHeartrateErrors($){
+  my ($workout) = @_;
+  my @intervals = @{$$workout{intervals}};
+
+  my $nearbyIdxCount = 3;
+  my $threshold = 0.90;
+
+  for(my $i=0; $i<@intervals; $i++){
+    my $hr = ${$intervals[$i]}{heart_rate};
+    my $leftDropped = 0;
+    for my $leftIdx($i-$nearbyIdxCount..$i-1){
+      if($leftIdx >= 0){
+        my $leftHr = ${$intervals[$leftIdx]}{heart_rate};
+        if($leftHr * $threshold > $hr){
+          $leftDropped = 1;
+          last;
+        }
+      }
+    }
+    my $rightDropped = 0;
+    for my $rightIdx($i+1..$i+$nearbyIdxCount){
+      if($rightIdx <= $#intervals){
+        my $rightHr = ${$intervals[$rightIdx]}{heart_rate};
+        if($rightHr * $threshold > $hr){
+          $rightDropped = 1;
+          last;
+        }
+      }
+    }
+    if($leftDropped and $rightDropped){
+      ${$intervals[$i]}{heart_rate} = 0;
     }
   }
 }
