@@ -8,9 +8,12 @@ use File::Basename qw(basename);
 use Cpanel::JSON::XS qw(decode_json);
 use Time::HiRes qw(time);
 use Time::Local qw(timegm_posix timelocal_posix);
+use List::Util qw(max min);
+use POSIX qw(ceil floor);
 
 sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
+sub gnuplotDurations($$$@);
 sub readCachedWorkouts();
 sub readCachedWorkoutLatest();
 sub readExtraInfo();
@@ -58,6 +61,8 @@ my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json"
 my $WORKOUTS_MERGED_JSON_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-merged.json";
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
+
+my $GNUPLOT_OUTPUT_DIR = "$ENV{HOME}/.cache/workouts/plots";
 
 my $CURL_FETCH_MAX_TIME_S = 60;
 
@@ -149,6 +154,22 @@ my $USAGE = "Usage:
     -m | --month | --monthly
       show a summary of each calendar month, Monday-Sunday, with a workout in it
 
+    -p PLOT_TYPE | --plot PLOT_TYPE | --gnuplot PLOT_TYPE
+    --plot=PLOT_TYPE | --gnuplot=PLOT_TYPE
+      produce a PNG of the data in --get with gnuplot
+        -format the data in --get as gnuplot points
+        -generate a gnuplot script
+        -get current date/time DTM_YMD_HMS as 'YYYY-mm-dd HH:MM:SS'
+        -run the gnuplot script and produce a PNG named:
+          $GNUPLOT_OUTPUT_DIR/<DTM_YMD_HMS>_<PLOT_TYPE>.png
+        -open the PNG in feh
+
+      PLOT_TYPE
+        $OK_NAMED_TARGET_REGEX
+          -include only workouts at least as long as the indicated distance target
+          -calculate the minimum duration for that distance target, as in --target
+          -plot workouts as points with x=workout_date_time and y=duration
+
     --target=DISTANCE_TARGET
       when including targets as in --print-targets,
         only print the indicated distance target
@@ -202,6 +223,7 @@ my $COMMAND_FETCH_LOOP = "fetch-loop";
 my $FORMAT_DETAILS = "details";
 my $FORMAT_WEEKLY = "weekly";
 my $FORMAT_MONTHLY = "monthly";
+my $FORMAT_GNUPLOT = "gnuplot";
 
 my $DATE_BOUNDARY_WEEK_START = "week-start";
 my $DATE_BOUNDARY_WEEK_END = "week-end";
@@ -217,6 +239,7 @@ sub main(@){
     maxDateFilter => undef,
     minDistanceFilter => undef,
     format => $FORMAT_DETAILS,
+    plotType => undef,
     distanceNamedTarget => undef,
     printStartTime => 0,
     printIds => 0,
@@ -256,6 +279,12 @@ sub main(@){
       $$opts{format} = $FORMAT_WEEKLY;
     }elsif($arg =~ /^(-m|--month|--monthly)$/){
       $$opts{format} = $FORMAT_MONTHLY;
+    }elsif($arg =~ /^(-p|--plot|--gnuplot)$/ and @_ > 0){
+      $$opts{format} = $FORMAT_GNUPLOT;
+      $$opts{plotType} = shift @_;
+    }elsif($arg =~ /^(?:--plot|--gnuplot)=(.+)$/){
+      $$opts{format} = $FORMAT_GNUPLOT;
+      $$opts{plotType} = $1;
     }elsif($arg =~ /^--target=(.+)$/){
       $$opts{distanceNamedTarget} = lc $1;
       if(not defined $NAMED_TARGETS{$$opts{distanceNamedTarget}}){
@@ -366,6 +395,33 @@ sub main(@){
         $DATE_BOUNDARY_MONTH_START, $DATE_BOUNDARY_MONTH_END, @workouts);
       for my $period(@periods){
         print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
+      }
+    }elsif($$opts{format} eq $FORMAT_GNUPLOT){
+      my $plotType = $$opts{plotType};
+      $plotType = "" if not defined $plotType;
+
+      my $nowMillis = nowMillis();
+      my $nowEpoch = $nowMillis / 1000.0;
+      my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch);
+      if(not -d $GNUPLOT_OUTPUT_DIR){
+        system "mkdir", "-p", $GNUPLOT_OUTPUT_DIR;
+      }
+      my $outputFile = "$GNUPLOT_OUTPUT_DIR/${nowFmt}_$plotType.png";
+
+      if($plotType =~ /^($OK_NAMED_TARGET_REGEX)$/i){
+        my $targetName = lc $plotType;
+        my @points;
+        for my $w(@workouts){
+          my $targetDurS = $$w{targets}{$targetName};
+          if(defined $targetDurS){
+            push @points, [$$w{dtmEpoch}, $targetDurS];
+          }
+        }
+
+        gnuplotDurations($opts, $targetName, $outputFile, @points);
+        system "feh", $outputFile;
+      }else{
+        die "ERROR: missing/invalid PLOT_TYPE \"$plotType\"\n";
       }
     }else{
       die "ERROR: unknown format $$opts{format}\n";
@@ -527,6 +583,78 @@ sub formatWorkoutsSummary($$@){
     formatTimeHrMinSec($totalDur),
     join(" ", map {sprintf "%-14s", $_} @targetFmts),
   ;
+}
+
+sub gnuplotDurations($$$@){
+  my ($opts, $plotName, $outputFile, @points) = @_;
+
+  my $scriptFile = "/tmp/workout-viewfit-gnuplot-script";
+  my $dataFile = "/tmp/workout-viewfit-gnuplot-data";
+
+  my $dataFmt = "$plotName\n";
+
+  for(my $i=0; $i<@points; $i++){
+    my $point = $points[$i];
+    my ($dtmEpoch, $durS) = @$point;
+
+    #show point label if the point is the min or max of the 5 points before and after
+    my $useLabel = 0;
+    my @localIdxs = grep {$_ != $i} ($i-5 .. $i+5);
+    my @localDurVals = map {$points[$_][1]} grep {0 <= $_ && $_ <= $#points} @localIdxs;
+    my @smallerLocalDurVals = grep {$_ < $durS} @localDurVals;
+    my @largerLocalDurVals = grep {$_ > $durS} @localDurVals;
+    if(@smallerLocalDurVals == 0 or @largerLocalDurVals == 0){
+      $useLabel = 1;
+    }
+
+    my $label = $useLabel ? formatTimeMinSec($durS) : "";
+
+    $dataFmt .= sprintf "%d,%d,%s\n",
+      $dtmEpoch,
+      $durS,
+      $label,
+    ;
+  }
+  writeFile($dataFile, $dataFmt);
+
+  my $minDur = min(map {$$_[1]} @points);
+  my $maxDur = max(map {$$_[1]} @points);
+
+  my $minMinute = floor( ($minDur-30)/60 ); #largest minute at least 30s before minDur
+  my $maxMinute = ceil(  ($maxDur+30)/60 ); #smallest minute at least 30s after maxDur
+
+  my ($yRangeMin, $yRangeMax) = ($minMinute*60, $maxMinute*60);
+
+  #y-axis tics at 60-second intervals labeled as '<MIN>:00'
+  my $yticsCsv = join(", ", map {"\"$_:00\" " . $_*60} $minMinute..$maxMinute);
+
+  my $scriptContents = ""
+    . "set datafile separator comma\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$outputFile\"\n"
+    . "\n"
+    . "set xdata time\n"
+    . "set timefmt \"%Y-%m-%d\"\n"
+    . "set format x \"%Y-%m-%d\"\n"
+    . "\n"
+    . "set yrange [$yRangeMin:$yRangeMax]\n"
+    . "set ytics ($yticsCsv)\n"
+    . "\n"
+    . "plot"
+        . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
+        . " with linespoints pointtype 5"
+        . ", "
+        . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
+        . " smooth bezier"
+        . ", "
+        . "\"$dataFile\" using (timecolumn(1,\"%s\")):2:3"
+        . " with labels offset 0,-1 notitle"
+        . "\n"
+  ;
+  writeFile($scriptFile, $scriptContents);
+  system "rm", $outputFile;
+  system "gnuplot", "-p", $scriptFile;
 }
 
 sub readCachedWorkouts(){
