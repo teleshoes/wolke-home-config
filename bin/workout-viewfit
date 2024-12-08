@@ -65,6 +65,8 @@ my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine
 
 my $GNUPLOT_OUTPUT_DIR = "$ENV{HOME}/.cache/workouts/plots";
 
+my $DEFAULT_MIN_HEART_RATE_PLOT = 60;
+
 my $CURL_FETCH_MAX_TIME_S = 60;
 
 my $HRMON_LOG_DIR = "$ENV{HOME}/.cache/logs/hrmon";
@@ -177,6 +179,11 @@ my $USAGE = "Usage:
         hr | heartrate
           -plot each workout as a separate plot with x=duration and y=heartrate
 
+    --min-hr-plot=HEARTRATE
+      when plotting heartrates with --gnuplot,
+      restrict the heartrate y-axis to values above HEARTRATE
+      (the default is $DEFAULT_MIN_HEART_RATE_PLOT)
+
     --target=DISTANCE_TARGET
       when including targets as in --print-targets,
         only print the indicated distance target
@@ -247,6 +254,7 @@ sub main(@){
     minDistanceFilter => undef,
     format => $FORMAT_DETAILS,
     plotType => undef,
+    minHeartratePlot => $DEFAULT_MIN_HEART_RATE_PLOT,
     distanceNamedTarget => undef,
     printStartTime => 0,
     printIds => 0,
@@ -296,6 +304,8 @@ sub main(@){
     }elsif($arg =~ /^(?:--plot|--gnuplot)=(.+)$/){
       $$opts{format} = $FORMAT_GNUPLOT;
       $$opts{plotType} = $1;
+    }elsif($arg =~ /^--min-hr-plot=(\d+)$/){
+      $$opts{minHeartratePlot} = $1;
     }elsif($arg =~ /^--target=(.+)$/){
       $$opts{distanceNamedTarget} = lc $1;
       if(not defined $NAMED_TARGETS{$$opts{distanceNamedTarget}}){
@@ -736,7 +746,7 @@ sub gnuplotHeartrates($$@){
   my $workoutCount = 0 + keys %$pointsByPlotName;
   my $workoutLastIdx = $workoutCount - 1;
 
-  $minHR = 60 if $minHR < 60; #hr below 60 is an error anyway
+  $minHR = $$opts{minHeartratePlot} if $minHR < $$opts{minHeartratePlot};
   $maxHR += 3;
 
   my $minMinute = 0; #all workouts start at 0s
