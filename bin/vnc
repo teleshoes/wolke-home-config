@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$$$);
+sub startVNC($$$$$$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
@@ -30,6 +30,24 @@ my %VNC_CLIENT_ARGS = (
 my $DEFAULT_VNC_SERVER = "x11vnc";
 my $DEFAULT_VNC_CLIENT = "xtigervncviewer";
 my $OK_VNC_CLIENTS = join "|", sort keys %VNC_CLIENT_ARGS;
+
+my $ROTATE_ARG_SYNS = {
+  "0"   => [qw(0    +0    -0    none)],
+  "90"  => [qw(90   +90   -270)],
+  "180" => [qw(180  +180  -180  xy  yx)],
+  "270" => [qw(270  +270  -90)],
+  "x"   => [qw(x)],
+  "y"   => [qw(y)],
+  "90x" => [qw(90x)],
+  "90y" => [qw(90y)],
+};
+my $ROTATE_ARG_BY_SYN = {
+  map {
+    my $rotArg = $_;
+    map {$_ => $rotArg} @{$$ROTATE_ARG_SYNS{$rotArg}};
+  } sort keys %$ROTATE_ARG_SYNS
+};
+my $OK_ROTATE_ARG_REGEX = join("|", map {quotemeta($_)} sort keys %$ROTATE_ARG_BY_SYN);
 
 my $USAGE = "Usage:
   $0 [OPTS] HOST | IPMAGIC_NAME
@@ -75,6 +93,18 @@ my $USAGE = "Usage:
 
     --no-geometry
       synonym for --geometry=none (do not pass '-geometry GEOMETRY' to server)
+
+    --rotate=ROTATION | -rotate=ROTATION
+      pass -rotate arg to x11vnc
+        ROTATION
+          0   | +0   | -0   | none      do not pass any rotation arg  (default)
+          90  | +90  | -270             pass '-rotate 90'   to x11vnc (rotate clockwise)
+          180 | +180 | -180 | xy | yx   pass '-rotate 180'  to x11vnc (flip x-axis, flip y-axis)
+          270 | +270 | -90              pass '-rotate 270'  to x11vnc (rot counter-clockwise)
+          x                             pass '-rotate x'    to x11vnc (flip x-axis)
+          y                             pass '-rotate y'    to x11vnc (flip y-axis)
+          +90x | 90x                    pass '-rotate 90x'  to x11vnc (rotate CW, flip x-axis)
+          +90y | 90y                    pass '-rotate 90y'  to x11vnc (rotate CW, fiip y-axis)
 ";
 
 my $CMD_START_VNC = "start";
@@ -93,6 +123,7 @@ sub main(@){
     },
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
+    rotateArg     => 0,
     isStartServer => 1,
     isSSHTunnel   => 1,
   };
@@ -118,6 +149,10 @@ sub main(@){
       $$opts{geometry} = $GEOMETRY_NONE;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
+    }elsif($arg =~ /^--rotate=($OK_ROTATE_ARG_REGEX)$/){
+      $$opts{rotateArg} = $1;
+    }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
+      $$opts{rotateArg} = shift @_;
     }elsif($arg =~ /^--user=(.+)$/){
       $$opts{remoteInfo}{user} = $1;
     }elsif($arg =~ /^(-u)$/ and @_ > 0){
@@ -145,7 +180,8 @@ sub main(@){
 
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
-    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{geometry},
+    startVNC($$opts{remoteInfo}, $$opts{vncClient},
+      $$opts{geometry}, $$opts{rotateArg},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
@@ -154,10 +190,16 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$){
-  my ($remoteInfo, $vncClient, $geometry, $isStartServer, $isSSHTunnel) = @_;
+sub startVNC($$$$$$){
+  my ($remoteInfo, $vncClient,
+      $geometry, $rotateArg,
+      $isStartServer, $isSSHTunnel) = @_;
 
   my @serverArgs;
+
+  if(defined $rotateArg and $rotateArg ne "0"){
+    @serverArgs = (@serverArgs, "-rotate", $rotateArg);
+  }
 
   my @geometryArgs;
   if($geometry eq $GEOMETRY_RES){
