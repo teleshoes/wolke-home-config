@@ -3,10 +3,11 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$$$$);
+sub startVNC($$$$$$$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
+sub getRemoteRes($);
 sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
 
@@ -48,6 +49,16 @@ my $ROTATE_ARG_BY_SYN = {
   } sort keys %$ROTATE_ARG_SYNS
 };
 my $OK_ROTATE_ARG_REGEX = join("|", map {quotemeta($_)} sort keys %$ROTATE_ARG_BY_SYN);
+my $ROTATE_ARG_COUNTER_CLOCKWISE = {
+  "0"   => "270",
+  "90"  => "0",
+  "180" => "90",
+  "270" => "180",
+  "x"   => "90y",
+  "y"   => "90x",
+  "90x" => "y",
+  "90y" => "x",
+};
 
 my $USAGE = "Usage:
   $0 [OPTS] HOST | IPMAGIC_NAME
@@ -105,6 +116,19 @@ my $USAGE = "Usage:
           y                             pass '-rotate y'    to x11vnc (flip y-axis)
           +90x | 90x                    pass '-rotate 90x'  to x11vnc (rotate CW, flip x-axis)
           +90y | 90y                    pass '-rotate 90y'  to x11vnc (rotate CW, fiip y-axis)
+    --rotate-from-landscape
+      if HOST resolution is portrait, add an additional left rotation to --rotate
+        -get ROTATION from --rotate arg
+        -fetch resolution <WIDTH>x<HEIGHT> from target HOST
+         -if <HEIGHT> is greater than <WIDTH>:
+            --rotate=0   => --rotate=270
+            --rotate=90  => --rotate=0
+            --rotate=180 => --rotate=90
+            --rotate=270 => --rotate=180
+            --rotate=x   => --rotate=90y
+            --rotate=y   => --rotate=90x
+            --rotate=90x => --rotate=y
+            --rotate=90y => --rotate=x
 ";
 
 my $CMD_START_VNC = "start";
@@ -124,6 +148,7 @@ sub main(@){
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
     rotateArg     => 0,
+    rotateFromLandscape => 0,
     isStartServer => 1,
     isSSHTunnel   => 1,
   };
@@ -153,6 +178,8 @@ sub main(@){
       $$opts{rotateArg} = $1;
     }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
       $$opts{rotateArg} = shift @_;
+    }elsif($arg =~ /^--rotate-from-landscape/){
+      $$opts{rotateFromLandscape} = 1;
     }elsif($arg =~ /^--user=(.+)$/){
       $$opts{remoteInfo}{user} = $1;
     }elsif($arg =~ /^(-u)$/ and @_ > 0){
@@ -181,7 +208,7 @@ sub main(@){
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
     startVNC($$opts{remoteInfo}, $$opts{vncClient},
-      $$opts{geometry}, $$opts{rotateArg},
+      $$opts{geometry}, $$opts{rotateArg}, $$opts{rotateFromLandscape},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
@@ -190,12 +217,21 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$$){
+sub startVNC($$$$$$$){
   my ($remoteInfo, $vncClient,
-      $geometry, $rotateArg,
+      $geometry, $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
   my @serverArgs;
+
+  my ($remoteResW, $remoteResH);
+
+  if($rotateFromLandscape){
+    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
+    if($remoteResH > $remoteResW){
+      $rotateArg = $$ROTATE_ARG_COUNTER_CLOCKWISE{$rotateArg};
+    }
+  }
 
   if(defined $rotateArg and $rotateArg ne "0"){
     @serverArgs = (@serverArgs, "-rotate", $rotateArg);
@@ -305,6 +341,16 @@ sub stopSSHTunnel($){
     $LOCALHOST,
   );
   system @sshCmd;
+}
+
+sub getRemoteRes($){
+  my ($remoteInfo) = @_;
+  my $remoteRes = runRemoteCmd($remoteInfo, {readProc=>1}, qw(res));
+  if($remoteRes =~ /(\d+)x(\d+)/){
+    return ($1, $2);
+  }else{
+    die "ERROR: could not get remote res from $$remoteInfo{host}\n";
+  }
 }
 
 sub runRemoteCmd($$@){
