@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$$$$$);
+sub startVNC($$$$$$$$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
@@ -105,6 +105,12 @@ my $USAGE = "Usage:
     --no-geometry
       synonym for --geometry=none (do not pass '-geometry GEOMETRY' to server)
 
+    -s SCALE_RATIO | --scale SCALE_RATIO | --scale=SCALE_RATIO
+      set resolution of vnc server with -geometry to the remote resolution times SCALE_RATIO
+       (preserving aspect ratio)
+      e.g.: if remote is 1280x720
+              --scale=0.9  =>  --geometry=1152x648
+
     --rotate=ROTATION | -rotate=ROTATION
       pass -rotate arg to x11vnc
         ROTATION
@@ -152,6 +158,7 @@ sub main(@){
     },
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
+    scale         => undef,
     rotateArg     => 0,
     rotateFromLandscape => 0,
     isStartServer => 1,
@@ -179,6 +186,10 @@ sub main(@){
       $$opts{geometry} = $GEOMETRY_NONE;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
+    }elsif($arg =~ /^--scale=(\d+|\d*\.\d+)$/){
+      $$opts{scale} = $1;
+    }elsif($arg =~ /^(-s|--scale)$/ and @_ > 0 and $_[0] =~ /^(\d+|\d*\.\d+)$/){
+      $$opts{scale} = shift @_;
     }elsif($arg =~ /^--rotate=($OK_ROTATE_ARG_REGEX)$/){
       $$opts{rotateArg} = $1;
     }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
@@ -225,7 +236,8 @@ sub main(@){
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
     startVNC($$opts{remoteInfo}, $$opts{vncClient},
-      $$opts{geometry}, $$opts{rotateArg}, $$opts{rotateFromLandscape},
+      $$opts{geometry}, $$opts{scale},
+      $$opts{rotateArg}, $$opts{rotateFromLandscape},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
     runSSHExit($$opts{host});
@@ -234,9 +246,10 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$$$){
+sub startVNC($$$$$$$$){
   my ($remoteInfo, $vncClient,
-      $geometry, $rotateArg, $rotateFromLandscape,
+      $geometry, $scale,
+      $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
   my @serverArgs;
@@ -255,7 +268,10 @@ sub startVNC($$$$$$$){
   }
 
   my @geometryArgs;
-  if($geometry eq $GEOMETRY_RES){
+  if(defined $scale){
+    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
+    @serverArgs = (@serverArgs, "-geometry", int($remoteResW*$scale) . "x" . int($remoteResH*$scale));
+  }elsif($geometry eq $GEOMETRY_RES){
     my $res = `res`;
     chomp $res;
     if($res =~ /^(\d+x\d+)$/){
