@@ -33,33 +33,23 @@ my $DEFAULT_VNC_SERVER = "x11vnc";
 my $DEFAULT_VNC_CLIENT = "xtigervncviewer";
 my $OK_VNC_CLIENTS = join "|", sort keys %VNC_CLIENT_ARGS;
 
-my $ROTATE_ARG_SYNS = {
-  "0"   => [qw(0    +0    -0    none)],
-  "90"  => [qw(90   +90   -270)],
-  "180" => [qw(180  +180  -180  xy  yx)],
-  "270" => [qw(270  +270  -90)],
-  "x"   => [qw(x)],
-  "y"   => [qw(y)],
-  "90x" => [qw(90x)],
-  "90y" => [qw(90y)],
+my $ROTATE_ARG_TYPES = {
+  "0"   => {syns=>[qw(0    +0    -0    none)],   left=>"270", right=>"90"},
+  "90"  => {syns=>[qw(90   +90   -270)],         left=>"0",   right=>"180"},
+  "180" => {syns=>[qw(180  +180  -180  xy  yx)], left=>"90",  right=>"270"},
+  "270" => {syns=>[qw(270  +270  -90)],          left=>"180", right=>"0"},
+  "x"   => {syns=>[qw(x)],                       left=>"90x", right=>"90y"},
+  "y"   => {syns=>[qw(y)],                       left=>"90y", right=>"90x"},
+  "90x" => {syns=>[qw(90x)],                     left=>"y",   right=>"x"},
+  "90y" => {syns=>[qw(90y)],                     left=>"x",   right=>"y"},
 };
 my $ROTATE_ARG_BY_SYN = {
   map {
     my $rotArg = $_;
-    map {$_ => $rotArg} @{$$ROTATE_ARG_SYNS{$rotArg}};
-  } sort keys %$ROTATE_ARG_SYNS
+    map {$_ => $rotArg} @{$$ROTATE_ARG_TYPES{$rotArg}{syns}};
+  } sort keys %$ROTATE_ARG_TYPES
 };
 my $OK_ROTATE_ARG_REGEX = join("|", map {quotemeta($_)} sort keys %$ROTATE_ARG_BY_SYN);
-my $ROTATE_ARG_COUNTER_CLOCKWISE = {
-  "0"   => "270",
-  "90"  => "0",
-  "180" => "90",
-  "270" => "180",
-  "x"   => "90y",
-  "y"   => "90x",
-  "90x" => "y",
-  "90y" => "x",
-};
 
 my $SCALE_AUTO = "auto";
 
@@ -281,7 +271,8 @@ sub startVNC($$$$$$$$$$){
 
   if($rotateFromLandscape){
     if($remoteH > $remoteW){
-      $rotateArg = $$ROTATE_ARG_COUNTER_CLOCKWISE{$rotateArg};
+      #rotate additional counter-clockwise turn
+      $rotateArg = $$ROTATE_ARG_TYPES{$rotateArg}{left};
     }
   }
 
