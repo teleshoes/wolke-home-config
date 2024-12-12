@@ -3,10 +3,11 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$$$$$$);
+sub startVNC($$$$$$$$$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
+sub getDesiredLocalRes($);
 sub getRemoteRes($);
 sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
@@ -119,6 +120,14 @@ my $USAGE = "Usage:
       e.g.: if remote is 1080x1920 and local is 1920x1080
              --auto-scale  =>  --scale=0.5625  =>  --geometry=1080x607
 
+    --local-height-scale=LOCAL_HEIGHT_SCALE | --local-height-scale LOCAL_HEIGHT_SCALE
+      -scale local screen height before calculating --scale-auto
+      -this can be used to accommodate a system bar without having to scroll
+        e.g.: if remote is 1920x1080 and local is 1280x720 and system bar is 72px
+                --auto-scale --local-height-scale=0.9  =>  --scale=0.6  =>  --geometry=1152x648
+      (default: 1.0)
+
+
     --rotate=ROTATION | -rotate=ROTATION
       pass -rotate arg to x11vnc
         ROTATION
@@ -167,6 +176,7 @@ sub main(@){
     vncClient     => $DEFAULT_VNC_CLIENT,
     geometry      => $GEOMETRY_RES,
     scale         => undef,
+    localHeightScale => 1.0,
     rotateArg     => 0,
     rotateFromLandscape => 0,
     isStartServer => 1,
@@ -200,6 +210,10 @@ sub main(@){
       $$opts{scale} = shift @_;
     }elsif($arg =~ /^(--auto-scale)$/){
       $$opts{scale} = $SCALE_AUTO;
+    }elsif($arg =~ /^--local-height-scale=(\d+|\d*\.\d+)$/){
+      $$opts{localHeightScale} = $1;
+    }elsif($arg =~ /^(--local-height-scale)$/ and @_ > 0 and $_[0] =~ /^(\d+|\d*\.\d+)$/){
+      $$opts{localHeightScale} = shift @_;
     }elsif($arg =~ /^--rotate=($OK_ROTATE_ARG_REGEX)$/){
       $$opts{rotateArg} = $1;
     }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
@@ -246,7 +260,7 @@ sub main(@){
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
     startVNC($$opts{remoteInfo}, $$opts{vncClient},
-      $$opts{geometry}, $$opts{scale},
+      $$opts{geometry}, $$opts{scale}, $$opts{localHeightScale},
       $$opts{rotateArg}, $$opts{rotateFromLandscape},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
   }elsif($cmd eq $CMD_SSH_OFF){
@@ -256,9 +270,9 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$$$$){
+sub startVNC($$$$$$$$$){
   my ($remoteInfo, $vncClient,
-      $geometry, $scale,
+      $geometry, $scale, $localHeightScale,
       $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
@@ -279,8 +293,7 @@ sub startVNC($$$$$$$$){
 
   if(defined $scale and $scale eq $SCALE_AUTO){
     ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
-    my $res = `res`;
-    my ($desiredLocalW, $desiredLocalH) = ($1, $2) if $res =~ /^(\d+)x(\d+)$/;
+    my ($desiredLocalW, $desiredLocalH) = getDesiredLocalRes($localHeightScale);
 
     my $scaleW = $desiredLocalW/$remoteResW;
     my $scaleH = $desiredLocalH/$remoteResH;
@@ -396,6 +409,22 @@ sub stopSSHTunnel($){
     $LOCALHOST,
   );
   system @sshCmd;
+}
+
+sub getDesiredLocalRes($){
+  my ($localHeightScale) = @_;
+
+  my $localRes = `res`;
+  my ($localWidth, $localHeight);
+  if($localRes =~ /^(\d+)x(\d+)$/){
+    $localWidth = $1;
+    $localHeight = $2;
+  }
+  if($localWidth !~ /^\d+$/ or $localHeight !~ /^\d+$/){
+    die "ERROR: could not obtain local resolution\n";
+  }
+
+  return ($localWidth, $localHeight*$localHeightScale);
 }
 
 sub getRemoteRes($){
