@@ -60,6 +60,8 @@ my $ROTATE_ARG_COUNTER_CLOCKWISE = {
   "90y" => "x",
 };
 
+my $SCALE_AUTO = "auto";
+
 my $USAGE = "Usage:
   $0 [OPTS] HOST | IPMAGIC_NAME
     -if <IPMAGIC_NAME> is given, get <HOST> using `ipmagic IPMAGIC_NAME`
@@ -110,6 +112,12 @@ my $USAGE = "Usage:
        (preserving aspect ratio)
       e.g.: if remote is 1280x720
               --scale=0.9  =>  --geometry=1152x648
+
+    --auto-scale
+      calculate a SCALE_RATIO to fit the remote resolution within the local resolution
+        (preserving aspect ratio)
+      e.g.: if remote is 1080x1920 and local is 1920x1080
+             --auto-scale  =>  --scale=0.5625  =>  --geometry=1080x607
 
     --rotate=ROTATION | -rotate=ROTATION
       pass -rotate arg to x11vnc
@@ -190,6 +198,8 @@ sub main(@){
       $$opts{scale} = $1;
     }elsif($arg =~ /^(-s|--scale)$/ and @_ > 0 and $_[0] =~ /^(\d+|\d*\.\d+)$/){
       $$opts{scale} = shift @_;
+    }elsif($arg =~ /^(--auto-scale)$/){
+      $$opts{scale} = $SCALE_AUTO;
     }elsif($arg =~ /^--rotate=($OK_ROTATE_ARG_REGEX)$/){
       $$opts{rotateArg} = $1;
     }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
@@ -265,6 +275,18 @@ sub startVNC($$$$$$$$){
 
   if(defined $rotateArg and $rotateArg ne "0"){
     @serverArgs = (@serverArgs, "-rotate", $rotateArg);
+  }
+
+  if(defined $scale and $scale eq $SCALE_AUTO){
+    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
+    my $res = `res`;
+    my ($desiredLocalW, $desiredLocalH) = ($1, $2) if $res =~ /^(\d+)x(\d+)$/;
+
+    my $scaleW = $desiredLocalW/$remoteResW;
+    my $scaleH = $desiredLocalH/$remoteResH;
+
+    #minimum of width scale and height scale
+    $scale = $scaleW < $scaleH ? $scaleW : $scaleH;
   }
 
   my @geometryArgs;
