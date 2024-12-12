@@ -272,11 +272,14 @@ sub startVNC($$$$$$$$$){
 
   my @serverArgs;
 
-  my ($remoteResW, $remoteResH);
+  my ($remoteW, $remoteH);
+  if($rotateFromLandscape or defined $scale){
+    #only fetch remote res when needed
+    ($remoteW, $remoteH) = getRemoteRes($remoteInfo);
+  }
 
   if($rotateFromLandscape){
-    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
-    if($remoteResH > $remoteResW){
+    if($remoteH > $remoteW){
       $rotateArg = $$ROTATE_ARG_COUNTER_CLOCKWISE{$rotateArg};
     }
   }
@@ -286,11 +289,10 @@ sub startVNC($$$$$$$$$){
   }
 
   if(defined $scale and $scale eq $SCALE_AUTO){
-    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
     my ($desiredLocalW, $desiredLocalH) = getDesiredLocalRes($localHeightScale);
 
-    my $scaleW = $desiredLocalW/$remoteResW;
-    my $scaleH = $desiredLocalH/$remoteResH;
+    my $scaleW = $desiredLocalW/$remoteW;
+    my $scaleH = $desiredLocalH/$remoteH;
 
     #minimum of width scale and height scale
     $scale = $scaleW < $scaleH ? $scaleW : $scaleH;
@@ -298,8 +300,7 @@ sub startVNC($$$$$$$$$){
 
   my @geometryArgs;
   if(defined $scale){
-    ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
-    @serverArgs = (@serverArgs, "-geometry", int($remoteResW*$scale) . "x" . int($remoteResH*$scale));
+    @serverArgs = (@serverArgs, "-geometry", int($remoteW*$scale) . "x" . int($remoteH*$scale));
   }elsif(defined $geometry and $geometry =~ /^(\d+x\d+)$/){
     @geometryArgs = ("-geometry", $geometry);
   }elsif(not defined $geometry){
