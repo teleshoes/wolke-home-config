@@ -95,15 +95,8 @@ my $USAGE = "Usage:
     -r | --remote
       same as: --no-ssh-tunnel --no-server
 
-    --geometry=GEOMETRY    (default is --geometry=none)
-      one of 'none', or <WIDTH>x<HEIGHT>
-        if <GEOMETRY> is <WIDTH>x<HEIGHT>:
-          pass '-geometry <WIDTH>x<HEIGHT>' to server
-        if <GEOMETRY> is 'none':
-          do not pass '-geometry' to server
-
-    --no-geometry
-      synonym for --geometry=none (do not pass '-geometry GEOMETRY' to server)
+    --geometry=<WIDTH>x<HEIGHT>
+      pass '-geometry <WIDTH>x<HEIGHT>' to server
 
     -s SCALE_RATIO | --scale SCALE_RATIO | --scale=SCALE_RATIO
       set resolution of vnc server with -geometry to the remote resolution times SCALE_RATIO
@@ -162,8 +155,6 @@ my $USAGE = "Usage:
 my $CMD_START_VNC = "start";
 my $CMD_SSH_OFF = "off";
 
-my $GEOMETRY_NONE = "none";
-
 sub main(@){
   my $cmd = $CMD_START_VNC;
   my $opts = {
@@ -173,7 +164,7 @@ sub main(@){
       user        => undef,
     },
     vncClient     => $DEFAULT_VNC_CLIENT,
-    geometry      => $GEOMETRY_NONE,
+    geometry      => undef,
     scale         => undef,
     localHeightScale => 1.0,
     rotateArg     => 0,
@@ -197,8 +188,6 @@ sub main(@){
     }elsif($arg =~ /^(-r|--remote)$/){
       $$opts{isStartServer} = 0;
       $$opts{isSSHTunnel} = 0;
-    }elsif($arg =~ /^--geometry=none$/){
-      $$opts{geometry} = $GEOMETRY_NONE;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
     }elsif($arg =~ /^--scale=(\d+|\d*\.\d+)$/){
@@ -306,9 +295,9 @@ sub startVNC($$$$$$$$$){
   if(defined $scale){
     ($remoteResW, $remoteResH) = getRemoteRes($remoteInfo) if not defined $remoteResW;
     @serverArgs = (@serverArgs, "-geometry", int($remoteResW*$scale) . "x" . int($remoteResH*$scale));
-  }elsif($geometry =~ /^(\d+x\d+)$/){
+  }elsif(defined $geometry and $geometry =~ /^(\d+x\d+)$/){
     @geometryArgs = ("-geometry", $geometry);
-  }elsif($geometry eq $GEOMETRY_NONE){
+  }elsif(not defined $geometry){
     @geometryArgs = ();
   }else{
     die "invalid geometry: $geometry\n";
