@@ -21,9 +21,10 @@ my $usage = "Usage:
 
   $EXEC_RES [OPTS] -m|--modes [MODES_PREF_REGEX]
     -list grahics card `modes` devs: $MODES_DEV_GLOB
-    -sort the list to give preference to <MODES_PREF_REGEX>
+    -sort the list to give preference to <MODES_PREF_REGEX> and non-virtual devs
       -sort dev paths by the following attributes:
         -path matches <MODES_PREF_REGEX> if given (case insensitive)
+        -path does NOT contain 'Virtual' (case insensitive)
         -lexicographically
     -read the contents of each dev in order until finding a geometry
       -identify the first string matching '<WIDTH>x<HEIGHT>'
@@ -198,9 +199,14 @@ sub readModeFromDev($){
     (defined $modesPrefRegex and $_ =~ /$modesPrefRegex/i ? 1 : 0)
   } @modesDevs;
 
+  my %isVirtual = map {$_ =>
+    ($_ =~ /Virtual/i ? 1 : 0)
+  } @modesDevs;
+
   @modesDevs = sort {
     0
     || $isPref{$b}    <=> $isPref{$a}     #pref first
+    || $isVirtual{$a} <=> $isVirtual{$b}  #then virtual last
     || $a             cmp $b              #then lexicographically
   } @modesDevs;
 
