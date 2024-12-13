@@ -23,9 +23,11 @@ my $DEFAULT_REMOTE_DISPLAY = ":0";
 my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
 
 my $VNC_SERVER_X11VNC = "x11vnc";
+my $VNC_SERVER_LIPSTICK2VNC = "lipstick2vnc";
 
 my %VNC_SERVER_ARGS = (
   $VNC_SERVER_X11VNC       => [qw(-safer -nopw -once -noncache -bg)],
+  $VNC_SERVER_LIPSTICK2VNC => [qw(-k)],
 );
 
 my %VNC_CLIENT_ARGS = (
@@ -75,6 +77,9 @@ my $USAGE = "Usage:
   OPTS
     --client=VNC_CLIENT   (default is $DEFAULT_VNC_CLIENT)
       one of: $OK_VNC_CLIENTS
+
+    --lipstick2vnc
+      use vnc server $VNC_SERVER_LIPSTICK2VNC instead of $VNC_SERVER_X11VNC
 
     -u USER | --user=USER
       -use <USER> for all ssh/ipmagic commands
@@ -209,6 +214,8 @@ sub main(@){
       $cmd = $CMD_SSH_OFF;
     }elsif($arg =~ /^--client=($OK_VNC_CLIENTS)$/){
       $$opts{vncClient} = $1;
+    }elsif($arg =~ /^(--lipstick2vnc)$/){
+      $$opts{vncServer} = $VNC_SERVER_LIPSTICK2VNC;
     }elsif($arg =~ /^(--no-server)$/){
       $$opts{isStartServer} = 0;
     }elsif($arg =~ /^(--no-ssh-tunnel)$/){
@@ -399,6 +406,40 @@ sub runVNCServer($$$$$$$){
 
     killVNCServer($remoteInfo, $vncServer);
     runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
+  }elsif($vncServer eq $VNC_SERVER_LIPSTICK2VNC){
+    if(defined $scale){
+      #minimum scale is 10%
+      $scale = 0.1 if $scale <= 0.1;
+
+      #scale must be in increments of 10%
+      #  weird display bugs happen at finer granularity like 0.41
+      $scale = sprintf "%.1f", int($scale*10)/10.0;
+
+      @serverArgs = (@serverArgs, "-s", $scale);
+    }
+
+    push @serverArgs, getOrientationArg($rotateArg, $isRemotePortrait);
+
+    if(not $isSSHTunnel){
+      die "ERROR: --allow-all option removed from lipstick2vnc, must use SSH tunnel\n";
+    }
+
+    my $lipstick2vncConfFile =
+      "/var/lib/environment/$$remoteInfo{user}/70-lipstick2vnc.conf";
+    runRemoteCmd($remoteInfo, {backgroup=>1}, "
+      echo $lipstick2vncConfFile
+      echo \"LIPSTICK2VNC_OPTS=\\\"@serverArgs\\\"\" \\
+        | sudo tee $lipstick2vncConfFile
+      lock --unlock &
+
+      #/dev/uinput is normally owned by system.net_bt_stack
+      #  /usr/bin/lipstick2vnc has setgid bit and is owned by group privileged
+      sudo chown system.privileged /dev/uinput
+
+      systemctl --user stop vnc.socket
+      systemctl --user stop vnc
+      systemctl --user start vnc
+    ");
   }else{
     die "ERROR: unknown VNC server $vncServer\n";
   }
@@ -407,6 +448,8 @@ sub killVNCServer($$){
   my ($remoteInfo, $vncServer) = @_;
   if($vncServer eq $VNC_SERVER_X11VNC){
     runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
+  }elsif($vncServer eq $VNC_SERVER_LIPSTICK2VNC){
+    runRemoteCmd($remoteInfo, {}, "systemctl --user stop vnc");
   }else{
     die "ERROR: unknown VNC server $vncServer\n";
   }
