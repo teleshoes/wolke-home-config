@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 sub startVNC($$$$$$$$$$);
+sub killVNCServer($$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
@@ -356,7 +357,7 @@ sub startVNC($$$$$$$$$$){
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
 
   if($isStartServer){
-    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
+    killVNCServer($remoteInfo, $vncServer);
     runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
     sleep($DELAY_MILLIS/1000.0);
   }
@@ -379,10 +380,19 @@ sub startVNC($$$$$$$$$$){
   system @vncClientCmd;
 
   if($isStartServer){
-    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
+    killVNCServer($remoteInfo, $vncServer);
   }
   if($isSSHTunnel){
     stopSSHTunnel($remoteInfo);
+  }
+}
+
+sub killVNCServer($$){
+  my ($remoteInfo, $vncServer) = @_;
+  if($vncServer eq "x11vnc"){
+    runRemoteCmd($remoteInfo, {}, "pkill", $vncServer);
+  }else{
+    die "ERROR: unknown VNC server $vncServer\n";
   }
 }
 
