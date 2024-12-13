@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(sleep);
 
 sub startVNC($$$$$$$$$$);
+sub runVNCServer($$$$$$);
 sub killVNCServer($$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
@@ -291,7 +292,6 @@ sub startVNC($$$$$$$$$$){
       $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
-  my @serverArgs;
   my $isRemotePortrait = 0;
 
   my ($remoteW, $remoteH);
@@ -318,10 +318,6 @@ sub startVNC($$$$$$$$$$){
     ($remoteW, $remoteH) = ($remoteH, $remoteW);
   }
 
-  if(defined $rotateArg and $rotateArg ne "0"){
-    @serverArgs = (@serverArgs, "-rotate", $rotateArg);
-  }
-
   if(defined $scale and $scale eq $SCALE_AUTO){
     my ($desiredLocalW, $desiredLocalH) = getDesiredLocalRes($localHeightScale);
 
@@ -340,25 +336,10 @@ sub startVNC($$$$$$$$$$){
     $geometry = "${2}x${1}";
   }
 
-  if(defined $geometry){
-    @serverArgs = (@serverArgs, "-geometry", $geometry);
-  }
-
-  if($isSSHTunnel){
-    push @serverArgs, "-localhost";
-  }
-
-  my @vncServerCmd = ($vncServer,
-    '-display', guessRemoteDisplay($remoteInfo),
-    @serverArgs,
-    @{$VNC_SERVER_ARGS{$vncServer}},
-  );
-
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
 
   if($isStartServer){
-    killVNCServer($remoteInfo, $vncServer);
-    runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
+    runVNCServer($remoteInfo, $vncServer, $geometry, $scale, $rotateArg, $isSSHTunnel);
     sleep($DELAY_MILLIS/1000.0);
   }
 
@@ -387,6 +368,33 @@ sub startVNC($$$$$$$$$$){
   }
 }
 
+sub runVNCServer($$$$$$){
+  my ($remoteInfo, $vncServer, $geometry, $scale, $rotateArg, $isSSHTunnel) = @_;
+
+  my @serverArgs = @{$VNC_SERVER_ARGS{$vncServer}};
+
+  if($vncServer eq "x11vnc"){
+    if(defined $rotateArg and $rotateArg ne "0"){
+      @serverArgs = (@serverArgs, "-rotate", $rotateArg);
+    }
+    if(defined $geometry){
+      @serverArgs = (@serverArgs, "-geometry", $geometry);
+    }
+    if($isSSHTunnel){
+      push @serverArgs, "-localhost";
+    }
+
+    my @vncServerCmd = ($vncServer,
+      '-display', guessRemoteDisplay($remoteInfo),
+      @serverArgs,
+    );
+
+    killVNCServer($remoteInfo, $vncServer);
+    runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
+  }else{
+    die "ERROR: unknown VNC server $vncServer\n";
+  }
+}
 sub killVNCServer($$){
   my ($remoteInfo, $vncServer) = @_;
   if($vncServer eq "x11vnc"){
