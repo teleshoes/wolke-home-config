@@ -89,7 +89,11 @@ my $USAGE = "Usage:
     --geometry=<WIDTH>x<HEIGHT>
     --res=<WIDTH>x<HEIGHT>
       -pass '-geometry <WIDTH>x<HEIGHT>' to vnc server
-      e.g.: --res=500x1000
+      -if --rotate is given and <ROTATION> is 90, 270, 90x, or 90y:
+        -swap <WIDTH> and <HEIGHT> in --geometry
+      e.g.: '--res=500x1000 --rotate=90'
+              will pass '-geometry 1000x500 -rotate 90' to x11vnc,
+              and will therefore be 500x1000 in the vnc client
 
     -s SCALE_RATIO | --scale SCALE_RATIO | --scale=SCALE_RATIO
       -scale remote resolution, preserving aspect ratio
@@ -99,16 +103,22 @@ my $USAGE = "Usage:
       -set resolution as in --geometry=<SCALED_WIDTH>x<SCALED_HEIGHT>
       e.g.: if remote is 1280x720
         '--scale=0.9'             => '--geometry=1152x648'
+        '--scale=0.9 --rotate=90' => '--geometry=648x1152 --rotate=90'
 
     --auto-scale
       -calculate <SCALE_RATIO> to fit remote screen in local screen, preserving aspect ratio
         -read <LOCAL_WIDTH>x<LOCAL_HEIGHT> with `res`
         -fetch <REMOTE_WIDTH>x<REMOTE_HEIGHT> with `res`
+        -swap <REMOTE_WIDTH> and <REMOTE_HEIGHT> if --rotate is given and <ROTATION> is portrait
         -calculate <WIDTH_SCALE_RATIO> as <LOCAL_WIDTH>/<REMOTE_WIDTH>
         -calculate <HEIGHT_SCALE_RATIO> as <LOCAL_HEIGHT>/<REMOTE_HEIGHT>
         -select <SCALE_RATIO> as the least of <WIDTH_SCALE_RATIO> and <HEIGHT_SCALE_RATIO>
+      -if --rotate is given and <ROTATION> is 90, 270, 90x, or 90y:
+        -fit the rotated remote resolution within the local resolution
+          (i.e.: compare remote width to local height, and vice-versa)
       e.g.: if remote is 1080x1920 and local is 1920x1080
         '--auto-scale'             => '--scale=0.5625'          => '--res=1080x607'
+        '--auto-scale --rotate=90' => '--scale=1.0 --rotate=90' => '--res=1920x1080 --rotate=90'
 
     --auto-scale-bar
       same as: --auto-scale --local-height-scale=0.95
@@ -123,6 +133,9 @@ my $USAGE = "Usage:
 
     --rotate=ROTATION | -rotate=ROTATION
       -pass -rotate arg to x11vnc
+      -if <ROTATION> swaps aspect ratio (i.e.: for 90, 270, 90x, or 90y):
+        -swap <WIDTH> and <HEIGHT> in --geometry
+        -swap <REMOTE_WIDTH> and <REMOTE_HEIGHT> is --auto-scale
 
         ROTATION
           0   | +0   | -0   | none      do not pass any rotation arg  (default)
@@ -280,16 +293,25 @@ sub startVNC($$$$$$$$$$){
   my @serverArgs;
 
   my ($remoteW, $remoteH);
-  if($rotateFromLandscape or defined $scale){
+  if(defined $scale or $rotateArg ne "0" or $rotateFromLandscape){
     #only fetch remote res when needed
     ($remoteW, $remoteH) = getRemoteRes($remoteInfo);
   }
 
   if($rotateFromLandscape){
     if($remoteH > $remoteW){
-      #rotate additional counter-clockwise turn
+      #rotate additional counter-clockwise turn if remote is portrait
       $rotateArg = $$ROTATE_ARG_TYPES{$rotateArg}{left};
     }
+  }
+
+  my $dimensionSwap = 0;
+  if($rotateArg =~ /^(90|270|90x|90y)$/){
+    $dimensionSwap = 1;
+  }
+
+  if($dimensionSwap){
+    ($remoteW, $remoteH) = ($remoteH, $remoteW);
   }
 
   if(defined $rotateArg and $rotateArg ne "0"){
@@ -306,10 +328,16 @@ sub startVNC($$$$$$$$$$){
     $scale = $scaleW < $scaleH ? $scaleW : $scaleH;
   }
 
+  if(defined $scale and not defined $geometry){
+    $geometry = int($remoteW*$scale) . "x" . int($remoteH*$scale);
+  }
+
+  if($dimensionSwap and defined $geometry and $geometry =~ /^(\d+)x(\d+)$/){
+    $geometry = "${2}x${1}";
+  }
+
   if(defined $geometry){
     @serverArgs = (@serverArgs, "-geometry", $geometry);
-  }elsif(defined $scale){
-    @serverArgs = (@serverArgs, "-geometry", int($remoteW*$scale) . "x" . int($remoteH*$scale));
   }
 
   if($isSSHTunnel){
