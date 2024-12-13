@@ -262,8 +262,8 @@ shortcuts conf = "Shortcuts" @@ do
         "ts l"          @@ mCS   xK_PgDn #! "tasmota l"
 
     "sx"            @@ do
-        "vnc"           @@ mC    xK_F11  #! "vnc-sx --cache"
-        "vnc landscape" @@ mCS   xK_F11  #! "vnc-sx --landscape --cache"
+        "vnc"           @@ mC    xK_F11  #! "ipmagic sx -vnc"
+        "vnc landscape" @@ mCS   xK_F11  #! "ipmagic sx -vnc --landscape"
         "lock"          @@ mC    xK_F12  #! "ipmagic sx lock"
 
     "Klomp"         @@ do
