@@ -88,20 +88,27 @@ my $USAGE = "Usage:
 
     --geometry=<WIDTH>x<HEIGHT>
     --res=<WIDTH>x<HEIGHT>
-      pass '-geometry <WIDTH>x<HEIGHT>' to vnc server
-      e.g.: --geometry=1152x648
+      -pass '-geometry <WIDTH>x<HEIGHT>' to vnc server
+      e.g.: --res=500x1000
 
     -s SCALE_RATIO | --scale SCALE_RATIO | --scale=SCALE_RATIO
-      set resolution of vnc server with -geometry to the remote resolution times SCALE_RATIO
-       (preserving aspect ratio)
+      -scale remote resolution, preserving aspect ratio
+        -fetch <REMOTE_WIDTH>x<REMOVE_HEIGHT> with `res`
+        -calculate <SCALED_WIDTH> as <SCALE_RATIO>*<REMOTE_WIDTH>
+        -calculate <SCALED_HEIGHT> as <SCALE_RATIO>*<REMOTE_HEIGHT>
+      -set resolution as in --geometry=<SCALED_WIDTH>x<SCALED_HEIGHT>
       e.g.: if remote is 1280x720
-              --scale=0.9  =>  --geometry=1152x648
+        '--scale=0.9'             => '--geometry=1152x648'
 
     --auto-scale
-      calculate a SCALE_RATIO to fit the remote resolution within the local resolution
-        (preserving aspect ratio)
+      -calculate <SCALE_RATIO> to fit remote screen in local screen, preserving aspect ratio
+        -read <LOCAL_WIDTH>x<LOCAL_HEIGHT> with `res`
+        -fetch <REMOTE_WIDTH>x<REMOTE_HEIGHT> with `res`
+        -calculate <WIDTH_SCALE_RATIO> as <LOCAL_WIDTH>/<REMOTE_WIDTH>
+        -calculate <HEIGHT_SCALE_RATIO> as <LOCAL_HEIGHT>/<REMOTE_HEIGHT>
+        -select <SCALE_RATIO> as the least of <WIDTH_SCALE_RATIO> and <HEIGHT_SCALE_RATIO>
       e.g.: if remote is 1080x1920 and local is 1920x1080
-             --auto-scale  =>  --scale=0.5625  =>  --geometry=1080x607
+        '--auto-scale'             => '--scale=0.5625'          => '--res=1080x607'
 
     --auto-scale-bar
       same as: --auto-scale --local-height-scale=0.95
@@ -110,12 +117,13 @@ my $USAGE = "Usage:
       -scale local screen height before calculating --scale-auto
       -this can be used to accommodate a system bar without having to scroll
         e.g.: if remote is 1920x1080 and local is 1280x720 and system bar is 72px
-                --auto-scale --local-height-scale=0.9  =>  --scale=0.6  =>  --geometry=1152x648
+          '--auto-scale --local-height-scale=0.9' => '--scale=0.6' => '--res=1152x648'
       (default: 1.0)
 
 
     --rotate=ROTATION | -rotate=ROTATION
-      pass -rotate arg to x11vnc
+      -pass -rotate arg to x11vnc
+
         ROTATION
           0   | +0   | -0   | none      do not pass any rotation arg  (default)
           90  | +90  | -270             pass '-rotate 90'   to x11vnc (rotate clockwise)
@@ -123,26 +131,34 @@ my $USAGE = "Usage:
           270 | +270 | -90              pass '-rotate 270'  to x11vnc (rot counter-clockwise)
           x                             pass '-rotate x'    to x11vnc (flip x-axis)
           y                             pass '-rotate y'    to x11vnc (flip y-axis)
-          +90x | 90x                    pass '-rotate 90x'  to x11vnc (rotate CW, flip x-axis)
-          +90y | 90y                    pass '-rotate 90y'  to x11vnc (rotate CW, fiip y-axis)
+          90x | +90x                    pass '-rotate 90x'  to x11vnc (rotate CW, flip x-axis)
+          90y | +90y                    pass '-rotate 90y'  to x11vnc (rotate CW, fiip y-axis)
+
     --rotate-from-landscape
       if HOST resolution is portrait, add an additional left rotation to --rotate
-        -get ROTATION from --rotate arg
-        -fetch resolution <WIDTH>x<HEIGHT> from target HOST
-         -if <HEIGHT> is greater than <WIDTH>:
-            --rotate=0   => --rotate=270
-            --rotate=90  => --rotate=0
-            --rotate=180 => --rotate=90
-            --rotate=270 => --rotate=180
-            --rotate=x   => --rotate=90y
-            --rotate=y   => --rotate=90x
-            --rotate=90x => --rotate=y
-            --rotate=90y => --rotate=x
+        -get ROTATION from --rotate arg (assume '0' if none given)
+        -fetch <REMOTE_WIDTH>x<REMOTE_HEIGHT> with `res`
+        -if <REMOTE_WIDTH> is greater than or equal to <REMOTE_HEIGHT>:
+          -do nothing (leave --rotate=<ROTATION> arg unmodified)
+          e.g.:
+            '--rotate=0   --rotate-from-landscape' => '--rotate=0'
+            '--rotate=90  --rotate-from-landscape' => '--rotate=90'
+        -if <REMOTE_HEIGHT> is greater than <REMOTE_WIDTH>:
+          -add an additional counter-clockwise turn to --rotate:
+          e.g.:
+            '--rotate=0   --rotate-from-landscape' => '--rotate=270'
+            '--rotate=90  --rotate-from-landscape' => '--rotate=0'
+            '--rotate=180 --rotate-from-landscape' => '--rotate=90'
+            '--rotate=270 --rotate-from-landscape' => '--rotate=180'
+            '--rotate=x   --rotate-from-landscape' => '--rotate=90x'
+            '--rotate=y   --rotate-from-landscape' => '--rotate=90y'
+            '--rotate=90x --rotate-from-landscape' => '--rotate=y'
+            '--rotate=90y --rotate-from-landscape' => '--rotate=x'
 
-    -l | --landscape        same as: --rotate-from-landscape --rotate=0
-    --landscape-inverted    same as: --rotate-from-landscape --rotate=180
-    -p | --portrait         same as: --rotate-from-landscape --rotate=90
-    --portrait-inverted     same as: --rotate-from-landscape --rotate=270
+    -l | --landscape        same as:  '--rotate=0   --rotate-from-landscape'
+    --landscape-inverted    same as:  '--rotate=180 --rotate-from-landscape'
+    -p | --portrait         same as:  '--rotate=90  --rotate-from-landscape'
+    --portrait-inverted     same as:  '--rotate=270 --rotate-from-landscape'
 ";
 
 my $CMD_START_VNC = "start";
