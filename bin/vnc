@@ -3,14 +3,14 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-sub startVNC($$$$$$$$$$);
+sub startVNC($$$$$$$$$$$);
 sub runVNCServer($$$$$$$);
 sub killVNCServer($$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
 sub getDesiredLocalRes($);
-sub getRemoteRes($);
+sub getRemoteRes($$);
 sub getOrientationArg($$);
 sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
@@ -24,6 +24,8 @@ my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
 
 my $VNC_SERVER_X11VNC = "x11vnc";
 my $VNC_SERVER_LIPSTICK2VNC = "lipstick2vnc";
+
+my $REMOTE_RES_CACHE_DIR = "$ENV{HOME}/.cache/vnc-remote-res";
 
 my %VNC_SERVER_ARGS = (
   $VNC_SERVER_X11VNC       => [qw(-safer -nopw -once -noncache -bg)],
@@ -95,6 +97,21 @@ my $USAGE = "Usage:
     -r | --remote
       same as: --no-ssh-tunnel --no-server
 
+    --cache
+      -before fetching <REMOTE_WIDTH>x<REMOTE_HEIGHT>
+        -read <REMOTE_RES_CACHE_FILE> if present instead of fetching
+      -after fetching <REMOTE_WIDTH>x<REMOTE_HEIGHT
+        -write <REMOTE_RES_CACHE_FILE>
+    --no-cache
+      -always fetch <REMOTE_WIDTH>x<REMOTE_HEIGHT> remotely
+      -never write <REMOTE_RES_CACHE_FILE>
+      (this is the default)
+
+        REMOTE_RES_CACHE_FILE
+          $REMOTE_RES_CACHE_DIR/<REMOTE_CACHE_NAME>
+        REMOTE_CACHE_NAME
+          -same as <HOST>, with only letters, numbers, '_', '-', and '-'
+          -replace all characters except letters/numbers/underscores/dashes/periods with '_'
 
     --geometry=<WIDTH>x<HEIGHT>
     --res=<WIDTH>x<HEIGHT>
@@ -197,6 +214,7 @@ sub main(@){
     },
     vncClient     => $DEFAULT_VNC_CLIENT,
     vncServer     => $DEFAULT_VNC_SERVER,
+    useCache      => 0,
     geometry      => undef,
     scale         => undef,
     localHeightScale => 1.0,
@@ -223,6 +241,10 @@ sub main(@){
     }elsif($arg =~ /^(-r|--remote)$/){
       $$opts{isStartServer} = 0;
       $$opts{isSSHTunnel} = 0;
+    }elsif($arg =~ /^(--cache)$/){
+      $$opts{useCache} = 1;
+    }elsif($arg =~ /^(--no-cache)$/){
+      $$opts{useCache} = 0;
     }elsif($arg =~ /^--geometry=(\d+x\d+)$/){
       $$opts{geometry} = $1;
     }elsif($arg =~ /^--res=(\d+x\d+)$/){
@@ -285,7 +307,7 @@ sub main(@){
 
   if($cmd eq $CMD_START_VNC){
     die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
-    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{vncServer},
+    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{vncServer}, $$opts{useCache},
       $$opts{geometry}, $$opts{scale}, $$opts{localHeightScale},
       $$opts{rotateArg}, $$opts{rotateFromLandscape},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
@@ -296,15 +318,15 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$$$$$$){
-  my ($remoteInfo, $vncClient, $vncServer,
+sub startVNC($$$$$$$$$$$){
+  my ($remoteInfo, $vncClient, $vncServer, $useCache,
       $geometry, $scale, $localHeightScale,
       $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
   my $isRemotePortrait = 0;
 
-  my ($remoteW, $remoteH) = getRemoteRes($remoteInfo);
+  my ($remoteW, $remoteH) = getRemoteRes($remoteInfo, $useCache);
   if($remoteH > $remoteW){
     $isRemotePortrait = 1;
   }
@@ -513,11 +535,31 @@ sub getDesiredLocalRes($){
   return ($localWidth, $localHeight*$localHeightScale);
 }
 
-sub getRemoteRes($){
-  my ($remoteInfo) = @_;
+sub getRemoteRes($$){
+  my ($remoteInfo, $useCache) = @_;
+
+  my $cacheFile;
+  if($useCache){
+    my $cacheName = $$remoteInfo{host};
+    $cacheName =~ s/[^a-zA-Z0-9\-_\.]/_/g;
+    $cacheFile = "$REMOTE_RES_CACHE_DIR/$cacheName";
+  }
+
+  if($useCache and -f $cacheFile){
+    my $res = `cat $cacheFile`;
+    if($res =~ /^(\d+)x(\d+)$/){
+      return ($1, $2);
+    }
+  }
+
   my $remoteRes = runRemoteCmd($remoteInfo, {readProc=>1}, qw(res));
   if($remoteRes =~ /(\d+)x(\d+)/){
-    return ($1, $2);
+    my ($w, $h) = ($1, $2);
+    if($useCache){
+      system "mkdir", "-p", $REMOTE_RES_CACHE_DIR if not -d $REMOTE_RES_CACHE_DIR;
+      system "echo '${w}x${h}' > $cacheFile";
+    }
+    return ($w, $h);
   }else{
     die "ERROR: could not get remote res from $$remoteInfo{host}\n";
   }
