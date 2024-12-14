@@ -7,7 +7,8 @@ sub calculateVNCServerCfg($$$$$$$$);
 sub startVNC($$$$$$$$$$$);
 sub runVNCServer($$$);
 sub killVNCServer($$);
-sub getSSHControlPath($);
+sub getSessionStateFile($$);
+sub getSessionSSHControlPath($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
 sub getDesiredLocalRes($);
@@ -21,7 +22,7 @@ my $DELAY_MILLIS = 300;
 my $LOCALHOST = "127.0.0.1";
 my $DEFAULT_VNC_PORT = 5900;
 my $DEFAULT_REMOTE_DISPLAY = ":0";
-my $SSH_CONTROL_PATH_DIR = "/tmp/vnc-ssh-ctl";
+my $SESSION_STATE_DIR = "/tmp/vnc-sessions";
 
 my $VNC_SERVER_X11VNC = "x11vnc";
 my $VNC_SERVER_LIPSTICK2VNC = "lipstick2vnc";
@@ -403,7 +404,7 @@ sub startVNC($$$$$$$$$$$){
 
   my $vncClientDest;
   if($isSSHTunnel){
-    my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
+    my $sshCtlFileCount = 0 + grep {-f $_} glob("$SESSION_STATE_DIR/*.ctl");
 
     #5900 + 10*otherVNCSessions + random first digit
     my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
@@ -521,13 +522,14 @@ sub killVNCServer($$){
   }
 }
 
-sub getSSHControlPath($){
-  my ($remoteInfo) = @_;
-  if(not -d $SSH_CONTROL_PATH_DIR){
-    system "mkdir", "-p", $SSH_CONTROL_PATH_DIR;
+sub getSessionStateFile($$){
+  my ($remoteInfo, $suffix) = @_;
+
+  if(not -d $SESSION_STATE_DIR){
+    system "mkdir", "-p", $SESSION_STATE_DIR;
   }
-  if(not -d $SSH_CONTROL_PATH_DIR){
-    die "ERROR: $SSH_CONTROL_PATH_DIR does not exist\n";
+  if(not -d $SESSION_STATE_DIR){
+    die "ERROR: $SESSION_STATE_DIR does not exist\n";
   }
 
   my $baseName = $$remoteInfo{host};
@@ -535,15 +537,21 @@ sub getSSHControlPath($){
   $baseName =~ s/^_+//;
   $baseName =~ s/_+$//;
 
-  return "$SSH_CONTROL_PATH_DIR/$baseName.ctl";
+  return "$SESSION_STATE_DIR/$baseName$suffix";;
+}
+
+sub getSessionSSHControlPath($){
+  my ($remoteInfo) = @_;
+  return getSessionStateFile($remoteInfo, ".ctl");
 }
 
 sub startSSHTunnel($$$@){
   my ($remoteInfo, $localPort, $remotePort) = @_;
   my @remoteCmd = (); #ssh -N instead of a command
+  my $controlPath = getSessionSSHControlPath($remoteInfo);
   runRemoteCmd($remoteInfo, {
     sshArgs => [
-      "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
+      "-o", "ControlPath=$controlPath",
       "-o", "ControlMaster=yes",
       "-f",
       "-N",
@@ -555,8 +563,9 @@ sub startSSHTunnel($$$@){
 
 sub stopSSHTunnel($){
   my ($remoteInfo) = @_;
+  my $controlPath = getSessionSSHControlPath($remoteInfo);
   my @sshCmd = ("ssh",
-    "-o", ("ControlPath=" . getSSHControlPath($remoteInfo)),
+    "-o", "ControlPath=$controlPath",
     "-O", "exit",
     $LOCALHOST,
   );
