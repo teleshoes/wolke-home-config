@@ -401,8 +401,6 @@ sub startVNC($$$$$$$$$$$){
       $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
-  my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
-
   if($isStartServer){
     my $serverCfg = calculateVNCServerCfg($remoteInfo,
       $useCache,
@@ -415,20 +413,25 @@ sub startVNC($$$$$$$$$$$){
     sleep($DELAY_MILLIS/1000.0);
   }
 
-  my $remotePort = $DEFAULT_VNC_PORT;
-
-  my @vncClientCmd = ($vncClient, @{$VNC_CLIENT_ARGS{$vncClient}});
+  my $vncClientDest;
   if($isSSHTunnel){
+    my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
+
     #5900 + 10*otherVNCSessions + random first digit
     my $localPort = $DEFAULT_VNC_PORT + 10*($sshCtlFileCount) + int(rand(10));
+
+    my $remotePort = $DEFAULT_VNC_PORT;
 
     stopSSHTunnel($remoteInfo);
     startSSHTunnel($remoteInfo, $localPort, $remotePort);
 
-    push @vncClientCmd, sprintf("%s::%s", $LOCALHOST, $localPort);
+    $vncClientDest = sprintf("%s::%s", $LOCALHOST, $localPort);
   }else{
-    push @vncClientCmd, sprintf("%s::%s", $$remoteInfo{host}, $remotePort);
+    my $remotePort = $DEFAULT_VNC_PORT;
+    $vncClientDest = sprintf("%s::%s", $$remoteInfo{host}, $remotePort);
   }
+
+  my @vncClientCmd = ($vncClient, @{$VNC_CLIENT_ARGS{$vncClient}}, $vncClientDest);
 
   system @vncClientCmd;
 
