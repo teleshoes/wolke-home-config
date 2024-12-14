@@ -3,8 +3,9 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+sub calculateVNCServerCfg($$$$$$$$);
 sub startVNC($$$$$$$$$$$);
-sub runVNCServer($$$$$$$);
+sub runVNCServer($$$);
 sub killVNCServer($$);
 sub getSSHControlPath($);
 sub startSSHTunnel($$$@);
@@ -325,20 +326,15 @@ sub main(@){
   }
 }
 
-sub startVNC($$$$$$$$$$$){
-  my ($remoteInfo, $vncClient, $vncServer, $useCache,
+sub calculateVNCServerCfg($$$$$$$$){
+  my ($remoteInfo, $useCache,
       $geometry, $scale, $localHeightScale,
       $rotateArg, $rotateFromLandscape,
-      $isStartServer, $isSSHTunnel) = @_;
+      $isSSHTunnel) = @_;
 
   my $isRemotePortrait = 0;
 
-  my ($remoteW, $remoteH);
-  if($isStartServer){
-    ($remoteW, $remoteH) = getRemoteRes($remoteInfo, $useCache);
-  }else{
-    ($remoteW, $remoteH) = (0, 0);
-  }
+  my ($remoteW, $remoteH) = getRemoteRes($remoteInfo, $useCache);
 
   if($remoteH > $remoteW){
     $isRemotePortrait = 1;
@@ -384,11 +380,38 @@ sub startVNC($$$$$$$$$$$){
     $geometry = "${2}x${1}";
   }
 
+  my $orientation = getOrientation($rotateArg, $isRemotePortrait);
+
+  my $serverCfg = {
+    geometry    => $geometry,
+    scale       => $scale,
+
+    rotateArg   => $rotateArg,
+    orientation => $orientation,
+
+    isLocalhost => $isSSHTunnel,
+  };
+
+  return $serverCfg;
+}
+
+sub startVNC($$$$$$$$$$$){
+  my ($remoteInfo, $vncClient, $vncServer, $useCache,
+      $geometry, $scale, $localHeightScale,
+      $rotateArg, $rotateFromLandscape,
+      $isStartServer, $isSSHTunnel) = @_;
+
   my $sshCtlFileCount = 0 + grep {-f $_} glob("$SSH_CONTROL_PATH_DIR/*.ctl");
 
   if($isStartServer){
-    runVNCServer($remoteInfo, $vncServer, $geometry, $scale, $rotateArg, 
-      $isRemotePortrait, $isSSHTunnel);
+    my $serverCfg = calculateVNCServerCfg($remoteInfo,
+      $useCache,
+      $geometry, $scale, $localHeightScale,
+      $rotateArg, $rotateFromLandscape,
+      $isSSHTunnel,
+    );
+
+    runVNCServer($remoteInfo, $vncServer, $serverCfg);
     sleep($DELAY_MILLIS/1000.0);
   }
 
@@ -417,20 +440,19 @@ sub startVNC($$$$$$$$$$$){
   }
 }
 
-sub runVNCServer($$$$$$$){
-  my ($remoteInfo, $vncServer, $geometry, $scale, $rotateArg,
-    $isRemotePortrait, $isSSHTunnel) = @_;
+sub runVNCServer($$$){
+  my ($remoteInfo, $vncServer, $serverCfg) = @_;
 
   my @serverArgs = @{$VNC_SERVER_ARGS{$vncServer}};
 
   if($vncServer eq $VNC_SERVER_X11VNC){
-    if(defined $rotateArg and $rotateArg ne "0"){
-      @serverArgs = (@serverArgs, "-rotate", $rotateArg);
+    if(defined $$serverCfg{rotateArg} and $$serverCfg{rotateArg} ne "0"){
+      @serverArgs = (@serverArgs, "-rotate", $$serverCfg{rotateArg});
     }
-    if(defined $geometry){
-      @serverArgs = (@serverArgs, "-geometry", $geometry);
+    if(defined $$serverCfg{geometry}){
+      @serverArgs = (@serverArgs, "-geometry", $$serverCfg{geometry});
     }
-    if($isSSHTunnel){
+    if($$serverCfg{isLocalhost}){
       push @serverArgs, "-localhost";
     }
 
@@ -442,7 +464,9 @@ sub runVNCServer($$$$$$$){
     killVNCServer($remoteInfo, $vncServer);
     runRemoteCmd($remoteInfo, {background=>1}, @vncServerCmd);
   }elsif($vncServer eq $VNC_SERVER_LIPSTICK2VNC){
-    if(defined $scale){
+    if(defined $$serverCfg{scale}){
+      my $scale = $$serverCfg{scale};
+
       #minimum scale is 10%
       $scale = 0.1 if $scale <= 0.1;
 
@@ -453,14 +477,13 @@ sub runVNCServer($$$$$$$){
       @serverArgs = (@serverArgs, "-s", $scale);
     }
 
-    my $orientation = getOrientation($rotateArg, $isRemotePortrait);
-    if(defined $orientation){
-      push @serverArgs, "--$orientation";
+    if(defined $$serverCfg{orientation}){
+      push @serverArgs, "--$$serverCfg{orientation}";
     }else{
-      die "ERROR: invalid orientation (rotateArg='$rotateArg') for $vncServer\n";
+      die "ERROR: invalid orientation (rotateArg='$$serverCfg{rotateArg}') for $vncServer\n";
     }
 
-    if(not $isSSHTunnel){
+    if(not $$serverCfg{isLocalhost}){
       die "ERROR: --allow-all option removed from lipstick2vnc, must use SSH tunnel\n";
     }
 
