@@ -178,8 +178,11 @@ my $usage = "Usage:
                             this can be overridden in the config file: 'sshArgs=SSH_ARGS'
                             additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
-        -vnc [VNC_ARGS]     call vncCmd
-                            e.g.: for n9-vnc: `$EXEC -vnc rotate90 -- -quality 0`
+        -vnc [VNC_ARGS]     -if vncCommand is present:
+                              run: `<vncCommand> <vncDefaultArgs> <VNC_ARGS>`
+                            -otherwise:
+                              run: `vnc CONF -u USER <vncDefaultArgs> <VNC_ARGS>`
+                            e.g.: `$EXEC sx -vnc --landscape --scale 0.5 --cache`
 
         SSH_ARGS
           default args passed to `ssh`: '$defaultSSHArgs'
@@ -362,12 +365,13 @@ sub main(@){
     if(defined $config{vncCommand}){
       $vncCmd = $config{vncCommand};
     }else{
-      $vncCmd = "vnc $opts{user}\@$config{hostname}";
+      $vncCmd = "vnc $conf -u $opts{user}";
+    }
+    if(defined $config{vncDefaultArgs}){
+      $vncCmd .= " $config{vncDefaultArgs}";
     }
     if(@_ > 0){
       $vncCmd .= " @_";
-    }elsif(defined $config{vncDefaultArgs}){
-      $vncCmd .= " $config{vncDefaultArgs}";
     }
   }elsif(@_ > 0 and $_[0] eq '-s'){
     shift;
