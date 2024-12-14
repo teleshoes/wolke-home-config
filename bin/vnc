@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
+sub parseArgs($@);
 sub calculateVNCServerCfg($$$$$$$$);
 sub startVNC($$$$$$$$$$$);
 sub runVNCServer($$$);
@@ -235,8 +236,39 @@ sub main(@){
     isStartServer       => 1,
     isSSHTunnel         => 1,
   };
-  while(@_ > 0){
-    my $arg = shift @_;
+  parseArgs($opts, @_);
+
+  if(defined $$opts{remoteInfo}{host}){
+    my %okIpmagicNames = map{$_ => 1} split /\s+/, `ipmagic --list`;
+    if(defined $okIpmagicNames{$$opts{remoteInfo}{host}}){
+      my $ipmagicName = $$opts{remoteInfo}{host};
+      my $host = `ipmagic $ipmagicName --host`;
+      chomp $host;
+      if($host !~ /\w/){
+        die "ERROR: could not get host for IPMAGIC_NAME=$ipmagicName\n";
+      }
+      $$opts{remoteInfo}{host} = $host;
+      $$opts{remoteInfo}{ipmagicName} = $ipmagicName;
+    }
+  }
+
+  if($$opts{cmd} eq $CMD_START_VNC){
+    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
+    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{vncServer}, $$opts{useCache},
+      $$opts{geometry}, $$opts{scale}, $$opts{localHeightScale},
+      $$opts{rotateArg}, $$opts{rotateFromLandscape},
+      $$opts{isStartServer}, $$opts{isSSHTunnel});
+  }elsif($$opts{cmd} eq $CMD_SSH_OFF){
+    runSSHExit($$opts{host});
+  }else{
+    die "ERROR: unknown cmd $$opts{cmd}\n";
+  }
+}
+
+sub parseArgs($@){
+  my ($opts, @args) = @_;
+  while(@args > 0){
+    my $arg = shift @args;
     if($arg =~ /^(-h|--help)/){
       print $USAGE;
       exit 0;
@@ -263,8 +295,8 @@ sub main(@){
       $$opts{geometry} = $1;
     }elsif($arg =~ /^--scale=(\d+|\d*\.\d+)$/){
       $$opts{scale} = $1;
-    }elsif($arg =~ /^(-s|--scale)$/ and @_ > 0 and $_[0] =~ /^(\d+|\d*\.\d+)$/){
-      $$opts{scale} = shift @_;
+    }elsif($arg =~ /^(-s|--scale)$/ and @args > 0 and $args[0] =~ /^(\d+|\d*\.\d+)$/){
+      $$opts{scale} = shift @args;
     }elsif($arg =~ /^(--auto-scale)$/){
       $$opts{scale} = $SCALE_AUTO;
     }elsif($arg =~ /^(-a|--auto-scale-bar)$/){
@@ -272,13 +304,13 @@ sub main(@){
       $$opts{localHeightScale} = 0.95;
     }elsif($arg =~ /^--local-height-scale=(\d+|\d*\.\d+)$/){
       $$opts{localHeightScale} = $1;
-    }elsif($arg =~ /^(--local-height-scale)$/ and @_ > 0 and $_[0] =~ /^(\d+|\d*\.\d+)$/){
-      $$opts{localHeightScale} = shift @_;
+    }elsif($arg =~ /^(--local-height-scale)$/ and @args > 0 and $args[0] =~ /^(\d+|\d*\.\d+)$/){
+      $$opts{localHeightScale} = shift @args;
     }elsif($arg =~ /^--rotate=($OK_ROTATE_ARG_REGEX)$/){
       my $rotateSyn = $1;
       $$opts{rotateArg} = $$ROTATE_ARG_BY_SYN{$rotateSyn};
-    }elsif($arg =~ /^(--rotate)$/ and @_ > 0 and $_[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
-      my $rotateSyn = shift @_;
+    }elsif($arg =~ /^(--rotate)$/ and @args > 0 and $args[0] =~ /^($OK_ROTATE_ARG_REGEX)$/){
+      my $rotateSyn = shift @args;
       $$opts{rotateArg} = $$ROTATE_ARG_BY_SYN{$rotateSyn};
     }elsif($arg =~ /^--rotate-from-landscape/){
       $$opts{rotateFromLandscape} = 1;
@@ -296,39 +328,13 @@ sub main(@){
       $$opts{rotateFromLandscape} = 1;
     }elsif($arg =~ /^--user=(.+)$/){
       $$opts{remoteInfo}{user} = $1;
-    }elsif($arg =~ /^(-u|--user)$/ and @_ > 0){
-      $$opts{remoteInfo}{user} = shift @_;
+    }elsif($arg =~ /^(-u|--user)$/ and @args > 0){
+      $$opts{remoteInfo}{user} = shift @args;
     }elsif(not defined $$opts{remoteInfo}{host}){
       $$opts{remoteInfo}{host} = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
-  }
-
-  if(defined $$opts{remoteInfo}{host}){
-    my %okIpmagicNames = map{$_ => 1} split /\s+/, `ipmagic --list`;
-    if(defined $okIpmagicNames{$$opts{remoteInfo}{host}}){
-      my $ipmagicName = $$opts{remoteInfo}{host};
-      my $host = `ipmagic $ipmagicName --host`;
-      chomp $host;
-      if($host !~ /\w/){
-        die "ERROR: could not get host for IPMAGIC_NAME=$ipmagicName\n";
-      }
-      $$opts{remoteInfo}{host} = $host;
-      $$opts{remoteInfo}{ipmagicName} = $ipmagicName;
-    }
-  }
-
-  if($$opts{cmd} eq $CMD_START_VNC){
-    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
-    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{vncServer}, $$opts{useCache},
-      $$opts{geometry}, $$opts{scale}, $$opts{localHeightScale},
-      $$opts{rotateArg}, $$opts{rotateFromLandscape},
-      $$opts{isStartServer}, $$opts{isSSHTunnel});
-  }elsif($$opts{cmd} eq $CMD_SSH_OFF){
-    runSSHExit($$opts{host});
-  }else{
-    die "ERROR: unknown cmd $$opts{cmd}\n";
   }
 }
 
