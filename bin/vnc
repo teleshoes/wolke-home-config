@@ -9,6 +9,11 @@ sub runVNCServer($$$);
 sub killVNCServer($$);
 sub getSessionStateFile($$);
 sub getSessionSSHControlPath($);
+sub getSessionPIDFile($);
+sub readSessionPID($);
+sub writeSessionPID($);
+sub killSessionPID($);
+sub clearCurrentSessionPID($);
 sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
 sub getDesiredLocalRes($);
@@ -402,6 +407,10 @@ sub startVNC($$$$$$$$$$$){
       $rotateArg, $rotateFromLandscape,
       $isStartServer, $isSSHTunnel) = @_;
 
+  my $pidFile = getSessionPIDFile($remoteInfo);
+  killSessionPID($pidFile); #prevents double-kill of vnc-server
+  writeSessionPID($pidFile);
+
   my $vncClientDest;
   if($isSSHTunnel){
     my $sshCtlFileCount = 0 + grep {-f $_} glob("$SESSION_STATE_DIR/*.ctl");
@@ -442,6 +451,8 @@ sub startVNC($$$$$$$$$$$){
   if($isSSHTunnel){
     stopSSHTunnel($remoteInfo);
   }
+
+  clearCurrentSessionPID($pidFile);
 }
 
 sub runVNCServer($$$){
@@ -543,6 +554,53 @@ sub getSessionStateFile($$){
 sub getSessionSSHControlPath($){
   my ($remoteInfo) = @_;
   return getSessionStateFile($remoteInfo, ".ctl");
+}
+
+sub getSessionPIDFile($){
+  my ($remoteInfo) = @_;
+  return getSessionStateFile($remoteInfo, ".pid");
+}
+
+sub readSessionPID($){
+  my ($pidFile) = @_;
+
+  if(-f $pidFile){
+    my $pid = `cat $pidFile`;
+    if($pid =~ /^(\d+)$/){
+      return $1;
+    }
+  }
+
+  return undef;
+}
+
+sub writeSessionPID($){
+  my ($pidFile) = @_;
+  killSessionPID($pidFile);
+  system "echo '$$' > $pidFile";
+}
+
+sub killSessionPID($){
+  my ($pidFile) = @_;
+
+  my $pid = readSessionPID($pidFile);
+
+  if(defined $pid){
+    system "rm", $pidFile;
+
+    my @cmd = ("kill", $pid);
+    print "@cmd\n";
+    system @cmd;
+  }
+}
+
+sub clearCurrentSessionPID($){
+  my ($pidFile) = @_;
+  my $pid = readSessionPID($pidFile);
+
+  if(defined $pid and $pid == $$){
+    system "rm", $pidFile;
+  }
 }
 
 sub startSSHTunnel($$$@){
