@@ -11,7 +11,7 @@ sub startSSHTunnel($$$@);
 sub stopSSHTunnel($);
 sub getDesiredLocalRes($);
 sub getRemoteRes($$);
-sub getOrientationArg($$);
+sub getOrientation($$);
 sub runRemoteCmd($$@);
 sub guessRemoteDisplay($);
 
@@ -59,6 +59,11 @@ my $ROTATE_ARG_BY_SYN = {
   } sort keys %$ROTATE_ARG_TYPES
 };
 my $OK_ROTATE_ARG_REGEX = join("|", map {quotemeta($_)} sort keys %$ROTATE_ARG_BY_SYN);
+
+my $ORIENTATION_LANDSCAPE = "landscape";
+my $ORIENTATION_LANDSCAPE_INVERTED = "landscape-inverted";
+my $ORIENTATION_PORTRAIT = "portrait";
+my $ORIENTATION_PORTRAIT_INVERTED = "portrait-inverted";
 
 my $SCALE_AUTO = "auto";
 
@@ -448,7 +453,12 @@ sub runVNCServer($$$$$$$){
       @serverArgs = (@serverArgs, "-s", $scale);
     }
 
-    push @serverArgs, getOrientationArg($rotateArg, $isRemotePortrait);
+    my $orientation = getOrientation($rotateArg, $isRemotePortrait);
+    if(defined $orientation){
+      push @serverArgs, "--$orientation";
+    }else{
+      die "ERROR: invalid orientation (rotateArg='$rotateArg') for $vncServer\n";
+    }
 
     if(not $isSSHTunnel){
       die "ERROR: --allow-all option removed from lipstick2vnc, must use SSH tunnel\n";
@@ -573,7 +583,7 @@ sub getRemoteRes($$){
   }
 }
 
-sub getOrientationArg($$){
+sub getOrientation($$){
   my ($rotateArg, $isRemotePortrait) = @_;
 
   if($isRemotePortrait){
@@ -582,15 +592,16 @@ sub getOrientationArg($$){
   }
 
   if($rotateArg eq "0"){
-    return "--landscape";
+    return $ORIENTATION_LANDSCAPE;
   }elsif($rotateArg eq "180"){
-    return "--landscape-inverted";
+    return $ORIENTATION_LANDSCAPE_INVERTED;
   }elsif($rotateArg eq "90"){
-    return "--portrait";
+    return $ORIENTATION_PORTRAIT;
   }elsif($rotateArg eq "270"){
-    return "--portrait-inverted";
+    return $ORIENTATION_PORTRAIT_INVERTED;
   }else{
-    die "ERROR: cannot parse $rotateArg as an orientation arg for target VNC server\n";
+    #orientation is only defined for non-mirrored rotations
+    return undef;
   }
 }
 
