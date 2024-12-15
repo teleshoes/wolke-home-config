@@ -31,33 +31,33 @@ sub isEqual($$);
 sub iwParseDevInfo();
 sub whichExec($$);
 
-my $ifconfigExec = whichExec("ifconfig", ["/sbin/ifconfig"]);
-my $iwExec = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
-my $hostnameExec = whichExec("hostname", ["/bin/hostname"]);
+my $EXEC_IFCONFIG = whichExec("ifconfig", ["/sbin/ifconfig"]);
+my $EXEC_IW = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
+my $EXEC_HOSTNAME = whichExec("hostname", ["/bin/hostname"]);
 
-my $confDir = "$ENV{HOME}/.config/ipmagic";
-my @confFiles = sort grep {-e $_} glob "$confDir/*.conf";
-my @confNames = sort map {/^$confDir\/([^\/]+)\.conf$/; $1} @confFiles;
+my $CONF_DIR = "$ENV{HOME}/.config/ipmagic";
+my @CONF_FILES = sort grep {-e $_} glob "$CONF_DIR/*.conf";
+my @CONF_NAMES = sort map {/^$CONF_DIR\/([^\/]+)\.conf$/; $1} @CONF_FILES;
 
-my $defaultSSHArgs = "-o StrictHostKeyChecking=no";
+my $DEFAULT_SSH_ARGS = "-o StrictHostKeyChecking=no";
 
-my $defaultSSHExec = "ssh";
+my $DEFAULT_SSH_EXEC = "ssh";
 
-my $defaultPreBashCommand = '[ -f ~/.bashrc ] && . ~/.bashrc';
+my $DEFAULT_PRE_BASH_COMMAND = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
-my $methods = join "|", qw(any tmp usb wifi guess);
+my $OK_METHODS = join "|", qw(any tmp usb wifi guess);
 
-my $byteRegex = "[0-9a-fA-F]{2}";
-my $macRegex = join ":", ($byteRegex) x 6;
-my $ipRegex = "\\d+\\.\\d+\\.\\d+\\.\\d+";
+my $REGEX_BYTE = "[0-9a-fA-F]{2}";
+my $REGEX_MAC = join ":", ($REGEX_BYTE) x 6;
+my $REGEX_IP = "\\d+\\.\\d+\\.\\d+\\.\\d+";
 
-my $defaultRetries = 2;
+my $DEFAULT_RETRIES = 2;
 
 my $SOCKS_PORT = 9090;
 
 my $EXEC = basename $0;
 
-my $usage = "Usage:
+my $USAGE = "Usage:
     $EXEC -h|--help
       print this usage
 
@@ -78,8 +78,8 @@ my $usage = "Usage:
       -extract CONF from filename
 
     $EXEC --get-ipmagic-name
-      get local <HOSTNAME> with: `$hostnameExec`
-      get all <CONF> files that match: \"$confDir/<CONFNAME>.conf\"
+      get local <HOSTNAME> with: `$EXEC_HOSTNAME`
+      get all <CONF> files that match: \"$CONF_DIR/<CONFNAME>.conf\"
       sort <CONF> files: regular files before symlinks, and shallow symlinks before deep:
           get symlink-depth (number of paths in walk to non-symlink file)
             e.g.: regular files are symlink-depth=0
@@ -136,7 +136,7 @@ my $usage = "Usage:
                             otherwise, if DEFAULT_SSH_COMMAND is specified, it is passed to ssh
                             otherwise, no command is passed to ssh
 
-                            default SSH_ARGS (passed to `ssh`): '$defaultSSHArgs'
+                            default SSH_ARGS (passed to `ssh`): '$DEFAULT_SSH_ARGS'
                             this can be overridden in the config file: 'sshArgs=SSH_ARGS'
                             additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
@@ -147,7 +147,7 @@ my $usage = "Usage:
                             e.g.:
                               $EXEC dev1 --rsync -avP /tmp/abc :/tmp/
                               =>
-                              rsync -e 'ssh $defaultSSHArgs' /tmp/abc user\@dev1:/tmp/
+                              rsync -e 'ssh $DEFAULT_SSH_ARGS' /tmp/abc user\@dev1:/tmp/
 
         --scp [ARG ARG..] copy files to/from remote server with scp
                               -find the first ARG that starts with a ':' (if none, fail)
@@ -156,7 +156,7 @@ my $usage = "Usage:
                             e.g.:
                               $EXEC lab3 -u root --scp :/tmp/abc /opt/
                               =>
-                              scp $defaultSSHArgs root\@lab3:/tmp/abc /opt/
+                              scp $DEFAULT_SSH_ARGS root\@lab3:/tmp/abc /opt/
 
         -p|--proxy|--socks  run ssh with `-N -D $SOCKS_PORT` to act as a SOCKS server
                             on port $SOCKS_PORT
@@ -175,9 +175,9 @@ my $usage = "Usage:
 
                             PRE_BASH_COMMAND can be set in the config file:
                             preBashCommand=PRE_BASH_COMMAND
-                            {default is $defaultPreBashCommand}
+                            {default is $DEFAULT_PRE_BASH_COMMAND}
 
-                            default SSH_ARGS (passed to `ssh`): '$defaultSSHArgs'
+                            default SSH_ARGS (passed to `ssh`): '$DEFAULT_SSH_ARGS'
                             this can be overridden in the config file: 'sshArgs=SSH_ARGS'
                             additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
@@ -188,7 +188,7 @@ my $usage = "Usage:
                             e.g.: `$EXEC sx -vnc --landscape --scale 0.5 --cache`
 
         SSH_ARGS
-          default args passed to `ssh`: '$defaultSSHArgs'
+          default args passed to `ssh`: '$DEFAULT_SSH_ARGS'
           this can be overridden in the config file: 'sshArgs=SSH_ARGS'
           additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
           additional args are appended
@@ -209,21 +209,21 @@ my $usage = "Usage:
           -<CONFNAME> must start with a letter or number,
              and consist only of letters, numbers, underscores, and hypens
           -if <CONFNAME> is given, use:
-            \"$confDir/<CONFNAME>.conf\"
+            \"$CONF_DIR/<CONFNAME>.conf\"
           -valid <CONFNAMES>:
-            @confNames
+            @CONF_NAMES
 
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
         -u|--user USER      ssh user
         -m|--method METHOD  method of obtaining IP
-                            one of [$methods]  {default is 'any'}
+                            one of [$OK_METHODS]  {default is 'any'}
         -n|--no-guess-ping  do not check guess IP, assume success
         -g|--guess          same as '--method guess --no-guess-ping'
         -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
                             (number of total attempts is 1+<RETRIES>)
-                            {default is $defaultRetries}
-        --ssh-exec SSH_EXEC use SSH_EXEC instead of `$defaultSSHExec`
+                            {default is $DEFAULT_RETRIES}
+        --ssh-exec SSH_EXEC use SSH_EXEC instead of `$DEFAULT_SSH_EXEC`
         --sshc              same as: --ssh-exec sshc
         --ssh-args SSH_ARGS extra SSH args for -s and -b
                             can be given multiple times, values are joined with ' '
@@ -238,7 +238,7 @@ sub main(@){
   if(@_ > 0 and $_[0] =~ /^-/){
     my $cmd = shift;
     if($cmd =~ /^(-h|--help)$/ and @_ == 0){
-      print $usage;
+      print $USAGE;
     }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 2){
       my ($hostname, $ip) = @_;
       setHostsIP $hostname, $ip;
@@ -256,27 +256,27 @@ sub main(@){
         die "ERROR: could not find matching CONF file\n";
       }
     }elsif($cmd =~ /^(--list)$/ and @_ == 0){
-      my @confNames = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
-      print "$_\n" foreach @confNames;
+      my @CONF_NAMES = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
+      print "$_\n" foreach @CONF_NAMES;
     }else{
-      die $usage;
+      die $USAGE;
     }
 
     exit 0;
   }
 
-  die $usage if @_ == 0;
+  die $USAGE if @_ == 0;
 
   my $conf = shift;
   my $confFile;
   if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
-    $confFile = absolutePath "$confDir/$conf.conf";
+    $confFile = absolutePath "$CONF_DIR/$conf.conf";
   }else{
     $confFile = absolutePath $conf;
   }
 
-  die "$usage\nERROR: Could not parse conf $conf\n" if not defined $confFile;
-  die "$usage\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
+  die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
+  die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
 
   my %config = %{parseConfig $confFile};
 
@@ -292,8 +292,8 @@ sub main(@){
     user          => (defined $config{defaultUser} ? $config{defaultUser} : 'root'),
     method        => 'any',
     no_guess_ping => 0,
-    retries       => $defaultRetries,
-    sshExec       => $defaultSSHExec,
+    retries       => $DEFAULT_RETRIES,
+    sshExec       => $DEFAULT_SSH_EXEC,
     extraSSHArgs  => [],
   );
   while(@_ > 0 and $_[0] =~ /^($optRegex)$/){
@@ -304,7 +304,7 @@ sub main(@){
       $opts{user} = shift;
     }elsif(@_ > 0 and $arg =~ /^(-m|--method)$/){
       $opts{method} = shift;
-      die "ERROR: invalid method=$opts{method}\n" if $opts{method} !~ /^($methods)$/;
+      die "ERROR: invalid method=$opts{method}\n" if $opts{method} !~ /^($OK_METHODS)$/;
     }elsif($arg =~ /^(-n|--no-guess-ping)$/){
       $opts{no_guess_ping} = 1;
     }elsif($arg =~ /^(-g|--guess)$/){
@@ -322,7 +322,7 @@ sub main(@){
     }elsif($arg =~ /^(--pty)$/){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, "-t", "-t"];
     }else{
-      die $usage;
+      die $USAGE;
     }
   }
 
@@ -355,7 +355,7 @@ sub main(@){
     print "fetching IP for $config{hostname}\n";
     my $ip = `$0 $conf --ip`;
     chomp $ip;
-    if($ip =~ /^$ipRegex$/){
+    if($ip =~ /^$REGEX_IP$/){
       print "removing key for $ip\n";
       system "ssh-keygen", "-R", $ip;
     }else{
@@ -407,7 +407,7 @@ sub main(@){
     $c =~ s/"/\\"/g;
 
     my $preBashCmd = $config{preBashCommand};
-    $preBashCmd = $defaultPreBashCommand if not defined $preBashCmd;
+    $preBashCmd = $DEFAULT_PRE_BASH_COMMAND if not defined $preBashCmd;
     my $ignoreBashCmd = $config{ignorePreBashCommand};
     $ignoreBashCmd = 'false' if not defined $ignoreBashCmd;
 
@@ -419,8 +419,8 @@ sub main(@){
     @sshCmd = ($c);
   }
 
-  print STDERR "WARNING: no ifconfig exec found\n" if not defined $ifconfigExec;
-  print STDERR "WARNING: no iw exec found\n" if not defined $iwExec;
+  print STDERR "WARNING: no ifconfig exec found\n" if not defined $EXEC_IFCONFIG;
+  print STDERR "WARNING: no iw exec found\n" if not defined $EXEC_IW;
 
   my $attempts = 1 + $opts{retries};
 
@@ -465,7 +465,7 @@ sub main(@){
   }elsif($isSsh){
     ensureFingerprint $config{hostname}, $ip if defined $ip;
 
-    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
+    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $DEFAULT_SSH_ARGS;
     my @sshCmdOpts = split /\s+/, $sshArgs;
     @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
 
@@ -475,7 +475,7 @@ sub main(@){
   }elsif($isRsync or $isScp){
     ensureFingerprint $config{hostname}, $ip if defined $ip;
 
-    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $defaultSSHArgs;
+    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $DEFAULT_SSH_ARGS;
     my @sshCmdOpts = split /\s+/, $sshArgs;
     if(defined $opts{extraSSHArgs}){
       @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
@@ -537,14 +537,14 @@ sub assertBool($){
 
 sub assertIP($){
   my $ip = shift;
-  if($ip !~ /^$ipRegex$/){
+  if($ip !~ /^$REGEX_IP$/){
     die "'$ip' is not an ip4 address\n"
   }
 }
 
 sub assertMac($){
   my $mac = shift;
-  if($mac !~ /^$macRegex$/i){
+  if($mac !~ /^$REGEX_MAC$/i){
     die "'$mac' is not a mac address\n"
   }
 }
@@ -572,7 +572,7 @@ sub ensureFingerprint($$){
 
 sub getConfFilesSymlinksLast(){
   my %symlinkDepth;
-  for my $confFile(@confFiles){
+  for my $confFile(@CONF_FILES){
     $symlinkDepth{$confFile} = 0;
     my $f = $confFile;
     while(-l $f){
@@ -580,7 +580,7 @@ sub getConfFilesSymlinksLast(){
       last if $symlinkDepth{$confFile} >= 40;
       $f = readlink $f;
       if($f !~ /^\//){
-        $f = "$confDir/$f";
+        $f = "$CONF_DIR/$f";
       }
     }
   }
@@ -588,7 +588,7 @@ sub getConfFilesSymlinksLast(){
   my @sortedConfFiles = sort {
     $symlinkDepth{$a} <=> $symlinkDepth{$b} #regular files first, deepest symlinks last
     or $a cmp $b                            #lexicographically otherwise
-  } @confFiles;
+  } @CONF_FILES;
 
   return @sortedConfFiles;
 }
@@ -602,17 +602,17 @@ sub getConfNameFromConfFile($){
 }
 
 sub getLocalIpmagicName(){
-  my @confFiles = getConfFilesSymlinksLast();
+  my @CONF_FILES = getConfFilesSymlinksLast();
 
-  my $hostname = `$hostnameExec`;
+  my $hostname = `$EXEC_HOSTNAME`;
   chomp $hostname;
 
   if($hostname !~ /\w/){
-    die "ERROR: could not get hostname with `$hostnameExec`\n";
+    die "ERROR: could not get hostname with `$EXEC_HOSTNAME`\n";
   }
 
   my $matchingConfName = undef;
-  for my $confFile(@confFiles){
+  for my $confFile(@CONF_FILES){
     my $confName = getConfNameFromConfFile($confFile);
     my $config = parseConfig $confFile;
     if($$config{hostname} eq $hostname){
@@ -694,7 +694,7 @@ sub readHostsIP($){
   my $hostname = shift;
   my $hostsMarker = hostsMarker $hostname;
   for my $line(`cat /etc/hosts`){
-    if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
+    if($line =~ /^($REGEX_IP)\s*$hostname\s*#$hostsMarker$/){
       return $1;
     }
   }
@@ -715,12 +715,12 @@ sub setHostsIP($$){
 
   my @lines = `cat /etc/hosts`;
   for my $line(@lines){
-    if($line =~ /^($ipRegex)\s*$hostname\s*#$hostsMarker$/){
+    if($line =~ /^($REGEX_IP)\s*$hostname\s*#$hostsMarker$/){
       $line = '';
     }
   }
   if(defined $ip){
-    if($ip =~ /^$ipRegex$/){
+    if($ip =~ /^$REGEX_IP$/){
       push @lines, "$ip\t$hostname#$hostsMarker\n";
     }else{
       die "malformed ip: $ip\n";
@@ -787,7 +787,7 @@ sub quickPingable($){
 
 sub ifup($$){
   my ($dev, $ip) = @_;
-  system "$ifconfigExec"
+  system "$EXEC_IFCONFIG"
     . " $dev $ip netmask 255.255.255.0 up"
     . " > /dev/null"
     ;
@@ -799,10 +799,10 @@ sub sudoIfup($$){
 
 sub getDefaultGatewayMac(){
   my $route = `route -n`;
-  if($route =~ /^0\.0\.0\.0\s*($ipRegex)/m){
+  if($route =~ /^0\.0\.0\.0\s*($REGEX_IP)/m){
     my $ip = $1;
     my $arp = `arp -n $ip`;
-    if($arp =~ /^$ip\s*[a-zA-Z0-9_]+\s*($macRegex)/m){
+    if($arp =~ /^$ip\s*[a-zA-Z0-9_]+\s*($REGEX_MAC)/m){
       return $1;
     }
   }
@@ -820,10 +820,10 @@ sub usb($$){
   my $remoteIp = $config{usbRemoteIp};
 
 
-  my $ifconfig = `$ifconfigExec -a`;
+  my $ifconfig = `$EXEC_IFCONFIG -a`;
   if($ifconfig =~ /^(usb\d+):/m){
     my $dev = $1;
-    $ifconfig = `$ifconfigExec $dev`;
+    $ifconfig = `$EXEC_IFCONFIG $dev`;
     if($ifconfig !~ /inet (addr:)?$localIp/){
       print STDERR "USB DEVICE UP\n";
       sudoIfup $dev, $localIp;
@@ -936,8 +936,8 @@ sub isEqual($$){
 
 sub iwParseDevInfo(){
   my $devs = [];
-  if(defined $iwExec){
-    my @lines = `$iwExec dev`;
+  if(defined $EXEC_IW){
+    my @lines = `$EXEC_IW dev`;
     my $curDev = undef;
     for my $line(@lines){
       if($line =~ /^\s*Interface\s*(wl\w+)$/){
