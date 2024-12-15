@@ -86,7 +86,7 @@ set style line 17 linecolor rgbcolor "#224499" linewidth @my_line_width pt 5
 #set style line 17 linecolor rgbcolor "#224499" linewidth @my_line_width
 
 ## plot 1,2,3,4,5,6,7,8,9
-set style increment user
+#set style increment user #deprecated
 set style arrow 1 filled
 
 ## used for bar chart borders
