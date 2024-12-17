@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub determineConfIP($$$);
 sub absolutePath($);
 sub assertBool($);
 sub assertIP($);
@@ -419,34 +420,7 @@ sub main(@){
     @sshCmd = ($c);
   }
 
-  print STDERR "WARNING: no ifconfig exec found\n" if not defined $EXEC_IFCONFIG;
-  print STDERR "WARNING: no iw exec found\n" if not defined $EXEC_IW;
-
-  my $attempts = 1 + $opts{retries};
-
-  my ($ip, $method);
-  while(not defined $ip and $attempts > 0){
-    if(not defined $ip and $opts{method} =~ /^(any|tmp)$/){
-      ($ip, $method) = (readTmpFile($confFile), 'tmp');
-    }
-    if(not defined $ip and $opts{method} =~ /^(any|usb)$/){
-      ($ip, $method) = (usb(\%config, \%opts), 'usb');
-    }
-    if(not defined $ip and $opts{method} =~ /^(any|wifi)$/){
-      ($ip, $method) = (wifi(\%config, \%opts), 'wifi');
-    }
-    if(not defined $ip and $opts{method} =~ /^(any|guess)$/){
-      ($ip, $method) = (guess(\%config, \%opts), 'guess');
-    }
-    $method = undef if not defined $ip;
-
-    $attempts--;
-    if(not defined $ip and $attempts > 0){
-      my $msg = "No IP found, retrying after 1s ($attempts attempts left)\n";
-      print STDERR $msg;
-      sleep 1;
-    }
-  }
+  my $ip = determineConfIP(\%config, \%opts, $confFile);
 
   if($ipOnly){
     print "$ip\n" if defined $ip;
@@ -506,6 +480,41 @@ sub main(@){
   }else{
     print "$config{hostname}\n";
   }
+}
+
+sub determineConfIP($$$){
+  my ($config, $opts, $confFile) = @_;
+
+  print STDERR "WARNING: no ifconfig exec found\n" if not defined $EXEC_IFCONFIG;
+  print STDERR "WARNING: no iw exec found\n" if not defined $EXEC_IW;
+
+  my $attempts = 1 + $$opts{retries};
+
+  my ($ip, $method);
+  while(not defined $ip and $attempts > 0){
+    if(not defined $ip and $$opts{method} =~ /^(any|tmp)$/){
+      ($ip, $method) = (readTmpFile($confFile), 'tmp');
+    }
+    if(not defined $ip and $$opts{method} =~ /^(any|usb)$/){
+      ($ip, $method) = (usb($config, $opts), 'usb');
+    }
+    if(not defined $ip and $$opts{method} =~ /^(any|wifi)$/){
+      ($ip, $method) = (wifi($config, $opts), 'wifi');
+    }
+    if(not defined $ip and $$opts{method} =~ /^(any|guess)$/){
+      ($ip, $method) = (guess($config, $opts), 'guess');
+    }
+    $method = undef if not defined $ip;
+
+    $attempts--;
+    if(not defined $ip and $attempts > 0){
+      my $msg = "No IP found, retrying after 1s ($attempts attempts left)\n";
+      print STDERR $msg;
+      sleep 1;
+    }
+  }
+
+  return $ip;
 }
 
 sub absolutePath($){
