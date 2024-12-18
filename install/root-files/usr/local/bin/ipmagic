@@ -247,6 +247,13 @@ my $CMD_GET_IP_GUESS = "get-ip-guess";
 my $CMD_GET_IP = "get-ip";
 my $CMD_SET_TMP = "set-tmp";
 my $CMD_KEY_REMOVE = "key-remove";
+my $CMD_VNC = "vnc";
+my $CMD_SSH = "ssh";
+my $CMD_SYNC = "sync";
+my $CMD_INIT = "init";
+
+my $SYNC_CMD_RSYNC = "rsync";
+my $SYNC_CMD_SCP = "scp";
 
 sub main(@){
   my %opts = (
@@ -255,6 +262,11 @@ sub main(@){
     hostname      => undef,
     ip            => undef,
     dev           => undef,
+    sshCmdArgs    => [],
+    syncArgs      => [],
+    vncArgs       => [],
+    syncCmd       => $SYNC_CMD_RSYNC,
+    wrapBashCmd   => 0,
     verbose       => 0,
     user          => undef,
     method        => 'any',
@@ -358,6 +370,43 @@ sub main(@){
     }
   }
 
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-s)$/){
+      $opts{cmd} = $CMD_SSH;
+      $opts{sshCmdArgs} = [@_];
+      @_ = ();
+    }elsif($arg =~ /^(--rsync)$/){
+      $opts{cmd} = $CMD_SYNC;
+      $opts{syncCmd} = $SYNC_CMD_RSYNC;
+      $opts{syncArgs} = [@_];
+      @_ = ();
+    }elsif($arg =~ /^(--scp)$/){
+      $opts{cmd} = $CMD_SYNC;
+      $opts{syncCmd} = $SYNC_CMD_SCP;
+      $opts{syncArgs} = [@_];
+      @_ = ();
+    }elsif($arg =~ /^(-p|--proxy|--socks)$/ and @_ == 0){
+      $opts{cmd} = $CMD_SSH;
+      $opts{sshCmdArgs} = ["-N", "-D", $SOCKS_PORT];
+    }elsif($arg =~ /^(-b)$/){
+      $opts{cmd} = $CMD_SSH;
+      $opts{wrapBashCmd} = 1;
+      $opts{sshCmdArgs} = [@_];
+      @_ = ();
+    }elsif($arg =~ /^(-vnc)$/){
+      $opts{cmd} = $CMD_VNC;
+      $opts{vncArgs} = [@_];
+      @_ = ();
+    }elsif(defined $opts{conf} and not defined $opts{cmd}){
+      $opts{cmd} = $CMD_SSH;
+      $opts{wrapBashCmd} = 1;
+      $opts{sshCmdArgs} = [$arg, @_];
+      @_ = ();
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
 
   my $conf;
   my $confFile;
@@ -382,7 +431,19 @@ sub main(@){
     }
   }
 
-  $opts{cmd} = "" if not defined $opts{cmd};
+  if(not defined $opts{cmd} and defined $opts{conf}){
+    $opts{cmd} = $CMD_INIT;
+  }
+
+  my $ip;
+  if($opts{cmd} =~ /^($CMD_INIT|$CMD_SSH|$CMD_VNC|$CMD_SYNC)$/){
+    $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+
+    if(not defined $ip){
+      die "ERROR: no IP found\n";
+    }
+  }
 
   if($opts{cmd} eq $CMD_SET_HOSTS){
     setHostsIP $opts{hostname}, $opts{ip};
@@ -433,16 +494,13 @@ sub main(@){
     }else{
       die "failed to fetch IP\n";
     }
-  }
+  }elsif($opts{cmd} eq $CMD_VNC){
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+    die "ERROR: no IP found\n" if not defined $ip;
+    ensureFingerprint($config{hostname}, $ip);
 
-  exit 0 if $opts{cmd} ne "";
-
-  my ($isVnc, $isSsh, $isRsync, $isScp) = (0, 0, 0, 0);
-  my $vncCmd;
-  my @sshCmd;
-  my @rsyncScpArgs;
-  if(@_ > 0 and $_[0] eq '-vnc'){
-    $isVnc = shift;
+    my $vncCmd;
     if(defined $config{vncCommand}){
       $vncCmd = $config{vncCommand};
     }else{
@@ -451,85 +509,79 @@ sub main(@){
     if(defined $config{vncDefaultArgs}){
       $vncCmd .= " $config{vncDefaultArgs}";
     }
-    if(@_ > 0){
-      $vncCmd .= " @_";
-    }
-  }elsif(@_ > 0 and $_[0] eq '-s'){
-    shift;
-    $isSsh = 1;
-    @sshCmd = @_;
-    if(@sshCmd == 0 and defined $config{defaultSSHCommand}){
-      @sshCmd = ($config{defaultSSHCommand});
-    }
-  }elsif(@_ == 1 and $_[0] =~ /^(-p|--proxy|--socks)$/){
-    $isSsh = 1;
-    @sshCmd = ("-N", "-D", $SOCKS_PORT);
-  }elsif(@_ > 0 and $_[0] eq '--rsync'){
-    shift;
-    $isRsync = 1;
-    @rsyncScpArgs = @_;
-  }elsif(@_ > 0 and $_[0] eq '--scp'){
-    shift;
-    $isScp = 1;
-    @rsyncScpArgs = @_;
-  }elsif(@_ > 0){
-    shift if $_[0] eq '-b';
-    $isSsh = 1;
-    die "-b missing command\n" if @_ == 0;
-    my $c = "@_";
-    $c =~ s/"/\\"/g;
+    $vncCmd .= join(" ", @{$opts{vncArgs}});
 
-    my $preBashCmd = $config{preBashCommand};
-    $preBashCmd = $DEFAULT_PRE_BASH_COMMAND if not defined $preBashCmd;
-    my $ignoreBashCmd = $config{ignorePreBashCommand};
-    $ignoreBashCmd = 'false' if not defined $ignoreBashCmd;
-
-    if($ignoreBashCmd !~ /^(true)$/i){
-      $c = "bash -c \"$preBashCmd; $c\"";
-    }else{
-      $c = "bash -c \"$c\"";
-    }
-    @sshCmd = ($c);
-  }
-
-  my $ip = determineConfIP(\%config, \%opts, $confFile);
-  sudoSetHostsIP $config{hostname}, $ip;
-
-  if(not defined $ip){
-    die "ERROR: no IP found\n";
-  }
-
-  if($isVnc){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
-  }elsif($isSsh){
+  }elsif($opts{cmd} eq $CMD_SSH){
     ensureFingerprint $config{hostname}, $ip if defined $ip;
 
-    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $DEFAULT_SSH_ARGS;
-    my @sshCmdOpts = split /\s+/, $sshArgs;
-    @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
-
-    my @cmd = ($opts{sshExec}, @sshCmdOpts, "$opts{user}\@$config{hostname}", @sshCmd);
-    print "@cmd\n" if $opts{verbose};
-    exec @cmd;
-  }elsif($isRsync or $isScp){
-    ensureFingerprint $config{hostname}, $ip if defined $ip;
-
-    my $sshArgs = defined $config{sshArgs} ? $config{sshArgs} : $DEFAULT_SSH_ARGS;
-    my @sshCmdOpts = split /\s+/, $sshArgs;
-    if(defined $opts{extraSSHArgs}){
-      @sshCmdOpts = (@sshCmdOpts, @{$opts{extraSSHArgs}});
+    my @sshCmdArgs = @{$opts{sshCmdArgs}};
+    if(@sshCmdArgs == 0 and defined $config{defaultSSHCommand}){
+      @sshCmdArgs = ($config{defaultSSHCommand});
     }
+
+    if($opts{wrapBashCmd}){
+      if(@sshCmdArgs == 0){
+        die "$USAGE\nERROR: must specify CMD for -b\n";
+      }
+      my $cmdStr = "@sshCmdArgs";
+      $cmdStr =~ s/"/\\"/g;
+
+      my $preBashCmd = $config{preBashCommand};
+      $preBashCmd = $DEFAULT_PRE_BASH_COMMAND if not defined $preBashCmd;
+
+      my $ignoreBashCmd = $config{ignorePreBashCommand};
+      $ignoreBashCmd = 'false' if not defined $ignoreBashCmd;
+
+      if($ignoreBashCmd !~ /^(true)$/i){
+        $cmdStr = "bash -c \"$preBashCmd; $cmdStr\"";
+      }else{
+        $cmdStr = "bash -c \"$cmdStr\"";
+      }
+      @sshCmdArgs = ($cmdStr);
+    }
+
+
+    my @sshCmd = ($opts{sshExec});
+    if(defined $config{sshArgs}){
+      @sshCmd = (@sshCmd, split /\s+/, $config{sshArgs});
+    }else{
+      @sshCmd = (@sshCmd, split /\s+/, $DEFAULT_SSH_ARGS);
+    }
+
+    @sshCmd = (@sshCmd, @{$opts{extraSSHArgs}});
+
+    push @sshCmd, "$opts{user}\@$config{hostname}";
+
+    @sshCmd = (@sshCmd, @sshCmdArgs);
+    print "@sshCmd\n" if $opts{verbose};
+    exec @sshCmd;
+  }elsif($opts{cmd} eq $CMD_SYNC){
+    ensureFingerprint $config{hostname}, $ip if defined $ip;
+
+    my @sshArgs;
+    if(defined $config{sshArgs}){
+      @sshArgs = (@sshArgs, split /\s+/, $config{sshArgs});
+    }else{
+      @sshArgs = (@sshArgs, split /\s+/, $DEFAULT_SSH_ARGS);
+    }
+
+    @sshArgs = (@sshArgs, @{$opts{extraSSHArgs}});
 
     my @cmd;
-    if($isRsync){
-      @cmd = ("rsync", "-e", "$opts{sshExec} @sshCmdOpts");
-    }elsif($isScp){
-      @cmd = ("scp", @sshCmdOpts);
+    if($opts{syncCmd} eq $SYNC_CMD_RSYNC){
+      @cmd = ("rsync", "-e", "$opts{sshExec} @sshArgs");
+    }elsif($opts{syncCmd} eq $SYNC_CMD_SCP){
+      @cmd = ("scp", @sshArgs);
+    }else{
+      die "ERROR: unknown sync cmd \"$opts{syncCmd}\"\n";
     }
 
+    my @syncArgs = @{$opts{syncArgs}};
+
     my $remoteFileFound = 0;
-    for my $arg(@rsyncScpArgs){
+    for my $arg(@syncArgs){
       if(not $remoteFileFound and $arg =~ /^:/){
         push @cmd, "$opts{user}\@$config{hostname}$arg";
         $remoteFileFound = 1;
@@ -538,13 +590,15 @@ sub main(@){
       }
     }
     if(not $remoteFileFound){
-      die "ERROR: no remote file found in rsync/scp args \"@rsyncScpArgs\"\n";
+      die "ERROR: no remote file found in rsync/scp args \"@syncArgs\"\n";
     }
 
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
-  }else{
+  }elsif($opts{cmd} eq $CMD_INIT){
     print "$config{hostname}\n";
+  }else{
+    die "ERROR: unknown command $opts{cmd}\n";
   }
 }
 
