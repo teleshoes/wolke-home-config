@@ -288,25 +288,6 @@ sub main(@){
     $conf = shift @_;
   }
 
-  my $confFile;
-  my %config;
-  if(defined $conf){
-    if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
-      $confFile = absolutePath "$CONF_DIR/$conf.conf";
-    }else{
-      $confFile = absolutePath $conf;
-    }
-
-    die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
-    die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
-
-    %config = %{parseConfig $confFile};
-
-    die "hostname not defined in conf\n" if not defined $config{hostname};
-
-    $opts{user} = (defined $config{defaultUser} ? $config{defaultUser} : 'root');
-  }
-
   my $optRegex = join "|", qw(
     -v --verbose -u --user -m --method -r --retries --ssh-exec --sshc --ssh-args --pty
     -n --no-guess-ping -g --guess
@@ -339,6 +320,27 @@ sub main(@){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, "-t", "-t"];
     }else{
       die $USAGE;
+    }
+  }
+
+  my $confFile;
+  my %config;
+  if(defined $conf){
+    if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
+      $confFile = absolutePath "$CONF_DIR/$conf.conf";
+    }else{
+      $confFile = absolutePath $conf;
+    }
+
+    die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
+    die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
+
+    %config = %{parseConfig $confFile};
+
+    die "hostname not defined in conf\n" if not defined $config{hostname};
+
+    if(not defined $opts{user}){
+      $opts{user} = (defined $config{defaultUser} ? $config{defaultUser} : 'root');
     }
   }
 
