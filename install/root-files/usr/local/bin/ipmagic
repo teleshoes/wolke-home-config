@@ -252,6 +252,10 @@ my $CMD_SSH = "ssh";
 my $CMD_SYNC = "sync";
 my $CMD_INIT = "init";
 
+my @CMDS_WITH_NO_CONF = (
+  $CMD_SET_HOSTS, $CMD_REMOVE_HOSTS, $CMD_IFUP, $CMD_LIST, $CMD_GET_IPMAGIC_NAME,
+);
+
 my $SYNC_CMD_RSYNC = "rsync";
 my $SYNC_CMD_SCP = "scp";
 
@@ -275,7 +279,7 @@ sub main(@){
     sshExec       => $DEFAULT_SSH_EXEC,
     extraSSHArgs  => [],
   );
-  if(@_ > 0 and $_[0] =~ /^-/){
+  while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
@@ -295,26 +299,7 @@ sub main(@){
       $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
     }elsif($arg =~ /^(--list)$/){
       $opts{cmd} = $CMD_LIST;
-    }else{
-      die $USAGE;
-    }
-  }
-
-  if(defined $opts{cmd}){
-    die $USAGE if @_ != 0;
-  }else{
-    die $USAGE if @_ == 0;
-    $opts{conf} = shift @_;
-  }
-
-  my $optRegex = join "|", qw(
-    -v --verbose -u --user -m --method -r --retries --ssh-exec --sshc --ssh-args --pty
-    -n --no-guess-ping -g --guess
-  );
-
-  while(@_ > 0 and $_[0] =~ /^($optRegex)$/){
-    my $arg = shift;
-    if($arg =~ /^(-v|--verbose)$/){
+    }elsif($arg =~ /^(-v|--verbose)$/){
       $opts{verbose} = 1;
     }elsif(@_ > 0 and $arg =~ /^(-u|--user)$/){
       $opts{user} = shift;
@@ -337,20 +322,7 @@ sub main(@){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, split /\s+/, $sshArgsStr];
     }elsif($arg =~ /^(--pty)$/){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, "-t", "-t"];
-    }else{
-      die $USAGE;
-    }
-  }
-
-  my $confCmdRegex = join "|", qw(
-    --host --vnc-default-args --default-user --ip-guess --ip
-    -k --key-remove --keygen-remove --ssh-keygen-remove
-    -t --tmp
-  );
-
-  while(@_ > 0 and $_[0] =~ /^($confCmdRegex)$/){
-    my $arg = shift @_;
-    if($arg =~ /^(--host)$/){
+    }elsif($arg =~ /^(--host)$/){
       $opts{cmd} = $CMD_GET_HOST;
     }elsif($arg =~ /^(--vnc-default-args)$/){
       $opts{cmd} = $CMD_GET_VNC_DEFAULT_ARGS;
@@ -367,12 +339,7 @@ sub main(@){
       if(@_ >= 1){
         $opts{ip} = shift @_;
       }
-    }
-  }
-
-  while(@_ > 0){
-    my $arg = shift @_;
-    if($arg =~ /^(-s)$/){
+    }elsif($arg =~ /^(-s)$/){
       $opts{cmd} = $CMD_SSH;
       $opts{sshCmdArgs} = [@_];
       @_ = ();
@@ -398,6 +365,8 @@ sub main(@){
       $opts{cmd} = $CMD_VNC;
       $opts{vncArgs} = [@_];
       @_ = ();
+    }elsif(not defined $opts{conf}){
+      $opts{conf} = $arg;
     }elsif(defined $opts{conf} and not defined $opts{cmd}){
       $opts{cmd} = $CMD_SSH;
       $opts{wrapBashCmd} = 1;
@@ -408,10 +377,18 @@ sub main(@){
     }
   }
 
+  $opts{cmd} = $CMD_INIT if not defined $opts{cmd};
+
+  my $regexNoConfCmds = join("|", @CMDS_WITH_NO_CONF);
+
   my $conf;
   my $confFile;
   my %config;
   if(defined $opts{conf}){
+    if($opts{cmd} =~ /^($regexNoConfCmds)$/){
+      die "ERROR: cannot specify CONF for $opts{cmd}\n";
+    }
+
     $conf = $opts{conf};
     if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
       $confFile = absolutePath "$CONF_DIR/$conf.conf";
@@ -429,10 +406,10 @@ sub main(@){
     if(not defined $opts{user}){
       $opts{user} = (defined $config{defaultUser} ? $config{defaultUser} : 'root');
     }
-  }
-
-  if(not defined $opts{cmd} and defined $opts{conf}){
-    $opts{cmd} = $CMD_INIT;
+  }else{
+    if($opts{cmd} !~ /^($regexNoConfCmds)$/){
+      die "ERROR: must specify CONF for $opts{cmd}\n";
+    }
   }
 
   my $ip;
