@@ -235,8 +235,18 @@ my $USAGE = "Usage:
                             same as: --ssh-args '-t -t'
 ";
 
+my $CMD_SET_HOSTS = "set-hosts";
+my $CMD_REMOVE_HOSTS = "remove-hosts";
+my $CMD_IFUP = "ifup";
+my $CMD_GET_IPMAGIC_NAME = "get-ipmagic-name";
+my $CMD_LIST = "list";
+
 sub main(@){
   my %opts = (
+    cmd           => undef,
+    hostname      => undef,
+    ip            => undef,
+    dev           => undef,
     verbose       => 0,
     user          => undef,
     method        => 'any',
@@ -246,53 +256,56 @@ sub main(@){
     extraSSHArgs  => [],
   );
   if(@_ > 0 and $_[0] =~ /^-/){
-    my $cmd = shift;
-    if($cmd =~ /^(-h|--help)$/ and @_ == 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
       print $USAGE;
-    }elsif($cmd =~ /^(--set-hosts)$/ and @_ == 2){
-      my ($hostname, $ip) = @_;
-      setHostsIP $hostname, $ip;
-    }elsif($cmd =~ /^(--remove-hosts)$/ and @_ == 1){
-      my ($hostname) = @_;
-      setHostsIP $hostname, undef;
-    }elsif($cmd =~ /^(--ifup)$/ and @_ == 2){
-      my ($dev, $ip) = @_;
-      ifup $dev, $ip;
-    }elsif($cmd =~ /^(--get-ipmagic-name)$/ and @_ == 0){
-      my $ipmagicName = getLocalIpmagicName();
-      if(defined $ipmagicName){
-        print "$ipmagicName\n";
-      }else{
-        die "ERROR: could not find matching CONF file\n";
-      }
-    }elsif($cmd =~ /^(--list)$/ and @_ == 0){
-      my @CONF_NAMES = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
-      print "$_\n" foreach @CONF_NAMES;
+      exit 0;
+    }elsif($arg =~ /^(--set-hosts)$/ and @_ >= 2){
+      $opts{cmd} = $CMD_SET_HOSTS;
+      $opts{hostname} = shift @_;
+      $opts{ip} = shift @_;
+    }elsif($arg =~ /^(--remove-hosts)$/ and @_ >= 1){
+      $opts{cmd} = $CMD_REMOVE_HOSTS;
+      $opts{hostname} = shift @_;
+    }elsif($arg =~ /^(--ifup)$/ and @_ >= 2){
+      $opts{cmd} = $CMD_IFUP;
+      $opts{dev} = shift @_;
+      $opts{ip} = shift @_;
+    }elsif($arg =~ /^(--get-ipmagic-name)$/){
+      $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
+    }elsif($arg =~ /^(--list)$/){
+      $opts{cmd} = $CMD_LIST;
     }else{
       die $USAGE;
     }
-
-    exit 0;
   }
 
-  die $USAGE if @_ == 0;
-
-  my $conf = shift;
-  my $confFile;
-  if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
-    $confFile = absolutePath "$CONF_DIR/$conf.conf";
+  my $conf = undef;
+  if(defined $opts{cmd}){
+    die $USAGE if @_ != 0;
   }else{
-    $confFile = absolutePath $conf;
+    die $USAGE if @_ == 0;
+    $conf = shift @_;
   }
 
-  die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
-  die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
+  my $confFile;
+  my %config;
+  if(defined $conf){
+    if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
+      $confFile = absolutePath "$CONF_DIR/$conf.conf";
+    }else{
+      $confFile = absolutePath $conf;
+    }
 
-  my %config = %{parseConfig $confFile};
+    die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
+    die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
 
-  die "hostname not defined in conf\n" if not defined $config{hostname};
+    %config = %{parseConfig $confFile};
 
-  $opts{user} = (defined $config{defaultUser} ? $config{defaultUser} : 'root');
+    die "hostname not defined in conf\n" if not defined $config{hostname};
+
+    $opts{user} = (defined $config{defaultUser} ? $config{defaultUser} : 'root');
+  }
 
   my $optRegex = join "|", qw(
     -v --verbose -u --user -m --method -r --retries --ssh-exec --sshc --ssh-args --pty
@@ -328,6 +341,28 @@ sub main(@){
       die $USAGE;
     }
   }
+
+  $opts{cmd} = "" if not defined $opts{cmd};
+
+  if($opts{cmd} eq $CMD_SET_HOSTS){
+    setHostsIP $opts{hostname}, $opts{ip};
+  }elsif($opts{cmd} eq $CMD_REMOVE_HOSTS){
+    setHostsIP $opts{hostname}, undef;
+  }elsif($opts{cmd} eq $CMD_IFUP){
+    ifup $opts{dev}, $opts{ip};
+  }elsif($opts{cmd} eq $CMD_GET_IPMAGIC_NAME){
+    my $ipmagicName = getLocalIpmagicName();
+    if(defined $ipmagicName){
+      print "$ipmagicName\n";
+    }else{
+      die "ERROR: could not find matching CONF file\n";
+    }
+  }elsif($opts{cmd} eq $CMD_LIST){
+    my @CONF_NAMES = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
+    print "$_\n" foreach @CONF_NAMES;
+  }
+
+  exit 0 if $opts{cmd} ne "";
 
   my $ipOnly = 0;
 
