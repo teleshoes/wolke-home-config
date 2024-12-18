@@ -240,6 +240,13 @@ my $CMD_REMOVE_HOSTS = "remove-hosts";
 my $CMD_IFUP = "ifup";
 my $CMD_GET_IPMAGIC_NAME = "get-ipmagic-name";
 my $CMD_LIST = "list";
+my $CMD_GET_HOST = "get-host";
+my $CMD_GET_VNC_DEFAULT_ARGS = "get-vnc-default-args";
+my $CMD_GET_DEFAULT_USER = "get-default-user";
+my $CMD_GET_IP_GUESS = "get-ip-guess";
+my $CMD_GET_IP = "get-ip";
+my $CMD_SET_TMP = "set-tmp";
+my $CMD_KEY_REMOVE = "key-remove";
 
 sub main(@){
   my %opts = (
@@ -323,6 +330,35 @@ sub main(@){
     }
   }
 
+  my $confCmdRegex = join "|", qw(
+    --host --vnc-default-args --default-user --ip-guess --ip
+    -k --key-remove --keygen-remove --ssh-keygen-remove
+    -t --tmp
+  );
+
+  while(@_ > 0 and $_[0] =~ /^($confCmdRegex)$/){
+    my $arg = shift @_;
+    if($arg =~ /^(--host)$/){
+      $opts{cmd} = $CMD_GET_HOST;
+    }elsif($arg =~ /^(--vnc-default-args)$/){
+      $opts{cmd} = $CMD_GET_VNC_DEFAULT_ARGS;
+    }elsif($arg =~ /^(--default-user)$/){
+      $opts{cmd} = $CMD_GET_DEFAULT_USER;
+    }elsif($arg =~ /^(--ip-guess)$/){
+      $opts{cmd} = $CMD_GET_IP_GUESS;
+    }elsif($arg =~ /^(--ip)$/){
+      $opts{cmd} = $CMD_GET_IP;
+    }elsif($arg =~ /^(-k|--key-remove|--keygen-remove|--ssh-keygen-remove)$/){
+      $opts{cmd} = $CMD_KEY_REMOVE;
+    }elsif($arg =~ /^(-t|--tmp)$/){
+      $opts{cmd} = $CMD_SET_TMP;
+      if(@_ >= 1){
+        $opts{ip} = shift @_;
+      }
+    }
+  }
+
+
   my $confFile;
   my %config;
   if(defined $conf){
@@ -362,34 +398,28 @@ sub main(@){
   }elsif($opts{cmd} eq $CMD_LIST){
     my @CONF_NAMES = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
     print "$_\n" foreach @CONF_NAMES;
-  }
-
-  exit 0 if $opts{cmd} ne "";
-
-  if(@_ == 1 and $_[0] eq '--host'){
+  }elsif($opts{cmd} eq $CMD_GET_HOST){
     print "$config{hostname}\n";
-    exit 0;
-  }elsif(@_ == 1 and $_[0] eq '--vnc-default-args'){
+  }elsif($opts{cmd} eq $CMD_GET_VNC_DEFAULT_ARGS){
     if(defined $config{vncDefaultArgs}){
       print "$config{vncDefaultArgs}\n";
     }
-    exit 0;
-  }elsif(@_ == 1 and $_[0] eq '--default-user'){
+  }elsif($opts{cmd} eq $CMD_GET_DEFAULT_USER){
     print "$config{defaultUser}\n" if defined $config{defaultUser};
     exit 0;
-  }elsif(@_ == 1 and $_[0] eq '--ip-guess'){
+  }elsif($opts{cmd} eq $CMD_GET_IP_GUESS){
     my @ipGuessList = @{$config{ipGuessList}} if defined $config{ipGuessList};
     print "$_\n" foreach @ipGuessList;
     exit 0;
-  }elsif(@_ == 1 and $_[0] eq '--ip'){
+  }elsif($opts{cmd} eq $CMD_GET_IP){
     my $ip = determineConfIP(\%config, \%opts, $confFile);
     print "$ip\n" if defined $ip;
     exit (defined $ip ? 0 : 1);
-  }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(-t|--tmp)$/){
-    my $ip = $_[1] if @_ == 2;
+  }elsif($opts{cmd} eq $CMD_SET_TMP){
+    my $ip = undef;
+    $ip = $opts{ip} if defined $opts{ip};
     writeTmpFile $confFile, $ip;
-    exit 0;
-  }elsif(@_ == 1 and $_[0] =~ /^(-k|--key-remove|--keygen-remove|--ssh-keygen-remove)$/){
+  }elsif($opts{cmd} eq $CMD_KEY_REMOVE){
     print "removing key for $config{hostname}\n";
     system "ssh-keygen", "-R", $config{hostname};
     print "fetching IP for $config{hostname}\n";
@@ -401,8 +431,9 @@ sub main(@){
     }else{
       die "failed to fetch IP\n";
     }
-    exit 0;
   }
+
+  exit 0 if $opts{cmd} ne "";
 
   my ($isVnc, $isSsh, $isRsync, $isScp) = (0, 0, 0, 0);
   my $vncCmd;
