@@ -366,8 +366,6 @@ sub main(@){
 
   exit 0 if $opts{cmd} ne "";
 
-  my $ipOnly = 0;
-
   if(@_ == 1 and $_[0] eq '--host'){
     print "$config{hostname}\n";
     exit 0;
@@ -384,7 +382,9 @@ sub main(@){
     print "$_\n" foreach @ipGuessList;
     exit 0;
   }elsif(@_ == 1 and $_[0] eq '--ip'){
-    $ipOnly = 1;
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    print "$ip\n" if defined $ip;
+    exit (defined $ip ? 0 : 1);
   }elsif((@_ == 1 or @_ == 2) and $_[0] =~ /^(-t|--tmp)$/){
     my $ip = $_[1] if @_ == 2;
     writeTmpFile $confFile, $ip;
@@ -460,12 +460,6 @@ sub main(@){
   }
 
   my $ip = determineConfIP(\%config, \%opts, $confFile);
-
-  if($ipOnly){
-    print "$ip\n" if defined $ip;
-    exit (defined $ip ? 0 : 1);
-  }
-
   sudoSetHostsIP $config{hostname}, $ip;
 
   if(not defined $ip){
