@@ -412,16 +412,6 @@ sub main(@){
     }
   }
 
-  my $ip;
-  if($opts{cmd} =~ /^($CMD_INIT|$CMD_SSH|$CMD_VNC|$CMD_SYNC)$/){
-    $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-
-    if(not defined $ip){
-      die "ERROR: no IP found\n";
-    }
-  }
-
   if($opts{cmd} eq $CMD_SET_HOSTS){
     setHostsIP $opts{hostname}, $opts{ip};
   }elsif($opts{cmd} eq $CMD_REMOVE_HOSTS){
@@ -491,7 +481,10 @@ sub main(@){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
   }elsif($opts{cmd} eq $CMD_SSH){
-    ensureFingerprint $config{hostname}, $ip if defined $ip;
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+    die "ERROR: no IP found\n" if not defined $ip;
+    ensureFingerprint($config{hostname}, $ip);
 
     my @sshCmdArgs = @{$opts{sshCmdArgs}};
     if(@sshCmdArgs == 0 and defined $config{defaultSSHCommand}){
@@ -535,7 +528,10 @@ sub main(@){
     print "@sshCmd\n" if $opts{verbose};
     exec @sshCmd;
   }elsif($opts{cmd} eq $CMD_SYNC){
-    ensureFingerprint $config{hostname}, $ip if defined $ip;
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+    die "ERROR: no IP found\n" if not defined $ip;
+    ensureFingerprint($config{hostname}, $ip);
 
     my @sshArgs;
     if(defined $config{sshArgs}){
@@ -573,6 +569,10 @@ sub main(@){
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
   }elsif($opts{cmd} eq $CMD_INIT){
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+    die "ERROR: no IP found\n" if not defined $ip;
+
     print "$config{hostname}\n";
   }else{
     die "ERROR: unknown command $opts{cmd}\n";
