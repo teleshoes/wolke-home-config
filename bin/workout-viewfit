@@ -14,6 +14,7 @@ use POSIX qw(ceil floor);
 sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
 sub gnuplotDurations($$$@);
+sub gnuplotDistances($$$@);
 sub gnuplotHeartrates($$@);
 sub readCachedWorkouts();
 sub readCachedWorkoutLatest();
@@ -178,6 +179,8 @@ my $USAGE = "Usage:
           -plot workouts as points with x=workout_date_time and y=duration
         hr | heartrate
           -plot each workout as a separate plot with x=duration and y=heartrate
+        d | distance
+          -plot the total distance of each workout with x=workout_date_time and y=distance
 
     --min-hr-plot=HEARTRATE
       when plotting heartrates with --gnuplot,
@@ -443,6 +446,16 @@ sub main(@){
 
         gnuplotDurations($opts, $targetName, $outputFile, @points);
         system "feh", $outputFile;
+      }elsif($plotType =~ /^(d|distance)$/i){
+        my $targetName = lc $plotType;
+        my @points;
+        for my $w(@workouts){
+          my $distM = $$w{distance};
+          push @points, [$$w{dtmEpoch}, $distM];
+        }
+
+        gnuplotDistances($opts, $targetName, $outputFile, @points);
+        system "feh", $outputFile;
       }elsif($plotType =~ /^(hr|heartrate)$/i){
         my $pointsByPlotName = {};
         for my $w(@workouts){
@@ -688,6 +701,71 @@ sub gnuplotDurations($$$@){
     . "plot"
         . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
         . " with linespoints pointtype 5"
+        . ", "
+        . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
+        . " smooth bezier"
+        . ", "
+        . "\"$dataFile\" using (timecolumn(1,\"%s\")):2:3"
+        . " with labels offset 0,-1 notitle"
+        . "\n"
+  ;
+  writeFile($scriptFile, $scriptContents);
+  system "rm", $outputFile;
+  system "gnuplot", "-p", $scriptFile;
+}
+
+sub gnuplotDistances($$$@){
+  my ($opts, $plotName, $outputFile, @points) = @_;
+
+  my $scriptFile = "/tmp/workout-viewfit-gnuplot-script";
+  my $dataFile = "/tmp/workout-viewfit-gnuplot-data";
+
+  my $dataFmt = "$plotName\n";
+
+  for(my $i=0; $i<@points; $i++){
+    my $point = $points[$i];
+    my ($dtmEpoch, $distM) = @$point;
+
+    #show point label if the point is the min or max of the 5 points before and after
+    my $useLabel = 0;
+    my @localIdxs = grep {$_ != $i} ($i-25 .. $i+25);
+    my @localDistVals = map {$points[$_][1]} grep {0 <= $_ && $_ <= $#points} @localIdxs;
+    my @smallerlocalDistVals = grep {$_ < $distM} @localDistVals;
+    my @largerlocalDistVals = grep {$_ > $distM} @localDistVals;
+    if(@smallerlocalDistVals == 0 or @largerlocalDistVals == 0){
+      $useLabel = 1;
+    }
+
+    my $label = $useLabel ? sprintf("%.1fkm", $distM/1000.0) : "";
+
+    $dataFmt .= sprintf "%d,%d,%s\n",
+      $dtmEpoch,
+      $distM,
+      $label,
+    ;
+  }
+  writeFile($dataFile, $dataFmt);
+
+  my $minDist = min(map {$$_[1]} @points);
+  my $maxDist = max(map {$$_[1]} @points);
+
+  my ($yRangeMin, $yRangeMax) = ($minDist, $maxDist);
+
+  my $scriptContents = ""
+    . "set datafile separator comma\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$outputFile\"\n"
+    . "\n"
+    . "set xdata time\n"
+    . "set timefmt \"%Y-%m-%d\"\n"
+    . "set format x \"%Y-%m-%d\"\n"
+    . "\n"
+    . "set yrange [$yRangeMin:$yRangeMax]\n"
+    . "\n"
+    . "plot"
+        . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
+        . " with linespoints pointtype 4"
         . ", "
         . " \"$dataFile\" using (timecolumn(1,\"%s\")):2"
         . " smooth bezier"
