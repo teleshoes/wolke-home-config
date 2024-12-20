@@ -71,6 +71,14 @@ my $USAGE = "Usage:
       remove any lines in /etc/hosts that match:
         \"###.###.###.###\t<HOSTNAME>#ipmagic:<HOSTNAME>\"
 
+    $EXEC --ensure-fingerprint HOSTNAME IP
+      -get the FINGERPRINT_HOSTNAME for HOSTNAME as in
+         FINGERPRINT_HOSTNAME=`ssh-keygen -l -F <HOSTNAME>`
+      -get the FINGERPRINT_IP for IP as in
+         FINGERPRINT_IP=`ssh-keygen -l -F <IP>`
+      -if FINGERRPINT_HOSTNAME and FINGERPRINT_IP do not match, run:
+         ssh-keygen -R <IP>
+
     $EXEC --ifup DEV IP
       ifup the DEV with the IP
 
@@ -238,6 +246,7 @@ my $USAGE = "Usage:
 
 my $CMD_SET_HOSTS = "set-hosts";
 my $CMD_REMOVE_HOSTS = "remove-hosts";
+my $CMD_ENSURE_FINGERPRINT = "ensure-fingeprint";
 my $CMD_IFUP = "ifup";
 my $CMD_LIST = "list";
 my $CMD_GET_IPMAGIC_NAME = "get-ipmagic-name";
@@ -254,7 +263,8 @@ my $CMD_VNC = "vnc";
 my $CMD_SYNC = "sync";
 
 my @CMDS_WITH_NO_CONF = (
-  $CMD_SET_HOSTS, $CMD_REMOVE_HOSTS, $CMD_IFUP, $CMD_LIST, $CMD_GET_IPMAGIC_NAME,
+  $CMD_SET_HOSTS, $CMD_REMOVE_HOSTS, $CMD_ENSURE_FINGERPRINT,
+  $CMD_IFUP, $CMD_LIST, $CMD_GET_IPMAGIC_NAME,
 );
 
 my $SYNC_CMD_RSYNC = "rsync";
@@ -292,6 +302,10 @@ sub main(@){
     }elsif($arg =~ /^(--remove-hosts)$/ and @_ >= 1){
       $opts{cmd} = $CMD_REMOVE_HOSTS;
       $opts{hostname} = shift @_;
+    }elsif($arg =~ /^(--ensure-fingerprint)$/ and @_ >= 2){
+      $opts{cmd} = $CMD_ENSURE_FINGERPRINT;
+      $opts{hostname} = shift @_;
+      $opts{ip} = shift @_;
     }elsif($arg =~ /^(--ifup)$/ and @_ >= 2){
       $opts{cmd} = $CMD_IFUP;
       $opts{dev} = shift @_;
@@ -419,6 +433,8 @@ sub main(@){
     setHostsIP $opts{hostname}, $opts{ip};
   }elsif($opts{cmd} eq $CMD_REMOVE_HOSTS){
     setHostsIP $opts{hostname}, undef;
+  }elsif($opts{cmd} eq $CMD_ENSURE_FINGERPRINT){
+    ensureFingerprint($opts{hostname}, $opts{ip});
   }elsif($opts{cmd} eq $CMD_IFUP){
     ifup $opts{dev}, $opts{ip};
   }elsif($opts{cmd} eq $CMD_LIST){
