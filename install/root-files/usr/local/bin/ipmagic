@@ -92,11 +92,6 @@ my $USAGE = "Usage:
         print <CONFNAME>
       if no matching <CONF> file is found, fail and exit with an error code
 
-    $EXEC CONF [OPTS]
-      generate the IP, ensure its ping-able, setup hosts file, init devices
-      if IP is found, print the hostname and exit normally
-      if IP is NOT found, fail and exit with an error code
-
     $EXEC CONF [OPTS] --host
       print the CONF hostname and exit, doing nothing else
 
@@ -126,6 +121,11 @@ my $USAGE = "Usage:
         where CONFIG_FILE is the abs path to the config file,
           with forward slashes \"/\" replaced with underscores \"_\"
           e.g.: /tmp/ipmagic_home_user_raspberrypi.conf.tmp
+
+    $EXEC CONF [OPTS]
+      generate the IP, ensure its ping-able, setup hosts file, init devices
+      if IP is found, print the hostname and exit normally
+      if IP is NOT found, fail and exit with an error code
 
     $EXEC CONF [OPTS] [ACTION]
       setup hosts file, init devices, and optionally perform an action
@@ -247,10 +247,10 @@ my $CMD_GET_IP_GUESS = "get-ip-guess";
 my $CMD_GET_IP = "get-ip";
 my $CMD_KEY_REMOVE = "key-remove";
 my $CMD_SET_TMP = "set-tmp";
-my $CMD_VNC = "vnc";
-my $CMD_SSH = "ssh";
-my $CMD_SYNC = "sync";
 my $CMD_INIT = "init";
+my $CMD_SSH = "ssh";
+my $CMD_VNC = "vnc";
+my $CMD_SYNC = "sync";
 
 my @CMDS_WITH_NO_CONF = (
   $CMD_SET_HOSTS, $CMD_REMOVE_HOSTS, $CMD_IFUP, $CMD_LIST, $CMD_GET_IPMAGIC_NAME,
@@ -465,25 +465,12 @@ sub main(@){
     my $ip = undef;
     $ip = $opts{ip} if defined $opts{ip};
     writeTmpFile $confFile, $ip;
-  }elsif($opts{cmd} eq $CMD_VNC){
+  }elsif($opts{cmd} eq $CMD_INIT){
     my $ip = determineConfIP(\%config, \%opts, $confFile);
     sudoSetHostsIP $config{hostname}, $ip;
     die "ERROR: no IP found\n" if not defined $ip;
-    ensureFingerprint($config{hostname}, $ip);
 
-    my $vncCmd;
-    if(defined $config{vncCommand}){
-      $vncCmd = $config{vncCommand};
-    }else{
-      $vncCmd = "vnc $conf -u $opts{user}";
-    }
-    if(defined $config{vncDefaultArgs}){
-      $vncCmd .= " $config{vncDefaultArgs}";
-    }
-    $vncCmd .= join(" ", @{$opts{vncArgs}});
-
-    print "$vncCmd\n" if $opts{verbose};
-    exec $vncCmd;
+    print "$config{hostname}\n";
   }elsif($opts{cmd} eq $CMD_SSH){
     my $ip = determineConfIP(\%config, \%opts, $confFile);
     sudoSetHostsIP $config{hostname}, $ip;
@@ -531,6 +518,25 @@ sub main(@){
     @sshCmd = (@sshCmd, @sshCmdArgs);
     print "@sshCmd\n" if $opts{verbose};
     exec @sshCmd;
+  }elsif($opts{cmd} eq $CMD_VNC){
+    my $ip = determineConfIP(\%config, \%opts, $confFile);
+    sudoSetHostsIP $config{hostname}, $ip;
+    die "ERROR: no IP found\n" if not defined $ip;
+    ensureFingerprint($config{hostname}, $ip);
+
+    my $vncCmd;
+    if(defined $config{vncCommand}){
+      $vncCmd = $config{vncCommand};
+    }else{
+      $vncCmd = "vnc $conf -u $opts{user}";
+    }
+    if(defined $config{vncDefaultArgs}){
+      $vncCmd .= " $config{vncDefaultArgs}";
+    }
+    $vncCmd .= join(" ", @{$opts{vncArgs}});
+
+    print "$vncCmd\n" if $opts{verbose};
+    exec $vncCmd;
   }elsif($opts{cmd} eq $CMD_SYNC){
     my $ip = determineConfIP(\%config, \%opts, $confFile);
     sudoSetHostsIP $config{hostname}, $ip;
@@ -572,12 +578,6 @@ sub main(@){
 
     print "@cmd\n" if $opts{verbose};
     exec @cmd;
-  }elsif($opts{cmd} eq $CMD_INIT){
-    my $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-    die "ERROR: no IP found\n" if not defined $ip;
-
-    print "$config{hostname}\n";
   }else{
     die "ERROR: unknown command $opts{cmd}\n";
   }
