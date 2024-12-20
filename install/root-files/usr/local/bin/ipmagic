@@ -11,7 +11,7 @@ sub assertIP($);
 sub assertMac($);
 sub fingerprint($$);
 sub ensureFingerprint($$);
-sub getConfNameFromConfFile($);
+sub getIpmagicNameFromConfFile($);
 sub getConfFilesSymlinksLast();
 sub getLocalIpmagicName();
 sub parseConfig($);
@@ -38,13 +38,16 @@ my $EXEC_IFCONFIG = whichExec("ifconfig", ["/sbin/ifconfig"]);
 my $EXEC_IW = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
 my $EXEC_HOSTNAME = whichExec("hostname", ["/bin/hostname"]);
 
-my $REGEX_CONF_NAME = '[a-zA-Z0-9][a-zA-Z0-9_\-]*';
+my $REGEX_FORMAT_IPMAGIC_NAME = '[a-zA-Z0-9][a-zA-Z0-9_\-]*';
 
 my $CONF_DIR = "$ENV{HOME}/.config/ipmagic";
 my @CONF_FILES = sort grep {-e $_} glob "$CONF_DIR/*.conf";
-my @CONF_NAMES = sort map {/^$CONF_DIR\/($REGEX_CONF_NAME)\.conf$/; $1} @CONF_FILES;
 
-my $REGEX_EXISTING_CONF_NAMES = join("|", @CONF_NAMES);
+my @IPMAGIC_NAMES = sort
+  map {/^$CONF_DIR\/($REGEX_FORMAT_IPMAGIC_NAME)\.conf$/; $1}
+  @CONF_FILES;
+
+my $REGEX_EXISTING_IPMAGIC_NAMES = join("|", @IPMAGIC_NAMES);
 
 my $DEFAULT_SSH_ARGS = "-o StrictHostKeyChecking=no";
 
@@ -89,59 +92,62 @@ my $USAGE = "Usage:
       ifup the DEV with the IP
 
     $EXEC --list
-      -list all <CONF> files
-      -extract CONF from filename
-
-    $EXEC --get-ipmagic-name
-      get local <HOSTNAME> with: `$EXEC_HOSTNAME`
-      get all <CONF> files that match: \"$CONF_DIR/<CONFNAME>.conf\"
-      sort <CONF> files: regular files before symlinks, and shallow symlinks before deep:
-          get symlink-depth (number of paths in walk to non-symlink file)
+      -print all valid <IPMAGIC_NAME>s, one per line
+        -list all <CONF> files in $CONF_DIR
+        -sort <CONF> files: regular files before symlinks, and shallow symlinks before deep:
+          -get symlink-depth (number of paths in walk to non-symlink file)
             e.g.: regular files are symlink-depth=0
                   symlinks to regular files are symlink-depth=1
                   symlinks to symlinks to regular files are symlink-depth=2
-          sort <CONF> files by symlink-depth (ascending),
+          -sort <CONF> files by symlink-depth (ascending),
             then lexicographically (ascending)
-      find the first sorted <CONF> file with 'hostname' that exactly matches <HOSTNAME>
-        print <CONFNAME>
-      if no matching <CONF> file is found, fail and exit with an error code
+        -extract <IPMAGIC_NAME> from filename and print it
 
-    $EXEC CONF [OPTS] --host
+    $EXEC --get-ipmagic-name
+      -get local <HOSTNAME> with: `$EXEC_HOSTNAME`
+      -get all <CONF> files, sorted regular-file-first, as in:
+        $EXEC --list
+      -find the first sorted <CONF> file with 'hostname' that exactly matches <HOSTNAME>:
+        print <IPMAGIC_NAME>
+      -if no matching <CONF> file is found:
+        fail and exit with an error code
+
+    $EXEC IPMAGIC_NAME [OPTS] --host
       print the CONF hostname and exit, doing nothing else
 
-    $EXEC CONF [OPTS] --vnc-default-args
+    $EXEC IPMAGIC_NAME [OPTS] --vnc-default-args
       print the CONF vncDefaultArgs and exit, doing nothing else
 
-    $EXEC CONF [OPTS] --default-user
+    $EXEC IPMAGIC_NAME [OPTS] --default-user
       print the CONF defaultUser and exit, doing nothing else
 
-    $EXEC CONF [OPTS] --ip-guess
+    $EXEC IPMAGIC_NAME [OPTS] --ip-guess
       print each CONF ipGuess, one per line, and exit, doing nothing else
 
-    $EXEC CONF [OPTS] --ip
+    $EXEC IPMAGIC_NAME [OPTS] --ip
       setup method, print the IP, and exit {dont set up hosts}
 
-    $EXEC CONF -k|--key-remove|--keygen-remove|--ssh-keygen-remove
+    $EXEC IPMAGIC_NAME -k|--key-remove|--keygen-remove|--ssh-keygen-remove
       remove keys from known_hosts for HOSTNAME and IP
       roughly equivalent to:
-        ssh-keygen -R `$EXEC CONF --host`
-        ssh-keygen -R `$EXEC CONF --ip`
+        ssh-keygen -R `$EXEC IPMAGIC_NAME --host`
+        ssh-keygen -R `$EXEC IPMAGIC_NAME --ip`
 
-    $EXEC CONF [OPTS] -t|--tmp [IP]
+    $EXEC IPMAGIC_NAME [OPTS] -t|--tmp [IP]
       write IP to a tmp file, or if IP is not given, remove tmp file.
       the tmp file is read first while setting up the hosts file,
         and overrides all other methods of finding an ip
-      tmp file is: /tmp/ipmagicCONFIG_FILE.tmp
-        where CONFIG_FILE is the abs path to the config file,
+      tmp file is: /tmp/ipmagic_<CONFIG_FILE_FMT>.tmp
+        where CONFIG_FILE_FMT is the abs path to the config file,
           with forward slashes \"/\" replaced with underscores \"_\"
           e.g.: /tmp/ipmagic_home_user_raspberrypi.conf.tmp
 
-    $EXEC CONF [OPTS]
-    $EXEC CONF [OPTS] --init
+    $EXEC IPMAGIC_NAME [OPTS]
+    $EXEC IPMAGIC_NAME [OPTS] --init
       -get the HOSTNAME as in:
-        $EXEC CONF --host
+        $EXEC IPMAGIC_NAME --host
       -generate the IP and ensure pingable as in:
-        $EXEC CONF --ip
+        $EXEC IPMAGIC_NAME --ip
       -if IP is not found and pingable, fail and exit with an error code
       -set hostname as in:
         sudo $EXEC --set-hosts HOSTNAME IP
@@ -149,12 +155,12 @@ my $USAGE = "Usage:
         $EXEC --ensure-fingerprint HOSTNAME IP
       -print hostname
 
-    $EXEC CONF [OPTS] CMD [ARG ARG..]
-      same as: $EXEC CONF [OPTS] -b CMD [ARG ARG..]
+    $EXEC IPMAGIC_NAME [OPTS] CMD [ARG ARG..]
+      same as: $EXEC IPMAGIC_NAME [OPTS] -b CMD [ARG ARG..]
 
-    $EXEC CONF [OPTS] -s [CMD [ARG ARG..]]
+    $EXEC IPMAGIC_NAME [OPTS] -s [CMD [ARG ARG..]]
       -init IP/hosts/etc as in:
-        $EXEC CONF --init
+        $EXEC IPMAGIC_NAME --init
       -ssh to host
         if \"CMD ARG ARG..\" is specified, it is passed to ssh
         otherwise, if DEFAULT_SSH_COMMAND is specified, it is passed to ssh
@@ -164,9 +170,9 @@ my $USAGE = "Usage:
         this can be overridden in the config file: 'sshArgs=SSH_ARGS'
         additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
-    $EXEC CONF [OPTS] --rsync [ARG ARG..]
+    $EXEC IPMAGIC_NAME [OPTS] --rsync [ARG ARG..]
       -init IP/hosts/etc as in:
-        $EXEC CONF --init
+        $EXEC IPMAGIC_NAME --init
       -run rsync, replacing ':REMOTE_FILE' with 'USER\@HOST:REMOTE_FILE'
         copy files to/from remote server with rsync
           -find the first ARG that starts with a ':' (if none, fail)
@@ -177,9 +183,9 @@ my $USAGE = "Usage:
           =>
           rsync -e 'ssh $DEFAULT_SSH_ARGS' /tmp/abc user\@dev1:/tmp/
 
-    $EXEC CONF [OPTS] --scp [ARG ARG..]
+    $EXEC IPMAGIC_NAME [OPTS] --scp [ARG ARG..]
       -init IP/hosts/etc as in:
-        $EXEC CONF --init
+        $EXEC IPMAGIC_NAME --init
       -run rsync, replacing ':REMOTE_FILE' with 'USER\@HOST:REMOTE_FILE'
         copy files to/from remote server with scp
           -find the first ARG that starts with a ':' (if none, fail)
@@ -190,13 +196,13 @@ my $USAGE = "Usage:
           =>
           scp $DEFAULT_SSH_ARGS root\@lab3:/tmp/abc /opt/
 
-    $EXEC CONF [OPTS] -p|--proxy|--socks
-      -same as: $EXEC CONF [OPTS] -s -N -D SOCKS_PORT
+    $EXEC IPMAGIC_NAME [OPTS] -p|--proxy|--socks
+      -same as: $EXEC IPMAGIC_NAME [OPTS] -s -N -D SOCKS_PORT
         run ssh with `-N -D $SOCKS_PORT` to act as a SOCKS server on port $SOCKS_PORT
 
-    $EXEC CONF [OPTS] -b CMD [ARG ARG..]
+    $EXEC IPMAGIC_NAME [OPTS] -b CMD [ARG ARG..]
       -init IP/hosts/etc as in:
-        $EXEC CONF --init
+        $EXEC IPMAGIC_NAME --init
       -run ssh, wrapping the command with `bash -c`
         if IGNORE_BASH_COMMAND is 'true', runs this command:
           bash -c \"CMD ARG ARG\"
@@ -218,14 +224,14 @@ my $USAGE = "Usage:
         this can be overridden in the config file: 'sshArgs=SSH_ARGS'
         additional args can be given on the cmdline: '--ssh-args SSH_ARGS'
 
-    $EXEC CONF [OPTS] -b CMD [ARG ARG..]
+    $EXEC IPMAGIC_NAME [OPTS] -b CMD [ARG ARG..]
       -init IP/hosts/etc as in:
-        $EXEC CONF --init
+        $EXEC IPMAGIC_NAME --init
       -run `vnc` or <vncCommand>
         -if vncCommand is present:
           run: `<vncCommand> <vncDefaultArgs> <VNC_ARGS>`
         -otherwise:
-          run: `vnc CONF -u USER <vncDefaultArgs> <VNC_ARGS>`
+          run: `vnc IPMAGIC_NAME -u USER <vncDefaultArgs> <VNC_ARGS>`
         e.g.: `$EXEC sx -vnc --landscape --scale 0.5 --cache`
 
       SSH_ARGS
@@ -244,18 +250,18 @@ my $USAGE = "Usage:
         specified in the config file:
           preBashCommand=PRE_BASH_COMMAND
 
-      CONF:
-        -ipmagic config file <CONFNAME>
+      IPMAGIC_NAME
+        -ipmagic config file identifier
           -must start with a letter or number
           -must consist only of letters, numbers, underscores, and hypens
-        -valid <CONFNAMES>:"
+        -one of:"
           . join('',
               map {"\n          " . join(" ", @$_)}
-              chunkArr(5, @CONF_NAMES)
+              chunkArr(5, @IPMAGIC_NAMES)
             )
           . "
         -use CONF_FILE:
-            \"$CONF_DIR/<CONFNAME>.conf\"
+            \"$CONF_DIR/<IPMAGIC_NAME>.conf\"
 
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
@@ -307,7 +313,7 @@ my $SYNC_CMD_SCP = "scp";
 sub main(@){
   my %opts = (
     cmd           => undef,
-    conf          => undef,
+    ipmagicName   => undef,
     hostname      => undef,
     ip            => undef,
     dev           => undef,
@@ -348,9 +354,9 @@ sub main(@){
       $opts{cmd} = $CMD_LIST;
     }elsif($arg =~ /^(--get-ipmagic-name)$/){
       $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
-    }elsif($arg =~ /^($REGEX_EXISTING_CONF_NAMES)$/){
-      die "$USAGE\nERROR: CONF_NAME already defined\n" if defined $opts{conf};
-      $opts{conf} = $arg;
+    }elsif($arg =~ /^($REGEX_EXISTING_IPMAGIC_NAMES)$/){
+      die "$USAGE\nERROR: IPAMGIC_NAME already defined\n" if defined $opts{ipmagicName};
+      $opts{ipmagicName} = $arg;
     }elsif($arg =~ /^(--init)$/){
       $opts{cmd} = $CMD_INIT;
     }elsif($arg =~ /^(--host)$/){
@@ -419,7 +425,7 @@ sub main(@){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, split /\s+/, $sshArgsStr];
     }elsif($arg =~ /^(--pty)$/){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, "-t", "-t"];
-    }elsif(defined $opts{conf} and not defined $opts{cmd}){
+    }elsif(defined $opts{ipmagicName} and not defined $opts{cmd}){
       $opts{cmd} = $CMD_SSH;
       $opts{wrapBashCmd} = 1;
       $opts{sshCmdArgs} = [$arg, @_];
@@ -433,33 +439,34 @@ sub main(@){
 
   my $regexNoConfCmds = join("|", @CMDS_WITH_NO_CONF);
 
-  my $conf;
+  my $ipmagicName;
   my $confFile;
   my %config;
-  if(defined $opts{conf}){
+  if(defined $opts{ipmagicName}){
     if($opts{cmd} =~ /^($regexNoConfCmds)$/){
-      die "ERROR: cannot specify CONF for $opts{cmd}\n";
+      die "ERROR: cannot specify IPMAGIC_NAME for $opts{cmd}\n";
     }
 
-    $conf = $opts{conf};
-    if($conf !~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
-      die "$USAGE\nERROR: unknown CONF_NAME $conf\n  one of: $REGEX_EXISTING_CONF_NAMES\n";
+    $ipmagicName = $opts{ipmagicName};
+    if($ipmagicName !~ /^($REGEX_FORMAT_IPMAGIC_NAME)$/){
+      die "$USAGE\nERROR: unknown IPMAGIC_NAME '$ipmagicName'\n"
+        . "  one of: $REGEX_EXISTING_IPMAGIC_NAMES\n";
     }
-    $confFile = absolutePath "$CONF_DIR/$conf.conf";
+    $confFile = absolutePath "$CONF_DIR/$ipmagicName.conf";
 
-    die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
+    die "$USAGE\nERROR: Could not parse IPMAGIC_NAME $ipmagicName\n" if not defined $confFile;
     die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
 
     %config = %{parseConfig $confFile};
 
-    die "hostname not defined in conf\n" if not defined $config{hostname};
+    die "ERROR: hostname not defined in $confFile\n" if not defined $config{hostname};
 
     if(not defined $opts{user}){
       $opts{user} = defined $config{defaultUser} ? $config{defaultUser} : 'root';
     }
   }else{
     if($opts{cmd} !~ /^($regexNoConfCmds)$/){
-      die "ERROR: must specify CONF for $opts{cmd}\n";
+      die "ERROR: must specify IPMAGIC_NAME for $opts{cmd}\n";
     }
   }
 
@@ -472,8 +479,8 @@ sub main(@){
   }elsif($opts{cmd} eq $CMD_IFUP){
     ifup $opts{dev}, $opts{ip};
   }elsif($opts{cmd} eq $CMD_LIST){
-    my @CONF_NAMES = map {getConfNameFromConfFile($_)} getConfFilesSymlinksLast();
-    print "$_\n" foreach @CONF_NAMES;
+    my @ipmagicNames = map {getIpmagicNameFromConfFile($_)} getConfFilesSymlinksLast();
+    print "$_\n" foreach @ipmagicNames;
   }elsif($opts{cmd} eq $CMD_GET_IPMAGIC_NAME){
     my $ipmagicName = getLocalIpmagicName();
     if(defined $ipmagicName){
@@ -506,7 +513,7 @@ sub main(@){
     print "removing key for $config{hostname}\n";
     system "ssh-keygen", "-R", $config{hostname};
     print "fetching IP for $config{hostname}\n";
-    my $ip = `$0 $conf --ip`;
+    my $ip = `$0 $ipmagicName --ip`;
     chomp $ip;
     if($ip =~ /^$REGEX_IP$/){
       print "removing key for $ip\n";
@@ -573,7 +580,7 @@ sub main(@){
     if(defined $config{vncCommand}){
       $vncCmd = $config{vncCommand};
     }else{
-      $vncCmd = "vnc $conf -u $opts{user}";
+      $vncCmd = "vnc $ipmagicName -u $opts{user}";
     }
     if(defined $config{vncDefaultArgs}){
       $vncCmd .= " $config{vncDefaultArgs}";
@@ -758,12 +765,13 @@ sub getConfFilesSymlinksLast(){
   return @sortedConfFiles;
 }
 
-sub getConfNameFromConfFile($){
+sub getIpmagicNameFromConfFile($){
   my ($confFile) = @_;
-  if($confFile !~ /^(?:.*\/)?([a-zA-Z0-9_\-]+)\.conf$/){
+  if($confFile =~ /^(?:.*\/)?($REGEX_FORMAT_IPMAGIC_NAME)\.conf$/){
+    return $1;
+  }else{
     die "ERROR: malformed CONF file $confFile\n";
   }
-  return $1;
 }
 
 sub getLocalIpmagicName(){
@@ -776,17 +784,17 @@ sub getLocalIpmagicName(){
     die "ERROR: could not get hostname with `$EXEC_HOSTNAME`\n";
   }
 
-  my $matchingConfName = undef;
+  my $matchingIpmagicName = undef;
   for my $confFile(@CONF_FILES){
-    my $confName = getConfNameFromConfFile($confFile);
+    my $ipmagicName = getIpmagicNameFromConfFile($confFile);
     my $config = parseConfig $confFile;
     if($$config{hostname} eq $hostname){
-      $matchingConfName = $confName;
+      $matchingIpmagicName = $ipmagicName;
       last;
     }
   }
 
-  return $matchingConfName;
+  return $matchingIpmagicName;
 }
 
 sub parseConfig($){
