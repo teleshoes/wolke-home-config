@@ -38,9 +38,13 @@ my $EXEC_IFCONFIG = whichExec("ifconfig", ["/sbin/ifconfig"]);
 my $EXEC_IW = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
 my $EXEC_HOSTNAME = whichExec("hostname", ["/bin/hostname"]);
 
+my $REGEX_CONF_NAME = '[a-zA-Z0-9][a-zA-Z0-9_\-]*';
+
 my $CONF_DIR = "$ENV{HOME}/.config/ipmagic";
 my @CONF_FILES = sort grep {-e $_} glob "$CONF_DIR/*.conf";
-my @CONF_NAMES = sort map {/^$CONF_DIR\/([^\/]+)\.conf$/; $1} @CONF_FILES;
+my @CONF_NAMES = sort map {/^$CONF_DIR\/($REGEX_CONF_NAME)\.conf$/; $1} @CONF_FILES;
+
+my $REGEX_EXISTING_CONF_NAMES = join("|", @CONF_NAMES);
 
 my $DEFAULT_SSH_ARGS = "-o StrictHostKeyChecking=no";
 
@@ -241,18 +245,17 @@ my $USAGE = "Usage:
           preBashCommand=PRE_BASH_COMMAND
 
       CONF:
-        ipmagic config file
-          -can be either a full path to a file, or a <CONFNAME>
-          -<CONFNAME> must start with a letter or number,
-             and consist only of letters, numbers, underscores, and hypens
-          -if <CONFNAME> is given, use:
+        -ipmagic config file <CONFNAME>
+          -must start with a letter or number
+          -must consist only of letters, numbers, underscores, and hypens
+        -valid <CONFNAMES>:"
+          . join('',
+              map {"\n          " . join(" ", @$_)}
+              chunkArr(5, @CONF_NAMES)
+            )
+          . "
+        -use CONF_FILE:
             \"$CONF_DIR/<CONFNAME>.conf\"
-          -valid <CONFNAMES>:"
-            . join('',
-                map {"\n            " . join(" ", @$_)}
-                chunkArr(5, @CONF_NAMES)
-              )
-            . "
 
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
@@ -345,6 +348,9 @@ sub main(@){
       $opts{cmd} = $CMD_LIST;
     }elsif($arg =~ /^(--get-ipmagic-name)$/){
       $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
+    }elsif($arg =~ /^($REGEX_EXISTING_CONF_NAMES)$/){
+      die "$USAGE\nERROR: CONF_NAME already defined\n" if defined $opts{conf};
+      $opts{conf} = $arg;
     }elsif($arg =~ /^(--init)$/){
       $opts{cmd} = $CMD_INIT;
     }elsif($arg =~ /^(--host)$/){
@@ -413,8 +419,6 @@ sub main(@){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, split /\s+/, $sshArgsStr];
     }elsif($arg =~ /^(--pty)$/){
       $opts{extraSSHArgs} = [@{$opts{extraSSHArgs}}, "-t", "-t"];
-    }elsif(not defined $opts{conf}){
-      $opts{conf} = $arg;
     }elsif(defined $opts{conf} and not defined $opts{cmd}){
       $opts{cmd} = $CMD_SSH;
       $opts{wrapBashCmd} = 1;
@@ -438,11 +442,10 @@ sub main(@){
     }
 
     $conf = $opts{conf};
-    if($conf =~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
-      $confFile = absolutePath "$CONF_DIR/$conf.conf";
-    }else{
-      $confFile = absolutePath $conf;
+    if($conf !~ /^[a-zA-Z0-9][a-zA-Z0-9_\-]*$/){
+      die "$USAGE\nERROR: unknown CONF_NAME $conf\n  one of: $REGEX_EXISTING_CONF_NAMES\n";
     }
+    $confFile = absolutePath "$CONF_DIR/$conf.conf";
 
     die "$USAGE\nERROR: Could not parse conf $conf\n" if not defined $confFile;
     die "$USAGE\nERROR: \"$confFile\" is not a file\n" if not -f $confFile;
