@@ -8,7 +8,7 @@ sub absolutePath($);
 sub assertBool($);
 sub assertIP($);
 sub assertMac($);
-sub fingerprint($);
+sub fingerprint($$);
 sub ensureFingerprint($$);
 sub getConfNameFromConfFile($);
 sub getConfFilesSymlinksLast();
@@ -662,10 +662,10 @@ sub assertMac($){
   }
 }
 
-sub fingerprint($){
-  my $host = shift;
-  my $key = `ssh-keygen -l -F $host`;
-  if($key =~ /# Host $host found: line \d+ type \w+\n\d+ ([0-9a-f:]+)/s){
+sub fingerprint($$){
+  my ($host, $algorithm) = @_;
+  my $key = `ssh-keygen -l -E sha256 -F $host`;
+  if($key =~ /^$host $algorithm SHA256:(.+)$/m){
     return $1;
   }else{
     return undef;
@@ -674,12 +674,14 @@ sub fingerprint($){
 
 sub ensureFingerprint($$){
   my ($hostname, $ip) = @_;
-  my $hnFp = fingerprint $hostname;
-  my $ipFp = fingerprint $ip;
-  if(defined $ipFp and (not defined $hnFp or $hnFp ne $ipFp)){
-    print "WARNING: Fingerprints differ for $hostname and $ip\n";
-    print "removing known_hosts entry for $ip\n";
-    system "ssh-keygen", "-R", $ip;
+  for my $algorithm(qw(ED25519 ECDSA RSA)){
+    my $hnFp = fingerprint $hostname, $algorithm;
+    my $ipFp = fingerprint $ip, $algorithm;
+    if(defined $ipFp and (not defined $hnFp or $hnFp ne $ipFp)){
+      print "WARNING: $algorithm fingerprints differ for $hostname and $ip\n";
+      print "removing known_hosts entry for $ip\n";
+      system "ssh-keygen", "-R", $ip;
+    }
   }
 }
 
