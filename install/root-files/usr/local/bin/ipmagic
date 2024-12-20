@@ -32,6 +32,7 @@ sub guess($$);
 sub isEqual($$);
 sub iwParseDevInfo();
 sub whichExec($$);
+sub chunkArr($@);
 
 my $EXEC_IFCONFIG = whichExec("ifconfig", ["/sbin/ifconfig"]);
 my $EXEC_IW = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
@@ -246,8 +247,12 @@ my $USAGE = "Usage:
              and consist only of letters, numbers, underscores, and hypens
           -if <CONFNAME> is given, use:
             \"$CONF_DIR/<CONFNAME>.conf\"
-          -valid <CONFNAMES>:
-            @CONF_NAMES
+          -valid <CONFNAMES>:"
+            . join('',
+                map {"\n            " . join(" ", @$_)}
+                chunkArr(5, @CONF_NAMES)
+              )
+            . "
 
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
@@ -1130,6 +1135,24 @@ sub whichExec($$){
   }else{
     return undef;
   }
+}
+
+sub chunkArr($@){
+  my ($chunkSize, @items) = @_;
+  die "ERROR: invalid chunk size $chunkSize\n" if $chunkSize < 1;
+  my @arrs;
+  my $curArr;
+  for my $item(@items){
+    if(not defined $curArr){
+      $curArr = [];
+      push @arrs, $curArr;
+    }
+    push @$curArr, $item;
+    if(@$curArr >= $chunkSize){
+      $curArr = undef;
+    }
+  }
+  return @arrs;
 }
 
 &main(@ARGV);
