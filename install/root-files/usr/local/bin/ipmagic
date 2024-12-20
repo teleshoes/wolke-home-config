@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub sudoInitConfHosts($$$);
 sub determineConfIP($$$);
 sub absolutePath($);
 sub assertBool($);
@@ -510,17 +511,11 @@ sub main(@){
     $ip = $opts{ip} if defined $opts{ip};
     writeTmpFile $confFile, $ip;
   }elsif($opts{cmd} eq $CMD_INIT){
-    my $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-    die "ERROR: no IP found\n" if not defined $ip;
-    ensureFingerprint($config{hostname}, $ip);
+    my $ip = sudoInitConfHosts(\%config, \%opts, $confFile);
 
     print "$config{hostname}\n";
   }elsif($opts{cmd} eq $CMD_SSH){
-    my $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-    die "ERROR: no IP found\n" if not defined $ip;
-    ensureFingerprint($config{hostname}, $ip);
+    my $ip = sudoInitConfHosts(\%config, \%opts, $confFile);
 
     my @sshCmdArgs = @{$opts{sshCmdArgs}};
     if(@sshCmdArgs == 0 and defined $config{defaultSSHCommand}){
@@ -564,10 +559,7 @@ sub main(@){
     print "@sshCmd\n" if $opts{verbose};
     exec @sshCmd;
   }elsif($opts{cmd} eq $CMD_VNC){
-    my $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-    die "ERROR: no IP found\n" if not defined $ip;
-    ensureFingerprint($config{hostname}, $ip);
+    my $ip = sudoInitConfHosts(\%config, \%opts, $confFile);
 
     my $vncCmd;
     if(defined $config{vncCommand}){
@@ -583,10 +575,7 @@ sub main(@){
     print "$vncCmd\n" if $opts{verbose};
     exec $vncCmd;
   }elsif($opts{cmd} eq $CMD_SYNC){
-    my $ip = determineConfIP(\%config, \%opts, $confFile);
-    sudoSetHostsIP $config{hostname}, $ip;
-    die "ERROR: no IP found\n" if not defined $ip;
-    ensureFingerprint($config{hostname}, $ip);
+    my $ip = sudoInitConfHosts(\%config, \%opts, $confFile);
 
     my @sshArgs;
     if(defined $config{sshArgs}){
@@ -626,6 +615,17 @@ sub main(@){
   }else{
     die "ERROR: unknown command $opts{cmd}\n";
   }
+}
+
+sub sudoInitConfHosts($$$){
+  my ($config, $opts, $confFile) = @_;
+
+  my $ip = determineConfIP($config, $opts, $confFile);
+  sudoSetHostsIP $$config{hostname}, $ip;
+  die "ERROR: no IP found\n" if not defined $ip;
+  ensureFingerprint($$config{hostname}, $ip);
+
+  return $ip;
 }
 
 sub determineConfIP($$$){
