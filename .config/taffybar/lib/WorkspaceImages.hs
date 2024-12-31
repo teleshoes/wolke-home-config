@@ -110,7 +110,7 @@ getOverrideIconName winTitle winClass
   | winTitle == "ddr-ui"                        = Just "ddr-arrow-gray"
   | winTitle == "Project OutFox"                = Just "stepmania"
   | otherwise = Nothing
-  where ffPage s pageName = s `startsWith` pageName && s `endsWith` "MozillaFirefox"
+  where ffPage s pageName = s `startsWith` pageName && s `endsWith` "Mozilla Firefox"
         dotClass = classJoinDot winClass
 
 getTitleClassIconName :: IconInitialState -> String -> String -> Maybe IconName
