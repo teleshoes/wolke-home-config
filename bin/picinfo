@@ -9,6 +9,14 @@ my $EXEC = basename $0;
 my $FEH_EXEC = "/usr/bin/feh";
 my @FEH_ARGS = qw(--scale-down);
 
+my $MPV_EXEC = "mpv";
+my @MPV_ARGS = qw(--title=xmonad-float);
+
+my @EXTS_VIDEO = qw(
+  avi flv m2ts mkv mov mp4 mpv mpeg mpg mts webm wmv
+);
+my $REGEX_EXTS_VIDEO = join "|", @EXTS_VIDEO;
+
 sub nowMills();
 
 my $USAGE = "Usage:
@@ -24,7 +32,10 @@ my $USAGE = "Usage:
     -for each FILE:
       -run: focus-lock --lock
       -fork and as child:
-         $FEH_EXEC @FEH_ARGS -g VIEWER_GEOMETRY FILE
+         -if FILE extension is one of: @EXTS_VIDEO
+           -run: $MPV_EXEC @MPV_ARGS --geometry=VIEWER_GEOMETRY FILE
+         -otherwise
+           -run: $FEH_EXEC @FEH_ARGS -g VIEWER_GEOMETRY FILE
       -read one line of INPUT from terminal
       -focus-lock --unlock
       -kill child process
@@ -85,7 +96,11 @@ sub main(@){
       open STDOUT, "/dev/null";
       open STDERR, "/dev/null";
       open STDIN, "/dev/null";
-      exec $FEH_EXEC, @FEH_ARGS, "-g", $geometry, $file;
+      if($file =~ /\.($REGEX_EXTS_VIDEO)$/i){
+        exec "mpv", @MPV_ARGS, "--geometry=$geometry", $file;
+      }else{
+        exec $FEH_EXEC, @FEH_ARGS, "-g", $geometry, $file;
+      }
     }
 
     print "$file: ";
