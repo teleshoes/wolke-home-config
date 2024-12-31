@@ -33,9 +33,9 @@ my $USAGE = "Usage:
       -run: focus-lock --lock
       -fork and as child:
          -if FILE extension is one of: @EXTS_VIDEO
-           -run: $MPV_EXEC @MPV_ARGS --geometry=VIEWER_GEOMETRY FILE
+           -run: $MPV_EXEC @MPV_ARGS EXTRA_ARG_STR --geometry=VIEWER_GEOMETRY FILE
          -otherwise
-           -run: $FEH_EXEC @FEH_ARGS -g VIEWER_GEOMETRY FILE
+           -run: $FEH_EXEC @FEH_ARGS EXTRA_ARG_STR -g VIEWER_GEOMETRY FILE
       -read one line of INPUT from terminal
       -focus-lock --unlock
       -kill child process
@@ -49,12 +49,16 @@ my $USAGE = "Usage:
 
     -g VIEWER_GEOMETRY
       pass VIEWER_GEOMETRY instead of calculating with DISPLAY_HEIGHT_PX
+
+    --args EXTRA_ARG_STR | --args=EXTRA_ARG_STR
+      split ARG_STRING at whitespace and pass to feh or mpv
 ";
 
 sub main(@){
   my @files;
   my $outFile;
   my $geometry;
+  my @extraArgs;
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
@@ -64,6 +68,12 @@ sub main(@){
       $outFile = shift @_;
     }elsif($arg =~ /^(-g)$/ and @_ > 0){
       $geometry = shift @_;
+    }elsif($arg =~ /^(--args)$/ and @_ > 0){
+      my $argString = shift @_;
+      @extraArgs = (@extraArgs, split(/\s+/, $argString));
+    }elsif($arg =~ /^--args=(.+)$/){
+      my $argString = $1;
+      @extraArgs = (@extraArgs, split(/\s+/, $argString));
     }elsif(-f $arg){
       push @files, $arg;
     }else{
@@ -97,9 +107,9 @@ sub main(@){
       open STDERR, "/dev/null";
       open STDIN, "/dev/null";
       if($file =~ /\.($REGEX_EXTS_VIDEO)$/i){
-        exec "mpv", @MPV_ARGS, "--geometry=$geometry", $file;
+        exec "mpv", @MPV_ARGS, @extraArgs, "--geometry=$geometry", $file;
       }else{
-        exec $FEH_EXEC, @FEH_ARGS, "-g", $geometry, $file;
+        exec $FEH_EXEC, @FEH_ARGS, @extraArgs, "-g", $geometry, $file;
       }
     }
 
