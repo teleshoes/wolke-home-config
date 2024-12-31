@@ -96,6 +96,7 @@ getOverrideIconName winTitle winClass
   | null winTitle && null winClass              = Just "blank"
   | winTitle == "..." && winClass == "..."      = Just "blank"
   | winTitle `ffPage` "Riot"                    = Just "riot"
+  | winTitle `ffPage` "Element"                 = Just "riot"
   | winTitle `ffPage` "Google Hangouts"         = Just "googlehangouts"
   | winTitle `ffPage` "escribe"                 = Just "escribe"
   | winTitle `endsWith` " - VIM"                = Just "vim"
