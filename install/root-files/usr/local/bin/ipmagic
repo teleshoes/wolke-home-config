@@ -57,12 +57,12 @@ my $DEFAULT_SSH_EXEC = "ssh";
 
 my $DEFAULT_PRE_BASH_COMMAND = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
-my $OK_METHODS = join "|", qw(any tmp usb wifi guess);
-
 my $METHOD_TMP = "tmp";
 my $METHOD_USB = "usb";
 my $METHOD_WIFI = "wifi";
 my $METHOD_GUESS = "guess";
+
+my @DEFAULT_METHODS = ($METHOD_TMP, $METHOD_USB, $METHOD_WIFI, $METHOD_GUESS);
 
 my $REGEX_BYTE = "[0-9a-fA-F]{2}";
 my $REGEX_MAC = join ":", ($REGEX_BYTE) x 6;
@@ -303,8 +303,9 @@ my $USAGE = "Usage:
       OPTS:
         -v|--verbose        print every little thing that springs to our mouths
         -u|--user USER      ssh user
-        -m|--method METHOD  method of obtaining IP
-                            one of [$OK_METHODS]  {default is 'any'}
+        -m|--method METHODS ordered CSV list of method for obtaining IP
+                            each entry must be one of: @DEFAULT_METHODS
+                            {default is '" . join(",", @DEFAULT_METHODS) . "'}
         -n|--no-guess-ping  do not check guess IP, assume success
         -g|--guess          same as '--method guess --no-guess-ping'
         -r|--retry RETRIES  retry up to <RETRIES> times when no IP found
@@ -361,7 +362,7 @@ sub main(@){
     wrapBashCmd   => 0,
     verbose       => 0,
     user          => undef,
-    method        => 'any',
+    methods       => [@DEFAULT_METHODS],
     no_guess_ping => 0,
     retries       => $DEFAULT_RETRIES,
     sshExec       => $DEFAULT_SSH_EXEC,
@@ -444,12 +445,12 @@ sub main(@){
     }elsif($arg =~ /^(-u|--user)$/ and @_ >= 1){
       $opts{user} = shift @_;
     }elsif($arg =~ /^(-m|--method)$/ and @_ >= 1){
-      $opts{method} = shift @_;
-      die "ERROR: invalid method=$opts{method}\n" if $opts{method} !~ /^($OK_METHODS)$/;
+      my $methodCsv = shift @_;
+      $opts{methods} = [split(",", $methodCsv)];
     }elsif($arg =~ /^(-n|--no-guess-ping)$/){
       $opts{no_guess_ping} = 1;
     }elsif($arg =~ /^(-g|--guess)$/){
-      $opts{method} = "guess";
+      $opts{methods} = [$METHOD_GUESS];
       $opts{no_guess_ping} = 1;
     }elsif($arg =~ /^(-r|--retry)$/ and @_ >= 1 and $_[0] =~ /^\d+$/){
       $opts{retries} = shift @_;
@@ -685,21 +686,21 @@ sub determineConfIP($$$){
 
   my $attempts = 1 + $$opts{retries};
 
-  my ($ip, $method);
+  my $ip;
   while(not defined $ip and $attempts > 0){
-    if(not defined $ip and $$opts{method} =~ /^(any|tmp)$/){
-      ($ip, $method) = (readTmpFile($confFile), 'tmp');
+    for my $method(@{$$opts{methods}}){
+      if($method eq $METHOD_TMP){
+        $ip = readTmpFile($confFile);
+      }elsif($method eq $METHOD_USB){
+        $ip = usb($config, $opts);
+      }elsif($method eq $METHOD_WIFI){
+        $ip = wifi($config, $opts);
+      }elsif($method eq $METHOD_GUESS){
+        $ip = guess($config, $opts);
+      }else{
+        die "ERROR: unknown method $method\n";
+      }
     }
-    if(not defined $ip and $$opts{method} =~ /^(any|usb)$/){
-      ($ip, $method) = (usb($config, $opts), 'usb');
-    }
-    if(not defined $ip and $$opts{method} =~ /^(any|wifi)$/){
-      ($ip, $method) = (wifi($config, $opts), 'wifi');
-    }
-    if(not defined $ip and $$opts{method} =~ /^(any|guess)$/){
-      ($ip, $method) = (guess($config, $opts), 'guess');
-    }
-    $method = undef if not defined $ip;
 
     $attempts--;
     if(not defined $ip and $attempts > 0){
