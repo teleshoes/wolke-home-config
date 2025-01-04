@@ -37,6 +37,7 @@ sub chunkArr($@);
 
 my $EXEC_IFCONFIG = whichExec("ifconfig", ["/sbin/ifconfig"]);
 my $EXEC_IW = whichExec("iw", ["/sbin/iw", "/usr/sbin/iw"]);
+my $EXEC_UDEVADM = whichExec("udevadm", ["/usr/bin/udevadm"]);
 my $EXEC_HOSTNAME = whichExec("hostname", ["/bin/hostname"]);
 
 my $REGEX_FORMAT_IPMAGIC_NAME = '[a-zA-Z0-9][a-zA-Z0-9_\-]*';
@@ -1095,7 +1096,14 @@ sub guess($$){
 
 sub getUsbNetworkDevices(){
   my $ifconfig = `$EXEC_IFCONFIG -a`;
-  my @usbNetworkDevices = $ifconfig =~ /^(usb\d+):/mg;
+  my @devs = $ifconfig =~ /^(\w+):/mg;
+  my @usbNetworkDevices;
+  for my $dev(@devs){
+    my $udevInfo = `$EXEC_UDEVADM info /sys/class/net/$dev`;
+    if($udevInfo =~ /ID_BUS=usb/){
+      push @usbNetworkDevices, $dev;
+    }
+  }
   return @usbNetworkDevices;
 }
 
