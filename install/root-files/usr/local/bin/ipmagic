@@ -29,6 +29,7 @@ sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
 sub guess($$);
+sub getUsbNetworkDevices();
 sub isEqual($$);
 sub iwParseDevInfo();
 sub whichExec($$);
@@ -985,11 +986,13 @@ sub usb($$){
   my $localIp = $config{usbLocalIp};
   my $remoteIp = $config{usbRemoteIp};
 
+  my @usbNetworkDevices = getUsbNetworkDevices();
 
-  my $ifconfig = `$EXEC_IFCONFIG -a`;
-  if($ifconfig =~ /^(usb\d+):/m){
-    my $dev = $1;
-    $ifconfig = `$EXEC_IFCONFIG $dev`;
+  #use the first usb network interface device
+  my $dev = $usbNetworkDevices[0] if @usbNetworkDevices > 0;
+
+  if(defined $dev){
+    my $ifconfig = `$EXEC_IFCONFIG $dev`;
     if($ifconfig !~ /inet (addr:)?$localIp/){
       print STDERR "USB DEVICE UP\n";
       sudoIfup $dev, $localIp;
@@ -1088,6 +1091,12 @@ sub guess($$){
   }
 
   return undef;
+}
+
+sub getUsbNetworkDevices(){
+  my $ifconfig = `$EXEC_IFCONFIG -a`;
+  my @usbNetworkDevices = $ifconfig =~ /^(usb\d+):/mg;
+  return @usbNetworkDevices;
 }
 
 sub isEqual($$){
