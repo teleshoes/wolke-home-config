@@ -59,6 +59,11 @@ my $DEFAULT_PRE_BASH_COMMAND = '[ -f ~/.bashrc ] && . ~/.bashrc';
 
 my $OK_METHODS = join "|", qw(any tmp usb wifi guess);
 
+my $METHOD_TMP = "tmp";
+my $METHOD_USB = "usb";
+my $METHOD_WIFI = "wifi";
+my $METHOD_GUESS = "guess";
+
 my $REGEX_BYTE = "[0-9a-fA-F]{2}";
 my $REGEX_MAC = join ":", ($REGEX_BYTE) x 6;
 my $REGEX_IP = "\\d+\\.\\d+\\.\\d+\\.\\d+";
@@ -127,7 +132,41 @@ my $USAGE = "Usage:
       print each CONF ipGuess, one per line, and exit, doing nothing else
 
     $EXEC IPMAGIC_NAME [OPTS] --ip
-      setup method, print the IP, and exit {dont set up hosts}
+      -get IP_ADDRESS using the following methods, in order, until an IP is obtained:
+        -method=$METHOD_TMP
+          -if TMP_FILE set by '$EXEC --tmp IP' exists:
+            -use IP_ADDRESS=`cat TMP_FILE`
+        -method=$METHOD_USB
+          -if USB_LOCAL_IP and USB_REMOTE_IP are both set in conf:
+            -list network interfaces with udev ID_BUS=usb
+            -select the first USB_DEV
+            -if USB_DEV exists:
+              -if network IP address is not set or is not USB_LOCAL_IP:
+                -run: sudo $EXEC --ifup USB_DEV USB_LOCAL_IP
+              -use IP_ADDRESS=USB_REMOTE_IP
+        -method=$METHOD_WIFI
+          -fetch the current SSID and WIFI_MAC using `$EXEC_IW dev`
+            -if WIFI_MAC is not found:
+              -get GATEWAY for 0.0.0.0 using `route -n`
+              -get HW_ADDRESS for GATEWAY using `arp -n GATEWAY`
+              -use WIFI_MAC=HW_ADDRESS
+          -check all MAC_IP_ENTRY_MAC::MAC_IP_ENTRY_IP entries:
+            -if an entry exists with MAC_IP_ENTRY_MAC matching WIFI_MAC:
+              -use IP_ADDRESS=MAC_IP_ENTRY_IP
+          -check all SSID_IP_ENTRY_SSID::SSID_IP_ENTRY_IP entries:
+            -if an entry exists with SSID_IP_ENTRY_SSID matching SSID, case-insensitive:
+              -use IP_ADDRESS=SSID_IP_ENTRY_IP
+        -method=$METHOD_GUESS
+          -fetch all IP_GUESS_ENTRIES
+          -if HOSTNAME has been set as in --set-hosts or --init:
+            -add current hosts IP address for HOSTNAME to list of IP_GUESS_ENTRIES
+          -for each IP_GUESS in IP_GUESS_ENTRIES:
+            -attempt to ping each IP_GUESS (skip if --no-guess-ping)
+            -if ping is successful or skipped:
+              -use IP_ADDRESS=IP_GUESS
+      -if no IP_ADDRESS is found, sleep for 1s and repeat, up to RETRIES times
+        (default=$DEFAULT_RETRIES)
+      -print IP_ADDRESS (do not set up hosts)
 
     $EXEC IPMAGIC_NAME -k|--key-remove|--keygen-remove|--ssh-keygen-remove
       remove keys from known_hosts for HOSTNAME and IP
