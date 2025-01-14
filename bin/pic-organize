@@ -1,0 +1,227 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Cwd qw(abs_path);
+use Date::Format qw(time2str);
+use Date::Parse qw(str2time);
+use File::Basename qw(basename dirname);
+use Time::HiRes qw(time);
+
+sub findDirFiles($);
+sub dedupeArr(@);
+sub filenameTime($);
+sub mtime($);
+sub nowMillis();
+sub run(@);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] PATH [PATH PATH ..]
+    -extract list of <FILE>s from each <PATH>
+      -if <PATH> is a dir, recursively add all files at or below
+      -if <PATH> is a file, add that file
+      -extract full, absolute paths of each file as <FILE>
+      -de-duplicate <FILE> list
+    -calculate the <PARENT_DIR>
+      -take the longest common prefix of each <FILE> that ends in '/'
+      -remove the trailing '/'
+    -for each <FILE>, validate mtime vs filename and calculate <DAY_BUCKET>:
+      -obtain <MTIME>
+      -obtain <FILENAME_TIME>
+        -if <FILE_NAME> contains 'YYYYMMDD_HHMMSS', extract it as a time in the current timezone
+      -ensure that <MTIME> is within one hour of <FILENAME_TIME>
+        -if not, fail with an error for that <FILE>
+      -calculate <DAY_BUCKET>, treating times before 5:00am as the previous day
+        -calculate <TARGET_TIME> as <MTIME> minus five hours
+        -format <TARGET_TIME> as YYYY-MM-DD in the current time zone
+        -e.g.: '2019-02-06T03:04:08-05:00'   =>  '2019-02-05'
+    -calculate <LOG_FILE> as './$EXEC-<CURRENT_TIME_MILLIS>.log'
+    -for each <FILE>, move to a subdir based on <DAY_BUCKET>
+      -extract <BASE_FILENAME> from <FILE> with `basename`
+      -calculate <TARGET_DIR> as '<PARENT_DIR>/<DAY_BUCKET>'
+      -calculate <NEW_FILE_PATH> as '<TARGET_DIR>/<BASE_FILENAME>'
+      -create dir and move file (unless --simulate is given):
+        -ensure <TARGET_DIR> exists, creating as necessary with:
+          -`mkdir -p <TARGET_DIR>`
+        -move <FILE> to <TARGET_DIR> with:
+          -`mv --no-clobber <FILE> <TARGET_DIR>/<FILE>`
+        -write to <LOG_FILE>:
+          <FILE> ::: <NEW_FILE_PATH>
+
+  OPTS
+    -s | -n | --simulate | --no-act | --dry-run
+      -never run any 'mv' commands
+      -print 'mv' commands prefixed with '#'
+      -do not create any dirs
+      -do not write to <LOG_FILE>
+";
+
+
+sub main(@){
+  my @files;
+  my $opts = {
+    simulate => 0,
+  };
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--dry-run)$/){
+      $$opts{simulate} = 1;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }elsif(-d $arg){
+      @files = (@files, findDirFiles($arg));
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  @files = map {abs_path $_} @files;
+  @files = dedupeArr(@files);
+
+  my %mtimes;
+  for my $file(@files){
+    my $mtime = mtime($file);
+    my $filenameTime = filenameTime($file);
+    if(not defined $filenameTime){
+      die "ERROR: $file does not contain YYYYmmdd_HHMMSS\n";
+    }
+
+    my $diff = $mtime - $filenameTime;
+    $diff = 0 - $diff if $diff < 0;
+    if($diff > 3600){
+      die "ERROR: '$file' mtime and filename time more than 3600s apart\n";
+    }
+
+    $mtimes{$file} = $mtime;
+  }
+
+  my $parentDir = getCommonParentDir(@files);
+
+  my $nowMillis = nowMillis();
+  my $logFile = "./$EXEC-$nowMillis.log";
+  my $logFH = undef;
+  if(not $$opts{simulate}){
+    open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
+  }
+
+  for my $file(@files){
+    my $targetTime = $mtimes{$file} - (4*60*60);
+    my $dayBucket = time2str("%Y-%m-%d", $targetTime);
+
+    my $targetDir = "$parentDir/$dayBucket";
+
+    my $baseFilename = basename $file;
+    my $newFile = "$targetDir/$baseFilename";
+
+    if($file eq $newFile){
+      print "  #skip $file\n";
+      next;
+    }
+
+    if(-e $newFile){
+      die "ERROR: $newFile already exists\n";
+    }
+
+    my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
+    if($$opts{simulate}){
+      print "#@mvCmd\n";
+    }else{
+      run "mkdir", "-p", $targetDir if not -d $targetDir;
+      die "ERROR: missing $targetDir\n" if not -d $targetDir;
+      run @mvCmd;
+      if(-e $file || not -e $newFile){
+        die "ERROR: @mvCmd failed\n";
+      }
+      print $logFH "$file ::: $newFile\n";
+    }
+  }
+
+  close $logFH if defined $logFH;
+}
+
+sub findDirFiles($){
+  my ($dir) = @_;
+  $dir =~ s/\/$//g;
+  $dir = "$dir/";
+  my @findCmd = ("find", $dir, "-type", "f");
+  open my $cmdH, "-|", @findCmd
+    or die "ERROR: '@findCmd' failed\n";
+  my @outFiles = <$cmdH>;
+  close $cmdH;
+  my @files;
+  for my $file(@outFiles){
+    chomp $file;
+    if(-f $file){
+      push @files, $file;
+    }else{
+      die "ERROR: failed to parse output of '@findCmd':\n  $file\n";
+    }
+  }
+  return @files;
+}
+
+sub getCommonParentDir(@){
+  my @files = @_;
+  my $dir = undef;
+  for my $file(@files){
+    $dir = dirname $file if not defined $dir;
+    while($file !~ /^\Q$dir\E/){
+      my $oldDir = $dir;
+      $dir = dirname $oldDir;
+      if($dir eq $oldDir){
+        last;
+      }
+    }
+    if($file !~ /^\Q$dir\E/){
+      die "ERROR: could not extract common subdir for $file\n";
+    }
+  }
+  return $dir;
+}
+
+sub dedupeArr(@){
+  my @arr = @_;
+  my %seen;
+  my @newArr;
+  for my $elem(@arr){
+    next if $seen{$elem};
+    push @newArr, $elem;
+    $seen{$elem} = 1;
+  }
+  return @newArr;
+}
+
+sub filenameTime($){
+  my ($file) = @_;
+  my $boundary = '(?:^|$|[^0-9a-zA-Z])'; #start or end or non-alphanumeric
+  if($file =~ /$boundary(\d\d\d\d-?\d\d-?\d\d)_(\d\d-?\d\d-?\d\d)$boundary/){
+    my ($ymd, $hms) = ($1, $2);
+    return str2time("$ymd $hms", "YYYYmmdd HHMMSS");
+  }else{
+    return undef;
+  }
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
+}
+
+sub nowMillis(){
+  return int(time*1000.0 + 0.5)
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
