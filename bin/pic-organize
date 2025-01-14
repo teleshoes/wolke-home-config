@@ -20,7 +20,8 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC [OPTS] PATH [PATH PATH ..]
+  $EXEC        [OPTS] PATH [PATH PATH ..]
+  $EXEC --move [OPTS] PATH [PATH PATH ..]
     -extract list of <FILE>s from each <PATH>
       -if <PATH> is a dir, recursively add all files at or below
       -if <PATH> is a file, add that file
@@ -60,9 +61,11 @@ my $USAGE = "Usage:
       -do not write to <LOG_FILE>
 ";
 
+my $MODE_MOVE = "move";
 
 sub main(@){
   my @files;
+  my $mode = $MODE_MOVE;
   my $opts = {
     simulate => 0,
   };
@@ -71,6 +74,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--move)$/){
+      $mode = $MODE_MOVE;
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--dry-run)$/){
       $$opts{simulate} = 1;
     }elsif(-f $arg){
@@ -85,6 +90,15 @@ sub main(@){
   @files = map {abs_path $_} @files;
   @files = dedupeArr(@files);
 
+  if($mode eq $MODE_MOVE){
+    moveFiles($opts, @files);
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub moveFiles($@){
+  my ($opts, @files) = @_;
   my %mtimes;
   for my $file(@files){
     my $mtime = mtime($file);
