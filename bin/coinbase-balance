@@ -13,15 +13,17 @@ my $API_HOST = "api.coinbase.com";
 my $API_VERSION = "2017-12-12";
 my $CACHE_BASE_DIR = "$ENV{HOME}/.cache/coinbase";
 my $CACHE_ACCOUNTS_JSON_DIR = "$CACHE_BASE_DIR/json-accounts";
-my $CACHE_TRANSACTIONS_DIR = "$CACHE_BASE_DIR/transactions";
+my $CACHE_TRANSACTIONS_JSON_DIR_PREFIX = "$CACHE_BASE_DIR/json-transactions-";
 my $URL_EXCHANGE_RATE = "https://$API_HOST/v2/exchange-rates?currency=BTC";
 
 sub fetchBTCToUSDExchangeRate();
 sub fetchAccountInfo($$);
-sub fetchBTCAccountID($$);
+sub fetchWalletID($$$);
 sub callCoinbaseAPI($$$);
 sub createJWT($$$);
-sub readBTCBalanceCache();
+sub readBalanceCache($);
+sub readTransactionsCache($);
+sub writeTransactionsCache($$);
 sub readLatestCacheValue($);
 sub writeCacheValue($$);
 sub readBTCBalanceCache();
@@ -40,11 +42,11 @@ my $usage = "Usage:
     -print balance in USD and BTC
 
   $EXEC [OPTS] -t | --transactions
-    -format and print all cached transactions, one per line
+    -format and print all cached BTC transactions, one per line
 
   $EXEC [OPTS] -f | --fetch
     -fetch and cache account info (BTC balance/etc) with API using key+secret
-    -fetch transactions with API using key+secret
+    -fetch BTC transactions with API using key+secret
 
   OPTS
     --btc | --no-usd
@@ -80,7 +82,7 @@ sub main(@){
   }
 
   if($command eq $COMMAND_BALANCE){
-    my $btcBalance = readBTCBalanceCache();
+    my $btcBalance = readBalanceCache("BTC");
     die "ERROR: failed to read BTC balance cache\n" if not defined $btcBalance;
 
     if($$opts{btcOnly}){
@@ -94,11 +96,12 @@ sub main(@){
         . "  (1 BTC = %.2f USD)\n",
         $usdBalance,
         $btcBalance,
-        $exRate;
+        $exRate,
+      ;
     }
   }elsif($command eq $COMMAND_TRANSACTIONS){
-    my $transactionsJSON = readLatestCacheValue($CACHE_TRANSACTIONS_DIR);
-    die "ERROR: failed to read transactions JSON cache\n" if not defined $transactionsJSON;
+    my $transactionsJSON = readTransactionsCache("BTC");
+    die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $transactionsJSON;
 
     my @transactions = parseTransactionsJSON($transactionsJSON);
     for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
@@ -118,21 +121,22 @@ sub main(@){
     }
   }elsif($command eq $COMMAND_FETCH){
     my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
+    my $json;
 
     print "caching account info (BTC balance/etc)\n";
-    my $json = fetchAccountInfo($keyID, $keySecret);
+    $json = fetchAccountInfo($keyID, $keySecret);
     if(defined $json and $json =~ /"currency":"BTC"/){
       writeCacheValue($CACHE_ACCOUNTS_JSON_DIR, $json);
     }else{
       die "ERROR: cache failed, missing/malformed BTC balance\n$json\n";
     }
 
-    print "caching transactions JSON..\n";
-    my $transactionsJSON = fetchBTCTransactions($keyID, $keySecret);
-    if(defined $transactionsJSON and $transactionsJSON =~ /"data"/){
-      writeCacheValue($CACHE_TRANSACTIONS_DIR, $transactionsJSON);
+    print "caching BTC transactions JSON\n";
+    $json = fetchTransactions("BTC", $keyID, $keySecret);
+    if(defined $json and $json =~ /"data"/){
+      writeTransactionsCache("BTC", $json);
     }else{
-      die "ERROR: missing/malformed transactions JSON\n$transactionsJSON\n";
+      die "ERROR: missing/malformed BTC transactions JSON\n$json\n";
     }
   }else{
     die "ERROR: unknown command $command\n";
@@ -155,21 +159,21 @@ sub fetchAccountInfo($$){
   return $out;
 }
 
-sub fetchBTCAccountID($$){
-  my ($keyID, $keySecret) = @_;
+sub fetchWalletID($$$){
+  my ($currency, $keyID, $keySecret) = @_;
   my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts");
   my $uuidRegex = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-  if($out =~ /"id":"($uuidRegex)","name":"BTC Wallet"/){
+  if($out =~ /"id":"($uuidRegex)","name":"$currency Wallet"/){
     return $1;
   }else{
-    die "ERROR: could not parse BTC account ID from coinbase output:\n$out\n";
+    die "ERROR: could not parse $currency wallet ID from coinbase output:\n$out\n";
   }
 }
 
-sub fetchBTCTransactions($$){
-  my ($keyID, $keySecret) = @_;
-  my $accId = fetchBTCAccountID($keyID, $keySecret);
-  my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts/$accId/transactions");
+sub fetchTransactions($$$){
+  my ($currency, $keyID, $keySecret) = @_;
+  my $walletId = fetchWalletID($currency, $keyID, $keySecret);
+  my $out = callCoinbaseAPI($keyID, $keySecret, "/v2/accounts/$walletId/transactions");
   return $out;
 }
 
@@ -295,15 +299,28 @@ sub btcFmt($$){
   return $fmt;
 }
 
-sub readBTCBalanceCache(){
+sub readBalanceCache($){
+  my ($currency) = @_;
   my $acctJSON = readLatestCacheValue($CACHE_ACCOUNTS_JSON_DIR);
   my $balance;
-  if($acctJSON =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"BTC"}/){
+  if($acctJSON =~ /"balance":\{"amount":"(\d*\.\d*)","currency":"$currency"}/){
     $balance = $1;
   }else{
-    die "ERROR: could not parse BTC balance from account info:\n$acctJSON\n";
+    die "ERROR: could not parse $currency balance from account info:\n$acctJSON\n";
   }
   return $balance;
+}
+
+sub readTransactionsCache($){
+  my ($currency) = @_;
+  my $cacheDir = $CACHE_TRANSACTIONS_JSON_DIR_PREFIX . lc($currency);
+  return readLatestCacheValue($cacheDir);
+}
+
+sub writeTransactionsCache($$){
+  my ($currency, $json) = @_;
+  my $cacheDir = $CACHE_TRANSACTIONS_JSON_DIR_PREFIX . lc($currency);
+  writeCacheValue($cacheDir, $json);
 }
 
 sub readLatestCacheValue($){
