@@ -42,6 +42,8 @@ my $usage = "Usage:
     -print BTC balance in USD and BTC
     -print USDC balance
 
+  $EXEC [OPTS] -s | --summary
+
   $EXEC [OPTS] -t | --transactions
     -format and print all cached BTC transactions, one per line
 
@@ -57,6 +59,7 @@ my $usage = "Usage:
 ";
 
 my $COMMAND_BALANCE = "balance";
+my $COMMAND_SUMMARY = "summary";
 my $COMMAND_TRANSACTIONS = "transactions";
 my $COMMAND_FETCH = "fetch";
 
@@ -72,6 +75,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-b|--balance)$/){
       $command = $COMMAND_BALANCE;
+    }elsif($arg =~ /^(-s|--summary)$/){
+      $command = $COMMAND_SUMMARY;
     }elsif($arg =~ /^(-t|--transactions)$/){
       $command = $COMMAND_TRANSACTIONS;
     }elsif($arg =~ /^(-f|--fetch)$/){
@@ -104,6 +109,44 @@ sub main(@){
         $usdcBalance,
       ;
     }
+  }elsif($command eq $COMMAND_SUMMARY){
+    my $transactionsJSON = readTransactionsCache("BTC");
+    die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $transactionsJSON;
+
+    my $btcBalance = readBalanceCache("BTC");
+    die "ERROR: failed to read BTC balance cache\n" if not defined $btcBalance;
+
+    my $exRate = fetchBTCToUSDExchangeRate();
+    my $usdBalance = $btcBalance*$exRate;
+
+    my $usdTotalBtcSell = 0;
+    my $usdTotalBtcSend = 0;
+    my $usdTotalBtcBuy = 0;
+    my $usdTotalFee = 0;
+    my @transactions = parseTransactionsJSON($transactionsJSON);
+    for my $t(@transactions){
+      my $amtUSD = abs($$t{usd});
+      my $feeUSD = abs($$t{fee});
+      if($$t{type} eq "sell"){
+        $usdTotalBtcSell += $amtUSD;
+      }elsif($$t{type} eq "send"){
+        $usdTotalBtcSend += $amtUSD;
+      }elsif($$t{type} eq "buy"){
+        $usdTotalBtcBuy += $amtUSD;
+      }
+      $usdTotalFee += $feeUSD;
+    }
+    my $usdProfit = $usdTotalBtcSell - $usdTotalBtcSend - $usdTotalBtcBuy - $usdTotalFee;
+    print ""
+      . "btc sell:      +" . usdFmt(9, $usdTotalBtcSell) . "\n"
+      . "btc send:      -" . usdFmt(9, $usdTotalBtcSend) . "\n"
+      . "btc buy:       -" . usdFmt(9, $usdTotalBtcBuy) . "\n"
+      . "btc fees:      -" . usdFmt(9, $usdTotalFee) . "\n"
+      . "\n"
+      . "btc profit:     " . usdFmt(9, $usdProfit) . "\n"
+      . "btc balance:    " . usdFmt(9, $usdBalance) . "\n"
+      . "btc profit+bal: " . usdFmt(9, $usdProfit + $usdBalance) . "\n"
+    ;
   }elsif($command eq $COMMAND_TRANSACTIONS){
     my $transactionsJSON = readTransactionsCache("BTC");
     die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $transactionsJSON;
