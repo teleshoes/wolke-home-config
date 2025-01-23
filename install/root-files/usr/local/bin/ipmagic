@@ -23,8 +23,8 @@ sub getTmpFile($);
 sub readTmpFile($);
 sub writeTmpFile($$);
 sub quickPingable($);
-sub ifup($$);
-sub sudoIfup($$);
+sub ifup($$$);
+sub sudoIfup($$$);
 sub getDefaultGatewayMac();
 sub usb($$);
 sub wifi($$);
@@ -515,7 +515,7 @@ sub main(@){
   }elsif($opts{cmd} eq $CMD_ENSURE_FINGERPRINT){
     ensureFingerprint($opts{hostname}, $opts{ip});
   }elsif($opts{cmd} eq $CMD_IFUP){
-    ifup $opts{dev}, $opts{ip};
+    ifup $opts{dev}, $opts{ip}, \%opts;
   }elsif($opts{cmd} eq $CMD_LIST){
     my @ipmagicNames = map {getIpmagicNameFromConfFile($_)} getConfFilesSymlinksLast();
     print "$_\n" foreach @ipmagicNames;
@@ -997,16 +997,20 @@ sub quickPingable($){
   return $? == 0;
 }
 
-sub ifup($$){
-  my ($dev, $ip) = @_;
-  system "$EXEC_IFCONFIG"
+sub ifup($$$){
+  my ($dev, $ip, $opts) = @_;
+  my @cmd = ("$EXEC_IFCONFIG"
     . " $dev $ip netmask 255.255.255.0 up"
     . " > /dev/null"
-    ;
+  );
+  print "@cmd\n" if $$opts{verbose};
+  system @cmd;
 }
-sub sudoIfup($$){
-  my ($dev, $ip) = @_;
-  system "sudo", $0, "--ifup", $dev, $ip;
+sub sudoIfup($$$){
+  my ($dev, $ip, $opts) = @_;
+  my @cmd = ("sudo", $0, "--ifup", $dev, $ip);
+  @cmd = (@cmd, "-v") if $$opts{verbose};
+  system @cmd;
 }
 
 sub getDefaultGatewayMac(){
@@ -1040,7 +1044,7 @@ sub usb($$){
     my $ifconfig = `$EXEC_IFCONFIG $dev`;
     if($ifconfig !~ /inet (addr:)?$localIp/){
       print STDERR "USB DEVICE UP\n";
-      sudoIfup $dev, $localIp;
+      sudoIfup $dev, $localIp, \%opts;
     }
     print "  using USB device $dev\n" if $opts{verbose};
     print "  success!\n" if $opts{verbose};
