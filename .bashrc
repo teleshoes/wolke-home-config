@@ -100,8 +100,8 @@ if [[ -z "$DISPLAY" ]]; then
     *                         ) h="@$host_alias" ;;
   esac
 
-  #set DISPLAY using who (probably ":0")
-  export DISPLAY=`display-guess`
+  #set DISPLAY to the likely default
+  export DISPLAY=:0
 else
   #if display was set, you probably know where you are
   h=""
