@@ -170,6 +170,22 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] DEVICE [DEVICE ..]
   $EXEC [OPTS] -t|--toggle|toggle DEVICE [DEVICE ..]
+    same as: $EXEC [OPTS] --toggle-async DEVICE DEVICE ..
+
+  $EXEC [OPTS] --toggle-sync|--toggle-slow DEVICE [DEVICE ..]
+    toggle devices with 'POWER' and 'POWER ON'/'POWER OFF' commands
+    if all were OFF, turn all ON, otherwise turn all OFF
+      -read power status by sending 'POWER' to all devices
+      -based on the power stauts, run ON or OFF
+        -if at least one device is reachable and ON:
+          -send POWER OFF
+        -if no devices are ON, and at least one device is reachable and OFF:
+          -send POWER ON
+        -otherwise:
+          -do nothing
+      -run POWER_ON_CMDS for any devices that turned ON
+
+  $EXEC [OPTS] --toggle-async|--toggle-now DEVICE [DEVICE ..]
     toggle devices with 'POWER TOGGLE' command
     if all were OFF, turn all ON, otherwise turn all OFF
       -immediately send 'POWER TOGGLE' to all devices, and read new power status
@@ -306,6 +322,7 @@ sub main(@){
   my $opts = {
     maxTimeoutMillis   => $DEFAULT_MAX_TIMEOUT_MILLIS,
     maxCommandAttempts => $DEFAULT_MAX_COMMAND_ATTEMPTS,
+    toggleAsync        => 1,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -333,6 +350,15 @@ sub main(@){
     }elsif($arg =~ /^(-t|--toggle|toggle)$/){
       $mode = $MODE_TOGGLE;
       $cmd = undef;
+      $$opts{toggleAsync} = 1;
+    }elsif($arg =~ /^(--toggle-sync|--toggle-slow)$/){
+      $mode = $MODE_TOGGLE;
+      $cmd = undef;
+      $$opts{toggleAsync} = 0;
+    }elsif($arg =~ /^(--toggle-async|--toggle-now)$/){
+      $mode = $MODE_TOGGLE;
+      $cmd = undef;
+      $$opts{toggleAsync} = 1;
     }elsif($arg =~ /^(on|--on)$/){
       $mode = $MODE_ON;
       $cmd = undef;
@@ -421,12 +447,38 @@ sub main(@){
     runCommandOnDevices("POWER OFF", $PRINT_DEV_OUT, $opts, @devices);
   }elsif($mode eq $MODE_TOGGLE){
     print "toggling all =>\n";
-    my $outputByDevice = runCommandOnDevices("POWER TOGGLE", $PRINT_DEV_OUT, $opts, @devices);
+    my $setPowerCmdOutputByDev;
+    if($$opts{toggleAsync}){
+      # immediately send TOGGLE to all devices
+      #   -will result in ON then OFF if some devices were off and some were on
+      $setPowerCmdOutputByDev = runCommandOnDevices("POWER TOGGLE", $PRINT_DEV_OUT, $opts, @devices);
+    }else{
+      # fetch the current POWER state, and then run either ON or OFF for all
+      #   -waits for all devices before changing power state (or TIMEOUT_MILLIS)
+      my $getPowerCmdOutputByDev = runCommandOnDevices("POWER", $PRINT_NONE, $opts, @devices);
+      my $isAnyOn = 0;
+      my $isAnyOff = 0;
+      for my $device(@devices){
+        my $output = $$getPowerCmdOutputByDev{$device};
+        $output = "" if not defined $output;
+        if($output =~ /{"POWER":"OFF"}/i){
+          $isAnyOff = 1;
+        }elsif($output =~ /{"POWER":"ON"}/i){
+          $isAnyOn = 1;
+        }
+      }
+      if($isAnyOff && not $isAnyOn){
+        $setPowerCmdOutputByDev = runCommandOnDevices("POWER ON", $PRINT_DEV_OUT, $opts, @devices);
+      }elsif($isAnyOn){
+        $setPowerCmdOutputByDev = runCommandOnDevices("POWER OFF", $PRINT_DEV_OUT, $opts, @devices);
+      }
+    }
+
     my @devsTurnedOn;
     my @devsTurnedOff;
     my @devsIgnored;
     for my $device(@devices){
-      my $output = $$outputByDevice{$device};
+      my $output = $$setPowerCmdOutputByDev{$device};
       $output = "" if not defined $output;
       if($output =~ /{"POWER":"OFF"}/i){
         push @devsTurnedOff, $device;
