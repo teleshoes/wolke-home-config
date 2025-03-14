@@ -2,16 +2,36 @@
 use strict;
 use warnings;
 
+sub wrapArgsMPV(@);
 sub execExists($);
 
 sub main(@){
   if(execExists("mpv")){
-    exec "mpv", @_;
+    exec "mpv", wrapArgsMPV(@_);
   }elsif(execExists("qtcmdplayer")){
     exec "qtcmdplayer", @_;
   }else{
     die "ERROR: no player cmds found\n";
   }
+}
+
+sub wrapArgsMPV(@){
+  my @oldArgs = @_;
+  my @newArgs;
+  for(my $i=0; $i<@oldArgs; $i++){
+    my $arg = $oldArgs[$i];
+    my $nextArg = $oldArgs[$i+1] if $i<@oldArgs-1;
+    if($arg eq "-ss" and defined $nextArg){
+      $i++;
+      push @newArgs, "--start=$nextArg";
+    }elsif($arg eq "-endpos" and defined $nextArg){
+      $i++;
+      push @newArgs, "--end=$nextArg";
+    }else{
+      push @newArgs, $arg;
+    }
+  }
+  return @newArgs;
 }
 
 sub execExists($){
