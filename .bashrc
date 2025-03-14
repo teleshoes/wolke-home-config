@@ -193,15 +193,6 @@ function g            { git "$@"; }
 function gs           { git s "$@"; }
 function gss          { git ss "$@"; }
 function youtube-dl   { echo "YOU WANT TO RUN: yt => yt-dlp"; }
-function mp           {
-  if command -v mpv &>/dev/null; then
-    mpv "$@";
-  elif command -v qtcmdplayer &>/dev/null; then
-    qtcmdplayer "$@";
-  else
-    command mp "$@";
-  fi
-}
 function mpu          {
   if [ -z $2 ] ; then local default_quality='best' ; fi
   livestreamer "$@" $default_quality
