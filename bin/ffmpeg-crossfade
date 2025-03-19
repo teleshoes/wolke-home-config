@@ -68,6 +68,13 @@ my $USAGE = "Usage:
     --resolution=WIDTHxHEIGHT | --res=WIDTHxHEIGHT | --scale=WIDTHxHEIGHT
       add scale=WIDTHxHEIGHT to filter_complex chain
 
+    --test-trim | --test | --trim
+      test the fade results quickly by using only the first and last 3s of each input
+        -before fading, split each INPUT_VID into two parts, the first 3s and the last 3s
+        -omit the first part of the first INPUT_VID
+        -omit the last part of the second INPUT_VID
+        -fade each part into each other
+
     -an | --an | --no-audio | --audio-null
       remove audio channel (do not map any audio)
 ";
@@ -83,6 +90,7 @@ sub main(@){
     fadeLen         => $DEFAULT_FADE_LEN,
     forceResolution => undef,
     audioNull       => 0,
+    testTrim        => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -101,6 +109,8 @@ sub main(@){
       $$opts{forceResolution} = $2;
     }elsif($arg =~ /^(--resolution|--res|--scale)$/ and @_ > 0 and $_[0] =~ /^(\d+x\d+)$/){
       $$opts{forceResolution} = shift;
+    }elsif($arg =~ /^(--test-trim|--test|--trim)$/){
+      $$opts{testTrim} = 1;
     }elsif($arg =~ /^(-an|--an|--no-audio|--audio-null)$/){
       $$opts{audioNull} = 1;
     }else{
@@ -117,6 +127,42 @@ sub main(@){
   die "ERROR: output video $outputVideo exists\n" if defined $outputVideo and -e $outputVideo;
   for my $inputVideo(@inputVideos){
     die "ERROR: input video $inputVideo is not a file\n" if not -f $inputVideo;
+  }
+
+  if($$opts{testTrim}){
+    my $trimLen = 3;
+    my @newInputVideos;
+    for(my $i=0; $i<@inputVideos; $i++){
+      my $vid = $inputVideos[$i];
+      my $ext;
+      if($vid =~ /\.(\w+)$/){
+        $ext = $1;
+      }else{
+        die "ERROR: could not parse ext for --test-trim in $vid\n";
+      }
+
+      my $startVid = "tmp-trim-input-$i-a-start.$ext";
+      my $endVid = "tmp-trim-input-$i-b-end.$ext";
+      my $trimVid = "tmp-trim-input-$i-trim.$ext";
+
+      system "ffmpeg", "-i", $vid, "-c", "copy", "-t", $trimLen, $startVid;
+      system "ffmpeg", "-sseof", "-$trimLen", "-i", $vid, "-c", "copy", $endVid;
+
+      my $concatFile = "tmp-concat.txt";
+      open my $fh, "> $concatFile" or die "ERROR: could not write $concatFile\n$!\n";
+      print $fh "file '$startVid'\nfile '$endVid'\n";
+      close $fh;
+      system "ffmpeg", "-f", "concat", "-i", $concatFile, "-c", "copy", $trimVid;
+
+      if($i == 0){
+        push @newInputVideos, $endVid;
+      }elsif($i == $#inputVideos){
+        push @newInputVideos, $startVid;
+      }else{
+        push @newInputVideos, $trimVid;
+      }
+    }
+    @inputVideos = @newInputVideos;
   }
 
   crossfadeVideo($opts, $outputVideo, @inputVideos);
