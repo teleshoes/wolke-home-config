@@ -1,1 +1,1 @@
-resolv.conf.forcegoogle
+resolv.conf.forcequad9
