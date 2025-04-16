@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub nowMillis();
+sub run(@);
+
+my $PIDGIN_PLUGINS_DIR = "$ENV{HOME}/.purple/plugins";
+my $PIDGIN_PIPE_STATUS_FILE = "$PIDGIN_PLUGINS_DIR/pidgin-pipe-status-pipe-status";
+my $PIDGIN_PIPE_CONVS_FILE = "$PIDGIN_PLUGINS_DIR/pidgin-pipe-status-pipe-convs";
+
+my $ALERT_SOUND = "bloom";
+my $ALERT_THRESHOLD_MILLIS = 60 * 1000;
+my $DEFAULT_FONT_TERM = 80;
+
+$SIG{'INT'} = sub {
+  run "font-term";
+  die "\n\nEXITING: caught SIGINT\n\n";
+};
+
+sub main(@){
+  run "font-term --scale=$DEFAULT_FONT_TERM";
+  my $lastAlertMillis = 0;
+  while(1){
+    print "\n";
+    system "date +'%Y-%m-%d %H:%M:%S'";
+    system "cat $PIDGIN_PIPE_CONVS_FILE 2>/dev/null";
+    my $status = `cat $PIDGIN_PIPE_STATUS_FILE 2>/dev/null`;
+    chomp $status;
+    if($status =~ /^NEW-important$/){
+      print "##### NEW IMPORTANT #####\n";
+      my $now = nowMillis();
+      if($now - $lastAlertMillis > $ALERT_THRESHOLD_MILLIS){
+        system "alert", $ALERT_SOUND;
+        $lastAlertMillis = $now;
+      }
+    }elsif($status =~ /^NEW$/){
+      print "##### NEW #####\n";
+    }elsif($status =~ /^NONE|off$/){
+      #do nothing
+    }else{
+      print STDERR "WARNING: could not parse status $status\n";
+    }
+    sleep 1;
+  }
+}
+
+sub nowMillis(){
+  return int(time()*1000.0 + 0.5);
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
