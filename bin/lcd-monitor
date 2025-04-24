@@ -134,36 +134,40 @@ sub pyeconet($$$$$){
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
   my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
-  if(@logFiles == 0){
-    return "!size=4!!color=red!ERROR:!n!!size=2!ECONET!n!NO LOGS";
-  }
-  my $logFile = $logFiles[0];
+  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
 
   my $mtime = mtime $logFile;
   my $elapsedS = time - $mtime;
-  if($elapsedS < 0 or $elapsedS > 60){
-    return "!size=4!!color=red!ERROR:!n!!size=2!ECONET!n!OUT OF!n!DATE";
-  }
 
-  my $info = `cat '$logFile'`;
-  my $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
-  my $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
-  my $running = $1 if $info =~ /^running: (\w+)$/m;
+  my $info = defined $logFile ? `cat '$logFile'` : undef;
+  my ($avail, $targetTemp, $running);
+  if(defined $info){
+    $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
+    $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
+    $running = $1 if $info =~ /^running: (\w+)$/m;
+  }
 
   my $dateOut = `date '+%Y-%m-%d %I:%M:%S %p %a %b'`;
   if($dateOut !~ /^(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (AM|PM) (\w+) (\w+)$/){
     die "ERROR: could not parse date $dateOut\n";
   }
   my ($y, $m, $d, $hr, $min, $sec, $ampm, $day, $mon) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-  my $availFmt = "";
-  $availFmt .= "!size=7!";
-  $availFmt .= $avail == 100 ? "!color=white!OK" : "!color=red!" . sprintf "%2s%%", $avail;
 
-  my $tempFmt = "";
-  $tempFmt .= "!size=5!";
-  $tempFmt .= "!color=white!";
-  $tempFmt .= sprintf "%3s", $targetTemp;
-  $tempFmt .= "F";
+  my $availFmt = "!size=7!";
+  my $tempFmt = "!size=5!";
+  if($elapsedS < 0 or $elapsedS > 60){
+    $availFmt .= "!color=red!ERR";
+    $tempFmt .= "!color=red!old";
+  }elsif(not defined $logFile){
+    $availFmt .= "!color=red!ERR";
+    $tempFmt .= "!color=red!log";
+  }elsif(defined $avail and defined $targetTemp and defined $running){
+    $availFmt .= $avail == 100 ? "!color=white!OK" : "!color=red!" . sprintf "%2s%%", $avail;
+    $tempFmt .= "!color=white!" . sprintf("%3sF", $targetTemp);
+  }else{
+    $availFmt .= "!color=red!ERR";
+    $tempFmt .= "!color=red!???";
+  }
 
   $tempFmt .= '!size=5!!color=green! *' if $running =~ /true/i;
 
