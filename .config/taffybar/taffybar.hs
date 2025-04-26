@@ -134,7 +134,7 @@ main = do
           , all  $ W.cpuFreqsW
           , lap  $ W.fanW
           , all  $ W.brightnessW
-          , tv   $ W.screenSaverW
+          , tv   $ W.screenSaverW isBot
           , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "google.com"
                                     , main $ W.pingMonitorW "E" "ehr.dev"
                                     ]

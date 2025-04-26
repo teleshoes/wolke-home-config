@@ -9,8 +9,8 @@ import Control.Monad (when, void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 
-main = mainLabel =<< screenSaverReader
-screenSaverW = clickableActions clickL clickM clickR =<< labelW =<< screenSaverReader
+main = mainLabel =<< (screenSaverReader False)
+screenSaverW isBot = clickableActions clickL clickM clickR =<< labelW =<< (screenSaverReader isBot)
 
 clickL = writeOverride "on"
 clickM = return ()
@@ -25,14 +25,14 @@ idleTimeoutMillis = 10 * 60 * 1000
 -- minimum amount of time to run screensaver when forcibly turning it on
 minRunningMillis = 2 * 1000
 
-screenSaverReader :: IO (IO String)
-screenSaverReader = do
-  stateMVar <- newMVar (False, 0, Nothing)
+screenSaverReader :: Bool -> IO (IO String)
+screenSaverReader isBottom = do
+  stateMVar <- newMVar (isBottom, False, 0, Nothing)
   return $ checkScreenSaver stateMVar
 
-checkScreenSaver :: MVar (Bool, Integer, Maybe Integer) -> IO String
+checkScreenSaver :: MVar (Bool, Bool, Integer, Maybe Integer) -> IO String
 checkScreenSaver stateMVar = do
-  (prevState, prevXidle, prevStartTimeMillis) <- takeMVar stateMVar
+  (isBottom, prevState, prevXidle, prevStartTimeMillis) <- takeMVar stateMVar
   xidle <- getXidle
   override <- getOverride
   nowMillis <- millisTime
@@ -57,7 +57,7 @@ checkScreenSaver stateMVar = do
 
   if override == "on" && not state then writeOverride "" else return ()
 
-  putMVar stateMVar (state, xidle, startTime)
+  putMVar stateMVar (isBottom, state, xidle, startTime)
   return $ msg ++ "\nidle"
 
 
