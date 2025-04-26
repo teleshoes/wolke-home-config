@@ -1,37 +1,127 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
+sub turnOn();
+sub turnOff();
+sub readState();
+sub maybeReadFile($);
 sub writeFile($$);
+sub run(@);
 
-my $OVERRIDE_FILE = "/tmp/screen-saver-override";
+my $FILE_STATE = "/tmp/screensaver-state";
 
-my $OK_CMDS = join "|", qw(--activate --deactivate --disable);
-my $DEFAULT_CMD = "--activate";
+my $SCREENSAVER_BRIGHTNESS = 25;
 
-my $USAGE = "Usage: $0 [$OK_CMDS] {default is $DEFAULT_CMD}\n";
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h | --help
+    show this message
+
+  $EXEC
+  $EXEC --info | info
+    print STATE
+
+  $EXEC --on | on
+    turn screensaver on
+      -write 'ON' to $FILE_STATE
+      -run: brightness $SCREENSAVER_BRIGHTNESS
+
+  $EXEC --off | off
+    turn screensaver off
+      -write 'OFF' to $FILE_STATE
+      -run: brightness 100
+
+  STATE
+    screensaver state
+      -stored in: $FILE_STATE
+      -one of 'ON' or 'OFF'
+      -if file is missing or contains any other value, STATE is 'OFF'
+";
+
+my $CMD_INFO = "info";
+my $CMD_TURN_ON = "turn-on";
+my $CMD_TURN_OFF = "turn-off";
+
+my $STATE_ON = "on";
+my $STATE_OFF = "off";
 
 sub main(@){
-  my $cmd = shift;
-  $cmd = $DEFAULT_CMD if not defined $cmd;
-  die $USAGE if @_ != 0;
+  my $cmd = $CMD_INFO;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--info|info)$/){
+      $cmd = $CMD_INFO;
+    }elsif($arg =~ /^(--on|on)$/){
+      $cmd = $CMD_TURN_ON;
+    }elsif($arg =~ /^(--off|off)$/){
+      $cmd = $CMD_TURN_OFF;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
 
-  if($cmd =~ /^(--activate)$/){
-    writeFile $OVERRIDE_FILE, 'on';
-  }elsif($cmd =~ /^(--deactivate)$/){
-    system "rm", "-f", $OVERRIDE_FILE;
-    system "xidlereset";
-  }elsif($cmd =~ /^(--disable)$/){
-    writeFile $OVERRIDE_FILE, 'off';
+  if($cmd eq $CMD_INFO){
+    print readState() . "\n";
+  }elsif($cmd eq $CMD_TURN_ON){
+    turnOn();
+  }elsif($cmd eq $CMD_TURN_OFF){
+    turnOff();
   }else{
-    die $USAGE;
+    die "$USAGE\nERROR: unknown cmd $cmd\n";
+  }
+}
+
+sub turnOn(){
+  writeFile $FILE_STATE, "ON\n";
+
+  run "brightness", $SCREENSAVER_BRIGHTNESS;
+}
+
+sub turnOff(){
+  writeFile $FILE_STATE, "OFF\n";
+
+  run "brightness", 100;
+}
+
+sub readState(){
+  my $val = maybeReadFile($FILE_STATE);
+  $val = "" if not defined $val;
+
+  if($val =~ /^ON/i){
+    return $STATE_ON;
+  }else{
+    return $STATE_OFF;
+  }
+}
+
+sub maybeReadFile($){
+  my ($file) = @_;
+  if(-f $file){
+    open my $fh, "< $file" or die "ERROR: could not read $file\n$!\n";
+    my $val = join '', <$fh>;
+    close $fh;
+    return $val;
+  }else{
+    return undef;
   }
 }
 
 sub writeFile($$){
-  open FH, "> $_[0]" or die "Could not write to $_[0]\n";
-  print FH $_[1];
-  close FH;
+  my ($file, $contents) = @_;
+  open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
+  print $fh $contents;
+  close $fh;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
 }
 
 &main(@ARGV);
