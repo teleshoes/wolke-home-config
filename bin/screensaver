@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Time::HiRes qw(time);
 
 sub getIdleMillis();
 sub turnOn();
@@ -10,16 +11,20 @@ sub disable();
 sub enable();
 sub check();
 sub readState();
+sub readElapsedActiveMillis();
 sub maybeReadFile($);
 sub writeFile($$);
+sub nowMillis();
 sub run(@);
 
+my $FILE_ACTIVE_EPOCH_MILLIS = "/tmp/screensaver-active-epoch-millis";
 my $FILE_LAST_CHECKED_IDLE_MILLIS = "/tmp/screensaver-last-checked-idle-millis";
 my $FILE_STATE = "/tmp/screensaver-state";
 
 my $SCREENSAVER_BRIGHTNESS = 25;
 
 my $DEFAULT_IDLE_TIMEOUT_MILLIS = 600 * 1000;    #10min
+my $ACTIVE_BUFFER_MILLIS = 2 * 1000;             #2s
 
 my $EXEC = basename $0;
 
@@ -34,12 +39,14 @@ my $USAGE = "Usage:
   $EXEC --on | on
     turn screensaver on
       -write 'ON' to $FILE_STATE
+      -write NOW_EPOCH_MILLIS to $FILE_ACTIVE_EPOCH_MILLIS
       -remove $FILE_LAST_CHECKED_IDLE_MILLIS
       -run: brightness $SCREENSAVER_BRIGHTNESS
 
   $EXEC --off | off
     turn screensaver off
       -write 'OFF' to $FILE_STATE
+      -remove $FILE_ACTIVE_EPOCH_MILLIS
       -remove $FILE_LAST_CHECKED_IDLE_MILLIS
       -run: brightness 100
 
@@ -51,18 +58,23 @@ my $USAGE = "Usage:
   $EXEC --enable | enable
     remove state so next --check may enable screensaver
       -remove $FILE_STATE
+      -remove $FILE_ACTIVE_EPOCH_MILLIS
       -remove $FILE_LAST_CHECKED_IDLE_MILLIS
 
   $EXEC --check | check
     turn screensaver on/off based on X11 idle time
       turn screensaver on if idle for more than ${DEFAULT_IDLE_TIMEOUT_MILLIS}ms
       turn screensaver off if idle time is less than the previous idle time checked
+        NOTE: screensaver stays on for at least ${ACTIVE_BUFFER_MILLIS}ms
 
       -if STATE is 'DISABLED':
         -do nothing
       -if STATE is 'ON':
         -if CURRENT_IDLE_MILLIS < LAST_CHECKED_IDLE_MILLIS:
-          -same as: $EXEC --off
+          -if ELAPSED_ACTIVE_MILLIS < $ACTIVE_BUFFER_MILLIS
+            -do nothing (keep active for at least ${ACTIVE_BUFFER_MILLIS}ms)
+          -otherwise:
+            -same as: $EXEC --off
         -otherwise:
           -write CURRENT_IDLE_MILLIS to $FILE_LAST_CHECKED_IDLE_MILLIS
       -if STATE is 'OFF' (default value if empty/invalid):
@@ -78,6 +90,15 @@ my $USAGE = "Usage:
       -stored in: $FILE_STATE
       -one of 'ON', 'OFF', or 'DISABLED'
       -if file is missing or contains any other value, STATE is 'OFF'
+
+  ACTIVE_EPOCH_MILLIS
+    timestamp in milliseconds when screensaver was turned on
+      -stored in: $FILE_ACTIVE_EPOCH_MILLIS
+  NOW_EPOCH_MILLIS
+    system time in milliseconds
+  ELAPSED_ACTIVE_MILLIS
+    number of milliseconds screensaver has been on
+      -calculated as NOW_EPOCH_MILLIS - ACTIVE_EPOCH_MILLIS
 
   LAST_CHECKED_IDLE_MILLIS
     value of CURRENT_IDLE_MILLIS at most recent check
@@ -147,7 +168,10 @@ sub getIdleMillis(){
 }
 
 sub turnOn(){
+  my $nowMillis = nowMillis();
+
   writeFile $FILE_STATE, "ON\n";
+  writeFile $FILE_ACTIVE_EPOCH_MILLIS, $nowMillis;
   run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
 
   run "brightness", $SCREENSAVER_BRIGHTNESS;
@@ -155,6 +179,7 @@ sub turnOn(){
 
 sub turnOff(){
   writeFile $FILE_STATE, "OFF\n";
+  run "rm", "-f", $FILE_ACTIVE_EPOCH_MILLIS;
   run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
 
   run "brightness", 100;
@@ -167,6 +192,7 @@ sub disable(){
 
 sub enable(){
   run "rm", "-f", $FILE_STATE;
+  run "rm", "-f", $FILE_ACTIVE_EPOCH_MILLIS;
   run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
 }
 
@@ -179,7 +205,12 @@ sub check(){
     my $lastCheckedIdleMillis = maybeReadFile($FILE_LAST_CHECKED_IDLE_MILLIS);
     $lastCheckedIdleMillis = 0 if not defined $lastCheckedIdleMillis;
     if($idleMillis < $lastCheckedIdleMillis){
-      turnOff();
+      my $elapsedActiveMillis = readElapsedActiveMillis();
+      if($elapsedActiveMillis < $ACTIVE_BUFFER_MILLIS){
+        return;
+      }else{
+        turnOff();
+      }
     }else{
       writeFile($FILE_LAST_CHECKED_IDLE_MILLIS, $idleMillis);
     }
@@ -205,6 +236,17 @@ sub readState(){
   }
 }
 
+sub readElapsedActiveMillis(){
+  my $val = maybeReadFile($FILE_ACTIVE_EPOCH_MILLIS);
+  if(defined $val and $val =~ /^(\d+)$/){
+    my $activeEpochMillis = $1;
+    my $nowMillis = nowMillis();
+    return $nowMillis - $activeEpochMillis;
+  }else{
+    return 0;
+  }
+}
+
 sub maybeReadFile($){
   my ($file) = @_;
   if(-f $file){
@@ -222,6 +264,10 @@ sub writeFile($$){
   open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
   print $fh $contents;
   close $fh;
+}
+
+sub nowMillis(){
+  return int(time * 1000.0 + 0.5);
 }
 
 sub run(@){
