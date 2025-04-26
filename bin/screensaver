@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
-use Time::HiRes qw(time);
+use Time::HiRes qw(sleep time);
 
 sub getIdleMillis();
 sub turnOn();
@@ -23,6 +23,7 @@ my $FILE_STATE = "/tmp/screensaver-state";
 
 my $SCREENSAVER_BRIGHTNESS = 25;
 
+my $LOOP_DELAY_MILLIS = 1000;                    #1s
 my $DEFAULT_IDLE_TIMEOUT_MILLIS = 600 * 1000;    #10min
 my $ACTIVE_BUFFER_MILLIS = 2 * 1000;             #2s
 
@@ -81,6 +82,11 @@ my $USAGE = "Usage:
         -if CURRENT_IDLE_MILLIS > $DEFAULT_IDLE_TIMEOUT_MILLIS:
           -same as: $EXEC --on
 
+  $EXEC --check-daemon | --daemon | daemon
+  $EXEC --check-loop | --loop | loop
+    run '$EXEC --check' every ${LOOP_DELAY_MILLIS}ms
+
+
   CURRENT_IDLE_MILLIS
     idle time in X11
       -obtained using `xprintidle`
@@ -112,6 +118,7 @@ my $CMD_TURN_OFF = "turn-off";
 my $CMD_DISABLE = "disable";
 my $CMD_ENABLE = "enable";
 my $CMD_CHECK = "check";
+my $CMD_CHECK_DAEMON = "check-daemon";
 
 my $STATE_ON = "on";
 my $STATE_OFF = "off";
@@ -136,6 +143,8 @@ sub main(@){
       $cmd = $CMD_ENABLE;
     }elsif($arg =~ /^(--check|check)$/){
       $cmd = $CMD_CHECK;
+    }elsif($arg =~ /^(--check-daemon|--daemon|daemon|--check-loop|--loop|loop)$/){
+      $cmd = $CMD_CHECK_DAEMON;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -153,6 +162,11 @@ sub main(@){
     enable();
   }elsif($cmd eq $CMD_CHECK){
     check();
+  }elsif($cmd eq $CMD_CHECK_DAEMON){
+    while(1){
+      check();
+      sleep($LOOP_DELAY_MILLIS/1000.0);
+    }
   }else{
     die "$USAGE\nERROR: unknown cmd $cmd\n";
   }
