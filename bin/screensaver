@@ -3,16 +3,21 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub getIdleMillis();
 sub turnOn();
 sub turnOff();
+sub check();
 sub readState();
 sub maybeReadFile($);
 sub writeFile($$);
 sub run(@);
 
+my $FILE_LAST_CHECKED_IDLE_MILLIS = "/tmp/screensaver-last-checked-idle-millis";
 my $FILE_STATE = "/tmp/screensaver-state";
 
 my $SCREENSAVER_BRIGHTNESS = 25;
+
+my $DEFAULT_IDLE_TIMEOUT_MILLIS = 600 * 1000;    #10min
 
 my $EXEC = basename $0;
 
@@ -27,23 +32,49 @@ my $USAGE = "Usage:
   $EXEC --on | on
     turn screensaver on
       -write 'ON' to $FILE_STATE
+      -remove $FILE_LAST_CHECKED_IDLE_MILLIS
       -run: brightness $SCREENSAVER_BRIGHTNESS
 
   $EXEC --off | off
     turn screensaver off
       -write 'OFF' to $FILE_STATE
+      -remove $FILE_LAST_CHECKED_IDLE_MILLIS
       -run: brightness 100
+
+  $EXEC --check | check
+    turn screensaver on/off based on X11 idle time
+      turn screensaver on if idle for more than ${DEFAULT_IDLE_TIMEOUT_MILLIS}ms
+      turn screensaver off if idle time is less than the previous idle time checked
+
+      -if STATE is 'ON':
+        -if CURRENT_IDLE_MILLIS < LAST_CHECKED_IDLE_MILLIS:
+          -same as: $EXEC --off
+        -otherwise:
+          -write CURRENT_IDLE_MILLIS to $FILE_LAST_CHECKED_IDLE_MILLIS
+      -if STATE is 'OFF' (default value if empty/invalid):
+        -if CURRENT_IDLE_MILLIS > $DEFAULT_IDLE_TIMEOUT_MILLIS:
+          -same as: $EXEC --on
+
+  CURRENT_IDLE_MILLIS
+    idle time in X11
+      -obtained using `xprintidle`
 
   STATE
     screensaver state
       -stored in: $FILE_STATE
       -one of 'ON' or 'OFF'
       -if file is missing or contains any other value, STATE is 'OFF'
+
+  LAST_CHECKED_IDLE_MILLIS
+    value of CURRENT_IDLE_MILLIS at most recent check
+      -stored in $FILE_LAST_CHECKED_IDLE_MILLIS
+      -set during: '$EXEC --check'
 ";
 
 my $CMD_INFO = "info";
 my $CMD_TURN_ON = "turn-on";
 my $CMD_TURN_OFF = "turn-off";
+my $CMD_CHECK = "check";
 
 my $STATE_ON = "on";
 my $STATE_OFF = "off";
@@ -61,6 +92,8 @@ sub main(@){
       $cmd = $CMD_TURN_ON;
     }elsif($arg =~ /^(--off|off)$/){
       $cmd = $CMD_TURN_OFF;
+    }elsif($arg =~ /^(--check|check)$/){
+      $cmd = $CMD_CHECK;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -72,21 +105,54 @@ sub main(@){
     turnOn();
   }elsif($cmd eq $CMD_TURN_OFF){
     turnOff();
+  }elsif($cmd eq $CMD_CHECK){
+    check();
   }else{
     die "$USAGE\nERROR: unknown cmd $cmd\n";
   }
 }
 
+sub getIdleMillis(){
+  my $val = `xprintidle`;
+  chomp $val;
+  if($val !~ /^\d+$/){
+    die "ERROR: could not parse value of `xprintidle`\n";
+  }
+  return $val;
+}
+
 sub turnOn(){
   writeFile $FILE_STATE, "ON\n";
+  run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
 
   run "brightness", $SCREENSAVER_BRIGHTNESS;
 }
 
 sub turnOff(){
   writeFile $FILE_STATE, "OFF\n";
+  run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
 
   run "brightness", 100;
+}
+
+sub check(){
+  my $state = readState();
+  my $idleMillis = getIdleMillis();
+  if($state eq $STATE_ON){
+    my $lastCheckedIdleMillis = maybeReadFile($FILE_LAST_CHECKED_IDLE_MILLIS);
+    $lastCheckedIdleMillis = 0 if not defined $lastCheckedIdleMillis;
+    if($idleMillis < $lastCheckedIdleMillis){
+      turnOff();
+    }else{
+      writeFile($FILE_LAST_CHECKED_IDLE_MILLIS, $idleMillis);
+    }
+  }elsif($state eq $STATE_OFF){
+    if($idleMillis > $DEFAULT_IDLE_TIMEOUT_MILLIS){
+      turnOn();
+    }
+  }else{
+    die "ERROR: invalid state $state\n";
+  }
 }
 
 sub readState(){
