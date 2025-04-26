@@ -1,92 +1,64 @@
 module ScreenSaver(screenSaverW) where
 import Clickable (clickableActions)
 import Label (labelW, mainLabel)
-import Utils(chompFile, padL, readInt, readProc, millisTime)
+import Utils(padL, readInt, readProc, regexGroups)
 
-import Control.Concurrent (forkIO, threadDelay,
-  MVar, newMVar, putMVar, takeMVar)
 import Control.Monad (when, void)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 
-main = mainLabel =<< (screenSaverReader False)
-screenSaverW isBot = clickableActions clickL clickM clickR =<< labelW =<< (screenSaverReader isBot)
+main = mainLabel (screenSaverReader False)
+screenSaverW isBot = clickableActions clickL clickM clickR =<< labelW (screenSaverReader isBot)
 
-clickL = writeOverride "on"
+clickL = void $ system "screensaver --on"
 clickM = return ()
-clickR = writeOverride "off"
+clickR = void $ system "screensaver --disable"
 
-screenSaverBrightness = 25
+data ScreensaverInfo = ScreensaverInfo
+  { state               :: String
+  , elapsedActiveMillis :: Integer
+  , currentIdleMillis   :: Integer
+  , idleTimeoutMillis   :: Integer
+  }
 
-overrideFile = "/tmp/screen-saver-override"
-
--- screensaver timeout
-idleTimeoutMillis = 10 * 60 * 1000
--- minimum amount of time to run screensaver when forcibly turning it on
-minRunningMillis = 2 * 1000
 -- time before swapping taffybar position --top/--bottom
 taffybarSwapDelayMillis = 60 * 60 * 1000 --1h
 
-screenSaverReader :: Bool -> IO (IO String)
+screenSaverReader :: Bool -> IO String
 screenSaverReader isBottom = do
-  stateMVar <- newMVar (isBottom, False, 0, Nothing)
-  return $ checkScreenSaver stateMVar
+  info <- fmap parseScreensaverInfo $ readProc ["screensaver", "--info"]
+  let remainingS = (idleTimeoutMillis info - currentIdleMillis info) `div` 1000
+  let msg = case state info of
+              "disabled" -> "KEEP\nBRGT"
+              "off"      -> (padL ' ' 4 $ show remainingS) ++ "\nidle"
+              "on"       -> "scrn\ndim "
+              _          -> "????\n????"
 
-checkScreenSaver :: MVar (Bool, Bool, Integer, Maybe Integer) -> IO String
-checkScreenSaver stateMVar = do
-  (isBottom, prevState, prevXidle, prevStartTimeMillis) <- takeMVar stateMVar
-  xidle <- getXidle
-  override <- getOverride
-  nowMillis <- millisTime
-  let runningMillis = nowMillis - fromMaybe nowMillis prevStartTimeMillis
+  when (state info == "on") $ maybeTaffybarSwap isBottom $ elapsedActiveMillis info
+  when (state info /= "on" && isBottom) $ taffybarSwap False
 
-  let state = case override of
-                "off" -> False
-                "on"  -> runningMillis < minRunningMillis || xidle > prevXidle
-                _     -> xidle > idleTimeoutMillis
-  let startTime = if state
-                  then Just $ fromMaybe nowMillis prevStartTimeMillis
-                  else Nothing
+  return msg
 
-  let timeoutS = (idleTimeoutMillis - xidle) `div` 1000
-  let msg = padL ' ' 4 $ case override of
-                            "off" -> "off"
-                            "on"  -> "on"
-                            _     -> if state then "SCRN" else show timeoutS
-
-  if state && not prevState then screenSaverOn else return ()
-  if not state && prevState then screenSaverOff else return ()
-
-  if override == "on" && not state then writeOverride "" else return ()
-
-  when (state) $ maybeTaffybarSwap isBottom $ runningMillis
-  when (not state && isBottom) $ taffybarSwap False
-
-  putMVar stateMVar (isBottom, state, xidle, startTime)
-  return $ msg ++ "\nidle"
-
-
-getOverride = chompFile overrideFile
-
-writeOverride state = writeFile overrideFile $ state ++ "\n"
-
-screenSaverOn = do
-  hhpc True
-  void $ system $ "brightness " ++ show screenSaverBrightness
-screenSaverOff = do
-  hhpc False
-  void $ system "brightness 100"
-
-hhpc on = do
-  void $ system "pkill hhpc"
-  when on $ void $ system "hhpc &"
-
-getXidle :: IO Integer
-getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
+parseScreensaverInfo :: String -> ScreensaverInfo
+parseScreensaverInfo info = ScreensaverInfo
+                              state
+                              (forceInt elapsedActiveMillis)
+                              (forceInt currentIdleMillis)
+                              (forceInt idleTimeoutMillis)
+  where re = ""
+             ++ "STATE=(\\w+)\n"
+             ++ "ELAPSED_ACTIVE_MILLIS=(\\d+)\n"
+             ++ "CURRENT_IDLE_MILLIS=(\\d+)\n"
+             ++ "IDLE_TIMEOUT_MILLIS=(\\d+)\n"
+        matchGroups = fromMaybe ["UNKNOWN", "0", "0", "0"] $ regexGroups re info
+        [state, elapsedActiveMillis, currentIdleMillis, idleTimeoutMillis] = matchGroups
+        forceInt = (fromMaybe 0) . readInt
 
 maybeTaffybarSwap :: Bool -> Integer -> IO ()
 maybeTaffybarSwap currentIsBottom elapsedActiveMillis = do
-  when (elapsedActiveMillis > taffybarSwapDelayMillis) $ taffybarSwap $ not currentIsBottom
+  let elapsedActiveSwapPeriods = (elapsedActiveMillis `div` taffybarSwapDelayMillis)
+  let newIsBottom = elapsedActiveSwapPeriods`mod`2 == 1 --odd periods are bottom
+  when (currentIsBottom /= newIsBottom) $ taffybarSwap newIsBottom
 
 taffybarSwap :: Bool -> IO ()
 taffybarSwap targetIsBottom = void $ system $ "taffybar-swap " ++ topBotArg
