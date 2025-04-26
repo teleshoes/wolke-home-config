@@ -6,6 +6,8 @@ use File::Basename qw(basename);
 sub getIdleMillis();
 sub turnOn();
 sub turnOff();
+sub disable();
+sub enable();
 sub check();
 sub readState();
 sub maybeReadFile($);
@@ -41,11 +43,23 @@ my $USAGE = "Usage:
       -remove $FILE_LAST_CHECKED_IDLE_MILLIS
       -run: brightness 100
 
+  $EXEC --disable | disable
+    prevent enabling/disabling screensaver with --check
+      -same as: $EXEC --off
+      -write 'DISABLED' to $FILE_STATE
+
+  $EXEC --enable | enable
+    remove state so next --check may enable screensaver
+      -remove $FILE_STATE
+      -remove $FILE_LAST_CHECKED_IDLE_MILLIS
+
   $EXEC --check | check
     turn screensaver on/off based on X11 idle time
       turn screensaver on if idle for more than ${DEFAULT_IDLE_TIMEOUT_MILLIS}ms
       turn screensaver off if idle time is less than the previous idle time checked
 
+      -if STATE is 'DISABLED':
+        -do nothing
       -if STATE is 'ON':
         -if CURRENT_IDLE_MILLIS < LAST_CHECKED_IDLE_MILLIS:
           -same as: $EXEC --off
@@ -62,7 +76,7 @@ my $USAGE = "Usage:
   STATE
     screensaver state
       -stored in: $FILE_STATE
-      -one of 'ON' or 'OFF'
+      -one of 'ON', 'OFF', or 'DISABLED'
       -if file is missing or contains any other value, STATE is 'OFF'
 
   LAST_CHECKED_IDLE_MILLIS
@@ -74,10 +88,13 @@ my $USAGE = "Usage:
 my $CMD_INFO = "info";
 my $CMD_TURN_ON = "turn-on";
 my $CMD_TURN_OFF = "turn-off";
+my $CMD_DISABLE = "disable";
+my $CMD_ENABLE = "enable";
 my $CMD_CHECK = "check";
 
 my $STATE_ON = "on";
 my $STATE_OFF = "off";
+my $STATE_DISABLED = "disabled";
 
 sub main(@){
   my $cmd = $CMD_INFO;
@@ -92,6 +109,10 @@ sub main(@){
       $cmd = $CMD_TURN_ON;
     }elsif($arg =~ /^(--off|off)$/){
       $cmd = $CMD_TURN_OFF;
+    }elsif($arg =~ /^(--disable|disable)$/){
+      $cmd = $CMD_DISABLE;
+    }elsif($arg =~ /^(--enable|enable)$/){
+      $cmd = $CMD_ENABLE;
     }elsif($arg =~ /^(--check|check)$/){
       $cmd = $CMD_CHECK;
     }else{
@@ -105,6 +126,10 @@ sub main(@){
     turnOn();
   }elsif($cmd eq $CMD_TURN_OFF){
     turnOff();
+  }elsif($cmd eq $CMD_DISABLE){
+    disable();
+  }elsif($cmd eq $CMD_ENABLE){
+    enable();
   }elsif($cmd eq $CMD_CHECK){
     check();
   }else{
@@ -135,10 +160,22 @@ sub turnOff(){
   run "brightness", 100;
 }
 
+sub disable(){
+  turnOff();
+  writeFile $FILE_STATE, "DISABLED\n";
+}
+
+sub enable(){
+  run "rm", "-f", $FILE_STATE;
+  run "rm", "-f", $FILE_LAST_CHECKED_IDLE_MILLIS;
+}
+
 sub check(){
   my $state = readState();
   my $idleMillis = getIdleMillis();
-  if($state eq $STATE_ON){
+  if($state eq $STATE_DISABLED){
+    return;
+  }elsif($state eq $STATE_ON){
     my $lastCheckedIdleMillis = maybeReadFile($FILE_LAST_CHECKED_IDLE_MILLIS);
     $lastCheckedIdleMillis = 0 if not defined $lastCheckedIdleMillis;
     if($idleMillis < $lastCheckedIdleMillis){
@@ -161,6 +198,8 @@ sub readState(){
 
   if($val =~ /^ON/i){
     return $STATE_ON;
+  }elsif($val =~ /^DISABLED/i){
+    return $STATE_DISABLED;
   }else{
     return $STATE_OFF;
   }
