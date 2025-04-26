@@ -71,7 +71,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
     date ;
   ) 2>&1 > /tmp/mnt-log &
 
-  screensaver
+  screensaver --on
   killall bgset
   bgset --exclude="porn/" &
 
