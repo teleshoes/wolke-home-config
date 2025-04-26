@@ -82,6 +82,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
 
   VBoxManage startvm homeassistant --type headless &
 
+  screen-daemon screensaver --start
   screen-daemon sb --start
   screen-daemon revtun-ensure --start
   screen-daemon midea-cube --start
