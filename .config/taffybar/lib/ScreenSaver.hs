@@ -24,6 +24,8 @@ overrideFile = "/tmp/screen-saver-override"
 idleTimeoutMillis = 10 * 60 * 1000
 -- minimum amount of time to run screensaver when forcibly turning it on
 minRunningMillis = 2 * 1000
+-- time before swapping taffybar position --top/--bottom
+taffybarSwapDelayMillis = 60 * 60 * 1000 --1h
 
 screenSaverReader :: Bool -> IO (IO String)
 screenSaverReader isBottom = do
@@ -57,6 +59,9 @@ checkScreenSaver stateMVar = do
 
   if override == "on" && not state then writeOverride "" else return ()
 
+  when (state) $ maybeTaffybarSwap isBottom $ runningMillis
+  when (not state && isBottom) $ taffybarSwap False
+
   putMVar stateMVar (isBottom, state, xidle, startTime)
   return $ msg ++ "\nidle"
 
@@ -67,21 +72,22 @@ writeOverride state = writeFile overrideFile $ state ++ "\n"
 
 screenSaverOn = do
   hhpc True
-  taffybarSwap True
   void $ system $ "brightness " ++ show screenSaverBrightness
 screenSaverOff = do
   hhpc False
-  taffybarSwap False
   void $ system "brightness 100"
 
 hhpc on = do
   void $ system "pkill hhpc"
   when on $ void $ system "hhpc &"
 
-taffybarSwap on = do
-  void $ system "killall taffybar-swap"
-  when on $ void $ system "taffybar-swap --delay &"
-  when (not on) $ void $ system "( sleep 1; taffybar-swap --top ) &"
-
 getXidle :: IO Integer
 getXidle = fmap (fromMaybe 0 . readInt) $ readProc ["xprintidle"]
+
+maybeTaffybarSwap :: Bool -> Integer -> IO ()
+maybeTaffybarSwap currentIsBottom elapsedActiveMillis = do
+  when (elapsedActiveMillis > taffybarSwapDelayMillis) $ taffybarSwap $ not currentIsBottom
+
+taffybarSwap :: Bool -> IO ()
+taffybarSwap targetIsBottom = void $ system $ "taffybar-swap " ++ topBotArg
+  where topBotArg = if targetIsBottom then "--bottom" else "--top"
