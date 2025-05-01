@@ -90,6 +90,7 @@ my $FORMAT_HEARTRATES = "heartrates";
 sub main(@){
   my $kexiDbBakDir = $DIR_DEFAULT_KEXI_DB_BAK;
   my @tcxFiles;
+  my @dateArgs;
   my $format = $FORMAT_SUMMARY;
   while(@_ > 0){
     my $arg = shift @_;
@@ -105,12 +106,8 @@ sub main(@){
     }elsif($arg =~ /^--kexi-db-dir=(.+)$/){
       $kexiDbBakDir = $1;
     }elsif($arg =~ /^(?:--date=)?(\d\d\d\d)-?(\d\d)-?(\d\d)$/){
-      my $ymd = "$1$2$3";
-      my @dateTcxFiles = grep {-f $_} grep {/\.tcx$/} glob "$DIR_AMAZFISH_WORKOUTS/*$ymd*";
-      if(@dateTcxFiles == 0){
-        die "ERROR: could not find any TCX files for date=$ymd\n";
-      }
-      @tcxFiles = (@tcxFiles, @dateTcxFiles);
+      my $dateYMD = "$1$2$3";
+      push @dateArgs, $dateYMD;
     }elsif(-f $arg){
       push @tcxFiles, $arg;
     }else{
@@ -118,7 +115,15 @@ sub main(@){
     }
   }
 
-  if(@tcxFiles == 0){
+  if(@dateArgs > 0){
+    for my $dateYMD(@dateArgs){
+      my @dateTcxFiles = grep {-f $_} grep {/\.tcx$/} glob "$DIR_AMAZFISH_WORKOUTS/*$dateYMD*";
+      if(@dateTcxFiles == 0){
+        die "ERROR: could not find any TCX files for date=$dateYMD\n";
+      }
+      @tcxFiles = (@tcxFiles, @dateTcxFiles);
+    }
+  }elsif(@tcxFiles == 0){
     @tcxFiles = grep {-f $_} glob "$DIR_AMAZFISH_WORKOUTS/*.tcx";
   }
 
