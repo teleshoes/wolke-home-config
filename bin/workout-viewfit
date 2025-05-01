@@ -31,6 +31,7 @@ sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
 sub calculateScaledTimeAndDistance($);
 sub calculateDistanceTargets($);
+sub getBestTimeForDistance($$);
 sub readWorkoutsCombine();
 sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
@@ -1370,39 +1371,44 @@ sub calculateScaledTimeAndDistance($){
 
 sub calculateDistanceTargets($){
   my ($workout) = @_;
-  my @intervals = @{$$workout{intervals}};
-
   $$workout{targets} = {};
-
   for my $targetName(@SORTED_TARGET_NAMES){
     my $targetDist = $NAMED_TARGETS{$targetName};
-    my $startIdx = -1;
-    my $endIdx = -1;
-    my $curDist = 0;
-    my $curDur = 0;
-    my $bestDur = undef;
-    while($startIdx <= $endIdx){
-      #shift start to the right exactly one interval, and subtract the removed interval (if any)
-      $startIdx++;
-      if($startIdx-1 >= 0){
-        $curDist -= ${$intervals[$startIdx-1]}{calculatedDistance};
-        $curDur -= ${$intervals[$startIdx-1]}{calculatedDuration};
-      }
+    my $bestDur = getBestTimeForDistance($workout, $targetDist);
+    $$workout{targets}{$targetName} = $bestDur;
+  }
+}
 
-      #shift end to the right until target min distance is reached, and add each added interval
-      while($curDist < $targetDist and $endIdx+1 < @intervals){
-        $endIdx++;
-        $curDist += ${$intervals[$endIdx]}{calculatedDistance};
-        $curDur += ${$intervals[$endIdx]}{calculatedDuration};
-      }
+sub getBestTimeForDistance($$){
+  my ($workout, $distance) = @_;
+  my @intervals = @{$$workout{intervals}};
 
-      #if target distance is reached, check if it is the best duration set for target
-      if($curDist >= $targetDist and (not defined $bestDur or $curDur < $bestDur)){
-        $bestDur = $curDur;
-        $$workout{targets}{$targetName} = $bestDur;
-      }
+  my $startIdx = -1;
+  my $endIdx = -1;
+  my $curDist = 0;
+  my $curDur = 0;
+  my $bestDur = undef;
+  while($startIdx <= $endIdx){
+    #shift start to the right exactly one interval, and subtract the removed interval (if any)
+    $startIdx++;
+    if($startIdx-1 >= 0){
+      $curDist -= ${$intervals[$startIdx-1]}{calculatedDistance};
+      $curDur -= ${$intervals[$startIdx-1]}{calculatedDuration};
+    }
+
+    #shift end to the right until target min distance is reached, and add each added interval
+    while($curDist < $distance and $endIdx+1 < @intervals){
+      $endIdx++;
+      $curDist += ${$intervals[$endIdx]}{calculatedDistance};
+      $curDur += ${$intervals[$endIdx]}{calculatedDuration};
+    }
+
+    #if target distance is reached, check if it is the best duration set for target
+    if($curDist >= $distance and (not defined $bestDur or $curDur < $bestDur)){
+      $bestDur = $curDur;
     }
   }
+  return $bestDur;
 }
 
 sub readWorkoutsCombine(){
