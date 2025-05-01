@@ -156,6 +156,10 @@ my $USAGE = "Usage:
     -d DISTANCE_WITH_UNITS
       same as: --min-distance=DISTANCE_WITH_UNITS
 
+    -b DISTANCE_WITH_UNITS
+    --best=DISTANCE_TARGET
+      skip workouts where another earlier workout has a better time for the given distance
+
     --details
       show details for each workout
       (this is the default)
@@ -308,6 +312,15 @@ sub main(@){
       }else{
         die "$USAGE\nERROR: invalid distance arg '$distArg'\n";
       }
+    }elsif($arg =~ /^(-b)$/ and @_ > 0){
+      my $distArg = shift @_;
+      if($distArg =~ /^(\d+|\d*\.\d+)(k|km|mi)$/i){
+        my ($distVal, $distUnit) = ($1, $2);
+        my $distKM = $distUnit =~ /mi/i ? $distVal / $MILES_PER_KM : $distVal;
+        $$opts{bestDistanceFilter} = $distKM * 1000.0;
+      }else{
+        die "$USAGE\nERROR: invalid distance arg $distArg'\n";
+      }
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
     }elsif($arg =~ /^(-w|--week|--weekly)$/){
@@ -418,6 +431,21 @@ sub main(@){
 
     #skip short workouts
     @workouts = grep {$$_{duration} > 20} @workouts;
+
+    if(defined $$opts{bestDistanceFilter}){
+      my %isRecordByWorkoutId;
+      my $curRecord = undef;
+      for my $workout(@workouts){
+        my $time = getBestTimeForDistance($workout, $$opts{bestDistanceFilter});
+        if(defined $time and (not defined $curRecord or $time < $curRecord)){
+          $curRecord = $time;
+          $isRecordByWorkoutId{$$workout{workout_id}} = 1;
+        }else{
+          $isRecordByWorkoutId{$$workout{workout_id}} = 0;
+        }
+      }
+      @workouts = grep {$isRecordByWorkoutId{$$_{workout_id}}} @workouts;
+    }
 
     if($$opts{format} eq $FORMAT_DETAILS){
       for my $w(@workouts){
