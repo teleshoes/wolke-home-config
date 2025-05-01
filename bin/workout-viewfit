@@ -11,6 +11,7 @@ use Time::Local qw(timegm_posix timelocal_posix);
 use List::Util qw(max min);
 use POSIX qw(ceil floor);
 
+sub parseDistanceFmt($);
 sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
 sub gnuplotDurations($$$@);
@@ -299,28 +300,14 @@ sub main(@){
     }elsif($arg =~ /^(\d\d\d\d-\d\d-\d\d):(\d\d\d\d-\d\d-\d\d)$/){
       $$opts{minDateFilter} = $1;
       $$opts{maxDateFilter} = $2;
-    }elsif($arg =~ /^--min-distance=(\d+|\d*\.\d+)(k|km|mi)$/i){
-      my ($distVal, $distUnit) = ($1, $2);
-      my $distKM = $distUnit =~ /mi/i ? $distVal / $MILES_PER_KM : $distVal;
-      $$opts{minDistanceFilter} = $distKM * 1000.0;
+    }elsif($arg =~ /^--min-distance=(.+)$/i){
+      $$opts{minDistanceFilter} = parseDistanceFmt($1);
     }elsif($arg =~ /^(-d)$/ and @_ > 0){
       my $distArg = shift @_;
-      if($distArg =~ /^(\d+|\d*\.\d+)(k|km|mi)$/i){
-        my ($distVal, $distUnit) = ($1, $2);
-        my $distKM = $distUnit =~ /mi/i ? $distVal / $MILES_PER_KM : $distVal;
-        $$opts{minDistanceFilter} = $distKM * 1000.0;
-      }else{
-        die "$USAGE\nERROR: invalid distance arg '$distArg'\n";
-      }
+      $$opts{minDistanceFilter} = parseDistanceFmt($distArg);
     }elsif($arg =~ /^(-b)$/ and @_ > 0){
       my $distArg = shift @_;
-      if($distArg =~ /^(\d+|\d*\.\d+)(k|km|mi)$/i){
-        my ($distVal, $distUnit) = ($1, $2);
-        my $distKM = $distUnit =~ /mi/i ? $distVal / $MILES_PER_KM : $distVal;
-        $$opts{bestDistanceFilter} = $distKM * 1000.0;
-      }else{
-        die "$USAGE\nERROR: invalid distance arg $distArg'\n";
-      }
+      $$opts{bestDistanceFilter} = parseDistanceFmt($distArg);
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
     }elsif($arg =~ /^(-w|--week|--weekly)$/){
@@ -567,6 +554,17 @@ sub main(@){
     }
   }else{
     die $USAGE;
+  }
+}
+
+sub parseDistanceFmt($){
+  my ($distanceFmt) = @_;
+  if($distanceFmt =~ /^(\d+|\d*\.\d+)(k|km|mi)$/i){
+    my ($distVal, $distUnit) = ($1, $2);
+    my $distKM = $distUnit =~ /mi/i ? $distVal / $MILES_PER_KM : $distVal;
+    return $distKM * 1000.0;
+  }else{
+    die "ERROR: invalid distance '$distanceFmt'\n";
   }
 }
 
