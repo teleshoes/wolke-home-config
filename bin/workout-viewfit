@@ -30,6 +30,7 @@ sub readHrCache($$);
 sub writeHrCache($$$);
 sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
+sub calculateIntervals($);
 sub calculateScaledTimeAndDistance($);
 sub calculateDistanceTargets($);
 sub getBestTimeForDistance($$);
@@ -386,36 +387,7 @@ sub main(@){
     } @workouts;
 
     for my $w(@workouts){
-      #if workout has no intervals, add one with the whole workout
-      if(@{$$w{intervals}} == 0 and $$w{duration} > 0){
-        $$w{intervals} = [{
-          duration         => $$w{duration},
-          distance         => $$w{distance},
-          average_distance => $$w{distance},
-          speed            => ($$w{distance}/1000.0) / ($$w{duration}/60.0/60.0),
-          heart_rate       => 0,
-        }];
-      }
-
-      #split the following intervals into multiple smaller intervals:
-      #  long intervals added by extra info
-      #  long intervals added in between combined workouts
-      #  long intervals added for workouts without intervals
-      #  any other intervals larger than 12s (should never be any)
-      splitUpLargeIntervals($w);
-
-      calculateScaledTimeAndDistance($w);
-
-      if(isWorkoutNeedsExternalHeartrate($w)){
-        my $hrByEpoch = getHrmonHrByEpoch($$w{dtmYMD});
-        insertExternalHeartrates($w, $hrByEpoch);
-      }
-      if(isWorkoutNeedsExternalHeartrate($w)){
-        my $hrByEpoch = getAmazfishHrByEpoch($$w{dtmYMD});
-        insertExternalHeartrates($w, $hrByEpoch);
-      }
-
-      removeHeartrateErrors($w);
+      calculateIntervals($w);
     }
 
     for my $w(@workouts){
@@ -1346,6 +1318,40 @@ sub removeHeartrateErrors($){
       ${$intervals[$i]}{heart_rate} = 0;
     }
   }
+}
+
+sub calculateIntervals($){
+  my ($w) = @_;
+  #if workout has no intervals, add one with the whole workout
+  if(@{$$w{intervals}} == 0 and $$w{duration} > 0){
+    $$w{intervals} = [{
+      duration         => $$w{duration},
+      distance         => $$w{distance},
+      average_distance => $$w{distance},
+      speed            => ($$w{distance}/1000.0) / ($$w{duration}/60.0/60.0),
+      heart_rate       => 0,
+    }];
+  }
+
+  #split the following intervals into multiple smaller intervals:
+  #  long intervals added by extra info
+  #  long intervals added in between combined workouts
+  #  long intervals added for workouts without intervals
+  #  any other intervals larger than 12s (should never be any)
+  splitUpLargeIntervals($w);
+
+  calculateScaledTimeAndDistance($w);
+
+  if(isWorkoutNeedsExternalHeartrate($w)){
+    my $hrByEpoch = getHrmonHrByEpoch($$w{dtmYMD});
+    insertExternalHeartrates($w, $hrByEpoch);
+  }
+  if(isWorkoutNeedsExternalHeartrate($w)){
+    my $hrByEpoch = getAmazfishHrByEpoch($$w{dtmYMD});
+    insertExternalHeartrates($w, $hrByEpoch);
+  }
+
+  removeHeartrateErrors($w);
 }
 
 sub calculateScaledTimeAndDistance($){
