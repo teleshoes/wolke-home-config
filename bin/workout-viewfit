@@ -5,7 +5,7 @@ use DateTime qw();
 use Date::Format qw(time2str);
 use Digest::MD5 qw();
 use File::Basename qw(basename);
-use Cpanel::JSON::XS qw(decode_json);
+use Cpanel::JSON::XS qw(decode_json encode_json);
 use Time::HiRes qw(time);
 use Time::Local qw(timegm_posix timelocal_posix);
 use List::Util qw(max min);
@@ -66,6 +66,7 @@ my $WORKOUTS_JSON_CACHE_DIR = "$ENV{HOME}/.cache/workouts/viewfit-workouts-json"
 my $WORKOUTS_MERGED_JSON_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-merged.json";
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
+my $WORKOUTS_INTERVAL_CACHE_DIR = "$ENV{HOME}/.cache/workouts/interval-cache";
 
 my $GNUPLOT_OUTPUT_DIR = "$ENV{HOME}/.cache/workouts/plots";
 
@@ -386,8 +387,20 @@ sub main(@){
       $$a{dtmEpoch} <=> $$b{dtmEpoch}
     } @workouts;
 
+    if(not -d $WORKOUTS_INTERVAL_CACHE_DIR){
+      system "mkdir", "-p", $WORKOUTS_INTERVAL_CACHE_DIR;
+    }
+
+    #calculate+cache intervals
     for my $w(@workouts){
-      calculateIntervals($w);
+      my $cacheFile = "$WORKOUTS_INTERVAL_CACHE_DIR/$$w{workout_id}";
+
+      if(-f $cacheFile){
+        $$w{intervals} = decode_json(readFile($cacheFile));
+      }else{
+        calculateIntervals($w);
+        writeFile($cacheFile, encode_json($$w{intervals}));
+      }
     }
 
     for my $w(@workouts){
