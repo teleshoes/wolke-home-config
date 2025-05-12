@@ -12,24 +12,26 @@ my $EXEC = basename $0;
 my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
 
+my $SUDO_ROOT = "sudo-root";
+
 my @PUBKEY_TARGETS_ARR = (
-  "main"          => ["ipmagic main",         undef,  $MODE_RSYNC],
-  "aux"           => ["ipmagic aux",          undef,  $MODE_RSYNC],
-  "aux2"          => ["ipmagic aux2",         undef,  $MODE_RSYNC],
-  "bed"           => ["ipmagic bed",          undef,  $MODE_RSYNC],
-  "tv"            => ["ipmagic tv",           undef,  $MODE_RSYNC],
-  "tv-root"       => ["ipmagic tv",           "root", $MODE_RSYNC],
-# "nuc"           => ["ipmagic nuc",          undef,  $MODE_RSYNC],
-# "nuc-root"      => ["ipmagic nuc",          "root", $MODE_RSYNC],
-  "ser"           => ["ipmagic ser",          undef,  $MODE_RSYNC],
-  "ser-root"      => ["ipmagic ser",          "root", $MODE_RSYNC],
-  "sb"            => ["seedbox --host",       undef,  $MODE_RSYNC],
-  "ddwrt-68u"     => ["ddwrt 68u --ip",       "root", $MODE_SCP],
-# "ddwrt-buffalo" => ["ddwrt buffalo --ip",   "root", $MODE_SCP],
-  "sx"            => ["ipmagic sx",           undef,  $MODE_RSYNC],
-  "sx-root"       => ["ipmagic sx",           "root", $MODE_RSYNC],
-  "pi"            => ["ipmagic raspi",        undef,  $MODE_RSYNC],
-  "pi-root"       => ["ipmagic raspi",        "root", $MODE_RSYNC],
+  "main"          => ["ipmagic main",         undef,  undef,      $MODE_RSYNC],
+  "aux"           => ["ipmagic aux",          undef,  undef,      $MODE_RSYNC],
+  "aux2"          => ["ipmagic aux2",         undef,  undef,      $MODE_RSYNC],
+  "bed"           => ["ipmagic bed",          undef,  undef,      $MODE_RSYNC],
+  "tv"            => ["ipmagic tv",           undef,  undef,      $MODE_RSYNC],
+  "tv-root"       => ["ipmagic tv",           "root", undef,      $MODE_RSYNC],
+# "nuc"           => ["ipmagic nuc",          undef,  undef,      $MODE_RSYNC],
+# "nuc-root"      => ["ipmagic nuc",          "root", undef,      $MODE_RSYNC],
+  "ser"           => ["ipmagic ser",          undef,  undef,      $MODE_RSYNC],
+  "ser-root"      => ["ipmagic ser",          "root", undef,      $MODE_RSYNC],
+  "sb"            => ["seedbox --host",       undef,  undef,      $MODE_RSYNC],
+  "ddwrt-68u"     => ["ddwrt 68u --ip",       "root", undef,      $MODE_SCP],
+# "ddwrt-buffalo" => ["ddwrt buffalo --ip",   "root", undef,      $MODE_SCP],
+  "sx"            => ["ipmagic sx",           undef,  undef,      $MODE_RSYNC],
+  "sx-root"       => ["ipmagic sx",           "root", undef,      $MODE_RSYNC],
+  "pi"            => ["ipmagic raspi",        undef,  undef,      $MODE_RSYNC],
+  "pi-root"       => ["ipmagic raspi",        "root", undef,      $MODE_RSYNC],
 );
 
 my %PUBKEY_TARGETS_BY_NAME = @PUBKEY_TARGETS_ARR;
@@ -119,8 +121,9 @@ sub copyPubKeysForTarget($$$){
     die "ERROR: unknown pubkey TARGET '$pubkeyTargetName'\n";
   }
 
-  my ($ipCmd, $user, $mode) = @$entry;
+  my ($ipCmd, $user, $isSudoRoot, $mode) = @$entry;
   my $userFmt = defined $user ? "USER=$user" : "default-user";
+  $userFmt = "sudo as root for $userFmt" if $isSudoRoot;
   print "\n\n$pubkeyTargetName: copying pubkeys for $ipCmd ($userFmt)\n";
 
   my $hostname = `$ipCmd`;
@@ -144,8 +147,14 @@ sub copyPubKeysForTarget($$$){
   }else{
     die "unknown mode: $mode\n";
   }
-  run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
-  run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
+
+  if($isSudoRoot){
+    run "ssh", $host, "sudo cp ~/.ssh/authorized_keys ~/.ssh/*.pub /root/.ssh/";
+    run "ssh", $host, "sudo chmod 700 /root/.ssh; sudo chmod 600 /root/.ssh/authorized_keys";
+  }else{
+    run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
+    run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
+  }
 
   return 1;
 }
