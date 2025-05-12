@@ -11,27 +11,30 @@ my $EXEC = basename $0;
 my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
 
-my @HOST_IP_CMD_ENTRIES = (
-  ["main"          => "ipmagic main",         undef,  $MODE_RSYNC],
-  ["aux"           => "ipmagic aux",          undef,  $MODE_RSYNC],
-  ["aux2"          => "ipmagic aux2",         undef,  $MODE_RSYNC],
-  ["bed"           => "ipmagic bed",          undef,  $MODE_RSYNC],
-  ["tv"            => "ipmagic tv",           undef,  $MODE_RSYNC],
-  ["tv-root"       => "ipmagic tv",           "root", $MODE_RSYNC],
-# ["nuc"           => "ipmagic nuc",          undef,  $MODE_RSYNC],
-# ["nuc-root"      => "ipmagic nuc",          "root", $MODE_RSYNC],
-  ["ser"           => "ipmagic ser",          undef,  $MODE_RSYNC],
-  ["ser-root"      => "ipmagic ser",          "root", $MODE_RSYNC],
-  ["sb"            => "seedbox --host",       undef,  $MODE_RSYNC],
-  ["ddwrt-68u"     => "ddwrt 68u --ip",       "root", $MODE_SCP],
-# ["ddwrt-buffalo" => "ddwrt buffalo --ip",   "root", $MODE_SCP],
-  ["sx"            => "ipmagic sx",           undef,  $MODE_RSYNC],
-  ["sx-root"       => "ipmagic sx",           "root", $MODE_RSYNC],
-  ["pi"            => "ipmagic raspi",        undef,  $MODE_RSYNC],
-  ["pi-root"       => "ipmagic raspi",        "root", $MODE_RSYNC],
+my @PUBKEY_TARGETS_ARR = (
+  "main"          => ["ipmagic main",         undef,  $MODE_RSYNC],
+  "aux"           => ["ipmagic aux",          undef,  $MODE_RSYNC],
+  "aux2"          => ["ipmagic aux2",         undef,  $MODE_RSYNC],
+  "bed"           => ["ipmagic bed",          undef,  $MODE_RSYNC],
+  "tv"            => ["ipmagic tv",           undef,  $MODE_RSYNC],
+  "tv-root"       => ["ipmagic tv",           "root", $MODE_RSYNC],
+# "nuc"           => ["ipmagic nuc",          undef,  $MODE_RSYNC],
+# "nuc-root"      => ["ipmagic nuc",          "root", $MODE_RSYNC],
+  "ser"           => ["ipmagic ser",          undef,  $MODE_RSYNC],
+  "ser-root"      => ["ipmagic ser",          "root", $MODE_RSYNC],
+  "sb"            => ["seedbox --host",       undef,  $MODE_RSYNC],
+  "ddwrt-68u"     => ["ddwrt 68u --ip",       "root", $MODE_SCP],
+# "ddwrt-buffalo" => ["ddwrt buffalo --ip",   "root", $MODE_SCP],
+  "sx"            => ["ipmagic sx",           undef,  $MODE_RSYNC],
+  "sx-root"       => ["ipmagic sx",           "root", $MODE_RSYNC],
+  "pi"            => ["ipmagic raspi",        undef,  $MODE_RSYNC],
+  "pi-root"       => ["ipmagic raspi",        "root", $MODE_RSYNC],
 );
-my @ALL_NAMES = map {${$_}[0]} @HOST_IP_CMD_ENTRIES;
-my $OK_NAMES = join "|", @ALL_NAMES;
+
+my %PUBKEY_TARGETS_BY_NAME = @PUBKEY_TARGETS_ARR;
+my @PUBKEY_TARGET_NAMES = map {$PUBKEY_TARGETS_ARR[$_]}
+                          grep {$_ % 2 == 0} (0..$#PUBKEY_TARGETS_ARR);
+my $OK_PUBKEY_TARGET_NAMES = join "|", @PUBKEY_TARGET_NAMES;
 
 my $USAGE = "Usage:
   $EXEC [TARGET [MODE]]
@@ -46,7 +49,7 @@ my $USAGE = "Usage:
     COMP_POINT - the cursor position in the cmdline
 
   TARGET
-    one of: $OK_NAMES
+    one of: $OK_PUBKEY_TARGET_NAMES
     copy for just the named command
 
   MODE
@@ -59,16 +62,16 @@ sub main(@){
     exit 0;
   }
 
-  my $targetName = undef;
+  my $name = undef;
   my $modeOverride = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^($OK_NAMES)$/ and not defined $targetName){
-      $targetName = $arg;
-    }elsif($arg =~ /^($MODE_RSYNC|$MODE_SCP)$/ and defined $targetName){
+    }elsif($arg =~ /^($OK_PUBKEY_TARGET_NAMES)$/ and not defined $name){
+      $name = $arg;
+    }elsif($arg =~ /^($MODE_RSYNC|$MODE_SCP)$/ and defined $name){
       $modeOverride = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";;
@@ -80,19 +83,25 @@ sub main(@){
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
-  for my $entry(@HOST_IP_CMD_ENTRIES){
-    my ($name, $ipCmd, $user, $mode) = @$entry;
-    next if defined $targetName and $name ne $targetName;
-    print "\n\n$name: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
+  for my $pubkeyTargetName(@PUBKEY_TARGET_NAMES){
+    next if defined $name and $name ne $pubkeyTargetName;
+
+    my $entry = $PUBKEY_TARGETS_BY_NAME{$pubkeyTargetName};
+    if(not defined $entry){
+      die "ERROR: unknown pubkey TARGET '$pubkeyTargetName'\n";
+    }
+
+    my ($ipCmd, $user, $mode) = @$entry;
+    print "\n\n$pubkeyTargetName: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
     my $hostname = `$ipCmd`;
     chomp $hostname;
     if($? != 0){
       print STDERR "WARNING: error running '$ipCmd'\n";
-      push @entryNamesFailure, $name;
+      push @entryNamesFailure, $pubkeyTargetName;
       next;
     }elsif($hostname !~ /\w/){
       print STDERR "WARNING: malformed hostname from '$ipCmd': $hostname\n";
-      push @entryNamesFailure, $name;
+      push @entryNamesFailure, $pubkeyTargetName;
       next;
     }
 
@@ -110,7 +119,7 @@ sub main(@){
     run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
     run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
 
-    push @entryNamesSuccess, $name;
+    push @entryNamesSuccess, $pubkeyTargetName;
   }
 
   print "\n\n\n"
@@ -148,7 +157,7 @@ sub bashComplete($$){
   if(defined $optWord and $optWord =~ /^-/){
     return @opts;
   }elsif(@words == 0){
-    return sort @ALL_NAMES;
+    return sort @PUBKEY_TARGET_NAMES;
   }
 
   return ();
