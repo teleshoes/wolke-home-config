@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub copyPubKeysForTarget($$$);
 sub run(@);
 sub bashComplete($$);
 
@@ -94,40 +95,11 @@ sub main(@){
   print "Copying these pubkeys:\n" . (join "", map {"  $_\n"} @$pubkeyFiles) . "\n\n";
 
   for my $pubkeyTargetName(@names){
-    my $entry = $PUBKEY_TARGETS_BY_NAME{$pubkeyTargetName};
-    if(not defined $entry){
-      die "ERROR: unknown pubkey TARGET '$pubkeyTargetName'\n";
-    }
-
-    my ($ipCmd, $user, $mode) = @$entry;
-    print "\n\n$pubkeyTargetName: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
-    my $hostname = `$ipCmd`;
-    chomp $hostname;
-    if($? != 0){
-      print STDERR "WARNING: error running '$ipCmd'\n";
-      push @entryNamesFailure, $pubkeyTargetName;
-      next;
-    }elsif($hostname !~ /\w/){
-      print STDERR "WARNING: malformed hostname from '$ipCmd': $hostname\n";
-      push @entryNamesFailure, $pubkeyTargetName;
-      next;
-    }
-
-    $mode = $$opts{modeOverride} if defined $$opts{modeOverride};
-
-    my $host = $hostname;
-    $host = "$user\@$host" if defined $user;
-    if($mode eq $MODE_RSYNC){
-      run "rsync", "-avP", @$pubkeyFiles, "$host:~/.ssh/";
-    }elsif($mode eq $MODE_SCP){
-      run "scp", "-O", @$pubkeyFiles, "$host:~/.ssh/";
+    if(copyPubKeysForTarget($opts, $pubkeyTargetName, $pubkeyFiles)){
+      push @entryNamesSuccess, $pubkeyTargetName;
     }else{
-      die "unknown mode: $mode\n";
+      push @entryNamesFailure, $pubkeyTargetName;
     }
-    run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
-    run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
-
-    push @entryNamesSuccess, $pubkeyTargetName;
   }
 
   print "\n\n\n"
@@ -137,6 +109,43 @@ sub main(@){
   print "\n";
   print "SUCCESS: @entryNamesSuccess\n" if @entryNamesSuccess > 0;
   print "FAILURE: @entryNamesFailure\n" if @entryNamesFailure > 0;
+}
+
+sub copyPubKeysForTarget($$$){
+  my ($opts, $pubkeyTargetName, $pubkeyFiles) = @_;
+
+  my $entry = $PUBKEY_TARGETS_BY_NAME{$pubkeyTargetName};
+  if(not defined $entry){
+    die "ERROR: unknown pubkey TARGET '$pubkeyTargetName'\n";
+  }
+
+  my ($ipCmd, $user, $mode) = @$entry;
+  print "\n\n$pubkeyTargetName: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
+  my $hostname = `$ipCmd`;
+  chomp $hostname;
+  if($? != 0){
+    print STDERR "WARNING: error running '$ipCmd'\n";
+    return 0;
+  }elsif($hostname !~ /\w/){
+    print STDERR "WARNING: malformed hostname from '$ipCmd': $hostname\n";
+    return 0;
+  }
+
+  $mode = $$opts{modeOverride} if defined $$opts{modeOverride};
+
+  my $host = $hostname;
+  $host = "$user\@$host" if defined $user;
+  if($mode eq $MODE_RSYNC){
+    run "rsync", "-avP", @$pubkeyFiles, "$host:~/.ssh/";
+  }elsif($mode eq $MODE_SCP){
+    run "scp", "-O", @$pubkeyFiles, "$host:~/.ssh/";
+  }else{
+    die "unknown mode: $mode\n";
+  }
+  run "ssh", $host, "cat ~/.ssh/*.pub > ~/.ssh/authorized_keys";
+  run "ssh", $host, "chmod 700 ~/.ssh; chmod 600 ~/.ssh/authorized_keys";
+
+  return 1;
 }
 
 sub run(@){
@@ -171,4 +180,5 @@ sub bashComplete($$){
 
   return ();
 }
+
 &main(@ARGV);
