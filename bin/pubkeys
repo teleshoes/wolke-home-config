@@ -37,7 +37,7 @@ my @PUBKEY_TARGET_NAMES = map {$PUBKEY_TARGETS_ARR[$_]}
 my $OK_PUBKEY_TARGET_NAMES = join "|", @PUBKEY_TARGET_NAMES;
 
 my $USAGE = "Usage:
-  $EXEC [TARGET [MODE]]
+  $EXEC [OPTS] [TARGET]
     copy pubkeys/authkeys to the hosts returned by the above commands
 
   $EXEC -h|--help
@@ -52,8 +52,12 @@ my $USAGE = "Usage:
     one of: $OK_PUBKEY_TARGET_NAMES
     copy for just the named command
 
-  MODE
-    one of: $MODE_RSYNC | $MODE_SCP
+  OPTS
+    --scp | scp
+      use `scp` to copy keys regardless of the default for the named TARGET
+
+    --rsync | rsync
+      use `rsync` to copy keys regardless of the default for the named TARGET
 ";
 
 sub main(@){
@@ -71,8 +75,10 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^($OK_PUBKEY_TARGET_NAMES)$/ and not defined $name){
       $name = $arg;
-    }elsif($arg =~ /^($MODE_RSYNC|$MODE_SCP)$/ and defined $name){
-      $modeOverride = $arg;
+    }elsif($arg =~ /^(--scp|scp)$/){
+      $modeOverride = $MODE_SCP;
+    }elsif($arg =~ /^(--rsync|rsync)$/){
+      $modeOverride = $MODE_RSYNC;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";;
     }
@@ -150,6 +156,7 @@ sub bashComplete($$){
 
   my @opts = qw(
     -h --help
+    --scp --rsync
     --bash-complete
   );
   my $optWord = $isNewWord ? $words[-1] : $curWord;
