@@ -8,7 +8,7 @@ sub bashComplete($$);
 my $MODE_RSYNC = "rsync";
 my $MODE_SCP = "scp";
 
-my @hostIpCmdEntries = (
+my @HOST_IP_CMD_ENTRIES = (
   ["main"          => "ipmagic main",         undef,  $MODE_RSYNC],
   ["aux"           => "ipmagic aux",          undef,  $MODE_RSYNC],
   ["aux2"          => "ipmagic aux2",         undef,  $MODE_RSYNC],
@@ -27,10 +27,10 @@ my @hostIpCmdEntries = (
   ["pi"            => "ipmagic raspi",        undef,  $MODE_RSYNC],
   ["pi-root"       => "ipmagic raspi",        "root", $MODE_RSYNC],
 );
-my @allNames = map {${$_}[0]} @hostIpCmdEntries;
-my $okNames = join "|", @allNames;
+my @ALL_NAMES = map {${$_}[0]} @HOST_IP_CMD_ENTRIES;
+my $OK_NAMES = join "|", @ALL_NAMES;
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 [TARGET [MODE]]
     copy pubkeys/authkeys to the hosts returned by the above commands
 
@@ -43,7 +43,7 @@ my $usage = "Usage:
     COMP_POINT - the cursor position in the cmdline
 
   TARGET
-    one of: $okNames
+    one of: $OK_NAMES
     copy for just the named command
 
   MODE
@@ -57,15 +57,15 @@ sub main(@){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
   }elsif(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
+    print $USAGE;
     exit 0;
-  }elsif(@_ == 1 and $_[0] =~ /^($okNames)$/){
+  }elsif(@_ == 1 and $_[0] =~ /^($OK_NAMES)$/){
     $targetName = $_[0];
-  }elsif(@_ == 2 and $_[0] =~ /^($okNames)$/ and $_[1] =~ /^($MODE_RSYNC|$MODE_SCP)$/){
+  }elsif(@_ == 2 and $_[0] =~ /^($OK_NAMES)$/ and $_[1] =~ /^($MODE_RSYNC|$MODE_SCP)$/){
     $targetName = $_[0];
     $modeOverride = $_[1];
   }elsif(@_ > 0){
-    die $usage;
+    die $USAGE;
   }
 
   my (@entryNamesSuccess, @entryNamesFailure);
@@ -73,7 +73,7 @@ sub main(@){
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
-  for my $entry(@hostIpCmdEntries){
+  for my $entry(@HOST_IP_CMD_ENTRIES){
     my ($name, $ipCmd, $user, $mode) = @$entry;
     next if defined $targetName and $name ne $targetName;
     print "\n\n$name: copying pubkeys for $ipCmd" . (defined $user ? " ($user)" : "") . "\n";
@@ -141,7 +141,7 @@ sub bashComplete($$){
   if(defined $optWord and $optWord =~ /^-/){
     return @opts;
   }elsif(@words == 0){
-    return sort @allNames;
+    return sort @ALL_NAMES;
   }
 
   return ();
