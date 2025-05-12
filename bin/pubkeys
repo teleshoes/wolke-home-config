@@ -37,7 +37,7 @@ my @PUBKEY_TARGET_NAMES = map {$PUBKEY_TARGETS_ARR[$_]}
 my $OK_PUBKEY_TARGET_NAMES = join "|", @PUBKEY_TARGET_NAMES;
 
 my $USAGE = "Usage:
-  $EXEC [OPTS] [TARGET]
+  $EXEC [OPTS] [TARGET TARGET ..]
     copy pubkeys/authkeys to the hosts returned by the above commands
 
   $EXEC -h|--help
@@ -50,7 +50,7 @@ my $USAGE = "Usage:
 
   TARGET
     one of: $OK_PUBKEY_TARGET_NAMES
-    copy for just the named command
+    copy for just the named targets (default is all)
 
   OPTS
     --scp | scp
@@ -66,15 +66,15 @@ sub main(@){
     exit 0;
   }
 
-  my $name = undef;
+  my @names;
   my $modeOverride = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^($OK_PUBKEY_TARGET_NAMES)$/ and not defined $name){
-      $name = $arg;
+    }elsif($arg =~ /^($OK_PUBKEY_TARGET_NAMES)$/){
+      push @names, $arg;
     }elsif($arg =~ /^(--scp|scp)$/){
       $modeOverride = $MODE_SCP;
     }elsif($arg =~ /^(--rsync|rsync)$/){
@@ -84,14 +84,14 @@ sub main(@){
     }
   }
 
+  @names = @PUBKEY_TARGET_NAMES if @names == 0;
+
   my (@entryNamesSuccess, @entryNamesFailure);
 
   my @pubkeyFiles = `ls $ENV{HOME}/.ssh/*.pub`;
   chomp foreach @pubkeyFiles;
   print "Copying these pubkeys:\n" . (join "\n", @pubkeyFiles) . "\n\n";
-  for my $pubkeyTargetName(@PUBKEY_TARGET_NAMES){
-    next if defined $name and $name ne $pubkeyTargetName;
-
+  for my $pubkeyTargetName(@names){
     my $entry = $PUBKEY_TARGETS_BY_NAME{$pubkeyTargetName};
     if(not defined $entry){
       die "ERROR: unknown pubkey TARGET '$pubkeyTargetName'\n";
