@@ -26,18 +26,26 @@ my $USAGE = "Usage:
     e.g.: $EXEC ~/Downloads/debian-testing.iso /dev/sdc
 
   OPTS
+    --xz | --xzcat
+      treat ISO_IMAGE as an xz file, and decompress while writing
+        -run: xzcat ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
+
+      e.g.: $EXEC --xzcat ~/Downloads/debian-testing.iso.xz /dev/sdc
 ";
 
 sub main(@){
   my $iso;
   my $devPath;
   my $opts = {
+    xz => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--xz|--xzcat)$/){
+      $$opts{xz} = 1;
     }elsif(-f $arg and not defined $iso){
       $iso = $arg;
     }elsif(-b $arg and not defined $devPath){
@@ -64,7 +72,14 @@ sub main(@){
   $iso =~ s/"/\\"/g;
   $devPath =~ s/"/\\"/g;
 
-  my $cmd = "dd @DD_OPTS if=\"$iso\" of=\"$devPath\"";
+  my $cmd;
+  if($$opts{xz}){
+    print "\n\n";
+    run "xz", "-l", $iso;
+    $cmd = "xzcat \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
+  }else{
+    $cmd = "dd @DD_OPTS if=\"$iso\" of=\"$devPath\"";
+  }
 
   print "\n\n";
   print "DESTROY ALL PARTITIONS AND DATA OF THE ABOVE?\n";
