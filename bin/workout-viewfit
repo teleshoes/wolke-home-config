@@ -129,14 +129,17 @@ my $USAGE = "Usage:
 
     --date=YYYY-MM-DD
       show only workouts that match YYYY-MM-DD
+      can be given multiple times to include multiple single dates
 
     YYYY-MM-DD
       same as: --date=YYYY-MM-DD
 
     --min-date=YYYY-MM-DD
       show only workouts with date <= YYYY-MM-DD
+      NOTE: can be given only once, latest value overrides previous
     --max-date=YYYY-MM-DD
       show only workouts with date >= YYYY-MM-DD
+      NOTE: can be given only once, latest value overrides previous
 
     MIN_YYYYMMDD:MAX_YYYYMMDD
       same as: --min-date=MIN_YYYYMMDD --max-date=MAX_YYYYMMDD
@@ -262,7 +265,7 @@ sub main(@){
   my $cmd = $COMMAND_GET;
   my $opts = {
     workoutIdFilter => undef,
-    dateFilter => undef,
+    dateFilter => [],
     minDateFilter => undef,
     maxDateFilter => undef,
     minDistanceFilter => undef,
@@ -290,7 +293,7 @@ sub main(@){
     }elsif($arg =~ /^--id=(.+)$/){
       $$opts{workoutIdFilter} = $1;
     }elsif($arg =~ /^(?:--date=)?(\d\d\d\d-\d\d-\d\d)$/){
-      $$opts{dateFilter} = $1;
+      push @{$$opts{dateFilter}}, $1;
     }elsif($arg =~ /^--min-date=(\d\d\d\d-\d\d-\d\d)$/){
       $$opts{minDateFilter} = $1;
     }elsif($arg =~ /^--max-date=(\d\d\d\d-\d\d-\d\d)$/){
@@ -367,8 +370,9 @@ sub main(@){
     if(defined $$opts{workoutIdFilter}){
       @workouts = grep {$$_{workout_id} =~ /$$opts{workoutIdFilter}/} @workouts;
     }
-    if(defined $$opts{dateFilter}){
-      @workouts = grep {$$_{dtmYMD} eq $$opts{dateFilter}} @workouts;
+    if(@{$$opts{dateFilter}} > 0){
+      my %okDtmYMD = map {$_ => 1} @{$$opts{dateFilter}};
+      @workouts = grep {defined $okDtmYMD{$$_{dtmYMD}}} @workouts;
     }
     if(defined $$opts{minDateFilter}){
       @workouts = grep {$$_{dtmYMD} ge $$opts{minDateFilter}} @workouts;
