@@ -261,26 +261,34 @@ sub getShowEntries(){
   return $entries;
 }
 
-#return all files in a dir before children of that dir
-sub sortBreadthFirst($$){
+#return files in a dir before children of that dir
+sub sortByDirs($$){
   my ($a, $b) = @_;
-  my $aDir = $a;
-  $aDir =~ s/\/+$//;
-  $aDir =~ s/\/+[^\/]+$//;
+  my $aFullDir = $a;
+  $aFullDir =~ s/\/+$//;
+  $aFullDir =~ s/\/\/+/\//;
+  $aFullDir =~ s/\/[^\/]+$//;
 
-  my $bDir = $b;
-  $bDir =~ s/\/+$//;
-  $bDir =~ s/\/+[^\/]+$//;
+  my $bFullDir = $b;
+  $bFullDir =~ s/\/+$//;
+  $bFullDir =~ s/\/\/+/\//;
+  $bFullDir =~ s/\/[^\/]+$//;
 
-  if($aDir eq $bDir){
-    return $a cmp $b;
-  }elsif($aDir =~ /^\Q$bDir\E/){
-    return -1;
-  }elsif($bDir =~ /^\Q$aDir\E/){
-    return 1;
-  }else{
-    return $a cmp $b;
+  my @aDirs = split /\//, $aFullDir;
+  my @bDirs = split /\//, $bFullDir;
+
+  my $maxSize = @aDirs > @bDirs ? @aDirs : @bDirs;
+
+  for(my $i=0; $i<$maxSize; $i++){
+    my $aDir = $i < @aDirs ? $aDirs[$i] : "";
+    my $bDir = $i < @bDirs ? $bDirs[$i] : "";
+    my $comp = $aDir cmp $bDir;
+    if($comp != 0){
+      return $comp;
+    }
   }
+
+  return $a cmp $b;
 }
 
 sub getDirEntries($){
@@ -292,8 +300,8 @@ sub getDirEntries($){
     my $name = dirPathToName $subDir;
     my @files = readProcLines "find", $subDir, "-type", "f";
     chomp foreach @files;
-    @files = sort {sortBreadthFirst($a, $b)} @files;
 
+    @files = sort {sortByDirs($a, $b)} @files;
     my @types;
     my @jpeg = grep {/\.(jpg|jpeg)$/} @files;
     my @imgs = grep {/\.(jpg|jpeg|png|gif|tiff|bmp)$/} @files;
