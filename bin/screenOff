@@ -3,8 +3,9 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-my @TV_IPMAGIC_NAMES = qw( tv ser );
-my @LAPTOP_IPMAGIC_NAMES = qw( main aux aux2 emily-main );
+sub getResconfigCmd();
+
+my $RESCONFIG_FILE = "$ENV{HOME}/resconfig-screen";
 
 my $EXEC = basename $0;
 
@@ -14,10 +15,13 @@ my $usage = "Usage:
 
   $EXEC
   $EXEC guess | --guess
-    get local <IPMAGIC_NAME> with: ipmagic --get-ipmagic-name
-    if <IPMAGIC_NAME> is one of: @TV_IPMAGIC_NAMES
+    -read 'screen_off_type=TYPE' from file:
+      $RESCONFIG_FILE
+    -if TYPE = dpms:
+      same as: $EXEC --dpms
+    -if TYPE = cec:
       same as: $EXEC --cec
-    otherwise:
+    -if file is missing, screen_off is missing, or TYPE is unknown:
       same as: $EXEC --dpms
 
   $EXEC dpms | --dpms
@@ -54,20 +58,38 @@ sub main(@){
   }
 
   if($cmd eq $COMMAND_GUESS){
-    my $ipmagicName = `ipmagic --get-ipmagic-name`;
-    chomp $ipmagicName;
-    my %okTV = map {$_ => 1} @TV_IPMAGIC_NAMES;
-    if(defined $okTV{$ipmagicName}){
-      exec "cec-cmd --tv off";
-    }else{
-      exec "xset dpms force off";
+    $cmd = getResconfigCmd();
+    if(not defined $cmd){
+      $cmd = $COMMAND_DPMS;
     }
-  }elsif($cmd eq $COMMAND_DPMS){
+  }
+
+  if($cmd eq $COMMAND_DPMS){
     exec "xset dpms force off";
   }elsif($cmd eq $COMMAND_CEC){
     exec "cec-cmd --tv off";
   }else{
     die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub getResconfigCmd(){
+  my $type = "";
+  if(-f $RESCONFIG_FILE){
+    open my $fh, "< $RESCONFIG_FILE" or die "ERROR: could not read $RESCONFIG_FILE\n$!\n";
+    my $contents = join '', <$fh>;
+    close $fh;
+    if($contents =~ /^\s*screen_off_type\s*=\s*(\w+)\s*$/m){
+      $type = $1;
+    }
+  }
+
+  if($type =~ /^$COMMAND_DPMS$/i){
+    return $COMMAND_DPMS;
+  }elsif($type =~ /^$COMMAND_CEC$/i){
+    return $COMMAND_CEC;
+  }else{
+    return undef;
   }
 }
 
