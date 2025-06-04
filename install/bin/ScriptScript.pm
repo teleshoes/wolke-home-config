@@ -42,6 +42,7 @@ our @EXPORT = qw(
   versionCmp
   joinLines
   md5sum
+  mtime
   nowMillis
 );
 
@@ -136,6 +137,7 @@ sub removeGitSrcCache($);
 sub extractNameFromGitUrl($);
 sub shellQuote(@);
 sub md5sum($);
+sub mtime($);
 sub nowMillis();
 
 sub getScriptNames(){
@@ -1070,6 +1072,12 @@ sub md5sum($){
   }else{
     return undef;
   }
+}
+
+sub mtime($){
+  my ($file) = @_;
+  my @stat = stat $file;
+  return $stat[9];
 }
 
 sub nowMillis(){
