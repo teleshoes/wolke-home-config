@@ -4,9 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 my $DATETIME_FORMAT_EPOCH = "%s";
-my $DATETIME_FORMAT_EPOCH_MILLIS = "%s.%3N";
 my $DATETIME_FORMAT_PRETTY = "%Y-%m-%dT%H:%M:%S";
-my $DATETIME_FORMAT_PRETTY_MILLIS = "%Y-%m-%dT%H:%M:%S.%3N";
 my $DATETIME_FORMAT_ISO = "%Y-%m-%dT%H:%M:%S%:z";
 
 my $FILE_MODE_ALWAYS = 'always';
@@ -36,21 +34,18 @@ my $USAGE = "Usage:
         -default is: --format=$DATETIME_FORMAT_EPOCH
 
     -f | --format
-      if --millis is also given:
-        same as: --format=$DATETIME_FORMAT_PRETTY_MILLIS
-      otherwise:
-        same as: --format=$DATETIME_FORMAT_PRETTY
-
+      same as: --format=$DATETIME_FORMAT_PRETTY
     -I | --iso | --iso-8601 | -Iseconds | --iso-8601=seconds
       same as: --format=$DATETIME_FORMAT_ISO
-      NOTE: --millis has no effect with -I
 
     -m | --millis
     --fracs | --frac-s
-      if no DATE_FORMAT given:
-        if --format is given, use format: $DATETIME_FORMAT_PRETTY_MILLIS
-        otheriwse, use format: $DATETIME_FORMAT_EPOCH_MILLIS
-      e.g.: 1666124897.300  or  2022-10-18_16-28-17.300
+      modify DATE_FORMAT after --format args
+        -replace all instances of '%s' with '%s.%3N'
+        -replace all instances of '%S' with '%S.%3N'
+      e.g.:
+        '$EXEC -m FILE'     =>   1666124897.300
+        '$EXEC -m -f FILE'  =>   2022-10-18T16:28:17.300
 
     -u | --utc
       pass '--utc' to `date` when using DATE_FORMAT
@@ -73,7 +68,7 @@ sub main(@){
   my $usePrettyFormat = 0;
   my $useDateUTC = 0;
   my $dateFormatSpec = undef;
-  my $useMillis = 0;
+  my $appendMillisFormat = 0;
   my $fileMode = $FILE_MODE_MULTI;
   my $fileDisplayPos = $FILE_DISPLAY_POS_PREFIX;
   my @files;
@@ -91,7 +86,7 @@ sub main(@){
     }elsif($arg =~ /^(-I|--iso|--iso-8601|-Iseconds|--iso-8601=seconds)$/){
       $dateFormatSpec = $DATETIME_FORMAT_ISO;
     }elsif($arg =~ /^(-m|--millis|--fracs|--frac-s)$/){
-      $useMillis = 1;
+      $appendMillisFormat = 1;
     }elsif($arg =~ /^(-u|--utc)$/){
       $useDateUTC = 1;
     }elsif($arg =~ /^(--file|-p|--prefix)$/){
@@ -111,19 +106,16 @@ sub main(@){
   }
 
   if(not defined $dateFormatSpec){
-    if($useMillis){
-      if($usePrettyFormat){
-        $dateFormatSpec = $DATETIME_FORMAT_PRETTY_MILLIS;
-      }else{
-        $dateFormatSpec = $DATETIME_FORMAT_EPOCH_MILLIS;
-      }
+    if($usePrettyFormat){
+      $dateFormatSpec = $DATETIME_FORMAT_PRETTY;
     }else{
-      if($usePrettyFormat){
-        $dateFormatSpec = $DATETIME_FORMAT_PRETTY;
-      }else{
-        $dateFormatSpec = $DATETIME_FORMAT_EPOCH;
-      }
+      $dateFormatSpec = $DATETIME_FORMAT_EPOCH;
     }
+  }
+
+  if($appendMillisFormat){
+    $dateFormatSpec =~ s/%s/%s.%3N/g;
+    $dateFormatSpec =~ s/%S/%S.%3N/g;
   }
 
   my $formatContainsNano = $dateFormatSpec =~ /%\d*N/ ? 1 : 0;
