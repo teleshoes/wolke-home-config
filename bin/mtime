@@ -8,12 +8,12 @@ my $DATETIME_FORMAT_PRETTY = "%Y-%m-%dT%H:%M:%S";
 my $DATETIME_FORMAT_ISO = "%Y-%m-%dT%H:%M:%S%:z";
 my $DATETIME_FORMAT_FILENAME = "%Y%m%d_%H%M%S";
 
-my $FILE_MODE_ALWAYS = 'always';
-my $FILE_MODE_NEVER = 'never';
-my $FILE_MODE_MULTI = 'multi';
+my $FILE_WHEN_ALWAYS = 'always';
+my $FILE_WHEN_NEVER = 'never';
+my $FILE_WHEN_MULTI = 'multi';
 
-my $FILE_DISPLAY_POS_PREFIX = 'prefix';
-my $FILE_DISPLAY_POS_SUFFIX = 'suffix';
+my $FILEPOS_PREFIX = 'prefix';
+my $FILEPOS_SUFFIX = 'suffix';
 
 my $EXEC = basename $0;
 
@@ -71,8 +71,8 @@ sub main(@){
   my $useDateUTC = 0;
   my $dateFormatSpec = $DATETIME_FORMAT_EPOCH;
   my $appendMillisFormat = 0;
-  my $fileMode = $FILE_MODE_MULTI;
-  my $fileDisplayPos = $FILE_DISPLAY_POS_PREFIX;
+  my $fileWhen = $FILE_WHEN_MULTI;
+  my $filePos = $FILEPOS_PREFIX;
   my @files;
   while(@_ > 0){
     my $arg = shift;
@@ -94,14 +94,14 @@ sub main(@){
     }elsif($arg =~ /^(-u|--utc)$/){
       $useDateUTC = 1;
     }elsif($arg =~ /^(--file|-p|--prefix)$/){
-      $fileMode = $FILE_MODE_ALWAYS;
+      $fileWhen = $FILE_WHEN_ALWAYS;
     }elsif($arg =~ /^(--no-file|-n|--no-prefix)$/){
-      $fileMode = $FILE_MODE_NEVER;
+      $fileWhen = $FILE_WHEN_NEVER;
     }elsif($arg =~ /^(--file-multi)$/){
-      $fileMode = $FILE_MODE_MULTI;
+      $fileWhen = $FILE_WHEN_MULTI;
     }elsif($arg =~ /^(-s|--suffix)$/){
-      $fileDisplayPos = $FILE_DISPLAY_POS_SUFFIX;
-      $fileMode = $FILE_MODE_ALWAYS;
+      $filePos = $FILEPOS_SUFFIX;
+      $fileWhen = $FILE_WHEN_ALWAYS;
     }elsif(-l $arg or -e $arg){
       push @files, $arg;
     }else{
@@ -123,9 +123,9 @@ sub main(@){
   }
 
   my $displayFile = 0;
-  $displayFile = @files > 1 ? 1 : 0 if $fileMode eq $FILE_MODE_MULTI;
-  $displayFile = 1 if $fileMode eq $FILE_MODE_ALWAYS;
-  $displayFile = 0 if $fileMode eq $FILE_MODE_NEVER;
+  $displayFile = @files > 1 ? 1 : 0 if $fileWhen eq $FILE_WHEN_MULTI;
+  $displayFile = 1 if $fileWhen eq $FILE_WHEN_ALWAYS;
+  $displayFile = 0 if $fileWhen eq $FILE_WHEN_NEVER;
 
   for my $file(@files){
     my @stat;
@@ -151,13 +151,13 @@ sub main(@){
     }
 
     if($displayFile){
-      if($fileDisplayPos eq $FILE_DISPLAY_POS_PREFIX){
+      if($filePos eq $FILEPOS_PREFIX){
         my $len = $maxFileLen + 2;
         printf "\%-${len}s \%s\n", $file, $mtimeFmt;
-      }elsif($fileDisplayPos eq $FILE_DISPLAY_POS_SUFFIX){
+      }elsif($filePos eq $FILEPOS_SUFFIX){
         printf "%s %s\n", $mtimeFmt, $file;
       }else{
-        die "ERROR: unknown file display pos $fileDisplayPos\n";
+        die "ERROR: unknown file display pos $filePos\n";
       }
     }else{
       print "$mtimeFmt\n";
