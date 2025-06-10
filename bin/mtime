@@ -25,6 +25,8 @@ my $USAGE = "Usage:
     print file modification time in seconds since epoch UTC, one per line
       if more than one file is specified, prefix each line with 'FILE',
         followed by whitespace (one or more ' ' chars, to align the mtime)
+    if available, use perl module DateTime::strftime
+      otherwise, use `date` shell cmd
 
   OPTS
     --format=DATE_FORMAT
@@ -150,6 +152,23 @@ sub main(@){
   $displayFile = 1 if $fileWhen eq $FILE_WHEN_ALWAYS;
   $displayFile = 0 if $fileWhen eq $FILE_WHEN_NEVER;
 
+  my $usePerlDateTime = eval {
+    require DateTime;
+    DateTime->import();
+    require DateTime::TimeZone;
+    DateTime::TimeZone->import();
+    1;
+  };
+
+  my $targetTZ = undef;
+  if($usePerlDateTime){
+    if($useDateUTC){
+      $targetTZ = DateTime::TimeZone->new(name => 'UTC');
+    }else{
+      $targetTZ = DateTime::TimeZone->new(name => 'local');
+    }
+  }
+
   for my $file(@files){
     my @stat;
     if($formatContainsNano){
@@ -162,11 +181,19 @@ sub main(@){
     my $mtime = $stat[9];
 
     my $mtimeFmt;
-    #skip calling `date` for simple epoch formats
     if($dateFormatSpec eq "%s"){
+      #skip calling `date` for simple epoch formats
       $mtimeFmt = int($mtime);
     }elsif($dateFormatSpec eq "%s.%3N"){
+      #skip calling `date` for simple epoch formats
       $mtimeFmt = sprintf "%.3f", int($mtime * 1000.0) / 1000.0;
+    }elsif($usePerlDateTime){
+      my $dt = DateTime->from_epoch(
+        epoch => $mtime,
+        time_zone => $targetTZ,
+      );
+
+      $mtimeFmt = $dt->strftime($dateFormatSpec);
     }else{
       my @dateArgs = $useDateUTC ? ("--utc") : ();
       $mtimeFmt = `date @dateArgs --date \@$mtime +$dateFormatSpec`;
