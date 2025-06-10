@@ -3,8 +3,10 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+my $DATETIME_FORMAT_EPOCH = "%s";
+my $DATETIME_FORMAT_EPOCH_MILLIS = "%s.%3N";
 my $DATETIME_FORMAT_PRETTY = "%Y-%m-%dT%H:%M:%S";
-my $DATETIME_FORMAT_MILLIS = "%Y-%m-%dT%H:%M:%S.%3N";
+my $DATETIME_FORMAT_PRETTY_MILLIS = "%Y-%m-%dT%H:%M:%S.%3N";
 my $DATETIME_FORMAT_ISO = "%Y-%m-%dT%H:%M:%S%:z";
 
 my $FILE_MODE_ALWAYS = 'always';
@@ -29,7 +31,7 @@ my $USAGE = "Usage:
     -f | --format
       format mtime in local time zone
         if --millis is also given:
-          same as: --format=$DATETIME_FORMAT_MILLIS
+          same as: --format=$DATETIME_FORMAT_PRETTY_MILLIS
         otherwise:
           same as: --format=$DATETIME_FORMAT_PRETTY
     --format=DATE_FORMAT
@@ -48,7 +50,7 @@ my $USAGE = "Usage:
     -m | --millis
     --fracs | --frac-s
       use milliseconds from Time::HiRes->stat
-      if --format, but no DATE_FORMAT given, use format: $DATETIME_FORMAT_MILLIS
+      if --format, but no DATE_FORMAT given, use format: $DATETIME_FORMAT_PRETTY_MILLIS
       e.g.: 1666124897.300  or  2022-10-18_16-28-17.300
 
     --file | -p | --prefix
@@ -65,7 +67,7 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  my $useDateFormat = 0;
+  my $usePrettyFormat = 0;
   my $useDateUTC = 0;
   my $dateFormatSpec = undef;
   my $useMillis = 0;
@@ -78,15 +80,12 @@ sub main(@){
       print $USAGE;
       exit 0;
     }elsif($arg =~ /^(-f|--format)$/){
-      $useDateFormat = 1;
+      $usePrettyFormat = 1;
     }elsif($arg =~ /^--format=(.+)$/){
-      $useDateFormat = 1;
       $dateFormatSpec = $1;
     }elsif($arg =~ /^(-I|--iso|--iso-8601|-Iseconds|--iso-8601=seconds)$/){
-      $useDateFormat = 1;
       $dateFormatSpec = $DATETIME_FORMAT_ISO;
     }elsif($arg =~ /^\+(.+)$/){
-      $useDateFormat = 1;
       $dateFormatSpec = $1;
     }elsif($arg =~ /^(-u|--utc)$/){
       $useDateUTC = 1;
@@ -105,6 +104,22 @@ sub main(@){
       push @files, $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $dateFormatSpec){
+    if($useMillis){
+      if($usePrettyFormat){
+        $dateFormatSpec = $DATETIME_FORMAT_PRETTY_MILLIS;
+      }else{
+        $dateFormatSpec = $DATETIME_FORMAT_EPOCH_MILLIS;
+      }
+    }else{
+      if($usePrettyFormat){
+        $dateFormatSpec = $DATETIME_FORMAT_PRETTY;
+      }else{
+        $dateFormatSpec = $DATETIME_FORMAT_EPOCH;
+      }
     }
   }
 
@@ -129,18 +144,17 @@ sub main(@){
     }
 
     my $mtime = $stat[9];
+
     my $mtimeFmt;
-    if($useDateFormat){
-      if(not defined $dateFormatSpec){
-        $dateFormatSpec = $useMillis ? $DATETIME_FORMAT_MILLIS : $DATETIME_FORMAT_PRETTY;
-      }
+    #skip calling `date` for simple epoch formats
+    if($dateFormatSpec eq "%s"){
+      $mtimeFmt = int($mtime);
+    }elsif($dateFormatSpec eq "%s.%3N"){
+      $mtimeFmt = sprintf "%.3f", int($mtime * 1000.0) / 1000.0;
+    }else{
       my @dateArgs = $useDateUTC ? ("--utc") : ();
       $mtimeFmt = `date @dateArgs --date \@$mtime +$dateFormatSpec`;
       chomp $mtimeFmt;
-    }elsif($useMillis){
-      $mtimeFmt = sprintf "%.3f", int($mtime * 1000.0) / 1000.0;
-    }else{
-      $mtimeFmt = int($mtime);
     }
 
     if($displayFile){
