@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub getMtime($$);
+sub getMtime($$$);
 
 my $DATETIME_FORMAT_EPOCH = "%s";
 my $DATETIME_FORMAT_PRETTY = "%Y-%m-%dT%H:%M:%S";
@@ -177,8 +177,17 @@ sub main(@){
     }
   }
 
+  my $hiResSupportsLstat;
+  if($formatContainsNano){
+    $hiResSupportsLstat = eval {
+      require Time::HiRes;
+      Time::HiRes::lstat("");
+      1;
+    };
+  }
+
   for my $file(@files){
-    my $mtime = getMtime($formatContainsNano, $file);
+    my $mtime = getMtime($formatContainsNano, $hiResSupportsLstat, $file);
 
     my $mtimeFmt;
     if($dateFormatSpec eq "%s"){
@@ -224,15 +233,28 @@ sub main(@){
   }
 }
 
-sub getMtime($$){
-  my ($includeFracS, $file) = @_;
+sub getMtime($$$){
+  my ($includeFracS, $hiresSupportsLstat, $file) = @_;
   if(not $includeFracS){
     my @stat = lstat $file;
     return $stat[9];
-  }else{
+  }elsif(not -l $file){
     require Time::HiRes;
-    my @stat = Time::HiRes::lstat($file);
+    my @stat = Time::HiRes::stat($file);
     return $stat[9];
+  }else{
+    if($hiresSupportsLstat){
+      require Time::HiRes;
+      my @stat = Time::HiRes::lstat($file);
+      return $stat[9];
+    }else{
+      my @cmd = ("stat", $file, "-c", "%.3Y");
+      open my $fh, "-|", @cmd or die "ERROR: @cmd failed\n$!\n";
+      my $out = join '', <$fh>;
+      close $fh;
+      chomp $out;
+      return $out;
+    }
   }
 }
 
