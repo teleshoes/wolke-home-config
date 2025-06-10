@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub getMtime($$);
+
 my $DATETIME_FORMAT_EPOCH = "%s";
 my $DATETIME_FORMAT_PRETTY = "%Y-%m-%dT%H:%M:%S";
 my $DATETIME_FORMAT_ISO = "%Y-%m-%dT%H:%M:%S%:z";
@@ -176,15 +178,7 @@ sub main(@){
   }
 
   for my $file(@files){
-    my @stat;
-    if($formatContainsNano){
-      require Time::HiRes;
-      @stat = Time::HiRes::lstat $file;
-    }else{
-      @stat = lstat $file;
-    }
-
-    my $mtime = $stat[9];
+    my $mtime = getMtime($formatContainsNano, $file);
 
     my $mtimeFmt;
     if($dateFormatSpec eq "%s"){
@@ -227,6 +221,18 @@ sub main(@){
     }else{
       print "$mtimeFmt\n";
     }
+  }
+}
+
+sub getMtime($$){
+  my ($includeFracS, $file) = @_;
+  if(not $includeFracS){
+    my @stat = lstat $file;
+    return $stat[9];
+  }else{
+    require Time::HiRes;
+    my @stat = Time::HiRes::lstat($file);
+    return $stat[9];
   }
 }
 
