@@ -31,6 +31,8 @@ my $USAGE = "Usage:
     --format=DATE_FORMAT
     +DATE_FORMAT
       format mtime in local time zone using `date +DATE_FORMAT`
+        -if DATE_FORMAT contains %N or %<WIDTH>N (e.g. '%N' or '%5N'):
+          -use Time::HiRes::lstat to get file mtime to millisecond precision
         -default is: --format=$DATETIME_FORMAT_EPOCH
 
     -f | --format
@@ -49,7 +51,6 @@ my $USAGE = "Usage:
 
     -m | --millis
     --fracs | --frac-s
-      use milliseconds from Time::HiRes->stat
       if no DATE_FORMAT given:
         if --format is given, use format: $DATETIME_FORMAT_PRETTY_MILLIS
         otheriwse, use format: $DATETIME_FORMAT_EPOCH_MILLIS
@@ -125,6 +126,8 @@ sub main(@){
     }
   }
 
+  my $formatContainsNano = $dateFormatSpec =~ /%\d*N/ ? 1 : 0;
+
   my $maxFileLen = 0;
   for my $file(@files){
     my $len = length $file;
@@ -138,7 +141,7 @@ sub main(@){
 
   for my $file(@files){
     my @stat;
-    if($useMillis){
+    if($formatContainsNano){
       require Time::HiRes;
       @stat = Time::HiRes::lstat $file;
     }else{
