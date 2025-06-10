@@ -56,6 +56,9 @@ my $USAGE = "Usage:
       pass '--utc' to `date` when using DATE_FORMAT
       (no effect without one of the --format args, epoch is always UTC)
 
+    --no-perl-module
+      use `date` instead of DateTime::strftime, even if available
+
     --file=FILE_WHEN
       control printing filename in output
         FILE_WHEN
@@ -87,6 +90,7 @@ sub main(@){
   my $useDateUTC = 0;
   my $dateFormatSpec = $DATETIME_FORMAT_EPOCH;
   my $appendMillisFormat = 0;
+  my $skipPerlModule = 0;
   my $fileWhen = $FILE_WHEN_MULTI;
   my $filePos = $FILEPOS_PREFIX;
   my @files;
@@ -109,6 +113,8 @@ sub main(@){
       $appendMillisFormat = 1;
     }elsif($arg =~ /^(-u|--utc)$/){
       $useDateUTC = 1;
+    }elsif($arg =~ /^(--no-perl-module)$/){
+      $skipPerlModule = 1;
     }elsif($arg =~ /^(--file=$FILE_WHEN_ALWAYS)$/){
       $fileWhen = $FILE_WHEN_ALWAYS;
     }elsif($arg =~ /^(--file=$FILE_WHEN_NEVER)$/){
@@ -152,7 +158,7 @@ sub main(@){
   $displayFile = 1 if $fileWhen eq $FILE_WHEN_ALWAYS;
   $displayFile = 0 if $fileWhen eq $FILE_WHEN_NEVER;
 
-  my $usePerlDateTime = eval {
+  my $usePerlDateTime = not $skipPerlModule and eval {
     require DateTime;
     DateTime->import();
     require DateTime::TimeZone;
