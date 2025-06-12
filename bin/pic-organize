@@ -16,6 +16,8 @@ sub run(@);
 
 my $EXEC = basename $0;
 
+my $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS = 3600;
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -34,7 +36,7 @@ my $USAGE = "Usage:
       -obtain <MTIME>
       -obtain <FILENAME_TIME>
         -if <FILE_NAME> contains 'YYYYMMDD_HHMMSS', extract it as a time in the current timezone
-      -ensure that <MTIME> is within one hour of <FILENAME_TIME>
+      -ensure that <MTIME> is within ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s of <FILENAME_TIME>
         -if not, fail with an error for that <FILE>
       -calculate <DAY_BUCKET>, treating times before 5:00am as the previous day
         -calculate <TARGET_TIME> as <MTIME> minus five hours
@@ -109,8 +111,9 @@ sub moveFiles($@){
 
     my $diff = $mtime - $filenameTime;
     $diff = 0 - $diff if $diff < 0;
-    if($diff > 3600){
-      die "ERROR: '$file' mtime and filename time more than 3600s apart\n";
+    if($diff > $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS){
+      die "ERROR: '$file' mtime and filename time more than"
+       . " ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s apart\n";
     }
 
     $mtimes{$file} = $mtime;
