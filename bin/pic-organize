@@ -5,12 +5,12 @@ use Cwd qw(abs_path);
 use Date::Format qw(time2str);
 use Date::Parse qw(str2time);
 use File::Basename qw(basename dirname);
-use Time::HiRes qw(time);
+use Time::HiRes qw(stat time);
 
 sub findDirFiles($);
 sub dedupeArr(@);
 sub filenameTime($);
-sub mtime($);
+sub mtimeMillis($);
 sub nowMillis();
 sub run(@);
 
@@ -106,7 +106,7 @@ sub moveFiles($@){
   my ($opts, @files) = @_;
   my %mtimes;
   for my $file(@files){
-    my $mtime = mtime($file);
+    my $mtime = int(mtimeMillis($file) / 1000.0);
     my $filenameTime = filenameTime($file);
     if(not defined $filenameTime){
       die "ERROR: $file does not contain YYYYmmdd_HHMMSS\n";
@@ -229,10 +229,11 @@ sub filenameTime($){
   }
 }
 
-sub mtime($){
+sub mtimeMillis($){
   my ($file) = @_;
   my @stat = stat $file;
-  return $stat[9];
+  my $mtime = $stat[9];
+  return int($mtime * 1000.0 + 0.5);
 }
 
 sub nowMillis(){
