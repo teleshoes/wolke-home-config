@@ -30,13 +30,12 @@ my $USAGE = "Usage:
   $EXEC        [OPTS] PATH [PATH PATH ..]
   $EXEC --move [OPTS] PATH [PATH PATH ..]
     -extract list of <FILE>s from each <PATH>
-      -if <PATH> is a dir, recursively add all files at or below
-      -if <PATH> is a file, add that file
-      -extract full, absolute paths of each file as <FILE>
-      -de-duplicate <FILE> list
-    -calculate the <PARENT_DIR>
-      -take the longest common prefix of each <FILE> that ends in '/'
-      -remove the trailing '/'
+      -if <PATH> is a file, include as <FILE_ARG>
+      -if <PATH> is a directory:
+        -*recursively* find all files in this dir and any dirs contained
+        -include each file as <FILE_ARG>
+      -extract full, absolute paths of each <FILE_ARG> as <FILE>
+      -de-duplicate <FILE> list so that each <FILE> appears at most once
     -for each <FILE>, validate mtime vs filename and calculate <DAY_BUCKET>:
       -obtain <MTIME> in seconds since UNIX epoch (in UTC)
       -obtain <FILENAME_TIME> in seconds since UNIX epoch (in UTC)
@@ -50,20 +49,24 @@ my $USAGE = "Usage:
           -e.g.: 1969-12-31_19-00-05 in America/New_York => 5
       -ensure that <MTIME> is within ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s of <FILENAME_TIME>
         -if not, fail with an error for that <FILE>
-      -calculate <DAY_BUCKET>, treating times before 5:00am as the previous day
+    -for each <FILE>, calculate <DAY_BUCKET> from <MTIME>:
+      -use the system timezone, and treat times before 5:00am as the previous day
         -calculate <TARGET_TIME> as <MTIME> minus five hours
-        -format <TARGET_TIME> as YYYY-MM-DD in the current time zone
-        -e.g.: '2019-02-06T03:04:08-05:00'   =>  '2019-02-05'
+        -convert <TARGET_TIME> to a string in the system time zone with Date::Format->time2str
+        -format <DAY_BUCKET> as YYYY-MM-DD
+          -e.g.: '2019-02-06T03:04:08-05:00'   =>  '2019-02-05'
+    -calculate the <COMMON_PARENT_DIR>
+      -take the longest common prefix of each <FILE> that ends in '/'
+      -remove the trailing '/'
     -calculate <LOG_FILE> as './$EXEC-<CURRENT_TIME_MILLIS>.log'
-    -for each <FILE>, move to a subdir based on <DAY_BUCKET>
+    -for each <FILE>, create <BUCKET_DIR>s in <COMMON_PARENT_DIR> if they do not exist:
+      -calculate <BUCKET_DIR> as '<COMMON_PARENT_DIR>/<DAY_BUCKET>'
+      -create <BUCKET_DIR> if it does not exist (unless --simulate is given)
+        -run: `mkdir -p <BUCKET_DIR>`
+    -for each <FILE>, move to <COMMON_PARENT_DIR>/<DAY_BUCKET>:
       -extract <BASE_FILENAME> from <FILE> with `basename`
-      -calculate <TARGET_DIR> as '<PARENT_DIR>/<DAY_BUCKET>'
-      -calculate <NEW_FILE_PATH> as '<TARGET_DIR>/<BASE_FILENAME>'
-      -create dir and move file (unless --simulate is given):
-        -ensure <TARGET_DIR> exists, creating as necessary with:
-          -`mkdir -p <TARGET_DIR>`
-        -move <FILE> to <TARGET_DIR> with:
-          -`mv --no-clobber <FILE> <TARGET_DIR>/<FILE>`
+      -move <FILE> to <BUCKET_DIR> (unless --simulate is given)
+        -run: `mv --no-clobber <FILE> <BUCKET_DIR>/<BASE_FILENAME>`
         -write to <LOG_FILE>:
           <FILE> ::: <NEW_FILE_PATH>
 
