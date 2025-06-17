@@ -271,6 +271,22 @@ sub main(@){
 sub runMoveCommands($@){
   my ($opts, @moveCommands) = @_;
 
+  #check to ensure destination files don't exist and won't overwrite each other
+  my %oldFileByNewFile;
+  for my $cmd(@moveCommands){
+    my $oldFile = $$cmd{oldFile};
+    my $newFile = $$cmd{newFile};
+    if(defined $oldFileByNewFile{$newFile}){
+      my $prevOldFile = $oldFileByNewFile{$newFile};
+      die "ERROR: multiple files map to $newFile:\n  $prevOldFile\n  $oldFile\n";
+    }
+    $oldFileByNewFile{$newFile} = $oldFile;
+
+    if(-e $newFile){
+      die "ERROR: $newFile already exists\n";
+    }
+  }
+
   my $nowMillis = nowMillis();
   my $nowFmt = time2str("%Y%m%d_%H%M%S", int($nowMillis/1000.0));
   my $logType = $$opts{simulate} ? "simulate" : "apply";
@@ -285,9 +301,6 @@ sub runMoveCommands($@){
   for my $cmd(@moveCommands){
     my $oldFile = $$cmd{oldFile};
     my $newFile = $$cmd{newFile};
-    if(-e $newFile){
-      die "ERROR: $newFile already exists\n";
-    }
 
     my @mvCmd = ("mv", "--no-clobber", $oldFile, $newFile);
     my $mvCmdStrFmt = formatEscapedCmdStr(@mvCmd);
@@ -304,6 +317,7 @@ sub runMoveCommands($@){
         print $logFH "$mkdirCmdStrFmt\n" if $$opts{log};
       }
       die "ERROR: missing $destDir\n" if not -d $destDir;
+      die "ERROR: $newFile already exists\n" if -e $newFile;
       run @mvCmd;
       if(-e $oldFile || not -e $newFile){
         die "ERROR: @mvCmd failed\n";
