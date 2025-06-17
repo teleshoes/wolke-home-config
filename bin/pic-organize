@@ -7,9 +7,10 @@ use Date::Parse qw(str2time);
 use File::Basename qw(basename dirname);
 use Time::HiRes qw(stat time);
 
-sub moveDayBuckets($@);
-sub movePrefix($@);
-sub moveUniqueTimestamps($@);
+sub runMoveCommands($@);
+sub getMoveCommandsDayBuckets($@);
+sub getMoveCommandsPrefix($@);
+sub getMoveCommandsUniqueTimestamps($@);
 sub findDirFiles($);
 sub getCommonParentDir(@);
 sub dedupeArr(@);
@@ -102,7 +103,7 @@ my $USAGE = "Usage:
       -fail if <NEW_FILE> exists unless if it is the same as <FILE>
     -for each <FILE>, rename with calculated prefix:
       -rename <FILE> (unless --simulate is given):
-        -run: `mv --no-clobber <FILE> <NEW_FILE>`
+        -run and log: `mv --no-clobber <FILE> <NEW_FILE>`
 
   $EXEC -u | --uniq | --unique-timestamps [OPTS] PATH [PATH PATH ..]
   $EXEC -f | --fix                        [OPTS] PATH [PATH PATH ..]
@@ -148,7 +149,7 @@ my $USAGE = "Usage:
           -replace <ORIG_FILENAME_HMS> with '<NEW_FILENAME_HMS>_<ORIG_FILENAME_HMS>'
     -for each <FILE>, rename the files with the new unique timestamps:
       -rename <FILE> (unless --simulate is given):
-        -run: `mv --no-clobber <FILE> <NEW_FILE>`
+        -run and log: `mv --no-clobber <FILE> <NEW_FILE>`
 
     e.g.:
       20181129_185500.jpg       =>  20181129_185500.jpg
@@ -177,7 +178,7 @@ my $USAGE = "Usage:
       skip <FILE>s with no <FILENAME_TIMESTAMP_STRING> instead of failing
 
     --log
-      in --move command, log each `mv` and `mkdir` command for all <FILE>s given (this is the default)
+      log each `mv` and `mkdir` command for all <FILE>s given (this is the default)
       -create log file
         -create dir $LOG_DIR/ if it does not exist
         -get the current time in millis <CURRENT_TIME_MILLIS>
@@ -237,6 +238,7 @@ sub main(@){
   @files = map {abs_path $_} @files;
   @files = dedupeArr(@files);
 
+  my @moveCommands;
   if($mode eq $MODE_LIST_FILES){
     for my $file(@files){
       my $filenameTime = filenameTime($file);
@@ -250,18 +252,65 @@ sub main(@){
       }
     }
   }elsif($mode eq $MODE_MOVE_DAY_BUCKETS){
-    moveDayBuckets($opts, @files);
+    @moveCommands = getMoveCommandsDayBuckets($opts, @files);
   }elsif($mode eq $MODE_IMG_VID_PREFIX){
-    movePrefix($opts, @files);
+    @moveCommands = getMoveCommandsPrefix($opts, @files);
   }elsif($mode eq $MODE_UNIQUE_TIMESTAMPS){
-    moveUniqueTimestamps($opts, @files);
+    @moveCommands = getMoveCommandsUniqueTimestamps($opts, @files);
   }else{
     die "ERROR: unknown mode $mode\n";
   }
+
+  runMoveCommands($opts, @moveCommands);
 }
 
-sub moveDayBuckets($@){
+sub runMoveCommands($@){
+  my ($opts, @moveCommands) = @_;
+
+  my $nowMillis = nowMillis();
+  my $logFile = "$LOG_DIR/$EXEC-$nowMillis.log";
+  my $logFH = undef;
+  if($$opts{log}){
+    run "mkdir", "-p", $LOG_DIR if not -d $LOG_DIR;
+    die "ERROR: could not create $LOG_DIR\n" if not -d $LOG_DIR;
+    open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
+  }
+
+  for my $cmd(@moveCommands){
+    my $oldFile = $$cmd{oldFile};
+    my $newFile = $$cmd{newFile};
+    if(-e $newFile){
+      die "ERROR: $newFile already exists\n";
+    }
+
+    my @mvCmd = ("mv", "--no-clobber", $oldFile, $newFile);
+    if($$opts{simulate}){
+      print "#@mvCmd\n";
+      print $logFH "#@mvCmd\n" if $$opts{log};
+    }else{
+      my $destDir = dirname $$cmd{newFile};
+      if(not -d $destDir){
+        run "mkdir", "-p", $destDir;
+        print $logFH "mkdir -p $destDir\n" if $$opts{log};
+      }
+      die "ERROR: missing $destDir\n" if not -d $destDir;
+      run @mvCmd;
+      if(-e $oldFile || not -e $newFile){
+        die "ERROR: @mvCmd failed\n";
+      }
+      print $logFH "@mvCmd\n" if $$opts{log};
+    }
+  }
+
+  if($$opts{log}){
+    close $logFH;
+  }
+}
+
+sub getMoveCommandsDayBuckets($@){
   my ($opts, @files) = @_;
+
+  my @moveCommands;
 
   my %filenameTimes;
   for my $file(@files){
@@ -294,15 +343,6 @@ sub moveDayBuckets($@){
 
   my $parentDir = getCommonParentDir(@files);
 
-  my $nowMillis = nowMillis();
-  my $logFile = "$LOG_DIR/$EXEC-$nowMillis.log";
-  my $logFH = undef;
-  if($$opts{log}){
-    run "mkdir", "-p", $LOG_DIR if not -d $LOG_DIR;
-    die "ERROR: could not create $LOG_DIR\n" if not -d $LOG_DIR;
-    open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
-  }
-
   for my $file(@files){
     my $targetTime = $mtimes{$file} - (4*60*60);
     my $dayBucket = time2str("%Y-%m-%d", $targetTime);
@@ -317,33 +357,19 @@ sub moveDayBuckets($@){
       next;
     }
 
-    if(-e $newFile){
-      die "ERROR: $newFile already exists\n";
-    }
-
-    my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
-    if($$opts{simulate}){
-      print "#@mvCmd\n";
-      print $logFH "#@mvCmd\n" if $$opts{log};
-    }else{
-      if(not -d $targetDir){
-        run "mkdir", "-p", $targetDir;
-        print $logFH "mkdir -p $targetDir\n" if $$opts{log};
-      }
-      die "ERROR: missing $targetDir\n" if not -d $targetDir;
-      run @mvCmd;
-      if(-e $file || not -e $newFile){
-        die "ERROR: @mvCmd failed\n";
-      }
-      print $logFH "@mvCmd\n" if $$opts{log};
-    }
+    push @moveCommands, {
+      oldFile => $file,
+      newFile => $newFile,
+    };
   }
 
-  close $logFH if defined $logFH;
+  return @moveCommands;
 }
 
-sub movePrefix($@){
+sub getMoveCommandsPrefix($@){
   my ($opts, @files) = @_;
+
+  my @moveCommands;
 
   my %filenameTimes;
   for my $file(@files){
@@ -371,25 +397,20 @@ sub movePrefix($@){
     my $newFile = $file;
     $newFile =~ s/\/(IMG_|VID_)?([^\/]*)$/\/$prefix$2/;
     if($file ne $newFile){
-      if(-e $newFile){
-        die "ERROR: '$newFile' already exists\n";
-      }
-
-      my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
-      if($$opts{simulate}){
-        print "#@mvCmd\n";
-      }else{
-        run @mvCmd;
-        if(-e $file || not -e $newFile){
-          die "ERROR: @mvCmd failed\n";
-        }
-      }
+      push @moveCommands, {
+        oldFile => $file,
+        newFile => $newFile,
+      };
     }
   }
+
+  return @moveCommands;
 }
 
-sub moveUniqueTimestamps($@){
+sub getMoveCommandsUniqueTimestamps($@){
   my ($opts, @files) = @_;
+
+  my @moveCommands;
 
   my %filenameTimes;
   for my $file(@files){
@@ -486,17 +507,15 @@ sub moveUniqueTimestamps($@){
 
   for my $file(@files){
     my $newFile = $$fileInfo{$file}{newFile};
-    next if $file eq $newFile;
-    my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
-    if($$opts{simulate}){
-      print "#@mvCmd\n";
-    }else{
-      run @mvCmd;
-      if(-e $file || not -e $newFile){
-        die "ERROR: @mvCmd failed\n";
-      }
+    if($file ne $newFile){
+      push @moveCommands, {
+        oldFile => $file,
+        newFile => $newFile,
+      };
     }
   }
+
+  return @moveCommands;
 }
 
 sub findDirFiles($){
