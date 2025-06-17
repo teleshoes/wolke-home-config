@@ -75,7 +75,7 @@ my $USAGE = "Usage:
     -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
     -for each <FILE>, validate mtime vs filename:
       -ensure that <MTIME> is within ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s of <FILENAME_TIME>
-        -if not, fail with an error for that <FILE>
+        -if not, fail with an error for that <FILE> (unless --force-mtime is given)
     -for each <FILE>, calculate <DAY_BUCKET> from <MTIME>:
       -use the system timezone, and treat times before 5:00am as the previous day
         -calculate <TARGET_TIME> as <MTIME> minus five hours
@@ -194,6 +194,9 @@ my $USAGE = "Usage:
     --skip | --skip-malformed
       skip <FILE>s with no <FILENAME_TIMESTAMP_STRING> instead of failing
 
+    --force | --force-mtime
+      in --move, allow <FILENAME_TIMESTAMP_STRING> to be completely different from <MTIME>
+
     --log
       log each `mv` and `mkdir` command for all <FILE>s given (this is the default)
       -create log file
@@ -223,6 +226,7 @@ sub main(@){
     log           => 1,
     simulate      => 0,
     skipMalformed => 0,
+    forceMtime    => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -245,6 +249,8 @@ sub main(@){
       $$opts{log} = 0;
     }elsif($arg =~ /^(--skip|--skip-malformed)$/){
       $$opts{skipMalformed} = 1;
+    }elsif($arg =~ /^(--force|--force-mtime)$/){
+      $$opts{forceMtime} = 1;
     }elsif(-f $arg){
       push @files, $arg;
     }elsif(-d $arg){
@@ -392,7 +398,11 @@ sub getMoveCommandsDayBuckets($@){
         time2str("%Y-%m-%dT%H:%M:%S", $mtime),
         time2str("%Y-%m-%dT%H:%M:%S", $filenameTime),
       );
-      die "ERROR: $msg\n";
+      if($$opts{forceMtime}){
+        print "WARNING: $msg\n";
+      }else{
+        die "ERROR: $msg\n";
+      }
     }
 
     $mtimes{$file} = $mtime;
