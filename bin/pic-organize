@@ -58,6 +58,67 @@ my $USAGE = "Usage:
         -write to <LOG_FILE>:
           <FILE> ::: <NEW_FILE_PATH>
 
+  $EXEC -f          [OPTS] PATH [PATH PATH ..]
+  $EXEC --fix       [OPTS] PATH [PATH PATH ..]
+  $EXEC --fix-names [OPTS] PATH [PATH PATH ..]
+    -extract list of <FILE>s from each <PATH> as in --move
+    -for each <FILE>:
+      -obtain <MTIME> in seconds since epoch
+      -obtain <MTIME_MILLIS> in milliseconds since epoch
+      -obtain <FILENAME_TIME> in seconds since epoch as in --move
+      -ensure that <MTIME> is within one minute of <FILENAME_TIME>
+        -if not, fail with an error for that <FILE>
+      -store <FILENAME_TIME> as <ORIG_FILENAME_TIME>, as the name in the actual file
+      -store <FILENAME_TIME> as <NEW_FILENAME_TIME>, to update for duplicates
+    -sort the <FILE>s by increasing mtime into <SORTED_FILE_LIST>
+      -use the following criteria, in order:
+        -<MTIME_MILLIS>, oldest first
+        -file basename length, shortest first
+        -lexicographically by file basename, ascending
+        -lexicographically by full <FILE> name, ascending
+    -ensure that <ORIG_FILENAME_TIME> increases monotonically with <MTIME>
+      -check each successive <FILE> in <SORTED_FILE_LIST>
+        -FAIL if <ORIG_FILENAME_TIME> is less than the previous
+    -for each <FILE> in <SORTED_FILE_LIST> (in increasing order of <ORIG_FILENAME_TIME>):
+      -collect <FILE_LIST> of <FILE>s with this same <NEW_FILENAME_TIME>
+      -assign an <INDEX>, starting with 0, to each <FILE> in the <SORTED_FILE_LIST>
+      -for each <FILE> in the <SORTED_FILE_LIST>:
+        -increment <NEW_FILENAME_TIME> by the <INDEX> of this <FILE>
+          -i.e.: add 0 to the first file (first file is always unchanged),
+                 add 1 to the second file,
+                 add 2 to the third file,
+                 etc.
+        -add this new <NEW_FILENAME_TIME> to the list considered, if not present
+    -ensure that <NEW_FILENAME_TIME> is UNIQUE, and increases monotonically with <MTIME>
+      -check each successive <FILE> in <SORTED_FILE_LIST>
+        -FAIL if <NEW_FILENAME_TIME> is less than or EQUAL TO the previous
+    -for each <FILE>:
+      -extract <NEW_FILENAME_YMD> and <NEW_FILENAME_HMS> from <NEW_FILENAME_TIME>
+      -extract <ORIG_FILENAME_YMD> and <ORIG_FILENAME_HMS> from <ORIG_FILENAME_TIME>
+      -ensure that <NEW_FILENAME_YMD> is the same as <ORIG_FILENAME_YMD>
+      -ensure that <NEW_FILENAME_TIME> is within 10 seconds of <ORIG_FILENAME_TIME>
+    -for each <FILE>:
+      -if <NEW_FILENAME_TIME> is not the same as <ORIGINAL_MODIFIED_TIME>:
+        -calculate <NEW_FILE>:
+          -remove ' (#)' following <ORIG_FILENAME_HMS>, if present
+            -space character, followed by '(', followed by digits, followed by ')'
+          -replace <ORIG_FILENAME_HMS> with '<NEW_FILENAME_HMS>_<ORIG_FILENAME_HMS>'
+    e.g.:
+      20181129_185500.jpg       =>  20181129_185500.jpg
+      20181129_185500 (1).jpg   =>  20181129_185501_185500.jpg
+      20181129_185500 (2).jpg   =>  20181129_185502_185500.jpg
+      20181129_185500 (3).jpg   =>  20181129_185503_185500.jpg
+      20181129_185500 (4).jpg   =>  20181129_185504_185500.jpg
+      20181129_185501.jpg       =>  20181129_185505_185501.jpg
+      20181129_185501 (2).jpg   =>  20181129_185506_185501.jpg
+      20181129_185501 (3).jpg   =>  20181129_185507_185501.jpg
+      20181129_185501 (4).jpg   =>  20181129_185508_185501.jpg
+      20181129_185501 (5).jpg   =>  20181129_185509_185501.jpg
+      20181129_185502.jpg       =>  20181129_185510_185502.jpg
+      20181129_185503.jpg       =>  20181129_185511_185503.jpg
+      20181129_185504.jpg       =>  20181129_185512_185504.jpg
+      20181129_185505.jpg       =>  20181129_185513_185505.jpg
+
   OPTS
     -s | -n | --simulate | --no-act | --dry-run
       -never run any 'mv' commands
@@ -67,6 +128,7 @@ my $USAGE = "Usage:
 ";
 
 my $MODE_MOVE = "move";
+my $MODE_FIX_NAMES = "fix-names";
 
 sub main(@){
   my @files;
@@ -81,6 +143,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--move)$/){
       $mode = $MODE_MOVE;
+    }elsif($arg =~ /^(-f|--fix|--fix-names)$/){
+      $mode = $MODE_FIX_NAMES;
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--dry-run)$/){
       $$opts{simulate} = 1;
     }elsif(-f $arg){
@@ -97,6 +161,8 @@ sub main(@){
 
   if($mode eq $MODE_MOVE){
     moveFiles($opts, @files);
+  }elsif($mode eq $MODE_FIX_NAMES){
+    fixNames($opts, @files);
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -164,6 +230,105 @@ sub moveFiles($@){
   }
 
   close $logFH if defined $logFH;
+}
+
+sub fixNames($@){
+  my ($opts, @files) = @_;
+  my $fileInfo = {};
+  for my $file(@files){
+    my $filenameTime = filenameTime($file);
+    if(not defined $filenameTime){
+      die "ERROR: could not extract YYYYmmdd_HHMMSS from $file\n";
+    }
+    $$fileInfo{$file} = {
+      file             => $file,
+      newFile          => $file,
+      baseFilename     => basename($file),
+      origFilenameTime => $filenameTime,
+      newFilenameTime  => $filenameTime,
+      mtimeMillis      => mtimeMillis($file),
+    };
+  }
+
+  @files = sort {
+    0
+    || $$fileInfo{$a}{mtimeMillis} <=> $$fileInfo{$b}{mtimeMillis}
+    || length($$fileInfo{$a}{baseFilename}) <=> length($$fileInfo{$b}{baseFilename})
+    || $$fileInfo{$a}{baseFilename} cmp $$fileInfo{$b}{baseFilename}
+    || $a cmp $b
+  } @files;
+
+  my $prevOrigFilenameTime = undef;
+  for my $file(@files){
+    my $origFilenameTime = $$fileInfo{$file}{origFilenameTime};
+    if(defined $prevOrigFilenameTime){
+     if($prevOrigFilenameTime > $origFilenameTime){
+       die "ERROR: mtime order and filename time order are mismatched for $file\n";
+     }
+    }
+    $prevOrigFilenameTime = $origFilenameTime;
+  }
+
+  for my $file(@files){
+    my $filenameTime = $$fileInfo{$file}{newFilenameTime};
+    my @matchingFiles =
+      grep {$_ ne $file}
+      grep {$$fileInfo{$_}{newFilenameTime} == $filenameTime}
+      @files;
+    for(my $i=0; $i<@matchingFiles; $i++){
+      my $otherFile = $matchingFiles[$i];
+      $$fileInfo{$otherFile}{newFilenameTime} += $i + 1;
+    }
+  }
+
+  my $prevNewFilenameTime = undef;
+  for my $file(@files){
+    my $newFilenameTime = $$fileInfo{$file}{newFilenameTime};
+    if(defined $prevNewFilenameTime){
+     #fail if new time is not unique
+     if($prevNewFilenameTime >= $newFilenameTime){
+       die "ERROR: calculated filename time not unique, or out of order with mtime, for $file\n";
+     }
+    }
+    $prevNewFilenameTime = $newFilenameTime;
+  }
+
+  for my $file(@files){
+    my $origYMD = time2str("%Y%m%d", $$fileInfo{$file}{origFilenameTime});
+    my $origHMS = time2str("%H%M%S", $$fileInfo{$file}{origFilenameTime});
+    my $newYMD = time2str("%Y%m%d", $$fileInfo{$file}{newFilenameTime});
+    my $newHMS = time2str("%H%M%S", $$fileInfo{$file}{newFilenameTime});
+    if($origYMD ne $newYMD){
+      die "ERROR: filename fix crosses a day boundary for $file\n";
+    }
+    my $diff = $$fileInfo{$file}{newFilenameTime} - $$fileInfo{$file}{origFilenameTime};
+    die "ERROR: file rename fix is negative for $file\n" if $diff < 0;
+    if($diff > 0){
+      my $newFile = $file;
+      $newFile =~ s/\Q${origYMD}_${origHMS}\E(?: \(\d+\))?/${newYMD}_${newHMS}_${origHMS}/;
+      if($newFile eq $file){
+        die "ERROR: rename of $file failed\n";
+      }
+      if(-e $newFile){
+        die "ERROR: '$newFile' already exists\n";
+      }
+      $$fileInfo{$file}{newFile} = $newFile;
+    }
+  }
+
+  for my $file(@files){
+    my $newFile = $$fileInfo{$file}{newFile};
+    next if $file eq $newFile;
+    my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
+    if($$opts{simulate}){
+      print "#@mvCmd\n";
+    }else{
+      run @mvCmd;
+      if(-e $file || not -e $newFile){
+        die "ERROR: @mvCmd failed\n";
+      }
+    }
+  }
 }
 
 sub findDirFiles($){
