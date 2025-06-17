@@ -27,8 +27,10 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC        [OPTS] PATH [PATH PATH ..]
-  $EXEC --move [OPTS] PATH [PATH PATH ..]
+  $EXEC [OPTS] PATH [PATH PATH ..]
+    same as: $EXEC --move OPTS PATH PATH PATH...
+
+  $EXEC --list-files [OPTS] PATH [PATH PATH ..]
     -extract list of <FILE>s from each <PATH>
       -if <PATH> is a file, include as <FILE_ARG>
       -if <PATH> is a directory:
@@ -36,7 +38,7 @@ my $USAGE = "Usage:
         -include each file as <FILE_ARG>
       -extract full, absolute paths of each <FILE_ARG> as <FILE>
       -de-duplicate <FILE> list so that each <FILE> appears at most once
-    -for each <FILE>, validate mtime vs filename and calculate <DAY_BUCKET>:
+    -for each <FILE>:
       -obtain <MTIME> in seconds since UNIX epoch (in UTC)
       -obtain <FILENAME_TIME> in seconds since UNIX epoch (in UTC)
         -ensure that file basename contains a valid <FILENAME_TIMESTAMP_STRING>
@@ -47,6 +49,13 @@ my $USAGE = "Usage:
         -treat <FILENAME_TIMESTAMP_STRING> as a timestamp in the current system timezone
         -convert to seconds since epoch in UTC with Date::Parse->str2time
           -e.g.: 1969-12-31_19-00-05 in America/New_York => 5
+    -for each <FILE>:
+      -print info, formatted:
+        <FILE> : <MTIME> : <FILENAME_TIME>
+
+  $EXEC --move [OPTS] PATH [PATH PATH ..]
+    -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
+    -for each <FILE>, validate mtime vs filename:
       -ensure that <MTIME> is within ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s of <FILENAME_TIME>
         -if not, fail with an error for that <FILE>
     -for each <FILE>, calculate <DAY_BUCKET> from <MTIME>:
@@ -72,7 +81,7 @@ my $USAGE = "Usage:
 
   $EXEC -p       [OPTS] PATH [PATH PATH ..]
   $EXEC --prefix [OPTS] PATH [PATH PATH ..]
-    -extract list of <FILE>s from each <PATH> as in --move
+    -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
     -for each <FILE>:
       -extract <BASE_FILENAME> from <FILE> with `basename`
       -calculate <NEW_FILE>:
@@ -87,11 +96,9 @@ my $USAGE = "Usage:
   $EXEC -f          [OPTS] PATH [PATH PATH ..]
   $EXEC --fix       [OPTS] PATH [PATH PATH ..]
   $EXEC --fix-names [OPTS] PATH [PATH PATH ..]
-    -extract list of <FILE>s from each <PATH> as in --move
+    -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
     -for each <FILE>:
-      -obtain <MTIME> in seconds since epoch
       -obtain <MTIME_MILLIS> in milliseconds since epoch
-      -obtain <FILENAME_TIME> in seconds since epoch as in --move
       -ensure that <MTIME> is within one minute of <FILENAME_TIME>
         -if not, fail with an error for that <FILE>
       -store <FILENAME_TIME> as <ORIG_FILENAME_TIME>, as the name in the actual file
@@ -153,6 +160,7 @@ my $USAGE = "Usage:
       -do not write to <LOG_FILE>
 ";
 
+my $MODE_LIST_FILES = "list-files";
 my $MODE_MOVE = "move";
 my $MODE_PREFIX = "prefix";
 my $MODE_FIX_NAMES = "fix-names";
@@ -168,6 +176,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--list-files)$/){
+      $mode = $MODE_LIST_FILES;
     }elsif($arg =~ /^(--move)$/){
       $mode = $MODE_MOVE;
     }elsif($arg =~ /^(-p|--prefix)$/){
@@ -188,7 +198,17 @@ sub main(@){
   @files = map {abs_path $_} @files;
   @files = dedupeArr(@files);
 
-  if($mode eq $MODE_MOVE){
+  if($mode eq $MODE_LIST_FILES){
+    for my $file(@files){
+      my $filenameTime = filenameTime($file);
+      my $mtime = int(mtimeMillis($file) / 1000.0);
+      if(defined $filenameTime){
+        print "$file : $filenameTime : $mtime\n";
+      }else{
+        die "ERROR: '$file' does not contain YYYYmmdd_HHMMSS timestamp\n";
+      }
+    }
+  }elsif($mode eq $MODE_MOVE){
     moveFiles($opts, @files);
   }elsif($mode eq $MODE_PREFIX){
     prefixFiles($opts, @files);
