@@ -298,6 +298,24 @@ sub runMoveCommands($@){
     open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
   }
 
+  my %dirsToCreate;
+  for my $cmd(@moveCommands){
+    my $destDir = dirname $$cmd{newFile};
+    $dirsToCreate{$destDir} = 1 if not -d $destDir;
+  }
+
+  for my $dir(sort keys %dirsToCreate){
+    my @mkdirCmd = ("mkdir", "-p", $dir);
+    my $mkdirCmdStrFmt = formatEscapedCmdStr(@mkdirCmd);
+    if($$opts{simulate}){
+      print "#$mkdirCmdStrFmt\n";
+      print $logFH "#$mkdirCmdStrFmt\n" if $$opts{log};
+    }else{
+      run @mkdirCmd;
+      print $logFH "$mkdirCmdStrFmt\n" if $$opts{log};
+    }
+  }
+
   for my $cmd(@moveCommands){
     my $oldFile = $$cmd{oldFile};
     my $newFile = $$cmd{newFile};
@@ -310,12 +328,6 @@ sub runMoveCommands($@){
       print $logFH "#$mvCmdStrFmt\n" if $$opts{log};
     }else{
       my $destDir = dirname $$cmd{newFile};
-      if(not -d $destDir){
-        my @mkdirCmd = ("mkdir", "-p", $destDir);
-        my $mkdirCmdStrFmt = formatEscapedCmdStr(@mkdirCmd);
-        run @mkdirCmd;
-        print $logFH "$mkdirCmdStrFmt\n" if $$opts{log};
-      }
       die "ERROR: missing $destDir\n" if not -d $destDir;
       die "ERROR: $newFile already exists\n" if -e $newFile;
       run @mvCmd;
