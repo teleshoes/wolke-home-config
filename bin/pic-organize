@@ -183,8 +183,10 @@ my $USAGE = "Usage:
       -create log file
         -create dir $LOG_DIR/ if it does not exist
         -get the current time in millis <CURRENT_TIME_MILLIS>
+        -format <CURRENT_TIME_MILLIS> as <CURRENT_TIME_YYYYMMDD_HHMMSS>
+        -format <LOG_TYPE> as 'simulate' if --simulate is given and 'apply' otherwise
         -create <LOG_FILE> as:
-          $LOG_DIR/$EXEC-<CURRENT_TIME_MILLIS>.log'
+          $LOG_DIR/<CURRENT_TIME_YYYYMMDD_HHMMSS>_<CURRENT_TIME_MILLIS>_<LOG_TYPE>.log'
         NOTE: if --simulate is given, still create log file and write commands, prefixed with '#'
       -for each <FILE> processed, format+escape each `mv` and `mkdir` command
         -if --simulate is given, prepend '#' to each cmd given
@@ -269,7 +271,9 @@ sub runMoveCommands($@){
   my ($opts, @moveCommands) = @_;
 
   my $nowMillis = nowMillis();
-  my $logFile = "$LOG_DIR/$EXEC-$nowMillis.log";
+  my $nowFmt = time2str("%Y%m%d_%H%M%S", int($nowMillis/1000.0));
+  my $logType = $$opts{simulate} ? "simulate" : "apply";
+  my $logFile = "${LOG_DIR}/${nowFmt}_${nowMillis}_${logType}.log";
   my $logFH = undef;
   if($$opts{log}){
     run "mkdir", "-p", $LOG_DIR if not -d $LOG_DIR;
