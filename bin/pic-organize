@@ -84,7 +84,22 @@ my $USAGE = "Usage:
           -e.g.: '2019-02-06T03:04:08-05:00'   =>  '2019-02-05'
     -calculate the <COMMON_PARENT_DIR>
       -take the longest common prefix of each <FILE> that ends in '/'
-      -remove the trailing '/'
+      -if that common prefix ends in '/YYYY-MM-DD', remove that suffix (just once, not recursively)
+         -if the parent dir is a dir named 'YYYY-MM-DD', use the parent of that dir
+           e.g.:  /a/b/c/2018-01-01              =>  /a/b/c
+                  /a/b/c/2018-01-01/2018-01-02   =>  /a/b/c/2018-01-01
+         -this makes reorganization of a dir idempotent and avoids redundant day bucket dirs
+           e.g.:
+             -`$EXEC ./2018-01-01/20180101_173510.jpg`
+                dest:  ./2018-01-01/20180101_173510.jpg  (skipped, same file)
+                NOT:   ./2018-01-01/2018-01-01/20180101_173510.jpg
+             -`$EXEC ./2018-01-01/20181212_112233.jpg`
+                dest:  ./2018-12-12/20181212_112233.jpg
+                NOT:   ./2018-01-01/2018-12-12/20181212_112233.jpg
+             -`$EXEC ./2018-01-01/2018-01-02/20180103_175555.jpg`
+                dest:  ./2018-01-01/2018-01-03/20180103_175555.jpg
+                NOT:   ./2018-01-01/2018-01-02/2018-01-03/20180103_175555.jpg
+      -remove trailing '/'s
     -for each <FILE>, create <BUCKET_DIR>s in <COMMON_PARENT_DIR> if they do not exist:
       -calculate <BUCKET_DIR> as '<COMMON_PARENT_DIR>/<DAY_BUCKET>'
       -create <BUCKET_DIR> if it does not exist (unless --simulate is given)
@@ -378,6 +393,10 @@ sub getMoveCommandsDayBuckets($@){
   }
 
   my $parentDir = getCommonParentDir(@files);
+  #remove last dir element if it is formatted like a day-bucket
+  #   a/b/c/2018-01-01            => a/b/c
+  #   a/b/c/2018-01-01/2018-01-02 => a/b/c/2018-01-01
+  $parentDir =~ s/\/(\d\d\d\d-\d\d-\d\d)$//;
 
   for my $file(@files){
     my $targetTime = $mtimes{$file} - (4*60*60);
