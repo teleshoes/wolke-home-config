@@ -60,7 +60,7 @@ my $USAGE = "Usage:
           -format is YYYYMMDD_HHMMSS, with optional hyphens between fields
             -e.g.: 20180621_142153 or 2018-06-21_14-21-53
           -if any filename does not contain a timestamp string:
-            -fail immediately
+            -fail immediately (unless --skip-malformed is given)
         -treat <FILENAME_TIMESTAMP_STRING> as a timestamp in the current system timezone
         -convert to seconds since epoch in UTC with Date::Parse->str2time
           -e.g.: 1969-12-31_19-00-05 in America/New_York => 5
@@ -173,6 +173,9 @@ my $USAGE = "Usage:
       -do not create any dirs
       -do not write to <LOG_FILE>
 
+    --skip | --skip-malformed
+      skip <FILE>s with no <FILENAME_TIMESTAMP_STRING> instead of failing
+
     --log
       in --move command, log each `mv` and `mkdir` command for all <FILE>s given (this is the default)
       -create log file
@@ -199,6 +202,7 @@ sub main(@){
   my $opts = {
     log           => 1,
     simulate      => 0,
+    skipMalformed => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -219,6 +223,8 @@ sub main(@){
       $$opts{log} = 1;
     }elsif($arg =~ /^(--no-log)$/){
       $$opts{log} = 0;
+    }elsif($arg =~ /^(--skip|--skip-malformed)$/){
+      $$opts{skipMalformed} = 1;
     }elsif(-f $arg){
       push @files, $arg;
     }elsif(-d $arg){
@@ -237,6 +243,8 @@ sub main(@){
       my $mtime = int(mtimeMillis($file) / 1000.0);
       if(defined $filenameTime){
         print "$file : $filenameTime : $mtime\n";
+      }elsif($$opts{skipMalformed}){
+        print "  #skip '$file' (no YYYYmmdd_HHMMSS timestamp)\n";
       }else{
         die "ERROR: '$file' does not contain YYYYmmdd_HHMMSS timestamp\n";
       }
@@ -254,13 +262,25 @@ sub main(@){
 
 sub moveDayBuckets($@){
   my ($opts, @files) = @_;
+
+  my %filenameTimes;
+  for my $file(@files){
+    my $filenameTime = filenameTime($file);
+    if(defined $filenameTime){
+      $filenameTimes{$file} = $filenameTime;
+    }elsif($$opts{skipMalformed}){
+      print "  #skip '$file' (no YYYYmmdd_HHMMSS timestamp)\n";
+    }else{
+      die "ERROR: '$file' does not contain YYYYmmdd_HHMMSS timestamp\n";
+    }
+  }
+
+  @files = grep {defined $filenameTimes{$_}} @files;
+
   my %mtimes;
   for my $file(@files){
     my $mtime = int(mtimeMillis($file) / 1000.0);
-    my $filenameTime = filenameTime($file);
-    if(not defined $filenameTime){
-      die "ERROR: $file does not contain YYYYmmdd_HHMMSS\n";
-    }
+    my $filenameTime = $filenameTimes{$file};
 
     my $diff = $mtime - $filenameTime;
     $diff = 0 - $diff if $diff < 0;
@@ -324,6 +344,21 @@ sub moveDayBuckets($@){
 
 sub movePrefix($@){
   my ($opts, @files) = @_;
+
+  my %filenameTimes;
+  for my $file(@files){
+    my $filenameTime = filenameTime($file);
+    if(defined $filenameTime){
+      $filenameTimes{$file} = $filenameTime;
+    }elsif($$opts{skipMalformed}){
+      print "  #skip '$file' (no YYYYmmdd_HHMMSS timestamp)\n";
+    }else{
+      die "ERROR: '$file' does not contain YYYYmmdd_HHMMSS timestamp\n";
+    }
+  }
+
+  @files = grep {defined $filenameTimes{$_}} @files;
+
   for my $file(@files){
     my $ext = $1 if $file =~ /\.(\w+)$/;
     my $prefix;
@@ -355,12 +390,24 @@ sub movePrefix($@){
 
 sub moveUniqueTimestamps($@){
   my ($opts, @files) = @_;
-  my $fileInfo = {};
+
+  my %filenameTimes;
   for my $file(@files){
     my $filenameTime = filenameTime($file);
-    if(not defined $filenameTime){
-      die "ERROR: could not extract YYYYmmdd_HHMMSS from $file\n";
+    if(defined $filenameTime){
+      $filenameTimes{$file} = $filenameTime;
+    }elsif($$opts{skipMalformed}){
+      print "  #skip '$file' (no YYYYmmdd_HHMMSS timestamp)\n";
+    }else{
+      die "ERROR: '$file' does not contain YYYYmmdd_HHMMSS timestamp\n";
     }
+  }
+
+  @files = grep {defined $filenameTimes{$_}} @files;
+
+  my $fileInfo = {};
+  for my $file(@files){
+    my $filenameTime = $filenameTimes{$file};
     $$fileInfo{$file} = {
       file             => $file,
       newFile          => $file,
