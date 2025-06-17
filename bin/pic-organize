@@ -82,20 +82,14 @@ my $USAGE = "Usage:
     -calculate the <COMMON_PARENT_DIR>
       -take the longest common prefix of each <FILE> that ends in '/'
       -remove the trailing '/'
-    -calculate <LOG_FILE> as '$LOG_DIR/$EXEC-<CURRENT_TIME_MILLIS>.log'
-      -create dir $LOG_DIR/ if it does not exist
     -for each <FILE>, create <BUCKET_DIR>s in <COMMON_PARENT_DIR> if they do not exist:
       -calculate <BUCKET_DIR> as '<COMMON_PARENT_DIR>/<DAY_BUCKET>'
       -create <BUCKET_DIR> if it does not exist (unless --simulate is given)
-        -run: `mkdir -p <BUCKET_DIR>`
-        -write to <LOG_FILE>:
-          'mkdir -p <BUCKET_DIR>'
+        -run and log: `mkdir -p <BUCKET_DIR>`
     -for each <FILE>, move to <COMMON_PARENT_DIR>/<DAY_BUCKET>:
       -extract <BASE_FILENAME> from <FILE> with `basename`
       -move <FILE> to <BUCKET_DIR> (unless --simulate is given)
-        -run: `mv --no-clobber <FILE> <BUCKET_DIR>/<BASE_FILENAME>`
-        -write to <LOG_FILE>:
-          'mv --no-clobber <FILE> <BUCKET_DIR>/<BASE_FILENAME>'
+        -run and log: `mv --no-clobber <FILE> <BUCKET_DIR>/<BASE_FILENAME>`
 
   $EXEC -p | --prefix [OPTS] PATH [PATH PATH ..]
     -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
@@ -178,6 +172,20 @@ my $USAGE = "Usage:
       -print 'mv' commands prefixed with '#'
       -do not create any dirs
       -do not write to <LOG_FILE>
+
+    --log
+      in --move command, log each `mv` and `mkdir` command for all <FILE>s given (this is the default)
+      -create log file
+        -create dir $LOG_DIR/ if it does not exist
+        -get the current time in millis <CURRENT_TIME_MILLIS>
+        -create <LOG_FILE> as:
+          $LOG_DIR/$EXEC-<CURRENT_TIME_MILLIS>.log'
+        NOTE: if --simulate is given, still create log file and write commands, prefixed with '#'
+      -for each <FILE> processed, format+escape each `mv` and `mkdir` command
+        -if --simulate is given, prepend '#' to each cmd given
+      -write each command, one per line, to <LOG_FILE>
+    --no-log
+      do not create log dir, do not create log file, do not log any commands
 ";
 
 my $MODE_LIST_FILES = "list-files";
@@ -189,7 +197,8 @@ sub main(@){
   my @files;
   my $mode = $MODE_MOVE_DAY_BUCKETS;
   my $opts = {
-    simulate => 0,
+    log           => 1,
+    simulate      => 0,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -206,6 +215,10 @@ sub main(@){
       $mode = $MODE_UNIQUE_TIMESTAMPS;
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--dry-run)$/){
       $$opts{simulate} = 1;
+    }elsif($arg =~ /^(--log)$/){
+      $$opts{log} = 1;
+    }elsif($arg =~ /^(--no-log)$/){
+      $$opts{log} = 0;
     }elsif(-f $arg){
       push @files, $arg;
     }elsif(-d $arg){
@@ -264,7 +277,7 @@ sub moveDayBuckets($@){
   my $nowMillis = nowMillis();
   my $logFile = "$LOG_DIR/$EXEC-$nowMillis.log";
   my $logFH = undef;
-  if(not $$opts{simulate}){
+  if($$opts{log}){
     run "mkdir", "-p", $LOG_DIR if not -d $LOG_DIR;
     die "ERROR: could not create $LOG_DIR\n" if not -d $LOG_DIR;
     open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
@@ -291,17 +304,18 @@ sub moveDayBuckets($@){
     my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
     if($$opts{simulate}){
       print "#@mvCmd\n";
+      print $logFH "#@mvCmd\n" if $$opts{log};
     }else{
       if(not -d $targetDir){
         run "mkdir", "-p", $targetDir;
-        print $logFH "mkdir -p $targetDir\n";
+        print $logFH "mkdir -p $targetDir\n" if $$opts{log};
       }
       die "ERROR: missing $targetDir\n" if not -d $targetDir;
       run @mvCmd;
       if(-e $file || not -e $newFile){
         die "ERROR: @mvCmd failed\n";
       }
-      print $logFH "@mvCmd\n";
+      print $logFH "@mvCmd\n" if $$opts{log};
     }
   }
 
