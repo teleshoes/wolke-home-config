@@ -18,10 +18,16 @@ sub mtimeMillis($);
 sub nowMillis();
 sub run(@);
 
+my @EXTS_IMAGE = qw(
+  jpg jpeg png gif mpo webp
+  apng avif jfif pjpeg pjp bmp ico tiff
+);
+
 my @EXTS_VIDEO = qw(
   avi flv m2ts mkv mov mp4 mpv mpeg mpg mts webm wmv
 );
 my $REGEX_EXTS_VIDEO = join "|", @EXTS_VIDEO;
+my $REGEX_EXTS_ALL = join "|", (@EXTS_IMAGE, @EXTS_VIDEO);
 
 my $EXEC = basename $0;
 
@@ -39,7 +45,10 @@ my $USAGE = "Usage:
       -if <PATH> is a file, include as <FILE_ARG>
       -if <PATH> is a directory:
         -*recursively* find all files in this dir and any dirs contained
-        -include each file as <FILE_ARG>
+        -for each file, check if the extension is an image or video:
+          @EXTS_IMAGE
+          @EXTS_VIDEO
+        -if file extension matches, include file as <FILE_ARG>
       -extract full, absolute paths of each <FILE_ARG> as <FILE>
       -de-duplicate <FILE> list so that each <FILE> appears at most once
     -for each <FILE>:
@@ -428,7 +437,7 @@ sub findDirFiles($){
   for my $file(@outFiles){
     chomp $file;
     if(-f $file){
-      push @files, $file;
+      push @files, $file if $file =~ /\.$REGEX_EXTS_ALL$/i;
     }else{
       die "ERROR: failed to parse output of '@findCmd':\n  $file\n";
     }
