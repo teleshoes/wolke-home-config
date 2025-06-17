@@ -15,6 +15,7 @@ sub findDirFiles($);
 sub getCommonParentDir(@);
 sub dedupeArr(@);
 sub filenameTime($);
+sub formatEscapedCmdStr(@);
 sub mtimeS($);
 sub mtimeMillis($);
 sub nowMillis();
@@ -289,21 +290,25 @@ sub runMoveCommands($@){
     }
 
     my @mvCmd = ("mv", "--no-clobber", $oldFile, $newFile);
+    my $mvCmdStrFmt = formatEscapedCmdStr(@mvCmd);
+
     if($$opts{simulate}){
-      print "#@mvCmd\n";
-      print $logFH "#@mvCmd\n" if $$opts{log};
+      print "#$mvCmdStrFmt\n";
+      print $logFH "#$mvCmdStrFmt\n" if $$opts{log};
     }else{
       my $destDir = dirname $$cmd{newFile};
       if(not -d $destDir){
-        run "mkdir", "-p", $destDir;
-        print $logFH "mkdir -p $destDir\n" if $$opts{log};
+        my @mkdirCmd = ("mkdir", "-p", $destDir);
+        my $mkdirCmdStrFmt = formatEscapedCmdStr(@mkdirCmd);
+        run @mkdirCmd;
+        print $logFH "$mkdirCmdStrFmt\n" if $$opts{log};
       }
       die "ERROR: missing $destDir\n" if not -d $destDir;
       run @mvCmd;
       if(-e $oldFile || not -e $newFile){
         die "ERROR: @mvCmd failed\n";
       }
-      print $logFH "@mvCmd\n" if $$opts{log};
+      print $logFH "$mvCmdStrFmt\n" if $$opts{log};
     }
   }
 
@@ -584,6 +589,23 @@ sub filenameTime($){
   }else{
     return undef;
   }
+}
+
+sub formatEscapedCmdStr(@){
+  my @cmd = @_;
+
+  my @escapedWords;
+  for my $word(@cmd){
+    #skip escaping words without spaces/quotes/etc
+    if($word =~ /[^a-zA-Z0-9_,=\.\-\+\/]/){
+      #wrap file in single quotes, with '\'' for apostrophe literals
+      $word =~ s/'/'\\''/g;
+      $word = "'$word'";
+    }
+    push @escapedWords, $word;
+  }
+
+  return join(" ", @escapedWords);
 }
 
 sub mtimeS($){
