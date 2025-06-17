@@ -14,6 +14,11 @@ sub mtimeMillis($);
 sub nowMillis();
 sub run(@);
 
+my @EXTS_VIDEO = qw(
+  avi flv m2ts mkv mov mp4 mpv mpeg mpg mts webm wmv
+);
+my $REGEX_EXTS_VIDEO = join "|", @EXTS_VIDEO;
+
 my $EXEC = basename $0;
 
 my $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS = 60;
@@ -57,6 +62,20 @@ my $USAGE = "Usage:
           -`mv --no-clobber <FILE> <TARGET_DIR>/<FILE>`
         -write to <LOG_FILE>:
           <FILE> ::: <NEW_FILE_PATH>
+
+  $EXEC -p       [OPTS] PATH [PATH PATH ..]
+  $EXEC --prefix [OPTS] PATH [PATH PATH ..]
+    -extract list of <FILE>s from each <PATH> as in --move
+    -for each <FILE>:
+      -extract <BASE_FILENAME> from <FILE> with `basename`
+      -calculate <NEW_FILE>:
+        -remove 'IMG_' prefix from <BASE_FILENAME> if present
+        -ensure 'VID_' prefix from <BASE_FILENAME> if file ends in extension:
+          @EXTS_VIDEO
+      -fail if <NEW_FILE> exists unless if it is the same as <FILE>
+    -for each <FILE> (unless --simulate is given):
+      -rename <FILE> with:
+        -`mv --no-clobber <FILE> <NEW_FILE>`
 
   $EXEC -f          [OPTS] PATH [PATH PATH ..]
   $EXEC --fix       [OPTS] PATH [PATH PATH ..]
@@ -128,6 +147,7 @@ my $USAGE = "Usage:
 ";
 
 my $MODE_MOVE = "move";
+my $MODE_PREFIX = "prefix";
 my $MODE_FIX_NAMES = "fix-names";
 
 sub main(@){
@@ -143,6 +163,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--move)$/){
       $mode = $MODE_MOVE;
+    }elsif($arg =~ /^(-p|--prefix)$/){
+      $mode = $MODE_PREFIX;
     }elsif($arg =~ /^(-f|--fix|--fix-names)$/){
       $mode = $MODE_FIX_NAMES;
     }elsif($arg =~ /^(-s|-n|--simulate|--no-act|--dry-run)$/){
@@ -161,6 +183,8 @@ sub main(@){
 
   if($mode eq $MODE_MOVE){
     moveFiles($opts, @files);
+  }elsif($mode eq $MODE_PREFIX){
+    prefixFiles($opts, @files);
   }elsif($mode eq $MODE_FIX_NAMES){
     fixNames($opts, @files);
   }else{
@@ -230,6 +254,37 @@ sub moveFiles($@){
   }
 
   close $logFH if defined $logFH;
+}
+
+sub prefixFiles($@){
+  my ($opts, @files) = @_;
+  for my $file(@files){
+    my $ext = $1 if $file =~ /\.(\w+)$/;
+    my $prefix;
+    if($ext =~ /^$REGEX_EXTS_VIDEO$/i){
+      $prefix = "VID_";
+    }else{
+      $prefix = "";
+    }
+
+    my $newFile = $file;
+    $newFile =~ s/\/(IMG_|VID_)?([^\/]*)$/\/$prefix$2/;
+    if($file ne $newFile){
+      if(-e $newFile){
+        die "ERROR: '$newFile' already exists\n";
+      }
+
+      my @mvCmd = ("mv", "--no-clobber", $file, $newFile);
+      if($$opts{simulate}){
+        print "#@mvCmd\n";
+      }else{
+        run @mvCmd;
+        if(-e $file || not -e $newFile){
+          die "ERROR: @mvCmd failed\n";
+        }
+      }
+    }
+  }
 }
 
 sub fixNames($@){
