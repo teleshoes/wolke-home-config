@@ -33,6 +33,8 @@ my $EXEC = basename $0;
 
 my $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS = 60;
 
+my $LOG_DIR = "$ENV{HOME}/.cache/logs/pic-organize";
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -80,7 +82,8 @@ my $USAGE = "Usage:
     -calculate the <COMMON_PARENT_DIR>
       -take the longest common prefix of each <FILE> that ends in '/'
       -remove the trailing '/'
-    -calculate <LOG_FILE> as './$EXEC-<CURRENT_TIME_MILLIS>.log'
+    -calculate <LOG_FILE> as '$LOG_DIR/$EXEC-<CURRENT_TIME_MILLIS>.log'
+      -create dir $LOG_DIR/ if it does not exist
     -for each <FILE>, create <BUCKET_DIR>s in <COMMON_PARENT_DIR> if they do not exist:
       -calculate <BUCKET_DIR> as '<COMMON_PARENT_DIR>/<DAY_BUCKET>'
       -create <BUCKET_DIR> if it does not exist (unless --simulate is given)
@@ -259,9 +262,11 @@ sub moveDayBuckets($@){
   my $parentDir = getCommonParentDir(@files);
 
   my $nowMillis = nowMillis();
-  my $logFile = "./$EXEC-$nowMillis.log";
+  my $logFile = "$LOG_DIR/$EXEC-$nowMillis.log";
   my $logFH = undef;
   if(not $$opts{simulate}){
+    run "mkdir", "-p", $LOG_DIR if not -d $LOG_DIR;
+    die "ERROR: could not create $LOG_DIR\n" if not -d $LOG_DIR;
     open $logFH, ">", $logFile or die "ERROR: could not write $logFile\n$!\n";
   }
 
