@@ -4,7 +4,6 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub getLinuxMenuReplacements();
 sub formatMenuConfig($);
 sub formatCustomMenuEntries(@);
 
@@ -79,10 +78,24 @@ sub main(@) {
   ### linux menu entries
   editFile $linuxMenuFile, sub {
     my $config = shift;
-    for my $replacementPair(getLinuxMenuReplacements()){
-      my ($regex, $replacement) = @$replacementPair;
-      replaceLine $config, $regex, $replacement;
-    }
+    my $menuEntrySimpleTitle =
+      'title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"';
+    my $menuEntrySimpleEchoCmd = ''
+      . 'echo "'
+      . 'menuentry'
+      . ' \'$(echo "$title" | grub_quote)\''
+      . ' ${CLASS}'
+      . ' \$menuentry_id_option'
+      . ' \'gnulinux-simple-$boot_device_id\' {'
+      . '" | sed "s/^/$submenu_indentation/"'
+    ;
+    my $simpleCfgReplacement = ''
+      . "\n      $menuEntrySimpleTitle\n      $menuEntrySimpleEchoCmd";
+    $config =~ s/
+      (\n \s* title=.*)?
+      \n (\s*echo.*menuentry.*menuentry_id_option.*gnulinux-simple.*)
+    /$simpleCfgReplacement/xi;
+
     $config;
   };
 
@@ -92,24 +105,6 @@ sub main(@) {
 
   ### update grub
   run "update-grub";
-}
-
-sub getLinuxMenuReplacements(){
-  my $simpleCfgRegex = ''
-    . '.*echo.*menuentry.*menuentry_id_option.*gnulinux-simple.*'
-    ;
-  my $simpleCfgReplacement = ''
-    . '      '
-    . 'title="$(gettext_printf "%s, with Linux %s" "${os}" "${version}")"'
-    . "\n"
-    . '      '
-    . 'echo "menuentry \'$(echo "$title" | grub_quote)\''
-    . ' ${CLASS} \$menuentry_id_option \'gnulinux-simple-$boot_device_id\''
-    . ' {" | sed "s/^/$submenu_indentation/"'
-    . "\n"
-    ;
-
-  return ([$simpleCfgRegex, $simpleCfgReplacement]);
 }
 
 sub formatMenuConfig($){
