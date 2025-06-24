@@ -1,0 +1,112 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+sub createSymlink($$);
+sub run(@);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] SYMLINK_TARGET SYMLINK_NAME
+    create a symlink at SYMLINK_NAME linking to SYMLINK_TARGET, copying mtime
+      -same as:
+        ln -s SYMLINK_TARGET SYMLINK_NAME
+        touch -h SYMLINK_NAME -r SYMLINK_TARGET
+      -SYMLINK_NAME must not exist and SYMLINK_TARGET must exist
+        -if SYMLINK_NAME does not exist, it is treated as another SYMLINK_TARGET
+
+  $EXEC [OPTS] SYMLINK_TARGET [SYMLINK_TARGET ...] TARGET_DIRECTORY
+  $EXEC [OPTS] -t TARGET_DIRECTORY SYMLINK_TARGET [SYMLINK_TARGET ...]
+    create symlinks in the given directory
+      -for every SYMLINK_TARGET given, same as:
+        $EXEC SYMLINK_TARGET TARGET_DIR/`basename SYMLINK_TARGET`
+
+  OPTS
+    -T | --no-target-directory
+      treat all files as SYMLINK_TARGET, including the last file given
+        -if the last file is a dir, it will normally be treated as TARGET_DIR
+        -instead, create a symlink to this dir in the current directory
+";
+
+sub main(@){
+  my @existingFiles;
+  my $symlinkName = undef;
+  my $targetDir = undef;
+  my $allowTargetDir = 1;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-t)$/ and @_ > 0){
+      $targetDir = shift @_;
+      $allowTargetDir = 1;
+    }elsif($arg =~ /^--target-directory=(.+)$/){
+      $targetDir = $1;
+      $allowTargetDir = 1;
+    }elsif($arg =~ /^(-T|--no-target-directory)$/){
+      $targetDir = undef;
+      $allowTargetDir = 0;
+    }elsif(-e $arg){
+      if(defined $symlinkName){
+        die "$USAGE\nERROR: SYMLINK_NAME must exist and must appear after SYMLINK_TARGET\n";
+      }
+      push @existingFiles, $arg;
+    }elsif(not defined $symlinkName){
+      $symlinkName = $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if(not defined $targetDir and not defined $symlinkName){
+    if($allowTargetDir and @existingFiles > 1 and -d $existingFiles[-1]){
+      $targetDir = pop @existingFiles;
+    }
+  }
+
+  my @symlinkTargets = @existingFiles;
+  if(@symlinkTargets == 0){
+    die "$USAGE\nERROR: missing SYMLINK_TARGET\n";
+  }
+
+  if(defined $symlinkName){
+    if(@symlinkTargets > 1){
+      die "$USAGE\nERROR: multiple SYMLINK_TARGETs given for SYMLINK_NAME\n";
+    }
+    my $symlinkTarget = $symlinkTargets[0];
+    createSymlink($symlinkTarget, $symlinkName);
+  }elsif(defined $targetDir){
+    $targetDir =~ s/\/+$//;
+    for my $symlinkTarget(@symlinkTargets){
+      my $symlinkName = $targetDir . "/" . basename($symlinkTarget);
+      createSymlink($symlinkTarget, $symlinkName);
+    }
+  }else{
+    die "$USAGE\nERROR: missing SYMLINK_NAME and TARGET_DIR\n";
+  }
+}
+
+sub createSymlink($$){
+  my ($symlinkTarget, $symlinkName) = @_;
+  run "ln", "-s", $symlinkTarget, $symlinkName;
+  if(not -l $symlinkName){
+    die "ERROR: missing symlink SYMLINK_NAME after `ln`: $symlinkName\n";
+  }
+  run "touch", "-h", $symlinkName, "-r", $symlinkTarget;
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+  if($? != 0){
+    die "ERROR: cmd '@_' failed\n";
+  }
+}
+
+&main(@ARGV);
