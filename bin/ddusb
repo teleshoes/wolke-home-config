@@ -11,6 +11,13 @@ my $EXEC = basename $0;
 
 my @DD_OPTS = qw(bs=64M status=progress);
 
+my $DECOMPRESS_TYPE_NONE = "none";
+my $DECOMPRESS_TYPE_XZ = "xz";
+
+my $REGEX_DECOMPRESS_TYPE = join "|", (
+  $DECOMPRESS_TYPE_NONE, $DECOMPRESS_TYPE_XZ
+);
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -26,26 +33,39 @@ my $USAGE = "Usage:
     e.g.: $EXEC ~/Downloads/debian-testing.iso /dev/sdc
 
   OPTS
-    --xz | --xzcat
-      treat ISO_IMAGE as an xz file, and decompress while writing
-        -run: xzcat ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
+    --decompress=DECOMPRESS_TYPE
+      optionally treat ISO_IMAGE as a compressed image file
+          $DECOMPRESS_TYPE_NONE
+            never not treat ISO_IMAGE as a compressed image file
+            write ISO_IMAGE directly, with dd if=ISO_IMAGE, not writing to stdin
+            (this is the default)
+          $DECOMPRESS_TYPE_XZ
+            run: xzcat ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
 
-      e.g.: $EXEC --xzcat ~/Downloads/debian-testing.iso.xz /dev/sdc
+   --no-decompress
+     same as: --decompress=none
+   --xz | --xzcat
+     same as: --decompress=xz
+       e.g.: $EXEC --xzcat ~/Downloads/debian-testing.iso.xz /dev/sdc
 ";
 
 sub main(@){
   my $iso;
   my $devPath;
   my $opts = {
-    xz => 0,
+    decompressType => $DECOMPRESS_TYPE_NONE,
   };
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^--decompress=($REGEX_DECOMPRESS_TYPE)$/i){
+      $$opts{decompressType} = lc $1;
+    }elsif($arg =~ /^(--no-decompress)$/){
+      $$opts{decompressType} = $DECOMPRESS_TYPE_NONE;
     }elsif($arg =~ /^(--xz|--xzcat)$/){
-      $$opts{xz} = 1;
+      $$opts{decompressType} = $DECOMPRESS_TYPE_XZ;
     }elsif(-f $arg and not defined $iso){
       $iso = $arg;
     }elsif(-b $arg and not defined $devPath){
@@ -73,12 +93,14 @@ sub main(@){
   $devPath =~ s/"/\\"/g;
 
   my $cmd;
-  if($$opts{xz}){
-    print "\n\n";
+  if($$opts{decompressType} eq $DECOMPRESS_TYPE_NONE){
+    $cmd = "dd @DD_OPTS if=\"$iso\" of=\"$devPath\"";
+  }elsif($$opts{decompressType} eq $DECOMPRESS_TYPE_XZ){
+    print "\n\nXZ:\n";
     run "xz", "-l", $iso;
     $cmd = "xzcat \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
   }else{
-    $cmd = "dd @DD_OPTS if=\"$iso\" of=\"$devPath\"";
+    die "ERROR: unknown DECOMPRESS_TYPE=$$opts{decompressType}\n";
   }
 
   print "\n\n";
