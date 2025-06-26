@@ -55,7 +55,10 @@ my $USAGE = "Usage:
           $DECOMPRESS_TYPE_XZ
             run: xz -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
           $DECOMPRESS_TYPE_GZ
-            run: gzip -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
+            if `pigz` is available on PATH:
+              run: pigz -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
+            otherwise:
+              run: gzip -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
 
    --no-decompress
      same as: --decompress=none
@@ -138,12 +141,15 @@ sub main(@){
     }
   }elsif($$opts{decompressType} eq $DECOMPRESS_TYPE_GZ){
     print "\n\nGZ:\n";
-    if(cmdAvailable("gzip")){
+    if(cmdAvailable("pigz")){
+      run "pigz", "-l", $iso;
+      $cmd = "pigz -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
+    }elsif(cmdAvailable("gzip")){
       run "gzip", "-l", $iso;
       print "gzip -l is slow, skipping\n";
       $cmd = "gzip -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
     }else{
-      die "ERROR: gzip command not on path\n";
+      die "ERROR: pigz/gzip command not on path\n";
     }
   }else{
     die "ERROR: unknown DECOMPRESS_TYPE=$$opts{decompressType}\n";
