@@ -14,9 +14,10 @@ my @DD_OPTS = qw(bs=64M status=progress);
 
 my $DECOMPRESS_TYPE_NONE = "none";
 my $DECOMPRESS_TYPE_XZ = "xz";
+my $DECOMPRESS_TYPE_GZ = "gz";
 
 my $REGEX_DECOMPRESS_TYPE = join "|", (
-  $DECOMPRESS_TYPE_NONE, $DECOMPRESS_TYPE_XZ
+  $DECOMPRESS_TYPE_NONE, $DECOMPRESS_TYPE_XZ, $DECOMPRESS_TYPE_GZ
 );
 
 my $USAGE = "Usage:
@@ -42,12 +43,16 @@ my $USAGE = "Usage:
             (this is the default)
           $DECOMPRESS_TYPE_XZ
             run: xz -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
+          $DECOMPRESS_TYPE_GZ
+            run: gzip -d -c -k ISO_IMAGE | dd @DD_OPTS of=USB_DRIVE_DEVICE
 
    --no-decompress
      same as: --decompress=none
    --xz | --xzcat
      same as: --decompress=xz
        e.g.: $EXEC --xzcat ~/Downloads/debian-testing.iso.xz /dev/sdc
+   --gz | --gzip | --gunzip | --zcat | --gzcat
+     same as: --decompress=gz
 ";
 
 sub main(@){
@@ -67,6 +72,8 @@ sub main(@){
       $$opts{decompressType} = $DECOMPRESS_TYPE_NONE;
     }elsif($arg =~ /^(--xz|--xzcat)$/){
       $$opts{decompressType} = $DECOMPRESS_TYPE_XZ;
+    }elsif($arg =~ /^(--gz|--gzip|--gunzip|--zcat|--gzcat)$/){
+      $$opts{decompressType} = $DECOMPRESS_TYPE_GZ;
     }elsif(-f $arg and not defined $iso){
       $iso = $arg;
     }elsif(-b $arg and not defined $devPath){
@@ -103,6 +110,15 @@ sub main(@){
       $cmd = "xz -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
     }else{
       die "ERROR: xz command not on path\n";
+    }
+  }elsif($$opts{decompressType} eq $DECOMPRESS_TYPE_GZ){
+    print "\n\nGZ:\n";
+    if(cmdAvailable("gzip")){
+      run "gzip", "-l", $iso;
+      print "gzip -l is slow, skipping\n";
+      $cmd = "gzip -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
+    }else{
+      die "ERROR: gzip command not on path\n";
     }
   }else{
     die "ERROR: unknown DECOMPRESS_TYPE=$$opts{decompressType}\n";
