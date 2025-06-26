@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub readParted();
+sub getMimeType($);
 sub cmdAvailable($);
 sub ensureRoot();
 sub run(@);
@@ -12,12 +13,13 @@ my $EXEC = basename $0;
 
 my @DD_OPTS = qw(bs=64M status=progress);
 
+my $DECOMPRESS_TYPE_AUTO = "auto";
 my $DECOMPRESS_TYPE_NONE = "none";
 my $DECOMPRESS_TYPE_XZ = "xz";
 my $DECOMPRESS_TYPE_GZ = "gz";
 
 my $REGEX_DECOMPRESS_TYPE = join "|", (
-  $DECOMPRESS_TYPE_NONE, $DECOMPRESS_TYPE_XZ, $DECOMPRESS_TYPE_GZ
+  $DECOMPRESS_TYPE_AUTO, $DECOMPRESS_TYPE_NONE, $DECOMPRESS_TYPE_XZ, $DECOMPRESS_TYPE_GZ
 );
 
 my $USAGE = "Usage:
@@ -37,6 +39,15 @@ my $USAGE = "Usage:
   OPTS
     --decompress=DECOMPRESS_TYPE
       optionally treat ISO_IMAGE as a compressed image file
+        DECOMPRESS_TYPE
+          $DECOMPRESS_TYPE_AUTO
+            get MIME_TYPE of ISO_IMAGE`file --brief --mime-type ISO_IMAGE`
+            if MIME_TYPE = application/x-xz:
+              same as: DECOMPRESS_TYPE=xz
+            if MIME_TYPE = application/gzip:
+              same as: DECOMPRESS_TYPE=gz
+            otherwise:
+              same as: DECOMPRESS_TYPE=none
           $DECOMPRESS_TYPE_NONE
             never not treat ISO_IMAGE as a compressed image file
             write ISO_IMAGE directly, with dd if=ISO_IMAGE, not writing to stdin
@@ -99,6 +110,20 @@ sub main(@){
 
   $iso =~ s/"/\\"/g;
   $devPath =~ s/"/\\"/g;
+
+  if($$opts{decompressType} eq $DECOMPRESS_TYPE_AUTO){
+    my $mimeType = getMimeType($iso);
+    if($mimeType eq "application/gzip"){
+      print "\n compression auto => gz ($iso)\n";
+      $$opts{decompressType} = $DECOMPRESS_TYPE_GZ;
+    }elsif($mimeType eq "application/x-xz"){
+      print "\n compression auto => xz ($iso)\n";
+      $$opts{decompressType} = $DECOMPRESS_TYPE_XZ;
+    }else{
+      print "\n compression auto => none ($iso)\n";
+      $$opts{decompressType} = $DECOMPRESS_TYPE_NONE;
+    }
+  }
 
   my $cmd;
   if($$opts{decompressType} eq $DECOMPRESS_TYPE_NONE){
@@ -185,6 +210,16 @@ sub readParted(){
     $$devsByPath{$$device{path}} = $device;
   }
   return $devsByPath;
+}
+
+sub getMimeType($){
+  my ($file) = @_;
+  my @cmd = ("file", "--brief", "--mime-type", $file);
+  open my $cmdH, "-|", @cmd or die "ERROR: command failed @cmd\n$!\n";
+  my $out = join '', <$cmdH>;
+  close $cmdH;
+  chomp $out;
+  return $out;
 }
 
 sub cmdAvailable($){
