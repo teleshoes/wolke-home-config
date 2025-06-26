@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub readParted();
+sub cmdAvailable($);
 sub ensureRoot();
 sub run(@);
 
@@ -97,8 +98,12 @@ sub main(@){
     $cmd = "dd @DD_OPTS if=\"$iso\" of=\"$devPath\"";
   }elsif($$opts{decompressType} eq $DECOMPRESS_TYPE_XZ){
     print "\n\nXZ:\n";
-    run "xz", "-l", $iso;
-    $cmd = "xz -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
+    if(cmdAvailable("xz")){
+      run "xz", "-l", $iso;
+      $cmd = "xz -d -c -k \"$iso\" | dd @DD_OPTS of=\"$devPath\"";
+    }else{
+      die "ERROR: xz command not on path\n";
+    }
   }else{
     die "ERROR: unknown DECOMPRESS_TYPE=$$opts{decompressType}\n";
   }
@@ -164,6 +169,12 @@ sub readParted(){
     $$devsByPath{$$device{path}} = $device;
   }
   return $devsByPath;
+}
+
+sub cmdAvailable($){
+  my ($cmd) = @_;
+  system "command -v '$cmd' >/dev/null 2>/dev/null";
+  return $? == 0 ? 1 : 0;
 }
 
 sub ensureRoot(){
