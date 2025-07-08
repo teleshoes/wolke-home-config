@@ -31,6 +31,7 @@ our @EXPORT = qw(
   globAll globFiles globDirs
   globFilesBasename
   globOne
+  mkdirRun mkdirRunUser
   writeFile tryWriteFile writeFileSudo
   readFile tryReadFile readFileSudo readFileChomp
   replaceLine replaceOrAddLine
@@ -111,6 +112,8 @@ sub globFiles($);
 sub globDirs($);
 sub globFilesBasename($);
 sub globOne($);
+sub mkdirRun($);
+sub mkdirRunUser($);
 sub writeFileProto($$$);
 sub writeFile($$);
 sub tryWriteFile($$);
@@ -598,6 +601,25 @@ sub globOne($){
     return $files[0];
   }else{
     return undef;
+  }
+}
+
+sub mkdirRun($){
+  my ($dir) = @_;
+  if(not -d $dir){
+    run "mkdir", "-p", $dir;
+  }
+  if(not -d $dir){
+    die "ERROR: failed to create dir '$dir'\n";
+  }
+}
+sub mkdirRunUser($){
+  my ($dir) = @_;
+  if(not -d $dir){
+    runUser "mkdir", "-p", $dir;
+  }
+  if(not -d $dir){
+    die "ERROR: failed to create dir '$dir'\n";
   }
 }
 
