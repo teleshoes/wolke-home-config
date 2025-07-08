@@ -959,7 +959,7 @@ sub installFromGit($$){
   }
 
   if(not -d $dir){
-    runUser "mkdir", "-p", $dir;
+    mkdirRunUser $dir;
     runUser "git", "-C", $dir, "clone", $gitUrl, ".";
   }
 
