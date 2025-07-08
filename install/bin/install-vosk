@@ -7,6 +7,8 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my $PYTHON_VENV_DIR = "/opt/python-vosk";
+
 my $MODEL_URL_PREFIX = "https://alphacephei.com/vosk/models";
 my $MODEL_DOWNLOAD_DIR = "/media/stuff/Images/vosk";
 my $MODEL_INSTALL_DIR = "$ENV{HOME}/.cache/vosk";
@@ -26,6 +28,8 @@ my $USAGE = "Usage:
         -download + cache compressed models from $MODEL_URL_PREFIX
           @MODEL_NAMES
         -decompress to $MODEL_INSTALL_DIR
+      -install vosk python module in a python venv
+        -$PYTHON_VENV_DIR
 ";
 
 sub main(@){
@@ -57,6 +61,15 @@ sub main(@){
       runUser "unzip", "-d", $MODEL_INSTALL_DIR, $zipFile;
     }
   }
+
+  runSudo "bash", "-c", "
+    echo installing venv $PYTHON_VENV_DIR \\
+      && rm -rf $PYTHON_VENV_DIR \\
+      && python3 -m venv $PYTHON_VENV_DIR \\
+      && source $PYTHON_VENV_DIR/bin/activate \\
+      && pip install vosk \\
+      || ( echo ERROR: INSTALL FAILED && exit 1 )
+  ";
 }
 
 &main(@ARGV);
