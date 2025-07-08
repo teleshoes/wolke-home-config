@@ -7,12 +7,23 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my $MODEL_URL_PREFIX = "https://alphacephei.com/vosk/models";
+my $MODEL_DOWNLOAD_DIR = "/media/stuff/Images/vosk";
+my $MODEL_INSTALL_DIR = "$ENV{HOME}/.cache/vosk";
+
+my @MODEL_NAMES = qw(
+);
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
   $EXEC
     install+configure vosk
+      -install models:
+        -download + cache compressed models from $MODEL_URL_PREFIX
+          @MODEL_NAMES
+        -decompress to $MODEL_INSTALL_DIR
 ";
 
 sub main(@){
@@ -23,6 +34,25 @@ sub main(@){
       exit 0;
     }else{
       die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  mkdirRunUser $MODEL_DOWNLOAD_DIR;
+  mkdirRunUser $MODEL_INSTALL_DIR;
+
+  for my $model(@MODEL_NAMES){
+    my $zipName = "$model.zip";
+    my $zipUrl = "$MODEL_URL_PREFIX/$zipName";
+    my $zipFile = "$MODEL_DOWNLOAD_DIR/$zipName";
+    if(not -e $zipFile){
+      print "DOWNLOADING MODEL: $model\n";
+      runUser "curl", $zipUrl, "-o", $zipFile;
+    }
+    if(not -f $zipFile){
+      die "ERROR: could not fetch model $model\n";
+    }
+    if(not -d "$MODEL_INSTALL_DIR/$model"){
+      runUser "unzip", "-d", $MODEL_INSTALL_DIR, $zipFile;
     }
   }
 }
