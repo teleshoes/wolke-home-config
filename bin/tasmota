@@ -216,18 +216,18 @@ my $USAGE = "Usage:
     -if no DEVICE is given, default to all devices
     -run 'STATUS 0' (show connected sensor information)
     -parse out JSON results:
-      state           = Status.Power (formatted as 'on ', 'off', or '???')
-      power           = StatusSNS.ENERGY.Power (integer power in watts)
-      energyTotal     = StatusSNS.ENERGY.Total (fractional energy in kWh)
-      energyYesterday = StatusSNS.ENERGY.Yesterday (fractional energy in kWh)
-      energyToday     = StatusSNS.ENERGY.Today (fractional energy in kWh)
-      color           = StatusSTS.Color (hex color, usually RRGGBBCWWW)
+      STATE            = Status.Power (formatted as 'on ', 'off', or '???')
+      POWER            = StatusSNS.ENERGY.Power (integer power in watts)
+      ENERGY_TOTAL     = StatusSNS.ENERGY.Total (fractional energy in kWh)
+      ENERGY_YESTERDAY = StatusSNS.ENERGY.Yesterday (fractional energy in kWh)
+      ENERGY_TODAY     = StatusSNS.ENERGY.Today (fractional energy in kWh)
+      COLOR            = StatusSTS.Color (hex color, usually RRGGBBCWWW)
     -print info for each DEVICE, one per line, in order given, formatted:
-      <DEVICE>: <state> <energyTotal>kWh <power>W color=<color>
-      (omit power/energyTotal/color if missing)
+      <DEVICE>: <STATE> <ENERGY_TOTAL>kWh <POWER>W color=<COLOR>
+      (omit POWER/ENERGY_TOTAL/COLOR if missing)
     -write date and info for each DEVICE
       -write to file: $LOG_DIR/info-<DEVICE>.txt
-      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> | energyTotal=<energyTotal> | power=<power> | color=<color>
+      -formatted: <YYYY>-<mm>-<dd> <HH>:<MM>:<SS> | energyTotal=<ENERGY_TOTAL> | power=<POWER> | color=<COLOR>
 
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -538,22 +538,22 @@ sub main(@){
     for my $device(@devices){
       my $json = $$outputByDevice{$device};
       my $info = parseStatusJson($json);
-      my $state = $$info{state};
+      my $state = $$info{STATE};
       $state = "???" if not defined $state;
       $state = "on " if $state eq 1;
       $state = "off" if $state eq 0;
 
       my $fmt = "$device: $state";
-      $fmt .= sprintf " %11.5fkWh", $$info{energyTotal} if defined $$info{energyTotal};
-      $fmt .= sprintf " %4dW", $$info{power} if defined $$info{power};
-      $fmt .= " color=$$info{color}" if defined $$info{color};
+      $fmt .= sprintf " %11.5fkWh", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
+      $fmt .= sprintf " %4dW", $$info{POWER} if defined $$info{POWER};
+      $fmt .= " color=$$info{COLOR}" if defined $$info{COLOR};
       print "$fmt\n";
 
       my $logFmt = "$date | $state";
-      $logFmt .= sprintf " | energyTotal=%11.5f", $$info{energyTotal} if defined $$info{energyTotal};
-      $logFmt .= sprintf " | power=%4d", $$info{power} if defined $$info{power};
-      $logFmt .= " | color=$$info{color}" if defined $$info{color};
-      if(defined $$info{state}){
+      $logFmt .= sprintf " | energyTotal=%11.5f", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
+      $logFmt .= sprintf " | power=%4d", $$info{POWER} if defined $$info{POWER};
+      $logFmt .= " | color=$$info{COLOR}" if defined $$info{COLOR};
+      if(defined $$info{STATE}){
         appendLog("info-$device.txt", "$logFmt\n");
       }
     }
@@ -919,12 +919,12 @@ sub parseStatusJson($){
   };
 
   return {
-    state           => getNestedMapVal($obj, ("Status" => "Power")),
-    power           => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Power")),
-    energyTotal     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Total")),
-    energyToday     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Today")),
-    energyYesterday => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Yesterday")),
-    color           => getNestedMapVal($obj, ("StatusSTS" => "Color")),
+    STATE            => getNestedMapVal($obj, ("Status" => "Power")),
+    POWER            => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Power")),
+    ENERGY_TOTAL     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Total")),
+    ENERGY_TODAY     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Today")),
+    ENERGY_YESTERDAY => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Yesterday")),
+    COLOR            => getNestedMapVal($obj, ("StatusSTS" => "Color")),
   };
 }
 
