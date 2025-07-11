@@ -35,7 +35,7 @@ my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
 my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
 my $DEFAULT_MAX_TIMEOUT_MILLIS = 1200;
 my $DEFAULT_MAX_COMMAND_ATTEMPTS = 2;
-my $POWER_THRESHOLD_W = 5;
+my $DEFAULT_POWER_THRESHOLD_W = 5;
 my $INFO_FORMAT_SPEC_DEFAULT =
   "{DEVICE}: {STATE} {ENERGY_TOTAL:.1f}kWh {POWER:d}W {ACTIVE} {COLOR_MAYBE}";
 my $INFO_FORMAT_SPEC_ACTIVE =
@@ -244,8 +244,8 @@ my $USAGE = "Usage:
         current date/time, formatted YYYY-mm-dd HH:MM:SS as in `date +'%F %T'`
       ACTIVE
         '???'    if POWER is not defined
-        'active' if POWER is defined and POWER >= $POWER_THRESHOLD_W
-        'idle'   if POWER is defined and POWER < $POWER_THRESHOLD_W
+        'active' if POWER is defined and POWER >= $DEFAULT_POWER_THRESHOLD_W (see --power-threshold)
+        'idle'   if POWER is defined and POWER < $DEFAULT_POWER_THRESHOLD_W (see --power-threshold)
       LEFT_BRACKET
         literal open curly bracket char '{'
       NEWLINE
@@ -328,6 +328,9 @@ my $USAGE = "Usage:
       see --info for variables
       default: $INFO_FORMAT_SPEC_DEFAULT
 
+    --power-threshold=ACTIVE_THRESHOLD_WATTS
+      override default threshold ${DEFAULT_POWER_THRESHOLD_W}W for --active
+
   NOTE: to set up a new tasmota device named 'KITCHEN1':
         -connect to tasmota SSID, e.g.: tasmota_123FED-9922
         -run `$EXEC --mac init`
@@ -370,6 +373,7 @@ sub main(@){
     maxTimeoutMillis   => $DEFAULT_MAX_TIMEOUT_MILLIS,
     maxCommandAttempts => $DEFAULT_MAX_COMMAND_ATTEMPTS,
     infoFormatSpec     => $INFO_FORMAT_SPEC_DEFAULT,
+    powerThreshold     => $DEFAULT_POWER_THRESHOLD_W,
     toggleAsync        => 0,
   };
   while(@_ > 0){
@@ -444,6 +448,8 @@ sub main(@){
     }elsif($arg =~ /^(-f|--fast)$/){
       $$opts{maxTimeoutMillis} = 500;
       $$opts{maxCommandAttempts} = 1;
+    }elsif($arg =~ /^--power-threshold=(\d+)$/){
+      $$opts{powerThreshold} = $1;
     }elsif(defined $COMMAND_ALIASES{lc $arg}){
       $mode = $MODE_COMMAND;
       $cmd = $COMMAND_ALIASES{lc $arg};
@@ -597,8 +603,8 @@ sub main(@){
 
       $$info{ACTIVE} = "???";
       if(defined $$info{POWER} and $$info{POWER} =~ /^(\d*\.)?\d+$/){
-        $$info{ACTIVE} = "active" if $$info{POWER} >= $POWER_THRESHOLD_W;
-        $$info{ACTIVE} = "idle" if $$info{POWER} < $POWER_THRESHOLD_W;
+        $$info{ACTIVE} = "active" if $$info{POWER} >= $$opts{powerThreshold};
+        $$info{ACTIVE} = "idle" if $$info{POWER} < $$opts{powerThreshold};
       }
 
       $$info{STATE} = "???";
