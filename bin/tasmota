@@ -36,9 +36,9 @@ my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
 my $DEFAULT_MAX_TIMEOUT_MILLIS = 1200;
 my $DEFAULT_MAX_COMMAND_ATTEMPTS = 2;
 my $INFO_FORMAT_SPEC_DEFAULT =
-  "{DEVICE}: {STATE} {ENERGY_TOTAL:11.5f}kWh {POWER:4d}W {COLOR}";
+  "{DEVICE}: {STATE} {ENERGY_TOTAL:11.5f}kWh {POWER:4d}W {COLOR_MAYBE}";
 my $INFO_FORMAT_SPEC_LOG =
-  "{DATETIME} | {STATE:-3s} | energyTotal={ENERGY_TOTAL:11.5f} | power={POWER:4d} | color={COLOR}";
+  "{DATETIME} | {STATE:-3s} | energyTotal={ENERGY_TOTAL:11.5f} | power={POWER:4d} | color={COLOR_MAYBE}";
 
 my $INITIAL_DEVICE_IP = "192.168.4.1";
 
@@ -235,10 +235,12 @@ my $USAGE = "Usage:
         '???'    if STATE_INT is not defined
         'on'     if STATE_INT = 1
         'off'    if STATE_INT = 0
+      COLOR_MAYBE
+        same as COLOR if COLOR is defined, otherwise 'none'
       DATETIME
         current date/time, formatted YYYY-mm-dd HH:MM:SS as in `date +'%F %T'`
     -see --format=FORMAT_SPEC for variable formatting (similar to python f-strings)
-    -log DATETIME, STATE, ENERGY_TOTAL, POWER, and COLOR for each DEVICE
+    -log DATETIME, STATE, ENERGY_TOTAL, POWER, and COLOR_MAYBE for each DEVICE
       -skip writing the log if STATE, ENERGY_TOTAL and POWER are all missing
       -write to file: $LOG_DIR/info-<DEVICE>.txt
       -formatted: $INFO_FORMAT_SPEC_LOG
@@ -577,6 +579,9 @@ sub main(@){
         $$info{STATE} = "on" if defined $$info{STATE_INT} and $$info{STATE_INT} eq "1";
         $$info{STATE} = "off" if defined $$info{STATE_INT} and $$info{STATE_INT} eq "0";
       }
+
+      $$info{COLOR_MAYBE} = "none";
+      $$info{COLOR_MAYBE} = $$info{COLOR} if defined $$info{COLOR};
 
       my $fmt = formatInfo($info, $$opts{infoFormatSpec});
       print "$fmt\n";
