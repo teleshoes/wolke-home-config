@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $TS_DEV = "x3";
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC
+    monitor for GE AC to be offline (presumably because of P1 error)
+      -check power usage of tasmota dev $TS_DEV
+      -if >= 5W, do nothing
+      -otherwise:
+        -toggle $TS_DEV
+        -wait up to 2min
+          -toggle AC off and on every 10s or so
+          -stop waiting if power usage exceeds 5W
+        -run 'ge-ac cold'
+";
+
+sub run(@);
+
+sub main(@){
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  system "date";
+  my $out = `tasmota $TS_DEV --active`;
+  chomp $out;
+  if($out =~ /idle/){
+     print "RESTARTING GE AC\n";
+     run "tasmota", $TS_DEV, "off";
+     run "sleep", 1;
+     run "tasmota", $TS_DEV, "on";
+     my $start = time;
+     while(time - $start < 120){
+       run "bash", "-c", "timeout 3 ge-ac off";
+       run "bash", "-c", "timeout 3 ge-ac on";
+       print "\n";
+       run "sleep", 4;
+       $out = `tasmota $TS_DEV --active`;
+       chomp $out;
+       if($out =~ /active/){
+         print "  ac appears active\n";
+         last;
+       }
+     }
+     run "sleep", 1;
+     run "ge-ac", "cold";
+     system "date";
+     run "tasmota", $TS_DEV, "-i";
+  }else{
+    print "skipping, $TS_DEV is not idle\n";
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
