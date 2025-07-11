@@ -11,6 +11,8 @@ sub readDevicesConfig();
 sub appendLog($$);
 sub maybeRotateLog($);
 sub rotateLog($);
+sub formatInfo($$);
+sub formatVar($$$);
 sub extractDevicesByAlias($$);
 sub sortAliasesByFirstDevice($$);
 sub extractTemplateJSONByDevType($);
@@ -33,6 +35,10 @@ my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
 my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
 my $DEFAULT_MAX_TIMEOUT_MILLIS = 1200;
 my $DEFAULT_MAX_COMMAND_ATTEMPTS = 2;
+my $INFO_FORMAT_SPEC_DEFAULT =
+  "{DEVICE}: {STATE} {ENERGY_TOTAL:11.5f}kWh {POWER:4d}W {COLOR}";
+my $INFO_FORMAT_SPEC_LOG =
+  "{DATETIME} | {STATE:-3s} | energyTotal={ENERGY_TOTAL:11.5f} | power={POWER:4d} | color={COLOR}";
 
 my $INITIAL_DEVICE_IP = "192.168.4.1";
 
@@ -231,13 +237,13 @@ my $USAGE = "Usage:
         'off'    if STATE_INT = 0
       DATETIME
         current date/time, formatted YYYY-mm-dd HH:MM:SS as in `date +'%F %T'`
+    -see --format=FORMAT_SPEC for variable formatting (similar to python f-strings)
     -log DATETIME, STATE, ENERGY_TOTAL, POWER, and COLOR for each DEVICE
       -skip writing the log if STATE, ENERGY_TOTAL and POWER are all missing
       -write to file: $LOG_DIR/info-<DEVICE>.txt
-      -formatted: <DATETIME> | <STATE> | energyTotal=<ENERGY_TOTAL> | power=<POWER> | color=<COLOR>
-    -print info for each DEVICE, one per line, in order given, formatted:
-      <DEVICE>: <STATE> <ENERGY_TOTAL>kWh <POWER>W color=<COLOR>
-      (omit POWER/ENERGY_TOTAL/COLOR if missing)
+      -formatted: $INFO_FORMAT_SPEC_LOG
+    -format and print for each DEVICE, one per line, in DEVICE order given on command line
+       default format is: $INFO_FORMAT_SPEC_DEFAULT
 
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -292,6 +298,18 @@ my $USAGE = "Usage:
     -f | --fast
       same as: --timeout=500 --attempts=1
 
+    --format=INFO_FORMAT_SPEC
+      string to print for each device in --info
+      replacment variables are formatted similar to python f-strings
+        {VARIABLE_NAME} or {VARIABLE_NAME:FMT}
+             FMT has four optional components: LEFT_ALIGN, MIN_LEN, FRAC_LEN, TYPE
+                 LEFT_ALIGN: hyphen for left-align
+                 MIN_LEN: an integer for minimum length
+                 FRAC_LEN: a period followed by an integer for floating point fractional len
+                 TYPE: an 's', 'd', or 'f' char ONLY (missing defaults to 's')
+        e.g.: {STATE} {POWER:3d} {ENERGY_TOTAL:-5.1f}
+      see --info for variables
+      default: $INFO_FORMAT_SPEC_DEFAULT
 
   NOTE: to set up a new tasmota device named 'KITCHEN1':
         -connect to tasmota SSID, e.g.: tasmota_123FED-9922
@@ -334,6 +352,7 @@ sub main(@){
   my $opts = {
     maxTimeoutMillis   => $DEFAULT_MAX_TIMEOUT_MILLIS,
     maxCommandAttempts => $DEFAULT_MAX_COMMAND_ATTEMPTS,
+    infoFormatSpec     => $INFO_FORMAT_SPEC_DEFAULT,
     toggleAsync        => 0,
   };
   while(@_ > 0){
@@ -382,6 +401,8 @@ sub main(@){
     }elsif($arg =~ /^(--info|info|-i)$/){
       $mode = $MODE_INFO;
       $cmd = undef;
+    }elsif($arg =~ /^--format=(.+)$/){
+      $$opts{infoFormatSpec} = $1;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
@@ -557,16 +578,10 @@ sub main(@){
         $$info{STATE} = "off" if defined $$info{STATE_INT} and $$info{STATE_INT} eq "0";
       }
 
-      my $fmt = "$$info{DEVICE}: $$info{STATE}";
-      $fmt .= sprintf " %11.5fkWh", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
-      $fmt .= sprintf " %4dW", $$info{POWER} if defined $$info{POWER};
-      $fmt .= " color=$$info{COLOR}" if defined $$info{COLOR};
+      my $fmt = formatInfo($info, $$opts{infoFormatSpec});
       print "$fmt\n";
 
-      my $logFmt = "$$info{DATETIME} | $$info{STATE}";
-      $logFmt .= sprintf " | energyTotal=%11.5f", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
-      $logFmt .= sprintf " | power=%4d", $$info{POWER} if defined $$info{POWER};
-      $logFmt .= " | color=$$info{COLOR}" if defined $$info{COLOR};
+      my $logFmt = formatInfo($info, $INFO_FORMAT_SPEC_LOG);
       if(defined $$info{STATE_INT} or defined $$info{POWER} or defined $$info{ENERGY_TOTAL}){
         appendLog("info-$device.txt", "$logFmt\n");
       }
@@ -847,6 +862,68 @@ sub rotateLog($){
     system "xz $newFile";
     system "rm -f $logFile.previous.xz";
     system "ln -s $newFile.xz $logFile.previous.xz";
+  }
+}
+
+sub formatInfo($$){
+  my ($info, $spec) = @_;
+  my $fmt = "$spec";
+  for my $varName(sort keys %$info){
+    while($fmt =~ /{$varName(:[^}]+)?}/){
+      my $fmtSpec = $1;
+      $fmtSpec = "" if not defined $fmtSpec;
+      my $repl = formatVar($$info{$varName}, "???", $fmtSpec);
+      if($fmt !~ s/{$varName$fmtSpec}/$repl/g){
+        die "ERROR: variable replacement failed\n";
+      }
+    }
+  }
+  return $fmt;
+}
+
+sub formatVar($$$){
+  my ($val, $placeholder, $spec) = @_;
+  $spec = "" if not defined $spec;
+  $spec =~ s/^://;
+
+  my $left = "";
+  if($spec =~ s/^(-)//){
+    $left = $1;
+  }
+
+  my $len = "";
+  if($spec =~ s/^(\d+)//){
+    $len = $1;
+  }
+
+  my $fracLen = "";
+  if($spec =~ s/^(\.\d+)//){
+    $fracLen = $1;
+  }
+
+  my $type = "s";
+  if($spec =~ s/^([sdf])//){
+    $type = $1;
+  }
+
+  if($spec ne ""){
+    die "ERROR: malformed or unsupported variable format spec $spec\n";
+  }
+  if($fracLen ne "" and $type ne "f"){
+    die "ERROR: variable format spec must be 'f' for floating point\n";
+  }
+
+  my $usePlaceholder = 0;
+  if(not defined $val){
+    $usePlaceholder = 1;
+  }elsif(($type eq "d" or $type eq "f") and $val !~ /^(\d*\.)?\d+$/){
+    $usePlaceholder = 1;
+  }
+
+  if($usePlaceholder){
+    return sprintf "%${left}${len}s", $placeholder;
+  }else{
+    return sprintf "%${left}${len}${fracLen}${type}", $val;
   }
 }
 
