@@ -35,8 +35,11 @@ my $LOG_DIR = "$ENV{HOME}/.cache/logs/tasmota";
 my $DDWRT_CONFIG_FILE = "$ENV{HOME}/ddwrt/68u";
 my $DEFAULT_MAX_TIMEOUT_MILLIS = 1200;
 my $DEFAULT_MAX_COMMAND_ATTEMPTS = 2;
+my $POWER_THRESHOLD_W = 5;
 my $INFO_FORMAT_SPEC_DEFAULT =
-  "{DEVICE}: {STATE} {ENERGY_TOTAL:.1f}kWh {POWER:d}W {COLOR_MAYBE}";
+  "{DEVICE}: {STATE} {ENERGY_TOTAL:.1f}kWh {POWER:d}W {ACTIVE} {COLOR_MAYBE}";
+my $INFO_FORMAT_SPEC_ACTIVE =
+  "{ACTIVE}";
 my $INFO_FORMAT_SPEC_LOG =
   "{DATETIME} | {STATE:-3s} | energyTotal={ENERGY_TOTAL:11.5f} | power={POWER:4d} | color={COLOR_MAYBE}";
 
@@ -239,6 +242,10 @@ my $USAGE = "Usage:
         same as COLOR if COLOR is defined, otherwise 'none'
       DATETIME
         current date/time, formatted YYYY-mm-dd HH:MM:SS as in `date +'%F %T'`
+      ACTIVE
+        '???'    if POWER is not defined
+        'active' if POWER is defined and POWER >= $POWER_THRESHOLD_W
+        'idle'   if POWER is defined and POWER < $POWER_THRESHOLD_W
       LEFT_BRACKET
         literal open curly bracket char '{'
       NEWLINE
@@ -250,6 +257,10 @@ my $USAGE = "Usage:
       -formatted: $INFO_FORMAT_SPEC_LOG
     -format and print for each DEVICE, one per line, in DEVICE order given on command line
        default format is: $INFO_FORMAT_SPEC_DEFAULT
+
+  $EXEC [OPTS] --active
+  $EXEC [OPTS] --active DEVICE [DEVICE DEVICE ..]
+    same as: $EXEC OPTS --format='$INFO_FORMAT_SPEC_ACTIVE'
 
   $EXEC [OPTS] --mac DEVICE [DEVICE DEVICE ..]
     send 'Status 0' command and parse the output to get the MAC address
@@ -409,6 +420,10 @@ sub main(@){
       $cmd = undef;
     }elsif($arg =~ /^--format=(.+)$/){
       $$opts{infoFormatSpec} = $1;
+    }elsif($arg =~ /^(--active)$/){
+      $mode = $MODE_INFO;
+      $cmd = undef;
+      $$opts{infoFormatSpec} = $INFO_FORMAT_SPEC_ACTIVE;
     }elsif($arg =~ /^(--mac)$/){
       $mode = $MODE_MAC;
       $cmd = undef;
@@ -579,6 +594,12 @@ sub main(@){
       $$info{DATETIME} = $date;
       $$info{LEFT_BRACKET} = "{";
       $$info{NEWLINE} = "\n";
+
+      $$info{ACTIVE} = "???";
+      if(defined $$info{POWER} and $$info{POWER} =~ /^(\d*\.)?\d+$/){
+        $$info{ACTIVE} = "active" if $$info{POWER} >= $POWER_THRESHOLD_W;
+        $$info{ACTIVE} = "idle" if $$info{POWER} < $POWER_THRESHOLD_W;
+      }
 
       $$info{STATE} = "???";
       if(defined $$info{STATE_INT} and $$info{STATE_INT} =~ /^(0|1)$/){
