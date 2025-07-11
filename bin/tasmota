@@ -216,13 +216,19 @@ my $USAGE = "Usage:
     -if no DEVICE is given, default to all devices
     -run 'STATUS 0' (show connected sensor information)
     -parse out JSON results as variables:
-      STATE            = Status.Power (formatted as 'on ', 'off', or '???')
+      STATE_INT        = Status.Power (0 for off, 1 for on)
       POWER            = StatusSNS.ENERGY.Power (integer power in watts)
       ENERGY_TOTAL     = StatusSNS.ENERGY.Total (fractional energy in kWh)
       ENERGY_YESTERDAY = StatusSNS.ENERGY.Yesterday (fractional energy in kWh)
       ENERGY_TODAY     = StatusSNS.ENERGY.Today (fractional energy in kWh)
       COLOR            = StatusSTS.Color (hex color, usually RRGGBBCWWW)
     -calculate additional variables:
+      DEVICE
+        device name
+      STATE
+        '???'    if STATE_INT is not defined
+        'on'     if STATE_INT = 1
+        'off'    if STATE_INT = 0
       DATETIME
         current date/time, formatted YYYY-mm-dd HH:MM:SS as in `date +'%F %T'`
     -log ENERGY_TOTAL, POWER, and COLOR for each DEVICE
@@ -541,22 +547,26 @@ sub main(@){
     for my $device(@devices){
       my $json = $$outputByDevice{$device};
       my $info = parseStatusJson($json);
-      my $state = $$info{STATE};
-      $state = "???" if not defined $state;
-      $state = "on " if $state eq 1;
-      $state = "off" if $state eq 0;
+      $$info{DEVICE} = $device;
+      $$info{DATETIME} = $date;
 
-      my $fmt = "$device: $state";
+      $$info{STATE} = "???";
+      if(defined $$info{STATE_INT} and $$info{STATE_INT} =~ /^(0|1)$/){
+        $$info{STATE} = "on" if defined $$info{STATE_INT} and $$info{STATE_INT} eq "1";
+        $$info{STATE} = "off" if defined $$info{STATE_INT} and $$info{STATE_INT} eq "0";
+      }
+
+      my $fmt = "$$info{DEVICE}: $$info{STATE}";
       $fmt .= sprintf " %11.5fkWh", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
       $fmt .= sprintf " %4dW", $$info{POWER} if defined $$info{POWER};
       $fmt .= " color=$$info{COLOR}" if defined $$info{COLOR};
       print "$fmt\n";
 
-      my $logFmt = "$date | $state";
+      my $logFmt = "$$info{DATETIME} | $$info{STATE}";
       $logFmt .= sprintf " | energyTotal=%11.5f", $$info{ENERGY_TOTAL} if defined $$info{ENERGY_TOTAL};
       $logFmt .= sprintf " | power=%4d", $$info{POWER} if defined $$info{POWER};
       $logFmt .= " | color=$$info{COLOR}" if defined $$info{COLOR};
-      if(defined $$info{STATE}){
+      if(defined $$info{STATE_INT}){
         appendLog("info-$device.txt", "$logFmt\n");
       }
     }
@@ -922,7 +932,7 @@ sub parseStatusJson($){
   };
 
   return {
-    STATE            => getNestedMapVal($obj, ("Status" => "Power")),
+    STATE_INT        => getNestedMapVal($obj, ("Status" => "Power")),
     POWER            => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Power")),
     ENERGY_TOTAL     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Total")),
     ENERGY_TODAY     => getNestedMapVal($obj, ("StatusSNS" => "ENERGY" => "Today")),
