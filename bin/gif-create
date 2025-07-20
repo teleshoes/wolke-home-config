@@ -1,0 +1,106 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $DEFAULT_DELAY_CENTISECONDS = 20;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] INPUT_IMG_FILE [INPUT_IMG_FILE..] OUTPUT_GIF_FILE
+  $EXEC [OPTS] OUTPUT_GIF_FILE INPUT_IMG_FILE [INPUT_IMG_FILE..]
+    run imagemagick to create animated gif/webp:
+      convert -delay DELAY_CENTISECONDS -loop 0 INPUT_IMG_FILE.. OUTPUT_GIF_FILE
+
+    INPUT_IMG_FILE
+      any regular file that exists
+
+    OUTPUT_GIF_FILE
+      a valid, writable file that does not exist and ends in '.gif' or '.webp'
+      see '-o OUTPUT_GIF_FILE' to override
+
+  OPTS
+    -o OUTPUT_GIF_FILE | --output=OUTPUT_GIF_FILE
+      write to OUTPUT_GIF_FILE
+      does not need to end in '.gif'/'.webp' and does not need to exist
+
+    -d DELAY_CENTISECONDS | --delay=DELAY_CENTISECONDS
+      inter-frame delay in centiseconds, passed to imagemagick
+      default is $DEFAULT_DELAY_CENTISECONDS"
+        . sprintf(" (%.1ffps)", 100/$DEFAULT_DELAY_CENTISECONDS) . "
+    -m DELAY_MILLISECONDS | --millis=DELAY_MILLISECONDS
+      calculate DELAY_CENTISECONDS as DELAY_MILLISECONDS/10
+      same as: --delay=DELAY_CENTISECONDS
+    --fps=FRAMES_PER_SECOND
+      calculate DELAY_CENTISECONDS as 100/FRAMES_PER_SECOND
+      same as: --delay=DELAY_CENTISECONDS
+
+    -b | --boomerang
+      repeat all the input files except the first and last in opposite order
+      e.g.: $EXEC -b 1.jpg 2.jpg 3.jpg 4.jpg 5.jpg
+            => $EXEC 1.jpg 2.jpg 3.jpg 4.jpg 5.jpg 4.jpg 3.jpg 2.jpg
+";
+
+sub main(@){
+  my @inputFiles;
+  my $outputFile;
+  my $delayCentiseconds = $DEFAULT_DELAY_CENTISECONDS;
+  my $isBoomerang = 0;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @inputFiles, $arg;
+    }elsif($arg =~ /\.(gif|webp)$/i and not -e $arg and not defined $outputFile){
+      $outputFile = $arg;
+    }elsif($arg =~ /^--output=(.+)$/){
+      $outputFile = $1;
+    }elsif($arg =~ /^(-o)$/ and @_ > 0){
+      $outputFile = shift @_;
+    }elsif($arg =~ /^(-d)$/ and @_ > 0){
+      $delayCentiseconds = shift @_;
+    }elsif($arg =~ /^--delay=(.+)$/){
+      $delayCentiseconds = $1;
+    }elsif($arg =~ /^(-m)$/ and @_ > 0){
+      $delayCentiseconds = (shift @_)/10.0;
+    }elsif($arg =~ /^--millis=(.+)$/){
+      $delayCentiseconds = $1/10.0;
+    }elsif($arg =~ /^--fps=(.+)$/){
+      $delayCentiseconds = 100.0/$1;
+    }elsif($arg =~ /^(-b|--boomerang)$/){
+      $isBoomerang = 1;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$USAGE\nERROR: INPUT_IMG_FILE is required\n" if @inputFiles <= 0;
+  if(not defined $outputFile){
+    die "$USAGE\nERROR: OUTPUT_GIF_FILE is required (use -o if file already exists)\n"
+  }
+  if($isBoomerang){
+    my @middle = @inputFiles;
+    shift @middle;
+    pop @middle;
+    @inputFiles = (@inputFiles, reverse(@middle));
+  }
+
+  my @cmd = (
+    "convert",
+    "-delay", $delayCentiseconds,
+    "-loop", 0,
+    @inputFiles,
+    $outputFile,
+  );
+
+  print "@cmd\n";
+  system @cmd;
+}
+
+&main(@ARGV);
