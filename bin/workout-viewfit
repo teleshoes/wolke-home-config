@@ -123,6 +123,11 @@ my $USAGE = "Usage:
       -if any input received at any time, immediately exit
     -repeatedly fetch workouts, as in: $EXEC --fetch
 
+  $EXEC [OPTS] -c | --clear-cache
+    delete performance cache files
+    (only deletes files that are fully reconstructable)
+      -delete all files in: $WORKOUTS_INTERVAL_CACHE_DIR/
+
   OPTS
     --id=WORKOUT_ID
       show only workouts that match WORKOUT_ID
@@ -250,6 +255,7 @@ my $USAGE = "Usage:
 my $COMMAND_GET = "get";
 my $COMMAND_FETCH = "fetch";
 my $COMMAND_FETCH_LOOP = "fetch-loop";
+my $COMMAND_CLEAR_CACHE = "clear-cache";
 
 my $FORMAT_DETAILS = "details";
 my $FORMAT_WEEKLY = "weekly";
@@ -290,6 +296,8 @@ sub main(@){
       $cmd = $COMMAND_FETCH;
     }elsif($arg =~ /^(-l|--loop|--fetch-loop)$/){
       $cmd = $COMMAND_FETCH_LOOP;
+    }elsif($arg =~ /^(-c|--clear-cache)$/){
+      $cmd = $COMMAND_CLEAR_CACHE;
     }elsif($arg =~ /^--id=(.+)$/){
       $$opts{workoutIdFilter} = $1;
     }elsif($arg =~ /^(?:--date=)?(\d\d\d\d-\d\d-\d\d)$/){
@@ -551,6 +559,14 @@ sub main(@){
       print "\nEXITING\n";
       kill 1, $pid;
       waitpid $pid, 0;
+    }
+  }elsif($cmd eq $COMMAND_CLEAR_CACHE){
+    my @intervalCacheFiles = grep {-f $_} glob "$WORKOUTS_INTERVAL_CACHE_DIR/*";
+    if(@intervalCacheFiles > 0){
+      print "# deleting " . (0+@intervalCacheFiles) . " interval cache file(s)\n";
+      run "rm", "-r", $WORKOUTS_INTERVAL_CACHE_DIR;
+    }else{
+      print "# no interval cache files to remove\n";
     }
   }else{
     die $USAGE;
