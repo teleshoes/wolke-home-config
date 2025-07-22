@@ -18,10 +18,14 @@ my $USAGE = "Usage:
       GIF_OUT_FILE
 
   OPTS
+    -b | --boomerang
+      reverse the input and append it to the normal gif in ffmpeg,
+        using reverse+concat filters, to create a forward/backward loop
 ";
 
 sub main(@){
   my $opts = {
+    boomerang => 0,
   };
   my ($in, $out, $start, $dur, $width);
   while(@_ > 0){
@@ -29,6 +33,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-b|--boomerang)$/){
+      $$opts{boomerang} = 1;
     }elsif(not defined $in){
       $in = $arg;
     }elsif(not defined $out){
@@ -53,10 +59,21 @@ sub main(@){
     die "$USAGE\nERROR: missing required argument\n";
   }
 
-  my $filter = (""
-    . "fps=10,scale=$width:-1:flags=lanczos[x];[x]split[s0][s1];"
-    . "[s0]palettegen[p];[s1][p]paletteuse"
-  );
+  my $filter;
+  if($$opts{boomerang}){
+    $filter = (""
+      . "[0]reverse[r];"
+      . "[0][r]concat=n=2:v=1:a=0,"
+      . "fps=10,scale=$width:-1:flags=lanczos,"
+      . "split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+    );
+  }else{
+    $filter = (""
+      . "fps=10,scale=$width:-1:flags=lanczos[x];[x]split[s0][s1];"
+      . "[s0]palettegen[p];[s1][p]paletteuse"
+    );
+  }
+
   my @cmd = ("ffmpeg", "-xerror", "-y", "-ss", $start, "-t", $dur,
      "-an",
      "-i", $in,
