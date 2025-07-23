@@ -65,6 +65,21 @@ sub main(@){
   }else{
     print "  skipping restart, $TS_DEV is not idle\n";
   }
+
+  print "checking ac temp/mode/fan\n";
+  my $acInfo = `ge-ac -g`;
+  my ($temp, $mode, $fan);
+  if($acInfo =~ /^(\d+)\S*F.*\s+(\w+)\s+(\w+)$/){
+    ($temp, $mode, $fan) = ($1, $2, $3);
+  }else{
+    ($temp, $mode, $fan) = (-1, "", "");
+  }
+
+  if(0 <= $temp and $temp <= 70 and $mode =~ /cool/i and $fan =~ /high/i){
+    print "  skipping setting fan/temp/mode\n";
+  }else{
+    run "ge-ac", "cold";
+  }
 }
 
 sub run(@){
