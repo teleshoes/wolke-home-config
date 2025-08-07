@@ -73,8 +73,13 @@ my $USAGE = "Usage:
 
   $EXEC -m | --move | --day | --days [OPTS] PATH [PATH PATH ..]
     -extract <FILE> + <MTIME> + <FILENAME_TIME> from <PATH>s as in `$EXEC --list-files`
-    -for each <FILE>, validate mtime vs filename:
-      -ensure that <MTIME> is within ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s of <FILENAME_TIME>
+    -for each <FILE>, validate mtime is close to filename time:
+      -if <FILE> is a video (@EXTS_VIDEO):
+        -calculate <VIDEO_DURATION_S> in seconds with `duration`
+        -calculate <MAX_DIFF_S> as: ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s + <VIDEO_DURATION_S>
+      -otherwise:
+        -use <MAX_DIFF_S> = ${MAX_MTIME_FILENAME_DIFFERENCE_SECONDS}s
+      -ensure that <MTIME> is within <MAX_DIFF_S>s seconds of <FILENAME_TIME>
         -if not, fail with an error for that <FILE> (unless --force-mtime is given)
     -for each <FILE>, calculate <DAY_BUCKET> from <MTIME>:
       -use the system timezone, and treat times before 5:00am as the previous day
@@ -386,11 +391,20 @@ sub getMoveCommandsDayBuckets($@){
   my %mtimes;
   for my $file(@files){
     my $mtime = mtimeS($file);
+    my $ext = $1 if $file =~ /\.(\w+)$/;
+    my $maxDiff = $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS;
+    if($ext =~ /^$REGEX_EXTS_VIDEO$/i){
+      my $durationOut = `duration --seconds --nofilename '$file'`;
+      if($durationOut =~ /^(\d+|\d*\.\d+)$/){
+        my $dur = $1;
+        $maxDiff += $dur;
+      }
+    }
     my $filenameTime = $filenameTimes{$file};
 
     my $diff = $mtime - $filenameTime;
     $diff = 0 - $diff if $diff < 0;
-    if($diff > $MAX_MTIME_FILENAME_DIFFERENCE_SECONDS){
+    if($diff > $maxDiff){
       my $msg = sprintf(
         "'%s' mtime and filename more than %ds apart\n  (mtime=%s, filenameTime=%s)",
         $file,
