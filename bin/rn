@@ -55,6 +55,14 @@ my $USAGE = "USAGE:
           mv '.a.F1le named%%%boing...jP3gG' a_F1le_named_boing.jP3g
     same as: $EXEC OPTS '$PERLEXPR_WORD_REGEX_REPL' FILE FILE ...
 
+  $EXEC [OPTS] -e|--end SUFFIX FILE [FILE ...]
+    append \"_SUFFIX\" to the end of the base file name, but before file ext if present
+      -remove leading _s from SUFFIX
+      -prepend the extension with \"_SUFFIX\"
+      -same as: $EXEC 's/^(.*?)((?:\\.[^\\.]*)?)\$/\$1_SUFFIX\$2/' FILE FILE ...
+      e.g.: $EXEC -e foobar file1 file2.txt file3.x.y.z.txt
+               => file1_foobar file2_foobar.txt file3.x.y.z_foobar.txt
+
   PERLEXPR
     -any perl expression, passed directly and unsanitized to eval()
       -the value of '\$_' at the start of the eval is the basename of the file or dir
@@ -138,6 +146,10 @@ sub main(@){
       $perlExpr = $PERLEXPR_UC;
     }elsif($arg =~ /^(-w|--word)$/){
       $perlExpr = $PERLEXPR_WORD_REGEX_REPL;
+    }elsif($arg =~ /^(-e|--end)$/ and @_ > 0){
+      my $suffix = shift @_;
+      $suffix =~ s/^_//g;
+      $perlExpr = "s/^(.*?)((?:\\.[^\\.]*)?)\$/\$1_${suffix}\$2/";
     }elsif(not defined $perlExpr){
       $perlExpr = $arg;
     }else{
