@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Date::Parse qw(str2time);
 use Date::Format qw(time2str);
+use List::Util qw(sum);
 
 sub getWorkoutDirs();
 sub parseWorkoutDirFileInfo($);
@@ -167,6 +168,19 @@ sub addSegmentsFromGPSLogs($){
     $$event{duration} = $$event{epoch} - $$prevEvent{epoch};
   }
 
+  my $distSum = sum(map {$$_{distance}} @events);
+  my $distScale = $dist / $distSum;
+
+  my $elapsed = 0;
+  my $remaining = $dur;
+  for my $event(@events){
+    $elapsed += $$event{duration};
+    $remaining -= $$event{duration};
+
+    $$event{elapsed} = $elapsed;
+    $$event{remaining} =  $remaining;
+    $$event{distanceScaled} = $$event{distance} * $distScale;
+  }
 }
 
 sub getWorkoutDirs(){
