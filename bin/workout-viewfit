@@ -16,6 +16,7 @@ sub formatWorkoutDetails($$);
 sub formatWorkoutsSummary($$@);
 sub gnuplotDurations($$$@);
 sub gnuplotDistances($$$@);
+sub gnuplotSpeeds($$@);
 sub gnuplotHeartrates($$@);
 sub readCachedWorkouts();
 sub readCachedWorkoutLatest();
@@ -492,6 +493,27 @@ sub main(@){
 
         gnuplotDistances($opts, $targetName, $outputFile, @points);
         system "feh", $outputFile;
+      }elsif($plotType =~ /^(mph|speed)$/i){
+        my $pointsByPlotName = {};
+        for my $w(@workouts){
+          my $points = [];
+          for my $interval(@{$$w{intervals}}){
+            my $mph = $$interval{speed} * $MILES_PER_KM;
+            if(defined $mph and $mph > 0){
+              push @$points, [$$interval{calculatedElapsed}, $mph];
+            }
+          }
+          if(@$points == 0){
+            #skip workouts with no heartrate data
+            next;
+          }
+
+          my $plotName = $$w{dtmYMDHMS};
+          $$pointsByPlotName{$plotName} = $points;
+        }
+
+        gnuplotSpeeds($opts, $outputFile, $pointsByPlotName);
+        system "feh", $outputFile;
       }elsif($plotType =~ /^(hr|heartrate)$/i){
         my $pointsByPlotName = {};
         for my $w(@workouts){
@@ -831,6 +853,83 @@ sub gnuplotDistances($$$@){
   ;
   writeFile($scriptFile, $scriptContents);
   system "rm", $outputFile;
+  system "gnuplot", "-p", $scriptFile;
+}
+
+sub gnuplotSpeeds($$@){
+  my ($opts, $outputFile, $pointsByPlotName) = @_;
+
+  my $scriptFile = "/tmp/workout-viewfit-gnuplot-script";
+  my $dataFile = "/tmp/workout-viewfit-gnuplot-data";
+
+  my $minDur = undef;
+  my $maxDur = undef;
+  my $minSpeed = undef;
+  my $maxSpeed = undef;
+
+  my $dataFmt = "";
+  for my $plotName(sort keys %$pointsByPlotName){
+    my @points = @{$$pointsByPlotName{$plotName}};
+    $dataFmt .= "\"$plotName\"\n";
+
+    for(my $i=0; $i<@points; $i++){
+      my $point = $points[$i];
+      my ($durS, $speed) = @$point;
+
+      if(not defined $minDur or $durS < $minDur){
+        $minDur = $durS;
+      }
+      if(not defined $maxDur or $durS > $maxDur){
+        $maxDur = $durS;
+      }
+      if(not defined $minSpeed or $speed < $minSpeed){
+        $minSpeed = $speed;
+      }
+      if(not defined $maxSpeed or $speed > $maxSpeed){
+        $maxSpeed = $speed;
+      }
+
+      $dataFmt .= sprintf "%d,%.2f\n",
+        $durS,
+        $speed,
+      ;
+    }
+    $dataFmt .= "\n\n";
+  }
+  writeFile($dataFile, $dataFmt);
+
+  my $workoutCount = 0 + keys %$pointsByPlotName;
+  my $workoutLastIdx = $workoutCount - 1;
+
+  my $minMinute = 0; #all workouts start at 0s
+  my $maxMinute = ceil(  ($maxDur+30)/60 ); #smallest minute at least 30s after maxDur
+
+  my ($xRangeMin, $xRangeMax) = ($minMinute*60, $maxMinute*60);
+  my ($yRangeMin, $yRangeMax) = (int($minSpeed)-1, int($maxSpeed)+1);
+
+  #x-axis tics at 3min intervals labeled '<MIN>:00'
+  my $xticsCsv = join(", ", map {"\"${_}:00\" " . $_*60} grep {$_ % 3 == 0} $minMinute..$maxMinute);
+
+  my $scriptContents = ""
+    . "set datafile separator comma\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$outputFile\"\n"
+    . "\n"
+    . "set yrange [$yRangeMin:$yRangeMax]\n"
+    . "set ytics 1\n"
+    . "\n"
+    . "set xrange [$xRangeMin:$xRangeMax]\n"
+    . "set xtics ($xticsCsv)\n"
+    . "\n"
+    . "plot"
+        . " for [WORKOUT=0:$workoutLastIdx]"
+        . " \"$dataFile\" index WORKOUT using (timecolumn(1,\"%s\")):2"
+        . " with lines"
+        . "\n"
+  ;
+  writeFile($scriptFile, $scriptContents);
+  system "rm", "-f", $outputFile;
   system "gnuplot", "-p", $scriptFile;
 }
 
