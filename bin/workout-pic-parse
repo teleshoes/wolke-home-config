@@ -12,6 +12,7 @@ sub formatSession($);
 sub uniq(@);
 
 my $WORKOUTS_BASE_DIR = "$ENV{HOME}/DCIM/xhealth";
+my $GPS_LOG_DIR = "$ENV{HOME}/.cache/workouts/gpslogs";
 my $KILOMETERS_PER_MILE = 1.609344;
 
 my $USAGE = "Usage:
@@ -83,6 +84,8 @@ sub main(@){
     print formatSession($session) . "\n";
 
     if($$opts{includeSegments}){
+      addSegmentsFromGPSLogs($session);
+
       my @segments = @{$$session{segments}};
       if(@segments > 0){
         my @segmentsFmt = map {
@@ -101,6 +104,52 @@ sub main(@){
       }
     }
   }
+}
+
+sub addSegmentsFromGPSLogs($){
+  my ($session) = @_;
+
+  my $date = $$session{date};
+  $date =~ s/-//g;
+
+  my @gpsLogFiles = grep {-f $_} glob "$GPS_LOG_DIR/${date}_*";
+  if(@gpsLogFiles > 1){
+    die "ERROR: too many GPS log files for date @gpsLogFiles\n";
+  }elsif(@gpsLogFiles == 0){
+    return;
+  }
+
+  my $gpsLog = $gpsLogFiles[0];
+
+  my $dur = $$session{maxDurS};
+  my $dist = $$session{maxKM} * 1000.0;
+  my $startTime = $$session{startTime};
+  my $endTime = $startTime + $dur;
+
+  my @events;
+  my $curEvent;
+  for my $line(`cat $gpsLog`){
+    if($line =~ /^Date: (\d\d\d\d-\d\d-\d\d); Time: (\d\d:\d\d:\d\d)$/){
+      my ($date, $time)= ($1, $2);
+      my $dtm = "${date}T${time}";
+      my $epoch = str2time($dtm);
+      $curEvent = {
+        dtm => $dtm,
+        epoch => $epoch,
+      };
+      push @events, $curEvent;
+    }elsif($line =~ /^Latitude: ([\-\.0-9]+); Longitude: ([\-\.0-9]+); Altitude: ([\-\.0-9]+|nan)$/){
+      my ($lat, $lon, $alt) = ($1, $2, $3);
+      $$curEvent{lat} = $lat;
+      $$curEvent{lon} = $lon;
+      $$curEvent{alt} = $alt;
+    }else{
+      die "ERROR: malformed gps log file line:\n$line";
+    }
+  }
+
+  @events = grep {$startTime <= $$_{epoch} && $$_{epoch} <= $endTime} @events;
+
 }
 
 sub getWorkoutDirs(){
