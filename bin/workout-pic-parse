@@ -181,6 +181,29 @@ sub addSegmentsFromGPSLogs($){
     $$event{remaining} =  $remaining;
     $$event{distanceScaled} = $$event{distance} * $distScale;
   }
+
+
+  my @chunks;
+  my $curChunk = undef;
+  for my $event(@events){
+    my $chunkDur = 60;
+    if($$event{elapsed} < 60 or $$event{remaining} < 60){
+      #smaller chunks near the start and finish for detail
+      $chunkDur = 30;
+    }
+
+    if(defined $curChunk and $$event{epoch} - ${$$curChunk[0]}{epoch} >= $chunkDur){
+      $curChunk = undef;
+    }
+
+    if(not defined $curChunk){
+      $curChunk = [];
+      push @chunks, $curChunk;
+    }
+
+    push @$curChunk, $event;
+  }
+
 }
 
 sub getWorkoutDirs(){
