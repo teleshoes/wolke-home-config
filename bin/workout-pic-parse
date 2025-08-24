@@ -121,6 +121,12 @@ sub addSegmentsFromGPSLogs($){
 
   my $gpsLog = $gpsLogFiles[0];
 
+  my $gpsModuleLoaded = eval {
+    require GIS::Distance;
+    GIS->Distance->import();
+    1;
+  };
+
   my $dur = $$session{maxDurS};
   my $dist = $$session{maxKM} * 1000.0;
   my $startTime = $$session{startTime};
@@ -149,6 +155,17 @@ sub addSegmentsFromGPSLogs($){
   }
 
   @events = grep {$startTime <= $$_{epoch} && $$_{epoch} <= $endTime} @events;
+
+  my $gis = GIS::Distance->new();
+  for(my $i=0; $i<@events; $i++){
+    my $event = $events[$i];
+    my $prevEvent = $i == 0 ? $event : $events[$i-1];
+    my $distance = $gis->distance(
+      $$prevEvent{lat}, $$prevEvent{lon}, $$event{lat}, $$event{lon}
+    );
+    $$event{distance} = $distance->meters();
+    $$event{duration} = $$event{epoch} - $$prevEvent{epoch};
+  }
 
 }
 
