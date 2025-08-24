@@ -872,6 +872,7 @@ sub gnuplotSpeeds($$@){
     my @points = @{$$pointsByPlotName{$plotName}};
     $dataFmt .= "\"$plotName\"\n";
 
+    my $lastLabel = undef;
     for(my $i=0; $i<@points; $i++){
       my $point = $points[$i];
       my ($durS, $speed) = @$point;
@@ -889,9 +890,24 @@ sub gnuplotSpeeds($$@){
         $maxSpeed = $speed;
       }
 
-      $dataFmt .= sprintf "%d,%.2f\n",
+      my $maybeLabel = sprintf("%.1fmph", $speed);
+
+      my $useLabel = 0;
+      if(not defined $lastLabel or $maybeLabel ne $lastLabel){
+        my @localIdxs = grep {$_ != $i} ($i-25 .. $i+25);
+        my @localSpeedVals = map {$points[$_][1]} grep {0 <= $_ && $_ <= $#points} @localIdxs;
+        my @smallerlocalSpeedVals = grep {$_ < $speed} @localSpeedVals;
+        my @largerlocalSpeedVals = grep {$_ > $speed} @localSpeedVals;
+        if(@smallerlocalSpeedVals == 0 or @largerlocalSpeedVals == 0){
+          $useLabel = 1;
+          $lastLabel = $maybeLabel;
+        }
+      }
+
+      $dataFmt .= sprintf "%d,%.2f,%s\n",
         $durS,
         $speed,
+        ($useLabel ? $maybeLabel : ""),
       ;
     }
     $dataFmt .= "\n\n";
@@ -925,7 +941,10 @@ sub gnuplotSpeeds($$@){
     . "plot"
         . " for [WORKOUT=0:$workoutLastIdx]"
         . " \"$dataFile\" index WORKOUT using (timecolumn(1,\"%s\")):2"
-        . " with lines"
+        . " with lines, "
+        . " for [WORKOUT=0:$workoutLastIdx]"
+        . " \"$dataFile\" index WORKOUT using (timecolumn(1,\"%s\")):2:3"
+        . " with labels offset 0,-1 notitle"
         . "\n"
   ;
   writeFile($scriptFile, $scriptContents);
