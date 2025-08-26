@@ -172,6 +172,11 @@ my $USAGE = "Usage:
     --best=DISTANCE_TARGET
       skip workouts where another earlier workout has a better time for the given distance
 
+    --trim-intervals=DISTANCE_WITH_UNITS
+      include intervals until distance is at least DISTANCE_WITH_UNITS,
+        then ignore any additional intervals
+        (distance will be at most DISTANCE_WITH_UNITS plus the distance of the last interval)
+
     --details
       show details for each workout
       (this is the default)
@@ -322,6 +327,8 @@ sub main(@){
     }elsif($arg =~ /^(-b)$/ and @_ > 0){
       my $distArg = shift @_;
       $$opts{bestDistanceFilter} = parseDistanceFmt($distArg);
+    }elsif($arg =~ /^--trim-intervals=(.+)$/i){
+      $$opts{trimIntervalsDistance} = parseDistanceFmt($1);
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
     }elsif($arg =~ /^(-w|--week|--weekly)$/){
@@ -441,6 +448,21 @@ sub main(@){
         }
       }
       @workouts = grep {$isRecordByWorkoutId{$$_{workout_id}}} @workouts;
+    }
+
+    if(defined $$opts{trimIntervalsDistance}){
+      for my $workout(@workouts){
+        my $intervals = $$workout{intervals};
+        my $curDist = 0;
+        my $i=0;
+        while($i < @$intervals && $curDist < $$opts{trimIntervalsDistance}){
+          $curDist += ${$$intervals[$i]}{calculatedDistance};
+          $i++;
+        }
+        if($i < @$intervals){
+          splice @$intervals, $i;
+        }
+      }
     }
 
     if($$opts{format} eq $FORMAT_DETAILS){
