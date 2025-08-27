@@ -178,6 +178,10 @@ my $USAGE = "Usage:
         then ignore any additional intervals
         (distance will be at most DISTANCE_WITH_UNITS plus the distance of the last interval)
 
+    --intervals-remove-large-hr-errors
+      after reading/writing cache and calculating intervals,
+        zero-out heartrates that drop by 35% for up to 60 intervals (~10 minutes)
+
     --details
       show details for each workout
       (this is the default)
@@ -284,6 +288,7 @@ sub main(@){
     minDistanceFilter => undef,
     bestDistanceFilter => undef,
     trimIntervalsDistance => undef,
+    intervalsRemoveLargeHeartrateErrors => 0,
     format => $FORMAT_DETAILS,
     plotType => undef,
     minHeartratePlot => $DEFAULT_MIN_HEART_RATE_PLOT,
@@ -332,6 +337,8 @@ sub main(@){
       $$opts{bestDistanceFilter} = parseDistanceFmt($distArg);
     }elsif($arg =~ /^--trim-intervals=(.+)$/i){
       $$opts{trimIntervalsDistance} = parseDistanceFmt($1);
+    }elsif($arg =~ /^(--intervals-remove-large-hr-errors)$/i){
+      $$opts{intervalsRemoveLargeHeartrateErrors} = 1;
     }elsif($arg =~ /^(--details)$/){
       $$opts{format} = $FORMAT_DETAILS;
     }elsif($arg =~ /^(-w|--week|--weekly)$/){
@@ -465,6 +472,12 @@ sub main(@){
         if($i < @$intervals){
           splice @$intervals, $i;
         }
+      }
+    }
+
+    if($$opts{intervalsRemoveLargeHeartrateErrors}){
+      for my $w(@workouts){
+        removeHeartrateErrors($w, 60, 0.9);
       }
     }
 
