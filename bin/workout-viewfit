@@ -31,6 +31,7 @@ sub readHrCache($$);
 sub writeHrCache($$$);
 sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
+sub removeHeartrateErrors($$$);
 sub calculateIntervals($);
 sub calculateScaledTimeAndDistance($);
 sub calculateDistanceTargets($);
@@ -1467,13 +1468,12 @@ sub insertExternalHeartrates($$){
   }
 }
 
-# zero-out heartrate for intervals that drop by more than 10% for at most 3 intervals
-sub removeHeartrateErrors($){
-  my ($workout) = @_;
+# zero-out heartrate for intervals that drop to a ratio for at most a number intervals
+#   e.g.: removeHeartrateErrors(workout, 3, 0.90)
+#     => remove intervals that drop by 10% for up to 3 intervals
+sub removeHeartrateErrors($$$){
+  my ($workout, $nearbyIdxCount, $threshold) = @_;
   my @intervals = @{$$workout{intervals}};
-
-  my $nearbyIdxCount = 3;
-  my $threshold = 0.90;
 
   for(my $i=0; $i<@intervals; $i++){
     my $hr = ${$intervals[$i]}{heart_rate};
@@ -1538,7 +1538,7 @@ sub calculateIntervals($){
     insertExternalHeartrates($w, $hrByEpoch);
   }
 
-  removeHeartrateErrors($w);
+  removeHeartrateErrors($w, 3, 0.90);
 }
 
 sub calculateScaledTimeAndDistance($){
