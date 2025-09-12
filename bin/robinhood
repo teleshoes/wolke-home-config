@@ -9,7 +9,6 @@ use Time::HiRes qw(time);
 my $EXEC = basename $0;
 my $JSON_ORDERS_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/orders-json";
 my $JSON_QUOTES_CACHE_DIR = "$ENV{HOME}/.cache/robinhood/quotes-json";
-my $BEARER_TOKEN_READONLY_CACHE = "$ENV{HOME}/.cache/robinhood/bearer-token-readonly";
 my $INSTRUMENT_CACHE = "$ENV{HOME}/.cache/robinhood/instrument-cache";
 my $EXTRA_ORDERS_CACHE = "$ENV{HOME}/.cache/robinhood/extra-orders";
 
@@ -19,9 +18,6 @@ my $API_ORDERS_STOCKS_URL = "https://api.robinhood.com/orders/?page_size=100";
 my $API_ORDERS_CRYPTO_URL = "https://nummus.robinhood.com/orders/?page_size=100";
 my $API_QUOTES_CRYPTO_URL = "https://api.robinhood.com/marketdata/forex/quotes";
 my $API_QUOTES_STOCKS_URL = "https://api.robinhood.com/quotes";
-
-my $READONLY_BEARER_TOKEN_FETCH_URL = "https://robinhood.com/us/en/stocks/IBM/";
-my $TEST_BEARER_TOKEN_URL = "$API_QUOTES_STOCKS_URL/IBM/";
 
 my $CURL_RETRY_ATTEMPTS = 3;
 my $CURL_MAX_TIME_S = 2;
@@ -63,7 +59,6 @@ my $USAGE = "Usage:
       NOTE: protect this BEARER_TOKEN_FULL_AUTH closer than a password
 
   $EXEC [OPTS] --fetch-quotes
-    -obtain a readonly auth token
     -for each instrument with a positive amount in cached orders
       -fetch a quote from the api (last_trade_price or ask_price)
       -store the quote in:
@@ -102,10 +97,7 @@ sub apiCallCurl($$);
 sub runCurl($@);
 sub resolveHost($);
 sub getInstrumentSummary(@);
-sub getReadonlyBearerToken();
-sub fetchReadonlyBearerToken();
-sub testBearerToken($);
-sub fetchAndCacheQuote($$$$$$);
+sub fetchAndCacheQuote($$$$$);
 sub readCachedQuote($);
 sub readCachedQuoteFile($$);
 sub parseJsonOrders();
@@ -305,9 +297,6 @@ sub cmdFetchQuotes($){
   my $nowFmt = dateFmt $nowMillis/1000, "%Y%m%d_%H%M%S";
   my $filePrefix = "${nowFmt}_${nowMillis}";
 
-  print "fetching read-only bearer token\n" unless $$opts{quiet};
-  my $bearerTokenReadOnly = getReadonlyBearerToken();
-
   my @instToFetch;
   my $summary = getInstrumentSummary(@orders);
   my @fetchedSym;
@@ -315,7 +304,7 @@ sub cmdFetchQuotes($){
     my $inst = $$summary{$sym};
     my $amountNano = $$inst{netAmountNano};
     if($amountNano > 0){
-      fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerTokenReadOnly,
+      fetchAndCacheQuote($$opts{quiet}, $filePrefix,
         $$inst{symbol}, $$inst{instrumentId}, $$inst{isCrypto});
       push @fetchedSym, $sym;
     }
@@ -515,8 +504,8 @@ sub readCachedQuoteFile($$){
   }
 }
 
-sub fetchAndCacheQuote($$$$$$){
-  my ($quiet, $filePrefix, $bearerTokenReadOnly, $symbol, $instrumentId, $isCrypto) = @_;
+sub fetchAndCacheQuote($$$$$){
+  my ($quiet, $filePrefix, $symbol, $instrumentId, $isCrypto) = @_;
   my $url;
   if($isCrypto){
     $url = "$API_QUOTES_CRYPTO_URL/$instrumentId/";
@@ -526,48 +515,8 @@ sub fetchAndCacheQuote($$$$$$){
 
   runQuiet "mkdir", "-p", $JSON_QUOTES_CACHE_DIR;
   print "fetching quote for $symbol\n" unless $quiet;
-  writeFile "${JSON_QUOTES_CACHE_DIR}/${filePrefix}_$symbol.json",
-    apiCallCurl($url, $bearerTokenReadOnly) . "\n";
-}
-
-sub getReadonlyBearerToken(){
-  my $bearerTokenReadOnly = undef;
-  if(-e $BEARER_TOKEN_READONLY_CACHE){
-    $bearerTokenReadOnly = readFile $BEARER_TOKEN_READONLY_CACHE;
-    chomp $bearerTokenReadOnly;
-    if(testBearerToken($bearerTokenReadOnly)){
-      return $bearerTokenReadOnly;
-    }
-  }
-  $bearerTokenReadOnly = fetchReadonlyBearerToken();
-  writeFile $BEARER_TOKEN_READONLY_CACHE, "$bearerTokenReadOnly\n";
-  return $bearerTokenReadOnly;
-}
-
-sub fetchReadonlyBearerToken(){
-  my $attempts = 5;
-  while($attempts > 0){
-    my $html = runCurl($READONLY_BEARER_TOKEN_FETCH_URL);
-    if($html =~ /"accessToken":"([^"]*)"/){
-      return $1;
-    }
-    if($html =~ /"access_token":"([^"]*)"/){
-      return $1;
-    }
-    $attempts--;
-  }
-  die "ERROR: failed to fetch read-only bearer token using:\n"
-    . "$READONLY_BEARER_TOKEN_FETCH_URL\n";
-}
-
-sub testBearerToken($){
-  my ($bearerToken) = @_;
-  my $out = apiCallCurl($TEST_BEARER_TOKEN_URL, $bearerToken);
-  if($out =~ /ask_price/){
-    return 1;
-  }else{
-    return 0;
-  }
+  my $quote = runCurl($url);
+  writeFile "${JSON_QUOTES_CACHE_DIR}/${filePrefix}_$symbol.json", "$quote\n";
 }
 
 sub parseJsonOrders(){
