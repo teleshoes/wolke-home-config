@@ -1764,12 +1764,33 @@ sub getCombinedWorkout($$){
 
 sub fetchViewfitWorkouts(){
   my $exerciserUUID = getExerciserUUID();
-  my $url = "$VIEWFIT_EXERCISER_BASE_URL/$exerciserUUID/workouts";
 
   my $nowMillis = nowMillis();
   my $nowEpoch = $nowMillis / 1000.0;
   my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch);
   my $tmpFile = "/tmp/workout-viewfit-$nowMillis.json";
+
+  my $firstDayOfMonthEpoch = dtmStrToEpoch(dateFmt("%Y-%m-01", $nowEpoch));
+
+  #start: 30 days before the first day of the current month
+  #  (start date changes only when month changes to prevent refetching old data)
+  my $startEpoch = int($firstDayOfMonthEpoch - 30*24*60*60);
+
+  my $w = readCachedWorkoutLatest();
+  if(defined $w){
+    #attempt to go back before last workout if older than start date
+    my $dayBeforeLastEpoch = int($$w{dtmEpoch} - 1*24*60*60);
+    $startEpoch = $dayBeforeLastEpoch if $dayBeforeLastEpoch < $startEpoch;
+  }
+
+  my $endEpoch = int($nowEpoch + 1*24*60*60);
+
+  if($endEpoch - $startEpoch > 120*24*60*60){
+    die "ERROR: workout fetch date/time range too large: $startEpoch - $endEpoch\n";
+  }
+
+  my $url = "$VIEWFIT_EXERCISER_BASE_URL/$exerciserUUID/workouts"
+    . "?startdate=$startEpoch&enddate=$endEpoch";
 
   my @cmd = ("curl",
     "--silent",
