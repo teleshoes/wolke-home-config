@@ -64,7 +64,7 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --fetch-quotes
     -obtain a readonly auth token
-    -for each instrument in any cached order
+    -for each instrument with a positive amount in cached orders
       -fetch a quote from the api (last_trade_price or ask_price)
       -store the quote in:
         $JSON_QUOTES_CACHE_DIR/YYYYMMDD_HHMMSS_MILLIS_SYMBOL.json
@@ -309,17 +309,22 @@ sub cmdFetchQuotes($){
   print "fetching read-only bearer token\n" unless $$opts{quiet};
   my $bearerTokenReadOnly = getReadonlyBearerToken();
 
-  my %seenSymbols;
-  for my $order(@orders){
-    next if defined $seenSymbols{$$order{symbol}};
-    $seenSymbols{$$order{symbol}} = 1;
-    fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerTokenReadOnly,
-      $$order{symbol}, $$order{instrumentId}, $$order{isCrypto});
+  my @instToFetch;
+  my $summary = getInstrumentSummary(@orders);
+  my @fetchedSym;
+  for my $sym(sort keys %$summary){
+    my $inst = $$summary{$sym};
+    my $amountNano = $$inst{netAmountNano};
+    if($amountNano > 0){
+      fetchAndCacheQuote($$opts{quiet}, $filePrefix, $bearerTokenReadOnly,
+        $$inst{symbol}, $$inst{instrumentId}, $$inst{isCrypto});
+      push @fetchedSym, $sym;
+    }
   }
 
   if(not $$opts{quiet}){
     print "\n";
-    for my $symbol(sort keys %seenSymbols){
+    for my $symbol(@fetchedSym){
       printf "%-5s = %s\n", $symbol, readCachedQuote($symbol);
     }
   }
@@ -449,6 +454,7 @@ sub getInstrumentSummary(@){
         netUSD        => 0,
         symbol        => $sym,
         instrumentId  => $$order{instrumentId},
+        isCrypto      => $$order{isCrypto},
       };
     }
     my $amountNano = int($amount * 10**9 + 0.5);
