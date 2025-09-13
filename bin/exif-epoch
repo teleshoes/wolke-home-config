@@ -10,10 +10,9 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC FILE [FILE ..]
-    -extract date/time from each file using `exif`
-    -treat as formatted date/time in the system timezone
-    -convert to UNIX epoch (seconds since 1970-01-01 midnight UTC)
-    -print one per line, suffixing with FILE if more than one FILE given
+    extract UNIX epoch from each file using `exiftool -CreateDate -p -d %s`
+      -tiny wrapper around `exiftool -p '\$CreateDate \$FileName' -d %s`
+      -do not append 'FileName' if only one file is given
 ";
 
 sub main(@){
@@ -31,43 +30,8 @@ sub main(@){
   }
   die "$USAGE\nERROR: no FILE given\n" if @files == 0;
 
-  for my $file(@files){
-    open FH, "-|", "exif", "-m", $file;
-    my @lines = <FH>;
-    close FH;
-    die "error running exif on $file\n" if $? != 0;
-    my @dates;
-    for my $line(@lines){
-      if($line =~ /^Date and Time[^\t]*\t(.+)$/){
-        my $dt = $1;
-        if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
-          my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
-          my $s = `date --date '$y-$m-$d $hr:$min:$sec' +%s`;
-          chomp $s;
-          if($s !~ /^\d+$/){
-            die "malformed date output: $s\n";
-          }
-          push @dates, $s;
-        }else{
-          die "malformed date line: $line";
-        }
-      }
-    }
-    if(@dates == 0){
-      die "no date time found for: $file";
-    }
-    my $date = $dates[0];
-    for my $d(@dates){
-      if($d != $date){
-        die "mismatched date tags for $file: $d != $date\n";
-      }
-    }
-    if(@files == 1){
-      print "$date\n";
-    }else{
-      print "$date $file\n";
-    }
-  }
+  my $fmt = @files == 1 ? '$CreateDate' : '$CreateDate $FileName';
+  system "exiftool", "-q", "-d", "%s", "-p", $fmt, @files;
 }
 
 &main(@ARGV);
