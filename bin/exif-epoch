@@ -1,10 +1,37 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC FILE [FILE ..]
+    -extract date/time from each file using `exif`
+    -treat as formatted date/time in the system timezone
+    -convert to UNIX epoch (seconds since 1970-01-01 midnight UTC)
+    -print one per line, suffixing with FILE if more than one FILE given
+";
 
 sub main(@){
-  for my $file(@_){
-    die "not a file: $file\n" if not -f $file;
+  my @files;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
+  }
+  die "$USAGE\nERROR: no FILE given\n" if @files == 0;
+
+  for my $file(@files){
     open FH, "-|", "exif", "-m", $file;
     my @lines = <FH>;
     close FH;
@@ -35,7 +62,7 @@ sub main(@){
         die "mismatched date tags for $file: $d != $date\n";
       }
     }
-    if(@_ == 1){
+    if(@files == 1){
       print "$date\n";
     }else{
       print "$date $file\n";
