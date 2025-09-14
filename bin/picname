@@ -36,7 +36,9 @@ my $usage = "Usage:
       use exif datetime if available, and fallback to mtime if not
     --exif
       use (only) exif to get timestamp
-      reads exif field 'Date and Time'
+      -if file is a JPEG, attempt to read 'Date and Time' from `exif` tool (fast)
+      -if file is not a JPEG or `exif` fails, fallback to `exiftool`
+        -use CreateDate field if available or DateTimeOriginal if not available
     --mtime
       use (only) mtime to get timestamp
     --filename
@@ -349,8 +351,16 @@ sub handleFile($$$$$$$$){
 
 sub exifEpoch($){
   my ($file) = @_;
+
+  my $isJpeg;
+  if($file =~ /\.(jpg|jpeg)$/i){
+    $isJpeg = 1;
+  }
+
   my $epoch = undef;
-  $epoch = exifCmdGetDateAsEpoch($file) if not defined $epoch;
+  if($isJpeg){
+    $epoch = exifCmdGetDateAsEpoch($file) if not defined $epoch;
+  }
   $epoch = exiftoolCmdDateFieldAsEpoch($file, "CreateDate") if not defined $epoch;
   $epoch = exiftoolCmdDateFieldAsEpoch($file, "DateTimeOriginal") if not defined $epoch;
   if(not defined $epoch){
