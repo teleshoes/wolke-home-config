@@ -990,17 +990,37 @@ sub getSnapshots($$$){
     return @subs;
   }
 
-  my $testDirCmd = "";
+  my $maxChunkSize = 100;
+  my @subChunks;
+  my $curChunk = undef;
   for my $sub(@subs){
-    $testDirCmd .= "echo -n '$dir/$sub: '; test -d '$dir/$sub' && echo ok || echo FAIL;";
+    if(defined $curChunk and @$curChunk >= $maxChunkSize){
+      $curChunk = undef;
+    }
+    if(not defined $curChunk){
+      $curChunk = [];
+      push @subChunks, $curChunk;
+    }
+    push @$curChunk, $sub;
   }
-  my @lines = readProcLines $ipmagicName, $testDirCmd;
+
+  my @lines;
+  for my $subChunk(@subChunks){
+    my $testDirCmd = "";
+    for my $sub(@$subChunk){
+      $testDirCmd .= "echo -n '$dir/$sub: '; test -d '$dir/$sub' && echo ok || echo FAIL;";
+    }
+    my @chunkLines = readProcLines $ipmagicName, $testDirCmd;
+    @lines = (@lines, @chunkLines);
+  }
+
   my %isDir;
   for my $line(@lines){
     if($line =~ /^(.+): (ok|FAIL)$/){
-      $isDir{$1} = $2 eq "ok" ? 1 : 0;
+      my ($dir, $status) = ($1, $2);
+      $isDir{$dir} = $status eq "ok" ? 1 : 0;
     }else{
-      die "ERROR: failed to test if subvols exist\nfailed line: $line\ncmd: $testDirCmd";
+      die "ERROR: malformed output for subvol existence test:\n$line\n";
     }
   }
   for my $sub(@subs){
