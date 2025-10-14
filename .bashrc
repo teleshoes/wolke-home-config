@@ -224,7 +224,7 @@ function rename       {
   echo 'USE `rn` INSTEAD OF `rename`'
 }
 function rm {
-  if [[ $1 == s/*/*/* ]]; then
+  if [[ $1 == s/*/* ]]; then
     echo "I THINK YOU MEANT 'rn'"
   else
     command rm "$@"
