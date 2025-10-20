@@ -36,7 +36,7 @@ export GTK_OVERLAY_SCROLLING=0
 case "$TERM" in rxvt*) TERM=rxvt ;; esac
 
 #override TERM for `screen`
-case "$TERM" in screen.*rxvt*) TERM=rxvt ;; esac
+case "$TERM" in screen.*) TERM=rxvt ;; esac
 
 #use prompt_cmd to set the window title => $WINDOW_TITLE or "Terminal: pwd"
 #only for rxvt* terms
