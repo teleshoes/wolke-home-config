@@ -15,7 +15,7 @@ sub parseGlobalSaveFileJSON($);
 sub parseIslandSaveFileJSON($);
 sub extractTarToSaveDir($$);
 sub removeCurrentSave($);
-sub ensureSaveCached($$$);
+sub ensureSaveCached($$$$);
 sub fetchCurrentSaveTar($);
 sub fetchCurrentSaveMtime($);
 sub readCacheDirSavesInfo($);
@@ -194,6 +194,11 @@ my $usage = "Usage:
              --format='$DIRE_FORMAT_SUMMARY_SPEC'
 
   OPTS
+    --notify
+      send notifications with notify-send while backing up saves
+      (this is the default)
+    --no-notify
+      do not send notifications with notify-send
     --game=KINGDOM_GAME_NAME
       -use CACHE_DIR=$CACHE_BASE_DIR/kingdom-saves/<KINGDOM_GAME_NAME>/
       -calculate KINGDOM_GAME_SAVE_DIR using APP_DATA_DIR_PTRN and KINGDOM_GAME_NAME"
@@ -381,12 +386,17 @@ sub main(@){
   my $includeLands = 1;
   my $reverseSaves = 0;
   my $useLastGame = 1;
+  my $useNotifySend = 1;
 
   while(@_ > 0){
     my $arg = shift @_;
     if($arg =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
+    }elsif($arg =~ /^(--notify)$/){
+      $useNotifySend = 1;
+    }elsif($arg =~ /^(--no-notify)$/){
+      $useNotifySend = 0;
     }elsif($arg =~ /^--game=(.+)$/){
       my $alias = lc $1;
       if(not defined $$GAME_NAME_BY_ALIAS{$alias}){
@@ -490,7 +500,7 @@ sub main(@){
   if($cmd eq $CMD_BACKUP){
     die "ERROR: cannot specify saves by TAR_FILE or INDEX for $cmd\n" if @saveArgs > 0;
     print "using SAVE_DIR=$saveDir\n";
-    ensureSaveCached($kingdomGameName, $saveDir, $cacheDir);
+    ensureSaveCached($kingdomGameName, $saveDir, $cacheDir, $useNotifySend);
   }elsif($cmd eq $CMD_RESTORE){
     my @saves = getSavesFromSaveArgs($cacheDir, @saveArgs);
     if(@saves != 1){
@@ -938,12 +948,12 @@ sub removeCurrentSave($){
   }
 }
 
-sub ensureSaveCached($$$){
-  my ($kingdomGameName, $saveDir, $cacheDir) = @_;
+sub ensureSaveCached($$$$){
+  my ($kingdomGameName, $saveDir, $cacheDir, $useNotifySend) = @_;
   if(not defined $saveDir or not -d $saveDir){
     $saveDir = "";
     my $msg = "ERROR: save dir does not exist: $saveDir";
-    notifySend $msg;
+    notifySend $msg if $useNotifySend;
     die "$msg\n";
   }
 
@@ -954,7 +964,7 @@ sub ensureSaveCached($$$){
   run "mkdir", "-p", $cacheDir if not -d $cacheDir;
   if(not -d $cacheDir){
     my $msg = "ERROR: cache dir does not exist: $cacheDir";
-    notifySend $msg;
+    notifySend $msg if $useNotifySend;
     die "$msg\n";
   }
 
@@ -969,7 +979,7 @@ sub ensureSaveCached($$$){
     my $file = $$cachedSave{file};
     my $msg = "save already cached: $file\n";
     my $gameShortName = $$GAME_SHORT_NAMES{$kingdomGameName};
-    notifySend "CACHED: $gameShortName - $datetimeFmt";
+    notifySend "CACHED: $gameShortName - $datetimeFmt" if $useNotifySend;
     print "$msg\n";
   }else{
     my $cacheFileName = "${datetimeFmt}_${currentSaveSha1}.tar.xz";
@@ -978,7 +988,7 @@ sub ensureSaveCached($$$){
     run "xz --compress --stdout $currentSaveTar > $saveFileCachePath";
     if(not -f $saveFileCachePath){
       my $msg = "ERROR: could not create file $saveFileCachePath";
-      notifySend $msg;
+      notifySend $msg if $useNotifySend;
       die "$msg\n";
     }
 
@@ -991,7 +1001,7 @@ sub ensureSaveCached($$$){
     $$save{index} = 0;
 
     my $msg = formatSave($save, $kingdomGameName, $NEW_SAVE_FORMAT_SUMMARY_SPEC, '', 0);
-    notifySend $msg;
+    notifySend $msg if $useNotifySend;
     print "$msg\n";
   }
 
