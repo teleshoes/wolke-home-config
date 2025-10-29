@@ -11,10 +11,14 @@ sub formatCmd(@);
 
 my $PERLEXPR_LC = '$_=lc';
 my $PERLEXPR_UC = '$_=uc';
-my $PERLEXPR_WORD_REGEX_REPL = ''
-  . '; s/\.(?!\w+$)/_/g'       #replace '.' chars with '_', keeping '.' before file ext
+my $PERLEXPR_REPLACE_SPECIAL_CHARS = ''
   . '; s/\\\'//g'              #remove apostrophes without replacement
+;
+my $PERLEXPR_STRIP_NONWORD_PLUS_EXT = ''
+  . '; s/\.(?!\w+$)/_/g'       #replace '.' chars with '_', keeping '.' before file ext
   . '; s/[^a-zA-Z0-9_.]/_/g'   #replace non-word chars except '.' with '_'
+;
+my $PERLEXPR_CLEANUP_UNDERSCORES = ''
   . '; s/_+/_/g'               #join multiple '_' chars into a single '_'
   . '; s/_+(?=\.\w+$)//g'      #remove '_' chars before file ext
   . '; s/^_+|_+$//g'           #remove leading/trailing '_' chars
@@ -24,6 +28,11 @@ my $PERLEXPR_STRIP_DIACRITICS = ''
   . '; $_=NFKD($_)'            #split accented characters into letters + diacritics
   . '; s/\p{NonspacingMark}//g'#remove diacritics
   . '; encode("UTF-8", $_)'    #re-encode utf8 bytes to unicode string
+;
+my $PERLEXPR_WORD = ''
+  . $PERLEXPR_REPLACE_SPECIAL_CHARS
+  . $PERLEXPR_STRIP_NONWORD_PLUS_EXT
+  . $PERLEXPR_CLEANUP_UNDERSCORES
 ;
 
 my $EXEC = basename $0;
@@ -53,15 +62,31 @@ my $USAGE = "USAGE:
     upper-case file names, same as: $EXEC OPTS '$PERLEXPR_UC' FILE FILE ...
 
   $EXEC [OPTS] -w|--word FILE [FILE ...]
+    generate clean, word-only filenames, with single dot for ext
+      -replace symbols/etc as in --replace-special-chars
+      -remove any remaining non-word chars as in --strip-nonword
+      -clean separators as in --cleanup-underscores
+    e.g.: $EXEC --word \".a.F1le náméd%%%boing's_...jP3g\"
+          mv \".a.F1le named%%%boing's_...jP3g\" a_F1le_named_boings.jP3g
+    same as: $EXEC OPTS '$PERLEXPR_WORD' FILE FILE ...
+
+  $EXEC [OPTS] --replace-special-chars FILE [FILE ...]
+    perform some special character replacements
+      -remove apostrophes without any replacement
+    same as: $EXEC OPTS '$PERLEXPR_REPLACE_SPECIAL_CHARS' FILE FILE ...
+
+  $EXEC [OPTS] --strip-nonword FILE [FILE ...]
     allow only letters, numbers, underscores, and a single dot before file ext
       -replace '.' chars with '_', keeping '.' before file ext
       -replace non-word chars except '.' with '_'
+    same as: $EXEC OPTS '$PERLEXPR_STRIP_NONWORD_PLUS_EXT' FILE FILE ...
+
+  $EXEC [OPTS] --cleanup-underscores FILE [FILE ...]
+    allow only single underscores, and not at the start/end
       -join multiple '_' chars into a single '_'
       -remove '_' chars before file ext
       -remove leading/trailing '_' chars
-    e.g.: $EXEC -w '.a.F1le named%%%boing...jP3g'
-          mv '.a.F1le named%%%boing...jP3gG' a_F1le_named_boing.jP3g
-    same as: $EXEC OPTS '$PERLEXPR_WORD_REGEX_REPL' FILE FILE ...
+    same as: $EXEC OPTS '$PERLEXPR_CLEANUP_UNDERSCORES' FILE FILE ...
 
   $EXEC [OPTS] --strip-diacritics FILE [FILE ...]
     remove diacritics (accents, cedilla, etc) from characters
@@ -164,7 +189,13 @@ sub main(@){
     }elsif($arg =~ /^(uc|--uc)$/){
       $perlExpr = $PERLEXPR_UC;
     }elsif($arg =~ /^(-w|--word)$/){
-      $perlExpr = $PERLEXPR_WORD_REGEX_REPL;
+      $perlExpr = $PERLEXPR_WORD;
+    }elsif($arg =~ /^(--replace-special-chars)$/){
+      $perlExpr = $PERLEXPR_REPLACE_SPECIAL_CHARS;
+    }elsif($arg =~ /^(--strip-nonword)$/){
+      $perlExpr = $PERLEXPR_STRIP_NONWORD_PLUS_EXT;
+    }elsif($arg =~ /^(--cleanup-underscores)$/){
+      $perlExpr = $PERLEXPR_CLEANUP_UNDERSCORES;
     }elsif($arg =~ /^(--strip-diacritics)$/){
       $perlExpr = $PERLEXPR_STRIP_DIACRITICS;
     }elsif($arg =~ /^(-e|--end)$/ and @_ > 0){
