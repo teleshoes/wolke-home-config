@@ -37,6 +37,11 @@ my $PERLEXPR_WORD = ''
   . $PERLEXPR_CLEANUP_UNDERSCORES
 ;
 
+my $PERLEXPR_END_SUFFIX_SUB = sub{
+  my $suffix = shift @_;
+  return 's/^(.*?)((?:\.[^\.]*)?)$/$1_' . $suffix . '$2/';
+};
+
 my $EXEC = basename $0;
 
 my $USAGE = "USAGE:
@@ -112,7 +117,7 @@ my $USAGE = "USAGE:
       -prepend the extension with \"_SUFFIX\"
       e.g.: $EXEC -e foobar file1 file2.txt file3.x.y.z.txt
                => file1_foobar file2_foobar.txt file3.x.y.z_foobar.txt
-    same as: $EXEC 's/^(.*?)((?:\\.[^\\.]*)?)\$/\$1_SUFFIX\$2/' FILE FILE ...
+    same as: $EXEC OPTS '" . &$PERLEXPR_END_SUFFIX_SUB('SUFFIX'). "' FILE FILE ...
 
   PERLEXPR
     -any perl expression, passed directly and unsanitized to eval()
@@ -208,7 +213,7 @@ sub main(@){
     }elsif($arg =~ /^(-e|--end)$/ and @_ > 0){
       my $suffix = shift @_;
       $suffix =~ s/^_//g;
-      $perlExpr = "s/^(.*?)((?:\\.[^\\.]*)?)\$/\$1_${suffix}\$2/";
+      $perlExpr = &$PERLEXPR_END_SUFFIX_SUB($suffix);
     }elsif(not defined $perlExpr){
       $perlExpr = $arg;
     }else{
