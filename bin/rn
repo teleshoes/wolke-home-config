@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use File::Basename qw(basename dirname);
 use Cwd qw(abs_path);
+use Encode qw(encode decode);
+use Unicode::Normalize qw(NFKD);
 
 sub calculateRenameCommandInfo($$$);
 sub formatCmd(@);
@@ -16,6 +18,12 @@ my $PERLEXPR_WORD_REGEX_REPL = ''
   . '; s/_+/_/g'               #join multiple '_' chars into a single '_'
   . '; s/_+(?=\.\w+$)//g'      #remove '_' chars before file ext
   . '; s/^_+|_+$//g'           #remove leading/trailing '_' chars
+;
+my $PERLEXPR_STRIP_DIACRITICS = ''
+  . '; $_=decode("UTF-8", $_)' #decode unicode string to utf8 bytes
+  . '; $_=NFKD($_)'            #split accented characters into letters + diacritics
+  . '; s/\p{NonspacingMark}//g'#remove diacritics
+  . '; encode("UTF-8", $_)'    #re-encode utf8 bytes to unicode string
 ;
 
 my $EXEC = basename $0;
@@ -54,6 +62,17 @@ my $USAGE = "USAGE:
     e.g.: $EXEC -w '.a.F1le named%%%boing...jP3g'
           mv '.a.F1le named%%%boing...jP3gG' a_F1le_named_boing.jP3g
     same as: $EXEC OPTS '$PERLEXPR_WORD_REGEX_REPL' FILE FILE ...
+
+  $EXEC [OPTS] --strip-diacritics FILE [FILE ...]
+    remove diacritics (accents, cedilla, etc) from characters
+      -decode FILE from utf8 bytes to unicode string
+      -normalize into NFKD (separates letters proper and diacritics)
+      -remove non-spacing-characters like diacritics
+      -re-encode to utf8 byte string
+    e.g.:
+      touch 'zzz_ãáàâäéèêíìïõóöúùüçćčğñšśşžżź'
+      $EXEC --strip-diacritics zzz_*
+      # mv --no-clobber zzz_ãáàâäéèêíìïõóöúùüçćčğñšśşžżź zzz_aaaaaeeeiiiooouuucccgnssszzz
 
   $EXEC [OPTS] -e|--end SUFFIX FILE [FILE ...]
     append \"_SUFFIX\" to the end of the base file name, but before file ext if present
@@ -146,6 +165,8 @@ sub main(@){
       $perlExpr = $PERLEXPR_UC;
     }elsif($arg =~ /^(-w|--word)$/){
       $perlExpr = $PERLEXPR_WORD_REGEX_REPL;
+    }elsif($arg =~ /^(--strip-diacritics)$/){
+      $perlExpr = $PERLEXPR_STRIP_DIACRITICS;
     }elsif($arg =~ /^(-e|--end)$/ and @_ > 0){
       my $suffix = shift @_;
       $suffix =~ s/^_//g;
