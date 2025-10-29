@@ -8,6 +8,7 @@ use Unicode::Normalize qw(NFKD);
 
 sub calculateRenameCommandInfo($$$);
 sub formatCmd(@);
+sub formatPerlExprUsageCmd($$);
 
 my $PERLEXPR_LC = '$_=lc';
 my $PERLEXPR_UC = '$_=uc';
@@ -65,10 +66,10 @@ my $USAGE = "USAGE:
 
   $EXEC [OPTS] lc|--lc FILE [FILE ...]
     lower-case file names
-    same as: $EXEC OPTS '$PERLEXPR_LC' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_LC) . "
   $EXEC [OPTS] uc|--uc FILE [FILE ...]
     upper-case file names
-    same as: $EXEC OPTS '$PERLEXPR_UC' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_UC) . "
 
   $EXEC [OPTS] -w|--word FILE [FILE ...]
     generate clean, word-only filenames, with single dot for ext
@@ -78,26 +79,26 @@ my $USAGE = "USAGE:
       -clean separators as in --cleanup-underscores
     e.g.: $EXEC --word \".a.F1le náméd%%%boing's_...jP3g\"
           mv \".a.F1le named%%%boing's_...jP3g\" a_F1le_named_boings.jP3g
-    same as: $EXEC OPTS '$PERLEXPR_WORD' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_WORD) . "
 
   $EXEC [OPTS] --replace-special-chars FILE [FILE ...]
     perform some special character replacements
       -replace '&' with ' and '
       -remove apostrophes without any replacement
-    same as: $EXEC OPTS '$PERLEXPR_REPLACE_SPECIAL_CHARS' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_REPLACE_SPECIAL_CHARS) . "
 
   $EXEC [OPTS] --strip-nonword FILE [FILE ...]
     allow only letters, numbers, underscores, and a single dot before file ext
       -replace '.' chars with '_', keeping '.' before file ext
       -replace non-word chars except '.' with '_'
-    same as: $EXEC OPTS '$PERLEXPR_STRIP_NONWORD_PLUS_EXT' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_STRIP_NONWORD_PLUS_EXT) . "
 
   $EXEC [OPTS] --cleanup-underscores FILE [FILE ...]
     allow only single underscores, and not at the start/end
       -join multiple '_' chars into a single '_'
       -remove '_' chars before file ext
       -remove leading/trailing '_' chars
-    same as: $EXEC OPTS '$PERLEXPR_CLEANUP_UNDERSCORES' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_CLEANUP_UNDERSCORES) . "
 
   $EXEC [OPTS] --strip-diacritics FILE [FILE ...]
     remove diacritics (accents, cedilla, etc) from characters
@@ -109,7 +110,7 @@ my $USAGE = "USAGE:
       touch 'zzz_ãáàâäéèêíìïõóöúùüçćčğñšśşžżź'
       $EXEC --strip-diacritics zzz_*
       # mv --no-clobber zzz_ãáàâäéèêíìïõóöúùüçćčğñšśşžżź zzz_aaaaaeeeiiiooouuucccgnssszzz
-    same as: $EXEC OPTS '$PERLEXPR_STRIP_DIACRITICS' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_STRIP_DIACRITICS) . "
 
   $EXEC [OPTS] -e|--end SUFFIX FILE [FILE ...]
     append \"_SUFFIX\" to the end of the base file name, but before file ext if present
@@ -117,7 +118,7 @@ my $USAGE = "USAGE:
       -prepend the extension with \"_SUFFIX\"
       e.g.: $EXEC -e foobar file1 file2.txt file3.x.y.z.txt
                => file1_foobar file2_foobar.txt file3.x.y.z_foobar.txt
-    same as: $EXEC OPTS '" . &$PERLEXPR_END_SUFFIX_SUB('SUFFIX'). "' FILE FILE ...
+    same as: " . formatPerlExprUsageCmd(6, &$PERLEXPR_END_SUFFIX_SUB('SUFFIX')) . "
 
   PERLEXPR
     -any perl expression, passed directly and unsanitized to eval()
@@ -359,6 +360,13 @@ sub formatCmd(@){
     push @cmdFmt, $arg;
   }
   return join(" ", @cmdFmt);
+}
+sub formatPerlExprUsageCmd($$){
+  my ($indent, $perlExpr) = @_;
+  my $cmd = formatCmd($EXEC, "OPTS", $perlExpr, "FILE", "FILE", "...");
+  my $indentFmt = " "x$indent;
+  $cmd =~ s/\n/\n$indentFmt/g;
+  return $cmd;
 }
 
 &main(@ARGV);
