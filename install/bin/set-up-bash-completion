@@ -4,6 +4,8 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
+my $SCP_COMPLETION_FILE = "/usr/share/bash-completion/completions/scp";
+
 my $dir = '/etc/bash_completion.d';
 
 sub getFctImpls();
@@ -17,6 +19,21 @@ my @autoCompleteCommands = qw(
 
 sub main(@) {
   getRoot @_;
+
+  editFile $SCP_COMPLETION_FILE, sub {
+    my $contents = shift;
+    $contents =~ s/###HACK_SCP_LOCAL_FILES_START###.*###HACK_SCP_LOCAL_FILES_END###\n//gs;
+    $contents .= ""
+      . "###HACK_SCP_LOCAL_FILES_START###\n"
+      . "# fix local file completion for paths with spaces in scp+rsync\n"
+      . "_comp_xfunc_scp_compgen_local_files()\n"
+      . "{\n"
+      . "  _comp_compgen_filedir\n"
+      . "}\n"
+      . "###HACK_SCP_LOCAL_FILES_END###\n"
+    ;
+    return $contents;
+  };
 
   my $files = {
     'alarm' => complete("_alarm", qw(alarm)),
