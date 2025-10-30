@@ -1,6 +1,7 @@
 package ScriptScript;
 use warnings;
 use strict;
+use Cwd qw(abs_path);
 use File::Basename qw(basename dirname);
 use File::Spec::Functions qw(abs2rel);
 use File::Temp 'tempfile';
@@ -756,12 +757,8 @@ sub replaceOrAddLine($$$){
 sub editFile($$){
   my ($file, $editSub) = @_;
 
-  #dereference non-broken symlink to file
-  my $symlinkLevel = 0;
-  while(-f $file and -l $file){
-    die "ERROR: symlink level too high\n" if $symlinkLevel > 10;
-    $file = readlink $file;
-    $symlinkLevel++;
+  if(-f $file and -l $file){
+    $file = abs_path($file);
   }
 
   if(not -f $file){
