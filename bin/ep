@@ -236,7 +236,14 @@ sub mpvPos($$$){
   if($posLine =~ /^(\d+|\d*\.\d+) - (.+)$/){
     my ($pos, $file) = ($1, $2);
 
-    my $path = $file;
+    $file = abs_path($file);
+    my ($drive, $path) = (undef, undef);
+    if($file =~ /^\/media\/(\w+)\/(.+)$/){
+      ($drive, $path) = ($1, $2);
+    }else{
+      $drive = "";
+      $path = $file;
+    }
 
     my $entry = {
       date  => nowEpoch(),
@@ -244,6 +251,7 @@ sub mpvPos($$$){
       size  => filesize($file),
       pos   => $pos,
       dur   => durationOrGuess($file),
+      drive => $drive,
       path  => $path,
     };
 
@@ -297,7 +305,14 @@ sub readHistForFiles($){
   for my $entry(@$allHist){
     my $path = $$entry{path};
 
-    my $file = $path;
+    my $drive = $$entry{drive};
+    $drive = "" if not defined $drive;
+    my $file;
+    if($path =~ /^\// or $drive eq ""){
+      $file = $path;
+    }else{
+      $file = "/media/$drive/$path";
+    }
 
     $file = abs_path($file);
 
@@ -327,6 +342,7 @@ sub readHistEntries(){
       \s* , \s* (\d+|\d*\.\d+)
                 \s* \/ \s*
                 (\d+|\d*\.\d+)
+      \s* , \s* (\w*)
       \s* , \s* (\S.*)
     $/x){
       my $entry = {
@@ -335,7 +351,8 @@ sub readHistEntries(){
         size   => $3,
         pos    => $4,
         dur    => $5,
-        path   => $6,
+        drive  => $6,
+        path   => $7,
       };
       push @$entries, $entry;
     }else{
@@ -348,13 +365,14 @@ sub readHistEntries(){
 
 sub appendHist($){
   my $entry = shift;
-  my $fmt = sprintf "%d,%dm,%12db,%3d%%,%12.6f / %8.2f,%s",
+  my $fmt = sprintf "%d,%dm,%12db,%3d%%,%12.6f / %8.2f,%-7s,%s",
     $$entry{date},
     $$entry{mtime},
     $$entry{size},
     formatHistEntryPercent($entry),
     $$entry{pos},
     $$entry{dur},
+    $$entry{drive},
     $$entry{path},
   ;
 
