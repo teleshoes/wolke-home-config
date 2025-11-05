@@ -236,9 +236,13 @@ sub mpvPos($$$){
   if($posLine =~ /^(\d+|\d*\.\d+) - (.+)$/){
     my ($pos, $file) = ($1, $2);
 
+    my $user = $ENV{USER};
+
     $file = abs_path($file);
     my ($drive, $path) = (undef, undef);
     if($file =~ /^\/media\/(\w+)\/(.+)$/){
+      ($drive, $path) = ($1, $2);
+    }elsif($file =~ /^\/media\/$user\/(\w+)\/(.+)$/){
       ($drive, $path) = ($1, $2);
     }else{
       $drive = "";
@@ -301,6 +305,8 @@ sub readHistForFiles($){
   my $allHist = readHistEntries();
   my %okFiles = map {$_ => 1} @$files;
 
+  my $user = $ENV{USER};
+
   my $fileHist = {};
   for my $entry(@$allHist){
     my $path = $$entry{path};
@@ -310,6 +316,8 @@ sub readHistForFiles($){
     my $file;
     if($path =~ /^\// or $drive eq ""){
       $file = $path;
+    }elsif(-d "/media/$user/$drive" and not -d "/media/$drive"){
+      $file = "/media/$user/$drive/$path";
     }else{
       $file = "/media/$drive/$path";
     }
