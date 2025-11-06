@@ -138,8 +138,10 @@ sub main(@){
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
     my $fanInfo = readFan();
     my $temp = readTemp();
-    printf "%s : %dRPM : %dC\n",
-      $$fanInfo{level}, $$fanInfo{speed}, ${temp};
+    my @speeds = @{$$fanInfo{speeds}};
+    my $speedFmt = join ",", map {sprintf("%dRPM", $_)} @speeds;
+    printf "%s : %s : %dC\n",
+      $$fanInfo{level}, $speedFmt, ${temp};
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--temp)$/)){
     my $temp = readTemp();
     printf "%d\n", $temp;
@@ -322,18 +324,18 @@ sub readTemp(){
 
 sub readFan(){
   my $devInfo = readFile $IBM_DEV_FAN;
-  my ($speed, $level);
-  if($devInfo =~ /^speed:\s*(\d+)$/m){
-    $speed = $1;
-  }else{
-    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
-  }
+  my ($level, $speed);
   if($devInfo =~ /^level:\s*(\w+)$/m){
     $level = $1;
   }else{
     die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
   }
-  return {speed => $speed, level => $level};
+  if($devInfo =~ /^speed:\s*(\d+)$/m){
+    $speed = $1;
+  }else{
+    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
+  }
+  return {level => $level, speeds => [$speed]};
 }
 
 sub readFanLevelStateFile(){
