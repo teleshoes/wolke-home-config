@@ -9,8 +9,10 @@ sub parseFanTempRange($);
 sub getTargetFanLevelFromTempRanges($$@);
 sub parseLevelOrSyn($);
 sub parseConfigFile($);
+sub getIT87Dir();
 sub readTemp();
 sub readFan();
+sub getFanLevelByPWM($);
 sub readFanLevelStateFile();
 sub writeFanLevelStateFile($);
 sub setLevel($);
@@ -19,6 +21,13 @@ sub readFile($);
 sub writeFile($$);
 
 my $IBM_DEV_FAN = "/proc/acpi/ibm/fan";
+
+my $IT87_DEV_DIR_PTRN = "/sys/devices/platform/it87.*/hwmon/hwmon*";
+my $IT87_DEV_NAME_FAN_PWM_MAIN = "pwm2";
+my $IT87_DEV_NAME_FAN_PWM_AUX = "pwm3";
+my $IT87_DEV_NAME_FAN_RPM_MAIN = "fan2_input";
+my $IT87_DEV_NAME_FAN_RPM_AUX = "fan3_input";
+my $IT87_DEV_NAME_TEMP = "temp1_input";
 
 my $CONFIG_FILE = "$ENV{HOME}/.config/fanspeed.conf";
 my $STATE_FILE = "/tmp/fanspeed-level";
@@ -34,23 +43,45 @@ my $USAGE = "Usage:
 
   $EXEC
   $EXEC --get
-     -read FAN_LEVEL and SPEED_RPM from $IBM_DEV_FAN
-       -FAN_LEVEL is one of the 'level' values
-       -SPEED_RPM is the integer 'speed'
+     -if $IBM_DEV_FAN exists:
+       -read FAN_LEVEL and SPEED_RPM from $IBM_DEV_FAN
+         -FAN_LEVEL is one of the 'level' values
+         -SPEED_RPM is the integer 'speed'
+       -format SPEED_FMT as \"<SPEED_RPM>RPM\"
+     -if $IT87_DEV_DIR_PTRN/ exists:
+       -get MIN_PWM as the smallest pwm of:
+         $IT87_DEV_NAME_FAN_PWM_MAIN (main)
+         $IT87_DEV_NAME_FAN_PWM_AUX (aux)
+       -map MIN_PWM to FAN_LEVEL
+         among the FAN_LEVEL values that are integers,
+         take the highest-numbered FAN_LEVEL with a pwm less than or equal to MIN_PWM
+       -read SPEED_RPM_MAIN from $IT87_DEV_NAME_FAN_PWM_MAIN (main)
+       -read SPEED_RPM_AUX from $IT87_DEV_NAME_FAN_PWM_AUX (aux)
+       -format SPEED_FMT as \"<SPEED_RPM_MAIN>RPM,<SPEED_RPM_AUX>RPM\"
      -read TEMP_C as in: $EXEC --temp
-     -print, formatted as:
-       \"<FAN_LEVEL> : <SPEED>RPM : <TEMP_C>C\"
+     -print \"<FAN_LEVEL> : <SPEED_FMT> : <TEMP_C>C\"
 
   $EXEC --temp
-     -read TEMP_C from `acpi`
-       -run `acpi -V`, extract first CPU temp, and round it to the nearest integer
+     -if $IBM_DEV_FAN exists:
+       -read TEMP_C from `acpi`
+         -run `acpi -V`, extract first CPU temp as degrees celsius
+         -round it to the nearest integer
+     -if $IT87_DEV_DIR_PTRN/ exists:
+       -read TEMP_C from $IT87_DEV_NAME_TEMP
+         -convert from millidegrees celsius to degrees celsius
+         -round to the nearest integer
      -print, formatted as:
        \"<TEMP_C>\"
 
   $EXEC FAN_VALUE
   $EXEC --set=FAN_VALUE
      calculate <FAN_LEVEL> and <WATCHDOG_TIMEOUT_SECONDS> from <FAN_VALUE>
-     set fan level to <FAN_LEVEL> using $IBM_DEV_FAN
+     if $IBM_DEV_FAN exists:
+       -set fan level to <FAN_LEVEL> using $IBM_DEV_FAN
+     if $IT87_DEV_DIR_PTRN/ exists:
+       -calculate PWM from FAN_LEVEL (see <FAN_LEVEL>)
+       -set $IT87_DEV_NAME_FAN_PWM_MAIN (main) to PWM
+       -set $IT87_DEV_NAME_FAN_PWM_AUX (aux) to PWM
      if given, also set fan watchdog timeout to <WATCHDOG_TIMEOUT_SECONDS>
      write <FAN_LEVEL> (not synonym or watchdog) to $STATE_FILE
 
@@ -60,8 +91,11 @@ my $USAGE = "Usage:
      remove $STATE_FILE (further calls to --reapply without --set will do nothing)
 
   $EXEC --watchdog=WATCHDOG_TIMEOUT_SECONDS
-    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $IBM_DEV_FAN
-    (0 disables the watchdog timeout, value of 1-120 enables it that many seconds)
+     -if $IBM_DEV_FAN exists:
+       write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $IBM_DEV_FAN
+       (0 disables the watchdog timeout, value of 1-120 enables it that many seconds)
+     -otherwise:
+       fail with an error
 
   $EXEC --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
     -checks the temperature every ${MONITOR_INTERVAL_MILLIS}ms:
@@ -102,11 +136,29 @@ my $USAGE = "Usage:
     one of either <LEVEL> or <SYNONYM>
 
   <FAN_LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
-    valid arguments for $IBM_DEV_FAN (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
-      NOTE:
-        0 means FULLY DISABLED and is quite dangerous
-        disengaged and full-speed do the same thing, and are (generally) faster than 7
-        auto varies based on CPU load and is done by the kernel module or firmware
+    for $IBM_DEV_FAN:
+      valid arguments for $IBM_DEV_FAN (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
+        NOTE:
+          0 means FULLY DISABLED and is quite dangerous
+          disengaged and full-speed do the same thing, and are (generally) faster than 7
+          auto varies based on CPU load and is done by the kernel module or firmware
+
+    for $IT87_DEV_DIR_PTRN:
+      FAN_LEVEL  => PWM  | MAINFAN +  AUXFAN | SUBJECTIVE LOUDNESS + COOLING on SER5 Pro
+      0          => 0    |    0RPM +    0RPM | actually off, potentially dangerous
+      1          => 36   | 1000RPM +  300RPM | practically silent, but cools fairly quick
+      2          => 76   | 2000RPM + 1200RPM | just barely audible close by, cools great
+      3          => 125  | 3000RPM + 2100RPM | audible across the room but ignoreable
+      4          => 155  | 3500RPM + 2500RPM | loud, clearly audible over white noise
+      5          => 187  | 4000RPM + 3000RPM | loud and annoying
+      6          => 225  | 4500RPM + 3500RPM | very loud and high pitched
+      7          => 255  | 4900RPM + 3800RPM | extremely loud
+      auto       => 76   | (same as 2)       | (same as 2)
+      disengaged => 255  | (same as 7)       | (same as 7)
+      full-speed => 255  | (same as 7)       | (same as 7)
+
+      NOTE: for IT87, 'auto' is just a synonym for '2', which is quiet and cool.
+            it does not do anything automatically
 
   <WATCHDOG_TIMEOUT_SECONDS>
     watchdog timeout, as an integer number of seconds between 0 and 120 inclusive
@@ -130,6 +182,20 @@ my $USAGE = "Usage:
 
 my @OK_LEVELS = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
 my $OK_LEVELS_RE = "(?:" . join("|", @OK_LEVELS) . ")";
+
+my $IT87_PWM_VALUES_BY_FAN_LEVEL = {
+  "0"          =>   0,
+  "1"          =>  36,
+  "2"          =>  76,
+  "3"          => 125,
+  "4"          => 155,
+  "5"          => 187,
+  "6"          => 225,
+  "7"          => 255,
+  "auto"       =>  76,
+  "disengaged" => 255,
+  "full-speed" => 255,
+};
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
@@ -313,29 +379,87 @@ sub parseConfigFile($){
   return $conf;
 }
 
-sub readTemp(){
-  my $acpi = `acpi -V`;
-  if($acpi =~ /, (-?\d+|-?\d*\.\d+) degrees C/){
-    return $1;
+sub getIT87Dir(){
+  my @dirs = grep {-d $_} glob($IT87_DEV_DIR_PTRN);
+  if(@dirs > 1){
+    die "ERROR: multiple it87 device dirs:\n@dirs\n";
+  }elsif(@dirs == 1){
+    return $dirs[0];
   }else{
     return undef;
   }
 }
 
+sub readTemp(){
+  if(-e $IBM_DEV_FAN){
+    my $acpi = `acpi -V`;
+    if($acpi =~ /, (-?\d+|-?\d*\.\d+) degrees C/){
+      return $1;
+    }else{
+      return undef;
+    }
+  }
+
+  my $it87Dir = getIT87Dir();
+  if(-d $it87Dir){
+    my $temp = readFile("$it87Dir/$IT87_DEV_NAME_TEMP");
+    if($temp =~ /^\d+$/){
+      return int($temp/1000.0 + 0.5);
+    }else{
+      return undef;
+    }
+  }
+
+  die "ERROR: could not find any fan/thermal devices\n";
+}
+
 sub readFan(){
-  my $devInfo = readFile $IBM_DEV_FAN;
-  my ($level, $speed);
-  if($devInfo =~ /^level:\s*(\w+)$/m){
-    $level = $1;
-  }else{
-    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
+  if(-e $IBM_DEV_FAN){
+    my $devInfo = readFile $IBM_DEV_FAN;
+    my ($level, $speed);
+    if($devInfo =~ /^level:\s*(\w+)$/m){
+      $level = $1;
+    }else{
+      die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
+    }
+    if($devInfo =~ /^speed:\s*(\d+)$/m){
+      $speed = $1;
+    }else{
+      die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
+    }
+    return {level => $level, speeds => [$speed]};
   }
-  if($devInfo =~ /^speed:\s*(\d+)$/m){
-    $speed = $1;
-  }else{
-    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
+
+  my $it87Dir = getIT87Dir();
+  if(-d $it87Dir){
+    my $pwmMain = readFile("$it87Dir/$IT87_DEV_NAME_FAN_PWM_MAIN");
+    my $pwmAux = readFile("$it87Dir/$IT87_DEV_NAME_FAN_PWM_AUX");
+    my $rpmMain = readFile("$it87Dir/$IT87_DEV_NAME_FAN_RPM_MAIN");
+    my $rpmAux = readFile("$it87Dir/$IT87_DEV_NAME_FAN_RPM_AUX");
+    my $minPwm = $pwmMain < $pwmAux ? $pwmMain : $pwmAux;
+
+    my $level = getFanLevelByPWM($minPwm);
+    if(not defined $level){
+      die "ERROR: could not parse FAN_LEVEL from it87 PWM\n";
+    }
+    return {level => $level, speeds => [$rpmMain, $rpmAux]};
   }
-  return {level => $level, speeds => [$speed]};
+
+  die "ERROR: could not find any fan/thermal devices\n";
+}
+
+sub getFanLevelByPWM($){
+  my ($pwm) = @_;
+  my @numericLevels = grep {$_ =~ /^\d+$/} sort keys %$IT87_PWM_VALUES_BY_FAN_LEVEL;
+
+  for my $level(reverse @numericLevels){
+    my $levelPwm = $$IT87_PWM_VALUES_BY_FAN_LEVEL{$level};
+    if($levelPwm <= $pwm){
+      return $level;
+    }
+  }
+
+  return undef;
 }
 
 sub readFanLevelStateFile(){
@@ -360,11 +484,26 @@ sub writeFanLevelStateFile($){
 
 sub setLevel($){
   my ($fanLevel) = @_;
-  writeFile($IBM_DEV_FAN, "level $fanLevel\n");
+  if(-e $IBM_DEV_FAN){
+    writeFile($IBM_DEV_FAN, "level $fanLevel\n");
+  }else{
+    my $it87Dir = getIT87Dir();
+    if(-d $it87Dir){
+      my $pwm = $$IT87_PWM_VALUES_BY_FAN_LEVEL{$fanLevel};
+      writeFile("$it87Dir/$IT87_DEV_NAME_FAN_PWM_MAIN", "$pwm\n");
+      writeFile("$it87Dir/$IT87_DEV_NAME_FAN_PWM_AUX", "$pwm\n");
+    }else{
+      die "ERROR: could not find any fan/thermal devices\n";
+    }
+  }
 }
 sub setWatchdog($){
   my ($watchdogValue) = @_;
-  writeFile($IBM_DEV_FAN, "watchdog $watchdogValue\n");
+  if(-e $IBM_DEV_FAN){
+    writeFile($IBM_DEV_FAN, "watchdog $watchdogValue\n");
+  }else{
+    die "ERROR: could not find $IBM_DEV_FAN for watchdog\n";
+  }
 }
 
 sub readFile($){
