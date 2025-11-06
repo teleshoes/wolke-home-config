@@ -16,7 +16,7 @@ sub writeFanLevelStateFile($);
 sub setLevel($);
 sub setWatchdog($);
 
-my $IBM_FAN_DEV = "/proc/acpi/ibm/fan";
+my $IBM_DEV_FAN = "/proc/acpi/ibm/fan";
 
 my $CONFIG_FILE = "$ENV{HOME}/.config/fanspeed.conf";
 my $STATE_FILE = "/tmp/fanspeed-level";
@@ -32,7 +32,7 @@ my $USAGE = "Usage:
 
   $EXEC
   $EXEC --get
-     -read FAN_LEVEL and SPEED_RPM from $IBM_FAN_DEV
+     -read FAN_LEVEL and SPEED_RPM from $IBM_DEV_FAN
        -FAN_LEVEL is one of the 'level' values
        -SPEED_RPM is the integer 'speed'
      -read TEMP_C as in: $EXEC --temp
@@ -48,7 +48,7 @@ my $USAGE = "Usage:
   $EXEC FAN_VALUE
   $EXEC --set=FAN_VALUE
      calculate <FAN_LEVEL> and <WATCHDOG_TIMEOUT_SECONDS> from <FAN_VALUE>
-     set fan level to <FAN_LEVEL> using $IBM_FAN_DEV
+     set fan level to <FAN_LEVEL> using $IBM_DEV_FAN
      if given, also set fan watchdog timeout to <WATCHDOG_TIMEOUT_SECONDS>
      write <FAN_LEVEL> (not synonym or watchdog) to $STATE_FILE
 
@@ -58,7 +58,7 @@ my $USAGE = "Usage:
      remove $STATE_FILE (further calls to --reapply without --set will do nothing)
 
   $EXEC --watchdog=WATCHDOG_TIMEOUT_SECONDS
-    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $IBM_FAN_DEV
+    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $IBM_DEV_FAN
     (0 disables the watchdog timeout, value of 1-120 enables it that many seconds)
 
   $EXEC --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
@@ -96,11 +96,11 @@ my $USAGE = "Usage:
   <FAN_VALUE> = <FAN_LEVEL>
               | <FAN_LEVEL>,<WATCHDOG_TIMEOUT_SECONDS>
               | <SYNONYM>
-    argument for $IBM_FAN_DEV level or a synonym
+    argument for $IBM_DEV_FAN level or a synonym
     one of either <LEVEL> or <SYNONYM>
 
   <FAN_LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
-    valid arguments for $IBM_FAN_DEV (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
+    valid arguments for $IBM_DEV_FAN (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
       NOTE:
         0 means FULLY DISABLED and is quite dangerous
         disengaged and full-speed do the same thing, and are (generally) faster than 7
@@ -319,17 +319,17 @@ sub readTemp(){
 }
 
 sub readFan(){
-  my $devInfo = `cat $IBM_FAN_DEV`;
+  my $devInfo = `cat $IBM_DEV_FAN`;
   my ($speed, $level);
   if($devInfo =~ /^speed:\s*(\d+)$/m){
     $speed = $1;
   }else{
-    die "ERROR: could not parse info from $IBM_FAN_DEV:\n$devInfo\n";
+    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
   }
   if($devInfo =~ /^level:\s*(\w+)$/m){
     $level = $1;
   }else{
-    die "ERROR: could not parse info from $IBM_FAN_DEV:\n$devInfo\n";
+    die "ERROR: could not parse info from $IBM_DEV_FAN:\n$devInfo\n";
   }
   return {speed => $speed, level => $level};
 }
@@ -358,12 +358,12 @@ sub writeFanLevelStateFile($){
 }
 
 sub setLevel($){
-  open FH, "> $IBM_FAN_DEV" or die "Could not open $IBM_FAN_DEV for writing\n$!\n";
+  open FH, "> $IBM_DEV_FAN" or die "Could not open $IBM_DEV_FAN for writing\n$!\n";
   print FH "level $_[0]\n";
   close FH;
 }
 sub setWatchdog($){
-  open FH, "> $IBM_FAN_DEV" or die "Could not open $IBM_FAN_DEV for writing\n$!\n";
+  open FH, "> $IBM_DEV_FAN" or die "Could not open $IBM_DEV_FAN for writing\n$!\n";
   print FH "watchdog $_[0]\n";
   close FH;
 }
