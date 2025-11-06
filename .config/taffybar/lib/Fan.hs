@@ -11,27 +11,20 @@ fanW = labelW fanReader
 width = 2
 
 fanCmd = ["fan", "--get"]
-tempCmd = ["acpi", "-V"]
 
 fanReader = do
   system "sudo fan --reapply"
   fanInfo <- readProc fanCmd
-  tempInfo <- readProc tempCmd
-  let temp = parseCpuTemp tempInfo
-  let (speed, level) = parseFanInfo fanInfo
+  let (level, speed, temp) = parseFanInfo fanInfo
   return $ formatInfo temp speed level
 
-parseCpuTemp :: String -> Double
-parseCpuTemp tempInfo = fromMaybe 0 $ readDouble $ grps!!0
-  where re = ", (\\d+\\.\\d+) degrees C"
-        grps = fromMaybe [] $ regexGroups re tempInfo
-
-parseFanInfo :: String -> (Integer, String)
-parseFanInfo fanInfo = (speed, level)
-  where re = "^(\\d+),(\\w+)$"
-        grps = fromMaybe ["-1", "??"] $ regexGroups re fanInfo
-        speed = fromMaybe (-1) $ readInt $ grps!!0
-        level = grps!!1
+parseFanInfo :: String -> (String, Integer, Integer)
+parseFanInfo fanInfo = (level, speed, temp)
+  where re = "^(\\w+)\\s*:\\s*(\\d+)RPM[^:]*:\\s*(\\d+|\\d+)C\\s*$"
+        grps = fromMaybe ["??", "-1", "-1"] $ regexGroups re fanInfo
+        level = grps!!0
+        speed = fromMaybe (-1) $ readInt $ grps!!1
+        temp = fromMaybe (-1) $ readInt $ grps!!2
 
 formatInfo temp speed level = tempFmt ++ "\n" ++ speedFmt
   where tempFmt = colorTemp temp $ padNum width tempText
