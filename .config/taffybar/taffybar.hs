@@ -132,7 +132,7 @@ main = do
           , main $ W.qtemailW $ appSq profile
           , all  $ W.cpuScalingSimpleW
           , all  $ W.cpuFreqsW
-          , lap  $ W.fanW
+          , all  $ W.fanW
           , all  $ W.brightnessW
           , tv   $ W.screenSaverW isBot
           , all  $ colW $ catMaybes [ all  $ W.pingMonitorW "G" "google.com"
