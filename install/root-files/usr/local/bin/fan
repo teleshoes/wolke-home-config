@@ -16,21 +16,21 @@ sub writeFanLevelStateFile($);
 sub setLevel($);
 sub setWatchdog($);
 
-my $fanDev = "/proc/acpi/ibm/fan";
+my $IBM_FAN_DEV = "/proc/acpi/ibm/fan";
 
-my $configFile = "$ENV{HOME}/.config/fanspeed.conf";
-my $stateFile = "/tmp/fanspeed-level";
+my $CONFIG_FILE = "$ENV{HOME}/.config/fanspeed.conf";
+my $STATE_FILE = "/tmp/fanspeed-level";
 
 my $MONITOR_INTERVAL_MILLIS = 10000;
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 -h
   $0 --help
     show this message
 
   $0
   $0 --get
-     print fan information from $fanDev
+     print fan information from $IBM_FAN_DEV
      formatted as: \"SPEED,LEVEL\"
      where SPEED is an integer and LEVEL is one of the allowed values for <LEVEL>
 
@@ -41,17 +41,17 @@ my $usage = "Usage:
   $0 FAN_VALUE
   $0 --set=FAN_VALUE
      calculate <FAN_LEVEL> and <WATCHDOG_TIMEOUT_SECONDS> from <FAN_VALUE>
-     set fan level to <FAN_LEVEL> using $fanDev
+     set fan level to <FAN_LEVEL> using $IBM_FAN_DEV
      if given, also set fan watchdog timeout to <WATCHDOG_TIMEOUT_SECONDS>
-     write <FAN_LEVEL> (not synonym or watchdog) to $stateFile
+     write <FAN_LEVEL> (not synonym or watchdog) to $STATE_FILE
 
   $0 --reapply
-     set fan level to the <FAN_LEVEL> in $stateFile if it exists
+     set fan level to the <FAN_LEVEL> in $STATE_FILE if it exists
   $0 --clear
-     remove $stateFile (further calls to --reapply without --set will do nothing)
+     remove $STATE_FILE (further calls to --reapply without --set will do nothing)
 
   $0 --watchdog=WATCHDOG_TIMEOUT_SECONDS
-    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $fanDev
+    write 'watchdog WATCHDOG_TIMEOUT_SECONDS' to $IBM_FAN_DEV
     (0 disables the watchdog timeout, value of 1-120 enables it that many seconds)
 
   $0 --monitor [OPTS] FAN_TEMP_RANGE [FAN_TEMP_RANGE]
@@ -89,11 +89,11 @@ my $usage = "Usage:
   <FAN_VALUE> = <FAN_LEVEL>
               | <FAN_LEVEL>,<WATCHDOG_TIMEOUT_SECONDS>
               | <SYNONYM>
-    argument for $fanDev level or a synonym
+    argument for $IBM_FAN_DEV level or a synonym
     one of either <LEVEL> or <SYNONYM>
 
   <FAN_LEVEL> = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | auto | disengaged | full-speed
-    valid arguments for $fanDev (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
+    valid arguments for $IBM_FAN_DEV (0-7, \"auto\", or \"disengaged\"/\"full-speed\")
       NOTE:
         0 means FULLY DISABLED and is quite dangerous
         disengaged and full-speed do the same thing, and are (generally) faster than 7
@@ -104,7 +104,7 @@ my $usage = "Usage:
     0 means disabled
 
   <SYNONYM>
-    synonyms are defined in $configFile
+    synonyms are defined in $CONFIG_FILE
       -one per line:
         SYN_NAME = FAN_VALUE
 
@@ -119,12 +119,12 @@ my $usage = "Usage:
     any name, one or more letters or numbers
 ";
 
-my @okLevels = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
-my $okLevelsRe = "(?:" . join("|", @okLevels) . ")";
+my @OK_LEVELS = qw(0 1 2 3 4 5 6 7 auto disengaged full-speed);
+my $OK_LEVELS_RE = "(?:" . join("|", @OK_LEVELS) . ")";
 
 sub main(@){
   if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $usage;
+    print $USAGE;
     exit 0;
   }elsif(@_ == 0 or (@_ == 1 and $_[0] =~ /^(--get)$/)){
     print formatFanInfo(readFan());
@@ -198,8 +198,8 @@ sub main(@){
 
     my ($level, $watchdogTimeoutSeconds) = parseFanValueOrSyn $value;
 
-    if(not defined $level or $level !~ /^$okLevelsRe$/){
-      die "$usage\ninvalid FAN_VALUE: $value\n";
+    if(not defined $level or $level !~ /^$OK_LEVELS_RE$/){
+      die "$USAGE\ninvalid FAN_VALUE: $value\n";
     }
 
     my $fanInfo = readFan();
@@ -215,7 +215,7 @@ sub main(@){
       setWatchdog $watchdogTimeoutSeconds;
     }
   }else{
-    die $usage;
+    die $USAGE;
   }
 }
 
@@ -263,17 +263,17 @@ sub formatFanInfo($){
 
 sub parseFanValueOrSyn($){
   my ($value) = @_;
-  if($value =~ /^($okLevelsRe)$/){
+  if($value =~ /^($OK_LEVELS_RE)$/){
     return ($1, undef);
-  }elsif($value =~ /^($okLevelsRe),(\d+)$/){
+  }elsif($value =~ /^($OK_LEVELS_RE),(\d+)$/){
     return ($1, $2);
   }else{
-    my $confSynonyms = parseConfigFile $configFile;
+    my $confSynonyms = parseConfigFile $CONFIG_FILE;
     if(defined $$confSynonyms{$value}){
       $value = $$confSynonyms{$value};
-      if($value =~ /^($okLevelsRe)$/){
+      if($value =~ /^($OK_LEVELS_RE)$/){
         return ($1, undef);
-      }elsif($value =~ /^($okLevelsRe),(\d+)$/){
+      }elsif($value =~ /^($OK_LEVELS_RE),(\d+)$/){
         return ($1, $2);
       }else{
         return undef;
@@ -285,15 +285,15 @@ sub parseFanValueOrSyn($){
 }
 
 sub parseConfigFile($){
-  my ($configFile) = @_;
+  my ($CONFIG_FILE) = @_;
   my $conf = {};
-  if(-f $configFile){
-    open FH, "< $configFile" or die "could not read config file: $configFile\n";
+  if(-f $CONFIG_FILE){
+    open FH, "< $CONFIG_FILE" or die "could not read config file: $CONFIG_FILE\n";
     my @lines = <FH>;
     close FH;
     for my $line(@lines){
       next if $line =~ /^\s*(#|$)/;
-      if($line =~ /^\s*(\w+)\s*=\s*((?:$okLevelsRe)(?:,\d+)?)\s*$/){
+      if($line =~ /^\s*(\w+)\s*=\s*((?:$OK_LEVELS_RE)(?:,\d+)?)\s*$/){
         my ($key, $val) = ($1, $2);
         $$conf{$key} = $val;
       }else{
@@ -314,28 +314,28 @@ sub readTemp(){
 }
 
 sub readFan(){
-  my $devInfo = `cat $fanDev`;
+  my $devInfo = `cat $IBM_FAN_DEV`;
   my ($speed, $level);
   if($devInfo =~ /^speed:\s*(\d+)$/m){
     $speed = $1;
   }else{
-    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+    die "ERROR: could not parse info from $IBM_FAN_DEV:\n$devInfo\n";
   }
   if($devInfo =~ /^level:\s*(\w+)$/m){
     $level = $1;
   }else{
-    die "ERROR: could not parse info from $fanDev:\n$devInfo\n";
+    die "ERROR: could not parse info from $IBM_FAN_DEV:\n$devInfo\n";
   }
   return {speed => $speed, level => $level};
 }
 
 sub readFanLevelStateFile(){
   my $level;
-  if(-f $stateFile){
-    $level = `cat $stateFile`;
+  if(-f $STATE_FILE){
+    $level = `cat $STATE_FILE`;
     chomp $level;
   }
-  if(defined $level and $level =~ /^$okLevelsRe$/){
+  if(defined $level and $level =~ /^$OK_LEVELS_RE$/){
     return $level;
   }else{
     return undef;
@@ -344,21 +344,21 @@ sub readFanLevelStateFile(){
 sub writeFanLevelStateFile($){
   my ($level) = @_;
   if(defined $level){
-    open FH, "> $stateFile" or die "Could not write to $stateFile\n$!\n";
+    open FH, "> $STATE_FILE" or die "Could not write to $STATE_FILE\n$!\n";
     print FH "$_[0]\n";
     close FH;
   }else{
-    system "rm", "-f", $stateFile;
+    system "rm", "-f", $STATE_FILE;
   }
 }
 
 sub setLevel($){
-  open FH, "> $fanDev" or die "Could not open $fanDev for writing\n$!\n";
+  open FH, "> $IBM_FAN_DEV" or die "Could not open $IBM_FAN_DEV for writing\n$!\n";
   print FH "level $_[0]\n";
   close FH;
 }
 sub setWatchdog($){
-  open FH, "> $fanDev" or die "Could not open $fanDev for writing\n$!\n";
+  open FH, "> $IBM_FAN_DEV" or die "Could not open $IBM_FAN_DEV for writing\n$!\n";
   print FH "watchdog $_[0]\n";
   close FH;
 }
