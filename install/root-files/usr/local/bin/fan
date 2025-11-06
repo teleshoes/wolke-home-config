@@ -15,6 +15,8 @@ sub readFanLevelStateFile();
 sub writeFanLevelStateFile($);
 sub setLevel($);
 sub setWatchdog($);
+sub readFile($);
+sub writeFile($$);
 
 my $IBM_DEV_FAN = "/proc/acpi/ibm/fan";
 
@@ -319,7 +321,7 @@ sub readTemp(){
 }
 
 sub readFan(){
-  my $devInfo = `cat $IBM_DEV_FAN`;
+  my $devInfo = readFile $IBM_DEV_FAN;
   my ($speed, $level);
   if($devInfo =~ /^speed:\s*(\d+)$/m){
     $speed = $1;
@@ -337,7 +339,7 @@ sub readFan(){
 sub readFanLevelStateFile(){
   my $level;
   if(-f $STATE_FILE){
-    $level = `cat $STATE_FILE`;
+    $level = readFile $STATE_FILE;
     chomp $level;
   }
   if(defined $level and $level =~ /^$OK_LEVELS_RE$/){
@@ -349,23 +351,37 @@ sub readFanLevelStateFile(){
 sub writeFanLevelStateFile($){
   my ($level) = @_;
   if(defined $level){
-    open FH, "> $STATE_FILE" or die "Could not write to $STATE_FILE\n$!\n";
-    print FH "$_[0]\n";
-    close FH;
+    writeFile($STATE_FILE, "$level\n");
   }else{
     system "rm", "-f", $STATE_FILE;
   }
 }
 
 sub setLevel($){
-  open FH, "> $IBM_DEV_FAN" or die "Could not open $IBM_DEV_FAN for writing\n$!\n";
-  print FH "level $_[0]\n";
-  close FH;
+  my ($fanLevel) = @_;
+  writeFile($IBM_DEV_FAN, "level $fanLevel\n");
 }
 sub setWatchdog($){
-  open FH, "> $IBM_DEV_FAN" or die "Could not open $IBM_DEV_FAN for writing\n$!\n";
-  print FH "watchdog $_[0]\n";
-  close FH;
+  my ($watchdogValue) = @_;
+  writeFile($IBM_DEV_FAN, "watchdog $watchdogValue\n");
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open my $fh, "< $file" or die "ERROR: could not open $file for writing\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join("", @lines);
+  }
+}
+sub writeFile($$){
+  my ($file, $contents) = @_;
+  open my $fh, "> $file" or die "ERROR: could not open $file for writing\n$!\n";
+  print $fh $contents;
+  close $fh;
 }
 
 &main(@ARGV);
