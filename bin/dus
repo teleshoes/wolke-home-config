@@ -23,6 +23,9 @@ my $USAGE = "Usage:
     -format each FILE and SIZE as 'SIZE   FILE', and print one per line
 
   OPTS
+    -L
+      pass '-L' to all `du` commands
+
     -x FILE | --exclude=FILE | --exclude FILE
       exclude FILE, even if given on cmdline
 
@@ -49,6 +52,7 @@ sub main(@){
   my $useHuman = 1;
   my $useSIUnits = 0;
   my $useTotal = 0;
+  my @duArgs;
   my @files;
   my @excludes;
   while(@_ > 0){
@@ -70,6 +74,8 @@ sub main(@){
       $useHuman = 1;
     }elsif($arg =~ /^(--si)$/){
       $useSIUnits = 1;
+    }elsif($arg =~ /^(-L)$/){
+      push @duArgs, "-L";
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -83,7 +89,7 @@ sub main(@){
   my %okExcludes = map {$_ => 1} @excludes;
   @files = grep {not defined $okExcludes{$_}} @files;
 
-  my @duCmd = ("du", "-bs", @files);
+  my @duCmd = ("du", "-bs", @duArgs, @files);
 
   open my $fh, "-|", @duCmd or die "ERROR: du failed\n$!\n";
   my @lines = <$fh>;
