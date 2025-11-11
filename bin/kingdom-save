@@ -605,6 +605,8 @@ sub formatSave($$$$$){
     }
   }
 
+  my @islandObjs = @{$$jsonInfo{islandSaveInfos}};
+
   my @landVarSets = map { {
     DAY        => int($$_{playTimeDays} + 1),
     ISLAND_DAY => int($$_{islandDays}),
@@ -622,7 +624,7 @@ sub formatSave($$$$$){
     PIKEMAN    => $$_{objectCounts}{Pikeman},
     PEASANT    => $$_{objectCounts}{Peasant},
     BANK       => $$_{bankCount},
-  } } @{$$jsonInfo{islandSaveInfos}};
+  } } @islandObjs;
 
   my $fmt = applyFormatVars($formatSummarySpec, $summaryVars);
   if($includeLands){
@@ -766,10 +768,12 @@ sub parseGlobalSaveFileJSON($){
   my ($globalFile) = @_;
   my $globalJson = readFileGz $globalFile;
 
-  my ($curPlayTimeDays, $curCampaignIndex, $curBiomeIndex, $curChallengeId, $curLandIndex, $curStats);
+  my ($curPlayTimeDays, $curCampaignIndex, $curBiomeIndex, $curChallengeId,
+      $curLandIndex, $curLand, $curStats);
 
   my ($campaigns, $challenges, $currentCampaign, $currentChallenge);
   my $obj = JSON->new->decode($globalJson);
+
   if(ref $obj eq "HASH" and defined $$obj{campaigns}){
     $campaigns = $$obj{campaigns};
     $challenges = $$obj{challenges};
@@ -777,8 +781,8 @@ sub parseGlobalSaveFileJSON($){
     $currentChallenge = $$obj{_currentChallenge};
   };
 
-  if(
-    ref $campaigns eq "ARRAY"
+  if( 1
+    and ref $campaigns eq "ARRAY"
     and defined $currentCampaign
     and $currentCampaign =~ /^(\d+)$/
     and $currentCampaign < @$campaigns
@@ -792,8 +796,8 @@ sub parseGlobalSaveFileJSON($){
       $curLandIndex = $$cur{currentLand};
       $curStats = $$cur{persistentStats};
     }
-  }elsif(
-    ref $challenges eq "ARRAY"
+  }elsif( 1
+    and ref $challenges eq "ARRAY"
     and defined $currentChallenge
     and $currentChallenge =~ /^(\d+)$/
   ){
