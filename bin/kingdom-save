@@ -13,6 +13,7 @@ sub formatLand($$$$$$);
 sub parseSaveInfo($$);
 sub parseGlobalSaveFileJSON($);
 sub parseIslandSaveFileJSON($);
+sub parseIslandJSON($$$$);
 sub extractTarToSaveDir($$);
 sub removeCurrentSave($);
 sub ensureSaveCached($$$$);
@@ -857,8 +858,7 @@ sub parseGlobalSaveFileJSON($){
 sub parseIslandSaveFileJSON($){
   my ($islandFile) = @_;
 
-  my ($campaignIndex, $challengeId, $landIndex,
-    $playTimeDays, $islandDays, $objectCounts, $bankCount);
+  my ($campaignIndex, $challengeId, $landIndex) = (undef, undef, undef);
 
   if($islandFile =~ /(?:^|\/)island(?:-v\d+)?-c([012])-l([012345])$/){
     ($campaignIndex, $landIndex) = ($1, $2);
@@ -874,6 +874,14 @@ sub parseIslandSaveFileJSON($){
     die "ERROR: could not gzip decompress $islandFile\n";
   }
 
+  parseIslandJSON($json, $campaignIndex, $challengeId, $landIndex);
+}
+
+sub parseIslandJSON($$$$){
+  my ($json, $campaignIndex, $challengeId, $landIndex) = @_;
+
+  my ($playTimeDays, $islandDays, $objectCounts, $bankCount) = (undef, undef, undef, undef);
+
   if($json =~ /{[^}]*"name":"Banker"[^}]*\\"stashedCoins\\":(\d+)/){
     $bankCount = $1;
   }else{
@@ -883,7 +891,8 @@ sub parseIslandSaveFileJSON($){
   if($json =~ /"playTimeDays":(\d+|\d*\.\d+)/){
     $playTimeDays = $1;
   }else{
-    die "ERROR: could not file playTimeDays for island $islandFile\n";
+    my $id = defined $campaignIndex ? "campaign-$campaignIndex" : "challenge-$challengeId";
+    die "ERROR: could not file playTimeDays for island $id-$landIndex\n";
   }
 
   if($json =~ /"islandDays":(\d+|\d*\.\d+)/){
