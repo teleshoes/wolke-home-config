@@ -40,8 +40,8 @@ sub readProc($@);
 sub readProcSilent($@);
 sub readProcStdout($$$);
 
-my $MAIN = "/media/videos";
-my $MIRROR = "/media/stuff/Videos";
+my $REMOTE_VIDEOS_DIR = "/media/videos";
+my $MIRROR_VIDEOS_DIR = "/media/stuff/Videos";
 my $DEFAULT_IPMAGIC = "nuc";
 
 my @CATEGORIES = (
@@ -63,12 +63,12 @@ my $USAGE = "Usage:
 
   $0 [OPTS] --sync
     actually copy files from and to remote
-      localhost:$MIRROR <=> $DEFAULT_IPMAGIC:$MAIN
+      localhost:$MIRROR_VIDEOS_DIR <=> $DEFAULT_IPMAGIC:$REMOTE_VIDEOS_DIR
 
   $0 [OPTS] --local
-    perform info/md5sum updates of $MAIN only
+    perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
     assume that the local system is the remote system,
-      so fail if $MAIN is not a mountpoint
+      so fail if $REMOTE_VIDEOS_DIR is not a mountpoint
 
   OPTS
     --no-git
@@ -98,19 +98,19 @@ sub main(@){
   die "--sync and --local cannot both be given\n" if $sync and $localOnly;
 
   if(not $localOnly){
-    die "ERROR: $MIRROR does not exist\n" if not -d $MIRROR;
+    die "ERROR: $MIRROR_VIDEOS_DIR does not exist\n" if not -d $MIRROR_VIDEOS_DIR;
   }
 
   my $ipmagic;
   my $mainIpmagic;
-  if(isMountPoint undef, $MAIN){
+  if(isMountPoint undef, $REMOTE_VIDEOS_DIR){
     $ipmagic = undef;
-  }elsif(not $localOnly and isMountPoint $DEFAULT_IPMAGIC, $MAIN){
+  }elsif(not $localOnly and isMountPoint $DEFAULT_IPMAGIC, $REMOTE_VIDEOS_DIR){
     $ipmagic = $DEFAULT_IPMAGIC;
   }else{
-    die "\"$MAIN\" not found locally or with \"ipmagic $DEFAULT_IPMAGIC\"\n";
+    die "\"$REMOTE_VIDEOS_DIR\" not found locally or with \"ipmagic $DEFAULT_IPMAGIC\"\n";
   }
-  $mainIpmagic = getIpmagicFile $ipmagic, $MAIN;
+  $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
 
   die "could not find \"main\" locally\n" if $localOnly and defined $ipmagic;
 
@@ -124,7 +124,7 @@ sub main(@){
   print "generating size summary\n";
   updateSizeSummary($ipmagic, $excludes, $sizes);
   if(not $localOnly){
-    run "rsync", "-a", "$mainIpmagic/size-summary", "$MIRROR/size-summary";
+    run "rsync", "-a", "$mainIpmagic/size-summary", "$MIRROR_VIDEOS_DIR/size-summary";
   }
 
   print "\n";
@@ -141,20 +141,20 @@ sub main(@){
     my @rsyncInfo = qw(rsync -L -a --ignore-existing --info=NAME --dry-run);
 
     print "=====\n";
-    print "New LOCAL files: (rsync -n, no excludes, $MIRROR/ => $MAIN/)\n";
-    runQuiet @rsyncInfo, "$MIRROR/", "$mainIpmagic/";
+    print "New LOCAL files: (rsync -n, no excludes, $MIRROR_VIDEOS_DIR/ => $REMOTE_VIDEOS_DIR/)\n";
+    runQuiet @rsyncInfo, "$MIRROR_VIDEOS_DIR/", "$mainIpmagic/";
     print "=====\n\n";
 
     print "=====\n";
-    print "New REMOTE files: (rsync -n, <EXCLUDES>, $MAIN/ => $MIRROR/)\n";
-    runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR/";
+    print "New REMOTE files: (rsync -n, <EXCLUDES>, $REMOTE_VIDEOS_DIR/ => $MIRROR_VIDEOS_DIR/)\n";
+    runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR_VIDEOS_DIR/";
     print "=====\n\n";
 
     my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
 
     print "=====\n";
     print "MODIFIED\n";
-    runQuiet @rsyncInfoExisting, "$MIRROR/", "$MAIN/";
+    runQuiet @rsyncInfoExisting, "$MIRROR_VIDEOS_DIR/", "$REMOTE_VIDEOS_DIR/";
     print "=====\n\n";
 
     my @rsyncReal = qw(rsync -L -avP --ignore-existing);
@@ -162,12 +162,12 @@ sub main(@){
     if($sync){
       print "=====\n";
       print "LOCAL => REMOTE\n";
-      run @rsyncReal, "$MIRROR/", "$mainIpmagic/";
+      run @rsyncReal, "$MIRROR_VIDEOS_DIR/", "$mainIpmagic/";
       print "=====\n\n";
 
       print "=====\n";
       print "REMOTE => LOCAL\n";
-      run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR/";
+      run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR_VIDEOS_DIR/";
       print "=====\n\n";
 
       print "regenerating size summary\n";
@@ -179,18 +179,18 @@ sub main(@){
 
   print "=====\n";
   print "Info cache\n";
-  updateInfoCache $ipmagic, $MAIN, "$MAIN/info-cache";
+  updateInfoCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/info-cache";
   if(not $localOnly){
-    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR/info-cache";
+    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR_VIDEOS_DIR/info-cache";
   }
   print "=====\n\n";
 
   print "=====\n";
   print "Md5sum cache\n";
-  updateMd5sumCache $ipmagic, $MAIN, "$MAIN/md5sum-cache", "$MAIN/md5sum-extra";
+  updateMd5sumCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/md5sum-cache", "$REMOTE_VIDEOS_DIR/md5sum-extra";
   if(not $localOnly){
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR/md5sum-cache";
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR/md5sum-extra";
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
   }
   print "=====\n\n";
 
@@ -406,8 +406,8 @@ sub formatDuration($){
 sub updateSizeSummary($$$){
   my ($ipmagic, $excludes, $sizes) = @_;
   my $fmtInfo = formatSizeSummary($excludes, $sizes);
-  my $mainIpmagic = getIpmagicFile $ipmagic, $MAIN;
-  writeFile $ipmagic, "$MAIN/size-summary", $fmtInfo;
+  my $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
+  writeFile $ipmagic, "$REMOTE_VIDEOS_DIR/size-summary", $fmtInfo;
 }
 
 sub formatSizeSummary($$){
@@ -453,9 +453,9 @@ sub getSizes($){
   for my $cat(@CATEGORIES){
     print "getting sizes for: $cat\n";
     my $catSizes = {};
-    my @files = readProc $ipmagic, "ls", "$MAIN/$cat";
+    my @files = readProc $ipmagic, "ls", "$REMOTE_VIDEOS_DIR/$cat";
     chomp foreach @files;
-    @files = map {"$MAIN/$cat/$_"} @files;
+    @files = map {"$REMOTE_VIDEOS_DIR/$cat/$_"} @files;
 
     if(@files > 0){
       my @lines = readProc $ipmagic, "du", "-s", @files;
@@ -465,7 +465,7 @@ sub getSizes($){
           die "Failed du: $line\n";
         }
         my ($size, $file) = ($1, $2);
-        if($file !~ /^$MAIN\/$cat\/(.+)$/){
+        if($file !~ /^$REMOTE_VIDEOS_DIR\/$cat\/(.+)$/){
           die "Malformed filename from du: $line\n";
         }
         my $fileName = $1;
@@ -479,7 +479,7 @@ sub getSizes($){
 
 sub readExcludeFile($){
   my $ipmagic = shift;
-  my $excludeFile = "$MAIN/exclude";
+  my $excludeFile = "$REMOTE_VIDEOS_DIR/exclude";
   my $excludeFileIpmagic = getIpmagicFile $ipmagic, $excludeFile;
   die "Not found: $excludeFile\n" if not test $ipmagic, "-f", $excludeFile;
   my $excludes = {};
@@ -509,7 +509,7 @@ sub checkExcludes($$){
   for my $cat(sort keys %$excludes){
     for my $file(sort keys %{$$excludes{$cat}}){
       die "Unknown exclude: $cat/$file\n" if not defined $$sizes{$cat}{$file};
-      my $mirrorFile = "$MIRROR/$cat/$file";
+      my $mirrorFile = "$MIRROR_VIDEOS_DIR/$cat/$file";
       push @$unexcluded, $mirrorFile if test undef, "-e", $mirrorFile;
     }
   }
@@ -610,7 +610,7 @@ sub appendFile($$@){
 
 sub gitCmd($@){
   my ($ipmagic, @cmd) = @_;
-  tryrunQuiet getIpmagicCmd $ipmagic, "git", "-C", $MAIN, @cmd;
+  tryrunQuiet getIpmagicCmd $ipmagic, "git", "-C", $REMOTE_VIDEOS_DIR, @cmd;
 }
 
 sub printCmd(@){
