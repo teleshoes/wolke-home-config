@@ -83,10 +83,10 @@ my $CMD_SYNC_REMOTE = "sync-remote";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
-  my $localOnly = 0;
   my $opts = {
     useGit => 1,
     simulate => 1,
+    localOnly => 0,
   };
 
   while(@_ > 0){
@@ -99,7 +99,7 @@ sub main(@){
     }elsif($arg =~ /^(--no-simulate)$/){
       $$opts{simulate} = 0;
     }elsif($arg =~ /^(--local)$/){
-      $localOnly = 1;
+      $$opts{localOnly} = 1;
     }elsif($arg =~ /^(--no-git)$/){
       $$opts{useGit} = 0;
     }else{
@@ -107,9 +107,9 @@ sub main(@){
     }
   }
 
-  die "--no-simulate and --local cannot both be given\n" if not $$opts{simulate} and $localOnly;
+  die "--no-simulate and --local cannot both be given\n" if not $$opts{simulate} and $$opts{localOnly};
 
-  if(not $localOnly){
+  if(not $$opts{localOnly}){
     die "ERROR: $MIRROR_VIDEOS_DIR does not exist\n" if not -d $MIRROR_VIDEOS_DIR;
   }
 
@@ -117,14 +117,14 @@ sub main(@){
   my $mainIpmagic;
   if(isMountPoint undef, $REMOTE_VIDEOS_DIR){
     $ipmagic = undef;
-  }elsif(not $localOnly and isMountPoint $IPMAGIC_NAME, $REMOTE_VIDEOS_DIR){
+  }elsif(not $$opts{localOnly} and isMountPoint $IPMAGIC_NAME, $REMOTE_VIDEOS_DIR){
     $ipmagic = $IPMAGIC_NAME;
   }else{
     die "\"$REMOTE_VIDEOS_DIR\" not found locally or with \"ipmagic $IPMAGIC_NAME\"\n";
   }
   $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
 
-  die "could not find \"main\" locally\n" if $localOnly and defined $ipmagic;
+  die "could not find \"main\" locally\n" if $$opts{localOnly} and defined $ipmagic;
 
   print "reading exclude file\n";
   my $excludes = readExcludeFile($ipmagic);
@@ -135,13 +135,13 @@ sub main(@){
 
   print "generating size summary\n";
   updateSizeSummary($ipmagic, $excludes, $sizes);
-  if(not $localOnly){
+  if(not $$opts{localOnly}){
     run "rsync", "-a", "$mainIpmagic/size-summary", "$MIRROR_VIDEOS_DIR/size-summary";
   }
 
   print "\n";
 
-  if(not $localOnly){
+  if(not $$opts{localOnly}){
     print "=====\n";
     print "Excluded files that are still present:\n";
     my $unexcluded = checkExcludes $excludes, $sizes;
@@ -187,7 +187,7 @@ sub main(@){
   print "=====\n";
   print "Info cache\n";
   updateInfoCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/info-cache";
-  if(not $localOnly){
+  if(not $$opts{localOnly}){
     runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR_VIDEOS_DIR/info-cache";
   }
   print "=====\n\n";
@@ -195,7 +195,7 @@ sub main(@){
   print "=====\n";
   print "Md5sum cache\n";
   updateMd5sumCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/md5sum-cache", "$REMOTE_VIDEOS_DIR/md5sum-extra";
-  if(not $localOnly){
+  if(not $$opts{localOnly}){
     runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
     runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
   }
