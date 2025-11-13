@@ -51,7 +51,6 @@ sub updateSizeSummary($$$);
 sub formatSizeSummary($$);
 sub getSizes($);
 sub readExcludeFile($);
-sub syncExcludeFile($);
 sub checkExcludes($$);
 sub getRsyncExcludes($);
 sub md5($$);
@@ -109,14 +108,6 @@ sub main(@){
   $mainIpmagic = getIpmagicFile $ipmagic, $main;
 
   die "could not find \"main\" locally\n" if $localOnly and defined $ipmagic;
-
-  if($sync and not $localOnly){
-    print "Syncing exclude file\n";
-    print "\n";
-    print "=====\n";
-    syncExcludeFile($ipmagic);
-    print "=====\n\n";
-  }
 
   print "reading exclude file\n";
   my $excludes = readExcludeFile($ipmagic);
@@ -505,34 +496,6 @@ sub readExcludeFile($){
     }
   }
   return $excludes;
-}
-
-sub syncExcludeFile($){
-  my $ipmagic = shift;
-  my $mainExclude = "$main/exclude";
-  my $mirrorExclude = "$mirror/exclude";
-
-  my $mainMd5 = md5 $ipmagic, $mainExclude;
-  my $mirrorMd5 = md5 undef, $mirrorExclude;
-  my $mainExcludeIpmagic = getIpmagicFile($ipmagic, $mainExclude);
-
-  if($mainMd5 ne $mirrorMd5){
-    print "exclude file changed\n";
-    my $mainMod = readProc $ipmagic, "stat", "-c%Y", $mainExclude;
-    chomp $mainMod;
-    my $mirrorMod = readProc undef, "stat", "-c%Y", $mirrorExclude;
-    chomp $mirrorMod;
-
-    if($mirrorMod > $mainMod){
-      print "$mirrorExclude is newer, using that\n";
-      run "rsync", "-avP", $mirrorExclude, $mainExcludeIpmagic;
-    }else{
-      print "$mainExclude is newer, using that\n";
-      run "rsync", "-avP", $mainExcludeIpmagic, $mirrorExclude;
-    }
-  }else{
-    print "exclude file unchanged\n";
-  }
 }
 
 sub checkExcludes($$){
