@@ -61,9 +61,8 @@ my $USAGE = "Usage:
   $0 -h|--help
     show this message
 
-  $0 [OPTS] --sync
-    actually copy files from and to remote
-      localhost:$MIRROR_VIDEOS_DIR <=> $IPMAGIC_NAME:$REMOTE_VIDEOS_DIR
+  $0 [OPTS] --sync | --sync-remote
+    perform bidirectional sync (no files copied without --no-simulate)
 
   $0 [OPTS] --local
     perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
@@ -73,13 +72,21 @@ my $USAGE = "Usage:
   OPTS
     --no-git
       do not perform any git commands
+
+    --no-simulate
+      actually copy files from and to remote
+        localhost:$MIRROR_VIDEOS_DIR <=> $IPMAGIC_NAME:$REMOTE_VIDEOS_DIR
+
 ";
 
+my $CMD_SYNC_REMOTE = "sync-remote";
+
 sub main(@){
-  my $sync = 0;
+  my $cmd = $CMD_SYNC_REMOTE;
   my $localOnly = 0;
   my $opts = {
     useGit => 1,
+    simulate => 1,
   };
 
   while(@_ > 0){
@@ -87,8 +94,10 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^(--sync)$/){
-      $sync = 1;
+    }elsif($arg =~ /^(--sync|--sync-remote)$/){
+      $cmd= $CMD_SYNC_REMOTE;
+    }elsif($arg =~ /^(--no-simulate)$/){
+      $$opts{simulate} = 0;
     }elsif($arg =~ /^(--local)$/){
       $localOnly = 1;
     }elsif($arg =~ /^(--no-git)$/){
@@ -98,7 +107,7 @@ sub main(@){
     }
   }
 
-  die "--sync and --local cannot both be given\n" if $sync and $localOnly;
+  die "--no-simulate and --local cannot both be given\n" if not $$opts{simulate} and $localOnly;
 
   if(not $localOnly){
     die "ERROR: $MIRROR_VIDEOS_DIR does not exist\n" if not -d $MIRROR_VIDEOS_DIR;
@@ -162,7 +171,7 @@ sub main(@){
 
     my @rsyncReal = qw(rsync -L -avP --ignore-existing);
 
-    if($sync){
+    if(not $$opts{simulate}){
       print "=====\n";
       print "LOCAL => REMOTE\n";
       run @rsyncReal, "$MIRROR_VIDEOS_DIR/", "$mainIpmagic/";
