@@ -5,6 +5,8 @@ use Time::HiRes qw(sleep);
 use IPC::Open3;
 use Symbol qw(gensym);
 
+sub syncRemote($);
+sub updateCache($);
 sub readInfoCache($$);
 sub writeInfoCache($$$);
 sub formatInfoLine($$);
@@ -64,22 +66,24 @@ my $USAGE = "Usage:
   $0 [OPTS] --sync | --sync-remote
     perform bidirectional sync (no files copied without --no-simulate)
 
-  $0 [OPTS] --local
+  $0 [OPTS] --cache
     perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
-    assume that the local system is the remote system,
-      so fail if $REMOTE_VIDEOS_DIR is not a mountpoint
 
   OPTS
     --no-git
       do not perform any git commands
 
+    --local
+      only affect the local filesystem
+      fail if $REMOTE_VIDEOS_DIR is not a mountpoint
+
     --no-simulate
       actually copy files from and to remote
         localhost:$MIRROR_VIDEOS_DIR <=> $IPMAGIC_NAME:$REMOTE_VIDEOS_DIR
-
 ";
 
 my $CMD_SYNC_REMOTE = "sync-remote";
+my $CMD_CACHE = "cache";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
@@ -96,6 +100,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--sync|--sync-remote)$/){
       $cmd= $CMD_SYNC_REMOTE;
+    }elsif($arg =~ /^(--cache)$/){
+      $cmd= $CMD_CACHE;
     }elsif($arg =~ /^(--no-simulate)$/){
       $$opts{simulate} = 0;
     }elsif($arg =~ /^(--local)$/){
@@ -112,6 +118,18 @@ sub main(@){
   if(not $$opts{localOnly}){
     die "ERROR: $MIRROR_VIDEOS_DIR does not exist\n" if not -d $MIRROR_VIDEOS_DIR;
   }
+
+  if($cmd eq $CMD_SYNC_REMOTE){
+    syncRemote($opts);
+  }elsif($cmd eq $CMD_CACHE){
+    updateCache($opts);
+  }else{
+    die "ERROR: unknown/missing cmd '$cmd'\n";
+  }
+}
+
+sub syncRemote($){
+  my $opts = @_;
 
   my $ipmagic;
   my $mainIpmagic;
@@ -131,14 +149,6 @@ sub main(@){
   print "\n";
 
   my $sizes = getSizes($ipmagic);
-  print "\n";
-
-  print "generating size summary\n";
-  updateSizeSummary($ipmagic, $excludes, $sizes);
-  if(not $$opts{localOnly}){
-    run "rsync", "-a", "$mainIpmagic/size-summary", "$MIRROR_VIDEOS_DIR/size-summary";
-  }
-
   print "\n";
 
   if(not $$opts{localOnly}){
@@ -182,23 +192,52 @@ sub main(@){
       run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR_VIDEOS_DIR/";
       print "=====\n\n";
     }
+
+    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR_VIDEOS_DIR/info-cache";
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
+    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
   }
+}
+
+sub updateCache($){
+  my $opts = @_;
+
+  my $ipmagic;
+  my $mainIpmagic;
+  if(isMountPoint undef, $REMOTE_VIDEOS_DIR){
+    $ipmagic = undef;
+  }elsif(not $$opts{localOnly} and isMountPoint $IPMAGIC_NAME, $REMOTE_VIDEOS_DIR){
+    $ipmagic = $IPMAGIC_NAME;
+  }else{
+    die "\"$REMOTE_VIDEOS_DIR\" not found locally or with \"ipmagic $IPMAGIC_NAME\"\n";
+  }
+  $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
+
+  die "could not find \"main\" locally\n" if $$opts{localOnly} and defined $ipmagic;
+
+  print "reading exclude file\n";
+  my $excludes = readExcludeFile($ipmagic);
+  print "\n";
+
+  my $sizes = getSizes($ipmagic);
+  print "\n";
+
+
+  print "generating size summary\n";
+  updateSizeSummary($ipmagic, $excludes, $sizes);
+  if(not $$opts{localOnly}){
+    run "rsync", "-a", "$mainIpmagic/size-summary", "$MIRROR_VIDEOS_DIR/size-summary";
+  }
+  print "\n";
 
   print "=====\n";
   print "Info cache\n";
   updateInfoCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/info-cache";
-  if(not $$opts{localOnly}){
-    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR_VIDEOS_DIR/info-cache";
-  }
   print "=====\n\n";
 
   print "=====\n";
   print "Md5sum cache\n";
   updateMd5sumCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/md5sum-cache", "$REMOTE_VIDEOS_DIR/md5sum-extra";
-  if(not $$opts{localOnly}){
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
-  }
   print "=====\n\n";
 
   if($$opts{useGit}){
