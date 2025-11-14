@@ -24,9 +24,6 @@ sub updateMd5sumCache($$$);
 sub parseDuration($);
 sub formatDuration($);
 sub getSizes();
-sub readExcludeFile();
-sub checkExcludes($$);
-sub getRsyncExcludes($);
 sub md5($);
 sub fmtSize($);
 sub isMountPoint($$);
@@ -649,58 +646,6 @@ sub getSizes(){
     $$sizes{$cat} = $catSizes;
   }
   return $sizes;
-}
-
-sub readExcludeFile(){
-  my $excludeFile = "$BASE_DIR/exclude";
-  die "Not found: $excludeFile\n" if not -f $excludeFile;
-  my $excludes = {};
-  $$excludes{$_} = {} foreach @ALL_CATEGORIES;
-  my $cat;
-  for my $line(readFile $excludeFile){
-    chomp $line;
-    $line =~ s/#.*//;
-    next if $line =~ /^\s*$/;
-    if($line =~ /^($OK_CATS)$/){
-      $cat = $line;
-    }elsif($line =~ /^-/){
-      $line =~ s/^-//;
-      die "Missing category\n" if not defined $cat;
-      die "Unknown category\n" if not defined $$excludes{$cat};
-      $$excludes{$cat}{$line} = 1;
-    }else{
-      die "Malformed line: $line\n";
-    }
-  }
-  return $excludes;
-}
-
-sub checkExcludes($$){
-  my ($excludes, $sizes) = @_;
-  my $unexcluded = [];
-  for my $cat(sort keys %$excludes){
-    for my $file(sort keys %{$$excludes{$cat}}){
-      die "Unknown exclude: $cat/$file\n" if not defined $$sizes{$cat}{$file};
-      my $mirrorFile = "$BASE_DIR/$cat/$file";
-      push @$unexcluded, $mirrorFile if -e $mirrorFile;
-    }
-  }
-  return $unexcluded;
-}
-
-sub getRsyncExcludes($){
-  my ($excludes) = @_;
-  my $rsyncExcludes = [];
-  for my $cat(sort keys %$excludes){
-    for my $file(sort keys %{$$excludes{$cat}}){
-      my $ex = "$cat/$file";
-      $ex =~ s/\[/\\\[/g;
-      $ex =~ s/\]/\\\]/g;
-      push @$rsyncExcludes, "--exclude=$ex";
-    }
-  }
-  push @$rsyncExcludes, "--exclude=.git*";
-  return $rsyncExcludes;
 }
 
 sub md5($){
