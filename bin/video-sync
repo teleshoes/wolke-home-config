@@ -3,8 +3,6 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(sleep);
-use IPC::Open3;
-use Symbol qw(gensym);
 my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
 sub syncRemote($);
@@ -35,7 +33,6 @@ sub tryrunQuiet(@);
 sub runQuiet(@);
 sub runPrompt(@);
 sub readProc(@);
-sub readProcStdout($$);
 sub nowMillis();
 
 my $BASE_DIR = "/media/videos";
@@ -705,15 +702,10 @@ sub runPrompt(@){
 }
 
 sub readProc(@){
-  my (@cmd) = @_;
-  return readProcStdout \@cmd, ">&STDERR";
-}
-sub readProcStdout($$){
-  my ($cmd, $stderr) = @_;
-  my @cmdArr = @$cmd;
-  my $pid = open3(gensym, \*OUT, $stderr, @cmdArr);
-  my @lines = <OUT>;
-  waitpid($pid, 0);
+  my @cmd = @_;
+  open my $cmdH, "-|", @cmd or die "ERROR: could not run @_\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
   if(wantarray){
     return @lines;
   }else{
