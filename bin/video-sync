@@ -20,7 +20,7 @@ sub updateInfoCache($$);
 sub readMd5sumCache($);
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
-sub updateMd5sumCache($$$);
+sub updateMd5sumCache($$);
 sub parseDuration($);
 sub formatDuration($);
 sub getSizes();
@@ -405,7 +405,7 @@ sub updateCache($){
 
   print "=====\n";
   print "Md5sum cache\n";
-  updateMd5sumCache $BASE_DIR, "$BASE_DIR/md5sum-cache", "$BASE_DIR/md5sum-extra";
+  updateMd5sumCache $BASE_DIR, "$BASE_DIR/md5sum-cache";
   print "=====\n\n";
 
   if($$opts{useGit}){
@@ -528,8 +528,8 @@ sub formatMd5sumLine($$){
   die "missing $file\n" if not defined $f;
   return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
 }
-sub updateMd5sumCache($$$){
-  my ($dir, $md5sumCacheFile, $md5sumExtraFile) = @_;
+sub updateMd5sumCache($$){
+  my ($dir, $md5sumCacheFile) = @_;
   my $md5sums = readMd5sumCache $md5sumCacheFile;
 
   print "fetching all mtimes and filesizes\n";
@@ -559,28 +559,15 @@ sub updateMd5sumCache($$$){
 
   my %okFiles = map {$_ => 1} @files;
 
-  my @extraMd5sums;
   for my $file(sort keys %$md5sums){
     my $info = $$md5sums{$file};
-    my $isExtra = 0;
     if(not defined $okFiles{$file}){
-      print "$file is not present, moving cache entry to extra\n";
-      $isExtra = 1;
+      print "$file is not present, deleting md5 cache entry\n";
+      delete $$md5sums{$file};
     }elsif($mtimes{$file} != $$info{mtime} or $sizes{$file} != $$info{size}){
-      print "$file is out of date, moving cache entry to extra\n";
-      $isExtra = 1;
-    }
-
-    if($isExtra){
-      push @extraMd5sums, formatMd5sumLine $md5sums, $file;
+      print "$file is out of date, deleting md5 cache entry\n";
       delete $$md5sums{$file};
     }
-  }
-
-  if(@extraMd5sums > 0){
-    print "appending " . (0+@extraMd5sums) . " extras to $md5sumExtraFile\n";
-    appendFile $md5sumExtraFile, @extraMd5sums;
-    writeMd5sumCache $md5sumCacheFile, $md5sums;
   }
 
   my @missingFiles = sort grep {not defined $$md5sums{$_}} @files;
