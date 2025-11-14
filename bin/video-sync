@@ -20,12 +20,15 @@ sub readMd5sumCache($);
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
 sub updateMd5sumCache($$$);
+sub readDurationCache();
 sub handleUpdateCache($$@);
 sub gitCommitFile($$$);
 sub isGitFileUnstaged($$);
 sub getSizeMtime($$);
 sub parseDuration($);
 sub formatDuration($);
+sub getDuration($);
+sub formatDurationHMS($);
 sub md5sumFile($);
 sub readFile($);
 sub writeFile($@);
@@ -43,8 +46,12 @@ my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
 my $FILE_CACHE_STAT = "$INFO_DIR/cache-stat";
+my $FILE_CACHE_DURATION = "$INFO_DIR/cache-duration";
 
 my $TMP_PREFIX_CACHE_STAT = "/tmp/video-sync-cache-stat";
+my $TMP_PREFIX_CACHE_DURATION = "/tmp/video-sync-cache-duration";
+
+my $DURATION_EXEC = "duration";
 
 my @DEFAULT_SYNC_EXCLUDE_ARGS = qw(extras/ highres/);
 
@@ -64,6 +71,14 @@ my @NONSYNC_CATEGORIES = qw(
 );
 my @ALL_CATEGORIES = sort(@SYNC_CATEGORIES, @NONSYNC_CATEGORIES);
 my $OK_CATS = join "|", @ALL_CATEGORIES;
+
+my @DURATION_EXTS = qw(
+  mkv avi mp4 mpg webm
+  3gp flv divx mov m4v smv wmv
+  iso m2ts vob
+  flac m4a m4b mp3 ogg opus wav
+);
+my $DURATION_EXT_REGEX = join "|", @DURATION_EXTS;
 
 my $EXEC = basename $0;
 
@@ -121,7 +136,7 @@ my $USAGE = "Usage:
         lowercase letters, numbers, underscores, and dashes
 
   $EXEC [OPTS] --cache
-    same as: $EXEC --cache-stat && $EXEC --cache-info && $EXEC --cache-md5sum
+    same as: $EXEC --cache-stat && $EXEC --cache-info && $EXEC --cache-md5sum && $EXEC --cache-duration
 
   $EXEC [OPTS] --cache-stat
     cache mtime and filesize for all regular files
@@ -139,6 +154,26 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --cache-md5sum
     calculate MD5SUM for each file in $BASE_DIR
+
+  $EXEC [OPTS] --cache-duration
+    calculate and cache MD5SUM for all regular files
+    as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
+             -type f -exec md5sum {} \\;
+    -get ALL_FILES as in: $EXEC --list-files
+    -read (CACHE_DURATION_FRAC_S, CACHE_FILE) entries from $FILE_CACHE_DURATION
+    -for each FILE in ALL_FILES, get DURATION_FRAC_S
+      -use CACHE_DURATION if FILE matches CACHE_FILE
+      -use '-' if FILE does not end in one of the following extensions:
+        @DURATION_EXTS
+      -otherwise, calculate with `duration <FILE>`
+        -use '-' if duration is unknown
+    -convert DURATION_FRAC_S to DURATION_FMT as 'HH:MM:SS' (or '-')
+    -write duration entries to $FILE_CACHE_DURATION
+      -convert DURATION to DURATION_HMS as 'HH:MM:SS'
+      -convert DURATION to DURATION_FRAC_S as 'S.FFFFFF'
+      -format as: \"<DURATION_HMS> , <DURATION_FRAC_S> , <FILE>\", one per line
+      -if --simulate is given, write only to $TMP_PREFIX_CACHE_DURATION-<NOW_MILLIS>
+    -git commit $FILE_CACHE_DURATION unless --simulate or --no-git is given
 
   $EXEC [OPTS] --list-files
     list all regular files in all categories, following symlinks
@@ -159,7 +194,7 @@ my $USAGE = "Usage:
       do no print each symlink command in --build-local-sync-dir
 
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
-      do not actually sync media files or write cache files in --cache-stat
+      do not actually sync media files or write cache files in --cache-stat+--cache-duration
       implies --no-git
         -run rsync commands with --dry-run in --sync-remote
         -do not write cache files in $INFO_DIR
@@ -207,6 +242,7 @@ my $CMD_LIST_FILES = "list-files";
 my $CACHE_TYPE_STAT = "stat";
 my $CACHE_TYPE_INFO = "info";
 my $CACHE_TYPE_MD5SUM = "md5sum";
+my $CACHE_TYPE_DURATION = "duration";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
@@ -235,7 +271,7 @@ sub main(@){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd = $CMD_CACHE;
-      @cacheTypes = ($CACHE_TYPE_STAT, $CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM);
+      @cacheTypes = ($CACHE_TYPE_STAT, $CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM, $CACHE_TYPE_DURATION);
     }elsif($arg =~ /^(--cache-stat)$/){
       $cmd = $CMD_CACHE;
       @cacheTypes = ($CACHE_TYPE_STAT);
@@ -245,6 +281,9 @@ sub main(@){
     }elsif($arg =~ /^(--cache-md5sum)$/){
       $cmd = $CMD_CACHE;
       @cacheTypes = ($CACHE_TYPE_MD5SUM);
+    }elsif($arg =~ /^(--cache-duration)$/){
+      $cmd = $CMD_CACHE;
+      @cacheTypes = ($CACHE_TYPE_DURATION);
     }elsif($arg =~ /^(--list-files)$/){
       $cmd = $CMD_LIST_FILES;
     }elsif($arg =~ /^(-q|--quiet)$/){
@@ -288,7 +327,7 @@ sub main(@){
     @allFiles = sort @allFiles;
 
     for my $cacheType(@cacheTypes){
-      if($cacheType eq $CACHE_TYPE_STAT){
+      if($cacheType eq $CACHE_TYPE_STAT or $cacheType eq $CACHE_TYPE_DURATION){
         handleUpdateCache($opts, $cacheType, @allFiles);
       }elsif($cacheType eq $CACHE_TYPE_INFO){
         print "=====\n";
@@ -463,6 +502,25 @@ sub readStatCache(){
     }
   }
   return $cacheStat;
+}
+
+sub readDurationCache(){
+  my $cacheDuration = {};
+  if(-f $FILE_CACHE_DURATION){
+    for my $line(readFile($FILE_CACHE_DURATION)){
+      if($line !~ /^\s*(\d\d:\d\d:\d\d|-|\?)\s*,\s*(\d+|\d*\.\d+|-|\?)\s*,\s*(\S.*)$/){
+        die "ERROR: malformed line in $FILE_CACHE_DURATION\n$line";
+      }
+      my ($durHMS, $durS, $file) = ($1, $2, $3);
+      if(defined $$cacheDuration{$file}){
+        die "ERROR: dupe file in $FILE_CACHE_DURATION \"$file\"\n";
+      }
+      $$cacheDuration{$file} = {
+        duration => $durS,
+      };
+    }
+  }
+  return $cacheDuration;
 }
 
 sub readInfoCache($){
@@ -653,11 +711,14 @@ sub updateMd5sumCache($$$){
 sub handleUpdateCache($$@){
   my ($opts, $cacheType, @files) = @_;
 
-  my ($cacheStat) = (undef);
+  my ($cacheStat, $cacheDuration) = (undef, undef);
   my ($destCacheFile, $tmpFilePrefix) = (undef, undef);
   if($cacheType eq $CACHE_TYPE_STAT){
     $cacheStat = readStatCache();
     ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_STAT, $TMP_PREFIX_CACHE_STAT);
+  }elsif($cacheType eq $CACHE_TYPE_DURATION){
+    $cacheDuration = readDurationCache();
+    ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_DURATION, $TMP_PREFIX_CACHE_DURATION);
   }else{
     die "ERROR: unknown cache type $cacheType\n";
   }
@@ -686,6 +747,26 @@ sub handleUpdateCache($$@){
       }
       my ($fsBytes, $mtime) = getSizeMtime("$BASE_DIR/$file", 1);
       $cacheLine = sprintf("%d , %12db , %s\n", $mtime, $fsBytes, $file);
+    }elsif($cacheType eq $CACHE_TYPE_DURATION){
+      my ($durS, $durHMS) = (undef, undef);
+
+      if(defined $$cacheDuration{$file}){
+        $durS = $$cacheDuration{$file}{duration};
+      }elsif($file =~ /\.($DURATION_EXT_REGEX)$/i){
+        print "\n" if $needsNewline;
+        print "  new file: $file\n";
+        $needsNewline = 0;
+        $durS = getDuration("$BASE_DIR/$file");
+      }
+
+      if(defined $durS and $durS =~ /^(\d+|\d*\.\d+)$/){
+        $durHMS = formatDurationHMS($durS);
+        $durS = sprintf "%13.6f", $durS;
+      }else{
+        $durHMS = "-";
+        $durS = "-";
+      }
+      $cacheLine = sprintf("%8s , %13s , %s\n", $durHMS, $durS, $file);
     }else{
       die "ERROR: unknown cache type $cacheType\n";
     }
@@ -767,6 +848,27 @@ sub formatDuration($){
   my $m = int($dur/60) - ($h*60);
   my $s = $dur - ($h*60*60) - ($m*60);
   return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
+}
+
+sub getDuration($){
+  my ($file) = @_;
+  my $duration = readProc $DURATION_EXEC, "--seconds", "--nofilename", $file;
+  chomp $duration;
+  if($duration =~ /^(\d+|\d*\.\d+)$/){
+    return $1;
+  }else{
+    return undef;
+  }
+}
+
+sub formatDurationHMS($){
+  my ($duration) = @_;
+  my $durS = int($duration + 0.5);
+  return sprintf "%02d:%02d:%02d",
+    int($durS / 60 / 60),
+    int($durS / 60 % 60),
+    int($durS % 60),
+  ;
 }
 
 sub md5sumFile($){
