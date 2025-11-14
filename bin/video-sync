@@ -98,11 +98,15 @@ my $USAGE = "Usage:
               :TMP_SYMLINKS_DIR/CATEGORY/ \\
               $BASE_DIR/CATEGORY/ \\
               EXCLUDE_ARGS \\
+              MAYBE_DELETE_ARG \\
               MAYBE_SIMULATE_ARG \\
             ;
     EXCLUDE_ARGS
       default is: " . join(" ", map{"--exclude $_"} @DEFAULT_SYNC_EXCLUDE_ARGS) . "
       see: --sync-excludes
+    MAYBE_DELETE_ARG
+      '--del' if --sync-del is given, otherwise empty
+      does not override --simulate (nothing will be deleted with --simulate)
     MAYBE_SIMULATE_ARG
       if --simulate is given '--dry-run', otherwise ''
       (append '--dry-run' to rsync commands on --simulate)
@@ -154,6 +158,9 @@ my $USAGE = "Usage:
         NOTE: simple csv parsing without quotes/escapes is used if Text::CSV is not found
         the default is:
           " . join(",", @DEFAULT_SYNC_EXCLUDE_ARGS) . "
+
+    --del | --delete | --sync-del | --sync-delete
+      pass '--del' to rsync commands in --sync-remote
 ";
 
 my $CMD_SYNC_REMOTE = "sync-remote";
@@ -168,6 +175,7 @@ sub main(@){
     useGit => 1,
     localOnly => 0,
     syncExcludeArgs => [@DEFAULT_SYNC_EXCLUDE_ARGS],
+    syncDelete      => 0,
   };
 
   while(@_ > 0){
@@ -196,6 +204,8 @@ sub main(@){
     }elsif($arg =~ /^--sync-excludes=(.+)$/){
       my $csv = $1;
       $$opts{syncExcludeArgs} = [parseCsvRow($csv)],
+    }elsif($arg =~ /^(--del|--delete|--sync-del|--sync-delete)$/){
+      $$opts{syncDelete} = 1;
     }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR
              and not defined $syncName and $arg =~ /^(sync[a-z0-9_\-]*)$/){
       $syncName = $arg
@@ -234,6 +244,7 @@ sub syncRemote($){
 
   my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
   my @excludeArgs = map {("--exclude", $_)} @{$$opts{syncExcludeArgs}};
+  my @maybeDeleteArg = $$opts{syncDelete} ? ("--del") : ();
 
   for my $cat(@SYNC_CATEGORIES){
     print "\n\n$cat:\n";
@@ -243,6 +254,7 @@ sub syncRemote($){
       ":$tmpSymlinksDir/$cat/",
       "$BASE_DIR/$cat/",
       @excludeArgs,
+      @maybeDeleteArg,
       @maybeSimulateArg,
     ;
   }
