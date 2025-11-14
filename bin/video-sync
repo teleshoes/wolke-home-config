@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(sleep);
+use Digest::MD5 qw();
 my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
 sub syncRemote($);
@@ -22,7 +23,7 @@ sub updateMd5sumCache($$);
 sub parseDuration($);
 sub formatDuration($);
 sub getSizes();
-sub md5($);
+sub md5sumFile($);
 sub readFile($);
 sub writeFile($@);
 sub appendFile($@);
@@ -572,7 +573,7 @@ sub updateMd5sumCache($$){
 
   for my $file(@missingFiles){
     print "fetching md5sum for: $file\n";
-    my $md5 = md5 "$dir/$file";
+    my $md5 = md5sumFile "$dir/$file";
     $$md5sums{$file} = {md5sum=>$md5, size=>$sizes{$file}, mtime=>$mtimes{$file}};
     writeMd5sumCache $md5sumCacheFile, $md5sums;
   }
@@ -626,14 +627,14 @@ sub getSizes(){
   return $sizes;
 }
 
-sub md5($){
+sub md5sumFile($){
   my ($file) = @_;
-  my $md5 = readProc "md5sum", $file;
-  if($md5 =~ /^([0-9a-f]{32})\s*/){
-    return $1;
-  }else{
-    die "Error finding md5sum for: $file\n";
-  }
+  my $d = Digest::MD5->new();
+  open my $fh, "<", $file or die "ERROR: could not read $file\n$!\n";
+  $d->addfile($fh);
+  my $digest = $d->hexdigest();
+  close $fh;
+  return $digest;
 }
 
 sub readFile($){
