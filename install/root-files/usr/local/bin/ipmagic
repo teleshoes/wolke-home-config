@@ -119,6 +119,15 @@ my $USAGE = "Usage:
       -if no matching <CONF> file is found:
         fail and exit with an error code
 
+    $EXEC --get-ipmagic-name-aliases
+      -get local <HOSTNAME> with: `$EXEC_HOSTNAME`
+      -get all <CONF> files, sorted regular-file-first, as in:
+        $EXEC --list
+      -if no matching <CONF> file is found:
+        fail and exit with an error code
+      -for every <CONF> file with 'hostname' that exactly matches <HOSTNAME>:
+        print <IPMAGIC_NAME>, one per line
+
     $EXEC IPMAGIC_NAME [OPTS] --host
       print the CONF hostname and exit, doing nothing else
 
@@ -368,6 +377,7 @@ sub main(@){
     retries       => $DEFAULT_RETRIES,
     sshExec       => $DEFAULT_SSH_EXEC,
     extraSSHArgs  => [],
+    listAliases   => 0,
   );
   while(@_ > 0){
     my $arg = shift @_;
@@ -393,6 +403,10 @@ sub main(@){
       $opts{cmd} = $CMD_LIST;
     }elsif($arg =~ /^(--get-ipmagic-name)$/){
       $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
+      $opts{listAliases} = 0;
+    }elsif($arg =~ /^(--get-ipmagic-name-aliases)$/){
+      $opts{cmd} = $CMD_GET_IPMAGIC_NAME;
+      $opts{listAliases} = 1;
     }elsif($arg =~ /^($REGEX_EXISTING_IPMAGIC_NAMES)$/){
       die "$USAGE\nERROR: IPAMGIC_NAME already defined\n" if defined $opts{ipmagicName};
       $opts{ipmagicName} = $arg;
@@ -529,7 +543,11 @@ sub main(@){
     if(@ipmagicNames == 0){
       die "ERROR: could not find matching CONF file\n";
     }
-    print $ipmagicNames[0] . "\n";
+    if($opts{listAliases}){
+      print "$_\n" foreach @ipmagicNames;
+    }else{
+      print $ipmagicNames[0] . "\n";
+    }
   }elsif($opts{cmd} eq $CMD_GET_HOST){
     print "$config{hostname}\n";
   }elsif($opts{cmd} eq $CMD_GET_VNC_DEFAULT_ARGS){
