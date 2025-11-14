@@ -13,43 +13,39 @@ sub readIncludeFile();
 sub buildLocalSyncDir($$$);
 sub findAllFiles();
 sub updateCache($);
-sub readInfoCache($$);
-sub writeInfoCache($$$);
+sub readInfoCache($);
+sub writeInfoCache($$);
 sub formatInfoLine($$);
-sub updateInfoCache($$$);
-sub readMd5sumCache($$);
-sub writeMd5sumCache($$$);
+sub updateInfoCache($$);
+sub readMd5sumCache($);
+sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
-sub updateMd5sumCache($$$$);
+sub updateMd5sumCache($$$);
 sub parseDuration($);
 sub formatDuration($);
-sub getSizes($);
-sub readExcludeFile($);
+sub getSizes();
+sub readExcludeFile();
 sub checkExcludes($$);
 sub getRsyncExcludes($);
-sub md5($$);
+sub md5($);
 sub fmtSize($);
 sub isMountPoint($$);
-sub test($@);
-sub getIpmagicCmd($@);
-sub getIpmagicFile($$);
-sub readFile($$);
-sub writeFile($$@);
-sub appendFile($$@);
-sub gitCmd($@);
+sub readFile($);
+sub writeFile($@);
+sub appendFile($@);
+sub gitCmd(@);
 sub printCmd(@);
 sub run(@);
 sub tryrunQuiet(@);
 sub runQuiet(@);
 sub runPrompt(@);
-sub readProc($@);
-sub readProcSilent($@);
-sub readProcStdout($$$);
+sub readProc(@);
+sub readProcSilent(@);
+sub readProcStdout($$);
 sub nowMillis();
 
 my $REMOTE_VIDEOS_DIR = "/media/videos";
 my $MIRROR_VIDEOS_DIR = "/media/stuff/Videos";
-my $IPMAGIC_NAME = "tv";
 
 my $BASE_DIR = "/media/videos";
 my $INFO_DIR = "$BASE_DIR/zzz_info";
@@ -133,7 +129,7 @@ my $USAGE = "Usage:
         lowercase letters, numbers, underscores, and dashes
 
   $EXEC [OPTS] --cache
-    perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
+    perform info/md5sum updates of $REMOTE_VIDEOS_DIR on local filesystem
 
   $EXEC [OPTS] --list-files
     list all regular files in all categories, following symlinks
@@ -156,14 +152,10 @@ my $USAGE = "Usage:
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
       only run rsync commands with --dry-run in --sync-remote
       do not actually copy files from and to remote
-        localhost:$MIRROR_VIDEOS_DIR <=> $IPMAGIC_NAME:$REMOTE_VIDEOS_DIR
+        localhost:$MIRROR_VIDEOS_DIR <=> <IPMAGIC_NAME>:$REMOTE_VIDEOS_DIR
 
     --no-git
       do not perform any git commands
-
-    --local
-      only affect the local filesystem
-      fail if $REMOTE_VIDEOS_DIR is not a mountpoint
 
     -c CATEGORY_CSV
     --sync-categories=CATEGORY_CSV
@@ -208,7 +200,6 @@ sub main(@){
     quiet           => 0,
     simulate        => 0,
     useGit          => 1,
-    localOnly       => 0,
     syncCategories  => [@SYNC_CATEGORIES],
     syncExcludeArgs => [@DEFAULT_SYNC_EXCLUDE_ARGS],
     syncDelete      => 0,
@@ -234,8 +225,6 @@ sub main(@){
       $$opts{quiet} = 1;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
       $$opts{simulate} = 1;
-    }elsif($arg =~ /^(--local)$/){
-      $$opts{localOnly} = 1;
     }elsif($arg =~ /^(--no-git)$/){
       $$opts{useGit} = 0;
     }elsif($arg =~ /^(-c)$/ and @_ > 0){
@@ -279,7 +268,7 @@ sub main(@){
 
 sub syncRemote($){
   my ($opts) = @_;
-  my $ipmagicName = readFile undef, $FILE_REMOTE_MIRROR_IPMAGIC_NAME;
+  my $ipmagicName = readFile $FILE_REMOTE_MIRROR_IPMAGIC_NAME;
   chomp $ipmagicName;
   if($ipmagicName !~ /^(\w+)$/){
     die "ERROR: invalid/missing IPMAGIC_NAME\n";
@@ -333,7 +322,7 @@ sub parseCsvRow($){
 
 sub readIncludeFile(){
   my $mediaNamesByCategory = {};
-  my @lines = readFile(undef, $FILE_INCLUDE_SYNC);
+  my @lines = readFile($FILE_INCLUDE_SYNC);
   for my $line(@lines){
     chomp $line;
     next if $line =~ /^\s*$/;
@@ -404,7 +393,7 @@ sub findAllFiles(){
     "-not", "-path", "*/zzz_info/*",
   );
 
-  my @files = readProc undef, @findCmd;
+  my @files = readProc @findCmd;
   chomp foreach @files;
 
   s/^$BASE_DIR\/+// foreach @files;
@@ -414,45 +403,32 @@ sub findAllFiles(){
 sub updateCache($){
   my $opts = @_;
 
-  my $ipmagic;
-  my $mainIpmagic;
-  if(isMountPoint undef, $REMOTE_VIDEOS_DIR){
-    $ipmagic = undef;
-  }elsif(not $$opts{localOnly} and isMountPoint $IPMAGIC_NAME, $REMOTE_VIDEOS_DIR){
-    $ipmagic = $IPMAGIC_NAME;
-  }else{
-    die "\"$REMOTE_VIDEOS_DIR\" not found locally or with \"ipmagic $IPMAGIC_NAME\"\n";
-  }
-  $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
-
-  die "could not find \"main\" locally\n" if $$opts{localOnly} and defined $ipmagic;
-
-  my $sizes = getSizes($ipmagic);
+  my $sizes = getSizes();
   print "\n";
 
   print "=====\n";
   print "Info cache\n";
-  updateInfoCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/info-cache";
+  updateInfoCache $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/info-cache";
   print "=====\n\n";
 
   print "=====\n";
   print "Md5sum cache\n";
-  updateMd5sumCache $ipmagic, $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/md5sum-cache", "$REMOTE_VIDEOS_DIR/md5sum-extra";
+  updateMd5sumCache $REMOTE_VIDEOS_DIR, "$REMOTE_VIDEOS_DIR/md5sum-cache", "$REMOTE_VIDEOS_DIR/md5sum-extra";
   print "=====\n\n";
 
   if($$opts{useGit}){
     print "=====\n";
     print "Git repo\n";
-    gitCmd $ipmagic, "commit", "-a", "-m", "automatic commit";
+    gitCmd "commit", "-a", "-m", "automatic commit";
     print "=====\n\n";
   }
 }
 
-sub readInfoCache($$){
-  my ($ipmagic, $cacheFile) = @_;
+sub readInfoCache($){
+  my ($cacheFile) = @_;
   my $cache = {};
-  if(test $ipmagic, "-e", $cacheFile){
-    my @lines = readFile $ipmagic, $cacheFile;
+  if(-e $cacheFile){
+    my @lines = readFile $cacheFile;
     for my $line(@lines){
       next if $line =~ /^\s*$/;
       chomp $line;
@@ -472,10 +448,10 @@ sub readInfoCache($$){
   }
   return $cache;
 }
-sub writeInfoCache($$$){
-  my ($ipmagic, $cacheFile, $cache) = @_;
+sub writeInfoCache($$){
+  my ($cacheFile, $cache) = @_;
   my @lines = map{formatInfoLine($cache, $_)} sort keys %$cache;
-  writeFile $ipmagic, $cacheFile, @lines;
+  writeFile $cacheFile, @lines;
 }
 sub formatInfoLine($$){
   my ($cache, $file) = @_;
@@ -486,11 +462,11 @@ sub formatInfoLine($$){
   my $durFmt = formatDuration $dur;
   return "${sizeFmt}k | ${durFmt} | $file\n";
 }
-sub updateInfoCache($$$){
-  my ($ipmagic, $dir, $cacheFile) = @_;
-  my $cache = readInfoCache $ipmagic, $cacheFile;
+sub updateInfoCache($$){
+  my ($dir, $cacheFile) = @_;
+  my $cache = readInfoCache $cacheFile;
 
-  my @files = readProc $ipmagic, "find",
+  my @files = readProc "find",
     "-L",
     $dir,
     "-not", "-path", "$dir/.git*",
@@ -505,32 +481,32 @@ sub updateInfoCache($$$){
     if(not defined $okFiles{$file}){
       delete $$cache{$file};
       print "Remove: $file\n";
-      writeInfoCache $ipmagic, $cacheFile, $cache;
+      writeInfoCache $cacheFile, $cache;
     }
   }
 
   for my $file(sort @files){
     if(not defined $$cache{$file}){
-      my $size = readProc $ipmagic, "du", "-s", "$dir/$file";
+      my $size = readProc "du", "-s", "$dir/$file";
       chomp $size;
       $size = $size =~ /^(\d+)\s/ ? $1 : undef;
 
-      my $dur = readProcSilent $ipmagic, "duration", "-s", "$dir/$file";
+      my $dur = readProcSilent "duration", "-s", "$dir/$file";
       chomp $dur;
       $dur = $dur =~ /^(\d+\.\d+)\s/ ? $1 : undef;
 
       $$cache{$file} = [$size, $dur];
       print "Add: " . formatInfoLine($cache, $file);
-      writeInfoCache $ipmagic, $cacheFile, $cache;
+      writeInfoCache $cacheFile, $cache;
     }
   }
 }
 
-sub readMd5sumCache($$){
-  my ($ipmagic, $cacheFile) = @_;
+sub readMd5sumCache($){
+  my ($cacheFile) = @_;
   my $cache = {};
-  if(test $ipmagic, "-e", $cacheFile){
-    my @lines = readFile $ipmagic, $cacheFile;
+  if(-e $cacheFile){
+    my @lines = readFile $cacheFile;
     for my $line(@lines){
       next if $line =~ /^\s*$/;
       chomp $line;
@@ -549,10 +525,10 @@ sub readMd5sumCache($$){
   }
   return $cache;
 }
-sub writeMd5sumCache($$$){
-  my ($ipmagic, $cacheFile, $cache) = @_;
+sub writeMd5sumCache($$){
+  my ($cacheFile, $cache) = @_;
   my @lines = map{formatMd5sumLine($cache, $_)} sort keys %$cache;
-  writeFile $ipmagic, $cacheFile, @lines;
+  writeFile $cacheFile, @lines;
 }
 sub formatMd5sumLine($$){
   my ($cache, $file) = @_;
@@ -560,12 +536,12 @@ sub formatMd5sumLine($$){
   die "missing $file\n" if not defined $f;
   return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
 }
-sub updateMd5sumCache($$$$){
-  my ($ipmagic, $dir, $md5sumCacheFile, $md5sumExtraFile) = @_;
-  my $md5sums = readMd5sumCache $ipmagic, $md5sumCacheFile;
+sub updateMd5sumCache($$$){
+  my ($dir, $md5sumCacheFile, $md5sumExtraFile) = @_;
+  my $md5sums = readMd5sumCache $md5sumCacheFile;
 
   print "fetching all mtimes and filesizes\n";
-  my @fileStats = readProc $ipmagic, "find",
+  my @fileStats = readProc "find",
     "-L",
     $dir,
     "-not", "-path", "$dir/.git*",
@@ -611,8 +587,8 @@ sub updateMd5sumCache($$$$){
 
   if(@extraMd5sums > 0){
     print "appending " . (0+@extraMd5sums) . " extras to $md5sumExtraFile\n";
-    appendFile $ipmagic, $md5sumExtraFile, @extraMd5sums;
-    writeMd5sumCache $ipmagic, $md5sumCacheFile, $md5sums;
+    appendFile $md5sumExtraFile, @extraMd5sums;
+    writeMd5sumCache $md5sumCacheFile, $md5sums;
   }
 
   my @missingFiles = sort grep {not defined $$md5sums{$_}} @files;
@@ -624,9 +600,9 @@ sub updateMd5sumCache($$$$){
 
   for my $file(@missingFiles){
     print "fetching md5sum for: $file\n";
-    my $md5 = md5 $ipmagic, "$dir/$file";
+    my $md5 = md5 "$dir/$file";
     $$md5sums{$file} = {md5sum=>$md5, size=>$sizes{$file}, mtime=>$mtimes{$file}};
-    writeMd5sumCache $ipmagic, $md5sumCacheFile, $md5sums;
+    writeMd5sumCache $md5sumCacheFile, $md5sums;
   }
 }
 
@@ -649,18 +625,17 @@ sub formatDuration($){
   return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
 }
 
-sub getSizes($){
-  my $ipmagic = shift;
+sub getSizes(){
   my $sizes = {};
   for my $cat(@ALL_CATEGORIES){
     print "getting sizes for: $cat\n";
     my $catSizes = {};
-    my @files = readProc $ipmagic, "ls", "$REMOTE_VIDEOS_DIR/$cat";
+    my @files = readProc "ls", "$REMOTE_VIDEOS_DIR/$cat";
     chomp foreach @files;
     @files = map {"$REMOTE_VIDEOS_DIR/$cat/$_"} @files;
 
     if(@files > 0){
-      my @lines = readProc $ipmagic, "du", "-s", @files;
+      my @lines = readProc "du", "-s", @files;
 
       for my $line(@lines){
         if($line !~ /^(\d+)\t(.*)$/){
@@ -679,15 +654,13 @@ sub getSizes($){
   return $sizes;
 }
 
-sub readExcludeFile($){
-  my $ipmagic = shift;
+sub readExcludeFile(){
   my $excludeFile = "$REMOTE_VIDEOS_DIR/exclude";
-  my $excludeFileIpmagic = getIpmagicFile $ipmagic, $excludeFile;
-  die "Not found: $excludeFile\n" if not test $ipmagic, "-f", $excludeFile;
+  die "Not found: $excludeFile\n" if not -f $excludeFile;
   my $excludes = {};
   $$excludes{$_} = {} foreach @ALL_CATEGORIES;
   my $cat;
-  for my $line(readFile $ipmagic, $excludeFile){
+  for my $line(readFile $excludeFile){
     chomp $line;
     $line =~ s/#.*//;
     next if $line =~ /^\s*$/;
@@ -712,7 +685,7 @@ sub checkExcludes($$){
     for my $file(sort keys %{$$excludes{$cat}}){
       die "Unknown exclude: $cat/$file\n" if not defined $$sizes{$cat}{$file};
       my $mirrorFile = "$MIRROR_VIDEOS_DIR/$cat/$file";
-      push @$unexcluded, $mirrorFile if test undef, "-e", $mirrorFile;
+      push @$unexcluded, $mirrorFile if -e $mirrorFile;
     }
   }
   return $unexcluded;
@@ -733,9 +706,9 @@ sub getRsyncExcludes($){
   return $rsyncExcludes;
 }
 
-sub md5($$){
-  my ($ipmagic, $file) = @_;
-  my $md5 = readProcSilent $ipmagic, "md5sum", $file;
+sub md5($){
+  my ($file) = @_;
+  my $md5 = readProcSilent "md5sum", $file;
   if($md5 =~ /^([0-9a-f]{32})\s*/){
     return $1;
   }else{
@@ -747,72 +720,40 @@ sub fmtSize($){
   return sprintf "%5.1fG", $_[0] / 1024 / 1024;
 }
 
-sub isMountPoint($$){
-  my ($ipmagic, $dir) = @_;
-  readProcSilent $ipmagic, "mountpoint", $dir;
+sub isMountPoint($){
+  my ($dir) = @_;
+  readProcSilent "mountpoint", $dir;
   return $? == 0;
 }
 
-sub test($@){
-  my $ipmagic = shift;
-  my @test = getIpmagicCmd($ipmagic, "test", @_);
-  tryrunQuiet @test;
-  return $? == 0 ? 1 : 0;
-}
+sub readFile($){
+  my ($file) = @_;
+  open my $fh, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my @lines = <$fh>;
+  close $fh;
 
-sub getIpmagicCmd($@){
-  my ($ipmagic, @cmd) = @_;
-  if(defined $ipmagic){
-    s/"/\\\\"/g foreach @cmd;
-    s/^(.*)$/"$1"/ foreach @cmd;
-    @cmd = ("ipmagic", $ipmagic, "@cmd");
-  }
-
-  if(wantarray){
-    return @cmd;
-  }else{
-    return "@cmd";
-  }
-}
-
-sub getIpmagicFile($$){
-  my ($ipmagic, $file) = @_;
-
-  if(defined $ipmagic){
-    my $host = `ipmagic $ipmagic`;
-    chomp $host;
-    $file = "$host:$file";
-  }
-  return $file;
-}
-
-sub readFile($$){
-  my ($ipmagic, $file) = @_;
-  my @lines = readProc $ipmagic, "cat", $file;
   if(wantarray){
     return @lines;
   }else{
-    return "@lines";
+    return join "", @lines;
   }
 }
-sub writeFile($$@){
-  my ($ipmagic, $file, @lines) = @_;
-  my $tmpFile = "/tmp/video-sync-" . time . ".tmp";
-  open FH, "> $tmpFile" or die "Could not write to $tmpFile ($file)\n";
+sub writeFile($@){
+  my ($file, @lines) = @_;
+  open FH, "> $file" or die "Could not write to $file\n$!\n";
   print FH @lines;
   close FH;
-
-  runQuiet "rsync", "-aqP", $tmpFile, getIpmagicFile($ipmagic, $file);
 }
-sub appendFile($$@){
-  my ($ipmagic, $file, @lines) = @_;
-  my @prevLines = readFile $ipmagic, $file;
-  writeFile $ipmagic, $file, (@prevLines, @lines);
+sub appendFile($@){
+  my ($file, @lines) = @_;
+  open FH, ">> $file" or die "Could not append to $file\n$!\n";
+  print FH @lines;
+  close FH;
 }
 
-sub gitCmd($@){
-  my ($ipmagic, @cmd) = @_;
-  tryrunQuiet getIpmagicCmd $ipmagic, "git", "-C", $REMOTE_VIDEOS_DIR, @cmd;
+sub gitCmd(@){
+  my (@cmd) = @_;
+  tryrunQuiet "git", "-C", $REMOTE_VIDEOS_DIR, @cmd;
 }
 
 sub printCmd(@){
@@ -847,17 +788,17 @@ sub runPrompt(@){
   }
 }
 
-sub readProc($@){
-  my ($ipmagic, @cmd) = @_;
-  return readProcStdout $ipmagic, \@cmd, ">&STDERR";
+sub readProc(@){
+  my (@cmd) = @_;
+  return readProcStdout \@cmd, ">&STDERR";
 }
-sub readProcSilent($@){
-  my ($ipmagic, @cmd) = @_;
-  return readProcStdout $ipmagic, \@cmd, ">/dev/null";
+sub readProcSilent(@){
+  my (@cmd) = @_;
+  return readProcStdout \@cmd, ">/dev/null";
 }
-sub readProcStdout($$$){
-  my ($ipmagic, $cmd, $stderr) = @_;
-  my @cmdArr = getIpmagicCmd $ipmagic, @$cmd;
+sub readProcStdout($$){
+  my ($cmd, $stderr) = @_;
+  my @cmdArr = @$cmd;
   my $pid = open3(gensym, \*OUT, $stderr, @cmdArr);
   my @lines = <OUT>;
   waitpid($pid, 0);
