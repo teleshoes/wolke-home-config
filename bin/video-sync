@@ -132,7 +132,7 @@ my $USAGE = "Usage:
     -write stat entries to $FILE_CACHE_STAT
       -format as: \"<MTIME_EPOCH> , <FILESIZE_BYTES>b , <FILE>\"
       -if --simulate is given, write only to $TMP_PREFIX_CACHE_STAT-<NOW_MILLIS>
-    -git commit $FILE_CACHE_STAT unless --no-git is given
+    -git commit $FILE_CACHE_STAT unless --simulate or --no-git is given
 
   $EXEC [OPTS] --cache-info
     fetch stat and duration info for all files in $BASE_DIR
@@ -160,9 +160,11 @@ my $USAGE = "Usage:
 
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
       do not actually sync media files or write cache files in --cache-stat
+      implies --no-git
         -run rsync commands with --dry-run in --sync-remote
         -do not write cache files in $INFO_DIR
           -instead, skip deleting the tmp files in /tmp
+        -do not run git add && git commit
 
     --no-git | --skip-git
       do not automatically git commit info cache files in --info
@@ -249,6 +251,7 @@ sub main(@){
       $$opts{quiet} = 1;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
       $$opts{simulate} = 1;
+      $$opts{skipGit} = 1;
     }elsif($arg =~ /^(--no-git|--skip-git)$/){
       $$opts{skipGit} = 1;
     }elsif($arg =~ /^(-c)$/ and @_ > 0){
@@ -706,7 +709,7 @@ sub handleUpdateCache($$@){
   }
 
   if(isGitFileUnstaged($INFO_DIR, $destCacheFile)){
-    if($$opts{skipGit}){
+    if($$opts{simulate} or $$opts{skipGit}){
       print "#SKIPPING GIT COMMIT FOR $destCacheFile\n";
     }else{
       gitCommitFile($INFO_DIR, $destCacheFile, "cache-$cacheType: automatic commit");
