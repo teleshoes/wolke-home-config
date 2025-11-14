@@ -39,6 +39,12 @@ set nocompatible
 set nowrap
 syntax on
 
+"syntax highlighting look back N lines
+autocmd BufEnter * :syntax sync minlines=1000
+
+"syntax highlighting look back infinite lines
+"autocmd BufEnter * :syntax sync fromstart
+
 set number
 
 colorscheme solarized
