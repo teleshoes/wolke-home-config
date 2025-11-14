@@ -7,6 +7,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 
 sub syncRemote($);
+sub parseCsvRow($);
 sub readIncludeFile();
 sub buildLocalSyncDir($$$);
 sub updateCache($);
@@ -55,6 +56,8 @@ my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
 my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
+my @DEFAULT_SYNC_EXCLUDE_ARGS = qw();
+
 my @SYNC_CATEGORIES = qw(
   anime
   clips_shorts_trailers
@@ -93,8 +96,12 @@ my $USAGE = "Usage:
       -run: ipmagic IPMAGIC_NAME --rsync -L -avP \\
               :TMP_SYMLINKS_DIR/CATEGORY/ \\
               $BASE_DIR/CATEGORY/ \\
+              EXCLUDE_ARGS \\
               MAYBE_SIMULATE_ARG \\
             ;
+    EXCLUDE_ARGS
+      default is: " . join(" ", map{"--exclude $_"} @DEFAULT_SYNC_EXCLUDE_ARGS) . "
+      see: --sync-excludes
     MAYBE_SIMULATE_ARG
       if --simulate is given '--dry-run', otherwise ''
       (append '--dry-run' to rsync commands on --simulate)
@@ -133,6 +140,17 @@ my $USAGE = "Usage:
     --local
       only affect the local filesystem
       fail if $REMOTE_VIDEOS_DIR is not a mountpoint
+
+    -x EXCLUDE_CSV
+    --sync-excludes=EXCLUDE_CSV
+      in sync-remote, override the default rsync EXCLUDE args
+        -parse EXCLUDE_CSV into EXCLUDE args
+        -pass '--exclude EXCLUDE' to each rsync command in --sync-remote
+      EXCLUDE_CSV
+        comma-separated list of EXCLUDE args
+          e.g.: -x 'bigFiles1/,*.nfo,dirName3/'
+        the default is:
+          " . join(",", @DEFAULT_SYNC_EXCLUDE_ARGS) . "
 ";
 
 my $CMD_SYNC_REMOTE = "sync-remote";
@@ -146,6 +164,7 @@ sub main(@){
     simulate => 0,
     useGit => 1,
     localOnly => 0,
+    syncExcludeArgs => [@DEFAULT_SYNC_EXCLUDE_ARGS],
   };
 
   while(@_ > 0){
@@ -168,6 +187,12 @@ sub main(@){
       $$opts{localOnly} = 1;
     }elsif($arg =~ /^(--no-git)$/){
       $$opts{useGit} = 0;
+    }elsif($arg =~ /^(-x)$/ and @_ > 0){
+      my $csv = shift @_;
+      $$opts{syncExcludeArgs} = [parseCsvRow($csv)],
+    }elsif($arg =~ /^--sync-excludes=(.+)$/){
+      my $csv = $1;
+      $$opts{syncExcludeArgs} = [parseCsvRow($csv)],
     }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR
              and not defined $syncName and $arg =~ /^(sync[a-z0-9_\-]*)$/){
       $syncName = $arg
@@ -205,6 +230,7 @@ sub syncRemote($){
   print "built symlinks remotely at $ipmagicName:$tmpSymlinksDir\n";
 
   my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
+  my @excludeArgs = map {("--exclude", $_)} @{$$opts{syncExcludeArgs}};
 
   for my $cat(@SYNC_CATEGORIES){
     print "\n\n$cat:\n";
@@ -213,9 +239,18 @@ sub syncRemote($){
       "-avP",
       ":$tmpSymlinksDir/$cat/",
       "$BASE_DIR/$cat/",
+      @excludeArgs,
       @maybeSimulateArg,
     ;
   }
+}
+
+sub parseCsvRow($){
+  my ($csvRow) = @_;
+
+  my @vals = split /,/, $csvRow;
+
+  return @vals;
 }
 
 sub readIncludeFile(){
