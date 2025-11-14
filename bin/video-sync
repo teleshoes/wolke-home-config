@@ -14,9 +14,6 @@ sub findAllFiles();
 sub readStatCache();
 sub readMd5sumCache();
 sub readDurationCache();
-sub writeMd5sumCache($$);
-sub formatMd5sumLine($$);
-sub updateMd5sumCache($$$);
 sub handleUpdateCache($$@);
 sub gitCommitFile($$$);
 sub isGitFileUnstaged($$);
@@ -44,6 +41,7 @@ my $FILE_CACHE_MD5SUM = "$INFO_DIR/cache-md5sum";
 my $FILE_CACHE_DURATION = "$INFO_DIR/cache-duration";
 
 my $TMP_PREFIX_CACHE_STAT = "/tmp/video-sync-cache-stat";
+my $TMP_PREFIX_CACHE_MD5SUM = "/tmp/video-sync-cache-md5sum";
 my $TMP_PREFIX_CACHE_DURATION = "/tmp/video-sync-cache-duration";
 
 my $DURATION_EXEC = "duration";
@@ -145,7 +143,19 @@ my $USAGE = "Usage:
     -git commit $FILE_CACHE_STAT unless --simulate or --no-git is given
 
   $EXEC [OPTS] --cache-md5sum
-    calculate MD5SUM for each file in $BASE_DIR
+    calculate and cache MD5SUM for all regular files
+    as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
+             -type f -exec md5sum {} \\;
+    -get ALL_FILES as in: $EXEC --list-files
+    -read (CACHE_MD5SUM, CACHE_FILE) entries from $FILE_CACHE_MD5SUM
+    -for each FILE in ALL_FILES, get MTIME_EPOCH and FILESIZE_BYTES with stat()
+    -for each FILE in ALL_FILES, get MD5SUM
+      -use CACHE_MD5SUM if FILE matches CACHE_FILE
+      -otherwise, calculate with `md5sum <FILE>`
+    -write md5sum entries to $FILE_CACHE_MD5SUM
+      -format as: \"<MD5SUM> , <FILE>\", one per line
+      -if --simulate is given, write only to $TMP_PREFIX_CACHE_MD5SUM-<NOW_MILLIS>
+    -git commit $FILE_CACHE_MD5SUM unless --simulate or --no-git is given
 
   $EXEC [OPTS] --cache-duration
     calculate and cache MD5SUM for all regular files
@@ -186,7 +196,7 @@ my $USAGE = "Usage:
       do no print each symlink command in --build-local-sync-dir
 
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
-      do not actually sync media files or write cache files in --cache-stat+--cache-duration
+      do not update media files or info cache files, locally or remotely
       implies --no-git
         -run rsync commands with --dry-run in --sync-remote
         -do not write cache files in $INFO_DIR
@@ -315,14 +325,7 @@ sub main(@){
     @allFiles = sort @allFiles;
 
     for my $cacheType(@cacheTypes){
-      if($cacheType eq $CACHE_TYPE_STAT or $cacheType eq $CACHE_TYPE_DURATION){
-        handleUpdateCache($opts, $cacheType, @allFiles);
-      }elsif($cacheType eq $CACHE_TYPE_MD5SUM){
-        print "=====\n";
-        print "Md5sum cache\n";
-        updateMd5sumCache $opts, $BASE_DIR, "$INFO_DIR/cache-md5sum";
-        print "=====\n\n";
-      }
+      handleUpdateCache($opts, $cacheType, @allFiles);
     }
   }elsif($cmd eq $CMD_LIST_FILES){
     my @allFiles = findAllFiles();
@@ -525,90 +528,17 @@ sub readDurationCache(){
   return $cacheDuration;
 }
 
-sub writeMd5sumCache($$){
-  my ($cacheFile, $cache) = @_;
-  my @lines = map{formatMd5sumLine($cache, $_)} sort keys %$cache;
-  writeFile $cacheFile, @lines;
-}
-sub formatMd5sumLine($$){
-  my ($cache, $file) = @_;
-  my $f = $$cache{$file};
-  die "missing $file\n" if not defined $f;
-  return sprintf("%s , %d , %12db , %s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file);
-}
-sub updateMd5sumCache($$$){
-  my ($opts, $dir, $md5sumCacheFile) = @_;
-  my $md5sums = readMd5sumCache();
-
-  print "fetching all mtimes and filesizes\n";
-  my @fileStats = readProc "find",
-    "-L",
-    $dir,
-    "-not", "-path", "$dir/.git*",
-    "-mindepth", "2",
-    "-type", "f",
-    "-exec", "stat", "-c%s-%Y-%n", "{}", ";",
-    ;
-
-  my @files;
-  my %sizes;
-  my %mtimes;
-  for my $fileStat(@fileStats){
-    if($fileStat !~ /^(\d+)-(\d+)-(.*)\n$/){
-      die "invalid stat output: $fileStat";
-    }
-    my ($size, $mtime, $file) = ($1, $2, $3);
-    $file =~ s/^$dir\///;
-
-    push @files, $file;
-    $sizes{$file} = $size;
-    $mtimes{$file} = $mtime;
-  }
-
-  my %okFiles = map {$_ => 1} @files;
-
-  for my $file(sort keys %$md5sums){
-    my $info = $$md5sums{$file};
-    if(not defined $okFiles{$file}){
-      print "$file is not present, deleting md5 cache entry\n";
-      delete $$md5sums{$file};
-    }elsif($mtimes{$file} != $$info{mtime} or $sizes{$file} != $$info{size}){
-      print "$file is out of date, deleting md5 cache entry\n";
-      delete $$md5sums{$file};
-    }
-  }
-
-  my @missingFiles = sort grep {not defined $$md5sums{$_}} @files;
-
-  print "missing:\n";
-  print map {"$_\n"} @missingFiles;
-  print "\n\n";
-  print "(" . (0+@missingFiles) . " missing files)\n";
-
-  for my $file(@missingFiles){
-    print "fetching md5sum for: $file\n";
-    my $md5 = md5sumFile "$dir/$file";
-    $$md5sums{$file} = {md5sum=>$md5, size=>$sizes{$file}, mtime=>$mtimes{$file}};
-    writeMd5sumCache $md5sumCacheFile, $md5sums;
-  }
-
-  if(isGitFileUnstaged($INFO_DIR, $md5sumCacheFile)){
-    if($$opts{skipGit}){
-      print "#SKIPPING GIT COMMIT FOR $md5sumCacheFile\n";
-    }else{
-      gitCommitFile($INFO_DIR, $md5sumCacheFile, "cache-md5sum: automatic commit");
-    }
-  }
-}
-
 sub handleUpdateCache($$@){
   my ($opts, $cacheType, @files) = @_;
 
-  my ($cacheStat, $cacheDuration) = (undef, undef);
+  my ($cacheStat, $cacheMd5sum, $cacheDuration) = (undef, undef, undef);
   my ($destCacheFile, $tmpFilePrefix) = (undef, undef);
   if($cacheType eq $CACHE_TYPE_STAT){
     $cacheStat = readStatCache();
     ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_STAT, $TMP_PREFIX_CACHE_STAT);
+  }elsif($cacheType eq $CACHE_TYPE_MD5SUM){
+    $cacheMd5sum = readMd5sumCache();
+    ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_MD5SUM, $TMP_PREFIX_CACHE_MD5SUM);
   }elsif($cacheType eq $CACHE_TYPE_DURATION){
     $cacheDuration = readDurationCache();
     ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_DURATION, $TMP_PREFIX_CACHE_DURATION);
@@ -640,6 +570,21 @@ sub handleUpdateCache($$@){
       }
       my ($fsBytes, $mtime) = getSizeMtime("$BASE_DIR/$file", 1);
       $cacheLine = sprintf("%d , %12db , %s\n", $mtime, $fsBytes, $file);
+    }elsif($cacheType eq $CACHE_TYPE_MD5SUM){
+      my ($fsBytes, $mtime, $md5sum) = (undef, undef, undef);
+      if(defined $$cacheMd5sum{$file}){
+        $fsBytes = $$cacheMd5sum{$file}{size};
+        $mtime = $$cacheMd5sum{$file}{mtime};
+        $md5sum = $$cacheMd5sum{$file}{md5sum};
+      }else{
+        print "\n" if $needsNewline;
+        print "  new file: $file\n";
+        $needsNewline = 0;
+        ($fsBytes, $mtime) = getSizeMtime("$BASE_DIR/$file", 1);
+        $md5sum = md5sumFile("$BASE_DIR/$file");
+      }
+      die "ERROR: invalid md5sum for $file\n" if $md5sum !~ /^[0-9a-f]{32}$/;
+      $cacheLine = sprintf("%s , %d , %12db , %s\n", $md5sum, $mtime, $fsBytes, $file);
     }elsif($cacheType eq $CACHE_TYPE_DURATION){
       my ($durS, $durHMS) = (undef, undef);
 
