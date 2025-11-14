@@ -665,12 +665,21 @@ sub handleUpdateCache($$@){
   system "ln", "-s", $tmpFile, "$tmpFilePrefix-latest";
   print "writing $tmpFile\n";
 
+  STDOUT->autoflush(1);
+
+  my $chunkSize = int(@files / 20) + 1;
+  my $seenCount = 0;
+
+  my $needsNewline = 0;
   open my $fh, "> $tmpFile" or die "ERROR: could not write $tmpFile\n$!\n";
+  $fh->autoflush(1);
   for my $file(@files){
     my $cacheLine;
     if($cacheType eq $CACHE_TYPE_STAT){
       if(not defined $$cacheStat{$file}){
+        print "\n" if $needsNewline;
         print "  new file: $file\n";
+        $needsNewline = 0;
       }
       my ($fsBytes, $mtime) = getSizeMtime("$BASE_DIR/$file", 1);
       $cacheLine = sprintf("%d , %12db , %s\n", $mtime, $fsBytes, $file);
@@ -679,6 +688,11 @@ sub handleUpdateCache($$@){
     }
 
     print $fh $cacheLine;
+    if($seenCount % $chunkSize == 0){
+      printf " %d%%", (100.0 * $seenCount / @files);
+      $needsNewline = 1;
+    }
+    $seenCount++;
   }
   close $fh;
   print " done\n";
