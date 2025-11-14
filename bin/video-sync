@@ -8,6 +8,7 @@ my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
 sub isSource();
 sub isMirror();
+sub getSourceIpmagicName();
 sub parseVideosIpmagicConf();
 sub isLocalIpmagicNameMatch($);
 sub syncRemote($);
@@ -37,7 +38,6 @@ my $INFO_DIR = "$BASE_DIR/zzz_info";
 my $FILE_VIDEOS_IPMAGIC_CONF = "$BASE_DIR/videos-ipmagic.conf";
 
 my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
-my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
 my $FILE_CACHE_STAT = "$INFO_DIR/cache-stat";
@@ -100,18 +100,18 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --sync
   $EXEC [OPTS] --sync-remote
-    -read IPMAGIC_NAME from $FILE_REMOTE_MIRROR_IPMAGIC_NAME
+    -read SOURCE_IPMAGIC_NAME from $FILE_VIDEOS_IPMAGIC_CONF
       -if none exists, fail
-    -use SYNC_NAME=sync-<IPMAGIC_NAME>-<NOW_MILLIS>
+    -use SYNC_NAME=sync-<SOURCE_IPMAGIC_NAME>-<NOW_MILLIS>
     -use TMP_SYMLINKS_DIR=$TMP_SYNC_SYMLINKS_DIR_PREFIX-<SYNC_NAME>
-    -build IPMAGIC_NAME:TMP_SYNC_DIR remotely
-      -run: ipmagic IPMAGIC_NAME -s $EXEC --quiet --build-sync-dir SYNC_NAME_ARG
+    -build SOURCE_IPMAGIC_NAME:TMP_SYNC_DIR remotely
+      -run: ipmagic SOURCE_IPMAGIC_NAME -s $EXEC --quiet --build-sync-dir SYNC_NAME_ARG
     -get list of CATEGORY entries to sync
       -default is: @SYNC_CATEGORIES
       -see: --sync-category
     -rsync each CATEGORY from remote TMP_SYMLINKS_DIR to $BASE_DIR
       -follow remote symlinks with '-L', copying actual files, not links
-      -run: ipmagic IPMAGIC_NAME --rsync -L -avP \\
+      -run: ipmagic SOURCE_IPMAGIC_NAME --rsync -L -avP \\
               :TMP_SYMLINKS_DIR/CATEGORY/ \\
               $BASE_DIR/CATEGORY/ \\
               EXCLUDE_ARGS \\
@@ -397,6 +397,11 @@ sub isMirror(){
   }
 }
 
+sub getSourceIpmagicName(){
+  my $cfg = parseVideosIpmagicConf();
+  return $$cfg{sourceIpmagicName};
+}
+
 sub parseVideosIpmagicConf(){
   my @lines = readFile $FILE_VIDEOS_IPMAGIC_CONF;
   my $cfg = {
@@ -452,18 +457,15 @@ sub isLocalIpmagicNameMatch($){
 
 sub syncRemote($){
   my ($opts) = @_;
-  my $ipmagicName = readFile $FILE_REMOTE_MIRROR_IPMAGIC_NAME;
-  chomp $ipmagicName;
-  if($ipmagicName !~ /^(\w+)$/){
-    die "ERROR: invalid/missing IPMAGIC_NAME\n";
-  }
 
-  my $syncName = "sync-$ipmagicName-" . nowMillis();
+  my $sourceIpmagicName = getSourceIpmagicName();
+
+  my $syncName = "sync-$sourceIpmagicName-" . nowMillis();
 
   my $tmpSymlinksDir = "$TMP_SYNC_SYMLINKS_DIR_PREFIX-$syncName";
 
-  run "ipmagic", $ipmagicName, "-s", $EXEC, "--quiet", "--build-sync-dir", $syncName;
-  print "built symlinks remotely at $ipmagicName:$tmpSymlinksDir\n";
+  run "ipmagic", $sourceIpmagicName, "-s", $EXEC, "--quiet", "--build-sync-dir", $syncName;
+  print "built symlinks remotely at $sourceIpmagicName:$tmpSymlinksDir\n";
 
   my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
   my @excludeArgs = map {("--exclude", $_)} @{$$opts{syncExcludeArgs}};
@@ -471,7 +473,7 @@ sub syncRemote($){
 
   for my $cat(@{$$opts{syncCategories}}){
     print "\n\n$cat:\n";
-    run "ipmagic", $ipmagicName, "--rsync",
+    run "ipmagic", $sourceIpmagicName, "--rsync",
       "-L",
       "-avP",
       ":$tmpSymlinksDir/$cat/",
