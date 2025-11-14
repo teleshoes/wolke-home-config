@@ -12,11 +12,11 @@ sub readIncludeFile();
 sub buildLocalSyncDir($$$);
 sub findAllFiles();
 sub readStatCache();
-sub readMd5sumCache($);
+sub readMd5sumCache();
+sub readDurationCache();
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
 sub updateMd5sumCache($$$);
-sub readDurationCache();
 sub handleUpdateCache($$@);
 sub gitCommitFile($$$);
 sub isGitFileUnstaged($$);
@@ -40,6 +40,7 @@ my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
 my $FILE_CACHE_STAT = "$INFO_DIR/cache-stat";
+my $FILE_CACHE_MD5SUM = "$INFO_DIR/cache-md5sum";
 my $FILE_CACHE_DURATION = "$INFO_DIR/cache-duration";
 
 my $TMP_PREFIX_CACHE_STAT = "/tmp/video-sync-cache-stat";
@@ -319,7 +320,7 @@ sub main(@){
       }elsif($cacheType eq $CACHE_TYPE_MD5SUM){
         print "=====\n";
         print "Md5sum cache\n";
-        updateMd5sumCache $opts, $BASE_DIR, "$BASE_DIR/md5sum-cache";
+        updateMd5sumCache $opts, $BASE_DIR, "$INFO_DIR/cache-md5sum";
         print "=====\n\n";
       }
     }
@@ -485,7 +486,26 @@ sub readStatCache(){
   }
   return $cacheStat;
 }
-
+sub readMd5sumCache(){
+  my $cacheMd5sum = {};
+  if(-f $FILE_CACHE_MD5SUM){
+    for my $line(readFile($FILE_CACHE_MD5SUM)){
+      if($line !~ /^\s*([0-9a-f]{32})\s*,\s*(\d+)\s*,\s*(\d+)b\s*,\s*(\S.*)$/){
+        die "ERROR: malformed line in $FILE_CACHE_MD5SUM\n$line";
+      }
+      my ($md5sum, $mtime, $size, $file) = ($1, $2, $3, $4);
+      if(defined $$cacheMd5sum{$file}){
+        die "ERROR: dupe file in $FILE_CACHE_MD5SUM \"$file\"\n";
+      }
+      $$cacheMd5sum{$file} = {
+        md5sum => $md5sum,
+        mtime  => $mtime,
+        size   => $size,
+      };
+    }
+  }
+  return $cacheMd5sum;
+}
 sub readDurationCache(){
   my $cacheDuration = {};
   if(-f $FILE_CACHE_DURATION){
@@ -505,29 +525,6 @@ sub readDurationCache(){
   return $cacheDuration;
 }
 
-sub readMd5sumCache($){
-  my ($cacheFile) = @_;
-  my $cache = {};
-  if(-e $cacheFile){
-    my @lines = readFile $cacheFile;
-    for my $line(@lines){
-      next if $line =~ /^\s*$/;
-      chomp $line;
-      if($line =~ /^
-        \s* ([0-9a-f]{32})
-        \s* \| \s* (\d+)
-        \s* \| \s* (\d+)b
-        \s* \| \s* (.+)
-      $/x){
-        my ($md5sum, $mtime, $size, $file) = ($1, $2, $3, $4);
-        $$cache{$file} = {md5sum=>$md5sum, size=>$size, mtime=>$mtime};
-      }else{
-        die "Malformed md5sum cache line: $line\n";
-      }
-    }
-  }
-  return $cache;
-}
 sub writeMd5sumCache($$){
   my ($cacheFile, $cache) = @_;
   my @lines = map{formatMd5sumLine($cache, $_)} sort keys %$cache;
@@ -537,11 +534,11 @@ sub formatMd5sumLine($$){
   my ($cache, $file) = @_;
   my $f = $$cache{$file};
   die "missing $file\n" if not defined $f;
-  return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
+  return sprintf("%s , %d , %12db , %s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file);
 }
 sub updateMd5sumCache($$$){
   my ($opts, $dir, $md5sumCacheFile) = @_;
-  my $md5sums = readMd5sumCache $md5sumCacheFile;
+  my $md5sums = readMd5sumCache();
 
   print "fetching all mtimes and filesizes\n";
   my @fileStats = readProc "find",
