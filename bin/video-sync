@@ -6,8 +6,8 @@ use Time::HiRes qw(time);
 use Digest::MD5 qw();
 my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
-sub isSource();
-sub isMirror();
+sub ensureThisIsSource($);
+sub ensureThisIsMirror($);
 sub getSourceIpmagicName();
 sub parseVideosIpmagicConf();
 sub getIpmagicNameAliases();
@@ -353,36 +353,24 @@ sub main(@){
   if($cmd eq $CMD_ENSURE_TYPE){
     die "ERROR: SOURCE_OR_MIRROR is required for --ensure-type\n" if not defined $typeToEnsure;
     if($typeToEnsure eq "source"){
-      if(isSource()){
-        print "local machine type is source\n";
-      }else{
-        die "ERROR: local machine type is NOT source\n";
-      }
+      ensureThisIsSource("$cmd = source");
+      print "ok\n";
     }elsif($typeToEnsure eq "mirror"){
-      if(isMirror()){
-        print "local machine type is mirror\n";
-      }else{
-        die "ERROR: local machine type is NOT mirror\n";
-      }
+      ensureThisIsMirror("$cmd = mirror");
+      print "ok\n";
     }else{
       die "ERROR: unknown SOURCE_OR_MIRROR arg\n";
     }
   }elsif($cmd eq $CMD_SYNC_REMOTE){
-    if(not isMirror()){
-      die "ERROR: --build-local-sync-dir must be called from the mirror machine\n";
-    }
+    ensureThisIsMirror($cmd);
     syncRemote($opts);
   }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR){
     die "ERROR: missing SYNC_NAME\n" if not defined $syncName;
-    if(not isSource()){
-      die "ERROR: --build-local-sync-dir must be called from the source machine\n";
-    }
+    ensureThisIsSource($cmd);
     my $mediaNamesByCategory = readIncludeFile();
     buildLocalSyncDir($opts, $syncName, $mediaNamesByCategory);
   }elsif($cmd eq $CMD_CACHE){
-    if(not isSource()){
-      die "ERROR: --cache must be called from the source machine\n";
-    }
+    ensureThisIsSource($cmd);
     print "getting file information with find\n";
     my @allFiles = findAllFiles();
     @allFiles = sort @allFiles;
@@ -399,21 +387,35 @@ sub main(@){
   }
 }
 
-sub isSource(){
+sub ensureThisIsSource($){
+  my ($action) = @_;
   my $cfg = parseVideosIpmagicConf();
-  if($$cfg{isSource} and isLocalIpmagicNameMatch($$cfg{sourceIpmagicName})){
-    return 1;
-  }else{
-    return 0;
+  if(not $$cfg{isSource}){
+    die "ERROR: localType must be source for $action\n";
+  }
+  if(not isLocalIpmagicNameMatch($$cfg{sourceIpmagicName})){
+    my @ipmagicNameAliases = getIpmagicNameAliases();
+    my $msg = "";
+    $msg .= "local IPMAGIC_NAME or alias must be SOURCE_IPMAGIC_NAME for $action\n";
+    $msg .= "  expected: $$cfg{sourceIpmagicName}\n";
+    $msg .= "  actual: @ipmagicNameAliases";
+    die "ERROR: $msg";
   }
 }
 
-sub isMirror(){
+sub ensureThisIsMirror($){
+  my ($action) = @_;
   my $cfg = parseVideosIpmagicConf();
-  if($$cfg{isMirror} and isLocalIpmagicNameMatch($$cfg{mirrorIpmagicName})){
-    return 1;
-  }else{
-    return 0;
+  if(not $$cfg{isMirror}){
+    die "ERROR: localType must be mirror for $action\n";
+  }
+  if(not isLocalIpmagicNameMatch($$cfg{mirrorIpmagicName})){
+    my @ipmagicNameAliases = getIpmagicNameAliases();
+    my $msg = "";
+    $msg .= "local IPMAGIC_NAME or alias must be MIRROR_IPMAGIC_NAME for $action\n";
+    $msg .= "  expected: $$cfg{mirrorIpmagicName}\n";
+    $msg .= "  actual: @ipmagicNameAliases";
+    die "ERROR: $msg";
   }
 }
 
