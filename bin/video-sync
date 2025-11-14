@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 use Time::HiRes qw(sleep);
 use IPC::Open3;
 use Symbol qw(gensym);
+my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
 sub syncRemote($);
 sub parseCsvRow($);
@@ -148,7 +149,9 @@ my $USAGE = "Usage:
         -pass '--exclude EXCLUDE' to each rsync command in --sync-remote
       EXCLUDE_CSV
         comma-separated list of EXCLUDE args
-          e.g.: -x 'bigFiles1/,*.nfo,dirName3/'
+          separator=','    quote_char='\"'    escape_char='\\'    quote_literal='\"\"'
+          e.g.: -x 'bigFiles1/,\"really,reallyBigFiles2/\",\"a\"\"good\"\"dirName3/'
+        NOTE: simple csv parsing without quotes/escapes is used if Text::CSV is not found
         the default is:
           " . join(",", @DEFAULT_SYNC_EXCLUDE_ARGS) . "
 ";
@@ -248,7 +251,20 @@ sub syncRemote($){
 sub parseCsvRow($){
   my ($csvRow) = @_;
 
-  my @vals = split /,/, $csvRow;
+  my @vals;
+  if($USE_LIB_TEXT_CSV){
+    require Text::CSV;
+    Text::CSV->import;
+
+    my $csv = Text::CSV->new({
+      sep_char => ",",
+    });
+    $csv->parse($csvRow);
+
+    @vals = $csv->fields();
+  }else{
+    @vals = split /,/, $csvRow;
+  }
 
   return @vals;
 }
