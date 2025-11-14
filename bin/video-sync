@@ -8,6 +8,7 @@ use Symbol qw(gensym);
 
 sub syncRemote($);
 sub readIncludeFile();
+sub buildLocalSyncDir($$$);
 sub updateCache($);
 sub readInfoCache($$);
 sub writeInfoCache($$$);
@@ -50,6 +51,7 @@ my $BASE_DIR = "/media/videos";
 my $INFO_DIR = "$BASE_DIR/zzz_info";
 
 my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
+my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
 my @SYNC_CATEGORIES = qw(
   anime
@@ -77,6 +79,22 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --sync | --sync-remote
     perform bidirectional sync (no files copied without --no-simulate)
 
+  $EXEC [OPTS] --build-sync-dir SYNC_NAME
+  $EXEC [OPTS] --build-local-sync-dir SYNC_NAME
+    -use TMP_SYMLINKS_DIR=$TMP_SYNC_SYMLINKS_DIR_PREFIX-<SYNC_NAME>
+    -delete TMP_SYMLINKS_DIR if it exists
+      -run: rm -rf TMP_SYMLINKS_DIR
+    -read list of <CATEGORY>/<MEDIA_NAME> pairs, one per line, from:
+      $FILE_INCLUDE_SYNC
+    -for each <CATEGORY>/<MEDIA_NAME> pair in $FILE_INCLUDE_SYNC:
+      -create symlink for each <MEDIA_NAME> in category subdir of sync dir:
+        -run: mkdir -p TMP_SYNC_DIR/CATEGORY/
+        -run: ln -s $BASE_DIR/CATEGORY/MEDIA_NAME/ TMP_SYNC_DIR/CATEGORY/MEDIA_NAME
+
+    SYNC_NAME
+      must start with 'sync' and contain only:
+        lowercase letters, numbers, underscores, and dashes
+
   $EXEC [OPTS] --cache
     perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
 
@@ -95,10 +113,12 @@ my $USAGE = "Usage:
 ";
 
 my $CMD_SYNC_REMOTE = "sync-remote";
+my $CMD_BUILD_LOCAL_SYNC_DIR = "build-local-sync-dir";
 my $CMD_CACHE = "cache";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
+  my $syncName = undef;
   my $opts = {
     simulate => 0,
     useGit => 1,
@@ -112,6 +132,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--sync|--sync-remote)$/){
       $cmd= $CMD_SYNC_REMOTE;
+    }elsif($arg =~ /^(--build-sync-dir|--build-local-sync-dir)$/){
+      $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd= $CMD_CACHE;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
@@ -120,6 +142,9 @@ sub main(@){
       $$opts{localOnly} = 1;
     }elsif($arg =~ /^(--no-git)$/){
       $$opts{useGit} = 0;
+    }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR
+             and not defined $syncName and $arg =~ /^(sync[a-z0-9_\-]*)$/){
+      $syncName = $arg
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -133,6 +158,10 @@ sub main(@){
 
   if($cmd eq $CMD_SYNC_REMOTE){
     syncRemote($opts);
+  }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR){
+    die "ERROR: missing SYNC_NAME\n" if not defined $syncName;
+    my $mediaNamesByCategory = readIncludeFile();
+    buildLocalSyncDir($opts, $syncName, $mediaNamesByCategory);
   }elsif($cmd eq $CMD_CACHE){
     updateCache($opts);
   }else{
@@ -240,6 +269,36 @@ sub readIncludeFile(){
   }
 
   return $mediaNamesByCategory;
+}
+
+sub buildLocalSyncDir($$$){
+  my ($opts, $syncName, $mediaNamesByCategory) = @_;
+
+  my $syncDir = "$TMP_SYNC_SYMLINKS_DIR_PREFIX-$syncName";
+  if(-e $syncDir){
+    die "ERROR: $syncDir already exists\n";
+  }
+
+  my @cmds;
+  push @cmds, ["mkdir", "-p", "$syncDir/"];
+  for my $cat(sort keys %$mediaNamesByCategory){
+    my @names = @{$$mediaNamesByCategory{$cat}};
+    push @cmds, ["mkdir", "-p", "$syncDir/$cat"];
+    for my $name(@names){
+      push @cmds, ["ln", "-s",          "/media/videos/$cat/$name/", "$syncDir/$cat/$name"];
+      push @cmds, ["touch", "-h", "-r", "/media/videos/$cat/$name/", "$syncDir/$cat/$name"];
+    }
+    push @cmds, ["touch", "$syncDir/$cat", "-r", "/media/videos/$cat/"];
+  }
+
+  for my $cmdArr(@cmds){
+    my @cmd = @$cmdArr;
+    if($$opts{simulate}){
+      print "#@cmd\n";
+    }else{
+      run @cmd;
+    }
+  }
 }
 
 sub updateCache($){
