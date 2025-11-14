@@ -135,6 +135,8 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --build-sync-dir SYNC_NAME
   $EXEC [OPTS] --build-local-sync-dir SYNC_NAME
+    -check that this machine is the source, not the mirror
+      -as in: $EXEC --ensure-type source
     -use TMP_SYMLINKS_DIR=$TMP_SYNC_SYMLINKS_DIR_PREFIX-<SYNC_NAME>
     -delete TMP_SYMLINKS_DIR if it exists
       -run: rm -rf TMP_SYMLINKS_DIR
@@ -156,6 +158,8 @@ my $USAGE = "Usage:
     cache mtime and filesize for all regular files
     as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
              -type f -exec stat -c %Y:%s:%n {} \\;
+    -check that this machine is the source, not the mirror
+      -as in: $EXEC --ensure-type source
     -get ALL_FILES as in: $EXEC --list-files
     -for each FILE in ALL_FILES, get MTIME_EPOCH and FILESIZE_BYTES with stat()
     -write stat entries to $FILE_CACHE_STAT
@@ -167,6 +171,8 @@ my $USAGE = "Usage:
     calculate and cache MD5SUM for all regular files
     as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
              -type f -exec md5sum {} \\;
+    -check that this machine is the source, not the mirror
+      -as in: $EXEC --ensure-type source
     -get ALL_FILES as in: $EXEC --list-files
     -read (CACHE_MD5SUM, CACHE_FILE) entries from $FILE_CACHE_MD5SUM
     -for each FILE in ALL_FILES, get MTIME_EPOCH and FILESIZE_BYTES with stat()
@@ -182,6 +188,8 @@ my $USAGE = "Usage:
     calculate and cache MD5SUM for all regular files
     as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
              -type f -exec md5sum {} \\;
+    -check that this machine is the source, not the mirror
+      -as in: $EXEC --ensure-type source
     -get ALL_FILES as in: $EXEC --list-files
     -read (CACHE_DURATION_FRAC_S, CACHE_FILE) entries from $FILE_CACHE_DURATION
     -for each FILE in ALL_FILES, get DURATION_FRAC_S
@@ -365,9 +373,15 @@ sub main(@){
     syncRemote($opts);
   }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR){
     die "ERROR: missing SYNC_NAME\n" if not defined $syncName;
+    if(not isSource()){
+      die "ERROR: --build-local-sync-dir must be called from the source machine\n";
+    }
     my $mediaNamesByCategory = readIncludeFile();
     buildLocalSyncDir($opts, $syncName, $mediaNamesByCategory);
   }elsif($cmd eq $CMD_CACHE){
+    if(not isSource()){
+      die "ERROR: --cache must be called from the source machine\n";
+    }
     print "getting file information with find\n";
     my @allFiles = findAllFiles();
     @allFiles = sort @allFiles;
