@@ -139,8 +139,8 @@ my $USAGE = "Usage:
       do not actually copy files from and to remote
         localhost:$BASE_DIR <=> <IPMAGIC_NAME>:$BASE_DIR
 
-    --no-git
-      do not perform any git commands
+    --no-git | --skip-git
+      do not automatically git commit info cache files in --info
 
     -c CATEGORY_CSV
     --sync-categories=CATEGORY_CSV
@@ -184,7 +184,7 @@ sub main(@){
   my $opts = {
     quiet           => 0,
     simulate        => 0,
-    useGit          => 1,
+    skipGit         => 0,
     syncCategories  => [@SYNC_CATEGORIES],
     syncExcludeArgs => [@DEFAULT_SYNC_EXCLUDE_ARGS],
     syncDelete      => 0,
@@ -210,8 +210,8 @@ sub main(@){
       $$opts{quiet} = 1;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
       $$opts{simulate} = 1;
-    }elsif($arg =~ /^(--no-git)$/){
-      $$opts{useGit} = 0;
+    }elsif($arg =~ /^(--no-git|--skip-git)$/){
+      $$opts{skipGit} = 1;
     }elsif($arg =~ /^(-c)$/ and @_ > 0){
       my $csv = shift @_;
       $$opts{syncCategories} = [parseCsvRow($csv)],
@@ -398,7 +398,7 @@ sub updateCache($){
   updateMd5sumCache $BASE_DIR, "$BASE_DIR/md5sum-cache";
   print "=====\n\n";
 
-  if($$opts{useGit}){
+  if(not $$opts{skipGit}){
     print "=====\n";
     print "Git repo\n";
     gitCmd "commit", "-a", "-m", "automatic commit";
