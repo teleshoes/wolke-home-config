@@ -15,18 +15,19 @@ sub updateCache($);
 sub readInfoCache($);
 sub writeInfoCache($$);
 sub formatInfoLine($$);
-sub updateInfoCache($$);
+sub updateInfoCache($$$);
 sub readMd5sumCache($);
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
-sub updateMd5sumCache($$);
+sub updateMd5sumCache($$$);
+sub gitCommitFile($$$);
+sub isGitFileUnstaged($$);
 sub parseDuration($);
 sub formatDuration($);
 sub md5sumFile($);
 sub readFile($);
 sub writeFile($@);
 sub appendFile($@);
-sub gitCmd(@);
 sub run(@);
 sub runQuiet(@);
 sub readProc(@);
@@ -390,20 +391,13 @@ sub updateCache($){
 
   print "=====\n";
   print "Info cache\n";
-  updateInfoCache $BASE_DIR, "$BASE_DIR/info-cache";
+  updateInfoCache $opts, $BASE_DIR, "$BASE_DIR/info-cache";
   print "=====\n\n";
 
   print "=====\n";
   print "Md5sum cache\n";
-  updateMd5sumCache $BASE_DIR, "$BASE_DIR/md5sum-cache";
+  updateMd5sumCache $opts, $BASE_DIR, "$BASE_DIR/md5sum-cache";
   print "=====\n\n";
-
-  if(not $$opts{skipGit}){
-    print "=====\n";
-    print "Git repo\n";
-    gitCmd "commit", "-a", "-m", "automatic commit";
-    print "=====\n\n";
-  }
 }
 
 sub readInfoCache($){
@@ -444,8 +438,8 @@ sub formatInfoLine($$){
   my $durFmt = formatDuration $dur;
   return "${sizeFmt}k | ${durFmt} | $file\n";
 }
-sub updateInfoCache($$){
-  my ($dir, $cacheFile) = @_;
+sub updateInfoCache($$$){
+  my ($opts, $dir, $cacheFile) = @_;
   my $cache = readInfoCache $cacheFile;
 
   my @files = readProc "find",
@@ -480,6 +474,14 @@ sub updateInfoCache($$){
       $$cache{$file} = [$size, $dur];
       print "Add: " . formatInfoLine($cache, $file);
       writeInfoCache $cacheFile, $cache;
+    }
+  }
+
+  if(isGitFileUnstaged($INFO_DIR, $cacheFile)){
+    if($$opts{skipGit}){
+      print "#SKIPPING GIT COMMIT FOR $cacheFile\n";
+    }else{
+      gitCommitFile($INFO_DIR, $cacheFile, "cache-info: automatic commit");
     }
   }
 }
@@ -518,8 +520,8 @@ sub formatMd5sumLine($$){
   die "missing $file\n" if not defined $f;
   return sprintf "%s|%10d|%12db|%s\n", $$f{md5sum}, $$f{mtime}, $$f{size}, $file;
 }
-sub updateMd5sumCache($$){
-  my ($dir, $md5sumCacheFile) = @_;
+sub updateMd5sumCache($$$){
+  my ($opts, $dir, $md5sumCacheFile) = @_;
   my $md5sums = readMd5sumCache $md5sumCacheFile;
 
   print "fetching all mtimes and filesizes\n";
@@ -572,6 +574,37 @@ sub updateMd5sumCache($$){
     my $md5 = md5sumFile "$dir/$file";
     $$md5sums{$file} = {md5sum=>$md5, size=>$sizes{$file}, mtime=>$mtimes{$file}};
     writeMd5sumCache $md5sumCacheFile, $md5sums;
+  }
+
+  if(isGitFileUnstaged($INFO_DIR, $md5sumCacheFile)){
+    if($$opts{skipGit}){
+      print "#SKIPPING GIT COMMIT FOR $md5sumCacheFile\n";
+    }else{
+      gitCommitFile($INFO_DIR, $md5sumCacheFile, "cache-md5sum: automatic commit");
+    }
+  }
+}
+
+sub gitCommitFile($$$){
+  my ($repo, $file, $msg) = @_;
+  run "git", "-C", $repo, "add", $file;
+  run "git", "-C", $repo, "commit", "-m", $msg;
+}
+sub isGitFileUnstaged($$){
+  my ($repo, $file) = @_;
+
+  my @gitDiffCmd = ("git", "-C", $repo, "diff", "--quiet", "--exit-code", $file);
+  system @gitDiffCmd;
+  my $exitCode = $? >> 8;
+
+  if($exitCode == 1){
+    #file has differences
+    return 1;
+  }elsif($exitCode == 0){
+    #file has no differences
+    return 0;
+  }else{
+    die "ERROR: @gitDiffCmd failed with exitCode=$exitCode\n$!\n";
   }
 }
 
@@ -627,11 +660,6 @@ sub appendFile($@){
   open FH, ">> $file" or die "Could not append to $file\n$!\n";
   print FH @lines;
   close FH;
-}
-
-sub gitCmd(@){
-  my (@cmd) = @_;
-  runQuiet "git", "-C", $INFO_DIR, @cmd;
 }
 
 sub run(@){
