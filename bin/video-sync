@@ -42,6 +42,7 @@ sub runPrompt(@);
 sub readProc($@);
 sub readProcSilent($@);
 sub readProcStdout($$$);
+sub nowMillis();
 
 my $REMOTE_VIDEOS_DIR = "/media/videos";
 my $MIRROR_VIDEOS_DIR = "/media/stuff/Videos";
@@ -51,6 +52,7 @@ my $BASE_DIR = "/media/videos";
 my $INFO_DIR = "$BASE_DIR/zzz_info";
 
 my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
+my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
 
 my @SYNC_CATEGORIES = qw(
@@ -76,8 +78,26 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC [OPTS] --sync | --sync-remote
-    perform bidirectional sync (no files copied without --no-simulate)
+  $EXEC [OPTS] --sync
+  $EXEC [OPTS] --sync-remote
+    -read IPMAGIC_NAME from $FILE_REMOTE_MIRROR_IPMAGIC_NAME
+      -if none exists, fail
+    -use SYNC_NAME=sync-<IPMAGIC_NAME>-<NOW_MILLIS>
+    -use TMP_SYMLINKS_DIR=$TMP_SYNC_SYMLINKS_DIR_PREFIX-<SYNC_NAME>
+    -build IPMAGIC_NAME:TMP_SYNC_DIR remotely
+      -run: ipmagic IPMAGIC_NAME -s $EXEC --build-sync-dir SYNC_NAME_ARG
+    -sync the following CATEGORY entries:
+      @SYNC_CATEGORIES
+    -rsync each CATEGORY from remote TMP_SYMLINKS_DIR to $BASE_DIR
+      -follow remote symlinks with '-L', copying actual files, not links
+      -run: ipmagic IPMAGIC_NAME --rsync -L -avP \\
+              :TMP_SYMLINKS_DIR/CATEGORY/ \\
+              $BASE_DIR/CATEGORY/ \\
+              MAYBE_SIMULATE_ARG \\
+            ;
+    MAYBE_SIMULATE_ARG
+      if --simulate is given '--dry-run', otherwise ''
+      (append '--dry-run' to rsync commands on --simulate)
 
   $EXEC [OPTS] --build-sync-dir SYNC_NAME
   $EXEC [OPTS] --build-local-sync-dir SYNC_NAME
@@ -131,7 +151,7 @@ sub main(@){
       print $USAGE;
       exit 0;
     }elsif($arg =~ /^(--sync|--sync-remote)$/){
-      $cmd= $CMD_SYNC_REMOTE;
+      $cmd = $CMD_SYNC_REMOTE;
     }elsif($arg =~ /^(--build-sync-dir|--build-local-sync-dir)$/){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
@@ -159,78 +179,36 @@ sub main(@){
   }elsif($cmd eq $CMD_CACHE){
     updateCache($opts);
   }else{
-    die "ERROR: unknown/missing cmd '$cmd'\n";
+    die "ERROR: unknown command $cmd\n";
   }
 }
 
 sub syncRemote($){
-  my $opts = @_;
-
-  my $ipmagic;
-  my $mainIpmagic;
-  if(isMountPoint undef, $REMOTE_VIDEOS_DIR){
-    $ipmagic = undef;
-  }elsif(not $$opts{localOnly} and isMountPoint $IPMAGIC_NAME, $REMOTE_VIDEOS_DIR){
-    $ipmagic = $IPMAGIC_NAME;
-  }else{
-    die "\"$REMOTE_VIDEOS_DIR\" not found locally or with \"ipmagic $IPMAGIC_NAME\"\n";
+  my ($opts) = @_;
+  my $ipmagicName = readFile undef, $FILE_REMOTE_MIRROR_IPMAGIC_NAME;
+  chomp $ipmagicName;
+  if($ipmagicName !~ /^(\w+)$/){
+    die "ERROR: invalid/missing IPMAGIC_NAME\n";
   }
-  $mainIpmagic = getIpmagicFile $ipmagic, $REMOTE_VIDEOS_DIR;
 
-  die "could not find \"main\" locally\n" if $$opts{localOnly} and defined $ipmagic;
+  my $syncName = "sync-$ipmagicName-" . nowMillis();
 
-  print "reading exclude file\n";
-  my $excludes = readExcludeFile($ipmagic);
-  print "\n";
+  my $tmpSymlinksDir = "$TMP_SYNC_SYMLINKS_DIR_PREFIX-$syncName";
 
-  my $sizes = getSizes($ipmagic);
-  print "\n";
+  run "ipmagic", $ipmagicName, "-s", $EXEC, "--build-sync-dir", $syncName;
+  print "built symlinks remotely at $ipmagicName:$tmpSymlinksDir\n";
 
-  if(not $$opts{localOnly}){
-    print "=====\n";
-    print "Excluded files that are still present:\n";
-    my $unexcluded = checkExcludes $excludes, $sizes;
-    print map {"$_\n"} @$unexcluded;
-    print "=====\n\n";
+  my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
 
-    my $rsyncExcludes = getRsyncExcludes $excludes;
-
-    my @rsyncInfo = qw(rsync -L -a --ignore-existing --info=NAME --dry-run);
-
-    print "=====\n";
-    print "New LOCAL files: (rsync -n, no excludes, $MIRROR_VIDEOS_DIR/ => $REMOTE_VIDEOS_DIR/)\n";
-    runQuiet @rsyncInfo, "$MIRROR_VIDEOS_DIR/", "$mainIpmagic/";
-    print "=====\n\n";
-
-    print "=====\n";
-    print "New REMOTE files: (rsync -n, <EXCLUDES>, $REMOTE_VIDEOS_DIR/ => $MIRROR_VIDEOS_DIR/)\n";
-    runQuiet @rsyncInfo, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR_VIDEOS_DIR/";
-    print "=====\n\n";
-
-    my @rsyncInfoExisting = qw(rsync -a --existing --info=NAME --dry-run);
-
-    print "=====\n";
-    print "MODIFIED\n";
-    runQuiet @rsyncInfoExisting, "$MIRROR_VIDEOS_DIR/", "$REMOTE_VIDEOS_DIR/";
-    print "=====\n\n";
-
-    my @rsyncReal = qw(rsync -L -avP --ignore-existing);
-
-    if(not $$opts{simulate}){
-      print "=====\n";
-      print "LOCAL => REMOTE\n";
-      run @rsyncReal, "$MIRROR_VIDEOS_DIR/", "$mainIpmagic/";
-      print "=====\n\n";
-
-      print "=====\n";
-      print "REMOTE => LOCAL\n";
-      run @rsyncReal, @$rsyncExcludes, "$mainIpmagic/", "$MIRROR_VIDEOS_DIR/";
-      print "=====\n\n";
-    }
-
-    runQuiet "rsync", "-a", "$mainIpmagic/info-cache", "$MIRROR_VIDEOS_DIR/info-cache";
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
-    runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
+  for my $cat(@SYNC_CATEGORIES){
+    print "\n\n$cat:\n";
+    run "ipmagic", $ipmagicName, "--rsync",
+      "-L",
+      "-avP",
+      ":$tmpSymlinksDir/$cat/",
+      "$BASE_DIR/$cat/",
+      @maybeSimulateArg,
+    ;
   }
 }
 
@@ -750,6 +728,10 @@ sub readProcStdout($$$){
   }else{
     return join '', @lines;
   }
+}
+
+sub nowMillis(){
+  return int(time() * 1000.0 + 0.5);
 }
 
 &main(@ARGV);
