@@ -10,6 +10,7 @@ sub isSource();
 sub isMirror();
 sub getSourceIpmagicName();
 sub parseVideosIpmagicConf();
+sub getIpmagicNameAliases();
 sub isLocalIpmagicNameMatch($);
 sub syncRemote($);
 sub parseCsvRow($);
@@ -462,12 +463,21 @@ sub parseVideosIpmagicConf(){
   return $cfg;
 }
 
-sub isLocalIpmagicNameMatch($){
-  my ($targetIpmagicName) = @_;
+sub getIpmagicNameAliases(){
   my @ipmagicNames = readProc "ipmagic", "--get-ipmagic-name-aliases";
   chomp foreach @ipmagicNames;
-  my %okLocalIpmagicNames = map {$_ => 1} @ipmagicNames;
-  if(defined $okLocalIpmagicNames{$targetIpmagicName}){
+  for my $ipmagicName(@ipmagicNames){
+    if($ipmagicName !~ /^\w+$/){
+      die "ERROR: invalid IPMAGIC_NAME returned by `ipmagic` \"$ipmagicName\"\n";
+    }
+  }
+  return @ipmagicNames;
+}
+sub isLocalIpmagicNameMatch($){
+  my ($targetIpmagicName) = @_;
+  my @ipmagicNameAliases = getIpmagicNameAliases();
+  my %okLocalIpmagicNameAliases = map {$_ => 1} @ipmagicNameAliases;
+  if(defined $okLocalIpmagicNameAliases{$targetIpmagicName}){
     return 1;
   }else{
     return 0;
