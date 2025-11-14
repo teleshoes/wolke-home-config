@@ -7,6 +7,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 
 sub syncRemote($);
+sub readIncludeFile();
 sub updateCache($);
 sub readInfoCache($$);
 sub writeInfoCache($$$);
@@ -44,6 +45,11 @@ sub readProcStdout($$$);
 my $REMOTE_VIDEOS_DIR = "/media/videos";
 my $MIRROR_VIDEOS_DIR = "/media/stuff/Videos";
 my $IPMAGIC_NAME = "tv";
+
+my $BASE_DIR = "/media/videos";
+my $INFO_DIR = "$BASE_DIR/zzz_info";
+
+my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
 
 my @SYNC_CATEGORIES = qw(
   anime
@@ -203,6 +209,37 @@ sub syncRemote($){
     runQuiet "rsync", "-a", "$mainIpmagic/md5sum-cache", "$MIRROR_VIDEOS_DIR/md5sum-cache";
     runQuiet "rsync", "-a", "$mainIpmagic/md5sum-extra", "$MIRROR_VIDEOS_DIR/md5sum-extra";
   }
+}
+
+sub readIncludeFile(){
+  my $mediaNamesByCategory = {};
+  my @lines = readFile(undef, $FILE_INCLUDE_SYNC);
+  for my $line(@lines){
+    chomp $line;
+    next if $line =~ /^\s*$/;
+
+    my $namePtrnRegex = '[a-zA-Z0-9_\-\*]+';
+    if($line !~ /^(\w+)\/($namePtrnRegex)\s*$/){
+      die "ERROR: malformed include-sync line $line\n";
+    }
+    my ($cat, $namePtrn) = ($1, $2);
+
+    my @dirs = grep {-d $_} glob "/media/videos/$cat/$namePtrn/";
+    if(@dirs == 0){
+      die "ERROR: unknown include dir $line\n";
+    }
+    for my $dir(@dirs){
+      if($dir !~ /^\/media\/videos\/$cat\/([a-z0-9_\-]+)\/?$/){
+        die "ERROR: malformed media dir $dir\n";
+      }
+      my $name = $1;
+
+      $$mediaNamesByCategory{$cat} = [] if not defined $$mediaNamesByCategory{$cat};
+      push @{$$mediaNamesByCategory{$cat}}, $name;
+    }
+  }
+
+  return $mediaNamesByCategory;
 }
 
 sub updateCache($){
