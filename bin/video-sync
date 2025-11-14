@@ -11,6 +11,7 @@ sub parseCsvRow($);
 sub readIncludeFile();
 sub buildLocalSyncDir($$$);
 sub findAllFiles();
+sub readStatCache();
 sub readInfoCache($);
 sub writeInfoCache($$);
 sub formatInfoLine($$);
@@ -19,8 +20,10 @@ sub readMd5sumCache($);
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
 sub updateMd5sumCache($$$);
+sub handleUpdateCache($$@);
 sub gitCommitFile($$$);
 sub isGitFileUnstaged($$);
+sub getSizeMtime($$);
 sub parseDuration($);
 sub formatDuration($);
 sub md5sumFile($);
@@ -38,6 +41,10 @@ my $INFO_DIR = "$BASE_DIR/zzz_info";
 my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
 my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
 my $TMP_SYNC_SYMLINKS_DIR_PREFIX = "/tmp/video-sync-tmp-symlinks-dir";
+
+my $FILE_CACHE_STAT = "$INFO_DIR/cache-stat";
+
+my $TMP_PREFIX_CACHE_STAT = "/tmp/video-sync-cache-stat";
 
 my @DEFAULT_SYNC_EXCLUDE_ARGS = qw(extras/ highres/);
 
@@ -114,7 +121,18 @@ my $USAGE = "Usage:
         lowercase letters, numbers, underscores, and dashes
 
   $EXEC [OPTS] --cache
-    same as: $EXEC --cache-info && $EXEC --cache-md5sum
+    same as: $EXEC --cache-stat && $EXEC --cache-info && $EXEC --cache-md5sum
+
+  $EXEC [OPTS] --cache-stat
+    cache mtime and filesize for all regular files
+    as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
+             -type f -exec stat -c %Y:%s:%n {} \\;
+    -get ALL_FILES as in: $EXEC --list-files
+    -for each FILE in ALL_FILES, get MTIME_EPOCH and FILESIZE_BYTES with stat()
+    -write stat entries to $FILE_CACHE_STAT
+      -format as: \"<MTIME_EPOCH> , <FILESIZE_BYTES>b , <FILE>\"
+      -if --simulate is given, write only to $TMP_PREFIX_CACHE_STAT-<NOW_MILLIS>
+    -git commit $FILE_CACHE_STAT unless --no-git is given
 
   $EXEC [OPTS] --cache-info
     fetch stat and duration info for all files in $BASE_DIR
@@ -141,7 +159,10 @@ my $USAGE = "Usage:
       do no print each symlink command in --build-local-sync-dir
 
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
-      do not actually sync media files in --sync-remote
+      do not actually sync media files or write cache files in --cache-stat
+        -run rsync commands with --dry-run in --sync-remote
+        -do not write cache files in $INFO_DIR
+          -instead, skip deleting the tmp files in /tmp
 
     --no-git | --skip-git
       do not automatically git commit info cache files in --info
@@ -179,16 +200,16 @@ my $USAGE = "Usage:
 my $CMD_SYNC_REMOTE = "sync-remote";
 my $CMD_BUILD_LOCAL_SYNC_DIR = "build-local-sync-dir";
 my $CMD_CACHE = "cache";
-
 my $CMD_LIST_FILES = "list-files";
 
+my $CACHE_TYPE_STAT = "stat";
 my $CACHE_TYPE_INFO = "info";
 my $CACHE_TYPE_MD5SUM = "md5sum";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
   my $syncName = undef;
-  my @cacheTypes = ($CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM);
+  my @cacheTypes;
   my $opts = {
     quiet           => 0,
     simulate        => 0,
@@ -212,7 +233,10 @@ sub main(@){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd = $CMD_CACHE;
-      @cacheTypes = ($CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM);
+      @cacheTypes = ($CACHE_TYPE_STAT, $CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM);
+    }elsif($arg =~ /^(--cache-stat)$/){
+      $cmd = $CMD_CACHE;
+      @cacheTypes = ($CACHE_TYPE_STAT);
     }elsif($arg =~ /^(--cache-info)$/){
       $cmd = $CMD_CACHE;
       @cacheTypes = ($CACHE_TYPE_INFO);
@@ -256,8 +280,14 @@ sub main(@){
     my $mediaNamesByCategory = readIncludeFile();
     buildLocalSyncDir($opts, $syncName, $mediaNamesByCategory);
   }elsif($cmd eq $CMD_CACHE){
+    print "getting file information with find\n";
+    my @allFiles = findAllFiles();
+    @allFiles = sort @allFiles;
+
     for my $cacheType(@cacheTypes){
-      if($cacheType eq $CACHE_TYPE_INFO){
+      if($cacheType eq $CACHE_TYPE_STAT){
+        handleUpdateCache($opts, $cacheType, @allFiles);
+      }elsif($cacheType eq $CACHE_TYPE_INFO){
         print "=====\n";
         print "Info cache\n";
         updateInfoCache $opts, $BASE_DIR, "$BASE_DIR/info-cache";
@@ -410,6 +440,26 @@ sub findAllFiles(){
 
   s/^$BASE_DIR\/+// foreach @files;
   return @files;
+}
+
+sub readStatCache(){
+  my $cacheStat = {};
+  if(-f $FILE_CACHE_STAT){
+    for my $line(readFile($FILE_CACHE_STAT)){
+      if($line !~ /^\s*(\d+)\s*,\s*(\d+)b\s*,\s*(\S.*)$/){
+        die "ERROR: malformed line in $FILE_CACHE_STAT\n$line";
+      }
+      my ($mtime, $size, $file) = ($1, $2, $3);
+      if(defined $$cacheStat{$file}){
+        die "ERROR: dupe file in $FILE_CACHE_STAT \"$file\"\n";
+      }
+      $$cacheStat{$file} = {
+        mtime => $mtime,
+        size  => $size,
+      };
+    }
+  }
+  return $cacheStat;
 }
 
 sub readInfoCache($){
@@ -597,6 +647,61 @@ sub updateMd5sumCache($$$){
   }
 }
 
+sub handleUpdateCache($$@){
+  my ($opts, $cacheType, @files) = @_;
+
+  my ($cacheStat) = (undef);
+  my ($destCacheFile, $tmpFilePrefix) = (undef, undef);
+  if($cacheType eq $CACHE_TYPE_STAT){
+    $cacheStat = readStatCache();
+    ($destCacheFile, $tmpFilePrefix) = ($FILE_CACHE_STAT, $TMP_PREFIX_CACHE_STAT);
+  }else{
+    die "ERROR: unknown cache type $cacheType\n";
+  }
+
+  print "updating cache $destCacheFile" . ($$opts{simulate} ? " (simulate)" : "") . "\n";
+  my $tmpFile = $tmpFilePrefix . "-" . nowMillis();
+  system "rm", "-f", "$tmpFilePrefix-latest";
+  system "ln", "-s", $tmpFile, "$tmpFilePrefix-latest";
+  print "writing $tmpFile\n";
+
+  open my $fh, "> $tmpFile" or die "ERROR: could not write $tmpFile\n$!\n";
+  for my $file(@files){
+    my $cacheLine;
+    if($cacheType eq $CACHE_TYPE_STAT){
+      if(not defined $$cacheStat{$file}){
+        print "  new file: $file\n";
+      }
+      my ($fsBytes, $mtime) = getSizeMtime("$BASE_DIR/$file", 1);
+      $cacheLine = sprintf("%d , %12db , %s\n", $mtime, $fsBytes, $file);
+    }else{
+      die "ERROR: unknown cache type $cacheType\n";
+    }
+
+    print $fh $cacheLine;
+  }
+  close $fh;
+  print " done\n";
+
+  if($$opts{simulate}){
+    print "simulate: not updating $destCacheFile\n";
+    print "simulate: keeping $tmpFile\n";
+  }else{
+    run "mv", $tmpFile, $destCacheFile;
+    system "rm", "-f", "$tmpFilePrefix-latest";
+  }
+
+  if(isGitFileUnstaged($INFO_DIR, $destCacheFile)){
+    if($$opts{skipGit}){
+      print "#SKIPPING GIT COMMIT FOR $destCacheFile\n";
+    }else{
+      gitCommitFile($INFO_DIR, $destCacheFile, "cache-$cacheType: automatic commit");
+    }
+  }
+
+  print "\n";
+}
+
 sub gitCommitFile($$$){
   my ($repo, $file, $msg) = @_;
   run "git", "-C", $repo, "add", $file;
@@ -618,6 +723,14 @@ sub isGitFileUnstaged($$){
   }else{
     die "ERROR: @gitDiffCmd failed with exitCode=$exitCode\n$!\n";
   }
+}
+
+sub getSizeMtime($$){
+  my ($file, $isFollowSymlinks) = @_;
+  my @stat = $isFollowSymlinks ? stat($file) : lstat($file);
+  my $fsBytes = $stat[7];
+  my $mtime = $stat[9];
+  return ($fsBytes, $mtime);
 }
 
 sub parseDuration($){
