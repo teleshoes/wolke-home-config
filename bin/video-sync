@@ -22,7 +22,6 @@ sub formatMd5sumLine($$);
 sub updateMd5sumCache($$);
 sub parseDuration($);
 sub formatDuration($);
-sub getSizes();
 sub md5sumFile($);
 sub readFile($);
 sub writeFile($@);
@@ -389,9 +388,6 @@ sub findAllFiles(){
 sub updateCache($){
   my $opts = @_;
 
-  my $sizes = getSizes();
-  print "\n";
-
   print "=====\n";
   print "Info cache\n";
   updateInfoCache $BASE_DIR, "$BASE_DIR/info-cache";
@@ -596,35 +592,6 @@ sub formatDuration($){
   my $m = int($dur/60) - ($h*60);
   my $s = $dur - ($h*60*60) - ($m*60);
   return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
-}
-
-sub getSizes(){
-  my $sizes = {};
-  for my $cat(@ALL_CATEGORIES){
-    print "getting sizes for: $cat\n";
-    my $catSizes = {};
-    my @files = readProc "ls", "$BASE_DIR/$cat";
-    chomp foreach @files;
-    @files = map {"$BASE_DIR/$cat/$_"} @files;
-
-    if(@files > 0){
-      my @lines = readProc "du", "-s", @files;
-
-      for my $line(@lines){
-        if($line !~ /^(\d+)\t(.*)$/){
-          die "Failed du: $line\n";
-        }
-        my ($size, $file) = ($1, $2);
-        if($file !~ /^$BASE_DIR\/$cat\/(.+)$/){
-          die "Malformed filename from du: $line\n";
-        }
-        my $fileName = $1;
-        $$catSizes{$fileName} = $size;
-      }
-    }
-    $$sizes{$cat} = $catSizes;
-  }
-  return $sizes;
 }
 
 sub md5sumFile($){
