@@ -13,7 +13,7 @@ sub fingerprint($$);
 sub ensureFingerprint($$);
 sub getIpmagicNameFromConfFile($);
 sub getConfFilesSymlinksLast();
-sub getLocalIpmagicName();
+sub getLocalIpmagicNameAliases();
 sub parseConfig($);
 sub hostsMarker($);
 sub readHostsIP($);
@@ -525,12 +525,11 @@ sub main(@){
     my @ipmagicNames = map {getIpmagicNameFromConfFile($_)} getConfFilesSymlinksLast();
     print "$_\n" foreach @ipmagicNames;
   }elsif($opts{cmd} eq $CMD_GET_IPMAGIC_NAME){
-    my $ipmagicName = getLocalIpmagicName();
-    if(defined $ipmagicName){
-      print "$ipmagicName\n";
-    }else{
+    my @ipmagicNames = getLocalIpmagicNameAliases();
+    if(@ipmagicNames == 0){
       die "ERROR: could not find matching CONF file\n";
     }
+    print $ipmagicNames[0] . "\n";
   }elsif($opts{cmd} eq $CMD_GET_HOST){
     print "$config{hostname}\n";
   }elsif($opts{cmd} eq $CMD_GET_VNC_DEFAULT_ARGS){
@@ -818,7 +817,7 @@ sub getIpmagicNameFromConfFile($){
   }
 }
 
-sub getLocalIpmagicName(){
+sub getLocalIpmagicNameAliases(){
   my @CONF_FILES = getConfFilesSymlinksLast();
 
   my $hostname = `$EXEC_HOSTNAME`;
@@ -828,17 +827,16 @@ sub getLocalIpmagicName(){
     die "ERROR: could not get hostname with `$EXEC_HOSTNAME`\n";
   }
 
-  my $matchingIpmagicName = undef;
+  my @matchingIpmagicNames;
   for my $confFile(@CONF_FILES){
     my $ipmagicName = getIpmagicNameFromConfFile($confFile);
     my $config = parseConfig $confFile;
     if($$config{hostname} eq $hostname){
-      $matchingIpmagicName = $ipmagicName;
-      last;
+      push @matchingIpmagicNames, $ipmagicName;
     }
   }
 
-  return $matchingIpmagicName;
+  return @matchingIpmagicNames;
 }
 
 sub parseConfig($){
