@@ -6,6 +6,10 @@ use Time::HiRes qw(time);
 use Digest::MD5 qw();
 my $USE_LIB_TEXT_CSV = eval {require Text::CSV};
 
+sub isSource();
+sub isMirror();
+sub parseVideosIpmagicConf();
+sub isLocalIpmagicNameMatch($);
 sub syncRemote($);
 sub parseCsvRow($);
 sub readIncludeFile();
@@ -29,6 +33,8 @@ sub nowMillis();
 
 my $BASE_DIR = "/media/videos";
 my $INFO_DIR = "$BASE_DIR/zzz_info";
+
+my $FILE_VIDEOS_IPMAGIC_CONF = "$BASE_DIR/videos-ipmagic.conf";
 
 my $FILE_INCLUDE_SYNC = "$INFO_DIR/include-sync";
 my $FILE_REMOTE_MIRROR_IPMAGIC_NAME = "$BASE_DIR/videos_mirror_ipmagic_name";
@@ -76,6 +82,21 @@ my $EXEC = basename $0;
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
+
+  $EXEC [OPTS] --ensure-type SOURCE_OR_MIRROR
+    -read LOCAL_TYPE, SOURCE_IPMAGIC_NAME and MIRROR_IPMAGIC_NAME from
+      $FILE_VIDEOS_IPMAGIC_CONF
+        localType = LOCAL_TYPE
+        ipmagic.source = SOURCE_IPMAGIC_NAME
+        ipmagic.mirror = MIRROR_IPMAGIC_NAME
+    -get TARGET_IPMAGIC_NAME
+      -if SOURCE_OR_MIRROR is 'source': TARGET_IPMAGIC_NAME = SOURCE_IPMAGIC_NAME
+      -if SOURCE_OR_MIRROR is 'mirror': TARGET_IPMAGIC_NAME = MIRROR_IPMAGIC_NAME
+    -get all IPMAGIC_NAME_ALIAS entries from `ipmagic --get-ipmagic-name-aliases`
+    -ensure that SOURCE_OR_MIRROR exactly matches LOCAL_TYPE
+      -fail with an error otherwise
+    -ensure that SOURCE_OR_MIRROR exactly matches one IPMAGIC_NAME_ALIAS
+      -fail with an error otherwise
 
   $EXEC [OPTS] --sync
   $EXEC [OPTS] --sync-remote
@@ -234,6 +255,7 @@ my $USAGE = "Usage:
       pass '--del' to rsync commands in --sync-remote
 ";
 
+my $CMD_ENSURE_TYPE = "ensure-type";
 my $CMD_SYNC_REMOTE = "sync-remote";
 my $CMD_BUILD_LOCAL_SYNC_DIR = "build-local-sync-dir";
 my $CMD_CACHE = "cache";
@@ -245,6 +267,7 @@ my $CACHE_TYPE_DURATION = "duration";
 
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
+  my $typeToEnsure = undef;
   my $syncName = undef;
   my @cacheTypes;
   my $opts = {
@@ -261,6 +284,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--ensure-type)$/){
+      $cmd = $CMD_ENSURE_TYPE;
     }elsif($arg =~ /^(--sync|--sync-remote)$/){
       $cmd = $CMD_SYNC_REMOTE;
     }elsif($arg =~ /^(--sync-simulate)$/){
@@ -303,6 +328,9 @@ sub main(@){
       $$opts{syncExcludeArgs} = [parseCsvRow($csv)],
     }elsif($arg =~ /^(--del|--delete|--sync-del|--sync-delete)$/){
       $$opts{syncDelete} = 1;
+    }elsif($cmd eq $CMD_ENSURE_TYPE
+             and not defined $typeToEnsure and $arg =~ /^(source|mirror)$/){
+      $typeToEnsure = $arg;
     }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR
              and not defined $syncName and $arg =~ /^(sync[a-z0-9_\-]*)$/){
       $syncName = $arg
@@ -311,7 +339,24 @@ sub main(@){
     }
   }
 
-  if($cmd eq $CMD_SYNC_REMOTE){
+  if($cmd eq $CMD_ENSURE_TYPE){
+    die "ERROR: SOURCE_OR_MIRROR is required for --ensure-type\n" if not defined $typeToEnsure;
+    if($typeToEnsure eq "source"){
+      if(isSource()){
+        print "local machine type is source\n";
+      }else{
+        die "ERROR: local machine type is NOT source\n";
+      }
+    }elsif($typeToEnsure eq "mirror"){
+      if(isMirror()){
+        print "local machine type is mirror\n";
+      }else{
+        die "ERROR: local machine type is NOT mirror\n";
+      }
+    }else{
+      die "ERROR: unknown SOURCE_OR_MIRROR arg\n";
+    }
+  }elsif($cmd eq $CMD_SYNC_REMOTE){
     syncRemote($opts);
   }elsif($cmd eq $CMD_BUILD_LOCAL_SYNC_DIR){
     die "ERROR: missing SYNC_NAME\n" if not defined $syncName;
@@ -331,6 +376,77 @@ sub main(@){
     print "$_\n" foreach @allFiles;
   }else{
     die "ERROR: unknown command $cmd\n";
+  }
+}
+
+sub isSource(){
+  my $cfg = parseVideosIpmagicConf();
+  if($$cfg{isSource} and isLocalIpmagicNameMatch($$cfg{sourceIpmagicName})){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub isMirror(){
+  my $cfg = parseVideosIpmagicConf();
+  if($$cfg{isMirror} and isLocalIpmagicNameMatch($$cfg{mirrorIpmagicName})){
+    return 1;
+  }else{
+    return 0;
+  }
+}
+
+sub parseVideosIpmagicConf(){
+  my @lines = readFile $FILE_VIDEOS_IPMAGIC_CONF;
+  my $cfg = {
+    isSource          => 0,
+    isMirror          => 0,
+    sourceIpmagicName => undef,
+    mirrorIpmagicName => undef,
+  };
+  for my $line(@lines){
+    next if $line =~ /^\s*$/;
+    if($line =~ /^localType\s*=\s*(source|mirror)\s*$/){
+      my $type = $1;
+      if($type eq "source"){
+        $$cfg{isSource} = 1;
+        $$cfg{isMirror} = 0;
+      }elsif($type eq "mirror"){
+        $$cfg{isSource} = 0;
+        $$cfg{isMirror} = 1;
+      }else{
+        die "ERROR: invalid localType \"$type\" in $FILE_VIDEOS_IPMAGIC_CONF\n";
+      }
+    }elsif($line =~ /^ipmagic\.source\s*=\s*(\w+)\s*$/){
+      $$cfg{sourceIpmagicName} = $1;
+    }elsif($line =~ /^ipmagic\.mirror\s*=\s*(\w+)\s*$/){
+      $$cfg{mirrorIpmagicName} = $1;
+    }
+  }
+
+  if(not defined $$cfg{sourceIpmagicName} or $$cfg{sourceIpmagicName} !~ /^\w+$/){
+    die "ERROR: missing/invalid ipmagic.source in $FILE_VIDEOS_IPMAGIC_CONF\n";
+  }elsif(not defined $$cfg{mirrorIpmagicName} or $$cfg{mirrorIpmagicName} !~ /^\w+$/){
+    die "ERROR: missing/invalid ipmagic.mirror in $FILE_VIDEOS_IPMAGIC_CONF\n";
+  }elsif($$cfg{isSource} and $$cfg{isMirror}){
+    die "ERROR: missing/invalid localType in $FILE_VIDEOS_IPMAGIC_CONF\n";
+  }elsif(not $$cfg{isSource} and not $$cfg{isMirror}){
+    die "ERROR: missing/invalid localType in $FILE_VIDEOS_IPMAGIC_CONF\n";
+  }
+
+  return $cfg;
+}
+
+sub isLocalIpmagicNameMatch($){
+  my ($targetIpmagicName) = @_;
+  my @ipmagicNames = readProc "ipmagic", "--get-ipmagic-name-aliases";
+  chomp foreach @ipmagicNames;
+  my %okLocalIpmagicNames = map {$_ => 1} @ipmagicNames;
+  if(defined $okLocalIpmagicNames{$targetIpmagicName}){
+    return 1;
+  }else{
+    return 0;
   }
 }
 
