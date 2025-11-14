@@ -135,6 +135,9 @@ my $USAGE = "Usage:
     perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
 
   OPTS
+    -q | --quiet
+      do no print each symlink command in --build-local-sync-dir
+
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
       only run rsync commands with --dry-run in --sync-remote
       do not actually copy files from and to remote
@@ -185,6 +188,7 @@ sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
   my $syncName = undef;
   my $opts = {
+    quiet           => 0,
     simulate        => 0,
     useGit          => 1,
     localOnly       => 0,
@@ -207,6 +211,8 @@ sub main(@){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd= $CMD_CACHE;
+    }elsif($arg =~ /^(-q|--quiet)$/){
+      $$opts{quiet} = 1;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
       $$opts{simulate} = 1;
     }elsif($arg =~ /^(--local)$/){
@@ -358,7 +364,11 @@ sub buildLocalSyncDir($$$){
     if($$opts{simulate}){
       print "#@cmd\n";
     }else{
-      run @cmd;
+      if($$opts{quiet}){
+        runQuiet(@cmd);
+      }else{
+        run @cmd;
+      }
     }
   }
 }
