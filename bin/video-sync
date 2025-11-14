@@ -12,10 +12,6 @@ sub readIncludeFile();
 sub buildLocalSyncDir($$$);
 sub findAllFiles();
 sub readStatCache();
-sub readInfoCache($);
-sub writeInfoCache($$);
-sub formatInfoLine($$);
-sub updateInfoCache($$$);
 sub readMd5sumCache($);
 sub writeMd5sumCache($$);
 sub formatMd5sumLine($$);
@@ -25,8 +21,6 @@ sub handleUpdateCache($$@);
 sub gitCommitFile($$$);
 sub isGitFileUnstaged($$);
 sub getSizeMtime($$);
-sub parseDuration($);
-sub formatDuration($);
 sub getDuration($);
 sub formatDurationHMS($);
 sub md5sumFile($);
@@ -136,7 +130,7 @@ my $USAGE = "Usage:
         lowercase letters, numbers, underscores, and dashes
 
   $EXEC [OPTS] --cache
-    same as: $EXEC --cache-stat && $EXEC --cache-info && $EXEC --cache-md5sum && $EXEC --cache-duration
+    same as: $EXEC --cache-stat && $EXEC --cache-md5sum && $EXEC --cache-duration
 
   $EXEC [OPTS] --cache-stat
     cache mtime and filesize for all regular files
@@ -148,9 +142,6 @@ my $USAGE = "Usage:
       -format as: \"<MTIME_EPOCH> , <FILESIZE_BYTES>b , <FILE>\"
       -if --simulate is given, write only to $TMP_PREFIX_CACHE_STAT-<NOW_MILLIS>
     -git commit $FILE_CACHE_STAT unless --simulate or --no-git is given
-
-  $EXEC [OPTS] --cache-info
-    fetch stat and duration info for all files in $BASE_DIR
 
   $EXEC [OPTS] --cache-md5sum
     calculate MD5SUM for each file in $BASE_DIR
@@ -240,7 +231,6 @@ my $CMD_CACHE = "cache";
 my $CMD_LIST_FILES = "list-files";
 
 my $CACHE_TYPE_STAT = "stat";
-my $CACHE_TYPE_INFO = "info";
 my $CACHE_TYPE_MD5SUM = "md5sum";
 my $CACHE_TYPE_DURATION = "duration";
 
@@ -271,13 +261,10 @@ sub main(@){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd = $CMD_CACHE;
-      @cacheTypes = ($CACHE_TYPE_STAT, $CACHE_TYPE_INFO, $CACHE_TYPE_MD5SUM, $CACHE_TYPE_DURATION);
+      @cacheTypes = ($CACHE_TYPE_STAT, $CACHE_TYPE_MD5SUM, $CACHE_TYPE_DURATION);
     }elsif($arg =~ /^(--cache-stat)$/){
       $cmd = $CMD_CACHE;
       @cacheTypes = ($CACHE_TYPE_STAT);
-    }elsif($arg =~ /^(--cache-info)$/){
-      $cmd = $CMD_CACHE;
-      @cacheTypes = ($CACHE_TYPE_INFO);
     }elsif($arg =~ /^(--cache-md5sum)$/){
       $cmd = $CMD_CACHE;
       @cacheTypes = ($CACHE_TYPE_MD5SUM);
@@ -329,11 +316,6 @@ sub main(@){
     for my $cacheType(@cacheTypes){
       if($cacheType eq $CACHE_TYPE_STAT or $cacheType eq $CACHE_TYPE_DURATION){
         handleUpdateCache($opts, $cacheType, @allFiles);
-      }elsif($cacheType eq $CACHE_TYPE_INFO){
-        print "=====\n";
-        print "Info cache\n";
-        updateInfoCache $opts, $BASE_DIR, "$BASE_DIR/info-cache";
-        print "=====\n\n";
       }elsif($cacheType eq $CACHE_TYPE_MD5SUM){
         print "=====\n";
         print "Md5sum cache\n";
@@ -521,92 +503,6 @@ sub readDurationCache(){
     }
   }
   return $cacheDuration;
-}
-
-sub readInfoCache($){
-  my ($cacheFile) = @_;
-  my $cache = {};
-  if(-e $cacheFile){
-    my @lines = readFile $cacheFile;
-    for my $line(@lines){
-      next if $line =~ /^\s*$/;
-      chomp $line;
-      if($line =~ /^
-        \s*        (\d+|\?)k
-        \s* \| \s* (\d+:\d\d:\d\d\.\d\d|\?)
-        \s* \| \s* (.+)
-      $/x){
-        my ($size, $dur, $file) = ($1, $2, $3);
-        $size = undef if $size eq "?";
-        $dur = parseDuration $dur;
-        $$cache{$file} = [$size, $dur];
-      }else{
-        die "Malformed info cache line: $line\n";
-      }
-    }
-  }
-  return $cache;
-}
-sub writeInfoCache($$){
-  my ($cacheFile, $cache) = @_;
-  my @lines = map{formatInfoLine($cache, $_)} sort keys %$cache;
-  writeFile $cacheFile, @lines;
-}
-sub formatInfoLine($$){
-  my ($cache, $file) = @_;
-  die "missing $file\n" if not defined $$cache{$file};
-  my ($size, $dur) = @{$$cache{$file}};
-
-  my $sizeFmt = defined $size ? sprintf "%9d", $size : sprintf "%9s", "?";
-  my $durFmt = formatDuration $dur;
-  return "${sizeFmt}k | ${durFmt} | $file\n";
-}
-sub updateInfoCache($$$){
-  my ($opts, $dir, $cacheFile) = @_;
-  my $cache = readInfoCache $cacheFile;
-
-  my @files = readProc "find",
-    "-L",
-    $dir,
-    "-not", "-path", "$dir/.git*",
-    "-mindepth", "2",
-    "-type", "f";
-  chomp foreach @files;
-  s/^$dir\/// foreach @files;
-
-  my %okFiles = map {$_ => 1} @files;
-
-  for my $file(sort keys %$cache){
-    if(not defined $okFiles{$file}){
-      delete $$cache{$file};
-      print "Remove: $file\n";
-      writeInfoCache $cacheFile, $cache;
-    }
-  }
-
-  for my $file(sort @files){
-    if(not defined $$cache{$file}){
-      my $size = readProc "du", "-s", "$dir/$file";
-      chomp $size;
-      $size = $size =~ /^(\d+)\s/ ? $1 : undef;
-
-      my $dur = readProc "duration", "-s", "$dir/$file";
-      chomp $dur;
-      $dur = $dur =~ /^(\d+\.\d+)\s/ ? $1 : undef;
-
-      $$cache{$file} = [$size, $dur];
-      print "Add: " . formatInfoLine($cache, $file);
-      writeInfoCache $cacheFile, $cache;
-    }
-  }
-
-  if(isGitFileUnstaged($INFO_DIR, $cacheFile)){
-    if($$opts{skipGit}){
-      print "#SKIPPING GIT COMMIT FOR $cacheFile\n";
-    }else{
-      gitCommitFile($INFO_DIR, $cacheFile, "cache-info: automatic commit");
-    }
-  }
 }
 
 sub readMd5sumCache($){
@@ -829,25 +725,6 @@ sub getSizeMtime($$){
   my $fsBytes = $stat[7];
   my $mtime = $stat[9];
   return ($fsBytes, $mtime);
-}
-
-sub parseDuration($){
-  my $dur = shift;
-  return undef if $dur =~ /^\s*\?\s*$/;
-  if($dur !~ /^(\d+):(\d+):(\d+|\d+.\d+)$/){
-    die "Malformed duration: $dur\n";
-  }
-  return $1*60*60 + $2*60 + $3;
-}
-
-sub formatDuration($){
-  my $dur = shift;
-  return sprintf "%11s", "?" if not defined $dur;
-
-  my $h = int($dur/60/60);
-  my $m = int($dur/60) - ($h*60);
-  my $s = $dur - ($h*60*60) - ($m*60);
-  return sprintf '%02d:%02d:%05.2f', $h, $m, $s;
 }
 
 sub getDuration($){
