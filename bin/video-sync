@@ -90,8 +90,9 @@ my $USAGE = "Usage:
     -use TMP_SYMLINKS_DIR=$TMP_SYNC_SYMLINKS_DIR_PREFIX-<SYNC_NAME>
     -build IPMAGIC_NAME:TMP_SYNC_DIR remotely
       -run: ipmagic IPMAGIC_NAME -s $EXEC --build-sync-dir SYNC_NAME_ARG
-    -sync the following CATEGORY entries:
-      @SYNC_CATEGORIES
+    -get list of CATEGORY entries to sync
+      -default is: @SYNC_CATEGORIES
+      -see: --sync-category
     -rsync each CATEGORY from remote TMP_SYMLINKS_DIR to $BASE_DIR
       -follow remote symlinks with '-L', copying actual files, not links
       -run: ipmagic IPMAGIC_NAME --rsync -L -avP \\
@@ -146,6 +147,19 @@ my $USAGE = "Usage:
       only affect the local filesystem
       fail if $REMOTE_VIDEOS_DIR is not a mountpoint
 
+    -c CATEGORY_CSV
+    --sync-categories=CATEGORY_CSV
+      in sync-remote, only sync the indicated CATEGORY entries
+        -parse CATEGORY_CSV into CATEGORY entries
+        -skip any CATEGORY not given in --sync-remote
+      CATEGORY_CSV
+        comma-separated list of CATEGORY entries
+          separator=','    quote_char='\"'    escape_char='\\'    quote_literal='\"\"'
+          e.g.: -c movies,series,operas
+        NOTE: simple csv parsing without quotes/escapes is used if Text::CSV is not found
+        the default is:
+          " . join(",", @SYNC_CATEGORIES) . "
+
     -x EXCLUDE_CSV
     --sync-excludes=EXCLUDE_CSV
       in sync-remote, override the default rsync EXCLUDE args
@@ -174,6 +188,7 @@ sub main(@){
     simulate => 0,
     useGit => 1,
     localOnly => 0,
+    syncCategories  => [@SYNC_CATEGORIES],
     syncExcludeArgs => [@DEFAULT_SYNC_EXCLUDE_ARGS],
     syncDelete      => 0,
   };
@@ -198,6 +213,12 @@ sub main(@){
       $$opts{localOnly} = 1;
     }elsif($arg =~ /^(--no-git)$/){
       $$opts{useGit} = 0;
+    }elsif($arg =~ /^(-c)$/ and @_ > 0){
+      my $csv = shift @_;
+      $$opts{syncCategories} = [parseCsvRow($csv)],
+    }elsif($arg =~ /^--sync-categories=(.+)$/){
+      my $csv = $1;
+      $$opts{syncCategories} = [parseCsvRow($csv)],
     }elsif($arg =~ /^(-x)$/ and @_ > 0){
       my $csv = shift @_;
       $$opts{syncExcludeArgs} = [parseCsvRow($csv)],
@@ -246,7 +267,7 @@ sub syncRemote($){
   my @excludeArgs = map {("--exclude", $_)} @{$$opts{syncExcludeArgs}};
   my @maybeDeleteArg = $$opts{syncDelete} ? ("--del") : ();
 
-  for my $cat(@SYNC_CATEGORIES){
+  for my $cat(@{$$opts{syncCategories}}){
     print "\n\n$cat:\n";
     run "ipmagic", $ipmagicName, "--rsync",
       "-L",
