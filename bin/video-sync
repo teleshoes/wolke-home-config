@@ -11,6 +11,7 @@ sub syncRemote($);
 sub parseCsvRow($);
 sub readIncludeFile();
 sub buildLocalSyncDir($$$);
+sub findAllFiles();
 sub updateCache($);
 sub readInfoCache($$);
 sub writeInfoCache($$$);
@@ -134,6 +135,20 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --cache
     perform info/md5sum updates of $REMOTE_VIDEOS_DIR only
 
+  $EXEC [OPTS] --list-files
+    list all regular files in all categories, following symlinks
+      as in: find -L $BASE_DIR/!(<CATEGORY>|<CATEGORY>..) \\
+               -type f
+    -get ALL_FILES:
+      -for each CATEGORY:
+        -find every file in $BASE_DIR/<CATEGORY>
+        -follow and dereference symlinks
+        -omit non-regular files like directories and broken symlinks
+    -print each file in ALL_FILES, one per line
+
+  CATEGORY
+    one of: $OK_CATS
+
   OPTS
     -q | --quiet
       do no print each symlink command in --build-local-sync-dir
@@ -184,6 +199,8 @@ my $CMD_SYNC_REMOTE = "sync-remote";
 my $CMD_BUILD_LOCAL_SYNC_DIR = "build-local-sync-dir";
 my $CMD_CACHE = "cache";
 
+my $CMD_LIST_FILES = "list-files";
+
 sub main(@){
   my $cmd = $CMD_SYNC_REMOTE;
   my $syncName = undef;
@@ -211,6 +228,8 @@ sub main(@){
       $cmd = $CMD_BUILD_LOCAL_SYNC_DIR;
     }elsif($arg =~ /^(--cache)$/){
       $cmd= $CMD_CACHE;
+    }elsif($arg =~ /^(--list-files)$/){
+      $cmd = $CMD_LIST_FILES;
     }elsif($arg =~ /^(-q|--quiet)$/){
       $$opts{quiet} = 1;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
@@ -249,6 +268,10 @@ sub main(@){
     buildLocalSyncDir($opts, $syncName, $mediaNamesByCategory);
   }elsif($cmd eq $CMD_CACHE){
     updateCache($opts);
+  }elsif($cmd eq $CMD_LIST_FILES){
+    my @allFiles = findAllFiles();
+    @allFiles = sort @allFiles;
+    print "$_\n" foreach @allFiles;
   }else{
     die "ERROR: unknown command $cmd\n";
   }
@@ -371,6 +394,21 @@ sub buildLocalSyncDir($$$){
       }
     }
   }
+}
+
+sub findAllFiles(){
+  my @findCmd = ("find",
+    "-L",
+    $BASE_DIR,
+    "-type", "f",
+    "-not", "-path", "*/zzz_info/*",
+  );
+
+  my @files = readProc undef, @findCmd;
+  chomp foreach @files;
+
+  s/^$BASE_DIR\/+// foreach @files;
+  return @files;
 }
 
 sub updateCache($){
