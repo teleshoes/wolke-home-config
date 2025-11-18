@@ -5,7 +5,9 @@ use File::Basename qw(basename);
 
 sub backup($$$$);
 sub isMountpoint($$);
+sub rsyncMaybeRemoteDest($$$@);
 sub readProc($@);
+sub run(@);
 
 my $EXEC = basename $0;
 
@@ -63,20 +65,9 @@ sub backup($$$$){
   die "$srcPath is not a mountpoint\n" if not isMountpoint $destLocal, $srcPath;
   die "$destPath is not a mountpoint\n" if not isMountpoint $destMaybeRemote, $destPath;
 
-  my @cmd;
-  if($$destMaybeRemote{isRemote}){
-    my $ipmagicName = $$destMaybeRemote{ipmagicName};
-    my $user = $$destMaybeRemote{ipmagicUser};
-    my $host = `ipmagic $ipmagicName --host`;
-    chomp $host;
-
-    @cmd = ("rsync", "-avP", "--del", "$srcPath/", "$user\@$host:$destPath/");
-  }else{
-    @cmd = ("rsync", "-avP", "--del", "$srcPath/", "$destPath/");
-  }
-
-  print "@cmd\n";
-  system @cmd;
+  rsyncMaybeRemoteDest($destMaybeRemote, "$srcPath/", "$destPath/",
+    "-avP", "--del",
+  );
 }
 
 sub isMountpoint($$){
@@ -87,6 +78,19 @@ sub isMountpoint($$){
   }else{
     return 0;
   }
+}
+
+sub rsyncMaybeRemoteDest($$$@){
+  my ($dest, $srcPath, $destPath, @rsyncArgs) = @_;
+  my @cmd;
+  if($$dest{isRemote}){
+    @cmd = (@cmd, "ipmagic", $$dest{ipmagicName});
+    @cmd = (@cmd, "-u", $$dest{ipmagicUser}) if defined $$dest{ipmagicUser};
+    @cmd = (@cmd, "--rsync", @rsyncArgs, $srcPath, ":$destPath");
+  }else{
+    @cmd = (@cmd, "rsync", @rsyncArgs, $srcPath, $destPath);
+  }
+  run @cmd;
 }
 
 sub readProc($@){
@@ -104,6 +108,15 @@ sub readProc($@){
     return @lines;
   }else{
     return join '', @lines;
+  }
+}
+
+sub run(@){
+  my (@cmd) = @_;
+  print "@cmd\n";
+  system @cmd;
+  if($? != 0){
+    die "ERROR: cmd @cmd failed\n";
   }
 }
 
