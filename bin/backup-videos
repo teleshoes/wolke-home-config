@@ -32,19 +32,22 @@ my $USAGE = "Usage:
       -run rsync
         -if IPMAGIC_NAME is given:
            run: ipmagic IPMAGIC_NAME [-u IPMAGIC_USER] --rsync -avP \\
-                  --del \\
                   VIDEO_MOUNTPOINT/ \\
                   :BACKUP_MOUNTPOINT/ \\
                   MAYBE_SIMULATE_ARG \\
+                  MAYBE_DELETE_ARG \\
                 ;
         -otherwise:
            run: rsync -avP \\
-                  --del \\
                   VIDEO_MOUNTPOINT/ \\
                   BACKUP_MOUNTPOINT/ \\
                   MAYBE_SIMULATE_ARG \\
+                  MAYBE_DELETE_ARG \\
                 ;
 
+    MAYBE_DELETE_ARG
+      '--del' if --delete is given, otherwise empty
+      does not override --simulate (nothing will be deleted with --simulate)
     MAYBE_SIMULATE_ARG
       '--dry-run' if --simulate is given, otherwise empty
       (append '--dry-run' to rsync commands on --simulate)
@@ -53,6 +56,10 @@ my $USAGE = "Usage:
     -s | --simulate | -n | --no-act | --dry-run | --dryrun
       pass '--dry-run' to rsync
       (do not copy any files, do not delete any files)
+
+    --del | --delete
+      pass --del to rsync commands
+      (if given with --simulate, will pass '--dry-run --del' and will not delete files)
 
     --ipmagic-name=IPMAGIC_NAME
       use IPMAGIC_NAME for remote destination of BACKUP drives
@@ -64,6 +71,7 @@ my $USAGE = "Usage:
 sub main(@){
   my $opts = {
     simulate    => 0,
+    rsyncDelete => 0,
   };
   my $destLocal = {
     isRemote    => 0,
@@ -83,6 +91,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
       $$opts{simulate} = 1;
+    }elsif($arg =~ /^(--del|--delete|--sync-del|--sync-delete)$/){
+      $$opts{rsyncDelete} = 1;
     }elsif($arg =~ /^--ipmagic-name=(\w+)$/){
       $$destMaybeRemote{ipmagicName} = $1;
       $$destMaybeRemote{isRemote} = 1;
@@ -111,10 +121,12 @@ sub main(@){
     my $backupMountpoint = formatBackupMountpoint($mediaMountpoint);
 
     my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
+    my @maybeDeleteArg = $$opts{rsyncDelete} ? ("--del") : ();
 
     rsyncMaybeRemoteDest($destMaybeRemote, "$mediaMountpoint/", "$backupMountpoint/",
-      "-avP", "--del",
+      "-avP",
       @maybeSimulateArg,
+      @maybeDeleteArg,
     );
   }
 }
