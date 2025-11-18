@@ -3,8 +3,9 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub backup($$$$);
+sub backup($$$);
 sub formatDest($);
+sub formatBackupMountpoint($);
 sub isMountpoint($$);
 sub ensureMountpoint($$);
 sub rsyncMaybeRemoteDest($$$@);
@@ -56,14 +57,22 @@ sub main(@){
     }
   }
 
-  backup $destLocal, $destMaybeRemote, "/media/videos", "/media/BACKUP_VIDEOS";
-  backup $destLocal, $destMaybeRemote, "/media/videos_series", "/media/BACKUP_VIDEOS_SERIES";
-  backup $destLocal, $destMaybeRemote, "/media/videos_movies", "/media/BACKUP_VIDEOS_MOVIES";
+  my @mediaMountpoints = qw(
+    /media/videos
+    /media/videos_series
+    /media/videos_movies
+  );
+
+  for my $mediaMountpoint(@mediaMountpoints){
+    backup $destLocal, $destMaybeRemote, $mediaMountpoint;
+  }
 }
 
-sub backup($$$$){
-  my ($destLocal, $destMaybeRemote, $srcPath, $destPath) = @_;
+sub backup($$$){
+  my ($destLocal, $destMaybeRemote, $srcPath) = @_;
   print "\n\nbacking up $srcPath\n";
+
+  my $destPath = formatBackupMountpoint($srcPath);
 
   ensureMountpoint($destLocal, $srcPath);
   ensureMountpoint($destMaybeRemote, $destPath);
@@ -80,6 +89,17 @@ sub formatDest($){
     return "$user$$dest{ipmagicName}";
   }else{
     return "localhost";
+  }
+}
+
+sub formatBackupMountpoint($){
+  my ($mediaMountpoint) = @_;
+  if($mediaMountpoint =~ /^\/media\/(\w+)\/?$/){
+    my $name = $1;
+    $name = uc $name;
+    return "/media/BACKUP_$name";
+  }else{
+    die "ERROR: malformed MEDIA_MOUNTPOINT \"$mediaMountpoint\"\n";
   }
 }
 
