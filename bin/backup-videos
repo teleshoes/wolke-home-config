@@ -9,6 +9,7 @@ sub isMountpoint($$);
 sub ensureMountpoint($$);
 sub rsyncMaybeRemoteDest($$$@);
 sub readProc($@);
+sub test($@);
 sub run(@);
 
 my $EXEC = basename $0;
@@ -93,6 +94,9 @@ sub isMountpoint($$){
 }
 sub ensureMountpoint($$){
   my ($dest, $dir) = @_;
+  if(not test($dest, "-d", $dir)){
+    die "ERROR: $dir is not a dir (" . formatDest($dest) . ")\n";
+  }
   if(not isMountpoint($dest, $dir)){
     die "ERROR: $dir is not a mountpoint (" . formatDest($dest) . ")\n";
   }
@@ -126,6 +130,22 @@ sub readProc($@){
     return @lines;
   }else{
     return join '', @lines;
+  }
+}
+
+sub test($@){
+  my ($dest, @testArgs) = @_;
+  my @cmd = ("test", @testArgs);
+  if(defined $$dest{ipmagicName}){
+    my @user = defined $$dest{ipmagicUser} ? ("-u", $$dest{ipmagicUser}) : ();
+    @cmd = ("ipmagic", $$dest{ipmagicName}, @user, @cmd);
+  }
+
+  system @cmd;
+  if($? == 0){
+    return 1;
+  }else{
+    return 0;
   }
 }
 
