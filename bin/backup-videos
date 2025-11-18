@@ -3,8 +3,8 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub backup($$;$$);
-sub isMountpoint($;$);
+sub backup($$$$);
+sub isMountpoint($$);
 
 my $IPMAGIC_NAME = "raspi";
 my $USER = "pi";
@@ -20,6 +20,17 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
+  my $destLocal = {
+    isRemote    => 0,
+    ipmagicName => undef,
+    ipmagicUser => undef,
+  };
+  my $destMaybeRemote= {
+    isRemote    => 1,
+    ipmagicName => $IPMAGIC_NAME,
+    ipmagicUser => $USER,
+  };
+
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -30,20 +41,22 @@ sub main(@){
     }
   }
 
-  backup "/media/videos", "/media/BACKUP_VIDEOS", $IPMAGIC_NAME, $USER;
-  backup "/media/videos_series", "/media/BACKUP_VIDEOS_SERIES", $IPMAGIC_NAME, $USER;
-  backup "/media/videos_movies", "/media/BACKUP_VIDEOS_MOVIES", $IPMAGIC_NAME, $USER;
+  backup $destLocal, $destMaybeRemote, "/media/videos", "/media/BACKUP_VIDEOS";
+  backup $destLocal, $destMaybeRemote, "/media/videos_series", "/media/BACKUP_VIDEOS_SERIES";
+  backup $destLocal, $destMaybeRemote, "/media/videos_movies", "/media/BACKUP_VIDEOS_MOVIES";
 }
 
-sub backup($$;$$){
-  my ($srcPath, $destPath, $ipmagicName, $user) = @_;
+sub backup($$$$){
+  my ($destLocal, $destMaybeRemote, $srcPath, $destPath) = @_;
   print "\n\nbacking up $srcPath\n";
 
-  die "$srcPath is not a mountpoint\n" if not isMountpoint $srcPath;
-  die "$destPath is not a mountpoint\n" if not isMountpoint $destPath, $ipmagicName;
+  die "$srcPath is not a mountpoint\n" if not isMountpoint $destLocal, $srcPath;
+  die "$destPath is not a mountpoint\n" if not isMountpoint $destMaybeRemote, $destPath;
 
   my @cmd;
-  if(defined $ipmagicName){
+  if($$destMaybeRemote{isRemote}){
+    my $ipmagicName = $$destMaybeRemote{ipmagicName};
+    my $user = $$destMaybeRemote{ipmagicUser};
     my $host = `ipmagic $ipmagicName --host`;
     chomp $host;
 
@@ -56,10 +69,12 @@ sub backup($$;$$){
   system @cmd;
 }
 
-sub isMountpoint($;$){
-  my ($dir, $ipmagicName) = @_;
+sub isMountpoint($$){
+  my ($dest, $dir) = @_;
   my $cmd = "mountpoint '$dir'";
-  $cmd = "ipmagic $ipmagicName $cmd" if defined $ipmagicName;
+  if($$dest{isRemote}){
+    $cmd = "ipmagic $$dest{ipmagicName} $cmd";
+  }
   my $out = `$cmd 2>&1`;
   if($out =~ /^$dir is a mountpoint$/){
     return 1;
