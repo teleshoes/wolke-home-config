@@ -7,6 +7,7 @@ sub formatDest($);
 sub formatBackupMountpoint($);
 sub isMountpoint($$);
 sub ensureMountpoint($$);
+sub readMountpointSizeBytes($$);
 sub rsyncMaybeRemoteDest($$$@);
 sub readProc($@);
 sub test($@);
@@ -29,6 +30,8 @@ my $USAGE = "Usage:
         e.g.: /media/movies1/ => /media/BACKUP_MOVIES1/
       -ensure BACKUP_MOUNTPOINT is a mountpoint with `mountpoint`
         -use ipmagic for mountpoint if IPMAGIC_NAME is given
+      -ensure VIDEO_MOUNTPOINT and BACKUP_MOUNTPOINT have the identical volume size with `df`
+        -use ipmagic for 'df BACKUP_MOUNTPOINT' if IPMAGIC_NAME is given
       -run rsync
         -if IPMAGIC_NAME is given:
            run: ipmagic IPMAGIC_NAME [-u IPMAGIC_USER] --rsync -avP \\
@@ -109,11 +112,20 @@ sub main(@){
     /media/videos_movies
   );
 
-  #ensure mountpoints for all up front
+  #ensure mountpoints and disk sizes for all up front
   for my $mediaMountpoint(@mediaMountpoints){
     my $backupMountpoint = formatBackupMountpoint($mediaMountpoint);
     ensureMountpoint($destLocal, $mediaMountpoint);
     ensureMountpoint($destMaybeRemote, $backupMountpoint);
+
+    my $sizeMedia = readMountpointSizeBytes($destLocal, $mediaMountpoint);
+    my $sizeBackup = readMountpointSizeBytes($destMaybeRemote, $backupMountpoint);
+    if($sizeMedia ne $sizeBackup){
+      die "ERROR: size mismatch\n"
+        . "  $mediaMountpoint=$sizeMedia\n"
+        . "  $backupMountpoint=$sizeBackup (" . formatDest($destMaybeRemote) . ")\n"
+      ;
+    }
   }
 
   for my $mediaMountpoint(@mediaMountpoints){
@@ -169,6 +181,22 @@ sub ensureMountpoint($$){
   if(not isMountpoint($dest, $dir)){
     die "ERROR: $dir is not a mountpoint (" . formatDest($dest) . ")\n";
   }
+}
+
+sub readMountpointSizeBytes($$){
+  my ($dest, $dir) = @_;
+  my $dfOut = readProc($dest, "df", "-B", 1, "--output=size,target", $dir);
+
+  if($dfOut !~ /^\s*1B-blocks\s+Mounted on\s*\n\s*(\d+)\s+(.+)$/){
+    die "ERROR: could not read df output for $dir on " . formatDest($dest) . "\n";
+  }
+  my ($sizeBytes, $mountpoint) = ($1, $2);
+
+  if($mountpoint ne $dir){
+    die "ERROR: $dir is not the mountpoint ($mountpoint) on " . formatDest($dest) . "\n";
+  }
+
+  return $sizeBytes;
 }
 
 sub rsyncMaybeRemoteDest($$$@){
