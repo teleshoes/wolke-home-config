@@ -35,15 +35,25 @@ my $USAGE = "Usage:
                   --del \\
                   VIDEO_MOUNTPOINT/ \\
                   :BACKUP_MOUNTPOINT/ \\
+                  MAYBE_SIMULATE_ARG \\
                 ;
         -otherwise:
            run: rsync -avP \\
                   --del \\
                   VIDEO_MOUNTPOINT/ \\
                   BACKUP_MOUNTPOINT/ \\
+                  MAYBE_SIMULATE_ARG \\
                 ;
 
+    MAYBE_SIMULATE_ARG
+      '--dry-run' if --simulate is given, otherwise empty
+      (append '--dry-run' to rsync commands on --simulate)
+
   OPTS
+    -s | --simulate | -n | --no-act | --dry-run | --dryrun
+      pass '--dry-run' to rsync
+      (do not copy any files, do not delete any files)
+
     --ipmagic-name=IPMAGIC_NAME
       use IPMAGIC_NAME for remote destination of BACKUP drives
 
@@ -52,6 +62,9 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
+  my $opts = {
+    simulate    => 0,
+  };
   my $destLocal = {
     isRemote    => 0,
     ipmagicName => undef,
@@ -68,6 +81,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-s|--simulate|-n|--no-act|--dry-run|--dryrun)$/){
+      $$opts{simulate} = 1;
     }elsif($arg =~ /^--ipmagic-name=(\w+)$/){
       $$destMaybeRemote{ipmagicName} = $1;
       $$destMaybeRemote{isRemote} = 1;
@@ -95,8 +110,11 @@ sub main(@){
     print "\n\nbacking up $mediaMountpoint\n";
     my $backupMountpoint = formatBackupMountpoint($mediaMountpoint);
 
+    my @maybeSimulateArg = $$opts{simulate} ? ("-n") : ();
+
     rsyncMaybeRemoteDest($destMaybeRemote, "$mediaMountpoint/", "$backupMountpoint/",
       "-avP", "--del",
+      @maybeSimulateArg,
     );
   }
 }
