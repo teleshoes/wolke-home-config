@@ -4,7 +4,9 @@ use warnings;
 use File::Basename qw(basename);
 
 sub backup($$$$);
+sub formatDest($);
 sub isMountpoint($$);
+sub ensureMountpoint($$);
 sub rsyncMaybeRemoteDest($$$@);
 sub readProc($@);
 sub run(@);
@@ -62,12 +64,22 @@ sub backup($$$$){
   my ($destLocal, $destMaybeRemote, $srcPath, $destPath) = @_;
   print "\n\nbacking up $srcPath\n";
 
-  die "$srcPath is not a mountpoint\n" if not isMountpoint $destLocal, $srcPath;
-  die "$destPath is not a mountpoint\n" if not isMountpoint $destMaybeRemote, $destPath;
+  ensureMountpoint($destLocal, $srcPath);
+  ensureMountpoint($destMaybeRemote, $destPath);
 
   rsyncMaybeRemoteDest($destMaybeRemote, "$srcPath/", "$destPath/",
     "-avP", "--del",
   );
+}
+
+sub formatDest($){
+  my ($dest) = @_;
+  if($$dest{isRemote}){
+    my $user = defined $$dest{ipmagicUser} ? "$$dest{ipmagicUser}@" : "";
+    return "$user$$dest{ipmagicName}";
+  }else{
+    return "localhost";
+  }
 }
 
 sub isMountpoint($$){
@@ -77,6 +89,12 @@ sub isMountpoint($$){
     return 1;
   }else{
     return 0;
+  }
+}
+sub ensureMountpoint($$){
+  my ($dest, $dir) = @_;
+  if(not isMountpoint($dest, $dir)){
+    die "ERROR: $dir is not a mountpoint (" . formatDest($dest) . ")\n";
   }
 }
 
