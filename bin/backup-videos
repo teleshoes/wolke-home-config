@@ -7,6 +7,7 @@ sub formatDest($);
 sub formatBackupMountpoint($);
 sub isMountpoint($$);
 sub ensureMountpoint($$);
+sub readMediaMountpoints($);
 sub readMountpointSizeBytes($$);
 sub rsyncMaybeRemoteDest($$$@);
 sub readProc($@);
@@ -21,10 +22,10 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS]
     -get local VIDEO_MOUNTPOINT list:
-      /media/videos
-      /media/series1
-      /media/series2
-      /media/movies1
+       -extract all mountpoints with `mount`
+       -include only those that match the extended glob:
+         /media/(videos|movies|series)\\d*
+       e.g.: /media/movies1 , /media/videos , /media/series2
     -for each VIDEO_MOUNTPOINT:
       -calculate BACKUP_MOUNTPOINT
         -convert last element to uppercase, prefix with BACKUP
@@ -114,12 +115,11 @@ sub main(@){
     }
   }
 
-  my @mediaMountpoints = qw(
-    /media/videos
-    /media/series1
-    /media/series2
-    /media/movies1
-  );
+  my @mediaMountpoints = readMediaMountpoints($destLocal);
+
+  if(@mediaMountpoints == 0){
+    die "ERROR: could not find any media mountpoints\n";
+  }
 
   #ensure mountpoints and disk sizes for all up front
   for my $mediaMountpoint(@mediaMountpoints){
@@ -190,6 +190,18 @@ sub ensureMountpoint($$){
   if(not isMountpoint($dest, $dir)){
     die "ERROR: $dir is not a mountpoint (" . formatDest($dest) . ")\n";
   }
+}
+
+sub readMediaMountpoints($){
+  my ($dest) = @_;
+  my @mountLines = readProc $dest, "mount";
+  my @mediaMountpoints;
+  for my $line(@mountLines){
+    if($line =~ /^\S+ on (\/media\/(?:videos|movies|series)\d*\/?) type /){
+      push @mediaMountpoints, $1;
+    }
+  }
+  return @mediaMountpoints;
 }
 
 sub readMountpointSizeBytes($$){
