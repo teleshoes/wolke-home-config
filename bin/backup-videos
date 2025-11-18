@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub backup($$$);
 sub formatDest($);
 sub formatBackupMountpoint($);
 sub isMountpoint($$);
@@ -64,22 +63,15 @@ sub main(@){
   );
 
   for my $mediaMountpoint(@mediaMountpoints){
-    backup $destLocal, $destMaybeRemote, $mediaMountpoint;
+    print "\n\nbacking up $mediaMountpoint\n";
+    my $backupMountpoint = formatBackupMountpoint($mediaMountpoint);
+    ensureMountpoint($destLocal, $mediaMountpoint);
+    ensureMountpoint($destMaybeRemote, $backupMountpoint);
+
+    rsyncMaybeRemoteDest($destMaybeRemote, "$mediaMountpoint/", "$backupMountpoint/",
+      "-avP", "--del",
+    );
   }
-}
-
-sub backup($$$){
-  my ($destLocal, $destMaybeRemote, $srcPath) = @_;
-  print "\n\nbacking up $srcPath\n";
-
-  my $destPath = formatBackupMountpoint($srcPath);
-
-  ensureMountpoint($destLocal, $srcPath);
-  ensureMountpoint($destMaybeRemote, $destPath);
-
-  rsyncMaybeRemoteDest($destMaybeRemote, "$srcPath/", "$destPath/",
-    "-avP", "--del",
-  );
 }
 
 sub formatDest($){
