@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 
 sub backup($$$$);
 sub isMountpoint($$);
+sub readProc($@);
 
 my $EXEC = basename $0;
 
@@ -80,15 +81,29 @@ sub backup($$$$){
 
 sub isMountpoint($$){
   my ($dest, $dir) = @_;
-  my $cmd = "mountpoint '$dir'";
-  if($$dest{isRemote}){
-    $cmd = "ipmagic $$dest{ipmagicName} $cmd";
-  }
-  my $out = `$cmd 2>&1`;
+  my $out = readProc($dest, "mountpoint", $dir);
   if($out =~ /^$dir is a mountpoint$/){
     return 1;
   }else{
     return 0;
+  }
+}
+
+sub readProc($@){
+  my ($dest, @cmd) = @_;
+  if(defined $$dest{ipmagicName}){
+    my @user = defined $$dest{ipmagicUser} ? ("-u", $$dest{ipmagicUser}) : ();
+    @cmd = ("ipmagic", $$dest{ipmagicName}, @user, @cmd);
+  }
+
+  open my $cmdH, "-|", @cmd or die "ERROR: could not run @_\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
+
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
   }
 }
 
