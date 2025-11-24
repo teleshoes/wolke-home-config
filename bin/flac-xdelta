@@ -1,0 +1,216 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+sub flacEncode($);
+sub flacDecode($);
+sub xdeltaCreatePatch($);
+sub xdeltaApplyPatch($);
+sub getFilenameSet($);
+sub run(@);
+sub tryrun(@);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC ORIG_WAV_FILE [ORIG_WAV_FILE ORIG_WAV_FILE..]
+    produce a flac file and an xdelta patch
+      that together can produce the original bitwise identical wav file
+    for each WAV_FILE:
+      -get filenames as in:
+        BASE_NAME=`echo \${WAV_FILE} | sed s/\\.wav\$//`
+        FLAC_FILE=\"\${BASENAME}.flac\"
+        TMP_WAV_FILE=\"\${BASENAME}.decodedflac.wav\"
+        XDELTA_PATCH_FILE=\"\${BASENAME}_wav_xdelta.patch\"
+      -create flac file:
+        flac \${WAV_FILE} -o \${FLAC_FILE}
+      -decode flac file:
+        flac -d \${FLAC_FILE} -o \${TMP_WAV_FILE}
+      -create binary diff with xdelta:
+        xdelta delta \${TMP_WAV_FILE} \${ORIG_WAV_FILE} \${XDELTA_PATCH_FILE}
+      -remove \${TMP_WAV_FILE}
+
+  $EXEC -d|--decode FLAC_FILE [FLAC_FILE FLAC_FILE..]
+    recover the original wav file from a flac file and a similarly named
+      xdelta patch file
+    for each FLAC_FILE:
+      -get filenames as in:
+        BASE_NAME=`echo \${FLAC_FILE} | sed s/\\.flac\$//`
+        ORIG_WAV_FILE=\"\${BASENAME}.wav\"
+        TMP_WAV_FILE=\"\${BASENAME}.decodedflac.wav\"
+        XDELTA_PATCH_FILE=\"\${BASENAME}_wav_xdelta.patch\"
+      -decode flac file:
+        flac -d \${FLAC_FILE} -o \${TMP_WAV_FILE}
+      -apply xdelta binary patch:
+        xdelta patch \${XDELTA_PATCH_FILE} \${TMP_WAV_FILE} \${ORIG_WAV_FILE}
+      -remove \${TMP_WAV_FILE}
+";
+
+my $CMD_ENCODE = "encode";
+my $CMD_DECODE = "decode";
+
+sub main(@){
+  my $cmd = $CMD_ENCODE;
+  my @wavFiles;
+  my @flacFiles;
+
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-d|--decode)$/){
+      $cmd = $CMD_DECODE;
+    }elsif(-f $arg and $arg =~ /^.*\.wav$/i){
+      push @wavFiles, $arg;
+    }elsif(-f $arg and $arg =~ /^.*\.flac$/i){
+      push @flacFiles, $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($cmd eq $CMD_ENCODE){
+    die "ERROR: must specify WAV_FILE for encode\n" if @wavFiles == 0;
+    die "ERROR: cannot specify FLAC_FILE for encode\n" if @flacFiles > 0;
+
+    for my $wavFile(@wavFiles){
+      my $fileNameSet = getFilenameSet($wavFile);
+      flacEncode($fileNameSet);
+      flacDecode($fileNameSet);
+      xdeltaCreatePatch($fileNameSet);
+
+      run "rm", $$fileNameSet{TMP_WAV_FILE};
+    }
+  }elsif($cmd eq $CMD_DECODE){
+    die "ERROR: must specify FLAC_FILE for decode\n" if @flacFiles == 0;
+    die "ERROR: cannot specify WAV_FILE for decode\n" if @wavFiles > 0;
+
+    for my $flacFile(@flacFiles){
+      my $fileNameSet = getFilenameSet($flacFile);
+      flacDecode($fileNameSet);
+      xdeltaApplyPatch($fileNameSet);
+
+      run "rm", $$fileNameSet{TMP_WAV_FILE};
+    }
+  }
+}
+
+sub flacEncode($){
+  my ($fileNameSet) = @_;
+  if(-e $$fileNameSet{FLAC_FILE}){
+    die "ERROR: $$fileNameSet{FLAC_FILE} already exists\n";
+  }
+
+  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
+    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
+  }
+
+  run "flac", $$fileNameSet{ORIG_WAV_FILE}, "-o", $$fileNameSet{FLAC_FILE};
+  if(not -f $$fileNameSet{FLAC_FILE}){
+    die "ERROR: $$fileNameSet{FLAC_FILE} does not exist\n";
+  }
+}
+
+sub flacDecode($){
+  my ($fileNameSet) = @_;
+  if(-e $$fileNameSet{TMP_WAV_FILE}){
+    die "ERROR: $$fileNameSet{FLAC_FILE} already exists\n";
+  }
+
+  if(not -f $$fileNameSet{FLAC_FILE}){
+    die "ERROR: $$fileNameSet{FLAC_FILE} does not exist\n";
+  }
+
+  run "flac", "-d", $$fileNameSet{FLAC_FILE}, "-o", $$fileNameSet{TMP_WAV_FILE};
+  if(not -f $$fileNameSet{TMP_WAV_FILE}){
+    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
+  }
+}
+
+sub xdeltaCreatePatch($){
+  my ($fileNameSet) = @_;
+  if(-e $$fileNameSet{XDELTA_PATCH_FILE}){
+    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} already exists\n";
+  }
+
+  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
+    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
+  }
+  if(not -f $$fileNameSet{TMP_WAV_FILE}){
+    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
+  }
+
+  my $exitCode = tryrun "xdelta", "delta",
+    $$fileNameSet{TMP_WAV_FILE}, $$fileNameSet{ORIG_WAV_FILE},
+    $$fileNameSet{XDELTA_PATCH_FILE};
+  if($exitCode == 1){
+    print "xdelta success\n";
+  }elsif($exitCode == 0){
+    die "ERROR: xdelta delta reported empty diff\n";
+  }else{
+    die "ERROR: xdelta delta command failed\n";
+  }
+
+  run "touch", $$fileNameSet{XDELTA_PATCH_FILE}, "-r", $$fileNameSet{ORIG_WAV_FILE};
+
+  if(not -f $$fileNameSet{XDELTA_PATCH_FILE}){
+    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} does not exist\n";
+  }
+}
+
+sub xdeltaApplyPatch($){
+  my ($fileNameSet) = @_;
+  if(-e $$fileNameSet{ORIG_WAV_FILE}){
+    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} already exists\n";
+  }
+
+  if(not -f $$fileNameSet{XDELTA_PATCH_FILE}){
+    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} does not exist\n";
+  }
+  if(not -f $$fileNameSet{TMP_WAV_FILE}){
+    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
+  }
+
+  run "xdelta", "patch", $$fileNameSet{XDELTA_PATCH_FILE},
+    $$fileNameSet{TMP_WAV_FILE}, $$fileNameSet{ORIG_WAV_FILE};
+
+  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
+    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
+  }
+}
+
+sub getFilenameSet($){
+  my ($srcFile) = @_;
+
+  my $baseName = $srcFile;
+  if($baseName !~ s/\.(wav|flac)$//i){
+    die "ERROR: cannot parse $srcFile as FLAC_FILE or WAV_FILE\n";
+  }
+
+  return {
+    FLAC_FILE => "$baseName.flac",
+    ORIG_WAV_FILE => "$baseName.wav",
+    TMP_WAV_FILE => "$baseName.decodedflac.wav",
+    XDELTA_PATCH_FILE => "${baseName}_wav_xdelta.patch",
+  };
+}
+
+sub run(@){
+  my $exitCode = tryrun(@_);
+  if($exitCode != 0){
+    die "ERROR: \"@_\" failed\n$!\n";
+  }
+}
+sub tryrun(@){
+  print "@_\n";
+  system @_;
+  my $exitCode = $? >> 8;
+  return $exitCode;
+}
+
+&main(@ARGV);
