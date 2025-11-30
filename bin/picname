@@ -87,12 +87,25 @@ my $usage = "Usage:
       add SECONDS seconds to the timestamp, regardless of method chosen
       SECONDS must be an integer (positive, negative, or zero)
       e.g.: --shift-seconds=3600  adds 3600 seconds
+
+    --subtract-duration
+      for each FILE:
+        -determine if file is a video by file extension:
+          @extsVideos
+        -if file is a video:
+          -calculate the VIDEO_DURATION of video files in seconds
+          -subtract the duration to the timestamp for that video,
+            as in --shift-seonds=-VIDEO_DURATION
+        -otherwise, do nothing
+      NOTE: can be combined with --shift-seconds or --shift-hours
+            effect is cumulative
 ";
 
-sub handleFile($$$$$$$$);
+sub handleFile($$$$$$$$$);
 sub exifEpoch($);
 sub exifCmdGetDateAsEpoch($);
 sub exiftoolCmdDateFieldAsEpoch($$);
+sub getDuration($);
 sub mtimeEpoch($);
 sub filenameEpoch($);
 sub run(@);
@@ -113,6 +126,7 @@ sub main(@){
   my $mode = $MODE_EXIF_MTIME;
   my $simulate = 0;
   my $shiftSeconds = 0;
+  my $subtractDuration = 0;
   my $quiet = 0;
   my $checkExt = 1;
   my $tag = undef;
@@ -151,6 +165,8 @@ sub main(@){
       $shiftSeconds = $1 * 60 * 60;
     }elsif($arg =~ /^--shift-seconds=(-?\d+)$/){
       $shiftSeconds = $1;
+    }elsif($arg =~ /^(--subtract-duration)$/){
+      $subtractDuration = 1;
     }elsif(-f $arg){
       push @files, $arg;
     }else{
@@ -161,7 +177,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $action, $mode, $shiftSeconds, $tag, $simulate, $quiet, $checkExt, $file;
+      my $isOk = handleFile $action, $mode, $shiftSeconds, $subtractDuration, $tag, $simulate, $quiet, $checkExt, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -171,8 +187,8 @@ sub main(@){
   }
 }
 
-sub handleFile($$$$$$$$){
-  my ($action, $mode, $shiftSeconds, $tag, $simulate, $quiet, $checkExt, $file) = @_;
+sub handleFile($$$$$$$$$){
+  my ($action, $mode, $shiftSeconds, $subtractDuration, $tag, $simulate, $quiet, $checkExt, $file) = @_;
 
   my ($dir, $fileName, $ext);
   $fileName = $file;
@@ -214,6 +230,15 @@ sub handleFile($$$$$$$$){
   if(not defined $epoch){
     print "cannot process $file\n";
     return 0;
+  }
+
+  if($subtractDuration and $ext =~ /^\.($okExtsVideos)$/i){
+    my $duration = getDuration($file);
+    if(defined $duration){
+      $epoch -= int($duration + 0.5);
+    }else{
+      print STDERR "WARNING: could not calculate duration for $file\n";
+    }
   }
 
   $epoch += $shiftSeconds;
@@ -443,6 +468,18 @@ sub exiftoolCmdDateFieldAsEpoch($$){
     return undef;
   }else{
     die "ERROR: malformed output '$out' for '@exifToolCmd'\n";
+  }
+}
+
+sub getDuration($){
+  my ($file) = @_;
+  open my $cmdH, "-|", "duration", "-s", "-n", $file;
+  my $out = join "", <$cmdH>;
+  close $cmdH;
+  if($out =~ /^(\d+|\d*\.\d+)$/){
+    return $1;
+  }else{
+    return undef;
   }
 }
 
