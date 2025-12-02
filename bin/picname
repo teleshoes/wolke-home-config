@@ -2,19 +2,19 @@
 use strict;
 use warnings;
 
-my @extsPictures = qw(
+my @EXTS_PICTURES = qw(
   jpg jpeg png gif mpo
 );
-my @extsVideos = qw(
+my @EXTS_VIDEOS = qw(
   avi m2ts mts mov mkv mpeg mpg mp4
   flv mpv wmv webm
 );
 
-my @exts = (@extsPictures, @extsVideos);
-my $okExtsVideos = "(?:" . (join "|", @extsVideos) . ")";
-my $okExts = "(?:" . (join "|", @exts) . ")";
+my @EXTS = (@EXTS_PICTURES, @EXTS_VIDEOS);
+my $OK_EXTS_VIDEOS = "(?:" . (join "|", @EXTS_VIDEOS) . ")";
+my $OK_EXTS = "(?:" . (join "|", @EXTS) . ")";
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 -h|--help
     show this message
 
@@ -22,7 +22,7 @@ my $usage = "Usage:
     rename, touch, or print info about files, using exif data, mtime, or filename
       -default action is to rename
       -default timestamp mode is to use exif for JPEG, and mtime otherwise
-    FILE must end in '.' followed by one of: @exts
+    FILE must end in '.' followed by one of: @EXTS
       (see --no-check-ext)
 
   OPTS
@@ -54,10 +54,10 @@ my $usage = "Usage:
       do not print 'skipping rename' or 'skipping touch' messages
 
     --check-ext
-      fail if FILE does not end in '.' followed by one of: @exts
+      fail if FILE does not end in '.' followed by one of: @EXTS
       (this is the default)
     -a | --no-check-ext | --allow-ext
-      do NOT fail if FILE does not end in '.' followed by one of: @exts
+      do NOT fail if FILE does not end in '.' followed by one of: @EXTS
       any ext (or no ext) is permitted
       (files ending in .jpg or .jpeg still use exif mode by default)
 
@@ -91,7 +91,7 @@ my $usage = "Usage:
     --subtract-duration
       for each FILE:
         -determine if file is a video by file extension:
-          @extsVideos
+          @EXTS_VIDEOS
         -if file is a video:
           -calculate the VIDEO_DURATION of video files in seconds
           -subtract the duration to the timestamp for that video,
@@ -134,7 +134,7 @@ sub main(@){
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
-      print $usage;
+      print $USAGE;
       exit 0;
     }elsif($arg =~ /^(--rename)$/ and @_ > 0){
       $action = $ACTION_RENAME;
@@ -158,7 +158,7 @@ sub main(@){
       $checkExt = 0;
     }elsif($arg =~ /^--tag=(.+)$/){
       $tag = $1;
-      die "$usage\nERROR: invalid tag $tag\n" if $tag !~ /^[a-z0-9_]+$/;
+      die "$USAGE\nERROR: invalid tag $tag\n" if $tag !~ /^[a-z0-9_]+$/;
     }elsif($arg =~ /^(-n|-s|--no-act|--simulate)$/){
       $simulate = 1;
     }elsif($arg =~ /^--shift-hours=(-?\d+)$/){
@@ -170,10 +170,10 @@ sub main(@){
     }elsif(-f $arg){
       push @files, $arg;
     }else{
-      die "$usage\nERROR: unknown arg $arg\n";
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
-  die "$usage\nERROR: no files given\n" if @files == 0;
+  die "$USAGE\nERROR: no files given\n" if @files == 0;
   my @errors;
   for my $file(@files){
     if(-f $file){
@@ -207,8 +207,8 @@ sub handleFile($$$$$$$$$){
   if($fileName =~ /\//){
     die "ERROR: could not parse directory of file: $file\n";
   }
-  if($checkExt and $ext !~ /^\.($okExts)$/i){
-    die "ERROR: invalid ext for $file (use -a to allow any): @exts\n";
+  if($checkExt and $ext !~ /^\.($OK_EXTS)$/i){
+    die "ERROR: invalid ext for $file (use -a to allow any): @EXTS\n";
   }
 
   my $epoch;
@@ -232,7 +232,7 @@ sub handleFile($$$$$$$$$){
     return 0;
   }
 
-  if($subtractDuration and $ext =~ /^\.($okExtsVideos)$/i){
+  if($subtractDuration and $ext =~ /^\.($OK_EXTS_VIDEOS)$/i){
     my $duration = getDuration($file);
     if(defined $duration){
       $epoch -= int($duration + 0.5);
