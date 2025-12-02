@@ -20,9 +20,9 @@ my @EXTS_VIDEOS = qw(
   flv mpv wmv webm
 );
 
-my @EXTS = (@EXTS_PICTURES, @EXTS_VIDEOS);
-my $OK_EXTS_VIDEOS = "(?:" . (join "|", @EXTS_VIDEOS) . ")";
-my $OK_EXTS = "(?:" . (join "|", @EXTS) . ")";
+my @EXTS_ALL = (@EXTS_PICTURES, @EXTS_VIDEOS);
+my $REGEX_EXTS_VIDEOS = "(?:" . (join "|", @EXTS_VIDEOS) . ")";
+my $REGEX_EXTS_ALL = "(?:" . (join "|", @EXTS_ALL) . ")";
 
 my $EXEC = basename $0;
 
@@ -34,7 +34,7 @@ my $USAGE = "Usage:
     rename, touch, or print info about files, using exif data, mtime, or filename
       -default action is to rename
       -default timestamp mode is to use exif for JPEG, and mtime otherwise
-    FILE must end in '.' followed by one of: @EXTS
+    FILE must end in '.' followed by one of: @EXTS_ALL
       (see --no-check-ext)
 
   OPTS
@@ -66,10 +66,10 @@ my $USAGE = "Usage:
       do not print 'skipping rename' or 'skipping touch' messages
 
     --check-ext
-      fail if FILE does not end in '.' followed by one of: @EXTS
+      fail if FILE does not end in '.' followed by one of: @EXTS_ALL
       (this is the default)
     -a | --no-check-ext | --allow-ext
-      do NOT fail if FILE does not end in '.' followed by one of: @EXTS
+      do NOT fail if FILE does not end in '.' followed by one of: @EXTS_ALL
       any ext (or no ext) is permitted
       (files ending in .jpg or .jpeg still use exif mode by default)
 
@@ -214,8 +214,8 @@ sub handleFile($$$$){
   if($fileName =~ /\//){
     die "ERROR: could not parse directory of file: $file\n";
   }
-  if($$opts{checkExt} and $ext !~ /^\.($OK_EXTS)$/i){
-    die "ERROR: invalid ext for $file (use -a to allow any): @EXTS\n";
+  if($$opts{checkExt} and $ext !~ /^\.($REGEX_EXTS_ALL)$/i){
+    die "ERROR: invalid ext for $file (use -a to allow any): @EXTS_ALL\n";
   }
 
   my $epoch;
@@ -239,7 +239,7 @@ sub handleFile($$$$){
     return 0;
   }
 
-  if($$opts{subtractDuration} and $ext =~ /^\.($OK_EXTS_VIDEOS)$/i){
+  if($$opts{subtractDuration} and $ext =~ /^\.($REGEX_EXTS_VIDEOS)$/i){
     my $duration = getDuration($file);
     if(defined $duration){
       $epoch -= int($duration + 0.5);
