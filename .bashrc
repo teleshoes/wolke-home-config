@@ -220,15 +220,15 @@ function vol {
   fi
 }
 
-function rn {
+function ren {
   command rename-tool "$@"
 }
 function rename       {
-  echo 'USE `rn` INSTEAD OF `rename`'
+  echo 'USE `ren` INSTEAD OF `rename`'
 }
 function rm {
   if [[ $1 == s/*/* ]]; then
-    echo "I THINK YOU MEANT 'rn'"
+    echo "I THINK YOU MEANT 'ren'"
   else
     command rm "$@"
   fi
