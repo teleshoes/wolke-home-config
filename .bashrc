@@ -220,6 +220,9 @@ function vol {
   fi
 }
 
+function rn {
+  command rename-tool "$@"
+}
 function rename       {
   echo 'USE `rn` INSTEAD OF `rename`'
 }
