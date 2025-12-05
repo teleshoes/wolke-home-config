@@ -16,8 +16,10 @@ my $PERLEXPR_REPLACE_SPECIAL_CHARS = ''
   . "\n" . '; s/\\\'//g'              #remove apostrophes without replacement
   . "\n" . '; s/&/ and /g'            #replace ampersand with ' and '
 ;
-my $PERLEXPR_STRIP_NONWORD_PLUS_EXT = ''
+my $PERLEXPR_STRIP_DOTS_KEEP_EXT = ''
   . "\n" . '; s/\.(?!\w+$)/_/g'       #replace '.' chars with '_', keeping '.' before file ext
+;
+my $PERLEXPR_STRIP_NONWORD_KEEP_DOTS = ''
   . "\n" . '; s/[^a-zA-Z0-9_.]/_/g'   #replace non-word chars except '.' with '_'
 ;
 my $PERLEXPR_CLEANUP_UNDERSCORES = ''
@@ -34,7 +36,8 @@ my $PERLEXPR_STRIP_DIACRITICS = ''
 my $PERLEXPR_WORD = ''
   . $PERLEXPR_STRIP_DIACRITICS
   . $PERLEXPR_REPLACE_SPECIAL_CHARS
-  . $PERLEXPR_STRIP_NONWORD_PLUS_EXT
+  . $PERLEXPR_STRIP_DOTS_KEEP_EXT
+  . $PERLEXPR_STRIP_NONWORD_KEEP_DOTS
   . $PERLEXPR_CLEANUP_UNDERSCORES
 ;
 
@@ -75,7 +78,8 @@ my $USAGE = "USAGE:
     generate clean, word-only filenames, with single dot for ext
       -remove accents/etc as in --strip-diacritics
       -replace symbols/etc as in --replace-special-chars
-      -remove any remaining non-word chars as in --strip-nonword
+      -remove all dots except file extension with --strip-dots-keep-ext
+      -remove any remaining non-word chars as in --strip-nonword-keep-dots
       -clean separators as in --cleanup-underscores
     e.g.: $EXEC --word \".a.F1le náméd%%%boing's_...jP3g\"
           mv \".a.F1le named%%%boing's_...jP3g\" a_F1le_named_boings.jP3g
@@ -87,11 +91,15 @@ my $USAGE = "USAGE:
       -remove apostrophes without any replacement
     same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_REPLACE_SPECIAL_CHARS) . "
 
-  $EXEC [OPTS] --strip-nonword FILE [FILE ...]
-    allow only letters, numbers, underscores, and a single dot before file ext
+  $EXEC [OPTS] --strip-dots-keep-ext FILE [FILE ...]
+    remove all dots, except for a single dot before file ext
       -replace '.' chars with '_', keeping '.' before file ext
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_STRIP_DOTS_KEEP_EXT) . "
+
+  $EXEC [OPTS] --strip-nonword-keep-dots FILE [FILE ...]
+    allow only letters, numbers, underscores, and dots
       -replace non-word chars except '.' with '_'
-    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_STRIP_NONWORD_PLUS_EXT) . "
+    same as: " . formatPerlExprUsageCmd(6, $PERLEXPR_STRIP_NONWORD_KEEP_DOTS) . "
 
   $EXEC [OPTS] --cleanup-underscores FILE [FILE ...]
     allow only single underscores, and not at the start/end
@@ -205,8 +213,10 @@ sub main(@){
       $perlExpr = $PERLEXPR_WORD;
     }elsif($arg =~ /^(--replace-special-chars)$/){
       $perlExpr = $PERLEXPR_REPLACE_SPECIAL_CHARS;
-    }elsif($arg =~ /^(--strip-nonword)$/){
-      $perlExpr = $PERLEXPR_STRIP_NONWORD_PLUS_EXT;
+    }elsif($arg =~ /^(--strip-dots-keep-ext)$/){
+      $perlExpr = $PERLEXPR_STRIP_DOTS_KEEP_EXT;
+    }elsif($arg =~ /^(--strip-nonword-keep-dots)$/){
+      $perlExpr = $PERLEXPR_STRIP_NONWORD_KEEP_DOTS;
     }elsif($arg =~ /^(--cleanup-underscores)$/){
       $perlExpr = $PERLEXPR_CLEANUP_UNDERSCORES;
     }elsif($arg =~ /^(--strip-diacritics)$/){
