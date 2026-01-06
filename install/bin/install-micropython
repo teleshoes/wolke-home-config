@@ -5,6 +5,7 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 use File::Basename qw(basename);
 
+sub handleGitInstallMpyCrossPico($);
 sub handleGitInstallMpyCrossLatest($);
 sub handleGitInstallMicroPython($);
 sub flashFirmware();
@@ -19,11 +20,15 @@ my $LATEST_FIRMWARE_SYMLINK = "$DIR_FIRMWARE_IMG/latest.uf2";
 my $BOOTLOADER_DISK_LABEL = "RPI-RP2";
 my $BOOTLOADER_DISK_SIZE_BYTES = 134217216;
 
+my $MPY_6_3_COMMIT = "bdbc869f9ea200c0d28b2bc7bfb60acd9d884e1b";
+
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
   $EXEC -m | --mpycross | --mpy-cross | mpy-cross
+    -build mpy-cross-6.2 from latest commit before micropython 6.3
+      -install to /usr/local/bin/mpy-cross-6.2
     -build mpy-cross from latest micropython
       -install to /usr/local/bin/mpy-cross
 
@@ -79,6 +84,7 @@ sub main(@) {
   }
 
   if($mode eq $MODE_INSTALL_MPY_CROSS){
+    installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMpyCrossPico;
     installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMpyCrossLatest;
   }elsif($mode eq $MODE_BUILD_FIRMWARE){
     installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMicroPython;
@@ -93,6 +99,23 @@ sub main(@) {
   }else{
     die "ERROR: unknown mode $mode\n";
   }
+}
+
+sub handleGitInstallMpyCrossPico($){
+  my ($dir) = @_;
+  #last mpy 6.2 commit
+  runUser "git", "-C", $dir, "checkout", "$MPY_6_3_COMMIT^";
+
+  runUser "make", "-C", "$dir/mpy-cross", "clean";
+  runUser "make", "-C", "$dir/mpy-cross", "CC=gcc-14", "-j", "1";
+
+  if(not -e "$dir/mpy-cross/build/mpy-cross"){
+    die "ERROR: missing mpy-cross\n";
+  }
+
+  runSudo "cp", "-a", "$dir/mpy-cross/build/mpy-cross", "/usr/local/bin/mpy-cross-6.2";
+
+  runUser "git", "-C", $dir, "checkout", "master";
 }
 
 sub handleGitInstallMpyCrossLatest($){
