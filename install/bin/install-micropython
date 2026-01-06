@@ -8,7 +8,6 @@ use File::Basename qw(basename);
 sub handleGitInstallMpyCrossPico($);
 sub handleGitInstallMpyCrossLatest($);
 sub handleGitInstallMicroPython($);
-sub flashFirmware();
 
 my $EXEC = basename $0;
 my $GIT_URL_MICROPYTHON = "https://github.com/teleshoes/micropython";
@@ -16,9 +15,6 @@ my $GIT_URL_PICO_LCD = "https://github.com/teleshoes/pico-lcd";
 
 my $DIR_FIRMWARE_IMG = "/media/stuff/Images/micropython/RPI_PICO_W";
 my $LATEST_FIRMWARE_SYMLINK = "$DIR_FIRMWARE_IMG/latest.uf2";
-
-my $BOOTLOADER_DISK_LABEL = "RPI-RP2";
-my $BOOTLOADER_DISK_SIZE_BYTES = 134217216;
 
 my $MPY_6_3_COMMIT = "bdbc869f9ea200c0d28b2bc7bfb60acd9d884e1b";
 
@@ -38,20 +34,6 @@ my $USAGE = "Usage:
     -copy built image to $DIR_FIRMWARE_IMG
     -create/replace symlink $DIR_FIRMWARE_IMG/latest.uf2
 
-  $EXEC -f | flash | --flash
-    -run `mpremote bootloader`
-    -wait until device shows up
-    -look for device /dev/disk/by-label/$BOOTLOADER_DISK_LABEL
-    -check device size in bytes
-      -ensure exactly matches $BOOTLOADER_DISK_SIZE_BYTES bytes
-    -confirm interactively before running dd
-    -run: dd \\
-            if=$LATEST_FIRMWARE_SYMLINK \\
-            of=/dev/disk/by-label/$BOOTLOADER_DISK_LABEL \\
-            status=progress \\
-            bs=1M \\
-          ;
-
   $EXEC
   $EXEC -p | msg | lcd-msg | pico-lcd-msg | --msg | --lcd-msg | --pico-lcd-msg
     -install pico-lcd-msg tool
@@ -60,7 +42,6 @@ my $USAGE = "Usage:
 
 my $MODE_INSTALL_MPY_CROSS = "install-mpy-cross";
 my $MODE_BUILD_FIRMWARE = "build-firmware";
-my $MODE_FLASH_FIRMWARE = "flash-firmware";
 my $MODE_LCD_MSG = "lcd-msg";
 
 sub main(@) {
@@ -74,8 +55,6 @@ sub main(@) {
       $mode = $MODE_INSTALL_MPY_CROSS;
     }elsif($arg =~ /^(-b|((--)?(uf2|firmware|build)))$/){
       $mode = $MODE_BUILD_FIRMWARE;
-    }elsif($arg =~ /^(-f|((--)?(flash|--flash)))$/){
-      $mode = $MODE_FLASH_FIRMWARE;
     }elsif($arg =~ /^(-p|((--)?(msg|lcd-msg|pico-lcd-msg)))$/){
       $mode = $MODE_LCD_MSG;
     }else{
@@ -88,8 +67,6 @@ sub main(@) {
     installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMpyCrossLatest;
   }elsif($mode eq $MODE_BUILD_FIRMWARE){
     installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMicroPython;
-  }elsif($mode eq $MODE_FLASH_FIRMWARE){
-    flashFirmware();
   }elsif($mode eq $MODE_LCD_MSG){
     #copy pico-lcd-msg tool out of pico-lcd
     installFromGit $GIT_URL_PICO_LCD, sub{
@@ -160,56 +137,6 @@ sub handleGitInstallMicroPython($){
   runUser "cp", "$dir/firmware.uf2", "$DIR_FIRMWARE_IMG/$fileName";
 
   symlinkFile $fileName, $LATEST_FIRMWARE_SYMLINK;
-}
-
-sub flashFirmware(){
-  if(not -f $LATEST_FIRMWARE_SYMLINK){
-    die "ERROR: missing firmware file to flash $LATEST_FIRMWARE_SYMLINK\n";
-  }
-
-  my $dev = "/dev/disk/by-label/$BOOTLOADER_DISK_LABEL";
-  if(not -e $dev){
-    print "$dev not found, running mpremote bootloader\n";
-    system "mpremote", "bootloader";
-    my $maxAttempts = 10;
-    my $attempts = 1;
-    while(not -e $dev){
-      print "$dev not found, waiting 1s and retrying $attempts/$maxAttempts\n";
-      sleep 1;
-      $attempts++;
-    }
-  }
-  if(not -e $dev){
-    die "ERROR: $dev not found\n";
-  }
-  my $devSize = procChomp "lsblk", $dev, "-o", "SIZE", "--bytes", "--noheadings";
-  die "ERROR: could not fetch device size with lsblk\n" if $devSize !~ /^\d+$/;
-  print "$dev size: $devSize\n";
-
-  if($devSize ne $BOOTLOADER_DISK_SIZE_BYTES){
-    die "ERROR: aborting, unexpected size in bytes of bootloader dev $dev\n";
-  }
-
-  print "\n";
-  system "lsblk", "--fs";
-
-  my $symlinkTarget = readlink $LATEST_FIRMWARE_SYMLINK;
-  print "\n\nusing: $LATEST_FIRMWARE_SYMLINK\n -> $symlinkTarget\n\n";
-
-  my @ddCmd = ("dd",
-    "if=$LATEST_FIRMWARE_SYMLINK",
-    "of=$dev",
-    "status=progress",
-    "bs=1M",
-  );
-  print "RUNNING THIS COMMAND AS ROOT:\n@ddCmd\n";
-  print "proceed? [y/N]\n";
-  my $val = <STDIN>;
-  if($val =~ /^(y|Y)$/){
-    runSudo @ddCmd;
-  }else{
-    print "  aborted\n";
-  }
 }
 
 &main(@ARGV);
