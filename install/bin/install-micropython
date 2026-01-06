@@ -5,6 +5,7 @@ use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 use File::Basename qw(basename);
 
+sub handleGitInstallMpyCrossLatest($);
 sub handleGitInstallMicroPython($);
 sub flashFirmware();
 
@@ -22,8 +23,12 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
+  $EXEC -m | --mpycross | --mpy-cross | mpy-cross
+    -build mpy-cross from latest micropython
+      -install to /usr/local/bin/mpy-cross
+
   $EXEC -b | uf2 | firmware | build | --uf2 | --firmware | --build
-    -build micropython RPI_PICO_W firmware and install mpy-cross
+    -build micropython RPI_PICO_W firmware
       from $GIT_URL_MICROPYTHON
     -copy built image to $DIR_FIRMWARE_IMG
     -create/replace symlink $DIR_FIRMWARE_IMG/latest.uf2
@@ -48,6 +53,7 @@ my $USAGE = "Usage:
       from $GIT_URL_PICO_LCD
 ";
 
+my $MODE_INSTALL_MPY_CROSS = "install-mpy-cross";
 my $MODE_BUILD_FIRMWARE = "build-firmware";
 my $MODE_FLASH_FIRMWARE = "flash-firmware";
 my $MODE_LCD_MSG = "lcd-msg";
@@ -59,6 +65,8 @@ sub main(@) {
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-m((--)?(mpy-cross|mpycross)))$/){
+      $mode = $MODE_INSTALL_MPY_CROSS;
     }elsif($arg =~ /^(-b|((--)?(uf2|firmware|build)))$/){
       $mode = $MODE_BUILD_FIRMWARE;
     }elsif($arg =~ /^(-f|((--)?(flash|--flash)))$/){
@@ -70,7 +78,9 @@ sub main(@) {
     }
   }
 
-  if($mode eq $MODE_BUILD_FIRMWARE){
+  if($mode eq $MODE_INSTALL_MPY_CROSS){
+    installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMpyCrossLatest;
+  }elsif($mode eq $MODE_BUILD_FIRMWARE){
     installFromGit $GIT_URL_MICROPYTHON, \&handleGitInstallMicroPython;
   }elsif($mode eq $MODE_FLASH_FIRMWARE){
     flashFirmware();
@@ -85,6 +95,20 @@ sub main(@) {
   }
 }
 
+sub handleGitInstallMpyCrossLatest($){
+  my ($dir) = @_;
+  runUser "git", "-C", $dir, "checkout", "master";
+
+  runUser "make", "-C", "$dir/mpy-cross", "clean";
+  runUser "make", "-C", "$dir/mpy-cross", "-j", "1";
+
+  if(not -e "$dir/mpy-cross/build/mpy-cross"){
+    die "ERROR: missing mpy-cross\n";
+  }
+
+  runSudo "cp", "-a", "$dir/mpy-cross/build/mpy-cross", "/usr/local/bin/mpy-cross";
+}
+
 sub handleGitInstallMicroPython($){
   my ($dir) = @_;
   runUser "git", "-C", $dir, "submodule", "init";
@@ -93,15 +117,9 @@ sub handleGitInstallMicroPython($){
   if(-e "$dir/firmware.uf2"){
     runUser "rm", "$dir/firmware.uf2";
   }
-  if(-e "$dir/mpy-cross/build/mpy-cross"){
-    runUser "rm", "$dir/mpy-cross/build/mpy-cross";
-  }
 
   if(-e "$dir/firmware.uf2"){
     die "ERROR: RPI_PICO_W firmware exists\n";
-  }
-  if(-e "$dir/mpy-cross/build/mpy-cross"){
-    die "ERROR: mpy-cross exists\n";
   }
 
   runUser "cd '$dir' && ./build-pico-w.sh";
@@ -119,11 +137,6 @@ sub handleGitInstallMicroPython($){
   runUser "cp", "$dir/firmware.uf2", "$DIR_FIRMWARE_IMG/$fileName";
 
   symlinkFile $fileName, $LATEST_FIRMWARE_SYMLINK;
-
-  if(not -e "$dir/mpy-cross/build/mpy-cross"){
-    die "ERROR: mpy-cross does not exist\n";
-  }
-  runSudo "cp", "-a", "$dir/mpy-cross/build/mpy-cross", "/usr/local/bin/";
 }
 
 sub flashFirmware(){
