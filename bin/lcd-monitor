@@ -10,10 +10,12 @@ sub parseDevInfo($);
 sub mtime($);
 
 my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
+my $PYLITTERBOT_LOG_DIR = "$ENV{HOME}/.cache/logs/pylitterbot-monitor";
 
 my $DISPLAYS = [
   {name=>"anim",        devName=>"lcd1", markupArgsSub=>\&anim,        widthPercent=>50},
   {name=>"pyeconet",    devName=>"lcd1", markupArgsSub=>\&pyeconet,    widthPercent=>50},
+  {name=>"pylitterbot", devName=>"lcd2", markupArgsSub=>\&pylitterbot, widthPercent=>100},
 ];
 
 my @DISPLAY_NAMES = map {$$_{name}} @$DISPLAYS;
@@ -177,6 +179,61 @@ sub pyeconet($$$$$){
   my $tickFmt = "!y=53!!x=0!!size=2!!color=$tickColor!~";
 
   my $markup = "$availFmt!n!$tempFmt!n!$dateFmt$tickFmt";
+  return $markup;
+}
+
+sub pylitterbot($$$$$){
+  my ($w, $h, $isLandscape, $modeBtnCount, $runCount) = @_;
+  my $tick = $runCount % 2 == 0 ? 1 : 0;
+
+  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYLITTERBOT_LOG_DIR/*.log";
+  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
+
+  my $mtime = mtime $logFile;
+  my $elapsedS = time - $mtime;
+
+  my $info = defined $logFile ? `tail -1 '$logFile'` : undef;
+  my $okLog = 0;
+  my ($date, $time, $name, $serial, $status, $litter, $waste);
+  if($info =~ /^
+     (\d\d\d\d-\d\d-\d\d)
+     T
+     (\d\d:\d\d:\d\d)
+     \.\d\d\d
+     ,([^,]+)
+     ,(\w+)
+     ,status=([^,]+)
+     ,litter=(\d+|\d*\.\d+)
+     ,waste=(\d+|\d*\.\d+)
+  /x){
+    $okLog = 1;
+    ($date, $time, $name, $serial, $status, $litter, $waste) = ($1, $2, $3, $4, $5, $6, $7);
+  }
+
+  my $markup;
+  if($elapsedS < -5 or $elapsedS > 60){
+    $markup = "!size=7!OUT-OF-DATE!!\n";
+  }elsif($okLog){
+    my $statusFmt = $status;
+    $statusFmt =~ s/^LitterBoxStatus\.//;
+    $statusFmt = "!color=blue!!size=5!$statusFmt";
+
+    my $litterFmt = "!size=5!";
+    $litterFmt .= $litter <= 70 ? "!color=red!" : "!color=white!";
+    $litterFmt .= sprintf("LITTER=%d%%", $litter);
+
+    my $wasteFmt = "!size=6!";
+    $wasteFmt .= $waste >= 70 ? "!color=red!" : "!color=white!";
+    $wasteFmt .= sprintf("WASTE=%d%%", $waste);
+
+    my $dtmFmt = "!size=3!!color=green!$date!n!$time";
+
+    my $div = "!color=white!!hr!!size=1!!n!";
+    $markup = "$statusFmt!n!$div$litterFmt!n!$wasteFmt!n!$div$dtmFmt";
+  }else{
+    $markup = "!size=9!!color=red!ERROR";
+  }
+
   return $markup;
 }
 
