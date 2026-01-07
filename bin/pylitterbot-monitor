@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from pylitterbot import Account
 
-LOG_DIR = str(Path.home()) + "/.cache/logs/pylitterbot-monitor"
 SECRETS_FILE = str(Path.home()) + "/.secrets"
 
 DELAY_SECONDS = 1
@@ -15,28 +14,18 @@ DELAY_SECONDS = 1
 async def main():
   account = Account()
 
-  if not os.path.isdir(LOG_DIR):
-    os.mkdir(LOG_DIR)
-
-  nowFmt = datetime.now().strftime("%Y-%m-%d_%H%M%S_%s")
-  logFileName = nowFmt + ".log"
-  logFile = LOG_DIR + "/" + logFileName
-
   username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=whisker.email"])
   password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=whisker.password"])
 
   try:
     await account.connect(username=username, password=password, load_robots=True)
 
-    with open(logFile, "w") as fh:
-      while True:
-        for robot in account.robots:
-          await robot.refresh()
-          fmt = formatRobotInfo(robot)
-          print(fmt)
-          fh.write(fmt + "\n")
-          fh.flush()
-        time.sleep(DELAY_SECONDS)
+    while True:
+      for robot in account.robots:
+        await robot.refresh()
+        fmt = formatRobotInfo(robot)
+        print(fmt)
+      time.sleep(DELAY_SECONDS)
   finally:
       # Disconnect from the API.
      await account.disconnect()
