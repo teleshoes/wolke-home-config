@@ -147,24 +147,19 @@ sub pyeconet($$$$$){
 
   my $info = readPyeconet();
 
-  my ($elapsedS, $avail, $targetTemp, $running) = defined $info
-    ? ($$info{elapsedS}, $$info{avail}, $$info{targetTemp}, $$info{running})
-    : (undef, undef, undef, undef);
-
   my $availFmt = "!size=7!";
   my $tempFmt = "!size=5!";
-  if(defined $elapsedS and ($$info{elapsedS} < 0 or $$info{elapsedS} > 60)){
-    $availFmt .= "!color=red!ERR";
-    $tempFmt .= "!color=red!old";
-  }elsif(defined $avail and defined $targetTemp and defined $running){
-    $availFmt .= $avail == 100 ? "!color=white!OK" : "!color=red!" . sprintf "%2s%%", $avail;
-    $tempFmt .= "!color=white!" . sprintf("%3sF", $targetTemp);
+  if(defined $info){
+    $availFmt .= $$info{avail} == 100
+                   ? "!color=white!OK"
+                   : "!color=red!" . sprintf("%2s%%", $$info{avail});
+    $tempFmt .= "!color=white!" . sprintf("%3sF", $$info{targetTemp});
+
+    $tempFmt .= '!size=5!!color=green! *' if $$info{running} =~ /true/i;
   }else{
     $availFmt .= "!color=red!ERR";
     $tempFmt .= "!color=red!???";
   }
-
-  $tempFmt .= '!size=5!!color=green! *' if $running =~ /true/i;
 
   my $dateFmt = "!size=1!!n!!color=green!!size=10!$hr!n!$min!vspace=0!!n!!size=2!!color=white!$day $mon $d!n!$hr:$min:$sec";
 
@@ -180,12 +175,9 @@ sub pylitterbot($$$$$){
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
   my $info = readPylitterbot();
-  my $elapsedS = defined $info ? $$info{elapsedS} : undef;
 
   my $markup;
-  if(defined $elapsedS and ($elapsedS < -5 or $elapsedS > 60)){
-    $markup = "!size=7!OUT-OF-DATE!!\n";
-  }elsif(defined $info){
+  if(defined $info){
     my $statusFmt = $$info{status};
     $statusFmt =~ s/^LitterBoxStatus\.//;
     $statusFmt = "!color=white!!size=5!$statusFmt";
@@ -223,6 +215,10 @@ sub readPyeconet(){
   my $mtime = mtime $logFile;
   my $elapsedS = time - $mtime;
 
+  if($elapsedS < 0 or $elapsedS > 60){
+    return undef;
+  }
+
   my $info = defined $logFile ? `cat '$logFile'` : undef;
   my ($avail, $targetTemp, $running);
   if(defined $info){
@@ -232,7 +228,6 @@ sub readPyeconet(){
   }
 
   return {
-    elapsedS   => $elapsedS,
     avail      => $avail,
     targetTemp => $targetTemp,
     running    => $running,
@@ -249,6 +244,10 @@ sub readPylitterbot(){
 
   my $mtime = mtime $logFile;
   my $elapsedS = time - $mtime;
+
+  if($elapsedS < 0 or $elapsedS > 60){
+    return undef;
+  }
 
   my $info = `tail -1 '$logFile'`;
   my ($date, $time, $name, $serial, $status, $litter, $waste);
@@ -269,7 +268,6 @@ sub readPylitterbot(){
   }
 
   return {
-    elapsedS => $elapsedS,
     date     => $date,
     time     => $time,
     name     => $name,
