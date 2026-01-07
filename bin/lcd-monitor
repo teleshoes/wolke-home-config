@@ -5,6 +5,7 @@ use warnings;
 sub anim($$$$$);
 sub pyeconet($$$$$);
 sub pylitterbot($$$$$);
+sub house($$$$$);
 
 sub readPyeconet();
 sub readPylitterbot();
@@ -20,6 +21,7 @@ my $DISPLAYS = [
   {name=>"anim",        devName=>"lcd1", markupArgsSub=>\&anim,        widthPercent=>50},
   {name=>"pyeconet",    devName=>"lcd1", markupArgsSub=>\&pyeconet,    widthPercent=>50},
   {name=>"pylitterbot", devName=>"lcd2", markupArgsSub=>\&pylitterbot, widthPercent=>100},
+  {name=>"house",       devName=>"lcd3", markupArgsSub=>\&house,       widthPercent=>100},
 ];
 
 my @DISPLAY_NAMES = map {$$_{name}} @$DISPLAYS;
@@ -200,6 +202,64 @@ sub pylitterbot($$$$$){
   }else{
     $markup = "!size=9!!color=red!ERROR";
   }
+
+  return $markup;
+}
+
+sub house($$$$$){
+  my ($w, $h, $isLandscape, $modeBtnCount, $runCount) = @_;
+  my $tick = $runCount % 2 == 0 ? 1 : 0;
+
+  my $pyeconetInfo = readPyeconet();
+  my $pylitterbotInfo = readPylitterbot();
+
+  my $ecoAvailFmt = "";
+  if(defined $pyeconetInfo){
+    $ecoAvailFmt .= $$pyeconetInfo{avail} == 100 ? "!color=white!" : "!color=red!";
+    $ecoAvailFmt .= $$pyeconetInfo{avail};
+  }else{
+    $ecoAvailFmt .= "!color=red!???";
+  }
+
+  my $lrWasteFmt = "";
+  if(defined $pylitterbotInfo){
+    $lrWasteFmt .= $$pylitterbotInfo{waste} >= 70 ? "!color=red!" : "!color=white!";
+    $lrWasteFmt .= $$pylitterbotInfo{waste};
+  }else{
+    $lrWasteFmt .= "!color=red!???";
+  }
+
+  my $dateOut = `date '+%Y-%m-%d %I:%M:%S %p'`;
+  if($dateOut !~ /^(\d\d\d\d-\d\d-\d\d) (\d\d:\d\d:\d\d) (AM|PM)$/){
+    die "ERROR: could not parse date $dateOut\n";
+  }
+  my ($date, $time12, $ampm) = ($1, $2, $3);
+  my $time = "$time12$ampm";
+
+  my $anim;
+  if($tick){
+    $anim = "!size=2!!color=green!"
+      . '                 /\_/\   !n!'
+      . '                =>^,^<=   !n!'
+      . '                  / \   / !n!'
+      . '                 (___)_/ !n!'
+    ;
+  }else{
+    $anim = "!size=2!!color=green!"
+      . '                 /\_/\   !n!'
+      . '                =>^,^<=  !n!'
+      . '                  / \  \ !n!'
+      . '                 (___)_/ !n!'
+    ;
+  }
+
+  my $markup = ""
+    . "!color=white!!size=5!WATER:$ecoAvailFmt%!n!"
+    . "!color=white!!size=5!KITTY:$lrWasteFmt%!n!"
+    . $anim
+    . "!color=green!!size=3!$date!n!"
+    . "!color=green!!size=5!$time!n!"
+  ;
 
   return $markup;
 }
