@@ -7,6 +7,7 @@ sub pyeconet($$$$$);
 sub pylitterbot($$$$$);
 
 sub readPyeconet();
+sub readPylitterbot();
 
 sub calculateFramebuf($$$$);
 sub parseDevInfo($);
@@ -178,52 +179,31 @@ sub pylitterbot($$$$$){
   my ($w, $h, $isLandscape, $modeBtnCount, $runCount) = @_;
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
-  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYLITTERBOT_LOG_DIR/*.log";
-  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
-
-  my $mtime = mtime $logFile;
-  my $elapsedS = time - $mtime;
-
-  my $info = defined $logFile ? `tail -1 '$logFile'` : undef;
-  my $okLog = 0;
-  my ($date, $time, $name, $serial, $status, $litter, $waste);
-  if($info =~ /^
-     (\d\d\d\d-\d\d-\d\d)
-     T
-     (\d\d:\d\d:\d\d)
-     \.\d\d\d
-     ,([^,]+)
-     ,(\w+)
-     ,status=([^,]+)
-     ,litter=(\d+|\d*\.\d+)
-     ,waste=(\d+|\d*\.\d+)
-  /x){
-    $okLog = 1;
-    ($date, $time, $name, $serial, $status, $litter, $waste) = ($1, $2, $3, $4, $5, $6, $7);
-  }
+  my $info = readPylitterbot();
+  my $elapsedS = defined $info ? $$info{elapsedS} : undef;
 
   my $markup;
-  if($elapsedS < -5 or $elapsedS > 60){
+  if(defined $elapsedS and ($elapsedS < -5 or $elapsedS > 60)){
     $markup = "!size=7!OUT-OF-DATE!!\n";
-  }elsif($okLog){
-    my $statusFmt = $status;
+  }elsif(defined $info){
+    my $statusFmt = $$info{status};
     $statusFmt =~ s/^LitterBoxStatus\.//;
     $statusFmt = "!color=white!!size=5!$statusFmt";
 
     my $litterFmt = "";
-    $litterFmt .= $litter <= 70 ? "!color=red!" : "!color=white!";
-    $litterFmt .= int($litter+0.5) >= 100 ? "OK" : int($litter+0.5);
+    $litterFmt .= $$info{litter} <= 70 ? "!color=red!" : "!color=white!";
+    $litterFmt .= int($$info{litter}+0.5) >= 100 ? "OK" : int($$info{litter}+0.5);
 
     my $wasteFmt = "";
-    $wasteFmt .= $waste >= 70 ? "!color=red!" : "!color=white!";
-    $wasteFmt .= int($waste+0.5) >= 100 ? "OK" : int($waste+0.5);
+    $wasteFmt .= $$info{waste} >= 70 ? "!color=red!" : "!color=white!";
+    $wasteFmt .= int($$info{waste}+0.5) >= 100 ? "OK" : int($$info{waste}+0.5);
 
     $markup = ""
             . "$statusFmt!n!"
             . "!size=3!WASTE       LITTER!n!"
             . "!size=12!$wasteFmt!size=7!!color=white!|!size=12!$litterFmt!n!"
-            . "!size=3!!color=green!$date  {^.^) !n!"
-            . "$time     m m"
+            . "!size=3!!color=green!$$info{date}  {^.^) !n!"
+            . "$$info{time}     m m"
     ;
   }else{
     $markup = "!size=9!!color=red!ERROR";
@@ -256,6 +236,47 @@ sub readPyeconet(){
     avail      => $avail,
     targetTemp => $targetTemp,
     running    => $running,
+  };
+}
+
+sub readPylitterbot(){
+  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYLITTERBOT_LOG_DIR/*.log";
+  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
+
+  if(not defined $logFile){
+    return undef;
+  }
+
+  my $mtime = mtime $logFile;
+  my $elapsedS = time - $mtime;
+
+  my $info = `tail -1 '$logFile'`;
+  my ($date, $time, $name, $serial, $status, $litter, $waste);
+  if($info =~ /^
+     (\d\d\d\d-\d\d-\d\d)
+     T
+     (\d\d:\d\d:\d\d)
+     \.\d\d\d
+     ,([^,]+)
+     ,(\w+)
+     ,status=([^,]+)
+     ,litter=(\d+|\d*\.\d+)
+     ,waste=(\d+|\d*\.\d+)
+  /x){
+    ($date, $time, $name, $serial, $status, $litter, $waste) = ($1, $2, $3, $4, $5, $6, $7);
+  }else{
+    return undef;
+  }
+
+  return {
+    elapsedS => $elapsedS,
+    date     => $date,
+    time     => $time,
+    name     => $name,
+    serial   => $serial,
+    status   => $status,
+    litter   => $litter,
+    waste    => $waste,
   };
 }
 
