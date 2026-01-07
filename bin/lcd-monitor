@@ -5,6 +5,8 @@ use warnings;
 sub anim($$$$$);
 sub pyeconet($$$$$);
 
+sub readPyeconet();
+
 sub calculateFramebuf($$$$);
 sub parseDevInfo($);
 sub mtime($);
@@ -135,34 +137,23 @@ sub pyeconet($$$$$){
   my ($w, $h, $isLandscape, $modeBtnCount, $runCount) = @_;
   my $tick = $runCount % 2 == 0 ? 1 : 0;
 
-  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
-  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
-
-  my $mtime = mtime $logFile;
-  my $elapsedS = time - $mtime;
-
-  my $info = defined $logFile ? `cat '$logFile'` : undef;
-  my ($avail, $targetTemp, $running);
-  if(defined $info){
-    $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
-    $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
-    $running = $1 if $info =~ /^running: (\w+)$/m;
-  }
-
   my $dateOut = `date '+%Y-%m-%d %I:%M:%S %p %a %b'`;
   if($dateOut !~ /^(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) (AM|PM) (\w+) (\w+)$/){
     die "ERROR: could not parse date $dateOut\n";
   }
   my ($y, $m, $d, $hr, $min, $sec, $ampm, $day, $mon) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
+  my $info = readPyeconet();
+
+  my ($elapsedS, $avail, $targetTemp, $running) = defined $info
+    ? ($$info{elapsedS}, $$info{avail}, $$info{targetTemp}, $$info{running})
+    : (undef, undef, undef, undef);
+
   my $availFmt = "!size=7!";
   my $tempFmt = "!size=5!";
-  if($elapsedS < 0 or $elapsedS > 60){
+  if(defined $elapsedS and ($$info{elapsedS} < 0 or $$info{elapsedS} > 60)){
     $availFmt .= "!color=red!ERR";
     $tempFmt .= "!color=red!old";
-  }elsif(not defined $logFile){
-    $availFmt .= "!color=red!ERR";
-    $tempFmt .= "!color=red!log";
   }elsif(defined $avail and defined $targetTemp and defined $running){
     $availFmt .= $avail == 100 ? "!color=white!OK" : "!color=red!" . sprintf "%2s%%", $avail;
     $tempFmt .= "!color=white!" . sprintf("%3sF", $targetTemp);
@@ -238,6 +229,33 @@ sub pylitterbot($$$$$){
   }
 
   return $markup;
+}
+
+sub readPyeconet(){
+  my @logFiles = sort {$b cmp $a} grep {-f $_} glob "$PYECONET_LOG_DIR/*.log";
+  my $logFile = @logFiles > 0 ? $logFiles[0] : undef;
+
+  if(not defined $logFile){
+    return undef;
+  }
+
+  my $mtime = mtime $logFile;
+  my $elapsedS = time - $mtime;
+
+  my $info = defined $logFile ? `cat '$logFile'` : undef;
+  my ($avail, $targetTemp, $running);
+  if(defined $info){
+    $avail = $1 if $info =~ /^tank_hot_water_availability: (\d+)$/m;
+    $targetTemp = $1 if $info =~ /^set_point: (\d+)$/m;
+    $running = $1 if $info =~ /^running: (\w+)$/m;
+  }
+
+  return {
+    elapsedS   => $elapsedS,
+    avail      => $avail,
+    targetTemp => $targetTemp,
+    running    => $running,
+  };
 }
 
 sub calculateFramebuf($$$$){
