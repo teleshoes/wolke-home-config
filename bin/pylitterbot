@@ -19,6 +19,10 @@ async def main():
                       help="whisker app username (email)")
   parser.add_argument("--password", type=str,
                       help="whisker app password")
+  parser.add_argument("-g", "--get", action='store_true',
+                      help="fetch and print robot info once")
+  parser.add_argument("-m", "--monitor", action='store_true',
+                      help=f"fetch and print robot info every {DELAY_SECONDS}s")
 
   args = parser.parse_args()
 
@@ -43,14 +47,21 @@ async def main():
 
   account = Account()
   try:
-    await account.connect(username=username, password=password, load_robots=True)
-
-    while True:
+    if args.get:
+      await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
-        await robot.refresh()
         fmt = formatRobotInfo(robot)
         print(fmt, flush=True)
-      time.sleep(DELAY_SECONDS)
+    elif args.monitor:
+      await account.connect(username=username, password=password, load_robots=True)
+      while True:
+        for robot in account.robots:
+          await robot.refresh()
+          fmt = formatRobotInfo(robot)
+          print(fmt, flush=True)
+        time.sleep(DELAY_SECONDS)
+    else:
+      die(parser.format_help() + "\nERROR: no command given\n")
   finally:
       # Disconnect from the API.
      await account.disconnect()
