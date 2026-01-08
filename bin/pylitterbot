@@ -6,12 +6,20 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from pylitterbot import Account
 
 SECRETS_FILE = str(Path.home()) + "/.secrets"
 
 DELAY_SECONDS = 1
+
+class Cmd(Enum):
+  GET     = "get"
+  MONITOR = "monitor"
+  HISTORY = "history"
+  RESET   = "reset"
+  CYCLE   = "cycle"
 
 async def main():
   parser = argparse.ArgumentParser()
@@ -51,14 +59,27 @@ async def main():
       + "\n   or WHISKER_USERNAME/WHISKER_PASSWORD environment variables)"
       + "\n")
 
+  cmd = None
+  if args.get:
+    cmd = Cmd.GET
+  elif args.monitor:
+    cmd = Cmd.MONITOR
+  elif args.history:
+    cmd = Cmd.HISTORY
+  elif args.reset:
+    cmd = Cmd.RESET
+  elif args.cycle:
+    cmd = Cmd.CYCLE
+
   account = Account()
+
   try:
-    if args.get:
+    if cmd == Cmd.GET:
       await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
         fmt = formatRobotInfo(robot)
         print(fmt, flush=True)
-    elif args.monitor:
+    elif cmd == Cmd.MONITOR:
       await account.connect(username=username, password=password, load_robots=True)
       while True:
         for robot in account.robots:
@@ -66,18 +87,18 @@ async def main():
           fmt = formatRobotInfo(robot)
           print(fmt, flush=True)
         time.sleep(DELAY_SECONDS)
-    elif args.history:
+    elif cmd == Cmd.HISTORY:
       await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
         print(robot)
         hist = await robot.get_activity_history()
         for entry in hist:
           print(hist)
-    elif args.reset:
+    elif cmd == Cmd.RESET:
       await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
         await robot.reset()
-    elif args.cycle:
+    elif cmd == Cmd.CYCLE:
       await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
         await robot.start_cleaning()
