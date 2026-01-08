@@ -276,6 +276,8 @@ function ig           { igcmd "$@"; }
 
 function lcd          { pico-lcd-msg "$@"; }
 
+function lr           { pylitterbot "$@"; }
+
 function rheem        { pyeconet "$@"; }
 function econet       { pyeconet "$@"; }
 
