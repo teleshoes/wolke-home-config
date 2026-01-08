@@ -1,7 +1,9 @@
 #!/opt/pylitterbot-venv/bin/python
+import argparse
 import asyncio
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -12,11 +14,34 @@ SECRETS_FILE = str(Path.home()) + "/.secrets"
 DELAY_SECONDS = 1
 
 async def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--username", type=str,
+                      help="whisker app username (email)")
+  parser.add_argument("--password", type=str,
+                      help="whisker app password")
+
+  args = parser.parse_args()
+
+  username = args.username
+  if username == None:
+    username = os.environ.get("WHISKER_USERNAME")
+  if username == None:
+    username = readProc(["gpg-conf-read", str(Path.home()) + "/.secrets", "--key=whisker.email"])
+
+  password = args.password
+  if password == None:
+    password = os.environ.get("WHISKER_PASSWORD")
+  if password == None:
+    password = readProc(["gpg-conf-read", str(Path.home()) + "/.secrets", "--key=whisker.password"])
+
+  if username == None or password == None or username == "" or password == "":
+    die(parser.format_help()
+      + "\nERROR: missing username and/or password"
+      + "\n  (can be given with --username/--password command line args,"
+      + "\n   or WHISKER_USERNAME/WHISKER_PASSWORD environment variables)"
+      + "\n")
+
   account = Account()
-
-  username = readProc(["gpg-conf-read", SECRETS_FILE, "--key=whisker.email"])
-  password = readProc(["gpg-conf-read", SECRETS_FILE, "--key=whisker.password"])
-
   try:
     await account.connect(username=username, password=password, load_robots=True)
 
@@ -43,6 +68,10 @@ def formatRobotInfo(robot):
 
 def readProc(cmd):
   return subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').rstrip()
+
+def die(msg):
+  print(msg, file=sys.stderr)
+  os._exit(1)
 
 if __name__ == "__main__":
   asyncio.run(main())
