@@ -83,6 +83,7 @@ sub main(@){
     }
   }
 
+  my @pids;
   for my $name(@displayEventNames){
     my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
@@ -108,14 +109,20 @@ sub main(@){
     my @markupArgs = &{$$displayInfo{markupArgsSub}}(
       $w, $h, $isLandscape, $modeBtnCount, $runCount);
 
-    system "pico-lcd-msg",
-      @markupArgs,
-      "--dev=$devName",
-      "--framebuf=$framebuf",
-      "--quiet",
-      "--max-time", 3,
-    ;
+    my $pid = fork();
+    push @pids, $pid;
+    if(not $pid){
+      system "pico-lcd-msg",
+        @markupArgs,
+        "--dev=$devName",
+        "--framebuf=$framebuf",
+        "--quiet",
+        "--max-time", 3,
+      ;
+      exit 0;
+    }
   }
+  waitpid $_, 0 foreach @pids;
 }
 
 sub anim($$$$$){
