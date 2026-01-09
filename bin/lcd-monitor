@@ -184,21 +184,33 @@ sub pylitterbot($$$$$){
     $statusFmt =~ s/^LitterBoxStatus\.//;
     $statusFmt = "!color=white!!size=5!$statusFmt";
 
-    my $litterFmt = "";
-    my $litterInt = sprintf("%d", $$info{litter});
-    $litterFmt .= $litterInt <= 70 ? "!color=red!" : "!color=white!";
-    $litterFmt .= $litterInt >= 100 ? "OK" : sprintf("%02d", $litterInt);
+    my $barW = 320;
+    my $barH = 50;
 
-    my $wasteFmt = "";
     my $wasteInt = sprintf("%d", $$info{waste});
-    $wasteFmt .= $wasteInt >= 70 ? "!color=red!" : "!color=white!";
-    $wasteFmt .= $wasteInt  >= 100 ? "FL" : sprintf("%02d", $wasteInt);
+    my ($wasteFG, $wasteBG) = $wasteInt >= 75 ? ("red", "white") : ("green", "white");
+    my $wasteFmt = ""
+      . "!bar=${barW},${barH},$wasteInt,$wasteFG,$wasteBG!"
+      . "!shift=-${barW}x0!!shift=20x10!" #reset cursor, then indent label
+      . "!color=black!!size=4!WASTE   " . sprintf("%3d%%", $wasteInt)
+    ;
+
+    my $litterInt = sprintf("%d", $$info{litter});
+    my ($litterFG, $litterBG) = $litterInt <= 75 ? ("white", "red") : ("green", "white");
+    my $litterFmt = ""
+      . "!bar=${barW},${barH},$litterInt,$litterFG,$litterBG!"
+      . "!shift=-${barW}x0!!shift=20x10!" #reset cursor, then indent label
+      . "!color=black!!size=4!LITTER  " . sprintf("%3d%%", $litterInt)
+    ;
 
     $markup = ""
             . "$statusFmt!n!"
-            . "!size=3!WASTE       LITTER!n!"
-            . "!size=12!$wasteFmt!size=7!!color=white!|!size=12!$litterFmt!n!"
-            . "!size=3!!color=green!$$info{date} =(^.^)= !n!"
+            . "!shift=0x10!"
+            . "$wasteFmt!n!"
+            . "!shift=0x30!"
+            . "$litterFmt!n!"
+            . "!shift=0x15!"
+            . "!size=3!!color=white!$$info{date} =(^.^)= !n!"
             . "$$info{time}     m m"
     ;
   }else{
