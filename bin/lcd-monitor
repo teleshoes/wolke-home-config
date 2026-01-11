@@ -18,14 +18,14 @@ my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
 my $PYLITTERBOT_LOG_DIR = "$ENV{HOME}/.cache/logs/pylitterbot-monitor";
 
 my $DISPLAYS_ARR = [
-  #NAME           DEV_NAME MARKUP_SUB     WIDTH_PERCENT
-  ["anim",        "lcd5",  \&anim,        50],
-  ["pyeconet",    "lcd5",  \&pyeconet,    50],
-  ["pylitterbot", "lcd1",  \&pylitterbot, 100],
-  ["house",       "lcd6",  \&house,       100],
+  #NAME           DEV_NAME MARKUP_SUB     FRAMEBUF_CFG
+  ["anim",        "lcd5",  \&anim,        [0, 50]],
+  ["pyeconet",    "lcd5",  \&pyeconet,    [50, 100]],
+  ["pylitterbot", "lcd1",  \&pylitterbot, [0, 100]],
+  ["house",       "lcd6",  \&house,       [0, 100]],
 ];
 my $DISPLAYS = [map {
-  {name=>$$_[0], devName=>$$_[1], markupSub=>$$_[2], widthPercent=>$$_[3]}
+  {name=>$$_[0], devName=>$$_[1], markupSub=>$$_[2], framebufCfg=>$$_[3]}
 } @$DISPLAYS_ARR];
 
 my @DISPLAY_NAMES = map {$$_{name}} @$DISPLAYS;
@@ -81,7 +81,6 @@ sub main(@){
     if(not defined $$devices{$devName}){
       my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
       my $devInfo = parseDevInfo $devInfoStr;
-      $$devInfo{curWidthPercent} = 0;
 
       $$devices{$devName} = $devInfo;
     }
@@ -100,12 +99,11 @@ sub main(@){
     $modeBtnCount = $btnCounts{Y} if defined $btnCounts{Y};
     my $isLandscape = $$devInfo{degrees} % 180 == 0;
 
+    my $framebufCfg = $$displayInfo{framebufCfg};
+    my ($fbLeftPct, $fbRightPct) = @$framebufCfg;
+
     my $framebuf = calculateFramebuf(
-      $$displayInfo{widthPercent}, $$devInfo{curWidthPercent}, $$devInfo{lcd}, $isLandscape);
-
-    #move the next display over
-    $$devInfo{curWidthPercent} += $$displayInfo{widthPercent};
-
+      $fbLeftPct, $fbRightPct, $$devInfo{lcd}, $isLandscape);
 
     my ($w, $h) = ($1, $2) if $framebuf =~ /^(\d+)x(\d+)/;
     ($w, $h) = ($h, $w) if not $isLandscape;
@@ -366,13 +364,15 @@ sub readPylitterbot(){
 }
 
 sub calculateFramebuf($$$$){
-  my ($widthPct, $curWidthPct, $lcdGeometry, $isLandscape) = @_;
+  my ($leftWidthPct, $rightWidthPct, $lcdGeometry, $isLandscape) = @_;
+
+  my $widthPct = $rightWidthPct - $leftWidthPct;
 
   my ($w, $h) = ($1, $2) if $lcdGeometry =~ /^(\d+)x(\d+)$/;
   my $fbW = int($w * $widthPct / 100.0);
   my $fbH = $h;
 
-  my $fbX = int($w * $curWidthPct / 100.0);
+  my $fbX = int($w * $leftWidthPct / 100.0);
   my $fbY = 0;
 
   if(not $isLandscape){
