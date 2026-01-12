@@ -11,9 +11,12 @@ sub readPyeconet();
 sub readPylitterbot();
 
 sub calculateFramebuf($$$$);
+sub readDevInfoCache($);
+sub writeDevInfoCache($$);
 sub parseDevInfo($);
 sub mtime($);
 
+my $DEV_INFO_CACHE_DIR = "$ENV{HOME}/.cache/pico-lcd-dev-info";
 my $PYECONET_LOG_DIR = "$ENV{HOME}/.cache/logs/pyeconet";
 my $PYLITTERBOT_LOG_DIR = "$ENV{HOME}/.cache/logs/pylitterbot-monitor";
 
@@ -73,17 +76,13 @@ sub main(@){
   $runCount++;
   system "echo $runCount > /tmp/lcd-monitor-count";
 
-  my $devices = {};
-  for my $name(@displayEventNames){
-    my $displayInfo = $DISPLAYS_BY_NAME{$name};
-    my $devName = $$displayInfo{devName};
-    $devName = $overrideDevName if defined $overrideDevName;
-    if(not defined $$devices{$devName}){
-      my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
-      my $devInfo = parseDevInfo $devInfoStr;
+  my @devNames = map {$$_{devName}} @$DISPLAYS;
+  @devNames = ($overrideDevName) if defined $overrideDevName;
 
-      $$devices{$devName} = $devInfo;
-    }
+  my %uniqDevNames = map {$_ => 1} @devNames;
+  for my $devName(sort keys %uniqDevNames){
+    my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
+    writeDevInfoCache($devName, $devInfoStr);
   }
 
   my @pids;
@@ -91,7 +90,8 @@ sub main(@){
     my $displayInfo = $DISPLAYS_BY_NAME{$name};
     my $devName = $$displayInfo{devName};
     $devName = $overrideDevName if defined $overrideDevName;
-    my $devInfo = $$devices{$devName};
+
+    my $devInfo = readDevInfoCache($devName);
     my %btnCounts = %{$$devInfo{btnCounts}};
 
     my $modeBtnCount = 0;
@@ -381,6 +381,29 @@ sub calculateFramebuf($$$$){
   }
 
   return "${fbW}x${fbH}+${fbX}+${fbY}";
+}
+
+sub readDevInfoCache($){
+  my ($devName) = @_;
+  my $file = "$DEV_INFO_CACHE_DIR/$devName";
+  my $devInfo;
+  if(-f $file){
+    open my $fh, "< $file" or die "ERROR: could not read $file\n";
+    my $infoStr = join('', <$fh>);
+    close $fh;
+    $devInfo = parseDevInfo($infoStr);
+  }else{
+    $devInfo = {};
+  }
+  return $devInfo;
+}
+sub writeDevInfoCache($$){
+  my ($devName, $infoStr) = @_;
+  my $file = "$DEV_INFO_CACHE_DIR/$devName";
+  system "mkdir", "-p", $DEV_INFO_CACHE_DIR if not -d $DEV_INFO_CACHE_DIR;
+  open my $fh, "> $file" or die "ERROR: could not write $file\n";
+  print $fh $infoStr;
+  close $fh;
 }
 
 sub parseDevInfo($){
