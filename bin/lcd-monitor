@@ -76,15 +76,6 @@ sub main(@){
   $runCount++;
   system "echo $runCount > /tmp/lcd-monitor-count";
 
-  my @devNames = map {$$_{devName}} @$DISPLAYS;
-  @devNames = ($overrideDevName) if defined $overrideDevName;
-
-  my %uniqDevNames = map {$_ => 1} @devNames;
-  for my $devName(sort keys %uniqDevNames){
-    my $devInfoStr = `pico-lcd-msg --quiet --max-time 3 --dev=$devName info`;
-    writeDevInfoCache($devName, $devInfoStr);
-  }
-
   my @pids;
   for my $name(@displayEventNames){
     my $displayInfo = $DISPLAYS_BY_NAME{$name};
@@ -99,7 +90,7 @@ sub main(@){
       $modeBtnCount = $$devInfo{btnCounts}{Y} if defined $$devInfo{btnCounts}{Y};
     }
 
-    #device info LCD size+orientation, or default for display config
+    #previous display LCD size+orientation, or default for display config
     my $lcd = defined $$devInfo{lcd} ? $$devInfo{lcd} : $$displayInfo{defaultLCD};
     my ($lcdW, $lcdH) = ($1, $2) if $lcd =~ /^(\d+)x(\d+)$/;
     my $isLandscape = $lcdW < $lcdH ? 0 : 1;
@@ -125,7 +116,12 @@ sub main(@){
         "--max-time", 3,
       );
       print "@cmd\n";
-      system @cmd;
+
+      open my $cmdH, "-|", @cmd or die "ERROR: '@_\n' failed\n";
+      my $out = join '', <$cmdH>;
+      close $cmdH;
+
+      writeDevInfoCache($devName, $out);
       exit 0;
     }
   }
