@@ -1,0 +1,152 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(time);
+
+sub getApiKey();
+sub readSecrets();
+sub decrypt($);
+
+my $EXEC = basename $0;
+
+my $API_URL_BASE = "https://api.weatherapi.com/v1";
+
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my $SECRETS_PREFIX = "weatherapi";
+my $SECRETS_KEYS_REGEX = join("|", qw(apikey));
+my %SECRETS_ENC_KEYS = map {$_ => 1} qw(apikey);
+
+my $DIR_BASE = "$ENV{HOME}/.cache/weatherapi";
+my $DIR_JSON = "$DIR_BASE/json";
+
+my @LOCATION_ARR = (
+);
+
+my @LOCATION_NAMES = map {$$_[0]} @LOCATION_ARR;
+my %LOCATION_QUERY_BY_NAME = map {$$_[0] => $$_[1]} @LOCATION_ARR;
+my %LOCATION_SYNS_BY_NAME = map {$$_[0] => $$_[2]} @LOCATION_ARR;
+my %LOCATION_NAME_BY_SYN = map {
+  my $name=$_; map {$_ => $name} @{$LOCATION_SYNS_BY_NAME{$name}}
+} @LOCATION_NAMES;
+my @LOCATION_SYNS = (map {@{$LOCATION_SYNS_BY_NAME{$_}}} @LOCATION_NAMES);
+
+my $LOCATION_SYN_REGEX = join("|", @LOCATION_NAMES);
+my $DEFAULT_LOCATION = @LOCATION_NAMES > 0 ? $LOCATION_NAMES[0] : undef;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] -f | --fetch
+    -fetch the current and forecast JSON from $API_URL_BASE
+    -parse last_updated_epoch in JSON
+    -format LAST_UPDATED_DTM as YYYY-MM-DD_HHMMSS
+    -cache in $DIR_JSON/<LAST_UPDATED_DTM>_<LOCATION_NAME>_<current|forecast>_<NOW_MILLIS>.json
+
+  OPTS
+    --location=<LOCATION_SYN> | --<LOCATION_SYN> | <LOCATION_SYN>
+      the location to fetch
+      (default is " . (defined $DEFAULT_LOCATION ? $DEFAULT_LOCATION : "undefined") . ")
+
+      LOCATION_NAME => LOCATION_SYN\n" . join("",
+        map {sprintf "      %-13s => %s\n", $_, join(" ", @{$LOCATION_SYNS_BY_NAME{$_}})}
+        @LOCATION_NAMES
+      ) . "
+";
+
+my $MODE_FETCH = "fetch";
+
+my $API_METHOD_CURRENT = "current";
+my $API_METHOD_FORECAST = "forecast";
+
+sub main(@){
+  my $mode = $MODE_FETCH;
+  my $locationSyn = $DEFAULT_LOCATION;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(?:--location=|--)?($LOCATION_SYN_REGEX)$/){
+      $locationSyn = lc $1;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  my $locationName = undef;
+  $locationName = $LOCATION_NAME_BY_SYN{$locationSyn} if defined $locationSyn;
+
+  if($mode eq $MODE_FETCH){
+    die "ERROR: missing location\n" if not defined $locationName;
+    my $apiKey = getApiKey();
+    fetchWeather($apiKey, $locationName, $API_METHOD_CURRENT);
+    fetchWeather($apiKey, $locationName, $API_METHOD_FORECAST);
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub fetchWeather($$$){
+  my ($apiKey, $locationName, $method) = @_;
+  my $query = $LOCATION_QUERY_BY_NAME{$locationName};
+  my $url = "$API_URL_BASE/$method.json?key=$apiKey&q=$query";
+  my $json = `curl --silent '$url'`;
+  my $lastUpdatedEpoch = undef;
+  if($json =~ /"last_updated_epoch":(\d+)/){
+    $lastUpdatedEpoch = $1;
+  }else{
+    die "ERROR: could not parse $method weather for $query\n";
+  }
+  my $lastUpdatedFmt = `date --date=\@$lastUpdatedEpoch +%Y-%m-%d_%H%M%S`;
+  chomp $lastUpdatedFmt;
+
+  my $nowMillis = nowMillis();
+  my $cacheFile = "$DIR_JSON/${lastUpdatedFmt}_${locationName}_${method}_${nowMillis}.json";
+
+  system "mkdir", "-p", $DIR_JSON if not -d $DIR_JSON;
+  open my $fh, "> $cacheFile" or die "ERROR: could not write $cacheFile\n$!\n";
+  print $fh $json;
+  close $fh;
+  print "cached $cacheFile\n";
+}
+
+sub getApiKey(){
+  my $secrets = readSecrets();
+  if(not defined $$secrets{apikey}){
+    die "ERROR: could not read $SECRETS_PREFIX.apikey in secrets\n"
+  }
+  return $$secrets{apikey};
+}
+
+sub readSecrets(){
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
+  my $secrets = {};
+  for my $line(@lines){
+    if($line =~ /^$SECRETS_PREFIX\.($SECRETS_KEYS_REGEX)\s*=\s*(.+)$/){
+      $$secrets{$1} = $2;
+    }
+  }
+  for my $key(sort keys %$secrets){
+    $$secrets{$key} = decrypt $$secrets{$key} if defined $SECRETS_ENC_KEYS{$key};
+  }
+  return $secrets;
+}
+
+sub decrypt($){
+  my ($s) = @_;
+  open GPG, "-|", "gpg-sym", $s or die "could not run gpg-sym\n";
+  my @contents = <GPG>;
+  close GPG;
+  die "error running gpg-sym\n$!\n" if $? != 0;
+  my $value = join '', @contents;
+  chomp $value;
+  return $value;
+}
+
+sub nowMillis(){
+  return int(time*1000.0 + 0.5)
+}
+
+&main(@ARGV);
