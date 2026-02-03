@@ -9,6 +9,7 @@ sub readCache($);
 sub buildCurrentCache($);
 sub buildForecastCache($);
 sub fetchWeather($$$);
+sub downloadIcons();
 sub getLatestCacheFile($$);
 sub getApiKey();
 sub readSecrets();
@@ -16,12 +17,15 @@ sub decrypt($);
 sub readFile($);
 sub writeFile($$);
 sub parseJson($);
+sub cleanText($);
 sub absdiff($$);
 sub nowMillis();
 
 my $EXEC = basename $0;
 
 my $API_URL_BASE = "https://api.weatherapi.com/v1";
+my $ICON_URL_BASE = "https://cdn.weatherapi.com/weather";
+my $ICON_URL_CSV = "https://www.weatherapi.com/docs/weather_conditions.csv";
 
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my $SECRETS_PREFIX = "weatherapi";
@@ -31,6 +35,7 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw(apikey);
 my $DIR_BASE = "$ENV{HOME}/.cache/weatherapi";
 my $DIR_JSON = "$DIR_BASE/json";
 my $DIR_CACHE = "$DIR_BASE/cache";
+my $DIR_ICONS = "$DIR_BASE/icons";
 
 my @LOCATION_ARR = (
   [islip => "11751" => ["islip", "11751", "home"]],
@@ -66,6 +71,7 @@ my $USAGE = "Usage:
     -parse JSON and cache parsed info in:
       $DIR_CACHE/<LOCATION_NAME>_current
       $DIR_CACHE/<LOCATION_NAME>_<YYYY-MM-DD>
+    -download and cache all icon image files if not already cached
 
   OPTS
     --location=<LOCATION_SYN> | --<LOCATION_SYN> | <LOCATION_SYN>
@@ -120,6 +126,8 @@ sub main(@){
     system "rm -f $DIR_CACHE/${locationName}_*";
     buildCurrentCache($locationName);
     buildForecastCache($locationName);
+
+    downloadIcons();
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -270,6 +278,40 @@ sub fetchWeather($$$){
   print "cached $cacheFile\n";
 }
 
+sub downloadIcons(){
+  system "mkdir", "-p", $DIR_ICONS if not -d $DIR_ICONS;
+
+  my $res = "128x128";
+
+  my $csvFile = "$DIR_ICONS/weather_conditions.csv";
+  if(not -e $csvFile){
+    print "  (downloading icon CSV)\n";
+    system "curl", "--silent", $ICON_URL_CSV,  "--output=$csvFile";
+  }
+
+  my @entries = split /\n/, readFile $csvFile;
+  for my $entry(@entries){
+    next if $entry =~ /^code,day,night,icon$/;
+    if($entry !~ /^(\d+),([^,]*),([^,]*),(\d+)$/){
+      die "ERROR: malformed icon entry $entry\n";
+    }
+    my ($code, $day, $night, $icon) = ($1, $2, $3, $4);
+    my $dayFmt = cleanText $day;
+    my $nightFmt = cleanText $night;
+
+    my $destDayIcon = "$DIR_ICONS/day_${code}_${icon}_${res}_${dayFmt}.png";
+    my $destNightIcon = "$DIR_ICONS/night_${code}_${icon}_${res}_${nightFmt}.png";
+    if(not -e $destDayIcon){
+      print "  (downloading icon $destDayIcon)\n";
+      system "curl", "--silent", "$ICON_URL_BASE/$res/day/$icon.png", "--output=$destDayIcon";
+    }
+    if(not -e $destNightIcon){
+      print "  (downloading icon $destNightIcon)\n";
+      system "curl", "--silent", "$ICON_URL_BASE/$res/night/$icon.png", "--output=$destNightIcon";
+    }
+  }
+}
+
 sub getLatestCacheFile($$){
   my ($locationName, $method) = @_;
   my @files = sort grep {-f $_} glob "$DIR_JSON/????-??-??_??????_${locationName}_${method}_*.json";
@@ -327,6 +369,16 @@ sub writeFile($$){
 sub parseJson($){
   my ($jsonStr) = @_;
   return Cpanel::JSON::XS->new->utf8->decode($jsonStr);
+}
+
+sub cleanText($){
+  my ($text) = @_;
+  $text = lc $text;
+  $text =~ s/\W+/_/g;
+  $text =~ s/__+/_/g;
+  $text =~ s/^_//g;
+  $text =~ s/_$//g;
+  return $text;
 }
 
 sub absdiff($$){
