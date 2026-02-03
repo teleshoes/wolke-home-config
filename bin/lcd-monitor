@@ -162,26 +162,32 @@ sub pyeconet($$$$$){
 
   my $info = readPyeconet();
 
-  my $availFmt = "!size=7!";
-  my $tempFmt = "!size=5!";
+  my $availFmt = "[size=7]";
+  my $tempFmt = "[size=5]";
   if(defined $info){
     $availFmt .= $$info{avail} == 100
-                   ? "!color=white!OK"
-                   : "!color=red!" . sprintf("%2s%%", $$info{avail});
-    $tempFmt .= "!color=white!" . sprintf("%3sF", $$info{targetTemp});
+                   ? "[color=white]OK"
+                   : "[color=red]" . sprintf("%2s%%", $$info{avail});
+    $tempFmt .= "[color=white]" . sprintf("%3sF", $$info{targetTemp});
 
-    $tempFmt .= '!size=5!!color=green! *' if $$info{running} =~ /true/i;
+    $tempFmt .= '[size=5][color=green] *' if $$info{running} =~ /true/i;
   }else{
-    $availFmt .= "!color=red!ERR";
-    $tempFmt .= "!color=red!???";
+    $availFmt .= "[color=red]ERR";
+    $tempFmt .= "[color=red]???";
   }
 
-  my $dateFmt = "!size=1!!n!!color=green!!size=10!$hr!n!$min!vspace=0!!n!!size=2!!color=white!$day $mon $d!n!$hr:$min:$sec";
+  my $dateFmt = sprintf ""
+    . "[size=1][n]"
+    . "[color=green][size=10]%s[n]"
+    . "%s[vspace=0][n]"
+    . "[size=2][color=white]%s %s %s[n]"
+    . "%s:%s:%s",
+    $hr, $min, $day, $mon, $d, $hr, $min, $sec;
 
   my $tickColor = $tick ? "blue" : "white";
-  my $tickFmt = "!y=53!!x=0!!size=2!!color=$tickColor!~";
+  my $tickFmt = "[y=53][x=0][size=2][color=$tickColor]~";
 
-  my $markup = "$availFmt!n!$tempFmt!n!$dateFmt$tickFmt";
+  my $markup = sprintf "%s[n]%s[n]%s%s", $availFmt, $tempFmt, $dateFmt, $tickFmt;
   return $markup;
 }
 
@@ -195,7 +201,7 @@ sub pylitterbot($$$$$){
   if(defined $info){
     my $statusFmt = $$info{status};
     $statusFmt =~ s/^LitterBoxStatus\.//;
-    $statusFmt = "!color=white!!size=5!$statusFmt";
+    $statusFmt = "[color=white][size=5]$statusFmt";
 
     my $barW = 320;
     my $barH = 50;
@@ -203,37 +209,36 @@ sub pylitterbot($$$$$){
     my $wasteInt = sprintf("%d", $$info{waste});
     my ($wasteFG, $wasteBG) = $wasteInt >= 75 ? ("red", "white") : ("green", "white");
     my $wasteFmt = ""
-      . "!bar=${barW},${barH},$wasteInt,$wasteFG,$wasteBG!"
-      . "!shift=-${barW}x0!!shift=20x10!" #reset cursor, then indent label
-      . "!color=black!!size=4!WASTE   " . sprintf("%3d%%", $wasteInt)
+      . "[bar=${barW},${barH},$wasteInt,$wasteFG,$wasteBG]"
+      . "[shift=-${barW}x0][shift=20x10]" #reset cursor, then indent label
+      . "[color=black][size=4]WASTE   " . sprintf("%3d%%", $wasteInt)
     ;
 
     my $litterFmt = "";
     my $litterInt = sprintf("%d", $$info{litter});
     if($litterInt < 90){
       $litterFmt = ""
-        . "!color=red!!rect=${barW}x${barH}!"
-        . "!shift=-${barW}x0!!shift=20x10!" #reset cursor, then indent label
-        . "!color=black!!size=4!HPR LOW " . sprintf("%3d%%", $litterInt)
+        . "[color=red][rect=${barW}x${barH}]"
+        . "[shift=-${barW}x0][shift=20x10]" #reset cursor, then indent label
+        . "[color=black][size=4]HPR LOW " . sprintf("%3d%%", $litterInt)
     }else{
       $litterFmt = ""
-        . "!color=white!!rect=${barW}x${barH}!"
-        . "!shift=-${barW}x0!!shift=20x10!" #reset cursor, then indent label
-        . "!color=black!!size=4!LTR OK  " . sprintf("%3d%%", $litterInt)
+        . "[color=white][rect=${barW}x${barH}]"
+        . "[shift=-${barW}x0][shift=20x10]" #reset cursor, then indent label
+        . "[color=black][size=4]LTR OK  " . sprintf("%3d%%", $litterInt)
     }
 
     $markup = ""
-            . "$statusFmt!n!"
-            . "!shift=0x10!"
-            . "$wasteFmt!n!"
-            . "!shift=0x30!"
-            . "$litterFmt!n!"
-            . "!shift=0x15!"
-            . "!size=3!!color=white!$$info{date} =(^.^)= !n!"
-            . "$$info{time}     m m"
+            . "$statusFmt"             . "[n]"
+            . "[shift=0x10]$wasteFmt"  . "[n]"
+            . "[shift=0x30]$litterFmt" . "[n]"
+            . "[shift=0x15]"
+            . "[size=3][color=white]"
+            . "$$info{date} =(^.^)="   . "[n]"
+            . "$$info{time}    m m"
     ;
   }else{
-    $markup = "!size=9!!color=red!ERROR";
+    $markup = "[size=9][color=red]ERROR";
   }
 
   return $markup;
@@ -248,18 +253,18 @@ sub house($$$$$){
 
   my $ecoAvailFmt = "";
   if(defined $pyeconetInfo){
-    $ecoAvailFmt .= $$pyeconetInfo{avail} == 100 ? "!color=white!" : "!color=red!";
+    $ecoAvailFmt .= $$pyeconetInfo{avail} == 100 ? "[color=white]" : "[color=red]";
     $ecoAvailFmt .= sprintf "%3d%%", $$pyeconetInfo{avail};
   }else{
-    $ecoAvailFmt .= "!color=red!???%";
+    $ecoAvailFmt .= "[color=red]???%";
   }
 
   my $lrWasteFmt = "";
   if(defined $pylitterbotInfo){
-    $lrWasteFmt .= $$pylitterbotInfo{waste} >= 70 ? "!color=red!" : "!color=white!";
+    $lrWasteFmt .= $$pylitterbotInfo{waste} >= 70 ? "[color=red]" : "[color=white]";
     $lrWasteFmt .= sprintf "%3d%%", $$pylitterbotInfo{waste};
   }else{
-    $lrWasteFmt .= "!color=red!???%";
+    $lrWasteFmt .= "[color=red]???%";
   }
 
   my $dateOut = `date '+%Y-%m-%d %I:%M:%S %p'`;
@@ -271,27 +276,27 @@ sub house($$$$$){
 
   my $anim;
   if($tick){
-    $anim = "!size=2!!color=green!"
-      . '                 /\_/\   !n!'
-      . '                =>^,^<=   !n!'
-      . '                  / \   / !n!'
-      . '                 (___)_/ !n!'
+    $anim = "[size=2][color=green]"
+      . '                 /\_/\    [n]'
+      . '                =>^,^<=   [n]'
+      . '                  / \   / [n]'
+      . '                 (___)_/  [n]'
     ;
   }else{
-    $anim = "!size=2!!color=green!"
-      . '                 /\_/\   !n!'
-      . '                =>^,^<=  !n!'
-      . '                  / \  \ !n!'
-      . '                 (___)_/ !n!'
+    $anim = "[size=2][color=green]"
+      . '                 /\_/\    [n]'
+      . '                =>^,^<=   [n]'
+      . '                  / \  \  [n]'
+      . '                 (___)_/  [n]'
     ;
   }
 
   my $markup = ""
-    . "!color=white!!size=5!WATER:$ecoAvailFmt!n!"
-    . "!color=white!!size=5!KITTY:$lrWasteFmt!n!"
+    . "[color=white][size=5]WATER:$ecoAvailFmt" . "[n]"
+    . "[color=white][size=5]KITTY:$lrWasteFmt"  . "[n]"
     . $anim
-    . "!color=green!!size=3!$date!n!"
-    . "!color=green!!size=5!$time!n!"
+    . "[color=green][size=3]$date"              . "[n]"
+    . "[color=green][size=5]$time"              . "[n]"
   ;
 
   return $markup;
