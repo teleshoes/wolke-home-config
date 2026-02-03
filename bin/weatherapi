@@ -5,15 +5,19 @@ use File::Basename qw(basename);
 use Time::HiRes qw(time);
 use Cpanel::JSON::XS qw();
 
+sub readCache($);
 sub buildCurrentCache($);
 sub buildForecastCache($);
 sub fetchWeather($$$);
+sub getLatestCacheFile($$);
 sub getApiKey();
 sub readSecrets();
 sub decrypt($);
 sub readFile($);
 sub writeFile($$);
 sub parseJson($);
+sub absdiff($$);
+sub nowMillis();
 
 my $EXEC = basename $0;
 
@@ -56,6 +60,13 @@ my $USAGE = "Usage:
       $DIR_CACHE/<LOCATION_NAME>_current
       $DIR_CACHE/<LOCATION_NAME>_<YYYY-MM-DD>
 
+  $EXEC [OPTS] -g | --get
+    -read the latest cached current and latest cached forecast for today
+    -check if either cache is more than one hour out of date
+      -fail if out-of-date
+      -otherwise, print:
+        CUR_TEMP_F (MAX_TEMP_F | MIN_TEMP_F) CONDITION
+
   OPTS
     --location=<LOCATION_SYN> | --<LOCATION_SYN> | <LOCATION_SYN>
       the location to fetch
@@ -67,6 +78,7 @@ my $USAGE = "Usage:
       ) . "
 ";
 
+my $MODE_GET = "get";
 my $MODE_FETCH = "fetch";
 
 my $API_METHOD_CURRENT = "current";
@@ -80,6 +92,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-g|--get)$/){
+      $mode = $MODE_GET;
     }elsif($arg =~ /^(?:--location=|--)?($LOCATION_SYN_REGEX)$/){
       $locationSyn = lc $1;
     }else{
@@ -90,7 +104,12 @@ sub main(@){
   my $locationName = undef;
   $locationName = $LOCATION_NAME_BY_SYN{$locationSyn} if defined $locationSyn;
 
-  if($mode eq $MODE_FETCH){
+  if($mode eq $MODE_GET){
+    die "ERROR: missing location\n" if not defined $locationName;
+    my $val = readCache($locationName);
+    die "ERROR: cache is out of date for $locationName\n" if not defined $val;
+    print "$val\n";
+  }elsif($mode eq $MODE_FETCH){
     die "ERROR: missing location\n" if not defined $locationName;
     my $apiKey = getApiKey();
     fetchWeather($apiKey, $locationName, $API_METHOD_CURRENT);
@@ -102,6 +121,45 @@ sub main(@){
   }else{
     die "ERROR: unknown mode $mode\n";
   }
+}
+
+sub readCache($){
+  my ($locationName) = @_;
+  my $nowEpoch = int(time);
+  my $todayDate = `date +%Y-%m-%d --date=\@$nowEpoch`;
+  chomp $todayDate;
+
+  my $curCacheFile = "$DIR_CACHE/${locationName}_current";
+  my $curTodayFile = "$DIR_CACHE/${locationName}_${todayDate}";
+
+  if(not -f $curCacheFile or not -f $curTodayFile){
+    return undef;
+  }
+
+  my $cur = readFile $curCacheFile;
+  my $today = readFile $curTodayFile;
+
+  my $nowCur = $cur =~ /now=(\d+)/ ? $1 : 0;
+  my $nowToday = $today =~ /now=(\d+)/ ? $1 : 0;
+
+  my $updatedCur = $cur =~ /updated=(\d+)/ ? $1 : 0;
+  my $updatedToday = $today =~ /updated=(\d+)/ ? $1 : 0;
+
+  if(absdiff($nowCur, $nowEpoch) > 15*60 or absdiff($nowToday, $nowEpoch) > 15*60){
+    #cache is out-of-date and needs to be fetched
+    return undef;
+  }
+  if(absdiff($updatedCur, $nowEpoch) > 60*60 or absdiff($updatedToday, $nowEpoch) > 60*60){
+    #forecast is out-of-date
+    return undef;
+  }
+
+  my $temp = $cur =~ /tempF=(\d+)/ ? $1 : "?";
+  my $cond = $today =~ /cond=(.+)/ ? $1 : "?";
+  my $tempMax = $today =~ /maxtempF=(\d+)/ ? $1 : "?";
+  my $tempMin = $today =~ /mintempF=(\d+)/ ? $1 : "?";
+
+  return sprintf "%2d° [%2d | %2d] $cond", $temp, $tempMax, $tempMin;
 }
 
 sub buildCurrentCache($){
@@ -199,6 +257,13 @@ sub fetchWeather($$$){
   print "cached $cacheFile\n";
 }
 
+sub getLatestCacheFile($$){
+  my ($locationName, $method) = @_;
+  my @files = sort grep {-f $_} glob "$DIR_JSON/????-??-??_??????_${locationName}_${method}_*.json";
+  die "ERROR: no file found for $locationName $method\n" if @files == 0;
+  return $files[-1];
+}
+
 sub getApiKey(){
   my $secrets = readSecrets();
   if(not defined $$secrets{apikey}){
@@ -249,6 +314,13 @@ sub writeFile($$){
 sub parseJson($){
   my ($jsonStr) = @_;
   return Cpanel::JSON::XS->new->utf8->decode($jsonStr);
+}
+
+sub absdiff($$){
+  my ($val1, $val2) = @_;
+  my $diff = $val2 - $val1;
+  $diff = 0 - $diff if $diff < 0;
+  return $diff;
 }
 
 sub nowMillis(){
