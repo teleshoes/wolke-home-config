@@ -3,12 +3,17 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
+use Cpanel::JSON::XS qw();
 
+sub buildCurrentCache($);
+sub buildForecastCache($);
+sub fetchWeather($$$);
 sub getApiKey();
 sub readSecrets();
 sub decrypt($);
 sub readFile($);
 sub writeFile($$);
+sub parseJson($);
 
 my $EXEC = basename $0;
 
@@ -21,6 +26,7 @@ my %SECRETS_ENC_KEYS = map {$_ => 1} qw(apikey);
 
 my $DIR_BASE = "$ENV{HOME}/.cache/weatherapi";
 my $DIR_JSON = "$DIR_BASE/json";
+my $DIR_CACHE = "$DIR_BASE/cache";
 
 my @LOCATION_ARR = (
   [islip => "11751" => ["islip", "11751", "home"]],
@@ -45,7 +51,10 @@ my $USAGE = "Usage:
     -fetch the current and forecast JSON from $API_URL_BASE
     -parse last_updated_epoch in JSON
     -format LAST_UPDATED_DTM as YYYY-MM-DD_HHMMSS
-    -cache in $DIR_JSON/<LAST_UPDATED_DTM>_<LOCATION_NAME>_<current|forecast>_<NOW_MILLIS>.json
+    -cache JSON in $DIR_JSON/<LAST_UPDATED_DTM>_<LOCATION_NAME>_<current|forecast>_<NOW_MILLIS>.json
+    -parse JSON and cache parsed info in:
+      $DIR_CACHE/<LOCATION_NAME>_current
+      $DIR_CACHE/<LOCATION_NAME>_<YYYY-MM-DD>
 
   OPTS
     --location=<LOCATION_SYN> | --<LOCATION_SYN> | <LOCATION_SYN>
@@ -86,8 +95,85 @@ sub main(@){
     my $apiKey = getApiKey();
     fetchWeather($apiKey, $locationName, $API_METHOD_CURRENT);
     fetchWeather($apiKey, $locationName, $API_METHOD_FORECAST);
+
+    system "rm -f $DIR_CACHE/${locationName}_*";
+    buildCurrentCache($locationName);
+    buildForecastCache($locationName);
   }else{
     die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub buildCurrentCache($){
+  my ($locationName) = @_;
+  system "mkdir", "-p", $DIR_CACHE if not -d $DIR_CACHE;
+
+  my $latestCurrent = parseJson(readFile(getLatestCacheFile($locationName, $API_METHOD_CURRENT)));
+
+  my $nowEpoch = int(time);
+
+  if(not defined $latestCurrent or not defined $$latestCurrent{current}){
+    die "ERROR: could not parse current JSON for $locationName\n";
+  }
+
+  my $location = $$latestCurrent{location};
+  my $current = $$latestCurrent{current};
+  my $cond = $$current{condition};
+
+  my $epoch = defined $location ? $$location{localtime_epoch} : undef;
+  my $updatedEpoch = $$current{last_updated_epoch};
+  my $condText = defined $cond ? $$cond{text} : undef;
+  my $tempF = $$current{temp_f};
+  my $windMPH = $$current{wind_mph};
+
+  my $cacheFile = "$DIR_CACHE/${locationName}_current";
+  writeFile $cacheFile, ""
+    . "tempF=$tempF\n"
+    . "cond=$condText\n"
+    . "windMPH=$windMPH\n"
+    . "now=$epoch\n"
+    . "updated=$updatedEpoch\n"
+  ;
+}
+
+sub buildForecastCache($){
+  my ($locationName) = @_;
+  system "mkdir", "-p", $DIR_CACHE if not -d $DIR_CACHE;
+
+  my $latestForecast = parseJson(readFile(getLatestCacheFile($locationName, $API_METHOD_FORECAST)));
+
+  my $nowEpoch = int(time);
+
+  if(not defined $latestForecast or not defined $$latestForecast{forecast}){
+    die "ERROR: could not parse forecast JSON for $locationName\n";
+  }
+  my $location = $$latestForecast{location};
+  my $current = $$latestForecast{current};
+  my $forecast = $$latestForecast{forecast};
+  my @forecastDays = @{$$forecast{forecastday}};
+
+  for my $forecastDay(@forecastDays){
+    my $day = $$forecastDay{day};
+    my $epoch = defined $location ? $$location{localtime_epoch} : undef;
+    my $updatedEpoch = $$current{last_updated_epoch};
+
+    my $date = $$forecastDay{date};
+    my $cond = $$day{condition};
+
+    my $condText = defined $cond ? $$cond{text} : undef;
+    my $minTempF = $$day{mintemp_f};
+    my $maxTempF = $$day{maxtemp_f};
+    my $maxWindMPH = $$day{maxwind_mph};
+
+    my $cacheFile = "$DIR_CACHE/${locationName}_${date}";
+    writeFile $cacheFile, ""
+      . "maxtempF=$maxTempF\n"
+      . "mintempF=$minTempF\n"
+      . "cond=$condText\n"
+      . "maxWindMPH=$maxWindMPH\n"
+      . "now=$epoch\n"
+      . "updated=$updatedEpoch\n"
+    ;
   }
 }
 
@@ -159,6 +245,10 @@ sub writeFile($$){
   open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
   print $fh $contents;
   close $fh;
+}
+sub parseJson($){
+  my ($jsonStr) = @_;
+  return Cpanel::JSON::XS->new->utf8->decode($jsonStr);
 }
 
 sub nowMillis(){
