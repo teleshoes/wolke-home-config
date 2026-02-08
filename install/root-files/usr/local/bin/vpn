@@ -9,7 +9,7 @@ sub isRunning($);
 sub getOpenvpnProcPattern($);
 sub ensureRoot();
 sub getYubiExec();
-sub getPasswordFile($$$);
+sub getPasswordFile($$$$);
 sub symlinkPem($);
 sub readSecrets($);
 sub decrypt($);
@@ -70,6 +70,10 @@ my $USAGE = "Usage:
   OPTS
     -g | --foreground | --nodaemon | --no-daemon
       do not pass --daemon to openvpn
+
+    --yubi=YUBIKEY_PASS    | --yubi YUBIKEY_PASS
+    --yubikey=YUBIKEY_PASS | --yubikey YUBIKEY_PASS
+      use YUBIKEY_PASS instead of calling any of: @YUBI_EXEC_NAMES
 ";
 
 my $CMD_ON = "on";
@@ -81,7 +85,8 @@ sub main(@){
   my $cmd = undef;
   my $confName = $DEFAULT_CONF_NAME;
   my $opts = {
-    daemon => 1,
+    daemon   => 1,
+    yubiPass => undef,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -97,6 +102,10 @@ sub main(@){
       $cmd = $CMD_TOGGLE;
     }elsif($arg =~ /^(-g|--foreground|--nodaemon|--no-daemon)$/){
       $$opts{daemon} = 0;
+    }elsif($arg =~ /^(--yubi|--yubikey)$/ and @_ > 0){
+      $$opts{yubiPass} = shift @_;
+    }elsif($arg =~ /^(?:--yubi|--yubikey)=(.+)$/){
+      $$opts{yubiPass} = $1;
     }elsif($arg =~ /^($CONF_NAME_REGEX)(?:\.conf)?$/){
       $confName = $1;
     }else{
@@ -143,7 +152,7 @@ sub startVPN($$){
   run "openvpn",
     ($$opts{daemon} ? ("--daemon") : ()),
     "--log", "$DIR_OPENVPN/$confName.log",
-    "--auth-user-pass", getPasswordFile($user, $password, $requiresYubi),
+    "--auth-user-pass", getPasswordFile($user, $password, $requiresYubi, $opts),
     "--config", "$DIR_OPENVPN/$confName.conf",
     "--status", $STATUS_FILE,
     "--reneg-sec", 0,
@@ -194,13 +203,18 @@ sub getYubiExec(){
   return undef;
 }
 
-sub getPasswordFile($$$){
-  my ($user, $password, $requiresYubi) = @_;
+sub getPasswordFile($$$$){
+  my ($user, $password, $requiresYubi, $opts) = @_;
 
   if($requiresYubi){
-    my $yubiExec = getYubiExec;
-    my $yubiPass = `$yubiExec`;
-    chomp $yubiPass;
+    my $yubiPass;
+    if(defined $$opts{yubiPass}){
+      $yubiPass = $$opts{yubiPass};
+    }else{
+      my $yubiExec = getYubiExec();
+      $yubiPass = `$yubiExec`;
+      chomp $yubiPass;
+    }
     $password .= $yubiPass;
   }
 
