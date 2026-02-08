@@ -5,13 +5,14 @@ use File::Basename qw(basename);
 
 sub startVPN($$);
 sub stopVPN($$);
+sub isRunning($);
+sub getOpenvpnProcPattern($);
 sub ensureRoot();
 sub getYubiExec();
 sub getPasswordFile($$$);
 sub symlinkPem($);
 sub readSecrets($);
 sub decrypt($);
-sub isRunning($);
 sub run(@);
 
 my $DIR_OPENVPN = "$ENV{HOME}/openvpn";
@@ -107,18 +108,16 @@ sub main(@){
 
   ensureRoot();
 
-  my $procPattern = "^openvpn.*--config $confName\\.conf ";
-
   if($cmd eq $CMD_ON){
     startVPN($confName, $opts);
   }elsif($cmd eq $CMD_RUNNING){
-    exit (isRunning $procPattern ? 0 : 1);
+    exit (isRunning($confName) ? 0 : 1);
   }elsif($cmd eq $CMD_OFF){
     stopVPN($confName, $opts);
   }elsif($cmd eq $CMD_TOGGLE){
     my @cmd;
     push @cmd, $0;
-    push @cmd, isRunning $procPattern ? 'off' : 'on';
+    push @cmd, isRunning($confName) ? 'off' : 'on';
     push @cmd, $confName if defined $confName;
     exec @cmd;
   }else{
@@ -159,11 +158,21 @@ sub startVPN($$){
 sub stopVPN($$){
   my ($confName, $opts) = @_;
 
-  my $procPattern = "^openvpn.*--config $confName\\.conf ";
-
   print "stopping, maybe...\n";
-  run "pkill", "-f", $procPattern;
+  run "pkill", "-f", getOpenvpnProcPattern($confName);
   run "sshc", "--close-all";
+}
+
+sub isRunning($){
+  my ($confName) = @_;
+  my $procPattern = getOpenvpnProcPattern($confName);
+  run "pgrep -f '$procPattern' >/dev/null 2>/dev/null";
+  return $? == 0;
+}
+
+sub getOpenvpnProcPattern($){
+  my ($confName) = @_;
+  return "^openvpn.*--config $confName\\.conf ";
 }
 
 sub ensureRoot(){
@@ -243,12 +252,6 @@ sub decrypt($){
   die "ERROR: $GPG_SYM_EXEC failed\n" if $? != 0;
   chomp $value;
   return $value;
-}
-
-sub isRunning($){
-  my $procPattern = shift;
-  run "pgrep -f '$procPattern' >/dev/null 2>/dev/null";
-  return $? == 0;
 }
 
 sub run(@){
