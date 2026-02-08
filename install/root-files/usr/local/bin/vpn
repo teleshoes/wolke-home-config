@@ -9,9 +9,9 @@ my $GPG_SYM_EXEC = "$ENV{HOME}/bin/gpg-sym";
 my $STATUS_FILE = "status";
 my $DEFAULT_CONF_NAME = "lg";
 
-my $secretsFile = "$ENV{HOME}/.secrets";
-my @secretKeys = qw(user password yubi);
-my %encryptedSecretKeys = map {$_ => 1 } qw(password);
+my $SECRETS_FILE = "$ENV{HOME}/.secrets";
+my @SECRET_KEYS = qw(user password yubi);
+my %ENCRYPTED_SECRET_KEYS = map {$_ => 1 } qw(password);
 
 sub ensureRoot();
 sub getPasswordFile($$$);
@@ -22,7 +22,7 @@ sub decrypt($);
 sub isRunning($);
 sub run(@);
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 [OPTS] on [CONF_NAME]
     start openvpn using --config CONF_NAME.conf (default is $DEFAULT_CONF_NAME)
     also run `sshc --close-all`
@@ -52,7 +52,7 @@ sub main(@){
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
-      die $usage;
+      die $USAGE;
     }elsif($opt =~ /^(-g|--foreground|--nodaemon|--no-daemon)$/){
       $noDaemon = 1;
     }
@@ -60,7 +60,7 @@ sub main(@){
   my $cmd = shift;
   my $name = shift;
 
-  die $usage if @_ != 0 or not defined $cmd;
+  die $USAGE if @_ != 0 or not defined $cmd;
   chdir $DIR_OPENVPN or die "couldnt set cwd to $DIR_OPENVPN\n";
 
   $name = $DEFAULT_CONF_NAME if not defined $name;
@@ -73,10 +73,10 @@ sub main(@){
     print "starting, maybe...\n";
 
     my $cfg = ${readSecrets()}{$name};
-    die "no 'vpn.$name' config found in $secretsFile\n" if not defined $cfg;
+    die "no 'vpn.$name' config found in $SECRETS_FILE\n" if not defined $cfg;
 
     my $user = $$cfg{user};
-    die "missing 'user' from vpn.$name.* in $secretsFile\n" if not defined $user;
+    die "missing 'user' from vpn.$name.* in $SECRETS_FILE\n" if not defined $user;
     my $password = $$cfg{password};
     $password = '' if not defined $password;
     my $yubi = $$cfg{yubi};
@@ -108,7 +108,7 @@ sub main(@){
     push @cmd, $name if defined $name;
     exec @cmd;
   }else{
-    die "$usage\nERROR: unknown command $cmd\n";
+    die "$USAGE\nERROR: unknown command $cmd\n";
   }
 }
 
@@ -165,13 +165,13 @@ sub symlinkPem($){
 }
 
 sub readSecrets(){
-  my @lines = `cat $secretsFile 2>/dev/null`;
+  my @lines = `cat $SECRETS_FILE 2>/dev/null`;
   my $cfg = {};
-  my $okSecretKeys = join "|", @secretKeys;
+  my $okSecretKeys = join "|", @SECRET_KEYS;
   for my $line(@lines){
     if($line =~ /^vpn\.(\w+)\.($okSecretKeys)\s*=\s*(.+)$/){
       my ($confName, $key, $val) = ($1, $2, $3);
-      $val = decrypt $val if defined $encryptedSecretKeys{$key};
+      $val = decrypt $val if defined $ENCRYPTED_SECRET_KEYS{$key};
 
       $$cfg{$confName} = {} if not defined $$cfg{$confName};
       $$cfg{$confName}{$key} = $val;
