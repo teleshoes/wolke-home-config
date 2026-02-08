@@ -205,22 +205,27 @@ sub getPasswordFile($$$){
 }
 
 sub symlinkPem($){
-  my $confName = shift;
-  my $pem = "$confName.pem";
+  my ($confName) = @_;
+  my $destPemFile = "$DIR_OPENVPN/$confName.pem";
 
   my $hostname = `hostname`;
   chomp $hostname;
 
-  my $hostPem = "$pem.$hostname";
-  my $defaultPem = "$pem.default";
+  run "rm", "-f", $destPemFile if -l $destPemFile;
+  if(-e $destPemFile){
+    die "ERROR: $destPemFile already exists and was not a removable symlink\n";
+  }
 
-  run "rm", "-f", $pem if -l $pem;
-  die "$pem exists and is not a symlink" if -e $pem;
+  my $hostPem = "$confName.pem.$hostname";
+  my $defaultPem = "$confName.pem.default";
 
-  run "ln", "-s", $hostPem, $pem if not -e $pem and -e $hostPem;
-  run "ln", "-s", $defaultPem, $pem if not -e $pem and -e $defaultPem;
+  if(-e "$DIR_OPENVPN/$hostPem"){
+    run "ln", "-s", $hostPem, $destPemFile;
+  }elsif(-e "$DIR_OPENVPN/$defaultPem"){
+    run "ln", "-s", $defaultPem, $destPemFile;
+  }
 
-  die "could not select $pem\n" if not -e $pem;
+  die "ERROR: failed to select PEM for $confName\n" if not -e $destPemFile;
 }
 
 sub readSecrets($){
