@@ -59,13 +59,13 @@ my $CMD_TOGGLE = "toggle";
 sub main(@){
   my $cmd = undef;
   my $name = undef;
-  my $noDaemon = 0;
+  my $opts = {
+    daemon => 1,
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       die $USAGE;
-    }elsif($arg =~ /^(-g|--foreground|--nodaemon|--no-daemon)$/){
-      $noDaemon = 1;
     }elsif($arg =~ /^(--on|on)$/){
       $cmd = $CMD_ON;
     }elsif($arg =~ /^(--off|off)$/){
@@ -74,6 +74,8 @@ sub main(@){
       $cmd = $CMD_RUNNING;
     }elsif($arg =~ /^(--toggle|toggle)$/){
       $cmd = $CMD_TOGGLE;
+    }elsif($arg =~ /^(-g|--foreground|--nodaemon|--no-daemon)$/){
+      $$opts{daemon} = 0;
     }elsif(not defined $name){
       $name = $arg;
     }else{
@@ -110,7 +112,7 @@ sub main(@){
     run "modprobe", "tun";
     run "rm", "-f", $STATUS_FILE;
     run "openvpn",
-      ($noDaemon ? () : ("--daemon")),
+      ($$opts{daemon} ? ("--daemon") : ()),
       "--log", "$name.log",
       "--auth-user-pass", getPasswordFile($user, $password, $yubi),
       "--config", "$name.conf",
