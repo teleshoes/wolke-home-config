@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub startVPN($$);
 sub ensureRoot();
 sub getYubiExec();
 sub getPasswordFile($$$);
@@ -104,34 +105,11 @@ sub main(@){
   die "ERROR: $DIR_OPENVPN/$confName.conf not found\n" if not -f "$DIR_OPENVPN/$confName.conf";
 
   ensureRoot();
-  chdir $DIR_OPENVPN or die "couldnt set cwd to $DIR_OPENVPN\n";
 
   my $procPattern = "^openvpn.*--config $confName\\.conf ";
 
   if($cmd eq $CMD_ON){
-    print "starting, maybe...\n";
-
-    my $cfg = readSecrets($confName);
-
-    my $user = $$cfg{user};
-    my $password = $$cfg{password};
-    $password = '' if not defined $password;
-    my $yubi = $$cfg{yubi};
-    $yubi = 0 if not defined $yubi;
-
-    symlinkPem($confName);
-
-    run "modprobe", "tun";
-    run "rm", "-f", $STATUS_FILE;
-    run "openvpn",
-      ($$opts{daemon} ? ("--daemon") : ()),
-      "--log", "$confName.log",
-      "--auth-user-pass", getPasswordFile($user, $password, $yubi),
-      "--config", "$confName.conf",
-      "--status", $STATUS_FILE,
-      "--reneg-sec", 0,
-      "1";
-    run "sshc", "--close-all";
+    startVPN($confName, $opts);
   }elsif($cmd eq $CMD_RUNNING){
     exit (isRunning $procPattern ? 0 : 1);
   }elsif($cmd eq $CMD_OFF){
@@ -147,6 +125,36 @@ sub main(@){
   }else{
     die "$USAGE\nERROR: unknown command $cmd\n";
   }
+}
+
+sub startVPN($$){
+  my ($confName, $opts) = @_;
+
+  chdir $DIR_OPENVPN or die "couldnt set cwd to $DIR_OPENVPN\n";
+
+  print "starting, maybe...\n";
+
+  my $cfg = readSecrets($confName);
+
+  my $user = $$cfg{user};
+  my $password = $$cfg{password};
+  $password = '' if not defined $password;
+  my $yubi = $$cfg{yubi};
+  $yubi = 0 if not defined $yubi;
+
+  symlinkPem($confName);
+
+  run "modprobe", "tun";
+  run "rm", "-f", $STATUS_FILE;
+  run "openvpn",
+    ($$opts{daemon} ? ("--daemon") : ()),
+    "--log", "$confName.log",
+    "--auth-user-pass", getPasswordFile($user, $password, $yubi),
+    "--config", "$confName.conf",
+    "--status", $STATUS_FILE,
+    "--reneg-sec", 0,
+    "1";
+  run "sshc", "--close-all";
 }
 
 sub ensureRoot(){
