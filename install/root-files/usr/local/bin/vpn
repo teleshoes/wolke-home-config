@@ -17,18 +17,21 @@ my $DIR_OPENVPN = "$ENV{HOME}/openvpn";
 my $GPG_SYM_EXEC = "$ENV{HOME}/bin/gpg-sym";
 
 my $STATUS_FILE = "status";
-my $DEFAULT_CONF_NAME = "lg";
 
 my $SECRETS_FILE = "$ENV{HOME}/.secrets";
 my @SECRET_KEYS = qw(user password yubi);
 my %ENCRYPTED_SECRET_KEYS = map {$_ => 1 } qw(password);
 
 my @CONF_NAMES =
+  sort
   grep {defined $_ and /^\w+$/}
   map {/^(?:.*\/)?(.+)\.conf$/ ? $1 : undef}
   grep {-f $_}
   glob "$DIR_OPENVPN/*.conf";
 my $CONF_NAME_REGEX = join "|", @CONF_NAMES;
+
+my $DEFAULT_CONF_NAME = @CONF_NAMES > 0 ? $CONF_NAMES[0] : undef;
+my $DEFAULT_CONF_NAME_FMT = defined $DEFAULT_CONF_NAME ? $DEFAULT_CONF_NAME : "<none>";
 
 my $EXEC = basename $0;
 
@@ -37,7 +40,7 @@ my $USAGE = "Usage:
     show this message
 
   $EXEC [OPTS] [CONF_NAME] --on | on
-    start openvpn using --config CONF_NAME.conf (default is $DEFAULT_CONF_NAME)
+    start openvpn using --config CONF_NAME.conf (default is $DEFAULT_CONF_NAME_FMT)
     also run `sshc --close-all`
 
   $EXEC [OPTS] [CONF_NAME] --off | off
@@ -54,7 +57,7 @@ my $USAGE = "Usage:
 
   CONF_NAME
     VPN config name in $DIR_OPENVPN/<CONF_NAME>.conf
-    optional, defaults to: $DEFAULT_CONF_NAME
+    optional, defaults to: $DEFAULT_CONF_NAME_FMT
     one of:
       @CONF_NAMES
 
@@ -70,7 +73,7 @@ my $CMD_TOGGLE = "toggle";
 
 sub main(@){
   my $cmd = undef;
-  my $name = undef;
+  my $name = $DEFAULT_CONF_NAME;
   my $opts = {
     daemon => 1,
   };
@@ -97,12 +100,10 @@ sub main(@){
 
   die "$USAGE\nERROR: missing command\n" if not defined $cmd;
   die "$USAGE\nERROR: missing CONF_NAME\n" if not defined $name or $name !~ /^\w+$/;
+  die "ERROR: $DIR_OPENVPN/$name.conf not found\n" if not -f "$DIR_OPENVPN/$name.conf";
 
   ensureRoot();
   chdir $DIR_OPENVPN or die "couldnt set cwd to $DIR_OPENVPN\n";
-
-  $name = $DEFAULT_CONF_NAME if not defined $name;
-  die "$DIR_OPENVPN/$name.conf not found\n" if not -f "$name.conf";
 
   my $procPattern = "^openvpn.*--config $name\\.conf ";
 
