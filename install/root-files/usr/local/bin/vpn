@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub startVPN($$);
+sub stopVPN($$);
 sub ensureRoot();
 sub getYubiExec();
 sub getPasswordFile($$$);
@@ -113,9 +114,7 @@ sub main(@){
   }elsif($cmd eq $CMD_RUNNING){
     exit (isRunning $procPattern ? 0 : 1);
   }elsif($cmd eq $CMD_OFF){
-    print "stopping, maybe...\n";
-    run "pkill", "-f", $procPattern;
-    run "sshc", "--close-all";
+    stopVPN($confName, $opts);
   }elsif($cmd eq $CMD_TOGGLE){
     my @cmd;
     push @cmd, $0;
@@ -154,6 +153,16 @@ sub startVPN($$){
     "--status", $STATUS_FILE,
     "--reneg-sec", 0,
     "1";
+  run "sshc", "--close-all";
+}
+
+sub stopVPN($$){
+  my ($confName, $opts) = @_;
+
+  my $procPattern = "^openvpn.*--config $confName\\.conf ";
+
+  print "stopping, maybe...\n";
+  run "pkill", "-f", $procPattern;
   run "sshc", "--close-all";
 }
 
