@@ -26,6 +26,8 @@ my @SECRET_KEYS = qw(user password yubi);
 my @REQUIRED_KEYS = qw(user);
 my %ENCRYPTED_SECRET_KEYS = map {$_ => 1 } qw(password);
 
+my @YUBI_EXEC_NAMES = qw(yubi yubi-nfc);
+
 my @CONF_NAMES =
   sort
   grep {defined $_ and /^\w+$/}
@@ -182,10 +184,14 @@ sub ensureRoot(){
 
 sub getYubiExec(){
   my $exec = "";
-  $exec = `which yubi     2>/dev/null` if $exec =~ /^\s*$/;
-  $exec = `which yubi-nfc 2>/dev/null` if $exec =~ /^\s*$/;
-  $exec = undef if $exec =~ /^\s*$/;
-  return $exec;
+  for my $exec(@YUBI_EXEC_NAMES){
+    my $which = `which '$exec' 2>/dev/null`;
+    chomp $which;
+    if($which =~ /$exec/){
+      return $which;
+    }
+  }
+  return undef;
 }
 
 sub getPasswordFile($$$){
