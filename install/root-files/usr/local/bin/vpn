@@ -7,7 +7,7 @@ sub ensureRoot();
 sub getYubiExec();
 sub getPasswordFile($$$);
 sub symlinkPem($);
-sub readSecrets();
+sub readSecrets($);
 sub decrypt($);
 sub isRunning($);
 sub run(@);
@@ -110,8 +110,7 @@ sub main(@){
   if($cmd eq $CMD_ON){
     print "starting, maybe...\n";
 
-    my $cfg = ${readSecrets()}{$confName};
-    die "no 'vpn.$confName' config found in $SECRETS_FILE\n" if not defined $cfg;
+    my $cfg = readSecrets($confName);
 
     my $user = $$cfg{user};
     die "missing 'user' from vpn.$confName.* in $SECRETS_FILE\n" if not defined $user;
@@ -202,17 +201,17 @@ sub symlinkPem($){
   die "could not select $pem\n" if not -e $pem;
 }
 
-sub readSecrets(){
+sub readSecrets($){
+  my ($confName) = @_;
   my @lines = `cat $SECRETS_FILE 2>/dev/null`;
   my $cfg = {};
   my $okSecretKeys = join "|", @SECRET_KEYS;
   for my $line(@lines){
-    if($line =~ /^vpn\.(\w+)\.($okSecretKeys)\s*=\s*(.+)$/){
-      my ($confName, $key, $val) = ($1, $2, $3);
+    if($line =~ /^vpn\.$confName\.($okSecretKeys)\s*=\s*(.+)$/){
+      my ($key, $val) = ($1, $2, $3);
       $val = decrypt $val if defined $ENCRYPTED_SECRET_KEYS{$key};
 
-      $$cfg{$confName} = {} if not defined $$cfg{$confName};
-      $$cfg{$confName}{$key} = $val;
+      $$cfg{$key} = $val;
     }
   }
   return $cfg;
