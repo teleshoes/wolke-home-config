@@ -28,9 +28,10 @@ my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
 
-  $EXEC [SSH_OPTS_SECONDARY] DEST [COMMAND]
+  $EXEC [SSH_OPTS_SECONDARY] [--yubi] DEST [COMMAND]
     -ensure SSH master session, like: `$EXEC --open <DEST>`
       (note that <SECONDARY_SSH_OPTS> are not passed into the master session)
+      if --yubi is given, use `$EXEC --open-yubi <DEST>`
     -run: `ssh <SSH_OPTS_SECONDARY> -S <CONTROL_PATH> <DEST> <COMMAND>`
 
   $EXEC [SSH_OPTS_OPEN] --open DEST
@@ -141,6 +142,9 @@ sub main(@){
     }elsif($arg =~ /^(--open-yubi)$/){
       $mode = $MODE_OPEN_YUBI;
       $$opts{yubi} = 1;
+    }elsif($arg =~ /^(--yubi)$/){
+      $mode = $MODE_SSH;
+      $$opts{yubi} = 1;
     }elsif($arg =~ /^(--close)$/){
       $mode = $MODE_CLOSE;
     }elsif($arg =~ /^(--close-all)$/){
@@ -172,7 +176,11 @@ sub main(@){
     my $dest = shift @args;
     my $command = [@args];
 
-    ensureSSHOpen($dest, $sshOpts);
+    if(not $$opts{yubi}){
+      ensureSSHOpen($dest, $sshOpts);
+    }else{
+      ensureSSHOpenWithYubi($dest, $sshOpts);
+    }
     execSSH($dest, $sshOpts, $command);
   }elsif($mode eq $MODE_OPEN){
     die "$USAGE\nERROR: missing DEST\n" if @args == 0;
