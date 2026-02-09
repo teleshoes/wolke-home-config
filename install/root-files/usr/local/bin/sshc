@@ -2,11 +2,14 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Time::HiRes qw(time);
 
 sub getControlPath($$);
 sub ensureSSHOpen($$);
+sub ensureSSHOpenWithYubi($$);
 sub ensureSSHClosed($$);
 sub execSSH($$$);
+sub nowMillis();
 
 my $EXEC = basename $0;
 my $CONTROL_PATH_DIR = "$ENV{HOME}/.ssh/control-paths";
@@ -15,6 +18,9 @@ my $SSH_OPTS_ARGS_REGEX = "-[BbcDEeFIiJLlmOopQRSWw]";
 my $SSH_OPTS_NOARGS_REGEX = "-([46AaCfGgKkMNnqsTtVvXxYy])+";
 
 my $DEFAULT_SOCKS_PROXY = "127.0.0.1:9090";
+
+my $EXEC_YUBI = "yubi";
+my $EXEC_SSHPASS = "sshpass";
 
 my $USAGE = "Usage:
   Create an SSH master session before running SSH inside it, reusing it for future runs.
@@ -30,6 +36,20 @@ my $USAGE = "Usage:
   $EXEC [SSH_OPTS_OPEN] --open DEST
     -if CONTROL_PATH does not exist:
       -run: ssh -n -N -F -o ControlMaster=yes -o ControlPath=<CONTROL_PATH> <SSH_OPTS_OPEN> <DEST>
+
+  $EXEC [SSH_OPTS_OPEN] --open-yubi DEST
+    -ensure SSH master session with $EXEC_SSHPASS, appending `$EXEC_YUBI` to password, similar to:
+      read -s PW
+      YUBI=`$EXEC_YUBI`
+      echo \"\$PW\$YUBI\" > <PW_TMP_FILE>
+      $EXEC_SSHPASS -f <PW_TMP_FILE> $EXEC <SSH_OPTS_OPEN> --open <DEST>
+    -if CONTROL_PATH does not exist:
+      -prompt for <PASSWORD> (without yubikey), hiding input like SSH, with `read -s` command
+      -prompt for <YUBIKEY_PASS> with `yubi` command
+      -write password to a temp file <PW_TMP_FILE>:
+        /tmp/sshc-<DEST>-<NOW_MILLIS>
+      -run: sshpass -f <PW_TMP_FILE> \\
+            ssh -n -N -F -o ControlMaster=yes -o ControlPath=<CONTROL_PATH> <SSH_OPTS_OPEN> <DEST>
 
   $EXEC --close DEST
     -if CONTROL_PATH exists and is active (using `ssh -O check`):
@@ -98,6 +118,7 @@ my $USAGE = "Usage:
 
 my $MODE_SSH = "ssh";
 my $MODE_OPEN = "open";
+my $MODE_OPEN_YUBI = "open-yubi";
 my $MODE_CLOSE = "close";
 my $MODE_CLOSE_ALL = "close-all";
 my $MODE_RSYNC = "rsync";
@@ -105,6 +126,9 @@ my $MODE_SCP = "scp";
 
 sub main(@){
   my $mode = $MODE_SSH;
+  my $opts = {
+    yubi => 0,
+  };
   my $sshOpts = [];
   my @args;
   while(@_ > 0){
@@ -114,6 +138,9 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(--open)$/){
       $mode = $MODE_OPEN;
+    }elsif($arg =~ /^(--open-yubi)$/){
+      $mode = $MODE_OPEN_YUBI;
+      $$opts{yubi} = 1;
     }elsif($arg =~ /^(--close)$/){
       $mode = $MODE_CLOSE;
     }elsif($arg =~ /^(--close-all)$/){
@@ -153,6 +180,12 @@ sub main(@){
     my $dest = shift @args;
 
     ensureSSHOpen($dest, $sshOpts);
+  }elsif($mode eq $MODE_OPEN_YUBI){
+    die "$USAGE\nERROR: missing DEST\n" if @args == 0;
+    die "$USAGE\nERROR: unknown args \"@args\"\n" if @args > 1;
+    my $dest = shift @args;
+
+    ensureSSHOpenWithYubi($dest, $sshOpts);
   }elsif($mode eq $MODE_CLOSE){
     die "$USAGE\nERROR: missing DEST\n" if @args == 0;
     die "$USAGE\nERROR: unknown args \"@_\"\n" if @args > 1;
@@ -274,6 +307,36 @@ sub ensureSSHOpen($$){
   }
 }
 
+sub ensureSSHOpenWithYubi($$){
+  my ($dest, $sshOpts) = @_;
+  my $controlPath = getControlPath($dest, $sshOpts);
+  system "mkdir", "-p", $CONTROL_PATH_DIR if not -d $CONTROL_PATH_DIR;
+  if(not -e $controlPath){
+    my $nowMillis = nowMillis();
+    my $tmpPasswordFile = "/tmp/$EXEC-$dest-$nowMillis";
+    system "bash", "-c", "read -sp '($dest password): ' PW; echo -ne \$PW > $tmpPasswordFile";
+    print "\n";
+    print "YUBI:";
+    system "$EXEC_YUBI >> $tmpPasswordFile";
+    print "\n";
+
+    my @cmd = (
+      "$EXEC_SSHPASS", "-f", $tmpPasswordFile,
+      "ssh",
+      "-n", "-N", "-f",
+      "-o", "ControlMaster=yes",
+      "-o", "ControlPath=$controlPath",
+      @$sshOpts,
+      $dest,
+    );
+    system @cmd;
+    system "rm", "-f", "$tmpPasswordFile";
+    if(not -e $controlPath){
+      die "ERROR: @cmd failed\n";
+    }
+  }
+}
+
 sub ensureSSHClosed($$){
   my ($dest, $sshOpts) = @_;
   my $controlPath = getControlPath($dest, $sshOpts);
@@ -302,6 +365,10 @@ sub execSSH($$$){
   my $controlPath = getControlPath($dest, $sshOpts);
   my @cmd = ("ssh", @$sshOpts, "-S", $controlPath, $dest, @$command);
   exec @cmd;
+}
+
+sub nowMillis(){
+  return int(time() * 1000.0 + 0.5);
 }
 
 &main(@ARGV);
