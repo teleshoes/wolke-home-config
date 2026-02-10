@@ -91,6 +91,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   screen-daemon lcd-monitor --start
   screen-daemon klomp-pi-display --start
   screen-daemon pylitterbot --start
+  screen-daemon weatherapi --start
 fi
 
 exec xmonad
