@@ -64,7 +64,7 @@ my $USAGE = "Usage:
     -check if either cache is more than one hour out of date
       -fail if out-of-date
       -otherwise, print:
-        CUR_TEMP_F (MAX_TEMP_F | MIN_TEMP_F) CONDITION
+        CUR_TEMP_F,MAX_TEMP_F,MIN_TEMP_F,ICON_PATH
 
   $EXEC [OPTS] -f | --fetch
     -fetch the current and forecast JSON from $API_URL_BASE
@@ -169,12 +169,26 @@ sub readCache($){
     return undef;
   }
 
-  my $temp = $cur =~ /tempF=(\d+)/ ? $1 : "?";
-  my $cond = $today =~ /cond=(.+)/ ? $1 : "?";
-  my $tempMax = $today =~ /maxtempF=(\d+)/ ? $1 : "?";
-  my $tempMin = $today =~ /mintempF=(\d+)/ ? $1 : "?";
+  my $temp = $cur =~ /tempF=(\d+)/ ? $1 : undef;
+  my $condCode = $cur =~ /condCode=(\d+)/ ? $1 : undef;
+  my $isDay = $cur =~ /isDay=(\d+)/ ? $1 : undef;
+  my $tempMax = $today =~ /maxtempF=(\d+)/ ? $1 : undef;
+  my $tempMin = $today =~ /mintempF=(\d+)/ ? $1 : undef;
 
-  return sprintf "%2d° [%2d | %2d] $cond", $temp, $tempMax, $tempMin;
+  for my $val($temp, $condCode, $isDay, $tempMax, $tempMin){
+    return undef if not defined $val;
+  }
+
+  my $dayNight = $isDay eq "0" ? "night" : "day";
+  my @icons =
+    map {basename $_}
+    grep {-f $_}
+    glob "$DIR_ICONS/$ICON_RES/${dayNight}_${condCode}_*.png"
+  ;
+  my $icon = @icons == 1 ? $icons[0] : undef;
+  die "ERROR: missing icon in cache for icon code $condCode\n" if not defined $icon;
+
+  return "$temp,$tempMax,$tempMin,$icon";
 }
 
 sub buildCurrentCache($){
