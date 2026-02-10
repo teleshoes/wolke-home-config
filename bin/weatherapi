@@ -10,6 +10,7 @@ sub buildCurrentCache($);
 sub buildForecastCache($);
 sub fetchWeather($$$);
 sub downloadIcons();
+sub resizeIcons();
 sub getLatestCacheFile($$);
 sub getApiKey();
 sub readSecrets();
@@ -129,7 +130,9 @@ sub main(@){
     buildCurrentCache($locationName);
     buildForecastCache($locationName);
 
-    downloadIcons();
+    if(downloadIcons()){
+      resizeIcons();
+    }
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -292,6 +295,7 @@ sub downloadIcons(){
     system "curl", "--silent", $ICON_URL_CSV,  "--output=$csvFile";
   }
 
+  my $iconDownloaded = 0;
   my @entries = split /\n/, readFile $csvFile;
   for my $entry(@entries){
     next if $entry =~ /^code,day,night,icon$/;
@@ -307,11 +311,20 @@ sub downloadIcons(){
     if(not -e $destDayIcon){
       print "  (downloading icon $destDayIcon)\n";
       system "curl", "--silent", "$ICON_URL_BASE/$ICON_RES/day/$icon.png", "--output=$destDayIcon";
+      $iconDownloaded = 1;
     }
     if(not -e $destNightIcon){
       print "  (downloading icon $destNightIcon)\n";
       system "curl", "--silent", "$ICON_URL_BASE/$ICON_RES/night/$icon.png", "--output=$destNightIcon";
+      $iconDownloaded = 1;
     }
+  }
+  return $iconDownloaded;
+}
+
+sub resizeIcons(){
+  for my $res(qw(16x16 32x32 64x64)){
+    system "pixmirror", "--size=$res", "$DIR_ICONS/$ICON_RES/", "$DIR_ICONS/$res/";
   }
 }
 
