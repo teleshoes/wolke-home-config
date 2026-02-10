@@ -161,6 +161,27 @@ sub pyeconet($$$$$){
   my ($y, $m, $d, $hr, $min, $sec, $ampm, $day, $mon) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
   my $info = readPyeconet();
+  my $weather = readWeather();
+
+  my $deg = "[ellipse=0.4x0.7,n,y]";
+
+  my $tempFmt = defined $weather ? $$weather{temp} : "??";
+  my $minTempFmt = defined $weather ? $$weather{minTemp} : "??";
+  my $maxTempFmt = defined $weather ? $$weather{maxTemp} : "??";
+  my $iconPng = defined $weather ? "[png=icons/64x64/$$weather{icon}]" : " ?";
+
+  my $weatherFmt = ""
+    . "[shift=0x16]"
+    . "[size=4]$tempFmt$deg"
+    . "[shift=0x-16]"
+    . "$iconPng"
+    . "[x=0][shift=0x64]"
+    . "[size=3]"
+    . "[color=#FFa500]$maxTempFmt$deg"
+    . "[color=white]|"
+    . "[color=blue]$minTempFmt$deg"
+    . "[n]"
+  ;
 
   my ($availText, $availColor) = (undef, undef);
   if(defined $info){
@@ -170,7 +191,7 @@ sub pyeconet($$$$$){
     $availText = "???";
     $availColor = "red";
   }
-  my $ecoAvailFmt = sprintf "[size=2]HOTWTR:[color=%s]%s[n]", $availColor, $availText;
+  my $ecoAvailFmt = sprintf "[size=2][color=white]HOTWTR:[color=%s]%s[n]", $availColor, $availText;
 
   my $dateFmt = sprintf ""
     . "[size=1][n]"
@@ -180,7 +201,7 @@ sub pyeconet($$$$$){
     . "%s:%s:%s",
     $hr, $min, $day, $mon, $d, $hr, $min, $sec;
 
-  my $markup = sprintf "%s%s", $ecoAvailFmt, $dateFmt;
+  my $markup = sprintf "%s%s%s", $weatherFmt, $ecoAvailFmt, $dateFmt;
   return $markup;
 }
 
@@ -293,6 +314,20 @@ sub house($$$$$){
   ;
 
   return $markup;
+}
+
+sub readWeather(){
+  my $out = `weatherapi -g`;
+  if($out =~ /^(\d+),(\d+),(\d+),(\S+\.png)$/){
+    return {
+      temp    => $1,
+      maxTemp => $2,
+      minTemp => $3,
+      icon    => $4,
+    };
+  }else{
+    return undef;
+  }
 }
 
 sub readPyeconet(){
