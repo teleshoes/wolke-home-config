@@ -2,6 +2,8 @@
 use strict;
 use warnings;
 
+sub handleDisplayEventName($$);
+
 sub anim($$$$$);
 sub pyeconet($$$$$);
 sub pylitterbot($$$$$);
@@ -71,62 +73,69 @@ sub main(@){
     @displayEventNames = @DISPLAY_NAMES;
   }
 
+  my @pids;
+  for my $name(@displayEventNames){
+    push @pids, handleDisplayEventName($name, $overrideDevName);
+  }
+  waitpid $_, 0 foreach @pids;
+}
+
+sub handleDisplayEventName($$){
+  my ($displayEventName, $overrideDevName) = @_;
   my $runCount = `cat /tmp/lcd-monitor-count 2>/dev/null`;
   $runCount = 0 if $runCount !~ /^\d+$/;
   $runCount++;
   system "echo $runCount > /tmp/lcd-monitor-count";
 
   my @pids;
-  for my $name(@displayEventNames){
-    my $displayInfo = $DISPLAYS_BY_NAME{$name};
-    my $devName = $$displayInfo{devName};
-    $devName = $overrideDevName if defined $overrideDevName;
+  my $displayInfo = $DISPLAYS_BY_NAME{$displayEventName};
+  my $devName = $$displayInfo{devName};
+  $devName = $overrideDevName if defined $overrideDevName;
 
-    my $devInfo = readDevInfoCache($devName);
+  my $devInfo = readDevInfoCache($devName);
 
-    my $modeBtnCount = 0;
-    if(defined $$devInfo{btnCounts}){
-      $modeBtnCount = $$devInfo{btnCounts}{B1} if defined $$devInfo{btnCounts}{B1};
-      $modeBtnCount = $$devInfo{btnCounts}{Y} if defined $$devInfo{btnCounts}{Y};
-      $modeBtnCount = $$devInfo{btnCounts}{TL} if defined $$devInfo{btnCounts}{TL};
-    }
-
-    #previous display LCD size+orientation, or default for display config
-    my $lcd = defined $$devInfo{lcd} ? $$devInfo{lcd} : $$displayInfo{defaultLCD};
-    my ($lcdW, $lcdH) = ($1, $2) if $lcd =~ /^(\d+)x(\d+)$/;
-    my $isLandscape = $lcdW < $lcdH ? 0 : 1;
-
-    my $framebufCfg = $$displayInfo{framebufCfg};
-    my ($fbLeftPct, $fbRightPct) = @$framebufCfg;
-
-    my $framebuf = calculateFramebuf($fbLeftPct, $fbRightPct, $lcd, $isLandscape);
-    my ($w, $h) = ($1, $2) if $framebuf =~ /^(\d+)x(\d+)/;
-    ($w, $h) = ($h, $w) if not $isLandscape;
-
-    my @markupArgs = &{$$displayInfo{markupSub}}(
-      $w, $h, $isLandscape, $modeBtnCount, $runCount);
-
-    my $pid = fork();
-    push @pids, $pid;
-    if(not $pid){
-      my @cmd = ("pico-lcd-msg",
-        @markupArgs,
-        "--dev=$devName",
-        "--framebuf=$framebuf",
-        "--quiet",
-        "--max-time", 3,
-      );
-      print "@cmd\n";
-
-      open my $cmdH, "-|", @cmd or die "ERROR: '@_\n' failed\n";
-      my $out = join '', <$cmdH>;
-      close $cmdH;
-
-      writeDevInfoCache($devName, $out);
-      exit 0;
-    }
+  my $modeBtnCount = 0;
+  if(defined $$devInfo{btnCounts}){
+    $modeBtnCount = $$devInfo{btnCounts}{B1} if defined $$devInfo{btnCounts}{B1};
+    $modeBtnCount = $$devInfo{btnCounts}{Y} if defined $$devInfo{btnCounts}{Y};
+    $modeBtnCount = $$devInfo{btnCounts}{TL} if defined $$devInfo{btnCounts}{TL};
   }
-  waitpid $_, 0 foreach @pids;
+
+  #previous display LCD size+orientation, or default for display config
+  my $lcd = defined $$devInfo{lcd} ? $$devInfo{lcd} : $$displayInfo{defaultLCD};
+  my ($lcdW, $lcdH) = ($1, $2) if $lcd =~ /^(\d+)x(\d+)$/;
+  my $isLandscape = $lcdW < $lcdH ? 0 : 1;
+
+  my $framebufCfg = $$displayInfo{framebufCfg};
+  my ($fbLeftPct, $fbRightPct) = @$framebufCfg;
+
+  my $framebuf = calculateFramebuf($fbLeftPct, $fbRightPct, $lcd, $isLandscape);
+  my ($w, $h) = ($1, $2) if $framebuf =~ /^(\d+)x(\d+)/;
+  ($w, $h) = ($h, $w) if not $isLandscape;
+
+  my @markupArgs = &{$$displayInfo{markupSub}}(
+    $w, $h, $isLandscape, $modeBtnCount, $runCount);
+
+  my $pid = fork();
+  push @pids, $pid;
+  if(not $pid){
+    my @cmd = ("pico-lcd-msg",
+      @markupArgs,
+      "--dev=$devName",
+      "--framebuf=$framebuf",
+      "--quiet",
+      "--max-time", 3,
+    );
+    print "@cmd\n";
+
+    open my $cmdH, "-|", @cmd or die "ERROR: '@_\n' failed\n";
+    my $out = join '', <$cmdH>;
+    close $cmdH;
+
+    writeDevInfoCache($devName, $out);
+    exit 0;
+  }
+  return $pid;
 }
 
 sub anim($$$$$){
