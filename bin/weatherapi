@@ -10,7 +10,7 @@ sub buildCurrentCache($);
 sub buildForecastCache($);
 sub fetchWeather($$$);
 sub downloadIcons();
-sub resizeIcons();
+sub convertIcons();
 sub getLatestCacheFile($$);
 sub getApiKey();
 sub readSecrets();
@@ -131,7 +131,7 @@ sub main(@){
     buildForecastCache($locationName);
 
     if(downloadIcons()){
-      resizeIcons();
+      convertIcons();
     }
   }else{
     die "ERROR: unknown mode $mode\n";
@@ -183,7 +183,7 @@ sub readCache($){
   my @icons =
     map {basename $_}
     grep {-f $_}
-    glob "$DIR_ICONS/$ICON_RES/${dayNight}_${condCode}_*.png"
+    glob "$DIR_ICONS/orig/${dayNight}_${condCode}_*.png"
   ;
   my $icon = @icons == 1 ? $icons[0] : undef;
   die "ERROR: missing icon in cache for icon code $condCode\n" if not defined $icon;
@@ -298,7 +298,7 @@ sub fetchWeather($$$){
 }
 
 sub downloadIcons(){
-  my $iconDir = "$DIR_ICONS/$ICON_RES";
+  my $iconDir = "$DIR_ICONS/orig";
   my $csvFile = "$DIR_ICONS/weather_conditions.csv";
 
   system "mkdir", "-p", $iconDir if not -d $iconDir;
@@ -336,9 +336,25 @@ sub downloadIcons(){
   return $iconDownloaded;
 }
 
-sub resizeIcons(){
-  for my $res(qw(16x16 32x32 64x64)){
-    system "pixmirror", "--size=$res", "$DIR_ICONS/$ICON_RES/", "$DIR_ICONS/$res/";
+sub convertIcons(){
+  my @origIcons = grep {-f $_} glob "$DIR_ICONS/orig/*.png";
+  for my $res(qw(16x16 32x32 64x64 128x128)){
+    print "generating $res PPM images\n";
+    system "rm", "-rf", "$DIR_ICONS/$res/";
+    system "mkdir", "$DIR_ICONS/$res/";
+
+    for my $srcIcon(@origIcons){
+      my $name = undef;
+      $name = $1 if $srcIcon =~ /\/(\w+)\.png$/;
+      die "ERROR: invalid icon name: $srcIcon\n" if not defined $name;
+      my $destIcon = "$DIR_ICONS/$res/$name.ppm";
+      system "convert",
+        $srcIcon,
+        "-background", "black",
+        "-flatten",
+        "-resize", $res,
+        $destIcon;
+    }
   }
 }
 
