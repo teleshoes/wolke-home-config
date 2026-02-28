@@ -154,13 +154,13 @@ sub readCache($){
   my $cur = readFile $curCacheFile;
   my $today = readFile $curTodayFile;
 
-  my $nowCur = $cur =~ /now=(\d+)/ ? $1 : 0;
-  my $nowToday = $today =~ /now=(\d+)/ ? $1 : 0;
+  my $epochCur = $cur =~ /epoch=(\d+)/ ? $1 : 0;
+  my $epochToday = $today =~ /epoch=(\d+)/ ? $1 : 0;
 
   my $updatedCur = $cur =~ /updated=(\d+)/ ? $1 : 0;
   my $updatedToday = $today =~ /updated=(\d+)/ ? $1 : 0;
 
-  if(absdiff($nowCur, $nowEpoch) > 15*60 or absdiff($nowToday, $nowEpoch) > 15*60){
+  if(absdiff($epochCur, $nowEpoch) > 15*60 or absdiff($epochToday, $nowEpoch) > 15*60){
     #cache is out-of-date and needs to be fetched
     return undef;
   }
@@ -198,8 +198,6 @@ sub buildCurrentCache($){
 
   my $latestCurrent = parseJson(readFile(getLatestCacheFile($locationName, $API_METHOD_CURRENT)));
 
-  my $nowEpoch = int(time);
-
   if(not defined $latestCurrent or not defined $$latestCurrent{current}){
     die "ERROR: could not parse current JSON for $locationName\n";
   }
@@ -225,7 +223,7 @@ sub buildCurrentCache($){
     . "condText=$condText\n"
     . "isDay=$isDay\n"
     . "windMPH=$windMPH\n"
-    . "now=$epoch\n"
+    . "epoch=$epoch\n"
     . "updated=$updatedEpoch\n"
   ;
 }
@@ -235,8 +233,6 @@ sub buildForecastCache($){
   system "mkdir", "-p", $DIR_CACHE if not -d $DIR_CACHE;
 
   my $latestForecast = parseJson(readFile(getLatestCacheFile($locationName, $API_METHOD_FORECAST)));
-
-  my $nowEpoch = int(time);
 
   if(not defined $latestForecast or not defined $$latestForecast{forecast}){
     die "ERROR: could not parse forecast JSON for $locationName\n";
@@ -269,7 +265,7 @@ sub buildForecastCache($){
       . "condIcon=$condIcon\n"
       . "condText=$condText\n"
       . "maxWindMPH=$maxWindMPH\n"
-      . "now=$epoch\n"
+      . "epoch=$epoch\n"
       . "updated=$updatedEpoch\n"
     ;
   }
