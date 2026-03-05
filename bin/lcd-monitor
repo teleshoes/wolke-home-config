@@ -2,7 +2,8 @@
 use strict;
 use warnings;
 
-sub handleDisplayEventName($$);
+sub incrementRunCount();
+sub handleDisplayEventName($$$);
 
 sub anim($$$$$);
 sub pyeconet($$$$$);
@@ -77,9 +78,11 @@ sub main(@){
       @displayEventNames = @DISPLAY_NAMES;
     }
 
+    my $runCount = incrementRunCount();
+
     my @pids;
     for my $name(@displayEventNames){
-      push @pids, handleDisplayEventName($name, $overrideDevName);
+      push @pids, handleDisplayEventName($name, $overrideDevName, $runCount);
     }
     waitpid $_, 0 foreach @pids;
   }else{
@@ -87,12 +90,16 @@ sub main(@){
   }
 }
 
-sub handleDisplayEventName($$){
-  my ($displayEventName, $overrideDevName) = @_;
+sub incrementRunCount(){
   my $runCount = `cat /tmp/lcd-monitor-count 2>/dev/null`;
   $runCount = 0 if $runCount !~ /^\d+$/;
   $runCount++;
   system "echo $runCount > /tmp/lcd-monitor-count";
+  return $runCount;
+}
+
+sub handleDisplayEventName($$$){
+  my ($displayEventName, $overrideDevName, $runCount) = @_;
 
   my @pids;
   my $displayInfo = $DISPLAYS_BY_NAME{$displayEventName};
