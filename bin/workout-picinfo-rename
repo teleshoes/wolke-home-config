@@ -13,15 +13,22 @@ sub main(@){
   my $fileInfo = {};
   for my $line(`cat $infoFile`){
     next if $line =~ /^\s*(#.*)?$/;
-    if($line !~ /^([^\/]*)\/([a-zA-Z0-9_\-]+)\.(jpg|png): (.+)$/){
+    my ($dirBaseName, $fileBaseName, $ext, $infoStr);
+    if($line =~ /^([^\/]*)\/([a-zA-Z0-9_\-]+)\.(jpg|png): (.+)$/){
+      ($dirBaseName, $fileBaseName, $ext, $infoStr) = ($1, $2, $3, $4);
+    }elsif($line =~ /^([a-zA-Z0-9_\-]+)\.(jpg|png): (.+)$/){
+      ($dirBaseName, $fileBaseName, $ext, $infoStr) = ("", $1, $2, $3);
+    }else{
       die "ERROR: malformed line $line";
     }
-    my ($dirBaseName, $fileBaseName, $ext, $infoStr) = ($1, $2, $3, $4);
     next if $infoStr =~ /^\s*trash\s*$/;
     my @infoVals = grep {$_ ne ""} split /\s+/, $infoStr;
 
-    if($dirBaseName =~ /^(?:\.\/)?(\d\d\d\d-\d\d-\d\d)(?:_\w+)?$/){
-      $dirBaseName = $1;
+    my $dirPtrn = "";
+    if($dirBaseName eq ""){
+      $dirPtrn = "*";
+    }elsif($dirBaseName =~ /^(?:\.\/)?(\d\d\d\d-\d\d-\d\d)(?:_\w+)?$/){
+      $dirPtrn = "$1*";
     }else{
       die "ERROR: invalid dirname $dirBaseName\n";
     }
@@ -31,7 +38,7 @@ sub main(@){
       die "ERROR: invalid filename $fileBaseName\n";
     }
 
-    my $ptrn = "$WORKOUT_DCIM_BASE_DIR/$dirBaseName*/*$fileBaseName*.$ext";
+    my $ptrn = "$WORKOUT_DCIM_BASE_DIR/$dirPtrn/*$fileBaseName*.$ext";
     my @files = glob $ptrn;
     die "ERROR: could not find $ptrn\n" if @files == 0;
     die "ERROR: too many files match $ptrn\n" if @files > 1;
