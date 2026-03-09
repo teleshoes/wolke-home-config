@@ -24,12 +24,19 @@ my $USAGE = "Usage:
 
     -v | --verbose
       print bluetoothctl output
+
+    --le | --ble
+      use 'scan le' in bluetoothctl scan for bluetooth low energy
+    --no-ble
+      use 'scan on' in bluetoothctl
+      (this is the default)
 ";
 
 sub main(@){
   my $opts = {
     timeout => $DEFAULT_TIMEOUT_S,
     verbose => 0,
+    ble     => 0,
   };
   my @macs;
   my $h2 = "[0-9a-f][0-9a-f]";
@@ -44,6 +51,10 @@ sub main(@){
       $$opts{timeout} = $1;
     }elsif($arg =~ /^(-v|--verbose)$/){
       $$opts{verbose} = 1;
+    }elsif($arg =~ /^(--le|--ble)$/){
+      $$opts{ble} = 1;
+    }elsif($arg =~ /^(--no-ble)$/){
+      $$opts{ble} = 0;
     }elsif($arg =~ /^($h2:$h2:$h2:$h2:$h2:$h2)$/i){
       push @macs, uc $arg;
     }else{
@@ -51,6 +62,7 @@ sub main(@){
     }
   }
 
+  my $scanMode = $$opts{ble} ? "le" : "on";
   my $deviceRegex = "(?:CHG|NEW)\\S* Device (" . join("|", @macs) . ")";
 
   my $logUserVal = $$opts{verbose} ? 1 : 0;
@@ -58,7 +70,7 @@ sub main(@){
   my $expectScript = ""
     . "log_user $logUserVal\n"
     . "spawn bluetoothctl\n"
-    . "send -- \"scan on\\r\"\n"
+    . "send -- \"scan $scanMode\\r\"\n"
     . "expect"
     . " -timeout $$opts{timeout}"
     . " -re {$deviceRegex}"
