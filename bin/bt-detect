@@ -5,21 +5,27 @@ use File::Basename qw(basename);
 
 my $EXEC = basename $0;
 
+my $DEFAULT_TIMEOUT_S = 5;
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
   $EXEC [OPTS] MAC [MAC MAC..]
     wrapper around bluetoothctl and expect
-    run bluetoothctl 'scan on' for at most 5s and print the first MAC that appears
+    run bluetoothctl 'scan on' for at most TIMEOUT_S and print the first MAC that appears
       -print 'FOUND=<MAC>' for the first one found
       -print 'NONE' if no device is not found
 
   OPTS
+    -t TIMEOUT_S | --timeout TIMEOUT_S | --timeout=TIMEOUT_S
+      wait at most TIMEOUT_S, 0 for forever
+      default = $DEFAULT_TIMEOUT_S
 ";
 
 sub main(@){
   my $opts = {
+    timeout => $DEFAULT_TIMEOUT_S,
   };
   my @macs;
   my $h2 = "[0-9a-f][0-9a-f]";
@@ -28,6 +34,10 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-t|--timeout)$/ and @_ > 0 and $_[0] =~ /^\d+$/){
+      $$opts{timeout} = shift @_;
+    }elsif($arg =~ /^--timeout=(\d+)$/){
+      $$opts{timeout} = $1;
     }elsif($arg =~ /^($h2:$h2:$h2:$h2:$h2:$h2)$/i){
       push @macs, uc $arg;
     }else{
@@ -41,7 +51,7 @@ sub main(@){
     . "spawn bluetoothctl\n"
     . "send -- \"scan on\\r\"\n"
     . "expect"
-    . " -timeout 5"
+    . " -timeout $$opts{timeout}"
     . " -re {$deviceRegex}"
     . " {puts \"FOUND=\$expect_out(1,string)\"}"
     . " timeout {puts \"NONE\"}"
