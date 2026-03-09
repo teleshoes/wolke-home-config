@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] MAC [MAC MAC..]
+    wrapper around bluetoothctl and expect
+    run bluetoothctl 'scan on' for at most 5s and print the first MAC that appears
+      -print 'FOUND=<MAC>' for the first one found
+      -print 'NONE' if no device is not found
+
+  OPTS
+";
+
+sub main(@){
+  my $opts = {
+  };
+  my @macs;
+  my $h2 = "[0-9a-f][0-9a-f]";
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^($h2:$h2:$h2:$h2:$h2:$h2)$/i){
+      push @macs, uc $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  my $deviceRegex = "(?:CHG|NEW)\\S* Device (" . join("|", @macs) . ")";
+
+  my $expectScript = ""
+    . "spawn bluetoothctl\n"
+    . "send -- \"scan on\\r\"\n"
+    . "expect"
+    . " -timeout 5"
+    . " -re {$deviceRegex}"
+    . " {puts \"FOUND=\$expect_out(1,string)\"}"
+    . " timeout {puts \"NONE\"}"
+    . "\n"
+    . "send -- \"scan off\\r\"\n"
+    . "send -- \"exit\\r\"\n"
+  ;
+
+  exec "expect", "-c", $expectScript;
+}
+
+&main(@ARGV);
