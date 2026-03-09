@@ -21,11 +21,15 @@ my $USAGE = "Usage:
     -t TIMEOUT_S | --timeout TIMEOUT_S | --timeout=TIMEOUT_S
       wait at most TIMEOUT_S, 0 for forever
       default = $DEFAULT_TIMEOUT_S
+
+    -v | --verbose
+      print bluetoothctl output
 ";
 
 sub main(@){
   my $opts = {
     timeout => $DEFAULT_TIMEOUT_S,
+    verbose => 0,
   };
   my @macs;
   my $h2 = "[0-9a-f][0-9a-f]";
@@ -38,6 +42,8 @@ sub main(@){
       $$opts{timeout} = shift @_;
     }elsif($arg =~ /^--timeout=(\d+)$/){
       $$opts{timeout} = $1;
+    }elsif($arg =~ /^(-v|--verbose)$/){
+      $$opts{verbose} = 1;
     }elsif($arg =~ /^($h2:$h2:$h2:$h2:$h2:$h2)$/i){
       push @macs, uc $arg;
     }else{
@@ -47,8 +53,10 @@ sub main(@){
 
   my $deviceRegex = "(?:CHG|NEW)\\S* Device (" . join("|", @macs) . ")";
 
+  my $logUserVal = $$opts{verbose} ? 1 : 0;
+
   my $expectScript = ""
-    . "log_user 0\n"
+    . "log_user $logUserVal\n"
     . "spawn bluetoothctl\n"
     . "send -- \"scan on\\r\"\n"
     . "expect"
