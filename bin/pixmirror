@@ -377,10 +377,9 @@ sub handleImage($$$$$){
 
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
-  my %jheadAtts;
+  my $jpgAutoRot = undef;
   if($isJpeg){
-    my %atts = runJhead "$destDir/$img", $JHEAD_MODE_AUTOROT;
-    %jheadAtts = (%jheadAtts, %atts);
+    $jpgAutoRot = runJhead "$destDir/$img", $JHEAD_MODE_AUTOROT;
     $info = getInfo "$destDir/$img";
   }
 
@@ -412,9 +411,9 @@ sub handleImage($$$$$){
 
   runMogrify "$destDir/$img", @args;
 
+  my $jpgNoRot = undef;
   if($isJpeg){
-    my %atts = runJhead "$destDir/$img", $JHEAD_MODE_NOROT;
-    %jheadAtts = (%jheadAtts, %atts);
+    $jpgNoRot = runJhead "$destDir/$img", $JHEAD_MODE_NOROT;
   }
 
   #ensure parent dir
@@ -430,9 +429,11 @@ sub handleImage($$$$$){
   system "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
 
   my $jheadFmt = "";
-  $jheadFmt .= "?mod" if defined $jheadAtts{'modified'};
-  $jheadFmt .= "?orient" if $jheadAtts{'unknown-orient'};
-  $jheadFmt .= "?subdir" if $jheadAtts{'illegal-exif-subdir-link'};
+  if($isJpeg){
+    $jheadFmt .= "?mod"    if $$jpgAutoRot{isModified}      or $$jpgNoRot{isModified};
+    $jheadFmt .= "?orient" if $$jpgAutoRot{isErrExifOrient} or $$jpgNoRot{isErrExifOrient};
+    $jheadFmt .= "?subdir" if $$jpgAutoRot{isErrExifSubdir} or $$jpgNoRot{isErrExifSubdir};
+  }
 
   my $fmt = sprintf "ok|%-20s| %s\n", $jheadFmt, $img;
   print $fmt;
@@ -442,11 +443,14 @@ sub runJhead($$){
   my ($file, $jheadMode) = @_;
   my $res = ipcRun $EXEC_JHEAD, $jheadMode, $file;
 
-  my %atts;
+  my $isModified = 0;
+  my $isErrExifOrient = 0;
+  my $isErrExifSubdir = 0;
+
   for my $line(split /\n/, $$res{out}){
     next if $line =~ /^\s*$/;
     if($line =~ /^Modified: \Q$file\E$/){
-      $atts{'modified'} = 1;
+      $isModified = 1;
     }else{
       print "$line\n";
     }
@@ -454,15 +458,19 @@ sub runJhead($$){
   for my $line(split /\n/, $$res{err}){
     next if $line =~ /^\s*$/;
     if($line =~ /^Nonfatal Error : '\Q$file\E' Unknown orientation tag$/){
-      $atts{'unknown-orient'} = 1;
+      $isErrExifOrient = 1;
     }elsif($line =~ /^Nonfatal Error : '\Q$file\E' Illegal subdirectory link in Exif header$/){
-      $atts{'illegal-exif-subdir-link'} = 1;
+      $isErrExifSubdir = 1;
     }else{
       print STDERR "$line\n";
     }
   }
 
-  return %atts;
+  return {
+    isModified        => $isModified,
+    isErrExifOrient => $isErrExifOrient,
+    isErrExifSubdir => $isErrExifSubdir,
+  }
 }
 
 sub isOrientMatch($$$$){
