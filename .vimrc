@@ -91,6 +91,10 @@ nnoremap g* g*zz
 nnoremap g# g#zz
 """"""
 
+"""clear search results"""
+nnoremap <silent> q, :let @/ = ""<CR>
+""""""
+
 """word wrap"""
 map <C-w><C-w> :s/\v(.{70}[^ ]* *)/\1\r/g<CR>
 map <C-w><C-h> :s/\v(.{70}[^ ]* *)/\1\r--/g<CR>
