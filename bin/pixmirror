@@ -24,9 +24,9 @@ sub runMogrify($@);
 sub ipcRun(@);
 
 my @EXTS = qw(jpg jpeg png);
-my $MOGRIFY_EXEC = 'mogrify';
-my $IDENTIFY_EXEC = 'identify';
-my $JHEAD_EXEC = 'jhead';
+my $EXEC_MOGRIFY = 'mogrify';
+my $EXEC_IDENTIFY = 'identify';
+my $EXEC_JHEAD = 'jhead';
 
 my $DEFAULT_TARGET_X = 1920;
 my $DEFAULT_TARGET_Y = 1080;
@@ -37,7 +37,7 @@ my $DEFAULT_PAD_GRAVITY = "center";
 my $SHARPEN_SIZE_PCT_THRESHOLD = 90;
 my $UNSHARP_ARG = "0x0.5";
 
-my $OK_GRAVITY = join "|", split /\n+/, `$MOGRIFY_EXEC -list gravity 2>/dev/null`;
+my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_MOGRIFY -list gravity 2>/dev/null`;
 
 my $USAGE = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -55,7 +55,7 @@ my $USAGE = "Usage:
       $SHARPEN_SIZE_PCT_THRESHOLD\%, pixmirror runs '-unsharp $UNSHARP_ARG'
       after resizing to slightly sharpen the image.
 
-    Mirrored images are auto-rotated from EXIF metadata using '$JHEAD_EXEC'
+    Mirrored images are auto-rotated from EXIF metadata using '$EXEC_JHEAD'
 
   <OPTS>
     --size=<TARGET_X>x<TARGET_Y>   {default is ${DEFAULT_TARGET_X}x${DEFAULT_TARGET_Y}}
@@ -82,7 +82,7 @@ my $USAGE = "Usage:
     --rotate  --no-rotate          {default is --no-rotate}
       Implies --orient. Instead of just scaling like --orient,
         actually rotate 90 degress clockwise if the orientations do not match.
-      This is done after '$JHEAD_EXEC' auto-rotation
+      This is done after '$EXEC_JHEAD' auto-rotation
 
     --pad  --no-pad                {default is --no-pad}
       Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
@@ -161,10 +161,10 @@ sub main(@){
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
-  system "which $MOGRIFY_EXEC > /dev/null";
-  die "Could not exec $MOGRIFY_EXEC\n" if $? != 0;
-  system "which $IDENTIFY_EXEC > /dev/null";
-  die "Could not exec $IDENTIFY_EXEC\n" if $? != 0;
+  system "which $EXEC_MOGRIFY > /dev/null";
+  die "Could not exec $EXEC_MOGRIFY\n" if $? != 0;
+  system "which $EXEC_IDENTIFY > /dev/null";
+  die "Could not exec $EXEC_IDENTIFY\n" if $? != 0;
 
   my @srcImgs = findImages $srcDir;
   my $total = @srcImgs;
@@ -433,7 +433,7 @@ sub handleImage($$$$$){
 
 sub jhead($@){
   my ($file, @args) = @_;
-  my $res = ipcRun $JHEAD_EXEC, @args, $file;
+  my $res = ipcRun $EXEC_JHEAD, @args, $file;
 
   my %atts;
   for my $line(split /\n/, $$res{out}){
@@ -481,7 +481,7 @@ sub getResizePercent($$$$){
 sub runMogrify($@){
   my ($file, @args) = @_;
 
-  system $MOGRIFY_EXEC, @args, $file;
+  system $EXEC_MOGRIFY, @args, $file;
   die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
