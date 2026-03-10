@@ -23,23 +23,23 @@ sub getResizePercent($$$$);
 sub runMogrify($@);
 sub ipcRun(@);
 
-my @exts = qw(jpg jpeg png);
-my $mogrifyExec = 'mogrify';
-my $identifyExec = 'identify';
-my $jheadExec = 'jhead';
+my @EXTS = qw(jpg jpeg png);
+my $MOGRIFY_EXEC = 'mogrify';
+my $IDENTIFY_EXEC = 'identify';
+my $JHEAD_EXEC = 'jhead';
 
-my $defaultTargetX = 1920;
-my $defaultTargetY = 1080;
+my $DEFAULT_TARGET_X = 1920;
+my $DEFAULT_TARGET_Y = 1080;
 
-my $defaultPadColor = "black";
-my $defaultPadGravity = "center";
+my $DEFAULT_PAD_COLOR = "black";
+my $DEFAULT_PAD_GRAVITY = "center";
 
-my $sharpenSizePctThreshold = 90;
-my $unsharpArg = "0x0.5";
+my $SHARPEN_SIZE_PCT_THRESHOLD = 90;
+my $UNSHARP_ARG = "0x0.5";
 
-my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
+my $OK_GRAVITY = join "|", split /\n+/, `$MOGRIFY_EXEC -list gravity 2>/dev/null`;
 
-my $usage = "Usage:
+my $USAGE = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
     Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
       resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
@@ -52,13 +52,13 @@ my $usage = "Usage:
       are given.
 
     If the image is being downscaled to less than
-      $sharpenSizePctThreshold\%, pixmirror runs '-unsharp $unsharpArg'
+      $SHARPEN_SIZE_PCT_THRESHOLD\%, pixmirror runs '-unsharp $UNSHARP_ARG'
       after resizing to slightly sharpen the image.
 
-    Mirrored images are auto-rotated from EXIF metadata using '$jheadExec'
+    Mirrored images are auto-rotated from EXIF metadata using '$JHEAD_EXEC'
 
   <OPTS>
-    --size=<TARGET_X>x<TARGET_Y>   {default is ${defaultTargetX}x${defaultTargetY}}
+    --size=<TARGET_X>x<TARGET_Y>   {default is ${DEFAULT_TARGET_X}x${DEFAULT_TARGET_Y}}
       target width and height in pixels {or height and width if src y>x}
 
     --orient  --no-orient          {default is --no-orient}
@@ -82,18 +82,18 @@ my $usage = "Usage:
     --rotate  --no-rotate          {default is --no-rotate}
       Implies --orient. Instead of just scaling like --orient,
         actually rotate 90 degress clockwise if the orientations do not match.
-      This is done after '$jheadExec' auto-rotation
+      This is done after '$JHEAD_EXEC' auto-rotation
 
     --pad  --no-pad                {default is --no-pad}
       Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
         with a solid black border on top/bottom or left/right.
 
-    --pad-color=<COLOR>            {default is $defaultPadColor}
+    --pad-color=<COLOR>            {default is $DEFAULT_PAD_COLOR}
       when --pad is given, set the background to <COLOR>
 
-    --pad-gravity=<GRAVITY>        {default is $defaultPadGravity}
+    --pad-gravity=<GRAVITY>        {default is $DEFAULT_PAD_GRAVITY}
       when padding, use gravity=<GRAVITY>
-      <GRAVITY> is one of {$okGravity}
+      <GRAVITY> is one of {$OK_GRAVITY}
       e.g.: $0 --size=5000x50 --pad --pad-gravity=South
                append 4950 rows of black pixels to the top of a 50x50 image
 
@@ -109,15 +109,15 @@ my $usage = "Usage:
 
 sub main(@){
   my $opts = {
-    targetX     => $defaultTargetX,
-    targetY     => $defaultTargetY,
+    targetX     => $DEFAULT_TARGET_X,
+    targetY     => $DEFAULT_TARGET_Y,
 
     orientSwap  => 0,
     rotate      => 0,
 
     pad         => 0,
-    padColor    => $defaultPadColor,
-    padGravity  => $defaultPadGravity,
+    padColor    => $DEFAULT_PAD_COLOR,
+    padGravity  => $DEFAULT_PAD_GRAVITY,
     threadCount => $DEFAULT_MAX_THREADS,
   };
 
@@ -140,7 +140,7 @@ sub main(@){
       $$opts{pad} = 0;
     }elsif($arg =~ /^--pad-color=(\w+)$/){
       $$opts{padColor} = $1;
-    }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
+    }elsif($arg =~ /^--pad-gravity=($OK_GRAVITY)$/i){
       $$opts{padGravity} = $1;
     }elsif($arg =~ /^(--nothreads|--no-threads)$/){
       $$opts{threadCount} = 1;
@@ -148,23 +148,23 @@ sub main(@){
       $$opts{threadCount} = $1;
       die "invalid THREAD_COUNT=$$opts{threadCount}\n" if $$opts{threadCount} <= 0;
     }else{
-      die $usage;
+      die $USAGE;
     }
   }
 
   my $srcDir = shift;
   my $destDir = shift;
 
-  die $usage if not defined $srcDir or not defined $destDir or @_ > 0;
+  die $USAGE if not defined $srcDir or not defined $destDir or @_ > 0;
 
   system "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
-  system "which $mogrifyExec > /dev/null";
-  die "Could not exec $mogrifyExec\n" if $? != 0;
-  system "which $identifyExec > /dev/null";
-  die "Could not exec $identifyExec\n" if $? != 0;
+  system "which $MOGRIFY_EXEC > /dev/null";
+  die "Could not exec $MOGRIFY_EXEC\n" if $? != 0;
+  system "which $IDENTIFY_EXEC > /dev/null";
+  die "Could not exec $IDENTIFY_EXEC\n" if $? != 0;
 
   my @srcImgs = findImages $srcDir;
   my $total = @srcImgs;
@@ -313,7 +313,7 @@ sub formatStatus($$){
 
 sub findImages($){
   my $dir = shift;
-  my @findArgs = join " -or ", map {"-iname '*.$_'"} @exts;
+  my @findArgs = join " -or ", map {"-iname '*.$_'"} @EXTS;
 
   my @imgs = `cd $dir; find @findArgs`;
   map {chomp} @imgs;
@@ -391,8 +391,8 @@ sub handleImage($$$$$){
   my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
   @args = (@args, "-resize", "$percent%");
 
-  if($percent < $sharpenSizePctThreshold){
-    @args = (@args, "-unsharp", $unsharpArg);
+  if($percent < $SHARPEN_SIZE_PCT_THRESHOLD){
+    @args = (@args, "-unsharp", $UNSHARP_ARG);
   }
 
   if($$opts{pad}){
@@ -433,7 +433,7 @@ sub handleImage($$$$$){
 
 sub jhead($@){
   my ($file, @args) = @_;
-  my $res = ipcRun $jheadExec, @args, $file;
+  my $res = ipcRun $JHEAD_EXEC, @args, $file;
 
   my %atts;
   for my $line(split /\n/, $$res{out}){
@@ -481,7 +481,7 @@ sub getResizePercent($$$$){
 sub runMogrify($@){
   my ($file, @args) = @_;
 
-  system $mogrifyExec, @args, $file;
+  system $MOGRIFY_EXEC, @args, $file;
   die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
