@@ -15,7 +15,7 @@ sub findImages($);
 sub statImage($);
 sub getInfo($);
 sub checkInfo($$);
-sub handleImage($$$$);
+sub handleImage($$$$$);
 sub jhead($@);
 sub getNewPix($);
 sub isOrientMatch($$$$);
@@ -38,19 +38,6 @@ my $sharpenSizePctThreshold = 90;
 my $unsharpArg = "0x0.5";
 
 my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
-
-my $opts = {
-  targetX     => $defaultTargetX,
-  targetY     => $defaultTargetY,
-
-  orientSwap  => 0,
-  rotate      => 0,
-
-  pad         => 0,
-  padColor    => $defaultPadColor,
-  padGravity  => $defaultPadGravity,
-  threadCount => $DEFAULT_MAX_THREADS,
-};
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -121,6 +108,19 @@ my $usage = "Usage:
 ";
 
 sub main(@){
+  my $opts = {
+    targetX     => $defaultTargetX,
+    targetY     => $defaultTargetY,
+
+    orientSwap  => 0,
+    rotate      => 0,
+
+    pad         => 0,
+    padColor    => $defaultPadColor,
+    padGravity  => $defaultPadGravity,
+    threadCount => $DEFAULT_MAX_THREADS,
+  };
+
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--size=(\d+)x(\d+)$/){
@@ -235,7 +235,7 @@ sub main(@){
 
         for my $img(@$chunk){
           $status{$img} = 0;
-          handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+          handleImage $opts, $img, $srcDir, $destDir, $srcInfos{$img};
           $status{$img} = 1;
 
           if($abort){
@@ -267,7 +267,7 @@ sub main(@){
   }else{
     my $count = 0;
     for my $img(@srcImgs){
-      handleImage $img, $srcDir, $destDir, $srcInfos{$img};
+      handleImage $opts, $img, $srcDir, $destDir, $srcInfos{$img};
       $count++;
       if($count % $statusCheckpointSize == 0){
         print STDERR "     $count / $toConvert\n";
@@ -359,8 +359,8 @@ sub getInfo($){
   return {format=>$format, x=>$x, y=>$y};
 }
 
-sub handleImage($$$$){
-  my ($img, $srcDir, $destDir, $statInfo) = @_;
+sub handleImage($$$$$){
+  my ($opts, $img, $srcDir, $destDir, $statInfo) = @_;
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
