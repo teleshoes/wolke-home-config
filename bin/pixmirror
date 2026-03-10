@@ -39,16 +39,18 @@ my $unsharpArg = "0x0.5";
 
 my $okGravity = join "|", split /\n+/, `$mogrifyExec -list gravity 2>/dev/null`;
 
-my $targetX = $defaultTargetX;
-my $targetY = $defaultTargetY;
+my $opts = {
+  targetX     => $defaultTargetX,
+  targetY     => $defaultTargetY,
 
-my $orientSwap = 0;
-my $rotate = 0;
+  orientSwap  => 0,
+  rotate      => 0,
 
-my $pad = 0;
-my $padColor = $defaultPadColor;
-my $padGravity = $defaultPadGravity;
-my $threadCount = $DEFAULT_MAX_THREADS;
+  pad         => 0,
+  padColor    => $defaultPadColor,
+  padGravity  => $defaultPadGravity,
+  threadCount => $DEFAULT_MAX_THREADS,
+};
 
 my $usage = "Usage:
   $0 [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -122,29 +124,29 @@ sub main(@){
   while(@_ > 0 and $_[0] =~ /^-/){
     my $arg = shift;
     if($arg =~ /^--size=(\d+)x(\d+)$/){
-      $targetX = $1+0;
-      $targetY = $2+0;
+      $$opts{targetX} = $1+0;
+      $$opts{targetY} = $2+0;
     }elsif($arg =~ /^--orient$/){
-      $orientSwap = 1;
+      $$opts{orientSwap} = 1;
     }elsif($arg =~ /^--no-orient$/){
-      $orientSwap = 0;
+      $$opts{orientSwap} = 0;
     }elsif($arg =~ /^--rotate$/){
-      $rotate = 1;
+      $$opts{rotate} = 1;
     }elsif($arg =~ /^--no-rotate$/){
-      $rotate = 0;
+      $$opts{rotate} = 0;
     }elsif($arg =~ /^--pad$/){
-      $pad = 1;
+      $$opts{pad} = 1;
     }elsif($arg =~ /^--no-pad$/){
-      $pad = 0;
+      $$opts{pad} = 0;
     }elsif($arg =~ /^--pad-color=(\w+)$/){
-      $padColor = $1;
+      $$opts{padColor} = $1;
     }elsif($arg =~ /^--pad-gravity=($okGravity)$/i){
-      $padGravity = $1;
+      $$opts{padGravity} = $1;
     }elsif($arg =~ /^(--nothreads|--no-threads)$/){
-      $threadCount = 1;
+      $$opts{threadCount} = 1;
     }elsif($arg =~ /^--threads=(\d+)$/){
-      $threadCount = $1;
-      die "invalid THREAD_COUNT=$threadCount\n" if $threadCount <= 0;
+      $$opts{threadCount} = $1;
+      die "invalid THREAD_COUNT=$$opts{threadCount}\n" if $$opts{threadCount} <= 0;
     }else{
       die $usage;
     }
@@ -194,7 +196,7 @@ sub main(@){
 
   my $statusCheckpointSize = 10;
 
-  if($IS_THREADED and $threadCount > 1){
+  if($IS_THREADED and $$opts{threadCount} > 1){
     my %status;
     my $count = 0;
     my $abort = 0;
@@ -204,14 +206,14 @@ sub main(@){
 
     my @threadChunks;
     my $threadChunk = undef;
-    my $size = @srcImgs/$threadCount;
+    my $size = @srcImgs/$$opts{threadCount};
     for my $img(@srcImgs){
       if(not defined $threadChunk){
         $threadChunk = [];
         push @threadChunks, $threadChunk;
       }
       push @$threadChunk, $img;
-      if(@threadChunks < $threadCount and @$threadChunk >= $size){
+      if(@threadChunks < $$opts{threadCount} and @$threadChunk >= $size){
         $threadChunk = undef;
       }
     }
@@ -376,13 +378,13 @@ sub handleImage($$$$){
   }
 
   my ($oldX, $oldY) = ($$info{x}, $$info{y});
-  my ($newX, $newY) = ($targetX, $targetY);
+  my ($newX, $newY) = ($$opts{targetX}, $$opts{targetY});
 
   my @args;
-  if($rotate and not isOrientMatch $oldX, $oldY, $newX, $newY){
+  if($$opts{rotate} and not isOrientMatch $oldX, $oldY, $newX, $newY){
     @args = (@args, "-rotate", 90);
     ($oldX, $oldY) = ($oldY, $oldX);
-  }elsif($orientSwap and not isOrientMatch $oldX, $oldY, $newX, $newY){
+  }elsif($$opts{orientSwap} and not isOrientMatch $oldX, $oldY, $newX, $newY){
     ($newX, $newY) = ($newY, $newX);
   }
 
@@ -393,10 +395,10 @@ sub handleImage($$$$){
     @args = (@args, "-unsharp", $unsharpArg);
   }
 
-  if($pad){
+  if($$opts{pad}){
     @args = (@args,
-      "-gravity", $padGravity,
-      "-background", $padColor,
+      "-gravity", $$opts{padGravity},
+      "-background", $$opts{padColor},
       "-extent", "${newX}x${newY}",
     );
   }
