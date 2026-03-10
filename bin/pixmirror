@@ -15,7 +15,7 @@ sub statImage($);
 sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$$);
-sub jhead($@);
+sub jhead($$);
 sub getNewPix($);
 sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
@@ -34,6 +34,9 @@ my $DEFAULT_MAX_THREADS = 4;
 
 my $DEFAULT_TARGET_X = 1920;
 my $DEFAULT_TARGET_Y = 1080;
+
+my $JHEAD_MODE_AUTOROT = "-autorot";
+my $JHEAD_MODE_NOROT = "-norot";
 
 my $DEFAULT_PAD_COLOR = "black";
 my $DEFAULT_PAD_GRAVITY = "center";
@@ -376,7 +379,7 @@ sub handleImage($$$$$){
   my $isJpeg = $$info{format} =~ /JPEG/i;
   my %jheadAtts;
   if($isJpeg){
-    my %atts = jhead "$destDir/$img", "-autorot";
+    my %atts = jhead "$destDir/$img", $JHEAD_MODE_AUTOROT;
     %jheadAtts = (%jheadAtts, %atts);
     $info = getInfo "$destDir/$img";
   }
@@ -410,7 +413,7 @@ sub handleImage($$$$$){
   runMogrify "$destDir/$img", @args;
 
   if($isJpeg){
-    my %atts = jhead "$destDir/$img", "-norot";
+    my %atts = jhead "$destDir/$img", $JHEAD_MODE_NOROT;
     %jheadAtts = (%jheadAtts, %atts);
   }
 
@@ -435,9 +438,9 @@ sub handleImage($$$$$){
   print $fmt;
 }
 
-sub jhead($@){
-  my ($file, @args) = @_;
-  my $res = ipcRun $EXEC_JHEAD, @args, $file;
+sub jhead($$){
+  my ($file, $jheadMode) = @_;
+  my $res = ipcRun $EXEC_JHEAD, $jheadMode, $file;
 
   my %atts;
   for my $line(split /\n/, $$res{out}){
