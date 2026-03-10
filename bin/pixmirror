@@ -18,10 +18,9 @@ sub checkInfo($$);
 sub handleImage($$$$);
 sub jhead($@);
 sub getNewPix($);
-sub isOrientMatch($$);
+sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
 sub runMogrify($@);
-sub getOrientation($$);
 sub ipcRun(@);
 
 my @exts = qw(jpg jpeg png);
@@ -31,7 +30,6 @@ my $jheadExec = 'jhead';
 
 my $targetX = 1920;
 my $targetY = 1080;
-my $targetOrientation = getOrientation $targetX, $targetY;
 
 my $orientSwap = 0;
 my $rotate = 0;
@@ -119,7 +117,6 @@ sub main(@){
     if($arg =~ /^--size=(\d+)x(\d+)$/){
       $targetX = $1+0;
       $targetY = $2+0;
-      $targetOrientation = getOrientation $targetX, $targetY;
     }elsif($arg =~ /^--orient$/){
       $orientSwap = 1;
     }elsif($arg =~ /^--no-orient$/){
@@ -375,10 +372,10 @@ sub handleImage($$$$){
   my ($newX, $newY) = ($targetX, $targetY);
 
   my @args;
-  if($rotate and not isOrientMatch $oldX, $oldY){
+  if($rotate and not isOrientMatch $oldX, $oldY, $newX, $newY){
     @args = (@args, "-rotate", 90);
     ($oldX, $oldY) = ($oldY, $oldX);
-  }elsif($orientSwap and not isOrientMatch $oldX, $oldY){
+  }elsif($orientSwap and not isOrientMatch $oldX, $oldY, $newX, $newY){
     ($newX, $newY) = ($newY, $newX);
   }
 
@@ -452,9 +449,11 @@ sub jhead($@){
   return %atts;
 }
 
-sub isOrientMatch($$){
-  my ($oldX, $oldY) = @_;
-  return getOrientation($oldX, $oldY) eq $targetOrientation;
+sub isOrientMatch($$$$){
+  my ($x1, $y1, $x2, $y2) = @_;
+  my $orient1 = $x1 > $y1 ? "landscape" : "portrait";
+  my $orient2 = $x2 > $y2 ? "landscape" : "portrait";
+  return $orient1 eq $orient2;
 }
 
 sub getResizePercent($$$$){
@@ -475,11 +474,6 @@ sub runMogrify($@){
 
   system $mogrifyExec, @args, $file;
   die "failed to run mogrify on $file {@args}\n" if $? != 0;
-}
-
-sub getOrientation($$){
-  my ($x, $y) = @_;
-  return $x > $y ? "landscape" : "portrait";
 }
 
 sub ipcRun(@){
