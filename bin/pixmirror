@@ -8,21 +8,21 @@ use IPC::Run qw(run);
 
 my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 
-sub cleanupFailures($$);
+sub cleanupFailures($$$);
 sub formatStatus($$);
 sub findImages($);
 sub statImage($);
 sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$$);
-sub runJhead($$);
+sub runJhead($$$);
 sub getNewPix($);
 sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
-sub runMogrify($@);
-sub writeFile($$);
-sub runCmd(@);
-sub ipcRunCmd(@);
+sub runMogrify($$@);
+sub writeFile($$$);
+sub runCmd($@);
+sub ipcRunCmd($@);
 
 my $EXEC = basename $0;
 
@@ -166,7 +166,7 @@ sub main(@){
 
   die $USAGE if not defined $srcDir or not defined $destDir or @_ > 0;
 
-  runCmd "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
+  runCmd $opts, "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
@@ -190,8 +190,8 @@ sub main(@){
   for my $img(@destImgs){
     if(not checkInfo($srcInfos{$img}, "$destDir/pixmirror-info/$img.info")){
       print "removing $destDir/$img and $destDir/pixmirror-info/$img.info\n";
-      runCmd "rm", "$destDir/$img";
-      runCmd "rm", "$destDir/pixmirror-info/$img.info";
+      runCmd $opts, "rm", "$destDir/$img";
+      runCmd $opts, "rm", "$destDir/pixmirror-info/$img.info";
     }else{
       $okImgs{$img} = 1;
     }
@@ -270,7 +270,7 @@ sub main(@){
     }
     print STDERR "\n\nall threads joined\n";
 
-    cleanupFailures $destDir, \%status;
+    cleanupFailures $opts, $destDir, \%status;
 
     print STDERR formatStatus(\%status, \@srcImgs);
   }else{
@@ -285,11 +285,11 @@ sub main(@){
   }
 
   print "\n\nremoving empty dirs\n";
-  runCmd "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
+  runCmd $opts, "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
 }
 
-sub cleanupFailures($$){
-  my ($destDir, $status) = @_;
+sub cleanupFailures($$$){
+  my ($opts, $destDir, $status) = @_;
 
   for my $img(keys %$status){
     if($$status{$img} == 0){
@@ -300,7 +300,7 @@ sub cleanupFailures($$){
         print STDERR "  no temp files to cleanup\n";
       }else{
         print STDERR "  cleaning up tmp files: @files\n";
-        runCmd "rm", "-f", @files;
+        runCmd $opts, "rm", "-f", @files;
       }
     }
   }
@@ -373,15 +373,15 @@ sub handleImage($$$$$){
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
-  runCmd "mkdir", "-p", $parent;
+  runCmd $opts, "mkdir", "-p", $parent;
 
-  runCmd "cp", "-L", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
+  runCmd $opts, "cp", "-L", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
 
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
   my $jpgAutoRot = undef;
   if($isJpeg){
-    $jpgAutoRot = runJhead "$destDir/$img", $JHEAD_MODE_AUTOROT;
+    $jpgAutoRot = runJhead $opts, "$destDir/$img", $JHEAD_MODE_AUTOROT;
     $info = getInfo "$destDir/$img";
   }
 
@@ -411,22 +411,22 @@ sub handleImage($$$$$){
     );
   }
 
-  runMogrify "$destDir/$img", @args;
+  runMogrify $opts, "$destDir/$img", @args;
 
   my $jpgNoRot = undef;
   if($isJpeg){
-    $jpgNoRot = runJhead "$destDir/$img", $JHEAD_MODE_NOROT;
+    $jpgNoRot = runJhead $opts, "$destDir/$img", $JHEAD_MODE_NOROT;
   }
 
   #ensure parent dir
   my $infoDir = "$destDir/pixmirror-info/$img";
   $infoDir =~ s/[^\/]*$//;
-  runCmd "mkdir", "-p", $infoDir;
+  runCmd $opts, "mkdir", "-p", $infoDir;
 
-  writeFile "$destDir/pixmirror-info/$img.info", $statInfo;
+  writeFile $opts, "$destDir/pixmirror-info/$img.info", $statInfo;
 
-  runCmd "touch", "$destDir/$img", "--reference=$srcDir/$img";
-  runCmd "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
+  runCmd $opts, "touch", "$destDir/$img", "--reference=$srcDir/$img";
+  runCmd $opts, "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
 
   my $jheadFmt = "";
   if($isJpeg){
@@ -439,9 +439,9 @@ sub handleImage($$$$$){
   print $fmt;
 }
 
-sub runJhead($$){
-  my ($file, $jheadMode) = @_;
-  my $res = ipcRunCmd $EXEC_JHEAD, $jheadMode, $file;
+sub runJhead($$$){
+  my ($opts, $file, $jheadMode) = @_;
+  my $res = ipcRunCmd $opts, $EXEC_JHEAD, $jheadMode, $file;
 
   my $isModified = 0;
   my $isErrExifOrient = 0;
@@ -493,27 +493,27 @@ sub getResizePercent($$$$){
   return $percent;
 }
 
-sub runMogrify($@){
-  my ($file, @args) = @_;
+sub runMogrify($$@){
+  my ($opts, $file, @args) = @_;
 
-  runCmd $EXEC_MOGRIFY, @args, $file;
+  runCmd $opts, $EXEC_MOGRIFY, @args, $file;
   die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
-sub writeFile($$){
-  my ($file, $contents) = @_;
+sub writeFile($$$){
+  my ($opts, $file, $contents) = @_;
   open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
   print $fh $contents;
   close $fh;
 }
 
-sub runCmd(@){
-  my (@cmd) = @_;
+sub runCmd($@){
+  my ($opts, @cmd) = @_;
   system @cmd;
 }
 
-sub ipcRunCmd(@){
-  my @cmd = @_;
+sub ipcRunCmd($@){
+  my ($opts, @cmd) = @_;
   my ($out, $err);
   my $success = run [@cmd], '>', \$out, '2>', \$err;
   return {out=>$out, err=>$err, success=>$success};
