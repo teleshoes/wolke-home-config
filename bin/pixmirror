@@ -66,6 +66,13 @@ my $USAGE = "Usage:
 
     Mirrored images are auto-rotated from EXIF metadata using '$EXEC_JHEAD'
 
+    <SRC_DIR>
+      must be an existing directory on the filesystem
+    <DEST_DIR>
+      must be a directory that can be created or already exists
+      cannot start with '-' and can otherwise be any relative or absolute path
+        (use './-dirname' instead of '-dirname' if necessary)
+
   <OPTS>
     -n | -s | --dry-run | --no-act | --simulate | --read-only
       perform a dry-run of sync without making any changes
@@ -129,6 +136,8 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
+  my $srcDir = undef;
+  my $destDir = undef;
   my $opts = {
     simulate    => 0,
 
@@ -143,8 +152,7 @@ sub main(@){
     padGravity  => $DEFAULT_PAD_GRAVITY,
     threadCount => $DEFAULT_MAX_THREADS,
   };
-
-  while(@_ > 0 and $_[0] =~ /^-/){
+  while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-n|-s|--dry-run|--no-act|--simulate|--read-only)$/){
       $$opts{simulate} = 1;
@@ -172,15 +180,16 @@ sub main(@){
     }elsif($arg =~ /^--threads=(\d+)$/){
       $$opts{threadCount} = $1;
       die "invalid THREAD_COUNT=$$opts{threadCount}\n" if $$opts{threadCount} <= 0;
+    }elsif(-d $arg and not defined $srcDir){
+      $srcDir = $arg;
+    }elsif($arg !~ /^-/ and not defined $destDir){
+      $destDir = $arg;
     }else{
       die $USAGE;
     }
   }
 
-  my $srcDir = shift;
-  my $destDir = shift;
-
-  die $USAGE if not defined $srcDir or not defined $destDir or @_ > 0;
+  die $USAGE if not defined $srcDir or not defined $destDir;
 
   runCmd $opts, "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
