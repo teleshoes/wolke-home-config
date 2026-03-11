@@ -21,6 +21,7 @@ sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
 sub runMogrify($@);
 sub writeFile($$);
+sub runCmd(@);
 sub ipcRun(@);
 
 my $EXEC = basename $0;
@@ -165,7 +166,7 @@ sub main(@){
 
   die $USAGE if not defined $srcDir or not defined $destDir or @_ > 0;
 
-  system "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
+  runCmd "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   die "dest '$destDir' is not a directory" if not -d $destDir;
 
@@ -189,8 +190,8 @@ sub main(@){
   for my $img(@destImgs){
     if(not checkInfo($srcInfos{$img}, "$destDir/pixmirror-info/$img.info")){
       print "removing $destDir/$img and $destDir/pixmirror-info/$img.info\n";
-      system "rm", "$destDir/$img";
-      system "rm", "$destDir/pixmirror-info/$img.info";
+      runCmd "rm", "$destDir/$img";
+      runCmd "rm", "$destDir/pixmirror-info/$img.info";
     }else{
       $okImgs{$img} = 1;
     }
@@ -284,7 +285,7 @@ sub main(@){
   }
 
   print "\n\nremoving empty dirs\n";
-  system "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
+  runCmd "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
 }
 
 sub cleanupFailures($$){
@@ -299,7 +300,7 @@ sub cleanupFailures($$){
         print STDERR "  no temp files to cleanup\n";
       }else{
         print STDERR "  cleaning up tmp files: @files\n";
-        system "rm", "-f", @files;
+        runCmd "rm", "-f", @files;
       }
     }
   }
@@ -372,9 +373,9 @@ sub handleImage($$$$$){
 
   my $parent = "$destDir/$img";
   $parent =~ s/\/[^\/]*$/\//;
-  system "mkdir", "-p", $parent;
+  runCmd "mkdir", "-p", $parent;
 
-  system "cp", "-L", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
+  runCmd "cp", "-L", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
 
   my $info = getInfo "$destDir/$img";
   my $isJpeg = $$info{format} =~ /JPEG/i;
@@ -420,12 +421,12 @@ sub handleImage($$$$$){
   #ensure parent dir
   my $infoDir = "$destDir/pixmirror-info/$img";
   $infoDir =~ s/[^\/]*$//;
-  system "mkdir", "-p", $infoDir;
+  runCmd "mkdir", "-p", $infoDir;
 
   writeFile "$destDir/pixmirror-info/$img.info", $statInfo;
 
-  system "touch", "$destDir/$img", "--reference=$srcDir/$img";
-  system "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
+  runCmd "touch", "$destDir/$img", "--reference=$srcDir/$img";
+  runCmd "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
 
   my $jheadFmt = "";
   if($isJpeg){
@@ -495,7 +496,7 @@ sub getResizePercent($$$$){
 sub runMogrify($@){
   my ($file, @args) = @_;
 
-  system $EXEC_MOGRIFY, @args, $file;
+  runCmd $EXEC_MOGRIFY, @args, $file;
   die "failed to run mogrify on $file {@args}\n" if $? != 0;
 }
 
@@ -504,6 +505,11 @@ sub writeFile($$){
   open my $fh, "> $file" or die "ERROR: could not write $file\n$!\n";
   print $fh $contents;
   close $fh;
+}
+
+sub runCmd(@){
+  my (@cmd) = @_;
+  system @cmd;
 }
 
 sub ipcRun(@){
