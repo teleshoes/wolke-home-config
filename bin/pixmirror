@@ -77,6 +77,7 @@ my $USAGE = "Usage:
         -do read image info
         -do calculate target size, etc
         -do print all commands
+        -do run jhead in read-only mode to simulate rotation/exif editing
 
     --size=<TARGET_X>x<TARGET_Y>   {default is ${DEFAULT_TARGET_X}x${DEFAULT_TARGET_Y}}
       target width and height in pixels {or height and width if src y>x}
@@ -403,7 +404,12 @@ sub handleImage($$$$$){
   my $isJpeg = $$info{format} =~ /JPEG/i;
   my $destJpg = undef;
   if($isJpeg){
-    $destJpg = "$destDir/$img";
+    if($$opts{simulate}){
+      #run jhead read-only against src img
+      $destJpg = "$srcDir/$img";
+    }else{
+      $destJpg = "$destDir/$img";
+    }
   }
 
   my $jpgAutoRot = undef;
@@ -468,11 +474,36 @@ sub handleImage($$$$$){
 
 sub runJhead($$$){
   my ($opts, $file, $jheadMode) = @_;
-  my $res = ipcRunCmd $opts, $EXEC_JHEAD, $jheadMode, $file;
+
+  my @jheadCmd;
+  if($$opts{simulate}){
+    @jheadCmd = ();
+  }else{
+    @jheadCmd = ($jheadMode);
+  }
+
+  my $res = ipcRunCmd {simulate=>0}, $EXEC_JHEAD, @jheadCmd, $file;
 
   my $isModified = 0;
   my $isErrExifOrient = 0;
   my $isErrExifSubdir = 0;
+
+  if($$opts{simulate}){
+    my $orient = "";
+    if($$res{out} =~ /Orientation\s*:\s*(.+)/){
+      $orient = $1;
+    }
+    if($orient =~ /rotate (\d+)/){
+      my $degrees = $1;
+      $isModified = 1;
+      if($jheadMode eq $JHEAD_MODE_AUTOROT){
+        print "#jhead rotate img data $degrees => 0: $file\n";
+      }
+      print "#jhead delete orient=$degrees: $file\n";
+    }
+    $$res{out} = "";
+    $$res{err} = "";
+  }
 
   for my $line(split /\n/, $$res{out}){
     next if $line =~ /^\s*$/;
