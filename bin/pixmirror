@@ -9,6 +9,9 @@ use IPC::Run qw(run);
 my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 
 sub syncPixDirs($$$);
+sub getSrcImgFile($$);
+sub getDestImgFile($$);
+sub getDestInfoFile($$);
 sub cleanupFailures($$$);
 sub formatStatus($$);
 sub findRelFiles($@);
@@ -218,31 +221,34 @@ sub syncPixDirs($$$){
   system "which $EXEC_IDENTIFY > /dev/null";
   die "Could not exec $EXEC_IDENTIFY\n" if $? != 0;
 
-  my @srcImgs = findImages $srcDir;
-  my $total = @srcImgs;
+  my @srcImgNames = findImages $srcDir;
+  my $total = @srcImgNames;
 
   print "running stat on src ($total images):\n";
   my $srcStatInfos = {};
-  for my $img(@srcImgs){
-    $$srcStatInfos{$img} = runStat "$srcDir/$img";
+  for my $imgName(@srcImgNames){
+    my $srcImgFile = getSrcImgFile($srcDir, $imgName);
+    $$srcStatInfos{$imgName} = runStat $srcImgFile;
   }
 
   my %okImgs;
 
   print "fetching cached stat info on dest:\n";
   my $destStatInfos = readMirrorDirInfos($destDir);
-  for my $imgFile(sort keys %$destStatInfos){
-    if(not checkInfo($$srcStatInfos{$imgFile}, $$destStatInfos{$imgFile})){
-      print "removing $destDir/$imgFile and $destDir/pixmirror-info/$imgFile.info\n";
-      runCmd $opts, "rm", "$destDir/$imgFile";
-      runCmd $opts, "rm", "$destDir/pixmirror-info/$imgFile.info";
+  for my $imgName(sort keys %$destStatInfos){
+    my $destImgFile = getDestImgFile($destDir, $imgName);
+    my $destInfoFile = getDestInfoFile($destDir, $imgName);
+    if(not checkInfo($$srcStatInfos{$imgName}, $$destStatInfos{$imgName})){
+      print "removing $destImgFile and $destInfoFile\n";
+      runCmd $opts, "rm", "$destImgFile";
+      runCmd $opts, "rm", "$destInfoFile";
     }else{
-      $okImgs{$imgFile} = 1;
+      $okImgs{$imgName} = 1;
     }
   }
 
-  @srcImgs = grep {not defined $okImgs{$_}} @srcImgs;
-  my $toConvert = @srcImgs;
+  @srcImgNames = grep {not defined $okImgs{$_}} @srcImgNames;
+  my $toConvert = @srcImgNames;
   my $skipped = $total - $toConvert;
 
   print "\nconverting $toConvert images {skipped $skipped}\n";
@@ -259,13 +265,13 @@ sub syncPixDirs($$$){
 
     my @threadChunks;
     my $threadChunk = undef;
-    my $size = @srcImgs/$$opts{threadCount};
-    for my $img(@srcImgs){
+    my $size = @srcImgNames/$$opts{threadCount};
+    for my $imgName(@srcImgNames){
       if(not defined $threadChunk){
         $threadChunk = [];
         push @threadChunks, $threadChunk;
       }
-      push @$threadChunk, $img;
+      push @$threadChunk, $imgName;
       if(@threadChunks < $$opts{threadCount} and @$threadChunk >= $size){
         $threadChunk = undef;
       }
@@ -286,10 +292,10 @@ sub syncPixDirs($$$){
           $abort = 1;
         };
 
-        for my $img(@$chunk){
-          $status{$img} = 0;
-          handleImage $opts, $img, $srcDir, $destDir, $$srcStatInfos{$img};
-          $status{$img} = 1;
+        for my $imgName(@$chunk){
+          $status{$imgName} = 0;
+          handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+          $status{$imgName} = 1;
 
           if($abort){
             print STDERR "     thread#$threadNum: ERROR (aborting)\n";
@@ -316,11 +322,11 @@ sub syncPixDirs($$$){
 
     cleanupFailures $opts, $destDir, \%status;
 
-    print STDERR formatStatus(\%status, \@srcImgs);
+    print STDERR formatStatus(\%status, \@srcImgNames);
   }else{
     my $count = 0;
-    for my $img(@srcImgs){
-      handleImage $opts, $img, $srcDir, $destDir, $$srcStatInfos{$img};
+    for my $imgName(@srcImgNames){
+      handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
       $count++;
       if($count % $statusCheckpointSize == 0){
         print STDERR "     $count / $toConvert\n";
@@ -332,13 +338,26 @@ sub syncPixDirs($$$){
   runCmd $opts, "cd \"$destDir\" && find -mindepth 1 -depth -type d -empty -delete";
 }
 
+sub getSrcImgFile($$){
+  my ($srcDir, $imgName) = @_;
+  return "$srcDir/$imgName";
+}
+sub getDestImgFile($$){
+  my ($destDir, $imgName) = @_;
+  return "$destDir/$imgName";
+}
+sub getDestInfoFile($$){
+  my ($destDir, $imgName) = @_;
+  return "$destDir/pixmirror-info/$imgName.info";
+}
+
 sub cleanupFailures($$$){
   my ($opts, $destDir, $status) = @_;
 
-  for my $img(keys %$status){
-    if($$status{$img} == 0){
-      print STDERR "\nFAILED: $img\n";
-      my @files = ("$destDir/$img", "$destDir/pixmirror-info/$img.info");
+  for my $imgName(keys %$status){
+    if($$status{$imgName} == 0){
+      print STDERR "\nFAILED: $imgName\n";
+      my @files = (getDestImgFile($destDir, $imgName), getDestInfoFile($destDir, $imgName));
       @files = grep {-f $_} @files;
       if(@files == 0){
         print STDERR "  no temp files to cleanup\n";
@@ -351,8 +370,8 @@ sub cleanupFailures($$$){
 }
 
 sub formatStatus($$){
-  my ($status, $srcImgs) = @_;
-  my $totalCnt = @$srcImgs;
+  my ($status, $srcImgNames) = @_;
+  my $totalCnt = @$srcImgNames;
   my $successCnt = grep {$$status{$_} == 1} keys %$status;
   my $failCnt = grep {$$status{$_} == 0} keys %$status;
   my $skipCnt = $totalCnt - $successCnt - $failCnt;
@@ -396,8 +415,8 @@ sub readMirrorDirInfos($){
     if($infoFile !~ /^(.+)\.info$/){
       die "ERROR: malformed info file $infoFile\n";
     }
-    my $imgFile = $1;
-    $$mirrorStatInfos{$imgFile} = readInfoFile "$mirrorDir/pixmirror-info/$infoFile";
+    my $imgName = $1;
+    $$mirrorStatInfos{$imgName} = readInfoFile "$mirrorDir/pixmirror-info/$infoFile";
   }
 
   return $mirrorStatInfos;
@@ -465,25 +484,29 @@ sub getInfo($){
 }
 
 sub handleImage($$$$$){
-  my ($opts, $img, $srcDir, $destDir, $statInfo) = @_;
+  my ($opts, $imgName, $srcDir, $destDir, $statInfo) = @_;
 
-  my $parent = "$destDir/$img";
+  my $srcImgFile = getSrcImgFile($srcDir, $imgName);
+  my $destImgFile = getDestImgFile($destDir, $imgName);
+  my $destInfoFile = getDestInfoFile($destDir, $imgName);
+
+  my $parent = $destImgFile;
   $parent =~ s/\/[^\/]*$/\//;
 
-  my $info = getInfo "$srcDir/$img";
+  my $info = getInfo $srcImgFile;
 
   runCmd $opts, "mkdir", "-p", $parent;
 
-  runCmd $opts, "cp", "-L", "--reflink=auto", "$srcDir/$img", "$destDir/$img";
+  runCmd $opts, "cp", "-L", "--reflink=auto", $srcImgFile, $destImgFile;
 
   my $isJpeg = $$info{format} =~ /JPEG/i;
   my $destJpg = undef;
   if($isJpeg){
     if($$opts{simulate}){
       #run jhead read-only against src img
-      $destJpg = "$srcDir/$img";
+      $destJpg = $srcImgFile;
     }else{
-      $destJpg = "$destDir/$img";
+      $destJpg = $destImgFile;
     }
   }
 
@@ -519,7 +542,7 @@ sub handleImage($$$$$){
     );
   }
 
-  runMogrify $opts, "$destDir/$img", @args;
+  runMogrify $opts, $destImgFile, @args;
 
   my $jpgNoRot = undef;
   if($isJpeg){
@@ -527,14 +550,14 @@ sub handleImage($$$$$){
   }
 
   #ensure parent dir
-  my $infoDir = "$destDir/pixmirror-info/$img";
+  my $infoDir = $destInfoFile;
   $infoDir =~ s/[^\/]*$//;
   runCmd $opts, "mkdir", "-p", $infoDir;
 
-  writeInfoFile $opts, "$destDir/pixmirror-info/$img.info", $statInfo;
+  writeInfoFile $opts, $destInfoFile, $statInfo;
 
-  runCmd $opts, "touch", "$destDir/$img", "--reference=$srcDir/$img";
-  runCmd $opts, "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
+  runCmd $opts, "touch", $destImgFile, "--reference=$srcImgFile";
+  runCmd $opts, "touch", $destInfoFile, "--reference=$srcImgFile";
 
   my $jheadFmt = "";
   if($isJpeg){
@@ -543,7 +566,7 @@ sub handleImage($$$$$){
     $jheadFmt .= "?subdir" if $$jpgAutoRot{isErrExifSubdir} or $$jpgNoRot{isErrExifSubdir};
   }
 
-  my $fmt = sprintf "ok|%-20s| %s\n", $jheadFmt, $img;
+  my $fmt = sprintf "ok|%-20s| %s\n", $jheadFmt, $imgName;
   print $fmt;
 }
 
