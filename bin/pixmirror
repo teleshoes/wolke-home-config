@@ -41,6 +41,7 @@ my $EXEC_IDENTIFY = 'identify';
 my $EXEC_JHEAD = 'jhead';
 
 my @IMG_EXTS = qw(jpg jpeg png);
+my $REGEX_IMG_EXTS = join "|", @IMG_EXTS;
 
 my $DEFAULT_MAX_THREADS = 4;
 
@@ -61,7 +62,8 @@ my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_MOGRIFY -list gravity 2>/dev/null
 my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
     Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
-      resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios.
+      resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios,
+      converted to JPEG format.
 
     The original filesize and modified timestamp are recorded for each file
       under a dir called pixmirror-info/, with the same relative path
@@ -75,6 +77,23 @@ my $USAGE = "Usage:
       after resizing to slightly sharpen the image.
 
     Mirrored images are auto-rotated from EXIF metadata using '$EXEC_JHEAD'
+
+    If the source image file ends in '.jpg' (case-insensitive),
+      and that suffix is not preceded by '.<EXT>' (case-insensitive) for any <EXT>
+      then the destination mirrored image file is the same as the source
+    If the source image file ends in '.<EXT>' or '.<EXT>.jpg' (case-insensitive),
+      then destination mirrored image file is the source with '.jpg' appended
+    i.e:
+      a.jpg     => a.jpg
+      a.JPG     => a.JPG
+      a.jpeg    => a.jpeg.jpg
+      a.png     => a.png.jpg
+      a.jpg.jpg => a.jpg.jpg.jpg
+      a.png.jpg => a.png.jpg.jpg
+      a.jpg.png => a.jpg.png.jpg
+
+    <EXT>
+      one of: @IMG_EXTS
 
     <SRC_DIR>
       must be an existing directory on the filesystem
@@ -346,7 +365,32 @@ sub getSrcImgFile($$){
 }
 sub getDestImgFile($$){
   my ($destDir, $imgName) = @_;
-  return "$destDir/$imgName";
+  my ($extPrefix, $extSuffix);
+  if($imgName =~ /\.(\w+)\.(\w+)$/){
+    ($extPrefix, $extSuffix) = ($1, $2);
+  }elsif($imgName =~ /\.(\w+)$/){
+    ($extPrefix, $extSuffix) = ("", $1);
+  }
+
+  my $skipJpgAppend = 0;
+  if($extSuffix =~ /^jpg$/i){
+    if($extPrefix =~ /^($REGEX_IMG_EXTS)$/i){
+      #do NOT skip append if file name is '*.png.jpg', '*.jpg.jpg', etc
+      #  (otherwise, 'a.png.jpg' and 'a.png' map to the same value: 'a.png.jpg')
+      $skipJpgAppend = 0;
+    }else{
+      #skip append if file name is just '*.jpg'
+      $skipJpgAppend = 1;
+    }
+  }
+
+  my $destImgFile = "$destDir/$imgName";
+  $destImgFile .= ".jpg" unless $skipJpgAppend;
+
+  if($destImgFile !~ /^.+\.jpg$/i){
+    die "ERROR: invalid destination img file: $destImgFile\n";
+  }
+  return $destImgFile;
 }
 sub getDestInfoFile($$){
   my ($destDir, $imgName) = @_;
