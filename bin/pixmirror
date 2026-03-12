@@ -13,7 +13,7 @@ sub getSrcImgFile($$);
 sub getDestImgFile($$);
 sub getDestInfoFile($$);
 sub cleanupFailures($$$);
-sub formatStatus($$);
+sub formatOverallStatus($$$);
 sub findRelFiles($@);
 sub findImages($);
 sub readMirrorDirInfos($);
@@ -222,9 +222,9 @@ sub syncPixDirs($$$){
   die "Could not exec $EXEC_IDENTIFY\n" if $? != 0;
 
   my @srcImgNames = findImages $srcDir;
-  my $total = @srcImgNames;
+  my $countTotal = @srcImgNames;
 
-  print "running stat on src ($total images):\n";
+  print "running stat on src ($countTotal images):\n";
   my $srcStatInfos = {};
   for my $imgName(@srcImgNames){
     my $srcImgFile = getSrcImgFile($srcDir, $imgName);
@@ -247,11 +247,11 @@ sub syncPixDirs($$$){
     }
   }
 
-  @srcImgNames = grep {not defined $okImgs{$_}} @srcImgNames;
-  my $toConvert = @srcImgNames;
-  my $skipped = $total - $toConvert;
+  my @imgNamesToConvert = grep {not defined $okImgs{$_}} @srcImgNames;
+  my $countToConvert = @imgNamesToConvert;
+  my $countSkipped = $countTotal - $countToConvert;
 
-  print "\nconverting $toConvert images {skipped $skipped}\n";
+  print "\nconverting $countToConvert images {skipped $countSkipped}\n";
 
   my $statusCheckpointSize = 10;
 
@@ -265,8 +265,8 @@ sub syncPixDirs($$$){
 
     my @threadChunks;
     my $threadChunk = undef;
-    my $size = @srcImgNames/$$opts{threadCount};
-    for my $imgName(@srcImgNames){
+    my $size = $countToConvert/$$opts{threadCount};
+    for my $imgName(@imgNamesToConvert){
       if(not defined $threadChunk){
         $threadChunk = [];
         push @threadChunks, $threadChunk;
@@ -306,7 +306,7 @@ sub syncPixDirs($$$){
             lock($count);
             $count++;
             if($count % $statusCheckpointSize == 0){
-              print STDERR "     ALL: $count / $toConvert\n";
+              print STDERR "     ALL: $count / $countToConvert\n";
             }
           }
         }
@@ -321,15 +321,17 @@ sub syncPixDirs($$$){
     print STDERR "\n\nall threads joined\n";
 
     cleanupFailures $opts, $destDir, $statusesByImgName;
+    my $countSuccess = 0 + grep {$$statusesByImgName{$_} == 1} sort keys %$statusesByImgName;
+    my $countFailure = 0 + grep {$$statusesByImgName{$_} == 0} sort keys %$statusesByImgName;
 
-    print STDERR formatStatus($statusesByImgName, \@srcImgNames);
+    print STDERR formatOverallStatus($countSuccess, $countFailure, $countToConvert);
   }else{
     my $count = 0;
-    for my $imgName(@srcImgNames){
+    for my $imgName(@imgNamesToConvert){
       handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
       $count++;
       if($count % $statusCheckpointSize == 0){
-        print STDERR "     $count / $toConvert\n";
+        print STDERR "     $count / $countToConvert\n";
       }
     }
   }
@@ -369,17 +371,14 @@ sub cleanupFailures($$$){
   }
 }
 
-sub formatStatus($$){
-  my ($statusesByImgName, $srcImgNames) = @_;
-  my $totalCnt = @$srcImgNames;
-  my $successCnt = grep {$$statusesByImgName{$_} == 1} keys %$statusesByImgName;
-  my $failCnt = grep {$$statusesByImgName{$_} == 0} keys %$statusesByImgName;
-  my $skipCnt = $totalCnt - $successCnt - $failCnt;
-  if($totalCnt == $successCnt and $failCnt == 0 and $skipCnt == 0){
-    return "\nSUCCESS: $totalCnt images handled\n";
+sub formatOverallStatus($$$){
+  my ($countSuccess, $countFailure, $countToConvert) = @_;
+  my $countUnknown = $countToConvert - $countSuccess - $countFailure;
+  if($countToConvert == $countSuccess and $countFailure == 0 and $countUnknown == 0){
+    return "\nSUCCESS: $countSuccess images handled\n";
   }else{
-    return "\nFAILURE: $successCnt/$totalCnt images handled"
-      . " ($skipCnt skipped, $failCnt failed)\n";
+    return "\nFAILURE: $countSuccess/$countToConvert images handled"
+      . " ($countUnknown unknown, $countFailure failed)\n";
   }
 }
 
