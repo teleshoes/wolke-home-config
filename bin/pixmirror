@@ -3,7 +3,7 @@
 #This is free software, released under the GPLv3
 use strict;
 use warnings;
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use IPC::Run qw(run);
 
 my $IS_THREADED = eval 'use threads; use threads::shared; 1';
@@ -490,12 +490,10 @@ sub handleImage($$$$$){
   my $destImgFile = getDestImgFile($destDir, $imgName);
   my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
-  my $parent = $destImgFile;
-  $parent =~ s/\/[^\/]*$/\//;
-
   my $info = getInfo $srcImgFile;
 
-  runCmd $opts, "mkdir", "-p", $parent;
+  #ensure parent img file dir
+  runCmd $opts, "mkdir", "-p", dirname($destImgFile);
 
   runCmd $opts, "cp", "-L", "--reflink=auto", $srcImgFile, $destImgFile;
 
@@ -549,10 +547,8 @@ sub handleImage($$$$$){
     $jpgNoRot = runJhead $opts, $destJpg, $JHEAD_MODE_NOROT;
   }
 
-  #ensure parent dir
-  my $infoDir = $destInfoFile;
-  $infoDir =~ s/[^\/]*$//;
-  runCmd $opts, "mkdir", "-p", $infoDir;
+  #ensure parent info file dir
+  runCmd $opts, "mkdir", "-p", dirname($destInfoFile);
 
   writeInfoFile $opts, $destInfoFile, $statInfo;
 
