@@ -256,10 +256,10 @@ sub syncPixDirs($$$){
   my $statusCheckpointSize = 10;
 
   if($IS_THREADED and $$opts{threadCount} > 1){
-    my %status;
+    my $statusesByImgName = {};
     my $count = 0;
     my $abort = 0;
-    share(\%status);
+    share($statusesByImgName);
     share(\$count);
     share(\$abort);
 
@@ -293,9 +293,9 @@ sub syncPixDirs($$$){
         };
 
         for my $imgName(@$chunk){
-          $status{$imgName} = 0;
+          $$statusesByImgName{$imgName} = 0;
           handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
-          $status{$imgName} = 1;
+          $$statusesByImgName{$imgName} = 1;
 
           if($abort){
             print STDERR "     thread#$threadNum: ERROR (aborting)\n";
@@ -320,9 +320,9 @@ sub syncPixDirs($$$){
     }
     print STDERR "\n\nall threads joined\n";
 
-    cleanupFailures $opts, $destDir, \%status;
+    cleanupFailures $opts, $destDir, $statusesByImgName;
 
-    print STDERR formatStatus(\%status, \@srcImgNames);
+    print STDERR formatStatus($statusesByImgName, \@srcImgNames);
   }else{
     my $count = 0;
     for my $imgName(@srcImgNames){
@@ -352,10 +352,10 @@ sub getDestInfoFile($$){
 }
 
 sub cleanupFailures($$$){
-  my ($opts, $destDir, $status) = @_;
+  my ($opts, $destDir, $statusesByImgName) = @_;
 
-  for my $imgName(keys %$status){
-    if($$status{$imgName} == 0){
+  for my $imgName(keys %$statusesByImgName){
+    if($$statusesByImgName{$imgName} == 0){
       print STDERR "\nFAILED: $imgName\n";
       my @files = (getDestImgFile($destDir, $imgName), getDestInfoFile($destDir, $imgName));
       @files = grep {-f $_} @files;
@@ -370,10 +370,10 @@ sub cleanupFailures($$$){
 }
 
 sub formatStatus($$){
-  my ($status, $srcImgNames) = @_;
+  my ($statusesByImgName, $srcImgNames) = @_;
   my $totalCnt = @$srcImgNames;
-  my $successCnt = grep {$$status{$_} == 1} keys %$status;
-  my $failCnt = grep {$$status{$_} == 0} keys %$status;
+  my $successCnt = grep {$$statusesByImgName{$_} == 1} keys %$statusesByImgName;
+  my $failCnt = grep {$$statusesByImgName{$_} == 0} keys %$statusesByImgName;
   my $skipCnt = $totalCnt - $successCnt - $failCnt;
   if($totalCnt == $successCnt and $failCnt == 0 and $skipCnt == 0){
     return "\nSUCCESS: $totalCnt images handled\n";
