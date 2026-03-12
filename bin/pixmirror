@@ -10,7 +10,7 @@ my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 
 sub syncPixDirs($$$);
 sub getSrcImgFile($$);
-sub getDestImgFile($$);
+sub getDestImgFileJpg($$);
 sub getDestInfoFile($$);
 sub cleanupFailures($$$);
 sub formatOverallStatus($$$);
@@ -255,11 +255,11 @@ sub syncPixDirs($$$){
   print "fetching cached stat info on dest:\n";
   my $destStatInfos = readMirrorDirInfos($destDir);
   for my $imgName(sort keys %$destStatInfos){
-    my $destImgFile = getDestImgFile($destDir, $imgName);
+    my $destImgFileJpg = getDestImgFileJpg($destDir, $imgName);
     my $destInfoFile = getDestInfoFile($destDir, $imgName);
     if(not checkInfo($$srcStatInfos{$imgName}, $$destStatInfos{$imgName})){
-      print "removing $destImgFile and $destInfoFile\n";
-      runCmd $opts, "rm", "$destImgFile";
+      print "removing $destImgFileJpg and $destInfoFile\n";
+      runCmd $opts, "rm", "$destImgFileJpg";
       runCmd $opts, "rm", "$destInfoFile";
     }else{
       $okImgs{$imgName} = 1;
@@ -363,7 +363,7 @@ sub getSrcImgFile($$){
   my ($srcDir, $imgName) = @_;
   return "$srcDir/$imgName";
 }
-sub getDestImgFile($$){
+sub getDestImgFileJpg($$){
   my ($destDir, $imgName) = @_;
   my ($extPrefix, $extSuffix);
   if($imgName =~ /\.(\w+)\.(\w+)$/){
@@ -384,13 +384,13 @@ sub getDestImgFile($$){
     }
   }
 
-  my $destImgFile = "$destDir/$imgName";
-  $destImgFile .= ".jpg" unless $skipJpgAppend;
+  my $destImgFileJpg = "$destDir/$imgName";
+  $destImgFileJpg .= ".jpg" unless $skipJpgAppend;
 
-  if($destImgFile !~ /^.+\.jpg$/i){
-    die "ERROR: invalid destination img file: $destImgFile\n";
+  if($destImgFileJpg !~ /^.+\.jpg$/i){
+    die "ERROR: invalid destination img file: $destImgFileJpg\n";
   }
-  return $destImgFile;
+  return $destImgFileJpg;
 }
 sub getDestInfoFile($$){
   my ($destDir, $imgName) = @_;
@@ -403,7 +403,7 @@ sub cleanupFailures($$$){
   for my $imgName(keys %$statusesByImgName){
     if($$statusesByImgName{$imgName} == 0){
       print STDERR "\nFAILED: $imgName\n";
-      my @files = (getDestImgFile($destDir, $imgName), getDestInfoFile($destDir, $imgName));
+      my @files = (getDestImgFileJpg($destDir, $imgName), getDestInfoFile($destDir, $imgName));
       @files = grep {-f $_} @files;
       if(@files == 0){
         print STDERR "  no temp files to cleanup\n";
@@ -530,15 +530,15 @@ sub handleImage($$$$$){
   my ($opts, $imgName, $srcDir, $destDir, $statInfo) = @_;
 
   my $srcImgFile = getSrcImgFile($srcDir, $imgName);
-  my $destImgFile = getDestImgFile($destDir, $imgName);
+  my $destImgFileJpg = getDestImgFileJpg($destDir, $imgName);
   my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
   my $info = getInfo $srcImgFile;
 
   #ensure parent img file dir
-  runCmd $opts, "mkdir", "-p", dirname($destImgFile);
+  runCmd $opts, "mkdir", "-p", dirname($destImgFileJpg);
 
-  runCmd $opts, "cp", "-L", "--reflink=auto", $srcImgFile, $destImgFile;
+  runCmd $opts, "cp", "-L", "--reflink=auto", $srcImgFile, $destImgFileJpg;
 
   my $isJpeg = $$info{format} =~ /JPEG/i;
   my $destJpg = undef;
@@ -547,7 +547,7 @@ sub handleImage($$$$$){
       #run jhead read-only against src img
       $destJpg = $srcImgFile;
     }else{
-      $destJpg = $destImgFile;
+      $destJpg = $destImgFileJpg;
     }
   }
 
@@ -583,7 +583,7 @@ sub handleImage($$$$$){
     );
   }
 
-  runMogrify $opts, $destImgFile, @args;
+  runMogrify $opts, $destImgFileJpg, @args;
 
   my $jpgNoRot = undef;
   if($isJpeg){
@@ -595,7 +595,7 @@ sub handleImage($$$$$){
 
   writeInfoFile $opts, $destInfoFile, $statInfo;
 
-  runCmd $opts, "touch", $destImgFile, "--reference=$srcImgFile";
+  runCmd $opts, "touch", $destImgFileJpg, "--reference=$srcImgFile";
   runCmd $opts, "touch", $destInfoFile, "--reference=$srcImgFile";
 
   my $jheadFmt = "";
