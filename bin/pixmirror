@@ -13,6 +13,7 @@ sub cleanupFailures($$$);
 sub formatStatus($$);
 sub findRelFiles($@);
 sub findImages($);
+sub readMirrorDirInfos($);
 sub runStat($);
 sub readInfoFile($);
 sub writeInfoFile($$$);
@@ -220,23 +221,23 @@ sub syncPixDirs($$$){
   my @srcImgs = findImages $srcDir;
   my $total = @srcImgs;
 
-  print "running stat on $total images:\n";
+  print "running stat on src ($total images):\n";
   my $srcStatInfos = {};
   for my $img(@srcImgs){
     $$srcStatInfos{$img} = runStat "$srcDir/$img";
   }
 
-  print "comparing existing pixmirror info to src info:\n";
-  my @destImgs = findImages $destDir;
   my %okImgs;
-  for my $img(@destImgs){
-    my $destStatInfo = readInfoFile "$destDir/pixmirror-info/$img.info";
-    if(not checkInfo($$srcStatInfos{$img}, $destStatInfo)){
-      print "removing $destDir/$img and $destDir/pixmirror-info/$img.info\n";
-      runCmd $opts, "rm", "$destDir/$img";
-      runCmd $opts, "rm", "$destDir/pixmirror-info/$img.info";
+
+  print "fetching cached stat info on dest:\n";
+  my $destStatInfos = readMirrorDirInfos($destDir);
+  for my $imgFile(sort keys %$destStatInfos){
+    if(not checkInfo($$srcStatInfos{$imgFile}, $$destStatInfos{$imgFile})){
+      print "removing $destDir/$imgFile and $destDir/pixmirror-info/$imgFile.info\n";
+      runCmd $opts, "rm", "$destDir/$imgFile";
+      runCmd $opts, "rm", "$destDir/pixmirror-info/$imgFile.info";
     }else{
-      $okImgs{$img} = 1;
+      $okImgs{$imgFile} = 1;
     }
   }
 
@@ -385,6 +386,21 @@ sub findRelFiles($@){
 sub findImages($){
   my ($dir) = @_;
   return findRelFiles($dir, @IMG_EXTS);
+}
+
+sub readMirrorDirInfos($){
+  my ($mirrorDir) = @_;
+  my @infoFiles = findRelFiles("$mirrorDir/pixmirror-info", "info");
+  my $mirrorStatInfos = {};
+  for my $infoFile(@infoFiles){
+    if($infoFile !~ /^(.+)\.info$/){
+      die "ERROR: malformed info file $infoFile\n";
+    }
+    my $imgFile = $1;
+    $$mirrorStatInfos{$imgFile} = readInfoFile "$mirrorDir/pixmirror-info/$infoFile";
+  }
+
+  return $mirrorStatInfos;
 }
 
 sub runStat($){
