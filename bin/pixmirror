@@ -360,15 +360,22 @@ sub formatStatus($$){
 }
 
 sub findImages($){
-  my $dir = shift;
-  my @findArgs = join " -or ", map {"-iname '*.$_'"} @EXTS;
-  if(not -d $dir){
-    return ();
-  }
+  my ($dir) = @_;
 
-  my @imgs = `cd $dir && find @findArgs`;
-  map {chomp} @imgs;
-  return sort @imgs;
+  my @cmd = ("find", "$dir/", "-false");
+  @cmd = (@cmd, "-or", "-iname", "*.$_") foreach @EXTS;
+
+  my @files = readProc @cmd;
+  my @okFiles;
+  for my $file(@files){
+    chomp $file;
+    if($file =~ /^$dir\/(.+)$/){
+      push @okFiles, $1;
+    }else{
+      die "ERROR: malformed find output $file\n";
+    }
+  }
+  return sort @okFiles;
 }
 
 sub runStat($){
