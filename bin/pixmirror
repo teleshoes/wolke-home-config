@@ -12,7 +12,9 @@ sub syncPixDirs($$$);
 sub cleanupFailures($$$);
 sub formatStatus($$);
 sub findImages($);
-sub statImage($);
+sub runStat($);
+sub readInfoFile($);
+sub writeInfoFile($$$);
 sub getInfo($);
 sub checkInfo($$);
 sub handleImage($$$$$);
@@ -216,14 +218,15 @@ sub syncPixDirs($$$){
   print "running stat on $total images:\n";
   my %srcStatInfos;
   for my $img(@srcImgs){
-    $srcStatInfos{$img} = statImage "$srcDir/$img";
+    $srcStatInfos{$img} = runStat "$srcDir/$img";
   }
 
   print "comparing existing pixmirror info to src info:\n";
   my @destImgs = findImages $destDir;
   my %okImgs;
   for my $img(@destImgs){
-    if(not checkInfo($srcStatInfos{$img}, "$destDir/pixmirror-info/$img.info")){
+    my $destStatInfo = readInfoFile "$destDir/pixmirror-info/$img.info";
+    if(not checkInfo($srcStatInfos{$img}, $destStatInfo)){
       print "removing $destDir/$img and $destDir/pixmirror-info/$img.info\n";
       runCmd $opts, "rm", "$destDir/$img";
       runCmd $opts, "rm", "$destDir/pixmirror-info/$img.info";
@@ -367,26 +370,45 @@ sub findImages($){
   return sort @imgs;
 }
 
-sub statImage($){
-  my $img = shift;
-  my @stat = stat $img;
-  die "failed stat on '$img'\n" if @stat != 13;
+sub runStat($){
+  my ($file) = @_;
+  my @stat = stat $file;
 
-  my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-    $atime,$mtime,$ctime,$blksize,$blocks) = @stat;
-  return "$size|$mtime\n";
+  return {
+    fsize => $stat[7],
+    mtime => $stat[9],
+  };
+}
+sub readInfoFile($){
+  my ($infoFile) = @_;
+
+  my $info = readFile $infoFile;
+  if($info =~ /^(\d+)\|(\d+)$/){
+    return {
+      fsize => $1,
+      mtime => $2,
+    };
+  }
+}
+sub writeInfoFile($$$){
+  my ($opts, $infoFile, $statInfo) = @_;
+  writeFile $opts, $infoFile, "$$statInfo{fsize}|$$statInfo{mtime}\n";
 }
 
 sub checkInfo($$){
-  my ($srcInfo, $destInfoFile) = @_;
-  if(not defined $srcInfo or not -e $destInfoFile){
+  my ($srcStatInfo, $destStatInfo) = @_;
+  if(not defined $srcStatInfo or not defined $destStatInfo){
     return 0;
   }
-
-  open FH, "< $destInfoFile\n";
-  my $destInfo = join '', <FH>;
-  close FH;
-  return $destInfo eq $srcInfo;
+  for my $field(qw(fsize mtime)){
+    if(not defined $$srcStatInfo{$field} or not defined $$destStatInfo{$field}){
+      return 0;
+    }
+    if($$srcStatInfo{$field} ne $$destStatInfo{$field}){
+      return 0;
+    }
+  }
+  return 1;
 }
 
 sub getInfo($){
@@ -473,7 +495,7 @@ sub handleImage($$$$$){
   $infoDir =~ s/[^\/]*$//;
   runCmd $opts, "mkdir", "-p", $infoDir;
 
-  writeFile $opts, "$destDir/pixmirror-info/$img.info", $statInfo;
+  writeInfoFile $opts, "$destDir/pixmirror-info/$img.info", $statInfo;
 
   runCmd $opts, "touch", "$destDir/$img", "--reference=$srcDir/$img";
   runCmd $opts, "touch", "$destDir/pixmirror-info/$img.info", "--reference=$srcDir/$img";
