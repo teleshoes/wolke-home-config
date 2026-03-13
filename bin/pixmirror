@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename dirname);
 use IPC::Run qw(run);
+use Time::HiRes qw(time);
 
 my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 
@@ -24,6 +25,7 @@ sub getIdentifyImgInfo($);
 sub checkInfo($$);
 sub handleImage($$$$$);
 sub runJhead($$$);
+sub getTmpFile($$$);
 sub getNewPix($);
 sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
@@ -33,6 +35,7 @@ sub writeFile($$$);
 sub readProc(@);
 sub runCmd($@);
 sub ipcRunCmd($@);
+sub nowMillis();
 
 my $EXEC = basename $0;
 
@@ -693,6 +696,19 @@ sub runJhead($$$){
   }
 }
 
+sub getTmpFile($$$){
+  my ($tmpDir, $description, $suffix) = @_;
+
+  my $nameFmt = $description;
+  $nameFmt =~ s/\.($REGEX_IMG_EXTS)$//;
+  $nameFmt =~ s/\W+/_/g;
+  $nameFmt =~ s/__+/_/g;
+  $nameFmt =~ s/^_//g;
+  $nameFmt =~ s/_$//g;
+
+  return "$tmpDir/tmp-" . nowMillis() . "-$nameFmt" . $suffix;
+}
+
 sub isOrientMatch($$$$){
   my ($x1, $y1, $x2, $y2) = @_;
   my $orient1 = $x1 > $y1 ? "landscape" : "portrait";
@@ -777,6 +793,10 @@ sub ipcRunCmd($@){
     my $success = run [@cmd], '>', \$out, '2>', \$err;
     return {out=>$out, err=>$err, success=>$success};
   }
+}
+
+sub nowMillis(){
+  return int(time*1000.0 + 0.5);
 }
 
 &main(@ARGV);
