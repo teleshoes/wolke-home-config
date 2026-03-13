@@ -24,12 +24,11 @@ sub writeInfoFile($$$);
 sub getIdentifyImgInfo($);
 sub checkInfo($$);
 sub handleImage($$$$$);
-sub runJhead($$$);
 sub getTmpFile($$$);
 sub getNewPix($);
 sub isOrientMatch($$$$);
 sub getResizePercent($$$$);
-sub runMogrify($$@);
+sub runConvert($$$@);
 sub readFile($);
 sub writeFile($$$);
 sub readProc(@);
@@ -39,9 +38,9 @@ sub nowMillis();
 
 my $EXEC = basename $0;
 
-my $EXEC_MOGRIFY = 'mogrify';
+my $EXEC_CONVERT = 'convert';
 my $EXEC_IDENTIFY = 'identify';
-my $EXEC_JHEAD = 'jhead';
+my $EXEC_EXIFTRAN = 'exiftran';
 
 my @IMG_EXTS = qw(jpg jpeg png);
 my $REGEX_IMG_EXTS = join "|", @IMG_EXTS;
@@ -51,16 +50,13 @@ my $DEFAULT_MAX_THREADS = 4;
 my $DEFAULT_TARGET_W = 1920;
 my $DEFAULT_TARGET_H = 1080;
 
-my $JHEAD_MODE_AUTOROT = "-autorot";
-my $JHEAD_MODE_NOROT = "-norot";
-
 my $DEFAULT_PAD_COLOR = "black";
 my $DEFAULT_PAD_GRAVITY = "center";
 
 my $SHARPEN_SIZE_PCT_THRESHOLD = 90;
 my $UNSHARP_ARG = "0x0.5";
 
-my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_MOGRIFY -list gravity 2>/dev/null`;
+my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_CONVERT -list gravity 2>/dev/null`;
 
 my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -79,7 +75,7 @@ my $USAGE = "Usage:
       $SHARPEN_SIZE_PCT_THRESHOLD\%, pixmirror runs '-unsharp $UNSHARP_ARG'
       after resizing to slightly sharpen the image.
 
-    Destination images are auto-rotated from EXIF metadata using '$EXEC_JHEAD'
+    Destination images are auto-rotated from EXIF metadata using '$EXEC_EXIFTRAN'
 
     If the source image file ends in '.jpg' (case-insensitive),
       and that suffix is not preceded by '.<EXT>' (case-insensitive) for any <EXT>
@@ -109,25 +105,27 @@ my $USAGE = "Usage:
     -n | -s | --dry-run | --no-act | --simulate | --read-only
       perform a dry-run of sync without making any changes
       -do NOT write any changes to the filesystem
-        -do not copy images with `cp`
-        -do not auto-rotate images with `$EXEC_JHEAD`
-        -do not convert images with `$EXEC_MOGRIFY`
+        -do not auto-rotate images with `$EXEC_EXIFTRAN`
+        -do not convert images with `$EXEC_CONVERT`
         -do not write info files
         -do not create any directories
+        -do not create or cleanup any temp files
       -DO perform read-only actions
         -print all skipped commands as they would be run
         -read image format, geometry, and EXIF orientation with $EXEC_IDENTIFY
-        -do run jhead in read-only mode to simulate rotation/exif editing
+        -calculate target size, respecting --orient and --rotate, and EXIF orientation
+          (behave as if EXIF auto rotation occurred)
 
     --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
       target width and height in pixels {or height and width if src y>x}
 
     --orient  --no-orient          {default is --no-orient}
       optionally swap <TARGET_W> and <TARGET_H> to match orientation of image,
-        after and in addition to EXIF auto-rotating with $EXEC_JHEAD
+        after and in addition to EXIF auto-rotating with $EXEC_EXIFTRAN
       NOTE: does not further rotate the image, only adjusts the <TARGET_W> and <TARGET_H>
+
       for each image:
-        -get the <SRC_W> and <SRC_H> after auto-rotating with $EXEC_JHEAD
+        -get the <SRC_W> and <SRC_H>, respecting EXIF orientation (i.e.: swapped if 5,6,7,8)
         -caclulate <SRC_ORIENT>:  'landscape' if SRC_W > SRC_H, 'portrait' otherwise
         -caclulate <TARGET_ORIENT>:  'landscape' if TARGET_W > TARGET_H, 'portrait' otherwise
         -if <SRC_ORIENT> is not the same as <TARGET_ORIENT>
@@ -145,11 +143,11 @@ my $USAGE = "Usage:
     --rotate  --no-rotate          {default is --no-rotate}
       rotate destination images 90 degrees if necessary,
         in order to match the orientation of <TARGET_W>x<TARGET_H>,
-        after and in addition to EXIF auto-rotating with $EXEC_JHEAD
+        after and in addition to EXIF auto-rotating with $EXEC_EXIFTRAN
       NOTE: actually rotates the destination image data, preserving <TARGET_W> and <TARGET_H>
 
       for each image:
-        -get the <SRC_W> and <SRC_H> after auto-rotating with $EXEC_JHEAD
+        -get the <SRC_W> and <SRC_H>, respecting EXIF orientation (i.e.: swapped if 5,6,7,8)
         -caclulate <SRC_ORIENT>:  'landscape' if SRC_W > SRC_H, 'portrait' otherwise
         -caclulate <TARGET_ORIENT>:  'landscape' if TARGET_W > TARGET_H, 'portrait' otherwise
         -if <SRC_ORIENT> is not the same as <TARGET_ORIENT>
@@ -259,8 +257,8 @@ sub syncPixDirs($$$){
     die "dest '$destDir' is not a directory" if not -d $destDir;
   }
 
-  system "which $EXEC_MOGRIFY > /dev/null";
-  die "Could not exec $EXEC_MOGRIFY\n" if $? != 0;
+  system "which $EXEC_CONVERT > /dev/null";
+  die "Could not exec $EXEC_CONVERT\n" if $? != 0;
   system "which $EXEC_IDENTIFY > /dev/null";
   die "Could not exec $EXEC_IDENTIFY\n" if $? != 0;
 
@@ -563,31 +561,35 @@ sub handleImage($$$$$){
   my $destImgFileJpg = getDestImgFileJpg($destDir, $imgName);
   my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
-  my $info = getIdentifyImgInfo $srcImgFile;
+  my $identifyImgInfo = getIdentifyImgInfo $srcImgFile;
+  my $isJpeg = $$identifyImgInfo{format} =~ /JPEG/i;
+  my $exifOrient = $$identifyImgInfo{exifOrient};
+  my ($srcW, $srcH) = ($$identifyImgInfo{width}, $$identifyImgInfo{height});
 
-  #ensure parent img file dir
-  runCmd $opts, "mkdir", "-p", dirname($destImgFileJpg);
+  my $exifRotated = 0;
+  my $exifAspectSwapped = 0;
 
-  runCmd $opts, "cp", "-L", "--reflink=auto", $srcImgFile, $destImgFileJpg;
+  my $inputImgFile;
+  my $tmpFile = undef;
+  if($isJpeg and defined $exifOrient and $exifOrient =~ /^(2|3|4|5|6|7|8)$/){
+    #img is exif-rotated
+    #  use exiftran to auto-rotate img data losslessly and remove exif orient tag
+    $tmpFile = getTmpFile("$destDir/pixmirror-tmp", $imgName, ".jpg");
+    runCmd $opts, "mkdir", "-p", dirname($tmpFile);
+    runCmd $opts, $EXEC_EXIFTRAN, "-a", $srcImgFile, "-o", $tmpFile;
 
-  my $isJpeg = $$info{format} =~ /JPEG/i;
-  my $destJpg = undef;
-  if($isJpeg){
-    if($$opts{simulate}){
-      #run jhead read-only against src img
-      $destJpg = $srcImgFile;
-    }else{
-      $destJpg = $destImgFileJpg;
+    $exifRotated = 1;
+    if($exifOrient =~ /^(5|6|7|8)$/){
+      ($srcW, $srcH) = ($srcH, $srcW);
+      $exifAspectSwapped = 1;
     }
+
+    $inputImgFile = $tmpFile;
+  }else{
+    $inputImgFile = $srcImgFile;
   }
 
-  my $jpgAutoRot = undef;
-  if($isJpeg){
-    $jpgAutoRot = runJhead $opts, $destJpg, $JHEAD_MODE_AUTOROT;
-    $info = getIdentifyImgInfo $destJpg;
-  }
-
-  my ($oldW, $oldH) = ($$info{width}, $$info{height});
+  my ($oldW, $oldH) = ($srcW, $srcH);
   my ($newW, $newH) = ($$opts{targetW}, $$opts{targetH});
 
   my @args;
@@ -613,11 +615,13 @@ sub handleImage($$$$$){
     );
   }
 
-  runMogrify $opts, $destImgFileJpg, @args;
+  #ensure parent img file dir
+  runCmd $opts, "mkdir", "-p", dirname($destImgFileJpg);
 
-  my $jpgNoRot = undef;
-  if($isJpeg){
-    $jpgNoRot = runJhead $opts, $destJpg, $JHEAD_MODE_NOROT;
+  runConvert $opts, $inputImgFile, $destImgFileJpg, @args;
+
+  if(defined $tmpFile){
+    runCmd $opts, "rm", $tmpFile;
   }
 
   #ensure parent info file dir
@@ -628,74 +632,17 @@ sub handleImage($$$$$){
   runCmd $opts, "touch", $destImgFileJpg, "--reference=$srcImgFile";
   runCmd $opts, "touch", $destInfoFile, "--reference=$srcImgFile";
 
-  my $jheadFmt = "";
-  if($isJpeg){
-    $jheadFmt .= "?mod"    if $$jpgAutoRot{isModified}      or $$jpgNoRot{isModified};
-    $jheadFmt .= "?orient" if $$jpgAutoRot{isErrExifOrient} or $$jpgNoRot{isErrExifOrient};
-    $jheadFmt .= "?subdir" if $$jpgAutoRot{isErrExifSubdir} or $$jpgNoRot{isErrExifSubdir};
-  }
-
-  my $fmt = sprintf "ok|%-20s| %s\n", $jheadFmt, $imgName;
-  print $fmt;
-}
-
-sub runJhead($$$){
-  my ($opts, $file, $jheadMode) = @_;
-
-  my @jheadCmd;
-  if($$opts{simulate}){
-    @jheadCmd = ();
+  my $exifRotateFmt;
+  if($exifRotated and $exifAspectSwapped){
+    $exifRotateFmt = "?exifTranspose";
+  }elsif($exifRotated){
+    $exifRotateFmt = "?exifRotate";
   }else{
-    @jheadCmd = ($jheadMode);
+    $exifRotateFmt = "";
   }
 
-  my $res = ipcRunCmd {simulate=>0}, $EXEC_JHEAD, @jheadCmd, $file;
-
-  my $isModified = 0;
-  my $isErrExifOrient = 0;
-  my $isErrExifSubdir = 0;
-
-  if($$opts{simulate}){
-    my $orient = "";
-    if($$res{out} =~ /Orientation\s*:\s*(.+)/){
-      $orient = $1;
-    }
-    if($orient =~ /rotate (\d+)/){
-      my $degrees = $1;
-      $isModified = 1;
-      if($jheadMode eq $JHEAD_MODE_AUTOROT){
-        print "#jhead rotate img data $degrees => 0: $file\n";
-      }
-      print "#jhead delete orient=$degrees: $file\n";
-    }
-    $$res{out} = "";
-    $$res{err} = "";
-  }
-
-  for my $line(split /\n/, $$res{out}){
-    next if $line =~ /^\s*$/;
-    if($line =~ /^Modified: \Q$file\E$/){
-      $isModified = 1;
-    }else{
-      print "$line\n";
-    }
-  }
-  for my $line(split /\n/, $$res{err}){
-    next if $line =~ /^\s*$/;
-    if($line =~ /^Nonfatal Error : '\Q$file\E' Unknown orientation tag$/){
-      $isErrExifOrient = 1;
-    }elsif($line =~ /^Nonfatal Error : '\Q$file\E' Illegal subdirectory link in Exif header$/){
-      $isErrExifSubdir = 1;
-    }else{
-      print STDERR "$line\n";
-    }
-  }
-
-  return {
-    isModified        => $isModified,
-    isErrExifOrient => $isErrExifOrient,
-    isErrExifSubdir => $isErrExifSubdir,
-  }
+  my $fmt = sprintf "ok|%-15s| %s\n", $exifRotateFmt, $imgName;
+  print $fmt;
 }
 
 sub getTmpFile($$$){
@@ -731,11 +678,11 @@ sub getResizePercent($$$$){
   return $percent;
 }
 
-sub runMogrify($$@){
-  my ($opts, $file, @args) = @_;
+sub runConvert($$$@){
+  my ($opts, $inputFile, $outputFile, @args) = @_;
 
-  runCmd $opts, $EXEC_MOGRIFY, @args, $file;
-  die "failed to run mogrify on $file {@args}\n" if $? != 0;
+  runCmd $opts, $EXEC_CONVERT, $inputFile, @args, $outputFile;
+  die "failed to run convert on $inputFile {@args}\n" if $? != 0;
 }
 
 sub readFile($){
