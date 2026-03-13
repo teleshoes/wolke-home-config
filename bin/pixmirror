@@ -45,8 +45,8 @@ my $REGEX_IMG_EXTS = join "|", @IMG_EXTS;
 
 my $DEFAULT_MAX_THREADS = 4;
 
-my $DEFAULT_TARGET_X = 1920;
-my $DEFAULT_TARGET_Y = 1080;
+my $DEFAULT_TARGET_W = 1920;
+my $DEFAULT_TARGET_H = 1080;
 
 my $JHEAD_MODE_AUTOROT = "-autorot";
 my $JHEAD_MODE_NOROT = "-norot";
@@ -62,7 +62,7 @@ my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_MOGRIFY -list gravity 2>/dev/null
 my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
     Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
-      resized to fit <TARGET_X>x<TARGET_Y>, preserving original aspect ratios,
+      resized to fit <TARGET_W>x<TARGET_H>, preserving original aspect ratios,
       converted to JPEG format.
 
     The original filesize and modified timestamp are recorded for each file
@@ -115,17 +115,17 @@ my $USAGE = "Usage:
         -do print all commands
         -do run jhead in read-only mode to simulate rotation/exif editing
 
-    --size=<TARGET_X>x<TARGET_Y>   {default is ${DEFAULT_TARGET_X}x${DEFAULT_TARGET_Y}}
+    --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
       target width and height in pixels {or height and width if src y>x}
 
     --orient  --no-orient          {default is --no-orient}
-      optionally swap <TARGET_X> and <TARGET_Y> to match orientation of image
+      optionally swap <TARGET_W> and <TARGET_H> to match orientation of image
       NOTE: does not rotate the image, simply adjusts the target size
       for each image:
-        if <TARGET_X> is larger than <TARGET_Y> (landscape),
+        if <TARGET_W> is larger than <TARGET_H> (landscape),
           but the source image has Y >= X (portrait),
           or vice-versa,
-        then: swap <TARGET_X> and <TARGET_Y> for that image
+        then: swap <TARGET_W> and <TARGET_H> for that image
       e.g.:
         rm -rf src/ destOrient/ destNoOrient/
         mkdir src/
@@ -142,7 +142,7 @@ my $USAGE = "Usage:
       This is done after '$EXEC_JHEAD' auto-rotation
 
     --pad  --no-pad                {default is --no-pad}
-      Produce images that are exactly <TARGET_X>x<TARGET_Y> by padding
+      Produce images that are exactly <TARGET_W>x<TARGET_H> by padding
         with a solid black border on top/bottom or left/right.
 
     --pad-color=<COLOR>            {default is $DEFAULT_PAD_COLOR}
@@ -170,8 +170,8 @@ sub main(@){
   my $opts = {
     simulate    => 0,
 
-    targetX     => $DEFAULT_TARGET_X,
-    targetY     => $DEFAULT_TARGET_Y,
+    targetW     => $DEFAULT_TARGET_W,
+    targetH     => $DEFAULT_TARGET_H,
 
     orientSwap  => 0,
     rotate      => 0,
@@ -186,8 +186,8 @@ sub main(@){
     if($arg =~ /^(-n|-s|--dry-run|--no-act|--simulate|--read-only)$/){
       $$opts{simulate} = 1;
     }elsif($arg =~ /^--size=(\d+)x(\d+)$/){
-      $$opts{targetX} = $1+0;
-      $$opts{targetY} = $2+0;
+      $$opts{targetW} = $1+0;
+      $$opts{targetH} = $2+0;
     }elsif($arg =~ /^--orient$/){
       $$opts{orientSwap} = 1;
     }elsif($arg =~ /^--no-orient$/){
@@ -513,17 +513,17 @@ sub getInfo($){
   my $file = shift;
   $file =~ s/'/'\\''/g;
   my $info = `identify -verbose '$file'`;
-  my ($format, $x, $y);
+  my ($format, $width, $height);
   if($info =~ /^\s*Format: (\w+)/m){
     $format = $1;
   }
   if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
-    ($x, $y) = ($1, $2);
+    ($width, $height) = ($1, $2);
   }
-  if(not defined $format or not defined $x or not defined $y){
+  if(not defined $format or not defined $width or not defined $height){
     die "Error getting geometry/format using imagemagick: identify $file\n";
   }
-  return {format=>$format, x=>$x, y=>$y};
+  return {format=>$format, width=>$width, height=>$height};
 }
 
 sub handleImage($$$$$){
@@ -557,18 +557,18 @@ sub handleImage($$$$$){
     $info = getInfo $destJpg;
   }
 
-  my ($oldX, $oldY) = ($$info{x}, $$info{y});
-  my ($newX, $newY) = ($$opts{targetX}, $$opts{targetY});
+  my ($oldW, $oldH) = ($$info{width}, $$info{height});
+  my ($newW, $newH) = ($$opts{targetW}, $$opts{targetH});
 
   my @args;
-  if($$opts{rotate} and not isOrientMatch $oldX, $oldY, $newX, $newY){
+  if($$opts{rotate} and not isOrientMatch $oldW, $oldH, $newW, $newH){
     @args = (@args, "-rotate", 90);
-    ($oldX, $oldY) = ($oldY, $oldX);
-  }elsif($$opts{orientSwap} and not isOrientMatch $oldX, $oldY, $newX, $newY){
-    ($newX, $newY) = ($newY, $newX);
+    ($oldW, $oldH) = ($oldH, $oldW);
+  }elsif($$opts{orientSwap} and not isOrientMatch $oldW, $oldH, $newW, $newH){
+    ($newW, $newH) = ($newH, $newW);
   }
 
-  my $percent = getResizePercent $newX, $newY, $oldX, $oldY;
+  my $percent = getResizePercent $newW, $newH, $oldW, $oldH;
   @args = (@args, "-resize", "$percent%");
 
   if($percent < $SHARPEN_SIZE_PCT_THRESHOLD){
@@ -579,7 +579,7 @@ sub handleImage($$$$$){
     @args = (@args,
       "-gravity", $$opts{padGravity},
       "-background", $$opts{padColor},
-      "-extent", "${newX}x${newY}",
+      "-extent", "${newW}x${newH}",
     );
   }
 
@@ -676,11 +676,11 @@ sub isOrientMatch($$$$){
 }
 
 sub getResizePercent($$$$){
-  my ($newX, $newY, $oldX, $oldY) = @_;
+  my ($newW, $newH, $oldW, $oldH) = @_;
   my $ratio;
 
-  my $ratio1 = $newX / $oldX;
-  my $ratio2 = $newY / $oldY;
+  my $ratio1 = $newW / $oldW;
+  my $ratio2 = $newH / $oldH;
   $ratio = $ratio1 < $ratio2 ? $ratio1 : $ratio2;
 
   my $percent = sprintf '%.5f', $ratio*100;
