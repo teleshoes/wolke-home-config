@@ -116,7 +116,7 @@ my $USAGE = "Usage:
         -do not create any directories
       -DO perform read-only actions
         -print all skipped commands as they would be run
-        -read image format and geometry with $EXEC_IDENTIFY
+        -read image format, geometry, and EXIF orientation with $EXEC_IDENTIFY
         -do run jhead in read-only mode to simulate rotation/exif editing
 
     --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
@@ -536,18 +536,20 @@ sub checkInfo($$){
 sub getIdentifyImgInfo($){
   my ($file) = @_;
   my $res = ipcRunCmd {simulate => 0}, $EXEC_IDENTIFY,
-    "-format", ":%w:%h:%m:",
+    "-format", ":%w:%h:%m:%[exif:orientation]:",
     $file,
   ;
   my $err = $$res{err};
+  $err =~ s/^identify: unknown image property "\%\[exif:orientation\]".*\n*//mg;
   print STDERR $err;
 
   my $out = $$res{out};
-  if($out =~ /^:(\d+):(\d+):(\w+):$/){
+  if($out =~ /^:(\d+):(\d+):(\w+):(\d*):$/){
     return {
       width      => $1,
       height     => $2,
       format     => $3,
+      exifOrient => $4,
     };
   }else{
     die "ERROR: malformed `identify` output for $file:\n$out\n";
