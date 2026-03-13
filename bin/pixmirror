@@ -510,20 +510,24 @@ sub checkInfo($$){
 }
 
 sub getInfo($){
-  my $file = shift;
-  $file =~ s/'/'\\''/g;
-  my $info = `identify -verbose '$file'`;
-  my ($format, $width, $height);
-  if($info =~ /^\s*Format: (\w+)/m){
-    $format = $1;
+  my ($file) = @_;
+  my $res = ipcRunCmd {simulate => 0}, $EXEC_IDENTIFY,
+    "-format", ":%w:%h:%m:",
+    $file,
+  ;
+  my $err = $$res{err};
+  print STDERR $err;
+
+  my $out = $$res{out};
+  if($out =~ /^:(\d+):(\d+):(\w+):$/){
+    return {
+      width      => $1,
+      height     => $2,
+      format     => $3,
+    };
+  }else{
+    die "ERROR: malformed `identify` output for $file:\n$out\n";
   }
-  if($info =~ /^\s*Geometry: (\d+)x(\d+)/m){
-    ($width, $height) = ($1, $2);
-  }
-  if(not defined $format or not defined $width or not defined $height){
-    die "Error getting geometry/format using imagemagick: identify $file\n";
-  }
-  return {format=>$format, width=>$width, height=>$height};
 }
 
 sub handleImage($$$$$){
