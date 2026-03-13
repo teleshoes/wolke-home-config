@@ -106,26 +106,29 @@ my $USAGE = "Usage:
     -n | -s | --dry-run | --no-act | --simulate | --read-only
       perform a dry-run of sync without making any changes
       -do NOT write any changes to the filesystem
-        -do not copy or edit images with `cp` + `$EXEC_MOGRIFY` + `$EXEC_JHEAD`
+        -do not copy images with `cp`
+        -do not auto-rotate images with `$EXEC_JHEAD`
+        -do not convert images with `$EXEC_MOGRIFY`
         -do not write info files
         -do not create any directories
       -DO perform read-only actions
-        -do read image info
-        -do calculate target size, etc
-        -do print all commands
+        -print all skipped commands as they would be run
+        -read image format and geometry with $EXEC_IDENTIFY
         -do run jhead in read-only mode to simulate rotation/exif editing
 
     --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
       target width and height in pixels {or height and width if src y>x}
 
     --orient  --no-orient          {default is --no-orient}
-      optionally swap <TARGET_W> and <TARGET_H> to match orientation of image
-      NOTE: does not rotate the image, simply adjusts the target size
+      optionally swap <TARGET_W> and <TARGET_H> to match orientation of image,
+        after and in addition to EXIF auto-rotating with $EXEC_JHEAD
+      NOTE: does not further rotate the image, only adjusts the <TARGET_W> and <TARGET_H>
       for each image:
-        if <TARGET_W> is larger than <TARGET_H> (landscape),
-          but the source image has Y >= X (portrait),
-          or vice-versa,
-        then: swap <TARGET_W> and <TARGET_H> for that image
+        -get the <SRC_W> and <SRC_H> after auto-rotating with $EXEC_JHEAD
+        -caclulate <SRC_ORIENT>:  'landscape' if SRC_W > SRC_H, 'portrait' otherwise
+        -caclulate <TARGET_ORIENT>:  'landscape' if TARGET_W > TARGET_H, 'portrait' otherwise
+        -if <SRC_ORIENT> is not the same as <TARGET_ORIENT>
+          -swap <TARGET_W> and <TARGET_H> values for this image
       e.g.:
         rm -rf src/ destOrient/ destNoOrient/
         mkdir src/
@@ -133,13 +136,31 @@ my $USAGE = "Usage:
         $EXEC --orient    --size=1920x1080 src/ destOrient/
         $EXEC --no-orient --size=1920x1080 src/ destNoOrient/
         #pix dest*/empty-portrait.jpg
-        #1080x1920 destOrient/empty-portrait.jpg
         #608x1080 destNoOrient/empty-portrait.jpg
+        #1080x1920 destOrient/empty-portrait.jpg
 
     --rotate  --no-rotate          {default is --no-rotate}
-      Implies --orient. Instead of just scaling like --orient,
-        actually rotate 90 degress clockwise if the orientations do not match.
-      This is done after '$EXEC_JHEAD' auto-rotation
+      rotate destination images 90 degrees if necessary,
+        in order to match the orientation of <TARGET_W>x<TARGET_H>,
+        after and in addition to EXIF auto-rotating with $EXEC_JHEAD
+      NOTE: actually rotates the destination image data, preserving <TARGET_W> and <TARGET_H>
+
+      for each image:
+        -get the <SRC_W> and <SRC_H> after auto-rotating with $EXEC_JHEAD
+        -caclulate <SRC_ORIENT>:  'landscape' if SRC_W > SRC_H, 'portrait' otherwise
+        -caclulate <TARGET_ORIENT>:  'landscape' if TARGET_W > TARGET_H, 'portrait' otherwise
+        -if <SRC_ORIENT> is not the same as <TARGET_ORIENT>
+          -swap <SRC_W> and <SRC_H> for calculation against <TARGET_W> and <TARGET_H>
+          -rotate the image 90 degrees clockwise while
+      e.g.:
+        rm -rf src/ destOrient/ destNoOrient/
+        mkdir src/
+        convert -size 2160x3840 xc:red src/empty-portrait.jpg
+        $EXEC --rotate    --size=1920x1080 src/ destRotate/
+        $EXEC --no-rotate --size=1920x1080 src/ destNoRotate/
+        #pix dest*/empty-portrait.jpg
+        #608x1080 destNoRotate/empty-portrait.jpg
+        #1920x1080 destRotate/empty-portrait.jpg
 
     --pad  --no-pad                {default is --no-pad}
       Produce images that are exactly <TARGET_W>x<TARGET_H> by padding
