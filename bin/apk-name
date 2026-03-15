@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 sub renameApk($$);
+sub readProc(@);
 
 my $usage = "Usage:
   $0 -h|--help
@@ -53,7 +54,7 @@ sub main(@){
 
 sub renameApk($$){
   my ($appShortName, $apkFile) = @_;
-  my @aaptLines = `aapt dump badging "$apkFile"`;
+  my @aaptLines = readProc "aapt", "dump", "badging", $apkFile;
   my %info;
   for my $line(@aaptLines){
     $info{name} = $1    if $line =~ /^package:.*\sname=['"]([^'"]+)['"]/;
@@ -91,6 +92,18 @@ sub renameApk($$){
   print "@cmd\n";
   system @cmd;
   die "ERROR: error running @cmd\n" if $? != 0;
+}
+
+sub readProc(@){
+  my @cmd = @_;
+  open my $cmdH, "-|", @cmd or die "ERROR: @cmd failed\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join("", @lines);
+  }
 }
 
 &main(@ARGV);
