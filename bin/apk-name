@@ -35,8 +35,8 @@ sub main(@){
     if($appShortName !~ /^[a-zA-Z0-9]+$/){
       die "$usage\nERROR: APP_SHORT_NAME can only contain letters or numbers\n"
     }
-    if(not -f $apkFile or $apkFile !~ /\.apk/i){
-      die "$usage\nERROR: $apkFile must exist and end in .apk\n";
+    if(not -f $apkFile or $apkFile !~ /\.(apk|xapk)/i){
+      die "$usage\nERROR: $apkFile must exist and end in .apk/.xapk\n";
     }
 
     renameApk $appShortName, $apkFile;
@@ -45,7 +45,7 @@ sub main(@){
       die "ERROR: $apkFile is not a file\n" if not -f $apkFile;
       my $fileName = $apkFile;
       $fileName =~ s/^.*\///;
-      if($fileName !~ /^([a-zA-Z][a-zA-Z0-9]{2,}).*\.x?apk$/i){
+      if($fileName !~ /^([a-zA-Z][a-zA-Z0-9]{2,}).*\.(apk|xapk)$/i){
         die "ERROR: could not extract app short name from $apkFile\n";
       }
       my $appShortName = $1;
@@ -62,7 +62,11 @@ sub renameApk($$){
   if($apkFile =~ /\.(xapk)$/i){
     $tmpDir = "/tmp/apk-name-split-" . nowMillis();
     run "unzip", "-qq", "-d", $tmpDir, $apkFile;
-    my @apks = grep {$_ !~ /^(.*\/)?config[^\/]*.apk$/} grep {-f $_} glob "$tmpDir/*.apk";
+    my @apks =
+      grep {$_ !~ /^(.*\/)?config[^\/]*.apk$/}
+      grep {$_ !~ /^(.*\/)?split_config[^\/]*.apk$/}
+      grep {-f $_}
+      glob "$tmpDir/*.apk";
     if(@apks == 1){
       @aaptLines = readProc "aapt", "dump", "badging", $apks[0];
     }else{
@@ -95,13 +99,13 @@ sub renameApk($$){
 
   my $newApkFileName = "${appShortName}_$info{name}_$info{version}";
 
-  if($apkFile !~ /^(.*\/)?([^\/]+)(\.x?apk)$/i){
+  if($apkFile !~ /^(.*\/)?([^\/]+)(apk|xapk)$/i){
     die "ERROR: could not parse old APK filename\n";
   }
   my ($dir, $oldApkFileName, $ext) = ($1, $2, $3);
   $dir = "" if not defined $dir;
 
-  my $newApkFile = $dir . $newApkFileName . lc($ext);
+  my $newApkFile = $dir . $newApkFileName . "." . lc($ext);
 
   if($apkFile eq $newApkFile){
     print "apk file already named $newApkFile\n";
