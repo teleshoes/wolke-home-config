@@ -4,6 +4,7 @@ use warnings;
 use Time::HiRes qw(time);
 
 sub renameApk($$);
+sub isZip($);
 sub run(@);
 sub readProc(@);
 sub nowMillis();
@@ -45,7 +46,7 @@ sub main(@){
       die "ERROR: $apkFile is not a file\n" if not -f $apkFile;
       my $fileName = $apkFile;
       $fileName =~ s/^.*\///;
-      if($fileName !~ /^([a-zA-Z][a-zA-Z0-9]{2,}).*\.apk$/i){
+      if($fileName !~ /^([a-zA-Z][a-zA-Z0-9]{2,}).*\.x?apk$/i){
         die "ERROR: could not extract app short name from $apkFile\n";
       }
       my $appShortName = $1;
@@ -57,7 +58,22 @@ sub main(@){
 
 sub renameApk($$){
   my ($appShortName, $apkFile) = @_;
-  my @aaptLines = readProc "aapt", "dump", "badging", $apkFile;
+  my @aaptLines;
+  my $tmpDir = "/tmp/apk-name-split-" . nowMillis();
+  if(isZip($apkFile)){
+    run "unzip", "-qq", "-d", $tmpDir, $apkFile;
+    my @apks = grep {$_ !~ /^(.*\/)?config[^\/]*.apk$/} grep {-f $_} glob "$tmpDir/*.apk";
+    if(@apks == 1){
+      @aaptLines = readProc "aapt", "dump", "badging", $apks[0];
+    }else{
+      run "rm", "-rf", "$tmpDir/";
+      die "ERROR: could not extract target apk from XAPK $apkFile\n";
+    }
+  }else{
+    @aaptLines = readProc "aapt", "dump", "badging", $apkFile;
+  }
+  run "rm", "-rf", "$tmpDir/";
+
   my %info;
   for my $line(@aaptLines){
     $info{name} = $1    if $line =~ /^package:.*\sname=['"]([^'"]+)['"]/;
@@ -78,7 +94,7 @@ sub renameApk($$){
   my $newApkFileName = "${appShortName}_$info{name}_$info{version}.apk";
 
   my $newApkFile = $apkFile;
-  if($newApkFile !~ s/(^|.*\/)([^\/]+\.apk)$/$1$newApkFileName/i){
+  if($newApkFile !~ s/(^|.*\/)([^\/]+)(\.x?apk)$/$1$newApkFileName$3/i){
     die "ERROR: could not generate new apk file path\n";
   }
 
@@ -95,6 +111,16 @@ sub renameApk($$){
   print "@cmd\n";
   system @cmd;
   die "ERROR: error running @cmd\n" if $? != 0;
+}
+
+sub isZip($){
+  my ($file) = @_;
+  my $mime = readProc "file", "--brief", "--mime-type", $file;
+  if($mime =~ /^(application\/zip)$/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub run(@){
