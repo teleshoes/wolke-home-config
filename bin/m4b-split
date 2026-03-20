@@ -89,17 +89,29 @@ sub getConvertCmds($@){
   my ($inputFile, @outputs) = @_;
 
   my @cmds;
+
+  my @cmdPrefix = ("ffmpeg",
+    "-bitexact",
+    "-i", $inputFile,
+  );
+
+  my $curCmd = undef;
   for my $output(@outputs){
-    push @cmds, ["ffmpeg",
-      "-bitexact",
-      "-i", $inputFile,
+    if(not defined $curCmd){
+      $curCmd = [@cmdPrefix];
+      push @cmds, $curCmd;
+    }
+
+    my @outputArgs = (
       "-c:a", "copy",
       "-vn",
       "-ss", $$output{startTime},
       "-to", $$output{endTime},
       "-bitexact",
       $$output{destFile},
-    ];
+    );
+
+    push @$curCmd, $_ foreach @outputArgs;
   }
 
   return @cmds;
