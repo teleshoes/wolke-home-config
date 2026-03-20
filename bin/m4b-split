@@ -34,6 +34,25 @@ my $USAGE = "Usage:
       -same as: --chunk-size=CHUNK_SIZE
         (the default is --chunk-percent=$DEFAULT_CHUNK_PERCENT)
 
+    --ffmpeg-default
+      -same as: --chunk-percent=$DEFAULT_CHUNK_PERCENT
+        -this is the default
+        -$DEFAULT_CHUNK_PERCENT% of files handled by each ffmpeg command
+        -M4B is redundantly decoded, but only up to "
+          . ceil(100.0/$DEFAULT_CHUNK_PERCENT) . "x in total
+        -M4A files are fully finished in batches of $DEFAULT_CHUNK_PERCENT% chapters
+
+    --ffmpeg-multi
+      same as: --chunk-size=0
+        -a single, possibly very long, ffmpeg cmd handles all chapters at once
+        -M4B file is decoded exactly once, writing the data to each output as it goes
+        -M4A files are not finished until the end, when all of the decoded data is written
+
+    --ffmpeg-single
+      same as: --chunk-size=1
+        -each ffmpeg command handles exactly one chapter
+        -M4B file is redundantly decoded up to the beginning of each chapter
+        -M4A files are fully written before the next chapter is started
 ";
 
 sub main(@){
@@ -53,8 +72,19 @@ sub main(@){
       $$opts{dryRun} = 1;
     }elsif($arg =~ /^--chunk-size=(\d+)$/){
       $$opts{chunkSize} = $1;
+      $$opts{chunkPercent} = undef;
     }elsif($arg =~ /^--chunk-percent=(\d+)$/){
+      $$opts{chunkSize} = undef;
       $$opts{chunkPercent} = $1;
+    }elsif($arg =~ /^(--ffmpeg-default)$/){
+      $$opts{chunkSize} = undef;
+      $$opts{chunkPercent} = $DEFAULT_CHUNK_PERCENT;
+    }elsif($arg =~ /^(--ffmpeg-multi)$/){
+      $$opts{chunkSize} = 1;
+      $$opts{chunkPercent} = undef;
+    }elsif($arg =~ /^(--ffmpeg-single)$/){
+      $$opts{chunkSize} = 0;
+      $$opts{chunkPercent} = undef;
     }elsif(-f $arg and not defined $m4bFile){
       $m4bFile = $arg;
     }else{
