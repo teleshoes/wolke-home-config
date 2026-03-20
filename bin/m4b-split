@@ -1,9 +1,12 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use POSIX qw(ceil);
 
-sub getConvertCmds($@);
+sub getConvertCmds($$@);
 sub parseChapterInfo($);
+
+my $DEFAULT_CHUNK_PERCENT = 20;
 
 my $USAGE = "Usage:
   $0 -h | --help
@@ -19,13 +22,27 @@ my $USAGE = "Usage:
 
     -n | -s | --simulate | --dry-run
       print ffmpeg conversion commands without running them
+
+    --chunk-size=CHUNK_SIZE
+      limit each ffmpeg command to a maximum of CHUNK_SIZE chapter output files
+      '0' means no limit
+        (the default is --chunk-percent=$DEFAULT_CHUNK_PERCENT)
+
+    --chunk-percent=CHUNK_PERCENT
+      -calculate CHAPTER_COUNT from M4B file
+      -calculate CHUNK_SIZE = ceiling(CHUNK_SIZE * CHUNK_PERCENT / 100)
+      -same as: --chunk-size=CHUNK_SIZE
+        (the default is --chunk-percent=$DEFAULT_CHUNK_PERCENT)
+
 ";
 
 sub main(@){
   my $m4bFile = undef;
   my $opts = {
-    prefix => undef,
-    dryRun => 0,
+    prefix       => undef,
+    dryRun       => 0,
+    chunkSize    => undef,
+    chunkPercent => undef,
   };
   while(@_ > 0){
     my $arg = shift @_;
@@ -34,6 +51,10 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-n|-s|--simulate|--dry-run)$/){
       $$opts{dryRun} = 1;
+    }elsif($arg =~ /^--chunk-size=(\d+)$/){
+      $$opts{chunkSize} = $1;
+    }elsif($arg =~ /^--chunk-percent=(\d+)$/){
+      $$opts{chunkPercent} = $1;
     }elsif(-f $arg and not defined $m4bFile){
       $m4bFile = $arg;
     }else{
@@ -73,7 +94,16 @@ sub main(@){
     };
   }
 
-  my @convertCmds = getConvertCmds($m4bFile, @outputs);
+  my $chunkSize;
+  if(defined $$opts{chunkSize}){
+    $chunkSize = $$opts{chunkSize};
+  }else{
+    my $chunkPct = $$opts{chunkPercent};
+    $chunkPct = $DEFAULT_CHUNK_PERCENT if not defined $chunkPct;
+    $chunkSize = ceil(@chapters * $chunkPct / 100.0)
+  }
+
+  my @convertCmds = getConvertCmds($m4bFile, $chunkSize, @outputs);
 
   for my $cmd(@convertCmds){
     if($$opts{dryRun}){
@@ -85,8 +115,8 @@ sub main(@){
   }
 }
 
-sub getConvertCmds($@){
-  my ($inputFile, @outputs) = @_;
+sub getConvertCmds($$@){
+  my ($inputFile, $chunkSize, @outputs) = @_;
 
   my @cmds;
 
@@ -96,6 +126,8 @@ sub getConvertCmds($@){
   );
 
   my $curCmd = undef;
+
+  my $curCount = 0;
   for my $output(@outputs){
     if(not defined $curCmd){
       $curCmd = [@cmdPrefix];
@@ -112,6 +144,12 @@ sub getConvertCmds($@){
     );
 
     push @$curCmd, $_ foreach @outputArgs;
+    $curCount++;
+
+    if($chunkSize > 0 and $curCount >= $chunkSize){
+      $curCmd = undef;
+      $curCount = 0;
+    }
   }
 
   return @cmds;
