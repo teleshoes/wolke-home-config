@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+sub getConvertCmds($@);
 sub parseChapterInfo($);
 
 my $USAGE = "Usage:
@@ -43,11 +44,12 @@ sub main(@){
   die "ERROR: missing M4B_FILE\n" if not defined $m4bFile;
   die "ERROR: M4B_FILE \"$m4bFile\" must end in .m4b\n" if $m4bFile !~ /\.m4b$/i;
 
-  my @convertCmds;
-
   my @chapters = parseChapterInfo($m4bFile);
   my $chNumLen = length (0+@chapters);
   my $chNum = 1;
+
+  my @outputs;
+
   for my $ch(@chapters){
     my $titleFmt = $$ch{title};
     $titleFmt =~ s/'//g;
@@ -64,11 +66,14 @@ sub main(@){
       $destFile =~ s/\.m4b$//;
     }
     $destFile .= "_${chNumFmt}_${titleFmt}.m4a";
-    push @convertCmds, ["ffmpeg", "-bitexact", "-i", $m4bFile, "-c:a", "copy",
-      "-vn",
-      "-ss", $$ch{startTime}, "-to", $$ch{endTime},
-      "-bitexact", $destFile];
+    push @outputs, {
+      destFile  => $destFile,
+      startTime => $$ch{startTime},
+      endTime   => $$ch{endTime},
+    };
   }
+
+  my @convertCmds = getConvertCmds($m4bFile, @outputs);
 
   for my $cmd(@convertCmds){
     print "@$cmd\n";
@@ -76,6 +81,26 @@ sub main(@){
       system @$cmd;
     }
   }
+}
+
+sub getConvertCmds($@){
+  my ($inputFile, @outputs) = @_;
+
+  my @cmds;
+  for my $output(@outputs){
+    push @cmds, ["ffmpeg",
+      "-bitexact",
+      "-i", $inputFile,
+      "-c:a", "copy",
+      "-vn",
+      "-ss", $$output{startTime},
+      "-to", $$output{endTime},
+      "-bitexact",
+      $$output{destFile},
+    ];
+  }
+
+  return @cmds;
 }
 
 sub parseChapterInfo($){
