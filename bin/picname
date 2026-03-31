@@ -13,6 +13,7 @@ sub mtimeEpoch($);
 sub filenameLocalEpoch($);
 sub filenameUTCEpoch($);
 sub filenameEpoch($$);
+sub isCmdAvail($);
 sub convertDateFmtToEpoch($);
 sub convertEpochToDateFmt($$);
 sub readProc(@);
@@ -451,6 +452,9 @@ sub exifEpoch($){
 
 sub exifCmdGetDateAsEpoch($){
   my ($file) = @_;
+  if(not isCmdAvail("exif")){
+    return (undef, undef);
+  }
   my @cmd = ("exif", "-m", $file);
   my @lines = readProc @cmd;
   if($? != 0){
@@ -578,6 +582,19 @@ sub filenameEpoch($$){
   }
 
   return (undef, undef);
+}
+
+sub isCmdAvail($){
+  my ($cmd) = @_;
+  if($cmd =~ /["'\\\$\{\}\[\]:; \t\r\n!#%&^*]/){
+    die "ERROR: invalid command \"$cmd\"\n";
+  }
+  my $out = readProc "sh", "-c", "command -v '$cmd'";
+  if($? == 0 and $out =~ /^\/.*$cmd$/){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub convertDateFmtToEpoch($){
