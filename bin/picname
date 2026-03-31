@@ -10,7 +10,9 @@ sub exifCmdGetDateAsEpoch($);
 sub exiftoolCmdDateFieldAsEpoch($$);
 sub getDuration($);
 sub mtimeEpoch($);
-sub filenameEpoch($);
+sub filenameLocalEpoch($);
+sub filenameUTCEpoch($);
+sub filenameEpoch($$);
 sub run(@);
 
 my @EXTS_PICTURES = qw(
@@ -232,7 +234,7 @@ sub handleFile($$$$){
   }elsif($mode eq $MODE_MTIME){
     ($epoch, $millis) = mtimeEpoch $file;
   }elsif($mode eq $MODE_FILENAME){
-    ($epoch, $millis) = filenameEpoch $file;
+    ($epoch, $millis) = filenameLocalEpoch $file;
   }else{
     die "unknown mode: $mode\n";
   }
@@ -291,7 +293,7 @@ sub handleFile($$$$){
       }
     }
 
-    my ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file;
+    my ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
     my $diff = $epoch - $oldFileNameEpoch;
     $diff = 0-$diff if $diff < 0;
     if($diff > 60*60*24){
@@ -531,8 +533,15 @@ sub mtimeEpoch($){
   return ($epoch, $millis);
 }
 
-sub filenameEpoch($){
-  my ($file) = @_;
+sub filenameLocalEpoch($){
+  return filenameEpoch $_[0], 0;
+}
+sub filenameUTCEpoch($){
+  return filenameEpoch $_[0], 1;
+}
+
+sub filenameEpoch($$){
+  my ($file, $isUTC) = @_;
   my $filename = $file;
   $filename =~ s/.*\///;
 
@@ -547,6 +556,7 @@ sub filenameEpoch($){
   }
 
   my $dateFmt = "$y-$m-$d" . "T" . "$hr:$min:$sec";
+  $dateFmt .= "Z" if $isUTC;
   my $epoch = `date +%s --date='$dateFmt'`;
   chomp $epoch;
   if($epoch =~ /^\d+$/){
