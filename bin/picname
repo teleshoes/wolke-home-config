@@ -13,6 +13,8 @@ sub mtimeEpoch($);
 sub filenameLocalEpoch($);
 sub filenameUTCEpoch($);
 sub filenameEpoch($$);
+sub convertDateFmtToEpoch($);
+sub convertEpochToDateFmt($$);
 sub readProc(@);
 sub run(@);
 
@@ -260,8 +262,7 @@ sub handleFile($$$$){
 
   $epoch += $$opts{shiftSeconds};
 
-  my $dateFmt = readProc "date", "--date", "\@$epoch", "+%Y%m%d_%H%M%S";
-  chomp $dateFmt;
+  my $dateFmt = convertEpochToDateFmt $epoch, "%Y%m%d_%H%M%S";
 
   my ($ymd, $hms);
   if($dateFmt =~ /^(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)$/){
@@ -463,8 +464,7 @@ sub exifCmdGetDateAsEpoch($){
       my $dt = $1;
       if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
         my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
-        my $s = readProc "date", "--date", "$y-$m-$d $hr:$min:$sec", "+%s";
-        chomp $s;
+        my $s = convertDateFmtToEpoch "$y-$m-$d $hr:$min:$sec";
         if($s !~ /^\d+$/){
           print STDERR "WARNING: malformed date output for $file: $s\n";
           return (undef, undef);
@@ -570,8 +570,7 @@ sub filenameEpoch($$){
 
   my $dateFmt = "$y-$m-$d" . "T" . "$hr:$min:$sec";
   $dateFmt .= "Z" if $isUTC;
-  my $epoch = readProc "date", "+%s", "--date=$dateFmt";
-  chomp $epoch;
+  my $epoch = convertDateFmtToEpoch $dateFmt;
   if($epoch =~ /^\d+$/){
     return ($epoch, $millis);
   }else{
@@ -579,6 +578,20 @@ sub filenameEpoch($$){
   }
 
   return (undef, undef);
+}
+
+sub convertDateFmtToEpoch($){
+  my ($dateFmt) = @_;
+  my $epoch = readProc "date", "--date", $dateFmt, "+%s";
+  chomp $epoch;
+  return $epoch;
+}
+
+sub convertEpochToDateFmt($$){
+  my ($epoch, $formatSpec) = @_;
+  my $dateFmt = readProc "date", "--date", "\@$epoch", "+$formatSpec";
+  chomp $dateFmt;
+  return $dateFmt;
 }
 
 sub readProc(@){
