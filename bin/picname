@@ -307,6 +307,22 @@ sub handleFile($$$$){
     }
 
     $nameSuffix = $trimmedNameSuffix;
+  }elsif($nameSuffix =~ /^(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d\d\d\d0*)(_.*)?$/){
+    #assume filename with milliseconds is in UTC
+    #remove the YMD_HMSFFF prefix *ONLY* if EXIF and filename match exactly
+    my ($removedDtm, $trimmedNameSuffix) = ($1, $2);
+    $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
+
+    if(defined $exifEpoch and defined $exifMillis){
+      my ($oldFileNameUTCEpoch, $oldFileNameUTCMillis) = filenameUTCEpoch $file;
+      if($oldFileNameUTCEpoch == $exifEpoch and $oldFileNameUTCMillis == $exifMillis){
+        $nameSuffix = $trimmedNameSuffix;
+      }else{
+        print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
+      }
+    }else{
+      print STDERR "WARNING: exif epoch+millis not read, not trimming dtm for $file\n";
+    }
   }elsif($nameSuffix =~ /^${ymd}(_.*)?/){
     #remove *exactly matching* YYYYMMDD from file suffix, where YYYYMMDD is the target date
     #e.g.: orig file:  20180501_001.png
