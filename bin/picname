@@ -397,13 +397,22 @@ sub exifEpoch($){
 
   my $epoch = undef;
   if($isJpeg){
-    $epoch = exifCmdGetDateAsEpoch($file) if not defined $epoch;
+    #fetch epoch with quick but not reliable `exif`
+    $epoch = exifCmdGetDateAsEpoch($file);
   }
-  $epoch = exiftoolCmdDateFieldAsEpoch($file, "CreateDate") if not defined $epoch;
-  $epoch = exiftoolCmdDateFieldAsEpoch($file, "DateTimeOriginal") if not defined $epoch;
+
+  if(not defined $epoch){
+    #fetch epoch with slower `exiftool`
+    for my $field(qw(CreateDate DateTimeOriginal)){
+      $epoch = exiftoolCmdDateFieldAsEpoch($file, $field);
+      last if defined $epoch;
+    }
+  }
+
   if(not defined $epoch){
     die "ERROR: could not get EXIF date/time with exif/exiftool for $file\n";
   }
+
   return $epoch;
 }
 
