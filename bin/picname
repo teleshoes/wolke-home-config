@@ -13,6 +13,7 @@ sub mtimeEpoch($);
 sub filenameLocalEpoch($);
 sub filenameUTCEpoch($);
 sub filenameEpoch($$);
+sub readProc(@);
 sub run(@);
 
 my @EXTS_PICTURES = qw(
@@ -450,10 +451,7 @@ sub exifEpoch($){
 sub exifCmdGetDateAsEpoch($){
   my ($file) = @_;
   my @cmd = ("exif", "-m", $file);
-  open EXIF, "-|", @cmd or die "ERROR: could not run @cmd\n$!\n";
-  my @lines = <EXIF>;
-  close EXIF;
-
+  my @lines = readProc @cmd;
   if($? != 0){
     print STDERR "WARNING: error running '@cmd'\n";
   }
@@ -517,10 +515,7 @@ sub exiftoolCmdDateFieldAsEpoch($$){
     "-d", "%s",
     $file,
   );
-  open EXIF, "-|", @exifToolCmd
-    or die "ERROR: could not run @exifToolCmd\n$!\n";
-  my $out = <EXIF>;
-  close EXIF;
+  my $out = readProc @exifToolCmd;
   die "ERROR: command '@exifToolCmd' failed\n" if $? != 0;
   chomp $out;
 
@@ -535,9 +530,7 @@ sub exiftoolCmdDateFieldAsEpoch($$){
 
 sub getDuration($){
   my ($file) = @_;
-  open my $cmdH, "-|", "duration", "-s", "-n", $file;
-  my $out = join "", <$cmdH>;
-  close $cmdH;
+  my $out = readProc "duration", "-s", "-n", $file;
   if($out =~ /^(\d+|\d*\.\d+)$/){
     return $1;
   }else{
@@ -586,6 +579,18 @@ sub filenameEpoch($$){
   }
 
   return (undef, undef);
+}
+
+sub readProc(@){
+  my (@cmd) = @_;
+  open my $cmdH, "-|", @cmd or die "ERROR: \"@cmd\" failed\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
 }
 
 sub run(@){
