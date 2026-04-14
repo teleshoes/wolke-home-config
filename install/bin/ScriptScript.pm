@@ -20,6 +20,7 @@ our @EXPORT_OK = qw();
 our @EXPORT = qw(
   getScriptNames getSubNames
   getInstallNames getInstallScriptNames getInstallSrcNames getInstallPipNames
+  getInstallCargoNames
   run tryrun runSudo tryrunSudo tryrunSilent runWithStderr runNoPty
   runUser tryrunUser runUserNoPty
   proc procChomp procSudo procUser procSudoChomp procUserChomp tryproc
@@ -76,6 +77,7 @@ sub getInstallNames();
 sub getInstallScriptNames();
 sub getInstallSrcNames();
 sub getInstallPipNames();
+sub getInstallCargoNames();
 sub assertDef($@);
 sub wantarrayToContext($);
 sub runProto($@);
@@ -155,6 +157,7 @@ sub getInstallNames(){
     getInstallScriptNames(),
     getInstallSrcNames(),
     getInstallPipNames(),
+    getInstallCargoNames(),
   );
 }
 sub getInstallScriptNames(){
@@ -165,6 +168,9 @@ sub getInstallSrcNames(){
 }
 sub getInstallPipNames(){
   return (procChomp(getInstallPath("bin/install-pip-packages"), "--list"));
+}
+sub getInstallCargoNames(){
+  return (procChomp(getInstallPath("bin/install-cargo-packages"), "--list"));
 }
 
 sub assertDef($@){
