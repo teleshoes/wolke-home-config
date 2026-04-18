@@ -8,18 +8,24 @@ my @GLOBAL_PACKAGES = qw(
   bencode.py audioplayer gehomesdk rshell
 );
 
+my %VENV_PACKAGE_SETS = (
+);
+my @VENV_NAMES = sort keys %VENV_PACKAGE_SETS;
+
 my $USAGE = "Usage:
   $0 -h | --help
     show this message
 
   $0 --list
     list all install names, one per line:
-      @GLOBAL_PACKAGES
+      @GLOBAL_PACKAGES @VENV_NAMES
 
   $0 [INSTALL_NAME INSTALL_NAME ..]
     -disable global.require-virtualenv pip warning
     -install or upgrade indicated (or all) global pip packages:
       @GLOBAL_PACKAGES
+    -install indicated (or all) venv package sets:
+      @VENV_NAMES
 ";
 
 my $MODE_LIST = "list";
@@ -36,7 +42,7 @@ sub main(@) {
       exit 0;
     }elsif($arg =~ /^(--list)$/){
       $mode = $MODE_LIST;
-    }elsif(defined $okGlobalPkgs{$arg}){
+    }elsif(defined $okGlobalPkgs{$arg} or defined $VENV_PACKAGE_SETS{$arg}){
       push @installNames, $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
@@ -44,15 +50,24 @@ sub main(@) {
   }
 
   if($mode eq $MODE_LIST){
-    print "$_\n" foreach @GLOBAL_PACKAGES;
+    print "$_\n" foreach (@GLOBAL_PACKAGES, @VENV_NAMES);
   }elsif($mode eq $MODE_INSTALL){
-    @installNames = (@GLOBAL_PACKAGES) if @installNames == 0;
+    @installNames = (@GLOBAL_PACKAGES, @VENV_NAMES) if @installNames == 0;
 
     run "pip", "config", "set", "global.require-virtualenv", "False";
 
     for my $installName(@installNames){
       if(defined $okGlobalPkgs{$installName}){
         run "pip", "install", "--break-system-packages", "--upgrade", $installName;
+      }elsif(defined $VENV_PACKAGE_SETS{$installName}){
+        my $venvDir = "/opt/$installName-venv";
+        my @pkgs = @{$VENV_PACKAGE_SETS{$installName}};
+
+        runSudo "rm", "-rf", $venvDir;
+        runSudo "python3", "-m", "venv", $venvDir;
+        for my $pkg(@pkgs){
+          runSudo "$venvDir/bin/pip", "install", $pkg;
+        }
       }else{
         die "ERROR: invalid INSTALL_NAME $installName\n";
       }
