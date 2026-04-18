@@ -4,25 +4,61 @@ use warnings;
 use lib `dirname $0 | tr -d '\n'`;
 use ScriptScript;
 
-sub install($);
-
-my @installs = qw(
+my @GLOBAL_PACKAGES = qw(
   bencode.py audioplayer gehomesdk rshell
 );
 
+my $USAGE = "Usage:
+  $0 -h | --help
+    show this message
+
+  $0 --list
+    list all install names, one per line:
+      @GLOBAL_PACKAGES
+
+  $0 [INSTALL_NAME INSTALL_NAME ..]
+    -disable global.require-virtualenv pip warning
+    -install or upgrade indicated (or all) global pip packages:
+      @GLOBAL_PACKAGES
+";
+
+my $MODE_LIST = "list";
+my $MODE_INSTALL = "install";
+
 sub main(@) {
-  if(@_ == 1 and $_[0] =~ /^(--list)$/){
-    print map {"$_\n"} @installs;
-    exit 0;
+  my $mode = $MODE_INSTALL;
+  my %okGlobalPkgs = map {$_ => 1} @GLOBAL_PACKAGES;
+  my @installNames;
+  while(@_ > 0){
+    my $arg = shift @_;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(--list)$/){
+      $mode = $MODE_LIST;
+    }elsif(defined $okGlobalPkgs{$arg}){
+      push @installNames, $arg;
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
+    }
   }
 
-  my @toInstall = @_;
-  @toInstall = @installs if @toInstall == 0;
+  if($mode eq $MODE_LIST){
+    print "$_\n" foreach @GLOBAL_PACKAGES;
+  }elsif($mode eq $MODE_INSTALL){
+    @installNames = (@GLOBAL_PACKAGES) if @installNames == 0;
 
-  run "pip", "config", "set", "global.require-virtualenv", "False";
+    run "pip", "config", "set", "global.require-virtualenv", "False";
 
-  for my $install(@toInstall){
-    run "pip", "install", "--break-system-packages", "--upgrade", $install;
+    for my $installName(@installNames){
+      if(defined $okGlobalPkgs{$installName}){
+        run "pip", "install", "--break-system-packages", "--upgrade", $installName;
+      }else{
+        die "ERROR: invalid INSTALL_NAME $installName\n";
+      }
+    }
+  }else{
+    die "ERROR: unknown mode $mode\n";
   }
 }
 
