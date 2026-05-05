@@ -1529,9 +1529,15 @@ sub insertExternalHeartrates($$){
   }
 }
 
-# zero-out heartrate for intervals that drop to a ratio for at most a number intervals
+# zero-out heartrate for intervals that drop steeply and briefly
+#   for each interval:
+#     find all <left-neighbor>s within <nearbyIdxCount> intervals before this <interval>
+#     find all <right-neighbor>s within <nearbyIdxCount> intervals after this <interval>
+#     if <interval> hr is lower than <threshold> of one <left-neighbor> and one <right-neighbor>:
+#       set <interval> hr to 0
+#
 #   e.g.: removeHeartrateErrors(workout, 3, 0.90)
-#     => remove intervals that drop by 10% for up to 3 intervals
+#     => zero out intervals that drop by 10% or more for up to 6 intervals (~60s)
 sub removeHeartrateErrors($$$){
   my ($workout, $nearbyIdxCount, $threshold) = @_;
   my @intervals = @{$$workout{intervals}};
@@ -1607,6 +1613,7 @@ sub calculateIntervals($){
     insertExternalHeartrates($w, $hrByEpoch);
   }
 
+  #remove 10% drops of up to ~60s (+/- 3 intervals)
   removeHeartrateErrors($w, 3, 0.90);
 }
 
