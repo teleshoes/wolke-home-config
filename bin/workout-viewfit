@@ -102,6 +102,8 @@ my @SORTED_TARGET_NAMES =
   keys %NAMED_TARGETS;
 my $OK_NAMED_TARGET_REGEX = join("|", @SORTED_TARGET_NAMES);
 
+my $LOCAL_TIMEZONE_CACHE = undef;
+
 my $USAGE = "Usage:
   $EXEC -h | --help
     show this message
@@ -2037,11 +2039,16 @@ sub dateFmt($$$){
   die "ERROR: missing epoch\n" if not defined $epoch;
   die "ERROR: invalid epoch $epoch\n" if $epoch !~ /^-?(\d+|\d*\.\d+)$/;
 
+  if(not defined $LOCAL_TIMEZONE_CACHE){
+    $LOCAL_TIMEZONE_CACHE = DateTime::TimeZone->new(name => 'local');
+  }
+  die "ERROR: timezone cache not set\n" if $LOCAL_TIMEZONE_CACHE !~ /\w/;
+
   my $dt;
   if(defined $tzName){
     $dt = DateTime->from_epoch(epoch => $epoch, time_zone => $tzName);
   }else{
-    $dt = DateTime->from_epoch(epoch => $epoch, time_zone => "local");
+    $dt = DateTime->from_epoch(epoch => $epoch, time_zone => $LOCAL_TIMEZONE_CACHE);
   }
 
   return $dt->strftime($fmtSpec);
