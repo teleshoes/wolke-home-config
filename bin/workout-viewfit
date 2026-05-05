@@ -1029,10 +1029,30 @@ sub gnuplotHeartrates($$@){
       my $maybeLabel = undef;
       if(defined $speed){
         $prevSpeed = $speed if not defined $prevSpeed;
+        my $lookaheadS = 35;
+        my $skipLabel = 0;
         if($speed ne $prevSpeed){
-          $prevSpeed = $speed;
-          my $mph = $speed * $MILES_PER_KM;
-          $maybeLabel = sprintf "%.1f", $mph;
+          #look ahead up to 35s and dont set the label if speed changes again
+          my $newSpeedDur = $durS;
+          for(my $j=$i+1; $j<@points; $j++){
+            my $nextPoint = $points[$j];
+            my ($nextDurS, $nextHr, $nextSpeed) = @$nextPoint;
+
+            my $elapsedDurS = $nextDurS - $durS;
+            if($elapsedDurS >= $lookaheadS){
+              last;
+            }
+            if($nextSpeed ne $speed){
+              $skipLabel = 1;
+              last;
+            }
+          }
+
+          if(not $skipLabel){
+            $prevSpeed = $speed;
+            my $mph = $speed * $MILES_PER_KM;
+            $maybeLabel = sprintf "%.1f", $mph;
+          }
         }
       }
 
