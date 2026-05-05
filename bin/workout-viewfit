@@ -52,7 +52,7 @@ sub formatTimeHrMinSec($);
 sub formatTimeRelative($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
-sub dateFmt($$);
+sub dateFmt($$$);
 sub getDateBoundary($$);
 sub binarySearchIdx($$$);
 sub nvl($$);
@@ -503,7 +503,7 @@ sub main(@){
 
       my $nowMillis = nowMillis();
       my $nowEpoch = $nowMillis / 1000.0;
-      my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch);
+      my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch, undef);
       if(not -d $GNUPLOT_OUTPUT_DIR){
         system "mkdir", "-p", $GNUPLOT_OUTPUT_DIR;
       }
@@ -1088,8 +1088,8 @@ sub readCachedWorkouts(){
       die "ERROR: invalid workout_time for $$workout{workout_id}\n";
     }
     $$workout{dtmEpoch} = $epoch; #fractional seconds since epoch
-    $$workout{dtmYMD} = dateFmt("%Y-%m-%d", $epoch);
-    $$workout{dtmYMDHMS} = dateFmt("%Y-%m-%d %H:%M:%S", $epoch);
+    $$workout{dtmYMD} = dateFmt("%Y-%m-%d", $epoch, undef);
+    $$workout{dtmYMDHMS} = dateFmt("%Y-%m-%d %H:%M:%S", $epoch, undef);
   }
 
   return @workouts;
@@ -1157,8 +1157,8 @@ sub insertExtraInfo($@){
         duration       => $duration,
         distance       => $distance,
         dtmEpoch       => $epoch,
-        dtmYMD         => dateFmt("%Y-%m-%d", $epoch),
-        dtmYMDHMS      => dateFmt("%Y-%m-%d %H:%M:%S", $epoch),
+        dtmYMD         => dateFmt("%Y-%m-%d", $epoch, undef),
+        dtmYMDHMS      => dateFmt("%Y-%m-%d %H:%M:%S", $epoch, undef),
         intervals      => [],
       };
 
@@ -1767,10 +1767,10 @@ sub fetchViewfitWorkouts(){
 
   my $nowMillis = nowMillis();
   my $nowEpoch = $nowMillis / 1000.0;
-  my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch);
+  my $nowFmt = dateFmt("%Y-%m-%d_%H%M%S", $nowEpoch, undef);
   my $tmpFile = "/tmp/workout-viewfit-$nowMillis.json";
 
-  my $firstDayOfMonthEpoch = dtmStrToEpoch(dateFmt("%Y-%m-01", $nowEpoch));
+  my $firstDayOfMonthEpoch = dtmStrToEpoch(dateFmt("%Y-%m-01", $nowEpoch, undef));
 
   #start: 30 days before the first day of the current month
   #  (start date changes only when month changes to prevent refetching old data)
@@ -2032,12 +2032,17 @@ sub getEpochFracS($$$$$$$$){
   }
 }
 
-sub dateFmt($$){
-  my ($fmtSpec, $epoch) = @_;
+sub dateFmt($$$){
+  my ($fmtSpec, $epoch, $tzName) = @_;
   die "ERROR: missing epoch\n" if not defined $epoch;
   die "ERROR: invalid epoch $epoch\n" if $epoch !~ /^-?(\d+|\d*\.\d+)$/;
 
-  my $dt = DateTime->from_epoch(epoch => $epoch, time_zone => "local");
+  my $dt;
+  if(defined $tzName){
+    $dt = DateTime->from_epoch(epoch => $epoch, time_zone => $tzName);
+  }else{
+    $dt = DateTime->from_epoch(epoch => $epoch, time_zone => "local");
+  }
 
   return $dt->strftime($fmtSpec);
 }
