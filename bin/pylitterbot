@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -80,13 +81,20 @@ async def main():
         fmt = formatRobotInfo(robot)
         print(fmt, flush=True)
     elif cmd == Cmd.MONITOR:
-      await account.connect(username=username, password=password, load_robots=True)
       while True:
-        for robot in account.robots:
-          await robot.refresh()
-          fmt = formatRobotInfo(robot)
-          print(fmt, flush=True)
-        time.sleep(DELAY_SECONDS)
+        try:
+          await account.connect(username=username, password=password, load_robots=True)
+          while True:
+            for robot in account.robots:
+              await robot.refresh()
+              fmt = formatRobotInfo(robot)
+              print(fmt, flush=True)
+            time.sleep(DELAY_SECONDS)
+        except Exception as e:
+          print("WARNING: pylitterbot monitor failed")
+          print(str(e))
+          print("\nrestarting pylitterbot\n")
+          traceback.print_exc()
     elif cmd == Cmd.HISTORY:
       await account.connect(username=username, password=password, load_robots=True)
       for robot in account.robots:
