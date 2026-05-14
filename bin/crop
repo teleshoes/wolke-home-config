@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+sub run(@);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC CROP_ARG IMG [IMG IMG ..]
+    copy image, cropped, with thumbnail removed and mtime preserved
+    -for each IMG:
+      -calculate NEW_IMG by inserting '_edit' before the file extension
+      -run: magick convert -crop CROP_ARG IMG NEW_IMG
+      -run: exiftool -ThumbnailImage= -Preview:All= -r -overwrite_original NEW_IMG
+      -run: touch NEW_IMG -r IMG
+
+  CROP_ARG
+    a geometry for ImageMagick
+    e.g.:
+      +0+100     remove the top-most 100 rows of pixels
+      -50+0      remove the left-most 50 columns of pixels
+      +100-100   remove the right-most 100 columns and bottom-most 100 rows of pixels
+      25x25+0+0  remove all pixels outside of a 25x25 square in the top-left
+";
+
+sub main(@){
+  my $cropArg = undef;
+  my @files;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }elsif(not defined $cropArg){
+      $cropArg = $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  for my $file(@files){
+    my $newFile = $file;
+    if($newFile !~ s/(\.\w+)$/_edit$1/){
+      $newFile .= "_edit";
+    }
+    if(-e $newFile){
+      print STDERR "WARNING: $newFile already exists, skipping\n";
+    }else{
+      run "magick", "convert", "-crop", $cropArg, $file, $newFile;
+      run "exiftool",
+        "-ThumbnailImage=", "-Preview:All=",
+        "-r",
+        "-overwrite_original", $newFile;
+      run "touch", $newFile, "-r", $file;
+    }
+  }
+}
+
+sub run(@){
+  print "@_\n";
+  system @_;
+}
+
+&main(@ARGV);
