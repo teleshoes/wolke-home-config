@@ -28,10 +28,13 @@ my $USAGE = "Usage:
       25x25+0+0  remove all pixels outside of a 25x25 square in the top-left
 
   OPTS
+    -f | --force
+      allow overwriting the resulting NEW_IMG output file (contains '_edit' before ext)
 ";
 
 sub main(@){
   my $opts = {
+    force => 0,
   };
   my $cropArg = undef;
   my @files;
@@ -40,6 +43,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-f|--force)$/){
+      $$opts{force} = 1;
     }elsif(-f $arg){
       push @files, $arg;
     }elsif(not defined $cropArg){
@@ -54,7 +59,7 @@ sub main(@){
     if($newFile !~ s/(\.\w+)$/_edit$1/){
       $newFile .= "_edit";
     }
-    if(-e $newFile){
+    if(not $$opts{force} and -e $newFile){
       print STDERR "WARNING: $newFile already exists, skipping\n";
     }else{
       run "magick", "convert", "-crop", $cropArg, $file, $newFile;
