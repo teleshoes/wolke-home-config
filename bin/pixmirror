@@ -11,7 +11,7 @@ my $IS_THREADED = eval 'use threads; use threads::shared; 1';
 
 sub syncPixDirs($$$);
 sub getSrcImgFile($$);
-sub getDestImgFileJpg($$);
+sub getDestImgFile($$$);
 sub getDestInfoFile($$);
 sub cleanupFailures($$$);
 sub formatOverallStatus($$$);
@@ -277,11 +277,11 @@ sub syncPixDirs($$$){
   print "fetching cached stat info on dest:\n";
   my $destStatInfos = readMirrorDirInfos($destDir);
   for my $imgName(sort keys %$destStatInfos){
-    my $destImgFileJpg = getDestImgFileJpg($destDir, $imgName);
+    my $destImgFile = getDestImgFile($destDir, $imgName, "jpg");
     my $destInfoFile = getDestInfoFile($destDir, $imgName);
     if(not checkInfo($$srcStatInfos{$imgName}, $$destStatInfos{$imgName})){
-      print "removing $destImgFileJpg and $destInfoFile\n";
-      runCmd $opts, "rm", "$destImgFileJpg";
+      print "removing $destImgFile and $destInfoFile\n";
+      runCmd $opts, "rm", "$destImgFile";
       runCmd $opts, "rm", "$destInfoFile";
     }else{
       $okImgs{$imgName} = 1;
@@ -385,8 +385,8 @@ sub getSrcImgFile($$){
   my ($srcDir, $imgName) = @_;
   return "$srcDir/$imgName";
 }
-sub getDestImgFileJpg($$){
-  my ($destDir, $imgName) = @_;
+sub getDestImgFile($$$){
+  my ($destDir, $imgName, $targetExt) = @_;
   my ($extPrefix, $extSuffix);
   if($imgName =~ /\.(\w+)\.(\w+)$/){
     ($extPrefix, $extSuffix) = ($1, $2);
@@ -394,25 +394,25 @@ sub getDestImgFileJpg($$){
     ($extPrefix, $extSuffix) = ("", $1);
   }
 
-  my $skipJpgAppend = 0;
-  if($extSuffix =~ /^jpg$/i){
+  my $skipExtAppend = 0;
+  if($extSuffix =~ /^$targetExt$/i){
     if($extPrefix =~ /^($REGEX_IMG_EXTS)$/i){
-      #do NOT skip append if file name is '*.png.jpg', '*.jpg.jpg', etc
-      #  (otherwise, 'a.png.jpg' and 'a.png' map to the same value: 'a.png.jpg')
-      $skipJpgAppend = 0;
+      #do NOT skip EXT (e.g. jpg) append if file name is '*.png.EXT', '*.EXT.EXT', etc
+      #  (otherwise, 'a.png.EXT' and 'a.png' map to the same value: 'a.png.EXT')
+      $skipExtAppend = 0;
     }else{
-      #skip append if file name is just '*.jpg'
-      $skipJpgAppend = 1;
+      #skip append if file name is just '*.EXT'
+      $skipExtAppend = 1;
     }
   }
 
-  my $destImgFileJpg = "$destDir/$imgName";
-  $destImgFileJpg .= ".jpg" unless $skipJpgAppend;
+  my $destImgFile = "$destDir/$imgName";
+  $destImgFile .= ".$targetExt" unless $skipExtAppend;
 
-  if($destImgFileJpg !~ /^.+\.jpg$/i){
-    die "ERROR: invalid destination img file: $destImgFileJpg\n";
+  if($destImgFile !~ /^.+\.$targetExt$/i){
+    die "ERROR: invalid destination img file: $destImgFile\n";
   }
-  return $destImgFileJpg;
+  return $destImgFile;
 }
 sub getDestInfoFile($$){
   my ($destDir, $imgName) = @_;
@@ -425,7 +425,7 @@ sub cleanupFailures($$$){
   for my $imgName(keys %$statusesByImgName){
     if($$statusesByImgName{$imgName} == 0){
       print STDERR "\nFAILED: $imgName\n";
-      my @files = (getDestImgFileJpg($destDir, $imgName), getDestInfoFile($destDir, $imgName));
+      my @files = (getDestImgFile($destDir, $imgName, "jpg"), getDestInfoFile($destDir, $imgName));
       @files = grep {-f $_} @files;
       if(@files == 0){
         print STDERR "  no temp files to cleanup\n";
@@ -558,7 +558,7 @@ sub handleImage($$$$$){
   my ($opts, $imgName, $srcDir, $destDir, $statInfo) = @_;
 
   my $srcImgFile = getSrcImgFile($srcDir, $imgName);
-  my $destImgFileJpg = getDestImgFileJpg($destDir, $imgName);
+  my $destImgFile = getDestImgFile($destDir, $imgName, "jpg");
   my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
   my $identifyImgInfo = getIdentifyImgInfo $srcImgFile;
@@ -616,9 +616,9 @@ sub handleImage($$$$$){
   }
 
   #ensure parent img file dir
-  runCmd $opts, "mkdir", "-p", dirname($destImgFileJpg);
+  runCmd $opts, "mkdir", "-p", dirname($destImgFile);
 
-  runConvert $opts, $inputImgFile, $destImgFileJpg, @args;
+  runConvert $opts, $inputImgFile, $destImgFile, @args;
 
   if(defined $tmpFile){
     runCmd $opts, "rm", $tmpFile;
@@ -629,7 +629,7 @@ sub handleImage($$$$$){
 
   writeInfoFile $opts, $destInfoFile, $statInfo;
 
-  runCmd $opts, "touch", $destImgFileJpg, "--reference=$srcImgFile";
+  runCmd $opts, "touch", $destImgFile, "--reference=$srcImgFile";
   runCmd $opts, "touch", $destInfoFile, "--reference=$srcImgFile";
 
   my $exifRotateFmt;
