@@ -125,6 +125,14 @@ my $USAGE = "Usage:
     --png
       output in PNG format with '.png' extension
 
+    --trim-ext
+      remove source extension from dest file
+      WARNING:
+        this *REQUIRES* that filenames be unique after removing extension
+        'a.heic', 'a.png' and 'a.jpg' will all be named 'a.jpg', overwriting the dest
+      NOTE:
+        a.png.png will be renamed to a.png.jpg, not a.png
+
     --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
       target width and height in pixels {or height and width if src y>x}
 
@@ -202,6 +210,7 @@ sub main(@){
     simulate    => 0,
 
     targetExt   => "jpg",
+    trimExt     => 0,
 
     targetW     => $DEFAULT_TARGET_W,
     targetH     => $DEFAULT_TARGET_H,
@@ -222,6 +231,8 @@ sub main(@){
       $$opts{targetExt} = "jpg";
     }elsif($arg =~ /^--png$/){
       $$opts{targetExt} = "png";
+    }elsif($arg =~ /^--trim-ext$/){
+      $$opts{trimExt} = 1;
     }elsif($arg =~ /^--size=(\d+)x(\d+)$/){
       $$opts{targetW} = $1+0;
       $$opts{targetH} = $2+0;
@@ -437,7 +448,12 @@ sub getDestImgFile($$$){
   }
 
   my $destImgFile = "$destDir/$imgName";
-  $destImgFile .= ".$targetExt" unless $skipExtAppend;
+  if($$opts{trimExt}){
+    $destImgFile =~ s/\.($REGEX_IMG_EXTS)$//i;
+    $destImgFile .= ".$targetExt";
+  }else{
+    $destImgFile .= ".$targetExt" unless $skipExtAppend;
+  }
 
   if($destImgFile !~ /^.+\.$targetExt$/i){
     die "ERROR: invalid destination img file: $destImgFile\n";
