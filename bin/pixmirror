@@ -377,13 +377,22 @@ sub syncPixDirs($$$){
     print STDERR formatOverallStatus($countSuccess, $countFailure, $countToConvert);
   }else{
     my $count = 0;
+    my $statusesByImgName = {};
     for my $imgName(@imgNamesToConvert){
+      $$statusesByImgName{$imgName} = 0;
       handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+      $$statusesByImgName{$imgName} = 1;
       $count++;
       if($count % $statusCheckpointSize == 0){
         print STDERR "     $count / $countToConvert\n";
       }
     }
+
+    cleanupFailures $opts, $destDir, $statusesByImgName;
+    my $countSuccess = 0 + grep {$$statusesByImgName{$_} == 1} sort keys %$statusesByImgName;
+    my $countFailure = 0 + grep {$$statusesByImgName{$_} == 0} sort keys %$statusesByImgName;
+
+    print STDERR formatOverallStatus($countSuccess, $countFailure, $countToConvert);
   }
 
   print "\n\nremoving empty dirs\n";
