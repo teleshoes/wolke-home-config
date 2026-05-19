@@ -268,7 +268,12 @@ sub main(@){
 
   die $USAGE if not defined $srcDir or not defined $destDir;
 
-  syncPixDirs($opts, $srcDir, $destDir);
+  my $success = syncPixDirs($opts, $srcDir, $destDir);
+  if($success){
+    exit 0;
+  }else{
+    exit 1;
+  }
 }
 
 sub syncPixDirs($$$){
@@ -412,6 +417,12 @@ sub syncPixDirs($$$){
 
   print "\n\nremoving empty dirs\n";
   runCmd $opts, "find", "$destDir/", "-mindepth", 1, "-depth", "-type", "d", "-empty", "-delete";
+
+  if($countToConvert == $countSuccess and $countFailure == 0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub getSrcImgFile($$){
@@ -482,7 +493,7 @@ sub cleanupFailures($$$){
 sub formatOverallStatus($$$){
   my ($countSuccess, $countFailure, $countToConvert) = @_;
   my $countUnknown = $countToConvert - $countSuccess - $countFailure;
-  if($countToConvert == $countSuccess and $countFailure == 0 and $countUnknown == 0){
+  if($countToConvert == $countSuccess and $countFailure == 0){
     return "\nSUCCESS: $countSuccess images handled\n";
   }else{
     return "\nFAILURE: $countSuccess/$countToConvert images handled"
