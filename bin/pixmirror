@@ -344,8 +344,10 @@ sub syncPixDirs($$$){
 
         for my $imgName(@$chunk){
           $$statusesByImgName{$imgName} = 0;
-          handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
-          $$statusesByImgName{$imgName} = 1;
+          my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+          if($success){
+            $$statusesByImgName{$imgName} = 1;
+          }
 
           if($abort){
             print STDERR "     thread#$threadNum: ERROR (aborting)\n";
@@ -380,8 +382,10 @@ sub syncPixDirs($$$){
     my $statusesByImgName = {};
     for my $imgName(@imgNamesToConvert){
       $$statusesByImgName{$imgName} = 0;
-      handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
-      $$statusesByImgName{$imgName} = 1;
+      my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+      if($success){
+        $$statusesByImgName{$imgName} = 1;
+      }
       $count++;
       if($count % $statusCheckpointSize == 0){
         print STDERR "     $count / $countToConvert\n";
@@ -640,7 +644,10 @@ sub handleImage($$$$$){
   #ensure parent img file dir
   runCmd $opts, "mkdir", "-p", dirname($destImgFile);
 
-  runConvert $opts, $inputImgFile, $destImgFile, @args;
+  my $success = runConvert $opts, $inputImgFile, $destImgFile, @args;
+  if(not $success){
+    return 0;
+  }
 
   if(defined $tmpFile){
     runCmd $opts, "rm", $tmpFile;
@@ -665,6 +672,8 @@ sub handleImage($$$$$){
 
   my $fmt = sprintf "ok|%-15s| %s\n", $exifRotateFmt, $imgName;
   print $fmt;
+
+  return 1;
 }
 
 sub getTmpFile($$$){
@@ -704,7 +713,12 @@ sub runConvert($$$@){
   my ($opts, $inputFile, $outputFile, @args) = @_;
 
   runCmd $opts, $EXEC_CONVERT, $inputFile, @args, $outputFile;
-  die "failed to run convert on $inputFile {@args}\n" if $? != 0;
+  if($? == 0){
+    return 1;
+  }else{
+    print "\n\n\n\nCONVERT FAILED: $inputFile {@args}\n\n\n\n";
+    return 0;
+  }
 }
 
 sub readFile($){
