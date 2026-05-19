@@ -62,7 +62,7 @@ my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
     Create a recursive copy of images from <SRC_DIR> to <DEST_DIR>,
       resized to fit <TARGET_W>x<TARGET_H>, preserving original aspect ratios,
-      converted to JPEG format.
+      converted to JPEG (or PNG with --png) format.
 
     The original filesize and modified timestamp are recorded for each file
       under a dir called pixmirror-info/, with the same relative path
@@ -91,6 +91,8 @@ my $USAGE = "Usage:
       a.png.jpg => a.png.jpg.jpg
       a.jpg.png => a.jpg.png.jpg
 
+    (the above applies to a.png, a.PNG etc if --png is given)
+
     <EXT>
       one of: @IMG_EXTS
 
@@ -115,6 +117,9 @@ my $USAGE = "Usage:
         -read image format, geometry, and EXIF orientation with $EXEC_IDENTIFY
         -calculate target size, respecting --orient and --rotate, and EXIF orientation
           (behave as if EXIF auto rotation occurred)
+
+    --png
+      output in PNG format instead of JPEG format
 
     --size=<TARGET_W>x<TARGET_H>   {default is ${DEFAULT_TARGET_W}x${DEFAULT_TARGET_H}}
       target width and height in pixels {or height and width if src y>x}
@@ -192,6 +197,8 @@ sub main(@){
   my $opts = {
     simulate    => 0,
 
+    targetExt   => "jpg",
+
     targetW     => $DEFAULT_TARGET_W,
     targetH     => $DEFAULT_TARGET_H,
 
@@ -207,6 +214,8 @@ sub main(@){
     my $arg = shift;
     if($arg =~ /^(-n|-s|--dry-run|--no-act|--simulate|--read-only)$/){
       $$opts{simulate} = 1;
+    }elsif($arg =~ /^--png$/){
+      $$opts{targetExt} = "png";
     }elsif($arg =~ /^--size=(\d+)x(\d+)$/){
       $$opts{targetW} = $1+0;
       $$opts{targetH} = $2+0;
@@ -277,7 +286,7 @@ sub syncPixDirs($$$){
   print "fetching cached stat info on dest:\n";
   my $destStatInfos = readMirrorDirInfos($destDir);
   for my $imgName(sort keys %$destStatInfos){
-    my $destImgFile = getDestImgFile($destDir, $imgName, "jpg");
+    my $destImgFile = getDestImgFile($destDir, $imgName, $$opts{targetExt});
     my $destInfoFile = getDestInfoFile($destDir, $imgName);
     if(not checkInfo($$srcStatInfos{$imgName}, $$destStatInfos{$imgName})){
       print "removing $destImgFile and $destInfoFile\n";
@@ -425,7 +434,9 @@ sub cleanupFailures($$$){
   for my $imgName(keys %$statusesByImgName){
     if($$statusesByImgName{$imgName} == 0){
       print STDERR "\nFAILED: $imgName\n";
-      my @files = (getDestImgFile($destDir, $imgName, "jpg"), getDestInfoFile($destDir, $imgName));
+      my @files = (
+        getDestImgFile($destDir, $imgName, $$opts{targetExt}),
+        getDestInfoFile($destDir, $imgName));
       @files = grep {-f $_} @files;
       if(@files == 0){
         print STDERR "  no temp files to cleanup\n";
@@ -558,7 +569,7 @@ sub handleImage($$$$$){
   my ($opts, $imgName, $srcDir, $destDir, $statInfo) = @_;
 
   my $srcImgFile = getSrcImgFile($srcDir, $imgName);
-  my $destImgFile = getDestImgFile($destDir, $imgName, "jpg");
+  my $destImgFile = getDestImgFile($destDir, $imgName, $$opts{targetExt});
   my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
   my $identifyImgInfo = getIdentifyImgInfo $srcImgFile;
