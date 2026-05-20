@@ -7,7 +7,7 @@ use File::Basename qw(basename dirname);
 use IPC::Run qw(run);
 use Time::HiRes qw(time);
 
-my $IS_THREADED = eval 'use threads; use threads::shared; 1';
+my $IS_THREADED = eval 'use threads; use threads::shared; use Thread::Queue; 1';
 
 sub syncPixDirs($$$);
 sub getSrcImgFile($$);
@@ -328,71 +328,65 @@ sub syncPixDirs($$$){
   my $statusCheckpointSize = 10;
 
   my $statusesByImgName = {};
-  my $count = 0;
-  my $abort = 0;
 
   if($IS_THREADED and $$opts{threadCount} > 1){
-    share($statusesByImgName);
-    share(\$count);
-    share(\$abort);
+    share(\$statusesByImgName);
 
-    my @threadChunks;
-    my $threadChunk = undef;
-    my $size = $countToConvert/$$opts{threadCount};
-    for my $imgName(@imgNamesToConvert){
-      if(not defined $threadChunk){
-        $threadChunk = [];
-        push @threadChunks, $threadChunk;
-      }
-      push @$threadChunk, $imgName;
-      if(@threadChunks < $$opts{threadCount} and @$threadChunk >= $size){
-        $threadChunk = undef;
-      }
+    my $threadQueue = Thread::Queue->new();
+
+    my @threads;
+    for(my $i=0; $i<$$opts{threadCount}; $i++){
+      my $t = threads->create(sub {
+        my $threadNum = threads->tid();
+        print STDERR "     thread#$threadNum: STARTED\n";
+
+        while(my $msg = $threadQueue->dequeue()){
+          if(defined $msg and $msg =~ /^imgName=(.+)$/){
+            my $imgName = $1;
+            $$statusesByImgName{$imgName} = 0;
+            my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+            if($success){
+              $$statusesByImgName{$imgName} = 1;
+            }
+          }else{
+            print STDERR "     thread#$threadNum: ERROR (aborting)\n";
+            last;
+          }
+        }
+        print STDERR "     thread#$threadNum: FINISHED\n";
+        threads->exit();
+      });
+      push @threads, $t;
     }
 
+    my $abort = 0;
     $SIG{'INT'} = sub {
       print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
       $abort = 1;
     };
 
-    my @threads;
-    for my $chunk(@threadChunks){
-      my $t = threads->create(sub {
-        my $threadNum = threads->tid();
-        print STDERR "     thread#$threadNum: STARTED\n";
-        $SIG{'INT'} = sub {
-          print STDERR "\n\ncaught SIGINT, exiting each thread after current file\n\n";
-          $abort = 1;
-        };
+    #block on enqueue() until a thread takes a job to allow abort
+    # limit of 1 is broken and blocks forever for no discernible reason
+    $threadQueue->limit = 2;
 
-        for my $imgName(@$chunk){
-          $$statusesByImgName{$imgName} = 0;
-          my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
-          if($success){
-            $$statusesByImgName{$imgName} = 1;
-          }
+    for my $imgName(@imgNamesToConvert){
+      if($abort){
+        last;
+      }else{
+        $threadQueue->enqueue("imgName=$imgName");
 
-          if($abort){
-            print STDERR "     thread#$threadNum: ERROR (aborting)\n";
-            return;
-          }
-
-          {
-            lock($count);
-            $count++;
-            if($count % $statusCheckpointSize == 0){
-              print STDERR "     ALL: $count / $countToConvert\n";
-            }
-          }
+        my $count = 0 + keys %$statusesByImgName;
+        if($count % $statusCheckpointSize == 0){
+          print STDERR "     ALL: $count / $countToConvert\n";
         }
-        print STDERR "     thread#$threadNum: FINISHED\n";
-      });
-      push @threads, $t;
+      }
     }
+    $threadQueue->end();
 
     for my $t(@threads){
       $t->join();
     }
+
     print STDERR "\n\nall threads joined\n";
   }else{
     my $count = 0;
@@ -402,7 +396,7 @@ sub syncPixDirs($$$){
       if($success){
         $$statusesByImgName{$imgName} = 1;
       }
-      $count++;
+      my $count = 0 + keys %$statusesByImgName;
       if($count % $statusCheckpointSize == 0){
         print STDERR "     $count / $countToConvert\n";
       }
