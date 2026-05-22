@@ -4,7 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub ensureRoot();
-sub parseOpts(@);
+sub parseOpts($@);
 sub runCommand($$$);
 sub getMntParts($);
 sub getSelectedPart($$);
@@ -32,15 +32,12 @@ my $MOUNT_DIR = '/media';
 my $MAX_TIMEOUT = 60;
 my $DELAY = 1;
 
-my %DEV_TYPES = (
-  usb => "true",
-  card => "true",
-  other => "false",
-);
-
 my $EXEC = basename $0;
 
 my $USAGE = "
+  $EXEC -h | --help
+    show this message
+
   $EXEC [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
              default is \"-m\"
 
@@ -86,11 +83,11 @@ my $USAGE = "
   ==========
 ";
 
-my $CMD_MOUNT = "-m";
-my $CMD_UMOUNT = "-u";
-my $CMD_GET = "-g";
-my $CMD_GET_NAMES = "-n";
-my $CMD_LAZY_MOUNT = "-l";
+my $CMD_MOUNT = "mount";
+my $CMD_UMOUNT = "umount";
+my $CMD_GET = "get";
+my $CMD_GET_NAMES = "get-names";
+my $CMD_LAZY_MOUNT = "lazy-mount";
 
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
@@ -100,15 +97,9 @@ sub main(@){
 
   ensureRoot();
 
-  my ($devOpts, @args) = parseOpts @_;
+  my ($cmd, $name, $opts) = parseOpts(1, @_);
 
-  my $cmd = shift @args || "-m";
-  die $USAGE if $cmd !~ /^(-m|-u|-g|-n|-l)$/;
-  my $name = shift @args if $cmd =~ /^(-m|-u|-l)$/;
-
-  die $USAGE if @args > 0;
-
-  runCommand $cmd, $name, $devOpts;
+  runCommand $cmd, $name, $opts;
 }
 
 sub ensureRoot(){
@@ -118,22 +109,60 @@ sub ensureRoot(){
   }
 }
 
-sub parseOpts(@){
-  my $devOpts = {};
-  while(@_ > 0 and $_[0] =~ /^--(no-)?(usb|card|other)$/){
-    my $neg = defined $1;
-    $$devOpts{$2} = $neg ? "false" : "true";
-    shift;
+sub parseOpts($@){
+  my ($validate, @args) = @_;
+
+  my $cmd = $CMD_MOUNT;
+  my $name = undef;
+  my $opts = {
+    includeUsb   => 1,
+    includeCard  => 1,
+    includeOther => 0,
+  };
+
+  while(@args > 0){
+    my $arg = shift @args;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-m)$/){
+      $cmd = $CMD_MOUNT;
+    }elsif($arg =~ /^(-u)$/){
+      $cmd = $CMD_UMOUNT;
+    }elsif($arg =~ /^(-g)$/){
+      $cmd = $CMD_GET;
+    }elsif($arg =~ /^(-n)$/){
+      $cmd = $CMD_GET_NAMES;
+    }elsif($arg =~ /^(-l)$/){
+      $cmd = $CMD_LAZY_MOUNT;
+    }elsif($arg =~ /^(--usb)$/){
+      $$opts{includeUsb} = 1;
+    }elsif($arg =~ /^(--no-usb)$/){
+      $$opts{includeUsb} = 0;
+    }elsif($arg =~ /^(--card)$/){
+      $$opts{includeCard} = 1;
+    }elsif($arg =~ /^(--no-card)$/){
+      $$opts{includeCard} = 0;
+    }elsif($arg =~ /^(--other)$/){
+      $$opts{includeOther} = 1;
+    }elsif($arg =~ /^(--no-other)$/){
+      $$opts{includeOther} = 0;
+    }elsif($cmd =~ /^($CMD_MOUNT|$CMD_UMOUNT|$CMD_LAZY_MOUNT)$/ and not defined $name){
+      $name = $arg;
+    }else{
+      if($validate){
+        die "$USAGE\nERROR: unknown arg $arg\n";
+      }
+    }
   }
-  return ($devOpts, @_);
+
+  return ($cmd, $name, $opts);
 }
 
 sub runCommand($$$){
-  my $cmd = shift;
-  my $name = shift;
-  my $devOpts = shift;
+  my ($cmd, $name, $opts) = @_;
 
-  my @mntParts = getMntParts($devOpts);
+  my @mntParts = getMntParts($opts);
 
   if($cmd eq $CMD_MOUNT){
     if(defined $name){
@@ -171,19 +200,19 @@ sub runCommand($$$){
       if(@names == 0){
         die "timeout exceeded\n" if time > ($start+$MAX_TIMEOUT);
         sleep $DELAY;
-        @mntParts = getMntParts($devOpts);
+        @mntParts = getMntParts($opts);
       }
     }
     print "partition(s) found, mounting\n";
     for my $name(@names){
-      runCommand $CMD_MOUNT, $name, $devOpts;
+      runCommand $CMD_MOUNT, $name, $opts;
     }
   }
 }
 
 sub getMntParts($){
-  my $devOpts = shift;
-  return grep {isAllowedFS($_) and isMntDevice($_, $devOpts)} blkid();
+  my ($opts) = @_;
+  return grep {isAllowedFS($_) and isMntDevice($_, $opts)} blkid();
 }
 sub getSelectedPart($$){
   my @mntParts = @{shift()};
@@ -399,25 +428,20 @@ sub isAllowedFS($){
   }
 }
 sub isMntDevice($$){
-  my %udev = %{${shift()}{udev}};
-  my $devOpts = shift;
+  my ($partition, $opts) = @_;
+  my %udev = %{$$partition{udev}};
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
   my $mediaFlashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
 
   my $type;
   if(defined $idPath and $idPath =~ /-usb-/){
-    $type = 'usb';
+    return $$opts{includeUsb};
   }elsif($flashSD or $mediaFlashSD){
-    $type = 'card';
+    return $$opts{includeCard};
   }else{
-    $type = 'other';
+    return $$opts{includeOther};
   }
-
-  my $val = $$devOpts{$type};
-  $val = $DEV_TYPES{$type} if not defined $val;
-
-  return $val eq 'true';
 }
 
 sub run(@){
@@ -434,45 +458,54 @@ sub runFailEcho(@){
 
 sub bashComplete($$){
   my ($cmdLine, $pos) = @_;
-  my $cmd = substr $cmdLine, 0, $pos;
-  my $isNewWord = $cmd =~ /\s$/;
-  $cmd =~ s/^\s+//;
-  $cmd =~ s/\s+$//;
+  my $cmdStr = substr $cmdLine, 0, $pos;
+  my $isNewWord = $cmdStr =~ /\s$/;
+  $cmdStr =~ s/^\s+//;
+  $cmdStr =~ s/\s+$//;
 
-  my @words = split /\s+/, $cmd;
+  my @words = split /\s+/, $cmdStr;
   shift @words;
-  pop @words if not $isNewWord;
+
+  my $curWord = "";
+  $curWord = pop @words if not $isNewWord;
 
   my @opts = qw(
     --usb --no-usb
     --card --no-card
     --other --no-other
   );
-  my @getCmds = qw(-g -n);
-  my @actionCmds = qw(-m -u -l);
+  my @cmds = qw(-m -u -g -n -l);
 
-  my $okGetCmds = join "|", @getCmds;
-  my $okActionCmds = join "|", @actionCmds;
-
-  my $devOpts;
-  ($devOpts, @words) = parseOpts @words;
-
-  if(@words == 1 and $words[0] =~ /^($okGetCmds)$/){
-    return ();
+  my $hasOpts = 0;
+  my $hasCmds = 0;
+  my $regexOpts = join "|", @opts;
+  my $regexCmds = join "|", @cmds;
+  for my $word(@words){
+    $hasOpts = 1 if $word =~ /^($regexOpts)$/;
+    $hasCmds = 1 if $word =~ /^($regexCmds)$/;
   }
 
-  if(@words == 0 or (@words == 1 and $words[0] =~ /^($okActionCmds)/)){
-    my @mntParts = getMntParts($devOpts);
+  my ($cmd, $name, $opts) = parseOpts(0, @words);
 
-    if(@words == 0){
-      return (@opts, @getCmds, @actionCmds, getUnmountedNames \@mntParts);
-    }elsif($words[0] =~ /^(-m|-l)$/){
-      return (getUnmountedNames \@mntParts);
-    }elsif($words[0] =~ /^(-u)$/){
-      return (getMountedNames \@mntParts);
+  #fetch+filter names with blkid/udevadm/df/etc
+  my @names;
+  if(not defined $name){
+    if($cmd =~ /^($CMD_MOUNT|$CMD_LAZY_MOUNT)$/){
+      @names = getUnmountedNames [getMntParts($opts)];
+    }elsif($cmd =~ /^($CMD_UMOUNT)$/){
+      @names = getMountedNames [getMntParts($opts)];
     }
   }
-  return ();
+
+  if($curWord =~ /^-/){
+    return (@opts, @cmds);
+  }elsif($hasCmds){
+    return @names;
+  }elsif($hasOpts){
+    return (@cmds, @names);
+  }else{
+    return (@opts, @cmds, @names);
+  }
 }
 
 &main(@ARGV);
