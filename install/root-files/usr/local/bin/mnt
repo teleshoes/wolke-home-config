@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub ensureRoot();
 sub parseOpts(@);
 sub runCommand($$$);
 sub getMntParts($);
@@ -86,7 +87,8 @@ my $USAGE = "
 ";
 
 sub main(@){
-  exec "sudo", $0, @_ if `whoami` ne "root\n";
+  ensureRoot();
+
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
     exit 0;
@@ -101,6 +103,13 @@ sub main(@){
   die $USAGE if @args > 0;
 
   runCommand $cmd, $name, $devOpts;
+}
+
+sub ensureRoot(){
+  if(`whoami` ne "root\n"){
+    print STDERR "rerunning as root\n";
+    exec "sudo", $0, @ARGV;
+  }
 }
 
 sub parseOpts(@){
