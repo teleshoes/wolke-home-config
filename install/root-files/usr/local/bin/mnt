@@ -2,8 +2,6 @@
 use strict;
 use warnings;
 
-my $configFile = '/etc/default/mnt';
-
 my $mountDir = '/media';
 my $maxTimeout = 60;
 my $delay = 1;
@@ -13,7 +11,6 @@ my %devTypes = (
   card => "true",
   other => "false",
 );
-my %devEnvVars = map {$_ => "MNT_" . uc $_} keys %devTypes;
 
 sub parseOpts(@);
 sub runCommand($$$);
@@ -28,7 +25,6 @@ sub ensureSize($);
 sub udevadm($);
 sub partedSize($);
 sub getName($);
-sub getMntConfig($$);
 sub isAllowedFS($);
 sub isMntDevice($$);
 sub run(@);
@@ -39,21 +35,13 @@ sub bashComplete($$);
 sub usage(){
   my $ex = `basename $0`;
   chomp $ex;
-  my $okTypes = '';
-  for my $type(sort keys %devTypes){
-    my $var = $devEnvVars{$type};
-    $okTypes .= "\n    $var {default '$devTypes{$type}'}";
-  }
   return "
   $ex [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
              default is \"-m\"
 
-  Mounts/unmounts partitions on different types of storage devices.
-  Types of storage devices are controlled with a config file,
-    environment variables, and command line flags.
-
-  Environment variables {or config file settings}:$okTypes
-    'true' includes, 'false' discludes, anything else does the default
+  Mounts/unmounts partitions for usb, flash, and internal/other storage devices.
+    --usb and --card are enabled by default
+    --other is disabled by default
 
   If SUDO_UID and/or SUDO_GID environment variables are present,
     mount all fat, msdos and ntfs partitions with uid and/or gid opts.
@@ -88,9 +76,8 @@ sub usage(){
     --usb --no-usb
     --card --no-card
     --other --no-other
-      include or disclude devices of the indicated type.
-      overrides default values, environment vars and $configFile
-      latest argument in the command line takes precedence
+        (default is --usb --card --no-other)
+      include or disclude devices of the indicated type, overriding default
   ==========
 "
 };
@@ -384,33 +371,6 @@ sub getName($){
   return $$p{uuid};
 }
 
-sub getMntConfig($$){
-  my $type = shift;
-  my $devOpts = shift;
-  die "Unknown device type: $type" if not defined $devTypes{$type};
-
-  if(defined $$devOpts{$type}){
-    return $$devOpts{$type};
-  }
-
-  my $varName = $devEnvVars{$type};
-  my $val;
-  if(defined $ENV{$varName}){
-    $val = $ENV{$varName};
-  }elsif(-e $configFile){
-    my $line = `cat $configFile | grep $varName`;
-    if($line =~ /^\s*$varName\s*=\s*(.*?)\s*$/){
-      $val = $1;
-    }
-  }
-  $val = '' if not defined $val;
-  if($val =~ /^true|false$/){
-    return $val;
-  }else{
-    return $devTypes{$type};
-  }
-}
-
 sub isAllowedFS($){
   my $p = shift;
   if($$p{type} =~ /swap/){
@@ -435,7 +395,10 @@ sub isMntDevice($$){
     $type = 'other';
   }
 
-  return getMntConfig($type, $devOpts) eq 'true';
+  my $val = $$devOpts{$type};
+  $val = $devTypes{$type} if not defined $val;
+
+  return $val eq 'true';
 }
 
 sub run(@){
