@@ -6,7 +6,7 @@ use File::Basename qw(basename);
 sub ensureRoot();
 sub parseOpts($@);
 sub runCommand($$$);
-sub getMntParts($);
+sub filterPartitions($@);
 sub getSelectedPart($$);
 sub getInfo($);
 sub getMountedNames($);
@@ -16,7 +16,7 @@ sub isMounted($);
 sub isMountedOn($$);
 sub mount($);
 sub unmount($);
-sub blkid();
+sub blkidGetPartitions();
 sub ensureSize($);
 sub udevadm($);
 sub partedSize($);
@@ -31,6 +31,10 @@ sub bashComplete($$);
 my $MOUNT_DIR = '/media';
 my $MAX_TIMEOUT = 60;
 my $DELAY = 1;
+
+my $DEV_TYPE_USB = "usb";
+my $DEV_TYPE_CARD = "card";
+my $DEV_TYPE_OTHER = "other";
 
 my $EXEC = basename $0;
 
@@ -162,7 +166,8 @@ sub parseOpts($@){
 sub runCommand($$$){
   my ($cmd, $name, $opts) = @_;
 
-  my @mntParts = getMntParts($opts);
+  my @mntParts = blkidGetPartitions();
+  @mntParts = filterPartitions($opts, @mntParts);
 
   if($cmd eq $CMD_MOUNT){
     if(defined $name){
@@ -200,7 +205,8 @@ sub runCommand($$$){
       if(@names == 0){
         die "timeout exceeded\n" if time > ($start+$MAX_TIMEOUT);
         sleep $DELAY;
-        @mntParts = getMntParts($opts);
+        @mntParts = blkidGetPartitions();
+        @mntParts = filterPartitions($opts, @mntParts);
       }
     }
     print "partition(s) found, mounting\n";
@@ -210,9 +216,20 @@ sub runCommand($$$){
   }
 }
 
-sub getMntParts($){
-  my ($opts) = @_;
-  return grep {isAllowedFS($_) and isMntDevice($_, $opts)} blkid();
+sub filterPartitions($@){
+  my ($opts, @partitions) = @_;
+
+  my @okDevTypes;
+  push @okDevTypes, $DEV_TYPE_USB if $$opts{includeUsb};
+  push @okDevTypes, $DEV_TYPE_CARD if $$opts{includeCard};
+  push @okDevTypes, $DEV_TYPE_OTHER if $$opts{includeOther};
+  my $devTypeRegex = join "|", @okDevTypes;
+
+  @partitions = grep {$$_{type} ne "swap"} @partitions;
+
+  @partitions = grep {$$_{devType} =~ /^($devTypeRegex)$/} @partitions;
+
+  return @partitions;
 }
 sub getSelectedPart($$){
   my @mntParts = @{shift()};
@@ -346,7 +363,7 @@ sub unmount($){
   }
 }
 
-sub blkid(){
+sub blkidGetPartitions(){
   my @partitions;
   for my $line(`blkid`){
     my %p;
@@ -360,6 +377,8 @@ sub blkid(){
     $p{udev} = udevadm $p{dev};
 
     $p{name} = getName \%p;
+
+    $p{devType} = calculateDevType(\%p);
 
     push @partitions, \%p;
   }
@@ -419,16 +438,8 @@ sub getName($){
   return $$p{uuid};
 }
 
-sub isAllowedFS($){
-  my $p = shift;
-  if($$p{type} =~ /swap/){
-    return 0;
-  }else{
-    return 1;
-  }
-}
-sub isMntDevice($$){
-  my ($partition, $opts) = @_;
+sub calculateDevType($){
+  my ($partition) = @_;
   my %udev = %{$$partition{udev}};
   my $idPath = $udev{ID_PATH};
   my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
@@ -436,11 +447,11 @@ sub isMntDevice($$){
 
   my $type;
   if(defined $idPath and $idPath =~ /-usb-/){
-    return $$opts{includeUsb};
+    return $DEV_TYPE_USB;
   }elsif($flashSD or $mediaFlashSD){
-    return $$opts{includeCard};
+    return $DEV_TYPE_CARD;
   }else{
-    return $$opts{includeOther};
+    return $DEV_TYPE_OTHER;
   }
 }
 
@@ -491,9 +502,11 @@ sub bashComplete($$){
   my @names;
   if(not defined $name){
     if($cmd =~ /^($CMD_MOUNT|$CMD_LAZY_MOUNT)$/){
-      @names = getUnmountedNames [getMntParts($opts)];
+      my @partitions = filterPartitions($opts, blkidGetPartitions());
+      @names = getUnmountedNames \@partitions;
     }elsif($cmd =~ /^($CMD_UMOUNT)$/){
-      @names = getMountedNames [getMntParts($opts)];
+      my @partitions = filterPartitions($opts, blkidGetPartitions());
+      @names = getMountedNames \@partitions;
     }
   }
 
