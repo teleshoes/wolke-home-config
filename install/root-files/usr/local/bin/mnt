@@ -86,6 +86,12 @@ my $USAGE = "
   ==========
 ";
 
+my $CMD_MOUNT = "-m";
+my $CMD_UMOUNT = "-u";
+my $CMD_GET = "-g";
+my $CMD_GET_NAMES = "-n";
+my $CMD_LAZY_MOUNT = "-l";
+
 sub main(@){
   if(@_ == 3 and $_[0] =~ /^--bash-complete$/ and $_[2] =~ /^\d+$/){
     print map {"$_\n"} bashComplete($_[1], $_[2]);
@@ -129,7 +135,7 @@ sub runCommand($$$){
 
   my @mntParts = getMntParts($devOpts);
 
-  if($cmd eq '-m'){
+  if($cmd eq $CMD_MOUNT){
     if(defined $name){
       my $selectedPart = getSelectedPart(\@mntParts, $name);
       die "already mounted\n" if isMounted(${$selectedPart}{dev});
@@ -138,7 +144,7 @@ sub runCommand($$$){
       my @unmounted = grep {!isMounted(${$_}{dev})} @mntParts;
       mount $_ foreach @unmounted;
     }
-  }elsif($cmd eq '-u'){
+  }elsif($cmd eq $CMD_UMOUNT){
     if(defined $name){
       my $selectedPart = getSelectedPart(\@mntParts, $name);
       die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
@@ -147,11 +153,11 @@ sub runCommand($$$){
       my @mounted = grep {isMounted(${$_}{dev})} @mntParts;
       unmount $_ foreach @mounted;
     }
-  }elsif($cmd eq '-g'){
+  }elsif($cmd eq $CMD_GET){
     print "$_\n" foreach getInfo \@mntParts;
-  }elsif($cmd eq '-n'){
+  }elsif($cmd eq $CMD_GET_NAMES){
     print "$_\n" foreach getUnmountedNames \@mntParts;
-  }elsif($cmd eq '-l'){
+  }elsif($cmd eq $CMD_LAZY_MOUNT){
     my @names;
     my $start = time;
     while(@names == 0){
@@ -170,7 +176,7 @@ sub runCommand($$$){
     }
     print "partition(s) found, mounting\n";
     for my $name(@names){
-      runCommand "-m", $name, $devOpts;
+      runCommand $CMD_MOUNT, $name, $devOpts;
     }
   }
 }
