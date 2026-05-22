@@ -90,7 +90,7 @@ elif [ $MACHINE_TYPE = "tv" ]; then
   screen-daemon pyeconet-monitor --start
   screen-daemon lcd-monitor --start
   screen-daemon klomp-pi-display --start
-  screen-daemon pylitterbot --start
+  screen-daemon pylitterbot-monitor --start
   screen-daemon weatherapi --start
 fi
 
