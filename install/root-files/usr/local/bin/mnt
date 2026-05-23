@@ -39,7 +39,7 @@ my $USAGE = "
   $EXEC -h | --help
     show this message
 
-  $EXEC [OPTS] [GET_CMD | ACTION_CMD [NAME] ]
+  $EXEC [OPTS] [GET_CMD [NAME] | ACTION_CMD [NAME] ]
              default is \"-m\"
 
   Mounts/unmounts partitions for usb, flash, and internal/other storage devices.
@@ -58,8 +58,8 @@ my $USAGE = "
 
   ==========
   GET_CMD:
-    -g  for all partitions, print 'NAME size {mounted} dev'
-    -n  print 'NAME' of all UNMOUNTED partitions
+    -g  for all partitions {or just NAME}, print 'NAME size {mounted} dev'
+    -n  print 'NAME' of all {or just NAME} UNMOUNTED partitions
 
   ACTION_CMD:
     -m  mount all partitions {or just NAME} at /media
@@ -148,7 +148,7 @@ sub parseOpts($@){
       $$opts{includeOther} = 1;
     }elsif($arg =~ /^(--no-other)$/){
       $$opts{includeOther} = 0;
-    }elsif($cmd =~ /^($CMD_MOUNT|$CMD_UMOUNT|$CMD_LAZY_MOUNT)$/ and not defined $name){
+    }elsif(not defined $name){
       $name = $arg;
     }else{
       if($validate){
@@ -185,9 +185,11 @@ sub runCommand($$$){
       unmount $_ foreach @mounted;
     }
   }elsif($cmd eq $CMD_GET){
+    @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
     ensureSize $_ foreach @mntParts;
     print formatPartition($_) . "\n" foreach @mntParts;
   }elsif($cmd eq $CMD_GET_NAMES){
+    @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
     my @unmounted = grep {not $$_{isMounted}} @mntParts;
     print "$$_{name}\n" foreach @unmounted;
   }elsif($cmd eq $CMD_LAZY_MOUNT){
