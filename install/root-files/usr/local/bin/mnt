@@ -38,36 +38,74 @@ my $USAGE = "
   $EXEC -h | --help
     show this message
 
-  $EXEC [OPTS] [GET_CMD [NAME] | ACTION_CMD [NAME] ]
-             default is \"-m\"
+  $EXEC [OPTS] [TARGET_PART_NAME]
+    same as: $EXEC [OPTS] -m [TARGET_PART_NAME]
 
-  Mounts/unmounts partitions for usb, flash, and internal/other storage devices.
-    --usb and --card are enabled by default
-    --other is disabled by default
+  $EXEC [OPTS] -g [TARGET_PART_NAME]
+    list info about all mounted+unmounted partitions with `blkid` + `udevadm` + `parted`
+      -find all partitions with `blkid`
+      -get info for each partition:
+        -get PART_NAME (label/uuid/dev+size, see below)
+        -determine DEV_TYPE:
+          usb   => USB device with '-usb' in dev path
+          card  => flash/card device with certain '*FLASH_SD*' flags in udev
+          other => internal/SATA/PCIE/other device
+        -get FS_SIZE_GIB with `parted`, rounded to the nearest tenth of a GiB
+        -get IS_MOUNTED as 'mounted' or 'unmounted'
+      -filter partitions:
+        -skip partition if TARGET_PART_NAME is given and PART_NAME does not match
+        -skip partition if DEV_TYPE is not included
+          -'usb' and 'card' are included by default (see --no-usb/--no-card)
+          -'other' is excluded by default (see --other)
+      -for each unskipped partition, print one per line:
+        <PART_NAME> <FS_SIZE_GIB>GiB <DEV_TYPE> <IS_MOUNTED> <DEV_PATH>
 
-  If SUDO_UID and/or SUDO_GID environment variables are present,
-    mount all fat, msdos and ntfs partitions with uid and/or gid opts.
+  $EXEC [OPTS] -n [TARGET_PART_NAME]
+    print unmounted partition names
+      -get + filter partitions as in '$EXEC -g [TARGET_PART_NAME]'
+      -skip all partitions with IS_MOUNTED='mounted'
+      -for each unmounted unskipped partitions, print one per line:
+        <PART_NAME>
 
-  '$EXEC' calls: udevadm, blkid, parted, mount, umount, lsof, fuser
+  $EXEC [OPTS] -m [TARGET_PART_NAME]
+    mount devices at $MOUNT_DIR
+      -get + filter partitions as in '$EXEC -g [TARGET_PART_NAME]'
+      -skip all partitions with IS_MOUNTED='mounted'
+      -for each partition:
+        -calculate mountpoint as $MOUNT_DIR/<PART_NAME>
+        -calculate mount opts
+          -if SUDO_UID and/or SUDO_GID environment variables are present:
+            -mount all fat, msdos and ntfs partitions with uid and/or gid opts
+        -run `mount`
+
+  $EXEC [OPTS] -u [TARGET_PART_NAME]
+    unmount devices from $MOUNT_DIR
+      -get + filter partitions as in '$EXEC -g [TARGET_PART_NAME]'
+      -skip all partitions with IS_MOUNTED='unmounted'
+      -for each partition:
+        -calculate mountpoint as $MOUNT_DIR/<PART_NAME>
+        -ensure partition is mounted there, and skip otherwise
+        -run `lsof` + `fuser` on mountpoint
+        -run `umount`
+
+   $EXEC [OPTS] -l [TARGET_PART_NAME]
+     wait for unmounted partitions, and then mount them
+      -repeatedly check for unmounted partitions (up to ${MAX_TIMEOUT}s):
+        -get + filter partitions as in '$EXEC -g [TARGET_PART_NAME]'
+        -skip all partitions with IS_MOUNTED='mounted'
+        -if no unmounted partitions exist:
+          -fail if ${MAX_TIMEOUT}s is exceeded
+          -sleep ${DELAY}s
+          -repeat
+      -mount partitions as in:
+        $EXEC [OPTS] -m [TARGET_PART_NAME]
 
   $EXEC --bash-complete COMP_LINE COMP_POINT
      print a list of words for bash completion, one per line
      COMP_LINE  - the full cmdline as a string
      COMP_POINT - the cursor position in the cmdline
 
-  ==========
-  GET_CMD:
-    -g  for all partitions {or just NAME}, print 'NAME size devType {mounted} dev'
-    -n  print 'NAME' of all {or just NAME} UNMOUNTED partitions
-
-  ACTION_CMD:
-    -m  mount all partitions {or just NAME} at /media
-        mount point is the same as NAME
-    -u  unmount all partitions {or just NAME}
-    -l  check every ${DELAY}s until any partition {or just NAME} is available
-          and unmounted, and then mount all partitions
-
-  NAME:
+  PART_NAME:
     the partition label if blkid finds one
     OR <devname>  or  <devname>_<size>GiB
        if the device is /dev/<devname> and <devname> is alphanumeric
@@ -79,8 +117,7 @@ my $USAGE = "
     --card --no-card
     --other --no-other
         (default is --usb --card --no-other)
-      include or disclude devices of the indicated type, overriding default
-  ==========
+      include or exclude devices of the indicated type, overriding default
 ";
 
 my $CMD_MOUNT = "mount";
