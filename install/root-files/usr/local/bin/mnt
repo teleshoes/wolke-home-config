@@ -10,8 +10,8 @@ sub filterPartitions($@);
 sub formatPartition($);
 sub df();
 sub isMountedOn($$);
-sub mount($);
-sub unmount($);
+sub mount($$);
+sub unmount($$);
 sub blkidGetPartitions();
 sub ensureSize($);
 sub udevadm($);
@@ -213,7 +213,7 @@ sub runCommand($$$){
       print "partition(s) already mounted\n";
     }else{
       for my $part(@unmounted){
-        mount $part;
+        mount $opts, $part;
       }
     }
   }elsif($cmd eq $CMD_UMOUNT){
@@ -223,7 +223,7 @@ sub runCommand($$$){
       print "partition(s) already unmounted\n";
     }else{
       for my $part(@mounted){
-        unmount $part;
+        unmount $opts, $part;
       }
     }
   }elsif($cmd eq $CMD_GET){
@@ -313,8 +313,9 @@ sub isMountedOn($$){
   return defined $$df{$dev} && defined $$df{$dev}{$mountPoint};
 }
 
-sub mount($){
-  my %p = %{shift()};
+sub mount($$){
+  my ($opts, $partition) = @_;
+  my %p = %$partition;
   my $mountPoint = "$MOUNT_DIR/$p{name}";
   if(isMountedOn $p{dev}, $mountPoint){
     print STDERR "$p{dev} already mounted\n";
@@ -344,8 +345,9 @@ sub mount($){
   }
 }
 
-sub unmount($){
-  my %p = %{shift()};
+sub unmount($$){
+  my ($opts, $partition) = @_;
+  my %p = %$partition;
   my $mountPoint = "$MOUNT_DIR/$p{name}";
   if(!isMountedOn $p{dev}, $mountPoint){
     print STDERR "$p{dev} not mounted on $mountPoint\n";
