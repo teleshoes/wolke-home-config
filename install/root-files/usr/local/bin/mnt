@@ -76,6 +76,9 @@ my $USAGE = "
         -calculate mount opts
           -if SUDO_UID and/or SUDO_GID environment variables are present:
             -mount all fat, msdos and ntfs partitions with uid and/or gid opts
+        -ensure mountpoint does not exist or is removable with `rmdir`
+          -see: --allow-non-empty
+        -create mountpoint dir
         -run `mount`
 
   $EXEC [OPTS] -u [TARGET_PART_NAME]
@@ -118,6 +121,9 @@ my $USAGE = "
     --other --no-other
         (default is --usb --card --no-other)
       include or exclude devices of the indicated type, overriding default
+
+    --allow-non-empty
+      mount partitions even if mountpoint exists and is not removable with rmdir
 ";
 
 my $CMD_MOUNT = "mount";
@@ -152,9 +158,11 @@ sub parseOpts($@){
   my $cmd = $CMD_MOUNT;
   my $name = undef;
   my $opts = {
-    includeUsb   => 1,
-    includeCard  => 1,
-    includeOther => 0,
+    includeUsb    => 1,
+    includeCard   => 1,
+    includeOther  => 0,
+
+    allowNonEmpty => 0,
   };
 
   while(@args > 0){
@@ -184,6 +192,8 @@ sub parseOpts($@){
       $$opts{includeOther} = 1;
     }elsif($arg =~ /^(--no-other)$/){
       $$opts{includeOther} = 0;
+    }elsif($arg =~ /^(--allow-non-empty)$/){
+      $$opts{allowNonEmpty} = 1;
     }elsif(not defined $name){
       $name = $arg;
     }else{
@@ -324,9 +334,16 @@ sub mount($$){
 
   run "rmdir $mountPoint 2>/dev/null";
   if(-e $mountPoint){
-    die "$mountPoint exists and is not removable with rmdir";
+    my $msg = "$mountPoint exists and is not removable with rmdir";
+    if($$opts{allowNonEmpty}){
+      print "WARNING: $msg\n";
+    }else{
+      die "ERROR: $msg\n";
+    }
   }
-  runFail "mkdir", $mountPoint;
+  if(not -d $mountPoint){
+    runFail "mkdir", $mountPoint;
+  }
 
   my @mntOpts;
   if($p{type} =~ /fat|msdos|ntfs/i){
