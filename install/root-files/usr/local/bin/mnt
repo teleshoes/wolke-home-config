@@ -439,14 +439,25 @@ sub getName($){
 sub calculateDevType($){
   my ($partition) = @_;
   my %udev = %{$$partition{udev}};
-  my $idPath = $udev{ID_PATH};
-  my $flashSD = $udev{ID_DRIVE_FLASH_SD} || 0;
-  my $mediaFlashSD = $udev{ID_DRIVE_MEDIA_FLASH_SD} || 0;
 
-  my $type;
-  if(defined $idPath and $idPath =~ /-usb-/){
+  my $idPath = $udev{ID_PATH};
+  my $isUsbPath = (defined $idPath and $idPath =~ /-usb-/) ? 1 : 0;
+
+  my @flashFlags = qw(
+    ID_DRIVE_FLASH_SD
+    ID_DRIVE_MEDIA_FLASH_SD
+  );
+  my $isFlashFlag = 0;
+  for my $flag(@flashFlags){
+    if(defined $udev{$flag} and $udev{$flag}){
+      $isFlashFlag = 1;
+      last;
+    }
+  }
+
+  if($isUsbPath){
     return $DEV_TYPE_USB;
-  }elsif($flashSD or $mediaFlashSD){
+  }elsif($isFlashFlag){
     return $DEV_TYPE_CARD;
   }else{
     return $DEV_TYPE_OTHER;
