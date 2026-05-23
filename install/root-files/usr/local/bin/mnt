@@ -12,7 +12,6 @@ sub getInfo($);
 sub getMountedNames($);
 sub getUnmountedNames($);
 sub df();
-sub isMounted($);
 sub isMountedOn($$);
 sub mount($);
 sub unmount($);
@@ -172,19 +171,19 @@ sub runCommand($$$){
   if($cmd eq $CMD_MOUNT){
     if(defined $name){
       my $selectedPart = getSelectedPart(\@mntParts, $name);
-      die "already mounted\n" if isMounted(${$selectedPart}{dev});
+      die "already mounted\n" if ${$selectedPart}{isMounted};
       mount $selectedPart;
     }else{
-      my @unmounted = grep {!isMounted(${$_}{dev})} @mntParts;
+      my @unmounted = grep {!${$_}{isMounted}} @mntParts;
       mount $_ foreach @unmounted;
     }
   }elsif($cmd eq $CMD_UMOUNT){
     if(defined $name){
       my $selectedPart = getSelectedPart(\@mntParts, $name);
-      die "already unmounted\n" if !isMounted(${$selectedPart}{dev});
+      die "already unmounted\n" if !${$selectedPart}{isMounted};
       unmount $selectedPart;
     }else{
-      my @mounted = grep {isMounted(${$_}{dev})} @mntParts;
+      my @mounted = grep {${$_}{isMounted}} @mntParts;
       unmount $_ foreach @mounted;
     }
   }elsif($cmd eq $CMD_GET){
@@ -250,7 +249,7 @@ sub getInfo($){
     ensureSize $p;
     my $name = "$$p{name}";
     my $size = defined $$p{sizeGiB} ? " $$p{sizeGiB}GiB" : "";
-    my $mounted = isMounted($$p{dev}) ? ' mounted' : ' unmounted';
+    my $mounted = $$p{isMounted} ? ' mounted' : ' unmounted';
     my $dev = " $$p{dev}";
     push @info, "$name$size$mounted$dev";
   }
@@ -261,7 +260,7 @@ sub getMountedNames($){
   my @mntParts = @{shift()};
   my @names;
   foreach my $p (@mntParts){
-    if(isMounted($$p{dev})){
+    if($$p{isMounted}){
       push @names, "$$p{name}";
     }
   }
@@ -271,7 +270,7 @@ sub getUnmountedNames($){
   my @mntParts = @{shift()};
   my @names;
   foreach my $p (@mntParts){
-    if(not isMounted($$p{dev})){
+    if(not $$p{isMounted}){
       push @names, "$$p{name}";
     }
   }
@@ -298,12 +297,6 @@ sub df(){
     }
   }
   return $df;
-}
-
-sub isMounted($){
-  my $dev = shift;
-  my $df = df();
-  return defined $$df{$dev};
 }
 
 sub isMountedOn($$){
@@ -365,7 +358,11 @@ sub unmount($){
 
 sub blkidGetPartitions(){
   my @partitions;
-  for my $line(`blkid`){
+
+  my $df = df();
+  my @blkidLines = `blkid`;
+
+  for my $line(@blkidLines){
     my %p;
     $p{dev} = $1 if $line =~ /^(.*):/;
     $p{label} = $1 if $line =~ /\WLABEL="([^"]+)"/;
@@ -379,6 +376,7 @@ sub blkidGetPartitions(){
     $p{name} = getName \%p;
 
     $p{devType} = calculateDevType(\%p);
+    $p{isMounted} = defined $$df{$p{dev}} ? 1 : 0;
 
     push @partitions, \%p;
   }
