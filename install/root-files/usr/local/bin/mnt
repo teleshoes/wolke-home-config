@@ -511,13 +511,16 @@ sub bashComplete($$){
   #fetch+filter names with blkid/udevadm/df/etc
   my @names;
   if(not defined $name){
+    my @partitions;
     if($cmd =~ /^($CMD_MOUNT|$CMD_LAZY_MOUNT)$/){
-      my @partitions = filterPartitions($opts, blkidGetPartitions());
-      @names = getUnmountedNames \@partitions;
+      @partitions = filterPartitions($opts, blkidGetPartitions());
+      @partitions = grep {not $$_{isMounted}} @partitions;
     }elsif($cmd =~ /^($CMD_UMOUNT)$/){
-      my @partitions = filterPartitions($opts, blkidGetPartitions());
-      @names = getMountedNames \@partitions;
+      @partitions = filterPartitions($opts, blkidGetPartitions());
+      @partitions = grep {$$_{isMounted}} @partitions;
     }
+
+    @names = map {$$_{name}} @partitions;
   }
 
   if($curWord =~ /^-/){
