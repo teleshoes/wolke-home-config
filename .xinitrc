@@ -12,7 +12,7 @@ sudo sbox-umount &
 /usr/lib/x86_64-linux-gnu/xfce4/notifyd/xfce4-notifyd &
 sudo fcron-start &
 
-mnt --other &
+( mnt --other stuff --allow-non-empty ; mnt --other ) &
 
 MACHINE_TYPE=`cat ~/machine-type 2>/dev/null`
 
