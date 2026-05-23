@@ -8,7 +8,7 @@ sub parseOpts($@);
 sub runCommand($$$);
 sub filterPartitions($@);
 sub getSelectedPart($$);
-sub getInfo($);
+sub formatPartition($);
 sub df();
 sub isMountedOn($$);
 sub mount($);
@@ -186,7 +186,7 @@ sub runCommand($$$){
     }
   }elsif($cmd eq $CMD_GET){
     ensureSize $_ foreach @mntParts;
-    print "$_\n" foreach getInfo \@mntParts;
+    print formatPartition($_) . "\n" foreach @mntParts;
   }elsif($cmd eq $CMD_GET_NAMES){
     my @unmounted = grep {not $$_{isMounted}} @mntParts;
     print "$$_{name}\n" foreach @unmounted;
@@ -243,17 +243,15 @@ sub getSelectedPart($$){
   die "Unknown NAME $name; try '$0 -g'\n";
 }
 
-sub getInfo($){
-  my @mntParts = @{shift()};
-  my @info;
-  foreach my $p (@mntParts){
-    my $name = "$$p{name}";
-    my $size = defined $$p{sizeGiB} ? " $$p{sizeGiB}GiB" : "";
-    my $mounted = $$p{isMounted} ? ' mounted' : ' unmounted';
-    my $dev = " $$p{dev}";
-    push @info, "$name$size$mounted$dev";
-  }
-  return @info;
+sub formatPartition($){
+  my ($p) = @_;
+  my $fmt = ""
+    . ""  . "$$p{name}"
+    . " " . (defined $$p{sizeGiB} ? $$p{sizeGiB} : "???.?") . "GiB"
+    . " " . ($$p{isMounted} ? 'mounted' : 'unmounted')
+    . " " . $$p{dev}
+  ;
+  return $fmt;
 }
 
 sub df(){
