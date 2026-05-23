@@ -195,28 +195,26 @@ sub runCommand($$$){
   }elsif($cmd eq $CMD_GET_NAMES){
     print "$$_{name}\n" foreach @unmounted;
   }elsif($cmd eq $CMD_LAZY_MOUNT){
-    my @names;
     my $start = time;
-    while(@names == 0){
-      @names = map {$$_{name}} @unmounted;
-      @names = grep {$_ eq $name} @names if defined $name;
-      if(defined $name){
-        print "waiting for $name...\n";
+    my $msg = defined $name ? $name : "unmounted partitions";
+    while(1){
+      if(@unmounted > 0){
+        print "partition(s) found, mounting\n";
+        last;
+      }elsif(time() > ($start+$MAX_TIMEOUT)){
+        die "ERROR: timeout exceeded\n";
       }else{
-        print "waiting for unmounted partitions...\n";
-      }
-      if(@names == 0){
-        die "timeout exceeded\n" if time > ($start+$MAX_TIMEOUT);
+        print "waiting for $msg...\n";
         sleep $DELAY;
+
         @mntParts = filterPartitions($opts, blkidGetPartitions());
         @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
+        @mounted = grep {$$_{isMounted}} @mntParts;
         @unmounted = grep {not $$_{isMounted}} @mntParts;
       }
     }
-    print "partition(s) found, mounting\n";
-    for my $name(@names){
-      runCommand $CMD_MOUNT, $name, $opts;
-    }
+
+    runCommand $CMD_MOUNT, $name, $opts;
   }else{
     die "ERROR: unknown command\n";
   }
