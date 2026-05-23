@@ -167,22 +167,28 @@ sub runCommand($$$){
   @mntParts = filterPartitions($opts, @mntParts);
 
   if($cmd eq $CMD_MOUNT){
-    if(defined $name){
-      my $selectedPart = getSelectedPart(\@mntParts, $name);
-      die "already mounted\n" if ${$selectedPart}{isMounted};
-      mount $selectedPart;
+    @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
+    my @unmounted = grep {not $$_{isMounted}} @mntParts;
+    if(@mntParts == 0){
+      print "no partitions found\n";
+    }elsif(@mntParts > 0 and @unmounted == 0){
+      print "partition(s) already mounted\n";
     }else{
-      my @unmounted = grep {!${$_}{isMounted}} @mntParts;
-      mount $_ foreach @unmounted;
+      for my $part(@unmounted){
+        mount $part;
+      }
     }
   }elsif($cmd eq $CMD_UMOUNT){
-    if(defined $name){
-      my $selectedPart = getSelectedPart(\@mntParts, $name);
-      die "already unmounted\n" if !${$selectedPart}{isMounted};
-      unmount $selectedPart;
+    @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
+    my @mounted = grep {$$_{isMounted}} @mntParts;
+    if(@mntParts == 0){
+      print "no partitions found\n";
+    }elsif(@mntParts > 0 and @mounted == 0){
+      print "partition(s) already unmounted\n";
     }else{
-      my @mounted = grep {${$_}{isMounted}} @mntParts;
-      unmount $_ foreach @mounted;
+      for my $part(@mounted){
+        unmount $part;
+      }
     }
   }elsif($cmd eq $CMD_GET){
     @mntParts = grep {$$_{name} eq $name} @mntParts if defined $name;
