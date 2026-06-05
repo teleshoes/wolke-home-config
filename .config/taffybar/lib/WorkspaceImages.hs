@@ -18,7 +18,6 @@ import Data.List (dropWhile, isInfixOf, isPrefixOf, isSuffixOf)
 import Data.List.Utils (replace)
 import Data.Maybe (fromMaybe)
 import Data.Maybe (listToMaybe, catMaybes)
-import Text.Regex.PCRE ((=~))
 
 import System.Environment (getEnv)
 
