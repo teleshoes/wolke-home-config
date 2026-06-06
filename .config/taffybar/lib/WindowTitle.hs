@@ -11,14 +11,14 @@ import GI.Gtk.Objects.Container (containerAdd)
 import GI.Gtk.Objects.Widget (toWidget, widgetShowAll)
 import System.Taffybar.Context (runX11)
 import System.Taffybar.Information.EWMHDesktopInfo (getActiveWindow, getWindowTitle)
-import System.Taffybar.Information.X11DesktopInfo (getDefaultCtx)
+import System.Taffybar.Information.X11DesktopInfo (DisplayName(..), getX11Context)
 import System.Taffybar.Widget.Windows (
   WindowsConfig(..), defaultWindowsConfig, windowsNew)
 
 main = do
   let profileTitle = 30
   let linesInBar = 2
-  ctx <- getDefaultCtx
+  ctx <- getX11Context $ DisplayName ""
   forever $ do
     winTitle <- runReaderT getActiveWinTitle ctx
     print $ formatTitle profileTitle linesInBar winTitle

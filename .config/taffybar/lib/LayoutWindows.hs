@@ -7,7 +7,8 @@ import Control.Monad.Trans (liftIO)
 import System.Taffybar.Widget.Layout (
   LayoutConfig(..), defaultLayoutConfig, layoutNew)
 import System.Taffybar.Information.EWMHDesktopInfo (
-  WorkspaceId(WorkspaceId), withDefaultCtx, getVisibleWorkspaces, getWindows, getWorkspace)
+  WorkspaceId(WorkspaceId), withX11Context, getVisibleWorkspaces, getWindows, getWorkspace)
+import System.Taffybar.Information.X11DesktopInfo (DisplayName(..))
 
 layoutWindowsW = layoutNew layoutConfig
 
@@ -27,7 +28,7 @@ formatWindowCount cnt = pack $ wcCol $ "[" ++ wcFmt ++ "]"
         wcFmt = if 0 <= cnt && cnt < 10 then show cnt else "+"
 
 windowCount :: IO Int
-windowCount = withDefaultCtx $ do
+windowCount = withX11Context (DisplayName "") $ do
   vis <- getVisibleWorkspaces
   let cur = if length vis > 0 then head vis else WorkspaceId 0
   wins <- getWindows
