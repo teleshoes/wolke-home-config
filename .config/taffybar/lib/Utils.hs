@@ -68,7 +68,7 @@ import System.Process (
   system)
 
 import Text.Printf (printf)
-import Text.Regex.PCRE ((=~), getAllTextMatches, AllTextMatches)
+import Text.Regex.PCRE2 ((=~), getAllTextMatches, AllTextMatches)
 
 -- CONSTANTS
 defaultDelay :: Double
