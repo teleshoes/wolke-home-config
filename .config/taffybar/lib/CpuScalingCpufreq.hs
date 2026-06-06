@@ -12,6 +12,7 @@ import System.Process (system)
 import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
+import Safe (headDef, lastDef)
 
 main = mainLabel cpuScalingCpufreqReader
 cpuScalingCpufreqW = labelW cpuScalingCpufreqReader
@@ -35,7 +36,8 @@ cpuScalingCpufreqGovW = labelW $ do
 withErr act msg = ExceptT $ note msg <$> act
 
 allEq :: Eq a => [a] -> Bool
-allEq xs = null xs || all (== head xs) (tail xs)
+allEq [] = True
+allEq (x:xs) = all (== x) xs
 
 readCpu :: IO (Either String (String, Integer, Integer, [Integer]))
 readCpu = runExceptT $ do
@@ -95,5 +97,5 @@ color min max avail
   | min == low && max == low = bg "red" . fg "black"
   | min == high && max == high = bg "green". fg "black"
   | otherwise = bg "orange" . fg "black"
-  where low = if null avail then 0 else head avail
-        high = if null avail then 0 else last avail
+  where low = headDef 0 avail
+        high = lastDef 0 avail

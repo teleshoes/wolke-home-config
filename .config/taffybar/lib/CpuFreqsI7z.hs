@@ -36,7 +36,7 @@ tailFile :: String -> IO String
 tailFile f = do fmap (headDef "") $ systemReadLines $ "tail -n 1 " ++ f ++ " 2>/dev/null"
 
 numbers s = concat groupSets
-  where groupSets = map tail (regexAllSubmatches p s)
+  where groupSets = map (drop 1) (regexAllSubmatches p s)
         p = "(\\d+(?:\\.\\d+)?)"
 
 toDouble = read :: String -> Double

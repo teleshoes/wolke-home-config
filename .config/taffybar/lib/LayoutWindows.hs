@@ -3,6 +3,7 @@ import Utils (fgbg)
 
 import Data.Text (Text, pack, unpack)
 import Control.Monad.Trans (liftIO)
+import Safe (headDef)
 
 import System.Taffybar.Widget.Layout (
   LayoutConfig(..), defaultLayoutConfig, layoutNew)
@@ -30,7 +31,7 @@ formatWindowCount cnt = pack $ wcCol $ "[" ++ wcFmt ++ "]"
 windowCount :: IO Int
 windowCount = withX11Context (DisplayName "") $ do
   vis <- getVisibleWorkspaces
-  let cur = if length vis > 0 then head vis else WorkspaceId 0
+  let cur = headDef (WorkspaceId 0) vis
   wins <- getWindows
   wkspaces <- mapM getWorkspace wins
   return $ length $ filter (==cur) $ wkspaces
