@@ -194,9 +194,16 @@ my $USAGE = "Usage:
 
     -w | --week | --weekly
       show a summary of each calendar week, Monday-Sunday, with a workout in it
+      (see: --week-start-monday / --week-start-sunday)
 
     -m | --month | --monthly
       show a summary of each calendar month with a workout in it
+
+    --week-start-monday
+      for --weekly summary, start the week on monday (MTWRFSU)
+      (this is the default)
+    --week-start-sunday
+      for --weekly summary, start the week on sunday (UMTWRFS)
 
     -p PLOT_TYPE | --plot PLOT_TYPE | --gnuplot PLOT_TYPE
     --plot=PLOT_TYPE | --gnuplot=PLOT_TYPE
@@ -288,6 +295,9 @@ my $DATE_BOUNDARY_WEEK_END = "week-end";
 my $DATE_BOUNDARY_MONTH_START = "month-start";
 my $DATE_BOUNDARY_MONTH_END = "month-end";
 
+my $WEEK_START_MONDAY = "monday";
+my $WEEK_START_SUNDAY = "sunday";
+
 sub main(@){
   my $cmd = $COMMAND_GET;
   my $opts = {
@@ -299,6 +309,7 @@ sub main(@){
     bestDistanceFilter => undef,
     trimIntervalsDistance => undef,
     intervalsRemoveLargeHeartrateErrors => 0,
+    weekStartDay => $WEEK_START_MONDAY,
     format => $FORMAT_DETAILS,
     plotType => undef,
     minHeartratePlot => $DEFAULT_MIN_HEART_RATE_PLOT,
@@ -359,6 +370,10 @@ sub main(@){
       $$opts{format} = $FORMAT_WEEKLY;
     }elsif($arg =~ /^(-m|--month|--monthly)$/){
       $$opts{format} = $FORMAT_MONTHLY;
+    }elsif($arg =~ /^(--week-start-sunday)$/){
+      $$opts{weekStartDay} = $WEEK_START_SUNDAY;
+    }elsif($arg =~ /^(--week-start-monday)$/){
+      $$opts{weekStartDay} = $WEEK_START_MONDAY;
     }elsif($arg =~ /^(-p|--plot|--gnuplot)$/ and @_ > 0){
       $$opts{format} = $FORMAT_GNUPLOT;
       $$opts{plotType} = shift @_;
@@ -2174,15 +2189,26 @@ sub getDateBoundary($$$){
   my ($opts, $dateYMD, $dateBoundaryType) = @_;
   my ($y, $m, $d) = ($1, $2, $3) if $dateYMD =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
 
+  my ($dowStart, $dowEnd);
+  if($$opts{weekStartDay} eq $WEEK_START_SUNDAY){
+    $dowStart = 7; #sunday
+    $dowEnd = 6; #saturday
+  }elsif($$opts{weekStartDay} eq $WEEK_START_MONDAY){
+    $dowStart = 1; #monday
+    $dowEnd = 7; #sunday
+  }else{
+    die "ERROR: no week-start-day found\n";
+  }
+
   my $date = DateTime->new(year => $y, month => $m, day => $d);
   my $dayOfWeek = $date->day_of_week;
   my $daysToAdd;
   if($dateBoundaryType eq $DATE_BOUNDARY_WEEK_START){
-    my $targetDOW = 1; #monday
+    my $targetDOW = $dowStart;
     my $targetDaysAgo = (7 + ($dayOfWeek - $targetDOW)) % 7;
     $daysToAdd = 0 - ($targetDaysAgo);
   }elsif($dateBoundaryType eq $DATE_BOUNDARY_WEEK_END){
-    my $targetDOW = 7; #sunday
+    my $targetDOW = $dowEnd;
     my $targetDaysUntil = (7 + ($targetDOW - $dayOfWeek)) % 7;
     $daysToAdd = $targetDaysUntil;
   }elsif($dateBoundaryType eq $DATE_BOUNDARY_MONTH_START){
