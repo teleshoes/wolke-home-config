@@ -248,6 +248,10 @@ my $USAGE = "Usage:
     -s | --segments | --print-segments
       print speed segments
 
+    --raw-units
+      show fractional meters and seconds, instead of km and H:MM:SS,
+      for workout details and speed segments
+
     --no-segments | --no-print-segments
       do not print speed segments when printing workouts
       (this is the default)
@@ -299,6 +303,7 @@ sub main(@){
     plotType => undef,
     minHeartratePlot => $DEFAULT_MIN_HEART_RATE_PLOT,
     distanceNamedTarget => undef,
+    rawUnits => 0,
     printStartTime => 0,
     printIds => 0,
     printSpeedSegments => 0,
@@ -381,6 +386,8 @@ sub main(@){
       $$opts{printSpeedSegments} = 1;
     }elsif($arg =~ /^(--no-segments|--no-print-segments)$/){
       $$opts{printSpeedSegments} = 0;
+    }elsif($arg =~ /^(--raw-units)$/){
+      $$opts{rawUnits} = 1;
     }elsif($arg =~ /^(--targets|--print-targets)$/){
       $$opts{printDistanceTargets} = 1;
     }elsif($arg =~ /^(--no-targets|--no-print-targets)$/){
@@ -683,8 +690,15 @@ sub formatWorkoutDetails($$){
 
   my $dtmFmt = $$opts{printStartTime} ? $$w{dtmYMDHMS} : $$w{dtmYMD};
 
-  my $distanceFmt = sprintf "%5.2fkm", $$w{distance}/1000.0;
-  my $durFmt = sprintf "%6s", formatTimeMinSec($durS);
+  my $distanceFmt = undef;
+  my $durFmt = undef;
+  if($$opts{rawUnits}){
+    $distanceFmt = sprintf "%8.2fm", $$w{distance};
+    $durFmt = sprintf "%8.2fs", ${durS};
+  }else{
+    $distanceFmt = sprintf "%5.2fkm", $$w{distance}/1000.0;
+    $durFmt = sprintf "%6s", formatTimeMinSec($durS);
+  }
 
   my $distanceMiles = $$w{distance}/1000.0*$MILES_PER_KM;
 
@@ -1354,8 +1368,15 @@ sub formatSpeedSegment($$){
     $maxHr = 0;
   }
   my $mph = $avgSpeed * $MILES_PER_KM;
-  my $distanceFmt = sprintf "%5.2fkm", $segmentDistance/1000.0;
-  my $durFmt = sprintf "%6s", formatTimeMinSec($segmentDur);
+  my $distanceFmt = undef;
+  my $durFmt = undef;
+  if($$opts{rawUnits}){
+    $distanceFmt = sprintf "%8.2fm", $segmentDistance;
+    $durFmt = sprintf "%8.2fs", $segmentDur;
+  }else{
+    $distanceFmt = sprintf "%5.2fkm", $segmentDistance/1000.0;
+    $durFmt = sprintf "%6s", formatTimeMinSec($segmentDur);
+  }
 
   return sprintf "  %4.1fmph %s   %3dhr    %s\n",
     $mph,
