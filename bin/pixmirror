@@ -421,6 +421,23 @@ sub syncPixDirs($$$){
   print "\n\nremoving empty dirs\n";
   runCmd $opts, "find", "$destDir/", "-mindepth", 1, "-depth", "-type", "d", "-empty", "-delete";
 
+  print "\n\nsyncing dir mtimes\n";
+  my @srcSubdirs = readProc "find", "$srcDir/", "-mindepth", 1, "-depth", "-type", "d";
+  for my $srcSubdir(@srcSubdirs){
+    chomp $srcSubdir;
+    my $subdir = undef;
+    if($srcSubdir =~ /^$srcDir\/(.+)$/){
+      $subdir = $1;
+    }else{
+      print STDERR "WARNING: malformed dir $srcSubdir\n";
+      return 0;
+    }
+    my $destSubdir = "$destDir/$subdir";
+    if(-d $destSubdir){
+      touchByRef($opts, $srcSubdir, $destSubdir);
+    }
+  }
+
   if($countToConvert == $countSuccess and $countFailure == 0){
     return 1;
   }else{
