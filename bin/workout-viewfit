@@ -40,7 +40,10 @@ sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
 sub fetchViewfitWorkouts();
 sub mergeCachedJsonFiles();
-sub groupWorkoutsIntoPeriods($$$@);
+sub groupWorkoutsIntoPeriods($$@);
+sub newDateTime($);
+sub newDateTimeWeekStart($$);
+sub newDateTimeMonthStart($$);
 sub readFile($);
 sub readFileGZ($);
 sub writeFile($$);
@@ -53,7 +56,6 @@ sub formatTimeRelative($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$$);
-sub getDateBoundary($$$);
 sub binarySearchIdx($$$);
 sub nvl($$);
 sub md5sumFile($);
@@ -290,10 +292,8 @@ my $FORMAT_WEEKLY = "weekly";
 my $FORMAT_MONTHLY = "monthly";
 my $FORMAT_GNUPLOT = "gnuplot";
 
-my $DATE_BOUNDARY_WEEK_START = "week-start";
-my $DATE_BOUNDARY_WEEK_END = "week-end";
-my $DATE_BOUNDARY_MONTH_START = "month-start";
-my $DATE_BOUNDARY_MONTH_END = "month-end";
+my $DATE_PERIOD_WEEKLY = "weekly";
+my $DATE_PERIOD_MONTHLY = "monthly";
 
 my $WEEK_START_MONDAY = "monday";
 my $WEEK_START_SUNDAY = "sunday";
@@ -538,14 +538,12 @@ sub main(@){
         print formatWorkoutDetails($opts, $w);
       }
     }elsif($$opts{format} eq $FORMAT_WEEKLY){
-      my @periods = groupWorkoutsIntoPeriods(
-        $opts, $DATE_BOUNDARY_WEEK_START, $DATE_BOUNDARY_WEEK_END, @workouts);
+      my @periods = groupWorkoutsIntoPeriods($opts, $DATE_PERIOD_WEEKLY, @workouts);
       for my $period(@periods){
         print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
       }
     }elsif($$opts{format} eq $FORMAT_MONTHLY){
-      my @periods = groupWorkoutsIntoPeriods(
-        $opts, $DATE_BOUNDARY_MONTH_START, $DATE_BOUNDARY_MONTH_END, @workouts);
+      my @periods = groupWorkoutsIntoPeriods($opts, $DATE_PERIOD_MONTHLY, @workouts);
       for my $period(@periods){
         print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
       }
@@ -2015,23 +2013,114 @@ sub mergeCachedJsonFiles(){
     "{\"workouts\":[\n  " . join(",\n  ", @workoutStrs) . "\n]}");
 }
 
-sub groupWorkoutsIntoPeriods($$$@){
-  my ($opts, $dateBoundaryTypeStart, $dateBoundaryTypeEnd, @workouts) = @_;
+sub groupWorkoutsIntoPeriods($$@){
+  my ($opts, $datePeriod, @workouts) = @_;
+
   my @periods;
-  my $curPeriod = undef;
-  for my $workout(@workouts){
-    my $date = $$workout{dtmYMD};
-    if(not defined $curPeriod or $date lt $$curPeriod{start} or $date gt $$curPeriod{end}){
-      $curPeriod = {
-        start    => getDateBoundary($opts, $date, $dateBoundaryTypeStart),
-        end      => getDateBoundary($opts, $date, $dateBoundaryTypeEnd),
+  if(@workouts == 0){
+    return @periods;
+  }
+
+  my @sortedWorkouts = sort {$$a{dtmYMD} cmp $$b{dtmYMD}} @workouts;
+  my $ymdMin = ${workouts[0]}{dtmYMD};
+  my $ymdMax = ${workouts[-1]}{dtmYMD};
+
+  if($datePeriod eq $DATE_PERIOD_WEEKLY){
+    my $dtmMin = newDateTimeWeekStart($opts, $ymdMin);
+    my $dtmMax = newDateTime($ymdMax);
+
+    my $dtmCur = $dtmMin->clone();
+    while($dtmCur <= $dtmMax){
+      my $ymdStart = $dtmCur->strftime("%Y-%m-%d");
+      $dtmCur->add(days => 6);
+      my $ymdEnd = $dtmCur->strftime("%Y-%m-%d");
+      $dtmCur->add(days => 1);
+      push @periods, {
+        start    => $ymdStart,
+        end      => $ymdEnd,
         workouts => [],
       };
-      push @periods, $curPeriod;
     }
-    push @{$$curPeriod{workouts}}, $workout;
+  }elsif($datePeriod eq $DATE_PERIOD_MONTHLY){
+    my $dtmMin = newDateTimeMonthStart($opts, $ymdMin);
+    my $dtmMax = newDateTime($ymdMax);
+
+    my $dtmCur = $dtmMin->clone();
+    while($dtmCur <= $dtmMax){
+      my $y = $dtmCur->strftime("%Y");
+      my $m = $dtmCur->strftime("%m");
+      my $lastDayOfMonth = DateTime->last_day_of_month(year => $y, month => $m)->day_of_month;
+      my $ymdStart = "$y-$m-01";
+      my $ymdEnd = "$y-$m-$lastDayOfMonth";
+      $dtmCur->add(months => 1);
+      push @periods, {
+        start    => $ymdStart,
+        end      => $ymdEnd,
+        workouts => [],
+      };
+    }
+  }else{
+    die "ERROR: unknown date period '$datePeriod'\n";
   }
+
+  for my $workout(@sortedWorkouts){
+    my $ymd = $$workout{dtmYMD};
+    my $found = 0;
+    for my $period(@periods){
+      if($$period{start} le $ymd and $ymd le $$period{end}){
+        $found = 1;
+        push @{$$period{workouts}}, $workout;
+        last;
+      }
+    }
+    if(not $found){
+      die "ERROR: could not calculate period for workout on $$workout{dtmYMD}\n";
+    }
+  }
+
+  @periods = grep {@{$$_{workouts}} > 0} @periods;
+
   return @periods;
+}
+
+sub newDateTime($){
+  my ($dtmYMD) = @_;
+  my ($y, $m, $d);
+  if($dtmYMD =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/){
+    ($y, $m, $d) = ($1, $2, $3);
+  }else{
+    die "ERROR: malformed YYYY-MM-DD date $dtmYMD\n";
+  }
+  return DateTime->new(year => $y, month => $m, day => $d);
+}
+sub newDateTimeWeekStart($$){
+  my ($opts, $dtmYMD) = @_;
+
+  my $dtm = newDateTime($dtmYMD);
+
+  my $dayOfWeek = $dtm->day_of_week;
+  my $targetDOW = undef;
+  if($$opts{weekStartDay} eq $WEEK_START_SUNDAY){
+    $targetDOW = 7; #sunday
+  }elsif($$opts{weekStartDay} eq $WEEK_START_MONDAY){
+    $targetDOW = 1; #monday
+  }else{
+    die "ERROR: no week-start-day found\n";
+  }
+
+  my $weekStartDaysAgo = (7 + ($dayOfWeek - $targetDOW)) % 7;
+
+  $dtm->add(days => (0-$weekStartDaysAgo));
+
+  return $dtm;
+}
+sub newDateTimeMonthStart($$){
+  my ($opts, $dtmYMD) = @_;
+
+  my $dtm = newDateTime($dtmYMD);
+  $dtm->set(day => 1);
+
+  return $dtm;
 }
 
 sub readFile($){
@@ -2189,45 +2278,6 @@ sub dateFmt($$$){
   }
 
   return $dt->strftime($fmtSpec);
-}
-
-sub getDateBoundary($$$){
-  my ($opts, $dateYMD, $dateBoundaryType) = @_;
-  my ($y, $m, $d) = ($1, $2, $3) if $dateYMD =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
-
-  my ($dowStart, $dowEnd);
-  if($$opts{weekStartDay} eq $WEEK_START_SUNDAY){
-    $dowStart = 7; #sunday
-    $dowEnd = 6; #saturday
-  }elsif($$opts{weekStartDay} eq $WEEK_START_MONDAY){
-    $dowStart = 1; #monday
-    $dowEnd = 7; #sunday
-  }else{
-    die "ERROR: no week-start-day found\n";
-  }
-
-  my $date = DateTime->new(year => $y, month => $m, day => $d);
-  my $dayOfWeek = $date->day_of_week;
-  my $daysToAdd;
-  if($dateBoundaryType eq $DATE_BOUNDARY_WEEK_START){
-    my $targetDOW = $dowStart;
-    my $targetDaysAgo = (7 + ($dayOfWeek - $targetDOW)) % 7;
-    $daysToAdd = 0 - ($targetDaysAgo);
-  }elsif($dateBoundaryType eq $DATE_BOUNDARY_WEEK_END){
-    my $targetDOW = $dowEnd;
-    my $targetDaysUntil = (7 + ($targetDOW - $dayOfWeek)) % 7;
-    $daysToAdd = $targetDaysUntil;
-  }elsif($dateBoundaryType eq $DATE_BOUNDARY_MONTH_START){
-    $daysToAdd = 0 - ($d - 1);
-  }elsif($dateBoundaryType eq $DATE_BOUNDARY_MONTH_END){
-    my $lastDayOfMonth = DateTime->last_day_of_month(year => $y, month => $m)->day_of_month;
-    $daysToAdd = $lastDayOfMonth - $d;
-  }else{
-    die "ERROR: unknown date boundary type $dateBoundaryType\n";
-  }
-
-  $date->add(days => $daysToAdd);
-  return $date->strftime("%Y-%m-%d");
 }
 
 #return the smallest index of the element
