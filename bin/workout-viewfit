@@ -452,10 +452,29 @@ sub main(@){
     }
 
     for my $w(@workouts){
-      if(not defined $$w{max_heart_rate} or $$w{max_heart_rate} <= 0){
-        my @hrs = grep {defined $_ and $_ >= 0} map {$$_{heart_rate}} @{$$w{intervals}};
-        my $maxHR = max(@hrs);
-        $$w{max_heart_rate} = $maxHR if defined $maxHR and $maxHR >= 0;
+      if(
+        not defined $$w{max_heart_rate} or $$w{max_heart_rate} <= 0
+        or not defined $$w{average_heart_rate} or $$w{average_heart_rate} <= 0
+      ){
+        my $hrMax = 0;
+        my $hrSeconds = 0;
+        my $totalDur = 0;
+        my @intervals = @{$$w{intervals}};
+        for my $i(@intervals){
+          my ($dur, $hr) = ($$i{duration}, $$i{heart_rate});
+          if($dur > 0 and $hr > 0){
+            $hrSeconds += $hr*$dur;
+            $totalDur += $dur;
+            $hrMax = $hr if $hr >= $hrMax;
+          }
+        }
+        my $hrAvg = $totalDur > 0 ? $hrSeconds/$totalDur : 0;
+        if($hrMax > 0 and not defined $$w{max_heart_rate}){
+          $$w{max_heart_rate} = $hrMax;
+        }
+        if($hrAvg > 0 and not defined $$w{average_heart_rate}){
+          $$w{average_heart_rate} = $hrAvg;
+        }
       }
     }
 
