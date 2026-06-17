@@ -40,7 +40,7 @@ sub applyAndFilterCombinedWorkouts($@);
 sub getCombinedWorkout($$);
 sub fetchViewfitWorkouts();
 sub mergeCachedJsonFiles();
-sub groupWorkoutsIntoPeriods($$@);
+sub groupWorkoutsIntoPeriods($$$@);
 sub readFile($);
 sub readFileGZ($);
 sub writeFile($$);
@@ -53,7 +53,7 @@ sub formatTimeRelative($);
 sub dtmStrToEpoch($);
 sub getEpochFracS($$$$$$$$);
 sub dateFmt($$$);
-sub getDateBoundary($$);
+sub getDateBoundary($$$);
 sub binarySearchIdx($$$);
 sub nvl($$);
 sub md5sumFile($);
@@ -524,13 +524,13 @@ sub main(@){
       }
     }elsif($$opts{format} eq $FORMAT_WEEKLY){
       my @periods = groupWorkoutsIntoPeriods(
-        $DATE_BOUNDARY_WEEK_START, $DATE_BOUNDARY_WEEK_END, @workouts);
+        $opts, $DATE_BOUNDARY_WEEK_START, $DATE_BOUNDARY_WEEK_END, @workouts);
       for my $period(@periods){
         print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
       }
     }elsif($$opts{format} eq $FORMAT_MONTHLY){
       my @periods = groupWorkoutsIntoPeriods(
-        $DATE_BOUNDARY_MONTH_START, $DATE_BOUNDARY_MONTH_END, @workouts);
+        $opts, $DATE_BOUNDARY_MONTH_START, $DATE_BOUNDARY_MONTH_END, @workouts);
       for my $period(@periods){
         print formatWorkoutsSummary($opts, $$period{start}, @{$$period{workouts}});
       }
@@ -1994,16 +1994,16 @@ sub mergeCachedJsonFiles(){
     "{\"workouts\":[\n  " . join(",\n  ", @workoutStrs) . "\n]}");
 }
 
-sub groupWorkoutsIntoPeriods($$@){
-  my ($dateBoundaryTypeStart, $dateBoundaryTypeEnd, @workouts) = @_;
+sub groupWorkoutsIntoPeriods($$$@){
+  my ($opts, $dateBoundaryTypeStart, $dateBoundaryTypeEnd, @workouts) = @_;
   my @periods;
   my $curPeriod = undef;
   for my $workout(@workouts){
     my $date = $$workout{dtmYMD};
     if(not defined $curPeriod or $date lt $$curPeriod{start} or $date gt $$curPeriod{end}){
       $curPeriod = {
-        start    => getDateBoundary($date, $dateBoundaryTypeStart),
-        end      => getDateBoundary($date, $dateBoundaryTypeEnd),
+        start    => getDateBoundary($opts, $date, $dateBoundaryTypeStart),
+        end      => getDateBoundary($opts, $date, $dateBoundaryTypeEnd),
         workouts => [],
       };
       push @periods, $curPeriod;
@@ -2170,8 +2170,8 @@ sub dateFmt($$$){
   return $dt->strftime($fmtSpec);
 }
 
-sub getDateBoundary($$){
-  my ($dateYMD, $dateBoundaryType) = @_;
+sub getDateBoundary($$$){
+  my ($opts, $dateYMD, $dateBoundaryType) = @_;
   my ($y, $m, $d) = ($1, $2, $3) if $dateYMD =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
 
   my $date = DateTime->new(year => $y, month => $m, day => $d);
