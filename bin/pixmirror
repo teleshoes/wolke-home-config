@@ -19,6 +19,7 @@ sub formatOverallStatus($$$);
 sub findRelFiles($@);
 sub findImages($);
 sub readMirrorDirInfos($);
+sub statNano($);
 sub syscallResolveNum($$);
 sub touchByRef($$$);
 sub runStat($);
@@ -63,6 +64,9 @@ my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_CONVERT -list gravity 2>/dev/null
 
 my $SYS_STATX = syscallResolveNum("SYS_statx", {x86_64=>332, aarch64=>291});
 my $SYS_UTIMENSAT = syscallResolveNum("SYS_utimensat", {x86_64=>280, aarch64=>88});
+my $STATX_ALL = 0x0FFF;
+my $AT_FDCWD  = -100;
+my $AT_SYMLINK_NOFOLLOW = 0x100;
 
 my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -563,6 +567,110 @@ sub readMirrorDirInfos($){
   }
 
   return $mirrorStatInfos;
+}
+
+sub statNano($){
+  my ($file) = @_;
+
+  my $buf = "\x00" x 256;
+
+  # statx(dirfd, path, flags, mask, buffer)
+  my $res = syscall($SYS_STATX, $AT_FDCWD, $file, $AT_SYMLINK_NOFOLLOW, $STATX_ALL, $buf);
+
+  if($res == 0) {
+    #struct statx {
+    #    __u32 stx_mask;        /* Mask of bits indicating
+    #                              filled fields */
+    #    __u32 stx_blksize;     /* Block size for filesystem I/O */
+    #    __u64 stx_attributes;  /* Extra file attribute indicators */
+    #    __u32 stx_nlink;       /* Number of hard links */
+    #    __u32 stx_uid;         /* User ID of owner */
+    #    __u32 stx_gid;         /* Group ID of owner */
+    #    __u16 stx_mode;        /* File type and mode */
+    #    __u64 stx_ino;         /* Inode number */
+    #    __u64 stx_size;        /* Total size in bytes */
+    #    __u64 stx_blocks;      /* Number of 512B blocks allocated */
+    #    __u64 stx_attributes_mask;
+    #                           /* Mask to show what's supported
+    #                              in stx_attributes */
+    #
+    #    /* The following fields are file timestamps */
+    #    struct statx_timestamp stx_atime;  /* Last access */
+    #    struct statx_timestamp stx_btime;  /* Creation */
+    #    struct statx_timestamp stx_ctime;  /* Last status change */
+    #    struct statx_timestamp stx_mtime;  /* Last modification */
+    #
+    #    /* If this file represents a device, then the next two
+    #       fields contain the ID of the device */
+    #    __u32 stx_rdev_major;  /* Major ID */
+    #    __u32 stx_rdev_minor;  /* Minor ID */
+    #
+    #    /* The next two fields contain the ID of the device
+    #       containing the filesystem where the file resides */
+    #    __u32 stx_dev_major;   /* Major ID */
+    #    __u32 stx_dev_minor;   /* Minor ID */
+    #
+    #    __u64 stx_mnt_id;      /* Mount ID */
+    #
+    #    /* Direct I/O alignment restrictions */
+    #    __u32 stx_dio_mem_align;
+    #    __u32 stx_dio_offset_align;
+    #
+    #    __u64 stx_subvol;      /* Subvolume identifier */
+    #
+    #    /* Direct I/O atomic write limits */
+    #    __u32 stx_atomic_write_unit_min;
+    #    __u32 stx_atomic_write_unit_max;
+    #    __u32 stx_atomic_write_segments_max;
+    #
+    #    /* File offset alignment for direct I/O reads */
+    #    __u32 stx_dio_read_offset_align;
+    #
+    #    /* Direct I/O atomic write max opt limit */
+    #    __u32 stx_atomic_write_unit_max_opt;
+    #};
+    #
+    #struct statx_timestamp {
+    #    __s64 tv_sec;    /* Seconds since the Epoch (UNIX time) */
+    #    __u32 tv_nsec;   /* Nanoseconds since tv_sec */
+    #};
+
+    my ($uid, $gid, $mode, $size,
+      $atimeS, $atimeNS, $btimeS, $btimeNS, $ctimeS, $ctimeNS, $mtimeS, $mtimeNS,
+    ) = unpack(""
+      . "x20"
+      . "L"      #4b  @20  uid
+      . "L"      #4b  @24  gid
+      . "S"      #2b  @28  mode
+      . "x10"
+      . "Q"      #8b  @40  filesize
+      . "x16"
+      . "qLx4"   #16b @64  atime
+      . "qLx4"   #16b @80  btime
+      . "qLx4"   #16b @96  ctime
+      . "qLx4"   #16b @112 mtime
+      . "",
+      $buf,
+    );
+
+    return {
+      uid     => $uid,
+      gid     => $gid,
+      mode    => $mode,
+      size    => $size,
+      atimeS  => $atimeS,
+      atimeNS => $atimeNS,
+      btimeS  => $btimeS,
+      btimeNS => $btimeNS,
+      ctimeS  => $ctimeS,
+      ctimeNS => $ctimeNS,
+      mtimeS  => $mtimeS,
+      mtimeNS => $mtimeNS,
+    };
+  }else{
+    print STDERR "WARNING: syscall statx failed on '$file'\n";
+    return undef;
+  }
 }
 
 sub syscallResolveNum($$){
