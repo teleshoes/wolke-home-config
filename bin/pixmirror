@@ -8,6 +8,7 @@ use IPC::Run qw(run);
 use Time::HiRes qw(time);
 
 my $IS_THREADED = eval 'use threads; use threads::shared; use Thread::Queue; 1';
+eval 'require "syscall.ph"';
 
 sub syncPixDirs($$$);
 sub getSrcImgFile($$);
@@ -18,6 +19,7 @@ sub formatOverallStatus($$$);
 sub findRelFiles($@);
 sub findImages($);
 sub readMirrorDirInfos($);
+sub syscallResolveNum($$);
 sub touchByRef($$$);
 sub runStat($);
 sub readInfoFile($);
@@ -58,6 +60,9 @@ my $SHARPEN_SIZE_PCT_THRESHOLD = 90;
 my $UNSHARP_ARG = "0x0.5";
 
 my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_CONVERT -list gravity 2>/dev/null`;
+
+my $SYS_STATX = syscallResolveNum("SYS_statx", {x86_64=>332, aarch64=>291});
+my $SYS_UTIMENSAT = syscallResolveNum("SYS_utimensat", {x86_64=>280, aarch64=>88});
 
 my $USAGE = "Usage:
   $EXEC [<OPTS>] <SRC_DIR> <DEST_DIR>
@@ -558,6 +563,29 @@ sub readMirrorDirInfos($){
   }
 
   return $mirrorStatInfos;
+}
+
+sub syscallResolveNum($$){
+  my ($callName, $archList) = @_;
+  no strict 'refs';
+  my $callNum = undef;
+  if(defined &{$callName}){
+    $callNum = &{$callName};
+  }
+  use strict;
+  if(defined $callNum){
+    return $callNum;
+  }else{
+    my $arch = `uname -m`;
+    chomp $arch;
+    if(defined $$archList{$arch}){
+      return $$archList{$arch};
+    }elsif(defined $$archList{x86_64}){
+      return $$archList{x86_64};
+    }else{
+      die "ERROR: failed to resolve syscall\n";
+    }
+  }
 }
 
 sub touchByRef($$$){
