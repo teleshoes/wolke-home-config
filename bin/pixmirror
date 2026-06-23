@@ -713,13 +713,13 @@ sub syscallResolveNum($$){
 
 sub touchByRef($$$){
   my ($opts, $refFile, $fileToUpdate) = @_;
-  my @stat = stat $refFile;
-  if(@stat != 13){
-    die "ERROR: could not stat $refFile\n";
-  }
-  my ($atime, $mtime) = ($stat[8], $stat[9]);
-  if(not $$opts{simulate}){
-    utime($atime, $mtime, $fileToUpdate);
+  my $s = statNano($refFile);
+  if(defined $s){
+    if(not $$opts{simulate}){
+      touchNano($fileToUpdate, $$s{atimeS}, $$s{atimeNS}, $$s{mtimeS}, $$s{mtimeNS});
+    }
+  }else{
+    print STDERR "WARNING: statx failed on '$refFile', not touching '$fileToUpdate'\n";
   }
 }
 
