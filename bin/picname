@@ -10,8 +10,6 @@ sub exifCmdGetDateAsEpoch($);
 sub exiftoolCmdDateFieldAsEpoch($$);
 sub getDuration($);
 sub mtimeEpoch($);
-sub filenameLocalEpoch($);
-sub filenameUTCEpoch($);
 sub filenameEpoch($$);
 sub isCmdAvail($);
 sub convertDateFmtToEpoch($);
@@ -140,6 +138,9 @@ my $ACTION_RENAME = "rename";
 my $ACTION_TOUCH = "touch";
 my $ACTION_PRINT = "print";
 
+my $FILE_TZ_MODE_UTC = "utc";
+my $FILE_TZ_MODE_LOCAL = "local";
+
 my $MODE_EXIF_MTIME = "exif-mtime";
 my $MODE_EXIF = "exif";
 my $MODE_MTIME = "mtime";
@@ -254,7 +255,7 @@ sub handleFile($$$$){
   }elsif($mode eq $MODE_MTIME){
     ($epoch, $millis) = mtimeEpoch $file;
   }elsif($mode eq $MODE_FILENAME){
-    ($epoch, $millis) = filenameLocalEpoch $file;
+    ($epoch, $millis) = filenameEpoch $file, $FILE_TZ_MODE_LOCAL;
   }else{
     die "unknown mode: $mode\n";
   }
@@ -309,10 +310,10 @@ sub handleFile($$$$){
     my ($oldFileNameEpoch, $oldFileNameMillis);
     if(defined $nameMillis){
       # assume YYYYMMDD_HHMMSSFFF is UTC
-      ($oldFileNameEpoch, $oldFileNameMillis) = filenameUTCEpoch $file;
+      ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_UTC;
     }else{
       # assume YYYYMMDD_HHMMSS is local tz
-      ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
+      ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_LOCAL;
     }
 
     my $exifEpochMatches =
@@ -576,15 +577,9 @@ sub mtimeEpoch($){
   return ($epoch, $millis);
 }
 
-sub filenameLocalEpoch($){
-  return filenameEpoch $_[0], 0;
-}
-sub filenameUTCEpoch($){
-  return filenameEpoch $_[0], 1;
-}
-
 sub filenameEpoch($$){
-  my ($file, $isUTC) = @_;
+  my ($file, $fileTzMode) = @_;
+
   my $filename = $file;
   $filename =~ s/.*\///;
 
@@ -596,6 +591,15 @@ sub filenameEpoch($$){
   }else{
     print STDERR "ERROR: filename must start with YYYYMMDD_HHMMSS, then . or _\n";
     return (undef, undef);
+  }
+
+  my $isUTC;
+  if($fileTzMode eq $FILE_TZ_MODE_UTC){
+    $isUTC = 1;
+  }elsif($fileTzMode eq $FILE_TZ_MODE_LOCAL){
+    $isUTC = 0;
+  }else{
+    die "ERROR: unknown FILE_TZ_MODE $fileTzMode\n";
   }
 
   my $dateFmt = "$y-$m-$d" . "T" . "$hr:$min:$sec";
