@@ -284,47 +284,46 @@ sub handleFile($$$$){
   }
 
   #trim date/time or date from suffix
-  if($nameSuffix =~ /^(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d)(_.*)?$/){
+  if($nameSuffix =~ /^(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d)(\d\d\d)?0*(_.*)?$/){
     #remove *any* datetime from any file suffix like ########_###### or ########_######_*
     #e.g.: orig file:  20181101_024332.jpg
     #      with:       suffix=20181101_024332, exif_datetime=20181031_224332
     #      would be:   20181031_224332_20181101_024332.jpg
     #      trimmed to: 20181031_224332.jpg
 
-    my ($removedDtm, $trimmedNameSuffix) = ($1, $2);
+    my ($removedDtm, $nameMillis, $trimmedNameSuffix) = ($1, $2, $3);
     $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
 
-    if($removedDtm ne "${ymd}_${hms}"){
-      if($action ne $ACTION_TOUCH){
-        print STDERR "WARNING: replacing date prefix $removedDtm with ${ymd}_${hms} for $file\n";
-      }
-    }
-
-    my ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
-    my $diff = $epoch - $oldFileNameEpoch;
-    $diff = 0-$diff if $diff < 0;
-    if($diff > 60*60*24){
-      print STDERR ""
-        . "WARNING: old date prefix disagrees by more than a day"
-        . " for $file ($oldFileNameEpoch vs $epoch)\n";
-    }
-
-    $nameSuffix = $trimmedNameSuffix;
-  }elsif($nameSuffix =~ /^(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d\d\d\d0*)(_.*)?$/){
-    #assume filename with milliseconds is in UTC
-    #remove the YMD_HMSFFF prefix *ONLY* if EXIF and filename match exactly
-    my ($removedDtm, $trimmedNameSuffix) = ($1, $2);
-    $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
-
-    if(defined $exifEpoch and defined $exifMillis){
-      my ($oldFileNameUTCEpoch, $oldFileNameUTCMillis) = filenameUTCEpoch $file;
-      if($oldFileNameUTCEpoch == $exifEpoch and $oldFileNameUTCMillis == $exifMillis){
-        $nameSuffix = $trimmedNameSuffix;
+    if(defined $nameMillis){
+      #assume filename with milliseconds is in UTC
+      #remove the YMD_HMSFFF prefix *ONLY* if EXIF and filename match exactly
+      if(defined $exifEpoch and defined $exifMillis){
+        my ($oldFileNameUTCEpoch, $oldFileNameUTCMillis) = filenameUTCEpoch $file;
+        if($oldFileNameUTCEpoch == $exifEpoch and $oldFileNameUTCMillis == $exifMillis){
+          $nameSuffix = $trimmedNameSuffix;
+        }else{
+          print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
+        }
       }else{
-        print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
+        print STDERR "WARNING: exif epoch+millis not read, not trimming dtm for $file\n";
       }
     }else{
-      print STDERR "WARNING: exif epoch+millis not read, not trimming dtm for $file\n";
+      if($removedDtm ne "${ymd}_${hms}"){
+        if($action ne $ACTION_TOUCH){
+          print STDERR "WARNING: replacing date prefix $removedDtm with ${ymd}_${hms} for $file\n";
+        }
+      }
+
+      my ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
+      my $diff = $epoch - $oldFileNameEpoch;
+      $diff = 0-$diff if $diff < 0;
+      if($diff > 60*60*24){
+        print STDERR ""
+          . "WARNING: old date prefix disagrees by more than a day"
+          . " for $file ($oldFileNameEpoch vs $epoch)\n";
+      }
+
+      $nameSuffix = $trimmedNameSuffix;
     }
   }elsif($nameSuffix =~ /^${ymd}(_.*)?/){
     #remove *exactly matching* YYYYMMDD from file suffix, where YYYYMMDD is the target date
