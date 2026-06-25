@@ -140,6 +140,7 @@ my $ACTION_PRINT = "print";
 
 my $FILE_TZ_MODE_UTC = "utc";
 my $FILE_TZ_MODE_LOCAL = "local";
+my $FILE_TZ_MODE_GUESS = "guess";
 
 my $MODE_EXIF_MTIME = "exif-mtime";
 my $MODE_EXIF = "exif";
@@ -307,14 +308,9 @@ sub handleFile($$$$){
     my ($removedDtm, $nameMillis, $trimmedNameSuffix) = ($1, $2, $3);
     $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
 
-    my ($oldFileNameEpoch, $oldFileNameMillis);
-    if(defined $nameMillis){
-      # assume YYYYMMDD_HHMMSSFFF is UTC
-      ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_UTC;
-    }else{
-      # assume YYYYMMDD_HHMMSS is local tz
-      ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_LOCAL;
-    }
+    # assume YYYYMMDD_HHMMSSFFF is UTC
+    # assume YYYYMMDD_HHMMSS is local tz
+    my ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
 
     my $exifEpochMatches =
       defined $exifEpoch && defined $oldFileNameEpoch && $oldFileNameEpoch == $exifEpoch;
@@ -598,6 +594,10 @@ sub filenameEpoch($$){
     $isUTC = 1;
   }elsif($fileTzMode eq $FILE_TZ_MODE_LOCAL){
     $isUTC = 0;
+  }elsif($fileTzMode eq $FILE_TZ_MODE_GUESS){
+    #assume YYYYMMDD_HHMMSSFFF is utc
+    #otherwise, assume local
+    $isUTC = defined $millis ? 1 : 0;
   }else{
     die "ERROR: unknown FILE_TZ_MODE $fileTzMode\n";
   }
