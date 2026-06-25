@@ -4,6 +4,7 @@
 use strict;
 use warnings;
 use File::Basename qw(basename dirname);
+use DBI;
 use IPC::Run qw(run);
 use Time::HiRes qw(time);
 
@@ -13,22 +14,23 @@ eval 'require "syscall.ph"';
 sub syncPixDirs($$$);
 sub getSrcImgFile($$);
 sub getDestImgFile($$$);
-sub getDestInfoFile($$);
 sub cleanupFailures($$$);
 sub formatOverallStatus($$$);
 sub findRelFiles($@);
 sub findImages($);
-sub readMirrorDirInfos($);
+sub dbConnect($);
+sub dbInit($);
+sub dbSelectAll($);
+sub dbhPixInsert($$$$$);
+sub dbhPixDelete($$$);
 sub statNano($);
 sub touchNano($$$$$);
 sub syscallResolveNum($$);
 sub touchByRef($$$);
 sub runStat($);
-sub readInfoFile($);
-sub writeInfoFile($$$);
 sub getIdentifyImgInfo($);
 sub checkInfo($$);
-sub handleImage($$$$$);
+sub handleImage($$$$$$);
 sub getTmpFile($$$);
 sub getNewPix($);
 sub isOrientMatch($$$$);
@@ -63,6 +65,8 @@ my $UNSHARP_ARG = "0x0.5";
 
 my $OK_GRAVITY = join "|", split /\n+/, `$EXEC_CONVERT -list gravity 2>/dev/null`;
 
+my $PIXMIRROR_DB = "pixmirror.db";
+
 my $SYS_STATX = syscallResolveNum("SYS_statx", {x86_64=>332, aarch64=>291});
 my $SYS_UTIMENSAT = syscallResolveNum("SYS_utimensat", {x86_64=>280, aarch64=>88});
 my $STATX_ALL = 0x0FFF;
@@ -76,8 +80,7 @@ my $USAGE = "Usage:
       converted to JPEG (or PNG with --png) format.
 
     The original filesize and modified timestamp are recorded for each file
-      under a dir called pixmirror-info/, with the same relative path
-      as the original, appended with \".info\".
+      in a sqlite db at <DEST_DIR>/$PIXMIRROR_DB.
     If copies already exist on the target, they are not replaced unless the
       mtime or filesize of the original has changed, even if new arguments
       are given.
@@ -120,7 +123,7 @@ my $USAGE = "Usage:
       -do NOT write any changes to the filesystem
         -do not auto-rotate images with `$EXEC_EXIFTRAN`
         -do not convert images with `$EXEC_CONVERT`
-        -do not write info files
+        -do not update pixmirror info db
         -do not create any directories
         -do not create or cleanup any temp files
       -DO perform read-only actions
@@ -293,11 +296,15 @@ sub syncPixDirs($$$){
   $srcDir =~ s/\/+$//;
   $destDir =~ s/\/+$//;
 
+  my $dbFile = "$destDir/$PIXMIRROR_DB";
+
   runCmd $opts, "mkdir '$destDir' 2>/dev/null" if not -e $destDir;
   die "src '$srcDir' is not a directory" if not -d $srcDir;
   if(not $$opts{simulate}){
     die "dest '$destDir' is not a directory" if not -d $destDir;
   }
+
+  dbInit($dbFile);
 
   system "which $EXEC_CONVERT > /dev/null";
   die "Could not exec $EXEC_CONVERT\n" if $? != 0;
@@ -316,15 +323,17 @@ sub syncPixDirs($$$){
 
   my %okImgs;
 
-  print "fetching cached stat info on dest:\n";
-  my $destStatInfos = readMirrorDirInfos($destDir);
+  my $dbhMain = dbConnect($dbFile);
+
+  print "fetching cached stat info from dest DB:\n";
+  my $destStatInfos = dbSelectAll($dbFile);
   for my $imgName(sort keys %$destStatInfos){
     my $destImgFile = getDestImgFile($opts, $destDir, $imgName);
-    my $destInfoFile = getDestInfoFile($destDir, $imgName);
     if(not checkInfo($$srcStatInfos{$imgName}, $$destStatInfos{$imgName})){
-      print "removing $destImgFile and $destInfoFile\n";
+      print "removing $destImgFile and db entry\n";
       runCmd $opts, "rm", "$destImgFile";
-      runCmd $opts, "rm", "$destInfoFile";
+      dbhPixDelete($opts, $dbhMain, $imgName);
+      $dbhMain->commit();
     }else{
       $okImgs{$imgName} = 1;
     }
@@ -359,11 +368,16 @@ sub syncPixDirs($$$){
         my $threadNum = threads->tid();
         print STDERR "     thread#$threadNum: STARTED\n";
 
+        my $dbhWorker = dbConnect($dbFile);
+        $dbhWorker->do("PRAGMA busy_timeout = 5000;");
+
         while(my $msg = $threadQueue->dequeue()){
           if(defined $msg and $msg =~ /^imgName=(.+)$/){
             my $imgName = $1;
             $$statusesByImgName{$imgName} = 0;
-            my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+            my $success = handleImage(
+              $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName}, $dbhWorker,
+            );
             if($success){
               $$statusesByImgName{$imgName} = 1;
             }
@@ -372,6 +386,7 @@ sub syncPixDirs($$$){
             last;
           }
         }
+        $dbhWorker->disconnect();
         print STDERR "     thread#$threadNum: FINISHED\n";
         threads->exit();
       });
@@ -411,7 +426,9 @@ sub syncPixDirs($$$){
     my $count = 0;
     for my $imgName(@imgNamesToConvert){
       $$statusesByImgName{$imgName} = 0;
-      my $success = handleImage $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName};
+      my $success = handleImage(
+        $opts, $imgName, $srcDir, $destDir, $$srcStatInfos{$imgName}, $dbhMain,
+      );
       if($success){
         $$statusesByImgName{$imgName} = 1;
       }
@@ -421,6 +438,7 @@ sub syncPixDirs($$$){
       }
     }
   }
+  $dbhMain->disconnect();
 
   cleanupFailures $opts, $destDir, $statusesByImgName;
   my $countSuccess = 0 + grep {$$statusesByImgName{$_} == 1} sort keys %$statusesByImgName;
@@ -495,10 +513,6 @@ sub getDestImgFile($$$){
   }
   return $destImgFile;
 }
-sub getDestInfoFile($$){
-  my ($destDir, $imgName) = @_;
-  return "$destDir/pixmirror-info/$imgName.info";
-}
 
 sub cleanupFailures($$$){
   my ($opts, $destDir, $statusesByImgName) = @_;
@@ -506,18 +520,24 @@ sub cleanupFailures($$$){
   for my $imgName(keys %$statusesByImgName){
     if($$statusesByImgName{$imgName} == 0){
       print STDERR "\nFAILED: $imgName\n";
-      my @files = (
-        getDestImgFile($opts, $destDir, $imgName),
-        getDestInfoFile($destDir, $imgName));
-      @files = grep {-f $_} @files;
-      if(@files == 0){
-        print STDERR "  no temp files to cleanup\n";
+      my $imgFile = getDestImgFile($opts, $destDir, $imgName);
+      if(-f $imgFile){
+        print STDERR "  cleaning up tmp file: $imgFile\n";
+        runCmd $opts, "rm", "-f", $imgFile;
       }else{
-        print STDERR "  cleaning up tmp files: @files\n";
-        runCmd $opts, "rm", "-f", @files;
+        print STDERR "  no temp file to cleanup\n";
       }
     }
   }
+
+  my $dbh = dbConnect("$destDir/$PIXMIRROR_DB");
+  for my $imgName(keys %$statusesByImgName){
+    if($$statusesByImgName{$imgName} == 0){
+      dbhPixDelete($opts, $dbh, $imgName);
+    }
+  }
+  $dbh->commit();
+  $dbh->disconnect();
 }
 
 sub formatOverallStatus($$$){
@@ -555,19 +575,60 @@ sub findImages($){
   return findRelFiles($dir, @IMG_EXTS);
 }
 
-sub readMirrorDirInfos($){
-  my ($mirrorDir) = @_;
-  my @infoFiles = findRelFiles("$mirrorDir/pixmirror-info", "info");
-  my $mirrorStatInfos = {};
-  for my $infoFile(@infoFiles){
-    if($infoFile !~ /^(.+)\.info$/){
-      die "ERROR: malformed info file $infoFile\n";
-    }
-    my $imgName = $1;
-    $$mirrorStatInfos{$imgName} = readInfoFile "$mirrorDir/pixmirror-info/$infoFile";
-  }
+sub dbConnect($){
+  my ($dbFile) = @_;
 
-  return $mirrorStatInfos;
+  my $dbh = DBI->connect("dbi:SQLite:dbname=$dbFile", "", "", {
+    RaiseError => 1,
+    AutoCommit => 0,
+  }) or die $DBI::errstr;
+
+  return $dbh;
+}
+
+sub dbInit($){
+  my ($dbFile) = @_;
+  return if -e $dbFile;
+
+  my $dbh = dbConnect($dbFile);
+
+  $dbh->{AutoCommit} = 1;
+  $dbh->do("PRAGMA journal_mode=WAL;");
+  $dbh->{AutoCommit} = 0;
+
+  $dbh->do("CREATE TABLE pix(relfile TEXT PRIMARY KEY, fsize NUMBER, mtime NUMBER);");
+  $dbh->commit();
+  $dbh->disconnect();
+}
+
+sub dbSelectAll($){
+  my ($dbFile) = @_;
+
+  my $dbh = dbConnect($dbFile);
+  my $info = $dbh->selectall_hashref('select * from pix', 'relfile');
+  $dbh->disconnect();
+  return $info;
+}
+
+sub dbhPixInsert($$$$$){
+  my ($opts, $dbh, $relFile, $fsize, $mtime) = @_;
+  $relFile =~ s/'/''/g;
+  my $sql = ""
+    . "INSERT INTO pix(relfile,fsize,mtime) VALUES('$relFile', $fsize, $mtime)"
+    . " ON CONFLICT(relfile) DO UPDATE SET fsize=excluded.fsize, mtime=excluded.mtime"
+  ;
+  if(not $$opts{simulate}){
+    $dbh->do($sql);
+  }
+}
+
+sub dbhPixDelete($$$){
+  my ($opts, $dbh, $relFile) = @_;
+  $relFile =~ s/'/''/g;
+  my $sql = "DELETE FROM pix where relfile = '$relFile'";
+  if(not $$opts{simulate}){
+    $dbh->do($sql);
+  }
 }
 
 sub statNano($){
@@ -736,24 +797,6 @@ sub runStat($){
     mtime => $stat[9],
   };
 }
-sub readInfoFile($){
-  my ($infoFile) = @_;
-  if(not -e $infoFile){
-    die "ERROR: missing info file $infoFile\n";
-  }
-
-  my $info = readFile $infoFile;
-  if($info =~ /^(\d+)\|(\d+)$/){
-    return {
-      fsize => $1,
-      mtime => $2,
-    };
-  }
-}
-sub writeInfoFile($$$){
-  my ($opts, $infoFile, $statInfo) = @_;
-  writeFile $opts, $infoFile, "$$statInfo{fsize}|$$statInfo{mtime}\n";
-}
 
 sub checkInfo($$){
   my ($srcStatInfo, $destStatInfo) = @_;
@@ -795,12 +838,11 @@ sub getIdentifyImgInfo($){
   }
 }
 
-sub handleImage($$$$$){
-  my ($opts, $imgName, $srcDir, $destDir, $statInfo) = @_;
+sub handleImage($$$$$$){
+  my ($opts, $imgName, $srcDir, $destDir, $statInfo, $dbh) = @_;
 
   my $srcImgFile = getSrcImgFile($srcDir, $imgName);
   my $destImgFile = getDestImgFile($opts, $destDir, $imgName);
-  my $destInfoFile = getDestInfoFile($destDir, $imgName);
 
   my $identifyImgInfo = getIdentifyImgInfo $srcImgFile;
   if(not defined $identifyImgInfo){
@@ -876,13 +918,10 @@ sub handleImage($$$$$){
     runCmd $opts, "rm", $tmpFile;
   }
 
-  #ensure parent info file dir
-  runCmd $opts, "mkdir", "-p", dirname($destInfoFile);
-
-  writeInfoFile $opts, $destInfoFile, $statInfo;
+  dbhPixInsert($opts, $dbh, $imgName, $$statInfo{fsize}, $$statInfo{mtime});
+  $dbh->commit();
 
   touchByRef $opts, $srcImgFile, $destImgFile;
-  touchByRef $opts, $srcImgFile, $destInfoFile;
 
   my $exifRotateFmt;
   if($exifRotated and $exifAspectSwapped){
