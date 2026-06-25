@@ -303,16 +303,19 @@ sub handleFile($$$$){
       ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
     }
 
+    my $exifEpochMatches =
+      defined $exifEpoch && defined $oldFileNameEpoch && $oldFileNameEpoch == $exifEpoch;
+    my $exifMillisMatches =
+      defined $exifMillis && defined $oldFileNameMillis && $oldFileNameMillis == $exifMillis;
+
     if(defined $nameMillis){
       #remove the YMD_HMSFFF prefix *ONLY* if EXIF and filename match exactly
-      if(defined $exifEpoch and defined $exifMillis){
-        if($oldFileNameEpoch == $exifEpoch and $oldFileNameMillis == $exifMillis){
-          $nameSuffix = $trimmedNameSuffix;
-        }else{
-          print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
-        }
-      }else{
+      if(not defined $exifEpoch or not defined $exifMillis){
         print STDERR "WARNING: exif epoch+millis not read, not trimming dtm for $file\n";
+      }elsif($exifEpochMatches and $exifMillisMatches){
+        $nameSuffix = $trimmedNameSuffix;
+      }else{
+        print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
       }
     }else{
       if($removedDtm ne "${ymd}_${hms}"){
