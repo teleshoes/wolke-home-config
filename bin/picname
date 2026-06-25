@@ -294,12 +294,19 @@ sub handleFile($$$$){
     my ($removedDtm, $nameMillis, $trimmedNameSuffix) = ($1, $2, $3);
     $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
 
+    my ($oldFileNameEpoch, $oldFileNameMillis);
     if(defined $nameMillis){
-      #assume filename with milliseconds is in UTC
+      # assume YYYYMMDD_HHMMSSFFF is UTC
+      ($oldFileNameEpoch, $oldFileNameMillis) = filenameUTCEpoch $file;
+    }else{
+      # assume YYYYMMDD_HHMMSS is local tz
+      ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
+    }
+
+    if(defined $nameMillis){
       #remove the YMD_HMSFFF prefix *ONLY* if EXIF and filename match exactly
       if(defined $exifEpoch and defined $exifMillis){
-        my ($oldFileNameUTCEpoch, $oldFileNameUTCMillis) = filenameUTCEpoch $file;
-        if($oldFileNameUTCEpoch == $exifEpoch and $oldFileNameUTCMillis == $exifMillis){
+        if($oldFileNameEpoch == $exifEpoch and $oldFileNameMillis == $exifMillis){
           $nameSuffix = $trimmedNameSuffix;
         }else{
           print STDERR "WARNING: filename/exif epoch+millis mismatch for $file\n";
@@ -314,7 +321,6 @@ sub handleFile($$$$){
         }
       }
 
-      my ($oldFileNameEpoch, $oldFileNameMillis) = filenameLocalEpoch $file;
       my $diff = $epoch - $oldFileNameEpoch;
       $diff = 0-$diff if $diff < 0;
       if($diff > 60*60*24){
