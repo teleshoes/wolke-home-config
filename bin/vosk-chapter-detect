@@ -1,7 +1,10 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Cpanel::JSON::XS qw();
 use File::Basename qw(basename);
+
+sub readFile($);
 
 my $EXEC = basename $0;
 
@@ -29,7 +32,32 @@ sub main(@){
   }
 
   for my $jsonFile(@voskJsonFiles){
-    print "file: $jsonFile\n";
+    my $jsonText = readFile($jsonFile);
+    my $jsonObj = Cpanel::JSON::XS->new->utf8->decode($jsonText);
+    for my $res(@$jsonObj){
+      my @wordsArr = @{$$res{result}};
+      next if @wordsArr == 0;
+
+      my %firstWordEntry = %{$wordsArr[0]};
+      my $firstWord = $firstWordEntry{word};
+      my $firstWordStartTime = $firstWordEntry{start};
+
+      if($firstWord eq "chapter"){
+        print "$jsonFile:$firstWordStartTime\n";
+      }
+    }
+  }
+}
+
+sub readFile($){
+  my ($file) = @_;
+  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
+  my @lines = <FH>;
+  close FH;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;;
   }
 }
 
