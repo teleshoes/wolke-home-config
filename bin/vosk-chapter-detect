@@ -11,6 +11,19 @@ sub readFileDecompressed($);
 
 my $EXEC = basename $0;
 
+#words that start a chapter number where they just say the number
+#  e.g.:  "forty five" => forty
+#         "one hundred six" => one
+my $CHAPTER_NUMBER_START_WORDS_ARR = [
+  [qw(one two three four five six seven eight nine)],
+  [qw(ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen)],
+  [qw(twenty thirty forty fifty sixty seventy eighty ninety)],
+];
+my @CHAPTER_NUMBER_START_WORDS = (map {@$_} @$CHAPTER_NUMBER_START_WORDS_ARR);
+
+my $CHAPTER_NUMBER_START_WORDS_FMT = join "",
+  map {"\n        @$_"} @$CHAPTER_NUMBER_START_WORDS_ARR;
+
 my @SECTION_NAME_WORDS = qw(
   prologue epilogue glossary appendix
 );
@@ -23,7 +36,7 @@ my $USAGE = "Usage:
     parse json for sentences that look like chapter/part/section starts
     does not output *any* parsed text (no spoilers)
       only the following words are used (where ### is a positive integer):
-        ch### | part### | " . join(" | ", @SECTION_NAME_WORDS) . "
+        ch### | part### | num### | " . join(" | ", @SECTION_NAME_WORDS) . "
 
       -for each VOSK_JSON_FILE:
         -find CHAPTER_ENTRY items:
@@ -41,6 +54,9 @@ my $USAGE = "Usage:
                   -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
                 -if FIRST_WORD=part:
                   -add a CHAPTER_ENTRY with CHAPTER_ID='pt<NUM>'
+            -if FIRST_WORD is a NUMBER_START_WORD:
+              -if *entire* TEXT is an integer NUM with Lingua::EN:Words2Nums:
+                -add a CHAPTER_ENTRY with CHAPTER_ID='num<NUM>'
             -if FIRST_WORD is a SECTION_NAME_WORD:
               -add a CHAPTER_ENTRY with CHAPTER_ID=FIRST_WORD
         -for each CHAPTER_ENTRY:
@@ -52,14 +68,23 @@ my $USAGE = "Usage:
         (e.g.: from `vosk-words-json`)
       -can be gz or xz compressed
 
+
+    NUMBER_START_WORD
+      a word that can start a number as a title
+        -does *not* include 'a' as in 'a hundred'
+        -does *not* include 'hundred', as 'hundred six' is wrong, should be 'one hundred six'
+      one of:" . $CHAPTER_NUMBER_START_WORDS_FMT . "
+
     SECTION_NAME_WORD
       one of: @SECTION_NAME_WORDS
 
-    CHAPTER_ID = ch<NUM> | pt<NUM> | <SECTION_NAME_WORD>
+    CHAPTER_ID = ch<NUM> | pt<NUM> | num<NUM> | <SECTION_NAME_WORD>
       ch<NUM>
         TEXT starts with 'chapter', followed by 1+ number words, followed by anything
       part<NUM>
         TEXT starts with 'part', followed by 1+ number words, followed by anything
+      num<NUM>
+        TEXT starts with NUMBER_START_WORD, optionally followed by other number words
       <SECTION_NAME_WORD>
         TEXT starts with SECTION_NAME_WORD, followed by anything
 
@@ -75,6 +100,12 @@ my $USAGE = "Usage:
         'part b'                        => ___
         'part your hair seven'          => ___
         'book two part one'             => ___
+
+        'one'                           => 'num1'
+        'seventeen'                     => 'num17'
+        'one hundred forty thousand'    => 'num140000'
+        'a hundred fifty'               => ___
+        'six eggs'                      => ___
 
         'prologue'                      => 'prologue'
         'the prologue'                  => ___
@@ -98,6 +129,7 @@ sub main(@){
     }
   }
 
+  my %okChapterNumberStartWords = map {$_ => 1} @CHAPTER_NUMBER_START_WORDS;
   my %okSectionNameWords = map {$_ => 1} @SECTION_NAME_WORDS;
 
   for my $jsonFile(@voskJsonFiles){
@@ -125,6 +157,15 @@ sub main(@){
           }elsif($firstWord eq "part"){
             $chName = "pt$num";
           }
+        }
+      }elsif(defined $okChapterNumberStartWords{$firstWord}){
+        my $fullText = $$res{text};
+
+        #check all texts that start with a number-start-word,
+        #  but only include text as 'num###' if the entire text is a number
+        my $fullTextNum = readPosIntFromFullText($fullText);
+        if(defined $fullTextNum){
+          $chName = "num$fullTextNum";
         }
       }elsif(defined $okSectionNameWords{$firstWord}){
         $chName = $firstWord;
