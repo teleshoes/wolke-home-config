@@ -18,20 +18,25 @@ my $USAGE = "Usage:
   $EXEC VOSK_JSON_FILE [VOSK_JSON_FILE ..]
     parse json for sentences that look like chapter/part/section starts
     does not output *any* parsed text (no spoilers)
+      only the following words are used (where ### is a positive integer):
+        ch### | part###
 
       -for each VOSK_JSON_FILE:
         -find CHAPTER_ENTRY items:
           -for each sentence TEXT:
             -get START_TIME_FRAC_S of first word start time in file in vosk json
             -parse TEXT into FIRST_WORD and OTHER_WORDS
-            -if FIRST_WORD is 'chapter':
+            -if FIRST_WORD is 'chapter' or 'part':
               -take OTHER_WORDS as POSSIBLE_INT_STRING
               -search for NUM as prefix of POSSIBLE_INT_STRING
                 -repeatedly search for an integer NUM, removing words from the end
                   -try to parse POSSIBLE_INT_STRING as an integer NUM with Lingua::EN:Words2Nums
                   -if no integer NUM is found, remove last word from POSSIBLE_INT_STRING and retry
               -if NUM is found:
-                -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
+                -if FIRST_WORD=chapter:
+                  -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
+                -if FIRST_WORD=part:
+                  -add a CHAPTER_ENTRY with CHAPTER_ID='pt<NUM>'
         -for each CHAPTER_ENTRY:
           -output one per line, formatted:
             <VOSK_JSON_FILE>:<START_TIME_FRAC_S>:<CHAPTER_ID>
@@ -41,9 +46,11 @@ my $USAGE = "Usage:
         (e.g.: from `vosk-words-json`)
       -can be gz or xz compressed
 
-    CHAPTER_ID = ch<NUM>
+    CHAPTER_ID = ch<NUM> | pt<NUM>
       ch<NUM>
         TEXT starts with 'chapter', followed by 1+ number words, followed by anything
+      part<NUM>
+        TEXT starts with 'part', followed by 1+ number words, followed by anything
 
       e.g.:
         'chapter thirty six'            => 'ch36'
@@ -51,6 +58,12 @@ my $USAGE = "Usage:
         'chapter eleven bankruptcy'     => 'ch11'
         'chapter house five'            => ___
         'part c chapter twelve'         => ___
+
+        'part five'                     => 'pt5'
+        'part one for the money'        => 'pt1'
+        'part b'                        => ___
+        'part your hair seven'          => ___
+        'book two part one'             => ___
 ";
 
 sub main(@){
@@ -79,7 +92,7 @@ sub main(@){
       my $firstWordStartTime = $firstWordEntry{start};
 
       my $chName = undef;
-      if($firstWord eq "chapter"){
+      if($firstWord eq "chapter" or $firstWord eq "part"){
         my $suffix = join " ", map {$$_{word}} @wordsArr[1..$#wordsArr];
 
         #the rest of the text must *start* with number words, followed by ignored text
@@ -87,7 +100,11 @@ sub main(@){
 
         my $num = readPosIntFromAnyPrefix($suffix);
         if(defined $num){
-          $chName = "ch$num";
+          if($firstWord eq "chapter"){
+            $chName = "ch$num";
+          }elsif($firstWord eq "part"){
+            $chName = "pt$num";
+          }
         }
       }
 
