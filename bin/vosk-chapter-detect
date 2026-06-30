@@ -3,7 +3,9 @@ use strict;
 use warnings;
 use Cpanel::JSON::XS qw();
 use File::Basename qw(basename);
+use Lingua::EN::Words2Nums qw(words2nums);
 
+sub readPosIntFromText($);
 sub readFileDecompressed($);
 
 my $EXEC = basename $0;
@@ -15,6 +17,20 @@ my $USAGE = "Usage:
   $EXEC VOSK_JSON_FILE [VOSK_JSON_FILE ..]
     parse json for sentences that look like chapter/part/section starts
     does not output *any* parsed text (no spoilers)
+
+      -for each VOSK_JSON_FILE:
+        -find CHAPTER_ENTRY items:
+          -for each sentence TEXT:
+            -get START_TIME_FRAC_S of first word start time in file in vosk json
+            -parse TEXT into FIRST_WORD and OTHER_WORDS
+            -if FIRST_WORD is 'chapter':
+              -take OTHER_WORDS as POSSIBLE_INT_STRING
+              -try to parse POSSIBLE_INT_STRING as an integer NUM with Lingua::EN:Words2Nums
+              -if NUM is found:
+                -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
+        -for each CHAPTER_ENTRY:
+          -output one per line, formatted:
+            <VOSK_JSON_FILE>:<START_TIME_FRAC_S>:<CHAPTER_ID>
 
     VOSK_JSON_FILE
       -file containing word-timings JSON output produced by vosk.KaldiRecognizer
@@ -47,11 +63,29 @@ sub main(@){
       my $firstWord = $firstWordEntry{word};
       my $firstWordStartTime = $firstWordEntry{start};
 
+      my $chName = undef;
       if($firstWord eq "chapter"){
-        print "$jsonFile:$firstWordStartTime\n";
+        my $suffix = join " ", map {$$_{word}} @wordsArr[1..$#wordsArr];
+        my $num = readPosIntFromText($suffix);
+        if(defined $num){
+          $chName = "ch$num";
+        }
+      }
+
+      if(defined $chName){
+        print "$chName:$jsonFile:$firstWordStartTime\n";
       }
     }
   }
+}
+
+sub readPosIntFromText($){
+  my ($text) = @_;
+  my $num = words2nums($text);
+  if(defined $num and ($num < 0 or $num !~ /^\d+$/)){
+    $num = undef;
+  }
+  return $num;
 }
 
 sub readFileDecompressed($){
