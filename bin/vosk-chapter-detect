@@ -11,6 +11,10 @@ sub readFileDecompressed($);
 
 my $EXEC = basename $0;
 
+my @SECTION_NAME_WORDS = qw(
+  prologue epilogue glossary appendix
+);
+
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -19,7 +23,7 @@ my $USAGE = "Usage:
     parse json for sentences that look like chapter/part/section starts
     does not output *any* parsed text (no spoilers)
       only the following words are used (where ### is a positive integer):
-        ch### | part###
+        ch### | part### | " . join(" | ", @SECTION_NAME_WORDS) . "
 
       -for each VOSK_JSON_FILE:
         -find CHAPTER_ENTRY items:
@@ -37,6 +41,8 @@ my $USAGE = "Usage:
                   -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
                 -if FIRST_WORD=part:
                   -add a CHAPTER_ENTRY with CHAPTER_ID='pt<NUM>'
+            -if FIRST_WORD is a SECTION_NAME_WORD:
+              -add a CHAPTER_ENTRY with CHAPTER_ID=FIRST_WORD
         -for each CHAPTER_ENTRY:
           -output one per line, formatted:
             <VOSK_JSON_FILE>:<START_TIME_FRAC_S>:<CHAPTER_ID>
@@ -46,11 +52,16 @@ my $USAGE = "Usage:
         (e.g.: from `vosk-words-json`)
       -can be gz or xz compressed
 
-    CHAPTER_ID = ch<NUM> | pt<NUM>
+    SECTION_NAME_WORD
+      one of: @SECTION_NAME_WORDS
+
+    CHAPTER_ID = ch<NUM> | pt<NUM> | <SECTION_NAME_WORD>
       ch<NUM>
         TEXT starts with 'chapter', followed by 1+ number words, followed by anything
       part<NUM>
         TEXT starts with 'part', followed by 1+ number words, followed by anything
+      <SECTION_NAME_WORD>
+        TEXT starts with SECTION_NAME_WORD, followed by anything
 
       e.g.:
         'chapter thirty six'            => 'ch36'
@@ -64,6 +75,13 @@ my $USAGE = "Usage:
         'part b'                        => ___
         'part your hair seven'          => ___
         'book two part one'             => ___
+
+        'prologue'                      => 'prologue'
+        'the prologue'                  => ___
+        'epilogue after the spoiler'    => 'epilogue'
+        'appendix c'                    => 'appendix'
+        'appendix removal'              => 'appendix'
+        'glossary of makeup'            => 'glossary'
 ";
 
 sub main(@){
@@ -79,6 +97,8 @@ sub main(@){
       die "ERROR: unknown arg $arg\n";
     }
   }
+
+  my %okSectionNameWords = map {$_ => 1} @SECTION_NAME_WORDS;
 
   for my $jsonFile(@voskJsonFiles){
     my $jsonText = readFileDecompressed($jsonFile);
@@ -106,6 +126,8 @@ sub main(@){
             $chName = "pt$num";
           }
         }
+      }elsif(defined $okSectionNameWords{$firstWord}){
+        $chName = $firstWord;
       }
 
       if(defined $chName){
