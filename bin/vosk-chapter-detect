@@ -5,7 +5,8 @@ use Cpanel::JSON::XS qw();
 use File::Basename qw(basename);
 use Lingua::EN::Words2Nums qw(words2nums);
 
-sub readPosIntFromText($);
+sub readPosIntFromFullText($);
+sub readPosIntFromAnyPrefix($);
 sub readFileDecompressed($);
 
 my $EXEC = basename $0;
@@ -25,7 +26,10 @@ my $USAGE = "Usage:
             -parse TEXT into FIRST_WORD and OTHER_WORDS
             -if FIRST_WORD is 'chapter':
               -take OTHER_WORDS as POSSIBLE_INT_STRING
-              -try to parse POSSIBLE_INT_STRING as an integer NUM with Lingua::EN:Words2Nums
+              -search for NUM as prefix of POSSIBLE_INT_STRING
+                -repeatedly search for an integer NUM, removing words from the end
+                  -try to parse POSSIBLE_INT_STRING as an integer NUM with Lingua::EN:Words2Nums
+                  -if no integer NUM is found, remove last word from POSSIBLE_INT_STRING and retry
               -if NUM is found:
                 -add a CHAPTER_ENTRY with CHAPTER_ID='ch<NUM>'
         -for each CHAPTER_ENTRY:
@@ -36,6 +40,17 @@ my $USAGE = "Usage:
       -file containing word-timings JSON output produced by vosk.KaldiRecognizer
         (e.g.: from `vosk-words-json`)
       -can be gz or xz compressed
+
+    CHAPTER_ID = ch<NUM>
+      ch<NUM>
+        TEXT starts with 'chapter', followed by 1+ number words, followed by anything
+
+      e.g.:
+        'chapter thirty six'            => 'ch36'
+        'chapter sixty two the spoiler' => 'ch62'
+        'chapter eleven bankruptcy'     => 'ch11'
+        'chapter house five'            => ___
+        'part c chapter twelve'         => ___
 ";
 
 sub main(@){
@@ -66,7 +81,11 @@ sub main(@){
       my $chName = undef;
       if($firstWord eq "chapter"){
         my $suffix = join " ", map {$$_{word}} @wordsArr[1..$#wordsArr];
-        my $num = readPosIntFromText($suffix);
+
+        #the rest of the text must *start* with number words, followed by ignored text
+        #  e.g.: chapter six the one where the spoiler happens => ch6
+
+        my $num = readPosIntFromAnyPrefix($suffix);
         if(defined $num){
           $chName = "ch$num";
         }
@@ -79,11 +98,24 @@ sub main(@){
   }
 }
 
-sub readPosIntFromText($){
+sub readPosIntFromFullText($){
   my ($text) = @_;
   my $num = words2nums($text);
   if(defined $num and ($num < 0 or $num !~ /^\d+$/)){
     $num = undef;
+  }
+  return $num;
+}
+
+sub readPosIntFromAnyPrefix($){
+  my ($text) = @_;
+  my @words = split /\s+/, $text;
+  my $num = undef;
+  while(not defined $num and @words > 0){
+    $num = readPosIntFromFullText("@words");
+    if(not defined $num){
+      pop @words;
+    }
   }
   return $num;
 }
