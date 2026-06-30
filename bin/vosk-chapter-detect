@@ -4,7 +4,7 @@ use warnings;
 use Cpanel::JSON::XS qw();
 use File::Basename qw(basename);
 
-sub readFile($);
+sub readFileDecompressed($);
 
 my $EXEC = basename $0;
 
@@ -15,6 +15,11 @@ my $USAGE = "Usage:
   $EXEC VOSK_JSON_FILE [VOSK_JSON_FILE ..]
     parse json for sentences that look like chapter/part/section starts
     does not output *any* parsed text (no spoilers)
+
+    VOSK_JSON_FILE
+      -file containing word-timings JSON output produced by vosk.KaldiRecognizer
+        (e.g.: from `vosk-words-json`)
+      -can be gz or xz compressed
 ";
 
 sub main(@){
@@ -32,7 +37,7 @@ sub main(@){
   }
 
   for my $jsonFile(@voskJsonFiles){
-    my $jsonText = readFile($jsonFile);
+    my $jsonText = readFileDecompressed($jsonFile);
     my $jsonObj = Cpanel::JSON::XS->new->utf8->decode($jsonText);
     for my $res(@$jsonObj){
       my @wordsArr = @{$$res{result}};
@@ -49,15 +54,23 @@ sub main(@){
   }
 }
 
-sub readFile($){
+sub readFileDecompressed($){
   my ($file) = @_;
-  open FH, "< $file" or die "ERROR: could not read $file\n$!\n";
-  my @lines = <FH>;
-  close FH;
+  my @cmd;
+  if($file =~ /\.gz$/i){
+    @cmd = ("gzip", "-d", "--stdout", $file);
+  }elsif($file =~ /\.xz/i){
+    @cmd = ("xz", "-d", "--stdout", $file);
+  }else{
+    @cmd = ("cat", $file);
+  }
+  open my $cmdH, "-|", @cmd or die "ERROR: '@cmd' failed\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
   if(wantarray){
     return @lines;
   }else{
-    return join '', @lines;;
+    return join '', @lines;
   }
 }
 
