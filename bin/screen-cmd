@@ -14,7 +14,8 @@ my $USAGE = "Usage:
   $EXEC [OPTS] CMD [ARG ARG ..]
     run command inside screen
       -get SESSION_NAME
-        -calculate SESSION_NAME as:
+        -if --session=SESSION_NAME is given, use that
+        -otherwise, calculate SESSION_NAME as:
           -use \"scmd_CMD_ARG_ARG\"
           -replace all non-word characters with underscores
           -replace any amount of repeating underscores with a single underscore
@@ -28,12 +29,17 @@ my $USAGE = "Usage:
     -r | --reattach
     --no-detach
       do not detach from the screen session after starting it (omit '-d')
+
+    -s SESSION_NAME | -S SESSION_NAME
+    --session=SESSION_NAME
+      use <SESSION_NAME> instead of 'scmd_CMD_ARG_ARG'
 ";
 
 sub main(@){
   my @cmd;
   my $opts = {
-    detach => 1,
+    detach      => 1,
+    sessionName => undef,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -42,6 +48,10 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-a|--attach|-r|--reattach|--no-detach)$/){
       $$opts{detach} = 0;
+    }elsif($arg =~ /^--session=(.+)$/){
+      $$opts{sessionName} = $1;
+    }elsif($arg =~ /^(-s|-S)$/ and @_ > 0){
+      $$opts{sessionName} = shift @_;
     }elsif($arg =~ /^[^-]/){
       #cmd starts with first arg that does not start with hyphen
       @cmd = ($arg, @_);
@@ -54,12 +64,16 @@ sub main(@){
   die "$USAGE\nERROR: missing CMD\n" if @cmd == 0;
 
   my $sessionName;
-  $sessionName = join("_", ("scmd", @cmd));
-  $sessionName =~ s/\W+/_/g;
-  $sessionName =~ s/__+/_/g;
-  $sessionName =~ s/^_//;
-  $sessionName =~ s/_$//;
-  $sessionName = substr($sessionName, 0, $SESSION_NAME_MAX_LEN);
+  if(defined $$opts{sessionName}){
+    $sessionName = $$opts{sessionName};
+  }else{
+    $sessionName = join("_", ("scmd", @cmd));
+    $sessionName =~ s/\W+/_/g;
+    $sessionName =~ s/__+/_/g;
+    $sessionName =~ s/^_//;
+    $sessionName =~ s/_$//;
+    $sessionName = substr($sessionName, 0, $SESSION_NAME_MAX_LEN);
+  }
 
   my @detachArg = $$opts{detach} ? ("-d") : ();
 
