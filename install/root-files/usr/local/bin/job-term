@@ -20,11 +20,12 @@ my $USAGE = "
 ";
 
 sub main(@){
+  my @cmdArgs;
   my $opts = {
     ping        => 0,
     pingIpmagic => undef,
   };
-  while(@_ > 0 and $_[0] =~ /^-/){
+  while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
@@ -34,16 +35,22 @@ sub main(@){
     }elsif($arg =~ /^--ping=([a-zA-Z0-9]+)$/){
       $$opts{ping} = 1;
       $$opts{pingIpmagic} = $1;
+    }elsif($arg =~ /^[^-]/){
+      #first arg that doesn't start with hyphen is CMD, any other args are ARG
+      @cmdArgs = ($arg, @_);
+      @_ = ();
+    }else{
+      die "$USAGE\nERROR: unknown arg $arg\n";
     }
   }
-  my $cmd = "@_";
+  die "$USAGE\nERROR: missing CMD\n" if @cmdArgs == 0;
 
   if($$opts{ping}){
-    my $execPing = "execPing --timeout=60";
+    my @execPingCmd = ("execPing", "--timeout=60");
     if(defined $$opts{pingIpmagic}){
-      $execPing .= " --ipmagic=$$opts{pingIpmagic}";
+      push @execPingCmd, "--ipmagic=$$opts{pingIpmagic}";
     }
-    $cmd = "$execPing $cmd";
+    @cmdArgs = (@execPingCmd, @cmdArgs);
   }
 
   if(not defined $ENV{DISPLAY}){
@@ -52,7 +59,7 @@ sub main(@){
     $ENV{DISPLAY} = $display if $display =~ /\S/;
   }
 
-  exec "term", "-e", "screen-cmd -d bash -c 'set -x; $cmd; read'";
+  exec "term", "-e", "screen-cmd -d bash -c 'set -x; @cmdArgs; read'";
 }
 
 &main(@ARGV);
