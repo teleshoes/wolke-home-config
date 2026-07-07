@@ -17,6 +17,10 @@ my $USAGE = "
       prefix command with `execPing --timeout=60`
     --ping=IPMAGIC_NAME
       prefix command with `execPing --timeout=60 --ipmagic=IPMAGIC_NAME`
+
+    -S SESSION_NAME | -s SESSION_NAME
+    --screen-session=SESSION_NAME
+      pass '-S SESSION_NAME' to screen-cmd
 ";
 
 sub main(@){
@@ -35,6 +39,10 @@ sub main(@){
     }elsif($arg =~ /^--ping=([a-zA-Z0-9]+)$/){
       $$opts{ping} = 1;
       $$opts{pingIpmagic} = $1;
+    }elsif($arg =~ /^(-s|-S)$/ and @_ > 0){
+      $$opts{screenSession} = shift @_;
+    }elsif($arg =~ /^--screen-session=(\w+)$/){
+      $$opts{screenSession} = $1;
     }elsif($arg =~ /^[^-]/){
       #first arg that doesn't start with hyphen is CMD, any other args are ARG
       @cmdArgs = ($arg, @_);
@@ -59,7 +67,9 @@ sub main(@){
     $ENV{DISPLAY} = $display if $display =~ /\S/;
   }
 
-  exec "term", "-e", "screen-cmd --attach bash -c 'set -x; @cmdArgs; read'";
+  my $sessionArg = defined $$opts{screenSession} ? "-S $$opts{screenSession}" : "";
+
+  exec "term", "-e", "screen-cmd --attach $sessionArg bash -c 'set -x; @cmdArgs; read'";
 }
 
 &main(@ARGV);
