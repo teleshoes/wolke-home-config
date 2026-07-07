@@ -8,7 +8,7 @@ my $SESSION_NAME_MAX_LEN = 75; #the real limit of 80 breaks sometimes
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
-  $EXEC [--no-detach|--attach-only] CMD [ARG ARG ..]
+  $EXEC [--no-detach] CMD [ARG ARG ..]
     daemonizes a command with screen
 
     sets up a screen session and runs \"CMD ARG ARG ..\"
@@ -21,20 +21,14 @@ my $USAGE = "Usage:
 
     -d|--no-detach
       do not detach from the screen session after starting it
-
-    -a|--attach-only
-      do not run the command, merely attach to the screen session if it is already runing
 ";
 
 sub main(@){
   my $noDetach = 0;
-  my $attachOnly = 0;
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-d|--no-detach)$/){
       $noDetach = 1;
-    }elsif($opt =~ /^(-a|--attach-only)$/){
-      $attachOnly = 1;
     }else{
       die $USAGE;
     }
@@ -49,15 +43,11 @@ sub main(@){
   $screenSession =~ s/\W/-/g;
   $screenSession = substr $screenSession, 0, $SESSION_NAME_MAX_LEN;
 
-  if(not $attachOnly){
-    system "screen -S $screenSession -X quit >/dev/null";
-  }
+  system "screen -S $screenSession -X quit >/dev/null";
 
   @cmd = map {s/'/'\\''/g; "'$_'"} @cmd;
 
-  if($attachOnly){
-    system "screen -S $screenSession -d -r";
-  }elsif($noDetach){
+  if($noDetach){
     system "screen -S $screenSession @cmd";
   }else{
     system "screen -S $screenSession -d -m @cmd";
