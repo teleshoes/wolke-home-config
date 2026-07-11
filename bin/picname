@@ -245,25 +245,25 @@ sub handleFile($$$$){
     ($exifEpoch, $exifMillis) = exifEpoch $file;
   }
 
-  my ($epoch, $millis) = (undef, undef);
+  my ($targetEpoch, $targetMillis) = (undef, undef);
   if($mode eq $MODE_EXIF_MTIME){
-    ($epoch, $millis) = ($exifEpoch, $exifMillis);
-    if(not defined $epoch){
-      ($epoch, $millis) = mtimeEpoch $file;
+    ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
+    if(not defined $targetEpoch){
+      ($targetEpoch, $targetMillis) = mtimeEpoch $file;
     }
   }elsif($mode eq $MODE_EXIF){
-    ($epoch, $millis) = ($exifEpoch, $exifMillis);
+    ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
   }elsif($mode eq $MODE_MTIME){
-    ($epoch, $millis) = mtimeEpoch $file;
+    ($targetEpoch, $targetMillis) = mtimeEpoch $file;
   }elsif($mode eq $MODE_FILENAME){
     # assume YYYYMMDD_HHMMSSFFF is UTC
     # assume YYYYMMDD_HHMMSS is local tz
-    ($epoch, $millis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
+    ($targetEpoch, $targetMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
   }else{
     die "unknown mode: $mode\n";
   }
 
-  if(not defined $epoch){
+  if(not defined $targetEpoch){
     print "cannot process $file\n";
     return 0;
   }
@@ -271,15 +271,15 @@ sub handleFile($$$$){
   if($$opts{subtractDuration} and $ext =~ /^\.($REGEX_EXTS_VIDEOS)$/i){
     my $duration = getDuration($file);
     if(defined $duration){
-      $epoch -= int($duration + 0.5);
+      $targetEpoch -= int($duration + 0.5);
     }else{
       print STDERR "WARNING: could not calculate duration for $file\n";
     }
   }
 
-  $epoch += $$opts{shiftSeconds};
+  $targetEpoch += $$opts{shiftSeconds};
 
-  my $dateFmt = convertEpochToDateFmt $epoch, "%Y%m%d_%H%M%S";
+  my $dateFmt = convertEpochToDateFmt $targetEpoch, "%Y%m%d_%H%M%S";
 
   my ($ymd, $hms);
   if($dateFmt =~ /^(\d\d\d\d\d\d\d\d)_(\d\d\d\d\d\d)$/){
@@ -331,12 +331,12 @@ sub handleFile($$$$){
       }
     }
 
-    my $diff = $epoch - $oldFileNameEpoch;
+    my $diff = $targetEpoch - $oldFileNameEpoch;
     $diff = 0-$diff if $diff < 0;
     if($diff > 60*60*24){
       print STDERR ""
         . "WARNING: old date prefix disagrees by more than a day"
-        . " for $file ($oldFileNameEpoch vs $epoch)\n";
+        . " for $file ($oldFileNameEpoch vs $targetEpoch)\n";
     }
 
     if(defined $nameMillis){
@@ -417,10 +417,10 @@ sub handleFile($$$$){
     }
   }elsif($action eq $ACTION_TOUCH){
     my ($epochMtime, $millisMtime) = mtimeEpoch $file;
-    if($epoch == $epochMtime){
+    if($targetEpoch == $epochMtime){
       print "skipping touch $file\n" unless $$opts{quiet};
     }else{
-      my @touchCmd = ("touch", $file, "--date", "\@$epoch");
+      my @touchCmd = ("touch", $file, "--date", "\@$targetEpoch");
       if($$opts{simulate}){
         print "#@touchCmd\n";
       }else{
@@ -431,9 +431,9 @@ sub handleFile($$$$){
   }elsif($action eq $ACTION_PRINT){
     my ($epochMtime, $millisMtime) = mtimeEpoch $file;
     my $isSameFilename = $file eq $newFile;
-    my $isSameMtime = $epoch == $epochMtime;
+    my $isSameMtime = $targetEpoch == $epochMtime;
     printf "%d %s (%s) %s %s\n",
-      $epoch,
+      $targetEpoch,
       $file,
       $newFile,
       $isSameFilename ? "(same file)" : "(diff file)",
