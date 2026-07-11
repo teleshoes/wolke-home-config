@@ -337,13 +337,48 @@ sub handleFile($$$){
     }
   }
 
-  my ($targetEpoch, $targetMillis) = (undef, undef);
-  if(defined $exifEpoch){
+  my ($targetEpoch, $targetMillis);
+  my $omitMillis = 0;
+  if(defined $fileEpoch){
+    #ensure file matches either exif or mtime if present
+    if(defined $exifEpoch){
+      #if file and epoch are both parsed:
+      #  if file and epoch are within 10s, use filename
+      #  otherwise, fail
+      my $delta = $fileEpoch - $exifEpoch;
+      $delta = 0 - $delta if $delta < 0;
+      if($delta > 10){
+        print STDERR "ERROR: filename more than 10s apart from exif ($fileEpoch vs $exifEpoch)\n";
+        return 0;
+      }
+
+      if(defined $fileMillis and defined $exifMillis){
+        if($fileMillis eq $exifMillis){
+          #if same SubSecTime is already stored in EXIF, omit from filename
+          $omitMillis = 1;
+        }else{
+          print STDERR "ERROR: mismatched millis file vs exif ($fileMillis vs $exifMillis)\n";
+          return 0;
+        }
+      }
+    }elsif(defined $mtimeEpoch){
+      #if file and mtime are both parsed:
+      #  if file and mtime are within 10s, use filename
+      #  otherwise, fail
+      my $delta = $fileEpoch - $mtimeEpoch;
+      $delta = 0 - $delta if $delta < 0;
+      if($delta > 10){
+        print STDERR "ERROR: filename more than 10s apart from mtime ($fileEpoch vs $mtimeEpoch)\n";
+        return 0;
+      }
+    }
+
+    ($targetEpoch, $targetMillis) = ($fileEpoch, $fileMillis);
+  }elsif(defined $exifEpoch){
+    #if epoch is set, and file is not, use epoch and ignore mtime
     ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
   }elsif(defined $mtimeEpoch){
     ($targetEpoch, $targetMillis) = ($mtimeEpoch, $mtimeMillis);
-  }elsif(defined $fileEpoch){
-    ($targetEpoch, $targetMillis) = ($fileEpoch, $fileMillis);
   }else{
     ($targetEpoch, $targetMillis) = (undef, undef);
     print STDERR "ERROR: could not calculate any epoch for file $file\n";
@@ -378,42 +413,6 @@ sub handleFile($$$){
       $trimmedNameSuffix =~ s/\./_/g;
     }
 
-    my $exifEpochMatches =
-      defined $exifEpoch && defined $fileEpoch && $fileEpoch == $exifEpoch;
-    my $exifMillisMatches =
-      defined $exifMillis && defined $fileMillis && $fileMillis == $exifMillis;
-
-    if(not $exifEpochMatches and $removedDtm ne "${ymd}_${hms}"){
-      if($action ne $ACTION_TOUCH){
-        print STDERR "WARNING: replacing date prefix $removedDtm with ${ymd}_${hms} for $file\n";
-      }
-    }
-
-    my $diff = defined $fileEpoch ? $targetEpoch - $fileEpoch : 0;
-    $diff = 0-$diff if $diff < 0;
-    if($diff > 60*60*24){
-      print STDERR ""
-        . "WARNING: old date prefix disagrees by more than a day"
-        . " for $file ($fileEpoch vs $targetEpoch)\n";
-    }
-
-    if(defined $fileMillis){
-      #delete millis if epoch and millis exactly matches
-      #otherwise, persist millis as '_<FFF>ms'
-      my $omitMillis = 0;
-      if(not defined $exifEpoch){
-        print STDERR "WARNING: exif epoch+millis not read, adding ms suffix for $file\n";
-      }elsif($exifEpochMatches and $exifMillisMatches){
-        $omitMillis = 1;
-      }else{
-        print STDERR "WARNING: filename/exif epoch+millis mismatch, adding ms suffix for $file\n";
-      }
-
-      if(not $omitMillis){
-        $trimmedNameSuffix = sprintf("_%03dms", $fileMillis) . $trimmedNameSuffix;
-      }
-    }
-
     $nameSuffix = $trimmedNameSuffix;
   }elsif($nameSuffix =~ /^${ymd}(_.*)?/){
     #remove *exactly matching* YYYYMMDD from file suffix, where YYYYMMDD is the target date
@@ -426,6 +425,10 @@ sub handleFile($$$){
     $trimmedNameSuffix = "" if not defined $trimmedNameSuffix;
 
     $nameSuffix = $trimmedNameSuffix;
+  }
+
+  if(defined $targetMillis and not $omitMillis){
+    $nameSuffix = sprintf("_%03dms", $targetMillis) . $nameSuffix;
   }
 
   $namePrefix =~ s/^_+//;
