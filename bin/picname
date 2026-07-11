@@ -475,63 +475,68 @@ sub exifEpoch($){
 
 sub exifGetDateAsEpochCmdExif($){
   my ($file) = @_;
-  if(not isCmdAvail("exif")){
-    return (undef, undef);
-  }
-  my @cmd = ("exif", "-m", $file);
-  my @lines = readProc @cmd;
-  if($? != 0){
-    print STDERR "WARNING: error running '@cmd'\n";
+
+  my $failed = 0;
+  my $epoch = undef;
+  my $millis = undef;
+
+  my @lines;
+  if(isCmdAvail("exif")){
+    my @cmd = ("exif", "-m", $file);
+    @lines = readProc @cmd;
+
+    if($? != 0){
+      print STDERR "WARNING: error running '@cmd'\n";
+      $failed = 1;
+      @lines = ();
+    }
+  }else{
+    $failed = 1;
   }
 
-  my @dates;
-  my @millis;
   for my $line(@lines){
     if($line =~ /^Date and Time[^\t]*\t(.+)$/){
       my $dt = $1;
       if($dt =~ /^(\d\d\d\d):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)$/){
         my ($y, $m, $d, $hr, $min, $sec) = ($1, $2, $3, $4, $5, $6);
-        my $s = convertDateFmtToEpoch "$y-$m-$d $hr:$min:$sec";
-        if($s !~ /^\d+$/){
-          print STDERR "WARNING: malformed date output for $file: $s\n";
-          return (undef, undef);
+        my $fieldEpoch = convertDateFmtToEpoch "$y-$m-$d $hr:$min:$sec";
+        if($fieldEpoch !~ /^\d+$/){
+          print STDERR "WARNING: skipping `exif`, failed to convert date to epoch $file: $fieldEpoch\n";
+          $failed = 1;
+          last;
         }
-        push @dates, $s;
+        if(defined $epoch and $epoch ne $fieldEpoch){
+          print STDERR "WARNING: skipping `exif`, mismatched Date tags for $file: $epoch != $fieldEpoch\n";
+          $failed = 1;
+          last;
+        }
+        $epoch = $fieldEpoch;
       }else{
-        print STDERR "WARNING: malformed date line for $file: $line\n";
-        return (undef, undef);
+        print STDERR "WARNING: skipping `exif`, malformed Date tag for $file: $line\n";
+        $failed = 1;
+        last;
       }
     }elsif($line =~ /^Sub-second Time[^\t]*\t(\d+)$/){
-      push @millis, $1;
+      my $fieldMillis = $1;
+      if(defined $millis and $millis ne $fieldMillis){
+        print STDERR "WARNING: skipped `exif`, mismatched SubSec tags for $file: $millis != $fieldMillis\n";
+        $failed = 1;
+        last;
+      }
+      $millis = $fieldMillis;
     }
   }
 
-  if(@dates == 0){
-    print STDERR "WARNING: no date/time found for '@cmd'\n";
+  if(not $failed and not defined $epoch){
+    print STDERR "WARNING: skipping `exif`, no date/time found for $file\n";
+    $failed = 1;
+  }
+
+  if($failed){
     return (undef, undef);
+  }else{
+    return ($epoch, $millis);
   }
-
-  my $minDate = undef;
-  for my $d(@dates){
-    if(not defined $minDate){
-      $minDate = $d;
-    }elsif($d != $minDate){
-      print STDERR "WARNING: mismatched date tags for $file: $d != $minDate\n";
-      $minDate = $d if $d < $minDate;
-    }
-  }
-
-  my $minMillis = undef;
-  for my $ms(@millis){
-    if(not defined $minMillis){
-      $minMillis = $ms;
-    }elsif($ms != $minMillis){
-      print STDERR "WARNING: mismatched sub-second tags for $file: $ms != $minMillis\n";
-      $minMillis = $ms if $ms < $minMillis;
-    }
-  }
-
-  return ($minDate, $minMillis);
 }
 
 sub exifGetDateAsEpochCmdExiftool($){
