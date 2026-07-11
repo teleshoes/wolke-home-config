@@ -352,14 +352,10 @@ sub handleFile($$$){
       $trimmedNameSuffix =~ s/\./_/g;
     }
 
-    # assume YYYYMMDD_HHMMSSFFF is UTC
-    # assume YYYYMMDD_HHMMSS is local tz
-    my ($oldFileNameEpoch, $oldFileNameMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
-
     my $exifEpochMatches =
-      defined $exifEpoch && defined $oldFileNameEpoch && $oldFileNameEpoch == $exifEpoch;
+      defined $exifEpoch && defined $fileEpoch && $fileEpoch == $exifEpoch;
     my $exifMillisMatches =
-      defined $exifMillis && defined $oldFileNameMillis && $oldFileNameMillis == $exifMillis;
+      defined $exifMillis && defined $fileMillis && $fileMillis == $exifMillis;
 
     if(not $exifEpochMatches and $removedDtm ne "${ymd}_${hms}"){
       if($action ne $ACTION_TOUCH){
@@ -367,15 +363,15 @@ sub handleFile($$$){
       }
     }
 
-    my $diff = $targetEpoch - $oldFileNameEpoch;
+    my $diff = defined $fileEpoch ? $targetEpoch - $fileEpoch : 0;
     $diff = 0-$diff if $diff < 0;
     if($diff > 60*60*24){
       print STDERR ""
         . "WARNING: old date prefix disagrees by more than a day"
-        . " for $file ($oldFileNameEpoch vs $targetEpoch)\n";
+        . " for $file ($fileEpoch vs $targetEpoch)\n";
     }
 
-    if(defined $nameMillis){
+    if(defined $fileMillis){
       #delete millis if epoch and millis exactly matches
       #otherwise, persist millis as '_<FFF>ms'
       my $omitMillis = 0;
@@ -388,7 +384,7 @@ sub handleFile($$$){
       }
 
       if(not $omitMillis){
-        $trimmedNameSuffix = sprintf("_%03dms", $oldFileNameMillis) . $trimmedNameSuffix;
+        $trimmedNameSuffix = sprintf("_%03dms", $fileMillis) . $trimmedNameSuffix;
       }
     }
 
