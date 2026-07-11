@@ -38,6 +38,8 @@ my $ACTION_PRINT = "print";
 my $FILE_TZ_MODE_UTC = "utc";
 my $FILE_TZ_MODE_LOCAL = "local";
 
+my $FILENAME_MATCH_S = 10;
+
 my $EXEC = basename $0;
 
 my $USAGE = "Usage:
@@ -95,12 +97,12 @@ my $USAGE = "Usage:
           -if FILENAME_EPOCH is found:
             -ensure either EXIF_EPOCH or MTIME_EPOCH matches, if present
               -if EXIF_EPOCH is also found:
-                -ensure EXIF_EPOCH and FILENAME_EPOCH within 10s, and fail otherwise
+                -ensure EXIF_EPOCH and FILENAME_EPOCH within ${FILENAME_MATCH_S}s, or fail
                 -if FILENAME_MILLIS and EXIF_MILLIS are set:
                   -ensure they match, and fail otherwise
                   -ignore FILENAME_MILLIS, and do not add '_###ms' suffix
               -otherwise, if MTIME_EPOCH is also found:
-                -ensure MTIME_EPOCH and FILENAME_EPOCH within 10s, and fail otherwise
+                -ensure MTIME_EPOCH and FILENAME_EPOCH within ${FILENAME_MATCH_S}s, or fail
             -use TARGET_EPOCH=<FILENAME_EPOCH> and TARGET_MILLIS=<FILENAME_MILLIS>
           -if EXIF_EPOCH is found:
             -use TARGET_EPOCH=<EXIF_EPOCH> and TARGET_MILLIS=<EXIF_MILLIS>
@@ -404,12 +406,13 @@ sub handleFile($$$){
     #ensure file matches either exif or mtime if present
     if(defined $exifEpoch){
       #if file and epoch are both parsed:
-      #  if file and epoch are within 10s, use filename
+      #  if file and epoch are within <FILENAME_MATCH_S>s, use filename
       #  otherwise, fail
       my $delta = $fileEpoch - $exifEpoch;
       $delta = 0 - $delta if $delta < 0;
-      if($delta > 10){
-        print STDERR "ERROR: filename more than 10s apart from exif ($fileEpoch vs $exifEpoch)\n";
+      if($delta > $FILENAME_MATCH_S){
+        print STDERR "ERROR: filename more than ${FILENAME_MATCH_S}s apart"
+          ." from exif ($fileEpoch vs $exifEpoch)\n";
         return 0;
       }
 
@@ -424,12 +427,13 @@ sub handleFile($$$){
       }
     }elsif(defined $mtimeEpoch){
       #if file and mtime are both parsed:
-      #  if file and mtime are within 10s, use filename
+      #  if file and mtime are within <FILENAME_MATCH_S>s, use filename
       #  otherwise, fail
       my $delta = $fileEpoch - $mtimeEpoch;
       $delta = 0 - $delta if $delta < 0;
-      if($delta > 10){
-        print STDERR "ERROR: filename more than 10s apart from mtime ($fileEpoch vs $mtimeEpoch)\n";
+      if($delta > $FILENAME_MATCH_S){
+        print STDERR "ERROR: filename more than ${FILENAME_MATCH_S}s apart"
+          ." from mtime ($fileEpoch vs $mtimeEpoch)\n";
         return 0;
       }
     }
