@@ -4,7 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(stat);
 
-sub handleFile($$$$);
+sub handleFile($$$);
 sub exifEpoch($);
 sub exifGetDateAsEpochCmdExif($);
 sub exifGetDateAsEpochCmdExiftool($);
@@ -63,22 +63,43 @@ my $USAGE = "Usage:
     --print
       do not perform any action, instead just print information
 
-    --exif-mtime   {default}
-      use exif datetime if available, and fallback to mtime if not
-    --exif
-      use (only) exif to get timestamp
-      -if file is a JPEG, attempt to read 'Date and Time' from `exif` tool (fast)
-      -if file is not a JPEG or `exif` fails, fallback to `exiftool`
-        -use CreateDate field if available or DateTimeOriginal if not available
-    --mtime
-      use (only) mtime to get timestamp
-    --filename
-      use '$EXEC' formatted file name to get timestamp
-      fails if file is not named in the expected format
-        (results in no renames in --rename, but useful for --touch)
-      -if FILE starts with YYYYMMDD_HHMMSSFFF:
-         -treat filename as UTC
-         -otherwise, treat filename as local timezone
+    --exif-mtime:
+      same as: --use-exif --use-mtime --no-filename
+      NOTE: these are the defaults
+
+    --exif | --exif-only
+      same as: --use-exif --no-mtime --no-filename
+    --filename | --filename-only
+      same as: --use-filename --no-exif --no-mtime
+    --mtime | --mtime-only
+      same as: --use-mtime --no-exif --no-filename
+
+    --no-exif | --ignore-exif
+      -do not parse EXIF/QuickTime data
+      -do not compare EXIF_EPOCH and FILENAME_EPOCH
+      -do not omit FILENAME_MILLIS (since no EXIF/filename comparison is done)
+      -do not use EXIF_EPOCH to name/touch files
+   --use-exif:
+      (NOTE: this is the default)
+      -parse+use EXIF_EPOCH and EXIF_MILLIS
+
+    --no-mtime | --ignore-mtime
+      -do not parse file mtime
+      -do not compare MTIME_EPOCH and FILENAME_EPOCH
+      -do not use MTIME_EPOCH to name/touch files
+   --use-mtime:
+      (NOTE: this is the default)
+      -parse+use MTIME_EPOCH and MTIME_MILLIS
+
+    --no-filename | --ignore-filename
+      (NOTE: this is the default)
+      -do not parse filename timestamp
+      -do not compare EXIF_EPOCH and FILENAME_EPOCH
+      -do not compare MTIME_EPOCH and FILENAME_EPOCH
+      -do not omit FILENAME_MILLIS (since no EXIF/filename comparison is done)
+      -do not use FILENAME_EPOCH to name/touch files
+   --use-filename:
+     -parse+use FILENAME_EPOCH and FILENAME_MILLIS
 
     --quiet
       do not print 'skipping rename' or 'skipping touch' messages
@@ -142,16 +163,13 @@ my $FILE_TZ_MODE_UTC = "utc";
 my $FILE_TZ_MODE_LOCAL = "local";
 my $FILE_TZ_MODE_GUESS = "guess";
 
-my $MODE_EXIF_MTIME = "exif-mtime";
-my $MODE_EXIF = "exif";
-my $MODE_MTIME = "mtime";
-my $MODE_FILENAME = "filename";
-
 sub main(@){
   my $action = $ACTION_RENAME;
-  my $mode = $MODE_EXIF_MTIME;
   my $opts = {
     simulate         => 0,
+    parseExif        => 1,
+    parseMtime       => 1,
+    parseFilename    => 0,
     shiftSeconds     => 0,
     subtractDuration => 0,
     quiet            => 0,
@@ -171,13 +189,33 @@ sub main(@){
     }elsif($arg =~ /^(--print)$/){
       $action = $ACTION_PRINT;
     }elsif($arg =~ /^(--exif-mtime)$/){
-      $mode = $MODE_EXIF_MTIME;
-    }elsif($arg =~ /^(--exif)$/){
-      $mode = $MODE_EXIF;
-    }elsif($arg =~ /^(--mtime)$/){
-      $mode = $MODE_MTIME;
-    }elsif($arg =~ /^(--filename)$/){
-      $mode = $MODE_FILENAME;
+      $$opts{parseExif} = 1;
+      $$opts{parseMtime} = 1;
+      $$opts{parseFilename} = 0;
+    }elsif($arg =~ /^(--exif|--exif-only)$/){
+      $$opts{parseExif} = 1;
+      $$opts{parseMtime} = 0;
+      $$opts{parseFilename} = 0;
+    }elsif($arg =~ /^(--mtime|--mtime-only)$/){
+      $$opts{parseExif} = 0;
+      $$opts{parseMtime} = 1;
+      $$opts{parseFilename} = 0;
+    }elsif($arg =~ /^(--filename|--filename-only)$/){
+      $$opts{parseExif} = 0;
+      $$opts{parseMtime} = 0;
+      $$opts{parseFilename} = 1;
+    }elsif($arg =~ /^(--no-exif|--ignore-exif)$/){
+      $$opts{parseExif} = 0;
+    }elsif($arg =~ /^(--use-exif)$/){
+      $$opts{parseExif} = 1;
+    }elsif($arg =~ /^(--no-mtime|--ignore-mtime)$/){
+      $$opts{parseMtime} = 0;
+    }elsif($arg =~ /^(--use-mtime)$/){
+      $$opts{parseMtime} = 1;
+    }elsif($arg =~ /^(--no-filename|--ignore-filename)$/){
+      $$opts{parseFilename} = 0;
+    }elsif($arg =~ /^(--use-filename)$/){
+      $$opts{parseFilename} = 1;
     }elsif($arg =~ /^(--quiet)$/){
       $$opts{quiet} = 1;
     }elsif($arg =~ /^(--check-ext)$/){
@@ -206,7 +244,7 @@ sub main(@){
   my @errors;
   for my $file(@files){
     if(-f $file){
-      my $isOk = handleFile $opts, $action, $mode, $file;
+      my $isOk = handleFile $opts, $action, $file;
       push @errors, $file if not $isOk;
     }
   }
@@ -216,8 +254,8 @@ sub main(@){
   }
 }
 
-sub handleFile($$$$){
-  my ($opts, $action, $mode, $file) = @_;
+sub handleFile($$$){
+  my ($opts, $action, $file) = @_;
 
   my ($dir, $fileName, $ext);
   $fileName = $file;
@@ -251,31 +289,37 @@ sub handleFile($$$$){
     $nameSuffix = $fileName;
   }
 
-  my ($exifEpoch, $exifMillis) = (undef, undef);
-  if($mode eq $MODE_EXIF_MTIME or $mode eq $MODE_EXIF){
+  my ($exifEpoch, $exifMillis);
+  if($$opts{parseExif}){
     ($exifEpoch, $exifMillis) = exifEpoch $file;
+  }else{
+    ($exifEpoch, $exifMillis) = (undef, undef);
+  }
+
+  my ($mtimeEpoch, $mtimeMillis);
+  if($$opts{parseMtime}){
+    ($mtimeEpoch, $mtimeMillis) = mtimeEpoch $file;
+  }
+
+  my ($fileEpoch, $fileMillis);
+  if($$opts{parseFilename} and $nameSuffix =~ /^\d{8}_\d{6}(\d{3}0*)?(?:_|\.|$)/){
+    # assume YYYYMMDD_HHMMSSFFF is UTC
+    # assume YYYYMMDD_HHMMSS is local tz
+    ($fileEpoch, $fileMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
+  }else{
+    ($fileEpoch, $fileMillis) = (undef, undef);
   }
 
   my ($targetEpoch, $targetMillis) = (undef, undef);
-  if($mode eq $MODE_EXIF_MTIME){
+  if(defined $exifEpoch){
     ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
-    if(not defined $targetEpoch){
-      ($targetEpoch, $targetMillis) = mtimeEpoch $file;
-    }
-  }elsif($mode eq $MODE_EXIF){
-    ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
-  }elsif($mode eq $MODE_MTIME){
-    ($targetEpoch, $targetMillis) = mtimeEpoch $file;
-  }elsif($mode eq $MODE_FILENAME){
-    # assume YYYYMMDD_HHMMSSFFF is UTC
-    # assume YYYYMMDD_HHMMSS is local tz
-    ($targetEpoch, $targetMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
+  }elsif(defined $mtimeEpoch){
+    ($targetEpoch, $targetMillis) = ($mtimeEpoch, $mtimeMillis);
+  }elsif(defined $fileEpoch){
+    ($targetEpoch, $targetMillis) = ($fileEpoch, $fileMillis);
   }else{
-    die "unknown mode: $mode\n";
-  }
-
-  if(not defined $targetEpoch){
-    print "cannot process $file\n";
+    ($targetEpoch, $targetMillis) = (undef, undef);
+    print STDERR "ERROR: could not calculate any epoch for file $file\n";
     return 0;
   }
 
