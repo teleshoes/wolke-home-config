@@ -6,8 +6,8 @@ use Time::HiRes qw(stat);
 
 sub handleFile($$$$);
 sub exifEpoch($);
-sub exifCmdGetDateAsEpoch($);
-sub exiftoolCmdDateFieldAsEpoch($$);
+sub exifGetDateAsEpochCmdExif($);
+sub exifGetSingleDateFieldAsEpochCmdExiftool($$);
 sub getDuration($);
 sub mtimeEpoch($);
 sub filenameEpoch($$);
@@ -458,19 +458,19 @@ sub exifEpoch($){
 
   if($isJpeg){
     #fetch epoch+millis with quick but not reliable `exif`
-    ($epoch, $millis) = exifCmdGetDateAsEpoch($file);
+    ($epoch, $millis) = exifGetDateAsEpochCmdExif($file);
   }
 
   if(not defined $epoch){
     #fetch epoch+millis with slower `exiftool`
     for my $field(qw(CreateDate DateTimeOriginal)){
-      $epoch = exiftoolCmdDateFieldAsEpoch($file, $field);
+      $epoch = exifGetSingleDateFieldAsEpochCmdExiftool($file, $field);
       last if defined $epoch;
     }
 
     #if exiftool had epoch, fetch Sub-Second Time
     if(defined $epoch){
-      $millis = exiftoolCmdDateFieldAsEpoch($file, "SubSecTime");
+      $millis = exifGetSingleDateFieldAsEpochCmdExiftool($file, "SubSecTime");
     }
   }
 
@@ -481,7 +481,7 @@ sub exifEpoch($){
   return ($epoch, $millis);
 }
 
-sub exifCmdGetDateAsEpoch($){
+sub exifGetDateAsEpochCmdExif($){
   my ($file) = @_;
   if(not isCmdAvail("exif")){
     return (undef, undef);
@@ -542,7 +542,7 @@ sub exifCmdGetDateAsEpoch($){
   return ($minDate, $minMillis);
 }
 
-sub exiftoolCmdDateFieldAsEpoch($$){
+sub exifGetSingleDateFieldAsEpochCmdExiftool($$){
   my ($file, $exifField) = @_;
   my @exifToolCmd = ("exiftool",
     "-ignoreMinorErrors",
