@@ -305,6 +305,22 @@ sub handleFile($$$){
     ($fileEpoch, $fileMillis) = (undef, undef);
   }
 
+  my $duration;
+  if($$opts{subtractDuration} and $ext =~ /^\.($REGEX_EXTS_VIDEOS)$/i){
+    $duration = getDuration($file);
+    if(not defined $duration){
+      print STDERR "WARNING: could not calculate duration for $file\n";
+    }
+  }else{
+    $duration = undef;
+  }
+
+  if(defined $duration){
+    $exifEpoch -= int($duration + 0.5) if defined $exifEpoch;
+    $mtimeEpoch -= int($duration + 0.5) if defined $mtimeEpoch;
+    $fileEpoch -= int($duration + 0.5) if defined $fileEpoch;
+  }
+
   my ($targetEpoch, $targetMillis) = (undef, undef);
   if(defined $exifEpoch){
     ($targetEpoch, $targetMillis) = ($exifEpoch, $exifMillis);
@@ -316,15 +332,6 @@ sub handleFile($$$){
     ($targetEpoch, $targetMillis) = (undef, undef);
     print STDERR "ERROR: could not calculate any epoch for file $file\n";
     return 0;
-  }
-
-  if($$opts{subtractDuration} and $ext =~ /^\.($REGEX_EXTS_VIDEOS)$/i){
-    my $duration = getDuration($file);
-    if(defined $duration){
-      $targetEpoch -= int($duration + 0.5);
-    }else{
-      print STDERR "WARNING: could not calculate duration for $file\n";
-    }
   }
 
   $targetEpoch += $$opts{shiftSeconds};
