@@ -51,26 +51,87 @@ my $USAGE = "Usage:
     FILE must end in '.' followed by one of: @EXTS_ALL
       (see --no-check-ext)
 
+      for each FILE:
+        -parse FILE_PREFIX and FILE_SUFFIX
+          -get FILENAME as in `basename FILE`
+          -if FILE starts with one of '$PREFIX_REGEX':
+            -use that as FILE_PREFIX and the rest as FILE_SUFFIX
+          -otherwise:
+            -use empty FILE_PREFIX and FILENAME as FILE_SUFFIX
+        -parse EXIF_EPOCH and EXIF_MILLIS
+          -if FILE ends in '.jpg' or '.jpeg':
+            -attempt to parse EXIF_DATE_TIME and EXIF_SUBSECOND_TIME using fast `exif` command
+          -if EXIF_DATE_TIME is not found:
+            -attempt to parse EXIF_DATE_TIME and EXIF_SUBSECOND_TIME using slow `exiftool` command
+          -if EXIF_DATE_TIME is not found:
+            -fail with an error and do not touch or rename
+          (see: --no-exif)
+        -parse MTIME_EPOCH and MTIME_MILLIS
+          -get mtime in high resolution using Time::HiRes::stat
+          -use as MTIME_EPOCH and MTIME_MILLIS
+          (see: --no-mtime)
+        -subtract duration mtime/exif if FILE is a video
+          -calculate VIDEO_DUR of FILE if FILE is a video
+            (see: --no-duration)
+          -if VIDEO_DUR is found:
+            -subtract VIDEO_DUR from EXIF_EPOCH
+            -subtract VIDEO_DUR from MTIME_EPOCH
+            -if --subtract-duration-filename is given:
+              -subtract VIDEO_DUR from FILENAME_EPOCH
+              (filename is usually written when video starts)
+        -parse FILENAME_EPOCH and FILENAME_MILLIS
+          -if FILE_SUFFIX starts with YYYYMMDD_HHMMSSFFF:
+            -treat filename date/time as UTC
+            -get FILENAME_EPOCH as in `date --date=<YYYY>-<MM>-<DD>T<HH>:<MM><SS>+00:00 +%s`
+            -use FILENAME_MILLIS = <FFF>
+          -if FILE_SUFFIX starts with YYYYMMDD_HHMMSS:
+            -treat filename date/time as local timezone
+            -get FILENAME_EPOCH as in `date --date=<YYYY>-<MM>-<DD>T<HH>:<MM><SS> +%s`
+            -treat FILENAME_MILLIS as empty
+          -otherwise:
+            -treat FILENAME_EPOCH and FILENAME_MILLIS as empty
+          (see: --no-filename)
+        -select TARGET_EPOCH and TARGET_MILLIS
+          -if FILENAME_EPOCH is found:
+            -ensure either EXIF_EPOCH or MTIME_EPOCH matches, if present
+              -if EXIF_EPOCH is also found:
+                -ensure EXIF_EPOCH and FILENAME_EPOCH within 10s, and fail otherwise
+                -if FILENAME_MILLIS and EXIF_MILLIS are set:
+                  -ensure they match, and fail otherwise
+                  -ignore FILENAME_MILLIS, and do not add '_###ms' suffix
+              -otherwise, if MTIME_EPOCH is also found:
+                -ensure MTIME_EPOCH and FILENAME_EPOCH within 10s, and fail otherwise
+            -use TARGET_EPOCH=<FILENAME_EPOCH> and TARGET_MILLIS=<FILENAME_MILLIS>
+          -if EXIF_EPOCH is found:
+            -use TARGET_EPOCH=<EXIF_EPOCH> and TARGET_MILLIS=<EXIF_MILLIS>
+          -if MTIME_EPOCH is found:
+            -use TARGET_EPOCH=<MTIME_EPOCH> and TARGET_MILLIS=<MTIME_MILLIS>
+        -rename files if --rename (this is the default):
+          -get TARGET_EPOCH_FMT as in `date --date=\@TARGET_EPOCH +%Y%m%d_%H%M%S`
+          -get TRIMMED_FILE_SUFFIX:
+            -start with TRIMMED_FILE_SUFFIX = FILE_SUFFIX
+            -if TRIMMED_FILE_SUFFIX starts with *any* YYYYmmdd_HHMMSSFFF or YYYYMMDD_HHMMSS:
+              -remove the old date/time, including trailing 0s in TRIMMED_FILE_SUFFIX timestamp
+                 (e.g.: 20190716_215902952000.jpg => 20190716_215902_952ms.jpg)
+            -if TRIMMED_FILE_SUFFIX starts with the same YYYYMMDD as the TARGET_EPOCH_FMT:
+              -remove the old YYYYMMDD
+          -get MILLIS_PREFIX as '_<TARGET_MILLIS>ms' if TARGET_MILLIS found, otherwise ''
+          -calculate NEW_FILE as:
+             <FILE_PREFIX><TARGET_EPOCH_FMT><MILLIS_PREFIX><TRIMMED_FILE_SUFFIX>.<EXT>
+          -rename file as in: `mv FILE NEW_FILE`
+        -touch files if --touch
+          -update file mtime+atime as in `touch FILE --date=\@TARGET_EPOCH`
+        -print info if --print
+          -do not move or touch files
+          -print old and new filenames and mtimes
+
   OPTS
     --rename       {default}
-      rename files using mv
-      new name is: YYYYMMDD_HHMMSS_<FILE>
-        -if FILE starts with YYYYMMDD_HHMMSSFFF:
-            -always remove YYYYMMDD_HHMMSS from the filename (possibly keeping <FFF>)
-            -if filename and exif epoch and millis are both read and match exactly:
-                -omit <FFF>
-            -otherwise:
-                -prepend the <FILE> suffix with '_<FFF>ms'
-        -if FILE starts with YYYYMMDD_HHMMSS
-             -always remove YYYYMMDD_HHMMSS from the filename
-        -trailing 0s in FILE timestamp are ignored
-             (e.g.: 20190716_215902952000.jpg => 20190716_215902_952ms.jpg)
-        -if FILE is YYYYMMDD_INDEX.ext, YYYYMMDD is removed from FILE
+      rename files using the calculated TARGET_EPOCH
     --touch
-      use touch to set the mtime
-      (uses the same method to get timestamp as --rename)
+      use touch to set the mtime to the calculated TARGET_EPOCH
     --print
-      do not perform any action, instead just print information
+      do not perform any action, instead just print old/new filenames+mtimes
 
     --exif | --exif-only
       same as: --use-exif --no-mtime --no-filename
