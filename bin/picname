@@ -157,7 +157,6 @@ my $ACTION_PRINT = "print";
 
 my $FILE_TZ_MODE_UTC = "utc";
 my $FILE_TZ_MODE_LOCAL = "local";
-my $FILE_TZ_MODE_GUESS = "guess";
 
 sub main(@){
   my $action = $ACTION_RENAME;
@@ -294,10 +293,11 @@ sub handleFile($$$){
   }
 
   my ($fileEpoch, $fileMillis);
-  if($$opts{parseFilename} and $nameSuffix =~ /^\d{8}_\d{6}(\d{3}0*)?(?:_|\.|$)/){
-    # assume YYYYMMDD_HHMMSSFFF is UTC
-    # assume YYYYMMDD_HHMMSS is local tz
-    ($fileEpoch, $fileMillis) = filenameEpoch $file, $FILE_TZ_MODE_GUESS;
+  if($$opts{parseFilename} and $nameSuffix =~ /^\d{8}_\d{6}\d{3}0*(?:_|\.|$)/){
+    #if filename has millis attached to HHMMSS, assume UTC
+    ($fileEpoch, $fileMillis) = filenameEpoch($nameSuffix, $FILE_TZ_MODE_UTC);
+  }elsif($$opts{parseFilename} and $nameSuffix =~ /^\d{8}_\d{6}(?:_|\.|$)/){
+    ($fileEpoch, $fileMillis) = filenameEpoch($nameSuffix, $FILE_TZ_MODE_LOCAL);
   }else{
     ($fileEpoch, $fileMillis) = (undef, undef);
   }
@@ -629,36 +629,21 @@ sub mtimeEpoch($){
 }
 
 sub filenameEpoch($$){
-  my ($file, $fileTzMode) = @_;
-
-  my $filename = $file;
-  $filename =~ s/.*\///;
+  my ($fileNameSuffix, $fileTzMode) = @_;
 
   my ($y, $m, $d, $hr, $min, $sec, $millis);
-  if($filename =~ /^(?:$PREFIX_REGEX)?(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)(\d\d\d)0*[_\.]/){
+  if($fileNameSuffix =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)(\d\d\d)0*(?:_|\.|$)/){
     ($y, $m, $d, $hr, $min, $sec, $millis) = ($1, $2, $3, $4, $5, $6, $7);
-  }elsif($filename =~ /^(?:$PREFIX_REGEX)?(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)[_\.]/){
+  }elsif($fileNameSuffix =~ /^(\d\d\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)(?:_|\.|$)/){
     ($y, $m, $d, $hr, $min, $sec, $millis) = ($1, $2, $3, $4, $5, $6, undef);
   }else{
-    print STDERR "ERROR: filename must start with YYYYMMDD_HHMMSS, then . or _\n";
-    return (undef, undef);
-  }
-
-  my $isUTC;
-  if($fileTzMode eq $FILE_TZ_MODE_UTC){
-    $isUTC = 1;
-  }elsif($fileTzMode eq $FILE_TZ_MODE_LOCAL){
-    $isUTC = 0;
-  }elsif($fileTzMode eq $FILE_TZ_MODE_GUESS){
-    #assume YYYYMMDD_HHMMSSFFF is utc
-    #otherwise, assume local
-    $isUTC = defined $millis ? 1 : 0;
-  }else{
-    die "ERROR: unknown FILE_TZ_MODE $fileTzMode\n";
+    die "ERROR: could not parse YYYYMMDD_HHMMSS[FFF] in file suffix $fileNameSuffix\n";
   }
 
   my $dateFmt = "$y-$m-$d" . "T" . "$hr:$min:$sec";
-  $dateFmt .= "Z" if $isUTC;
+
+  $dateFmt .= "Z" if $fileTzMode eq $FILE_TZ_MODE_UTC;
+
   my $epoch = convertDateFmtToEpoch $dateFmt;
   if($epoch =~ /^\d+$/){
     return ($epoch, $millis);
