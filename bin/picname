@@ -7,7 +7,7 @@ use Time::HiRes qw(stat);
 sub handleFile($$$$);
 sub exifEpoch($);
 sub exifGetDateAsEpochCmdExif($);
-sub exifGetSingleDateFieldAsEpochCmdExiftool($$);
+sub exifGetDateAsEpochCmdExiftool($);
 sub getDuration($);
 sub mtimeEpoch($);
 sub filenameEpoch($$);
@@ -463,15 +463,7 @@ sub exifEpoch($){
 
   if(not defined $epoch){
     #fetch epoch+millis with slower `exiftool`
-    for my $field(qw(CreateDate DateTimeOriginal)){
-      $epoch = exifGetSingleDateFieldAsEpochCmdExiftool($file, $field);
-      last if defined $epoch;
-    }
-
-    #if exiftool had epoch, fetch Sub-Second Time
-    if(defined $epoch){
-      $millis = exifGetSingleDateFieldAsEpochCmdExiftool($file, "SubSecTime");
-    }
+    ($epoch, $millis) = exifGetDateAsEpochCmdExiftool($file);
   }
 
   if(not defined $epoch){
@@ -542,25 +534,42 @@ sub exifGetDateAsEpochCmdExif($){
   return ($minDate, $minMillis);
 }
 
-sub exifGetSingleDateFieldAsEpochCmdExiftool($$){
-  my ($file, $exifField) = @_;
+sub exifGetDateAsEpochCmdExiftool($){
+  my ($file) = @_;
+
+  my @dateFields = qw(
+    CreateDate
+    DateTimeOriginal
+  );
+  my @otherFields = qw(
+    SubSecTime
+  );
+  my @exifFieldArgs = map {"-$_"} (@dateFields, @otherFields);
+
   my @exifToolCmd = ("exiftool",
     "-ignoreMinorErrors",
-    "-p", "\$$exifField",
-    "-d", "%s",
+    "-S",                   #very short field names
+    "-d", "%s",             #format date/times as epoch (implicitly uses date field + OffsetTime)
+    @exifFieldArgs,
     $file,
   );
   my $out = readProc @exifToolCmd;
   die "ERROR: command '@exifToolCmd' failed\n" if $? != 0;
   chomp $out;
 
-  if($out =~ /^(\d+)$/){
-    return $1;
-  }elsif($out eq ""){
-    return undef;
-  }else{
-    die "ERROR: malformed output '$out' for '@exifToolCmd'\n";
+  my $epoch;
+  for my $dateField(@dateFields){
+    if($out =~ /^$dateField\s*:\s*(\d+)$/m){
+      $epoch = $1;
+      last;
+    }
   }
+  my $millis = $out =~ /^SubSecTime\s*:\s*(\d+)$/m ? $1 : undef;
+
+  if(not defined $epoch){
+    die "ERROR: malformed output '@exifToolCmd':\n$out\n";
+  }
+  return ($epoch, $millis);
 }
 
 sub getDuration($){
