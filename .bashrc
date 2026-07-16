@@ -249,6 +249,8 @@ function sb-daemon    { screen-daemon sb-daemon "$@"; }
 
 function rsyncsshc    { sshc --rsync "$@"; }
 
+function xz           { command xz -v "$@"; }
+
 function k            { pkill -9 keys ; keys-to-window; }
 
 function sm           { sheetmusic --window --daemon --player --player-ipmagic=tv "$@"; }
