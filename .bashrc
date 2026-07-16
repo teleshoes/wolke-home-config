@@ -342,20 +342,20 @@ function bim          { vim "$@"; }
 # cd ...    => command cd ...
 # dc ...    => command dc ...
 function cd {
-  if [[ $# == 2 ]] && [[ "$1" -eq "cd" ]] && [[ -d $2 ]]; then
+  if [ "$#" -eq 2 ] && [ "$1" = "cd" ] && [ -d "$2" ]; then
     cd "$2"
-  elif [[ $# == 2 ]] && [[ "$1" -eq "dc" ]] && [[ -d $2 ]]; then
+  elif [ "$#" -eq 2 ] && [ "$1" = "dc" ] && [ -d "$2" ]; then
     cd "$2"
   else
     command cd "$@"
   fi
 }
 function dc {
-  if [[ $# == 1 ]] && [[ -d $1 ]]; then
+  if [ "$#" -eq 1 ] && [ -d $1 ]; then
     cd "$1"
-  elif [[ $# == 2 ]] && [[ "$1" -eq "cd" ]] && [[ -d $2 ]]; then
+  elif [ "$#" -eq 2 ] && [ "$1" = "cd" ] && [ -d "$2" ]; then
     cd "$2"
-  elif [[ $# == 2 ]] && [[ "$1" -eq "dc" ]] && [[ -d $2 ]]; then
+  elif [ "$#" -eq 2 ] && [ "$1" = "dc" ] && [ -d "$2" ]; then
     cd "$2"
   else
     command dc "$@"
