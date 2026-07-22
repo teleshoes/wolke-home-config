@@ -43,14 +43,16 @@ sub resolveHostArgToIpAddress($);
 sub isIp($);
 
 sub main(@){
-  my $timeoutMillis = $DEFAULT_TIMEOUT_MILLIS;
+  my $opts = {
+    timeoutMillis => $DEFAULT_TIMEOUT_MILLIS,
+  };
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
     if($opt =~ /^(-h|--help)$/){
       print $usage;
       exit 0;
     }elsif($opt =~ /^--timeout=(\d+)$/){
-      $timeoutMillis = $1;
+      $$opts{timeoutMillis} = $1;
     }else{
       die "$usage\nunknown option: $opt\n";
     }
@@ -68,11 +70,11 @@ sub main(@){
   my $ipAddr = resolveHostArgToIpAddress $host;
   die "Could not parse '$arg'\n" if not defined $ipAddr;
 
-  speedtest $ipAddr, $user, $timeoutMillis;
+  speedtest $opts, $ipAddr, $user;
 }
 
 sub speedtest($$$){
-  my ($ip, $user, $timeoutMillis) = @_;
+  my ($opts, $ip, $user) = @_;
   my $port = 5000 + int(rand(1000)); #5000-5999
   my @sendCmd = "$NETCAT_EXEC -v -v -n $ip $port";
   my @rcvCmd = "$NETCAT_EXEC -l -w 60 -p $port";
@@ -91,8 +93,9 @@ sub speedtest($$$){
   }
 
   if(not fork){
-    printf "waiting %3.1fs seconds and killing $NETCAT_EXEC\n", $timeoutMillis/1000.0;
-    sleep $timeoutMillis/1000.0;
+    my $timeoutFracS = $$opts{timeoutMillis}/1000.0;
+    printf "waiting %3.1fs seconds and killing $$opts{ncExecLocal}\n", $timeoutFracS;
+    sleep $timeoutFracS;
     my @cmd = ("ssh", @sshOpts, $sshHost, "killall $NETCAT_EXEC");
     print "@cmd\n";
     exec @cmd;
