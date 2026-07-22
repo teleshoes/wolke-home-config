@@ -3,7 +3,8 @@ use strict;
 use warnings;
 use Time::HiRes qw(sleep);
 
-my $NETCAT_EXEC = "nc.traditional";
+my $DEFAULT_NETCAT_EXEC_LOCAL = "nc.traditional";
+my $DEFAULT_NETCAT_EXEC_REMOTE = "nc.traditional";
 
 my $DEFAULT_TIMEOUT_MILLIS = 15 * 1000;
 
@@ -13,8 +14,8 @@ my $usage = "Usage:
 
   $0 [OPTS] [USER@]IP_ADDRESS
     perform a speedtest using netcat
-      $NETCAT_EXEC -n IP_ADDRESS <random-port>
-      ssh USER\@IP_ADDRESS $NETCAT_EXEC -l -p <random-port>
+      $DEFAULT_NETCAT_EXEC_LOCAL -n IP_ADDRESS <random-port>
+      ssh USER\@IP_ADDRESS $DEFAULT_NETCAT_EXEC_REMOTE -l -p <random-port>
 
   $0 [OPTS] [USER@]IPMAGIC_NAME
     resolve IPMAGIC_NAME to an IP_ADDRESS with ipmagic
@@ -31,6 +32,12 @@ my $usage = "Usage:
     --timeout=TIMEOUT_MILLIS
       positive integer, number of milliseconds to wait before ending speedtest
       default: $DEFAULT_TIMEOUT_MILLIS
+
+    --nc-exec-local=NC_EXEC_LOCAL
+      use NC_EXEC_LOCAL instead of $DEFAULT_NETCAT_EXEC_LOCAL for local nc
+
+    --nc-exec-remote=NC_EXEC_REMOTE
+      use NC_EXEC_REMOTE instead of $DEFAULT_NETCAT_EXEC_REMOTE for remote nc
 ";
 
 my @sshOpts = map {("-o", $_)} (
@@ -45,6 +52,8 @@ sub isIp($);
 sub main(@){
   my $opts = {
     timeoutMillis => $DEFAULT_TIMEOUT_MILLIS,
+    ncExecLocal   => $DEFAULT_NETCAT_EXEC_LOCAL,
+    ncExecRemote  => $DEFAULT_NETCAT_EXEC_REMOTE,
   };
   while(@_ > 0 and $_[0] =~ /^-/){
     my $opt = shift;
@@ -53,6 +62,10 @@ sub main(@){
       exit 0;
     }elsif($opt =~ /^--timeout=(\d+)$/){
       $$opts{timeoutMillis} = $1;
+    }elsif($opt =~ /^--nc-exec-local=(.+)$/){
+      $$opts{ncExecLocal} = $1;
+    }elsif($opt =~ /^--nc-exec-remote=(.+)$/){
+      $$opts{ncExecRemote} = $1;
     }else{
       die "$usage\nunknown option: $opt\n";
     }
@@ -76,8 +89,8 @@ sub main(@){
 sub speedtest($$$){
   my ($opts, $ip, $user) = @_;
   my $port = 5000 + int(rand(1000)); #5000-5999
-  my @sendCmd = "$NETCAT_EXEC -v -v -n $ip $port";
-  my @rcvCmd = "$NETCAT_EXEC -l -w 60 -p $port";
+  my @sendCmd = "$$opts{ncExecLocal} -v -v -n $ip $port";
+  my @rcvCmd = "$$opts{ncExecRemote} -l -w 60 -p $port";
 
   my $sshHost = defined $user ? "$user\@$ip" : "$ip";
 
@@ -94,9 +107,9 @@ sub speedtest($$$){
 
   if(not fork){
     my $timeoutFracS = $$opts{timeoutMillis}/1000.0;
-    printf "waiting %3.1fs seconds and killing $$opts{ncExecLocal}\n", $timeoutFracS;
+    printf "waiting %3.1fs seconds and killing $$opts{ncExecRemote}\n", $timeoutFracS;
     sleep $timeoutFracS;
-    my @cmd = ("ssh", @sshOpts, $sshHost, "killall $NETCAT_EXEC");
+    my @cmd = ("ssh", @sshOpts, $sshHost, "killall $$opts{ncExecRemote}");
     print "@cmd\n";
     exec @cmd;
   }
