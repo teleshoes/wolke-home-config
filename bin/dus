@@ -29,6 +29,9 @@ my $USAGE = "Usage:
     -x FILE | --exclude=FILE | --exclude FILE
       exclude FILE, even if given on cmdline
 
+    --no-symlinks | --exclude-symlinks
+      if a FILE given is a symlink, exclude that arg as in -x FILE
+
     -c | -t | --total
       display an extra line with a grand total with FILE='TOTAL'
 
@@ -53,6 +56,7 @@ sub main(@){
     useHuman        => 1,
     useSIUnits      => 0,
     useTotal        => 0,
+    excludeSymlinks => 0,
     duArgs          => [],
   };
   my @files;
@@ -68,6 +72,8 @@ sub main(@){
       push @excludes, shift @_;
     }elsif($arg =~ /^--exclude=(.+)$/){
       push @excludes, $1;
+    }elsif($arg =~ /^(--no-symlinks|--exclude-symlinks)$/){
+      $$opts{excludeSymlinks} = 1;
     }elsif($arg =~ /^(-c|-t|--total)$/){
       $$opts{useTotal} = 1;
     }elsif($arg =~ /^(-b)$/){
@@ -90,6 +96,10 @@ sub main(@){
 
   my %okExcludes = map {$_ => 1} @excludes;
   @files = grep {not defined $okExcludes{$_}} @files;
+
+  if($$opts{excludeSymlinks}){
+    @files = grep {my $f = $_; $f =~ s/\/+$//; not -l $f} @files;
+  }
 
   my @duCmd = ("du", "-bs", @{$$opts{duArgs}}, @files);
 
