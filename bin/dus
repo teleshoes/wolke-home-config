@@ -49,10 +49,12 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  my $useHuman = 1;
-  my $useSIUnits = 0;
-  my $useTotal = 0;
-  my @duArgs;
+  my $opts = {
+    useHuman        => 1,
+    useSIUnits      => 0,
+    useTotal        => 0,
+    duArgs          => [],
+  };
   my @files;
   my @excludes;
   while(@_ > 0){
@@ -67,15 +69,15 @@ sub main(@){
     }elsif($arg =~ /^--exclude=(.+)$/){
       push @excludes, $1;
     }elsif($arg =~ /^(-c|-t|--total)$/){
-      $useTotal = 1;
+      $$opts{useTotal} = 1;
     }elsif($arg =~ /^(-b)$/){
-      $useHuman = 0;
+      $$opts{useHuman} = 0;
     }elsif($arg =~ /^(--human)$/){
-      $useHuman = 1;
+      $$opts{useHuman} = 1;
     }elsif($arg =~ /^(--si)$/){
-      $useSIUnits = 1;
+      $$opts{useSIUnits} = 1;
     }elsif($arg =~ /^(-L)$/){
-      push @duArgs, "-L";
+      push @{$$opts{duArgs}}, "-L";
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
@@ -89,7 +91,7 @@ sub main(@){
   my %okExcludes = map {$_ => 1} @excludes;
   @files = grep {not defined $okExcludes{$_}} @files;
 
-  my @duCmd = ("du", "-bs", @duArgs, @files);
+  my @duCmd = ("du", "-bs", @{$$opts{duArgs}}, @files);
 
   open my $fh, "-|", @duCmd or die "ERROR: du failed\n$!\n";
   my @lines = <$fh>;
@@ -109,8 +111,8 @@ sub main(@){
   my @fileOrder = sort {$sizeBytes{$a} <=> $sizeBytes{$b}} sort keys %sizeBytes;
 
   my %sizeFmt;
-  if($useHuman){
-    %sizeFmt = map {$_ => formatBytes($useSIUnits, undef, undef, $sizeBytes{$_})}
+  if($$opts{useHuman}){
+    %sizeFmt = map {$_ => formatBytes($$opts{useSIUnits}, undef, undef, $sizeBytes{$_})}
                sort keys %sizeBytes;
   }else{
     %sizeFmt = %sizeBytes;
@@ -128,8 +130,8 @@ sub main(@){
     print "$size   $file\n";
   }
 
-  if($useTotal){
-    my $size = $useHuman ? formatBytes($useSIUnits, undef, undef, $totalBytes) : $totalBytes;
+  if($$opts{useTotal}){
+    my $size = $$opts{useHuman} ? formatBytes($$opts{useSIUnits}, undef, undef, $totalBytes) : $totalBytes;
     $size = sprintf "%${maxSizeLen}s", $size;
     print "$size   TOTAL\n";
   }
