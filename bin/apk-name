@@ -4,7 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 use Time::HiRes qw(time);
 
-sub renameApk($$);
+sub renameApk($$$);
 sub run(@);
 sub readProc(@);
 sub nowMillis();
@@ -15,18 +15,20 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC APP_SHORT_NAME APK_FILE
+  $EXEC [OPTS] APP_SHORT_NAME APK_FILE
     rename APK_FILE using aapt badging info
 
     new file format is:
     <APP_SHORT_NAME>_<APP_PKG_NAME>_<APP_VERSION_NAME>.<APK_EXT>
     e.g.: chrome_com.android.chrome_67.0.3396.87.apk
 
-  $EXEC APK_FILE [APK_FILE APK_FILE ..]
+  $EXEC [OPTS] APK_FILE [APK_FILE APK_FILE ..]
     for each APK_FILE:
       -ensure APK_FILE starts with at least 3 letters/numbers
       -use this group of letters and numbers as APP_SHORT_NAME
       -same as: $0 APP_SHORT_NAME APK_FILE
+
+  OPTS
 
   APP_SHORT_NAME
     three or more letters or numbers
@@ -41,6 +43,8 @@ my $USAGE = "Usage:
 sub main(@){
   my $appShortName = undef;
   my @apkFiles;
+  my $opts = {
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -75,12 +79,12 @@ sub main(@){
       die "ERROR: could not extract app short name from $apkFile\n";
     }
 
-    renameApk $apkFileAppShortName, $apkFile;
+    renameApk $opts, $apkFileAppShortName, $apkFile;
   }
 }
 
-sub renameApk($$){
-  my ($appShortName, $apkFile) = @_;
+sub renameApk($$$){
+  my ($opts, $appShortName, $apkFile) = @_;
   my @aaptLines;
   my $tmpDir = undef;
   if($apkFile =~ /\.(xapk|apkm)$/i){
