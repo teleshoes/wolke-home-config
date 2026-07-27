@@ -30,31 +30,43 @@ my $USAGE = "Usage:
 ";
 
 sub main(@){
-  if(@_ == 1 and $_[0] =~ /^(-h|--help)$/){
-    print $USAGE;
-    exit 0;
-  }elsif(@_ == 2 and not -f $_[0] and -f $_[1]){
-    my ($appShortName, $apkFile) = @_;
-    if($appShortName !~ /^[a-zA-Z0-9]+$/){
-      die "$USAGE\nERROR: APP_SHORT_NAME can only contain letters or numbers\n"
+  my $appShortName = undef;
+  my @apkFiles;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^([a-zA-Z0-9]+)$/ and not defined $appShortName){
+      $appShortName = $1;
+    }elsif(-f $arg){
+      push @apkFiles, $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
     }
-    if(not -f $apkFile or $apkFile !~ /\.(apk|xapk|apkm)/i){
-      die "$USAGE\nERROR: $apkFile must exist and end in .apk/.xapk/.apkm\n";
+  }
+
+  if(@apkFiles == 0){
+    die "$USAGE\nERROR: no APK_FILE given\n";
+  }elsif(@apkFiles > 1 and defined $appShortName){
+    die "$USAGE\nERROR: must give exactly one APK_FILE with APP_SHORT_NAME\n";
+  }
+
+  for my $apkFile(@apkFiles){
+    if($apkFile !~ /\.(apk|xapk|apkm)/i){
+      die "$USAGE\nERROR: $apkFile must end in .apk/.xapk/.apkm\n";
     }
 
-    renameApk $appShortName, $apkFile;
-  }elsif(@_ >= 1){
-    for my $apkFile(@_){
-      die "ERROR: $apkFile is not a file\n" if not -f $apkFile;
-      my $fileName = $apkFile;
-      $fileName =~ s/^.*\///;
-      if($fileName !~ /^([a-zA-Z0-9]{3,}).*\.(apk|xapk|apkm)$/i){
-        die "ERROR: could not extract app short name from $apkFile\n";
-      }
-      my $appShortName = $1;
-
-      renameApk $appShortName, $apkFile;
+    my $apkFileAppShortName;
+    if(defined $appShortName and @apkFiles == 1){
+      $apkFileAppShortName = $appShortName;
+    }elsif($apkFile =~ /^(?:.*\/)?([a-zA-Z0-9]{3,}).*\.(?:apk|xapk|apkm)$/i){
+      $apkFileAppShortName = $1;
+    }else{
+      die "ERROR: could not extract app short name from $apkFile\n";
     }
+
+    renameApk $apkFileAppShortName, $apkFile;
   }
 }
 
