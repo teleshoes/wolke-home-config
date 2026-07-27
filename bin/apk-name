@@ -29,6 +29,9 @@ my $USAGE = "Usage:
       -same as: $0 APP_SHORT_NAME APK_FILE
 
   OPTS
+    --quick | --fast
+      skip 'xapk' and 'apkm' files if APK_FILE already matches the pattern:
+        '<APP_SHORT_NAME>_<APP_PKG_NAME>_<APP_VERSION_NAME>.<APK_EXT>'
 
   APP_SHORT_NAME
     three or more letters or numbers
@@ -44,6 +47,7 @@ sub main(@){
   my $appShortName = undef;
   my @apkFiles;
   my $opts = {
+    quick => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -52,6 +56,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^([a-zA-Z0-9]+)$/ and not defined $appShortName){
       $appShortName = $1;
+    }elsif($arg =~ /^(--quick|--fast)$/){
+      $$opts{quick} = 1;
     }elsif(-f $arg){
       push @apkFiles, $arg;
     }else{
@@ -85,6 +91,23 @@ sub main(@){
 
 sub renameApk($$$){
   my ($opts, $appShortName, $apkFile) = @_;
+
+  if($$opts{quick}){
+    if($apkFile =~ /
+      ^
+      (?:.*\/)?
+      ([a-z0-9]+)               #short name
+      _(\w+\.\w+(?:\.\w+)*)     #pkg name - 2 or more segments
+      _(v?\d[0-9a-zA-Z_\.\-]*)  #version starts with a number or v and a number
+      \.(xapk|apkm)             #skip XAPK or APKM files only
+      $/x
+    ){
+      my ($shortName, $pkg, $version) = ($1, $2, $3);
+      printf "skipping %-32s - 'quick' mode matches %s\n", $appShortName, basename $apkFile;
+      return;
+    }
+  }
+
   my @aaptLines;
   my $tmpDir = undef;
   if($apkFile =~ /\.(xapk|apkm)$/i){
