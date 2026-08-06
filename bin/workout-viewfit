@@ -267,6 +267,37 @@ my $USAGE = "Usage:
       do not print speed segments when printing workouts
       (this is the default)
 
+    -z | --hrzones | --hr-zones | --print-hr-zones
+      print heart rate zone percentages using Karvonen formula
+        -read HR_MAX and HR_RESTING from $HR_CONFIG_FILE:
+           hr.max=HR_MAX
+           hr.resting=HR_RESTING
+        -calculate:
+          HR_RESERVE = HR_MAX-HR_RESTING
+          ZONE1_MIN = 50% * HR_RESERVE + HR_RESTING
+          ZONE2_MIN = 60% * HR_RESERVE + HR_RESTING
+          ZONE3_MIN = 70% * HR_RESERVE + HR_RESTING
+          ZONE4_MIN = 80% * HR_RESERVE + HR_RESTING
+          ZONE5_MIN = 90% * HR_RESERVE + HR_RESTING
+        -calculate the total duration of time spent in each zone:
+          ZONE1_DUR = time spent at or over ZONE1_MIN and under ZONE2_MIN
+          ZONE2_DUR = time spent at or over ZONE2_MIN and under ZONE3_MIN
+          ZONE3_DUR = time spent at or over ZONE3_MIN and under ZONE4_MIN
+          ZONE4_DUR = time spent at or over ZONE4_MIN and under ZONE5_MIN
+          ZONE5_DUR = time spent at or over ZONE5_MIN
+          ALL_ZONE_DUR = ZONE1_DUR + ZONE2_DUR + ZONE3_DUR + ZONE4_DUR + ZONE5_DUR
+        -calulcate the percent duration of time spend in each zone
+          ZONE1_PCT = ZONE1_DUR / ALL_ZONE_DUR
+          ZONE2_PCT = ZONE2_DUR / ALL_ZONE_DUR
+          ZONE3_PCT = ZONE3_DUR / ALL_ZONE_DUR
+          ZONE4_PCT = ZONE4_DUR / ALL_ZONE_DUR
+          ZONE5_PCT = ZONE5_DUR / ALL_ZONE_DUR
+        -print a line formatted:
+          zone1=ZONE1_PCT, zone2=ZONE2_PCT, zone3=ZONE3_PCT, zone4=ZONE4_PCT, zone5=ZONE5_PCT
+    --no-hrzones | --no-hr-zones | --no-print-hr-zones
+      do not print target heartrate zone percents
+      (this is the default)
+
     --raw-units
       show fractional meters and seconds, instead of km and H:MM:SS,
       for workout details and speed segments
@@ -324,6 +355,7 @@ sub main(@){
     printStartTime => 0,
     printIds => 0,
     printSpeedSegments => 0,
+    printHrZones => 0,
     printDistanceTargets => 1,
     printIntervals => 0,
   };
@@ -407,6 +439,10 @@ sub main(@){
       $$opts{printSpeedSegments} = 1;
     }elsif($arg =~ /^(--no-segments|--no-print-segments)$/){
       $$opts{printSpeedSegments} = 0;
+    }elsif($arg =~ /^(-z|--hrzones|--hr-zones|--print-hr-zones)$/){
+      $$opts{printHrZones} = 1;
+    }elsif($arg =~ /^(--no-hrzones|--no-hr-zones|--no-print-hr-zones)$/){
+      $$opts{printHrZones} = 0;
     }elsif($arg =~ /^(--raw-units)$/){
       $$opts{rawUnits} = 1;
     }elsif($arg =~ /^(--targets|--print-targets)$/){
@@ -495,6 +531,43 @@ sub main(@){
         }
         if($hrAvg > 0 and not defined $$w{average_heart_rate}){
           $$w{average_heart_rate} = $hrAvg;
+        }
+      }
+    }
+
+    if($$opts{printHrZones}){
+      my $karvonenHrZones = getKarvonenHrZones();
+      for my $w(@workouts){
+
+        if(not defined $$w{hrzones}){
+          $$w{hrzoneDurs} = {map {$_ => 0} (1..5)};
+          my $totalHrDurs = 0;
+          my @intervals = @{$$w{intervals}};
+          for my $i(@intervals){
+            my ($dur, $hr) = ($$i{duration}, $$i{heart_rate});
+            if($hr < $$karvonenHrZones{1}){
+              #do not count low/missing hr intervals
+              next;
+            }
+
+            $totalHrDurs += $dur;
+
+            if($hr < $$karvonenHrZones{2}){
+              $$w{hrzoneDurs}{1} += $dur;
+            }elsif($hr < $$karvonenHrZones{3}){
+              $$w{hrzoneDurs}{2} += $dur;
+            }elsif($hr < $$karvonenHrZones{4}){
+              $$w{hrzoneDurs}{3} += $dur;
+            }elsif($hr < $$karvonenHrZones{5}){
+              $$w{hrzoneDurs}{4} += $dur;
+            }else{
+              $$w{hrzoneDurs}{5} += $dur;
+            }
+          }
+
+          $$w{hrzonePcts} = {map {$_ =>
+            $totalHrDurs <= 0 ? 0 : 100.0 * $$w{hrzoneDurs}{$_}/$totalHrDurs
+          } (1..5)};
         }
       }
     }
@@ -757,6 +830,11 @@ sub formatWorkoutDetails($$){
     for my $segment(@segments){
       $fmt .= formatSpeedSegment($opts, $segment);
     }
+  }
+
+  if($$opts{printHrZones}){
+    my @zoneFmts = map {sprintf "zone%d=%4.1f%%", $_, $$w{hrzonePcts}{$_}} (1..5);
+    $fmt .= "  " . join(", ", @zoneFmts) . "\n";
   }
 
   if($$opts{printIntervals}){
