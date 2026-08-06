@@ -16,6 +16,7 @@ sub formatWorkoutsSummary($$@);
 sub gnuplotDurations($$$@);
 sub gnuplotDistances($$$@);
 sub gnuplotSpeeds($$@);
+sub gnuplotHrZones($$@);
 sub gnuplotHeartrates($$@);
 sub readCachedWorkouts();
 sub readCachedWorkoutLatest();
@@ -236,6 +237,9 @@ my $USAGE = "Usage:
         d | distance
           -one plot, with each workout as a point:
              x=workout_date_time and y=total_distance
+        hrz | hrzone | hrzones
+          -five plots, one for each hrzone, with each workout as a point:
+            x=workout_date_time and y=percent_time_spent_at_zone
 
     --min-hr-plot=HEARTRATE
       when plotting heartrates with --gnuplot,
@@ -538,7 +542,7 @@ sub main(@){
       }
     }
 
-    if($$opts{printHrZones}){
+    if($$opts{printHrZones} or $$opts{plotType} =~ /^(hrz|hrzone|hrzones)$/i){
       my $karvonenHrZones = getKarvonenHrZones();
       for my $w(@workouts){
         $$w{hrzoneDurs} = {map {$_ => 0} (1..5)};
@@ -659,6 +663,23 @@ sub main(@){
         }
 
         gnuplotDistances($opts, $targetName, $outputFile, @points);
+        system "feh", $outputFile;
+      }elsif($plotType =~ /^(hrz|hrzone|hrzones)$/i){
+        my $pointsByPlotName = {};
+        for my $zoneNum(1..5){
+          my $plotName = "Z$zoneNum";
+          my $points = [];
+          for my $w(@workouts){
+            my $hrzonePct = $$w{hrzonePcts}{$zoneNum};
+            $hrzonePct = 0 if not defined $hrzonePct;
+
+            push @$points, [$$w{dtmEpoch}, $hrzonePct];
+          }
+
+          $$pointsByPlotName{$plotName} = $points;
+        }
+
+        gnuplotHrZones($opts, $outputFile, $pointsByPlotName);
         system "feh", $outputFile;
       }elsif($plotType =~ /^(mph|speed)$/i){
         my $pointsByPlotName = {};
@@ -1132,6 +1153,76 @@ sub gnuplotSpeeds($$@){
         . " for [WORKOUT=0:$workoutLastIdx]"
         . " \"$dataFile\" index WORKOUT using (timecolumn(1,\"%s\")):2:3"
         . " with labels offset 0,-1 notitle"
+        . "\n"
+  ;
+  writeFile($scriptFile, $scriptContents);
+  system "rm", "-f", $outputFile;
+  system "gnuplot", "-p", $scriptFile;
+}
+
+sub gnuplotHrZones($$@){
+  my ($opts, $outputFile, $pointsByPlotName) = @_;
+
+  my $scriptFile = "/tmp/workout-viewfit-gnuplot-script";
+  my $dataFile = "/tmp/workout-viewfit-gnuplot-data";
+
+  my $dataFmt = "";
+  for my $plotName(sort keys %$pointsByPlotName){
+    my @points = @{$$pointsByPlotName{$plotName}};
+    $dataFmt .= "\"$plotName\"\n";
+
+    my $maxValIndex = 0;
+    for(my $i=0; $i<@points; $i++){
+      if($points[$i][1] > $points[$maxValIndex][1]){
+        $maxValIndex = $i;
+      }
+    }
+
+    for(my $i=0; $i<@points; $i++){
+      my $point = $points[$i];
+      my ($dtmEpoch, $hrzPct) = @$point;
+
+      my $label = $i == $maxValIndex ? sprintf("%s=%d", $plotName, $hrzPct) : "";
+
+      $dataFmt .= sprintf "%d,%d,%s\n",
+        $dtmEpoch,
+        $hrzPct,
+        $label,
+      ;
+    }
+    $dataFmt .= "\n\n";
+  }
+  writeFile($dataFile, $dataFmt);
+
+  my $zoneCount = 0 + keys %$pointsByPlotName;
+  my $lastZoneIndex = $zoneCount - 1;
+
+  my $scriptContents = ""
+    . "set datafile separator comma\n"
+    . "set key autotitle columnheader horizontal\n"
+    . "set term pngcairo size 1920,1080\n"
+    . "set output \"$outputFile\"\n"
+    . "\n"
+    . "set xdata time\n"
+    . "set timefmt \"%Y-%m-%d\"\n"
+    . "set format x \"%Y-%m-%d\"\n"
+    . "\n"
+    . "set yrange [0:100]\n"
+    . "\n"
+    . "array zone_color_arr[5] = [\"green\", \"blue\", \"yellow\", \"orange\", \"red\"]\n"
+    . "set style line 1 lt 3 lw 1 pt 7 dt \"-\" lc rgb zone_color_arr[1]\n"
+    . "set style line 2 lt 3 lw 4 pt 7 dt solid lc rgb zone_color_arr[2]\n"
+    . "set style line 3 lt 3 lw 4 pt 7 dt solid lc rgb zone_color_arr[3]\n"
+    . "set style line 4 lt 3 lw 4 pt 7 dt \".\" lc rgb zone_color_arr[4]\n"
+    . "set style line 5 lt 3 lw 4 pt 7 dt \"_\" lc rgb zone_color_arr[5]\n"
+    . "\n"
+    . "plot"
+        . " for [ZONE=0:$lastZoneIndex]"
+        . " \"$dataFile\" index ZONE using (timecolumn(1,\"%s\")):2"
+        . " with linespoints linestyle (1+ZONE),"
+        . " for [ZONE=0:$lastZoneIndex]"
+        . " \"$dataFile\" index ZONE using (timecolumn(1,\"%s\")):2:3"
+        . " with labels tc rgb zone_color_arr[1+ZONE] offset 0,0.5 notitle"
         . "\n"
   ;
   writeFile($scriptFile, $scriptContents);
