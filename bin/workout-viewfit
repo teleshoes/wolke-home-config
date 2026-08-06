@@ -26,6 +26,7 @@ sub groupIntervalsIntoSpeedSegments($);
 sub formatSpeedSegment($$);
 sub getHrmonHrByEpoch($);
 sub getAmazfishHrByEpoch($);
+sub getKarvonenHrZones();
 sub readHrCache($$);
 sub writeHrCache($$$);
 sub isWorkoutNeedsExternalHeartrate($);
@@ -70,6 +71,8 @@ my $WORKOUTS_MERGED_JSON_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-mer
 my $WORKOUTS_EXTRA_INFO_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-extra-info";
 my $WORKOUTS_COMBINE_FILE = "$ENV{HOME}/.cache/workouts/viewfit-workouts-combine";
 my $WORKOUTS_INTERVAL_CACHE_DIR = "$ENV{HOME}/.cache/workouts/interval-cache";
+
+my $HR_CONFIG_FILE = "$ENV{HOME}/.cache/workouts/heartrate.config";
 
 my $GNUPLOT_OUTPUT_DIR = "$ENV{HOME}/.cache/workouts/plots";
 
@@ -1491,6 +1494,31 @@ sub getAmazfishHrByEpoch($){
   }
 
   return $hrByEpoch;
+}
+
+sub getKarvonenHrZones(){
+  my $hrCfg = `cat $HR_CONFIG_FILE`;
+  my $hrMax;
+  if($hrCfg =~ /^hr\.max\s*=\s*(\d+)$/m){
+    $hrMax = $1;
+  }
+  my $hrResting;
+  if($hrCfg =~ /^hr\.resting\s*=\s*(\d+)$/m){
+    $hrResting = $1;
+  }
+  if(not defined $hrMax or not defined $hrResting){
+    die "ERROR: could not read resting/max hr from $HR_CONFIG_FILE\n";
+  }
+
+  #Karvonen Target HR = [(Max HR − Resting HR) × % Intensity] + Resting HR
+
+  return {
+    1 => 0.5*($hrMax - $hrResting) + $hrResting,
+    2 => 0.6*($hrMax - $hrResting) + $hrResting,
+    3 => 0.7*($hrMax - $hrResting) + $hrResting,
+    4 => 0.8*($hrMax - $hrResting) + $hrResting,
+    5 => 0.9*($hrMax - $hrResting) + $hrResting,
+  };
 }
 
 sub readHrCache($$){
