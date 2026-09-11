@@ -1746,12 +1746,11 @@ sub writeHrCache($$$){
 }
 
 sub isWorkoutNeedsExternalHeartrate($){
-  my ($workout) = @_;
+  my ($intervals) = @_;
 
-  my @intervals = @{$$workout{intervals}};
   my $totalHrSeconds = 0;
   my $totalDur = 0;
-  for my $interval(@intervals){
+  for my $interval(@$intervals){
     $totalHrSeconds += $$interval{heart_rate} * $$interval{calculatedDuration};
     $totalDur += $$interval{calculatedDuration};
   }
@@ -1772,13 +1771,11 @@ sub isWorkoutNeedsExternalHeartrate($){
 }
 
 sub insertExternalHeartrates($$){
-  my ($workout, $hrByEpoch) = @_;
-
-  my @intervals = @{$$workout{intervals}};
+  my ($intervals, $hrByEpoch) = @_;
 
   my @hrEpochs = sort keys %$hrByEpoch;
 
-  for my $interval(@intervals){
+  for my $interval(@$intervals){
     my $intervalEpoch = $$interval{calculatedEpoch};
     my $hrEpochIdx = binarySearchIdx sub{$_[0] <= $_[1]}, $intervalEpoch, \@hrEpochs;
 
@@ -1818,17 +1815,16 @@ sub insertExternalHeartrates($$){
 #   e.g.: removeHeartrateErrors(workout, 3, 0.90)
 #     => zero out intervals that drop by 10% or more for up to 6 intervals (~60s)
 sub removeHeartrateErrors($$$){
-  my ($workout, $nearbyIdxCount, $threshold) = @_;
-  my @intervals = @{$$workout{intervals}};
+  my ($intervals, $nearbyIdxCount, $threshold) = @_;
 
   my @errorIdxs;
 
-  for(my $i=0; $i<@intervals; $i++){
-    my $hr = ${$intervals[$i]}{heart_rate};
+  for(my $i=0; $i<@$intervals; $i++){
+    my $hr = ${$$intervals[$i]}{heart_rate};
     my $leftDropped = 0;
     for my $leftIdx($i-$nearbyIdxCount..$i-1){
       if($leftIdx >= 0){
-        my $leftHr = ${$intervals[$leftIdx]}{heart_rate};
+        my $leftHr = ${$$intervals[$leftIdx]}{heart_rate};
         if($leftHr * $threshold > $hr){
           $leftDropped = 1;
           last;
@@ -1837,8 +1833,8 @@ sub removeHeartrateErrors($$$){
     }
     my $rightDropped = 0;
     for my $rightIdx($i+1..$i+$nearbyIdxCount){
-      if($rightIdx <= $#intervals){
-        my $rightHr = ${$intervals[$rightIdx]}{heart_rate};
+      if($rightIdx <= $#$intervals){
+        my $rightHr = ${$$intervals[$rightIdx]}{heart_rate};
         if($rightHr * $threshold > $hr){
           $rightDropped = 1;
           last;
@@ -1851,7 +1847,7 @@ sub removeHeartrateErrors($$$){
   }
 
   for my $idx(@errorIdxs){
-    ${$intervals[$idx]}{heart_rate} = 0;
+    ${$$intervals[$idx]}{heart_rate} = 0;
   }
 }
 
@@ -1883,20 +1879,20 @@ sub calculateIntervals($){
 
   my $ymd = defined $$w{dtmLocalYMD} ? $$w{dtmLocalYMD} : $$w{dtmYMD};
 
-  if(isWorkoutNeedsExternalHeartrate($w)){
+  if(isWorkoutNeedsExternalHeartrate($$w{intervals})){
     my $hrByEpoch = getHrmonHrByEpoch($ymd);
-    insertExternalHeartrates($w, $hrByEpoch);
+    insertExternalHeartrates($$w{intervals}, $hrByEpoch);
   }
-  if(isWorkoutNeedsExternalHeartrate($w)){
+  if(isWorkoutNeedsExternalHeartrate($$w{intervals})){
     my $hrByEpoch = getAmazfishHrByEpoch($ymd);
-    insertExternalHeartrates($w, $hrByEpoch);
+    insertExternalHeartrates($$w{intervals}, $hrByEpoch);
   }
 
   #remove 10% drops of up to ~60s (+/- 3 intervals)
-  removeHeartrateErrors($w, 3, 0.90);
+  removeHeartrateErrors($$w{intervals}, 3, 0.90);
 
   #remove 45% drops of up to ~180s (+/- 9 intervals)
-  removeHeartrateErrors($w, 9, 0.55);
+  removeHeartrateErrors($$w{intervals}, 9, 0.55);
 }
 
 sub calculateScaledTimeAndDistance($){
