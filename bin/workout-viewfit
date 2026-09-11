@@ -473,6 +473,28 @@ sub main(@){
     my $workoutsCombineInfo = readWorkoutsCombine();
 
     @workouts = insertExtraInfo($extraInfo, @workouts);
+
+    if(not -d $WORKOUTS_INTERVAL_CACHE_DIR){
+      system "mkdir", "-p", $WORKOUTS_INTERVAL_CACHE_DIR;
+    }
+
+    #calculate+cache intervals
+    for my $w(@workouts){
+      my $dtmFormat = dateFmt("%Y%m%d_%H%M%S", $$w{dtmEpoch}, $$w{tzName}),
+      my $workoutID = $$w{workout_id};
+      my $cacheFile = "$WORKOUTS_INTERVAL_CACHE_DIR/${dtmFormat}_${workoutID}";
+
+      if(not -f $cacheFile){
+        calculateIntervals($w);
+        writeFile($cacheFile, Cpanel::JSON::XS->new->utf8->canonical->encode($$w{intervals}));
+      }
+      if(not -f $cacheFile){
+        die "ERROR: interval cache file $cacheFile does not exist\n";
+      }
+
+      $$w{intervals} = Cpanel::JSON::XS->new->utf8->decode(readFile($cacheFile));
+    }
+
     @workouts = applyAndFilterCombinedWorkouts($workoutsCombineInfo, @workouts);
 
     if(defined $$opts{workoutIdFilter}){
@@ -498,27 +520,6 @@ sub main(@){
     @workouts = sort {
       $$a{dtmEpoch} <=> $$b{dtmEpoch}
     } @workouts;
-
-    if(not -d $WORKOUTS_INTERVAL_CACHE_DIR){
-      system "mkdir", "-p", $WORKOUTS_INTERVAL_CACHE_DIR;
-    }
-
-    #calculate+cache intervals
-    for my $w(@workouts){
-      my $dtmFormat = dateFmt("%Y%m%d_%H%M%S", $$w{dtmEpoch}, $$w{tzName}),
-      my $workoutID = $$w{workout_id};
-      my $cacheFile = "$WORKOUTS_INTERVAL_CACHE_DIR/${dtmFormat}_${workoutID}";
-
-      if(not -f $cacheFile){
-        calculateIntervals($w);
-        writeFile($cacheFile, Cpanel::JSON::XS->new->utf8->canonical->encode($$w{intervals}));
-      }
-      if(not -f $cacheFile){
-        die "ERROR: interval cache file $cacheFile does not exist\n";
-      }
-
-      $$w{intervals} = Cpanel::JSON::XS->new->utf8->decode(readFile($cacheFile));
-    }
 
     for my $w(@workouts){
       if(
