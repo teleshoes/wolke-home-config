@@ -34,6 +34,7 @@ sub isWorkoutNeedsExternalHeartrate($);
 sub insertExternalHeartrates($$);
 sub removeHeartrateErrors($$$);
 sub calculateIntervals($);
+sub calculateIntervalHeartrates($$);
 sub calculateScaledTimeAndDistance($);
 sub calculateDistanceTargets($);
 sub getBestTimeForDistance($$);
@@ -1878,21 +1879,26 @@ sub calculateIntervals($){
   calculateScaledTimeAndDistance($w);
 
   my $ymd = defined $$w{dtmLocalYMD} ? $$w{dtmLocalYMD} : $$w{dtmYMD};
+  calculateIntervalHeartrates($ymd, $$w{intervals});
+}
 
-  if(isWorkoutNeedsExternalHeartrate($$w{intervals})){
-    my $hrByEpoch = getHrmonHrByEpoch($ymd);
-    insertExternalHeartrates($$w{intervals}, $hrByEpoch);
+sub calculateIntervalHeartrates($$){
+  my ($workoutYMD, $intervals) = @_;
+
+  if(isWorkoutNeedsExternalHeartrate($intervals)){
+    my $hrByEpoch = getHrmonHrByEpoch($workoutYMD);
+    insertExternalHeartrates($intervals, $hrByEpoch);
   }
-  if(isWorkoutNeedsExternalHeartrate($$w{intervals})){
-    my $hrByEpoch = getAmazfishHrByEpoch($ymd);
-    insertExternalHeartrates($$w{intervals}, $hrByEpoch);
+  if(isWorkoutNeedsExternalHeartrate($intervals)){
+    my $hrByEpoch = getAmazfishHrByEpoch($workoutYMD);
+    insertExternalHeartrates($intervals, $hrByEpoch);
   }
 
   #remove 10% drops of up to ~60s (+/- 3 intervals)
-  removeHeartrateErrors($$w{intervals}, 3, 0.90);
+  removeHeartrateErrors($intervals, 3, 0.90);
 
   #remove 45% drops of up to ~180s (+/- 9 intervals)
-  removeHeartrateErrors($$w{intervals}, 9, 0.55);
+  removeHeartrateErrors($intervals, 9, 0.55);
 }
 
 sub calculateScaledTimeAndDistance($){
