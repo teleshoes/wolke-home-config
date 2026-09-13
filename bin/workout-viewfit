@@ -1590,12 +1590,18 @@ sub formatSpeedSegment($$){
   my $segmentMaxHr = 0;
   my $segmentDur = 0;
   my $segmentDistance = 0;
+  my $segmentIncSeconds = 0;
+  my $segmentIncTotalSeconds = 0;
   for my $interval(@$segment){
     $segmentSpeedSeconds += $$interval{speed} * $$interval{calculatedDuration};
     if(defined $$interval{heart_rate} and $$interval{heart_rate} > 0){
       $segmentHrSeconds += $$interval{heart_rate} * $$interval{calculatedDuration};
       $segmentHrTotalSeconds += $$interval{calculatedDuration};
       $segmentMaxHr = $$interval{heart_rate} if $$interval{heart_rate} > $segmentMaxHr;
+    }
+    if(defined $$interval{incline}){
+      $segmentIncSeconds += $$interval{incline} * $$interval{calculatedDuration};
+      $segmentIncTotalSeconds += $$interval{calculatedDuration};
     }
     $segmentDur += $$interval{calculatedDuration};
     $segmentDistance += $$interval{calculatedDistance};
@@ -1609,6 +1615,7 @@ sub formatSpeedSegment($$){
     $avgHr = 0;
     $maxHr = 0;
   }
+  my $avgIncline = $segmentIncTotalSeconds > 0 ? $segmentIncSeconds / $segmentIncTotalSeconds : 0;
   my $mph = $avgSpeed * $MILES_PER_KM;
   my $distanceFmt = undef;
   my $durFmt = undef;
@@ -1620,9 +1627,12 @@ sub formatSpeedSegment($$){
     $durFmt = sprintf "%6s", formatTimeMinSec($segmentDur);
   }
 
-  return sprintf "  %4.1fmph %s   %3d[%3d]    %s\n",
+  my $avgInclineFmt = $avgIncline < 0.08 ? "" : sprintf "^%04.1f%%", $avgIncline;
+
+  return sprintf "  %4.1fmph  %s   %6s   %3d[%3d]    %s\n",
     $mph,
     $durFmt,
+    $avgInclineFmt,
     $avgHr,
     $maxHr,
     $distanceFmt,
