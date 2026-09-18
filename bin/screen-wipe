@@ -1,0 +1,52 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC
+    workaround bug where `screen -wipe` ignores zombies
+      -run: `screen -wipe`
+      -find PIDs of still-dead screen sessions with `screen -ls`
+      -for each PID:
+        run `screen -wipe PID`
+      -run: `screen -wipe`
+";
+
+sub main(@){
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  screenWipe();
+}
+
+sub screenWipe(){
+  system "screen -wipe";
+
+  #clear buggy persistent dead screens
+  my @screens = `screen -ls`;
+  my @deadScreens = grep {$_ =~ /\s+\([^)]*dead[^)]*\)/i} @screens;
+  my @deadPids = grep {defined $_} map {$_ =~ /^\s*(\d+)\./ ? $1 : undef} @deadScreens;
+  for my $pid(@deadPids){
+    print "re-running screen wipe for PID $pid\n";
+    system "screen", "-wipe", $pid;
+  }
+
+  if(@deadPids > 0){
+    system "screen -wipe";
+  }
+}
+
+&main(@ARGV);
