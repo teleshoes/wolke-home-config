@@ -219,11 +219,9 @@ my $CMD_SSH_OFF = "off";
 
 sub main(@){
   my $opts = {
-    remoteInfo => {
-      ipmagicName => undef,
-      host        => undef,
-      user        => undef,
-    },
+    ipmagicName         => undef,
+    host                => undef,
+    user                => undef,
     cmd                 => $CMD_START_VNC,
     vncClient           => $DEFAULT_VNC_CLIENT,
     vncServer           => $DEFAULT_VNC_SERVER,
@@ -238,19 +236,19 @@ sub main(@){
   };
   parseArgs($opts, @_);
 
-  if(defined $$opts{remoteInfo}{host}){
+  if(defined $$opts{host}){
     my %okIpmagicNames = map{$_ => 1} split /\s+/, `ipmagic --list`;
-    if(defined $okIpmagicNames{$$opts{remoteInfo}{host}}){
-      my $ipmagicName = $$opts{remoteInfo}{host};
+    if(defined $okIpmagicNames{$$opts{host}}){
+      my $ipmagicName = $$opts{host};
       my $host = `ipmagic $ipmagicName --host`;
       chomp $host;
       if($host !~ /\w/){
         die "ERROR: could not get host for IPMAGIC_NAME=$ipmagicName\n";
       }
-      $$opts{remoteInfo}{host} = $host;
-      $$opts{remoteInfo}{ipmagicName} = $ipmagicName;
+      $$opts{host} = $host;
+      $$opts{ipmagicName} = $ipmagicName;
 
-      if(not defined $$opts{remoteInfo}{user}){
+      if(not defined $$opts{user}){
         #set user and default args if not given by ipmagic
         #  (e.g.: `vnc IPMAGIC_NAME` vs `ipmagic IPMAGIC_NAME -vnc`)
         my $defaultArgStr = `ipmagic $ipmagicName --vnc-default-args`;
@@ -260,16 +258,19 @@ sub main(@){
 
         my $defaultUser = `ipmagic $ipmagicName --default-user`;
         chomp $defaultUser;
-        if(not defined $$opts{remoteInfo}{user} and $defaultUser =~ /\w/){
-          $$opts{remoteInfo}{user} = $defaultUser;
+        if(not defined $$opts{user} and $defaultUser =~ /\w/){
+          $$opts{user} = $defaultUser;
         }
       }
     }
   }
 
   if($$opts{cmd} eq $CMD_START_VNC){
-    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{remoteInfo}{host};
-    startVNC($$opts{remoteInfo}, $$opts{vncClient}, $$opts{vncServer}, $$opts{useCache},
+    die "$USAGE\nERROR: missing HOST\n" if not defined $$opts{host};
+    my $remoteInfo = {
+      ipmagicName => $$opts{ipmagicName}, user => $$opts{user}, host => $$opts{host}
+    };
+    startVNC($remoteInfo, $$opts{vncClient}, $$opts{vncServer}, $$opts{useCache},
       $$opts{geometry}, $$opts{scale}, $$opts{localHeightScale},
       $$opts{rotateArg}, $$opts{rotateFromLandscape},
       $$opts{isStartServer}, $$opts{isSSHTunnel});
@@ -342,11 +343,11 @@ sub parseArgs($@){
       $$opts{rotateArg} = 270;
       $$opts{rotateFromLandscape} = 1;
     }elsif($arg =~ /^--user=(.+)$/){
-      $$opts{remoteInfo}{user} = $1;
+      $$opts{user} = $1;
     }elsif($arg =~ /^(-u|--user)$/ and @args > 0){
-      $$opts{remoteInfo}{user} = shift @args;
-    }elsif(not defined $$opts{remoteInfo}{host}){
-      $$opts{remoteInfo}{host} = $arg;
+      $$opts{user} = shift @args;
+    }elsif(not defined $$opts{host}){
+      $$opts{host} = $arg;
     }else{
       die "$USAGE\nERROR: unknown arg $arg\n";
     }
