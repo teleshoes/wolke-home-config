@@ -3,13 +3,14 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
-sub flacEncode($);
-sub flacDecode($);
-sub xdeltaCreatePatch($);
-sub xdeltaApplyPatch($);
-sub getFilenameSet($);
+sub getFileNames($);
+sub encodeWavFile($);
+sub restoreWavFile($);
+sub xdeltaCreatePatch($$$);
+sub xdeltaApplyPatch($$$);
 sub run(@);
 sub tryrun(@);
+sub readProc(@);
 
 my $EXEC = basename $0;
 
@@ -17,187 +18,160 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC ORIG_WAV_FILE [ORIG_WAV_FILE ORIG_WAV_FILE..]
-    produce a flac file and an xdelta patch
-      that together can produce the original bitwise identical wav file
-    for each WAV_FILE:
-      -get filenames as in:
-        BASE_NAME=`echo \${WAV_FILE} | sed s/\\.wav\$//`
-        FLAC_FILE=\"\${BASENAME}.flac\"
-        TMP_WAV_FILE=\"\${BASENAME}.decodedflac.wav\"
-        XDELTA_PATCH_FILE=\"\${BASENAME}_wav_xdelta.patch\"
-      -create flac file:
-        flac \${WAV_FILE} -o \${FLAC_FILE}
-      -decode flac file:
-        flac -d \${FLAC_FILE} -o \${TMP_WAV_FILE}
-      -create binary diff with xdelta:
-        xdelta delta \${TMP_WAV_FILE} \${ORIG_WAV_FILE} \${XDELTA_PATCH_FILE}
-      -remove \${TMP_WAV_FILE}
+  $EXEC ORIG_WAV_FILE [ORIG_WAV_FILE ORIG_WAV_FILE ..]
+    produce a flac file and an xdelta patch that can recover the bitwise exact wav file
+    -for each ORIG_WAV_FILE:
+      -calculate file names:
+        BASE_FILE       ORIG_WAV_FILE with '.wav' suffix removed
+        FLAC_FILE       BASE_FILE + '.flac'
+        TEMP_WAV_FILE   BASE_FILE + '-flac-decode.wav'
+        XDELTA_FILE     BASE_FILE + '.xdelta'
+      -encode ORIG_WAV_FILE to FLAC_FILE
+      -decode FLAC_FILE to TEMP_WAV_FILE
+      -diff the resulting TEMP_WAV_FILE and the ORIG_WAV_FILE to XDELTA_FILE
+      -remove TEMP_WAV_FILE
+    similar to:
+      flac \$ORIG_WAV_FILE -o \$FLAC_FILE
+      flac -d \$FLAC_FILE -o \$TEMP_WAV_FILE
+      xdelta delta \$TEMP_WAV_FILE \$ORIG_WAV_FILE \$XDELTA_FILE
+      rm \$TEMP_WAV_FILE
 
-  $EXEC -d|--decode FLAC_FILE [FLAC_FILE FLAC_FILE..]
-    recover the original wav file from a flac file and a similarly named
-      xdelta patch file
-    for each FLAC_FILE:
-      -get filenames as in:
-        BASE_NAME=`echo \${FLAC_FILE} | sed s/\\.flac\$//`
-        ORIG_WAV_FILE=\"\${BASENAME}.wav\"
-        TMP_WAV_FILE=\"\${BASENAME}.decodedflac.wav\"
-        XDELTA_PATCH_FILE=\"\${BASENAME}_wav_xdelta.patch\"
-      -decode flac file:
-        flac -d \${FLAC_FILE} -o \${TMP_WAV_FILE}
-      -apply xdelta binary patch:
-        xdelta patch \${XDELTA_PATCH_FILE} \${TMP_WAV_FILE} \${ORIG_WAV_FILE}
-      -remove \${TMP_WAV_FILE}
+  $EXEC -d --decode  FLAC_FILE [FLAC_FILE FLAC_FILE ..]
+  $EXEC -r|--restore FLAC_FILE [FLAC_FILE FLAC_FILE ..]
+    recover the original wav file from the flac file and a similarly named xdelta patch
+    -for each FLAC_FILE:
+      -calculate file names:
+        BASE_FILE       WAV_FILE with '.wav' suffix removed
+        ORIG_WAV_FILE   BASE_FILE + '.flac'
+        TEMP_WAV_FILE   BASE_FILE + '-flac-decode.wav'
+        XDELTA_FILE     BASE_FILE + '.xdelta'
+      -ensure that XDELTA_FILE exists
+      -decode FLAC_FILE to TEMP_WAV_FILE
+      -patch TEMP_WAV_FILE to produce ORIG_WAV_FILE
+      -remove TEMP_WAV_FILE
+    similar to
+      flac -d \$FLAC_FILE -o \$TEMP_WAV_FILE
+      xdelta patch \$XDELTA_FILE \$TEMP_WAV_FILE \$ORIG_WAV_FILE
+      rm \$TEMP_WAV_FILE
 ";
 
-my $CMD_ENCODE = "encode";
-my $CMD_DECODE = "decode";
+my $MODE_ENCODE = "encode";
+my $MODE_RESTORE = "restore";
 
 sub main(@){
-  my $cmd = $CMD_ENCODE;
-  my @wavFiles;
-  my @flacFiles;
-
+  my $mode = $MODE_ENCODE;
+  my @files;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
-    }elsif($arg =~ /^(-d|--decode)$/){
-      $cmd = $CMD_DECODE;
-    }elsif(-f $arg and $arg =~ /^.*\.wav$/i){
-      push @wavFiles, $arg;
-    }elsif(-f $arg and $arg =~ /^.*\.flac$/i){
-      push @flacFiles, $arg;
+    }elsif($arg =~ /^(-d|--decode|-r|--restore)$/){
+      $mode = $MODE_RESTORE;
+    }elsif(-f $arg){
+      push @files, $arg;
     }else{
       die "ERROR: unknown arg $arg\n";
     }
   }
 
-  if($cmd eq $CMD_ENCODE){
-    die "ERROR: must specify WAV_FILE for encode\n" if @wavFiles == 0;
-    die "ERROR: cannot specify FLAC_FILE for encode\n" if @flacFiles > 0;
-
-    for my $wavFile(@wavFiles){
-      my $fileNameSet = getFilenameSet($wavFile);
-      flacEncode($fileNameSet);
-      flacDecode($fileNameSet);
-      xdeltaCreatePatch($fileNameSet);
-
-      run "rm", $$fileNameSet{TMP_WAV_FILE};
+  if($mode eq $MODE_ENCODE){
+    for my $file(@files){
+      die "ERROR: WAV_FILE must end in '.wav'\n" if $file !~ /\.wav$/;
     }
-  }elsif($cmd eq $CMD_DECODE){
-    die "ERROR: must specify FLAC_FILE for decode\n" if @flacFiles == 0;
-    die "ERROR: cannot specify WAV_FILE for decode\n" if @wavFiles > 0;
-
-    for my $flacFile(@flacFiles){
-      my $fileNameSet = getFilenameSet($flacFile);
-      flacDecode($fileNameSet);
-      xdeltaApplyPatch($fileNameSet);
-
-      run "rm", $$fileNameSet{TMP_WAV_FILE};
+    for my $file(@files){
+      encodeWavFile(getFileNames($file));
     }
-  }
-}
-
-sub flacEncode($){
-  my ($fileNameSet) = @_;
-  if(-e $$fileNameSet{FLAC_FILE}){
-    die "ERROR: $$fileNameSet{FLAC_FILE} already exists\n";
-  }
-
-  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
-    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
-  }
-
-  run "flac", $$fileNameSet{ORIG_WAV_FILE}, "-o", $$fileNameSet{FLAC_FILE};
-  if(not -f $$fileNameSet{FLAC_FILE}){
-    die "ERROR: $$fileNameSet{FLAC_FILE} does not exist\n";
-  }
-}
-
-sub flacDecode($){
-  my ($fileNameSet) = @_;
-  if(-e $$fileNameSet{TMP_WAV_FILE}){
-    die "ERROR: $$fileNameSet{FLAC_FILE} already exists\n";
-  }
-
-  if(not -f $$fileNameSet{FLAC_FILE}){
-    die "ERROR: $$fileNameSet{FLAC_FILE} does not exist\n";
-  }
-
-  run "flac", "-d", $$fileNameSet{FLAC_FILE}, "-o", $$fileNameSet{TMP_WAV_FILE};
-  if(not -f $$fileNameSet{TMP_WAV_FILE}){
-    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
-  }
-}
-
-sub xdeltaCreatePatch($){
-  my ($fileNameSet) = @_;
-  if(-e $$fileNameSet{XDELTA_PATCH_FILE}){
-    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} already exists\n";
-  }
-
-  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
-    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
-  }
-  if(not -f $$fileNameSet{TMP_WAV_FILE}){
-    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
-  }
-
-  my $exitCode = tryrun "xdelta", "delta",
-    $$fileNameSet{TMP_WAV_FILE}, $$fileNameSet{ORIG_WAV_FILE},
-    $$fileNameSet{XDELTA_PATCH_FILE};
-  if($exitCode == 1){
-    print "xdelta success\n";
-  }elsif($exitCode == 0){
-    die "ERROR: xdelta delta reported empty diff\n";
+  }elsif($mode eq $MODE_RESTORE){
+    for my $file(@files){
+      die "ERROR: FLAC_FILE must end in '.flac'\n" if $file !~ /\.flac$/;
+      my $fileNames = getFileNames($file);
+      if(not -e $$fileNames{xdelta}){
+        die "ERROR: xdelta file $$fileNames{xdelta} missing\n";
+      }
+    }
+    for my $file(@files){
+      restoreWavFile(getFileNames($file));
+    }
   }else{
-    die "ERROR: xdelta delta command failed\n";
-  }
-
-  run "touch", $$fileNameSet{XDELTA_PATCH_FILE}, "-r", $$fileNameSet{ORIG_WAV_FILE};
-
-  if(not -f $$fileNameSet{XDELTA_PATCH_FILE}){
-    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} does not exist\n";
+    die "ERROR: unknown mode $mode\n";
   }
 }
 
-sub xdeltaApplyPatch($){
-  my ($fileNameSet) = @_;
-  if(-e $$fileNameSet{ORIG_WAV_FILE}){
-    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} already exists\n";
-  }
-
-  if(not -f $$fileNameSet{XDELTA_PATCH_FILE}){
-    die "ERROR: $$fileNameSet{XDELTA_PATCH_FILE} does not exist\n";
-  }
-  if(not -f $$fileNameSet{TMP_WAV_FILE}){
-    die "ERROR: $$fileNameSet{TMP_WAV_FILE} does not exist\n";
-  }
-
-  run "xdelta", "patch", $$fileNameSet{XDELTA_PATCH_FILE},
-    $$fileNameSet{TMP_WAV_FILE}, $$fileNameSet{ORIG_WAV_FILE};
-
-  if(not -f $$fileNameSet{ORIG_WAV_FILE}){
-    die "ERROR: $$fileNameSet{ORIG_WAV_FILE} does not exist\n";
-  }
-}
-
-sub getFilenameSet($){
-  my ($srcFile) = @_;
-
-  my $baseName = $srcFile;
-  if($baseName !~ s/\.(wav|flac)$//i){
-    die "ERROR: cannot parse $srcFile as FLAC_FILE or WAV_FILE\n";
+sub getFileNames($){
+  my ($file) = @_;
+  my $baseFile = undef;
+  if($file =~ /^(.*)\.(wav|flac)$/){
+    $baseFile = $1;
+  }else{
+    die "ERROR: malformed file name $file\n";
   }
 
   return {
-    FLAC_FILE => "$baseName.flac",
-    ORIG_WAV_FILE => "$baseName.wav",
-    TMP_WAV_FILE => "$baseName.decodedflac.wav",
-    XDELTA_PATCH_FILE => "${baseName}_wav_xdelta.patch",
+    origWav => "$baseFile.wav",
+    tempWav => "$baseFile-flac-decode.wav",
+    flac    => "$baseFile.flac",
+    xdelta  => "$baseFile.xdelta",
   };
+}
+
+sub encodeWavFile($){
+  my ($fileNames) = @_;
+
+  die "ERROR: $$fileNames{origWav} missing\n" if not -e $$fileNames{origWav};
+
+  die "ERROR: $$fileNames{flac} exists\n" if -e $$fileNames{flac};
+  die "ERROR: $$fileNames{tempWav} exists\n" if -e $$fileNames{tempWav};
+  die "ERROR: $$fileNames{xdelta} exists\n" if -e $$fileNames{xdelta};
+
+  run "flac", $$fileNames{origWav}, "-o", $$fileNames{flac};
+  run "flac", "-d", $$fileNames{flac}, "-o", $$fileNames{tempWav};
+
+  xdeltaCreatePatch $$fileNames{tempWav}, $$fileNames{origWav}, $$fileNames{xdelta};
+  run "touch", $$fileNames{xdelta}, "-r", $$fileNames{origWav};
+
+  run "rm", $$fileNames{tempWav};
+}
+
+sub restoreWavFile($){
+  my ($fileNames) = @_;
+
+  die "ERROR: $$fileNames{flac} missing\n" if not -e $$fileNames{flac};
+  die "ERROR: $$fileNames{xdelta} missing\n" if not -e $$fileNames{xdelta};
+
+  die "ERROR: $$fileNames{origWav} exists\n" if -e $$fileNames{origWav};
+  die "ERROR: $$fileNames{tempWav} exists\n" if -e $$fileNames{tempWav};
+
+  run "flac", "-d", $$fileNames{flac}, "-o", $$fileNames{tempWav};
+
+  xdeltaApplyPatch $$fileNames{xdelta}, $$fileNames{tempWav}, $$fileNames{origWav};
+  run "touch", $$fileNames{origWav}, "-r", $$fileNames{flac};
+
+  run "rm", $$fileNames{tempWav};
+}
+
+sub xdeltaCreatePatch($$$){
+  my ($oldFile, $newFile, $patchFile) = @_;
+
+  my @cmd = ("xdelta", "delta", $oldFile, $newFile, $patchFile);
+
+  my $exitCode = tryrun @cmd;
+  if($exitCode == 1){
+    #success (xdelta is weird)
+    return;
+  }elsif($exitCode == 0){
+    die "ERROR: xdelta delta reported empty diff\n";
+  }else{
+    die "ERROR: xdelta delta command @cmd failed\n";
+  }
+}
+
+sub xdeltaApplyPatch($$$){
+  my ($patchFile, $oldFile, $newFile) = @_;
+
+  my @cmd = ("xdelta", "patch", $patchFile, $oldFile, $newFile);
+  #normal exit statuses
+  run @cmd;
 }
 
 sub run(@){
@@ -211,6 +185,16 @@ sub tryrun(@){
   system @_;
   my $exitCode = $? >> 8;
   return $exitCode;
+}
+sub readProc(@){
+  open my $cmdH, "-|", @_ or die "ERROR: could not run cmd '@_'\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
 }
 
 &main(@ARGV);
