@@ -8,6 +8,7 @@ sub encodeWavFile($);
 sub restoreWavFile($);
 sub xdeltaCreatePatch($$$);
 sub xdeltaApplyPatch($$$);
+sub ensureFileType($$);
 sub run(@);
 sub tryrun(@);
 sub readProc(@);
@@ -131,6 +132,9 @@ sub encodeWavFile($){
   run "touch", $$fileNames{xdelta}, "-r", $$fileNames{origWav};
 
   run "rm", $$fileNames{tempWav};
+
+  ensureFileType($$fileNames{xdelta}, "XDelta binary patch file");
+  ensureFileType($$fileNames{flac}, "FLAC audio");
 }
 
 sub restoreWavFile($){
@@ -148,6 +152,8 @@ sub restoreWavFile($){
   run "touch", $$fileNames{origWav}, "-r", $$fileNames{flac};
 
   run "rm", $$fileNames{tempWav};
+
+  ensureFileType($$fileNames{origWav}, "WAVE audio");
 }
 
 sub xdeltaCreatePatch($$$){
@@ -172,6 +178,15 @@ sub xdeltaApplyPatch($$$){
   my @cmd = ("xdelta", "patch", $patchFile, $oldFile, $newFile);
   #normal exit statuses
   run @cmd;
+}
+
+sub ensureFileType($$){
+  my ($file, $fileTypeRegex) = @_;
+  die "ERROR: missing expected file $file\n" if not -f $file;
+  my $fileType = readProc "file", "-b", $file;
+  if($fileType !~ /$fileTypeRegex/){
+    die "ERROR: file '$file' is not a '$fileTypeRegex' file (type=$fileType)\n";
+  }
 }
 
 sub run(@){
