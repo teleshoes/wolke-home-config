@@ -9,6 +9,7 @@ use GIS::Distance;
 
 sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
+sub parseCheckPointSegments(@);
 sub formatKML($@);
 
 my $EXEC = basename $0;
@@ -36,6 +37,12 @@ my $USAGE = "Usage:
       -if DIST is < 10m for a CHECK_POINT:
         -find the smallest DIST adjacent GPS_READING, and use that as the CHECK_POINT_GPS_READING
         -add the distance for that CHECK_POINT to the CURRENT_DIST_SUM
+        -if CURRENT_DIST_SUM is above the TARGET_DIST for that CHECK_POINT
+          -include CHECK_POINT_GPS_READING as a SEGMENT_CHECK_POINT_GPS_READING
+    -for each SEGMENT_CHECK_POINT_GPS_READING:
+      -calculate the <SEGMENT_DISTANCE> since previous SEGMENT_CHECK_POINT_GPS_READING
+      -calculate the <SEGMENT_DURATION> since previous SEGMENT_CHECK_POINT_GPS_READING
+      -format SEGMENT_FMT as <SEGMENT_DURATION>s:<SEGMENT_DISTANCE>m
 
   $EXEC START_TIME END_TIME
   $EXEC -g|--get START_TIME END_TIME
@@ -139,6 +146,8 @@ sub main(@){
     if(@checkPointGpsReadings == 0){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
     }
+
+    my @segments = parseCheckPointSegments(@checkPointGpsReadings);
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -275,6 +284,31 @@ sub getCheckPointGpsReadings($@){
   }
 
   return @checkPointGpsReadings;
+}
+
+sub parseCheckPointSegments(@){
+  my @checkPointGpsReadings = @_;
+  die "ERROR: empty checkpoint gps readings\n" if @checkPointGpsReadings == 0;
+  my $firstReading = $checkPointGpsReadings[0];
+
+  my @segments;
+  for(my $i=0; $i<@checkPointGpsReadings; $i++){
+    my $segmentStart = $checkPointGpsReadings[$i];
+    my $segmentEnd = $i+1<@checkPointGpsReadings ? $checkPointGpsReadings[$i+1] : undef;
+    if(defined $segmentStart and defined $segmentEnd){
+      my $dist = $$segmentEnd{courseProgressDist} - $$segmentStart{courseProgressDist};
+      my $durMillis = $$segmentEnd{gpsReading}{epochMillis} - $$segmentStart{gpsReading}{epochMillis};
+      push @segments, {
+        segmentDist      => $dist,
+        segmentDurMillis => $durMillis,
+        progDist         => $$segmentEnd{courseProgressDist} - $$firstReading{courseProgressDist},
+        progDurMillis    => $$segmentEnd{gpsReading}{epochMillis} - $$firstReading{gpsReading}{epochMillis},
+        desc             => "$$segmentStart{checkPoint}{name} => $$segmentEnd{checkPoint}{name}",
+        format           => sprintf("%.2fs:%.2fm", $durMillis/1000.0, $dist),
+      };
+    }
+  }
+  return @segments;
 }
 
 sub formatKML($@){
