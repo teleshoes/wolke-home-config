@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Date::Parse qw(str2time);
+
+sub getGpsReadings($$);
+
+my $EXEC = basename $0;
+
+my $GPSINFO_DIR = "$ENV{HOME}/Code/sx/backup/backup-gpsinfo";
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC START_TIME END_TIME
+  $EXEC -g|--get START_TIME END_TIME
+    -parse date range as seconds since epoch:
+      -parse START_TIME as a date format string into START_EPOCH_S
+      -parse END_TIME as a date format string into END_EPOCH_S
+    -list gpsinfo csv <LOG_FILE>s:
+      $GPSINFO_DIR/harbour-gpsinfo-<LOG_EPOCH_MILLIS>*.log*
+    -get <MATCHING_LOG_FILE>s:
+      -for each LOG_FILE:
+        -truncate LOG_EPOCH_MILLIS to LOG_EPOCH_S (ignore millis)
+        -include the *most recent* LOG_FILE where:
+            LOG_EPOCH_S <= START_EPOCH_S
+        -include all LOG_FILEs where:
+            START_EPOCH_S <= LOG_EPOCH_S <= END_EPOCH_S
+    -parse each GPS_READING csv row in each MATCHING_LOG_FILE, decompressing if necessary
+       -format of each GPS_READING:
+         <GPS_READING_EPOCH_MILLIS>,
+         <DATE_FMT>,
+         lat=<LAT>,lon=<LON>,
+         alt=<ALT>m,
+         speed=<SPEED>m/s,
+         dirMove=<DIR_MOVE>,
+         dirComp=<DIR_COMP>,
+         vAcc=<V_ACC>m,
+         hAcc=<H_ACC>m,
+         sat=<SAT>
+    -truncate GPS_READING_EPOCH_MILLIS to GPS_READING_EPOCH_S
+    -include only <GPS_READING>s where:
+      START_EPOCH_S <= GPS_READING_EPOCH_S <= END_EPOCH_S
+    -print each <GPS_READING>, formatted:
+      <DATE_FMT> : lat=<LAT> : lon=<LON>
+";
+
+my $MODE_GET = "get";
+
+sub main(@){
+  my $mode = $MODE_GET;
+  my $startTimeStr = undef;
+  my $endTimeStr = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-g|--get)$/){
+      $mode = $MODE_GET;
+    }elsif(not defined $startTimeStr){
+      $startTimeStr = $arg;
+    }elsif(not defined $endTimeStr){
+      $endTimeStr = $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+  die "$USAGE\nERROR: missing START_TIME\n" if not defined $startTimeStr;
+  die "$USAGE\nERROR: missing END_TIME\n" if not defined $endTimeStr;
+
+  my $startEpoch = str2time($startTimeStr);
+  my $endEpoch = str2time($endTimeStr);
+
+  my $startEpochMillis = int($startEpoch*1000.0 + 0.5);
+  my $endEpochMillis = int($endEpoch*1000.0 + 0.5);
+
+  if($mode eq $MODE_GET){
+    my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
+    for my $gpsReading(@gpsReadings){
+      printf "%s : lat=%9.6f : lon=%9.6f\n",
+        $$gpsReading{epochMillis}, $$gpsReading{lat}, $$gpsReading{lon};
+    }
+  }else{
+    die "ERROR: unknown mode $mode\n";
+  }
+}
+
+sub getGpsReadings($$){
+  my ($startEpochMillis, $endEpochMillis) = @_;
+  my @allGpsLogFiles = grep {-f $_} glob "$GPSINFO_DIR/*.log*";
+
+  #sort by filename epoch
+  my %logFilesByEpochMillis;
+  for my $logFile(@allGpsLogFiles){
+    if($logFile =~ /harbour-gpsinfo-(\d+)(?:_\w+)?\.log(?:\.\w+)?$/){
+      my $epochMillis = $1;
+      $logFilesByEpochMillis{$epochMillis} = $logFile;
+    }
+  }
+
+  my @okLogFiles;
+  my $includedMostRecentOlder = 0;
+  for my $logEpochMillis(reverse sort keys %logFilesByEpochMillis){
+    my $logFile = $logFilesByEpochMillis{$logEpochMillis};
+    #include the last file /older/ than the start,
+    #  plus all files after that that end before end
+    if($logEpochMillis > $endEpochMillis){
+      next;
+    }
+    push @okLogFiles, $logFile;
+    if($logEpochMillis < $startEpochMillis){
+      last;
+    }
+  }
+
+  my $startEpoch = int($startEpochMillis/1000.0);
+  my $endEpoch = int($endEpochMillis/1000.0);
+
+  my @readings;
+  for my $file(reverse @okLogFiles){
+    my @lines;
+    if($file =~ /\.gz$/){
+      @lines = `zcat '$file'`;
+    }elsif($file =~ /\.xz$/){
+      @lines = `xzcat '$file'`;
+    }elsif($file =~ /\.log$/){
+      @lines = `cat '$file'`;
+    }
+
+    for my $line(@lines){
+      if($line !~ /^(\d+),([^,]*),lat=(-?\d+\.\d+|\?*),lon=(-?\d+\.\d+|\?*),/){
+        die "ERROR: malformed line in $file\n$line\n";
+      }
+      my ($epochMillis, $dtmFmt, $lat, $lon) = ($1, $2, $3, $4);
+      next if $lat !~ /^-?\d+\.\d+$/ or $lon !~ /^-?\d+\.\d+$/;
+
+      my $epoch = int($epochMillis/1000.0);
+      if($startEpoch <= $epoch && $epoch <= $endEpoch){
+        push @readings, {epochMillis=>$epochMillis, dtmFmt=>$dtmFmt, lat=>$lat, lon=>$lon};
+      }
+    }
+  }
+  return @readings;
+}
+
+&main(@ARGV);
