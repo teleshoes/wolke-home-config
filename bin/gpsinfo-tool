@@ -2,9 +2,11 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use Date::Format qw(time2str);
 use Date::Parse qw(str2time);
 
 sub getGpsReadings($$);
+sub formatKML($@);
 
 my $EXEC = basename $0;
 
@@ -13,6 +15,13 @@ my $GPSINFO_DIR = "$ENV{HOME}/Code/sx/backup/backup-gpsinfo";
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
+
+  $EXEC --kml START_TIME END_TIME
+    -get <GPS_READING>s as in:
+      $EXEC --get START_TIME END_TIME
+    -format as KML and print
+      -each GPS_READING is a <Placemark>
+      -ID field is GPS_READING_EPOCH_MILLIS
 
   $EXEC START_TIME END_TIME
   $EXEC -g|--get START_TIME END_TIME
@@ -48,6 +57,7 @@ my $USAGE = "Usage:
 ";
 
 my $MODE_GET = "get";
+my $MODE_KML = "kml";
 
 sub main(@){
   my $mode = $MODE_GET;
@@ -60,6 +70,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-g|--get)$/){
       $mode = $MODE_GET;
+    }elsif($arg =~ /^(-k|--kml)$/){
+      $mode = $MODE_KML;
     }elsif(not defined $startTimeStr){
       $startTimeStr = $arg;
     }elsif(not defined $endTimeStr){
@@ -83,6 +95,10 @@ sub main(@){
       printf "%s : lat=%9.6f : lon=%9.6f\n",
         $$gpsReading{epochMillis}, $$gpsReading{lat}, $$gpsReading{lon};
     }
+  }elsif($mode eq $MODE_KML){
+    my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
+    my $name = time2str("gpsinfo_%Y_%m_%d_%H_%M_%S", $startEpoch);
+    print formatKML($name, @gpsReadings);
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -144,6 +160,42 @@ sub getGpsReadings($$){
     }
   }
   return @readings;
+}
+
+sub formatKML($@){
+  my ($name, @gpsReadings) = @_;
+
+  my $kml = ""
+    . "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
+    . "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
+    . "<Document id=\"root_doc\">\n"
+    . "<Schema name=\"$name\" id=\"$name\">\n"
+    . "  <SimpleField name=\"ID\" type=\"string\"></SimpleField>\n"
+    . "</Schema>\n"
+    . "<Folder>\n"
+    . "  <name>$name</name>\n"
+  ;
+  my $index = 1;
+  for my $gpsReading(@gpsReadings){
+    $kml .= ""
+      . "  <Placemark id=\"$name.$index\">\n"
+      . "    <ExtendedData>\n"
+      . "      <SchemaData schemaUrl=\"#$name\">\n"
+      . "        <SimpleData name=\"ID\">$$gpsReading{epochMillis}</SimpleData>\n"
+      . "      </SchemaData>\n"
+      . "    </ExtendedData>\n"
+      . "    <Point><coordinates>$$gpsReading{lon},$$gpsReading{lat}</coordinates></Point>\n"
+      . "  </Placemark>\n"
+    ;
+    $index++;
+  }
+  $kml .= ""
+    . "</Folder>\n"
+    . "</Document>\n"
+    . "</kml>\n"
+  ;
+
+  return $kml;
 }
 
 &main(@ARGV);
