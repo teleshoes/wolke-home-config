@@ -11,10 +11,13 @@ sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
 sub parseCheckPointSegments(@);
 sub formatKML($@);
+sub formatHMS($);
 
 my $EXEC = basename $0;
 
 my $GPSINFO_DIR = "$ENV{HOME}/Code/sx/backup/backup-gpsinfo";
+
+my $MILES_PER_KM = 0.62137119;
 
 my $USAGE = "Usage:
   $EXEC -h|--help
@@ -43,6 +46,8 @@ my $USAGE = "Usage:
       -calculate the <SEGMENT_DISTANCE> since previous SEGMENT_CHECK_POINT_GPS_READING
       -calculate the <SEGMENT_DURATION> since previous SEGMENT_CHECK_POINT_GPS_READING
       -format SEGMENT_FMT as <SEGMENT_DURATION>s:<SEGMENT_DISTANCE>m
+    -format summary of course distance/duration/segments
+    -format workout with total distance, total duration, and segments
 
   $EXEC START_TIME END_TIME
   $EXEC -g|--get START_TIME END_TIME
@@ -148,6 +153,50 @@ sub main(@){
     }
 
     my @segments = parseCheckPointSegments(@checkPointGpsReadings);
+
+    my $firstReading = $checkPointGpsReadings[0];
+    my $lastReading = $checkPointGpsReadings[-1];
+
+    my $gpsTotalDist = $$lastReading{courseProgressDist};
+    my $gpsTotalDurMillis = $$lastReading{gpsReading}{epochMillis} - $$firstReading{gpsReading}{epochMillis};
+    my $gpsTotalDurFracS = sprintf "%.2f", $gpsTotalDurMillis / 1000.0;
+
+    my $targetDtmDurMillis = $endEpochMillis - $startEpochMillis;
+    my $targetDtmDurFracS = sprintf "%.2f", $targetDtmDurMillis / 1000.0;
+    if($gpsTotalDurFracS ne $targetDtmDurFracS){
+      #check gps reading times within 0.01s of indicated start/end params
+      print STDERR "\n\n\nWARNING: gps checkpoint duration total does not match START/END\n\n\n";
+    }
+
+    printf "GPS TOTAL: %s  %.2fm\n", $gpsTotalDurFracS, $gpsTotalDist;
+    printf "TARGET DTM DUR: %s\n", $targetDtmDurFracS;
+    for my $s(@segments){
+      printf "segment: %-20s  %-20s  %s   %.2f\n",
+        $$s{format},
+        $$s{desc},
+        formatHMS($$s{progDurMillis}/1000.0),
+        $$s{progDist},
+      ;
+    }
+
+    print "\n";
+    printf "%s    %.2fmi\n",
+      formatHMS($gpsTotalDurMillis/1000.0),
+      $MILES_PER_KM*$gpsTotalDist/1000.0;
+    print "\n\n";
+
+    my $dtmYMD = time2str("%Y-%m-%d", $startEpoch);
+    my $workoutID = $startEpoch;
+
+    my $fmt = "#$dtmYMD\n";
+    $fmt .= "#  $courseName\n";
+    $fmt .= "##### gpsinfo calculated\n";
+    $fmt .= "$workoutID.epoch = $startEpoch.000\n";
+    $fmt .= "$workoutID.distance = " . sprintf("%.2f", $gpsTotalDist) . "\n";
+    $fmt .= "$workoutID.duration = " . sprintf("%.2f", $gpsTotalDurMillis/1000.0) . "\n";
+    $fmt .= "$workoutID.intervals = " . join(",", map {$$_{format}} @segments) . "\n";
+
+    print $fmt;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -345,6 +394,14 @@ sub formatKML($@){
   ;
 
   return $kml;
+}
+
+sub formatHMS($){
+  my ($t) = @_;
+  my $h = int($t / 60.0 / 60.0);
+  my $m = int($t / 60.0) % 60;
+  my $s = int($t) % 60;
+  return sprintf("%dh%02dm%02ds", $h, $m, $s);
 }
 
 &main(@ARGV);
