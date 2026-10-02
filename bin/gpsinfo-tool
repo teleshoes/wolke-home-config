@@ -84,11 +84,30 @@ my $USAGE = "Usage:
 
 my $START_CHECK_POINT = {name=>"start", dist=>0, targetDist=>undef};
 
+my $LOCATIONS = {
+  BELMONT_NE_BRIDGE     => {lat=>'40.738874', lon=>'-73.343685'},
+  BELMONT_SWAN_COVE_SW  => {lat=>'40.734878', lon=>'-73.341137'},
+  BELMONT_STATE_PARK_HQ => {lat=>'40.734507', lon=>'-73.344047'},
+};
+
 my $COURSES = {
   belmont => {
     checkPoints => [
-      {name=>"5k",  lat=>'40.734878', lon=>'-73.341137', dist=>1228.08, targetDist=>5000},
-      {name=>"lap", lat=>'40.738874', lon=>'-73.343685', dist=>657.88,  targetDist=>undef},
+      {name=>"Start", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>   0.00},
+      {name=>"Lap01", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap02", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"5K",    %{$$LOCATIONS{BELMONT_SWAN_COVE_SW}},  dist=>1228.08},
+      {name=>"Lap03", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=> 657.88},
+      {name=>"Lap04", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap05", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap06", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap07", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap08", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap09", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap10", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap11", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap12", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
+      {name=>"Lap13", %{$$LOCATIONS{BELMONT_NE_BRIDGE}},     dist=>1885.96},
     ],
   }
 };
@@ -278,75 +297,51 @@ sub getCheckPointGpsReadings($@){
   my $courseProgressDist = 0;
   my @checkPoints = @{$$COURSES{$courseName}{checkPoints}};
 
-  push @checkPointGpsReadings, {
-    courseProgressDist=>0,
-    checkPoint=>$START_CHECK_POINT,
-    gpsReading=>$firstReading,
-  };
-
-  #skip initial readings at any check points
-  my $startIdx = 0;
-  for my $checkPoint(@checkPoints){
-    my $curReading = $gpsReadings[$startIdx];
-    my $dist = $gis->distance(
-      $$checkPoint{lat}, $$checkPoint{lon},
-      $$curReading{lat}, $$curReading{lon}
-    )->meters();
-    while($dist < 10){
-      $startIdx++;
-      $curReading = $gpsReadings[$startIdx];
-      $dist = $gis->distance(
-        $$checkPoint{lat}, $$checkPoint{lon},
-        $$curReading{lat}, $$curReading{lon}
-      )->meters();
-    }
-  }
-
-
-  for(my $i=$startIdx; $i<@gpsReadings; $i++){
+  my $nextCheckPoint = shift @checkPoints;
+  for(my $i=0; $i<@gpsReadings; $i++){
     my $gpsReading = $gpsReadings[$i];
 
-    for my $checkPoint(@checkPoints){
-      my $dist = $gis->distance(
-        $$checkPoint{lat}, $$checkPoint{lon},
-        $$gpsReading{lat}, $$gpsReading{lon}
-      )->meters();
-      if($dist < 10){
-        my $localMinGpsReading = $gpsReading;
-        my $minDist = $dist;
-        while($dist < 10 && $i < @gpsReadings){
-          $i++;
-          $gpsReading = $gpsReadings[$i];
-          $dist = $gis->distance(
-            $$checkPoint{lat}, $$checkPoint{lon}, $$gpsReading{lat}, $$gpsReading{lon}
-          )->meters();
-          if($dist<$minDist){
-            $localMinGpsReading = $gpsReading;
-            $minDist = $dist;
-          }
-        }
+    if(not defined $nextCheckPoint){
+      last;
+    }
 
-        $courseProgressDist += $$checkPoint{dist};
+    my $dist = $gis->distance(
+      $$nextCheckPoint{lat}, $$nextCheckPoint{lon},
+      $$gpsReading{lat}, $$gpsReading{lon}
+    )->meters();
 
-        my $includeCheckPointGpsReading = 0;
-        if(defined $$checkPoint{targetDist}){
-          if($courseProgressDist >= $$checkPoint{targetDist}
-            && not defined $completedTargets{$$checkPoint{name}}
-          ){
-            $includeCheckPointGpsReading = 1;
-            $completedTargets{$$checkPoint{name}} = 1;
-          }
-        }else{
-          $includeCheckPointGpsReading = 1;
-        }
-        if($includeCheckPointGpsReading){
-          push @checkPointGpsReadings, {
-            courseProgressDist=>$courseProgressDist,
-            checkPoint=>$checkPoint,
-            gpsReading=>$localMinGpsReading,
-          };
+    if($dist < 10){
+      #checkpoint reached
+
+      my $localMinGpsReading = $gpsReading;
+      my $minDist = $dist;
+      my $isFirstEntry = $i == 0 ? 1 : 0;
+
+      while($dist < 10 && $i < @gpsReadings){
+        #skip all adjacent readings within 10m
+        $i++;
+        $gpsReading = $gpsReadings[$i];
+        $dist = $gis->distance(
+          $$nextCheckPoint{lat}, $$nextCheckPoint{lon},
+          $$gpsReading{lat}, $$gpsReading{lon}
+        )->meters();
+
+        if($dist<$minDist and not $isFirstEntry){
+          #if first checkpoint is at first entry, use first entry instead of closest entry
+          $localMinGpsReading = $gpsReading;
+          $minDist = $dist;
         }
       }
+
+      $courseProgressDist += $$nextCheckPoint{dist};
+
+      push @checkPointGpsReadings, {
+        courseProgressDist=>$courseProgressDist,
+        checkPoint=>$nextCheckPoint,
+        gpsReading=>$localMinGpsReading,
+      };
+
+      $nextCheckPoint = shift @checkPoints;
     }
   }
 
