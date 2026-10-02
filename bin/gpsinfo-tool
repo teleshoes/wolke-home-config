@@ -5,7 +5,10 @@ use File::Basename qw(basename);
 use Date::Format qw(time2str);
 use Date::Parse qw(str2time);
 
+use GIS::Distance;
+
 sub getGpsReadings($$);
+sub getCheckPointGpsReadings($@);
 sub formatKML($@);
 
 my $EXEC = basename $0;
@@ -22,6 +25,17 @@ my $USAGE = "Usage:
     -format as KML and print
       -each GPS_READING is a <Placemark>
       -ID field is GPS_READING_EPOCH_MILLIS
+
+  $EXEC COURSE_NAME START_TIME END_TIME
+  $EXEC -c|--course COURSE_NAME START_TIME END_TIME
+  $EXEC -w|--workout COURSE_NAME START_TIME END_TIME
+    -get <GPS_READING>s as in:
+      $EXEC --get START_TIME END_TIME
+    -for each GPS_READING:
+      -calculate the DIST as the haversine distance in meters to each CHECK_POINT
+      -if DIST is < 10m for a CHECK_POINT:
+        -find the smallest DIST adjacent GPS_READING, and use that as the CHECK_POINT_GPS_READING
+        -add the distance for that CHECK_POINT to the CURRENT_DIST_SUM
 
   $EXEC START_TIME END_TIME
   $EXEC -g|--get START_TIME END_TIME
@@ -56,13 +70,20 @@ my $USAGE = "Usage:
       <DATE_FMT> : lat=<LAT> : lon=<LON>
 ";
 
+my $START_CHECK_POINT = {name=>"start", dist=>0, targetDist=>undef};
+
+my $COURSES = {
+};
+
 my $MODE_GET = "get";
 my $MODE_KML = "kml";
+my $MODE_COURSE = "course";
 
 sub main(@){
   my $mode = $MODE_GET;
   my $startTimeStr = undef;
   my $endTimeStr = undef;
+  my $courseName = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -72,6 +93,11 @@ sub main(@){
       $mode = $MODE_GET;
     }elsif($arg =~ /^(-k|--kml)$/){
       $mode = $MODE_KML;
+    }elsif($arg =~ /^(-c|--course|-w|--workout)$/){
+      $mode = $MODE_COURSE;
+    }elsif(defined $$COURSES{$arg} and not defined $courseName){
+      $mode = $MODE_COURSE;
+      $courseName = $arg;
     }elsif(not defined $startTimeStr){
       $startTimeStr = $arg;
     }elsif(not defined $endTimeStr){
@@ -99,6 +125,14 @@ sub main(@){
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
     my $name = time2str("gpsinfo_%Y_%m_%d_%H_%M_%S", $startEpoch);
     print formatKML($name, @gpsReadings);
+  }elsif($mode eq $MODE_COURSE){
+    die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
+    my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
+
+    my @checkPointGpsReadings = getCheckPointGpsReadings($courseName, @gpsReadings);
+    if(@checkPointGpsReadings == 0){
+      die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
+    }
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -160,6 +194,81 @@ sub getGpsReadings($$){
     }
   }
   return @readings;
+}
+
+sub getCheckPointGpsReadings($@){
+  my ($courseName, @gpsReadings) = @_;
+
+  my $gis = GIS::Distance->new();
+
+  my %completedTargets;
+
+  my $courseProgressDist = 0;
+  my @checkPoints = @{$$COURSES{$courseName}{checkPoints}};
+  my @checkPointGpsReadings;
+  my $isFirst = 1;
+  for(my $i=0; $i<@gpsReadings; $i++){
+    my $gpsReading = $gpsReadings[$i];
+
+    if($i == 0){
+      push @checkPointGpsReadings, {
+        courseProgressDist=>0,
+        checkPoint=>$START_CHECK_POINT,
+        gpsReading=>$gpsReading
+      };
+    }
+
+    for my $checkPoint(@checkPoints){
+      my $dist = $gis->distance(
+        $$checkPoint{lat}, $$checkPoint{lon},
+        $$gpsReading{lat}, $$gpsReading{lon}
+      )->meters();
+      if($dist < 10){
+        my $localMinGpsReading = $gpsReading;
+        my $minDist = $dist;
+        while($dist < 10 && $i < @gpsReadings){
+          $i++;
+          $gpsReading = $gpsReadings[$i];
+          $dist = $gis->distance(
+            $$checkPoint{lat}, $$checkPoint{lon}, $$gpsReading{lat}, $$gpsReading{lon}
+          )->meters();
+          if($dist<$minDist){
+            $localMinGpsReading = $gpsReading;
+            $minDist = $dist;
+          }
+        }
+
+        if($isFirst){
+          #skip the first poi/lap/etc
+          $isFirst = 0;
+          next;
+        }
+
+        $courseProgressDist += $$checkPoint{dist};
+
+        my $includeCheckPointGpsReading = 0;
+        if(defined $$checkPoint{targetDist}){
+          if($courseProgressDist >= $$checkPoint{targetDist}
+            && not defined $completedTargets{$$checkPoint{name}}
+          ){
+            $includeCheckPointGpsReading = 1;
+            $completedTargets{$$checkPoint{name}} = 1;
+          }
+        }else{
+          $includeCheckPointGpsReading = 1;
+        }
+        if($includeCheckPointGpsReading){
+          push @checkPointGpsReadings, {
+            courseProgressDist=>$courseProgressDist,
+            checkPoint=>$checkPoint,
+            gpsReading=>$localMinGpsReading
+          };
+        }
+      }
+    }
+  }
+
+  return @checkPointGpsReadings;
 }
 
 sub formatKML($@){
