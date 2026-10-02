@@ -263,24 +263,48 @@ sub getGpsReadings($$){
 sub getCheckPointGpsReadings($@){
   my ($courseName, @gpsReadings) = @_;
 
+  my @checkPointGpsReadings;
+
+  if(@gpsReadings == 0){
+    return @checkPointGpsReadings;
+  }
+
+  my $firstReading = $gpsReadings[0];
+
   my $gis = GIS::Distance->new();
 
   my %completedTargets;
 
   my $courseProgressDist = 0;
   my @checkPoints = @{$$COURSES{$courseName}{checkPoints}};
-  my @checkPointGpsReadings;
-  my $isFirst = 1;
-  for(my $i=0; $i<@gpsReadings; $i++){
-    my $gpsReading = $gpsReadings[$i];
 
-    if($i == 0){
-      push @checkPointGpsReadings, {
-        courseProgressDist=>0,
-        checkPoint=>$START_CHECK_POINT,
-        gpsReading=>$gpsReading
-      };
+  push @checkPointGpsReadings, {
+    courseProgressDist=>0,
+    checkPoint=>$START_CHECK_POINT,
+    gpsReading=>$firstReading,
+  };
+
+  #skip initial readings at any check points
+  my $startIdx = 0;
+  for my $checkPoint(@checkPoints){
+    my $curReading = $gpsReadings[$startIdx];
+    my $dist = $gis->distance(
+      $$checkPoint{lat}, $$checkPoint{lon},
+      $$curReading{lat}, $$curReading{lon}
+    )->meters();
+    while($dist < 10){
+      $startIdx++;
+      $curReading = $gpsReadings[$startIdx];
+      $dist = $gis->distance(
+        $$checkPoint{lat}, $$checkPoint{lon},
+        $$curReading{lat}, $$curReading{lon}
+      )->meters();
     }
+  }
+
+
+  for(my $i=$startIdx; $i<@gpsReadings; $i++){
+    my $gpsReading = $gpsReadings[$i];
 
     for my $checkPoint(@checkPoints){
       my $dist = $gis->distance(
@@ -302,12 +326,6 @@ sub getCheckPointGpsReadings($@){
           }
         }
 
-        if($isFirst){
-          #skip the first poi/lap/etc
-          $isFirst = 0;
-          next;
-        }
-
         $courseProgressDist += $$checkPoint{dist};
 
         my $includeCheckPointGpsReading = 0;
@@ -325,7 +343,7 @@ sub getCheckPointGpsReadings($@){
           push @checkPointGpsReadings, {
             courseProgressDist=>$courseProgressDist,
             checkPoint=>$checkPoint,
-            gpsReading=>$localMinGpsReading
+            gpsReading=>$localMinGpsReading,
           };
         }
       }
