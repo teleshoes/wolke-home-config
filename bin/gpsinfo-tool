@@ -50,6 +50,26 @@ my $USAGE = "Usage:
     -format summary of course distance/duration/segments
     -format workout with total distance, total duration, and segments
 
+  $EXEC --checkpoint|--check-point|--run|--race COURSE_NAME START_TIME [END_TIME]
+    -get all <CHECK_POINT_GPS_READING>s as in:
+      $EXEC --course COURSE_NAME <START_TIME> \"\$(date)\"
+    -use the oldest CHECK_POINT_GPS_READING as FIRST_CHECK_POINT
+    -use the most-recent CHECK_POINT_GPS_READING as CUR_CHECK_POINT
+    -use the second-most-recent CHECK_POINT_GPS_READING as PREV_CHECK_POINT
+    -calculate SEGMENT_DIST as the distance between prev and cur:
+      CUR_CHECK_POINT.DISTANCE
+    -calculate SEGMENT_DUR_MILLIS as elapsed millis between prev and cur:
+      CUR_CHECK_POINT.GPS_READING_EPOCH_MILLIS - PREV_CHECK_POINT.GPS_READING_EPOCH_MILLIS
+    -calculate SEGMENT_SPEED_MPH as
+      (SEGMENT_DIST/1000) / (SEGMENT_DUR_MILLIS/1000/60/60) * $MILES_PER_KM
+    -calculate TOTAL_DIST as the dist from FIRST_CHECK_POINT to CUR_CHECK_POINT
+    -calculate TOTAL_DUR_MILLIS as elapsed millis between FIRST_CHECK_POINT and CUR_CHECK_POINT
+    -calculate TOTAL_SPEED_MPH as
+      (TOTAL_DIST/1000) / (TOTAL_DUR_MILLIS/1000/60/60) * $MILES_PER_KM
+    -calculate TOTAL_DIST_KM as TOTAL_DIST/1000
+    -print:
+      <CUR_CHECK_POINT.NAME>,<TOTAL_DIST_KM>,<SEGMENT_SPEED_MPH>mph,<TOTAL_SPEED_MPH>mph
+
   $EXEC START_TIME [END_TIME]
   $EXEC -g|--get START_TIME [END_TIME]
     -if not given, use current date/time for END_TIME
@@ -119,9 +139,10 @@ my $COURSES = {
 my $MODE_GET = "get";
 my $MODE_KML = "kml";
 my $MODE_COURSE = "course";
+my $MODE_CHECKPOINT = "checkpoint";
 
 sub main(@){
-  my $mode = $MODE_GET;
+  my $mode = undef;
   my $startTimeStr = undef;
   my $endTimeStr = undef;
   my $courseName = undef;
@@ -136,8 +157,10 @@ sub main(@){
       $mode = $MODE_KML;
     }elsif($arg =~ /^(-c|--course|-w|--workout)$/){
       $mode = $MODE_COURSE;
+    }elsif($arg =~ /^(--checkpoint|--check-point|--run|--race)$/){
+      $mode = $MODE_CHECKPOINT;
     }elsif(defined $$COURSES{$arg} and not defined $courseName){
-      $mode = $MODE_COURSE;
+      $mode = $MODE_COURSE if not defined $mode;
       $courseName = $arg;
     }elsif(not defined $startTimeStr){
       $startTimeStr = $arg;
@@ -147,6 +170,8 @@ sub main(@){
       die "ERROR: unknown arg $arg\n";
     }
   }
+  $mode = $MODE_GET if not defined $mode;
+
   die "$USAGE\nERROR: missing START_TIME\n" if not defined $startTimeStr;
   if(not defined $endTimeStr){
     $endTimeStr = `date --iso=s`;
@@ -223,6 +248,40 @@ sub main(@){
     $fmt .= "$workoutID.intervals = " . join(",", map {$$_{format}} @segments) . "\n";
 
     print $fmt;
+  }elsif($mode eq $MODE_CHECKPOINT){
+    die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
+    my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
+
+    my @checkPointGpsReadings = getCheckPointGpsReadings($courseName, @gpsReadings);
+    if(@checkPointGpsReadings == 0){
+      die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
+    }
+
+    my @segments = parseCheckPointSegments(@checkPointGpsReadings);
+
+    my $firstCheckPoint = $checkPointGpsReadings[0];
+    my $curCheckPoint = $checkPointGpsReadings[-1];
+    my $prevCheckPoint = $checkPointGpsReadings[-2];
+
+    my $segmentDist = undef;
+    my $segmentDurMillis = undef;
+    my $segmentSpeedMPH = undef;
+    if(defined $prevCheckPoint){
+      $segmentDist = $$curCheckPoint{courseProgressDist} - $$prevCheckPoint{courseProgressDist};
+      $segmentDurMillis = $$curCheckPoint{gpsReading}{epochMillis} - $$prevCheckPoint{gpsReading}{epochMillis};
+      $segmentSpeedMPH = ($segmentDist/1000.0)/($segmentDurMillis/1000/60/60)*$MILES_PER_KM;
+    }
+
+    my $totalDist = $$curCheckPoint{courseProgressDist} - $$firstCheckPoint{courseProgressDist};
+    my $totalDurMillis = $$curCheckPoint{gpsReading}{epochMillis} - $$firstCheckPoint{gpsReading}{epochMillis};
+    my $totalSpeedMPH = ($totalDist/1000.0)/($totalDurMillis/1000/60/60)*$MILES_PER_KM;
+
+    printf "%s,%.1fkm,%.1f,%.1f\n",
+      $$curCheckPoint{checkPoint}{name},
+      $totalDist/1000.0,
+      $segmentSpeedMPH,
+      $totalSpeedMPH,
+    ;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
