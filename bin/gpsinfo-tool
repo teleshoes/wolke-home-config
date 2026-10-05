@@ -79,8 +79,10 @@ my $USAGE = "Usage:
     -calculate TOTAL_SPEED_MPH as
       (TOTAL_DIST/1000) / (TOTAL_DUR_MILLIS/1000/60/60) * $MILES_PER_KM
     -calculate TOTAL_DIST_KM as TOTAL_DIST/1000
+    -use <CUR_CHECK_POINT.PRIORITY> as <PRIORITY>
+    -use <CUR_CHECK_POINT.NAME> as <CHECK_POINT_NAME>
     -print:
-      <CUR_CHECK_POINT.NAME>,<TOTAL_DIST_KM>,<SEGMENT_SPEED_MPH>mph,<TOTAL_SPEED_MPH>mph
+      <CHECK_POINT_NAME>,<PRIORITY>,<TOTAL_DIST_KM>,<SEGMENT_SPEED_MPH>mph,<TOTAL_SPEED_MPH>mph
 
   $EXEC START_TIME [END_TIME]
   $EXEC -g|--get START_TIME [END_TIME]
@@ -117,6 +119,11 @@ my $USAGE = "Usage:
       <DATE_FMT> : lat=<LAT> : lon=<LON>
 ";
 
+my $PRIORITY_LOW = "LOW";
+my $PRIORITY_MED = "MED";
+my $PRIORITY_HIGH = "HIGH";
+my %PRIORITY_RANK = ($PRIORITY_LOW => 1, $PRIORITY_MED => 2, $PRIORITY_HIGH => 3);
+
 my $COURSES = {
   belmont => {
     locations => {
@@ -132,33 +139,33 @@ my $COURSES = {
 
     lapTypes => {
       START => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
-        [qw(${lapName}                  0.00          0  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
+        [qw(${lapName}                  0.00       HIGH          0  NE_BRIDGE)],
       ],
       LAKE_LOOP_DEFAULT_LAP => [ #1885.96m
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
-        [qw(SEG2_L${lapName}          402.34          0  QT_MI_2)],
-        [qw(SEG3_L${lapName}          402.34          0  QT_MI_3)],
-        [qw(SEG4_L${lapName}          402.34          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34        LOW          0  QT_MI_1)],
+        [qw(SEG2_L${lapName}          402.34        LOW          0  QT_MI_2)],
+        [qw(SEG3_L${lapName}          402.34        LOW          0  QT_MI_3)],
+        [qw(SEG4_L${lapName}          402.34        LOW          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
       ],
       LAKE_LOOP_LAP3_5K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
-        [qw(SEG2_L${lapName}          402.34          0  QT_MI_2)],
-        [qw(5K_COMPLETE               423.40          1  SWAN_COVE_SW)],
-        [qw(SEG4_L${lapName}          381.28          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34        LOW          0  QT_MI_1)],
+        [qw(SEG2_L${lapName}          402.34        LOW          0  QT_MI_2)],
+        [qw(5K_COMPLETE               423.40       HIGH          1  SWAN_COVE_SW)],
+        [qw(SEG4_L${lapName}          381.28        LOW          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
       ],
       LAKE_LOOP_LAP6_10K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
-        [qw(10K_COMPLETE              167.86          1  STATE_PARK_HQ)],
-        [qw(SEG2_L${lapName}          234.48          0  QT_MI_2)],
-        [qw(SEG3_L${lapName}          402.34          0  QT_MI_3)],
-        [qw(SEG4_L${lapName}          402.34          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34        LOW          0  QT_MI_1)],
+        [qw(10K_COMPLETE              167.86       HIGH          1  STATE_PARK_HQ)],
+        [qw(SEG2_L${lapName}          234.48        LOW          0  QT_MI_2)],
+        [qw(SEG3_L${lapName}          402.34        LOW          0  QT_MI_3)],
+        [qw(SEG4_L${lapName}          402.34        LOW          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
       ],
     },
 
@@ -326,8 +333,9 @@ sub main(@){
     my $totalDurMillis = $$curCheckPoint{gpsReading}{epochMillis} - $$firstCheckPoint{gpsReading}{epochMillis};
     my $totalSpeedMPH = $totalDurMillis > 0 ? ($totalDist/1000.0)/($totalDurMillis/1000/60/60)*$MILES_PER_KM : 0;
 
-    printf "%s,%.1fkm,%.1fmi,%.1fmph,%.1fmph\n",
+    printf "%s,%s,%.1fkm,%.1fmi,%.1fmph,%.1fmph\n",
       $$curCheckPoint{checkPoint}{name},
+      $$curCheckPoint{checkPoint}{priority},
       $totalDist/1000.0,
       $totalDist/1000.0*$MILES_PER_KM,
       $segmentSpeedMPH,
@@ -490,9 +498,13 @@ sub combineCheckPoints(@){
   }else{
     my $lastCheckPoint = $checkPoints[-1];
     my $dist = 0;
+    my $priority = $PRIORITY_LOW;
     my $isSegmentSplit = 0;
     for my $checkPoint(@checkPoints){
       $dist += $$checkPoint{dist};
+      if($PRIORITY_RANK{$$checkPoint{priority}} > $PRIORITY_RANK{$priority}){
+        $priority = $$checkPoint{priority};
+      }
       $isSegmentSplit = 1 if $$checkPoint{isSegmentSplit} == 1;
     }
 
@@ -501,6 +513,7 @@ sub combineCheckPoints(@){
       lat            => $$lastCheckPoint{lat},
       lon            => $$lastCheckPoint{lon},
       dist           => $dist,
+      priority       => $priority,
       isSegmentSplit => $isSegmentSplit,
     };
   }
@@ -521,16 +534,17 @@ sub parseCourse($){
     die "ERROR: unknown lap type $lapType\n" if not defined $lapTypes{$lapType};
 
     for my $entry(@{$lapTypes{$lapType}}){
-      if(@$entry != 4
+      if(@$entry != 5
         || $$entry[0] !~ /^\S+$/
         || $$entry[1] !~ /^(\d+|\d*\.\d+)$/
-        || $$entry[2] !~ /^(0|1)$/
-        || $$entry[3] !~ /^(\w+)$/
+        || $$entry[2] !~ /^($PRIORITY_LOW|$PRIORITY_MED|$PRIORITY_HIGH)$/
+        || $$entry[3] !~ /^(0|1)$/
+        || $$entry[4] !~ /^(\w+)$/
       ){
         die "ERROR: invalid checkpoint entry '@$entry' in LAP_TYPE $lapType\n";
       }
 
-      my ($checkPointNameTemplate, $dist, $isSegmentSplit, $locName) = @$entry;
+      my ($checkPointNameTemplate, $dist, $priority, $isSegmentSplit, $locName) = @$entry;
       my $loc = $locByName{$locName};
       if(not defined $loc){
         die "ERROR: invalid location name $locName in course $courseName\n";
@@ -544,6 +558,7 @@ sub parseCourse($){
         lat            => $$loc{lat},
         lon            => $$loc{lon},
         dist           => $dist,
+        priority       => $priority,
         isSegmentSplit => $isSegmentSplit,
       };
     }
