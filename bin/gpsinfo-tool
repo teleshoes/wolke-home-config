@@ -116,24 +116,42 @@ my $COURSES = {
       SWAN_COVE_SW  => {lat=>'40.734878', lon=>'-73.341137'},
     },
 
-    checkPointsArr => [
-      ### NAME      DIST  LOC_NAME
-      [qw(Start     0.00  NE_BRIDGE)],
-      [qw(Lap01  1885.96  NE_BRIDGE)],
-      [qw(Lap02  1885.96  NE_BRIDGE)],
-      [qw(5K     1228.08  SWAN_COVE_SW)],
-      [qw(Lap03   657.88  NE_BRIDGE)],
-      [qw(Lap04  1885.96  NE_BRIDGE)],
-      [qw(Lap05  1885.96  NE_BRIDGE)],
-      [qw(10K     570.20  STATE_PARK_HQ)],
-      [qw(Lap06  1315.76  NE_BRIDGE)],
-      [qw(Lap07  1885.96  NE_BRIDGE)],
-      [qw(Lap08  1885.96  NE_BRIDGE)],
-      [qw(Lap09  1885.96  NE_BRIDGE)],
-      [qw(Lap10  1885.96  NE_BRIDGE)],
-      [qw(Lap11  1885.96  NE_BRIDGE)],
-      [qw(Lap12  1885.96  NE_BRIDGE)],
-      [qw(Lap13  1885.96  NE_BRIDGE)],
+    lapTypes => {
+      START => [
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
+        [qw(${lapName}                  0.00  NE_BRIDGE)],
+      ],
+      LAKE_LOOP_DEFAULT_LAP => [ #1885.96m
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
+        [qw(${lapName}               1885.96  NE_BRIDGE)],
+      ],
+      LAKE_LOOP_LAP3_5K => [
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
+        [qw(5K                       1228.08  SWAN_COVE_SW)],
+        [qw(${lapName}                657.88  NE_BRIDGE)],
+      ],
+      LAKE_LOOP_LAP6_10K => [
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
+        [qw(10K                       570.20  STATE_PARK_HQ)],
+        [qw({lapName}                1315.76  NE_BRIDGE)],
+      ],
+    },
+
+    checkPointLaps => [
+      {lapName=>"START", lapType=>"START"},
+      {lapName=>"1",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"2",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"3",     lapType=>"LAKE_LOOP_LAP3_5K"},
+      {lapName=>"4",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"5",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"6",     lapType=>"LAKE_LOOP_LAP6_10K"},
+      {lapName=>"7",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"8",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"9",     lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"10",    lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"11",    lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"12",    lapType=>"LAKE_LOOP_DEFAULT_LAP"},
+      {lapName=>"13",    lapType=>"LAKE_LOOP_DEFAULT_LAP"},
     ],
   }
 };
@@ -429,27 +447,39 @@ sub parseCourse($){
 
   my @checkPoints;
   my %locByName = %{$$COURSES{$courseName}{locations}};
+  my %lapTypes = %{$$COURSES{$courseName}{lapTypes}};
 
-  for my $entry(@{$$COURSES{$courseName}{checkPointsArr}}){
-    if(@$entry != 3
-      || $$entry[0] !~ /^\w+$/
-      || $$entry[1] !~ /^(\d+|\d*\.\d+)$/
-      || $$entry[2] !~ /^(\w+)$/
-    ){
-      die "ERROR: invalid checkpoint entry '@$entry' in course $courseName\n";
-    }
+  for my $lap(@{$$COURSES{$courseName}{checkPointLaps}}){
+    my $lapType = $$lap{lapType};
+    my $lapName = $$lap{lapName};
 
-    my ($checkPointName, $dist, $locName) = @$entry;
-    my $loc = $locByName{$locName};
-    if(not defined $loc){
-      die "ERROR: invalid location name $locName in course $courseName\n";
+    die "ERROR: unknown lap type $lapType\n" if not defined $lapTypes{$lapType};
+
+    for my $entry(@{$lapTypes{$lapType}}){
+      if(@$entry != 3
+        || $$entry[0] !~ /^\S+$/
+        || $$entry[1] !~ /^(\d+|\d*\.\d+)$/
+        || $$entry[2] !~ /^(\w+)$/
+      ){
+        die "ERROR: invalid checkpoint entry '@$entry' in LAP_TYPE $lapType\n";
+      }
+
+      my ($checkPointNameTemplate, $dist, $locName) = @$entry;
+      my $loc = $locByName{$locName};
+      if(not defined $loc){
+        die "ERROR: invalid location name $locName in course $courseName\n";
+      }
+
+      my $checkPointName = $checkPointNameTemplate;
+      $checkPointName =~ s/\$\{lapName\}/$lapName/g;
+
+      push @checkPoints, {
+        name           => $checkPointName,
+        lat            => $$loc{lat},
+        lon            => $$loc{lon},
+        dist           => $dist,
+      };
     }
-    push @checkPoints, {
-      name           => $checkPointName,
-      lat            => $$loc{lat},
-      lon            => $$loc{lon},
-      dist           => $dist,
-    };
   }
 
   return @checkPoints;
