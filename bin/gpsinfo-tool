@@ -53,7 +53,7 @@ my $USAGE = "Usage:
           -omit the skipped <CHECK_POINT>s
         -find the smallest DIST adjacent GPS_READING, and use that as the CHECK_POINT_GPS_READING
         -add the distance for that CHECK_POINT to the CURRENT_DIST_SUM
-        -if CURRENT_DIST_SUM is above the TARGET_DIST for that CHECK_POINT
+        -if CHECK_POINT is marked as isSegmentSplit (or is the last achieved CHECK_POINT):
           -include CHECK_POINT_GPS_READING as a SEGMENT_CHECK_POINT_GPS_READING
     -for each SEGMENT_CHECK_POINT_GPS_READING:
       -calculate the <SEGMENT_DISTANCE> since previous SEGMENT_CHECK_POINT_GPS_READING
@@ -134,33 +134,33 @@ my $COURSES = {
 
     lapTypes => {
       START => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
-        [qw(${lapName}                  0.00  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
+        [qw(${lapName}                  0.00          0  NE_BRIDGE)],
       ],
       LAKE_LOOP_DEFAULT_LAP => [ #1885.96m
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34  QT_MI_1)],
-        [qw(SEG2_L${lapName}          402.34  QT_MI_2)],
-        [qw(SEG3_L${lapName}          402.34  QT_MI_3)],
-        [qw(SEG4_L${lapName}          402.34  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
+        [qw(SEG2_L${lapName}          402.34          0  QT_MI_2)],
+        [qw(SEG3_L${lapName}          402.34          0  QT_MI_3)],
+        [qw(SEG4_L${lapName}          402.34          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
       ],
       LAKE_LOOP_LAP3_5K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34  QT_MI_1)],
-        [qw(SEG2_L${lapName}          402.34  QT_MI_2)],
-        [qw(5K_COMPLETE               423.40  SWAN_COVE_SW)],
-        [qw(SEG4_L${lapName}          381.28  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
+        [qw(SEG2_L${lapName}          402.34          0  QT_MI_2)],
+        [qw(5K_COMPLETE               423.40          1  SWAN_COVE_SW)],
+        [qw(SEG4_L${lapName}          381.28          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
       ],
       LAKE_LOOP_LAP6_10K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST  LOC_NAME
-        [qw(SEG1_L${lapName}          402.34  QT_MI_1)],
-        [qw(10K_COMPLETE              167.86  STATE_PARK_HQ)],
-        [qw(SEG2_L${lapName}          234.48  QT_MI_2)],
-        [qw(SEG3_L${lapName}          402.34  QT_MI_3)],
-        [qw(SEG4_L${lapName}          402.34  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60  NE_BRIDGE)],
+        ### CHECKPOINT_NAME_TEMPLATE    DIST  SEG_SPLIT  LOC_NAME
+        [qw(SEG1_L${lapName}          402.34          0  QT_MI_1)],
+        [qw(10K_COMPLETE              167.86          1  STATE_PARK_HQ)],
+        [qw(SEG2_L${lapName}          234.48          0  QT_MI_2)],
+        [qw(SEG3_L${lapName}          402.34          0  QT_MI_3)],
+        [qw(SEG4_L${lapName}          402.34          0  QT_MI_4)],
+        [qw(COMPLETE_LAP_${lapName}   276.60          1  NE_BRIDGE)],
       ],
     },
 
@@ -492,8 +492,10 @@ sub combineCheckPoints(@){
   }else{
     my $lastCheckPoint = $checkPoints[-1];
     my $dist = 0;
+    my $isSegmentSplit = 0;
     for my $checkPoint(@checkPoints){
       $dist += $$checkPoint{dist};
+      $isSegmentSplit = 1 if $$checkPoint{isSegmentSplit} == 1;
     }
 
     return {
@@ -501,6 +503,7 @@ sub combineCheckPoints(@){
       lat            => $$lastCheckPoint{lat},
       lon            => $$lastCheckPoint{lon},
       dist           => $dist,
+      isSegmentSplit => $isSegmentSplit,
     };
   }
 }
@@ -520,15 +523,16 @@ sub parseCourse($){
     die "ERROR: unknown lap type $lapType\n" if not defined $lapTypes{$lapType};
 
     for my $entry(@{$lapTypes{$lapType}}){
-      if(@$entry != 3
+      if(@$entry != 4
         || $$entry[0] !~ /^\S+$/
         || $$entry[1] !~ /^(\d+|\d*\.\d+)$/
-        || $$entry[2] !~ /^(\w+)$/
+        || $$entry[2] !~ /^(0|1)$/
+        || $$entry[3] !~ /^(\w+)$/
       ){
         die "ERROR: invalid checkpoint entry '@$entry' in LAP_TYPE $lapType\n";
       }
 
-      my ($checkPointNameTemplate, $dist, $locName) = @$entry;
+      my ($checkPointNameTemplate, $dist, $isSegmentSplit, $locName) = @$entry;
       my $loc = $locByName{$locName};
       if(not defined $loc){
         die "ERROR: invalid location name $locName in course $courseName\n";
@@ -542,6 +546,7 @@ sub parseCourse($){
         lat            => $$loc{lat},
         lon            => $$loc{lon},
         dist           => $dist,
+        isSegmentSplit => $isSegmentSplit,
       };
     }
   }
@@ -555,21 +560,34 @@ sub parseCheckPointSegments(@){
   my $firstReading = $checkPointGpsReadings[0];
 
   my @segments;
-  for(my $i=0; $i<@checkPointGpsReadings; $i++){
-    my $segmentStart = $checkPointGpsReadings[$i];
-    my $segmentEnd = $i+1<@checkPointGpsReadings ? $checkPointGpsReadings[$i+1] : undef;
-    if(defined $segmentStart and defined $segmentEnd){
-      my $dist = $$segmentEnd{courseProgressDist} - $$segmentStart{courseProgressDist};
-      my $durMillis = $$segmentEnd{gpsReading}{epochMillis} - $$segmentStart{gpsReading}{epochMillis};
-      push @segments, {
-        segmentDist      => $dist,
-        segmentDurMillis => $durMillis,
-        progDist         => $$segmentEnd{courseProgressDist} - $$firstReading{courseProgressDist},
-        progDurMillis    => $$segmentEnd{gpsReading}{epochMillis} - $$firstReading{gpsReading}{epochMillis},
-        desc             => "$$segmentStart{checkPoint}{name} => $$segmentEnd{checkPoint}{name}",
-        format           => sprintf("%.2fs:%.2fm", $durMillis/1000.0, $dist),
-      };
+  my $i=0;
+  while($i+1 < @checkPointGpsReadings){
+    my $segmentStartIdx = $i;
+    my $segmentEndIdx = $i+1;
+
+    my $segmentStart = $checkPointGpsReadings[$segmentStartIdx];
+    my $segmentEnd = $checkPointGpsReadings[$segmentEndIdx];
+    while($segmentEndIdx+1 < @checkPointGpsReadings){
+      if($$segmentEnd{checkPoint}{isSegmentSplit}){
+        last;
+      }else{
+        $segmentEndIdx++;
+        $segmentEnd = $checkPointGpsReadings[$segmentEndIdx];
+      }
     }
+
+    my $dist = $$segmentEnd{courseProgressDist} - $$segmentStart{courseProgressDist};
+    my $durMillis = $$segmentEnd{gpsReading}{epochMillis} - $$segmentStart{gpsReading}{epochMillis};
+    push @segments, {
+      segmentDist      => $dist,
+      segmentDurMillis => $durMillis,
+      progDist         => $$segmentEnd{courseProgressDist} - $$firstReading{courseProgressDist},
+      progDurMillis    => $$segmentEnd{gpsReading}{epochMillis} - $$firstReading{gpsReading}{epochMillis},
+      desc             => "$$segmentStart{checkPoint}{name} => $$segmentEnd{checkPoint}{name}",
+      format           => sprintf("%.2fs:%.2fm", $durMillis/1000.0, $dist),
+    };
+
+    $i = $segmentEndIdx;
   }
   return @segments;
 }
