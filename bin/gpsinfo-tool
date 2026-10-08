@@ -11,7 +11,7 @@ sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
 sub combineCheckPoints(@);
 sub parseCourse($);
-sub parseCheckPointSegments(@);
+sub parseCheckPointSegments($@);
 sub formatKML($@);
 sub formatHMS($);
 
@@ -55,6 +55,7 @@ my $USAGE = "Usage:
         -add the distance for that CHECK_POINT to the CURRENT_DIST_SUM
         -if CHECK_POINT is marked as isSegmentSplit (or is the last achieved CHECK_POINT):
           -include CHECK_POINT_GPS_READING as a SEGMENT_CHECK_POINT_GPS_READING
+          NOTE: see --all-checkpoints
     -for each SEGMENT_CHECK_POINT_GPS_READING:
       -calculate the <SEGMENT_DISTANCE> since previous SEGMENT_CHECK_POINT_GPS_READING
       -calculate the <SEGMENT_DURATION> since previous SEGMENT_CHECK_POINT_GPS_READING
@@ -119,6 +120,8 @@ my $USAGE = "Usage:
       <DATE_FMT> : lat=<LAT> : lon=<LON>
 
   OPTS
+    --all | --all-checkpoints
+      ignore is-segment-split and always split segments at all checkpoints
 ";
 
 my $PRIORITY_LOW = "LOW";
@@ -219,6 +222,7 @@ my $MODE_CHECKPOINT = "checkpoint";
 
 sub main(@){
   my $opts = {
+    allCheckpoints => 0,
   };
   my $mode = undef;
   my $startTimeStr = undef;
@@ -237,6 +241,8 @@ sub main(@){
       $mode = $MODE_COURSE;
     }elsif($arg =~ /^(--checkpoint|--check-point|--run|--race)$/){
       $mode = $MODE_CHECKPOINT;
+    }elsif($arg =~ /^(--all|--all-checkpoints)$/){
+      $$opts{allCheckpoints} = 1;
     }elsif(defined $$COURSES{$arg} and not defined $courseName){
       $mode = $MODE_COURSE if not defined $mode;
       $courseName = $arg;
@@ -284,7 +290,7 @@ sub main(@){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
     }
 
-    my @segments = parseCheckPointSegments(@checkPointGpsReadings);
+    my @segments = parseCheckPointSegments($opts, @checkPointGpsReadings);
 
     my $firstReading = $checkPointGpsReadings[0];
     my $lastReading = $checkPointGpsReadings[-1];
@@ -591,8 +597,8 @@ sub parseCourse($){
   return @checkPoints;
 }
 
-sub parseCheckPointSegments(@){
-  my @checkPointGpsReadings = @_;
+sub parseCheckPointSegments($@){
+  my ($opts, @checkPointGpsReadings) = @_;
   die "ERROR: empty checkpoint gps readings\n" if @checkPointGpsReadings == 0;
   my $firstReading = $checkPointGpsReadings[0];
 
@@ -605,7 +611,7 @@ sub parseCheckPointSegments(@){
     my $segmentStart = $checkPointGpsReadings[$segmentStartIdx];
     my $segmentEnd = $checkPointGpsReadings[$segmentEndIdx];
     while($segmentEndIdx+1 < @checkPointGpsReadings){
-      if($$segmentEnd{checkPoint}{isSegmentSplit}){
+      if($$opts{allCheckpoints} or $$segmentEnd{checkPoint}{isSegmentSplit}){
         last;
       }else{
         $segmentEndIdx++;
