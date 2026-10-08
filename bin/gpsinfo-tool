@@ -10,7 +10,6 @@ use Math::Polygon;
 
 sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
-sub isCheckPointAchieved($$);
 sub combineCheckPoints(@);
 sub parseCourse($);
 sub parseCheckPointSegments($@);
@@ -19,7 +18,8 @@ sub formatKMLCourse($);
 sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
 sub polygonLatLon(@);
-sub isPointInPolygon($$);
+sub getPolygonObj($);
+sub isPointInPolygonObj($$);
 
 my $EXEC = basename $0;
 
@@ -509,6 +509,9 @@ sub getCheckPointGpsReadings($@){
 
   my $courseProgressDist = 0;
   my @checkPoints = parseCourse($courseName);
+  for my $checkPoint(@checkPoints){
+    $$checkPoint{polygonObj} = getPolygonObj($$checkPoint{polygon});
+  }
 
   my $startCPIdx = 0;
   for(my $i=0; $i<@gpsReadings; $i++){
@@ -524,7 +527,7 @@ sub getCheckPointGpsReadings($@){
       }
       my $curCheckPoint = $checkPoints[$endCPIdx];
 
-      if(isCheckPointAchieved($gpsReading, $curCheckPoint)){
+      if(isPointInPolygonObj($gpsReading, $$curCheckPoint{polygonObj})){
         my @cps = @checkPoints[$startCPIdx..$endCPIdx];
 
         #combine any skipped checkpoints into the achieved checkpoint
@@ -548,7 +551,7 @@ sub getCheckPointGpsReadings($@){
       my $minDist = $dist;
       my $isFirstEntry = $i == 0 ? 1 : 0;
 
-      while(isCheckPointAchieved($gpsReading, $checkPoint) && $i+1 < @gpsReadings){
+      while(isPointInPolygonObj($gpsReading, $$checkPoint{polygonObj}) && $i+1 < @gpsReadings){
         #skip all adjacent readings within the bounding polygon
         #use the minimum distance point within the polygon
         $i++;
@@ -578,16 +581,6 @@ sub getCheckPointGpsReadings($@){
   return @checkPointGpsReadings;
 }
 
-sub isCheckPointAchieved($$){
-  my ($gpsReading, $checkPoint) = @_;
-
-  if(isPointInPolygon($gpsReading, $$checkPoint{polygon})){
-    return 1;
-  }else{
-    return 0;
-  }
-}
-
 sub combineCheckPoints(@){
   my (@checkPoints) = @_;
   if(@checkPoints == 0){
@@ -610,6 +603,7 @@ sub combineCheckPoints(@){
       lat            => $$lastCheckPoint{lat},
       lon            => $$lastCheckPoint{lon},
       polygon        => $$lastCheckPoint{polygon},
+      polygonObj     => $$lastCheckPoint{polygonObj},
       dist           => $dist,
       priority       => $priority,
       isSegmentSplit => $isSegmentSplit,
@@ -818,20 +812,25 @@ sub polygonLatLon(@){
   return $polygon;
 }
 
-sub isPointInPolygon($$){
-  my ($point, $polygon) = @_;
+sub getPolygonObj($){
+  my ($polygonPoints) = @_;
 
-  if(@$polygon == 0){
-    return 0;
+  if(@$polygonPoints == 0){
+    return undef;
   }
 
-  my $pointXY = [$$point{lon}, $$point{lat}];
-  my @polyXY = map {[$$_{lon}, $$_{lat}]} @$polygon;
+  my @polyXY = map {[$$_{lon}, $$_{lat}]} @$polygonPoints;
   push @polyXY, $polyXY[0]; #close polygon
 
-  my $polyObj = Math::Polygon->new(points => [@polyXY]);
+  my $polygonObj = Math::Polygon->new(points => [@polyXY]);
+  return $polygonObj;
+}
 
-  return $polyObj->contains($pointXY);
+sub isPointInPolygonObj($$){
+  my ($point, $polygonObj) = @_;
+
+  my $pointXY = [$$point{lon}, $$point{lat}];
+  return $polygonObj->contains($pointXY);
 }
 
 &main(@ARGV);
