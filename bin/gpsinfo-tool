@@ -80,6 +80,9 @@ my $USAGE = "Usage:
   $EXEC [OPTS] --checkpoint|--check-point|--run|--race COURSE_NAME START_TIME [END_TIME]
     -get all <CHECK_POINT_GPS_READING>s as in:
       $EXEC --course COURSE_NAME <START_TIME> \"\$(date)\"
+    -skip the most-recent <CHECK_POINT_GPS_READING> if it is not fully reached
+      -remove the last <CHECK_POINT_GPS_READING> if there are no <GPS_READING>s after it
+        (the next <GPS_READING> may be closer to the <CHECK_POINT>)
     -use the oldest CHECK_POINT_GPS_READING as FIRST_CHECK_POINT
     -use the most-recent CHECK_POINT_GPS_READING as CUR_CHECK_POINT
     -use the second-most-recent CHECK_POINT_GPS_READING as PREV_CHECK_POINT
@@ -383,6 +386,17 @@ sub main(@){
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
 
     my @checkPointGpsReadings = getCheckPointGpsReadings($courseName, @gpsReadings);
+
+    if(@checkPointGpsReadings > 0){
+      my $lastCheckPoint = $checkPointGpsReadings[-1];
+      my $lastGpsReading = $gpsReadings[-1];
+      if($$lastCheckPoint{gpsReading}{epochMillis} == $$lastGpsReading{epochMillis}){
+        #skip final checkpoint if still potentially moving towards it (min dist is in the future)
+        #   only include checkpoints with a gps reading after the checkpoint
+        pop @checkPointGpsReadings;
+      }
+    }
+
     if(@checkPointGpsReadings == 0){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
     }
