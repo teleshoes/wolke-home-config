@@ -12,7 +12,8 @@ sub getCheckPointGpsReadings($@);
 sub combineCheckPoints(@);
 sub parseCourse($);
 sub parseCheckPointSegments($@);
-sub formatKML($@);
+sub formatKMLGpsReadings($@);
+sub formatKMLPoints($@);
 sub formatHMS($);
 
 my $EXEC = basename $0;
@@ -280,7 +281,7 @@ sub main(@){
   }elsif($mode eq $MODE_KML){
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
     my $documentName = time2str("gpsinfo_%Y_%m_%d_%H_%M_%S", $startEpoch);
-    print formatKML($documentName, @gpsReadings);
+    print formatKMLGpsReadings($documentName, @gpsReadings);
   }elsif($mode eq $MODE_COURSE){
     die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
@@ -635,8 +636,18 @@ sub parseCheckPointSegments($@){
   return @segments;
 }
 
-sub formatKML($@){
+sub formatKMLGpsReadings($@){
   my ($documentName, @gpsReadings) = @_;
+
+  my @points = map {
+    {name=>$$_{dtmFmt}, id=>$$_{epochMillis}, lat=>$$_{lat}, lon=>$$_{lon}}
+  } @gpsReadings;
+
+  return formatKMLPoints($documentName, @points);
+}
+
+sub formatKMLPoints($@){
+  my ($documentName, @points) = @_;
 
   my $kml = ""
     . "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
@@ -649,16 +660,16 @@ sub formatKML($@){
     . "  <name>$documentName</name>\n"
   ;
   my $index = 1;
-  for my $gpsReading(@gpsReadings){
+  for my $p(@points){
     $kml .= ""
       . "  <Placemark id=\"$documentName.$index\">\n"
-      . "    <name>$$gpsReading{dtmFmt}</name>\n"
+      . "    <name>$$p{name}</name>\n"
       . "    <ExtendedData>\n"
       . "      <SchemaData schemaUrl=\"#$documentName\">\n"
-      . "        <SimpleData name=\"ID\">$$gpsReading{epochMillis}</SimpleData>\n"
+      . "        <SimpleData name=\"ID\">$$p{id}</SimpleData>\n"
       . "      </SchemaData>\n"
       . "    </ExtendedData>\n"
-      . "    <Point><coordinates>$$gpsReading{lon},$$gpsReading{lat}</coordinates></Point>\n"
+      . "    <Point><coordinates>$$p{lon},$$p{lat}</coordinates></Point>\n"
       . "  </Placemark>\n"
     ;
     $index++;
