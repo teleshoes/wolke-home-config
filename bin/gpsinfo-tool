@@ -16,6 +16,7 @@ sub formatKMLGpsReadings($@);
 sub formatKMLCourse($);
 sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
+sub rectLatLon(@);
 
 my $EXEC = basename $0;
 
@@ -137,17 +138,17 @@ my %PRIORITY_RANK = ($PRIORITY_LOW => 1, $PRIORITY_MED => 2, $PRIORITY_HIGH => 3
 my $COURSES = {
   belmont => {
     locations => {
-      NE_BRIDGE     => {lat=>'40.738874', lon=>'-73.343685'},
-      STATE_PARK_HQ => {lat=>'40.734507', lon=>'-73.344047'},
-      SWAN_COVE_SW  => {lat=>'40.734878', lon=>'-73.341137'},
+      NE_BRIDGE     => {lat=>'40.738874', lon=>'-73.343685', rect => rectLatLon()},
+      STATE_PARK_HQ => {lat=>'40.734507', lon=>'-73.344047', rect => rectLatLon()},
+      SWAN_COVE_SW  => {lat=>'40.734878', lon=>'-73.341137', rect => rectLatLon()},
 
-      N_PARKING_LOT => {lat=>'40.739080', lon=>'-73.342272'},
-      ALT_BRIDGE_NW => {lat=>'40.738356', lon=>'-73.344852'},
+      N_PARKING_LOT => {lat=>'40.739080', lon=>'-73.342272', rect => rectLatLon()},
+      ALT_BRIDGE_NW => {lat=>'40.738356', lon=>'-73.344852', rect => rectLatLon()},
 
-      QT_MI_1       => {lat=>'40.735850', lon=>'-73.344700'},
-      QT_MI_2       => {lat=>'40.732764', lon=>'-73.342667'},
-      QT_MI_3       => {lat=>'40.734760', lon=>'-73.341124'},
-      QT_MI_4       => {lat=>'40.737171', lon=>'-73.341587'},
+      QT_MI_1       => {lat=>'40.735850', lon=>'-73.344700', rect => rectLatLon()},
+      QT_MI_2       => {lat=>'40.732764', lon=>'-73.342667', rect => rectLatLon()},
+      QT_MI_3       => {lat=>'40.734760', lon=>'-73.341124', rect => rectLatLon()},
+      QT_MI_4       => {lat=>'40.737171', lon=>'-73.341587', rect => rectLatLon()},
     },
 
     lapTypes => {
@@ -560,6 +561,7 @@ sub combineCheckPoints(@){
       name           => $$lastCheckPoint{name},
       lat            => $$lastCheckPoint{lat},
       lon            => $$lastCheckPoint{lon},
+      rect           => $$lastCheckPoint{rect},
       dist           => $dist,
       priority       => $priority,
       isSegmentSplit => $isSegmentSplit,
@@ -605,6 +607,7 @@ sub parseCourse($){
         name           => $checkPointName,
         lat            => $$loc{lat},
         lon            => $$loc{lon},
+        rect           => $$loc{rect},
         dist           => $dist,
         priority       => $priority,
         isSegmentSplit => $isSegmentSplit,
@@ -747,6 +750,18 @@ sub formatDurHMS($){
   my $m = int($t / 60.0) % 60;
   my $s = int($t) % 60;
   return sprintf("%dh%02dm%02ds", $h, $m, $s);
+}
+
+sub rectLatLon(@){
+  my (@latLonStrs) = @_;
+  my $rect = [];
+  for my $latLonStr(@latLonStrs){
+    if($latLonStr !~ /^(-?\d+\.\d+),(-?\d+\.\d+)$/){
+      die "ERROR: malformed lat/lon pair '$latLonStr'\n";
+    }
+    push @$rect, {lat=>"$1", lon=>"$2"};
+  }
+  return $rect;
 }
 
 &main(@ARGV);
