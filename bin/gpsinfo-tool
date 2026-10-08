@@ -9,6 +9,7 @@ use GIS::Distance;
 
 sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
+sub isCheckPointAchieved($$$);
 sub combineCheckPoints(@);
 sub parseCourse($);
 sub parseCheckPointSegments($@);
@@ -490,19 +491,14 @@ sub getCheckPointGpsReadings($@){
     last if $startCPIdx >= @checkPoints;
 
     my $checkPoint = undef;
-    my $dist = undef;
     for(my $endCPIdx=$startCPIdx; $endCPIdx<@checkPoints; $endCPIdx++){
       if($endCPIdx > $startCPIdx + $MAX_SKIPPED_CHECKPOINTS){
         #only permit 'skipping' up to MAX_SKIPPED_CHECKPOINTS checkpoints
         last;
       }
       my $curCheckPoint = $checkPoints[$endCPIdx];
-      $dist = $gis->distance(
-        $$curCheckPoint{lat}, $$curCheckPoint{lon},
-        $$gpsReading{lat}, $$gpsReading{lon}
-      )->meters();
 
-      if($dist < 10){
+      if(isCheckPointAchieved($gis, $gpsReading, $curCheckPoint)){
         my @cps = @checkPoints[$startCPIdx..$endCPIdx];
 
         #combined any skipped checkpoints into the achieved checkpoint
@@ -515,6 +511,11 @@ sub getCheckPointGpsReadings($@){
 
     if(defined $checkPoint){
       #one of the next (MAX_SKIPPED_CHECKPOINTS+1) checkpoints achieved
+
+      my $dist = $gis->distance(
+        $$checkPoint{lat}, $$checkPoint{lon},
+        $$gpsReading{lat}, $$gpsReading{lon}
+      )->meters();
 
       my $localMinGpsReading = $gpsReading;
       my $minDist = $dist;
@@ -547,6 +548,21 @@ sub getCheckPointGpsReadings($@){
   }
 
   return @checkPointGpsReadings;
+}
+
+sub isCheckPointAchieved($$$){
+  my ($gis, $gpsReading, $checkPoint) = @_;
+
+  my $dist = $gis->distance(
+    $$checkPoint{lat}, $$checkPoint{lon},
+    $$gpsReading{lat}, $$gpsReading{lon}
+  )->meters();
+
+  if($dist < 10){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 sub combineCheckPoints(@){
