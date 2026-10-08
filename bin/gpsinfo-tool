@@ -14,7 +14,7 @@ sub parseCourse($);
 sub parseCheckPointSegments($@);
 sub formatKMLGpsReadings($@);
 sub formatKMLCourse($);
-sub formatKMLPoints($@);
+sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
 
 my $EXEC = basename $0;
@@ -660,7 +660,7 @@ sub formatKMLGpsReadings($@){
     {name=>$$_{dtmFmt}, id=>$$_{epochMillis}, lat=>$$_{lat}, lon=>$$_{lon}}
   } @gpsReadings;
 
-  return formatKMLPoints($documentName, @points);
+  return formatKMLPointsPolygons($documentName, [@points], []);
 }
 
 sub formatKMLCourse($){
@@ -673,11 +673,11 @@ sub formatKMLCourse($){
     {name=>$_, id=>$_, lat=>$locations{$_}{lat}, lon=>$locations{$_}{lon}}
   } sort keys %locations;
 
-  return formatKMLPoints($documentName, @points);
+  return formatKMLPointsPolygons($documentName, [@points], []);
 }
 
-sub formatKMLPoints($@){
-  my ($documentName, @points) = @_;
+sub formatKMLPointsPolygons($$$){
+  my ($documentName, $points, $polygons) = @_;
 
   my $kml = ""
     . "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
@@ -689,17 +689,42 @@ sub formatKMLPoints($@){
     . "<Folder>\n"
     . "  <name>$documentName</name>\n"
   ;
+
   my $index = 1;
-  for my $p(@points){
+
+  for my $pt(@$points){
     $kml .= ""
       . "  <Placemark id=\"$documentName.$index\">\n"
-      . "    <name>$$p{name}</name>\n"
+      . "    <name>$$pt{name}</name>\n"
       . "    <ExtendedData>\n"
       . "      <SchemaData schemaUrl=\"#$documentName\">\n"
-      . "        <SimpleData name=\"ID\">$$p{id}</SimpleData>\n"
+      . "        <SimpleData name=\"ID\">$$pt{id}</SimpleData>\n"
       . "      </SchemaData>\n"
       . "    </ExtendedData>\n"
-      . "    <Point><coordinates>$$p{lon},$$p{lat}</coordinates></Point>\n"
+      . "    <Point><coordinates>$$pt{lon},$$pt{lat}</coordinates></Point>\n"
+      . "  </Placemark>\n"
+    ;
+    $index++;
+  }
+  for my $poly(@$polygons){
+    my @coords;
+    for my $pt(@{$$poly{points}}){
+      push @coords, "$$pt{lon},$$pt{lat}";
+    }
+    my $coordsFmt = join " ", @coords;
+    $kml .= ""
+      . "  <Placemark id=\"$documentName.$index\">\n"
+      . "    <name>$$poly{name}</name>\n"
+      . "    <ExtendedData>\n"
+      . "      <SchemaData schemaUrl=\"#$documentName\">\n"
+      . "        <SimpleData name=\"ID\">$$poly{id}</SimpleData>\n"
+      . "      </SchemaData>\n"
+      . "    </ExtendedData>\n"
+      . "    <Polygon>\n"
+      . "      <outerBoundaryIs><LinearRing><coordinates>\n"
+      . "      $coordsFmt\n"
+      . "      </coordinates></LinearRing></outerBoundaryIs>\n"
+      . "    </Polygon>\n"
       . "  </Placemark>\n"
     ;
     $index++;
