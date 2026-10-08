@@ -10,7 +10,7 @@ use Math::Polygon;
 
 sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
-sub isCheckPointAchieved($$$);
+sub isCheckPointAchieved($$);
 sub combineCheckPoints(@);
 sub parseCourse($);
 sub parseCheckPointSegments($@);
@@ -55,12 +55,17 @@ my $USAGE = "Usage:
               -up to $MAX_SKIPPED_CHECKPOINTS can be 'skipped', if the next CHECK_POINT is acheived
               -skipped CHECK_POINTS are assumed to also be achieved on the way
               -skipped CHECK_POINTS will not be listed separately, but will have their distance combined
-      -calculate the DIST as the haversine distance in meters to next <CHECK_POINT>s
-      -if DIST is < 10m for one of the next <CHECK_POINT>s:
-        -combine the (up to $MAX_SKIPPED_CHECKPOINTS) 'skipped' CHECK_POINTS into the achieved CHECK_POINT
-          -add the CHECK_POINT.DISTANCE for the skipped one or two <CHECK_POINT>s to the close CHECK_POINT
-          -omit the skipped <CHECK_POINT>s
-        -find the smallest DIST adjacent GPS_READING, and use that as the CHECK_POINT_GPS_READING
+      -check if <GPS_READING> within the bounding polygon for one of the next <CHECK_POINT>s:
+        -if <GPS_READING> is not within the polygon for the next few <CHECK_POINT>s, skip <GPS_READING>
+        -if a <CHECK_POINT> is achieved:
+          -combine the (up to $MAX_SKIPPED_CHECKPOINTS) <SKIPPED_CHECK_POINT>s into achieved <CHECK_POINT>
+            -add the CHECK_POINT.DISTANCE for the <SKIPPED_CHECK_POINT>s
+            -omit the skipped <SKIPPED_CHECK_POINT>s
+          -select closest GPS_READING
+            -gather all adjacent <GPS_READING>s that are also within the <CHECK_POINT> polygon
+            -calculate the DIST as the haversine distance in meters to <CHECK_POINT>
+            -find the smallest DIST in this set, and use that as the CHECK_POINT_GPS_READING
+            -skip all other <GPS_READING>s within the <CHECK_POINT> polygon
         -add the distance for that CHECK_POINT to the CURRENT_DIST_SUM
         -if CHECK_POINT is marked as isSegmentSplit (or is the last achieved CHECK_POINT):
           -include CHECK_POINT_GPS_READING as a SEGMENT_CHECK_POINT_GPS_READING
@@ -505,7 +510,7 @@ sub getCheckPointGpsReadings($@){
       }
       my $curCheckPoint = $checkPoints[$endCPIdx];
 
-      if(isCheckPointAchieved($gis, $gpsReading, $curCheckPoint)){
+      if(isCheckPointAchieved($gpsReading, $curCheckPoint)){
         my @cps = @checkPoints[$startCPIdx..$endCPIdx];
 
         #combine any skipped checkpoints into the achieved checkpoint
@@ -518,6 +523,7 @@ sub getCheckPointGpsReadings($@){
 
     if(defined $checkPoint){
       #one of the next (MAX_SKIPPED_CHECKPOINTS+1) checkpoints achieved
+      #  current gps reading is within the bounding polygon of the checkpoint
 
       my $dist = $gis->distance(
         $$checkPoint{lat}, $$checkPoint{lon},
@@ -528,8 +534,9 @@ sub getCheckPointGpsReadings($@){
       my $minDist = $dist;
       my $isFirstEntry = $i == 0 ? 1 : 0;
 
-      while($dist < 30 && $i+1 < @gpsReadings){
-        #skip all adjacent readings within 30m
+      while(isCheckPointAchieved($gpsReading, $checkPoint) && $i+1 < @gpsReadings){
+        #skip all adjacent readings within the bounding polygon
+        #use the minimum distance point within the polygon
         $i++;
         $gpsReading = $gpsReadings[$i];
         $dist = $gis->distance(
@@ -557,15 +564,10 @@ sub getCheckPointGpsReadings($@){
   return @checkPointGpsReadings;
 }
 
-sub isCheckPointAchieved($$$){
-  my ($gis, $gpsReading, $checkPoint) = @_;
+sub isCheckPointAchieved($$){
+  my ($gpsReading, $checkPoint) = @_;
 
-  my $dist = $gis->distance(
-    $$checkPoint{lat}, $$checkPoint{lon},
-    $$gpsReading{lat}, $$gpsReading{lon}
-  )->meters();
-
-  if($dist < 10){
+  if(isPointInPolygon($gpsReading, $$checkPoint{polygon})){
     return 1;
   }else{
     return 0;
