@@ -13,6 +13,7 @@ sub combineCheckPoints(@);
 sub parseCourse($);
 sub parseCheckPointSegments($@);
 sub formatKMLGpsReadings($@);
+sub formatKMLCourse($);
 sub formatKMLPoints($@);
 sub formatHMS($);
 
@@ -35,6 +36,9 @@ my $USAGE = "Usage:
     -format as KML and print
       -each GPS_READING is a <Placemark>
       -ID field is GPS_READING_EPOCH_MILLIS
+
+  $EXEC [OPTS] --course-kml COURSE_NAME
+    -print the checkpoint locations for a course as KML
 
   $EXEC [OPTS] COURSE_NAME START_TIME [END_TIME]
   $EXEC [OPTS] -c|--course COURSE_NAME START_TIME [END_TIME]
@@ -218,6 +222,7 @@ my $COURSES = {
 
 my $MODE_GET = "get";
 my $MODE_KML = "kml";
+my $MODE_COURSE_KML = "course-kml";
 my $MODE_COURSE = "course";
 my $MODE_CHECKPOINT = "checkpoint";
 
@@ -238,6 +243,8 @@ sub main(@){
       $mode = $MODE_GET;
     }elsif($arg =~ /^(-k|--kml)$/){
       $mode = $MODE_KML;
+    }elsif($arg =~ /^(--course-kml)$/){
+      $mode = $MODE_COURSE_KML;
     }elsif($arg =~ /^(-c|--course|-w|--workout)$/){
       $mode = $MODE_COURSE;
     }elsif($arg =~ /^(--checkpoint|--check-point|--run|--race)$/){
@@ -289,6 +296,9 @@ sub main(@){
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
     my $documentName = time2str("gpsinfo_%Y_%m_%d_%H_%M_%S", $startEpoch);
     print formatKMLGpsReadings($documentName, @gpsReadings);
+  }elsif($mode eq $MODE_COURSE_KML){
+    die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
+    print formatKMLCourse($courseName);
   }elsif($mode eq $MODE_COURSE){
     die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
@@ -649,6 +659,19 @@ sub formatKMLGpsReadings($@){
   my @points = map {
     {name=>$$_{dtmFmt}, id=>$$_{epochMillis}, lat=>$$_{lat}, lon=>$$_{lon}}
   } @gpsReadings;
+
+  return formatKMLPoints($documentName, @points);
+}
+
+sub formatKMLCourse($){
+  my ($courseName) = @_;
+
+  my %locations = %{$$COURSES{$courseName}{locations}};
+
+  my $documentName = "course-$courseName";
+  my @points = map {
+    {name=>$_, id=>$_, lat=>$locations{$_}{lat}, lon=>$locations{$_}{lon}}
+  } sort keys %locations;
 
   return formatKMLPoints($documentName, @points);
 }
