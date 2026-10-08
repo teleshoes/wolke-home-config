@@ -6,6 +6,7 @@ use Date::Format qw(time2str);
 use Date::Parse qw(str2time);
 
 use GIS::Distance;
+use Math::Polygon;
 
 sub getGpsReadings($$);
 sub getCheckPointGpsReadings($@);
@@ -18,6 +19,7 @@ sub formatKMLCourse($);
 sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
 sub polygonLatLon(@);
+sub isPointInPolygon($$);
 
 my $EXEC = basename $0;
 
@@ -798,6 +800,22 @@ sub polygonLatLon(@){
     push @$polygon, {lat=>"$1", lon=>"$2"};
   }
   return $polygon;
+}
+
+sub isPointInPolygon($$){
+  my ($point, $polygon) = @_;
+
+  if(@$polygon == 0){
+    return 0;
+  }
+
+  my $pointXY = [$$point{lon}, $$point{lat}];
+  my @polyXY = map {[$$_{lon}, $$_{lat}]} @$polygon;
+  push @polyXY, $polyXY[0]; #close polygon
+
+  my $polyObj = Math::Polygon->new(points => [@polyXY]);
+
+  return $polyObj->contains($pointXY);
 }
 
 &main(@ARGV);
