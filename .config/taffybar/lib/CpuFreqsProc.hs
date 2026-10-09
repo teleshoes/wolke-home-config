@@ -2,7 +2,7 @@ module CpuFreqsProc (getFreqsProc) where
 import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Process (system)
-import Utils (regexAllSubmatches, chompFile)
+import Utils (regexFirstGroup, chompFile)
 
 getFreqsProc :: IO (IO [Int])
 getFreqsProc = return $ fmap parseCpuInfo readCpuInfo
@@ -19,15 +19,10 @@ removeHTDupes = nubBy (\(id1,_) (id2,_) -> id1 == id2)
 
 splitCpus cpuinfo = filter (/="") $ map unlines $ split (lines cpuinfo) [[]]
 
-getCoreId cpu = coreId
-  where coreId = fromMaybe ("-1") $ listToMaybe $ concat groupSets
-        groupSets = map (drop 1) (regexAllSubmatches p cpu)
-        p = "core id\\s*:\\s*(\\d+)"
+getCoreId cpu = fromMaybe ("-1") $ regexFirstGroup "core id\\s*:\\s*(\\d+)" cpu
 
 getFreq cpu = round $ toDouble freq
-  where freq = fromMaybe ("-1") $ listToMaybe $ concat groupSets
-        groupSets = map (drop 1) (regexAllSubmatches p cpu)
-        p = "cpu MHz\\s*:\\s*(\\d+\\.\\d+)"
+  where freq = fromMaybe ("-1") (regexFirstGroup "cpu MHz\\s*:\\s*(\\d+\\.\\d+)" cpu)
 
 split (ln:lns) (cpu:cpus) | ln == "" = split lns ([]:cpu:cpus)
 split (ln:lns) (cpu:cpus) | otherwise = split lns ((ln:cpu):cpus)
