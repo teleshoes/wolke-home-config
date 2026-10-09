@@ -101,6 +101,5 @@ netScan = do
 isIgnored NetDev{interface=iface} = regexMatch ignoredInterfacesRegex iface
 
 parseProcNetDev :: String -> [NetDev]
-parseProcNetDev proc = filter (not.isIgnored) $ map netdev groups
-  where groups = catMaybes $ map (regexGroups re) $ lines proc
-        re = "([a-z0-9]+):" ++ (concat $ replicate 16 "\\s*(\\d+)")
+parseProcNetDev proc = filter (not.isIgnored) $ map netdev ifaceStats
+  where ifaceStats = filter ((==17).length) $ map words $ lines proc
