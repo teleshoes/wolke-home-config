@@ -32,7 +32,7 @@ data NetDev = NetDev { interface :: String
 data NetStats = NetStats { bytes :: Integer
                          , packets :: Integer
                          , errs :: Integer
-                         , drop :: Integer
+                         , dropped :: Integer
                          , fifo :: Integer
                          , frame :: Integer
                          , compressed :: Integer
@@ -44,8 +44,8 @@ netdev (interface:stats) = packDev interface $ splitAt 8 (map read stats)
   where
     packDev interface (rxStats,txStats) =
       NetDev interface (packStats rxStats) (packStats txStats)
-    packStats [bytes,packets,errs,drop,fifo,frame,compressed,multicast] =
-      NetStats bytes packets errs drop fifo frame compressed multicast
+    packStats [bytes,packets,errs,dropped,fifo,frame,compressed,multicast] =
+      NetStats bytes packets errs dropped fifo frame compressed multicast
 
 readScan :: MVar [NetScan] -> IO String
 readScan prevScansMVar = do
