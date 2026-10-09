@@ -56,7 +56,7 @@ readScan prevScansMVar = do
   let newest = maximumBy (comparing scanTime) curScans
   return $ format oldest newest
 
-showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (tail units))
+showBytes bytes = fg (chooseColor byteColors) (unit (bytes/1024) (drop 1 units))
   where
     numLen = 5
     unit :: Double -> [String] -> String
