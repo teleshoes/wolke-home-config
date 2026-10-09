@@ -5,7 +5,7 @@ module Utils(
   maybeJoin,
   fg, bg, fgbg, escapeMarkup,
   rowW, colW, containerW, eboxStyleWrapW,
-  regexMatch, regexAllMatches, regexAllSubmatches, regexGroups, regexFirstGroup,
+  regexMatch, regexAllMatches, regexGroups, regexFirstGroup,
   readInt, readDouble, decodeSingleRowCsv, printfReal, collectInts,
   stringWidth, chunkStr, trimL, trimR, padL, padR, padCols, uncols, chompAll,
   fmtSimpleRecord,
@@ -166,8 +166,6 @@ regexFirstGroup :: String -> String -> Maybe String
 regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
 regexAllMatches :: String -> String -> [String]
 regexAllMatches re str = getAllTextMatches $ (str =~ re :: AllTextMatches [] String)
-regexAllSubmatches :: String -> String -> [[String]]
-regexAllSubmatches re str = str =~ re
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
