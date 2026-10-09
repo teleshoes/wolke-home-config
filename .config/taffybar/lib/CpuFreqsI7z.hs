@@ -1,11 +1,13 @@
 module CpuFreqsI7z (getFreqsI7z) where
+import Data.Maybe (catMaybes)
 import Control.Monad (forever, void)
 import Control.Concurrent (
   forkIO, myThreadId, killThread)
 import Safe (headDef)
 import System.Process (system, readProcess)
 import System.Posix.Process (getProcessID)
-import Utils (regexAllSubmatches, systemReadLines, readProc)
+import Text.Read (readMaybe)
+import Utils (systemReadLines, readProc)
 import System.Directory (setCurrentDirectory)
 
 getFreqsI7z :: IO (IO [Int])
@@ -35,12 +37,9 @@ execAndThenDie cmdArr = do
 tailFile :: String -> IO String
 tailFile f = do fmap (headDef "") $ systemReadLines $ "tail -n 1 " ++ f ++ " 2>/dev/null"
 
-numbers s = concat groupSets
-  where groupSets = map (drop 1) (regexAllSubmatches p s)
-        p = "(\\d+(?:\\.\\d+)?)"
+numbers :: String -> [Double]
+numbers = catMaybes . map readMaybe . words
 
-toDouble = read :: String -> Double
-
---"bignumber Mhz Mhz ... " -> [Mhz]
+--"EPOCH_FRAC_S Mhz Mhz ... " -> [Mhz]
 parseI7zLog :: String -> [Int]
-parseI7zLog line = filter (<10^9) $ map (round.toDouble) $ numbers line
+parseI7zLog = map round . drop 1 . numbers
