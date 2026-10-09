@@ -32,10 +32,11 @@ import Data.Csv (decode,
 import Data.List (intercalate, partition, sort, transpose)
 import Data.List.Split (keepDelimsL, oneOf, split)
 import Data.List.Utils (replace)
+import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, listToMaybe)
 import Data.String.Unicode (unicodeToXmlEntity)
-import Data.Text (pack)
+import Data.Text (pack, unpack)
 import qualified Data.ByteString.Lazy.Char8 as BS (pack)
 import qualified Data.Vector as V (head, length, Vector)
 
@@ -68,7 +69,7 @@ import System.Process (
   system)
 
 import Text.Printf (printf)
-import Text.Regex.PCRE2 ((=~), getAllTextMatches, AllTextMatches)
+import Text.Regex.Pcre2 (match, matches, captures)
 
 -- CONSTANTS
 defaultDelay :: Double
@@ -159,13 +160,15 @@ eboxStyleWrapW w klass = do
 
 -- PARSING
 regexMatch :: String -> String -> Bool
-regexMatch = flip (=~)
+regexMatch re str = matches (pack re) (pack str)
 regexGroups :: String -> String -> Maybe [String]
-regexGroups re str = fmap (drop 1) $ listToMaybe $ str =~ re
+regexGroups re str = case captures (pack re) (pack str) of
+                       Just (s :| groups) -> Just $ map unpack groups
+                       Nothing            -> Nothing
 regexFirstGroup :: String -> String -> Maybe String
 regexFirstGroup re str = listToMaybe $ fromMaybe [] $ regexGroups re str
 regexAllMatches :: String -> String -> [String]
-regexAllMatches re str = getAllTextMatches $ (str =~ re :: AllTextMatches [] String)
+regexAllMatches re str = map unpack $ match (pack re) (pack str)
 
 readInt :: String -> Maybe Integer
 readInt s = case reads s of
