@@ -5,7 +5,8 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.Maybe (catMaybes)
 import Data.List (intersperse)
-import Utils (readInt, regexGroups, readProc, findName, chompFile)
+import Utils (readInt, regexGroups, readProc, findName)
+import System.IO (readFile)
 
 main = forever $ print =<< getProgs
 
@@ -22,5 +23,5 @@ getProgs :: IO [Integer]
 getProgs = do
   threadDelay $ 800 * 10^3
   files <- findName "/tmp" False "progress-bar*.txt"
-  progs <- mapM chompFile files
+  progs <- mapM readFile files
   return $ catMaybes $ map readInt progs

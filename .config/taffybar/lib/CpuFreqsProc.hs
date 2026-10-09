@@ -2,11 +2,12 @@ module CpuFreqsProc (getFreqsProc) where
 import Data.List (nubBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Process (system)
-import Utils (regexFirstGroup, chompFile)
+import System.IO (readFile)
+import Utils (regexFirstGroup)
 
 getFreqsProc :: IO (IO [Int])
 getFreqsProc = return $ fmap parseCpuInfo readCpuInfo
-  where readCpuInfo = chompFile "/proc/cpuinfo"
+  where readCpuInfo = readFile "/proc/cpuinfo"
         parseCpuInfo = map snd . removeHTDupes . getCpus
 
 toDouble = read :: String -> Double

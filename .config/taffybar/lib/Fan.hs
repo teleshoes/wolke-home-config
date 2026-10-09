@@ -1,7 +1,7 @@
 module Fan(fanW) where
 import Label (labelW, mainLabel)
 import Utils (fg, bg, padL, regexGroups,
-  readInt, readDouble, chompFile, readProc)
+  readInt, readDouble, readProc)
 import Data.Maybe (fromMaybe)
 import System.Process (system)
 

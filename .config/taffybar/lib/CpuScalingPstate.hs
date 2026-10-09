@@ -1,7 +1,7 @@
 module CpuScalingPstate(cpuScalingPstateW) where
 import Utils (
   fg, bg, padL, regexGroups,
-  readInt, collectInts, chompFile, readProc)
+  readInt, collectInts, readProc)
 import Label (labelW, mainLabel)
 
 import Control.Monad (void)

@@ -4,7 +4,7 @@ import Image (imageW)
 import Label (labelW, mainLabel)
 import Utils (
   eboxStyleWrapW, selectClosestImageDir, fg, getHome, regexGroups, chompAll, padL,
-  isRunning, readProc, chompFile)
+  isRunning, readProc)
 
 import GI.Gtk.Enums (
   Orientation(OrientationHorizontal))
@@ -17,6 +17,7 @@ import qualified Data.Map as M (fromList, lookup, member)
 
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnv)
+import System.IO (readFile)
 
 main = mainLabel $ unreadCountsMarkup
 thunderbirdW h = do
@@ -59,7 +60,7 @@ unreadCountsMarkup = do
   profileDir <- fmap chompAll $ readProc cmd
   let ucFile = profileDir ++ "/unread-counts"
 
-  unreadCounts <- chompFile ucFile
+  unreadCounts <- readFile ucFile
   let markup = formatUnreadCounts $ parseUnreadCounts unreadCounts
   return markup
 

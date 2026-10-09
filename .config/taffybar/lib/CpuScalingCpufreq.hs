@@ -1,7 +1,7 @@
 module CpuScalingCpufreq(cpuScalingCpufreqW, cpuScalingCpufreqGovW) where
 import Utils (
   fg, bg, padL, regexGroups,
-  readInt, collectInts, chompFile, readProc)
+  readInt, collectInts, readProc)
 import Label (labelW, mainLabel)
 
 import Control.Monad (void)
@@ -13,6 +13,7 @@ import Data.Functor ((<$>))
 import Data.List (sort)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Safe (headDef, lastDef)
+import System.IO (readFile)
 
 main = mainLabel cpuScalingCpufreqReader
 cpuScalingCpufreqW = labelW cpuScalingCpufreqReader
@@ -64,7 +65,7 @@ getDevices field = lines <$> readProc ["find", cpuDir, "-regex", regex]
 getCpuField :: String -> IO (Maybe String)
 getCpuField field = do
   devices <- getDevices field
-  vals <- mapM chompFile devices
+  vals <- mapM readFile devices
   return $ if allEq vals then listToMaybe vals else Nothing
 
 getCpuFieldInt :: String -> IO (Maybe Integer)
