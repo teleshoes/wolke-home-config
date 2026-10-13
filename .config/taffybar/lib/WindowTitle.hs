@@ -24,9 +24,12 @@ main = do
     print $ formatTitle profileTitle linesInBar winTitle
     sleep 1
 
-windowTitleW fontSizePt len lineCount = do
+windowTitleW fontSizePt len lineCount isWithIcons = do
   let config = defaultWindowsConfig
                { getActiveLabel = fmap (formatTitle len lineCount) $ runX11 getActiveWinTitle
+               , getActiveWindowIconPixbuf = if isWithIcons
+                                             then (getActiveWindowIconPixbuf defaultWindowsConfig)
+                                             else Nothing
                }
   windowsW <- windowsNew config
   lift $ widthCharScreenDPIWrapW fontSizePt len windowsW

@@ -26,6 +26,7 @@ getMachineTypeFile = getHomeFile "machine-type"
 data Profile = P { pName :: String --profile name
                  , barHt :: Int    --bar height in pixels
                  , wImgH :: Int    --workspace image height in pixels
+                 , wtIco :: Bool   --include active icon in window title
                  , space :: Int    --widget spacing in pixels
                  , wSepW :: Int    --widget separator width in pixels
                  , title :: Int    --window title length in characters
@@ -47,6 +48,7 @@ calculateProfile resconfig = P
   { pName = name resconfig
   , barHt = int $ barHeight
   , wImgH = int $ atMost (barHeight-12) $ scaleFHD_WQHD 24 28
+  , wtIco = True
   , space = int $ ifTiny 1 5
   , wSepW = int $ 2 + (scaleLAP_WALL 0 1) + (scaleFHD_WQHD 0 1)
   , title = int $ atLeast 5 $ atMost 30 $ scaleHD_FHD 20 30
@@ -107,7 +109,7 @@ main = do
       start = catMaybes
               [ Nothing
               , all $ W.workspaceSwitcherW $ wImgH profile
-              , all $ W.windowTitleW (fontP profile) (title profile) 2
+              , all $ W.windowTitleW (fontP profile) (title profile) 2 (wtIco profile)
               , all $ liftIO $ sep
               , all $ W.layoutWindowsW
               ]
