@@ -14,6 +14,7 @@ use Math::Polygon;
 sub getGpsReadings($$);
 sub ensureCalcGpsReadingsDistSpeed(@);
 sub calcSpeedMPH(@);
+sub calcSpeedMPerS(@);
 sub getCheckPointGpsReadings($@);
 sub combineCheckPoints(@);
 sub parseCourseConfigYaml();
@@ -461,18 +462,22 @@ sub ensureCalcGpsReadingsDistSpeed(@){
 
 sub calcSpeedMPH(@){
   my @gpsReadings = @_;
+  my $speedMPerS = calcSpeedMPerS(@gpsReadings);
+  my $speedMPH = ($speedMPerS/1000.0)*60*60 * $MILES_PER_KM;
+  return sprintf("%.2f", $speedMPH);
+}
+sub calcSpeedMPerS(@){
+  my @gpsReadings = @_;
   return 0 if @gpsReadings == 0;
 
   my $first = $gpsReadings[0];
   my $last = $gpsReadings[-1];
 
   my $distM = sum(map{$$_{dist}} @gpsReadings);
-
   my $elapsedS = int( ($$last{epochMillis} - $$first{epochMillis})/1000.0 + 0.5);
-  my $speedMPerS = $elapsedS == 0 ? 0 : $distM/$elapsedS;
 
-  my $speedMPH = ($speedMPerS/1000.0)*60*60 * $MILES_PER_KM;
-  return sprintf("%.2f", $speedMPH);
+  my $speedMPerS = $elapsedS == 0 ? 0 : $distM/$elapsedS;
+  return $speedMPerS;
 }
 
 sub getCheckPointGpsReadings($@){
