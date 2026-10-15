@@ -1,10 +1,12 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use feature 'try';
 use File::Basename qw(basename);
 use Date::Format qw(time2str);
 use Date::Parse qw(str2time);
 use List::Util qw(sum);
+use YAML::PP;
 
 use GIS::Distance;
 use Math::Polygon;
@@ -14,17 +16,21 @@ sub ensureCalcGpsReadingsDistSpeed(@);
 sub calcSpeedMPH(@);
 sub getCheckPointGpsReadings($@);
 sub combineCheckPoints(@);
-sub parseCourse($);
+sub parseCourseConfigYaml();
 sub parseCheckPointSegments($@);
 sub formatKMLGpsReadings($@);
 sub formatKMLCourse($);
 sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
-sub polygonLatLon(@);
 sub getPolygonObj($);
 sub isPointInPolygonObj($$);
+sub parseLatLon($);
+sub isHash($);
+sub isArr($);
 
 my $EXEC = basename $0;
+
+my $CONFIG_DIR = "$ENV{HOME}/.config/gpsinfo-tool";
 
 my $GPSINFO_BAK_DIR = "$ENV{HOME}/Code/sx/backup/backup-gpsinfo";
 my $GPSINFO_LOG_DIR = "$ENV{HOME}/.cache/harbour-gpsinfo/harbour-gpsinfo";
@@ -161,94 +167,8 @@ my $USAGE = "Usage:
 my $PRIORITY_LOW = "LOW";
 my $PRIORITY_MED = "MED";
 my $PRIORITY_HIGH = "HIGH";
+my $REGEX_OK_PRIORITY = "^($PRIORITY_LOW|$PRIORITY_MED|$PRIORITY_HIGH)\$";
 my %PRIORITY_RANK = ($PRIORITY_LOW => 1, $PRIORITY_MED => 2, $PRIORITY_HIGH => 3);
-
-my $COURSES = {
-  belmont => {
-    locations => {
-      NE_BRIDGE     => {lat=>'40.738874', lon=>'-73.343685', polygon => polygonLatLon(
-        '40.739214,-73.343892', '40.738150,-73.343699', '40.738223,-73.343394', '40.739265,-73.343609')},
-      STATE_PARK_HQ => {lat=>'40.734507', lon=>'-73.344047', polygon => polygonLatLon(
-        '40.734477,-73.344928', '40.733975,-73.344558', '40.734486,-73.342865', '40.735015,-73.343288')},
-      SWAN_COVE_SW  => {lat=>'40.734878', lon=>'-73.341137', polygon => polygonLatLon(
-        '40.734882,-73.341346', '40.734736,-73.340598', '40.735254,-73.340591', '40.735303,-73.341290')},
-
-      N_PARKING_LOT => {lat=>'40.739080', lon=>'-73.342272', polygon => polygonLatLon(
-        '40.739584,-73.342592', '40.738470,-73.342492', '40.738480,-73.341950', '40.739584,-73.342042')},
-      ALT_BRIDGE_NW => {lat=>'40.738356', lon=>'-73.344852', polygon => polygonLatLon(
-        '40.738544,-73.345378', '40.737742,-73.344289', '40.738130,-73.344042', '40.738757,-73.345151')},
-
-      QT_MI_1       => {lat=>'40.735850', lon=>'-73.344700', polygon => polygonLatLon(
-        '40.736081,-73.345448', '40.735526,-73.345377', '40.735632,-73.343579', '40.736275,-73.343659')},
-      QT_MI_2       => {lat=>'40.732764', lon=>'-73.342667', polygon => polygonLatLon(
-        '40.733331,-73.342839', '40.731992,-73.342945', '40.731974,-73.342354', '40.733287,-73.342372')},
-      QT_MI_3       => {lat=>'40.734760', lon=>'-73.341124', polygon => polygonLatLon(
-        '40.734856,-73.341360', '40.734700,-73.340568', '40.734461,-73.340627', '40.734647,-73.341417')},
-      QT_MI_4       => {lat=>'40.737171', lon=>'-73.341587', polygon => polygonLatLon(
-        '40.737828,-73.341469', '40.736815,-73.342291', '40.736474,-73.341649', '40.737537,-73.340947')},
-    },
-
-    lapTypes => {
-      START_LAKE_LOOP => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(${lapName}                  0.00       HIGH          0  NE_BRIDGE)],
-      ],
-      ALT_START_PRE_LOOP => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(START_PK_LOT                0.00       HIGH          0  N_PARKING_LOT)],
-        [qw(LOOP_START                121.51       HIGH          1  NE_BRIDGE)],
-      ],
-      ALT_END_POST_LOOP => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(NW_BR_TURN                114.09        LOW          1  ALT_BRIDGE_NW)],
-        [qw(NE_BR_EXIT                114.09        LOW          0  NE_BRIDGE)],
-        [qw(END_PK_LOT                121.51       HIGH          1  N_PARKING_LOT)],
-      ],
-      LAKE_LOOP_LAP => [ #1885.96m
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(Lap${lapName}_Seg1        402.34        MED          0  QT_MI_1)],
-        [qw(Lap${lapName}_Seg2        402.34        MED          0  QT_MI_2)],
-        [qw(Lap${lapName}_Seg3        402.34        MED          0  QT_MI_3)],
-        [qw(Lap${lapName}_Seg4        402.34        MED          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
-      ],
-      LAKE_LOOP_LAP_L3_5K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(Lap${lapName}_Seg1        402.34        MED          0  QT_MI_1)],
-        [qw(Lap${lapName}_Seg2        402.34        MED          0  QT_MI_2)],
-        [qw(5K_COMPLETE               423.40       HIGH          1  SWAN_COVE_SW)],
-        [qw(Lap${lapName}_Seg3        381.28        MED          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
-      ],
-      LAKE_LOOP_LAP_L6_10K => [
-        ### CHECKPOINT_NAME_TEMPLATE    DIST   PRIORITY  SEG_SPLIT  LOC_NAME
-        [qw(Lap${lapName}_Seg1        402.34        MED          0  QT_MI_1)],
-        [qw(10K_COMPLETE              167.86       HIGH          1  STATE_PARK_HQ)],
-        [qw(Lap${lapName}_Seg2        234.48        MED          0  QT_MI_2)],
-        [qw(Lap${lapName}_Seg3        402.34        MED          0  QT_MI_3)],
-        [qw(Lap${lapName}_Seg4        402.34        MED          0  QT_MI_4)],
-        [qw(COMPLETE_LAP_${lapName}   276.60       HIGH          1  NE_BRIDGE)],
-      ],
-    },
-
-    checkPointLaps => [
-      {lapName=>"START", lapType=>"START_LAKE_LOOP"},
-      {lapName=>"1",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"2",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"3",     lapType=>"LAKE_LOOP_LAP_L3_5K"},
-      {lapName=>"4",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"5",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"6",     lapType=>"LAKE_LOOP_LAP_L6_10K"},
-      {lapName=>"7",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"8",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"9",     lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"10",    lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"11",    lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"12",    lapType=>"LAKE_LOOP_LAP"},
-      {lapName=>"13",    lapType=>"LAKE_LOOP_LAP"},
-    ],
-  }
-};
 
 my $MODE_GET = "get";
 my $MODE_KML = "kml";
@@ -281,7 +201,7 @@ sub main(@){
       $mode = $MODE_CHECKPOINT;
     }elsif($arg =~ /^(--all|--all-checkpoints)$/){
       $$opts{allCheckpoints} = 1;
-    }elsif(defined $$COURSES{$arg} and not defined $courseName){
+    }elsif($arg =~ /^\w+$/ and not defined $courseName){
       $mode = $MODE_COURSE if not defined $mode;
       $courseName = $arg;
     }elsif(not defined $startTimeStr){
@@ -332,12 +252,19 @@ sub main(@){
     print formatKMLGpsReadings($documentName, @gpsReadings);
   }elsif($mode eq $MODE_COURSE_KML){
     die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
-    print formatKMLCourse($courseName);
+    my $config = parseCourseConfigYaml();
+    my $course = $$config{$courseName};
+    die "$USAGE\nERROR: unknown COURSE_NAME '$courseName'\n" if not defined $course;
+    print formatKMLCourse($course);
   }elsif($mode eq $MODE_COURSE){
     die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
+    my $config = parseCourseConfigYaml();
+    my $course = $$config{$courseName};
+    die "$USAGE\nERROR: unknown COURSE_NAME '$courseName'\n" if not defined $course;
+
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
 
-    my @checkPointGpsReadings = getCheckPointGpsReadings($courseName, @gpsReadings);
+    my @checkPointGpsReadings = getCheckPointGpsReadings($course, @gpsReadings);
     if(@checkPointGpsReadings == 0){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
     }
@@ -396,9 +323,13 @@ sub main(@){
     print $fmt;
   }elsif($mode eq $MODE_CHECKPOINT){
     die "$USAGE\nERROR: missing COURSE_NAME\n" if not defined $courseName;
+    my $config = parseCourseConfigYaml();
+    my $course = $$config{$courseName};
+    die "$USAGE\nERROR: unknown COURSE_NAME '$courseName'\n" if not defined $course;
+
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
 
-    my @checkPointGpsReadings = getCheckPointGpsReadings($courseName, @gpsReadings);
+    my @checkPointGpsReadings = getCheckPointGpsReadings($course, @gpsReadings);
 
     if(@checkPointGpsReadings > 0){
       my $lastCheckPoint = $checkPointGpsReadings[-1];
@@ -544,7 +475,7 @@ sub calcSpeedMPH(@){
 }
 
 sub getCheckPointGpsReadings($@){
-  my ($courseName, @gpsReadings) = @_;
+  my ($course, @gpsReadings) = @_;
 
   my @checkPointGpsReadings;
 
@@ -559,7 +490,7 @@ sub getCheckPointGpsReadings($@){
   my %completedTargets;
 
   my $courseProgressDist = 0;
-  my @checkPoints = parseCourse($courseName);
+  my @checkPoints = @{$$course{checkPoints}};
   for my $checkPoint(@checkPoints){
     $$checkPoint{polygonObj} = getPolygonObj($$checkPoint{polygon});
   }
@@ -662,53 +593,109 @@ sub combineCheckPoints(@){
   }
 }
 
-sub parseCourse($){
-  my ($courseName) = @_;
-  die "ERROR: unknown COURSE_NAME $courseName\n" if not defined $$COURSES{$courseName};
+sub parseCourseConfigYaml(){
+  my $config = {};
+  my @yamlFiles = grep {-f $_} glob "$CONFIG_DIR/*.yaml";
+  my $ypp = YAML::PP->new;
+  for my $yamlFile(@yamlFiles){
+    my @yamlDocs;
+    try{
+      @yamlDocs = $ypp->load_file($yamlFile);
+    }catch($err){
+      die "ERROR: failed to load $yamlFile\n$err\n";
+    }
 
-  my @checkPoints;
-  my %locByName = %{$$COURSES{$courseName}{locations}};
-  my %lapTypes = %{$$COURSES{$courseName}{lapTypes}};
+    if(@yamlDocs != 1){
+      die "ERROR: $yamlFile is invalid\n";
+    }
 
-  for my $lap(@{$$COURSES{$courseName}{checkPointLaps}}){
-    my $lapType = $$lap{lapType};
-    my $lapName = $$lap{lapName};
+    my $doc = $yamlDocs[0];
+    my $courses = $$doc{COURSES};
+    my $locationsLatLon = $$doc{LOCATIONS};
+    my $lapTypes = $$doc{LAP_TYPES};
 
-    die "ERROR: unknown lap type $lapType\n" if not defined $lapTypes{$lapType};
+    die "ERROR: $yamlFile missing COURSES\n" if not isHash($courses);
+    die "ERROR: $yamlFile missing LOCATIONS\n" if not isHash($locationsLatLon);
+    die "ERROR: $yamlFile missing LAP_TYPES\n" if not isHash($lapTypes);
 
-    for my $entry(@{$lapTypes{$lapType}}){
-      if(@$entry != 5
-        || $$entry[0] !~ /^\S+$/
-        || $$entry[1] !~ /^(\d+|\d*\.\d+)$/
-        || $$entry[2] !~ /^($PRIORITY_LOW|$PRIORITY_MED|$PRIORITY_HIGH)$/
-        || $$entry[3] !~ /^(0|1)$/
-        || $$entry[4] !~ /^(\w+)$/
-      ){
-        die "ERROR: invalid checkpoint entry '@$entry' in LAP_TYPE $lapType\n";
+    my $locations = {};
+    for my $locName(sort keys %$locationsLatLon){
+      my $loc = $$locationsLatLon{$locName};
+
+      my $latLonPoint = parseLatLon($$loc{latLonPoint});
+      die "ERROR: invalid 'lat,lon' for $locName\n" if not defined $latLonPoint;
+
+      my $latLonPolygonArr = $$loc{latLonPolygon};
+      die "ERROR: invalid polygon for $locName\n" if not isArr($latLonPolygonArr);
+
+      my @latLonPolygon = map {parseLatLon($_)} @$latLonPolygonArr;
+      for my $latLon(@latLonPolygon){
+        die "ERROR: invalid polygon for $locName\n" if not defined $latLon;
       }
 
-      my ($checkPointNameTemplate, $dist, $priority, $isSegmentSplit, $locName) = @$entry;
-      my $loc = $locByName{$locName};
-      if(not defined $loc){
-        die "ERROR: invalid location name $locName in course $courseName\n";
+      if(@latLonPolygon > 0){
+        #close the polygon
+        push @latLonPolygon, $latLonPolygon[0];
       }
 
-      my $checkPointName = $checkPointNameTemplate;
-      $checkPointName =~ s/\$\{lapName\}/$lapName/g;
+      $$locations{$locName} = {
+        lat     => $$latLonPoint{lat},
+        lon     => $$latLonPoint{lon},
+        polygon => [@latLonPolygon],
+      }
+    }
 
-      push @checkPoints, {
-        name           => $checkPointName,
-        lat            => $$loc{lat},
-        lon            => $$loc{lon},
-        polygon        => $$loc{polygon},
-        dist           => $dist,
-        priority       => $priority,
-        isSegmentSplit => $isSegmentSplit,
+    for my $courseName(sort keys %$courses){
+      my $laps = $$courses{$courseName};
+      die "ERROR: $yamlFile $courseName invalid\n" if not isArr($laps);
+
+      $$config{$courseName} = {
+        courseName  => $courseName,
+        locations   => $locations,
+        checkPoints => [],
       };
+
+      for my $lap(@$laps){
+        my $lapName = $$lap{lapName};
+        die "ERROR: $yamlFile $courseName invalid\n" if not defined $lapName;
+
+        my $lapTypeName = $$lap{lapType};
+        my $lapType = $$lapTypes{$lapTypeName};
+        die "ERROR: $yamlFile invalid lap type $lapTypeName\n" if not isArr($lapType);
+
+        for my $cpArr(@$lapType){
+          die "ERROR: $yamlFile invalid lap type $lapTypeName\n" if not isArr($cpArr);
+          die "ERROR: $yamlFile invalid lap type $lapTypeName\n" if @$cpArr != 5;
+
+          my ($checkPointNameTemplate, $dist, $priority, $isSegmentSplit, $locName) = @$cpArr;
+
+          my $checkPointName = $checkPointNameTemplate;
+          $checkPointName =~ s/\$\{lapName\}/$lapName/g;
+
+          $isSegmentSplit = $isSegmentSplit ? 1 : 0;
+
+          die "ERROR: invalid check point name '$checkPointName'\n" if $checkPointName !~ /^\w+$/;
+          die "ERROR: invalid distance for $lapTypeName\n" if $dist !~ /^(\d+|\d*\.\d+)/;
+          die "ERROR: invalid priority for $lapTypeName\n" if $priority !~ $REGEX_OK_PRIORITY;
+
+          my $loc = $$locations{$locName};
+          die "ERROR: invalid location '$locName'\n" if not isHash($loc);
+
+          push @{$$config{$courseName}{checkPoints}}, {
+            name           => $checkPointName,
+            lat            => $$loc{lat},
+            lon            => $$loc{lon},
+            polygon        => $$loc{polygon},
+            dist           => $dist,
+            priority       => $priority,
+            isSegmentSplit => $isSegmentSplit,
+          };
+        }
+      }
     }
   }
 
-  return @checkPoints;
+  return $config;
 }
 
 sub parseCheckPointSegments($@){
@@ -762,11 +749,11 @@ sub formatKMLGpsReadings($@){
 }
 
 sub formatKMLCourse($){
-  my ($courseName) = @_;
+  my ($course) = @_;
 
-  my %locations = %{$$COURSES{$courseName}{locations}};
+  my %locations = %{$$course{locations}};
 
-  my $documentName = "course-$courseName";
+  my $documentName = "course-$$course{courseName}";
   my @points;
   my @polygons;
   for my $name(sort keys %locations){
@@ -851,24 +838,6 @@ sub formatDurHMS($){
   return sprintf("%dh%02dm%02ds", $h, $m, $s);
 }
 
-sub polygonLatLon(@){
-  my (@latLonStrs) = @_;
-  my $polygon = [];
-  for my $latLonStr(@latLonStrs){
-    if($latLonStr !~ /^(-?\d+\.\d+),(-?\d+\.\d+)$/){
-      die "ERROR: malformed lat/lon pair '$latLonStr'\n";
-    }
-    push @$polygon, {lat=>"$1", lon=>"$2"};
-  }
-
-  if(@latLonStrs > 0){
-    #close the polygon
-    push @$polygon, $$polygon[0];
-  }
-
-  return $polygon;
-}
-
 sub getPolygonObj($){
   my ($polygonPoints) = @_;
 
@@ -887,6 +856,26 @@ sub isPointInPolygonObj($$){
 
   my $pointXY = [$$point{lon}, $$point{lat}];
   return $polygonObj->contains($pointXY);
+}
+
+sub parseLatLon($){
+  my ($latLonStr) = @_;
+  if(not defined $latLonStr){
+    return undef;
+  }elsif($latLonStr =~ /^(-?\d+|-?\d+\.\d+),(-?\d+|-?\d+\.\d+)$/){
+    return {lat => $1, lon => $2};
+  }else{
+    return undef;
+  }
+}
+
+sub isHash($){
+  my ($ref) = @_;
+  return defined $ref && ref($ref) eq 'HASH' ? 1 : 0;
+}
+sub isArr($){
+  my ($ref) = @_;
+  return defined $ref && ref($ref) eq 'ARRAY' ? 1 : 0;
 }
 
 &main(@ARGV);
