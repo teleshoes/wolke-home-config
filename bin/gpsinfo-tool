@@ -619,10 +619,21 @@ sub parseCourseConfigYaml(){
     my $courses = $$doc{COURSES};
     my $locationsLatLon = $$doc{LOCATIONS};
     my $lapTypes = $$doc{LAP_TYPES};
+    my $areaPolygonLatLon = $$doc{AREA_POLYGON_LAT_LON};
 
     die "ERROR: $yamlFile missing COURSES\n" if not isHash($courses);
     die "ERROR: $yamlFile missing LOCATIONS\n" if not isHash($locationsLatLon);
     die "ERROR: $yamlFile missing LAP_TYPES\n" if not isHash($lapTypes);
+    die "ERROR: $yamlFile missing AREA_POLYGON_LAT_LON\n" if not isArr($areaPolygonLatLon);
+
+    my @areaPolygon = map {parseLatLon($_)} @$areaPolygonLatLon;
+    for my $latLon(@areaPolygon){
+      die "ERROR: invalid AREA_POLYGON_LAT_LON for $yamlFile\n" if not defined $latLon;
+    }
+    if(@areaPolygon > 0){
+      #close the polygon
+      push @areaPolygon, $areaPolygon[0];
+    }
 
     my $locations = {};
     for my $locName(sort keys %$locationsLatLon){
@@ -657,6 +668,7 @@ sub parseCourseConfigYaml(){
 
       $$config{$courseName} = {
         courseName  => $courseName,
+        areaPolygon => [@areaPolygon],
         locations   => $locations,
         checkPoints => [],
       };
@@ -759,9 +771,17 @@ sub formatKMLCourse($){
 
   my %locations = %{$$course{locations}};
 
-  my $documentName = "course-$$course{courseName}";
+  my $courseName = $$course{courseName};
+  my $documentName = "course-$courseName";
   my @points;
   my @polygons;
+
+  push @polygons, {
+    name=>"area_polygon_$courseName",
+    id=>"area_polygon_$courseName",
+    points=>$$course{areaPolygon},
+  };
+
   for my $name(sort keys %locations){
     push @points, {
       name=>$name, id=>$name, lat=>$locations{$name}{lat}, lon=>$locations{$name}{lon}
@@ -846,6 +866,9 @@ sub formatDurHMS($){
 
 sub ensureCoursePolygonObj($){
   my ($course) = @_;
+  if(not defined $$course{areaPolygonObj}){
+    $$course{areaPolygonObj} = getPolygonObj($$course{areaPolygon});
+  }
   for my $checkPoint(@{$$course{checkPoints}}){
     if(not defined $$checkPoint{polygonObj}){
       $$checkPoint{polygonObj} = getPolygonObj($$checkPoint{polygon});
