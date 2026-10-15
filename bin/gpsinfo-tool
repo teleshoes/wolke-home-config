@@ -22,6 +22,7 @@ sub formatKMLGpsReadings($@);
 sub formatKMLCourse($);
 sub formatKMLPointsPolygons($$$);
 sub formatDurHMS($);
+sub ensureCoursePolygonObj($);
 sub getPolygonObj($);
 sub isPointInPolygonObj($$);
 sub parseLatLon($);
@@ -485,15 +486,14 @@ sub getCheckPointGpsReadings($@){
 
   my $firstReading = $gpsReadings[0];
 
+  ensureCoursePolygonObj($course);
+
   my $gis = GIS::Distance->new();
 
   my %completedTargets;
 
   my $courseProgressDist = 0;
   my @checkPoints = @{$$course{checkPoints}};
-  for my $checkPoint(@checkPoints){
-    $$checkPoint{polygonObj} = getPolygonObj($$checkPoint{polygon});
-  }
 
   my $startCPIdx = 0;
   for(my $i=0; $i<@gpsReadings; $i++){
@@ -836,6 +836,15 @@ sub formatDurHMS($){
   my $m = int($t / 60.0) % 60;
   my $s = int($t) % 60;
   return sprintf("%dh%02dm%02ds", $h, $m, $s);
+}
+
+sub ensureCoursePolygonObj($){
+  my ($course) = @_;
+  for my $checkPoint(@{$$course{checkPoints}}){
+    if(not defined $$checkPoint{polygonObj}){
+      $$checkPoint{polygonObj} = getPolygonObj($$checkPoint{polygon});
+    }
+  }
 }
 
 sub getPolygonObj($){
