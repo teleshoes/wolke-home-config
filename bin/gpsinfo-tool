@@ -15,6 +15,7 @@ sub getGpsReadings($$);
 sub ensureCalcGpsReadingsDistSpeed(@);
 sub calcSpeedMPH(@);
 sub calcSpeedMPerS(@);
+sub detectCourseStartForGpsReadings($@);
 sub getCheckPointGpsReadings($@);
 sub combineCheckPoints(@);
 sub parseCourseConfigYaml();
@@ -60,6 +61,7 @@ my $USAGE = "Usage:
   $EXEC [OPTS] -w|--workout COURSE_NAME START_TIME [END_TIME]
     -get <GPS_READING>s as in:
       $EXEC --get START_TIME END_TIME
+    -re-calculate START_TIME and END_TIME if --detect is given
     -for each GPS_READING:
       -check if each <GPS_READING> is at or near the next few CHECK_POINTs
         NOTE: -each CHECK_POINT is reached at most once, and in order
@@ -164,6 +166,27 @@ my $USAGE = "Usage:
   OPTS
     --all | --all-checkpoints
       ignore is-segment-split and always split segments at all checkpoints
+
+    -d | --detect | --detect-start
+      change START_TIME and END_TIME to match checkpoints of actual gps readings
+        e.g.: `$EXEC --course COURSE_NAME YYYY-mm-dd`
+      -find the START_CHECK_POINT and a MID_CHECK_POINT for the course
+      -find start of first period at mid-checkpoint
+        -assume this checkpoint is during the first lap
+      -go backward from then to find END_OF_PERIOD at start-checkpoint for first-lap
+        -this is the last time in start-checkpoint before starting the first lap
+      -go backward from then to find START_OF_PERIOD at start-checkpoint for first-lap
+        -this is the first time in start-checkpoint before starting the first lap
+        -start of first lap is between START_OF_PERIOD and END_OF_PERIOD
+      -calculate distances for readings between START_OF_PERIOD and END_OF_PERIOD
+        -also include a few readings before and after
+      -find last time standing still between START_OF_PERIOD and END_OF_PERIOD
+        -standing still is defined as speed <= 0.1m/s over 3 readings ending with this one
+        -if no such stillness found, use the last reading in the start-checkpoint (END_OF_PERIOD)
+      -use that last reading as START_TIME
+      -calculate END_TIME as START_TIME + 12h
+      -find the last reading within the region of the entire course area
+      -use that reading as END_TIME
 ";
 
 my $PRIORITY_LOW = "LOW";
@@ -180,7 +203,8 @@ my $MODE_CHECKPOINT = "checkpoint";
 
 sub main(@){
   my $opts = {
-    allCheckpoints => 0,
+    allCheckpoints    => 0,
+    detectCourseStart => 0,
   };
   my $mode = undef;
   my $startTimeStr = undef;
@@ -203,6 +227,8 @@ sub main(@){
       $mode = $MODE_CHECKPOINT;
     }elsif($arg =~ /^(--all|--all-checkpoints)$/){
       $$opts{allCheckpoints} = 1;
+    }elsif($arg =~ /^(-d|--detect)$/){
+      $$opts{detectCourseStart} = 1;
     }elsif($arg =~ /^\w+$/ and not defined $courseName){
       $mode = $MODE_COURSE if not defined $mode;
       $courseName = $arg;
@@ -267,6 +293,42 @@ sub main(@){
 
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
 
+    if($$opts{detectCourseStart}){
+      my $courseStartInfo = detectCourseStartForGpsReadings($course, @gpsReadings);
+
+      if(defined $courseStartInfo){
+        $startEpochMillis = $$courseStartInfo{startMillis};
+        $startEpoch = int($startEpochMillis / 1000.0 + 0.5);
+        $startTimeStr = time2str('%Y-%m-%dT%H:%M:%S', $startEpoch);
+
+        $endEpochMillis = $$courseStartInfo{endMillis};
+        $endEpoch = int($endEpochMillis / 1000.0 + 0.5);
+        $endTimeStr = time2str('%Y-%m-%dT%H:%M:%S', $endEpoch);
+
+        my $skippedPreStartReadings = 0;
+        while(@gpsReadings > 0 and ${$gpsReadings[0]}{epochMillis} < $startEpochMillis){
+          shift @gpsReadings;
+          $skippedPreStartReadings++;
+        }
+
+        my $skippedPostEndReadings = 0;
+        while(@gpsReadings > 0 and ${$gpsReadings[-1]}{epochMillis} > $endEpochMillis){
+          pop @gpsReadings;
+          $skippedPostEndReadings++;
+        }
+
+        printf "COURSE INFO DETECTED:\n  %s\n  %s\n  %s\n",
+          $courseName,
+          $startTimeStr,
+          $endTimeStr,
+        ;
+        printf "\n(skipped %d pre-start and %d post-end readings)\n",
+          $skippedPreStartReadings,
+          $skippedPostEndReadings,
+        ;
+      }
+    }
+
     my @checkPointGpsReadings = getCheckPointGpsReadings($course, @gpsReadings);
     if(@checkPointGpsReadings == 0){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
@@ -283,7 +345,7 @@ sub main(@){
 
     my $targetDtmDurMillis = $endEpochMillis - $startEpochMillis;
     my $targetDtmDurFracS = sprintf "%.2f", $targetDtmDurMillis / 1000.0;
-    if($gpsTotalDurFracS ne $targetDtmDurFracS){
+    if(not $$opts{detectCourseStart} and $gpsTotalDurFracS ne $targetDtmDurFracS){
       #check gps reading times within 0.01s of indicated start/end params
       print STDERR "\n\n\nWARNING: gps checkpoint duration total does not match START/END\n\n\n";
     }
@@ -485,6 +547,117 @@ sub calcSpeedMPerS(@){
 
   my $speedMPerS = $elapsedS == 0 ? 0 : $distM/$elapsedS;
   return $speedMPerS;
+}
+
+sub detectCourseStartForGpsReadings($@){
+  my ($course, @gpsReadings) = @_;
+
+  ensureCoursePolygonObj($course);
+
+  my $courseName = $$course{courseName};
+  my @checkPoints = @{$$course{checkPoints}};
+  if(@checkPoints < 2){
+    die "ERROR: invalid lap checkpoints for $courseName\n";
+  }
+  my $startCP = $checkPoints[0];
+  my $midCP = $checkPoints[1];
+
+  #1) find start of first period at mid-checkpoint (presumed to be during the first lap)
+  my $firstLapMidCPBeginIndex = undef;
+  for(my $i=0; $i<@gpsReadings; $i++){
+    my $gpsReading = $gpsReadings[$i];
+    if(isPointInPolygonObj($gpsReading, $$midCP{polygonObj})){
+      $firstLapMidCPBeginIndex = $i;
+      last;
+    }
+  }
+
+  #2) go backward from then to find end of period at start-checkpoint for first-lap
+  my $firstLapStartCPEndIndex = undef;
+  if(defined $firstLapMidCPBeginIndex){
+    #go backwards from start of mid-checkpoint to end of start-checkpoint
+    for(my $i=$firstLapMidCPBeginIndex; $i>=0; $i--){
+      my $gpsReading = $gpsReadings[$i];
+      if(isPointInPolygonObj($gpsReading, $$startCP{polygonObj})){
+        $firstLapStartCPEndIndex = $i;
+        last;
+      }
+    }
+  }
+
+  #3) go backward from then to find start of period at start-checkpoint for first-lap
+  my $firstLapStartCPBeginIndex = undef;
+  if(defined $firstLapStartCPEndIndex){
+    #go backwards from end of start-checkpoint to beginning of start-checkpoint
+    for(my $i=$firstLapStartCPEndIndex; $i>=0; $i--){
+      my $gpsReading = $gpsReadings[$i];
+      if(isPointInPolygonObj($gpsReading, $$startCP{polygonObj})){
+        $firstLapStartCPBeginIndex = $i;
+      }else{
+        #stop once outside of start-checkpoint
+        last;
+      }
+    }
+  }
+
+  #4) calculate distances for readings near the start-checkpoint for first-lap
+  if(defined $firstLapStartCPBeginIndex and defined $firstLapStartCPEndIndex){
+    my $startIndex = $firstLapStartCPBeginIndex - 5;
+    my $endIndex = $firstLapStartCPEndIndex + 5;
+    $startIndex = 0 if $startIndex < 0;
+    $endIndex = $#gpsReadings if $endIndex > $#gpsReadings;
+
+    my @nearFirstLapStartCPReadings = @gpsReadings[$startIndex .. $endIndex];
+
+    ensureCalcGpsReadingsDistSpeed(@nearFirstLapStartCPReadings);
+  }
+
+  #5) find the last region with negligible speed (<0.1 m/s) before leaving start-checkpoint, if any
+  my $runStartGpsReading = undef;
+  if(defined $firstLapStartCPBeginIndex and defined $firstLapStartCPEndIndex){
+    my $speedCutoffMPerS = 0.1;
+    for(my $i=$firstLapStartCPEndIndex; $i>=$firstLapStartCPBeginIndex; $i--){
+      #any reading in the start-checkpoint is acceptable
+      $runStartGpsReading = $gpsReadings[$i];
+
+      my $gpsReading = $gpsReadings[$i];
+      my $priorIndex = $i-2;
+      $priorIndex = 0 if $priorIndex < 0;
+
+      my @priorReadings = @gpsReadings[$priorIndex .. $i];
+      if(@priorReadings >= 3){
+        my $speedMPerS = calcSpeedMPerS(@priorReadings);
+        if($speedMPerS <= $speedCutoffMPerS){
+          #not moving or moving with negligible speed at this time
+          last;
+        }
+      }
+    }
+  }
+
+  #6) identify the last gps reading in the entire course area within 12h of start
+  my $runEndGpsReading = undef;
+  if(defined $runStartGpsReading){
+    my $cutoffMillis = $$runStartGpsReading{epochMillis} + 12*60*60*1000;
+    for(my $i=$#gpsReadings; $i>=0; $i--){
+      my $gpsReading = $gpsReadings[$i];
+      next if $$gpsReading{epochMillis} > $cutoffMillis;
+      if(isPointInPolygonObj($gpsReading, $$course{areaPolygonObj})){
+        $runEndGpsReading = $gpsReading;
+        last;
+      }
+    }
+  }
+
+  if(defined $runStartGpsReading and defined $runEndGpsReading){
+    return {
+      courseName  => $courseName,
+      startMillis => $$runStartGpsReading{epochMillis},
+      endMillis   => $$runEndGpsReading{epochMillis},
+    };
+  }
+
+  return undef;
 }
 
 sub getCheckPointGpsReadings($@){
