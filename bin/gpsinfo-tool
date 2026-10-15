@@ -90,7 +90,7 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] --checkpoint|--check-point|--run|--race COURSE_NAME START_TIME [END_TIME]
     -get all <CHECK_POINT_GPS_READING>s as in:
-      $EXEC --course COURSE_NAME <START_TIME> \"\$(date)\"
+      $EXEC --course COURSE_NAME <START_TIME> <END_TIME>
     -skip the most-recent <CHECK_POINT_GPS_READING> if it is not fully reached
       -remove the last <CHECK_POINT_GPS_READING> if there are no <GPS_READING>s after it
         (the next <GPS_READING> may be closer to the <CHECK_POINT>)
@@ -115,7 +115,7 @@ my $USAGE = "Usage:
 
   $EXEC [OPTS] START_TIME [END_TIME]
   $EXEC [OPTS] -g|--get START_TIME [END_TIME]
-    -if not given, use current date/time for END_TIME
+    -if not given, use 'START_TIME + 36h' for END_TIME
     -parse date range as seconds since epoch:
       -parse START_TIME as a date format string into START_EPOCH_S
       -parse END_TIME as a date format string into END_EPOCH_S
@@ -223,16 +223,16 @@ sub main(@){
   if($mode =~ /^($MODE_GET|$MODE_KML|$MODE_COURSE|$MODE_CHECKPOINT)$/){
     die "$USAGE\nERROR: missing START_TIME\n" if not defined $startTimeStr;
 
-    if(not defined $endTimeStr){
-      $endTimeStr = `date --iso=s`;
-      chomp $endTimeStr
-    }
-
     $startEpoch = str2time($startTimeStr);
-    $endEpoch = str2time($endTimeStr);
-    if(not defined $startEpoch or not defined $endEpoch){
-      die "ERROR: date/time parsing failed for START_TIME/END_TIME\n";
+    die "ERROR: date/time parsing failed for START_TIME\n" if not defined $startEpoch;
+
+    if(defined $endTimeStr){
+      $endEpoch = str2time($endTimeStr);
+    }else{
+      $endEpoch = $startEpoch + 36*60*60;
+      $endTimeStr = time2str('%Y-%m-%dT%H:%M:%S', $endEpoch);
     }
+    die "ERROR: date/time parsing failed for END_TIME\n" if not defined $endEpoch;
 
     $startEpochMillis = int($startEpoch*1000.0 + 0.5);
     $endEpochMillis = int($endEpoch*1000.0 + 0.5);
@@ -250,6 +250,7 @@ sub main(@){
     }
   }elsif($mode eq $MODE_KML){
     my @gpsReadings = getGpsReadings($startEpochMillis, $endEpochMillis);
+
     my $documentName = time2str("gpsinfo_%Y_%m_%d_%H_%M_%S", $startEpoch);
     print formatKMLGpsReadings($documentName, @gpsReadings);
   }elsif($mode eq $MODE_COURSE_KML){
