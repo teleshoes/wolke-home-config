@@ -98,7 +98,7 @@ prettyKeyBindList pbs
   | otherwise = prettyBindList pbs
   where
     bs = map unPBind pbs
-    m = fst . head $ bs
+    m = maybe 0 fst (listToMaybe bs)
     areKs ks = all (== m) (map fst bs) && map snd bs == ks
     showPat s = prettyMod m ++ " + " ++ s
 
