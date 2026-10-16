@@ -186,7 +186,7 @@ myEventHook (ClientMessageEvent _ _ _ dpy win typ dat) = do
 
       action = head dat
 
-  when (typ == state && (fromIntegral fullsc) `elem` tail dat) $ do
+  when (typ == state && (fromIntegral fullsc) `elem` (drop 1) dat) $ do
     when (action == add || (action == toggle && not isFull)) $ do
          io $ changeProperty32 dpy win state ptype propModeReplace [fromIntegral fullsc]
          fullFloat win

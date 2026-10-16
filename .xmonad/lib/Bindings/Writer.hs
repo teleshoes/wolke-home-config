@@ -95,12 +95,12 @@ bindingPaths = go . execWriter
 prettyBindingsFlat :: BW ((KeyMask, KeySym), b) -> String
 prettyBindingsFlat = concatMap format . bindingPaths
   where
-    format ((m,k),d) = concat [prettyMod m," ",prettyKey k," ",init.tail.show.tail$d,"\n"]
+    format ((m,k),d) = concat [prettyMod m," ",prettyKey k," ",init.(drop 1).show.(drop 1)$d,"\n"]
 
 prettyBindingsFlatHex :: Integral a => BW ((KeyMask, a), b) -> String
 prettyBindingsFlatHex = concatMap format . bindingPaths
   where
-    format ((m,k),d) = concat [prettyMod m," ",toHex k," ",init.tail.show.tail$d,"\n"]
+    format ((m,k),d) = concat [prettyMod m," ",toHex k," ",init.(drop 1).show.(drop 1)$d,"\n"]
     toHex = (printf "0x%08x" :: Integer -> String) . fromIntegral
 
 infixr 0 @@, #
