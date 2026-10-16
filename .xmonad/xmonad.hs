@@ -177,20 +177,20 @@ myEventHook (ClientMessageEvent _ _ _ dpy win typ dat) = do
   isFull <- runQuery isFullscreen win
 
   -- Constants for the _NET_WM_STATE protocol
-  let remove = 0
-      add = 1
-      toggle = 2
+  let action = head dat
+      isActionRemove = action == 0
+      isActionAdd    = action == 1
+      isActionToggle = action == 2
 
       -- The ATOM property type for changeProperty
       ptype = 4
 
-      action = head dat
 
   when (typ == state && (fromIntegral fullsc) `elem` (drop 1) dat) $ do
-    when (action == add || (action == toggle && not isFull)) $ do
+    when (isActionAdd || (isActionToggle && not isFull)) $ do
          io $ changeProperty32 dpy win state ptype propModeReplace [fromIntegral fullsc]
          fullFloat win
-    when (head dat == remove || (action == toggle && isFull)) $ do
+    when (isActionRemove || (isActionToggle && isFull)) $ do
          io $ changeProperty32 dpy win state ptype propModeReplace []
          tileWin win
 
