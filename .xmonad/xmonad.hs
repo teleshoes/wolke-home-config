@@ -38,6 +38,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.Writer (execWriter, tell)
 import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
+import Data.Maybe (listToMaybe)
 import Data.Monoid (All(..))
 import Data.Function ((&))
 
@@ -177,10 +178,10 @@ myEventHook (ClientMessageEvent _ _ _ dpy win typ dat) = do
   isFull <- runQuery isFullscreen win
 
   -- Constants for the _NET_WM_STATE protocol
-  let action = head dat
-      isActionRemove = action == 0
-      isActionAdd    = action == 1
-      isActionToggle = action == 2
+  let action = listToMaybe dat
+      isActionRemove = maybe False (==0) action
+      isActionAdd    = maybe False (==1) action
+      isActionToggle = maybe False (==2) action
 
       -- The ATOM property type for changeProperty
       ptype = 4
