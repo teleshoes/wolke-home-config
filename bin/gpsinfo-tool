@@ -16,7 +16,7 @@ sub ensureCalcGpsReadingsDistSpeed(@);
 sub calcSpeedMPH(@);
 sub calcSpeedMPerS(@);
 sub detectCourseStartForGpsReadings($@);
-sub getCheckPointGpsReadings($@);
+sub getCheckPointGpsReadings($$@);
 sub combineCheckPoints(@);
 sub parseCourseConfigYaml();
 sub parseCheckPointSegments($@);
@@ -40,8 +40,6 @@ my $GPSINFO_LOG_DIR = "$ENV{HOME}/.cache/harbour-gpsinfo/harbour-gpsinfo";
 
 my $MILES_PER_KM = 0.62137119;
 
-my $MAX_SKIPPED_CHECKPOINTS = 2;
-
 my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
@@ -63,17 +61,14 @@ my $USAGE = "Usage:
       $EXEC --get START_TIME END_TIME
     -re-calculate START_TIME and END_TIME if --detect is given
     -for each GPS_READING:
-      -check if each <GPS_READING> is at or near the next few CHECK_POINTs
-        NOTE: -each CHECK_POINT is reached at most once, and in order
-              -up to $MAX_SKIPPED_CHECKPOINTS can be 'skipped', if the next CHECK_POINT is acheived
-              -skipped CHECK_POINTS are assumed to also be achieved on the way
-              -skipped CHECK_POINTS will not be listed separately, but will have their distance combined
-      -check if <GPS_READING> within the bounding polygon for one of the next <CHECK_POINT>s:
-        -if <GPS_READING> is not within the polygon for the next few <CHECK_POINT>s, skip <GPS_READING>
+      -check if each <GPS_READING> is at or near the next CHECK_POINT (or next few CHECK_POINTS)
+        -optionally skip over up to MAX_SKIPPED_CHECKPOINTS, see --max-skip (default=2)
+        -each CHECK_POINT is reached at most once, and in order
+      -check if <GPS_READING> within the bounding polygon for one of the next <CHECK_POINT>(s):
+        -if <GPS_READING> is not within the polygon for the <CHECK_POINT>(s), skip <GPS_READING>
         -if a <CHECK_POINT> is achieved:
-          -combine the (up to $MAX_SKIPPED_CHECKPOINTS) <SKIPPED_CHECK_POINT>s into achieved <CHECK_POINT>
-            -add the CHECK_POINT.DISTANCE for the <SKIPPED_CHECK_POINT>s
-            -omit the skipped <SKIPPED_CHECK_POINT>s
+          -if --max-skip is given:
+            -combine the (up to <MAX_SKIPPED_CHECKPOINTS>) <SKIPPED_CHECK_POINT>s into achieved <CHECK_POINT>
           -select closest GPS_READING
             -gather all adjacent <GPS_READING>s that are also within the <CHECK_POINT> polygon
             -calculate the DIST as the haversine distance in meters to <CHECK_POINT>
@@ -187,6 +182,17 @@ my $USAGE = "Usage:
       -calculate END_TIME as START_TIME + 12h
       -find the last reading within the region of the entire course area
       -use that reading as END_TIME
+
+   --max-skip=MAX_SKIPPED_CHECKPOINTS
+     -when checking if the next <CHECK_POINT> is achieved,
+       allow skipping over up to <MAX_SKIPPED_CHECKPOINTS> other <CHECK_POINT>s
+     -each CHECK_POINT is reached at most once, and in order
+     -skipped CHECK_POINTS are assumed to also be achieved on the way
+     -skipped CHECK_POINTS will not be listed separately, but will be combined
+     -combine the <SKIPPED_CHECK_POINT>s into the achieved <CHECK_POINT>
+        -add the CHECK_POINT.DISTANCE for the <SKIPPED_CHECK_POINT>s
+        -omit the skipped <SKIPPED_CHECK_POINT>s
+     (default=2)
 ";
 
 my $PRIORITY_LOW = "LOW";
@@ -203,8 +209,9 @@ my $MODE_CHECKPOINT = "checkpoint";
 
 sub main(@){
   my $opts = {
-    allCheckpoints    => 0,
-    detectCourseStart => 0,
+    allCheckpoints        => 0,
+    detectCourseStart     => 0,
+    maxSkippedCheckPoints => 2,
   };
   my $mode = undef;
   my $startTimeStr = undef;
@@ -225,6 +232,8 @@ sub main(@){
       $mode = $MODE_COURSE;
     }elsif($arg =~ /^(--checkpoint|--check-point|--run|--race)$/){
       $mode = $MODE_CHECKPOINT;
+    }elsif($arg =~ /^--max-skipped=(\d+)$/){
+      $$opts{maxSkippedCheckPoints} = $1;
     }elsif($arg =~ /^(--all|--all-checkpoints)$/){
       $$opts{allCheckpoints} = 1;
     }elsif($arg =~ /^(-d|--detect)$/){
@@ -329,7 +338,7 @@ sub main(@){
       }
     }
 
-    my @checkPointGpsReadings = getCheckPointGpsReadings($course, @gpsReadings);
+    my @checkPointGpsReadings = getCheckPointGpsReadings($opts, $course, @gpsReadings);
     if(@checkPointGpsReadings == 0){
       die "ERROR: no checkpoints reached for course=$courseName between $startTimeStr and $endTimeStr\n";
     }
@@ -660,8 +669,8 @@ sub detectCourseStartForGpsReadings($@){
   return undef;
 }
 
-sub getCheckPointGpsReadings($@){
-  my ($course, @gpsReadings) = @_;
+sub getCheckPointGpsReadings($$@){
+  my ($opts, $course, @gpsReadings) = @_;
 
   my @checkPointGpsReadings;
 
@@ -688,7 +697,7 @@ sub getCheckPointGpsReadings($@){
 
     my $checkPoint = undef;
     for(my $endCPIdx=$startCPIdx; $endCPIdx<@checkPoints; $endCPIdx++){
-      if($endCPIdx > $startCPIdx + $MAX_SKIPPED_CHECKPOINTS){
+      if($endCPIdx > $startCPIdx + $$opts{maxSkippedCheckPoints}){
         #only permit 'skipping' up to MAX_SKIPPED_CHECKPOINTS checkpoints
         last;
       }
