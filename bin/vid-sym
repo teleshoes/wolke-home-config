@@ -1,0 +1,90 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Time::HiRes qw(stat);
+use File::lchown qw(lutimes);
+
+sub touchByRef($$);
+
+my $EXEC = basename $0;
+
+my $VID_DIR = "/media/videos";
+
+my $CATEGORIES = {
+  movies => [qw(/media/movies1)],
+  series => [qw(/media/series1 /media/series2)],
+};
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC
+    update $VID_DIR symlink categories
+";
+
+sub main(@){
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  for my $category(sort keys %$CATEGORIES){
+    my @drives = @{$$CATEGORIES{$category}};
+    my $dir = "$VID_DIR/$category";
+    my @entries = grep {-e $_} glob "$dir/*";
+    for my $entry(@entries){
+      if(-l $entry){
+        my $linkSrc = readlink $entry;
+        my $found = 0;
+        for my $drive(@drives){
+          if($linkSrc =~ /^$drive/){
+            $found = 1;
+            last;
+          }
+        }
+        if(not $found){
+          die "ERROR: mismatched symlink found\n$entry => $linkSrc\n";
+        }
+        system "rm", $entry;
+      }else{
+        die "ERROR: non-symlink file found\n$entry\n";
+      }
+    }
+    @entries = grep {-e $_} glob "$dir/*";
+    if(@entries > 0){
+      die "ERROR: entries remain after deleting symlinks\n@entries\n";
+    }
+    for my $drive(@drives){
+      my $driveDir = "$drive/$category";
+      my @driveEntries = grep {-e $_} glob "$driveDir/*";
+      for my $entry(@driveEntries){
+        die "ERROR: symlink found in source drive\n$entry" if -l $entry;
+        die "ERROR: non-dir entry found\n$entry" if not -d $entry;
+
+        my $entryName = basename $entry;
+        my $symSrc = "$driveDir/$entryName/";
+        my $symDest = "$dir/$entryName";
+        symlink $symSrc, $symDest;
+        touchByRef($symDest, $symSrc);
+      }
+    }
+  }
+}
+
+sub touchByRef($$){
+  my ($file, $refFile) = @_;
+  my @stat = stat $refFile;
+  my $atime = $stat[8];
+  my $mtime = $stat[9];
+
+  lutimes $atime, $mtime, $file;
+}
+
+&main(@ARGV);
