@@ -56,14 +56,14 @@ nextToggle toggle = do
   return nextVal
 
 imgName status isFlash = case status of
-  "off"            -> "off"
-  "new"            -> if isFlash then "new-other-invert" else "new-other"
-  "new-important"  -> if isFlash then "new-important-invert" else "new-important"
-  "new-bot"        -> "new-bot" --skip flash
-  "available"      -> "pidgin-tray-available"
-  "away"           -> "pidgin-tray-away"
-  "do not disturb" -> "pidgin-tray-busy"
-  "invisible"      -> "pidgin-tray-invisible"
-  "offline"        -> "pidgin-tray-offline"
-  _                -> "pidgin-tray-available"
+  "off"               -> "off"
+  "new"               -> if isFlash then "new-other-invert" else "new-other"
+  "new-important"     -> if isFlash then "new-important-invert" else "new-important"
+  "new-bot"           -> "new-bot" --skip flash
+  "available"         -> "pidgin-tray-available"
+  "away"              -> "pidgin-tray-away"
+  "do not disturb"    -> "pidgin-tray-busy"
+  "invisible"         -> "pidgin-tray-invisible"
+  "offline"           -> "pidgin-tray-offline"
+  _                   -> "pidgin-tray-available"
 
