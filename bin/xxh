@@ -1,0 +1,235 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename);
+use Crypt::xxHash qw(
+  xxhash64_stream
+  xxhash3_64bits_hex
+  xxhash3_64bits_stream
+  xxhash3_64bits_stream_update
+  xxhash3_64bits_stream_digest_hex
+);
+
+#xxhash64_stream is not used,
+#  importing to ensure it exists so that the correct xxh3 is used
+
+sub xxh3sumHandle($);
+sub xxh3sumFile($);
+sub readProc(@);
+
+my $EXEC = basename $0;
+
+my $BUF_SIZE = 262144; #256k
+my $DEFAULT_XXHSUM_SEED = 0; #default seed for xxhsum
+
+my $DEFAULT_MAX_FILE_LEN = 120;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] FILE [FILE ..]
+    -for each FILE, calculate the xxh3-64bit checksum as in:
+      XXH3_64BIT_HEX=`xxhsum -H3 FILE | cut -c-21`
+    -NOTE: includes the same 'XXH3_' prefix that `xxhsum` includes
+    -print hash, one line per file:
+      -if exactly one FILE is given, print just the hash:
+        <XXH3_64BIT_HEX>
+      -otherwise, print file and hash, with ':' and whitespace alignment between:
+        <FILE>:     <XXH3_64BIT_HEX>
+
+  $EXEC [OPTS]
+  $EXEC [OPTS] --stdin
+    if STDIN is not a terminal, read input as a FILE named 'stdin' as in `xxhsum`
+    (see: --stdin)
+
+  $EXEC [OPTS] --find FINDARG [FINDARG ..]
+    -collect <FILE>s with `find FINDARG FINDARG ..`
+    -same as: $EXEC FILE FILE ..
+
+  OPTS
+    --file=FILE_WHEN
+      control printing <FILE> in output
+        FILE_WHEN
+          always
+            always include 'FILE' in output
+          never
+            never include 'FILE' in output
+          multi
+            only include 'FILE' in output if more than one file is given
+            (this is the default)
+
+    --file-pos=FILE_POS
+      control order of <FILE> and <XXH3_64BIT_HEX> when <FILE> is printed
+        NOTE: when <FILE> is not printed, has no effect
+
+      FILE_POS
+        suffix
+          print <FILE> after, with two spaces between, like `xxhsum`
+            i.e.: \"<XXH3_64BIT_HEX>  <FILE>\"
+        prefix
+          print <FILE> before, with ':' between, and whitespace alignment
+            i.e.: \"<FILE>:     <XXH3_64BIT_HEX>\"
+          NOTE: this is the default
+
+    -n | --no-file | --never
+      same as: --file=never
+    -p | --prefix
+      same as: --file=always --file-pos=prefix
+    -s | --suffix | --xxhsum
+      same as: --file=always --file-pos=suffix
+
+    --align-max=MAX_FILE_LEN
+      when aligning <XXH3_64BIT_HEX>, only pad spaces for files up to <MAX_FILE_LEN>
+      use a negative value for unlimited pading
+      default: $DEFAULT_MAX_FILE_LEN
+
+    --stdin
+      -if STDIN is a file (i.e.: not a terminal, ! -t STDIN):
+        e.g.: `cat file | $EXEC`
+              is roughly the same as:
+              `$EXEC file`
+      -can be combined with --find or FILE args
+      -NOTE: this is the default
+    --no-stdin
+      never read from STDIN
+";
+
+my $FILE_WHEN_ALWAYS = 'always';
+my $FILE_WHEN_NEVER = 'never';
+my $FILE_WHEN_MULTI = 'multi';
+
+my $FILEPOS_PREFIX = 'prefix';
+my $FILEPOS_SUFFIX = 'suffix';
+
+sub main(@){
+  my $opts = {
+    fileWhen   => $FILE_WHEN_MULTI,
+    filePos    => $FILEPOS_PREFIX,
+    maxFileLen => $DEFAULT_MAX_FILE_LEN,
+    allowStdin => 1
+  };
+  my @fileEntries;
+  my @findArgs;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(?:--file=($FILE_WHEN_ALWAYS|$FILE_WHEN_NEVER|$FILE_WHEN_NEVER))$/){
+      $$opts{fileWhen} = $1;
+    }elsif($arg =~ /^(?:--filepos=($FILEPOS_PREFIX|$FILEPOS_SUFFIX))$/){
+      $$opts{filePos} = $1;
+    }elsif($arg =~ /^(-n|--no-file|--never)$/){
+      $$opts{fileWhen} = $FILE_WHEN_NEVER;
+    }elsif($arg =~ /^(-p|--prefix)$/){
+      $$opts{fileWhen} = $FILE_WHEN_ALWAYS;
+      $$opts{filePos} = $FILEPOS_PREFIX;
+    }elsif($arg =~ /^(-s|--suffix)$/){
+      $$opts{fileWhen} = $FILE_WHEN_ALWAYS;
+      $$opts{filePos} = $FILEPOS_SUFFIX;
+    }elsif($arg =~ /^--align-max=(-?\d+)$/){
+      $$opts{maxFileLen} = $1;
+    }elsif($arg =~ /^(--stdin)$/){
+      $$opts{allowStdin} = 1;
+    }elsif($arg =~ /^(--no-stdin)$/){
+      $$opts{allowStdin} = 0;
+    }elsif($arg =~ /^(--find)$/){
+      $$opts{find} = 1;
+      @findArgs = @_;
+      @_ = ();
+    }elsif(-f $arg){
+      push @fileEntries, {file=>$arg, handle=>undef, fileName=>$arg};
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  if($$opts{find}){
+    my @files = readProc "find", @findArgs;
+    chomp foreach @files;
+    @files = sort @files;
+    @fileEntries = (@fileEntries, map {{file=>$_, handle=>undef, fileName=>$_}} @files);
+  }
+
+  if($$opts{allowStdin} and not -t STDIN){
+    push @fileEntries, {file=>undef, handle=>\*STDIN, fileName=>'stdin'};
+  }
+
+  my $printFile = 0;
+  $printFile = 1 if $$opts{fileWhen} eq $FILE_WHEN_ALWAYS;
+  $printFile = 1 if $$opts{fileWhen} eq $FILE_WHEN_MULTI and @fileEntries > 1;
+
+  my $filePrefix = $$opts{filePos} eq $FILEPOS_PREFIX ? 1 : 0;
+
+  my $maxLen = 0;
+  if($printFile and $filePrefix){
+    for my $fileEntry(@fileEntries){
+      my $len = length $$fileEntry{fileName};
+      $maxLen = $len if $len > $maxLen;
+    }
+  }
+  if($$opts{maxFileLen} >= 0 and $maxLen > $$opts{maxFileLen}){
+    $maxLen = $$opts{maxFileLen};
+  }
+
+  for my $fileEntry(@fileEntries){
+    my $xxh3sum;
+    if(defined $$fileEntry{file}){
+      $xxh3sum = xxh3sumFile($$fileEntry{file});
+    }elsif(defined $$fileEntry{handle}){
+      $xxh3sum = xxh3sumHandle($$fileEntry{handle});
+    }else{
+      die "ERROR: invalid file entry\n";
+    }
+    my $fileName = $$fileEntry{fileName};
+    my $fmt;
+    if($printFile){
+      if($filePrefix){
+        $fmt = $fileName . ":" . (" "x(1 + $maxLen - length $fileName)) . $xxh3sum;
+      }else{
+        $fmt = "$xxh3sum  $fileName";
+      }
+    }else{
+      $fmt = "$xxh3sum";
+    }
+    print "$fmt\n";
+  }
+}
+
+
+sub xxh3sumHandle($){
+  my ($fh) = (@_);
+  my $unusedTestStream = xxhash64_stream(0);
+
+  my $stream = xxhash3_64bits_stream($DEFAULT_XXHSUM_SEED);
+  my $buf;
+  while(read($fh, $buf, $BUF_SIZE)){
+    xxhash3_64bits_stream_update($stream, $buf);
+  }
+  my $hex = xxhash3_64bits_stream_digest_hex($stream);
+  #same behavior as `xxh3sum` or `xxhsum -H3`
+  return "XXH3_$hex";
+}
+
+sub xxh3sumFile($){
+  my ($file) = @_;
+  open my $fh, "< $file" or die "ERROR: could not read $file\n";
+  my $hex = xxh3sumHandle($fh);
+  close $fh;
+  return $hex;
+}
+
+sub readProc(@){
+  my (@cmd) = @_;
+  open my $cmdH, "-|", @cmd or die "ERROR: could not run \"@cmd\"\n$!\n";
+  my @lines = <$cmdH>;
+  close $cmdH;
+  if(wantarray){
+    return @lines;
+  }else{
+    return join '', @lines;
+  }
+}
+
+&main(@ARGV);
