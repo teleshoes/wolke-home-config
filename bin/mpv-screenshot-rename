@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use File::Basename qw(basename dirname);
+use Date::Format qw(time2str);
+use Date::Parse qw(str2time);
+
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC [OPTS] FILE [FILE FILE..]
+    -remove 'VID_' prefix from FILE if present
+    -extract FILENAME_DATE_TIME prefix 'YYYYmmdd_HHMMSS'
+    -extract FRAME_TIMESTAMP suffix 'HH-MM-SS_MILLIS'
+    -add FRAME_TIMESTAMP to FILENAME_DATE_TIME to get FRAME_FILENAME_DATE_TIME
+      -format as YYYYmmdd_HHMMSS
+    -split FILE into FILE_DIR and FILE_BASENAME
+    -get TARGET_FILE as
+      <FILE_DIR>/<FRAME_FILENAME_DATE_TIME>_<FILE_BASENAME>
+    -move FILE to TARGET_FILE
+    -set TARGET_FILE mtime to FRAME_FILENAME_DATE_TIME
+
+  OPTS
+    -s | --simulate | -n | --dryrun
+      take no action, do not move any files
+";
+
+sub main(@){
+  my @files;
+  my $opts = {
+    simulate => 0,
+  };
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif($arg =~ /^(-s|--simulate|-n|--dryrun)$/){
+      $$opts{simulate} = 1;
+    }elsif(-f $arg){
+      push @files, $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  my @renames;
+  for my $file(@files){
+    my $dir = dirname $file;
+    my $oldBasename = basename $file;
+
+    my $oldFile = "$dir/$oldBasename";
+
+    my $newBasename = $oldBasename;
+    if($newBasename =~ /
+      ^
+      (?<ignoredPrevRunPrefix>\d\d\d\d\d\d\d\d_\d\d\d\d\d\d_) ? #idempotency
+      (?<fileNamePrefix>
+        VID_
+        (?<y>\d\d\d\d)(?<m>\d\d)(?<d>\d\d)_(?<hr>\d\d)(?<min>\d\d)(?<sec>\d\d)
+      )
+      (?<fileNameInfix>_.*)
+      (?<fileNameSuffix>
+        (?<tsH>\d\d)-(?<tsM>\d\d)-(?<tsS>\d\d)_(?<tsMillis>\d\d\d)
+        \.png
+      )
+    $/x){
+      my $oldFilenameEpoch = str2time("$+{y}-$+{m}-$+{d} $+{hr}:$+{min}:$+{sec}");
+      my $newFilenameEpoch = $oldFilenameEpoch + $+{tsH}*60*60 + $+{tsM}*60 + $+{tsS};
+      my $newPrefix = time2str("%Y%m%d_%H%M%S", $newFilenameEpoch);
+      my $newFile = ""
+        . "$dir/"
+        . "$newPrefix"
+        . "_"
+        . $+{fileNamePrefix}
+        . $+{fileNameInfix}
+        . $+{fileNameSuffix}
+      ;
+
+      my $prevRunPrefix = $+{ignoredPrevRunPrefix};
+      $prevRunPrefix = "" if not defined $prevRunPrefix;
+      $prevRunPrefix =~ s/_$//;
+
+      if($oldFile eq $newFile){
+        print "skipping $file, prefix unchanged\n";
+      }elsif($prevRunPrefix ne "" and $prevRunPrefix ne $newPrefix){
+        die "ERROR: previously applied prefix '$prevRunPrefix'"
+          . " does not match new prefix '$newPrefix'\n";
+      }elsif(-e $newFile){
+        die "ERROR: cannot rename $oldFile, $newFile already exists\n";
+      }else{
+        push @renames, {
+          oldFile => $oldFile,
+          newFile => $newFile,
+          newEpoch => $newFilenameEpoch,
+        };
+      }
+    }else{
+      die "ERROR: malformed file $oldFile\n";
+    }
+  }
+
+  for my $rename(@renames){
+    my $oldFile = $$rename{oldFile};
+    my $newFile = $$rename{newFile};
+    my $newEpoch = $$rename{newEpoch};
+    my @mvCmd = ("mv", "--no-clobber", $oldFile, $newFile);
+    my @touchCmd = ("touch", $newFile, "--date=\@$newEpoch");
+    if($$opts{simulate}){
+      print "#@mvCmd\n";
+      print "#@touchCmd\n";
+    }else{
+      print "@mvCmd\n";
+      system @mvCmd;
+      print "@touchCmd\n";
+      system @touchCmd;
+    }
+  }
+}
+
+&main(@ARGV);
