@@ -4,6 +4,7 @@ use warnings;
 use File::Basename qw(basename);
 
 sub handleCam($);
+sub ffmpegSnapshot($$$);
 sub lookupVideoDevByVidPid($);
 
 my $EXEC = basename $0;
@@ -63,17 +64,25 @@ sub handleCam($){
   system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
 
   my $v4lCamRes = $$cam{v4lCamRes};
-  system "ffmpeg",
-    "-f", "v4l2",
-    "-video_size", $v4lCamRes,
-    "-i", $camDev,
-    "-frames", "1",
-    "-y",
-    "$tmpFile",
-  ;
+  ffmpegSnapshot($camDev, $v4lCamRes, $tmpFile);
 
   my @magickArgs = @{$$cam{magickArgs}};
   system "convert", @magickArgs, $tmpFile, $camEditFile;
+}
+
+sub ffmpegSnapshot($$$){
+  my ($v4lDev, $res, $outputFile) = @_;
+  my @cmd = ("ffmpeg",
+    "-f", "v4l2",
+    "-video_size", $res,
+    "-i", $v4lDev,
+    "-frames", 1,
+    "-y",
+    $outputFile,
+  );
+  die "ERROR: file $outputFile already exists\n" if -e $outputFile;
+  system @cmd;
+  die "ERROR: file $outputFile does not exist after @cmd\n" if not -f $outputFile;
 }
 
 sub lookupVideoDevByVidPid($){
