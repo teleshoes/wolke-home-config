@@ -7,21 +7,22 @@ sub lookupVideoDevByVidPid($);
 
 my $EXEC = basename $0;
 
-my $TMP_FILE = "/tmp/laundry-cam.jpg";
-my $CAM_EDIT_FILE = "/tmp/laundry-cam-edit.jpg";
+my @CAM_ORDER = qw(washer);
 
-my $CAM = {
-  camVidPid  => "05a3:9320",
-  v4lCamRes  => "1280x720",
-  magickArgs => [qw(-rotate 180 -crop 500x120+300+50)],
-  v4lCfgArgs => [qw(
-                   --set-ctrl=auto_exposure=1
-                   --set-ctrl=exposure_time_absolute=100
-                   --set-ctrl=brightness=-50
-                   --set-ctrl=contrast=32
-                   --set-ctrl=sharpness=7
-                   --set-ctrl=gamma=300
-  )],
+my $CAMS = {
+  washer => {
+    camVidPid  => "05a3:9320",
+    v4lCamRes  => "1280x720",
+    magickArgs => [qw(-rotate 180 -crop 500x120+300+50)],
+    v4lCfgArgs => [qw(
+                     --set-ctrl=auto_exposure=1
+                     --set-ctrl=exposure_time_absolute=100
+                     --set-ctrl=brightness=-50
+                     --set-ctrl=contrast=32
+                     --set-ctrl=sharpness=7
+                     --set-ctrl=gamma=300
+    )],
+  },
 };
 
 my $USAGE = "Usage:
@@ -43,24 +44,30 @@ sub main(@){
     }
   }
 
-  system "rm -f $TMP_FILE $CAM_EDIT_FILE";
+  for my $camName(@CAM_ORDER){
+    my $cam = $$CAMS{$camName};
+    my $tmpFile = "/tmp/laundry-cam-$camName.jpg";
+    my $camEditFile = "/tmp/laundry-cam-$camName-edit.jpg";
+    system "rm -f $tmpFile $camEditFile";
 
-  my $camDev = lookupVideoDevByVidPid($$CAM{camVidPid});
-  my @v4lCfgArgs = @{$$CAM{v4lCfgArgs}};
-  system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
+    my $camDev = lookupVideoDevByVidPid($$cam{camVidPid});
+    my @v4lCfgArgs = @{$$cam{v4lCfgArgs}};
+    system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
 
-  my $v4lCamRes = $$CAM{v4lCamRes};
-  system "ffmpeg",
-    "-f", "v4l2",
-    "-video_size", $v4lCamRes,
-    "-i", $camDev,
-    "-frames", "1",
-    "-y",
-    "$TMP_FILE",
-  ;
+    my $v4lCamRes = $$cam{v4lCamRes};
+    system "ffmpeg",
+      "-f", "v4l2",
+      "-video_size", $v4lCamRes,
+      "-i", $camDev,
+      "-frames", "1",
+      "-y",
+      "$tmpFile",
+    ;
 
-  my @magickArgs = @{$$CAM{magickArgs}};
-  system "convert", @magickArgs, $TMP_FILE, $CAM_EDIT_FILE;
+    my @magickArgs = @{$$cam{magickArgs}};
+    system "convert", @magickArgs, $tmpFile, $camEditFile;
+  }
+
 }
 
 sub lookupVideoDevByVidPid($){
