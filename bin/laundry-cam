@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub handleCam($);
 sub lookupVideoDevByVidPid($);
 
 my $EXEC = basename $0;
@@ -45,29 +46,34 @@ sub main(@){
   }
 
   for my $camName(@CAM_ORDER){
-    my $cam = $$CAMS{$camName};
-    my $tmpFile = "/tmp/laundry-cam-$camName.jpg";
-    my $camEditFile = "/tmp/laundry-cam-$camName-edit.jpg";
-    system "rm -f $tmpFile $camEditFile";
-
-    my $camDev = lookupVideoDevByVidPid($$cam{camVidPid});
-    my @v4lCfgArgs = @{$$cam{v4lCfgArgs}};
-    system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
-
-    my $v4lCamRes = $$cam{v4lCamRes};
-    system "ffmpeg",
-      "-f", "v4l2",
-      "-video_size", $v4lCamRes,
-      "-i", $camDev,
-      "-frames", "1",
-      "-y",
-      "$tmpFile",
-    ;
-
-    my @magickArgs = @{$$cam{magickArgs}};
-    system "convert", @magickArgs, $tmpFile, $camEditFile;
+    handleCam($camName);
   }
+}
 
+sub handleCam($){
+  my ($camName) = @_;
+
+  my $cam = $$CAMS{$camName};
+  my $tmpFile = "/tmp/laundry-cam-$camName.jpg";
+  my $camEditFile = "/tmp/laundry-cam-$camName-edit.jpg";
+  system "rm -f $tmpFile $camEditFile";
+
+  my $camDev = lookupVideoDevByVidPid($$cam{camVidPid});
+  my @v4lCfgArgs = @{$$cam{v4lCfgArgs}};
+  system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
+
+  my $v4lCamRes = $$cam{v4lCamRes};
+  system "ffmpeg",
+    "-f", "v4l2",
+    "-video_size", $v4lCamRes,
+    "-i", $camDev,
+    "-frames", "1",
+    "-y",
+    "$tmpFile",
+  ;
+
+  my @magickArgs = @{$$cam{magickArgs}};
+  system "convert", @magickArgs, $tmpFile, $camEditFile;
 }
 
 sub lookupVideoDevByVidPid($){
