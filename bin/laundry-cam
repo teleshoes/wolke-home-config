@@ -3,13 +3,15 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub lookupVideoDevByVidPid($);
+
 my $EXEC = basename $0;
 
 my $TMP_FILE = "/tmp/laundry-cam.jpg";
 my $CAM_EDIT_FILE = "/tmp/laundry-cam-edit.jpg";
 
 my $CAM = {
-  camDev     => "/dev/video0",
+  camVidPid  => "05a3:9320",
   v4lCamRes  => "1280x720",
   magickArgs => [qw(-rotate 180 -crop 500x120+300+50)],
   v4lCfgArgs => [qw(
@@ -43,7 +45,7 @@ sub main(@){
 
   system "rm -f $TMP_FILE $CAM_EDIT_FILE";
 
-  my $camDev = $$CAM{camDev};
+  my $camDev = lookupVideoDevByVidPid($$CAM{camVidPid});
   my @v4lCfgArgs = @{$$CAM{v4lCfgArgs}};
   system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
 
@@ -59,6 +61,46 @@ sub main(@){
 
   my @magickArgs = @{$$CAM{magickArgs}};
   system "convert", @magickArgs, $TMP_FILE, $CAM_EDIT_FILE;
+}
+
+sub lookupVideoDevByVidPid($){
+  my ($vidPid) = @_;
+  my ($vid, $pid);
+  if($vidPid =~ /^([0-9a-f]{4}):([0-9a-f]{4})$/){
+    ($vid, $pid) = ($1, $2);
+  }else{
+    return undef;
+  }
+
+  my @v4lDevDirs = grep {-e $_} glob "/sys/class/video4linux/video*";
+
+  my @okDevNums;
+  for my $dir(@v4lDevDirs){
+    my $devNum;
+    if($dir !~ /^(?:.*\/)?video(\d+)(?:\/.*)?$/){
+      die "ERROR: malformed v4l device path $dir\n";
+    }
+    $devNum = $1;
+
+    my $devVid = `cat $dir/device/../idVendor 2>/dev/null`;
+    chomp $devVid;
+    my $devPid = `cat $dir/device/../idProduct 2>/dev/null`;
+    chomp $devPid;
+
+    if($devVid eq $vid && $devPid eq $pid){
+      push @okDevNums, $devNum;
+    }
+  }
+
+  if(@okDevNums == 0){
+    return undef;
+  }
+  my $dev = "/dev/video$okDevNums[0]";
+  if(not -e $dev){
+    die "ERROR: missing v4l device $dev\n";
+  }
+
+  return $dev;
 }
 
 &main(@ARGV);
