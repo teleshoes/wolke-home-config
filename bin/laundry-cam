@@ -57,7 +57,7 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC
+  $EXEC [OPTS]
     use video4linux2 to grab a frame from laundry webcams
       -for each cam in: @CAM_ORDER
         -detect hardware camera device
@@ -66,16 +66,20 @@ my $USAGE = "Usage:
       -append each frame into a single image to:
         $IMG_DEST
 
-  $EXEC -f IPMAGIC_NAME
-  $EXEC --fetch=IPMAGIC_NAME
+  $EXEC [OPTS] -f IPMAGIC_NAME
+  $EXEC [OPTS] --fetch=IPMAGIC_NAME
     -remove local $IMG_DEST
     -copy $IMG_DEST from IPMAGIC_NAME to local
-    -if $IMG_DEST mtime is older than 120s:
+    -if $IMG_DEST mtime is older than 120s (or -c is given):
       -run `ipmagic IPMAGIC_NAME $EXEC`
       -re-copy $IMG_DEST from IPMAGIC_NAME to local
       -if $IMG_DEST mtime is still older than 120s:
         -FAIL: exit with an error message
     -run: `feh $IMG_DEST`
+
+  OPTS
+    -c | --capture | --force-capture
+      do not skip running $EXEC remotely in --fetch
 ";
 
 my $MODE_CAPTURE = "capture";
@@ -84,6 +88,9 @@ my $MODE_FETCH = "fetch";
 sub main(@){
   my $mode = $MODE_CAPTURE;
   my $ipmagicName = undef;
+  my $opts = {
+    forceCapture => 0,
+  };
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -95,6 +102,8 @@ sub main(@){
     }elsif($arg =~ /^--fetch=(.+)$/){
       $mode = $MODE_FETCH;
       $ipmagicName = $1;
+    }elsif($arg =~ /^(-c|--capture|--force-capture)$/){
+      $$opts{forceCapture} = 1;
     }else{
       die "ERROR: unknown arg $arg\n";
     }
@@ -125,7 +134,10 @@ sub main(@){
     system "rm -f $TMP_IMG_PREFIX-*.jpg";
   }elsif($mode eq $MODE_FETCH){
     system "rm", "-f", $IMG_DEST;
-    system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+
+    if(not $$opts{forceCapture}){
+      system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+    }
     my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
 
     if(not defined $mtime or (time - $mtime > 120)){
