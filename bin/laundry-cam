@@ -75,8 +75,12 @@ my $USAGE = "Usage:
       -capture the images locally
         -as in: $EXEC --capture
     -otherwise:
-      -fetch the images remotely
+      -check if $DEFAULT_IPMAGIC_NAME is on local network
+        -as in: ipmagic $DEFAULT_IPMAGIC_NAME -r 0 --ip
+      -if on local network, fetch the images remotely
         -as in: $EXEC --fetch=$DEFAULT_IPMAGIC_NAME
+      -otherwise, fetch the images over seedbox:
+        -as in: $EXEC --fetch-seedbox
 
   $EXEC [OPTS] --capture
     use video4linux2 to grab a frame from laundry webcams
@@ -188,7 +192,12 @@ sub main(@){
     if(isLocalIpmagicName($DEFAULT_IPMAGIC_NAME)){
       captureCams($opts);
     }else{
-      fetchImgIpmagic($opts, $DEFAULT_IPMAGIC_NAME);
+      my $ipAddr = `ipmagic $DEFAULT_IPMAGIC_NAME -r 0 --ip`;
+      if($ipAddr =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/){
+        fetchImgIpmagic($opts, $DEFAULT_IPMAGIC_NAME);
+      }else{
+        fetchImgSeedbox($opts);
+      }
       viewImg($opts) if $$opts{viewImg};
     }
   }elsif($mode eq $MODE_FETCH_SEEDBOX){
