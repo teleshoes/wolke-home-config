@@ -83,7 +83,9 @@ my $USAGE = "Usage:
 
   OPTS
     -a | --always-capture | --force-remote-capture
-      do not skip running $EXEC remotely in --fetch
+      -in --fetch or --ipmagic-capture-or-fetch:
+        always run '$EXEC --capture' remotely
+        (do not skip based on mtime)
 ";
 
 my $MODE_CAPTURE = "capture";
@@ -93,7 +95,7 @@ sub main(@){
   my $mode = $MODE_CAPTURE;
   my $ipmagicName = undef;
   my $opts = {
-    forceCapture => 0,
+    alwaysCapture => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -109,7 +111,7 @@ sub main(@){
       $mode = $MODE_FETCH;
       $ipmagicName = $1;
     }elsif($arg =~ /^(-a|--always-capture|--force-remote-capture)$/){
-      $$opts{forceCapture} = 1;
+      $$opts{alwaysCapture} = 1;
     }else{
       die "ERROR: unknown arg $arg\n";
     }
@@ -155,7 +157,7 @@ sub fetchImgRemote($$){
   my ($opts, $ipmagicName) = @_;
   system "rm", "-f", $IMG_DEST;
 
-  if(not $$opts{forceCapture}){
+  if(not $$opts{alwaysCapture}){
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
   }
   my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
