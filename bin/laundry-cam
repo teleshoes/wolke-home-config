@@ -11,6 +11,7 @@ sub handleCam($);
 sub ffmpegSnapshot($$$);
 sub appendCameraImages();
 sub lookupVideoDevByVidPid($);
+sub uploadToSeedbox();
 sub isLocalIpmagicName($);
 sub mtime($);
 
@@ -20,6 +21,7 @@ my $DEFAULT_IPMAGIC_NAME = "raspi-basement";
 
 my $IMG_DEST = "/tmp/laundry-cam.jpg";
 my $TMP_IMG_PREFIX = "/tmp/laundry-cam-tmp";
+my $SEEDBOX_IMG_FILE = "laundry.jpg";
 
 my $MAGICK_ARG_APPEND_HORIZONTAL = "+append";
 my $MAGICK_ARG_APPEND_VERTICAL = "-append";
@@ -82,14 +84,16 @@ my $USAGE = "Usage:
         -rotate, crop, and resize frame with imagemagick `convert`
       -append each frame into a single image to:
         $IMG_DEST
+      -if --upload-seedbox is given, upload $IMG_DEST to seedbox
+        -as in: rsync -avP $IMG_DEST `seedbox`:$SEEDBOX_IMG_FILE
 
   $EXEC [OPTS] -f IPMAGIC_NAME
   $EXEC [OPTS] --fetch=IPMAGIC_NAME
     -remove local $IMG_DEST
     -copy $IMG_DEST from IPMAGIC_NAME to local
     -if $IMG_DEST mtime is older than 120s (or --always-capture is given):
-      -capture images remotely
-        -as in: ipmagic IPMAGIC_NAME $EXEC --capture
+      -capture images remotely (uploading to seedbox if --upload seedbox given)
+        -as in: ipmagic IPMAGIC_NAME $EXEC --capture [--upload-seedbox]
       -re-copy $IMG_DEST from IPMAGIC_NAME to local
       -if $IMG_DEST mtime is still older than 120s:
         -FAIL: exit with an error message
@@ -101,6 +105,10 @@ my $USAGE = "Usage:
       -in --fetch or --ipmagic-capture-or-fetch:
         always run '$EXEC --capture' remotely
         (do not skip based on mtime)
+
+    --upload-seedbox
+      after --capture, upload $IMG_DEST to seedbox
+        -as in: rsync -avP $IMG_DEST `seedbox --host`:$SEEDBOX_IMG_FILE
 
     --view
       view the image after fetching
@@ -119,6 +127,7 @@ sub main(@){
   my $opts = {
     alwaysCapture => 0,
     viewImg       => 1,
+    uploadSeedbox => 0,
   };
   while(@_ > 0){
     my $arg = shift;
@@ -137,6 +146,8 @@ sub main(@){
       $remoteIpmagicName = $1;
     }elsif($arg =~ /^(-a|--always-capture|--force-remote-capture)$/){
       $$opts{alwaysCapture} = 1;
+    }elsif($arg =~ /^(--upload-seedbox)$/){
+      $$opts{uploadSeedbox} = 1;
     }elsif($arg =~ /^(--view)$/){
       $$opts{viewImg} = 1;
     }elsif($arg =~ /^(--no-view)$/){
@@ -189,6 +200,10 @@ sub captureCams($){
   appendCameraImages();
   die "ERROR: append command failed\n" if not -f $IMG_DEST;
 
+  if($$opts{uploadSeedbox}){
+    uploadToSeedbox();
+  }
+
   system "rm -f $TMP_IMG_PREFIX-*.jpg";
 }
 
@@ -209,6 +224,7 @@ sub fetchImgIpmagic($$){
 
   if($remoteCapture){
     my @captureCmd = ("ipmagic", $ipmagicName, $EXEC, "--capture");
+    push @captureCmd, "--upload-seedbox" if $$opts{uploadSeedbox};
 
     print "running `@captureCmd`\n";
     system "ipmagic", $ipmagicName, @captureCmd;
@@ -333,6 +349,11 @@ sub lookupVideoDevByVidPid($){
   return $dev;
 }
 
+sub uploadToSeedbox(){
+  my $sbHost = `seedbox --host`;
+  chomp $sbHost;
+  system "rsync", "-avP", $IMG_DEST, "$sbHost:$SEEDBOX_IMG_FILE";
+}
 sub isLocalIpmagicName($){
   my ($targetIpmagicName) = @_;
   my @localIpmagicAliases = `ipmagic --get-ipmagic-name-aliases`;
