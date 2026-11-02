@@ -10,7 +10,8 @@ sub lookupVideoDevByVidPid($);
 
 my $EXEC = basename $0;
 
-my $IMG_DEST = "$ENV{HOME}/.cache/laundry-cam.jpg";
+my $IMG_DEST = "/tmp/laundry-cam.jpg";
+my $TMP_IMG_PREFIX = "/tmp/laundry-cam-tmp";
 
 my $MAGICK_ARG_APPEND_HORIZONTAL = "+append";
 my $MAGICK_ARG_APPEND_VERTICAL = "-append";
@@ -80,7 +81,7 @@ sub main(@){
   }
 
   if($mode eq $MODE_CAPTURE){
-    system "rm -f /tmp/laundry-cam-*.jpg";
+    system "rm -f $TMP_IMG_PREFIX-*.jpg";
 
     my @pids;
     for my $camName(@CAM_ORDER){
@@ -101,7 +102,7 @@ sub main(@){
     appendCameraImages();
     die "ERROR: append command failed\n" if not -f $IMG_DEST;
 
-    system "rm -f /tmp/laundry-cam-*.jpg";
+    system "rm -f $TMP_IMG_PREFIX-*.jpg";
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -111,8 +112,8 @@ sub handleCam($){
   my ($camName) = @_;
 
   my $cam = $$CAMS{$camName};
-  my $tempFile = "/tmp/laundry-cam-$camName-temp.jpg";
-  my $finalFile = "/tmp/laundry-cam-$camName-final.jpg";
+  my $imgCaptureFile = "$TMP_IMG_PREFIX-$camName-capture.jpg";
+  my $imgConvertFile = "$TMP_IMG_PREFIX-$camName-convert.jpg";
 
   my $camDev = lookupVideoDevByVidPid($$cam{camVidPid});
   die "ERROR: missing $camName cam vid:pid $$cam{camVidPid}\n" if not defined $camDev;
@@ -121,10 +122,10 @@ sub handleCam($){
   system "v4l2-ctl", "-d", $camDev, @v4lCfgArgs;
 
   my $v4lCamRes = $$cam{v4lCamRes};
-  ffmpegSnapshot($camDev, $v4lCamRes, $tempFile);
+  ffmpegSnapshot($camDev, $v4lCamRes, $imgCaptureFile);
 
   my @magickArgs = @{$$cam{magickArgs}};
-  system "convert", $tempFile, @magickArgs, $finalFile;
+  system "convert", $imgCaptureFile, @magickArgs, $imgConvertFile;
 }
 
 sub ffmpegSnapshot($$$){
@@ -146,9 +147,9 @@ sub ffmpegSnapshot($$$){
 sub appendCameraImages(){
   my @convertAppendCmd = "convert";
   for my $camName(@CAM_ORDER){
-    my $camFile = "/tmp/laundry-cam-$camName-final.jpg";
-    if(-f $camFile){
-      push @convertAppendCmd, $camFile;
+    my $imgConvertFile = "$TMP_IMG_PREFIX-$camName-convert.jpg";
+    if(-f $imgConvertFile){
+      push @convertAppendCmd, $imgConvertFile;
     }else{
       die "ERROR: cam $camName failed\n";
     }
