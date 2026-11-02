@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 
 sub captureCams($);
 sub fetchImgIpmagic($$);
+sub fetchImgSeedbox($);
 sub isImgRecent();
 sub viewImg($);
 sub handleCam($);
@@ -12,6 +13,7 @@ sub ffmpegSnapshot($$$);
 sub appendCameraImages();
 sub lookupVideoDevByVidPid($);
 sub uploadToSeedbox();
+sub downloadFromSeedbox();
 sub isLocalIpmagicName($);
 sub mtime($);
 
@@ -100,6 +102,20 @@ my $USAGE = "Usage:
     -view the image (unless --no-view given):
       -run: feh $IMG_DEST
 
+  $EXEC [OPTS] --fetch-seedbox
+    -download $IMG_DEST from seedbox
+      -as in: rsync -avP `seedbox --host`:$SEEDBOX_IMG_FILE $IMG_DEST
+    -if $IMG_DEST mtime is older than 120s (or --always-capture is given):
+      -capture new images over seedbox tunnel, on default IPMAGIC_NAME
+        -as in: seedbox -r $EXEC --ipmagic-capture-or-fetch \\
+                                 --always-capture --no-view --upload-seedbox
+      -re-download $IMG_DEST from seedbox
+        -as in: rsync -avP `seedbox --host`:$SEEDBOX_IMG_FILE $IMG_DEST
+      -if $IMG_DEST mtime is still older than 120s:
+        -FAIL: exit with an error message
+    -view the image (unless --no-view given):
+      -run: feh $IMG_DEST
+
   OPTS
     -a | --always-capture | --force-remote-capture
       -in --fetch or --ipmagic-capture-or-fetch:
@@ -120,6 +136,7 @@ my $USAGE = "Usage:
 my $MODE_IPMAGIC_CAPTURE_OR_FETCH = "ipmagic-capture-or-fetch";
 my $MODE_CAPTURE = "capture";
 my $MODE_FETCH = "fetch";
+my $MODE_FETCH_SEEDBOX = "fetch-seedbox";
 
 sub main(@){
   my $mode = $MODE_IPMAGIC_CAPTURE_OR_FETCH;
@@ -144,6 +161,8 @@ sub main(@){
     }elsif($arg =~ /^--fetch=(.+)$/){
       $mode = $MODE_FETCH;
       $remoteIpmagicName = $1;
+    }elsif($arg =~ /^--fetch-seedbox$/){
+      $mode = $MODE_FETCH_SEEDBOX;
     }elsif($arg =~ /^(-a|--always-capture|--force-remote-capture)$/){
       $$opts{alwaysCapture} = 1;
     }elsif($arg =~ /^(--upload-seedbox)$/){
@@ -172,6 +191,10 @@ sub main(@){
       fetchImgIpmagic($opts, $DEFAULT_IPMAGIC_NAME);
       viewImg($opts) if $$opts{viewImg};
     }
+  }elsif($mode eq $MODE_FETCH_SEEDBOX){
+    die "ERROR: cannot set IPMAGIC_NAME for mode $mode\n" if defined $remoteIpmagicName;
+    fetchImgSeedbox($opts);
+    viewImg($opts) if $$opts{viewImg};
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -231,6 +254,22 @@ sub fetchImgIpmagic($$){
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
   }
 
+  if(not isImgRecent()){
+    die "ERROR: $IMG_DEST does not exist or is out of date\n";
+  }
+}
+
+sub fetchImgSeedbox($){
+  my ($opts) = @_;
+  print "downloading img from seedbox\n";
+  downloadFromSeedbox();
+  if(not isImgRecent()){
+    print "capturing img over seedbox\n";
+    system "seedbox", "-r",
+      "$EXEC --ipmagic-capture-or-fetch --always-capture --no-view --upload-seedbox";
+    print "re-downloading img from seedbox\n";
+    downloadFromSeedbox();
+  }
   if(not isImgRecent()){
     die "ERROR: $IMG_DEST does not exist or is out of date\n";
   }
@@ -354,6 +393,12 @@ sub uploadToSeedbox(){
   chomp $sbHost;
   system "rsync", "-avP", $IMG_DEST, "$sbHost:$SEEDBOX_IMG_FILE";
 }
+sub downloadFromSeedbox(){
+  my $sbHost = `seedbox --host`;
+  chomp $sbHost;
+  system "rsync", "-avP", "$sbHost:$SEEDBOX_IMG_FILE", $IMG_DEST;
+}
+
 sub isLocalIpmagicName($){
   my ($targetIpmagicName) = @_;
   my @localIpmagicAliases = `ipmagic --get-ipmagic-name-aliases`;
