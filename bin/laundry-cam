@@ -5,9 +5,17 @@ use File::Basename qw(basename);
 
 sub handleCam($);
 sub ffmpegSnapshot($$$);
+sub appendCameraImages();
 sub lookupVideoDevByVidPid($);
 
 my $EXEC = basename $0;
+
+my $IMG_DEST = "$ENV{HOME}/.cache/laundry-cam.jpg";
+
+my $MAGICK_ARG_APPEND_HORIZONTAL = "+append";
+my $MAGICK_ARG_APPEND_VERTICAL = "-append";
+
+my $MAGICK_ARG_APPEND = $MAGICK_ARG_APPEND_VERTICAL;
 
 my @CAM_ORDER = qw(washer dryer);
 
@@ -53,6 +61,8 @@ my $USAGE = "Usage:
         -detect hardware camera device
         -use `ffmpeg -f v4l2` to capture one frame
         -rotate, crop, and resize frame with imagemagick `convert`
+      -append each frame into a single image to:
+        $IMG_DEST
 ";
 
 sub main(@){
@@ -78,6 +88,12 @@ sub main(@){
   for my $pid(@pids){
     waitpid $pid, 0;
   }
+
+  system "rm", "-f", $IMG_DEST;
+
+  die "ERROR: $IMG_DEST already exists\n" if -e $IMG_DEST;
+  appendCameraImages();
+  die "ERROR: append command failed\n" if not -f $IMG_DEST;
 }
 
 sub handleCam($){
@@ -115,6 +131,21 @@ sub ffmpegSnapshot($$$){
   die "ERROR: file $outputFile already exists\n" if -e $outputFile;
   system @cmd;
   die "ERROR: file $outputFile does not exist after @cmd\n" if not -f $outputFile;
+}
+
+sub appendCameraImages(){
+  my @convertAppendCmd = "convert";
+  for my $camName(@CAM_ORDER){
+    my $camFile = "/tmp/laundry-cam-$camName-final.jpg";
+    if(-f $camFile){
+      push @convertAppendCmd, $camFile;
+    }else{
+      die "ERROR: cam $camName failed\n";
+    }
+  }
+  push @convertAppendCmd, $MAGICK_ARG_APPEND;
+  push @convertAppendCmd, $IMG_DEST;
+  system @convertAppendCmd;
 }
 
 sub lookupVideoDevByVidPid($){
