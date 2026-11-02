@@ -10,9 +10,12 @@ sub handleCam($);
 sub ffmpegSnapshot($$$);
 sub appendCameraImages();
 sub lookupVideoDevByVidPid($);
+sub isLocalIpmagicName($);
 sub mtime($);
 
 my $EXEC = basename $0;
+
+my $DEFAULT_IPMAGIC_NAME = "raspi-basement";
 
 my $IMG_DEST = "/tmp/laundry-cam.jpg";
 my $TMP_IMG_PREFIX = "/tmp/laundry-cam-tmp";
@@ -60,6 +63,13 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
+  $EXEC [OPTS] --ipmagic-capture-or-fetch
+    -get LOCAL_IPMAGIC_NAME
+    -if LOCAL_IPMAGIC_NAME is '$DEFAULT_IPMAGIC_NAME':
+      -same as: $EXEC --capture
+    -otherwise:
+      -same as: $EXEC --fetch=$DEFAULT_IPMAGIC_NAME
+
   $EXEC [OPTS]
   $EXEC [OPTS] --capture
     use video4linux2 to grab a frame from laundry webcams
@@ -88,6 +98,7 @@ my $USAGE = "Usage:
         (do not skip based on mtime)
 ";
 
+my $MODE_IPMAGIC_CAPTURE_OR_FETCH = "ipmagic-capture-or-fetch";
 my $MODE_CAPTURE = "capture";
 my $MODE_FETCH = "fetch";
 
@@ -102,6 +113,8 @@ sub main(@){
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(--ipmagic-capture-or-fetch)$/){
+      $mode = $MODE_IPMAGIC_CAPTURE_OR_FETCH;
     }elsif($arg =~ /^(--capture)$/){
       $mode = $MODE_CAPTURE;
     }elsif($arg =~ /^(-f)$/ and @_ > 0){
@@ -124,6 +137,14 @@ sub main(@){
     die "ERROR: missing IPMAGIC_NAME for mode $mode\n" if not defined $remoteIpmagicName;
     fetchImgRemote($opts, $remoteIpmagicName);
     viewImg($opts);
+  }elsif($mode eq $MODE_IPMAGIC_CAPTURE_OR_FETCH){
+    die "ERROR: cannot set IPMAGIC_NAME for mode $mode\n" if defined $remoteIpmagicName;
+    if(isLocalIpmagicName($DEFAULT_IPMAGIC_NAME)){
+      captureCams($opts);
+    }else{
+      fetchImgRemote($opts, $DEFAULT_IPMAGIC_NAME);
+      viewImg($opts);
+    }
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -283,6 +304,14 @@ sub lookupVideoDevByVidPid($){
   }
 
   return $dev;
+}
+
+sub isLocalIpmagicName($){
+  my ($targetIpmagicName) = @_;
+  my @localIpmagicAliases = `ipmagic --get-ipmagic-name-aliases`;
+  chomp foreach @localIpmagicAliases;
+  my %okIpmagicNames = map {$_ => 1} @localIpmagicAliases;
+  return defined $okIpmagicNames{$targetIpmagicName} ? 1 : 0;
 }
 
 sub mtime($){
