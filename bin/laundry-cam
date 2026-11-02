@@ -7,6 +7,7 @@ sub handleCam($);
 sub ffmpegSnapshot($$$);
 sub appendCameraImages();
 sub lookupVideoDevByVidPid($);
+sub mtime($);
 
 my $EXEC = basename $0;
 
@@ -64,17 +65,36 @@ my $USAGE = "Usage:
         -rotate, crop, and resize frame with imagemagick `convert`
       -append each frame into a single image to:
         $IMG_DEST
+
+  $EXEC -f IPMAGIC_NAME
+  $EXEC --fetch=IPMAGIC_NAME
+    -remove local $IMG_DEST
+    -copy $IMG_DEST from IPMAGIC_NAME to local
+    -if $IMG_DEST mtime is older than 120s:
+      -run `ipmagic IPMAGIC_NAME $EXEC`
+      -re-copy $IMG_DEST from IPMAGIC_NAME to local
+      -if $IMG_DEST mtime is still older than 120s:
+        -FAIL: exit with an error message
+    -run: `feh $IMG_DEST`
 ";
 
 my $MODE_CAPTURE = "capture";
+my $MODE_FETCH = "fetch";
 
 sub main(@){
   my $mode = $MODE_CAPTURE;
+  my $ipmagicName = undef;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-f)$/ and @_ > 0){
+      $mode = $MODE_FETCH;
+      $ipmagicName = shift @_;
+    }elsif($arg =~ /^--fetch=(.+)$/){
+      $mode = $MODE_FETCH;
+      $ipmagicName = $1;
     }else{
       die "ERROR: unknown arg $arg\n";
     }
@@ -103,6 +123,22 @@ sub main(@){
     die "ERROR: append command failed\n" if not -f $IMG_DEST;
 
     system "rm -f $TMP_IMG_PREFIX-*.jpg";
+  }elsif($mode eq $MODE_FETCH){
+    system "rm", "-f", $IMG_DEST;
+    system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+    my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
+
+    if(not defined $mtime or (time - $mtime > 120)){
+      print "running `ipmagic $ipmagicName $EXEC`";
+      system "ipmagic", $ipmagicName, $EXEC;
+      system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+      $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
+    }
+
+    if(not defined $mtime or (time - $mtime > 120)){
+      die "ERROR: $IMG_DEST does not exist or is out of date\n";
+    }
+    system "feh", $IMG_DEST;
   }else{
     die "ERROR: unknown mode $mode\n";
   }
@@ -197,6 +233,10 @@ sub lookupVideoDevByVidPid($){
   }
 
   return $dev;
+}
+
+sub mtime($){
+  return (stat $_[0])[9];
 }
 
 &main(@ARGV);
