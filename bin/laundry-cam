@@ -3,6 +3,9 @@ use strict;
 use warnings;
 use File::Basename qw(basename);
 
+sub captureCams($);
+sub fetchImgRemote($$);
+sub viewImg($);
 sub handleCam($);
 sub ffmpegSnapshot($$$);
 sub appendCameraImages();
@@ -113,50 +116,65 @@ sub main(@){
   }
 
   if($mode eq $MODE_CAPTURE){
-    system "rm -f $TMP_IMG_PREFIX-*.jpg";
-
-    my @pids;
-    for my $camName(@CAM_ORDER){
-      my $pid = fork();
-      if($pid == 0){
-        handleCam($camName);
-        exit 0;
-      }
-      push @pids, $pid;
-    }
-    for my $pid(@pids){
-      waitpid $pid, 0;
-    }
-
-    system "rm", "-f", $IMG_DEST;
-
-    die "ERROR: $IMG_DEST already exists\n" if -e $IMG_DEST;
-    appendCameraImages();
-    die "ERROR: append command failed\n" if not -f $IMG_DEST;
-
-    system "rm -f $TMP_IMG_PREFIX-*.jpg";
+    captureCams($opts);
   }elsif($mode eq $MODE_FETCH){
-    system "rm", "-f", $IMG_DEST;
-
-    if(not $$opts{forceCapture}){
-      system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
-    }
-    my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
-
-    if(not defined $mtime or (time - $mtime > 120)){
-      print "running `ipmagic $ipmagicName $EXEC`";
-      system "ipmagic", $ipmagicName, $EXEC;
-      system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
-      $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
-    }
-
-    if(not defined $mtime or (time - $mtime > 120)){
-      die "ERROR: $IMG_DEST does not exist or is out of date\n";
-    }
-    system "feh", $IMG_DEST;
+    fetchImgRemote($opts, $ipmagicName);
+    viewImg($opts);
   }else{
     die "ERROR: unknown mode $mode\n";
   }
+}
+
+sub captureCams($){
+  my ($opts) = @_;
+  system "rm -f $TMP_IMG_PREFIX-*.jpg";
+
+  my @pids;
+  for my $camName(@CAM_ORDER){
+    my $pid = fork();
+    if($pid == 0){
+      handleCam($camName);
+      exit 0;
+    }
+    push @pids, $pid;
+  }
+  for my $pid(@pids){
+    waitpid $pid, 0;
+  }
+
+  system "rm", "-f", $IMG_DEST;
+
+  die "ERROR: $IMG_DEST already exists\n" if -e $IMG_DEST;
+  appendCameraImages();
+  die "ERROR: append command failed\n" if not -f $IMG_DEST;
+
+  system "rm -f $TMP_IMG_PREFIX-*.jpg";
+}
+
+sub fetchImgRemote($$){
+  my ($opts, $ipmagicName) = @_;
+  system "rm", "-f", $IMG_DEST;
+
+  if(not $$opts{forceCapture}){
+    system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+  }
+  my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
+
+  if(not defined $mtime or (time - $mtime > 120)){
+    print "running `ipmagic $ipmagicName $EXEC`";
+    system "ipmagic", $ipmagicName, $EXEC;
+    system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+    $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
+  }
+
+  if(not defined $mtime or (time - $mtime > 120)){
+    die "ERROR: $IMG_DEST does not exist or is out of date\n";
+  }
+}
+
+sub viewImg($){
+  my ($opts) = @_;
+  system "feh", $IMG_DEST;
 }
 
 sub handleCam($){
