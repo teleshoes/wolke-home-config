@@ -65,7 +65,10 @@ my $USAGE = "Usage:
         $IMG_DEST
 ";
 
+my $MODE_CAPTURE = "capture";
+
 sub main(@){
+  my $mode = $MODE_CAPTURE;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
@@ -76,28 +79,32 @@ sub main(@){
     }
   }
 
-  system "rm -f /tmp/laundry-cam-*.jpg";
+  if($mode eq $MODE_CAPTURE){
+    system "rm -f /tmp/laundry-cam-*.jpg";
 
-  my @pids;
-  for my $camName(@CAM_ORDER){
-    my $pid = fork();
-    if($pid == 0){
-      handleCam($camName);
-      exit 0;
+    my @pids;
+    for my $camName(@CAM_ORDER){
+      my $pid = fork();
+      if($pid == 0){
+        handleCam($camName);
+        exit 0;
+      }
+      push @pids, $pid;
     }
-    push @pids, $pid;
+    for my $pid(@pids){
+      waitpid $pid, 0;
+    }
+
+    system "rm", "-f", $IMG_DEST;
+
+    die "ERROR: $IMG_DEST already exists\n" if -e $IMG_DEST;
+    appendCameraImages();
+    die "ERROR: append command failed\n" if not -f $IMG_DEST;
+
+    system "rm -f /tmp/laundry-cam-*.jpg";
+  }else{
+    die "ERROR: unknown mode $mode\n";
   }
-  for my $pid(@pids){
-    waitpid $pid, 0;
-  }
-
-  system "rm", "-f", $IMG_DEST;
-
-  die "ERROR: $IMG_DEST already exists\n" if -e $IMG_DEST;
-  appendCameraImages();
-  die "ERROR: append command failed\n" if not -f $IMG_DEST;
-
-  system "rm -f /tmp/laundry-cam-*.jpg";
 }
 
 sub handleCam($){
