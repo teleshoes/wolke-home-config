@@ -5,6 +5,7 @@ use File::Basename qw(basename);
 
 sub captureCams($);
 sub fetchImgIpmagic($$);
+sub isImgRecent();
 sub viewImg($);
 sub handleCam($);
 sub ffmpegSnapshot($$$);
@@ -195,15 +196,13 @@ sub fetchImgIpmagic($$){
   my ($opts, $ipmagicName) = @_;
   system "rm", "-f", $IMG_DEST;
 
-  my $mtime = undef;
   my $remoteCapture = 0;
   if($$opts{alwaysCapture}){
     $remoteCapture = 1;
   }else{
     print "fetching image and checking if recent\n";
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
-    $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
-    if(not defined $mtime or (time - $mtime > 120)){
+    if(not isImgRecent()){
       $remoteCapture = 1;
     }
   }
@@ -212,18 +211,29 @@ sub fetchImgIpmagic($$){
     print "running `ipmagic $ipmagicName $EXEC --capture`";
     system "ipmagic", $ipmagicName, $EXEC, "--capture";
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
-    $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
   }
 
-  if(not defined $mtime or (time - $mtime > 120)){
+  if(not isImgRecent()){
     die "ERROR: $IMG_DEST does not exist or is out of date\n";
+  }
+}
+
+sub isImgRecent(){
+  my $mtime = undef;
+  if(-f $IMG_DEST){
+    $mtime = mtime($IMG_DEST);
+  }
+
+  if(defined $mtime and (time - $mtime < 120)){
+    return 1;
+  }else{
+    return 0;
   }
 }
 
 sub viewImg($){
   my ($opts) = @_;
-  my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
-  if(not defined $mtime or (time - $mtime > 120)){
+  if(not isImgRecent()){
     die "ERROR: $IMG_DEST does not exist or is out of date\n";
   }
 
