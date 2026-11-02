@@ -159,12 +159,20 @@ sub fetchImgRemote($$){
   my ($opts, $ipmagicName) = @_;
   system "rm", "-f", $IMG_DEST;
 
-  if(not $$opts{alwaysCapture}){
+  my $mtime = undef;
+  my $remoteCapture = 0;
+  if($$opts{alwaysCapture}){
+    $remoteCapture = 1;
+  }else{
+    print "fetching image and checking if recent\n";
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
+    $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
+    if(not defined $mtime or (time - $mtime > 120)){
+      $remoteCapture = 1;
+    }
   }
-  my $mtime = -f $IMG_DEST ? mtime($IMG_DEST) : undef;
 
-  if(not defined $mtime or (time - $mtime > 120)){
+  if($remoteCapture){
     print "running `ipmagic $ipmagicName $EXEC --capture`";
     system "ipmagic", $ipmagicName, $EXEC, "--capture";
     system "ipmagic", $ipmagicName, "--rsync", "-avP", ":$IMG_DEST", "$IMG_DEST";
