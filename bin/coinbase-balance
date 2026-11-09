@@ -6,6 +6,7 @@ use File::Basename qw(basename);
 use JSON qw(from_json);
 use POSIX qw(ceil);
 
+sub getBTCStats($$$);
 sub fetchBTCToUSDExchangeRate();
 sub fetchAccountInfo($$);
 sub fetchWalletID($$$);
@@ -117,42 +118,25 @@ sub main(@){
       ;
     }
   }elsif($command eq $COMMAND_SUMMARY){
-    my $transactionsJSON = readTransactionsCache("BTC");
-    die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $transactionsJSON;
-
     my $btcBalance = readBalanceCache("BTC");
     die "ERROR: failed to read BTC balance cache\n" if not defined $btcBalance;
 
-    my $exRate = fetchBTCToUSDExchangeRate();
-    my $usdBalance = $btcBalance*$exRate;
+    my $btcTransactionsJSON = readTransactionsCache("BTC");
+    die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $btcTransactionsJSON;
 
-    my $usdTotalBtcSell = 0;
-    my $usdTotalBtcSend = 0;
-    my $usdTotalBtcBuy = 0;
-    my $usdTotalFee = 0;
-    my @transactions = parseTransactionsJSON("BTC", $transactionsJSON);
-    for my $t(@transactions){
-      my $amtUSD = abs($$t{usd});
-      my $feeUSD = abs($$t{fee});
-      if($$t{type} eq "sell"){
-        $usdTotalBtcSell += $amtUSD;
-      }elsif($$t{type} eq "send"){
-        $usdTotalBtcSend += $amtUSD;
-      }elsif($$t{type} eq "buy"){
-        $usdTotalBtcBuy += $amtUSD;
-      }
-      $usdTotalFee += $feeUSD;
-    }
-    my $usdProfit = $usdTotalBtcSell - $usdTotalBtcSend - $usdTotalBtcBuy - $usdTotalFee;
+    my $btcUsdExRate = fetchBTCToUSDExchangeRate();
+
+    my $stats = getBTCStats($btcBalance, $btcTransactionsJSON, $btcUsdExRate);
+
     print ""
-      . "btc sell:      +" . usdFmt(9, $usdTotalBtcSell) . "\n"
-      . "btc send:      -" . usdFmt(9, $usdTotalBtcSend) . "\n"
-      . "btc buy:       -" . usdFmt(9, $usdTotalBtcBuy) . "\n"
-      . "btc fees:      -" . usdFmt(9, $usdTotalFee) . "\n"
+      . "btc sell:      +" . usdFmt(9, $$stats{usdTotalBtcSell}) . "\n"
+      . "btc send:      -" . usdFmt(9, $$stats{usdTotalBtcSend}) . "\n"
+      . "btc buy:       -" . usdFmt(9, $$stats{usdTotalBtcBuy}) . "\n"
+      . "btc fees:      -" . usdFmt(9, $$stats{usdTotalFee}) . "\n"
       . "\n"
-      . "btc profit:     " . usdFmt(9, $usdProfit) . "\n"
-      . "btc balance:    " . usdFmt(9, $usdBalance) . "\n"
-      . "btc profit+bal: " . usdFmt(9, $usdProfit + $usdBalance) . "\n"
+      . "btc profit:     " . usdFmt(9, $$stats{usdProfit}) . "\n"
+      . "btc balance:    " . usdFmt(9, $$stats{usdBalance}) . "\n"
+      . "btc profit+bal: " . usdFmt(9, $$stats{usdProfit} + $$stats{usdBalance}) . "\n"
     ;
   }elsif($command eq $COMMAND_TRANSACTIONS){
     my $transactionsJSON = readTransactionsCache("BTC");
@@ -205,6 +189,42 @@ sub main(@){
   }else{
     die "ERROR: unknown command $command\n";
   }
+}
+
+sub getBTCStats($$$){
+  my ($btcBalance, $btcTransactionsJSON, $btcToUsdExRate) = @_;
+
+  my $stats = {
+    usdBalance      => $btcBalance*$btcToUsdExRate,
+    usdTotalBtcSell => 0,
+    usdTotalBtcSend => 0,
+    usdTotalBtcBuy  => 0,
+    usdTotalFee     => 0,
+    usdProfit       => 0,
+  };
+
+  my @btcTransactions = parseTransactionsJSON("BTC", $btcTransactionsJSON);
+  for my $t(@btcTransactions){
+    my $amtUSD = abs($$t{usd});
+    my $feeUSD = abs($$t{fee});
+    if($$t{type} eq "sell"){
+      $$stats{usdTotalBtcSell} += $amtUSD;
+    }elsif($$t{type} eq "send"){
+      $$stats{usdTotalBtcSend} += $amtUSD;
+    }elsif($$t{type} eq "buy"){
+      $$stats{usdTotalBtcBuy} += $amtUSD;
+    }
+    $$stats{usdTotalFee} += $feeUSD;
+  }
+
+  $$stats{usdProfit} = 0
+    + $$stats{usdTotalBtcSell}
+    - $$stats{usdTotalBtcSend}
+    - $$stats{usdTotalBtcBuy}
+    - $$stats{usdTotalFee}
+  ;
+
+  return $stats;
 }
 
 sub fetchBTCToUSDExchangeRate(){
