@@ -110,12 +110,36 @@ sub main(@){
       my $exRate = fetchUSDPerBTCExchangeRate();
       my $usdBalance = $btcBalance*$exRate;
 
+      my $usdcBalance = readBalanceCache("USDC");
+
+      my $btcTransactionsJSON = readTransactionsCache("BTC");
+      die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $btcTransactionsJSON;
+
+      my $usdcTransactionsJSON = readTransactionsCache("USDC");
+      die "ERROR: failed to read USDC transactions JSON cache\n" if not defined $usdcTransactionsJSON;
+
+      my $btcStats = getBTCStats($btcBalance, $btcTransactionsJSON, $exRate);
+      my $usdcStats = getUSDCStats($usdcBalance, $usdcTransactionsJSON);
+
+      my $totalProfit = 0
+        + $usdBalance
+        + $usdcBalance
+        + $$btcStats{usdProfit}
+        + $$usdcStats{usdTotalInterest}
+      ;
+
       printf ""
-        . "%.2fUSD  (%.8fBTC)\n"
-        . "  (1 BTC = %.2f USD)\n",
+        . "\$%.2f    = %.8f BTC @ %.2f USD + %.2f USDC\n"
+        . "  (%s\$%.2f = \$%.2f bal + \$%.2f profit + \$%.2f interest)\n",
         $usdBalance,
         $btcBalance,
         $exRate,
+        $usdcBalance,
+        ($totalProfit > 0 ? "+" : ""),
+        $totalProfit,
+        $usdBalance,
+        $$btcStats{usdProfit},
+        $$usdcStats{usdTotalInterest},
       ;
     }
   }elsif($command eq $COMMAND_SUMMARY){
