@@ -57,6 +57,9 @@ my $USAGE = "Usage:
     -fetch BTC transactions with API using key+secret
     -fetch USDC transactions with API using key+secret
 
+  $EXEC [OPTS] --usdc
+    -print USDC balance and transactions
+
   OPTS
     --btc | --no-usd
       -skip fetching exchange rate
@@ -66,6 +69,7 @@ my $USAGE = "Usage:
 my $COMMAND_BALANCE = "balance";
 my $COMMAND_SUMMARY = "summary";
 my $COMMAND_TRANSACTIONS = "transactions";
+my $COMMAND_USDC = "usdc";
 my $COMMAND_FETCH = "fetch";
 
 sub main(@){
@@ -84,6 +88,8 @@ sub main(@){
       $command = $COMMAND_SUMMARY;
     }elsif($arg =~ /^(-t|--transactions)$/){
       $command = $COMMAND_TRANSACTIONS;
+    }elsif($arg =~ /^(--usdc)$/){
+      $command = $COMMAND_USDC;
     }elsif($arg =~ /^(-f|--fetch)$/){
       $command = $COMMAND_FETCH;
     }elsif($arg =~ /^(--btc|--no-usd)$/){
@@ -160,6 +166,19 @@ sub main(@){
     for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
       print formatTransaction($t);
     }
+  }elsif($command eq $COMMAND_USDC){
+    my $usdcBalance = readBalanceCache("USDC");
+    die "ERROR: failed to read USDC balance cache\n" if not defined $usdcBalance;
+
+    my $transactionsJSON = readTransactionsCache("USDC");
+    die "ERROR: failed to read USDC transactions JSON cache\n" if not defined $transactionsJSON;
+
+    my @transactions = parseTransactionsJSON("USDC", $transactionsJSON);
+    for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
+      print formatTransaction($t);
+    }
+
+    printf "balance: %.2f USDC\n", $usdcBalance;
   }elsif($command eq $COMMAND_FETCH){
     my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
     my $json;
