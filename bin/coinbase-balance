@@ -12,7 +12,7 @@ sub fetchWalletID($$$);
 sub fetchTransactions($$$);
 sub callCoinbaseAPI($$$);
 sub createJWT($$$);
-sub parseTransactionsJSON($);
+sub parseTransactionsJSON($$);
 sub formatTransaction($);
 sub usdFmt($$);
 sub btcFmt($$);
@@ -127,7 +127,7 @@ sub main(@){
     my $usdTotalBtcSend = 0;
     my $usdTotalBtcBuy = 0;
     my $usdTotalFee = 0;
-    my @transactions = parseTransactionsJSON($transactionsJSON);
+    my @transactions = parseTransactionsJSON("BTC", $transactionsJSON);
     for my $t(@transactions){
       my $amtUSD = abs($$t{usd});
       my $feeUSD = abs($$t{fee});
@@ -155,7 +155,7 @@ sub main(@){
     my $transactionsJSON = readTransactionsCache("BTC");
     die "ERROR: failed to read BTC transactions JSON cache\n" if not defined $transactionsJSON;
 
-    my @transactions = parseTransactionsJSON($transactionsJSON);
+    my @transactions = parseTransactionsJSON("BTC", $transactionsJSON);
     for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
       print formatTransaction($t);
     }
@@ -257,8 +257,8 @@ sub createJWT($$$){
   }
 }
 
-sub parseTransactionsJSON($){
-  my ($json) = @_;
+sub parseTransactionsJSON($$){
+  my ($currency, $json) = @_;
   my $obj = from_json $json;
   my @jsonTransactions = @{$$obj{data}};
   my @transactions;
@@ -266,7 +266,7 @@ sub parseTransactionsJSON($){
     my $date = `date --date="$$j{created_at}" +%s`;
     chomp $date;
 
-    die "ERROR: currency is not BTC\n$json" if $$j{amount}{currency} ne "BTC";
+    die "ERROR: currency is not $currency\n$json" if $$j{amount}{currency} ne $currency;
     die "ERROR: native currency is not USD\n$json" if $$j{native_amount}{currency} ne "USD";
     die "ERROR: could not parse date\n$json" if $date !~ /^\d+$/;
 
@@ -281,21 +281,22 @@ sub parseTransactionsJSON($){
     $usdTotal = $$totalObj{amount} if defined $totalObj;
     $usdSubtotal = $$subtotalObj{amount} if defined $subtotalObj;
 
-    my $btc = $$j{amount}{amount};
+    my $amount = $$j{amount}{amount};
 
     my $t = {
       type        => $$j{type},
-      btc         => $btc,
+      currency    => $currency,
+      amount      => $amount,
       usd         => $usdNativeAmt,
       date        => $date,
       desc        => $$j{description},
-      usd_per_btc => abs($usdNativeAmt / $btc),
+      usd_per_cur => abs($usdNativeAmt / $amount),
       fee         => undef,
     };
 
     #special buy/sell types
     if($$t{type} =~ /^(trade|advanced_trade_fill)$/){
-      if($$t{btc} < 0){
+      if($$t{amount} < 0){
         $$t{type} = "sell";
       }else{
         $$t{type} = "buy";
@@ -315,8 +316,8 @@ sub parseTransactionsJSON($){
     }elsif(defined $feeObj){
       if($$feeObj{currency} eq "USD"){
         $$t{fee} = abs($$feeObj{amount});
-      }elsif($$feeObj{currency} eq "BTC"){
-        $$t{fee} = abs($$t{usd_per_btc} * $$feeObj{amount});
+      }elsif($$feeObj{currency} eq $currency){
+        $$t{fee} = abs($$t{usd_per_cur} * $$feeObj{amount});
       }
     }elsif(defined $typeObj and defined $$typeObj{commission}){
       #advanced_trade_fill
@@ -335,10 +336,16 @@ sub formatTransaction($){
   chomp $dateFmt;
   my $desc = $$t{desc};
   $desc = "" if not defined $desc;
+
+  my $curFmt = undef;
+  $curFmt = btcFmt(15, $$t{amount}) if $$t{currency} eq "BTC";
+  $curFmt = "$$t{amount} ???" if not defined $curFmt;
+
+  my $typeFmt = $$t{type};
   return sprintf "%s | %4s | %s | %s | @%-6d | %s | %s\n",
     $dateFmt,
-    $$t{type},
-    btcFmt(15, $$t{btc}),
+    $typeFmt,
+    $curFmt,
     usdFmt(9, $$t{usd}),
     $$t{usd_per_btc},
     usdFmt(6, $$t{fee}),
