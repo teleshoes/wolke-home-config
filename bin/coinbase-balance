@@ -13,6 +13,7 @@ sub fetchTransactions($$$);
 sub callCoinbaseAPI($$$);
 sub createJWT($$$);
 sub parseTransactionsJSON($);
+sub formatTransaction($);
 sub usdFmt($$);
 sub btcFmt($$);
 sub readBalanceCache($);
@@ -156,19 +157,7 @@ sub main(@){
 
     my @transactions = parseTransactionsJSON($transactionsJSON);
     for my $t(sort {$$b{date} <=> $$a{date}} @transactions){
-      my $dateFmt = `date --date=\@$$t{date} +'%Y-%m-%d %H:%M:%S'`;
-      chomp $dateFmt;
-      my $desc = $$t{desc};
-      $desc = "" if not defined $desc;
-      printf "%s | %4s | %s | %s | @%-6d | %s | %s\n",
-        $dateFmt,
-        $$t{type},
-        btcFmt(15, $$t{btc}),
-        usdFmt(9, $$t{usd}),
-        $$t{usd_per_btc},
-        usdFmt(6, $$t{fee}),
-        $desc,
-      ;
+      print formatTransaction($t);
     }
   }elsif($command eq $COMMAND_FETCH){
     my ($keyID, $keySecret) = readCoinbaseKeyIDAndSecret();
@@ -338,6 +327,24 @@ sub parseTransactionsJSON($){
     push @transactions, $t;
   }
   return @transactions;
+}
+
+sub formatTransaction($){
+  my ($t) = @_;
+
+  my $dateFmt = `date --date=\@$$t{date} +'%Y-%m-%d %H:%M:%S'`;
+  chomp $dateFmt;
+  my $desc = $$t{desc};
+  $desc = "" if not defined $desc;
+  return sprintf "%s | %4s | %s | %s | @%-6d | %s | %s\n",
+    $dateFmt,
+    $$t{type},
+    btcFmt(15, $$t{btc}),
+    usdFmt(9, $$t{usd}),
+    $$t{usd_per_btc},
+    usdFmt(6, $$t{fee}),
+    $desc,
+  ;
 }
 
 sub usdFmt($$){
