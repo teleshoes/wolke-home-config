@@ -38,14 +38,38 @@ sub main(@){
 
   die "$USAGE\nERROR: missing PIC_INFO_FILE\n" if @picInfoFiles == 0;
 
+  my @results;
   for my $picInfoFile(@picInfoFiles){
-    handlePicInfoFile($picInfoFile);
+    push @results, handlePicInfoFile($picInfoFile);
+  }
+
+  my @changedEntries;
+  for my $result(@results){
+    for my $file(sort keys %{$$result{fileEntries}}){
+      my $entry = $$result{fileEntries}{$file};
+      if($$entry{file} ne $$entry{newFile}){
+        push @changedEntries, $entry;
+      }
+    }
+  }
+
+  for my $entry(@changedEntries){
+    print "#$$entry{file}\n";
+    print "#$$entry{newFile}\n";
+    print "# $$entry{infoStr}\n";
+    print "mv -n $$entry{file} $$entry{newFile}\n";
+    print "\n";
   }
 }
 
 sub handlePicInfoFile($){
   my ($picInfoFile) = @_;
-  my $fileEntries = {};
+
+  my $result = {
+    picInfoFile => $picInfoFile,
+    fileEntries => {},
+  };
+
   for my $line(`cat $picInfoFile`){
     next if $line =~ /^\s*(#.*)?$/;
     my ($dirBaseName, $fileBaseName, $ext, $infoStr);
@@ -97,9 +121,11 @@ sub handlePicInfoFile($){
       fileExt         => $ext,
       infoStr         => $infoStr,
       infoVals        => $infoVals,
+      fileNameInfoFmt => undef,
+      newFile         => undef,
     };
 
-    $$fileEntries{$file} = $entry;
+    $$result{fileEntries}{$file} = $entry;
 
     my @kmDistances;
     for my $val(@infoValsArr){
@@ -228,15 +254,15 @@ sub handlePicInfoFile($){
     }
   }
 
-  for my $file(sort keys %$fileEntries){
-    my $entry = $$fileEntries{$file};
+  for my $file(sort keys %{$$result{fileEntries}}){
+    my $entry = $$result{fileEntries}{$file};
     my $infoVals = $$entry{infoVals};
     my $closestDiff;
     my $closestEntry;
     my $mtime = $$entry{mtime};
-    for my $otherFile(sort keys %$fileEntries){
+    for my $otherFile(sort keys %{$$result{fileEntries}}){
       next if $file eq $otherFile;
-      my $otherEntry = $$fileEntries{$otherFile};
+      my $otherEntry = $$result{fileEntries}{$otherFile};
       my $otherMtime = $$otherEntry{mtime};
       my $diff = $mtime - $otherMtime;
       $diff = 0 - $diff if $diff < 0;
@@ -298,16 +324,15 @@ sub handlePicInfoFile($){
     }else{
       die "ERROR: $$entry{infoStr}\n";
     }
+
     my $newFileName = "$$entry{fileBaseName}_$infoFmt.$$entry{fileExt}";
     my $newFile = "$$entry{dirName}/$newFileName";
-    if($file ne $newFile){
-      print "#$file\n";
-      print "#$newFile\n";
-      print "# $$entry{infoStr}\n";
-      print "mv -n $file $newFile\n";
-      print "\n";
-    }
+
+    $$entry{fileNameInfoFmt} = $infoFmt;
+    $$entry{newFile} = $newFile;
   }
+
+  return $result;
 }
 
 sub mtime($){
