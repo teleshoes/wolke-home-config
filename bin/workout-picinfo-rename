@@ -2,9 +2,9 @@
 use strict;
 use warnings;
 use File::Basename qw(basename);
+use List::Util qw(max);
 
 sub handlePicInfoFile($);
-sub selectDistance($$$);
 sub mtime($);
 
 my $WORKOUT_DCIM_BASE_DIR = "$ENV{HOME}/DCIM/xhealth";
@@ -95,6 +95,8 @@ sub handlePicInfoFile($){
     $$info{fileExt} = $ext;
     $$info{file} = $file;
     $$info{infoStr} = $infoStr;
+
+    my @kmDistances;
     for my $val(@infoVals){
       if($val =~ /^(\d+):(\d+)$/){
         $$info{time} = $1*60 + $2;
@@ -123,14 +125,11 @@ sub handlePicInfoFile($){
       }elsif($val =~ /^(run|bike)$/){
         $$info{type} = $val;
       }elsif($val =~ /^(\d+|\d*\.\d+)mi$/){
-        my $km = $1*$KILOMETERS_PER_MILE;
-        $$info{km} = selectDistance($km, $$info{km}, $file);
+        push @kmDistances, $1*$KILOMETERS_PER_MILE;
       }elsif($val =~ /^(\d+|\d*\.\d+)cmi$/){
-        my $km = $1*$KILOMETERS_PER_MILE/100.0;
-        $$info{km} = selectDistance($km, $$info{km}, $file);
+        push @kmDistances, $1*$KILOMETERS_PER_MILE/100.0;
       }elsif($val =~ /^(\d+|\d*\.\d+)km$/){
-        my $km = $1;
-        $$info{km} = selectDistance($km, $$info{km}, $file);
+        push @kmDistances, $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)mph$/){
         $$info{mph} = $1;
       }elsif($val =~ /^(\d\d):(\d\d)pace$/){
@@ -167,6 +166,18 @@ sub handlePicInfoFile($){
         $$info{reminder} = $1;
       }else{
         die "malformed val '$val'\n$line\n";
+      }
+    }
+
+    #take the max distance and ensure all distances are within 20m of the max
+    $$info{km} = max(@kmDistances);
+
+    for my $kmDist(@kmDistances){
+      my $diff = $$info{km} - $kmDist;
+      $diff = 0-$diff if $diff<0;
+
+      if($diff > 0.02){
+        die "ERROR: mismatched distance $kmDist vs $$info{km} in $file\n";
       }
     }
 
@@ -291,17 +302,6 @@ sub handlePicInfoFile($){
       print "\n";
     }
   }
-}
-
-sub selectDistance($$$){
-  my ($dist1, $dist2, $sourceMsg) = @_;
-  return $dist1 if not defined $dist2;
-  return $dist2 if not defined $dist1;
-
-  my $diff = $dist2-$dist1;
-  $diff = 0-$diff if $diff<0;
-  die "ERROR: mismatched distance $dist1 vs $dist2 in $sourceMsg\n" if $diff > 0.02;
-  return $dist1 > $dist2 ? $dist1 : $dist2;
 }
 
 sub mtime($){
