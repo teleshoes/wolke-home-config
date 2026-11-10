@@ -25,11 +25,15 @@ my $USAGE = "Usage:
     -s | --short
       -just print 'mv' command instead of #old/new/infostr comments
       -omit warnings count if no warnings
+
+    -a | --apply
+      -actually run the move commands as they are printed
 ";
 
 sub main(@){
   my $opts = {
     short => 0,
+    apply => 0,
   };
   my @picInfoFiles;
   while(@_ > 0){
@@ -39,6 +43,8 @@ sub main(@){
       exit 0;
     }elsif($arg =~ /^(-s|--short)$/){
       $$opts{short} = 1;
+    }elsif($arg =~ /^(-a|--apply)$/){
+      $$opts{apply} = 1;
     }elsif(-f $arg){
       push @picInfoFiles, $arg;
     }else{
@@ -96,6 +102,14 @@ sub main(@){
       print "# $$entry{infoStr}\n";
       print "@mvCmd\n";
       print "\n";
+    }
+
+    if($$opts{apply}){
+      system @mvCmd;
+      my $exitCode = $? >> 8;
+      if($exitCode != 0){
+        die "ERROR: @mvCmd failed with exit code $exitCode\n$!\n";
+      }
     }
   }
 
