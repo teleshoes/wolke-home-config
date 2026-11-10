@@ -43,14 +43,25 @@ sub main(@){
     push @results, handlePicInfoFile($picInfoFile);
   }
 
+  my $error = 0;
   my @changedEntries;
   for my $result(@results){
     for my $file(sort keys %{$$result{fileEntries}}){
       my $entry = $$result{fileEntries}{$file};
+      if(not $$entry{success} or defined $$entry{errorMsg}){
+        print "# ERROR: parsing info for $file in $$result{picInfoFile} failed\n"
+          . "#  $$entry{errorMsg}\n";
+        $error = 1;
+        next;
+      }
       if($$entry{file} ne $$entry{newFile}){
         push @changedEntries, $entry;
       }
     }
+  }
+
+  if($error){
+    die "\nERROR: picinfo parsing failed\n";
   }
 
   for my $entry(@changedEntries){
@@ -123,6 +134,8 @@ sub handlePicInfoFile($){
       fileExt         => $ext,
       infoStr         => $infoStr,
       infoVals        => $infoVals,
+      success         => 0,
+      errorMsg        => undef,
       fileNameInfoFmt => undef,
       newFile         => undef,
     };
@@ -198,9 +211,11 @@ sub handlePicInfoFile($){
       }elsif($val =~ /^(reminder_[a-zA-Z0-9_\-\.]+)$/){
         $$infoVals{reminder} = $1;
       }else{
-        die "malformed val '$val'\n$line\n";
+        $$entry{errorMsg} = "malformed val '$val'\n$line\n";
+        last;
       }
     }
+    next if defined $$entry{errorMsg};
 
     #take the max distance and ensure all distances are within 20m of the max
     $$infoVals{km} = max(@kmDistances);
@@ -210,13 +225,17 @@ sub handlePicInfoFile($){
       $diff = 0-$diff if $diff<0;
 
       if($diff > 0.02){
-        die "ERROR: mismatched distance $kmDist vs $$infoVals{km} in $file\n";
+        $$entry{errorMsg} = "mismatched distance $kmDist vs $$infoVals{km}\n";
+        last;
       }
     }
+    next if defined $$entry{errorMsg};
 
     if(defined $$infoVals{remainingFromTotal}){
       if($$infoVals{time} >= $$infoVals{remainingFromTotal}){
-        die "ERROR: remaining time $$infoVals{time} exceeds total $$infoVals{remainingFromTotal}\n";
+        $$entry{errorMsg} =
+          "remaining time $$infoVals{time} exceeds total $$infoVals{remainingFromTotal}\n";
+        next;
       }
       $$infoVals{time} = $$infoVals{remainingFromTotal} - $$infoVals{time};
     }
@@ -324,7 +343,8 @@ sub handlePicInfoFile($){
         $infoFmt .= defined $$infoVals{isEnd} ? "-end" : "";
       }
     }else{
-      die "ERROR: could not determine type for $$entry{infoStr}\n";
+      $$entry{errorMsg} = "could not determine type for $$entry{infoStr}\n";
+      next;
     }
 
     my $newFileName = "$$entry{fileBaseName}_$infoFmt.$$entry{fileExt}";
@@ -332,6 +352,7 @@ sub handlePicInfoFile($){
 
     $$entry{fileNameInfoFmt} = $infoFmt;
     $$entry{newFile} = $newFile;
+    $$entry{success} = 1;
   }
 
   return $result;
