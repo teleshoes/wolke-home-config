@@ -16,19 +16,29 @@ my $USAGE = "Usage:
   $EXEC -h|--help
     show this message
 
-  $EXEC PIC_INFO_FILE [PIC_INFO_FILE PIC_INFO_FILE..]
+  $EXEC [OPTS] PIC_INFO_FILE [PIC_INFO_FILE PIC_INFO_FILE..]
     print a shell script to rename files in
       $WORKOUT_DCIM_BASE_DIR
     based on the info in each PIC_INFO_FILE
+
+  OPTS
+    -s | --short
+      -just print 'mv' command instead of #old/new/infostr comments
+      -omit warnings count if no warnings
 ";
 
 sub main(@){
+  my $opts = {
+    short => 0,
+  };
   my @picInfoFiles;
   while(@_ > 0){
     my $arg = shift;
     if($arg =~ /^(-h|--help)$/){
       print $USAGE;
       exit 0;
+    }elsif($arg =~ /^(-s|--short)$/){
+      $$opts{short} = 1;
     }elsif(-f $arg){
       push @picInfoFiles, $arg;
     }else{
@@ -77,14 +87,21 @@ sub main(@){
   }
 
   for my $entry(@changedEntries){
-    print "#$$entry{file}\n";
-    print "#$$entry{newFile}\n";
-    print "# $$entry{infoStr}\n";
-    print "mv -n $$entry{file} $$entry{newFile}\n";
-    print "\n";
+    my @mvCmd = ("mv", "-n", $$entry{file}, $$entry{newFile});
+    if($$opts{short}){
+      print "@mvCmd\n";
+    }else{
+      print "#$$entry{file}\n";
+      print "#$$entry{newFile}\n";
+      print "# $$entry{infoStr}\n";
+      print "@mvCmd\n";
+      print "\n";
+    }
   }
 
-  print "\n# $warnCount warnings\n";
+  if($warnCount > 0 or (not $$opts{short})){
+    print "\n# $warnCount warnings\n";
+  }
 }
 
 sub handlePicInfoFile($){
