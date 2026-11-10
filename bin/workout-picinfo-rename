@@ -46,6 +46,13 @@ sub main(@){
   my $error = 0;
   my @changedEntries;
   for my $result(@results){
+    if(defined $$result{parseError}){
+      print "# ERROR: parsing $$result{picInfoFile} failed\n"
+        . "#  $$result{parseError}\n";
+      $error = 1;
+      next;
+    }
+
     for my $file(sort keys %{$$result{fileEntries}}){
       my $entry = $$result{fileEntries}{$file};
       if(not $$entry{success} or defined $$entry{errorMsg}){
@@ -78,6 +85,7 @@ sub handlePicInfoFile($){
 
   my $result = {
     picInfoFile => $picInfoFile,
+    parseError  => undef,
     fileEntries => {},
   };
 
@@ -89,7 +97,8 @@ sub handlePicInfoFile($){
     }elsif($line =~ /^([a-zA-Z0-9_\-]+)\.(jpg|png)\s*:\s*(.+)$/){
       ($dirBaseName, $fileBaseName, $ext, $infoStr) = ("", $1, $2, $3);
     }else{
-      die "ERROR: malformed line $line";
+      $$result{parseError} = "malformed line $line";
+      last;
     }
     next if $infoStr =~ /^\s*trash\s*$/;
 
@@ -99,19 +108,22 @@ sub handlePicInfoFile($){
     }elsif($dirBaseName =~ /^(?:\.\/)?(\d\d\d\d-\d\d-\d\d)(?:_\w+)?$/){
       $dirPtrn = "$1*";
     }else{
-      die "ERROR: invalid dirname $dirBaseName\n";
+      $$result{parseError} = "invalid dirname $dirBaseName\n";
+      last;
     }
     if($fileBaseName =~ /^(?:IMG_)?(\d\d\d\d\d\d\d\d_\d\d\d\d\d\d)(?:_[a-zA-Z0-9_\-]+)?$/){
       $fileBaseName = $1;
     }else{
-      die "ERROR: invalid filename $fileBaseName\n";
+      $$result{parseError} = "invalid filename $fileBaseName\n";
+      last;
     }
 
     my $ptrn = "$WORKOUT_DCIM_BASE_DIR/$dirPtrn/*$fileBaseName*.$ext";
     my @files = glob $ptrn;
     if(@files != 1){
       my $msg = @files == 0 ? "could not find" : "too many files match";
-      die "ERROR: $msg $ptrn\n";
+      $$result{parseError} = "$msg $ptrn\n";
+      last;
     }
     my $file = $files[0];
 
@@ -119,7 +131,8 @@ sub handlePicInfoFile($){
     if(-f $file and $file =~ /^(.+)\/([^\/]+)$/){
       ($dirName, $fileName) = ($1, $2);
     }else{
-      die "ERROR: invalid file $file\n";
+      $$result{parseError} = "invalid file $file\n";
+      last;
     }
 
     my @infoValsArr = grep {$_ ne ""} split /\s+/, $infoStr;
