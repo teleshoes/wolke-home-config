@@ -45,7 +45,7 @@ sub main(@){
 
 sub handlePicInfoFile($){
   my ($picInfoFile) = @_;
-  my $fileInfo = {};
+  my $fileEntries = {};
   for my $line(`cat $picInfoFile`){
     next if $line =~ /^\s*(#.*)?$/;
     my ($dirBaseName, $fileBaseName, $ext, $infoStr);
@@ -89,16 +89,17 @@ sub handlePicInfoFile($){
 
     my $infoVals = {};
 
-    my $entry = {};
-    $$fileInfo{$file} = $entry;
+    my $entry = {
+      file            => $file,
+      mtime           => mtime "$file",
+      dirName         => $dirName,
+      fileBaseName    => $fileBaseName,
+      fileExt         => $ext,
+      infoStr         => $infoStr,
+      infoVals        => $infoVals,
+    };
 
-    $$entry{mtime} = mtime "$file";
-    $$entry{dirName} = $dirName;
-    $$entry{fileBaseName} = $fileBaseName;
-    $$entry{fileExt} = $ext;
-    $$entry{file} = $file;
-    $$entry{infoStr} = $infoStr;
-    $$entry{infoVals} = $infoVals;
+    $$fileEntries{$file} = $entry;
 
     my @kmDistances;
     for my $val(@infoValsArr){
@@ -227,15 +228,15 @@ sub handlePicInfoFile($){
     }
   }
 
-  for my $file(sort keys %$fileInfo){
-    my $entry = $$fileInfo{$file};
+  for my $file(sort keys %$fileEntries){
+    my $entry = $$fileEntries{$file};
     my $infoVals = $$entry{infoVals};
     my $closestDiff;
     my $closestEntry;
     my $mtime = $$entry{mtime};
-    for my $otherFile(sort keys %$fileInfo){
+    for my $otherFile(sort keys %$fileEntries){
       next if $file eq $otherFile;
-      my $otherEntry = $$fileInfo{$otherFile};
+      my $otherEntry = $$fileEntries{$otherFile};
       my $otherMtime = $$otherEntry{mtime};
       my $diff = $mtime - $otherMtime;
       $diff = 0 - $diff if $diff < 0;
