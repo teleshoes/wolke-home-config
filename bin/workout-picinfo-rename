@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename qw(basename);
 
 sub handleInfoFile($);
 sub selectDistance($$$);
@@ -9,9 +10,34 @@ sub mtime($);
 my $WORKOUT_DCIM_BASE_DIR = "$ENV{HOME}/DCIM/xhealth";
 my $KILOMETERS_PER_MILE = 1.609344;
 
+my $EXEC = basename $0;
+
+my $USAGE = "Usage:
+  $EXEC -h|--help
+    show this message
+
+  $EXEC INFO_FILE
+    print a shell script to rename files in
+      $WORKOUT_DCIM_BASE_DIR
+    based on the info in INFO_FILE
+";
+
 sub main(@){
-  my ($infoFile) = @_;
-  die "USAGE: $0 INFO_FILE\n" if not defined $infoFile or not -f $infoFile;
+  my $infoFile = undef;
+  while(@_ > 0){
+    my $arg = shift;
+    if($arg =~ /^(-h|--help)$/){
+      print $USAGE;
+      exit 0;
+    }elsif(-f $arg and not defined $infoFile){
+      $infoFile = $arg;
+    }else{
+      die "ERROR: unknown arg $arg\n";
+    }
+  }
+
+  die "$USAGE\nERROR: missing INFO_FILE\n" if not defined $infoFile;
+
   handleInfoFile($infoFile);
 }
 
