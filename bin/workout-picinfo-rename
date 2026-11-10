@@ -57,7 +57,6 @@ sub handlePicInfoFile($){
       die "ERROR: malformed line $line";
     }
     next if $infoStr =~ /^\s*trash\s*$/;
-    my @infoVals = grep {$_ ne ""} split /\s+/, $infoStr;
 
     my $dirPtrn = "";
     if($dirBaseName eq ""){
@@ -86,44 +85,49 @@ sub handlePicInfoFile($){
       die "ERROR: invalid file $file\n";
     }
 
-    my $info = {};
-    $$fileInfo{$file} = $info;
+    my @infoValsArr = grep {$_ ne ""} split /\s+/, $infoStr;
 
-    $$info{mtime} = mtime "$file";
-    $$info{dirName} = $dirName;
-    $$info{fileBaseName} = $fileBaseName;
-    $$info{fileExt} = $ext;
-    $$info{file} = $file;
-    $$info{infoStr} = $infoStr;
+    my $infoVals = {};
+
+    my $entry = {};
+    $$fileInfo{$file} = $entry;
+
+    $$entry{mtime} = mtime "$file";
+    $$entry{dirName} = $dirName;
+    $$entry{fileBaseName} = $fileBaseName;
+    $$entry{fileExt} = $ext;
+    $$entry{file} = $file;
+    $$entry{infoStr} = $infoStr;
+    $$entry{infoVals} = $infoVals;
 
     my @kmDistances;
-    for my $val(@infoVals){
+    for my $val(@infoValsArr){
       if($val =~ /^(\d+):(\d+)$/){
-        $$info{time} = $1*60 + $2;
+        $$infoVals{time} = $1*60 + $2;
       }elsif($val =~ /^(\d+):(\d+):(\d+)$/){
-        $$info{time} = $1*60*60 + $2*60 + $3;
+        $$infoVals{time} = $1*60*60 + $2*60 + $3;
       }elsif($val =~ /^(\d+)s$/){
-        $$info{time} = $1;
+        $$infoVals{time} = $1;
       }elsif($val =~ /^(\d+)min$/){
-        $$info{min} = $1;
+        $$infoVals{min} = $1;
       }elsif($val =~ /^offset(\d+):(\d+)$/){
-        $$info{offset} = 300 - ($1*60 + $2);
-        $$info{isEnd} = 1;
+        $$infoVals{offset} = 300 - ($1*60 + $2);
+        $$infoVals{isEnd} = 1;
       }elsif($val =~ /^(\d+):(\d+)offset$/){
-        $$info{offset} = 300 - ($1*60 + $2);
-        $$info{isEnd} = 1;
+        $$infoVals{offset} = 300 - ($1*60 + $2);
+        $$infoVals{isEnd} = 1;
       }elsif($val =~ /^(\d+):(\d+)offset300$/){
-        $$info{offset} = 300 - ($1*60 + $2);
-        $$info{isEnd} = 1;
+        $$infoVals{offset} = 300 - ($1*60 + $2);
+        $$infoVals{isEnd} = 1;
       }elsif($val =~ /^(\d+):(\d+)offset60$/){
-        $$info{offset} = 60 - ($1*60 + $2);
-        $$info{isEnd} = 1;
+        $$infoVals{offset} = 60 - ($1*60 + $2);
+        $$infoVals{isEnd} = 1;
       }elsif($val =~ /^remaining(\d+):(\d+)$/){
-        $$info{remainingFromTotal} = ($1*60 + $2);
+        $$infoVals{remainingFromTotal} = ($1*60 + $2);
       }elsif($val =~ /^(end)$/){
-        $$info{isEnd} = 1;
+        $$infoVals{isEnd} = 1;
       }elsif($val =~ /^(run|bike)$/){
-        $$info{type} = $val;
+        $$infoVals{type} = $val;
       }elsif($val =~ /^(\d+|\d*\.\d+)mi$/){
         push @kmDistances, $1*$KILOMETERS_PER_MILE;
       }elsif($val =~ /^(\d+|\d*\.\d+)cmi$/){
@@ -131,173 +135,174 @@ sub handlePicInfoFile($){
       }elsif($val =~ /^(\d+|\d*\.\d+)km$/){
         push @kmDistances, $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)mph$/){
-        $$info{mph} = $1;
+        $$infoVals{mph} = $1;
       }elsif($val =~ /^(\d\d):(\d\d)pace$/){
-        $$info{mph} = sprintf("%.1f", 3600/($1*60+$2));
+        $$infoVals{mph} = sprintf("%.1f", 3600/($1*60+$2));
       }elsif($val =~ /^(\d+|\d*\.\d+)(?:mphavg|avgmph)$/){
-        $$info{mphavg} = $1;
+        $$infoVals{mphavg} = $1;
       }elsif($val =~ /^(\d\d):(\d\d)(?:avgpace|paceavg)$/){
-        $$info{mphavg} = sprintf("%.1f", 3600/($1*60+$2));
+        $$infoVals{mphavg} = sprintf("%.1f", 3600/($1*60+$2));
       }elsif($val =~ /^(\d+|\d*\.\d+)rpm$/){
-        $$info{rpm} = $1;
+        $$infoVals{rpm} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)rpmavg$/){
-        $$info{rpmavg} = $1;
+        $$infoVals{rpmavg} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)cal(?:s?)$/){
-        $$info{cal} = $1;
+        $$infoVals{cal} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)cal\/hr$/){
-        $$info{calperhr} = $1;
+        $$infoVals{calperhr} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)watts$/){
-        $$info{watts} = $1;
+        $$infoVals{watts} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)mets$/){
-        $$info{mets} = $1;
+        $$infoVals{mets} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)hr$/){
-        $$info{hr} = $1;
+        $$infoVals{hr} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)bpm$/){
-        $$info{hr} = $1;
+        $$infoVals{hr} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)(hrmax|maxhr|peakhr|hrpeak)$/){
-        $$info{hrmax} = $1;
+        $$infoVals{hrmax} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)v$/){
-        $$info{level} = $1;
+        $$infoVals{level} = $1;
       }elsif($val =~ /^(\d+|\d*\.\d+)(?:lbs|weight)$/){
-        $$info{weight} = $1;
+        $$infoVals{weight} = $1;
       }elsif($val =~ /^(?:weight|lbs)(\d+|\d*\.\d+)$/){
-        $$info{weight} = $1;
+        $$infoVals{weight} = $1;
       }elsif($val =~ /^(reminder_[a-zA-Z0-9_\-\.]+)$/){
-        $$info{reminder} = $1;
+        $$infoVals{reminder} = $1;
       }else{
         die "malformed val '$val'\n$line\n";
       }
     }
 
     #take the max distance and ensure all distances are within 20m of the max
-    $$info{km} = max(@kmDistances);
+    $$infoVals{km} = max(@kmDistances);
 
     for my $kmDist(@kmDistances){
-      my $diff = $$info{km} - $kmDist;
+      my $diff = $$infoVals{km} - $kmDist;
       $diff = 0-$diff if $diff<0;
 
       if($diff > 0.02){
-        die "ERROR: mismatched distance $kmDist vs $$info{km} in $file\n";
+        die "ERROR: mismatched distance $kmDist vs $$infoVals{km} in $file\n";
       }
     }
 
-    if(defined $$info{remainingFromTotal}){
-      if($$info{time} >= $$info{remainingFromTotal}){
-        die "ERROR: remaining time $$info{time} exceeds total $$info{remainingFromTotal}\n";
+    if(defined $$infoVals{remainingFromTotal}){
+      if($$infoVals{time} >= $$infoVals{remainingFromTotal}){
+        die "ERROR: remaining time $$infoVals{time} exceeds total $$infoVals{remainingFromTotal}\n";
       }
-      $$info{time} = $$info{remainingFromTotal} - $$info{time};
+      $$infoVals{time} = $$infoVals{remainingFromTotal} - $$infoVals{time};
     }
 
-    if(defined $$info{km} and defined $$info{time} and $$info{time} > 0){
-      $$info{realMPH} = $$info{km}/$KILOMETERS_PER_MILE/$$info{time}*60*60;
+    if(defined $$infoVals{km} and defined $$infoVals{time} and $$infoVals{time} > 0){
+      $$infoVals{realMPH} = $$infoVals{km}/$KILOMETERS_PER_MILE/$$infoVals{time}*60*60;
     }
-    if(defined $$info{calperhr} and not defined $$info{cal}
-       and defined $$info{time} and $$info{time} > 0
+    if(defined $$infoVals{calperhr} and not defined $$infoVals{cal}
+       and defined $$infoVals{time} and $$infoVals{time} > 0
     ){
-      $$info{cal} = int($$info{calperhr}*$$info{time}/3600 + 0.5);
+      $$infoVals{cal} = int($$infoVals{calperhr}*$$infoVals{time}/3600 + 0.5);
     }
 
-    if(defined $$info{rpm} or defined $$info{level} or defined $$info{rpmavg}){
-      $$info{type} = "bike";
+    if(defined $$infoVals{rpm} or defined $$infoVals{level} or defined $$infoVals{rpmavg}){
+      $$infoVals{type} = "bike";
     }
-    if(defined $$info{mph}){
-      $$info{type} = "run";
+    if(defined $$infoVals{mph}){
+      $$infoVals{type} = "run";
     }
-    if(not defined $$info{type} and defined $$info{realMPH} and $$info{realMPH} > 12){
-      $$info{type} = "bike";
+    if(not defined $$infoVals{type} and defined $$infoVals{realMPH} and $$infoVals{realMPH} > 12){
+      $$infoVals{type} = "bike";
     }
-    if(not defined $$info{type}
-        and defined $$info{km} and $$info{km} < 20
-        and defined $$info{realMPH} and $$info{realMPH} < 10
+    if(not defined $$infoVals{type}
+        and defined $$infoVals{km} and $$infoVals{km} < 20
+        and defined $$infoVals{realMPH} and $$infoVals{realMPH} < 10
     ){
-      $$info{type} = "run";
+      $$infoVals{type} = "run";
     }
-    if(defined $$info{reminder}){
-      $$info{type} = "reminder";
+    if(defined $$infoVals{reminder}){
+      $$infoVals{type} = "reminder";
     }
-    if(defined $$info{weight}){
-      $$info{type} = "weight";
+    if(defined $$infoVals{weight}){
+      $$infoVals{type} = "weight";
     }
-    if(not defined $$info{type} and $infoStr =~ /^\d+hr$/){
-      $$info{type} = "run";
+    if(not defined $$infoVals{type} and $infoStr =~ /^\d+hr$/){
+      $$infoVals{type} = "run";
     }
   }
 
   for my $file(sort keys %$fileInfo){
-    my $info = $$fileInfo{$file};
+    my $entry = $$fileInfo{$file};
+    my $infoVals = $$entry{infoVals};
     my $closestDiff;
-    my $closestInfo;
-    my $mtime = $$info{mtime};
+    my $closestEntry;
+    my $mtime = $$entry{mtime};
     for my $otherFile(sort keys %$fileInfo){
       next if $file eq $otherFile;
-      my $otherInfo = $$fileInfo{$otherFile};
-      my $otherMtime = $$otherInfo{mtime};
+      my $otherEntry = $$fileInfo{$otherFile};
+      my $otherMtime = $$otherEntry{mtime};
       my $diff = $mtime - $otherMtime;
       $diff = 0 - $diff if $diff < 0;
       if(not defined $closestDiff or $closestDiff > $diff){
         $closestDiff = $diff;
-        $closestInfo = $otherInfo;
+        $closestEntry = $otherEntry;
       }
     }
 
-    if(not defined $$info{type}){
-      print "# WARNING: forcing 'run' for $$info{file} = $$info{infoStr}\n";
-      $$info{type} = "run";
+    if(not defined $$infoVals{type}){
+      print "# WARNING: forcing 'run' for $$entry{file} = $$entry{infoStr}\n";
+      $$infoVals{type} = "run";
     }
 
     my $timeFmt = undef;
-    if(defined $$info{time}){
-      my $min = int($$info{time} / 60);
-      my $sec = int($$info{time}) % 60;
+    if(defined $$infoVals{time}){
+      my $min = int($$infoVals{time} / 60);
+      my $sec = int($$infoVals{time}) % 60;
       $timeFmt = sprintf "%02dm%02ds", $min, $sec;
     }
 
     my $infoFmt;
-    if($$info{type} eq "reminder"){
-      $infoFmt = $$info{reminder};
-    }elsif($$info{type} eq "weight"){
-      $infoFmt = "weight-" . sprintf("%05.1flbs", $$info{weight});
-    }elsif($$info{type} eq "bike"){
+    if($$infoVals{type} eq "reminder"){
+      $infoFmt = $$infoVals{reminder};
+    }elsif($$infoVals{type} eq "weight"){
+      $infoFmt = "weight-" . sprintf("%05.1flbs", $$infoVals{weight});
+    }elsif($$infoVals{type} eq "bike"){
       $infoFmt = "bike";
       $infoFmt .= defined $timeFmt ? "-$timeFmt" : "-__m__s";
-      $infoFmt .= defined $$info{level} ? "-$$info{level}v" : "-14v";
-      $infoFmt .= defined $$info{km} ? sprintf "-%05.2fkm", $$info{km} : "-_____km";
-      if(defined $$info{rpm}){
-        $infoFmt .= sprintf "-%03drpm", $$info{rpm};
-      }elsif(defined $$info{rpmavg}){
-        $infoFmt .= sprintf "-%03drpmavg", $$info{rpmavg};
+      $infoFmt .= defined $$infoVals{level} ? "-$$infoVals{level}v" : "-14v";
+      $infoFmt .= defined $$infoVals{km} ? sprintf "-%05.2fkm", $$infoVals{km} : "-_____km";
+      if(defined $$infoVals{rpm}){
+        $infoFmt .= sprintf "-%03drpm", $$infoVals{rpm};
+      }elsif(defined $$infoVals{rpmavg}){
+        $infoFmt .= sprintf "-%03drpmavg", $$infoVals{rpmavg};
       }else{
         $infoFmt .= "-___rpm";
       }
-      $infoFmt .= defined $$info{cal} ? sprintf("-%03dcal", $$info{cal}) : "-___cal";
-      $infoFmt .= defined $$info{hr} ? sprintf("-%03dhr", $$info{hr}) : "-___hr";
-    }elsif($$info{type} eq "run"){
+      $infoFmt .= defined $$infoVals{cal} ? sprintf("-%03dcal", $$infoVals{cal}) : "-___cal";
+      $infoFmt .= defined $$infoVals{hr} ? sprintf("-%03dhr", $$infoVals{hr}) : "-___hr";
+    }elsif($$infoVals{type} eq "run"){
       $infoFmt = "run";
-      if(defined $$info{min} and defined $$info{mph} and not defined $$info{time}){
-        $infoFmt .= sprintf "-%dmin", $$info{min};
-        $infoFmt .= sprintf "-%dmph", $$info{mph};
+      if(defined $$infoVals{min} and defined $$infoVals{mph} and not defined $$infoVals{time}){
+        $infoFmt .= sprintf "-%dmin", $$infoVals{min};
+        $infoFmt .= sprintf "-%dmph", $$infoVals{mph};
       }else{
         $infoFmt .= defined $timeFmt ? "-$timeFmt" : "-__m__s";
-        $infoFmt .= defined $$info{km} ? sprintf "-%05.2fkm", $$info{km} : "-_____km";
-        $infoFmt .= defined $$info{mph} ? sprintf("-%04.1fmph", $$info{mph}) : "-____mph";
-        $infoFmt .= defined $$info{mphavg} ? sprintf("-%04.1fmphavg", $$info{mphavg}) : "";
-        $infoFmt .= defined $$info{cal} ? sprintf("-%03dcal", $$info{cal}) : "";
-        $infoFmt .= defined $$info{watts} ? sprintf("-%03dW", $$info{watts}) : "";
-        $infoFmt .= defined $$info{mets} ? sprintf("-%04.1fmets", $$info{mets}) : "";
-        $infoFmt .= defined $$info{hr} ? sprintf("-%03dhr", $$info{hr}) : "-___hr";
-        $infoFmt .= defined $$info{offset} ? sprintf("-%doffset", $$info{offset}) : "";
-        $infoFmt .= defined $$info{hrmax} ? sprintf("-%dhrmax", $$info{hrmax}) : "";
-        $infoFmt .= defined $$info{isEnd} ? "-end" : "";
+        $infoFmt .= defined $$infoVals{km} ? sprintf "-%05.2fkm", $$infoVals{km} : "-_____km";
+        $infoFmt .= defined $$infoVals{mph} ? sprintf("-%04.1fmph", $$infoVals{mph}) : "-____mph";
+        $infoFmt .= defined $$infoVals{mphavg} ? sprintf("-%04.1fmphavg", $$infoVals{mphavg}) : "";
+        $infoFmt .= defined $$infoVals{cal} ? sprintf("-%03dcal", $$infoVals{cal}) : "";
+        $infoFmt .= defined $$infoVals{watts} ? sprintf("-%03dW", $$infoVals{watts}) : "";
+        $infoFmt .= defined $$infoVals{mets} ? sprintf("-%04.1fmets", $$infoVals{mets}) : "";
+        $infoFmt .= defined $$infoVals{hr} ? sprintf("-%03dhr", $$infoVals{hr}) : "-___hr";
+        $infoFmt .= defined $$infoVals{offset} ? sprintf("-%doffset", $$infoVals{offset}) : "";
+        $infoFmt .= defined $$infoVals{hrmax} ? sprintf("-%dhrmax", $$infoVals{hrmax}) : "";
+        $infoFmt .= defined $$infoVals{isEnd} ? "-end" : "";
       }
     }else{
-      die "ERROR: $$info{infoStr}\n";
+      die "ERROR: $$entry{infoStr}\n";
     }
-    my $newFileName = "$$info{fileBaseName}_$infoFmt.$$info{fileExt}";
-    my $newFile = "$$info{dirName}/$newFileName";
+    my $newFileName = "$$entry{fileBaseName}_$infoFmt.$$entry{fileExt}";
+    my $newFile = "$$entry{dirName}/$newFileName";
     if($file ne $newFile){
       print "#$file\n";
       print "#$newFile\n";
-      print "# $$info{infoStr}\n";
+      print "# $$entry{infoStr}\n";
       print "mv -n $file $newFile\n";
       print "\n";
     }
